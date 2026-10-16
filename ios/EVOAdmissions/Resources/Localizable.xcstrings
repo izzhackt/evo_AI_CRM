@@ -9945,6 +9945,23 @@
         }
       }
     },
+    "favorites_hidden_count" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каталогдо мындан ары жок: %ld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Больше нет в каталоге: %ld"
+          }
+        }
+      }
+    },
     "favorites_saved_count" : {
       "extractionState" : "manual",
       "localizations" : {

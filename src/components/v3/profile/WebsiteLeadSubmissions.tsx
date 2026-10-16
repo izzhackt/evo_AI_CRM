@@ -2,10 +2,16 @@ import type { PlatformActor } from "@/lib/platform-auth";
 import { studyCountryFromWebsiteValue, studyCountryName } from "@/lib/study-countries";
 import { readWebsiteLeadSubmissions } from "@/lib/v3/website-lead-source";
 
-/** Страна из заявки сайта: значения единого списка по-русски, прежние значения формы как пришли. */
+/** Прежние значения формы сайта (до 282) по-русски; приёмник их по-прежнему принимает. */
+const LEGACY_WEBSITE_COUNTRY_LABELS: Readonly<Record<string, string>> = {
+  Europe: "Европа", Germany: "Германия", "United Kingdom": "Великобритания", Netherlands: "Нидерланды",
+  France: "Франция", Poland: "Польша", Austria: "Австрия", Cyprus: "Кипр",
+};
+
+/** Страна из заявки сайта по-русски: единый список по study-countries.json, прежние значения формы по своей подписи. */
 function websiteCountryLabel(value: string): string {
   const code = studyCountryFromWebsiteValue(value);
-  return (code && studyCountryName(code, "ru")) ?? value;
+  return (code && studyCountryName(code, "ru")) ?? (Object.hasOwn(LEGACY_WEBSITE_COUNTRY_LABELS, value) ? LEGACY_WEBSITE_COUNTRY_LABELS[value] : value);
 }
 
 export async function WebsiteLeadSubmissions({ actor, leadId }: { actor: PlatformActor; leadId: string }) {

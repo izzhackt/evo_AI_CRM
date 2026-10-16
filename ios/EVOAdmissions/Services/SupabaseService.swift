@@ -301,6 +301,15 @@ final class SupabaseService {
             .value
     }
 
+    /// `platform.student_hidden_university_favorites_v1()` (282) — how many
+    /// of the caller's favourites are no longer in the student catalogue.
+    func studentHiddenUniversityFavorites() async throws -> HiddenUniversityFavorites {
+        try await client
+            .rpc("student_hidden_university_favorites_v1")
+            .execute()
+            .value
+    }
+
     /// `platform.student_university_catalog_by_ids_v1(p_institution_ids)` —
     /// batch card read, same row shape as the catalogue page (195:159-166).
     /// Ceiling is 30 ids per call (195:129); the caller chunks larger sets.
@@ -659,7 +668,8 @@ extension SupabaseService {
         let emailConfirmed: Bool
         let staffProvisionMarker: String?
         /// The user_metadata draft, already contract-validated; nil when
-        /// absent or invalid (metadata is a draft, never authority).
+        /// absent or invalid (metadata is a draft, never authority). A
+        /// pre-282 country keeps it valid: the server accepts it (plan §4.1).
         let metadataDraft: StudentApplicationDraft?
     }
 

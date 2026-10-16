@@ -10,7 +10,10 @@ import XCTest
 /// - invite acceptance — the PORT-9a handler's response contract
 ///   (src/lib/server/student-portal-intake-route-handlers.ts).
 final class ApplicationIntakeDecodingTests: XCTestCase {
-    private func validDraftJSON(english: String = #"{"mode":"self","level":"intermediate"}"#) -> String {
+    private func validDraftJSON(
+        english: String = #"{"mode":"self","level":"intermediate"}"#,
+        countries: String = #"["CN", "MY"]"#
+    ) -> String {
         """
         {
           "schemaVersion": 1,
@@ -18,7 +21,7 @@ final class ApplicationIntakeDecodingTests: XCTestCase {
           "firstName": "Айдана",
           "lastName": "Осмонова",
           "phone": "+996 555 112233",
-          "destinationCountries": ["CN", "MY"],
+          "destinationCountries": \(countries),
           "intakeSeason": "autumn",
           "intakeYear": 2027,
           "educationLevel": "high_school",
@@ -60,6 +63,54 @@ final class ApplicationIntakeDecodingTests: XCTestCase {
         XCTAssertEqual(application.questionnaire.firstName, "Айдана")
         XCTAssertEqual(application.questionnaire.english, .selfAssessed(level: "intermediate"))
         XCTAssertNil(application.decisionReason)
+    }
+
+    // MARK: - Countries (282): a stored анкета keeps its pre-282 countries
+
+    private func applicationRow(status: String, countries: String) -> String {
+        let decided = status == "pending" ? "null" : #""2026-09-21T09:00:00+00:00""#
+        return """
+        {
+          "id": "10000000-0000-4000-8000-000000000001",
+          "status": "\(status)",
+          "revision": \(status == "pending" ? 1 : 2),
+          "email": "aidana@example.com",
+          "questionnaire": \(validDraftJSON(countries: countries)),
+          "submitted_at": "2026-09-20T09:00:00+00:00",
+          "decided_at": \(decided),
+          "decision_reason": \(status == "pending" ? "null" : #""Уточните страну""#),
+          "student_case_id": null,
+          "admissions_direction": null,
+          "canonical_lead_id": null
+        }
+        """
+    }
+
+    func testDecodesStoredApplicationNamingACountryThatLeftTheList() throws {
+        // Submitted before 282 with Poland (or by build 0.1.0/1.0 after it):
+        // the status screen still reads it; re-editing drops Poland.
+        let application = try StudentApplication.decodeValidated(
+            from: Data(applicationRow(status: "rejected", countries: #"["PL", "CN"]"#).utf8)
+        )
+        XCTAssertEqual(application.status, .rejected)
+        XCTAssertEqual(application.questionnaire.destinationCountries, ["PL", "CN"])
+        XCTAssertEqual(ApplicationWizardValues(draft: application.questionnaire).destinationCountries, ["CN"])
+        XCTAssertNoThrow(try StudentApplication.decodeValidated(
+            from: Data(applicationRow(status: "pending", countries: #"["DE"]"#).utf8)
+        ))
+    }
+
+    func testDecodesUndecidedApplicationAndRefusesItWithACountry() throws {
+        let application = try StudentApplication.decodeValidated(
+            from: Data(applicationRow(status: "pending", countries: #"["undecided"]"#).utf8)
+        )
+        XCTAssertEqual(application.questionnaire.destinationCountries, ["undecided"])
+        XCTAssertThrowsError(try StudentApplication.decodeValidated(
+            from: Data(applicationRow(status: "pending", countries: #"["CN", "undecided"]"#).utf8)
+        ))
+        XCTAssertThrowsError(try StudentApplication.decodeValidated(
+            from: Data(applicationRow(status: "pending", countries: #"["US"]"#).utf8)
+        ))
     }
 
     func testDecodesRejectedApplicationWithReasonAndExamEnglish() throws {

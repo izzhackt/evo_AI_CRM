@@ -74,8 +74,8 @@ export function studyCountryOptions(
 
 /**
  * Значения, которые шлёт форма сайта с новым списком: шесть стран и
- * «Undecided». Приёмник CRM пока принимает и прежние значения
- * (`website-enquiry-contract.ts`), до выкладки сайта.
+ * «Undecided». Приёмник CRM принимает и прежние значения
+ * (`website-enquiry-contract.ts`, план §6.4).
  */
 export const WEBSITE_STUDY_COUNTRY_VALUES: readonly string[] = Object.freeze([
   ...COUNTRIES.map((row) => row.website),

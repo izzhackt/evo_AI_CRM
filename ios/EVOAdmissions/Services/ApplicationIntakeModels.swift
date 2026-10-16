@@ -12,11 +12,20 @@ enum ApplicationContract {
     static let metadataKey = "student_application_draft"
     /// contract:3
     static let consentVersion = "2026-09-18"
-    /// contract STUDENT_APPLICATION_COUNTRIES: the one product list
-    /// (`study-countries.json`, the same bundled file as the web) and
-    /// «Пока не решил», chosen only alone. A new анкета names only these
-    /// (the server too, migration 282).
+    /// contract STUDENT_APPLICATION_COUNTRIES: what the wizard OFFERS, the
+    /// one product list (`study-countries.json`, the same bundled file as the
+    /// web) and «Пока не решил», chosen only alone. The interface enforces
+    /// this list, not a refusal of old clients (plan §4.1).
     static var destinationCountries: [String] { StudyCountries.codes + [StudyCountries.undecidedCode] }
+
+    /// contract STUDENT_APPLICATION_LEGACY_COUNTRIES: pre-282 codes the wizard
+    /// no longer offers. A stored анкета, a metadata draft and builds 0.1.0
+    /// and 1.0 still carry them, and the server still accepts them (the SQL
+    /// CHECK, submit_student_application_v1), so they stay valid here.
+    static let legacyDestinationCountries = ["DE", "FR", "ES", "NL", "PL", "HU", "AT", "GB", "CY"]
+
+    /// What a questionnaire may name: the offered list and the legacy codes.
+    static var acceptedDestinationCountries: [String] { destinationCountries + legacyDestinationCountries }
 
     /// A saved draft or a pre-282 анкета may name a country that left the
     /// list: the wizard drops it and the student chooses again (web
@@ -210,7 +219,7 @@ enum ApplicationDraftValidator {
               isBoundedText(draft.lastName, max: 60),                         // contract:58
               isValidPhone(draft.phone),                                      // contract:59
               isStringSet(draft.destinationCountries, max: 15, validate: {    // contract:60
-                  ApplicationContract.destinationCountries.contains($0)
+                  ApplicationContract.acceptedDestinationCountries.contains($0)
               }),
               !draft.destinationCountries.contains(StudyCountries.undecidedCode)  // contract destinations()
                   || draft.destinationCountries.count == 1,
@@ -277,7 +286,8 @@ struct StudentApplication: Codable, Equatable, Sendable {
 
     /// The web decoder's cross-field invariants
     /// (student-application-source.ts:25-38): revision ≥ 1, a valid
-    /// questionnaire, approved ⟺ case link, pending ⟺ undecided.
+    /// questionnaire (a pre-282 country stays valid), approved ⟺ case link,
+    /// pending ⟺ undecided.
     var isContractValid: Bool {
         revision >= 1
             && ApplicationDraftValidator.isValid(questionnaire)

@@ -4,8 +4,9 @@ import { FavoritesView } from "@/components/portal/favorites/FavoritesView";
 import { UniversityCard } from "@/components/portal/universities/Catalog";
 import { getLocale } from "@/lib/i18n";
 import type { PublishedUniversity } from "@/lib/platform-university-catalog";
-import { getPortalStrings } from "@/lib/portal/i18n";
+import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import {
+  readStudentHiddenUniversityFavorites,
   readStudentUniversitiesByIds,
   readStudentUniversityFavorites,
 } from "@/lib/portal/university-favorites-source";
@@ -29,6 +30,9 @@ export default async function FavoritesPage() {
   const now = new Date();
 
   let items: readonly PublishedUniversity[] | null = null;
+  // 282: избранные вузы стран вне списка продукта не показываются; строка
+  // «Больше нет в каталоге: N» говорит о них. Её сбой не прячет список.
+  const hidden = readStudentHiddenUniversityFavorites().catch(() => 0);
   try {
     const favorites = await readStudentUniversityFavorites();
     items = await readStudentUniversitiesByIds(
@@ -37,6 +41,7 @@ export default async function FavoritesPage() {
   } catch {
     items = null;
   }
+  const hiddenCount = await hidden;
 
   return (
     <main className="pt-page">
@@ -44,6 +49,9 @@ export default async function FavoritesPage() {
         <p className="pt-page-kicker">{strings.kicker}</p>
         <h1 className="pt-page-title">{strings.title}</h1>
         <p className="pt-page-lead">{strings.lead}</p>
+        {items !== null && hiddenCount > 0 ? (
+          <p className="pt-page-lead">{formatPortalString(strings.hiddenCount, { count: String(hiddenCount) })}</p>
+        ) : null}
       </header>
       {items === null ? (
         <p role="alert" className="pt-alert">{strings.unavailable}</p>

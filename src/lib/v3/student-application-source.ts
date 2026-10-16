@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "../supabase/server";
 import {
-  isStudentApplicationRecord, isStudentApplicationUuid, parseStoredStudentApplicationDraft, STUDENT_APPLICATION_DIRECTIONS,
+  isStudentApplicationRecord, isStudentApplicationUuid, STUDENT_APPLICATION_DIRECTIONS,
   validateStudentApplicationDraft, type AdmissionsDirection, type StudentApplication,
   type StudentApplicationDraft, type StudentApplicationQueue,
 } from "../student-application-contract";
@@ -20,8 +20,7 @@ function direction(value: unknown): value is AdmissionsDirection {
 }
 export function decodeStudentApplication(value: unknown): StudentApplication {
   if (!isStudentApplicationRecord(value) || Object.keys(value).sort().join(",") !== "admissions_direction,canonical_lead_id,decided_at,decision_reason,email,id,questionnaire,revision,status,student_case_id,submitted_at") return fail();
-  // A stored questionnaire may name a pre-282 country; it stays readable.
-  const questionnaire = parseStoredStudentApplicationDraft(value.questionnaire);
+  const questionnaire = validateStudentApplicationDraft(value.questionnaire);
   const revision = Number(value.revision);
   if (!isStudentApplicationUuid(value.id) || !["pending", "approved", "rejected"].includes(String(value.status))
     || !Number.isSafeInteger(revision) || revision < 1 || !questionnaire

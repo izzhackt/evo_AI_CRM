@@ -5,7 +5,8 @@
 --  * With -v p282_pre=1, immediately BEFORE 282 (the picture 282 changes):
 --    the website receiver accepts the 15 values of the current site with their
 --    lead directions and refuses the rest; the student catalog shows a Polish
---    university; an анкета may name PL and may not name «undecided».
+--    university and a consultation about it is accepted; an анкета may name
+--    PL and may not name «undecided».
 --  * Without it, immediately AFTER 282:
 --    (a) the DB source equals src/lib/study-countries.json (codes, order,
 --        website values), and the six-country literals already in the schema
@@ -16,14 +17,18 @@
 --        refusals with no write), its payload is unchanged, the old literal
 --        list is gone and the legacy values sit in their own helper, and its
 --        definer, search_path and service-only ACL are kept;
---    (c) the student catalog, the favourites (list, by-ids, add, count) and
---        the recent universities show only the product countries; removing a
---        hidden favourite still works; staff_university_catalog still sees
---        every country;
---    (d) a new анкета names only product countries or a lone «undecided»; a
---        stored pre-282 анкета with PL stays valid when it is decided, and a
---        replay of its requestId returns it; an «undecided» анкета is visible
---        to the system Admin;
+--    (c) the student catalog, the favourites (list, by-ids, add, count), the
+--        recent universities and a new consultation about a university show
+--        only the product countries; removing a hidden favourite still works;
+--        the hidden favourites are counted for their owner only;
+--        staff_university_catalog still sees every country;
+--    (d) submit_student_application_v1 still accepts the legacy codes old
+--        clients send (plan §4.1, §6.6 item 2: a payload with DE is accepted)
+--        and a lone «undecided»; «undecided» with a country is refused; a
+--        stored pre-282 анкета with PL stays valid when it is decided, a
+--        replay of its requestId returns it, and its owner resubmits it; an
+--        «undecided» анкета is visible to the Admin and the review department,
+--        not to a CN direction curator, and is approved with no direction;
 --    (e) the new helpers are callable by no client role.
 -- The website owner is the system Admin (the owner gate itself is 262's
 -- suite). Isolated synthetic fixtures only, rolled back: no real person,
@@ -120,24 +125,28 @@ SELECT 'N282_SINGLE_COUNTRY_LIST_SUITE_START' AS n282_suite_marker;
 
 -- ---------------------------------------------------------------------------
 -- Fixture: one organization; 301 system Admin (the website intake owner and
--- the анкета reviewer); 304 a Student (catalog reader, no case); applicants
--- 111..119 with confirmed email and no membership; the анкета configuration.
+-- the анкета reviewer); 302 a CN direction curator and 303 a member of the
+-- review department (invited staff, roles below); 304 a Student (catalog
+-- reader, no case); applicants 111..119 with confirmed email and no
+-- membership; the анкета configuration.
 -- ---------------------------------------------------------------------------
 INSERT INTO platform.organizations(id, name) VALUES (pg_temp.n282_id(1), 'N282 Fictional organization');
 INSERT INTO platform.record_scopes(id, organization_id, scope_kind, scope_key, scope_version)
   VALUES (pg_temp.n282_id(2), pg_temp.n282_id(1), 'organization', pg_temp.n282_id(1), 1);
 INSERT INTO auth.users(id, email, raw_user_meta_data, email_confirmed_at)
   SELECT pg_temp.n282_id(100 + n), 'n282-' || n || '@example.invalid', '{}'::JSONB, statement_timestamp()
-  FROM unnest(ARRAY[1, 4, 11, 12, 13, 14, 15, 16, 17, 18, 19]) AS n;
+  FROM unnest(ARRAY[1, 2, 3, 4, 11, 12, 13, 14, 15, 16, 17, 18, 19]) AS n;
 INSERT INTO platform.profiles(id, auth_user_id, display_name, status, access_version) VALUES
   (pg_temp.n282_id(201), pg_temp.n282_id(101), 'N282 Admin', 'active', 1),
+  (pg_temp.n282_id(202), pg_temp.n282_id(102), 'N282 CN Curator', 'active', 1),
+  (pg_temp.n282_id(203), pg_temp.n282_id(103), 'N282 Review Department', 'active', 1),
   (pg_temp.n282_id(204), pg_temp.n282_id(104), 'N282 Student', 'active', 1);
 INSERT INTO platform.organization_memberships(id, organization_id, profile_id, status, "current_role", current_bundle_id, is_system_admin)
   SELECT pg_temp.n282_id(300 + a.n), pg_temp.n282_id(1), pg_temp.n282_id(200 + a.n), 'active', a.role::platform.business_role,
     (SELECT id FROM platform.role_bundle_versions WHERE role = a.role::platform.business_role
        AND status = 'published' ORDER BY version DESC LIMIT 1),
-    a.role = 'admin'
-  FROM (VALUES (1, 'admin'), (4, 'student')) AS a(n, role);
+    a.role IS NOT DISTINCT FROM 'admin'
+  FROM (VALUES (1, 'admin'), (2, NULL), (3, NULL), (4, 'student')) AS a(n, role);
 INSERT INTO platform.membership_scope_assignments(organization_id, membership_id, scope_id, scope_version,
   assignment_version, granted, actor_kind, reason, request_id)
   SELECT pg_temp.n282_id(1), pg_temp.n282_id(300 + n), pg_temp.n282_id(2), 1, 1, TRUE, 'system',
@@ -149,6 +158,34 @@ DELETE FROM platform_private.student_application_configuration;
 INSERT INTO platform_private.student_application_configuration
   (singleton, organization_id, review_department_id, enabled, intake_owner_membership_id)
   VALUES (TRUE, pg_temp.n282_id(1), pg_temp.n282_id(930), TRUE, NULL);
+-- The анкета review keys (177 student_application_can_manage) as one role:
+-- 302 holds it for the CN direction, 303 for the review department.
+SELECT (platform_private.custom_access_token_hook(jsonb_build_object('user_id', pg_temp.n282_id(101),
+  'claims', jsonb_build_object('sub', pg_temp.n282_id(101), 'role', 'authenticated'))) -> 'claims')::TEXT AS n282_admin_setup \gset
+SET LOCAL request.jwt.claims TO :'n282_admin_setup';
+SET LOCAL ROLE authenticated;
+DO $n282_roles$
+DECLARE published JSONB; m RECORD;
+BEGIN
+  PERFORM platform.staff_role_command(pg_temp.n282_id(1), pg_temp.n282_id(1001), 0, 'create',
+    jsonb_build_object('label', 'N282 Application review', 'description', 'Migration 282 synthetic review role',
+      'permissionKeys', jsonb_build_array('profile.read.full', 'profile.manage', 'case.curator.assign')),
+    'N282 create role', pg_temp.n282_id(1011));
+  published := platform.staff_role_publish(pg_temp.n282_id(1), pg_temp.n282_id(1001), 1,
+    platform.staff_role_impact(pg_temp.n282_id(1), pg_temp.n282_id(1001), 1) ->> 'impactFingerprint',
+    'N282 publish role', pg_temp.n282_id(1012));
+  FOR m IN SELECT * FROM (VALUES (302, 'direction', 'CN'), (303, 'department', pg_temp.n282_id(930)::TEXT)) AS x(n, kind, key) LOOP
+    PERFORM platform.staff_role_assignments_save(pg_temp.n282_id(1), pg_temp.n282_id(m.n), 1,
+      jsonb_build_array(jsonb_build_object('roleId', pg_temp.n282_id(1001),
+        'scope', jsonb_build_object('kind', m.kind, 'key', m.key, 'resourceKind', NULL))),
+      jsonb_build_array(jsonb_build_object('roleId', pg_temp.n282_id(1001), 'roleVersion', 2,
+        'bundleId', (published ->> 'bundleId')::UUID, 'bundleVersion', 1)),
+      'N282 grant review role', pg_temp.n282_id(1020 + m.n));
+  END LOOP;
+END
+$n282_roles$;
+RESET ROLE;
+SET LOCAL request.jwt.claims TO '';
 
 -- Catalogue: replica mode skips only the import-provenance FK (the 195
 -- convention); valid_university_content still checks every payload. Polish
@@ -173,7 +210,8 @@ INSERT INTO platform_private.university_favorites(organization_id, membership_id
   VALUES (pg_temp.n282_id(1), pg_temp.n282_id(304), pg_temp.n282_id(701)),
          (pg_temp.n282_id(1), pg_temp.n282_id(304), pg_temp.n282_id(704));
 
-SELECT pg_temp.n282_id(101)::TEXT AS n282_admin, pg_temp.n282_id(104)::TEXT AS n282_student \gset
+SELECT pg_temp.n282_id(101)::TEXT AS n282_admin, pg_temp.n282_id(102)::TEXT AS n282_curator,
+  pg_temp.n282_id(103)::TEXT AS n282_review, pg_temp.n282_id(104)::TEXT AS n282_student \gset
 
 CREATE TEMP VIEW n282_counts AS SELECT
   (SELECT count(*) FROM platform_private.website_lead_receipts WHERE organization_id = pg_temp.n282_id(1)) AS receipts,
@@ -229,6 +267,10 @@ SELECT pg_temp.n282_assert(to_regprocedure('platform_private.study_country_codes
 SELECT pg_temp.n282_assert(
   (pg_temp.n282_call(:'n282_student', 'platform.student_university_catalog()') #> '{ok,items}') @> jsonb_build_array(jsonb_build_object('id', pg_temp.n282_id(704))),
   'before 282 the student catalogue did not show the Polish university');
+SELECT pg_temp.n282_assert(
+  pg_temp.n282_call(:'n282_student', format('platform.create_portal_consultation_request_v1(%L::UUID, %L::UUID)',
+    pg_temp.n282_id(1101), pg_temp.n282_id(704))) #>> '{ok,status}' = 'requested',
+  'before 282 a consultation about the Polish university was not accepted');
 SELECT pg_temp.n282_assert(pg_temp.n282_submit(111, 901, '["PL"]'::JSONB) #>> '{ok,status}' = 'pending',
   'before 282 an анкета naming PL was not accepted');
 SELECT pg_temp.n282_assert(pg_temp.n282_submit(112, 902, '["undecided"]'::JSONB) = '{"error":"22023","message":"student_application_invalid"}'::JSONB,
@@ -322,6 +364,11 @@ SELECT pg_temp.n282_assert(
     AND pg_temp.n282_call(:'n282_student', format('platform.student_university_catalog_by_ids_v1(ARRAY[%L, %L]::UUID[])', pg_temp.n282_id(701), pg_temp.n282_id(704)))
       = '{"error":"42501","message":"Institution is unavailable"}'::JSONB,
   'by-ids did not refuse a Polish id like any unavailable id');
+-- The hidden Polish favourite is counted for its owner only, without naming it.
+SELECT pg_temp.n282_assert(
+  pg_temp.n282_call(:'n282_student', 'platform.student_hidden_university_favorites_v1()') = '{"ok":{"hiddenCount":1}}'::JSONB
+    AND pg_temp.n282_call(:'n282_admin', 'platform.student_hidden_university_favorites_v1()') = '{"error":"42501","message":"Favourites unavailable"}'::JSONB,
+  'the hidden favourite count is not 1 for the Student or is readable by staff');
 -- One command per statement: each sees the previous one's write.
 SELECT pg_temp.n282_call(:'n282_student', format('platform.set_university_favorite_v1(%L::UUID, TRUE)', pg_temp.n282_id(705))) AS n282_fav_cy \gset
 SELECT pg_temp.n282_call(:'n282_student', format('platform.set_university_favorite_v1(%L::UUID, TRUE)', pg_temp.n282_id(702))) AS n282_fav_it \gset
@@ -339,31 +386,54 @@ SELECT pg_temp.n282_assert(
     = jsonb_build_array(jsonb_build_object('id', pg_temp.n282_id(701), 'name', 'N282 Alpha China', 'country', 'CN', 'city', NULL,
         'firstPublishedAt', (SELECT to_jsonb(p.reviewed_at) FROM platform_private.university_catalog_publications p WHERE p.id = pg_temp.n282_id(761)))),
   'the recent universities still show the recent Polish card');
+SELECT pg_temp.n282_assert(
+  pg_temp.n282_call(:'n282_student', 'platform.student_hidden_university_favorites_v1()') = '{"ok":{"hiddenCount":0}}'::JSONB,
+  'removing the hidden Polish favourite did not clear the hidden count');
+-- A new consultation names only a product-country university; one without a
+-- university is unchanged.
+SELECT pg_temp.n282_call(:'n282_student', format('platform.create_portal_consultation_request_v1(%L::UUID, %L::UUID)',
+  pg_temp.n282_id(1101), pg_temp.n282_id(704))) AS n282_consult_pl \gset
+SELECT pg_temp.n282_call(:'n282_student', format('platform.create_portal_consultation_request_v1(%L::UUID, %L::UUID)',
+  pg_temp.n282_id(1102), pg_temp.n282_id(702))) AS n282_consult_it \gset
+SELECT pg_temp.n282_assert(
+  :'n282_consult_pl'::JSONB = '{"error":"42501","message":"Institution is unavailable"}'::JSONB
+    AND :'n282_consult_it'::JSONB #>> '{ok,status}' = 'requested'
+    AND :'n282_consult_it'::JSONB #>> '{ok,institutionName}' = 'N282 Beta Italy'
+    AND (SELECT count(*) = 1 FROM platform_private.portal_consultation_requests r WHERE r.organization_id = pg_temp.n282_id(1)),
+  'a consultation about the Polish university was not refused, or one about the Italian university failed: '
+    || :'n282_consult_pl' || ' ' || :'n282_consult_it');
 
 -- ---------------------------------------------------------------------------
--- (d) анкета: the product countries or a lone «undecided»; stored legacy
--- анкеты stay valid and readable.
+-- (d) анкета: the product countries, a lone «undecided» and the legacy codes
+-- old clients send are accepted; «undecided» with a country is not.
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.n282_submit(111, 901, '["CN", "IT"]'::JSONB) AS n282_cn_it,
   pg_temp.n282_submit(112, 902, '["undecided"]'::JSONB) AS n282_undecided,
   pg_temp.n282_submit(113, 903, '["PL"]'::JSONB) AS n282_pl,
   pg_temp.n282_submit(114, 904, '["CN", "undecided"]'::JSONB) AS n282_mixed,
-  pg_temp.n282_submit(115, 905, '["DE", "CZ"]'::JSONB) AS n282_de \gset
+  pg_temp.n282_submit(115, 905, '["DE", "CZ"]'::JSONB) AS n282_de,
+  pg_temp.n282_submit(117, 908, '["undecided", "undecided"]'::JSONB) AS n282_twice \gset
 SELECT pg_temp.n282_assert(:'n282_cn_it'::JSONB #>> '{ok,status}' = 'pending'
     AND :'n282_cn_it'::JSONB #> '{ok,questionnaire,destinationCountries}' = '["CN", "IT"]'::JSONB
     AND :'n282_undecided'::JSONB #>> '{ok,status}' = 'pending'
     AND :'n282_undecided'::JSONB #> '{ok,questionnaire,destinationCountries}' = '["undecided"]'::JSONB,
   'an анкета with product countries or a lone «undecided» was not accepted: ' || :'n282_cn_it' || ' ' || :'n282_undecided');
-SELECT pg_temp.n282_assert(:'n282_pl'::JSONB = '{"error":"22023","message":"student_application_invalid"}'::JSONB
-    AND :'n282_mixed'::JSONB = '{"error":"22023","message":"student_application_invalid"}'::JSONB
-    AND :'n282_de'::JSONB = '{"error":"22023","message":"student_application_invalid"}'::JSONB
+-- Old iPhone builds (0.1.0, 1.0) and a tab opened before the release still
+-- offer the 15 countries: the same RPC keeps accepting them (plan §4.1).
+SELECT pg_temp.n282_assert(:'n282_pl'::JSONB #>> '{ok,status}' = 'pending'
+    AND :'n282_pl'::JSONB #> '{ok,questionnaire,destinationCountries}' = '["PL"]'::JSONB
+    AND :'n282_de'::JSONB #>> '{ok,status}' = 'pending'
+    AND :'n282_de'::JSONB #> '{ok,questionnaire,destinationCountries}' = '["DE", "CZ"]'::JSONB,
+  'a legacy-country анкета from an old client was refused: ' || :'n282_pl' || ' ' || :'n282_de');
+SELECT pg_temp.n282_assert(:'n282_mixed'::JSONB = '{"error":"22023","message":"student_application_invalid"}'::JSONB
+    AND :'n282_twice'::JSONB = '{"error":"22023","message":"student_application_invalid"}'::JSONB
     AND NOT EXISTS (SELECT 1 FROM platform_private.student_applications a
-      WHERE a.auth_user_id IN (pg_temp.n282_id(113), pg_temp.n282_id(114), pg_temp.n282_id(115))),
-  'a legacy country or «undecided» with a country was not refused without a row: ' || :'n282_pl' || ' ' || :'n282_mixed' || ' ' || :'n282_de');
+      WHERE a.auth_user_id IN (pg_temp.n282_id(114), pg_temp.n282_id(117))),
+  '«undecided» with a country or twice was not refused without a row: ' || :'n282_mixed' || ' ' || :'n282_twice');
 
 -- A pre-282 анкета with PL (its row and receipt as 180 wrote them): the CHECK
 -- still accepts it, a replay of its requestId returns it, the Admin sees and
--- rejects it (an UPDATE re-checks the row), the «undecided» one is visible.
+-- rejects it (an UPDATE re-checks the row), and its owner resubmits it.
 INSERT INTO platform_private.student_applications(id, organization_id, auth_user_id, normalized_email, questionnaire)
   VALUES (pg_temp.n282_id(950), pg_temp.n282_id(1), pg_temp.n282_id(116), 'n282-16@example.invalid',
     pg_temp.n282_questionnaire(pg_temp.n282_id(906), '["PL", "CN"]'::JSONB));
@@ -372,15 +442,52 @@ INSERT INTO platform_private.student_application_receipts(request_id, applicatio
     jsonb_build_object('questionnaire', pg_temp.n282_questionnaire(pg_temp.n282_id(906), '["PL", "CN"]'::JSONB), 'expected_revision', 0));
 SELECT pg_temp.n282_assert(pg_temp.n282_submit(116, 906, '["PL", "CN"]'::JSONB) #>> '{ok,id}' = pg_temp.n282_id(950)::TEXT,
   'a replay of a pre-282 requestId did not return the stored анкета');
-SELECT pg_temp.n282_call(:'n282_admin', 'platform.staff_student_applications_v1()') AS n282_queue \gset
+
+-- Who sees what: the Admin and the review department see every анкета; the
+-- CN curator sees those naming a CN country, not the «undecided» one (no
+-- direction) nor the PL and DE+CZ ones (EUROPE).
+SELECT pg_temp.n282_call(:'n282_admin', 'platform.staff_student_applications_v1()') AS n282_queue,
+  pg_temp.n282_call(:'n282_review', 'platform.staff_student_applications_v1()') AS n282_queue_review,
+  pg_temp.n282_call(:'n282_curator', 'platform.staff_student_applications_v1()') AS n282_queue_curator \gset
+CREATE TEMP TABLE n282_ids AS SELECT * FROM (VALUES
+  ('cn_it', :'n282_cn_it'::JSONB #>> '{ok,id}'), ('undecided', :'n282_undecided'::JSONB #>> '{ok,id}'),
+  ('pl', :'n282_pl'::JSONB #>> '{ok,id}'), ('de', :'n282_de'::JSONB #>> '{ok,id}'),
+  ('legacy', pg_temp.n282_id(950)::TEXT)) AS x(label, id);
+CREATE FUNCTION pg_temp.n282_seen(p_queue JSONB) RETURNS TEXT[] LANGUAGE SQL STABLE AS $$
+  SELECT ARRAY(SELECT i.label FROM n282_ids i
+    WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(p_queue #> '{ok,applications}') x WHERE x ->> 'id' = i.id)
+    ORDER BY i.label)
+$$;
+SELECT pg_temp.n282_assert(pg_temp.n282_seen(:'n282_queue'::JSONB) = ARRAY['cn_it', 'de', 'legacy', 'pl', 'undecided']
+    AND pg_temp.n282_seen(:'n282_queue_review'::JSONB) = ARRAY['cn_it', 'de', 'legacy', 'pl', 'undecided']
+    AND pg_temp.n282_seen(:'n282_queue_curator'::JSONB) = ARRAY['cn_it', 'legacy'],
+  'queue visibility is not Admin/review department = all, CN curator = CN only: admin '
+    || pg_temp.n282_seen(:'n282_queue'::JSONB)::TEXT || ' review ' || pg_temp.n282_seen(:'n282_queue_review'::JSONB)::TEXT
+    || ' curator ' || pg_temp.n282_seen(:'n282_queue_curator'::JSONB)::TEXT);
 SELECT pg_temp.n282_assert(
-  (SELECT count(*) = 3 FROM jsonb_array_elements(:'n282_queue'::JSONB #> '{ok,applications}') x
-    WHERE x ->> 'id' IN (pg_temp.n282_id(950)::TEXT, :'n282_cn_it'::JSONB #>> '{ok,id}', :'n282_undecided'::JSONB #>> '{ok,id}')),
-  'the Admin does not see the legacy, the product-country and the «undecided» анкеты: ' || :'n282_queue');
+  pg_temp.n282_call(:'n282_curator', format('platform.decide_student_application_v1(%L::UUID, 1, ''approve'', ''N282 synthetic decision'', %L::UUID)',
+    :'n282_undecided'::JSONB #>> '{ok,id}', pg_temp.n282_id(909))) = '{"error":"42501","message":"student_application_forbidden"}'::JSONB,
+  'the CN curator could decide the «undecided» анкета');
+
+-- The «undecided» анкета is approved: the case has no country and no
+-- direction; Admissions chooses them later (180).
+SELECT pg_temp.n282_call(:'n282_admin', format('platform.decide_student_application_v1(%L::UUID, 1, ''approve'', ''N282 synthetic decision'', %L::UUID)',
+  :'n282_undecided'::JSONB #>> '{ok,id}', pg_temp.n282_id(910))) AS n282_approved \gset
+SELECT pg_temp.n282_assert(:'n282_approved'::JSONB #>> '{ok,status}' = 'approved'
+    AND :'n282_approved'::JSONB #>> '{ok,admissions_direction}' IS NULL
+    AND (SELECT c.target_country IS NULL FROM platform.student_cases c
+      WHERE c.id = (:'n282_approved'::JSONB #>> '{ok,student_case_id}')::UUID),
+  'the «undecided» анкета was not approved into a case without country and direction: ' || :'n282_approved');
+
 SELECT pg_temp.n282_assert(
   pg_temp.n282_call(:'n282_admin', format('platform.decide_student_application_v1(%L::UUID, 1, ''reject'', ''N282 synthetic decision'', %L::UUID)',
     pg_temp.n282_id(950), pg_temp.n282_id(907))) #>> '{ok,status}' = 'rejected',
   'the Admin could not decide a stored pre-282 анкета');
+-- The rejected owner resubmits the same countries with a new requestId.
+SELECT pg_temp.n282_assert(
+  pg_temp.n282_call(pg_temp.n282_id(116)::TEXT, format('platform.submit_student_application_v1(%L::UUID, %L::JSONB, 2)',
+    pg_temp.n282_id(911), pg_temp.n282_questionnaire(pg_temp.n282_id(911), '["PL", "CN"]'::JSONB))) #>> '{ok,status}' = 'pending',
+  'the owner of a rejected pre-282 анкета could not resubmit it');
 
 -- ---------------------------------------------------------------------------
 -- (e) Posture of the new helpers.
@@ -388,14 +495,24 @@ SELECT pg_temp.n282_assert(
 SELECT pg_temp.n282_assert(bool_and(p.proconfig = ARRAY['search_path=""']
     AND NOT has_function_privilege('anon', p.oid, 'EXECUTE')
     AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
-    AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')) AND count(*) = 5,
+    AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')) AND count(*) = 4,
   'a 282 helper is callable by a client role or lost its search_path')
 FROM pg_proc p
 WHERE p.oid IN ('platform_private.study_country_codes()'::regprocedure,
   'platform_private.website_enquiry_country_values()'::regprocedure,
   'platform_private.website_enquiry_legacy_country_values()'::regprocedure,
-  'platform_private.student_application_destinations_current(jsonb)'::regprocedure,
   'platform_private.university_catalog_page(uuid,text,text,text,uuid,integer,text[])'::regprocedure);
+SELECT pg_temp.n282_assert(p.prosecdef AND p.proconfig = ARRAY['search_path=""']
+    AND pg_get_userbyid(p.proowner) = 'postgres'
+    AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
+    AND NOT has_function_privilege('anon', p.oid, 'EXECUTE')
+    AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')
+    -- submit_student_application_v1 is not touched by 282.
+    AND strpos((SELECT prosrc FROM pg_proc WHERE oid = 'platform.submit_student_application_v1(uuid,jsonb,bigint)'::regprocedure),
+      'study_country_codes') = 0,
+  'the hidden favourites RPC is not a Student-only definer, or 282 changed submit_student_application_v1')
+FROM pg_proc p
+WHERE p.oid = 'platform.student_hidden_university_favorites_v1()'::regprocedure;
 
 \endif
 

@@ -177,7 +177,8 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
   }, [leavingStep, step]);
   function validateStep(): boolean {
     const messages = [
-      values.destinationCountries.length ? "" : strings["validation.countries"],
+      // 282: only what the wizard offers; the server still accepts legacy codes from old clients.
+      values.destinationCountries.length && values.destinationCountries.every(isStudentApplicationCountry) ? "" : strings["validation.countries"],
       values.intakeSeason && values.intakeYear ? "" : strings["validation.intake"],
       values.educationLevel && values.averageGrade !== "" ? "" : strings["validation.education"],
       values.studyFields.length ? "" : strings["validation.fields"],

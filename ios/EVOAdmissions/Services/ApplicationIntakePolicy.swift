@@ -139,7 +139,11 @@ enum ApplicationWizardPolicy {
     ) -> String? {
         switch step {
         case .countries:
-            return values.destinationCountries.isEmpty ? "apply_validation_countries" : nil
+            // Only what the wizard offers (282): a restored draft already
+            // dropped the countries that left the list.
+            return values.destinationCountries.isEmpty
+                || !values.destinationCountries.allSatisfy(ApplicationContract.destinationCountries.contains)
+                ? "apply_validation_countries" : nil
         case .intake:
             return values.intakeSeason.isEmpty || values.intakeYear.isEmpty
                 ? "apply_validation_intake" : nil

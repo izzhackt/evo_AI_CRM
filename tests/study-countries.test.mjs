@@ -46,7 +46,7 @@ test("the database list of 282 is the same file: codes and website values", () =
   assert.equal(source.studyCountryFromWebsiteValue("Poland"), null);
 });
 
-test("the website receiver keeps accepting exactly the values of the current site until it is redeployed", () => {
+test("the website receiver keeps accepting the new and the legacy site values (plan §6.4)", () => {
   // The 240 list, unchanged: the new form list is a subset, the rest is legacy.
   assert.deepEqual([...WEBSITE_ENQUIRY_COUNTRIES].sort(), ["Austria", "China", "Cyprus", "Czechia", "Europe", "France", "Germany",
     "Italy", "Malaysia", "Netherlands", "Poland", "Turkey", "Undecided", "United Arab Emirates", "United Kingdom"]);
@@ -93,16 +93,21 @@ function draft(destinationCountries) {
     tuitionBudget: "under_5000", fundingSource: "family", consent: true, consentVersion: anketa.STUDENT_APPLICATION_CONSENT_VERSION };
 }
 
-test("a new анкета names only product countries or a lone «Пока не решил»; a stored one stays readable", () => {
+test("the анкета offers the product countries and «Пока не решил»; the server keeps accepting the legacy codes", () => {
   assert.deepEqual(anketa.STUDENT_APPLICATION_COUNTRIES, [...PRODUCT, "undecided"]);
-  for (const ok of [["CN"], ["IT", "CZ", "AE"], ["undecided"]]) assert.ok(anketa.validateStudentApplicationDraft(draft(ok)), ok.join(","));
-  for (const bad of [["PL"], ["DE", "CN"], ["CN", "undecided"], ["undecided", "undecided"], []]) {
+  assert.deepEqual(anketa.STUDENT_APPLICATION_LEGACY_COUNTRIES, ["DE", "FR", "ES", "NL", "PL", "HU", "AT", "GB", "CY"]);
+  // What the wizard offers (web and iPhone 1.1): the product list only.
+  assert.equal(anketa.isStudentApplicationCountry("undecided"), true);
+  assert.equal(anketa.isStudentApplicationCountry("IT"), true);
+  assert.equal(anketa.isStudentApplicationCountry("PL"), false);
+  // What a submission may carry (plan §4.1, §6.6 item 2): old iPhone builds,
+  // a tab opened before the release and a saved draft still send DE, PL, GB.
+  for (const ok of [["CN"], ["IT", "CZ", "AE"], ["undecided"], ["DE"], ["PL", "CN"], ["GB", "CN"], ["DE", "CZ"]]) {
+    assert.ok(anketa.validateStudentApplicationDraft(draft(ok)), ok.join(","));
+  }
+  for (const bad of [["CN", "undecided"], ["PL", "undecided"], ["undecided", "undecided"], ["US"], ["Poland"], []]) {
     assert.equal(anketa.validateStudentApplicationDraft(draft(bad)), null, bad.join(","));
   }
-  assert.ok(anketa.parseStoredStudentApplicationDraft(draft(["PL", "CN"])));
-  assert.ok(anketa.parseStoredStudentApplicationDraft(draft(["undecided"])));
-  assert.equal(anketa.parseStoredStudentApplicationDraft(draft(["CN", "undecided"])), null);
-  assert.equal(anketa.parseStoredStudentApplicationDraft(draft(["US"])), null);
   assert.equal(anketa.studentApplicationCountryDirection("IT"), "EUROPE");
   assert.equal(anketa.studentApplicationCountryDirection("PL"), "EUROPE");
   assert.equal(anketa.studentApplicationCountryDirection("TR"), "TR");
@@ -110,16 +115,14 @@ test("a new анкета names only product countries or a lone «Пока не 
   assert.equal(countryLabel("undecided"), "Пока не решил");
   assert.equal(localizedCountryLabel("CN", "ky"), "Кытай");
   assert.equal(countryLabel("PL"), "Польша");
-  // The SQL CHECK widens (legacy codes + undecided); the submit RPC is strict.
+  // The SQL CHECK widens (legacy codes + undecided alone); 282 does not touch
+  // submit_student_application_v1, which validates by that CHECK.
   assert.match(migration, /'TR','AE','undecided'\)\n  OR \(item#>>'\{\}'='undecided' AND jsonb_array_length\(q->'destinationCountries'\)<>1\)/);
-  assert.match(migration, /IF NOT platform_private\.student_application_destinations_current\(p_questionnaire\) THEN/);
-  // Stored reads use the lenient parser, every new submission the strict one.
-  assert.match(read("src/lib/v3/student-application-source.ts"), /const questionnaire = parseStoredStudentApplicationDraft\(value\.questionnaire\);/);
-  assert.match(read("src/app/apply/page.tsx"), /parseStoredStudentApplicationDraft\(data\.user\.user_metadata/);
-  for (const path of ["src/lib/student-signup-actions.ts", "src/lib/server/student-signup-runtime.ts",
-    "src/lib/server/student-portal-intake-route-handlers.ts", "src/lib/server/student-public-registration.ts"]) {
-    assert.doesNotMatch(read(path), /parseStoredStudentApplicationDraft/, path);
-  }
+  assert.doesNotMatch(migration, /a282_replace\('platform\.submit_student_application_v1/);
+  // The wizard drops a country that left the list from a restored draft.
+  const wizard = read("src/components/student-application/ApplicationWizard.tsx");
+  assert.match(wizard, /destinationCountries: currentDestinations\(draft\?\.destinationCountries \?\? \[\]\)/);
+  assert.match(wizard, /values\.destinationCountries = currentDestinations\(values\.destinationCountries\);/);
 });
 
 test("the iPhone app bundles the same file and keeps no copy of the list", () => {

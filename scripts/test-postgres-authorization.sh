@@ -367,10 +367,11 @@ SQL
   # «Один список стран» (282, PLAN_CHANGES 16.10.2026). Matched by name, not
   # number, so a renumbering at merge keeps the hook. Immediately BEFORE it:
   # the suite pins what 282 changes (the website receiver's 15-value matrix,
-  # a Polish card in the student catalog, an анкета with PL accepted and
-  # «undecided» refused); then 282 must fail closed when a body it edits by
-  # fragment has drifted (the website receiver's country list is edited),
-  # inside a transaction that the failure rolls back.
+  # a Polish card in the student catalog and a consultation about it, an
+  # анкета with PL accepted and «undecided» refused); then 282 must fail
+  # closed when a body it edits by fragment has drifted (the website
+  # receiver's country list is edited), inside a transaction that the
+  # failure rolls back.
   if [[ "$(basename "$migration")" == *_platform_single_country_list.sql ]]; then
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
@@ -3422,10 +3423,14 @@ SQL
   # of 118/190/214 equal it; the website receiver accepts exactly what it
   # accepted before (current and legacy site values, same lead directions,
   # same refusals, payload unchanged, service-only); the student catalog,
-  # favourites, by-ids and recent universities show only CN, MY, AE, TR, IT,
-  # CZ while the staff catalog sees every country; a new анкета names only
-  # those or a lone «undecided», a stored PL анкета stays valid, replayable
-  # and decidable; the new helpers are closed to every client role.
+  # favourites, by-ids, recent universities and a new consultation show only
+  # CN, MY, AE, TR, IT, CZ while the staff catalog sees every country, and the
+  # hidden favourites are counted for their owner; the анкета RPC still
+  # accepts the legacy codes old clients send and a lone «undecided» (seen by
+  # the Admin and the review department, not a CN curator, approved with no
+  # direction), refuses «undecided» with a country, and a stored PL анкета
+  # stays valid, replayable, decidable and resubmittable; the new helpers are
+  # closed to every client role.
   if [[ "$(basename "$migration")" == *_platform_single_country_list.sql ]]; then
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \

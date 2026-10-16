@@ -6,6 +6,7 @@ import {
   FAVORITES_BY_IDS_CAP,
   chunkInstitutionIds,
   parseFavoriteReceipt,
+  parseHiddenUniversityFavorites,
   parseUniversityFavorites,
 } from "../src/lib/portal/university-favorites.ts";
 
@@ -42,6 +43,20 @@ test("favourites payload parses strictly and fails closed on any drift", () => {
   ]) {
     assert.equal(parseUniversityFavorites(broken), null, JSON.stringify(broken));
   }
+});
+
+// 282: число своих избранных вузов вне списка стран, строка «Больше нет в
+// каталоге: N». Разбор строгий; сбой чтения на странице не прячет список.
+test("hidden favourites count parses strictly and the page shows the line only when it is positive", () => {
+  assert.equal(parseHiddenUniversityFavorites({ hiddenCount: 0 }), 0);
+  assert.equal(parseHiddenUniversityFavorites({ hiddenCount: 3 }), 3);
+  for (const broken of [null, [], 3, {}, { hiddenCount: -1 }, { hiddenCount: 1.5 }, { hiddenCount: "1" }, { hiddenCount: 1, extra: true }]) {
+    assert.equal(parseHiddenUniversityFavorites(broken), null, JSON.stringify(broken));
+  }
+  const page = source("src/app/(portal)/portal/favorites/page.tsx");
+  assert.match(page, /readStudentHiddenUniversityFavorites\(\)\.catch\(\(\) => 0\)/);
+  assert.match(page, /hiddenCount > 0 \?/);
+  assert.match(source("src/lib/portal/university-favorites-source.ts"), /\.rpc\("student_hidden_university_favorites_v1"\)/);
 });
 
 // Серверный потолок by_ids — 30 id за вызов (миграция 195): больший набор

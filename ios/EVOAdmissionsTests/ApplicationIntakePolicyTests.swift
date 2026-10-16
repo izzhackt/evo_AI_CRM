@@ -51,6 +51,26 @@ final class ApplicationIntakePolicyTests: XCTestCase {
         XCTAssertTrue(ApplicationDraftValidator.isValid(draft))
     }
 
+    func testLegacyCountriesStayValidButTheWizardOffersOnlyTheList() {
+        // The server still accepts the pre-282 codes (plan §4.1): a stored
+        // анкета and a metadata draft with them stay valid.
+        XCTAssertEqual(ApplicationContract.legacyDestinationCountries, ["DE", "FR", "ES", "NL", "PL", "HU", "AT", "GB", "CY"])
+        var draft = validDraft()
+        for countries in [["PL"], ["PL", "CN"], ["GB", "CN"], ["DE", "CZ"]] {
+            draft.destinationCountries = countries
+            XCTAssertTrue(ApplicationDraftValidator.isValid(draft), countries.joined(separator: ","))
+        }
+        // The wizard step refuses what it does not offer.
+        var values = ApplicationWizardValues()
+        values.destinationCountries = ["PL"]
+        XCTAssertEqual(
+            ApplicationWizardPolicy.validationKey(step: .countries, values: values, requestId: validDraft().requestId),
+            "apply_validation_countries"
+        )
+        values.destinationCountries = ["CN", "IT"]
+        XCTAssertNil(ApplicationWizardPolicy.validationKey(step: .countries, values: values, requestId: validDraft().requestId))
+    }
+
     func testUndecidedAndCountriesExcludeEachOther() {
         XCTAssertEqual(ApplicationWizardPolicy.toggledDestinations(["CN", "IT"], value: "undecided"), ["undecided"])
         XCTAssertEqual(ApplicationWizardPolicy.toggledDestinations(["undecided"], value: "TR"), ["TR"])
@@ -81,7 +101,6 @@ final class ApplicationIntakePolicyTests: XCTestCase {
         cases.append(("empty countries", { $0.destinationCountries = [] }))              // contract:60
         cases.append(("unknown country", { $0.destinationCountries = ["US"] }))          // contract:60
         cases.append(("duplicate countries", { $0.destinationCountries = ["CN", "CN"] })) // contract:50
-        cases.append(("country outside the list", { $0.destinationCountries = ["PL"] }))  // 282
         cases.append(("undecided with a country", { $0.destinationCountries = ["CN", "undecided"] })) // 282
         cases.append(("season", { $0.intakeSeason = "fall" }))                           // contract:61
         cases.append(("year below 2026", { $0.intakeYear = 2025 }))                      // contract:62

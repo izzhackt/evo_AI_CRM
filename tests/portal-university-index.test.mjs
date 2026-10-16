@@ -12,7 +12,6 @@ import {
   nearestIndexIntake,
   parseStudentUniversityDetail,
   parseStudentUniversityIndexResponse,
-  photoCreditRequired,
   resolveUniversitiesRoute,
   searchUniversities,
 } from "../src/lib/portal/university-index.ts";
@@ -195,11 +194,7 @@ test("old list and map addresses lead to the new screens", () => {
   for (const [params, expected] of cases) assert.deepEqual(resolveUniversitiesRoute(params), expected, JSON.stringify(params));
 });
 
-test("photo credit is printed only where the licence requires attribution", () => {
-  for (const license of ["CC BY-SA 4.0", "CC BY-SA 3.0", "CC BY 3.0", "CC BY 3.0 pl", "FAL"]) assert.equal(photoCreditRequired({ license }), true, license);
-  for (const license of ["Pexels License", "Unsplash License", "CC0", "Public domain", "Official-source embedding; no reuse license stated"]) {
-    assert.equal(photoCreditRequired({ license }), false, license);
-  }
+test("counters decline by the Russian rules", () => {
   assert.deepEqual([1, 2, 5, 11, 12, 21, 22, 25, 47, 111, 112].map(countForm),
     ["one", "few", "many", "many", "many", "one", "few", "many", "many", "many", "many"]);
 });

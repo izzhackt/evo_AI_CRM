@@ -43,10 +43,6 @@ export function UniversityCard({
   );
 }
 
-export function UniversitiesUnavailable({ strings }: { strings: Strings }) {
-  return <p role="alert" className="pt-alert">{strings.unavailable}</p>;
-}
-
 /** Честная сводка карты: сколько точек показано и сколько вузов без точки. */
 export function UniversitiesMapSummary({
   shown,

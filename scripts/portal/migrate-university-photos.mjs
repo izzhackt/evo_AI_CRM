@@ -4,7 +4,9 @@
  * Три режима по идиоме scripts/configure-university-template-storage.mjs —
  * офлайн-план по умолчанию, явные --check/--apply:
  *   (без аргументов | --plan)  офлайн: полнота метаданных и деление записей
- *                              библиотеки на eligible/ineligible по лицензии;
+ *                              библиотеки на eligible/ineligible по лицензии
+ *                              (открытая лицензия или official_media_owner_accepted,
+ *                              см. src/lib/university-photo-rights.ts);
  *   --check                    сеть, строго read-only: скачивает eligible-
  *                              оригиналы, проверяет 200 + image/* + размер,
  *                              считает sha256 и пишет манифест
@@ -25,6 +27,12 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPlatformSupabaseBackendConfig } from "../../src/lib/server/platform-supabase-backend-config.ts";
+import {
+  isOfficialMediaLicense,
+  onOfficialSite,
+  PHOTO_RIGHTS_OFFICIAL_MEDIA,
+  PHOTO_RIGHTS_OPEN_LICENSE,
+} from "../../src/lib/university-photo-rights.ts";
 
 export const UNIVERSITY_PHOTO_PROJECT = "iosckaqtovbbnssqcpde";
 const ORIGIN = `https://${UNIVERSITY_PHOTO_PROJECT}.supabase.co`;
@@ -46,6 +54,8 @@ const MIN_BYTES = 1024, MAX_BYTES = UNIVERSITY_PHOTO_BUCKET.file_size_limit, DOW
 const LIBRARY_URL = new URL("../../src/lib/university-photo-library.json", import.meta.url);
 const MANIFEST_URL = new URL("./university-photos-manifest.json", import.meta.url);
 const LIBRARY_FIELDS = Object.freeze(["path", "author", "title", "caption", "sourceUrl", "license", "licenseUrl"]);
+const STUDY_COUNTRIES_URL = new URL("../../src/lib/study-countries.json", import.meta.url);
+const REVIEWED_BUNDLES = Object.freeze(["china", "malaysia", "europe", "turkey", "international", "other"]);
 
 class MigrationError extends Error { constructor(code) { super(code); this.code = code; } }
 const fail = code => { throw new MigrationError(code); };
@@ -70,17 +80,50 @@ export function libraryEntryProblems(key, entry) {
 }
 export const licenseAllowsRedistribution = license => REDISTRIBUTABLE_LICENSES.includes(license);
 
-export function planUniversityPhotoMigration(library) {
+/**
+ * Официальные сайты вузов каталога студента: photoKey -> websiteUrl из
+ * проверенных карточек шести стран (src/lib/study-countries.json).
+ */
+export function readStudentCatalogSites() {
+  const codes = JSON.parse(readFileSync(STUDY_COUNTRIES_URL, "utf8")).countries.map(country => country.code);
+  const sites = new Map();
+  for (const bundle of REVIEWED_BUNDLES) {
+    const url = new URL(`../../src/lib/server/university-catalog-reviewed-${bundle}.json`, import.meta.url);
+    for (const { content } of JSON.parse(readFileSync(url, "utf8"))) {
+      if (!codes.includes(content.country) || typeof content.photoKey !== "string") continue;
+      sites.set(content.photoKey, [...(sites.get(content.photoKey) ?? []), content.websiteUrl]);
+    }
+  }
+  return sites;
+}
+
+/**
+ * Основание копирования байтов: открытая лицензия, либо официальные медиа
+ * вуза каталога студента (точная строка лицензии и страница источника на
+ * домене официального сайта каждой карточки с этим фото); иначе null.
+ */
+export function universityPhotoRights(key, record, sites) {
+  if (licenseAllowsRedistribution(record.license)) return PHOTO_RIGHTS_OPEN_LICENSE;
+  const websites = sites.get(key) ?? [];
+  return isOfficialMediaLicense(record.license) && websites.length > 0
+    && websites.every(website => typeof website === "string" && onOfficialSite(record.sourceUrl, website))
+    ? PHOTO_RIGHTS_OFFICIAL_MEDIA
+    : null;
+}
+
+export function planUniversityPhotoMigration(library, sites = readStudentCatalogSites()) {
   const keys = Object.keys(library).sort();
-  const invalid = [], eligible = [], ineligible = [];
+  const invalid = [], eligible = [], ineligible = [], officialMedia = [];
   for (const key of keys) {
     const problems = libraryEntryProblems(key, library[key]);
     if (problems.length > 0) { invalid.push({ key, problems }); continue; }
-    (licenseAllowsRedistribution(library[key].license) ? eligible : ineligible).push(key);
+    const rights = universityPhotoRights(key, library[key], sites);
+    (rights === null ? ineligible : eligible).push(key);
+    if (rights === PHOTO_RIGHTS_OFFICIAL_MEDIA) officialMedia.push(key);
   }
   return { schema: "evo-university-photos-plan/v1", bucket: UNIVERSITY_PHOTO_BUCKET.id, projectRef: UNIVERSITY_PHOTO_PROJECT,
-    totals: { entries: keys.length, eligible: eligible.length, ineligible: ineligible.length, invalid: invalid.length },
-    eligible, ineligible: ineligible.map(key => ({ key, license: library[key].license })), invalid };
+    totals: { entries: keys.length, eligible: eligible.length, officialMedia: officialMedia.length, ineligible: ineligible.length, invalid: invalid.length },
+    eligible, officialMedia, ineligible: ineligible.map(key => ({ key, license: library[key].license })), invalid };
 }
 
 async function downloadPhoto(url, fetchImpl) {
@@ -118,21 +161,23 @@ function manifestTotals(entries) {
     failed: values.filter(entry => entry.status === "failed").length,
     migrated: values.filter(entry => entry.migrated === true).length };
 }
-const baseManifestEntry = record => ({ sourceUrl: record.path, finalUrl: null, pageUrl: record.sourceUrl,
-  license: record.license, licenseUrl: record.licenseUrl, attribution: record.author,
+const baseManifestEntry = (record, rights) => ({ sourceUrl: record.path, finalUrl: null, pageUrl: record.sourceUrl,
+  license: record.license, licenseUrl: record.licenseUrl, attribution: record.author, rights,
   sha256: null, bytes: null, contentType: null, objectPath: null, status: "failed", reason: null, migrated: false });
 
-export async function checkUniversityPhotoMigration({ library, fetchImpl = fetch, previous = null, concurrency = 4 } = {}) {
-  const plan = planUniversityPhotoMigration(library);
+export async function checkUniversityPhotoMigration({ library, sites, fetchImpl = fetch, previous = null, concurrency = 4 } = {}) {
+  const plan = planUniversityPhotoMigration(library, sites);
   if (plan.totals.invalid > 0) return { exitCode: 1, report: { ...plan, status: "library_invalid" }, manifest: null };
   const entries = {};
   for (const { key } of plan.ineligible) {
-    entries[key] = { ...baseManifestEntry(library[key]), status: "ineligible", reason: "license_not_redistributable" };
+    entries[key] = { ...baseManifestEntry(library[key], null), status: "ineligible", reason: "license_not_redistributable" };
   }
   const queue = [...plan.eligible];
+  const official = new Set(plan.officialMedia);
   const worker = async () => {
     for (let key = queue.shift(); key !== undefined; key = queue.shift()) {
-      const record = library[key], result = await downloadPhoto(record.path, fetchImpl), entry = baseManifestEntry(record);
+      const record = library[key], result = await downloadPhoto(record.path, fetchImpl);
+      const entry = baseManifestEntry(record, official.has(key) ? PHOTO_RIGHTS_OFFICIAL_MEDIA : PHOTO_RIGHTS_OPEN_LICENSE);
       if (result.failure) { entry.reason = result.failure; }
       else {
         entry.status = "verified"; entry.finalUrl = result.finalUrl;

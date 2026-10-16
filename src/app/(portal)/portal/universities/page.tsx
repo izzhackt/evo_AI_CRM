@@ -8,7 +8,6 @@ import {
   countForm,
   countryHref,
   localizedText,
-  photoCreditRequired,
   resolveUniversitiesRoute,
   UNIVERSITIES_BASE,
   type StudentUniversityIndex,
@@ -75,7 +74,7 @@ export default async function UniversitiesPage({
     counts: country.universityCount > 0
       ? placeCountsLabel(strings, country.universityCount, country.cityCount, countForm)
       : strings.countryNoUniversities,
-    photo: placePhoto(country.photo, PLACE_CARD_WIDTHS, photoCreditRequired),
+    photo: placePhoto(country.photo, PLACE_CARD_WIDTHS),
   }));
   const searchItems = index.universities.map((item) =>
     indexTileModel(index, item, { strings, locale, now, favoriteIds, showPlace: true }));
@@ -100,7 +99,7 @@ export default async function UniversitiesPage({
       >
         <section aria-labelledby="portal-countries-heading">
           <h2 id="portal-countries-heading" className="pt-sr-only">{strings.countriesHeading}</h2>
-          <CountryCards countries={countries} label={strings.countriesHeading} />
+          <CountryCards countries={countries} strings={strings} label={strings.countriesHeading} />
         </section>
       </UniversitySearch>
     </main>

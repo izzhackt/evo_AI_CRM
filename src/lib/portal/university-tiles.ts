@@ -1,9 +1,11 @@
 import "server-only";
 
+import type { PhotoCredit } from "@/components/portal/universities/PhotoRights";
 import type { TilePhoto, UniversityTileModel, UniversityTileStrings } from "@/components/portal/universities/UniversityTile";
 import type { Locale } from "../i18n-data.ts";
 import { UNIVERSITY_PHOTOS, type PublishedUniversity, type UniversityPhotoKey } from "../platform-university-catalog.ts";
-import { geographyPhotoSources, universityPhotoSrcSet, universityPhotoUrl } from "../university-photo-url.ts";
+import { geographyPhotoSources, managedUniversityPhotoUrl, universityPhotoSrcSet } from "../university-photo-url.ts";
+import { isOfficialMediaLicense } from "../university-photo-rights.ts";
 import { formatPortalString, type PortalStrings } from "./i18n.ts";
 import {
   localizedText,
@@ -26,7 +28,9 @@ import {
 /**
  * Модели карточек вузов и фото мест для экранов S3. Серверный слой: адреса
  * фото (managed-копии и Image Transformations) знает только сервер, карточка
- * получает готовые строки.
+ * получает готовые строки. Фото вуза студенту показывается только из нашего
+ * бакета: без managed-копии будет заглушка, а не hotlink с сайта вуза (план
+ * 4.4, приёмка 7.6.5).
  */
 
 type Strings = PortalStrings<"universities">;
@@ -34,11 +38,24 @@ type Strings = PortalStrings<"universities">;
 /** Ширины уменьшенных копий фото вуза в карточке (как в S1: 480w и 640w). */
 const TILE_WIDTHS = [480, 640] as const;
 
+/**
+ * Подпись по кнопке «©»: у официальных медиа вуза «Фото: <вуз>, официальный
+ * сайт» со ссылкой на страницу источника, у остальных автор и лицензия.
+ */
+export function universityPhotoCredit(photoKey: UniversityPhotoKey | null): PhotoCredit | null {
+  const entry = photoKey ? UNIVERSITY_PHOTOS[photoKey] : null;
+  if (!entry) return null;
+  return isOfficialMediaLicense(entry.license)
+    ? { kind: "official", sourceUrl: entry.sourceUrl }
+    : { kind: "author", author: entry.author, authorUrl: entry.sourceUrl, license: entry.license, licenseUrl: entry.licenseUrl };
+}
+
 export function universityTilePhoto(photoKey: UniversityPhotoKey | null): TilePhoto | null {
   const entry = photoKey ? UNIVERSITY_PHOTOS[photoKey] : null;
-  const src = universityPhotoUrl(photoKey) ?? entry?.path ?? null;
-  if (!entry || src === null) return null;
-  return { src, srcSet: universityPhotoSrcSet(photoKey, TILE_WIDTHS), alt: entry.caption };
+  const src = managedUniversityPhotoUrl(photoKey);
+  const credit = universityPhotoCredit(photoKey);
+  if (!entry || src === null || credit === null) return null;
+  return { src, srcSet: universityPhotoSrcSet(photoKey, TILE_WIDTHS), alt: entry.caption, credit };
 }
 
 export function intakeText(nearest: NearestIndexIntake | null, strings: Strings, locale: Locale): string {
@@ -105,6 +122,10 @@ export function tileStrings(strings: Strings): UniversityTileStrings {
     openCard: strings.openCard,
     photoMissing: strings.photoMissing,
     photoFailed: strings.photoFailed,
+    photoRights: strings.photoRights,
+    photoCredit: strings.photoCredit,
+    photoCreditOfficial: strings.photoCreditOfficial,
+    newTab: strings.newTab,
   };
 }
 
@@ -113,19 +134,15 @@ export type PlacePhoto = Readonly<{
   srcSet: string | null;
   width: number;
   height: number;
-  /** Подпись автора, если её требует лицензия; иначе null. */
-  credit: Readonly<{ author: string; authorUrl: string; license: string; licenseUrl: string | null }> | null;
+  /** Автор и лицензия по кнопке «©» (у мест всегда есть). */
+  credit: PhotoCredit;
 }>;
 
 /** Ширины копий фото мест: карточка (до ~400 px) и шапка (до ширины колонки). */
 export const PLACE_CARD_WIDTHS = [480, 800, 1200] as const;
 export const PLACE_HERO_WIDTHS = [800, 1200, 1600, 2000] as const;
 
-export function placePhoto(
-  photo: GeographyPhoto | null,
-  widths: readonly number[],
-  creditRequired: (photo: GeographyPhoto) => boolean,
-): PlacePhoto | null {
+export function placePhoto(photo: GeographyPhoto | null, widths: readonly number[]): PlacePhoto | null {
   if (photo === null) return null;
   const sources = geographyPhotoSources(photo.path, widths.filter((width) => width < photo.width));
   if (sources === null) return null;
@@ -136,8 +153,6 @@ export function placePhoto(
     srcSet,
     width: photo.width,
     height: photo.height,
-    credit: creditRequired(photo)
-      ? { author: photo.author, authorUrl: photo.authorUrl ?? photo.sourceUrl, license: photo.license, licenseUrl: photo.licenseUrl }
-      : null,
+    credit: { kind: "author", author: photo.author, authorUrl: photo.authorUrl ?? photo.sourceUrl, license: photo.license, licenseUrl: photo.licenseUrl },
   };
 }

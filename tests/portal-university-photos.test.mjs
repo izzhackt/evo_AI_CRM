@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { photoCreditRequired } from "../src/lib/portal/university-index.ts";
-import { resolveGeographyPhotoSources } from "../src/lib/university-photo-url.ts";
+import {
+  managedUniversityPhotoUrl,
+  resolveGeographyPhotoSources,
+  UNIVERSITY_PHOTO_PUBLIC_BASE_URL,
+} from "../src/lib/university-photo-url.ts";
 
 /**
  * Манифест фото S3 (план 4.4, приёмка 7.6.5): у каждого фото стран, городов и
@@ -11,6 +14,8 @@ import { resolveGeographyPhotoSources } from "../src/lib/university-photo-url.ts
  * образовательных агентств (EDUPRCHINA и похожих) нет; строка лицензии под
  * карточкой не печатается. Источник фото стран и городов в репозитории — сид
  * миграции 283 (генерируется из photos-manifest.json контент-потока).
+ * Фото вуза студент видит только из нашего бакета (hotlink с сайтов вузов
+ * нет); автор и лицензия открываются кнопкой «©».
  */
 
 const ROOT = new URL("../", import.meta.url);
@@ -47,21 +52,21 @@ test("every country and city photo carries author, source and licence from an al
       assert.doesNotMatch(host(url), AGENCY_HOSTS, `${photo.path}: agency host ${url}`);
     }
     assert.doesNotMatch(JSON.stringify(photo).toLowerCase(), /eduprchina/u, photo.path);
-    // Лицензии Wikimedia с указанием автора подписываются, Unsplash и Pexels нет.
-    if (photo.sourceName !== "Wikimedia Commons") assert.equal(photoCreditRequired(photo), false, photo.path);
     assert.match(photo.path, /-[0-9a-f]{12}\.(?:jpg|png|webp|avif)$/u, `${photo.path}: content-addressed`);
   }
 });
 
-test("every university photo of the six countries has author, source and licence, none from an agency", () => {
-  const library = JSON.parse(read("src/lib/university-photo-library.json"));
-  const bundles = ["china", "malaysia", "europe", "turkey", "international", "other"];
-  const keys = new Set();
-  for (const bundle of bundles) {
-    for (const entry of JSON.parse(read(`src/lib/server/university-catalog-reviewed-${bundle}.json`))) {
-      if (SIX.includes(entry.content.country) && entry.content.photoKey) keys.add(entry.content.photoKey);
-    }
+const library = JSON.parse(read("src/lib/university-photo-library.json"));
+const manifest = JSON.parse(read("scripts/portal/university-photos-manifest.json"));
+const sixCountryKeys = new Set();
+for (const bundle of ["china", "malaysia", "europe", "turkey", "international", "other"]) {
+  for (const entry of JSON.parse(read(`src/lib/server/university-catalog-reviewed-${bundle}.json`))) {
+    if (SIX.includes(entry.content.country) && entry.content.photoKey) sixCountryKeys.add(entry.content.photoKey);
   }
+}
+
+test("every university photo of the six countries has author, source and licence, none from an agency", () => {
+  const keys = sixCountryKeys;
   assert.ok(keys.size >= 80, `six-country photo keys: ${keys.size}`);
   for (const key of keys) {
     const photo = library[key];
@@ -75,16 +80,47 @@ test("every university photo of the six countries has author, source and licence
   }
 });
 
-test("the student interface prints no licence line under cards", () => {
+test("no university photo of the six countries reaches the student as a hotlink (приёмка 7.6.5)", () => {
+  let managed = 0;
+  for (const key of sixCountryKeys) {
+    const url = managedUniversityPhotoUrl(key);
+    const entry = manifest.entries[key];
+    if (url === null) {
+      // Без копии в бакете честная заглушка; запись объясняет, почему копии
+      // нет: ждёт --apply координатора, не скачалась или нет основания.
+      assert.ok(entry.migrated !== true, key);
+      assert.ok(entry.status === "ineligible" ? entry.rights === null : typeof entry.rights === "string", key);
+      continue;
+    }
+    managed += 1;
+    assert.ok(url.startsWith(`${UNIVERSITY_PHOTO_PUBLIC_BASE_URL}/${key}.`), `${key}: ${url}`);
+  }
+  assert.ok(managed >= 70, `managed six-country photos: ${managed}`);
+  // Экраны берут только managed-адрес: без запасного пути на сайт вуза.
+  for (const file of ["src/lib/portal/university-tiles.ts", "src/components/portal/universities/PhotoFigure.tsx"]) {
+    const source = read(file);
+    assert.match(source, /managedUniversityPhotoUrl\(/u, file);
+    assert.doesNotMatch(source, /universityPhotoUrl\(|entry\?\.path|photo\?\.path/u, file);
+  }
+});
+
+test("the student interface prints no licence line under cards; author and licence sit behind ©", () => {
   const tile = read("src/components/portal/universities/UniversityTile.tsx");
-  assert.doesNotMatch(tile, /license|licence|photoCredit|figcaption/iu, "university cards carry no attribution line");
+  assert.doesNotMatch(tile, /figcaption|strings\.photoCredit|license|licence/u, "university cards carry no attribution line");
+  assert.match(tile, /<PhotoRights credit=\{model\.photo\.credit\} universityName=\{model\.name\}/u);
   const places = read("src/components/portal/universities/Places.tsx");
-  const cards = places.slice(places.indexOf("export function CountryCards"), places.indexOf("export function PlaceHero"));
-  assert.doesNotMatch(cards, /license|credit/iu, "country and city cards carry no attribution line");
-  // Шапка места и герой вуза подписывают автора только по требованию лицензии.
-  assert.match(places, /\{photo\?\.credit \? \(/u);
-  assert.match(read("src/lib/portal/university-tiles.ts"), /credit: creditRequired\(photo\)/u);
-  assert.match(read("src/components/portal/universities/PhotoFigure.tsx"), /\{photoCreditRequired\(photo\) \? \(/u);
+  assert.doesNotMatch(places, /figcaption|pt-place-credit|photoCredit\.split/u, "places print no attribution line");
+  for (const [from, to] of [["export function CountryCards", "export function CityCards"],
+    ["export function CityCards", "export function PlaceHero"], ["export function PlaceHero", "export type Crumb"]]) {
+    assert.match(places.slice(places.indexOf(from), places.indexOf(to)), /<PhotoRights credit=\{[a-z.]*photo\.credit\}/u, from);
+  }
+  assert.match(read("src/components/portal/universities/PhotoFigure.tsx"), /<PhotoRights credit=\{credit\} universityName=\{content\.name\}/u);
+  // Официальные медиа вуза: «Фото: <вуз>, официальный сайт».
+  const tiles = read("src/lib/portal/university-tiles.ts");
+  assert.match(tiles, /isOfficialMediaLicense\(entry\.license\)\s*\? \{ kind: "official", sourceUrl: entry\.sourceUrl \}/u);
+  const i18n = read("src/lib/portal/i18n.ts");
+  assert.match(i18n, /photoCreditOfficial: "Фото: \{university\}, официальный сайт"/u);
+  assert.match(i18n, /photoCreditOfficial: "Сүрөт: \{university\}, расмий сайт"/u);
 });
 
 test("place photos come from the project's own bucket with reduced copies", () => {

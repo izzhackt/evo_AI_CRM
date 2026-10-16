@@ -2,16 +2,17 @@ import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import { UniversityPhotoFrame } from "@/components/platform/universities/UniversityPhotoFrame";
 
 import { FavoriteToggle, type FavoriteToggleStrings } from "./FavoriteToggle";
+import { PhotoRights, type PhotoCredit, type PhotoRightsStrings } from "./PhotoRights";
 
 /**
  * Карточка вуза «Атласа» (S3): одна для города, «Других вузов страны»,
  * поиска и «Избранного». Данные уже подготовлены сервером (фото нужного
  * размера, подписи уровней, ближайший набор), поэтому карточку рисует и
  * серверная страница, и клиентский поиск. Подписи лицензии под фото нет
- * (приёмка 7.6.5): сведения о фото остаются в данных.
+ * (приёмка 7.6.5): автор и лицензия по тихой кнопке «©» на фото.
  */
 
-export type TilePhoto = Readonly<{ src: string; srcSet: string | null; alt: string }>;
+export type TilePhoto = Readonly<{ src: string; srcSet: string | null; alt: string; credit: PhotoCredit }>;
 
 export type UniversityTileModel = Readonly<{
   id: string;
@@ -26,7 +27,7 @@ export type UniversityTileModel = Readonly<{
   favored: boolean | null;
 }>;
 
-export type UniversityTileStrings = FavoriteToggleStrings & Readonly<{
+export type UniversityTileStrings = FavoriteToggleStrings & PhotoRightsStrings & Readonly<{
   levelLabel: string;
   nearestIntake: string;
   openCard: string;
@@ -64,7 +65,7 @@ export function UniversityTile({
           emptyClassName="pt-photo-empty"
           failedText={strings.photoFailed}
         >
-          {null}
+          <PhotoRights credit={model.photo.credit} universityName={model.name} strings={strings} placement="bottom" />
         </UniversityPhotoFrame>
       ) : (
         <div className="pt-photo-empty">{strings.photoMissing}</div>

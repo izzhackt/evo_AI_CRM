@@ -9,6 +9,7 @@ import {
   libraryEntryProblems,
   licenseAllowsRedistribution,
   planUniversityPhotoMigration,
+  readStudentCatalogSites,
   readUniversityPhotoLibrary,
   runUniversityPhotoMigrationCli,
   REDISTRIBUTABLE_LICENSES,
@@ -16,8 +17,18 @@ import {
   UNIVERSITY_PHOTO_MANIFEST_SCHEMA,
   UNIVERSITY_PHOTO_PROJECT,
   universityPhotoPublicUrl,
+  universityPhotoRights,
 } from "../scripts/portal/migrate-university-photos.mjs";
 import {
+  isOfficialMediaLicense,
+  onOfficialSite,
+  PHOTO_RIGHTS_OFFICIAL_MEDIA,
+  PHOTO_RIGHTS_OPEN_LICENSE,
+  siteDomain,
+} from "../src/lib/university-photo-rights.ts";
+import {
+  managedUniversityPhotoUrl,
+  resolveManagedUniversityPhotoUrl,
   resolveUniversityPhotoSrcSet,
   resolveUniversityPhotoUrl,
   universityPhotoSrcSet,
@@ -32,6 +43,7 @@ import {
 
 const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
 const library = readUniversityPhotoLibrary();
+const sites = readStudentCatalogSites();
 const manifest = JSON.parse(
   readFileSync(new URL("../scripts/portal/university-photos-manifest.json", import.meta.url), "utf8"),
 );
@@ -82,6 +94,22 @@ test("URL helper prefers managed storage only for verified migrated manifest ent
   }
 });
 
+test("the student resolver returns only the managed copy, never a hotlink (план 4.4, приёмка 7.6.5)", () => {
+  const base = UNIVERSITY_PHOTO_PUBLIC_BASE_URL;
+  assert.equal(resolveManagedUniversityPhotoUrl("alpha", FIXTURE_PHOTOS, { alpha: migratedEntry }, base), `${base}/alpha.jpg`);
+  for (const entries of [{}, { alpha: { ...migratedEntry, migrated: false } }, { alpha: { ...migratedEntry, status: "failed" } },
+    { alpha: { ...migratedEntry, objectPath: "other.jpg" } }]) {
+    assert.equal(resolveManagedUniversityPhotoUrl("alpha", FIXTURE_PHOTOS, entries, base), null, JSON.stringify(entries));
+  }
+  assert.equal(resolveManagedUniversityPhotoUrl(null, FIXTURE_PHOTOS, { alpha: migratedEntry }, base), null);
+  assert.equal(resolveManagedUniversityPhotoUrl("toString", FIXTURE_PHOTOS, { alpha: migratedEntry }, base), null);
+  for (const key of Object.keys(library)) {
+    const url = managedUniversityPhotoUrl(key);
+    if (manifest.entries[key].migrated === true) assert.equal(url, universityPhotoUrl(key), key);
+    else assert.equal(url, null, key);
+  }
+});
+
 test("committed manifest keeps the site on hotlinks until the coordinator flips migrated", () => {
   assert.equal(
     UNIVERSITY_PHOTO_PUBLIC_BASE_URL,
@@ -114,7 +142,7 @@ test("committed manifest schema is complete, honest and attribution-preserving",
     assert.deepEqual(
       Object.keys(entry).sort(),
       ["attribution", "bytes", "contentType", "finalUrl", "license", "licenseUrl", "migrated",
-        "objectPath", "pageUrl", "reason", "sha256", "sourceUrl", "status"],
+        "objectPath", "pageUrl", "reason", "rights", "sha256", "sourceUrl", "status"],
       key,
     );
     // Атрибуция CC переживает миграцию байт-в-байт: манифест дублирует библиотеку.
@@ -124,6 +152,9 @@ test("committed manifest schema is complete, honest and attribution-preserving",
     assert.equal(entry.licenseUrl, record.licenseUrl, key);
     assert.equal(entry.attribution, record.author, key);
     assert.ok(["verified", "ineligible", "failed"].includes(entry.status), key);
+    // Основание копирования видно в манифесте и совпадает с правилом скрипта.
+    assert.equal(entry.rights, universityPhotoRights(key, record, sites), key);
+    assert.equal(entry.rights === null, entry.status === "ineligible", key);
     counted[entry.status] += 1;
     if (entry.migrated === true) counted.migrated += 1;
     assert.equal(typeof entry.migrated, "boolean", key);
@@ -134,7 +165,9 @@ test("committed manifest schema is complete, honest and attribution-preserving",
       assert.ok(UNIVERSITY_PHOTO_BUCKET.allowed_mime_types.includes(entry.contentType), key);
       assert.match(entry.objectPath, /^[a-z0-9][a-z0-9-]*\.(?:avif|gif|jpg|png|webp)$/u, key);
       assert.ok(entry.objectPath.startsWith(`${key}.`), key);
-      assert.ok(licenseAllowsRedistribution(entry.license), key);
+      assert.ok(entry.rights === PHOTO_RIGHTS_OPEN_LICENSE
+        ? licenseAllowsRedistribution(entry.license)
+        : isOfficialMediaLicense(entry.license) && sites.has(key), key);
     } else {
       assert.equal(entry.sha256, null, key);
       assert.equal(entry.bytes, null, key);
@@ -157,8 +190,20 @@ test("offline plan validates metadata and splits records by exact license allowl
   assert.equal(plan.totals.entries, Object.keys(library).length);
   assert.deepEqual(plan.invalid, []);
   assert.equal(plan.totals.eligible + plan.totals.ineligible, plan.totals.entries);
-  for (const key of plan.eligible) assert.ok(REDISTRIBUTABLE_LICENSES.includes(library[key].license), key);
+  for (const key of plan.eligible) {
+    assert.ok(REDISTRIBUTABLE_LICENSES.includes(library[key].license) || plan.officialMedia.includes(key), key);
+  }
   for (const { license } of plan.ineligible) assert.equal(REDISTRIBUTABLE_LICENSES.includes(license), false);
+  // Официальные медиа: только вузы шести стран каталога студента и только
+  // страница на домене официального сайта вуза.
+  assert.equal(plan.totals.officialMedia, plan.officialMedia.length);
+  for (const key of plan.officialMedia) {
+    assert.ok(isOfficialMediaLicense(library[key].license), key);
+    assert.ok(sites.get(key).every(website => onOfficialSite(library[key].sourceUrl, website)), key);
+  }
+  for (const key of ["gbs-global-banking-school-dubai-campus", "guangzhou-huashang-vocational-college", "kozminski-university"]) {
+    assert.ok(plan.ineligible.some(entry => entry.key === key), `${key}: partner, related-school or non-catalogue photo stays ineligible`);
+  }
 
   assert.deepEqual(libraryEntryProblems("ok-key", { path: "https://a.example/x.jpg", author: "A", title: "T",
     caption: "C", sourceUrl: "https://a.example/", license: "CC0", licenseUrl: "https://a.example/l" }), []);
@@ -179,6 +224,28 @@ const CHECK_LIBRARY = Object.freeze({
 });
 const OK_BYTES = Buffer.alloc(2048, 7);
 const imageResponse = bytes => new Response(bytes, { status: 200, headers: { "content-type": "image/jpeg" } });
+
+test("official media of a catalogue university are copied with a visible category; partners and foreign sites are not", async () => {
+  assert.equal(siteDomain("admission.zstu.edu.cn"), "zstu.edu.cn");
+  assert.equal(siteDomain("www.unibocconi.it"), "unibocconi.it");
+  assert.equal(siteDomain("apply.ku.edu.tr"), "ku.edu.tr");
+  assert.equal(onOfficialSite("https://sie.cjlu.edu.cn/a", "https://www.cjlu.edu.cn/"), true);
+  assert.equal(onOfficialSite("https://www.englishpath.com/dubai", "https://gbs.ac.ae/"), false);
+  assert.equal(onOfficialSite("http://www.zju.edu.cn/a", "https://www.zju.edu.cn/"), false);
+  const official = CHECK_LIBRARY.official;
+  const onSite = new Map([["official", ["https://www.uni.example/"]]]);
+  assert.equal(universityPhotoRights("official", official, onSite), PHOTO_RIGHTS_OFFICIAL_MEDIA);
+  assert.equal(universityPhotoRights("official", official, new Map()), null, "not in the student catalogue");
+  assert.equal(universityPhotoRights("official", official, new Map([["official", ["https://partner.example/"]]])), null);
+  assert.equal(universityPhotoRights("official", { ...official, license: "Official partner-source embedding; no reuse license stated" }, onSite), null);
+  assert.equal(universityPhotoRights("ok", CHECK_LIBRARY.ok, new Map()), PHOTO_RIGHTS_OPEN_LICENSE);
+
+  const fetchImpl = async url => (url === official.path ? imageResponse(OK_BYTES) : new Response("x", { status: 404 }));
+  const result = await checkUniversityPhotoMigration({ library: { official }, sites: onSite, fetchImpl });
+  assert.equal(result.manifest.entries.official.status, "verified");
+  assert.equal(result.manifest.entries.official.rights, PHOTO_RIGHTS_OFFICIAL_MEDIA);
+  assert.equal(result.manifest.entries.official.migrated, false);
+});
 
 test("check is read-only, records failures honestly and never drops entries", async () => {
   const requests = [];
@@ -203,6 +270,8 @@ test("check is read-only, records failures honestly and never drops entries", as
   assert.equal(result.manifest.entries.gone.status, "failed");
   assert.equal(result.manifest.entries.gone.reason, "http_404");
   assert.equal(result.manifest.entries.official.status, "ineligible");
+  assert.equal(result.manifest.entries.official.rights, null);
+  assert.equal(ok.rights, PHOTO_RIGHTS_OPEN_LICENSE);
   assert.deepEqual(result.report.failed, [{ key: "gone", reason: "http_404" }]);
   assert.deepEqual(result.manifest.totals, { entries: 3, verified: 1, ineligible: 1, failed: 1, migrated: 0 });
 });

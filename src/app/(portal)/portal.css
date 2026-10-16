@@ -1308,21 +1308,6 @@
   }
 }
 
-.pt-photo-caption {
-  display: grid;
-  gap: 2px;
-  padding: 8px 12px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--pt-text-2);
-}
-
-.pt-photo-caption a {
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
 .pt-photo-empty {
   display: flex;
   align-items: center;
@@ -1507,10 +1492,6 @@
 .pt-uni-hero .pt-photo {
   margin-bottom: 12px;
   background: none;
-}
-
-.pt-uni-hero .pt-photo-caption {
-  padding-inline: 0;
 }
 
 .pt-uni-overview {
@@ -2088,20 +2069,98 @@
   font-variant-numeric: tabular-nums;
 }
 
-.pt-place-credit {
-  justify-self: end;
-  margin: -8px 2px 0;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--pt-text-2);
-  text-align: end;
+/* ---------- Кнопка «©» на фото (план 4.4): автор, источник, лицензия ---------- */
+
+.pt-photo-hero {
+  position: relative;
 }
 
-.pt-place-credit a,
-.pt-photo-credit a {
+.pt-photo-rights {
+  position: absolute;
+  inset-inline-end: 2px;
+  /* Над растянутой ссылкой карточки места (z-index 2): нажимается отдельно. */
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: calc(100% - 4px);
+}
+
+.pt-photo-rights-top {
+  top: 2px;
+}
+
+.pt-photo-rights-bottom {
+  bottom: 2px;
+  flex-direction: column-reverse;
+}
+
+/* Цель нажатия 44 px, видимый кружок 28 px. */
+.pt-photo-rights-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pt-photo-rights-btn::-webkit-details-marker {
+  display: none;
+}
+
+.pt-photo-rights-btn::marker {
+  content: "";
+}
+
+.pt-photo-rights-btn > span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgb(20 16 12 / 0.55);
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 1;
+  transition: background-color var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-photo-rights-btn:hover > span,
+.pt-photo-rights[open] .pt-photo-rights-btn > span {
+  background: rgb(20 16 12 / 0.86);
+}
+
+.pt-page .pt-photo-rights-btn:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: -6px;
+}
+
+.pt-photo-rights-text {
+  max-width: 260px;
+  margin: 0;
+  margin-inline-end: 8px;
+  padding: 8px 10px;
+  border-radius: var(--pt-radius-item);
+  background: rgb(20 16 12 / 0.86);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.pt-photo-rights-text a {
   color: inherit;
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+/* Фото места не загрузилось: кнопке не к чему относиться. */
+.pt-place-media:not(:has(img)) .pt-photo-rights,
+.pt-place-hero-media:not(:has(img)) .pt-photo-rights {
+  display: none;
 }
 
 .pt-place-summary {

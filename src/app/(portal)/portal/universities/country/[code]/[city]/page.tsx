@@ -11,7 +11,6 @@ import {
   countryCodeFromSlug,
   countryHref,
   localizedText,
-  photoCreditRequired,
   UNIVERSITIES_BASE,
   type StudentUniversityIndex,
 } from "@/lib/portal/university-index";
@@ -62,7 +61,7 @@ export default async function CityPage({
   }
   const country = index.countries.find((entry) => entry.code === code) ?? notFound();
   const city = index.cities.find((entry) => entry.key === route.city && entry.country === code) ?? notFound();
-  const photo = placePhoto(city.photo, PLACE_HERO_WIDTHS, photoCreditRequired) ?? notFound();
+  const photo = placePhoto(city.photo, PLACE_HERO_WIDTHS) ?? notFound();
   const name = localizedText(city.name, locale);
   const universities = cityUniversities(index, city.key);
 

@@ -4,13 +4,16 @@ import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 import type { PlacePhoto } from "@/lib/portal/university-tiles";
 
+import { PhotoRights, type PhotoRightsStrings } from "./PhotoRights";
 import { PlaceImage } from "./PlaceImage";
 
 /**
  * Места «Атласа» (S3): карточки стран и городов, шапка места и путь по
  * каталогу. Фото несёт атмосферу, текст поверх фото лежит на затемнении и
  * остаётся читаемым и без фото (тёмная подложка). Вся карточка: одна
- * ссылка: заголовок растягивает свою ссылку на карточку.
+ * ссылка: заголовок растягивает свою ссылку на карточку. Автор, источник и
+ * лицензия фото открываются тихой кнопкой «©» в углу фото (план 4.4): она
+ * лежит над растянутой ссылкой и нажимается отдельно.
  */
 
 type Strings = PortalStrings<"universities">;
@@ -39,9 +42,11 @@ export type CityCardModel = Readonly<{
 
 export function CountryCards({
   countries,
+  strings,
   label,
 }: {
   countries: readonly CountryCardModel[];
+  strings: PhotoRightsStrings;
   label: string;
 }) {
   return (
@@ -61,6 +66,7 @@ export function CountryCards({
                   className="pt-place-img"
                 />
               ) : null}
+              {country.photo ? <PhotoRights credit={country.photo.credit} strings={strings} placement="top" /> : null}
             </div>
             <div className="pt-place-overlay">
               <h3 className="pt-place-name">
@@ -81,7 +87,7 @@ export function CityCards({
   label,
 }: {
   cities: readonly CityCardModel[];
-  strings: Pick<Strings, "cityFactLabel">;
+  strings: Pick<Strings, "cityFactLabel"> & PhotoRightsStrings;
   label: string;
 }) {
   return (
@@ -100,6 +106,7 @@ export function CityCards({
                 className="pt-place-img"
               />
               <p className="pt-city-count">{city.count}</p>
+              <PhotoRights credit={city.photo.credit} strings={strings} placement="top" />
             </div>
             <div className="pt-city-body">
               <h3 className="pt-city-name">
@@ -129,7 +136,7 @@ export function PlaceHero({
   title: string;
   counts: string;
   photo: PlacePhoto | null;
-  strings: Pick<Strings, "photoCredit" | "newTab">;
+  strings: PhotoRightsStrings;
   /** Узкая шапка над картой: карта видна на первом экране. */
   compact?: boolean;
   children?: ReactNode;
@@ -152,32 +159,8 @@ export function PlaceHero({
           <h1 className="pt-place-hero-name">{title}</h1>
           <p className="pt-place-hero-count">{counts}</p>
         </div>
+        {photo ? <PhotoRights credit={photo.credit} strings={strings} placement="top" /> : null}
       </div>
-      {photo?.credit ? (
-        <p className="pt-place-credit">
-          {(() => {
-            const [before, after] = strings.photoCredit.split("{author}");
-            const [middle, end] = (after ?? "").split("{license}");
-            return (
-              <>
-                {before}
-                <a href={photo.credit.authorUrl} target="_blank" rel="noopener noreferrer">
-                  {photo.credit.author}
-                  <span className="pt-sr-only"> {strings.newTab}</span>
-                </a>
-                {middle}
-                {photo.credit.licenseUrl ? (
-                  <a href={photo.credit.licenseUrl} target="_blank" rel="noopener noreferrer">
-                    {photo.credit.license}
-                    <span className="pt-sr-only"> {strings.newTab}</span>
-                  </a>
-                ) : photo.credit.license}
-                {end}
-              </>
-            );
-          })()}
-        </p>
-      ) : null}
       {children}
     </header>
   );

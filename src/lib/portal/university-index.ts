@@ -544,17 +544,6 @@ export function nearestIndexIntake(intakes: readonly IndexIntake[], now: Date): 
   return null;
 }
 
-/**
- * Автор фото подписывается только там, где этого требует лицензия (CC BY,
- * CC BY-SA и Free Art License, обычно Wikimedia Commons). Лицензии Unsplash и
- * Pexels, CC0, общественное достояние и официальные медиа вуза подписи не
- * требуют: строка не печатается, сведения остаются в данных (план 4.4,
- * приёмка 7.6.5).
- */
-export function photoCreditRequired(value: Readonly<{ license: string }>): boolean {
-  return /^(?:CC BY(?:-SA)?|FAL)(?:\s|$)/u.test(value.license);
-}
-
 /** Склонение счётчика по правилам русского; у кыргызского форма одна. */
 export function countForm(value: number): "one" | "few" | "many" {
   const mod10 = value % 10;

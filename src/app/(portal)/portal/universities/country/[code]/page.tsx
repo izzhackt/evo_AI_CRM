@@ -22,7 +22,6 @@ import {
   countryHref,
   countryUniversitiesWithoutCity,
   localizedText,
-  photoCreditRequired,
   UNIVERSITIES_BASE,
   type StudentUniversityIndex,
 } from "@/lib/portal/university-index";
@@ -90,7 +89,7 @@ export default async function CountryPage({
   // остаются в «Других вузах страны».
   const hiddenCities = new Set<string>();
   const cityCards: CityCardModel[] = cities.flatMap((city) => {
-    const photo = placePhoto(city.photo, PLACE_CARD_WIDTHS, photoCreditRequired);
+    const photo = placePhoto(city.photo, PLACE_CARD_WIDTHS);
     if (photo === null) hiddenCities.add(city.key);
     return photo === null ? [] : [{
       key: city.key,
@@ -134,7 +133,7 @@ export default async function CountryPage({
         counts={country.universityCount > 0
           ? placeCountsLabel(strings, country.universityCount, country.cityCount, countForm)
           : strings.countryNoUniversities}
-        photo={placePhoto(country.photo, PLACE_HERO_WIDTHS, photoCreditRequired)}
+        photo={placePhoto(country.photo, PLACE_HERO_WIDTHS)}
         strings={strings}
         compact={view === "map"}
       >

@@ -63,6 +63,22 @@ export function resolveUniversityPhotoUrl(
 }
 
 /**
+ * Только managed-копия из нашего бакета, без запасного hotlink: так фото
+ * показывает студенческий интерфейс (план 4.4, приёмка 7.6.5). Нет копии:
+ * null, экран рисует честную заглушку «фото не добавлено».
+ */
+export function resolveManagedUniversityPhotoUrl(
+  photoKey: string | null,
+  photos: Readonly<Record<string, Readonly<{ path: string }>>>,
+  entries: Readonly<Record<string, UniversityPhotoManifestEntry>>,
+  baseUrl: string,
+): string | null {
+  if (photoKey === null || !Object.hasOwn(photos, photoKey)) return null;
+  const objectPath = managedObjectPath(photoKey, entries);
+  return objectPath === null ? null : `${baseUrl}/${objectPath}`;
+}
+
+/**
  * `srcset` уменьшенных копий managed-фото (план A, 16.10.2026): карточка
  * высотой 176 px больше не качает исходник 1280–4320 px. Hotlink и
  * неизвестный ключ — null (остаётся один `src`).
@@ -85,6 +101,11 @@ export function resolveUniversityPhotoSrcSet(
 /** Боевая обвязка: библиотека репозитория + закоммиченный манифест. */
 export function universityPhotoUrl(photoKey: string | null): string | null {
   return resolveUniversityPhotoUrl(photoKey, LIBRARY, MANIFEST_ENTRIES, UNIVERSITY_PHOTO_PUBLIC_BASE_URL);
+}
+
+/** Боевая обвязка для студента: только managed-копия, иначе null. */
+export function managedUniversityPhotoUrl(photoKey: string | null): string | null {
+  return resolveManagedUniversityPhotoUrl(photoKey, LIBRARY, MANIFEST_ENTRIES, UNIVERSITY_PHOTO_PUBLIC_BASE_URL);
 }
 
 /** Боевая обвязка `srcset`: те же библиотека и манифест. */

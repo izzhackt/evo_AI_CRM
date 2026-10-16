@@ -381,8 +381,24 @@ FROM (VALUES (pg_temp.n283_city('Bad Key', 'CN', 'Плохой', FALSE)), (pg_te
     pg_temp.n283_photo('geography/cities/cn-agency-0123456789ab.jpg') || '{"sourceUrl":"https://www.eduprchina.com/photo/1"}'::JSONB)),
   (pg_temp.n283_city('no-author', 'CN', 'Без автора', TRUE) || jsonb_build_object('photo',
     pg_temp.n283_photo('geography/cities/cn-no-author-0123456789ab.jpg') - 'author')),
+  -- Источник назван Pexels, а адрес Unsplash: веб отверг бы весь индекс.
+  (pg_temp.n283_city('mismatch', 'CN', 'Чужой хост', TRUE) || jsonb_build_object('photo',
+    pg_temp.n283_photo('geography/cities/cn-mismatch-0123456789ab.jpg') || '{"sourceUrl":"https://unsplash.com/photos/abc"}'::JSONB)),
   (pg_temp.n283_city('long', 'CN', 'Длинный', FALSE) || jsonb_build_object('summaryRu', repeat('я', 301))),
   (pg_temp.n283_city('extra', 'CN', 'Лишний', FALSE) || '{"rating": 5}'::JSONB)) AS v(city);
+-- Источник и хост сходятся попарно, как PHOTO_HOSTS разбора веба: хост из
+-- общего списка, но другого источника, фото не делает.
+SELECT pg_temp.n283_assert(bool_and(platform_private.catalog_photo_valid(
+    pg_temp.n283_photo('geography/cities/cn-host-0123456789ab.jpg') || v.patch::JSONB, 'cities') = v.valid),
+  'a photo source and its host were not matched pairwise: ' || string_agg(v.patch, '; '))
+FROM (VALUES ('{}', TRUE),
+  ('{"sourceName":"Unsplash","sourceUrl":"https://unsplash.com/photos/abc"}', TRUE),
+  ('{"sourceName":"Wikimedia Commons","sourceUrl":"https://upload.wikimedia.org/wikipedia/commons/a/ab/N283.jpg"}', TRUE),
+  ('{"sourceName":"Wikimedia Commons","sourceUrl":"https://commons.wikimedia.org/wiki/File:N283.jpg"}', TRUE),
+  ('{"sourceUrl":"https://unsplash.com/photos/abc"}', FALSE),
+  ('{"sourceName":"Unsplash","sourceUrl":"https://www.pexels.com/photo/n283-1/"}', FALSE),
+  ('{"sourceName":"Wikimedia Commons","sourceUrl":"https://www.pexels.com/photo/n283-1/"}', FALSE),
+  ('{"sourceName":"Pexels","sourceUrl":"https://commons.wikimedia.org/wiki/File:N283.jpg"}', FALSE)) AS v(patch, valid);
 SELECT pg_temp.n283_ok('2', format('platform.staff_catalog_city_upsert_v1(%L::UUID, %L::JSONB, 0, %L::UUID)',
   pg_temp.n283_id(1), pg_temp.n283_city('kuala-lumpur', 'MY', 'Куала-Лумпур', FALSE), pg_temp.n283_id(3004)));
 SELECT pg_temp.n283_assert(pg_temp.n283_state('2', format('platform.staff_catalog_city_publish_v1(%L::UUID, %L, TRUE, 1, %L::UUID)',

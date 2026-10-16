@@ -219,11 +219,16 @@ enum CSCASVGParser {
         return .role(role)
     }
 
-    static func style(_ a: [String: String]) throws -> CSCASVGStyle {
+    /// Presentation attributes of one element. Text is at least 12 units,
+    /// 11 only on a `tspan` (indices and powers), as the profile says (§15).
+    static func style(_ a: [String: String], element: String) throws -> CSCASVGStyle {
         var style = CSCASVGStyle()
         style.fill = try paint(a["fill"])
         style.stroke = try paint(a["stroke"])
-        style.strokeWidth = try number(a["stroke-width"], "stroke-width")
+        if let width = try number(a["stroke-width"], "stroke-width") {
+            guard width >= 0 else { throw CSCASVGError.value("stroke-width") }
+            style.strokeWidth = width
+        }
         if let dash = a["stroke-dasharray"] {
             if dash == "none" {
                 style.dash = []
@@ -244,7 +249,7 @@ enum CSCASVGParser {
         style.fillOpacity = try unit(a["fill-opacity"], "fill-opacity")
         style.strokeOpacity = try unit(a["stroke-opacity"], "stroke-opacity")
         if let size = try number(a["font-size"], "font-size") {
-            guard size >= 11 else { throw CSCASVGError.value("font-size") }
+            guard size >= (element == "tspan" ? 11 : 12) else { throw CSCASVGError.value("font-size") }
             style.fontSize = size
         }
         if let fontStyle = a["font-style"] {
@@ -376,7 +381,7 @@ enum CSCASVGParser {
         }
 
         private func start(_ name: String, _ a: [String: String]) throws {
-            let style = try CSCASVGParser.style(a)
+            let style = try CSCASVGParser.style(a, element: name)
             let opacity = try CSCASVGParser.unit(a["opacity"], "opacity") ?? 1
             let transform = try CSCASVGParser.transform(a["transform"])
             func n(_ key: String, _ fallback: Double? = nil) throws -> Double {

@@ -10,7 +10,10 @@ import Foundation
 ///   so an unknown value fails the decode instead of rendering a guess;
 /// - the item projection has a closed key set (contract §5): an extra key,
 ///   for example a leaked answer key, fails the decode;
-/// - an unknown theory block kind is skipped silently (contract §13).
+/// - an unknown theory block kind is skipped silently (contract §13), and
+///   so are a timed test of an unknown `kind` and an unknown `nextStep`
+///   kind (read as no next step): later modules may add them while an
+///   iPhone build lives for months (contract §1).
 ///
 /// Privacy: answers, verdicts and results never go into logs or error text.
 
@@ -55,6 +58,32 @@ enum CSCAStrict {
                 debugDescription: "Closed key set violated: missing \(missing.sorted()), extra \(extra.sorted())"
             ))
         }
+    }
+}
+
+/// Things whose `kind` decides whether this build can show them.
+protocol CSCAKinded: Decodable {
+    static func isKnownKind(_ kind: String) -> Bool
+}
+
+/// A list whose elements carry a `kind`: elements of a kind this build does
+/// not know are skipped (a newer server), every known one decodes strictly.
+struct CSCAKnownKinds<Element: CSCAKinded>: Decodable {
+    let elements: [Element]
+
+    private struct KindOnly: Decodable {
+        let kind: String
+    }
+
+    init(from decoder: Decoder) throws {
+        var container = try decoder.unkeyedContainer()
+        var out: [Element] = []
+        while !container.isAtEnd {
+            let element = try container.superDecoder()
+            guard Element.isKnownKind(try KindOnly(from: element).kind) else { continue }
+            out.append(try Element(from: element))
+        }
+        elements = out
     }
 }
 
@@ -232,11 +261,16 @@ struct CSCAHome: Decodable {
         modules = try c.decode([CSCAModule].self, forKey: .modules)
         topics = try c.decode([CSCATopic].self, forKey: .topics)
         lessons = try c.decode([CSCALessonSummary].self, forKey: .lessons)
-        tests = try c.decode([CSCATestSummary].self, forKey: .tests)
+        tests = try c.decode(CSCAKnownKinds<CSCATestSummary>.self, forKey: .tests).elements
         review = try c.decode(CSCAReviewSummary.self, forKey: .review)
         sessions = try c.decode([CSCASession].self, forKey: .sessions)
         targetSessionKey = try c.decodeNullable(String.self, forKey: .targetSessionKey)
-        nextStep = try c.decodeNullable(CSCANextStep.self, forKey: .nextStep)
+        do {
+            nextStep = try c.decodeNullable(CSCANextStep.self, forKey: .nextStep)
+        } catch CSCANextStep.UnknownKind.kind {
+            // A step this build cannot open: the home shows no next step.
+            nextStep = nil
+        }
     }
 
     func topic(forKey key: String) -> CSCATopic? {
@@ -311,7 +345,9 @@ struct CSCALessonSummary: Decodable, Identifiable {
     }
 }
 
-struct CSCATestSummary: Decodable, Identifiable {
+struct CSCATestSummary: CSCAKinded, Identifiable {
+    static func isKnownKind(_ kind: String) -> Bool { CSCATestKind(rawValue: kind) != nil }
+
     let moduleId: UUID
     let formId: UUID
     let formKey: String
@@ -414,6 +450,9 @@ enum CSCANextStep: Decodable, Equatable {
     case lesson(lessonId: UUID, lessonKey: String, lessonKind: CSCALessonKind, topicKey: String, topicState: CSCATopicState)
     case review
 
+    /// A `kind` this build does not know (contract §1): read as no step.
+    enum UnknownKind: Error { case kind }
+
     private enum CodingKeys: String, CodingKey {
         case kind, formId, formKey, lessonId, lessonKey, lessonKind, topicKey, topicState
     }
@@ -443,9 +482,7 @@ enum CSCANextStep: Decodable, Equatable {
             try CSCAStrict.requireKeys(decoder, required: ["kind"])
             self = .review
         default:
-            throw DecodingError.dataCorruptedError(
-                forKey: .kind, in: c, debugDescription: "Unknown nextStep kind"
-            )
+            throw UnknownKind.kind
         }
     }
 }
@@ -1097,7 +1134,9 @@ struct CSCAProgressTopic: Decodable, Identifiable {
     var id: String { topicKey }
 }
 
-struct CSCAProgressTest: Decodable, Identifiable {
+struct CSCAProgressTest: CSCAKinded, Identifiable {
+    static func isKnownKind(_ kind: String) -> Bool { CSCATestKind(rawValue: kind) != nil }
+
     let attemptId: UUID
     let formKey: String
     let kind: CSCATestKind
@@ -1168,6 +1207,20 @@ struct CSCAProgress: Decodable {
     let pace: CSCAPace
     let streak: CSCAStreak
     let review: CSCAProgressReview
+
+    private enum CodingKeys: String, CodingKey { case track, today, coverage, topics, tests, pace, streak, review }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        track = try c.decode(String.self, forKey: .track)
+        today = try c.decode(String.self, forKey: .today)
+        coverage = try c.decode(CSCACoverage.self, forKey: .coverage)
+        topics = try c.decode([CSCAProgressTopic].self, forKey: .topics)
+        tests = try c.decode(CSCAKnownKinds<CSCAProgressTest>.self, forKey: .tests).elements
+        pace = try c.decode(CSCAPace.self, forKey: .pace)
+        streak = try c.decode(CSCAStreak.self, forKey: .streak)
+        review = try c.decode(CSCAProgressReview.self, forKey: .review)
+    }
 }
 
 // MARK: - Report and target session (contract §10, §11)

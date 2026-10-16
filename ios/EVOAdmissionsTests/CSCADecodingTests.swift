@@ -79,6 +79,46 @@ final class CSCADecodingTests: XCTestCase {
         XCTAssertThrowsError(try Self.mutated(CSCAHome.self, "csca_home_fresh") { $0.removeValue(forKey: "targetSessionKey") })
     }
 
+    /// A long-lived build next to a newer server (contract §1): an unknown
+    /// next step reads as none, a test of an unknown kind is skipped, and
+    /// the rest of the home still decodes strictly.
+    func testUnknownNextStepAndTestKindAreSkipped() throws {
+        let home = try Self.mutated(CSCAHome.self, "csca_home_fresh") { object in
+            object["nextStep"] = ["kind": "checklist", "checklistKey": "exam-from-home"]
+            var tests = object["tests"] as! [[String: Any]]
+            var future = tests[0]
+            future["kind"] = "sprint"
+            future["formKey"] = "csca-math-sprint-1"
+            tests.append(future)
+            object["tests"] = tests
+        }
+        XCTAssertNil(home.nextStep)
+        XCTAssertEqual(home.tests.map(\.kind), [.diagnostic, .mock])
+        XCTAssertEqual(home.topics.count, 28)
+        // A known kind still decodes strictly: a broken diagnostic fails.
+        XCTAssertThrowsError(try Self.mutated(CSCAHome.self, "csca_home_fresh") { object in
+            var tests = object["tests"] as! [[String: Any]]
+            tests[0].removeValue(forKey: "durationSeconds")
+            object["tests"] = tests
+        })
+        XCTAssertThrowsError(try Self.mutated(CSCAHome.self, "csca_home_fresh") { object in
+            object["nextStep"] = ["kind": "test", "formKey": "csca-math-diagnostic-1"]
+        }, "a known next step with a missing key is still a contract break")
+    }
+
+    func testUnknownTestKindIsSkippedInProgress() throws {
+        let progress = try Self.mutated(CSCAProgress.self, "csca_progress_after_mock") { object in
+            var tests = object["tests"] as! [[String: Any]]
+            var future = tests[0]
+            future["kind"] = "sprint"
+            tests.insert(future, at: 0)
+            object["tests"] = tests
+        }
+        let plain = try Self.decode(CSCAProgress.self, "csca_progress_after_mock")
+        XCTAssertEqual(progress.tests.map(\.attemptId), plain.tests.map(\.attemptId))
+        XCTAssertFalse(plain.tests.isEmpty)
+    }
+
     func testUnknownTopicStateFails() throws {
         XCTAssertThrowsError(try Self.mutated(CSCAHome.self, "csca_home_fresh") { object in
             var topics = object["topics"] as! [[String: Any]]

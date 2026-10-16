@@ -355,9 +355,7 @@ struct CSCATestRow: View {
                 Text(verbatim: AppLocale.pick(ru: test.metadata.titleRu, ky: test.metadata.titleKy))
                     .font(.body.weight(.semibold))
             }
-            Text(verbatim: CSCAText.f(
-                "csca_test_meta", test.itemsTotal, max(1, test.durationSeconds / 60)
-            ))
+            Text(verbatim: CSCAText.testMeta(itemsTotal: test.itemsTotal, durationSeconds: test.durationSeconds))
             .font(.subheadline)
             .foregroundStyle(CSCAColor.secondaryText)
             if test.draft != nil {
@@ -515,6 +513,7 @@ struct CSCATopicView: View {
                             .font(.subheadline)
                             .foregroundStyle(CSCAColor.secondaryText)
                             .environment(\.locale, Locale(identifier: "en"))
+                            .accessibilityLabel(Text(CSCASpeech.english(topic.metadata.titleEn)))
                         CSCAStateBadge(state: topic.state)
                         Text(verbatim: stateDetail(topic))
                             .font(.subheadline)

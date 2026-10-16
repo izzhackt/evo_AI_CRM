@@ -59,6 +59,90 @@ enum CSCATeX {
         .replacingOccurrences(of: "  ", with: " ")
     }
 
+    // MARK: Typesetting
+
+    /// SwiftMath reads `'` as an upright quote; TeX and the web (KaTeX) draw
+    /// a prime. Each `'` becomes `\prime`, the U+2032 glyph of the OpenType
+    /// math font, which is drawn at prime height on the base line (as
+    /// unicode-math does; `^{\prime}` would shrink it and lift it further).
+    /// After `\right)` a negative thin space keeps it on the bracket.
+    /// `\text{…}` keeps its apostrophes; `\'` is not a prime.
+    static func primesForTypesetting(_ tex: String) -> String {
+        guard tex.contains("'") else { return tex }
+        let chars = Array(tex)
+        var out = ""
+        var index = 0
+        var depth = 0
+        var textGroupDepth: Int?
+        var afterRightDelimiter = false
+
+        func commandEnd(from start: Int) -> Int {
+            var end = start + 1
+            if end < chars.count, chars[end].isLetter {
+                while end < chars.count, chars[end].isLetter { end += 1 }
+            } else {
+                end = min(end + 1, chars.count)
+            }
+            return end
+        }
+
+        while index < chars.count {
+            let ch = chars[index]
+            switch ch {
+            case "\\":
+                let end = commandEnd(from: index)
+                let name = String(chars[(index + 1)..<end])
+                out += String(chars[index..<end])
+                index = end
+                if name == "right" {
+                    // `\right` and its delimiter (one character or a command).
+                    while index < chars.count, chars[index] == " " { index += 1 }
+                    if index < chars.count {
+                        let delimiterEnd = chars[index] == "\\" ? commandEnd(from: index) : index + 1
+                        out += String(chars[index..<delimiterEnd])
+                        index = delimiterEnd
+                    }
+                    afterRightDelimiter = true
+                    continue
+                }
+                if textGroupDepth == nil, ["text", "textrm", "textit", "textbf", "mbox"].contains(name) {
+                    var brace = index
+                    while brace < chars.count, chars[brace] == " " { brace += 1 }
+                    if brace < chars.count, chars[brace] == "{" {
+                        out += String(chars[index...brace])
+                        depth += 1
+                        textGroupDepth = depth
+                        index = brace + 1
+                    }
+                }
+            case "{":
+                depth += 1
+                out.append(ch)
+                index += 1
+            case "}":
+                if textGroupDepth == depth { textGroupDepth = nil }
+                depth -= 1
+                out.append(ch)
+                index += 1
+            case "'" where textGroupDepth == nil:
+                if afterRightDelimiter { out += "\\!" }
+                while index < chars.count, chars[index] == "'" {
+                    out += "\\prime"
+                    index += 1
+                }
+                // A letter right after would extend the command name.
+                if index < chars.count, chars[index].isLetter { out += " " }
+                afterRightDelimiter = false
+                continue
+            default:
+                out.append(ch)
+                index += 1
+            }
+            if ch != " " { afterRightDelimiter = false }
+        }
+        return out
+    }
+
     // MARK: Speech
 
     static func spoken(_ tex: String) -> String {
@@ -220,6 +304,10 @@ enum CSCATeX {
                 case "frac":
                     let numerator = parseArgument()
                     let denominator = parseArgument()
+                    // A longer numerator or denominator needs audible edges.
+                    if numerator.count > 1 || denominator.count > 1 {
+                        return ["the fraction"] + numerator + ["over"] + denominator + ["end fraction", ","]
+                    }
                     return numerator + ["over"] + denominator + [","]
                 case "sqrt":
                     return ["square root of"] + parseArgument() + [","]

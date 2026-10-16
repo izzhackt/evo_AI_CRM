@@ -150,3 +150,19 @@ Web `/portal/csca/*` over RPC 285/286 (`docs/portal/csca-contract.md` §17): tra
 Real evidence on the local `evo-video-demo` stack only (synthetic students, no production): headless Chromium at 1440×900 and 390×844, light and dark, RU and KY; diagnostic finished early with review; a real 450 s mock deadline auto-submitted by the client and returned `Время вышло`; lesson answers wrong and right (keyboard), report sent, practice, review answer moving an item to box 2, progress. Screenshots and receipts are kept outside Git in `output/student-app-v2/screens/csca-web/` of the canonical checkout.
 
 iPhone parity is not built in this slice: SwiftMath spike, figures in `WKWebView`, the same six screens. Until then the iPhone has no CSCA entry (`learning_modules_v1` returns English only).
+
+## 2026-10-16: CSCA S5.1, iPhone (build 1.1, PR #1210)
+
+Superseding the line above: the iPhone now has the same CSCA screens over the same RPC 285/286 and JSON (`docs/portal/csca-contract.md`): track home (next step, diagnostic and mock, mistakes, progress, syllabus sections with topic state, official sessions with target choice), lesson and practice with typed theory blocks, item card with per-option explanations, step-by-step solution and «Сообщить об ошибке», timed test with navigator and «Вернуться позже», result and review after finish, spaced review and progress. Entry: a «CSCA» row above the English list in the «Английский» tab, shown even when the English list fails or is empty (owner default: navigation unchanged).
+
+How the iPhone renders differently from the web:
+
+- Formulas: SwiftMath 1.7.3 images inside SwiftUI `Text` instead of KaTeX HTML+MathML; `'` is set as the U+2032 prime glyph. VoiceOver reads a spoken label built from TeX, with English runs marked `en` (SwiftUI passes it as `UIAccessibilitySpeechAttributeLanguage`), where the web exposes MathML.
+- Figures: an own strict-profile SVG parser and SwiftUI `Canvas`, not `WKWebView` as first planned (no web process per figure, no async layout jumps); anything outside the §15 profile shows the alt text.
+- Test clock: monotonic time anchored at each `serverNow`, the web uses the page clock with the same offset rule.
+
+Behaviour aligned with the web after review round 1: a failed finish always leaves «Закрыть» and, for a refusal with time left, returns to the test with the error; 40001 adopts the server attempt with the conflict notice; a save retry after a transport failure resends the same request; a new choice after a failed lesson or review write drops the frozen request; the exit dialog says whether the last answers are saved.
+
+Known divergences: the iPhone uses a 10 s retry cadence for a frozen test save (web 3 s); an unknown `nextStep` kind or test kind is skipped on the iPhone (contract §1), the web ships with the server and needs no rule.
+
+Evidence on the local `evo-video-demo` stack only (synthetic student, no production), through a local fault-injection proxy: m7 English failure with CSCA reachable, frozen save resent with the same request id (server replay 200), exit dialog texts, failed finish with «Закрыть» then a real finish, a second-device save adopted with the notice, a new lesson choice sent after a failed check, the three pilot lessons on iPhone 17 Pro Max light and dark. Not verified: iOS 17 runtime (only iOS 26.5 is installed), manual VoiceOver listening, scroll hitch ratio (the simulator reports scroll duration only). Screenshots stay outside Git in the canonical checkout `output/student-app-v2/screens/csca-ios-r1/`.

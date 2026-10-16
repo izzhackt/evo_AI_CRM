@@ -123,14 +123,17 @@ struct CSCAOptionList: View {
         }
     }
 
+    /// «Вариант A» and the verdict in the app language, the option itself
+    /// (English content and formulas) in English.
     private func accessibilityLabel(_ option: CSCAOption, outcome: CSCAOptionOutcome) -> Text {
-        var label = CSCAText.f("csca_option_letter", option.id.uppercased()) + " " + CSCATeX.spokenText(option.label)
+        var label = AttributedString(CSCAText.f("csca_option_letter", option.id.uppercased()) + " ")
+        label += CSCASpeech.mixed(option.label, textIsEnglish: true)
         switch outcome {
-        case .correct: label += ". " + CSCAText.t("csca_option_is_correct")
-        case .wrongChoice: label += ". " + CSCAText.t("csca_option_your_wrong")
+        case .correct: label += AttributedString(". " + CSCAText.t("csca_option_is_correct"))
+        case .wrongChoice: label += AttributedString(". " + CSCAText.t("csca_option_your_wrong"))
         case .neutral: break
         }
-        return Text(verbatim: label)
+        return Text(label)
     }
 }
 
@@ -238,7 +241,10 @@ struct CSCAExplainView: View {
             CSCAMathText(source: text, style: .callout)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text(verbatim: CSCAText.f("csca_option_letter", id.uppercased()) + ". " + CSCATeX.spokenText(text)))
+        .accessibilityLabel(Text(
+            AttributedString(CSCAText.f("csca_option_letter", id.uppercased()) + ". ")
+                + CSCASpeech.mixed(text, textIsEnglish: false)
+        ))
     }
 }
 
@@ -291,7 +297,9 @@ struct CSCATermsList: View {
                         .foregroundStyle(CSCAColor.secondaryText)
                 }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(verbatim: term.en + ", " + AppLocale.pick(ru: term.ru, ky: term.ky)))
+                .accessibilityLabel(Text(
+                    CSCASpeech.english(term.en) + AttributedString(", " + AppLocale.pick(ru: term.ru, ky: term.ky))
+                ))
             }
         }
     }

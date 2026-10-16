@@ -901,6 +901,60 @@
         }
       }
     },
+    "csca_exit_message_pending" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Акыркы жоопторду сактап, чыгабыз. Тесттин убактысы өтө берет, тесттин экранынан кайра кирсеңиз болот."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохраним последние ответы и выйдем. Время теста продолжает идти, вернуться можно с экрана теста."
+          }
+        }
+      }
+    },
+    "csca_exit_message_time_up" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тесттин убактысы бүттү. Тест сакталган жооптор менен аяктайт, жыйынтык тесттин экранында чыгат."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Время теста вышло. Тест завершится с сохранёнными ответами, итог появится на экране теста."
+          }
+        }
+      }
+    },
+    "csca_exit_message_unsaved" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Акыркы жооптор сакталган жок. Азыр чыксаңыз, алар жоголот. Тесттин убактысы өтө берет."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последние ответы не сохранены. Если выйти сейчас, они пропадут. Время теста продолжает идти."
+          }
+        }
+      }
+    },
     "csca_exit_stay" : {
       "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
       "extractionState" : "manual",
@@ -1862,13 +1916,13 @@
         "ky" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "EVO командасы тапшырманы жана текстиңизди көрөт, бирок ким жазганын көрбөйт."
+            "value" : "Билдирүүнү EVO редакциясы атыңызсыз көрөт."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Команда EVO увидит задание и ваш текст, но не увидит, кто написал."
+            "value" : "Сообщение увидит редакция EVO, без вашего имени."
           }
         }
       }
@@ -3057,6 +3111,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Заданий: %1$ld. Время: %2$ld мин"
+          }
+        }
+      }
+    },
+    "csca_test_meta_seconds" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тапшырмалар: %1$ld. Убакыт: %2$ld мүн %3$ld сек."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заданий: %1$ld. Время: %2$ld мин %3$ld с"
           }
         }
       }

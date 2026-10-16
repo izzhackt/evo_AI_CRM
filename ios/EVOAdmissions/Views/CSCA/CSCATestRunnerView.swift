@@ -37,7 +37,7 @@ struct CSCATestIntroView: View {
                     Text(verbatim: AppLocale.pick(ru: test.metadata.introRu, ky: test.metadata.introKy))
                         .font(.body)
                     Label {
-                        Text(verbatim: CSCAText.f("csca_test_meta", test.itemsTotal, max(1, test.durationSeconds / 60)))
+                        Text(verbatim: CSCAText.testMeta(itemsTotal: test.itemsTotal, durationSeconds: test.durationSeconds))
                     } icon: {
                         Image(systemName: "clock")
                     }
@@ -133,11 +133,22 @@ struct CSCATestAttemptBox: Identifiable {
     var id: UUID { timed.value.attemptId }
 }
 
+/// One `save_learning_test_v1` request. After a transport failure it is
+/// resent unchanged, same request id, revision and state (contract §1):
+/// if the first one landed, the server returns the same receipt.
+struct CSCAFrozenTestSave: Equatable {
+    let requestId: UUID
+    let revision: Int64
+    let state: CSCATestSaveState
+}
+
 /// Timed test on the server clock (contract §7). The countdown is display
-/// only; the server sets the deadline, refuses late saves and finishes an
-/// expired draft. Saves replace the whole state, one request at a time
-/// with the latest revision. A mock test has no «Завершить»: when the time
-/// is out the client finishes it.
+/// only and runs on monotonic time anchored at `serverNow`, so changing the
+/// device time does not move it; the server sets the deadline, refuses late
+/// saves and finishes an expired draft. Saves replace the whole state, one
+/// request at a time with the latest revision. A mock test has no
+/// «Завершить»: when the time is out the client finishes it. Every phase
+/// keeps a way out of the full-screen runner.
 @MainActor
 final class CSCATestRunnerModel: ObservableObject {
     enum Phase: Equatable {
@@ -145,6 +156,19 @@ final class CSCATestRunnerModel: ObservableObject {
         case finishing
         case completed
         case failed(CSCAFailure)
+
+        var isFailed: Bool {
+            if case .failed = self { return true }
+            return false
+        }
+    }
+
+    /// What leaving the runner now means for the answers (exit dialog).
+    enum ExitRisk: Equatable {
+        case saved      // nothing unsaved; the time keeps running
+        case pending    // unsaved answers, no failed save yet: save, then leave
+        case unsaved    // the last save failed: leaving loses those answers
+        case timeUp     // time is out: the server finishes with what is saved
     }
 
     @Published private(set) var attempt: CSCATestAttempt
@@ -152,17 +176,20 @@ final class CSCATestRunnerModel: ObservableObject {
     @Published private(set) var index = 0
     @Published private(set) var answers: [String: String]
     @Published private(set) var flags: [String]
-    @Published private(set) var now = Date()
+    @Published private(set) var now = CSCAMonotonic.now()
     @Published private(set) var isSaving = false
     @Published private(set) var saveFailure: CSCAFailure?
-    @Published private(set) var lastSavedAt: Date?
+    /// String key shown above the save status: the server attempt replaced
+    /// this device's answers, or finishing failed and the test is back.
+    @Published private(set) var notice: String?
 
     private(set) var clock: CSCAServerClock
     private let deadline: Date
     private var revision: Int64
     private var timer: CSCAItemTimer
     private var dirty = false
-    private var lastSaveAt: Date?
+    private var retrySave: CSCAFrozenTestSave?
+    private var lastSaveAt: TimeInterval?
     private var ticker: Task<Void, Never>?
     private var completeRequestId = UUID()
     private let service: SupabaseService
@@ -174,7 +201,7 @@ final class CSCATestRunnerModel: ObservableObject {
         answers = attempt.answers
         flags = attempt.flags
         revision = attempt.revision
-        clock = CSCAServerClock(serverNow: attempt.serverNow, receivedAt: start.receivedAt) ?? CSCAServerClock(offset: 0)
+        clock = CSCAServerClock(serverNow: attempt.serverNow, receivedAt: start.receivedAt) ?? .device()
         deadline = CSCATime.date(from: attempt.deadlineAt) ?? Date()
         timer = CSCAItemTimer(initial: attempt.itemSeconds)
         if attempt.isCompleted { phase = .completed }
@@ -187,10 +214,20 @@ final class CSCATestRunnerModel: ObservableObject {
     var remaining: TimeInterval { clock.remaining(until: deadline, at: now) }
     var answeredCount: Int { items.filter { answers[$0.itemKey] != nil }.count }
     var isLocked: Bool { phase != .running || remaining <= 0 }
+    var hasUnsavedChanges: Bool { dirty || retrySave != nil }
+
+    /// Read at the moment it is asked: the ticker is stopped after a failed
+    /// finish, so `remaining` may be stale there.
+    var exitRisk: ExitRisk {
+        if clock.remaining(until: deadline, at: CSCAMonotonic.now()) <= 0 { return .timeUp }
+        guard hasUnsavedChanges else { return .saved }
+        return saveFailure == nil ? .pending : .unsaved
+    }
 
     func begin() {
         guard phase == .running else { return }
-        if let current { timer.enter(current.itemKey, at: Date()) }
+        now = CSCAMonotonic.now()
+        if let current { timer.enter(current.itemKey, at: now) }
         ticker?.cancel()
         ticker = Task { [weak self] in
             while !Task.isCancelled {
@@ -207,7 +244,7 @@ final class CSCATestRunnerModel: ObservableObject {
     }
 
     private func tick() async {
-        now = Date()
+        now = CSCAMonotonic.now()
         guard phase == .running else { return }
         if remaining <= 0 {
             finishInOwnTask()
@@ -228,94 +265,141 @@ final class CSCATestRunnerModel: ObservableObject {
         guard !isLocked, let current else { return }
         answers[current.itemKey] = optionId
         dirty = true
+        notice = nil
     }
 
     func toggleFlag() {
         guard !isLocked, let current else { return }
         flags = CSCANavigator.toggled(flags, current.itemKey)
         dirty = true
+        notice = nil
     }
 
     func go(to newIndex: Int) {
         guard items.indices.contains(newIndex), newIndex != index else { return }
         index = newIndex
-        timer.enter(items[newIndex].itemKey, at: Date())
+        timer.enter(items[newIndex].itemKey, at: CSCAMonotonic.now())
         Task { await save(.navigation) }
     }
 
     func appWillResignActive() {
-        timer.pause(at: Date())
+        timer.pause(at: CSCAMonotonic.now())
         Task { await save(.background) }
     }
 
     func appDidBecomeActive() {
-        now = Date()
-        if let current, phase == .running { timer.enter(current.itemKey, at: Date()) }
+        now = CSCAMonotonic.now()
+        if let current, phase == .running { timer.enter(current.itemKey, at: now) }
         Task { await tick() }
     }
 
     // MARK: Saving (contract §7.3)
 
     private var saveState: CSCATestSaveState {
-        timer.flush(at: Date())
+        timer.flush(at: CSCAMonotonic.now())
         let keys = Set(items.map(\.itemKey))
         let seconds = timer.seconds.filter { keys.contains($0.key) }.mapValues { max(0, min(3600, $0)) }
         return CSCATestSaveState(answers: answers, flags: flags, itemSeconds: seconds)
     }
 
+    /// true when nothing is left unsaved afterwards.
     @discardableResult
     func save(_ trigger: CSCASaveSchedule.Trigger) async -> Bool {
-        let at = Date()
-        if trigger == .tick, dirty == false {
-            // Pace hint only: seconds alone are not worth a request.
-            return true
-        }
-        guard CSCASaveSchedule.shouldSave(trigger: trigger, isDirty: dirty, inFlight: isSaving, lastSaveAt: lastSaveAt, now: at) else {
-            return !dirty
+        let at = CSCAMonotonic.now()
+        guard CSCASaveSchedule.shouldSave(
+            trigger: trigger, isDirty: hasUnsavedChanges, inFlight: isSaving, lastSaveAt: lastSaveAt, now: at
+        ) else {
+            return !hasUnsavedChanges
         }
         guard clock.acceptsSave(deadline: deadline, graceSeconds: attempt.graceSeconds, at: at) else { return false }
         let background = trigger == .background ? UIApplication.shared.beginBackgroundTask(withName: "csca-save") : .invalid
         defer { if background != .invalid { UIApplication.shared.endBackgroundTask(background) } }
         isSaving = true
         defer { isSaving = false }
-        let state = saveState
-        dirty = false
+        let request: CSCAFrozenTestSave
+        if let retrySave {
+            request = retrySave
+        } else {
+            request = CSCAFrozenTestSave(requestId: UUID(), revision: revision, state: saveState)
+            dirty = false
+        }
         do {
             let receipt = try await service.cscaSaveTest(
-                attemptId: attempt.attemptId, expectedRevision: revision, state: state, requestId: UUID()
+                attemptId: attempt.attemptId, expectedRevision: request.revision, state: request.state,
+                requestId: request.requestId
             )
+            retrySave = nil
             revision = receipt.value.revision
             if let fresh = CSCAServerClock(serverNow: receipt.value.serverNow, receivedAt: receipt.receivedAt) {
                 clock = fresh
             }
             lastSaveAt = at
-            lastSavedAt = Date()
             saveFailure = nil
-            if state.answers != answers || state.flags != flags { dirty = true }
-            return true
+            if request.state.answers != answers || request.state.flags != flags { dirty = true }
+            return !hasUnsavedChanges
         } catch {
-            dirty = true
+            lastSaveAt = at
             let failure = error.cscaFailure
             switch failure {
+            case .network:
+                // The server may have stored it: resend this very request.
+                retrySave = request
+                saveFailure = .network
             case .conflict:
-                // Another save landed first: take its revision, keep this
-                // device's answers and send them again on the next save.
-                if let fresh = try? await service.cscaTestAttempt(attemptId: attempt.attemptId) {
-                    if fresh.value.isCompleted {
-                        adoptCompleted(fresh.value)
-                        return false
-                    }
-                    revision = fresh.value.revision
-                }
-                saveFailure = nil
+                // Another device saved first. As on the web, the server
+                // attempt wins and the student is told.
+                retrySave = nil
+                await adoptServerAttempt()
             case .deadlinePassed, .testCompleted:
+                retrySave = nil
                 finishInOwnTask()
             default:
+                retrySave = nil
+                dirty = true
                 saveFailure = failure
             }
-            lastSaveAt = at
             return false
         }
+    }
+
+    /// Before leaving the runner: let a save in flight land, then send what
+    /// is left. true when nothing is left unsaved.
+    func saveBeforeExit() async -> Bool {
+        while isSaving { try? await Task.sleep(for: .milliseconds(100)) }
+        guard hasUnsavedChanges else { return true }
+        return await save(.background)
+    }
+
+    private func adoptServerAttempt() async {
+        guard let fresh = try? await service.cscaTestAttempt(attemptId: attempt.attemptId) else {
+            // Unreadable right now: the next save conflicts and rereads again.
+            dirty = true
+            saveFailure = .network
+            return
+        }
+        if fresh.value.isCompleted {
+            adoptCompleted(fresh.value)
+            return
+        }
+        adoptDraft(fresh)
+        notice = "csca_error_conflict"
+    }
+
+    private func adoptDraft(_ fresh: CSCATimed<CSCATestAttempt>) {
+        let value = fresh.value
+        let wasCounting = timer.enteredAt != nil
+        attempt = value
+        answers = value.answers
+        flags = value.flags
+        revision = value.revision
+        if let anchored = CSCAServerClock(serverNow: value.serverNow, receivedAt: fresh.receivedAt) {
+            clock = anchored
+        }
+        timer = CSCAItemTimer(initial: value.itemSeconds)
+        if wasCounting, let current { timer.enter(current.itemKey, at: CSCAMonotonic.now()) }
+        dirty = false
+        retrySave = nil
+        saveFailure = nil
     }
 
     // MARK: Finish (contract §7.4)
@@ -323,14 +407,16 @@ final class CSCATestRunnerModel: ObservableObject {
     var canFinishEarly: Bool { attempt.allowEarlyFinish && phase == .running }
 
     func finish(byTimeout: Bool) async {
-        guard phase == .running || phase == .failed(.network) else { return }
+        guard phase == .running || phase.isFailed else { return }
         phase = .finishing
+        notice = nil
         stop()
-        timer.pause(at: Date())
+        timer.pause(at: CSCAMonotonic.now())
         // Let a save already in flight land first, then send what is left.
         while isSaving { try? await Task.sleep(for: .milliseconds(100)) }
-        if dirty {
+        if hasUnsavedChanges {
             _ = await save(.deadline)
+            if phase == .completed { return }
         }
         for _ in 0..<30 {
             do {
@@ -340,9 +426,27 @@ final class CSCATestRunnerModel: ObservableObject {
                 adoptCompleted(timed.value)
                 return
             } catch {
-                switch error.cscaFailure {
+                let failure = error.cscaFailure
+                switch failure {
                 case .earlyFinishForbidden:
-                    // The device clock ran ahead of the server: wait for it.
+                    // The server says the time is not out yet: re-anchor on
+                    // its clock and go back to the test while time is left.
+                    if let fresh = try? await service.cscaTestAttempt(attemptId: attempt.attemptId) {
+                        if fresh.value.isCompleted {
+                            adoptCompleted(fresh.value)
+                            return
+                        }
+                        if fresh.value.revision != revision {
+                            adoptDraft(fresh)
+                        } else if let anchored = CSCAServerClock(serverNow: fresh.value.serverNow, receivedAt: fresh.receivedAt) {
+                            clock = anchored
+                        }
+                        now = CSCAMonotonic.now()
+                        if remaining > 1 {
+                            resume(notice: "csca_error_early_finish")
+                            return
+                        }
+                    }
                     try? await Task.sleep(for: .seconds(1))
                 case .conflict, .testCompleted:
                     if let fresh = try? await service.cscaTestAttempt(attemptId: attempt.attemptId) {
@@ -354,15 +458,32 @@ final class CSCATestRunnerModel: ObservableObject {
                     }
                     completeRequestId = UUID()
                 case .network:
+                    // «Отправить ответы ещё раз» or «Закрыть».
                     phase = .failed(.network)
                     return
                 default:
-                    phase = .failed(error.cscaFailure)
+                    // As on the web: back to the test with the error while
+                    // time is left; when it is out, the failure screen with
+                    // «Закрыть» (no retry loop on a refusal).
+                    now = CSCAMonotonic.now()
+                    if remaining > 0 {
+                        resume(notice: CSCAFailureCopy.key(failure))
+                    } else {
+                        phase = .failed(failure)
+                    }
                     return
                 }
             }
         }
-        phase = .failed(.network)
+        // Retries ran out (the server kept refusing an early finish): back
+        // to the test with a message, as on the web.
+        resume(notice: "csca_error_early_finish")
+    }
+
+    private func resume(notice key: String) {
+        notice = key
+        phase = .running
+        begin()
     }
 
     private func adoptCompleted(_ completed: CSCATestAttempt) {
@@ -370,6 +491,8 @@ final class CSCATestRunnerModel: ObservableObject {
         attempt = completed
         answers = completed.answers
         flags = completed.flags
+        dirty = false
+        retrySave = nil
         phase = .completed
     }
 }
@@ -445,14 +568,11 @@ struct CSCATestRunnerView: View {
         }
         .confirmationDialog(Text(csca: "csca_exit_title"), isPresented: $confirmExit, titleVisibility: .visible) {
             Button(role: .destructive) {
-                Task {
-                    await model.save(.background)
-                    dismiss()
-                }
+                Task { await exit() }
             } label: { Text(csca: "csca_exit_confirm") }
             Button(role: .cancel) {} label: { Text(csca: "csca_exit_stay") }
         } message: {
-            Text(csca: "csca_exit_message")
+            Text(csca: Self.exitMessageKey(model.exitRisk))
         }
         .confirmationDialog(Text(csca: "csca_finish_title"), isPresented: $confirmFinish, titleVisibility: .visible) {
             Button {
@@ -464,13 +584,41 @@ struct CSCATestRunnerView: View {
         }
     }
 
+    /// The dialog text always matches what leaving does to the answers.
+    static func exitMessageKey(_ risk: CSCATestRunnerModel.ExitRisk) -> String {
+        switch risk {
+        case .saved: return "csca_exit_message"
+        case .pending: return "csca_exit_message_pending"
+        case .unsaved: return "csca_exit_message_unsaved"
+        case .timeUp: return "csca_exit_message_time_up"
+        }
+    }
+
+    /// «Выйти»: answers the dialog promised to save are saved first; if that
+    /// save fails the dialog comes back with the «не сохранены» text. After
+    /// that text (or when time is out) the student leaves anyway.
+    private func exit() async {
+        let risk = model.exitRisk
+        let saved = await model.saveBeforeExit()
+        if saved || risk == .unsaved || risk == .timeUp {
+            dismiss()
+        } else {
+            confirmExit = true
+        }
+    }
+
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .cancellationAction) {
-            if model.phase == .completed {
+            switch model.phase {
+            case .completed:
                 Button { dismiss() } label: { Text(csca: "csca_done") }
-            } else if model.phase == .running {
+            case .running, .failed:
+                // A failed finish never traps the student: the cover closes
+                // and the test screen shows the draft or the result.
                 Button { confirmExit = true } label: { Text(csca: "csca_close") }
+            case .finishing:
+                EmptyView()
             }
         }
         if model.phase == .running {
@@ -515,6 +663,15 @@ struct CSCATestRunnerView: View {
 
     @ViewBuilder
     private var saveStatus: some View {
+        if let notice = model.notice {
+            Label {
+                Text(csca: notice)
+            } icon: {
+                Image(systemName: "info.circle")
+            }
+            .font(.footnote)
+            .foregroundStyle(.primary)
+        }
         if let failure = model.saveFailure {
             Label {
                 Text(csca: failure == .network ? "csca_save_offline" : CSCAFailureCopy.key(failure))

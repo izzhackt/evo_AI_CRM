@@ -30,9 +30,13 @@ struct CSCALicensesView: View {
     """
 
     private static let fontNotice = """
-    Latin Modern Math, GUST e-foundry, distributed under the GUST Font License \
-    (LaTeX Project Public License 1.3c). The other math fonts bundled with \
-    SwiftMath ship with their license files inside the app bundle.
+    Formulas use Latin Modern Math (GUST e-foundry, GUST Font License, \
+    LaTeX Project Public License 1.3c). SwiftMath also bundles TeX Gyre Termes \
+    Math (GUST Font License), XITS Math (STIX font license terms), and Asana \
+    Math, Euler Math, Fira Math, Garamond Math, KpMath Light, KpMath Sans, \
+    Lete Sans Math, Libertinus Math and Noto Sans Math (SIL Open Font License \
+    1.1). The GUST Font License and SIL Open Font License texts ship in the \
+    app bundle.
     """
 
     var body: some View {

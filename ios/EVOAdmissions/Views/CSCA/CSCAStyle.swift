@@ -19,6 +19,16 @@ enum CSCAText {
     static func pick(_ pair: CSCABilingual) -> String {
         AppLocale.pick(ru: pair.ru, ky: pair.ky)
     }
+
+    /// «Заданий: 30. Время: 7 мин 30 с», whole minutes without seconds,
+    /// like the web `durationLabel`.
+    static func testMeta(itemsTotal: Int, durationSeconds: Int) -> String {
+        let minutes = durationSeconds / 60
+        let seconds = durationSeconds % 60
+        return seconds == 0
+            ? f("csca_test_meta", itemsTotal, minutes)
+            : f("csca_test_meta_seconds", itemsTotal, minutes, seconds)
+    }
 }
 
 extension Text {

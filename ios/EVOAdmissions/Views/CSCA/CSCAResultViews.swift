@@ -219,7 +219,7 @@ final class CSCAReviewModel: ObservableObject {
     @Published private(set) var response: CSCAReviewResponse?
     @Published private(set) var failure: CSCAFailure?
     @Published private(set) var position = 0
-    @Published var selection: String?
+    @Published private(set) var selection: String?
     @Published private(set) var receipt: CSCAReviewReceipt?
     @Published private(set) var isChecking = false
     @Published private(set) var writeFailure: CSCAFailure?
@@ -253,6 +253,17 @@ final class CSCAReviewModel: ObservableObject {
         } catch is CancellationError {
         } catch {
             failure = error.cscaFailure
+        }
+    }
+
+    func select(_ optionId: String) {
+        guard receipt == nil, !isChecking else { return }
+        selection = optionId
+        // A different choice after a failed write: the frozen request is not
+        // repeated (web ItemRunner); «Проверить» sends what is on the screen.
+        if let pending, pending.answer.selected != optionId {
+            self.pending = nil
+            writeFailure = nil
         }
     }
 
@@ -383,7 +394,7 @@ struct CSCAReviewView: View {
                 correctOptionId: model.receipt?.explain.correctOptionId,
                 isEnabled: model.receipt == nil && !model.isChecking
             ) { id in
-                model.selection = id
+                model.select(id)
             }
             if let receipt = model.receipt {
                 CSCAVerdictLine(correct: receipt.correct)

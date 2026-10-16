@@ -91,6 +91,13 @@ final class CSCALessonModel: ObservableObject {
     func select(_ optionId: String, for exerciseId: UUID) {
         guard checked[exerciseId] == nil, writing == nil else { return }
         selections[exerciseId] = optionId
+        // A different choice after a failed write: the frozen request is not
+        // repeated, the next «Проверить» sends what is on the screen (as the
+        // web ItemRunner does). If the first write did land, the server
+        // answers «already answered» and the saved answer is shown.
+        if let pendingSave, pendingSave.exerciseId == exerciseId, pendingSave.answer.selected != optionId {
+            self.pendingSave = nil
+        }
         if writeFailure?.exercise == exerciseId, pendingSave?.exerciseId != exerciseId { writeFailure = nil }
     }
 
@@ -228,6 +235,7 @@ struct CSCALessonView: View {
                         .font(.subheadline)
                         .foregroundStyle(CSCAColor.secondaryText)
                         .environment(\.locale, Locale(identifier: "en"))
+                        .accessibilityLabel(Text(CSCASpeech.english(metadata.titleEn)))
                     Text(verbatim: CSCAText.f("csca_lesson_header_meta", metadata.syllabusPoint, metadata.estMinutes))
                         .font(.footnote)
                         .foregroundStyle(CSCAColor.secondaryText)

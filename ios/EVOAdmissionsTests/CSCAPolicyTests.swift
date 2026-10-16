@@ -17,25 +17,38 @@ final class CSCAPolicyTests: XCTestCase {
 
     // MARK: Server clock (contract §7.2)
 
-    func testClockOffsetFromServerNow() throws {
+    func testClockFromServerNow() throws {
         let attempt = try CSCADecodingTests.decode(CSCATestAttempt.self, "csca_test_start_diagnostic")
         let server = try XCTUnwrap(CSCATime.date(from: attempt.serverNow))
-        // The device clock is 90 s behind the server.
-        let received = server.addingTimeInterval(-90)
-        let clock = try XCTUnwrap(CSCAServerClock(serverNow: attempt.serverNow, receivedAt: received))
-        XCTAssertEqual(clock.offset, 90, accuracy: 0.001)
+        // The response arrived at monotonic second 5000.
+        let clock = try XCTUnwrap(CSCAServerClock(serverNow: attempt.serverNow, receivedAt: 5000))
+        XCTAssertEqual(clock.serverTime(at: 5000), server)
+        XCTAssertEqual(clock.serverTime(at: 5010).timeIntervalSince(server), 10, accuracy: 0.001)
         let deadline = try XCTUnwrap(CSCATime.date(from: attempt.deadlineAt))
         // Right after the response the full duration is left on the server clock.
-        XCTAssertEqual(clock.remaining(until: deadline, at: received), 240, accuracy: 0.01)
-        // 300 device seconds later the test is over: never negative.
-        XCTAssertEqual(clock.remaining(until: deadline, at: received.addingTimeInterval(300)), 0)
+        XCTAssertEqual(clock.remaining(until: deadline, at: 5000), 240, accuracy: 0.01)
+        XCTAssertEqual(clock.remaining(until: deadline, at: 5060), 180, accuracy: 0.01)
+        // 300 seconds later the test is over: never negative.
+        XCTAssertEqual(clock.remaining(until: deadline, at: 5300), 0)
+    }
+
+    /// The countdown runs on monotonic seconds only: no input is the device
+    /// wall clock, so a student changing the phone's time cannot move it.
+    func testClockIgnoresTheDeviceTime() {
+        let server = Date(timeIntervalSince1970: 1_000_000)
+        let clock = CSCAServerClock(serverAtAnchor: server, anchor: 42)
+        let deadline = server.addingTimeInterval(450)
+        XCTAssertEqual(clock.remaining(until: deadline, at: 42 + 100), 350, accuracy: 0.001)
+        let a = CSCAMonotonic.now()
+        let b = CSCAMonotonic.now()
+        XCTAssertGreaterThanOrEqual(b, a)
     }
 
     func testSavesAcceptedUntilDeadlinePlusGrace() {
-        let clock = CSCAServerClock(offset: 0)
+        let clock = CSCAServerClock(serverAtAnchor: Date(timeIntervalSince1970: 0), anchor: 0)
         let deadline = Date(timeIntervalSince1970: 1_000)
-        XCTAssertTrue(clock.acceptsSave(deadline: deadline, graceSeconds: 15, at: Date(timeIntervalSince1970: 1_014)))
-        XCTAssertFalse(clock.acceptsSave(deadline: deadline, graceSeconds: 15, at: Date(timeIntervalSince1970: 1_015)))
+        XCTAssertTrue(clock.acceptsSave(deadline: deadline, graceSeconds: 15, at: 1_014))
+        XCTAssertFalse(clock.acceptsSave(deadline: deadline, graceSeconds: 15, at: 1_015))
     }
 
     func testCountdownLabel() {
@@ -48,8 +61,8 @@ final class CSCAPolicyTests: XCTestCase {
     // MARK: Save schedule (contract §7.3)
 
     func testSaveSchedule() {
-        let t0 = Date(timeIntervalSince1970: 0)
-        let at = { (s: TimeInterval) in Date(timeIntervalSince1970: s) }
+        let t0: TimeInterval = 0
+        let at = { (s: TimeInterval) in s }
         // Nothing changed or a request in flight: never.
         XCTAssertFalse(CSCASaveSchedule.shouldSave(trigger: .background, isDirty: false, inFlight: false, lastSaveAt: t0, now: at(60)))
         XCTAssertFalse(CSCASaveSchedule.shouldSave(trigger: .background, isDirty: true, inFlight: true, lastSaveAt: t0, now: at(60)))
@@ -67,13 +80,13 @@ final class CSCAPolicyTests: XCTestCase {
 
     func testItemTimerAccumulatesAndClamps() {
         var timer = CSCAItemTimer(initial: ["a": 3590])
-        timer.enter("a", at: Date(timeIntervalSince1970: 0))
-        timer.enter("b", at: Date(timeIntervalSince1970: 30))
+        timer.enter("a", at: 0)
+        timer.enter("b", at: 30)
         XCTAssertEqual(timer.seconds["a"], 3600, "server range is 0..3600")
-        timer.pause(at: Date(timeIntervalSince1970: 42))
+        timer.pause(at: 42)
         XCTAssertEqual(timer.seconds["b"], 12)
         // Paused: time in the background does not count.
-        timer.flush(at: Date(timeIntervalSince1970: 500))
+        timer.flush(at: 500)
         XCTAssertEqual(timer.seconds["b"], 12)
     }
 

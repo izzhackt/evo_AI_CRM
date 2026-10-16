@@ -41,7 +41,9 @@ final class CSCAMathRenderer {
         return list != nil && error == nil
     }
 
-    private static func typeset(_ tex: String, fontSize: CGFloat, display: Bool) -> Rendered? {
+    private static func typeset(_ source: String, fontSize: CGFloat, display: Bool) -> Rendered? {
+        // Primes as the prime glyph, as KaTeX draws them on the web.
+        let tex = CSCATeX.primesForTypesetting(source)
         guard parses(tex) else { return nil }
         let label = MTMathUILabel()
         label.displayErrorInline = false
@@ -233,20 +235,33 @@ struct CSCAMathText: View {
     }
 
     private var accessibilityText: Text {
-        var attributed = AttributedString()
+        Text(CSCASpeech.mixed(source, textIsEnglish: isEnglish))
+    }
+}
+
+/// VoiceOver labels with the language marked per run: English learning
+/// content and the spoken formulas («x squared») get an English voice, the
+/// rest the app language.
+enum CSCASpeech {
+    static func english(_ text: String) -> AttributedString {
+        var run = AttributedString(text)
+        run.languageIdentifier = "en"
+        return run
+    }
+
+    /// A `$…$` string: formulas always in English, the text in English when
+    /// the content is (stems, options), otherwise in the app language.
+    static func mixed(_ source: String, textIsEnglish: Bool) -> AttributedString {
+        var out = AttributedString()
         for segment in CSCATeX.segments(source) {
             switch segment {
             case .text(let text):
-                var run = AttributedString(text)
-                if isEnglish { run.languageIdentifier = "en" }
-                attributed += run
+                out += textIsEnglish ? english(text) : AttributedString(text)
             case .math(let tex):
-                var run = AttributedString(" " + CSCATeX.spoken(tex) + " ")
-                run.languageIdentifier = "en"
-                attributed += run
+                out += english(" " + CSCATeX.spoken(tex) + " ")
             }
         }
-        return Text(attributed)
+        return out
     }
 }
 
@@ -296,7 +311,7 @@ struct CSCAMathBlock: View {
             if abs(width - availableWidth) > 0.5 { availableWidth = width }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: CSCATeX.spoken(tex)))
+        .accessibilityLabel(Text(CSCASpeech.english(CSCATeX.spoken(tex))))
     }
 
     /// Natural size, or smaller (down to 75 %) so the formula fits the line.

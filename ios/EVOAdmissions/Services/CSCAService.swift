@@ -11,10 +11,11 @@ struct CSCAServiceError: Error, Equatable {
     let failure: CSCAFailure
 }
 
-/// A decoded response plus the device time it arrived, for the test clock.
+/// A decoded response plus the `CSCAMonotonic` reading when it arrived,
+/// for the test clock (never the device wall clock).
 struct CSCATimed<Value> {
     let value: Value
-    let receivedAt: Date
+    let receivedAt: TimeInterval
 }
 
 extension SupabaseService {
@@ -39,7 +40,7 @@ extension SupabaseService {
         } catch {
             throw CSCAServiceError(failure: .network)
         }
-        let receivedAt = Date()
+        let receivedAt = CSCAMonotonic.now()
         do {
             return CSCATimed(value: try CSCADecoder.decode(Value.self, from: data), receivedAt: receivedAt)
         } catch {

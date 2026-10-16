@@ -102,6 +102,8 @@ final class CSCASVGTests: XCTestCase {
             ("named entity", svgDocument("<text x=\"1\" y=\"1\" font-size=\"12\">&nbsp;</text>")),
             ("single quotes", svgDocument("<rect width='10' height='10'/>")),
             ("tiny text", svgDocument(#"<text x="1" y="1" font-size="8">a</text>"#)),
+            ("11 outside a tspan", svgDocument(#"<text x="1" y="1" font-size="11">a</text>"#)),
+            ("negative stroke", svgDocument(##"<line x1="0" y1="0" x2="1" y2="1" stroke="#191714" stroke-width="-1"/>"##)),
             ("doctype", "<!DOCTYPE svg>" + svgDocument("")),
             ("comment", svgDocument("<!-- note -->")),
             ("narrow viewBox", #"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300"></svg>"#),

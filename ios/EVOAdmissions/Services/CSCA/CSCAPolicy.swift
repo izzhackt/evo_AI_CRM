@@ -69,31 +69,54 @@ enum CSCATime {
 
 // MARK: - Server clock (contract §7.2)
 
-/// `offset = serverNow - clientTimeWhenTheResponseArrived`. The countdown
-/// runs on the device clock corrected by this offset; the server alone
-/// decides the deadline, the client clock is display only.
+/// Seconds on `ContinuousClock`: it keeps counting while the phone sleeps
+/// and does not move when the student changes the device time, so the test
+/// countdown, the save schedule and the item timer cannot jump.
+enum CSCAMonotonic {
+    private static let origin = ContinuousClock.now
+
+    static func now() -> TimeInterval {
+        let elapsed = origin.duration(to: ContinuousClock.now).components
+        return TimeInterval(elapsed.seconds) + TimeInterval(elapsed.attoseconds) / 1e18
+    }
+}
+
+/// Server time anchored to the monotonic clock: `serverNow` of a response
+/// and the `CSCAMonotonic` reading when it arrived. Server time later is
+/// that `serverNow` plus the monotonic seconds since, never the device
+/// wall clock. The server alone decides the deadline; this is display only
+/// and is re-anchored on every response that carries `serverNow`.
 struct CSCAServerClock: Equatable {
-    let offset: TimeInterval
+    let serverAtAnchor: Date
+    let anchor: TimeInterval
 
-    init(offset: TimeInterval) { self.offset = offset }
-
-    init?(serverNow raw: String, receivedAt: Date) {
-        guard let server = CSCATime.date(from: raw) else { return nil }
-        offset = server.timeIntervalSince(receivedAt)
+    init(serverAtAnchor: Date, anchor: TimeInterval) {
+        self.serverAtAnchor = serverAtAnchor
+        self.anchor = anchor
     }
 
-    func serverTime(at local: Date) -> Date {
-        local.addingTimeInterval(offset)
+    init?(serverNow raw: String, receivedAt anchor: TimeInterval) {
+        guard let server = CSCATime.date(from: raw) else { return nil }
+        self.init(serverAtAnchor: server, anchor: anchor)
+    }
+
+    /// Without a readable `serverNow` the device clock stands in.
+    static func device() -> CSCAServerClock {
+        CSCAServerClock(serverAtAnchor: Date(), anchor: CSCAMonotonic.now())
+    }
+
+    func serverTime(at monotonic: TimeInterval) -> Date {
+        serverAtAnchor.addingTimeInterval(monotonic - anchor)
     }
 
     /// Seconds left until `deadline`, never negative.
-    func remaining(until deadline: Date, at local: Date) -> TimeInterval {
-        max(0, deadline.timeIntervalSince(serverTime(at: local)))
+    func remaining(until deadline: Date, at monotonic: TimeInterval) -> TimeInterval {
+        max(0, deadline.timeIntervalSince(serverTime(at: monotonic)))
     }
 
     /// Whether a save would still be accepted: before deadline + grace.
-    func acceptsSave(deadline: Date, graceSeconds: Int, at local: Date) -> Bool {
-        serverTime(at: local) < deadline.addingTimeInterval(TimeInterval(graceSeconds))
+    func acceptsSave(deadline: Date, graceSeconds: Int, at monotonic: TimeInterval) -> Bool {
+        serverTime(at: monotonic) < deadline.addingTimeInterval(TimeInterval(graceSeconds))
     }
 }
 
@@ -117,7 +140,7 @@ enum CSCACountdown {
 /// When the runner sends `save_learning_test_v1`: a batch every 10 s while
 /// something changed, on moving between items not more often than every
 /// 2 s, and always when the app goes to the background. Requests run one
-/// at a time with the latest revision.
+/// at a time with the latest revision. Times are `CSCAMonotonic` seconds.
 struct CSCASaveSchedule {
     static let batchInterval: TimeInterval = 10
     static let navigationInterval: TimeInterval = 2
@@ -133,11 +156,11 @@ struct CSCASaveSchedule {
         trigger: Trigger,
         isDirty: Bool,
         inFlight: Bool,
-        lastSaveAt: Date?,
-        now: Date
+        lastSaveAt: TimeInterval?,
+        now: TimeInterval
     ) -> Bool {
         guard isDirty, !inFlight else { return false }
-        let since = lastSaveAt.map { now.timeIntervalSince($0) } ?? .infinity
+        let since = lastSaveAt.map { now - $0 } ?? .infinity
         switch trigger {
         case .tick: return since >= batchInterval
         case .navigation: return since >= navigationInterval
@@ -147,32 +170,33 @@ struct CSCASaveSchedule {
 }
 
 /// Seconds spent on each item, added to the server's `item_seconds` hint
-/// (pace for the student only, clamped 0..3600 like the server).
+/// (pace for the student only, clamped 0..3600 like the server). Times are
+/// `CSCAMonotonic` seconds.
 struct CSCAItemTimer: Equatable {
     private(set) var seconds: [String: Int]
     private(set) var currentKey: String?
-    private(set) var enteredAt: Date?
+    private(set) var enteredAt: TimeInterval?
 
     init(initial: [String: Int]) {
         seconds = initial
     }
 
-    mutating func enter(_ key: String, at now: Date) {
+    mutating func enter(_ key: String, at now: TimeInterval) {
         flush(at: now)
         currentKey = key
         enteredAt = now
     }
 
-    mutating func flush(at now: Date) {
+    mutating func flush(at now: TimeInterval) {
         guard let key = currentKey, let start = enteredAt else { return }
-        let spent = Int(now.timeIntervalSince(start).rounded())
+        let spent = Int((now - start).rounded())
         if spent > 0 {
             seconds[key] = min(3600, (seconds[key] ?? 0) + spent)
         }
         enteredAt = now
     }
 
-    mutating func pause(at now: Date) {
+    mutating func pause(at now: TimeInterval) {
         flush(at: now)
         enteredAt = nil
     }

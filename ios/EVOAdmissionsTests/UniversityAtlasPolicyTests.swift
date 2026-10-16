@@ -304,32 +304,108 @@ final class UniversityAtlasPolicyTests: XCTestCase {
 
     // MARK: - Навигация
 
-    /// Обязательный шаг слияния с #1172 (review раунда 2, N3): там строки
-    /// «Избранного» становятся `NavigationLink(value: FavoriteUniversityRoute)`,
-    /// а экран для этого значения регистрирует только
-    /// `.portalRouteDestinations()`. Текстового конфликта нет, поэтому после
-    /// слияния этот тест падает, пока вкладка «Университеты» не
-    /// зарегистрирует те же экраны и не откроет «Избранное» значением
-    /// `PortalRoute.favorites`. Ссылка по значению без экрана в стеке в
-    /// SwiftUI не переходит.
-    func testFavoritesRowsHaveADestinationInTheUniversitiesTab() throws {
+    /// Обязательный шаг слияния с #1172 (review раунда 2, N3; раунда 3, P2):
+    /// там строки «Избранного» становятся
+    /// `NavigationLink(value: FavoriteUniversityRoute)`, а экран для этого
+    /// значения регистрирует только `.portalRouteDestinations()`. Текстового
+    /// конфликта нет. Тест не ищет одну строку: модель стека
+    /// (`FavoritesNavigationModel`) по исходникам приложения находит каждый
+    /// стек, который открывает «Избранное», и для каждой строки «Избранного»
+    /// проверяет, что переход по её значению найдёт экран. После слияния без
+    /// шага (или с половиной шага: экраны корня есть, а «Избранное» всё ещё
+    /// открыто ссылкой с экраном) тест падает с именем стека и типа.
+    func testFavoritesRowsHaveADestinationInEveryStack() throws {
         let favorites = try appSource("Views/FavoritesView.swift")
-        let atlas = try appSource("Views/UniversityAtlasView.swift")
-        let valueTypes = Set(favorites.matches(of: #/NavigationLink\(value:\s*([A-Z][A-Za-z]*)\(/#).map { String($0.output.1) })
-        for type in valueTypes where !favorites.contains("navigationDestination(for: \(type).self") {
-            XCTAssertTrue(
-                atlas.contains(".portalRouteDestinations()"),
-                "FavoritesView открывает вуз значением \(type), а UniversityAtlasView не регистрирует для него экран: добавьте .portalRouteDestinations() и NavigationLink(value: PortalRoute.favorites)"
-            )
+        let views = iosRoot.appendingPathComponent("EVOAdmissions/Views")
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: views.path) else {
+            throw XCTSkip("Views are not readable from this test host")
         }
-        // Сейчас (до #1172) строки открывают вуз по `UUID`, и экран
-        // регистрирует сам FavoritesView или корень вкладки.
-        if favorites.contains("NavigationLink(value: item.id)") {
-            XCTAssertTrue(
-                favorites.contains("navigationDestination(for: UUID.self") || atlas.contains("navigationDestination(for: UUID.self"),
-                "строки «Избранного» по UUID без экрана"
-            )
+        var sources: [String: String] = [:]
+        for file in files where file.hasSuffix(".swift") && file != "FavoritesView.swift" {
+            sources[file] = try appSource("Views/\(file)")
         }
+        let stacks = FavoritesNavigationModel.stacks(favorites: favorites, sources: sources)
+        // «Главная» и «Университеты» открывают «Избранное» (и прежний список
+        // `UniversitiesView` 1.0, который остаётся в коде без входа).
+        XCTAssertTrue(Set(stacks.map(\.file)).isSuperset(of: ["HomeView.swift", "UniversityAtlasView.swift"]), "\(stacks.map(\.file))")
+        for stack in stacks {
+            XCTAssertEqual(stack.unresolvedRowTypes, [],
+                           "\(stack.file): строки «Избранного» \(stack.unresolvedRowTypes) без экрана; шаг слияния с #1172: .portalRouteDestinations() и NavigationLink(value: PortalRoute.favorites)")
+        }
+    }
+
+    /// Модель различает четыре состояния исходников: эта ветка, слияние с
+    /// #1172 без шага, половина шага и весь шаг (строки #1172 `d6fd1a621`).
+    func testFavoritesNavigationModelSeparatesTheMergeStates() {
+        let branchRows = "NavigationLink(value: item.id) { row }\n.navigationDestination(for: UUID.self) { id in Detail(id) }"
+        let mergedRows = "NavigationLink(value: FavoriteUniversityRoute(institutionId: item.id, initialItem: item)) { row }"
+        let portal = """
+        extension View {
+            func portalRouteDestinations() -> some View {
+                navigationDestination(for: PortalRoute.self) { route in FavoritesView() }
+                .navigationDestination(for: FavoriteUniversityRoute.self) { route in Detail(route) }
+            }
+        }
+        """
+        let closureRoot = "NavigationLink {\n    FavoritesView()\n} label: { heart }\n.navigationDestination(for: UUID.self) { id in Detail(id) }"
+        let halfFix = closureRoot + "\n.portalRouteDestinations()"
+        let fullFix = "NavigationLink(value: PortalRoute.favorites) { heart }\n.portalRouteDestinations()"
+        func unresolved(_ rows: String, _ root: String) -> [String] {
+            let stacks = FavoritesNavigationModel.stacks(favorites: rows, sources: ["Root.swift": root, "Portal.swift": portal])
+            XCTAssertEqual(stacks.map(\.file), ["Root.swift"])
+            return stacks.first?.unresolvedRowTypes ?? ["no stack"]
+        }
+        XCTAssertEqual(unresolved(branchRows, closureRoot), [])
+        XCTAssertEqual(unresolved(mergedRows, closureRoot), ["FavoriteUniversityRoute"])
+        XCTAssertEqual(unresolved(mergedRows, halfFix), ["FavoriteUniversityRoute"])
+        XCTAssertEqual(unresolved(mergedRows, fullFix), [])
+        XCTAssertEqual(FavoritesNavigationModel.rowValueTypes("NavigationLink(value: something) {}"), ["?something"])
+    }
+
+    // MARK: - Подпись «©»
+
+    /// Фото места: автор ссылкой на свою страницу только если она есть,
+    /// источник всегда ссылкой на страницу файла, лицензия ссылкой (F13 веба).
+    func testPlacePhotoCreditLinksAuthorSourceAndLicense() throws {
+        let shanghai = try XCTUnwrap(index.cities.first { $0.key == "shanghai" })
+        let credit = AtlasPhotoCredit(place: shanghai.photo, subject: "Шанхай")
+        XCTAssertEqual(credit.kind, .author)
+        XCTAssertEqual(credit.subject, "Шанхай")
+        XCTAssertEqual(credit.authorUrl, shanghai.photo.authorUrl)
+        XCTAssertNotNil(credit.authorUrl)
+        XCTAssertEqual(credit.source, .init(name: "Pexels", url: shanghai.photo.sourceUrl))
+        XCTAssertEqual(credit.licenseUrl, shanghai.photo.licenseUrl)
+        // Unsplash без страницы автора: автор текстом, источник ссылкой.
+        let milan = try XCTUnwrap(index.cities.first { $0.key == "milan" })
+        XCTAssertNil(milan.photo.authorUrl)
+        let unsplash = AtlasPhotoCredit(place: milan.photo, subject: "Милан")
+        XCTAssertNil(unsplash.authorUrl)
+        XCTAssertEqual(unsplash.source?.url, milan.photo.sourceUrl)
+        XCTAssertEqual(unsplash.source?.name, "Unsplash")
+    }
+
+    /// Фото вуза: открытая лицензия ведёт автором на страницу файла,
+    /// официальные медиа подписаны «Фото: <вуз>, официальный сайт» со ссылкой
+    /// на сайт вуза; без перенесённой копии подписи нет.
+    func testUniversityPhotoCreditFollowsTheWebRights() throws {
+        let library = UniversityPhotoLibrary.load(from: Bundle(for: Self.self)) ?? [:]
+        let open = try XCTUnwrap(library.first { !UniversityPhotoRights.isOfficialMedia(license: $0.value.license) })
+        let official = try XCTUnwrap(library.first { UniversityPhotoRights.isOfficialMedia(license: $0.value.license) })
+        let manifest = [open.key, official.key].reduce(into: [String: UniversityPhotoManifestEntry]()) {
+            $0[$1] = UniversityPhotoManifestEntry(status: "verified", migrated: true, objectPath: "\($1).jpg")
+        }
+        let credit = try XCTUnwrap(AtlasPhotoCredit(universityPhotoKey: open.key, universityName: "Open", library: library, manifest: manifest))
+        XCTAssertEqual(credit.kind, .author)
+        XCTAssertEqual(credit.authorUrl?.absoluteString, open.value.sourceUrl)
+        XCTAssertNil(credit.source)
+        XCTAssertEqual(credit.licenseUrl?.absoluteString, open.value.licenseUrl)
+        XCTAssertEqual(credit.subject, "Open")
+        let media = try XCTUnwrap(AtlasPhotoCredit(universityPhotoKey: official.key, universityName: "Official", library: library, manifest: manifest))
+        XCTAssertEqual(media.kind, .official(university: "Official"))
+        XCTAssertEqual(media.officialUrl?.absoluteString, official.value.sourceUrl)
+        XCTAssertNil(media.authorUrl)
+        XCTAssertNil(AtlasPhotoCredit(universityPhotoKey: open.key, universityName: "Open", library: library, manifest: [:]))
+        XCTAssertNil(AtlasPhotoCredit(universityPhotoKey: nil, universityName: "None", library: library, manifest: manifest))
     }
 
     // MARK: - Экраны страны и города без индекса

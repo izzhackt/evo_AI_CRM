@@ -95,7 +95,7 @@ targets:
       - path: EVOAdmissions/Services/UniversityGeoLibrary.swift
       - path: EVOAdmissions/Services/UniversityCatalogFilterPolicy.swift
       - path: EVOAdmissions/Services/StudyCountries.swift
-      # Университеты v2 (283): строгий разбор индекса и страницы вуза,
+      # Университеты v2 (283): разбор индекса и страницы вуза по частям,
       # правила экранов, адреса фото, копия индекса на диске и хранилище
       # индекса (загрузка передаётся функцией), загрузчик фото (сеть
       # подменяется заглушкой URLProtocol).
@@ -122,6 +122,10 @@ targets:
       - path: ../src/lib/university-geo-library.json
         buildPhase: resources
       - path: ../src/lib/study-countries.json
+        buildPhase: resources
+      # Общие векторы текста и ссылок каталога 283 (контракт 2.2a): те же,
+      # что проверяют SQL-набор 283 и tests/catalog-text.test.mjs.
+      - path: ../tests/fixtures/catalog-text-vectors.json
         buildPhase: resources
     settings:
       base:

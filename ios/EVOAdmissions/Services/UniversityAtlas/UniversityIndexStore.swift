@@ -20,8 +20,9 @@ final class UniversityIndexStore: ObservableObject {
     enum Failure: Equatable {
         /// Сеть не ответила: «Проверьте интернет».
         case connection
-        /// Ответ пришёл, но его нельзя показать (сервер отказал или ответ не
-        /// прошёл строгий разбор): сеть ни при чём, подсказка нейтральная.
+        /// Ответ пришёл, но его нельзя показать (сервер отказал или обёртка
+        /// ответа неверна, контракт 2.2a): сеть ни при чём, подсказка
+        /// нейтральная.
         case unavailable
     }
 
@@ -40,6 +41,7 @@ final class UniversityIndexStore: ObservableObject {
 
     private let fetchData: Fetch
     private let isForbidden: @Sendable (Error) -> Bool
+    private let report: CatalogParseReporter
     private let cache: UniversityIndexDiskCache
     private var organizationId: UUID?
     private var checkedThisLaunch = false
@@ -51,13 +53,17 @@ final class UniversityIndexStore: ObservableObject {
     /// - Parameter isForbidden: отказ сервера в доступе (42501). Копия
     ///   организации тогда снимается с экрана и с диска: веб тоже отдаёт
     ///   индекс только после удачного вызова.
+    /// - Parameter report: строка журнала на каждую отброшенную или
+    ///   заменённую часть ответа сервера (контракт 2.2a).
     init(
         cache: UniversityIndexDiskCache = .standard,
         isForbidden: @escaping @Sendable (Error) -> Bool = { _ in false },
+        report: @escaping CatalogParseReporter = CatalogParseLog.reporter(rpc: CatalogParseLog.indexRpc),
         fetch: @escaping Fetch
     ) {
         self.cache = cache
         self.isForbidden = isForbidden
+        self.report = report
         self.fetchData = fetch
     }
 
@@ -109,10 +115,11 @@ final class UniversityIndexStore: ObservableObject {
         if index == nil { phase = .loading }
         let known = index?.version
         let cache = self.cache
+        let report = self.report
         do {
             let data = try await fetchData(known)
             let response = try await Task.detached(priority: .userInitiated) {
-                try UniversityIndexResponse.decode(data)
+                try UniversityIndexResponse.decode(data, report: report)
             }.value
             guard self.organizationId == organizationId, !Task.isCancelled else { return }
             switch response {

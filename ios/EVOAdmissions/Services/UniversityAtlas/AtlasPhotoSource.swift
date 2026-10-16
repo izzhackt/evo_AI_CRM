@@ -114,6 +114,87 @@ enum AtlasPhotoURL {
     }
 }
 
+/// Автор, источник и лицензия фото по кнопке «©» (план 4.4, контракт 2.5).
+/// Подпись под карточкой не печатается, но атрибуция CC BY и CC BY-SA
+/// остаётся рядом с каждым фото, которое видит студент, и ведёт туда же, что
+/// у веба (`PhotoRights`, review раунда 2 веба, F13):
+/// - фото страны или города: автор ссылкой на свою страницу (только если
+///   она есть), источник всегда ссылкой на страницу файла, лицензия ссылкой
+///   на текст лицензии;
+/// - фото вуза с открытой лицензией: автор ссылкой на страницу файла,
+///   лицензия ссылкой (источник отдельно не называется, как на вебе);
+/// - официальные медиа вуза (решение владельца Р3): «Фото: <вуз>,
+///   официальный сайт» ссылкой на страницу сайта вуза.
+struct AtlasPhotoCredit: Equatable {
+    enum Kind: Equatable {
+        case author
+        /// Фото с собственного сайта вуза: название вуза для подписи.
+        case official(university: String)
+    }
+
+    struct Source: Equatable {
+        let name: String
+        let url: URL
+    }
+
+    let kind: Kind
+    /// Что на фото (страна, город или вуз): VoiceOver читает это значением
+    /// кнопки «©», и одинаковые кнопки на экране различимы (review раунда 3, p1).
+    let subject: String
+    let caption: String?
+    let author: String
+    let authorUrl: URL?
+    let source: Source?
+    /// Страница фото на сайте вуза (только у официальных медиа).
+    let officialUrl: URL?
+    let license: String
+    let licenseUrl: URL?
+    let cropped: Bool
+
+    /// Фото страны или города.
+    init(place photo: AtlasPhoto, subject: String) {
+        kind = .author
+        self.subject = subject
+        caption = nil
+        author = photo.author
+        authorUrl = photo.authorUrl
+        source = Source(name: photo.sourceName, url: photo.sourceUrl)
+        officialUrl = nil
+        license = photo.license
+        licenseUrl = photo.licenseUrl
+        cropped = true
+    }
+
+    /// Подпись фото вуза; nil, если фото студенту не показывается (ключ
+    /// неизвестен или копия не перенесена): тогда и кнопки «©» нет.
+    init?(
+        universityPhotoKey: String?,
+        universityName: String,
+        library: [String: UniversityPhoto] = UniversityPhotoLibrary.shared,
+        manifest: [String: UniversityPhotoManifestEntry] = UniversityPhotoManifest.shared
+    ) {
+        guard AtlasPhotoURL.hasUniversityPhoto(photoKey: universityPhotoKey, library: library, manifest: manifest),
+              let universityPhotoKey, let photo = library[universityPhotoKey] else { return nil }
+        let page = URL(string: photo.sourceUrl)
+        subject = universityName
+        caption = photo.caption
+        author = photo.author
+        source = nil
+        license = photo.license
+        licenseUrl = URL(string: photo.licenseUrl)
+        cropped = true
+        if UniversityPhotoRights.isOfficialMedia(license: photo.license) {
+            kind = .official(university: universityName)
+            authorUrl = nil
+            officialUrl = page
+        } else {
+            kind = .author
+            authorUrl = page
+            officialUrl = nil
+        }
+    }
+}
+
 /// Права на фото вуза (план 4.4, решение владельца Р3), как
 /// `src/lib/university-photo-rights.ts` веба: фото с собственного сайта вуза
 /// без открытой лицензии подписывается «Фото: <вуз>, официальный сайт», а не

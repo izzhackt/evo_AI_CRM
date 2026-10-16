@@ -57,7 +57,7 @@ struct CountryAtlasView: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if store.refreshFailed { AtlasStaleNotice() }
-                AtlasHeaderPhoto(photo: country.photo)
+                AtlasHeaderPhoto(photo: country.photo, subject: country.name.text(kyrgyz: AtlasText.kyrgyz))
                 if let summary = country.summary {
                     AtlasParagraph(text: summary.text(kyrgyz: AtlasText.kyrgyz))
                 }
@@ -73,7 +73,7 @@ struct CountryAtlasView: View {
                     .buttonStyle(.pressable)
                     // «©» на фото карточки города, как в шапке и на вебе.
                     .overlay(alignment: .topTrailing) {
-                        AtlasPhotoCreditButton(credit: AtlasPhotoCredit(city.photo))
+                        AtlasPhotoCreditButton(credit: AtlasPhotoCredit(place: city.photo, subject: city.name.text(kyrgyz: AtlasText.kyrgyz)))
                             .padding(6)
                     }
                     .motionStagger(index: MotionPolicy.staggerIndex(of: city, in: cities), key: "atlas.city.\(city.key)")

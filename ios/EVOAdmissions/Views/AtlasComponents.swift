@@ -256,6 +256,7 @@ struct AtlasPhotoView: View {
 
     @Environment(\.displayScale) private var displayScale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var size: CGSize = .zero
     @State private var image: UIImage?
     @State private var failed = false
@@ -277,23 +278,33 @@ struct AtlasPhotoView: View {
         }
     }
 
+    /// Заглушка растёт по тексту: при самом крупном шрифте (AX5) фраза в
+    /// коробке 16:9 обрезалась многоточием (review раунда 3, P1). Коробка не
+    /// ниже своих пропорций, текст переносится и задаёт высоту, если он выше.
     private var missing: some View {
-        AtlasStyle.placeholder
-            .aspectRatio(aspectRatio, contentMode: .fit)
-            .overlay {
-                if compact {
-                    Image(systemName: "building.columns")
-                        .font(.title3)
-                        .foregroundStyle(AtlasStyle.secondaryText)
-                } else {
-                    Text("university_photo_missing")
-                        .font(.footnote)
-                        .foregroundStyle(AtlasStyle.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 16)
-                }
+        ZStack {
+            AtlasStyle.placeholder
+                .aspectRatio(aspectRatio, contentMode: .fit)
+            if compact {
+                Image(systemName: "building.columns")
+                    .font(.title3)
+                    .foregroundStyle(AtlasStyle.secondaryText)
+            } else {
+                Text("university_photo_missing")
+                    .font(.footnote)
+                    .foregroundStyle(AtlasStyle.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 16)
+                    // Сверху на карточке сердечко 44 pt: крупный текст
+                    // начинается под ним.
+                    .padding(.top, dynamicTypeSize.isAccessibilitySize ? 52 : 12)
+                    .padding(.bottom, 12)
             }
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
+        .frame(maxWidth: .infinity)
+        .background(AtlasStyle.placeholder)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 
     private var photo: some View {
@@ -334,58 +345,13 @@ struct AtlasPhotoView: View {
     }
 }
 
-/// Автор, источник и лицензия фото по кнопке «©» (план 4.4): подпись под
-/// карточкой не печатается. У официальных медиа вуза (решение владельца Р3)
-/// вместо служебной строки лицензии «Фото: <вуз>, официальный сайт», как
-/// `photoCreditOfficial` веба.
-struct AtlasPhotoCredit: Equatable {
-    enum Kind: Equatable {
-        case author
-        /// Фото с собственного сайта вуза: название вуза для подписи.
-        case official(university: String)
-    }
-
-    let kind: Kind
-    let caption: String?
-    let author: String
-    let authorUrl: URL?
-    let sourceName: String?
-    let sourceUrl: URL?
-    let license: String
-    let licenseUrl: URL?
-    let cropped: Bool
-
-    init(_ photo: AtlasPhoto) {
-        kind = .author
-        caption = nil
-        author = photo.author
-        authorUrl = photo.authorUrl
-        sourceName = photo.sourceName
-        sourceUrl = photo.sourceUrl
-        license = photo.license
-        licenseUrl = photo.licenseUrl
-        cropped = true
-    }
-
-    /// Подпись фото вуза; nil, если фото студенту не показывается (ключ
-    /// неизвестен или копия не перенесена): тогда и кнопки «©» нет.
-    init?(universityPhotoKey: String?, universityName: String) {
-        guard AtlasPhotoSubject.university(photoKey: universityPhotoKey).isAvailable,
-              let photo = UniversityPhotoLibrary.photo(for: universityPhotoKey) else { return nil }
-        kind = UniversityPhotoRights.isOfficialMedia(license: photo.license) ? .official(university: universityName) : .author
-        caption = photo.caption
-        author = photo.author
-        authorUrl = nil
-        sourceName = nil
-        sourceUrl = URL(string: photo.sourceUrl)
-        license = photo.license
-        licenseUrl = URL(string: photo.licenseUrl)
-        cropped = true
-    }
-}
-
+/// Кнопка «©» с автором, источником и лицензией фото (`AtlasPhotoCredit`).
+/// Поповер закрывается касанием вне него, открыт всегда один: так ведёт
+/// себя системный поповер, как панель веба после N3. `onPhoto`: кружок из
+/// материала поверх фото; в строке списка значок без подложки.
 struct AtlasPhotoCreditButton: View {
     let credit: AtlasPhotoCredit
+    var onPhoto = true
     @State private var shows = false
 
     var body: some View {
@@ -394,19 +360,26 @@ struct AtlasPhotoCreditButton: View {
         } label: {
             Image(systemName: "c.circle")
                 .font(.body.weight(.semibold))
-                .foregroundStyle(.primary)
+                // Значок в кружке 32 pt: при AX5 он вылезал за кружок и за
+                // зону нажатия. Подпись кнопки читает VoiceOver.
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                .foregroundStyle(onPhoto ? Color.primary : AtlasStyle.secondaryText)
                 .frame(width: 32, height: 32)
-                .background(.regularMaterial, in: Circle())
+                .background {
+                    if onPhoto { Circle().fill(.regularMaterial) }
+                }
                 .frame(width: 44, height: 44)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text("catalog_photo_credit"))
+        // Двенадцать одинаковых «Автор и лицензия фото» на экране страны
+        // различимы по месту или вузу (review раунда 3, p1).
+        .accessibilityValue(Text(verbatim: credit.subject))
         .popover(isPresented: $shows) {
-            // Ширина задана точно: у кнопки в левом углу карточки стрелка
-            // боковая, и при ширине «от и до» высота считалась для другой
-            // ширины, подпись обрезалась. При крупном шрифте текст
-            // прокручивается внутри.
+            // Ширина задана точно: у кнопки в углу карточки стрелка боковая,
+            // и при ширине «от и до» высота считалась для другой ширины,
+            // подпись обрезалась. При крупном шрифте текст прокручивается.
             ScrollView {
                 creditContent
             }
@@ -424,11 +397,11 @@ struct AtlasPhotoCreditButton: View {
             }
             switch credit.kind {
             case .official(let university):
-                creditLine(String(format: String(localized: "catalog_photo_official"), university), url: credit.sourceUrl)
+                creditLine(String(format: String(localized: "catalog_photo_official"), university), url: credit.officialUrl)
             case .author:
-                creditLine(String(format: String(localized: "university_photo_by"), credit.author), url: credit.authorUrl ?? credit.sourceUrl)
-                if let sourceName = credit.sourceName {
-                    creditLine(String(format: String(localized: "catalog_photo_source"), sourceName), url: credit.sourceUrl)
+                creditLine(String(format: String(localized: "university_photo_by"), credit.author), url: credit.authorUrl)
+                if let source = credit.source {
+                    creditLine(String(format: String(localized: "catalog_photo_source"), source.name), url: source.url)
                 }
                 creditLine(String(format: String(localized: "catalog_photo_license"), credit.license), url: credit.licenseUrl)
             }
@@ -465,16 +438,19 @@ struct AtlasPhotoCreditButton: View {
     }
 }
 
-/// Шапка страны или города: фото во всю ширину и «©» в углу.
+/// Шапка страны или города: фото во всю ширину и «©» в правом верхнем
+/// углу, как у фото мест на вебе (review раунда 3, p2).
 struct AtlasHeaderPhoto: View {
     let photo: AtlasPhoto?
+    /// Название страны или города.
+    let subject: String
 
     var body: some View {
         if let photo {
             AtlasPhotoView(subject: .geography(photo), aspectRatio: 3 / 2)
                 .accessibilityHidden(true)
-                .overlay(alignment: .bottomTrailing) {
-                    AtlasPhotoCreditButton(credit: AtlasPhotoCredit(photo))
+                .overlay(alignment: .topTrailing) {
+                    AtlasPhotoCreditButton(credit: AtlasPhotoCredit(place: photo, subject: subject))
                         .padding(6)
                 }
         }
@@ -493,6 +469,7 @@ struct AtlasHeartButton: View {
     var body: some View {
         FavoriteHeartButton(institutionId: institutionId, store: store)
             .font(.body.weight(.semibold))
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .frame(width: onPhoto ? 34 : 44, height: onPhoto ? 34 : 44)
             .background {
                 if onPhoto { Circle().fill(.regularMaterial) }
@@ -504,72 +481,124 @@ struct AtlasHeartButton: View {
 
 // MARK: - Строки и карточки вузов
 
-/// Компактная строка вуза: поиск и «Другие вузы страны».
+/// Компактная строка вуза: поиск и «Другие вузы страны». Название и
+/// подписи переносятся при любом размере шрифта. При крупном шрифте
+/// специальных возможностей текст идёт под миниатюрой во всю ширину, а «©» и
+/// сердечко стоят справа от миниатюры: в одну строку с ними название
+/// рвалось посреди слова.
 struct UniversityIndexRow: View {
     let university: UniversityIndexEntry
     let place: String?
     @ObservedObject var favorites: FavoritesStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        if dynamicTypeSize.isAccessibilitySize {
             AtlasLink(route: .university(university.id)) {
-                HStack(alignment: .center, spacing: 12) {
-                    AtlasPhotoView(subject: .university(photoKey: university.photoKey), aspectRatio: 1, cornerRadius: AtlasStyle.elementRadius, compact: true)
-                        .frame(width: 64, height: 64)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(university.name)
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.leading)
-                        if let place {
-                            Text(place)
-                                .font(.subheadline)
-                                .foregroundStyle(AtlasStyle.secondaryText)
-                        }
-                        if let levels = AtlasText.levels(university.levels) {
-                            Text(levels)
-                                .font(.footnote)
-                                .foregroundStyle(AtlasStyle.secondaryText)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 8) {
+                    thumbnail
+                    texts
                 }
                 .padding(.vertical, 8)
                 .contentShape(Rectangle())
                 .accessibilityElement(children: .combine)
             }
             .buttonStyle(.pressable)
+            .overlay(alignment: .topTrailing) {
+                actions.padding(.top, 8)
+            }
+        } else {
+            HStack(alignment: .center, spacing: 12) {
+                AtlasLink(route: .university(university.id)) {
+                    HStack(alignment: .center, spacing: 12) {
+                        thumbnail
+                        texts
+                    }
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                    .accessibilityElement(children: .combine)
+                }
+                .buttonStyle(.pressable)
+                actions
+            }
+        }
+    }
+
+    private var thumbnail: some View {
+        AtlasPhotoView(subject: .university(photoKey: university.photoKey), aspectRatio: 1, cornerRadius: AtlasStyle.elementRadius, compact: true)
+            .frame(width: 64, height: 64)
+            .accessibilityHidden(true)
+    }
+
+    private var texts: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(university.name)
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            if let place {
+                Text(place)
+                    .font(.subheadline)
+                    .foregroundStyle(AtlasStyle.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let levels = AtlasText.levels(university.levels) {
+                Text(levels)
+                    .font(.footnote)
+                    .foregroundStyle(AtlasStyle.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// «©» у каждого фото, которое видит студент (review раунда 3, P3): в
+    /// строке рядом с сердечком, миниатюру не закрывает.
+    private var actions: some View {
+        HStack(spacing: 0) {
+            if let credit = AtlasPhotoCredit(universityPhotoKey: university.photoKey, universityName: university.name) {
+                AtlasPhotoCreditButton(credit: credit, onPhoto: false)
+            }
             AtlasHeartButton(institutionId: university.id, store: favorites)
         }
     }
 }
 
 /// Карточка вуза на экране города (план 7.3): фото нужного размера,
-/// название, уровни, ближайший набор, сердечко.
+/// название, уровни, ближайший набор, сердечко. Тексты переносятся при любом
+/// размере шрифта: при AX5 название и строка набора обрезались многоточием
+/// (review раунда 3, P1). «©» в правом нижнем углу фото, сердечко в правом
+/// верхнем, как у карточки вуза на вебе (p2).
 struct UniversityAtlasCard: View {
     let university: UniversityIndexEntry
     @ObservedObject var favorites: FavoritesStore
+    /// Высота фото карточки: «©» стоит у его нижнего края.
+    @State private var photoHeight: CGFloat = 0
 
     var body: some View {
         AtlasLink(route: .university(university.id)) {
             VStack(alignment: .leading, spacing: 10) {
                 AtlasPhotoView(subject: .university(photoKey: university.photoKey), aspectRatio: 16 / 9)
                     .accessibilityHidden(true)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { photoHeight = $0 }
                 VStack(alignment: .leading, spacing: 4) {
                     Text(university.name)
                         .font(.headline)
                         .foregroundStyle(.primary)
                         .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                         .padding(.trailing, 4)
                     if let levels = AtlasText.levels(university.levels) {
                         Text(levels)
                             .font(.subheadline)
                             .foregroundStyle(AtlasStyle.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     if let intake = AtlasText.nearestIntake(university.intakes) {
                         Label {
                             Text(intake)
+                                .fixedSize(horizontal: false, vertical: true)
                         } icon: {
                             Image(systemName: "calendar")
                                 .accessibilityHidden(true)
@@ -589,11 +618,12 @@ struct UniversityAtlasCard: View {
             AtlasHeartButton(institutionId: university.id, store: favorites, onPhoto: true)
                 .padding(6)
         }
-        // «©» на фото карточки, как на вебе; справа уже сердечко.
-        .overlay(alignment: .topLeading) {
-            if let credit = AtlasPhotoCredit(universityPhotoKey: university.photoKey, universityName: university.name) {
+        .overlay(alignment: .topTrailing) {
+            if let credit = AtlasPhotoCredit(universityPhotoKey: university.photoKey, universityName: university.name),
+               photoHeight > 100 {
                 AtlasPhotoCreditButton(credit: credit)
-                    .padding(6)
+                    .padding(.trailing, 6)
+                    .padding(.top, photoHeight - 44 - 6)
             }
         }
     }
@@ -691,9 +721,10 @@ struct AtlasStaleNotice: View {
 }
 
 /// Фото кампуса на странице вуза: перенесённая копия нужного размера (затем
-/// оригинал того же объекта), атрибуция по «©». Копии нет: прежняя честная
-/// заглушка «Проверенное фото кампуса пока не добавлено» без кнопки «©», как
-/// `PhotoFigure` веба.
+/// оригинал того же объекта), атрибуция по «©». Копии нет: блока фото нет
+/// вовсе, как `PhotoFigure` веба после review раунда 2 веба (N6: пустой блок
+/// первым экраном ничего не говорил); заглушка «фото не добавлено» остаётся
+/// на карточках вузов города.
 struct UniversityDetailPhoto: View {
     let photoKey: String?
     let universityName: String
@@ -712,8 +743,6 @@ struct UniversityDetailPhoto: View {
                     AtlasPhotoCreditButton(credit: credit)
                         .padding(6)
                 }
-        } else {
-            UniversityPhotoView(photoKey: nil)
         }
     }
 }

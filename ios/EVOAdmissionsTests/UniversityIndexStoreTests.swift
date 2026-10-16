@@ -107,6 +107,24 @@ final class UniversityIndexStoreTests: XCTestCase {
         XCTAssertEqual(cache.read(organizationId: organization), fullIndex)
     }
 
+    /// Одна неверная карточка (контракт 2.2a): каталог показан без неё, а не
+    /// «не удалось загрузить»; хранилище пишет строку журнала через свой
+    /// `report`, копия на диске это то же тело ответа.
+    func testBrokenCityDegradesAloneAndIsReported() async throws {
+        let body = try AtlasFixtures.mutated(AtlasFixtures.index) { $0.update(["cities", 0, "photo"]) { $0["author"] = "Diana\u{00A0}" } }
+        let log = CatalogIssueLog()
+        let script = Script([.body(body)])
+        let store = UniversityIndexStore(cache: cache, isForbidden: { $0 is Forbidden }, report: log.report, fetch: { try await script.fetch($0) })
+        await store.load(organizationId: organization)
+        XCTAssertEqual(store.phase, .ready)
+        XCTAssertEqual(store.index?.cities.count, 18)
+        XCTAssertEqual(store.index?.universities.count, 29)
+        XCTAssertEqual(log.issues.first, CatalogParseIssue(.city, "shanghai", "photo"))
+        XCTAssertEqual(log.issues.last, CatalogParseIssue(.country, "CN", "count"))
+        try await waitForCopy()
+        XCTAssertEqual(cache.read(organizationId: organization), store.index)
+    }
+
     func testCopyIsShownFirstAndCheckedOncePerLaunch() async throws {
         try cache.write(fullBody, organizationId: organization)
         let script = Script([.body(notModified(fullIndex.version)), .body(notModified(fullIndex.version))])

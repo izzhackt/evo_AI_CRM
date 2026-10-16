@@ -15,108 +15,40 @@ enum UniversityIndexResponse: Equatable {
     }
 }
 
-extension UniversityIndexResponse: Decodable {
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: AtlasKey.self)
-        let notModified: Bool = try values.required("notModified")
-        if notModified {
-            try values.requireExactKeys(["notModified", "version"])
-            let version: String = try values.required("version")
-            guard UniversityIndex.isVersion(version) else { throw values.corrupted("version", "Invalid index version") }
-            self = .notModified(version: version)
-        } else {
-            self = .full(try UniversityIndex(from: decoder))
-        }
-    }
+/// Ответ нельзя показать: неверная обёртка (контракт 2.2a). Экран честно
+/// говорит «не удалось загрузить» или оставляет прежнюю копию.
+enum UniversityCatalogDecodingError: Error, Equatable {
+    case envelope
+}
 
-    /// Разбор тела ответа RPC. Ошибка разбора не превращается в пустой
-    /// каталог: вызывающий показывает сбой или оставляет прежнюю копию.
-    static func decode(_ data: Data) throws -> UniversityIndexResponse {
-        try JSONDecoder().decode(UniversityIndexResponse.self, from: data)
+extension UniversityIndexResponse {
+    /// Разбор тела ответа RPC по частям (`UniversityIndexParser`). Ошибка
+    /// обёртки не превращается в пустой каталог: вызывающий показывает сбой
+    /// или оставляет прежнюю копию.
+    static func decode(_ data: Data, report: CatalogParseReporter = CatalogParseLog.ignore) throws -> UniversityIndexResponse {
+        let json = try JSONDecoder().decode(AtlasJSON.self, from: data)
+        guard let parsed = UniversityIndexParser.parse(json, report: report) else { throw UniversityCatalogDecodingError.envelope }
+        return parsed
     }
 }
 
-struct UniversityIndex: Decodable, Equatable {
+struct UniversityIndex: Equatable {
     let version: String
     let countries: [AtlasCountry]
     let cities: [AtlasCity]
     let universities: [UniversityIndexEntry]
 
     /// Версия непрозрачна (сейчас `g1.` + md5), сравнивается только на
-    /// равенство; граница та же, что у входа RPC (до 100 знаков, без
-    /// управляющих символов).
+    /// равенство; правило текста каталога до 100 знаков, как у веба.
     static func isVersion(_ value: String) -> Bool {
-        !value.isEmpty && value.count <= 100 && !AtlasValue.hasControlCharacter(value)
-    }
-
-    init(version: String, countries: [AtlasCountry], cities: [AtlasCity], universities: [UniversityIndexEntry]) {
-        self.version = version
-        self.countries = countries
-        self.cities = cities
-        self.universities = universities
-    }
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: AtlasKey.self)
-        try values.requireExactKeys(["notModified", "version", "countries", "cities", "universities"])
-        guard try values.required("notModified", as: Bool.self) == false else {
-            throw values.corrupted("notModified", "A full index must say notModified: false")
-        }
-        version = try values.required("version")
-        countries = try values.required("countries")
-        cities = try values.required("cities")
-        universities = try values.required("universities")
-        guard Self.isVersion(version) else { throw values.corrupted("version", "Invalid index version") }
-        try validateReferences(values)
-    }
-
-    /// Ссылки и счётчики внутри выдачи согласованы: город указывает на
-    /// страну выдачи, вуз на город своей страны, числа на карточках равны
-    /// числу записей (контракт 2.1, «сумма по странам = число вузов»).
-    private func validateReferences(_ values: KeyedDecodingContainer<AtlasKey>) throws {
-        let codes = countries.map(\.code)
-        guard Set(codes).count == codes.count, !codes.isEmpty else {
-            throw values.corrupted("countries", "Country codes must be unique and present")
-        }
-        var cityCountry: [String: String] = [:]
-        for city in cities {
-            guard codes.contains(city.country) else { throw values.corrupted("cities", "City of an unknown country") }
-            guard cityCountry.updateValue(city.country, forKey: city.key) == nil else {
-                throw values.corrupted("cities", "Duplicate city key")
-            }
-        }
-        var ids = Set<UUID>()
-        var perCountry: [String: Int] = [:]
-        var perCity: [String: Int] = [:]
-        for university in universities {
-            guard ids.insert(university.id).inserted else { throw values.corrupted("universities", "Duplicate university id") }
-            guard codes.contains(university.country) else { throw values.corrupted("universities", "University of an unknown country") }
-            if let key = university.cityKey {
-                guard cityCountry[key] == university.country else {
-                    throw values.corrupted("universities", "University city is unknown or in another country")
-                }
-                perCity[key, default: 0] += 1
-            }
-            perCountry[university.country, default: 0] += 1
-        }
-        for city in cities where perCity[city.key, default: 0] != city.universityCount {
-            throw values.corrupted("cities", "City universityCount differs from its universities")
-        }
-        for country in countries {
-            guard perCountry[country.code, default: 0] == country.universityCount else {
-                throw values.corrupted("countries", "Country universityCount differs from its universities")
-            }
-            guard cities.filter({ $0.country == country.code }).count == country.cityCount else {
-                throw values.corrupted("countries", "Country cityCount differs from its cities")
-            }
-        }
+        CatalogText.text(value, max: 100)
     }
 }
 
-/// Карточка страны. Названия фиксированные (283, как
+/// Карточка страны. Название фиксированное (283, как
 /// `src/lib/study-countries.json`); фото и текст null, пока карточку не
-/// заполнили.
-struct AtlasCountry: Decodable, Equatable, Identifiable, Hashable {
+/// заполнили или если они не прошли разбор.
+struct AtlasCountry: Equatable, Identifiable, Hashable {
     let code: String
     let name: LocalizedPair
     let photo: AtlasPhoto?
@@ -125,108 +57,42 @@ struct AtlasCountry: Decodable, Equatable, Identifiable, Hashable {
     let cityCount: Int
 
     var id: String { code }
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: AtlasKey.self)
-        try values.requireExactKeys(["code", "name", "photo", "summary", "universityCount", "cityCount"])
-        code = try values.required("code")
-        name = try values.required("name")
-        photo = try values.nullable("photo")
-        summary = try values.nullable("summary")
-        universityCount = try values.required("universityCount")
-        cityCount = try values.required("cityCount")
-        guard AtlasValue.matches(code, "[A-Z]{2}") else { throw values.corrupted("code", "Invalid country code") }
-        guard universityCount >= 0, cityCount >= 0 else { throw values.corrupted("universityCount", "Negative count") }
-    }
 }
 
 /// Факт города: RU и KY, адрес источника и дата проверки.
-struct AtlasCityFact: Decodable, Equatable, Hashable {
+struct AtlasCityFact: Equatable, Hashable {
     let text: LocalizedPair
     let sourceUrl: URL
     let verifiedOn: String
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: AtlasKey.self)
-        try values.requireExactKeys(["ru", "ky", "sourceUrl", "verifiedOn"])
-        text = try LocalizedPair(values: values, max: 200)
-        let rawSource: String = try values.required("sourceUrl")
-        verifiedOn = try values.required("verifiedOn")
-        guard let url = AtlasValue.httpsURL(rawSource) else { throw values.corrupted("sourceUrl", "Fact source must be https") }
-        guard AtlasValue.isDay(verifiedOn) else { throw values.corrupted("verifiedOn", "Invalid date") }
-        sourceUrl = url
-    }
 }
 
-/// Опубликованный город. В индексе к карточке добавлено `universityCount`,
-/// на странице вуза его нет; набор ключей проверяется по месту разбора.
-/// Опубликованная карточка всегда полная (CHECK в 283): фото, текст, факт.
-struct AtlasCity: Decodable, Equatable, Identifiable, Hashable {
+/// Опубликованный город. В индексе у карточки `universityCount` (разбор
+/// считает его по вузам выдачи), на странице вуза его нет (nil).
+struct AtlasCity: Equatable, Identifiable, Hashable {
     let key: String
     let country: String
     let name: LocalizedPair
     let photo: AtlasPhoto
     let summary: LocalizedPair
     let fact: AtlasCityFact
-    /// nil только у города со страницы вуза.
     let universityCount: Int?
 
     var id: String { key }
 
-    private static let cardKeys: Set<String> = ["key", "country", "name", "photo", "summary", "fact"]
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: AtlasKey.self)
-        let present = Set(values.allKeys.map(\.stringValue))
-        if present.contains("universityCount") {
-            try values.requireExactKeys(Self.cardKeys.union(["universityCount"]))
-            let count: Int = try values.required("universityCount")
-            guard count >= 1 else { throw values.corrupted("universityCount", "A listed city has universities") }
-            universityCount = count
-        } else {
-            try values.requireExactKeys(Self.cardKeys)
-            universityCount = nil
-        }
-        key = try values.required("key")
-        country = try values.required("country")
-        name = try values.required("name")
-        photo = try values.required("photo")
-        summary = try values.required("summary")
-        fact = try values.required("fact")
-        guard key.count >= 2, key.count <= 64, AtlasValue.matches(key, "[a-z0-9]+(-[a-z0-9]+)*") else {
-            throw values.corrupted("key", "Invalid city key")
-        }
-        guard AtlasValue.matches(country, "[A-Z]{2}") else { throw values.corrupted("country", "Invalid country code") }
-        guard photo.path.hasPrefix("geography/cities/") else { throw values.corrupted("photo", "City photo outside cities/") }
+    func counted(_ value: Int) -> AtlasCity {
+        AtlasCity(key: key, country: country, name: name, photo: photo, summary: summary, fact: fact, universityCount: value)
     }
 }
 
 /// Дата набора: срок подачи, начало, месяц начала; каждое может быть null.
-struct UniversityIndexIntake: Decodable, Equatable, Hashable {
+struct UniversityIndexIntake: Equatable, Hashable {
     let deadline: String?
     let start: String?
     let startMonth: String?
-
-    init(deadline: String?, start: String?, startMonth: String?) {
-        self.deadline = deadline
-        self.start = start
-        self.startMonth = startMonth
-    }
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: AtlasKey.self)
-        try values.requireExactKeys(["deadline", "start", "startMonth"])
-        deadline = try values.nullable("deadline")
-        start = try values.nullable("start")
-        startMonth = try values.nullable("startMonth")
-        if let deadline, !AtlasValue.isDay(deadline) { throw values.corrupted("deadline", "Invalid date") }
-        if let start, !AtlasValue.isDay(start) { throw values.corrupted("start", "Invalid date") }
-        if let startMonth, !AtlasValue.isMonth(startMonth) { throw values.corrupted("startMonth", "Invalid month") }
-    }
 }
 
 /// Краткая карточка вуза в индексе.
-struct UniversityIndexEntry: Decodable, Equatable, Identifiable, Hashable {
+struct UniversityIndexEntry: Equatable, Identifiable, Hashable {
     let id: UUID
     let name: String
     let country: String
@@ -234,29 +100,228 @@ struct UniversityIndexEntry: Decodable, Equatable, Identifiable, Hashable {
     let cityKey: String?
     /// Исходная строка `content.city` карточки вуза.
     let cityLabel: String?
+    /// Уровни в порядке продукта, без повторов и неизвестных.
     let levels: [String]
+    /// Ключ библиотеки фото этой сборки или null.
     let photoKey: String?
     let intakes: [UniversityIndexIntake]
     let hasCosts: Bool
 
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: AtlasKey.self)
-        try values.requireExactKeys(["id", "name", "country", "cityKey", "cityLabel", "levels", "photoKey", "intakes", "hasCosts"])
-        id = try values.required("id")
-        name = try values.required("name")
-        country = try values.required("country")
-        cityKey = try values.nullable("cityKey")
-        cityLabel = try values.nullable("cityLabel")
-        levels = try values.required("levels")
-        photoKey = try values.nullable("photoKey")
-        intakes = try values.required("intakes")
-        hasCosts = try values.required("hasCosts")
-        guard AtlasValue.isText(name, max: 300) else { throw values.corrupted("name", "Empty name") }
-        guard AtlasValue.matches(country, "[A-Z]{2}") else { throw values.corrupted("country", "Invalid country code") }
-        // Порядок продукта и без повторов: language … doctorate.
-        let positions = levels.compactMap { AtlasValue.levels.firstIndex(of: $0) }
-        guard positions.count == levels.count, positions == positions.sorted(), Set(positions).count == positions.count else {
-            throw values.corrupted("levels", "Levels outside the domain or out of order")
+    func withoutCity() -> UniversityIndexEntry {
+        UniversityIndexEntry(id: id, name: name, country: country, cityKey: nil, cityLabel: cityLabel, levels: levels,
+                             photoKey: photoKey, intakes: intakes, hasCosts: hasCosts)
+    }
+}
+
+/// Разбор `student_university_index_v1`, как `parseStudentUniversityIndexResponse`
+/// веба. Отказ всего индекса (nil) только при неверной обёртке: ключи
+/// ответа, версия, шесть стран в порядке продукта. Неверный город, вуз или
+/// поле страны отбрасываются по одному (`report`), счётчики считаются по
+/// тому, что осталось (приёмка 7.6.2).
+enum UniversityIndexParser {
+    typealias Row = AtlasParse.Row
+
+    static func parse(
+        _ value: AtlasJSON,
+        report: CatalogParseReporter,
+        countryCodes: [String] = StudyCountries.codes,
+        photoKeys: Set<String> = AtlasCatalogLibrary.photoKeys
+    ) -> UniversityIndexResponse? {
+        guard let row = value.object else { return nil }
+        if row["notModified"] == .bool(true) {
+            guard AtlasParse.exact(row, ["notModified", "version"]),
+                  let version = row["version"]?.string, UniversityIndex.isVersion(version) else { return nil }
+            return .notModified(version: version)
         }
+        guard row["notModified"] == .bool(false),
+              AtlasParse.exact(row, ["notModified", "version", "countries", "cities", "universities"]),
+              let version = row["version"]?.string, UniversityIndex.isVersion(version),
+              let countryValues = row["countries"]?.array, let cityValues = row["cities"]?.array,
+              let universityValues = row["universities"]?.array,
+              universityValues.count <= 5000, cityValues.count <= 1000,
+              !countryCodes.isEmpty, countryValues.count == countryCodes.count else { return nil }
+
+        // Страны всегда шесть и в порядке продукта (282).
+        var countryRows: [Row] = []
+        for (position, entry) in countryValues.enumerated() {
+            guard let item = entry.object, item["code"] == .string(countryCodes[position]) else { return nil }
+            countryRows.append(item)
+        }
+
+        var cities: [AtlasCity] = []
+        var cityCountry: [String: String] = [:]
+        for entry in cityValues {
+            switch AtlasParse.city(entry, withCount: true, countryCodes: countryCodes) {
+            case .bad(let reason):
+                report(CatalogParseIssue(.city, AtlasParse.cityKey(entry), reason))
+            case .ok(let city):
+                if cityCountry[city.key] != nil {
+                    report(CatalogParseIssue(.city, city.key, "duplicate"))
+                    continue
+                }
+                cityCountry[city.key] = city.country
+                cities.append(city)
+            }
+        }
+
+        var universities: [UniversityIndexEntry] = []
+        var ids = Set<UUID>()
+        for entry in universityValues {
+            switch university(entry, countryCodes: countryCodes, photoKeys: photoKeys, report: report) {
+            case .bad(let reason):
+                report(CatalogParseIssue(.university, AtlasParse.uuid(entry.object?["id"]), reason))
+            case .ok(let parsed):
+                let key = AtlasParse.uuid(entry.object?["id"])
+                var item = parsed
+                if ids.contains(item.id) {
+                    report(CatalogParseIssue(.university, key, "duplicate"))
+                    continue
+                }
+                // Город, которого нет в индексе или который другой страны:
+                // вуз в «Другие вузы страны».
+                if let cityKey = item.cityKey, cityCountry[cityKey] != item.country {
+                    report(CatalogParseIssue(.university, key, "city"))
+                    item = item.withoutCity()
+                }
+                ids.insert(item.id)
+                universities.append(item)
+            }
+        }
+
+        // Счётчики выдачи сходятся с её же списками: сумма вузов по странам
+        // равна числу вузов, город считает свои вузы. Расхождение с числами
+        // сервера только пишется в журнал.
+        var perCity: [String: Int] = [:]
+        var perCountry: [String: Int] = [:]
+        for item in universities {
+            if let cityKey = item.cityKey { perCity[cityKey, default: 0] += 1 }
+            perCountry[item.country, default: 0] += 1
+        }
+        var indexCities: [AtlasCity] = []
+        for city in cities {
+            let own = perCity[city.key, default: 0]
+            if own == 0 {
+                report(CatalogParseIssue(.city, city.key, "empty"))
+                continue
+            }
+            if city.universityCount != own { report(CatalogParseIssue(.city, city.key, "count")) }
+            indexCities.append(city.counted(own))
+        }
+        let countries = countryRows.enumerated().map { position, item -> AtlasCountry in
+            let code = countryCodes[position]
+            let universityCount = perCountry[code, default: 0]
+            let cityCount = indexCities.filter { $0.country == code }.count
+            if AtlasParse.count(item["universityCount"]) != universityCount || AtlasParse.count(item["cityCount"]) != cityCount {
+                report(CatalogParseIssue(.country, code, "count"))
+            }
+            return country(item, code: code, universityCount: universityCount, cityCount: cityCount, report: report)
+        }
+        return .full(UniversityIndex(version: version, countries: countries, cities: indexCities, universities: universities))
+    }
+
+    private static let countryKeys = ["code", "name", "photo", "summary", "universityCount", "cityCount"]
+
+    /// Карточка страны: код и порядок обязательны (282), остальное деградирует.
+    private static func country(_ item: Row, code: String, universityCount: Int, cityCount: Int, report: CatalogParseReporter) -> AtlasCountry {
+        func note(_ reason: String) { report(CatalogParseIssue(.country, code, reason)) }
+        if !AtlasParse.exact(item, countryKeys) { note("keys") }
+        var name = AtlasParse.localized(item["name"], max: 100)
+        if name == nil {
+            note("name")
+            name = AtlasParse.fallbackCountryName(code)
+        }
+        var photo: AtlasPhoto?
+        if !AtlasParse.isAbsent(item["photo"]) {
+            photo = AtlasParse.photo(item["photo"], scope: "countries")
+            if photo == nil { note("photo") }
+        }
+        var summary: LocalizedPair?
+        if !AtlasParse.isAbsent(item["summary"]) {
+            summary = AtlasParse.localized(item["summary"], max: 300)
+            if summary == nil { note("summary") }
+        }
+        return AtlasCountry(code: code, name: name!, photo: photo, summary: summary, universityCount: universityCount, cityCount: cityCount)
+    }
+
+    private static let universityKeys = ["id", "name", "country", "cityKey", "cityLabel", "levels", "photoKey", "intakes", "hasCosts"]
+
+    /// Краткая карточка вуза. Без id, названия и страны вуза нет; остальное
+    /// деградирует по полю: неверный набор дат даёт «даты уточняются»,
+    /// неверный ключ города или подпись города уводят вуз в «Другие вузы
+    /// страны».
+    static func university(
+        _ value: AtlasJSON,
+        countryCodes: [String],
+        photoKeys: Set<String>,
+        report: CatalogParseReporter
+    ) -> AtlasParsed<UniversityIndexEntry> {
+        guard let row = value.object else { return .bad("shape") }
+        guard let key = AtlasParse.uuid(row["id"]), let id = UUID(uuidString: key) else { return .bad("id") }
+        guard let name = row["name"]?.string, AtlasValue.contentText(name, max: 300) else { return .bad("name") }
+        guard let country = row["country"]?.string, countryCodes.contains(country) else { return .bad("country") }
+        func note(_ reason: String) { report(CatalogParseIssue(.university, key, reason)) }
+        if !AtlasParse.exact(row, universityKeys) { note("keys") }
+        var cityKey: String?
+        if !AtlasParse.isAbsent(row["cityKey"]) {
+            if let raw = row["cityKey"]?.string, AtlasParse.isCityKey(raw) { cityKey = raw } else { note("cityKey") }
+        }
+        var cityLabel: String?
+        if !AtlasParse.isAbsent(row["cityLabel"]) {
+            if let raw = row["cityLabel"]?.string, AtlasValue.contentText(raw, max: 200) { cityLabel = raw } else { note("cityLabel") }
+        }
+        let rawLevels = row["levels"]?.array ?? []
+        if row["levels"]?.array == nil
+            || rawLevels.contains(where: { !($0.string.map(AtlasValue.levels.contains) ?? false) })
+            || Set(rawLevels).count != rawLevels.count {
+            note("levels")
+        }
+        var intakes: [UniversityIndexIntake] = []
+        if let entries = row["intakes"]?.array, entries.count <= 400 {
+            for entry in entries {
+                guard let parsed = intake(entry) else {
+                    // Один неверный срок: честное «даты уточняются», а не
+                    // чужой срок.
+                    note("intakes")
+                    intakes = []
+                    break
+                }
+                intakes.append(parsed)
+            }
+        } else {
+            note("intakes")
+        }
+        if row["hasCosts"]?.bool == nil { note("hasCosts") }
+        // Ключ фото, которого нет в библиотеке этой сборки: честная заглушка
+        // «фото не добавлено», а не отказ всего каталога.
+        let photoKey = row["photoKey"]?.string.flatMap { photoKeys.contains($0) ? $0 : nil }
+        return .ok(UniversityIndexEntry(
+            id: id,
+            name: name,
+            country: country,
+            cityKey: cityKey,
+            cityLabel: cityLabel,
+            levels: AtlasValue.levels.filter { rawLevels.contains(.string($0)) },
+            photoKey: photoKey,
+            intakes: intakes,
+            hasCosts: row["hasCosts"] == .bool(true)
+        ))
+    }
+
+    static func intake(_ value: AtlasJSON) -> UniversityIndexIntake? {
+        guard let row = value.object, AtlasParse.exact(row, ["deadline", "start", "startMonth"]) else { return nil }
+        func day(_ key: String) -> (ok: Bool, value: String?) {
+            if row[key] == .null { return (true, nil) }
+            guard let raw = row[key]?.string, AtlasValue.isDay(raw) else { return (false, nil) }
+            return (true, raw)
+        }
+        let deadline = day("deadline")
+        let start = day("start")
+        var startMonth: String?
+        if row["startMonth"] != .null {
+            guard let raw = row["startMonth"]?.string, AtlasValue.isMonth(raw) else { return nil }
+            startMonth = raw
+        }
+        guard deadline.ok, start.ok else { return nil }
+        return UniversityIndexIntake(deadline: deadline.value, start: start.value, startMonth: startMonth)
     }
 }

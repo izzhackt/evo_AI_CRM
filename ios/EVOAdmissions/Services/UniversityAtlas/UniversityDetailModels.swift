@@ -1,68 +1,106 @@
 import Foundation
 
 /// Ответ `platform.student_university_detail_v1(p_institution_id)` (283,
-/// контракт 2.2): страница вуза одним вызовом. `university` разбирается тем
-/// же `UniversityCatalogItem`, что и прежние RPC каталога (контракт: «ровно
-/// элемент items»). Подготовки обобщены параметром: приложение подставляет
-/// `CatalogPreparation`, hostless-тесты собственную заглушку, и тестовой цели
-/// не нужен весь слой подготовок.
-struct UniversityDetailPayload<Preparation: Decodable>: Decodable {
+/// контракт 2.2, 2.2a): страница вуза одним вызовом. Обёртка, `university`
+/// (тот же `UniversityCatalogItem`, что у прежних RPC каталога: «ровно
+/// элемент items»), страна, избранное, консультация и подготовки строгие:
+/// отклонение даёт ошибку и экран «не удалось загрузить». Название страны,
+/// город и стоимость деградируют по одному, как `parseStudentUniversityDetail`
+/// веба: неверный город даёт страницу без города, неверная строка стоимости
+/// или курс опускаются, строка без своего курса теряет ориентир в USD, без
+/// строк блока «Стоимость» нет. Подготовки обобщены параметром: приложение
+/// подставляет `CatalogPreparation`, hostless-тесты собственную заглушку.
+struct UniversityDetailPayload<Preparation: Decodable> {
     let university: UniversityCatalogItem
     let country: AtlasCountryRef
-    /// null: у вуза нет опубликованного города.
+    /// null: у вуза нет опубликованного города или карточка города не
+    /// прошла разбор.
     let city: AtlasCity?
     let favored: Bool
     let openConsultation: ConsultationReceipt?
     /// null: дело кабинета не читается (как `catch` на вебе).
     let preparations: UniversityDetailPreparations<Preparation>?
-    /// null: опубликованных строк нет, блока «Стоимость» нет совсем.
+    /// null: опубликованных строк нет (или ни одна не прошла разбор), блока
+    /// «Стоимость» нет совсем.
     let costs: UniversityCosts?
 
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: AtlasKey.self)
-        try values.requireExactKeys(["university", "country", "city", "favored", "openConsultation", "preparations", "costs"])
-        let universityValues = try values.nestedContainer(keyedBy: AtlasKey.self, forKey: AtlasKey("university"))
-        try universityValues.requireExactKeys(["id", "version", "publishedAt", "content"])
-        university = try values.required("university")
-        country = try values.required("country")
-        city = try values.nullable("city")
-        favored = try values.required("favored")
-        if let consultationValues = try? values.nestedContainer(keyedBy: AtlasKey.self, forKey: AtlasKey("openConsultation")) {
-            try consultationValues.requireExactKeys(["requestId", "status", "institutionId", "institutionName", "note", "requestedAt", "handledAt"])
+    /// - Parameter expectedId: вуз, который открыли: ответ о другом вузе
+    ///   считается сбоем, а не подменой.
+    static func decode(
+        _ data: Data,
+        expectedId: UUID? = nil,
+        report: CatalogParseReporter = CatalogParseLog.ignore,
+        countryCodes: [String] = StudyCountries.codes
+    ) throws -> UniversityDetailPayload {
+        let raw = try JSONDecoder().decode(Raw.self, from: data)
+        if let expectedId, raw.university.id != expectedId { throw UniversityCatalogDecodingError.envelope }
+        guard let countryRow = raw.country.object, let code = countryRow["code"]?.string,
+              code == raw.university.content.country, countryCodes.contains(code) else {
+            throw UniversityCatalogDecodingError.envelope
         }
-        openConsultation = try values.nullable("openConsultation")
-        preparations = try values.nullable("preparations")
-        costs = try values.nullable("costs")
-
-        guard university.content.country == country.code else {
-            throw values.corrupted("country", "University country differs from the card")
+        var countryName = AtlasParse.exact(countryRow, ["code", "name"]) ? AtlasParse.localized(countryRow["name"], max: 100) : nil
+        if countryName == nil {
+            report(CatalogParseIssue(.country, code, "name"))
+            countryName = AtlasParse.fallbackCountryName(code)
         }
-        if let city {
-            guard city.universityCount == nil else { throw values.corrupted("city", "Detail city has no universityCount") }
-            guard city.country == country.code else { throw values.corrupted("city", "City of another country") }
+        var city: AtlasCity?
+        if raw.city != .null {
+            switch AtlasParse.city(raw.city, withCount: false, countryCodes: countryCodes) {
+            case .bad(let reason):
+                report(CatalogParseIssue(.city, AtlasParse.cityKey(raw.city), reason))
+            case .ok(let parsed) where parsed.country != code:
+                report(CatalogParseIssue(.city, parsed.key, "country"))
+            case .ok(let parsed):
+                city = parsed
+            }
         }
-        if let openConsultation, !openConsultation.isOpen {
-            throw values.corrupted("openConsultation", "Only an open request is returned")
-        }
+        return UniversityDetailPayload(
+            university: raw.university,
+            country: AtlasCountryRef(code: code, name: countryName!),
+            city: city,
+            favored: raw.favored,
+            openConsultation: raw.openConsultation,
+            preparations: raw.preparations,
+            costs: UniversityCostsParser.parse(raw.costs, report: report)
+        )
     }
 
-    static func decode(_ data: Data) throws -> UniversityDetailPayload {
-        try JSONDecoder().decode(UniversityDetailPayload.self, from: data)
+    /// Строгая часть ответа; каталожные части приходят как `AtlasJSON`.
+    private struct Raw: Decodable {
+        let university: UniversityCatalogItem
+        let country: AtlasJSON
+        let city: AtlasJSON
+        let favored: Bool
+        let openConsultation: ConsultationReceipt?
+        let preparations: UniversityDetailPreparations<Preparation>?
+        let costs: AtlasJSON
+
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: AtlasKey.self)
+            try values.requireExactKeys(["university", "country", "city", "favored", "openConsultation", "preparations", "costs"])
+            let universityValues = try values.nestedContainer(keyedBy: AtlasKey.self, forKey: AtlasKey("university"))
+            try universityValues.requireExactKeys(["id", "version", "publishedAt", "content"])
+            university = try values.required("university")
+            country = try values.required("country")
+            city = try values.required("city")
+            favored = try values.required("favored")
+            if let consultationValues = try? values.nestedContainer(keyedBy: AtlasKey.self, forKey: AtlasKey("openConsultation")) {
+                try consultationValues.requireExactKeys(["requestId", "status", "institutionId", "institutionName", "note", "requestedAt", "handledAt"])
+            }
+            openConsultation = try values.nullable("openConsultation")
+            preparations = try values.nullable("preparations")
+            costs = try values.required("costs")
+            if let openConsultation, !openConsultation.isOpen {
+                throw values.corrupted("openConsultation", "Only an open request is returned")
+            }
+        }
     }
 }
 
 /// Страна вуза с фиксированными названиями.
-struct AtlasCountryRef: Decodable, Equatable {
+struct AtlasCountryRef: Equatable {
     let code: String
     let name: LocalizedPair
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: AtlasKey.self)
-        try values.requireExactKeys(["code", "name"])
-        code = try values.required("code")
-        name = try values.required("name")
-        guard AtlasValue.matches(code, "[A-Z]{2}") else { throw values.corrupted("code", "Invalid country code") }
-    }
 }
 
 struct UniversityDetailPreparations<Preparation: Decodable>: Decodable {
@@ -77,45 +115,139 @@ struct UniversityDetailPreparations<Preparation: Decodable>: Decodable {
     }
 }
 
-/// Опубликованная стоимость вуза: строки и последние курсы по их валютам.
-struct UniversityCosts: Decodable, Equatable {
+/// Опубликованная стоимость вуза: строки и курсы по их валютам.
+struct UniversityCosts: Equatable {
     let rows: [UniversityCostRow]
     let fxRates: [AtlasFxRate]
+}
 
-    init(rows: [UniversityCostRow], fxRates: [AtlasFxRate]) {
-        self.rows = rows
-        self.fxRates = fxRates
+/// Блок «Стоимость», как `costs` веба: неверная строка или курс опускаются
+/// по одному; строка без своего курса теряет ориентир в USD (сумма без
+/// названного курса не показывается); не осталось строк: блока нет.
+enum UniversityCostsParser {
+    static func parse(_ value: AtlasJSON, report: CatalogParseReporter) -> UniversityCosts? {
+        if value == .null { return nil }
+        guard let row = value.object, AtlasParse.exact(row, ["rows", "fxRates"]),
+              let rowValues = row["rows"]?.array, let rateValues = row["fxRates"]?.array else {
+            report(CatalogParseIssue(.costs, nil, "shape"))
+            return nil
+        }
+        var rows: [UniversityCostRow] = []
+        var ids = Set<UUID>()
+        for entry in rowValues.prefix(500) {
+            switch costRow(entry) {
+            case .bad(let reason):
+                report(CatalogParseIssue(.cost, AtlasParse.uuid(entry.object?["id"]), reason))
+            case .ok(let parsed):
+                if ids.contains(parsed.id) {
+                    report(CatalogParseIssue(.cost, AtlasParse.uuid(entry.object?["id"]), "duplicate"))
+                    continue
+                }
+                ids.insert(parsed.id)
+                rows.append(parsed)
+            }
+        }
+        if rowValues.count > 500 { report(CatalogParseIssue(.costs, nil, "rows")) }
+        var rates: [AtlasFxRate] = []
+        for entry in rateValues.prefix(50) {
+            let parsed = fxRate(entry)
+            let currency = entry.object?["currency"]?.string.map { String($0.prefix(3)) }
+            guard let parsed, !rates.contains(where: { $0.currency == parsed.currency }) else {
+                report(CatalogParseIssue(.fxRate, currency, parsed == nil ? "invalid" : "duplicate"))
+                continue
+            }
+            rates.append(parsed)
+        }
+        let rated = Set(rates.map(\.currency))
+        let shown = rows.map { row -> UniversityCostRow in
+            if row.usdApproxMin == nil || rated.contains(row.currency) { return row }
+            report(CatalogParseIssue(.cost, row.key, "rate"))
+            return row.withoutUsd()
+        }
+        if shown.isEmpty {
+            report(CatalogParseIssue(.costs, nil, "empty"))
+            return nil
+        }
+        return UniversityCosts(rows: shown, fxRates: rates)
     }
 
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: AtlasKey.self)
-        try values.requireExactKeys(["rows", "fxRates"])
-        rows = try values.required("rows")
-        fxRates = try values.required("fxRates")
-        // costs != null означает «есть опубликованные строки»; пустой массив
-        // это расхождение контракта, а не пустой блок.
-        guard !rows.isEmpty else { throw values.corrupted("rows", "Costs without rows must be null") }
-        guard Set(rows.map(\.id)).count == rows.count else { throw values.corrupted("rows", "Duplicate cost row") }
-        let rateCurrencies = fxRates.map(\.currency)
-        guard Set(rateCurrencies).count == rateCurrencies.count else { throw values.corrupted("fxRates", "One rate per currency") }
-        let rowCurrencies = Set(rows.map(\.currency))
-        guard Set(rateCurrencies).isSubset(of: rowCurrencies) else {
-            throw values.corrupted("fxRates", "Rate for a currency without rows")
+    static let rowKeys = ["id", "kind", "period", "studyLevel", "programId", "teachingLanguage", "currency", "exponent",
+                          "amountMinMinor", "amountMaxMinor", "usdApproxMin", "usdApproxMax", "academicYear", "note", "source", "verifiedOn"]
+
+    private static func amount(_ value: AtlasJSON?) -> Int64? {
+        guard let integer = value?.safeInteger, integer >= 0 else { return nil }
+        return integer
+    }
+
+    /// `null` или неотрицательное целое; nil во внешнем Optional: неверно.
+    private static func optionalAmount(_ value: AtlasJSON?) -> Int64?? {
+        if value == .null { return .some(nil) }
+        guard let amount = amount(value) else { return nil }
+        return .some(amount)
+    }
+
+    /// `null` или строка по шаблону; nil во внешнем Optional: неверно.
+    private static func optionalText(_ value: AtlasJSON?, _ valid: (String) -> Bool) -> String?? {
+        if value == .null { return .some(nil) }
+        guard let raw = value?.string, valid(raw) else { return nil }
+        return .some(raw)
+    }
+
+    static func costRow(_ value: AtlasJSON) -> AtlasParsed<UniversityCostRow> {
+        guard let row = value.object, AtlasParse.exact(row, rowKeys) else { return .bad("keys") }
+        guard let key = AtlasParse.uuid(row["id"]), let id = UUID(uuidString: key) else { return .bad("id") }
+        guard let kind = row["kind"]?.string.flatMap(UniversityCostKind.init(rawValue:)) else { return .bad("kind") }
+        guard let period = row["period"]?.string.flatMap(UniversityCostPeriod.init(rawValue:)) else { return .bad("period") }
+        guard let studyLevel = optionalText(row["studyLevel"], AtlasValue.levels.contains) else { return .bad("studyLevel") }
+        guard let programId = optionalText(row["programId"], { AtlasValue.matches($0, "[a-z0-9][a-z0-9-]{0,63}") }) else { return .bad("programId") }
+        guard let teachingLanguage = optionalText(row["teachingLanguage"], { AtlasValue.matches($0, "[a-z]{2}") }) else {
+            return .bad("teachingLanguage")
         }
-        for row in rows {
-            let hasRate = rateCurrencies.contains(row.currency)
-            // Ориентир в USD сервер считает только по курсу и не для USD.
-            if row.usdApproxMin != nil, row.currency == "USD" || !hasRate {
-                throw values.corrupted("rows", "USD estimate without a rate")
-            }
-            if row.usdApproxMin == nil, row.currency != "USD", hasRate {
-                throw values.corrupted("rows", "Missing USD estimate although a rate exists")
-            }
+        guard let currency = row["currency"]?.string, AtlasValue.matches(currency, "[A-Z]{3}") else { return .bad("currency") }
+        guard let exponent = row["exponent"]?.safeInteger, (0...4).contains(exponent) else { return .bad("exponent") }
+        guard let amountMin = amount(row["amountMinMinor"]), let amountMax = optionalAmount(row["amountMaxMinor"]),
+              amountMax.map({ $0 > amountMin }) ?? true else { return .bad("amount") }
+        guard let usdMin = optionalAmount(row["usdApproxMin"]), let usdMax = optionalAmount(row["usdApproxMax"]),
+              usdMax == nil || (amountMax != nil && usdMin != nil) else { return .bad("usd") }
+        guard let academicYear = optionalText(row["academicYear"], UniversityCostRow.isAcademicYear) else { return .bad("academicYear") }
+        var note: LocalizedPair?
+        if row["note"] != .null {
+            guard let parsed = AtlasParse.localized(row["note"], max: 300) else { return .bad("note") }
+            note = parsed
         }
+        guard let sourceRow = row["source"]?.object, AtlasParse.exact(sourceRow, ["kind", "url"]),
+              let sourceKind = sourceRow["kind"]?.string.flatMap(UniversityCostSourceKind.init(rawValue:)) else { return .bad("source") }
+        let source: UniversityCostSource
+        switch sourceKind {
+        case .official:
+            guard let url = AtlasParse.link(sourceRow["url"]) else { return .bad("source") }
+            source = UniversityCostSource(kind: .official, url: url)
+        case .agency, .evoDocument:
+            // Адрес и название агентства студенту не отдаются (решение
+            // владельца 16.10.2026).
+            guard sourceRow["url"] == .null else { return .bad("source") }
+            source = UniversityCostSource(kind: sourceKind, url: nil)
+        }
+        guard let verifiedOn = row["verifiedOn"]?.string, AtlasValue.isDay(verifiedOn) else { return .bad("verifiedOn") }
+        return .ok(UniversityCostRow(
+            id: id, key: key, kind: kind, period: period, studyLevel: studyLevel, programId: programId,
+            teachingLanguage: teachingLanguage, currency: currency, exponent: Int(exponent),
+            amountMinMinor: amountMin, amountMaxMinor: amountMax, usdApproxMin: usdMin, usdApproxMax: usdMax,
+            academicYear: academicYear, note: note, source: source, verifiedOn: verifiedOn
+        ))
+    }
+
+    static func fxRate(_ value: AtlasJSON) -> AtlasFxRate? {
+        guard let row = value.object, AtlasParse.exact(row, ["currency", "unitsPerUsd", "asOf", "sourceName"]),
+              let currency = row["currency"]?.string, AtlasValue.matches(currency, "[A-Z]{3}"),
+              let unitsPerUsd = row["unitsPerUsd"]?.number, unitsPerUsd > 0,
+              let asOf = row["asOf"]?.string, AtlasValue.isDay(asOf),
+              let sourceName = row["sourceName"]?.string, CatalogText.text(sourceName, max: 200) else { return nil }
+        return AtlasFxRate(currency: currency, unitsPerUsd: unitsPerUsd, asOf: asOf, sourceName: sourceName)
     }
 }
 
-enum UniversityCostKind: String, Decodable, CaseIterable {
+enum UniversityCostKind: String, CaseIterable {
     case tuition
     case accommodation
     case applicationFee = "application_fee"
@@ -123,11 +255,11 @@ enum UniversityCostKind: String, Decodable, CaseIterable {
     case other
 }
 
-enum UniversityCostPeriod: String, Decodable, CaseIterable {
+enum UniversityCostPeriod: String, CaseIterable {
     case year, semester, month, week, day, once, program
 }
 
-enum UniversityCostSourceKind: String, Decodable, CaseIterable {
+enum UniversityCostSourceKind: String, CaseIterable {
     case official
     case agency
     case evoDocument = "evo_document"
@@ -135,35 +267,15 @@ enum UniversityCostSourceKind: String, Decodable, CaseIterable {
 
 /// Источник строки. Адрес есть только у официального: название и адрес
 /// агентства студенту не отдаются (решение владельца 16.10.2026).
-struct UniversityCostSource: Decodable, Equatable {
+struct UniversityCostSource: Equatable {
     let kind: UniversityCostSourceKind
     let url: URL?
-
-    init(kind: UniversityCostSourceKind, url: URL?) {
-        self.kind = kind
-        self.url = url
-    }
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: AtlasKey.self)
-        try values.requireExactKeys(["kind", "url"])
-        kind = try values.required("kind")
-        let raw: String? = try values.nullable("url")
-        switch kind {
-        case .official:
-            guard let raw, let url = AtlasValue.httpsURL(raw) else {
-                throw values.corrupted("url", "Official source needs an https URL")
-            }
-            self.url = url
-        case .agency, .evoDocument:
-            guard raw == nil else { throw values.corrupted("url", "Only an official source carries a URL") }
-            self.url = nil
-        }
-    }
 }
 
-struct UniversityCostRow: Decodable, Equatable, Identifiable {
+struct UniversityCostRow: Equatable, Identifiable {
     let id: UUID
+    /// id строки так, как его прислал сервер (ключ строки журнала).
+    let key: String
     let kind: UniversityCostKind
     let period: UniversityCostPeriod
     let studyLevel: String?
@@ -180,87 +292,25 @@ struct UniversityCostRow: Decodable, Equatable, Identifiable {
     let source: UniversityCostSource
     let verifiedOn: String
 
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: AtlasKey.self)
-        try values.requireExactKeys(["id", "kind", "period", "studyLevel", "programId", "teachingLanguage", "currency",
-                                     "exponent", "amountMinMinor", "amountMaxMinor", "usdApproxMin", "usdApproxMax",
-                                     "academicYear", "note", "source", "verifiedOn"])
-        id = try values.required("id")
-        kind = try values.required("kind")
-        period = try values.required("period")
-        studyLevel = try values.nullable("studyLevel")
-        programId = try values.nullable("programId")
-        teachingLanguage = try values.nullable("teachingLanguage")
-        currency = try values.required("currency")
-        exponent = try values.required("exponent")
-        amountMinMinor = try values.required("amountMinMinor")
-        amountMaxMinor = try values.nullable("amountMaxMinor")
-        usdApproxMin = try values.nullable("usdApproxMin")
-        usdApproxMax = try values.nullable("usdApproxMax")
-        academicYear = try values.nullable("academicYear")
-        note = try values.nullable("note")
-        source = try values.required("source")
-        verifiedOn = try values.required("verifiedOn")
-        try validate(values)
+    func withoutUsd() -> UniversityCostRow {
+        UniversityCostRow(id: id, key: key, kind: kind, period: period, studyLevel: studyLevel, programId: programId,
+                          teachingLanguage: teachingLanguage, currency: currency, exponent: exponent,
+                          amountMinMinor: amountMinMinor, amountMaxMinor: amountMaxMinor, usdApproxMin: nil, usdApproxMax: nil,
+                          academicYear: academicYear, note: note, source: source, verifiedOn: verifiedOn)
     }
 
-    private func validate(_ values: KeyedDecodingContainer<AtlasKey>) throws {
-        if let studyLevel, !AtlasValue.levels.contains(studyLevel) { throw values.corrupted("studyLevel", "Unknown level") }
-        if let programId, !AtlasValue.matches(programId, "[a-z0-9][a-z0-9-]{0,63}") { throw values.corrupted("programId", "Invalid program id") }
-        if let teachingLanguage, !AtlasValue.matches(teachingLanguage, "[a-z]{2}") {
-            throw values.corrupted("teachingLanguage", "Invalid language code")
-        }
-        guard AtlasValue.matches(currency, "[A-Z]{3}") else { throw values.corrupted("currency", "Invalid currency") }
-        guard (0...3).contains(exponent) else { throw values.corrupted("exponent", "Invalid exponent") }
-        guard amountMinMinor >= 0 else { throw values.corrupted("amountMinMinor", "Negative amount") }
-        if let amountMaxMinor, amountMaxMinor <= amountMinMinor { throw values.corrupted("amountMaxMinor", "Max must exceed min") }
-        if let usdApproxMin, usdApproxMin < 0 { throw values.corrupted("usdApproxMin", "Negative estimate") }
-        if let usdApproxMax {
-            guard amountMaxMinor != nil, let usdApproxMin, usdApproxMax >= usdApproxMin else {
-                throw values.corrupted("usdApproxMax", "Estimate range without an amount range")
-            }
-        }
-        if amountMaxMinor != nil, usdApproxMin != nil, usdApproxMax == nil {
-            throw values.corrupted("usdApproxMax", "Range estimate needs both ends")
-        }
-        if let academicYear, !Self.isAcademicYear(academicYear) { throw values.corrupted("academicYear", "Invalid academic year") }
-        guard AtlasValue.isDay(verifiedOn) else { throw values.corrupted("verifiedOn", "Invalid date") }
-    }
-
-    /// `2026/27` (следующий год) или календарный год набора `2026`, как
-    /// `catalog_academic_year_ok` (283).
+    /// `2026/27` или календарный год набора `2026`, шаблон веба
+    /// (`/^20\d{2}(?:\/\d{2})?$/`); следующий год проверяет CHECK базы
+    /// `catalog_academic_year_ok`.
     static func isAcademicYear(_ value: String) -> Bool {
-        if AtlasValue.matches(value, "20[0-9]{2}") { return true }
-        guard AtlasValue.matches(value, "20[0-9]{2}/[0-9]{2}"),
-              let start = Int(value.prefix(4)), let end = Int(value.suffix(2)) else { return false }
-        return end == (start + 1) % 100
+        AtlasValue.matches(value, "20[0-9]{2}(/[0-9]{2})?")
     }
 }
 
 /// «1 USD = unitsPerUsd currency», источник и дата курса.
-struct AtlasFxRate: Decodable, Equatable {
+struct AtlasFxRate: Equatable {
     let currency: String
     let unitsPerUsd: Double
     let asOf: String
     let sourceName: String
-
-    init(currency: String, unitsPerUsd: Double, asOf: String, sourceName: String) {
-        self.currency = currency
-        self.unitsPerUsd = unitsPerUsd
-        self.asOf = asOf
-        self.sourceName = sourceName
-    }
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: AtlasKey.self)
-        try values.requireExactKeys(["currency", "unitsPerUsd", "asOf", "sourceName"])
-        currency = try values.required("currency")
-        unitsPerUsd = try values.required("unitsPerUsd")
-        asOf = try values.required("asOf")
-        sourceName = try values.required("sourceName")
-        guard AtlasValue.matches(currency, "[A-Z]{3}"), currency != "USD" else { throw values.corrupted("currency", "Invalid rate currency") }
-        guard unitsPerUsd.isFinite, unitsPerUsd > 0 else { throw values.corrupted("unitsPerUsd", "Rate must be positive") }
-        guard AtlasValue.isDay(asOf) else { throw values.corrupted("asOf", "Invalid date") }
-        guard AtlasValue.isText(sourceName, max: 200) else { throw values.corrupted("sourceName", "Empty rate source") }
-    }
 }

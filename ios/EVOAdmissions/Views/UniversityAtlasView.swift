@@ -86,7 +86,7 @@ struct UniversityAtlasView: View {
                         // «©» на фото карточки, как на вебе (план 4.4).
                         .overlay(alignment: .topTrailing) {
                             if let photo = country.photo {
-                                AtlasPhotoCreditButton(credit: AtlasPhotoCredit(photo))
+                                AtlasPhotoCreditButton(credit: AtlasPhotoCredit(place: photo, subject: country.name.text(kyrgyz: AtlasText.kyrgyz)))
                                     .padding(6)
                             }
                         }

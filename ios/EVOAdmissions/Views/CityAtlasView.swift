@@ -31,7 +31,7 @@ struct CityAtlasView: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if store.refreshFailed { AtlasStaleNotice() }
-                AtlasHeaderPhoto(photo: city.photo)
+                AtlasHeaderPhoto(photo: city.photo, subject: city.name.text(kyrgyz: AtlasText.kyrgyz))
                 AtlasParagraph(text: city.summary.text(kyrgyz: AtlasText.kyrgyz))
                 CityFactView(fact: city.fact)
 

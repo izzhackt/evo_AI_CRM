@@ -33,9 +33,12 @@ final class UniversityCardViewModel: ObservableObject {
         cardMissing = false
         do {
             let data = try await service.studentUniversityDetailData(institutionId: institutionId)
-            let fresh = try UniversityDetail.decode(data)
+            let fresh = try UniversityDetail.decode(
+                data,
+                expectedId: institutionId,
+                report: CatalogParseLog.reporter(rpc: CatalogParseLog.detailRpc)
+            )
             guard request == generation else { return }
-            guard fresh.university.id == institutionId else { throw UniversityDetailFailure.failed }
             detail = fresh
             item = fresh.university
         } catch {

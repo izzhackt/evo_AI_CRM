@@ -1,7 +1,14 @@
 import type { Metadata } from "next";
 
+import { CountryTimeline } from "@/components/portal/home/CountryTimeline";
 import { HomeView } from "@/components/portal/home/HomeView";
 import { getLocale } from "@/lib/i18n";
+import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
+import {
+  TIMELINE_UNDECIDED,
+  selectCountryTimeline,
+  todayForTimeline,
+} from "@/lib/portal/country-timeline";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { readLearningModules } from "@/lib/portal/learning-source";
 import { readStudentRecentUniversities } from "@/lib/portal/recent-universities-source";
@@ -9,7 +16,9 @@ import {
   readStudentUniversitiesByIds,
   readStudentUniversityFavorites,
 } from "@/lib/portal/university-favorites-source";
+import { TIMELINE_MODULE_ROUTES } from "@/lib/portal/timeline-module-routes";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
+import { STUDY_COUNTRY_UNDECIDED, studyCountryOptions } from "@/lib/study-countries";
 import { readStudentAssessments } from "@/lib/v3/student-assessment-source";
 import {
   readStudentPortalOverview,
@@ -40,7 +49,9 @@ export default async function StudentPortalHomePage() {
   const tier = actor.accessTier;
   const strings = getPortalStrings("home", locale);
 
-  const [overviewResult, modules, assessments, favoritesResult, recentUniversities] = await Promise.all([
+  // Выбор страны «Пути поступления» (284) читается в той же волне, что и
+  // остальные чтения «Главной» (план A): лишней последовательной волны нет.
+  const [overviewResult, modules, assessments, favoritesResult, recentUniversities, choice] = await Promise.all([
     tier === "assisted"
       ? readStudentPortalOverview()
         .then((value): { ok: true; value: StudentPortalOverview | null } => ({ ok: true, value }))
@@ -58,7 +69,20 @@ export default async function StudentPortalHomePage() {
       }))
       .catch(() => ({ ok: false as const })),
     readStudentRecentUniversities().catch((): null => null),
+    readStudentCountryChoice().catch((): null => null),
   ]);
+  const now = new Date();
+  const timelineView = choice?.country
+    ? selectCountryTimeline(choice.country, {
+      locale,
+      today: todayForTimeline(now),
+      modules: TIMELINE_MODULE_ROUTES,
+    })
+    : null;
+  const countryOptions = studyCountryOptions(locale, { undecided: true }).map((option) => ({
+    code: option.code === STUDY_COUNTRY_UNDECIDED ? TIMELINE_UNDECIDED : option.code,
+    label: option.label,
+  }));
 
   return (
     <main className="pt-page">
@@ -78,8 +102,17 @@ export default async function StudentPortalHomePage() {
         favorites={favoritesResult.ok ? favoritesResult.items : null}
         favoritesTotal={favoritesResult.ok ? favoritesResult.total : 0}
         recentUniversities={recentUniversities}
+        journey={(
+          <CountryTimeline
+            view={timelineView}
+            source={choice?.source ?? null}
+            readFailed={choice === null}
+            options={countryOptions}
+            strings={getPortalStrings("timeline", locale)}
+          />
+        )}
         locale={locale}
-        now={new Date()}
+        now={now}
       />
     </main>
   );

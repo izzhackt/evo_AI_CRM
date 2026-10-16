@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { isPlatformApplicationCountryCode } from "@/lib/platform-application-contract";
 import { SelectionAction, type StudentSelectionContext } from "./SelectionAction";
 
@@ -9,8 +8,8 @@ import {
   type UniversityProgram,
 } from "@/lib/platform-university-catalog";
 import type { PortalStrings } from "@/lib/portal/i18n";
+import type { UniversityCosts } from "@/lib/portal/university-index";
 import {
-  universityCountryLabel,
   universityDateLabel,
   universityIntakeStatusKey,
   universityLevelKey,
@@ -23,13 +22,16 @@ import {
 } from "@/components/portal/consultation/ConsultationRequest";
 import type { ConsultationReceipt } from "@/lib/portal/consultation";
 
+import { CostTable } from "./CostTable";
 import { FavoriteToggle } from "./FavoriteToggle";
 import { PhotoFigure } from "./PhotoFigure";
+import { Breadcrumbs, type Crumb } from "./Places";
 
 /**
- * Карточка вуза в стиле «Атлас» (PORT-3a): фото-герой с атрибуцией, страна и
- * город, программы с наборами. Состав фактов полностью повторяет прежнюю
- * портальную карточку: обзор, сайт, программы, интейки с датами и
+ * Карточка вуза в стиле «Атлас» (PORT-3a, S3): путь «Университеты › Страна ›
+ * Город», фото-герой, программы с наборами и блок «Стоимость», только когда
+ * у вуза есть опубликованные строки (нет данных, нет блока). Состав фактов
+ * прежней карточки сохранён: обзор, сайт, программы, интейки с датами и
  * источниками, основной источник карточки.
  */
 
@@ -175,7 +177,8 @@ function Program({
 
 export function UniversityDetailView({
   university,
-  base,
+  crumbs,
+  costs,
   strings,
   locale,
   now,
@@ -185,7 +188,10 @@ export function UniversityDetailView({
 }: {
   university: PublishedUniversity;
   selection?: StudentSelectionContext | null;
-  base: string;
+  /** Путь по каталогу: Университеты › Страна › Город (город, если есть). */
+  crumbs: readonly Crumb[];
+  /** null: опубликованных строк стоимости нет, блока нет. */
+  costs: UniversityCosts | null;
   strings: Strings;
   locale: Locale;
   now: Date;
@@ -204,16 +210,11 @@ export function UniversityDetailView({
   const content = university.content;
   return (
     <article className="pt-uni-detail">
-      <p>
-        <Link href={base} className="pt-btn-ghost">← {strings.backToCatalog}</Link>
-      </p>
+      <Breadcrumbs crumbs={crumbs} label={strings.breadcrumbAria} />
       <header className="pt-uni-hero">
-        <PhotoFigure content={content} large strings={strings} />
-        <div className="pt-uni-card-top">
-          <p className="pt-page-kicker">
-            {universityCountryLabel(content.country, locale)}
-            {content.city ? ` · ${content.city}` : ""}
-          </p>
+        <PhotoFigure content={content} strings={strings} />
+        <div className="pt-uni-hero-head">
+          <h1 className="pt-page-title">{content.name}</h1>
           {favored !== null ? (
             <FavoriteToggle
               institutionId={university.id}
@@ -227,7 +228,6 @@ export function UniversityDetailView({
             />
           ) : null}
         </div>
-        <h1 className="pt-page-title">{content.name}</h1>
         <p className="pt-page-lead">{strings.detailLead}</p>
       </header>
       <div className="pt-uni-overview">
@@ -242,6 +242,9 @@ export function UniversityDetailView({
           initialOpenRequest={consultation.initialOpenRequest}
           strings={consultation.strings}
         />
+      ) : null}
+      {costs !== null ? (
+        <CostTable costs={costs} programs={content.programs} strings={strings} locale={locale} newTab={strings.newTab} />
       ) : null}
       <section aria-labelledby="portal-university-programs">
         <h2 id="portal-university-programs" className="pt-section-title">

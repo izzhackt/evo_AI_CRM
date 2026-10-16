@@ -8,12 +8,12 @@ const require = createRequire(import.meta.url);
 const { getURLFromRedirectError } = require("next/dist/client/components/redirect.js");
 const root = new URL("../src/lib/", import.meta.url);
 const moduleUrl = (source) => `data:text/javascript,${encodeURIComponent(source)}`;
-const harness = { actor: { systemRole: "admin", permissionKeys: [], assignments: [], presentationRole: null, organizationId: "59948000-0000-4000-8000-000000000001" }, calls: [], revalidated: [], response: null, fail: false };
+const harness = { actor: { systemRole: "admin", permissionKeys: [], assignments: [], presentationRole: null, organizationId: "59948000-0000-4000-8000-000000000001" }, calls: [], revalidated: [], tags: [], response: null, fail: false };
 globalThis.__universityActionHarness = harness;
 registerHooks({ resolve(specifier, context, next) {
   if (!context.parentURL?.endsWith("/platform-university-catalog-actions.ts")) return next(specifier, context);
   if (specifier === "./platform-guards") return { shortCircuit: true, url: moduleUrl("export async function requirePlatformStaffActor(){return globalThis.__universityActionHarness.actor;}") };
-  if (specifier === "next/cache") return { shortCircuit: true, url: moduleUrl("export function revalidatePath(...args){globalThis.__universityActionHarness.revalidated.push(args);}") };
+  if (specifier === "next/cache") return { shortCircuit: true, url: moduleUrl("export function revalidatePath(...args){globalThis.__universityActionHarness.revalidated.push(args);} export function revalidateTag(...args){globalThis.__universityActionHarness.tags.push(args);}") };
   // Match Next's server build alias; execute its real redirect control flow.
   if (specifier === "next/navigation") return next("next/dist/client/components/navigation.react-server.js", context);
   if (specifier === "./supabase/server") return { shortCircuit: true, url: moduleUrl("export async function createSupabaseServerClient(){return {schema(schema){return {async rpc(name,args){const h=globalThis.__universityActionHarness;h.calls.push({schema,name,args});if(h.fail)throw new Error('private provider error');return h.response;}}}};}") };
@@ -25,7 +25,7 @@ const catalog = await import("../src/lib/platform-university-catalog.ts");
 const requestId = "59948000-0000-4000-8000-000000000801", draftId = "59948000-0000-4000-8000-000000000802", institutionId = "59948000-0000-4000-8000-000000000803";
 const previous = { status: "idle", requestId, draftId: null, institutionId: null };
 const content = JSON.parse(readFileSync(new URL("../src/lib/server/university-catalog-reviewed-malaysia.json", import.meta.url), "utf8")).find((entry) => entry.key === "apu").content;
-function reset() { harness.actor.systemRole = "admin"; harness.actor.presentationRole = null; harness.actor.permissionKeys = []; harness.calls = []; harness.revalidated = []; harness.fail = false; harness.response = { data: { requestId, draftId, institutionId: null, status: "saved" }, error: null }; }
+function reset() { harness.actor.systemRole = "admin"; harness.actor.presentationRole = null; harness.actor.permissionKeys = []; harness.calls = []; harness.revalidated = []; harness.tags = []; harness.fail = false; harness.response = { data: { requestId, draftId, institutionId: null, status: "saved" }, error: null }; }
 function form(overrides = {}) { const data = new FormData(); for (const [key, value] of Object.entries({ operation: "stage", request_id: requestId, institution_id: "", base_version: "0", content: JSON.stringify(content), reason: "Source reviewed", draft_id: "", confirmed: "", ...overrides })) data.set(key, value); return data; }
 test("real action binds organization to actor and invokes only reviewed stage RPC", async () => {
   reset(); const outcome = await mutateUniversityCatalogAction(previous, form());
@@ -33,6 +33,8 @@ test("real action binds organization to actor and invokes only reviewed stage RP
   assert.equal(harness.calls.length, 1); assert.equal(harness.calls[0].schema, "platform"); assert.equal(harness.calls[0].name, "stage_university_catalog_publication");
   assert.equal(harness.calls[0].args.p_organization_id, harness.actor.organizationId); assert.deepEqual(harness.calls[0].args.p_content, content);
   assert.deepEqual(harness.revalidated, [["/v3/universities"], ["/v3/universities/manage"], ["/portal/universities"]]);
+  // Черновик не меняет опубликованный индекс студента: тег не сбрасывается.
+  assert.deepEqual(harness.tags, []);
 });
 test("staff without catalog permission and Admin preview cannot mutate a forged form", async () => {
   for (const [authority, presentation] of [["staff", null], ["admin", "sales"]]) {
@@ -54,6 +56,8 @@ test("published receipt leaves the pending-only draft route for its exact publis
     return true;
   });
   assert.equal(harness.revalidated.some(([path]) => path === "/v3/universities/manage"), false);
+  // Публикация сбрасывает серверный кэш индекса студента (S3, контракт 2.4).
+  assert.deepEqual(harness.tags, [["portal-student-university-index", { expire: 0 }]]);
   assert.equal(harness.calls[0].name, "review_university_catalog_publication"); assert.equal(harness.calls[0].args.p_draft_id, draftId); assert.equal(harness.calls[0].args.p_decision, "publish");
   for (const patch of [{ requestId: institutionId }, { draftId: institutionId }, { institutionId: null }, { status: "saved" }, { private: "leak" }]) {
     reset(); harness.response.data = { requestId, draftId, institutionId, status: "published", ...patch };
@@ -68,6 +72,8 @@ test("rejected receipt leaves the pending-only draft route and old links retain 
     return true;
   });
   assert.equal(harness.revalidated.some(([path]) => path === "/v3/universities/manage"), false);
+  // Отклонение не меняет опубликованный индекс студента: тег не сбрасывается.
+  assert.deepEqual(harness.tags, []);
   const page = readFileSync(new URL("../src/app/(v3)/v3/universities/manage/page.tsx", import.meta.url), "utf8");
   assert.match(page, /if \(!draft\) return <PartShell/u);
   assert.doesNotMatch(page, /drafts\[0\] \?\? notFound/u);

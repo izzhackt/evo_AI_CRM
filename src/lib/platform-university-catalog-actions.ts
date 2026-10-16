@@ -1,9 +1,10 @@
 "use server";
 import { staffHasPermission, isStaffPreview } from "./platform-access.ts";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePlatformStaffActor } from "./platform-guards";
 import { parseUniversityContent, universityUuid, type UniversityActionState } from "./platform-university-catalog";
+import { STUDENT_UNIVERSITY_INDEX_TAG } from "./portal/university-index-tag.ts";
 import { exactActionStringFields } from "./server/action-form-fields";
 import { createSupabaseServerClient } from "./supabase/server";
 
@@ -51,6 +52,9 @@ export async function mutateUniversityCatalogAction(previous: UniversityActionSt
       revalidatePath(`/v3/universities/${data.institutionId}`);
       revalidatePath(`/portal/universities/${data.institutionId}`);
     }
+    // Новая публикация меняет версию индекса студента (S3): старые копии
+    // индекса уходят из серверного кэша сразу, без отдачи устаревшего.
+    if (expected === "published") revalidateTag(STUDENT_UNIVERSITY_INDEX_TAG, { expire: 0 });
     receipt = result(expected, data.draftId, data.institutionId);
   } catch { return result("unavailable"); }
   // Next uses an exception for navigation; never translate it into an uncertain save.

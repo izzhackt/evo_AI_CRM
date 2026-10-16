@@ -1,13 +1,15 @@
 import SwiftUI
 
-/// Карточка вуза: свежая загрузка той же публикации через
-/// `student_university_catalog(p_institution_id:)` (миграция 148). Пока идёт
-/// запрос, показывается уже полученная в списке версия той же публикации;
-/// при ошибке обновления — честная плашка, данные списка не выдаются за
-/// свежие молча.
+/// Карточка вуза одним вызовом `student_university_detail_v1` (283): та же
+/// публикация, что у прежних RPC каталога, плюс страна, город, подготовки и
+/// опубликованная стоимость. Пока идёт запрос, показывается уже полученная
+/// в списке версия той же публикации; при ошибке обновления видна честная
+/// плашка, данные списка не выдаются за свежие молча.
 @MainActor
 final class UniversityCardViewModel: ObservableObject {
     @Published var item: UniversityCatalogItem?
+    /// Последний удачный ответ страницы вуза (страна, город, стоимость).
+    @Published private(set) var detail: UniversityDetail?
     @Published var isLoading = false
     @Published var refreshFailed = false
     @Published var cardMissing = false
@@ -24,15 +26,29 @@ final class UniversityCardViewModel: ObservableObject {
         refreshFailed = false
         cardMissing = false
         do {
-            if let fresh = try await service.studentUniversityCard(institutionId: institutionId) {
-                item = fresh
-            } else {
-                cardMissing = true
-            }
+            let data = try await service.studentUniversityDetailData(institutionId: institutionId)
+            let fresh = try UniversityDetail.decode(data)
+            guard fresh.university.id == institutionId else { throw UniversityDetailFailure.failed }
+            detail = fresh
+            item = fresh.university
         } catch {
-            refreshFailed = true
+            // 42501: вуз снят с публикации или недоступен (сервер не
+            // различает), как прежнее «карточки нет».
+            if UniversityDetailFailure.classify(error) == .unavailable {
+                cardMissing = true
+            } else {
+                refreshFailed = true
+            }
         }
         isLoading = false
+    }
+
+    /// Подготовки этого вуза из того же ответа, если он свежий и про это
+    /// дело; иначе nil, и экран читает подготовки отдельно, как раньше.
+    func preparations(for context: ProgramPreparationContext) -> [CatalogPreparation]? {
+        guard !refreshFailed, !cardMissing, let prepared = detail?.preparations,
+              prepared.studentCaseId == context.scope.caseId else { return nil }
+        return prepared.items
     }
 }
 
@@ -77,16 +93,32 @@ struct UniversityDetailView: View {
                 institutionName: item?.content.name
             )
         }
-        .task {
-            await model.load(institutionId: institutionId)
-            await favorites.loadIfNeeded()
-        }
         .task(id: preparationSession.context?.scope) {
-            if let context = preparationSession.context { await preparations.load(context: context) }
+            async let saved: Void = favorites.loadIfNeeded()
+            await reload()
+            await saved
         }
         .navigationDestination(item: $preparationRoute) { route in
             ProgramPreparationView(applicationId: route.applicationId, initialSavedNotice: route.savedNotice)
         }
+    }
+
+    /// Страница вуза одним RPC; подготовки берутся из него же (283), отдельное
+    /// чтение подготовок остаётся запасным путём.
+    private func reload() async {
+        await model.load(institutionId: institutionId)
+        guard let context = preparationSession.context else { return }
+        if let items = model.preparations(for: context) {
+            preparations.adopt(items, context: context)
+        } else {
+            await preparations.load(context: context)
+        }
+    }
+
+    /// «Страна › Город» из ответа 283; до ответа прежняя строка карточки.
+    private func placeLine(for item: UniversityCatalogItem) -> String {
+        guard let detail = model.detail, detail.university.id == item.id else { return universityPlaceLine(item.content) }
+        return UniversityAtlasPolicy.placeLine(country: detail.country, city: detail.city, kyrgyz: AppLocale.isKyrgyz)
     }
 
     private func honestState(_ key: LocalizedStringKey) -> some View {
@@ -111,7 +143,7 @@ struct UniversityDetailView: View {
                         Text(item.content.name)
                             .font(.title2.bold())
                             .accessibilityAddTraits(.isHeader)
-                        Text(universityPlaceLine(item.content))
+                        Text(placeLine(for: item))
                             .font(.subheadline)
                         if !item.content.programs.isEmpty {
                             Button {
@@ -134,7 +166,7 @@ struct UniversityDetailView: View {
                         }
                     }
 
-                    UniversityPhotoView(photoKey: item.content.photoKey)
+                    UniversityDetailPhoto(photoKey: item.content.photoKey)
                         .tint(.primary)
 
                     if model.refreshFailed {
@@ -148,6 +180,12 @@ struct UniversityDetailView: View {
 
                     Text(item.content.overview)
                         .font(.body)
+
+                    // Блок «Стоимость» только при опубликованных строках (283):
+                    // нет данных, нет блока.
+                    if let plan = UniversityCostPolicy.plan(model.detail?.costs) {
+                        UniversityCostSection(plan: plan)
+                    }
 
                     // Запрос консультации из карточки вуза (миграция 197).
                     Button {
@@ -204,9 +242,7 @@ struct UniversityDetailView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(colorScheme, for: .navigationBar)
         .refreshable {
-            async let card: () = model.load(institutionId: institutionId)
-            if let context = preparationSession.context { await preparations.load(context: context) }
-            await card
+            await reload()
         }
     }
 

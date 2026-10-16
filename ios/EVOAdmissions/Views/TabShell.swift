@@ -32,7 +32,10 @@ struct TabShell: View {
                 .tag(PortalTab.admission)
             }
 
-            UniversitiesView()
+            // Университеты v2 (283): страны → города → вузы с индексом на
+            // диске. Прежний список с фильтрами (UniversitiesView) остаётся в
+            // коде до слияния сборки 1.0 (#1172), затем удаляется.
+            UniversityAtlasView(organizationId: session.authority.organizationId)
                 .tabFade(.universities, selected: selectedTab)
                 .tabItem { Label("tab_universities", systemImage: "building.columns.fill") }
                 .tag(PortalTab.universities)

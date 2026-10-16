@@ -49,6 +49,10 @@ targets:
       # Один список стран продукта (282): тот же файл, что у веба и CRM.
       - path: ../src/lib/study-countries.json
         buildPhase: resources
+      # Манифест переноса фото вузов в бакет (тот же файл, что читает веб,
+      # src/lib/university-photo-url.ts): управляемый адрес фото вуза.
+      - path: ../scripts/portal/university-photos-manifest.json
+        buildPhase: resources
     settings:
       base:
         PRODUCT_NAME: "EVO admissions"
@@ -91,6 +95,9 @@ targets:
       - path: EVOAdmissions/Services/UniversityGeoLibrary.swift
       - path: EVOAdmissions/Services/UniversityCatalogFilterPolicy.swift
       - path: EVOAdmissions/Services/StudyCountries.swift
+      # Университеты v2 (283): строгий разбор индекса и страницы вуза,
+      # правила экранов, адреса фото и копия индекса на диске.
+      - path: EVOAdmissions/Services/UniversityAtlas
       - path: EVOAdmissions/Services/UniversityMapPolicy.swift
       - path: EVOAdmissions/Services/SingleFlightReloadGate.swift
       - path: EVOAdmissions/Services/PostgresTimestamp.swift

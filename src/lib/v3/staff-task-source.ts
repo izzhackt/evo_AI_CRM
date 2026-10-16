@@ -90,11 +90,14 @@ export async function readStaffTaskWorkspace(
     getPlatformAdmissionsTaskWorkspace } = dependencies.readers ?? await productionReaders();
   const { canReadCases, canReadCaseTasks, canReadStaffTasks, teamView } = taskQueueAccess(actor);
   const canReadStaffDirectory = ["staff.task.read", "staff.task.create", "staff.task.edit", "staff.task.complete"].some(key => staffHasPermission(actor, key));
-  const [participants, assignees] = await Promise.all([
+  // Справочники сотрудников и очереди не зависят друг от друга: одним
+  // заходом (план A, 16.10.2026), а не справочники, потом очереди.
+  const directoryRead = Promise.all([
     canReadStaffDirectory ? listStaffParticipants(actor) : [],
     !isStaffPreview(actor) && (options.taskId ? staffHasPermission(actor, "staff.task.edit") : staffHasPermission(actor, "staff.task.create"))
       ? listStaffTaskAssignees(actor, options.taskId) : [],
   ]);
+  directoryRead.catch(() => {});
 
   // Каждое чтение идёт страницами по своему курсору до конца или до предела.
   async function readStaffQueue(): Promise<Readonly<{ rows: readonly StaffTask[]; complete: boolean }>> {
@@ -127,7 +130,8 @@ export async function readStaffTaskWorkspace(
   // «Поставил я» у задач по студентам невозможен: строка очереди не несёт автора.
   const readsStaff = canReadStaffTasks && options.type !== "case";
   const readsCases = canReadCaseTasks && options.type !== "staff" && options.view !== "created";
-  const [staffQueue, caseQueue, selectedTaskPage, selectedCasePage] = await Promise.all([
+  const [[participants, assignees], staffQueue, caseQueue, selectedTaskPage, selectedCasePage] = await Promise.all([
+    directoryRead,
     readsStaff ? readStaffQueue() : null,
     readsCases ? readCaseQueue() : null,
     options.taskId && canReadStaffTasks ? listStaffTasks(actor, { view: "all", status: "all", taskId: options.taskId }) : null,

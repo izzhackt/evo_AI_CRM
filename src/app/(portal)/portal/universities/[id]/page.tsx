@@ -32,37 +32,33 @@ export default async function UniversityPage({
   ]);
   const id = universityUuid(route.id) ?? notFound();
   const strings = getPortalStrings("universities", locale);
-  let page;
-  try {
-    page = await readStudentUniversities(actor, undefined, id);
-  } catch {
+  // Четыре независимых чтения — одним заходом (план A, 16.10.2026): каждое
+  // RPC само проверяет живого студента; результат рисуется только после
+  // проверки доступа выше. Семантика сбоев прежняя.
+  const [pageRead, preparations, favoriteIds, consultationRead] = await Promise.all([
+    readStudentUniversities(actor, undefined, id).then((value) => ({ ok: true as const, value }), () => ({ ok: false as const })),
+    readStudentCatalogPreparations(actor.studentCaseId).catch(() => null),
+    // Сбой чтения избранного не роняет карточку: toggle честно скрывается
+    // вместо ложного «не сохранено» (PORT-3b).
+    readStudentUniversityFavorites().then((favorites) => favorites.map((favorite) => favorite.institutionId)).catch(() => null),
+    // Запрос консультации (PORT-5b): открытый запрос показывается честно уже
+    // при загрузке; сбой чтения истории скрывает блок, а не рисует ложное
+    // «запроса нет» — submit остаётся доступным из профиля.
+    readOwnConsultationRequests()
+      .then((requests) => ({ available: true as const, openRequest: openConsultationRequest(requests) }))
+      .catch(() => ({ available: false as const, openRequest: null })),
+  ]);
+  if (!pageRead.ok) {
     return (
       <main className="pt-page">
         <UniversitiesUnavailable strings={strings} />
       </main>
     );
   }
-  const university = page.items[0] ?? notFound();
-  const preparations = await readStudentCatalogPreparations(actor.studentCaseId).catch(() => null);
-  // Сбой чтения избранного не роняет карточку: toggle честно скрывается
-  // вместо ложного «не сохранено» (PORT-3b).
-  let favored: boolean | null = null;
-  try {
-    favored = (await readStudentUniversityFavorites())
-      .some((favorite) => favorite.institutionId === university.id);
-  } catch {
-    favored = null;
-  }
-  // Запрос консультации (PORT-5b): открытый запрос показывается честно уже
-  // при загрузке; сбой чтения истории скрывает блок, а не рисует ложное
-  // «запроса нет» — submit остаётся доступным из профиля.
-  let openRequest: ConsultationReceipt | null = null;
-  let consultationAvailable = true;
-  try {
-    openRequest = openConsultationRequest(await readOwnConsultationRequests());
-  } catch {
-    consultationAvailable = false;
-  }
+  const university = pageRead.value.items[0] ?? notFound();
+  const favored: boolean | null = favoriteIds === null ? null : favoriteIds.includes(university.id);
+  const openRequest: ConsultationReceipt | null = consultationRead.openRequest;
+  const consultationAvailable = consultationRead.available;
   return (
     <main className="pt-page">
       <UniversityDetailView

@@ -50,37 +50,40 @@ export default async function UniversitiesPage({
   const pins: UniversityMapPin[] = [];
   let missing = 0;
   let failed = false;
-  // Состояние избранного — отдельное чтение: его сбой не роняет каталог,
-  // toggle честно скрывается вместо ложного «не сохранено» (PORT-3b).
-  let favoriteIds: readonly string[] | null = null;
-  try {
-    favoriteIds = (await readStudentUniversityFavorites())
-      .map((favorite) => favorite.institutionId);
-  } catch {
-    favoriteIds = null;
-  }
-  try {
-    if (view === "map") {
-      for (const item of await readStudentUniversitiesComplete(actor, filters)) {
-        const geo = universityGeo(item.content.photoKey);
-        if (geo === null) {
-          missing += 1;
-          continue;
-        }
-        const country = universityCountryLabel(item.content.country, locale);
-        pins.push({
-          id: item.id,
-          name: item.content.name,
-          place: item.content.city ? `${item.content.city} · ${country}` : country,
-          lat: geo.lat,
-          lng: geo.lng,
-        });
-      }
-    } else {
-      listPage = await readStudentUniversities(actor, filters);
-    }
-  } catch {
+  // Избранное и каталог читаются одновременно: они не зависят друг от друга
+  // (план A, 16.10.2026). Избранное нужно только списку: на карте нет toggle.
+  // Сбой избранного не роняет каталог, toggle честно скрывается вместо
+  // ложного «не сохранено» (PORT-3b).
+  const [favoritesRead, catalogRead] = await Promise.all([
+    view === "map" ? null : readStudentUniversityFavorites()
+      .then((favorites) => favorites.map((favorite) => favorite.institutionId))
+      .catch(() => null),
+    (view === "map"
+      ? readStudentUniversitiesComplete(actor, filters).then((items) => ({ kind: "map" as const, items }))
+      : readStudentUniversities(actor, filters).then((page) => ({ kind: "list" as const, page }))
+    ).catch(() => null),
+  ]);
+  const favoriteIds: readonly string[] | null = favoritesRead;
+  if (catalogRead === null) {
     failed = true;
+  } else if (catalogRead.kind === "map") {
+    for (const item of catalogRead.items) {
+      const geo = universityGeo(item.content.photoKey);
+      if (geo === null) {
+        missing += 1;
+        continue;
+      }
+      const country = universityCountryLabel(item.content.country, locale);
+      pins.push({
+        id: item.id,
+        name: item.content.name,
+        place: item.content.city ? `${item.content.city} · ${country}` : country,
+        lat: geo.lat,
+        lng: geo.lng,
+      });
+    }
+  } else {
+    listPage = catalogRead.page;
   }
 
   return (

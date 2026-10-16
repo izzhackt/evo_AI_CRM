@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
 import { Icon } from "@/components/icons";
 import { UNIVERSITY_LEVELS, UNIVERSITY_LEVEL_LABELS, type UniversityContent, type UniversityFilters, type UniversityProgram } from "@/lib/platform-university-catalog";
@@ -100,14 +100,14 @@ function UniversityRow({ row, level, today }: { row: UniversityCatalogueRow; lev
       <th role="rowheader" scope="row" className={`${CELL} flex items-center gap-3 text-start font-normal @min-[48rem]/universities:ps-3`}>
         <Photo content={content} variant="thumb" />
         <span className="min-w-0">
-          <Link
+          <IntentPrefetchLink
             href={`/v3/universities/${id}`}
             data-queue-open=""
             title={content.name}
             className="line-clamp-2 break-words t-item text-fg before:absolute before:inset-0 before:content-[''] hover:underline hover:underline-offset-4"
           >
             {content.name}
-          </Link>
+          </IntentPrefetchLink>
           {content.city ? <span className="block truncate t-meta text-fg-2 @max-[48rem]/universities:sr-only">{content.city}</span> : null}
           {/* Стопка телефона: страна, город и число программ — одной строкой под названием; ячейки остаются для читалки. */}
           <span aria-hidden="true" className="block t-meta text-fg-2 @min-[48rem]/universities:hidden">
@@ -135,14 +135,14 @@ function CataloguePagination({ page, hrefFor }: { page: CataloguePage; hrefFor: 
       </p>
       <div className="flex gap-2">
         {page.previousOffset !== null ? (
-          <Link href={hrefFor(page.previousOffset)} className="inline-flex min-h-11 items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg">
+          <IntentPrefetchLink href={hrefFor(page.previousOffset)} className="inline-flex min-h-11 items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg">
             <Icon name="arrow-left" size={16} />Назад
-          </Link>
+          </IntentPrefetchLink>
         ) : null}
         {page.nextOffset !== null ? (
-          <Link href={hrefFor(page.nextOffset)} className="inline-flex min-h-11 items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg">
+          <IntentPrefetchLink href={hrefFor(page.nextOffset)} className="inline-flex min-h-11 items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg">
             Дальше<Icon name="arrow-right" size={16} />
-          </Link>
+          </IntentPrefetchLink>
         ) : null}
       </div>
     </nav>
@@ -189,7 +189,7 @@ export function UniversityList({
             {filtered ? "Попробуйте убрать фильтры." : null}
             {canManage ? " В управлении каталогом можно проверить источники и опубликовать карточку." : " Новые сведения появятся после проверки и публикации."}
           </p>
-          {page.previousOffset !== null ? <Link className={`${QUIET_LINK} mt-2`} href={hrefFor(page.previousOffset)}>К предыдущей странице</Link> : null}
+          {page.previousOffset !== null ? <IntentPrefetchLink className={`${QUIET_LINK} mt-2`} href={hrefFor(page.previousOffset)}>К предыдущей странице</IntentPrefetchLink> : null}
         </section>
       ) : (
         <table role="table" className="block w-full" data-testid="v3-university-table">
@@ -348,9 +348,9 @@ export function UniversityContentView({ content, now, placeInHeader = false }: {
 /** Возврат к каталогу над заголовком страницы вуза. */
 export function UniversityBackLink() {
   return (
-    <Link href="/v3/universities" className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4">
+    <IntentPrefetchLink href="/v3/universities" className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4">
       <Icon name="arrow-left" size={16} />Все университеты
-    </Link>
+    </IntentPrefetchLink>
   );
 }
 
@@ -362,8 +362,8 @@ export function UniversityBackLink() {
 export function UniversityManageLinks({ id, formsHref }: { id: string; formsHref?: string }) {
   return (
     <div className="flex flex-wrap gap-x-4 max-sm:-my-2">
-      {formsHref ? <Link className={QUIET_LINK} href={formsHref}>{universityFormWorkspace.title}</Link> : null}
-      <Link className={QUIET_LINK} href={`/v3/universities/manage?edit=${id}`}>Предложить обновление</Link>
+      {formsHref ? <IntentPrefetchLink className={QUIET_LINK} href={formsHref}>{universityFormWorkspace.title}</IntentPrefetchLink> : null}
+      <IntentPrefetchLink className={QUIET_LINK} href={`/v3/universities/manage?edit=${id}`}>Предложить обновление</IntentPrefetchLink>
     </div>
   );
 }

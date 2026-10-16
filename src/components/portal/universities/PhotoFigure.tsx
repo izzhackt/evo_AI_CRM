@@ -1,7 +1,13 @@
 import { UniversityPhotoFrame } from "@/components/platform/universities/UniversityPhotoFrame";
 import { UNIVERSITY_PHOTOS, type UniversityContent } from "@/lib/platform-university-catalog";
 import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
-import { universityPhotoUrl } from "@/lib/university-photo-url";
+import { universityPhotoSrcSet, universityPhotoUrl } from "@/lib/university-photo-url";
+
+/** Ширины уменьшенных копий: карточка ≈ 300–400 px, герой — до ширины колонки. */
+const CARD_WIDTHS = [480, 800] as const;
+const HERO_WIDTHS = [800, 1200, 1600] as const;
+const CARD_SIZES = "(min-width: 640px) 400px, 100vw";
+const HERO_SIZES = "(min-width: 1100px) 1000px, 100vw";
 
 export type PhotoFigureStrings = Pick<
   PortalStrings<"universities">,
@@ -17,10 +23,13 @@ export type PhotoFigureStrings = Pick<
 export function PhotoFigure({
   content,
   large = false,
+  priority = false,
   strings,
 }: {
   content: Pick<UniversityContent, "photoKey">;
   large?: boolean;
+  /** Первые карточки экрана и герой: грузить сразу, не лениво. */
+  priority?: boolean;
   strings: PhotoFigureStrings;
 }) {
   const photo = content.photoKey ? UNIVERSITY_PHOTOS[content.photoKey] : null;
@@ -37,6 +46,9 @@ export function PhotoFigure({
   return (
     <UniversityPhotoFrame
       src={src}
+      srcSet={universityPhotoSrcSet(content.photoKey, large ? HERO_WIDTHS : CARD_WIDTHS)}
+      sizes={large ? HERO_SIZES : CARD_SIZES}
+      priority={priority || large}
       alt={photo.caption}
       className="pt-photo"
       imageClassName={`pt-photo-img${large ? " pt-photo-img-large" : ""}`}

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
 import type { TodayLink, TodayNotice, TodayQueue } from "@/lib/v3/today-queue";
 
@@ -19,7 +19,7 @@ function TodayNotices({ notices }: Readonly<{ notices: readonly TodayNotice[] }>
         <p key={notice.source} data-today-notice={notice.kind} data-today-source={notice.source}
           className="flex min-h-11 flex-wrap items-center gap-x-3 py-1 t-body-compact">
           <span className={notice.kind === "error" ? "text-danger" : "text-fg-2"}>{notice.text}</span>
-          {notice.link ? <Link href={notice.link.href} className={QUEUE_QUIET_LINK}>{notice.link.label}</Link> : null}
+          {notice.link ? <IntentPrefetchLink href={notice.link.href} className={QUEUE_QUIET_LINK}>{notice.link.label}</IntentPrefetchLink> : null}
         </p>
       ))}
     </div>
@@ -39,12 +39,12 @@ export function TodayBoardLinks({ links }: Readonly<{ links: readonly TodayLink[
   return (
     <nav aria-label="Доски" className="flex flex-wrap gap-x-4">
       {links.map((link) => (
-        <Link key={link.href} href={link.href} className={QUEUE_QUIET_LINK}>
+        <IntentPrefetchLink key={link.href} href={link.href} className={QUEUE_QUIET_LINK}>
           {compact && link.short ? <>
             <span className="sm:hidden">{link.short}</span>
             <span className="hidden sm:inline">{link.label}</span>
           </> : link.label}
-        </Link>
+        </IntentPrefetchLink>
       ))}
     </nav>
   );
@@ -69,7 +69,7 @@ export function TodayScreen({
   /** Главное действие роли для пустого дня; null — у роли его нет. */
   mainAction: TodayLink | null;
 }>) {
-  const link = mainAction ? <Link href={mainAction.href} className={QUEUE_QUIET_LINK}>{mainAction.label}</Link> : null;
+  const link = mainAction ? <IntentPrefetchLink href={mainAction.href} className={QUEUE_QUIET_LINK}>{mainAction.label}</IntentPrefetchLink> : null;
   const note = queue.emptyNote ? <p className="t-body-compact text-fg-2" data-today-empty-note="">{queue.emptyNote}</p> : null;
   const nearest = queue.nearest ? (
     <p className="t-body-compact text-fg-2">

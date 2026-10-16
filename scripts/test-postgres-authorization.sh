@@ -3436,6 +3436,22 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_single_country_list.sql
   fi
+
+  # «Подготовка к CSCA» (S5.1): the engine and its first math content. Matched
+  # by name, not number, so a renumbering at merge keeps the hook. Runs after
+  # the content migration: learning_modules_v1 equals the original 198 English
+  # projection and never lists CSCA, the English write path keeps its key sets,
+  # the content validators, item answers through the 198 path, timed tests
+  # (server deadline, grace, no early finish for the mock, review hidden until
+  # completion, automatic completion on read), spaced review, progress, error
+  # reports, the privacy matrix and account deletion of the new state. The
+  # byte-for-byte before/after v1 snapshot runs in
+  # scripts/test-csca-learning-postgres.sh.
+  if [[ "$(basename "$migration")" == *_platform_csca_math_part1.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_csca_learning.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

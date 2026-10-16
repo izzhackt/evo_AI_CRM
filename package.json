@@ -87,6 +87,7 @@
     "@supabase/supabase-js": "^2.111.0",
     "@types/three": "^0.185.0",
     "@xmldom/xmldom": "0.9.12",
+    "katex": "0.19.0",
     "maplibre-gl": "6.10.0",
     "next": "16.3.8",
     "pdf-lib": "1.17.1",

@@ -1,8 +1,8 @@
 "use client";
 import { unstable_rethrow, useRouter } from "next/navigation";
-import { startTransition, useActionState, useRef } from "react";
+import { startTransition, useActionState, useId, useMemo, useRef, useState, useTransition } from "react";
 
-import { geographyMessage } from "@/lib/catalog-geography";
+import { draftSync, geographyMessage } from "@/lib/catalog-geography";
 import { mutateCatalogGeographyAction, type GeographyActionState, type GeographyOperation } from "@/lib/catalog-geography-actions";
 
 /*
@@ -23,11 +23,15 @@ export const QUIET = "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-
 /**
  * Команда одной формы. Повтор после неподтверждённого ответа идёт с тем же
  * `request_id` и тем же входом (RPC вернёт ту же квитанцию); любой новый ввод
- * или определённый итог получает новый `request_id`.
+ * или определённый итог получает новый `request_id`. `dismiss` прячет
+ * показанный итог (рядом виден только итог последнего действия, review CRM N1);
+ * на повтор он не влияет.
  */
 export function useGeographyCommand(operation: GeographyOperation) {
   const router = useRouter();
   const last = useRef<{ payload: string; requestId: string } | null>(null);
+  const [dismissed, setDismissed] = useState<GeographyActionState | null>(null);
+  const idle = useMemo<GeographyActionState>(() => ({ status: "idle", requestId: "", operation, reason: null }), [operation]);
   const [state, dispatch, pending] = useActionState(async (previous: GeographyActionState, payload: string): Promise<GeographyActionState> => {
     const retry = previous.status === "unavailable" && last.current?.payload === payload;
     const requestId = retry && last.current ? last.current.requestId : crypto.randomUUID();
@@ -45,7 +49,78 @@ export function useGeographyCommand(operation: GeographyOperation) {
   }, { status: "idle", requestId: "", operation, reason: null });
   const run = (payload: unknown) => startTransition(() => dispatch(JSON.stringify(payload)));
   const refresh = () => router.refresh();
-  return { state, run, pending, refresh };
+  return { state: state === dismissed ? idle : state, run, pending, refresh, dismiss: () => setDismissed(state) };
+}
+
+/**
+ * Черновик формы и версия записи, от которой он начат (review CRM S1).
+ * Сохранение отправляет именно эту версию: если запись успели изменить, база
+ * отказывает «Запись уже изменили» и чужая правка не затирается. Новая версия
+ * записи без своих правок (или равная черновику, как после своего сохранения)
+ * сразу становится черновиком. Со своими правками черновик остаётся, пока
+ * сотрудник не попросит сохранённую версию: «Обновить страницу» после
+ * отказа (`reload`) или `showSaved`. Тогда черновик заменяется, а заменённые
+ * поля (`replaced.notes`) можно скопировать.
+ */
+export function useVersionedDraft<Row extends Readonly<{ version: number }>, Draft>(row: Row | null, rules: Readonly<{
+  draft: (row: Row | null) => Draft;
+  changed: (draft: Draft, row: Row | null) => boolean;
+  notes: (draft: Draft, base: Row | null) => string;
+}>) {
+  const [draft, setDraft] = useState<Draft>(() => rules.draft(row));
+  const [base, setBase] = useState<Row | null>(row);
+  const [reloadRequested, setReloadRequested] = useState(false);
+  const [replaced, setReplaced] = useState<Readonly<{ version: number; notes: string }> | null>(null);
+  const [refreshing, startRefresh] = useTransition();
+  const adopt = (next: Row) => { setBase(next); setDraft(rules.draft(next)); setReloadRequested(false); };
+  const replace = (next: Row) => { setReplaced({ version: next.version, notes: rules.notes(draft, base) }); adopt(next); };
+  // Более старая версия (например, из кэша навигации) черновик не трогает: база всё равно решает по версии.
+  if (row !== null && row.version > (base?.version ?? 0)) {
+    const sync = draftSync({ ownEdits: rules.changed(draft, base), matchesSaved: !rules.changed(draft, row), reloadRequested });
+    if (sync === "adopt") adopt(row);
+    else if (sync === "replace") replace(row);
+  } else if (reloadRequested && !refreshing) {
+    // Перечитанная страница не принесла новой версии (например, повтор запроса): ждать нечего.
+    setReloadRequested(false);
+  }
+  const behind = row !== null && row.version > (base?.version ?? 0);
+  return {
+    draft,
+    setDraft,
+    /** Версия, от которой начат черновик: её и только её отправляет сохранение. */
+    baseVersion: base?.version ?? 0,
+    /** Сохранена более новая версия, а в черновике свои правки: сохранить поверх нельзя. */
+    behind,
+    reloading: reloadRequested,
+    replaced,
+    reload: (refresh: () => void) => { setReloadRequested(true); startRefresh(refresh); },
+    showSaved: () => { if (row !== null) replace(row); },
+    closeReplaced: () => setReplaced(null),
+  };
+}
+
+/** Черновик заменён сохранённой версией: сказать об этом и дать скопировать свой текст (review CRM S1). */
+export function ReplacedDraft({ replaced, onClose }: Readonly<{ replaced: Readonly<{ version: number; notes: string }>; onClose: () => void }>) {
+  const [copy, setCopy] = useState<"idle" | "done" | "failed">("idle");
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  const copyNotes = () => {
+    const write = typeof navigator !== "undefined" ? navigator.clipboard?.writeText(replaced.notes) : undefined;
+    if (!write) { setCopy("failed"); setOpen(true); return; }
+    write.then(() => setCopy("done"), () => { setCopy("failed"); setOpen(true); });
+  };
+  return (
+    <div role="status" className="space-y-2 rounded-card bg-warn-weak px-4 py-3 text-warn" data-testid="draft-replaced">
+      <p className="t-body-compact">Запись изменили после начала вашей правки: форма показывает сохранённую версию {replaced.version}. Ваш несохранённый текст заменён, его можно скопировать и внести снова.</p>
+      <div className="flex flex-wrap items-center gap-x-4">
+        {replaced.notes ? <button type="button" className={QUIET} onClick={copyNotes}>{copy === "done" ? "Скопировано" : "Скопировать мой текст"}</button> : null}
+        {replaced.notes ? <button type="button" className={QUIET} aria-expanded={open} aria-controls={`${id}-notes`} onClick={() => setOpen(!open)}>{open ? "Скрыть мой текст" : "Показать мой текст"}</button> : null}
+        <button type="button" className={QUIET} onClick={onClose}>Закрыть</button>
+      </div>
+      {copy === "failed" ? <p className="t-meta">Скопировать не удалось: выделите текст ниже и скопируйте его.</p> : null}
+      {open ? <textarea id={`${id}-notes`} readOnly aria-label="Мой несохранённый текст" className={AREA} rows={Math.min(8, replaced.notes.split("\n").length + 1)} value={replaced.notes} onFocus={(event) => event.currentTarget.select()} /> : null}
+    </div>
+  );
 }
 
 /** Итог команды словами операции и причины (review CRM R7); у «stale» и «request_conflict» ещё «Обновить страницу». */

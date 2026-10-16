@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
-  amountToMinor, catalogTextIssue, cityDraft, cityDraftChanged, cityInput, cityMissing, costDraft, costInput, exactCityInput, exactCostInput,
-  formatCostAmount, fxInput, geographyMessage, geographyRefusal, minorToAmount, parseStaffGeography, rateIsStale, usdApprox,
+  amountToMinor, catalogTextIssue, cityDraft, cityDraftChanged, cityDraftNotes, cityInput, cityMissing, costDraft, costDraftChanged, costDraftNotes, costInput,
+  draftSync, exactCityInput, exactCostInput, formatCostAmount, fxInput, geographyMessage, geographyRefusal, minorToAmount, parseStaffGeography, rateIsStale, usdApprox,
 } from "../src/lib/catalog-geography.ts";
 import { catalogAgencyUrl, catalogText, catalogUrl } from "../src/lib/catalog-text.ts";
 import { STUDENT_UNIVERSITY_INDEX_TAG } from "../src/lib/portal/university-index-tag.ts";
@@ -123,6 +123,43 @@ test("city editor is dirty by meaning, not by raw form strings (review CRM R2)",
   assert.equal(cityDraftChanged({ ...draft, nameEn: "Suzhou City" }, saved, today), true);
   assert.equal(cityDraftChanged({ ...cityDraft(bare, "CN"), lat: "abc", lng: "def" }, { ...bare, lat: null, lng: null }, today), true);
   assert.equal(cityDraftChanged(draft, null, today), true);
+});
+
+test("a newer saved version never lets a save overwrite it silently (review CRM S1)", () => {
+  // Own save (draft equals the new version) or no own edits: the draft follows the saved card.
+  assert.equal(draftSync({ ownEdits: false, matchesSaved: false, reloadRequested: false }), "adopt");
+  assert.equal(draftSync({ ownEdits: true, matchesSaved: true, reloadRequested: false }), "adopt");
+  // Own edits on an older version stay until the editor asks for the saved card, then they are replaced.
+  assert.equal(draftSync({ ownEdits: true, matchesSaved: false, reloadRequested: false }), "keep");
+  assert.equal(draftSync({ ownEdits: true, matchesSaved: false, reloadRequested: true }), "replace");
+
+  // What the editor can copy: only the fields changed from the version the draft started from.
+  const v1 = parseStaffGeography({ ...geography, cities: [{ ...city, nameEn: "Stale One", version: 1 }] }).cities[0];
+  const mine = { ...cityDraft(v1, "CN"), summaryRu: "Текст редактора A. ", kyReview: "done" };
+  assert.equal(cityDraftNotes(mine, v1, "CN"), "Коротко о городе, RU: Текст редактора A.\nКыргызский текст проверен носителем языка: да");
+  assert.equal(cityDraftNotes(cityDraft(v1, "CN"), v1, "CN"), "");
+  assert.match(cityDraftNotes({ ...cityDraft(null, "CN"), key: "qa-city", nameRu: "Город" }, null, "CN"), /^Ключ в адресе: qa-city\nНазвание, RU: Город$/u);
+
+  // Cost rows: dirty by meaning, notes in the words of the form.
+  const programs = [{ id: "program-1", level: "master" }];
+  const row = parseStaffGeography(geography).costs[0];
+  const saved = costDraft(row, "CN", today);
+  assert.equal(costDraftChanged(saved, row, "CN", programs, today), false);
+  assert.equal(costDraftChanged({ ...saved, amountMin: "25000.00", sourceName: "EDUPRCHINA " }, row, "CN", programs, today), false);
+  assert.equal(costDraftChanged({ ...saved, amountMin: "26000" }, row, "CN", programs, today), true);
+  assert.equal(costDraftChanged(saved, null, "CN", programs, today), true);
+  assert.equal(costDraftNotes({ ...saved, amountMin: "26000", period: "semester", costKind: "accommodation" }, row, "CN", today), "Что: Общежитие\nПериод: за семестр\nСумма или «от»: 26000");
+
+  // Both editors send the version their draft started from, not the version of the latest props.
+  const read = (file) => readFileSync(new URL(`../src/components/v3/universities/geography/${file}`, import.meta.url), "utf8");
+  for (const file of ["CityEditor.tsx", "UniversityCosts.tsx"]) {
+    const text = read(file);
+    assert.match(text, /baseVersion: versioned\.baseVersion/u, file);
+    assert.doesNotMatch(text, /baseVersion: (city|row)\?\.version/u, file);
+    assert.match(text, /versioned\.reload\(/u, file);
+  }
+  // The photo preview checks a missing file again (review CRM N2).
+  assert.match(read("CityEditor.tsx"), /Проверить снова/u);
 });
 
 test("editor fields use the database text and URL rule on the shared vectors (contract 2.2a)", () => {

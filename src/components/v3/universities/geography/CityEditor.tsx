@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useState, type ReactNode } from "react";
 
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
-import { CITY_PHOTO_PATH, PHOTO_SOURCES, cityDraft, cityDraftChanged, cityInput, cityMissing, type CityDraft, type CityField, type GeoCity, type GeoPhoto } from "@/lib/catalog-geography";
+import { CITY_PHOTO_PATH, PHOTO_SOURCES, cityDraft, cityDraftChanged, cityDraftNotes, cityInput, cityMissing, type CityDraft, type CityField, type GeoCity, type GeoPhoto } from "@/lib/catalog-geography";
 import { STUDY_COUNTRY_CODES, studyCountryName } from "@/lib/study-countries";
 
-import { AREA, CommandResult, FIELD, FieldError, GHOST, LABEL, PRIMARY, focusFirstInvalid, useGeographyCommand } from "./command";
+import { AREA, CommandResult, FIELD, FieldError, GHOST, LABEL, PRIMARY, QUIET, ReplacedDraft, focusFirstInvalid, useGeographyCommand, useVersionedDraft } from "./command";
 
 /*
  * Карточка города (план 7.1, 7.5; контракт 3.2): названия RU/KY/EN, фото
@@ -40,20 +40,22 @@ function Counter({ value, max }: Readonly<{ value: string; max: number }>) {
 
 export function CityEditor({ city, country, today, photoBase }: Readonly<{ city: GeoCity | null; country: string; today: string; photoBase: string | null }>) {
   const router = useRouter();
-  const [draft, setDraft] = useState<CityDraft>(() => cityDraft(city, country));
-  const [syncedVersion, setSyncedVersion] = useState(city?.version ?? 0);
+  // Черновик помнит версию, от которой начат (review CRM S1). Перечитанная
+  // после своего сохранения карточка, совпавшая с вводом по смыслу
+  // (обрезанные пробелы, «30.250» и «30.25»), становится черновиком, и
+  // карточка снова «не изменена» (review CRM R2).
+  const versioned = useVersionedDraft(city, {
+    draft: (row) => cityDraft(row, row?.country ?? country),
+    changed: (value, row) => cityDraftChanged(value, row, today),
+    notes: (value, base) => cityDraftNotes(value, base, base?.country ?? country),
+  });
+  const { draft, setDraft } = versioned;
   const [shown, setShown] = useState(false);
   const [photoLoad, setPhotoLoad] = useState<Readonly<{ src: string; ok: boolean }> | null>(null);
+  const [recheck, setRecheck] = useState<Readonly<{ src: string; round: number }> | null>(null);
   const save = useGeographyCommand("city_upsert");
   const publish = useGeographyCommand("city_publish");
   const id = useId();
-  // Перечитанная после сохранения карточка: если ввод совпал с ней по смыслу
-  // (обрезанные пробелы, «30.250» и «30.25»), поля показывают записанное
-  // базой, и карточка снова «не изменена» (review CRM R2).
-  if (city !== null && city.version !== syncedVersion) {
-    setSyncedVersion(city.version);
-    if (!cityDraftChanged(draft, city, today)) setDraft(cityDraft(city, city.country));
-  }
   const { input, errors } = cityInput(draft, today);
   const dirty = cityDraftChanged(draft, city, today);
   const missing = cityMissing(input);
@@ -69,13 +71,29 @@ export function CityEditor({ city, country, today, photoBase }: Readonly<{ city:
   const path = draft.photoPath.trim();
   const src = photoBase && CITY_PHOTO_PATH.test(path) ? `${photoBase}${path}` : null;
   // Есть ли файл в хранилище, видно по загрузке превью с того же публичного адреса, что у студента.
-  const photoState: PhotoState = src === null ? "none" : photoLoad?.src === src ? (photoLoad.ok ? "stored" : "missing") : "checking";
+  // Повторная проверка идёт с меткой в запросе, чтобы браузер не взял прежний отказ (review CRM N2).
+  const probe = src !== null && recheck?.src === src ? `${src}?check=${recheck.round}` : src;
+  const photoState: PhotoState = probe === null ? "none" : photoLoad?.src === probe ? (photoLoad.ok ? "stored" : "missing") : "checking";
   const seen = (url: string, ok: boolean) => setPhotoLoad((current) => (current?.src === url && current.ok === ok ? current : { src: url, ok }));
+  const checkAgain = () => { if (src !== null) setRecheck((current) => ({ src, round: current?.src === src ? current.round + 1 : 1 })); };
+  useEffect(() => {
+    // Файл загружают отдельно: вернувшись на вкладку, превью проверяет путь снова.
+    if (photoState !== "missing" || src === null) return;
+    const again = () => { if (document.visibilityState === "visible") setRecheck((current) => ({ src, round: current?.src === src ? current.round + 1 : 1 })); };
+    window.addEventListener("focus", again);
+    document.addEventListener("visibilitychange", again);
+    return () => { window.removeEventListener("focus", again); document.removeEventListener("visibilitychange", again); };
+  }, [photoState, src]);
   // Опубликованная карточка при правке остаётся опубликованной: сохранить неполную или с незагруженным новым фото нельзя (283).
   const breaksPublished = published && missing.length > 0;
   const newPhotoMissing = published && path !== (city?.photo?.path ?? "") && photoState === "missing";
   const savedPhotoMissing = !dirty && photoState === "missing";
   const pending = save.pending || publish.pending;
+  // Рядом виден только итог последнего действия (review CRM N1).
+  const runSave = () => { publish.dismiss(); versioned.closeReplaced(); save.run({ city: input, baseVersion: versioned.baseVersion }); };
+  const runPublish = (next: boolean) => { save.dismiss(); publish.run({ cityKey: city!.key, published: next, baseVersion: versioned.baseVersion }); };
+  // «Обновить страницу» после «Запись уже изменили»: перечитать и показать сохранённую карточку вместо черновика.
+  const reloadSaved = (command: typeof save) => () => { command.dismiss(); versioned.reload(command.refresh); };
   const text = (key: keyof typeof LIMITS, label: string, rows: number, field: CityField) => (
     <label className={LABEL}>
       <span className="flex items-baseline justify-between gap-3">{label}<Counter value={draft[key]} max={LIMITS[key]} /></span>
@@ -95,7 +113,7 @@ export function CityEditor({ city, country, today, photoBase }: Readonly<{ city:
       data-testid="city-editor"
       aria-busy={pending}
       noValidate
-      onSubmit={(event) => { event.preventDefault(); setShown(true); if (errors.size === 0 && !breaksPublished && !newPhotoMissing) save.run({ city: input, baseVersion: city?.version ?? 0 }); else focusFirstInvalid(event.currentTarget); }}
+      onSubmit={(event) => { event.preventDefault(); setShown(true); if (errors.size === 0 && !breaksPublished && !newPhotoMissing && !versioned.behind) runSave(); else focusFirstInvalid(event.currentTarget); }}
     >
       <fieldset disabled={pending} className="min-w-0 space-y-6">
         <legend className="sr-only">Карточка города</legend>
@@ -160,10 +178,10 @@ export function CityEditor({ city, country, today, photoBase }: Readonly<{ city:
       <aside aria-label="Что увидит студент" className="min-w-0 space-y-4 lg:sticky lg:top-6">
         <article className="overflow-hidden rounded-card border border-border bg-surface" data-testid="city-preview">
           <div className="relative">
-            {src && photoState !== "missing" ? (
+            {probe && photoState !== "missing" ? (
               <img
-                key={src}
-                src={src}
+                key={probe}
+                src={probe}
                 alt=""
                 width={1280}
                 height={853}
@@ -171,16 +189,17 @@ export function CityEditor({ city, country, today, photoBase }: Readonly<{ city:
                 referrerPolicy="no-referrer"
                 className="aspect-[3/2] w-full bg-surface-2 object-cover"
                 // Картинка могла загрузиться до гидратации: тогда события load уже не будет.
-                ref={(node) => { if (node?.complete) seen(src, node.naturalWidth > 0); }}
-                onLoad={() => seen(src, true)}
-                onError={() => seen(src, false)}
+                ref={(node) => { if (node?.complete) seen(probe, node.naturalWidth > 0); }}
+                onLoad={() => seen(probe, true)}
+                onError={() => seen(probe, false)}
               />
             ) : (
-              <div className="grid aspect-[3/2] place-items-center bg-surface-2 px-6 text-center t-body-compact text-fg-3" data-testid="city-preview-empty">
+              <div className="grid aspect-[3/2] place-content-center justify-items-center gap-1 bg-surface-2 px-6 text-center t-body-compact text-fg-3" data-testid="city-preview-empty">
                 {photoState === "missing" ? "Файла по этому пути в хранилище нет" : path ? "Путь к фото не по правилу" : "Фото нет"}
+                {photoState === "missing" ? <button type="button" className={QUIET} onClick={checkAgain} data-testid="city-photo-recheck">Проверить снова</button> : null}
               </div>
             )}
-            {src && photoState !== "missing" && input.photo ? <PreviewCredit photo={input.photo} /> : null}
+            {probe && photoState !== "missing" && input.photo ? <PreviewCredit photo={input.photo} /> : null}
           </div>
           <div className="space-y-1.5 p-4">
             <p className="t-item text-fg">{draft.nameRu.trim() || "Название города"}</p>
@@ -195,19 +214,27 @@ export function CityEditor({ city, country, today, photoBase }: Readonly<{ city:
           </p>
           {missing.length ? <p className="t-body-compact text-warn" data-testid="city-missing">Для публикации не хватает: {missing.join(", ")}.</p> : <p className="t-body-compact text-fg-2">Карточка полная.</p>}
           {breaksPublished ? <p role="alert" className="t-body-compact text-danger">Город видят студенты, поэтому карточка должна остаться полной. Верните поля или сначала снимите город с публикации.</p> : null}
-          {newPhotoMissing ? <p role="alert" className="t-body-compact text-danger" data-testid="city-new-photo-missing">Нового фото ещё нет в хранилище, а город видят студенты. Оставьте прежний путь или сохраните после загрузки файла.</p> : null}
+          {newPhotoMissing ? <p role="alert" className="t-body-compact text-danger" data-testid="city-new-photo-missing">Нового фото ещё нет в хранилище, а город видят студенты. Оставьте прежний путь или, когда файл загрузят, нажмите «Проверить снова» у превью и сохраните.</p> : null}
           {shown && errors.size ? <p role="alert" className="t-body-compact text-danger">Исправьте отмеченные поля: карточка не сохранена.</p> : null}
+          {versioned.behind && city ? (
+            <p role="status" className="flex flex-wrap items-center gap-x-3 t-body-compact text-warn" data-testid="city-behind">
+              Карточку изменили, пока вы её правили: сохранена версия {city.version}, ваша правка начата с версии {versioned.baseVersion}. Сохранить поверх нельзя.
+              <button type="button" className={QUIET} onClick={versioned.showSaved}>Показать сохранённую карточку</button>
+            </p>
+          ) : null}
+          {versioned.reloading ? <p role="status" className="t-body-compact text-fg-2">Загружаем сохранённую карточку…</p> : null}
+          {versioned.replaced ? <ReplacedDraft replaced={versioned.replaced} onClose={versioned.closeReplaced} /> : null}
           {/* «Сохранено» не висит над новой правкой: итог показан, пока поля совпадают с сохранённой карточкой. */}
-          {save.state.status !== "saved" || !dirty ? <CommandResult state={save.state} saved="Карточка сохранена." refresh={save.refresh} /> : null}
-          {publish.state.status !== "saved" || !dirty ? <CommandResult state={publish.state} saved={published ? "Город опубликован: студенты видят карточку." : "Город снят с публикации."} refresh={publish.refresh} /> : null}
+          {save.state.status !== "saved" || !dirty ? <CommandResult state={save.state} saved="Карточка сохранена." refresh={reloadSaved(save)} /> : null}
+          {publish.state.status !== "saved" || !dirty ? <CommandResult state={publish.state} saved={published ? "Город опубликован: студенты видят карточку." : "Город снят с публикации."} refresh={reloadSaved(publish)} /> : null}
           <div className="flex flex-wrap gap-3">
-            <button type="submit" className={PRIMARY} disabled={pending || !dirty || breaksPublished || newPhotoMissing}>{save.pending ? "Сохраняем…" : save.state.status === "unavailable" ? "Повторить" : city ? "Сохранить изменения" : "Создать черновик"}</button>
+            <button type="submit" className={PRIMARY} disabled={pending || !dirty || breaksPublished || newPhotoMissing || versioned.behind}>{save.pending ? "Сохраняем…" : save.state.status === "unavailable" ? "Повторить" : city ? "Сохранить изменения" : "Создать черновик"}</button>
             {city ? (
               <button
                 type="button"
                 className={GHOST}
                 disabled={pending || dirty || (!published && (savedMissing.length > 0 || savedPhotoMissing))}
-                onClick={() => publish.run({ cityKey: city.key, published: !published, baseVersion: city.version })}
+                onClick={() => runPublish(!published)}
               >
                 {publish.pending ? "Сохраняем…" : published ? "Снять с публикации" : "Опубликовать"}
               </button>
@@ -215,7 +242,7 @@ export function CityEditor({ city, country, today, photoBase }: Readonly<{ city:
           </div>
           {city && dirty ? <p className="t-meta text-fg-3">Сначала сохраните изменения, затем публикуйте.</p> : null}
           {city && !published && !dirty && savedMissing.length === 0 && savedPhotoMissing ? (
-            <p className="t-meta text-warn" data-testid="city-photo-missing">Файла фото ещё нет в хранилище: опубликовать город можно после загрузки фото, иначе студент увидел бы карточку без фото.</p>
+            <p className="t-meta text-warn" data-testid="city-photo-missing">Файла фото ещё нет в хранилище: опубликовать город можно после загрузки фото, иначе студент увидел бы карточку без фото. Загрузили файл: нажмите «Проверить снова» у превью.</p>
           ) : null}
           <Link className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg" href={`/v3/universities/cities?country=${draft.country}`}>К городам страны</Link>
         </div>

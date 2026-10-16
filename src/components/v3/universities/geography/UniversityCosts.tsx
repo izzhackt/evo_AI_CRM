@@ -6,12 +6,12 @@ import { Icon } from "@/components/icons";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import {
   COST_CURRENCIES, COST_KINDS, COST_KIND_LABELS, COST_PERIODS, COST_PERIOD_LABELS, COST_SOURCE_KINDS, COST_SOURCE_LABELS, COST_STATUS_LABELS,
-  TEACHING_LANGUAGES, catalogTextIssue, costDraft, costInput, costWhat, formatCostAmount, rateIsStale, usdApprox,
+  TEACHING_LANGUAGES, catalogTextIssue, costDraft, costDraftChanged, costDraftNotes, costInput, costWhat, formatCostAmount, rateIsStale, usdApprox,
   type CostDraft, type CostField, type CostStatus, type GeoCost, type GeoFxRate,
 } from "@/lib/catalog-geography";
 import { UNIVERSITY_LEVELS, UNIVERSITY_LEVEL_LABELS, type UniversityLevel } from "@/lib/platform-university-catalog";
 
-import { AREA, CommandResult, DARK, FIELD, FieldError, GHOST, LABEL, QUIET, focusFirstInvalid, useGeographyCommand } from "./command";
+import { AREA, CommandResult, DARK, FIELD, FieldError, GHOST, LABEL, QUIET, ReplacedDraft, focusFirstInvalid, useGeographyCommand, useVersionedDraft } from "./command";
 
 /*
  * «Стоимость» в карточке вуза (план 7.5, контракт 3.3): строки с источником,
@@ -71,7 +71,8 @@ export function UniversityCosts({ institutionId, country, programs, costs, rates
           </thead>
           <tbody role="rowgroup" className="block">
             {rows.map((row) => editing === row.id ? (
-              // Ключ без версии: после сохранения редактор сам закрывается, а не открывается заново.
+              // Ключ без версии: после сохранения редактор сам закрывается, а не открывается заново;
+              // новую версию строки при открытом редакторе разбирает useVersionedDraft (review CRM S1).
               <tr key={`${row.id}:edit`} role="row" className="block border-b border-border py-3">
                 <td role="cell" className="block"><CostEditor row={row} institutionId={institutionId} country={country} programs={programs} canConfirm={canConfirm} today={today} onDone={() => setEditing(null)} /></td>
               </tr>
@@ -214,9 +215,15 @@ const FIELD_ERRORS: Readonly<Partial<Record<CostField, string>>> = {
 function CostEditor({ row, institutionId, country, programs, canConfirm, today, onDone }: Readonly<{
   row: GeoCost | null; institutionId: string; country: string; programs: readonly Program[]; canConfirm: boolean; today: string; onDone: () => void;
 }>) {
-  const [draft, setDraft] = useState<CostDraft>(() => costDraft(row, country, today));
+  // Черновик помнит версию строки, от которой начат: сохранение отправляет её (review CRM S1).
+  const versioned = useVersionedDraft(row, {
+    draft: (value) => costDraft(value, country, today),
+    changed: (value, saved) => costDraftChanged(value, saved, country, programs, today),
+    notes: (value, base) => costDraftNotes(value, base, country, today),
+  });
+  const { draft, setDraft } = versioned;
   const [shown, setShown] = useState(false);
-  const { state, run, pending, refresh } = useGeographyCommand("cost_upsert");
+  const { state, run, pending, refresh, dismiss } = useGeographyCommand("cost_upsert");
   const id = useId();
   const done = useRef(onDone);
   useEffect(() => { done.current = onDone; });
@@ -236,7 +243,7 @@ function CostEditor({ row, institutionId, country, programs, canConfirm, today, 
       className="space-y-4 rounded-card border border-border bg-surface p-4"
       data-testid="cost-editor"
       noValidate
-      onSubmit={(event) => { event.preventDefault(); setShown(true); if (errors.size === 0) run({ cost: input, baseVersion: row?.version ?? 0 }); else focusFirstInvalid(event.currentTarget); }}
+      onSubmit={(event) => { event.preventDefault(); setShown(true); if (errors.size === 0 && !versioned.behind) { versioned.closeReplaced(); run({ cost: input, baseVersion: versioned.baseVersion }); } else focusFirstInvalid(event.currentTarget); }}
       aria-busy={pending}
     >
       <h3 className="t-item text-fg">{row ? "Изменить строку стоимости" : "Новая строка стоимости"}</h3>
@@ -285,9 +292,17 @@ function CostEditor({ row, institutionId, country, programs, canConfirm, today, 
         {draft.sourceKind === "agency" ? <p className="t-meta text-fg-2">Название и адрес агентства видят только сотрудники. Опубликовать строку агентства можно после подтверждения системного Admin.</p> : null}
       </fieldset>
       {shown && errors.size ? <p role="alert" className="t-body-compact text-danger">Исправьте отмеченные поля: строка не сохранена.</p> : null}
-      <CommandResult state={state} refresh={refresh} />
+      {versioned.behind && row ? (
+        <p role="status" className="flex flex-wrap items-center gap-x-3 t-body-compact text-warn" data-testid="cost-behind">
+          Строку изменили, пока вы её правили: сохранена версия {row.version}, ваша правка начата с версии {versioned.baseVersion}. Сохранить поверх нельзя.
+          <button type="button" className={QUIET} onClick={versioned.showSaved}>Показать сохранённую строку</button>
+        </p>
+      ) : null}
+      {versioned.reloading ? <p role="status" className="t-body-compact text-fg-2">Загружаем сохранённую строку…</p> : null}
+      {versioned.replaced ? <ReplacedDraft replaced={versioned.replaced} onClose={versioned.closeReplaced} /> : null}
+      <CommandResult state={state} refresh={() => { dismiss(); versioned.reload(refresh); }} />
       <div className="flex flex-wrap gap-3">
-        <button type="submit" className={DARK} disabled={pending}>{pending ? "Сохраняем…" : state.status === "unavailable" ? "Повторить" : "Сохранить черновиком"}</button>
+        <button type="submit" className={DARK} disabled={pending || versioned.behind}>{pending ? "Сохраняем…" : state.status === "unavailable" ? "Повторить" : "Сохранить черновиком"}</button>
         <button type="button" className={GHOST} onClick={onDone} disabled={pending}>Отмена</button>
       </div>
     </form>

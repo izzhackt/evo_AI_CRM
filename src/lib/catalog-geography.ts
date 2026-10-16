@@ -376,6 +376,36 @@ export function cityInput(draft: CityDraft, today: string): { input: CityInput; 
 export function cityDraftChanged(draft: CityDraft, city: GeoCity | null, today: string): boolean {
   return city === null || canonical(cityInput(draft, today).input) !== canonical(cityInput(cityDraft(city, city.country), today).input);
 }
+/**
+ * Что делать с черновиком, когда пришла более новая версия записи (review CRM
+ * S1). Своих правок нет или черновик совпал с записью (своё сохранение):
+ * черновик становится записью. Свои правки есть: черновик остаётся, пока
+ * сотрудник сам не попросит сохранённую версию («Обновить страницу» после
+ * отказа «Запись уже изменили» или «Показать сохранённую»); тогда он
+ * заменяется, а заменённый текст можно скопировать.
+ */
+export function draftSync(state: Readonly<{ ownEdits: boolean; matchesSaved: boolean; reloadRequested: boolean }>): "adopt" | "replace" | "keep" {
+  if (!state.ownEdits || state.matchesSaved) return "adopt";
+  return state.reloadRequested ? "replace" : "keep";
+}
+/** Поля черновика, которые сотрудник изменил относительно `base`, строками «Подпись: значение» (то, что заменит сохранённая версия). */
+function draftNotes<D extends Record<string, string>>(mine: D, base: D, labels: Readonly<Record<keyof D, string>>, show: (key: keyof D, value: string) => string = (_key, value) => value): string {
+  return (Object.keys(labels) as (keyof D)[])
+    .filter((key) => mine[key].trim() !== base[key].trim())
+    .map((key) => `${labels[key]}: ${mine[key].trim() ? show(key, mine[key].trim()) : "пусто"}`)
+    .join("\n");
+}
+const CITY_DRAFT_LABELS: Readonly<Record<keyof CityDraft, string>> = {
+  key: "Ключ в адресе", country: "Страна", nameRu: "Название, RU", nameKy: "Название, KY", nameEn: "Название, EN", lat: "Широта центра", lng: "Долгота центра",
+  photoPath: "Путь к файлу в хранилище", photoWidth: "Ширина, px", photoHeight: "Высота, px", photoAuthor: "Автор", photoAuthorUrl: "Страница автора",
+  photoSourceName: "Источник фото", photoSourceUrl: "Страница фото у источника", photoLicense: "Лицензия", photoLicenseUrl: "Адрес лицензии",
+  summaryRu: "Коротко о городе, RU", summaryKy: "Коротко о городе, KY", factRu: "Самый интересный факт, RU", factKy: "Самый интересный факт, KY",
+  factSourceUrl: "Источник факта", factVerifiedOn: "Факт проверен", kyReview: "Кыргызский текст проверен носителем языка",
+};
+/** Несохранённые правки карточки города относительно версии, от которой они начаты. */
+export function cityDraftNotes(mine: CityDraft, base: GeoCity | null, countryCode: string): string {
+  return draftNotes(mine, cityDraft(base, countryCode), CITY_DRAFT_LABELS, (key, value) => (key === "kyReview" ? (value === "done" ? "да" : "нет") : value));
+}
 /** Чего не хватает карточке для публикации (план 7.1): пусто, если карточка полная. */
 export function cityMissing(city: Pick<CityInput, "photo" | "summaryRu" | "factRu" | "factSourceUrl" | "factVerifiedOn">): string[] {
   return [
@@ -463,6 +493,25 @@ export function costInput(draft: CostDraft, ids: { id: string | null; institutio
     },
     errors,
   };
+}
+
+/** Строка стоимости изменена по смыслу (как `cityDraftChanged`): сравнивается вход RPC. Новая строка всегда «изменена». */
+export function costDraftChanged(draft: CostDraft, row: GeoCost | null, countryCode: string, programs: readonly { id: string; level: UniversityLevel }[], today: string): boolean {
+  if (row === null) return true;
+  const ids = { id: row.id, institutionId: row.institutionId };
+  return canonical(costInput(draft, ids, programs, today).input) !== canonical(costInput(costDraft(row, countryCode, today), ids, programs, today).input);
+}
+const COST_DRAFT_LABELS: Readonly<Record<keyof CostDraft, string>> = {
+  costKind: "Что", period: "Период", programId: "Программа", studyLevel: "Уровень", teachingLanguage: "Язык обучения", currency: "Валюта вуза",
+  amountMin: "Сумма или «от»", amountMax: "«До»", academicYear: "Учебный год", noteRu: "Пояснение студенту, RU", noteKy: "Пояснение студенту, KY",
+  sourceKind: "Источник", sourceName: "Название источника", sourceUrl: "Адрес источника", verifiedOn: "Проверено",
+};
+/** Несохранённые правки строки стоимости относительно версии, от которой они начаты; коды словами, как в форме. */
+export function costDraftNotes(mine: CostDraft, base: GeoCost | null, countryCode: string, today: string): string {
+  const words: Partial<Record<keyof CostDraft, Readonly<Record<string, string>>>> = {
+    costKind: COST_KIND_LABELS, period: COST_PERIOD_LABELS, sourceKind: COST_SOURCE_LABELS, studyLevel: UNIVERSITY_LEVEL_LABELS, teachingLanguage: TEACHING_LANGUAGES,
+  };
+  return draftNotes(mine, costDraft(base, countryCode, today), COST_DRAFT_LABELS, (key, value) => words[key]?.[value] ?? value);
 }
 
 export type FxDraft = { currency: string; asOf: string; unitsPerUsd: string; sourceName: string; sourceUrl: string };

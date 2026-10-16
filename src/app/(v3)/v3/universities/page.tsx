@@ -14,8 +14,8 @@ export default async function UniversitiesPage({ searchParams }: { searchParams:
   const [actor, params] = await Promise.all([requireV3PageActor("/v3/universities"), searchParams]);
   const filters = parseUniversityFilters(params) ?? notFound();
   const canManage = !isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage");
-  // Управление каталогом — редкая задача Admin (Э6): тихие ссылки, не красная кнопка.
-  // Города и курсы валют кабинета студента (план 7.5) — рядом, без нового пункта меню.
+  // Управление каталогом это редкая задача Admin (Э6): тихие ссылки, не красная кнопка.
+  // Города и курсы валют кабинета студента (план 7.5) рядом, без нового пункта меню.
   const quiet = "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 underline underline-offset-4 hover:text-fg";
   const manageAction = canManage ? (
     <div className="flex flex-wrap gap-x-4 max-sm:-my-2">

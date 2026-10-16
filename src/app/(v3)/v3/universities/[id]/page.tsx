@@ -21,8 +21,8 @@ export default async function UniversityPage({ params }: { params: Promise<{ id:
   const university = page.items[0] ?? notFound();
   // Э6: возврат к каталогу — над заголовком; страна, город и число программ —
   // сразу под названием; управление Admin — тихими ссылками после них (на
-  // телефоне — ниже строки места); сначала программы и наборы. Город и
-  // стоимость для кабинета студента — после карточки, только у редактора.
+  // телефоне — ниже строки места); сначала программы и наборы.
+  // Город и стоимость для кабинета студента идут после карточки, только у редактора.
   return (
     <PartShell title={university.content.name} back={<UniversityBackLink />} meta={<UniversityPlace content={university.content} />}
       action={canManage ? <UniversityManageLinks id={id} formsHref={`/v3/universities/${id}/forms`} /> : undefined}>

@@ -1,0 +1,1014 @@
+{
+ "tests": [
+  {
+   "kind": "diagnostic",
+   "draft": null,
+   "formId": "1d2696aa-39b5-5b89-8f3e-e645a1b61dc2",
+   "formKey": "csca-math-diagnostic-1",
+   "metadata": {
+    "intro_ky": "3 тапшырма, 4 мүнөт. Бул экзамен эмес: жыйынтык кайсы темалардан баштоону көрсөтөт. Эртерээк бүтүрүүгө болот.",
+    "intro_ru": "3 задания, 4 минуты. Это не экзамен: итог покажет, с каких тем начать. Закончить можно раньше.",
+    "title_ky": "Диагностика",
+    "title_ru": "Диагностика"
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "itemsTotal": 3,
+   "lastResult": {
+    "attemptId": "7416088d-2a67-4c99-9d48-310f4a479ae1",
+    "completion": "timeout",
+    "itemsTotal": 3,
+    "completedAt": "2026-10-16T10:36:02.636627+00:00",
+    "correctCount": 0,
+    "correctShare": 0,
+    "answeredCount": 1
+   },
+   "durationSeconds": 240,
+   "allowEarlyFinish": true
+  },
+  {
+   "kind": "mock",
+   "draft": null,
+   "formId": "7b2be4a6-09b7-535e-860f-b7c9237ef813",
+   "formKey": "csca-math-mock-1",
+   "metadata": {
+    "intro_ky": "6 тапшырма, 7 мүнөт 30 секунд: экзамендегидей ар бир тапшырмага 75 секунд. Эрте бүтүрүүгө болбойт: убакыт бүткөндө жооптор өзү жөнөтүлөт.",
+    "intro_ru": "6 заданий, 7 минут 30 секунд: 75 секунд на задание, как на экзамене. Завершить раньше нельзя: когда время выйдет, ответы отправятся сами.",
+    "title_ky": "Сынамык тест",
+    "title_ru": "Пробный тест"
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "itemsTotal": 6,
+   "lastResult": {
+    "attemptId": "ea2181ee-8f24-4638-bad5-acc6064ee8bf",
+    "completion": "timeout",
+    "itemsTotal": 6,
+    "completedAt": "2026-10-16T10:56:54.628541+00:00",
+    "correctCount": 0,
+    "correctShare": 0,
+    "answeredCount": 0
+   },
+   "durationSeconds": 450,
+   "allowEarlyFinish": false
+  }
+ ],
+ "today": "2026-10-16",
+ "track": "csca-math",
+ "review": {
+  "dueCount": 0,
+  "nextDueOn": "2026-10-17",
+  "activeCount": 4
+ },
+ "topics": [
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 1,
+    "title_en": "Sets and set operations",
+    "title_ky": "Көптүктөр жана алардын үстүндө амалдар",
+    "title_ru": "Множества и операции над ними",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "1.1",
+    "lessons_planned": 1,
+    "mock_items_estimate": 2
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m1-sets",
+   "hasLessons": false,
+   "orderIndex": 1,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 1,
+    "title_en": "Properties of inequalities, linear and absolute value inequalities",
+    "title_ky": "Барабарсыздыктардын касиеттери, сызыктуу барабарсыздыктар жана модуль",
+    "title_ru": "Свойства неравенств, линейные неравенства и модуль",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "1.2",
+    "lessons_planned": 1,
+    "mock_items_estimate": 1
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m1-ineq-basics",
+   "hasLessons": false,
+   "orderIndex": 2,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 1,
+    "title_en": "Quadratic inequalities",
+    "title_ky": "Квадраттык барабарсыздыктар жана парабола",
+    "title_ru": "Квадратные неравенства и парабола",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "1.2",
+    "lessons_planned": 1,
+    "mock_items_estimate": 2
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m1-ineq-quadratic",
+   "hasLessons": false,
+   "orderIndex": 3,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 1,
+    "title_en": "Rational inequalities",
+    "title_ky": "Бөлчөк-рационалдык барабарсыздыктар: интервалдар методу",
+    "title_ru": "Дробно-рациональные неравенства: метод интервалов",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "1.2",
+    "lessons_planned": 1,
+    "mock_items_estimate": 1
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m1-ineq-rational",
+   "hasLessons": false,
+   "orderIndex": 4,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 1,
+    "title_en": "AM-GM inequality for two numbers",
+    "title_ky": "Эки сан үчүн орточо жөнүндө барабарсыздык",
+    "title_ru": "Неравенство о среднем для двух чисел",
+    "likely_gap": true,
+    "syllabus_fit": "implied",
+    "prerequisites": [],
+    "syllabus_point": "1.2",
+    "lessons_planned": 1,
+    "mock_items_estimate": 1
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m1-ineq-amgm",
+   "hasLessons": false,
+   "orderIndex": 5,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 2,
+    "title_en": "Domain and range",
+    "title_ky": "Функция: аныкталуу областы жана маанилер областы",
+    "title_ru": "Функция: область определения и множество значений",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "2.1",
+    "lessons_planned": 1,
+    "mock_items_estimate": 2
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m2-func-basics",
+   "hasLessons": false,
+   "orderIndex": 6,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 2,
+    "title_en": "Monotonicity, parity and periodicity",
+    "title_ky": "Монотондуулук, жуптук жана мезгилдүүлүк",
+    "title_ru": "Монотонность, чётность и периодичность",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "2.1",
+    "lessons_planned": 2,
+    "mock_items_estimate": 2
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m2-func-properties",
+   "hasLessons": false,
+   "orderIndex": 7,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 2,
+    "title_en": "Graph transformations",
+    "title_ky": "Графиктер жана алардын өзгөртүүлөрү",
+    "title_ru": "Графики и их преобразования",
+    "likely_gap": false,
+    "syllabus_fit": "implied",
+    "prerequisites": [],
+    "syllabus_point": "2.1",
+    "lessons_planned": 1,
+    "mock_items_estimate": 1
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m2-func-graphs",
+   "hasLessons": false,
+   "orderIndex": 8,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 2,
+    "title_en": "Quadratic and power functions",
+    "title_ky": "Квадраттык жана даражалуу функциялар",
+    "title_ru": "Квадратичная и степенная функции",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "2.2",
+    "lessons_planned": 2,
+    "mock_items_estimate": 2
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m2-quadratic-power",
+   "hasLessons": false,
+   "orderIndex": 9,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "gap",
+   "metadata": {
+    "section": 2,
+    "title_en": "Exponential and logarithmic functions",
+    "title_ky": "Көрсөткүчтүү жана логарифмдик функциялар",
+    "title_ru": "Показательная и логарифмическая функции",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [
+     "m2-func-basics"
+    ],
+    "syllabus_point": "2.2",
+    "lessons_planned": 2,
+    "mock_items_estimate": 3
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m2-exp-log",
+   "hasLessons": true,
+   "orderIndex": 10,
+   "windowAnswers": 5,
+   "windowCorrect": 2,
+   "lessonCompleted": true
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 2,
+    "title_en": "Radians, unit circle, special angles",
+    "title_ky": "Тригонометрия: радиандар, бирдик айлана, өзгөчө бурчтар",
+    "title_ru": "Тригонометрия: радианы, единичная окружность, особые углы",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "2.2",
+    "lessons_planned": 1,
+    "mock_items_estimate": 2
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m2-trig-basics",
+   "hasLessons": false,
+   "orderIndex": 11,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 2,
+    "title_en": "Trigonometric identities",
+    "title_ky": "Тригонометриялык формулалар: негизги теңдештик, кошуу, кош бурч",
+    "title_ru": "Тригонометрические формулы: основное тождество, сложение, двойной угол",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "2.2",
+    "lessons_planned": 1,
+    "mock_items_estimate": 2
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m2-trig-identities",
+   "hasLessons": false,
+   "orderIndex": 12,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 2,
+    "title_en": "Graphs of sinusoidal functions",
+    "title_ky": "y = A sin(ωx + φ) графиктери",
+    "title_ru": "Графики y = A sin(ωx + φ)",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "2.2",
+    "lessons_planned": 1,
+    "mock_items_estimate": 1
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m2-trig-graphs",
+   "hasLessons": false,
+   "orderIndex": 13,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 2,
+    "title_en": "Arithmetic sequences",
+    "title_ky": "Арифметикалык прогрессия",
+    "title_ru": "Арифметическая прогрессия",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "2.3",
+    "lessons_planned": 1,
+    "mock_items_estimate": 1
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m2-seq-arithmetic",
+   "hasLessons": false,
+   "orderIndex": 14,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 2,
+    "title_en": "Geometric sequences",
+    "title_ky": "Геометриялык прогрессия",
+    "title_ru": "Геометрическая прогрессия",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "2.3",
+    "lessons_planned": 1,
+    "mock_items_estimate": 1
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m2-seq-geometric",
+   "hasLessons": false,
+   "orderIndex": 15,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "few_data",
+   "metadata": {
+    "section": 2,
+    "title_en": "Derivatives: tangents, monotonicity, extrema",
+    "title_ky": "Туунду: жаныма, өсүү жана экстремумдар",
+    "title_ru": "Производная: касательная, рост и экстремумы",
+    "likely_gap": true,
+    "syllabus_fit": "explicit",
+    "prerequisites": [
+     "m2-func-properties",
+     "m2-quadratic-power"
+    ],
+    "syllabus_point": "2.4",
+    "lessons_planned": 2,
+    "mock_items_estimate": 2
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m2-derivative",
+   "hasLessons": true,
+   "orderIndex": 16,
+   "windowAnswers": 2,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 3,
+    "title_en": "Lines and circles",
+    "title_ky": "Түз сызык жана айлана",
+    "title_ru": "Прямая и окружность",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [
+     "m1-ineq-quadratic"
+    ],
+    "syllabus_point": "3.1",
+    "lessons_planned": 2,
+    "mock_items_estimate": 3
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m3-line-circle",
+   "hasLessons": true,
+   "orderIndex": 17,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 3,
+    "title_en": "Ellipse",
+    "title_ky": "Эллипс",
+    "title_ru": "Эллипс",
+    "likely_gap": true,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "3.1",
+    "lessons_planned": 1,
+    "mock_items_estimate": 2
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m3-ellipse",
+   "hasLessons": false,
+   "orderIndex": 18,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 3,
+    "title_en": "Hyperbola",
+    "title_ky": "Гипербола",
+    "title_ru": "Гипербола",
+    "likely_gap": true,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "3.1",
+    "lessons_planned": 1,
+    "mock_items_estimate": 1
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m3-hyperbola",
+   "hasLessons": false,
+   "orderIndex": 19,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 3,
+    "title_en": "Parabola as a conic",
+    "title_ky": "Парабола: фокус жана директриса",
+    "title_ru": "Парабола: фокус и директриса",
+    "likely_gap": true,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "3.1",
+    "lessons_planned": 1,
+    "mock_items_estimate": 1
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m3-parabola",
+   "hasLessons": false,
+   "orderIndex": 20,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 3,
+    "title_en": "Vectors",
+    "title_ky": "Векторлор: амалдар, координаталар, скалярдык көбөйтүндү",
+    "title_ru": "Векторы: действия, координаты, скалярное произведение",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "3.2",
+    "lessons_planned": 2,
+    "mock_items_estimate": 2
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m3-vectors",
+   "hasLessons": false,
+   "orderIndex": 21,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 3,
+    "title_en": "Complex numbers",
+    "title_ky": "Комплекстүү сандар",
+    "title_ru": "Комплексные числа",
+    "likely_gap": true,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "3.2",
+    "lessons_planned": 1,
+    "mock_items_estimate": 2
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m3-complex",
+   "hasLessons": false,
+   "orderIndex": 22,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 3,
+    "title_en": "Coordinates in space",
+    "title_ky": "Мейкиндиктеги координаталар",
+    "title_ru": "Координаты в пространстве",
+    "likely_gap": true,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "3.3",
+    "lessons_planned": 1,
+    "mock_items_estimate": 1
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m3-space-coords",
+   "hasLessons": false,
+   "orderIndex": 23,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 3,
+    "title_en": "Simple solids",
+    "title_ky": "Жөнөкөй телолор: беттин аянттары жана көлөмдөр",
+    "title_ru": "Простые тела: площади поверхностей и объёмы",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "3.3",
+    "lessons_planned": 1,
+    "mock_items_estimate": 2
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m3-solids",
+   "hasLessons": false,
+   "orderIndex": 24,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 4,
+    "title_en": "Classical probability and counting",
+    "title_ky": "Классикалык ыктымалдык жана натыйжаларды эсептөө",
+    "title_ru": "Классическая вероятность и подсчёт исходов",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "4.1",
+    "lessons_planned": 2,
+    "mock_items_estimate": 3
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m4-classical-probability",
+   "hasLessons": false,
+   "orderIndex": 25,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 4,
+    "title_en": "Mutually exclusive and independent events",
+    "title_ky": "Биргелешпеген жана көз карандысыз окуялар",
+    "title_ru": "Несовместные и независимые события",
+    "likely_gap": false,
+    "syllabus_fit": "implied",
+    "prerequisites": [],
+    "syllabus_point": "4.1",
+    "lessons_planned": 1,
+    "mock_items_estimate": 1
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m4-events",
+   "hasLessons": false,
+   "orderIndex": 26,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 4,
+    "title_en": "Mean, variance, standard deviation",
+    "title_ky": "Орточо маани, медиана, мода, дисперсия, стандарттык четтөө",
+    "title_ru": "Среднее, медиана, мода, дисперсия, стандартное отклонение",
+    "likely_gap": false,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "4.2",
+    "lessons_planned": 1,
+    "mock_items_estimate": 2
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m4-statistics",
+   "hasLessons": false,
+   "orderIndex": 27,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "metadata": {
+    "section": 4,
+    "title_en": "Normal distribution",
+    "title_ky": "Нормалдуу бөлүштүрүү: μ жана σ мааниси",
+    "title_ru": "Нормальное распределение: смысл μ и σ",
+    "likely_gap": true,
+    "syllabus_fit": "explicit",
+    "prerequisites": [],
+    "syllabus_point": "4.3",
+    "lessons_planned": 1,
+    "mock_items_estimate": 2
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "topicKey": "m4-normal",
+   "hasLessons": false,
+   "orderIndex": 28,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  }
+ ],
+ "lessons": [
+  {
+   "lessonId": "6a568c67-44e7-56dd-8ba5-c1b77305daba",
+   "metadata": {
+    "kind": "lesson",
+    "goal_ky": "Логарифм «кайсы даражага» деген суроого жооп берерин түшүнүү, $a^x$ жана $\\log_a x$ графиктерин окуу жана маселелерди калькуляторсуз чыгаруу.",
+    "goal_ru": "Понять, что логарифм отвечает на вопрос «в какую степень», читать графики $a^x$ и $\\log_a x$ и решать задачи без калькулятора.",
+    "title_en": "Exponential and logarithmic functions",
+    "title_ky": "Көрсөткүчтүү жана логарифмдик функциялар",
+    "title_ru": "Показательная и логарифмическая функции",
+    "topic_key": "m2-exp-log",
+    "est_minutes": 15,
+    "syllabus_point": "2.2"
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "completed": true,
+   "lessonKey": "csca-math-m2-exp-log-l1",
+   "lastResult": {
+    "completedAt": "2026-10-16T10:31:46.64797+00:00",
+    "correctCount": 2,
+    "correctShare": 0.5,
+    "exercisesTotal": 4,
+    "wrongExerciseIds": [
+     "7b0e4dda-5cdb-5a7f-870c-74e3f9655d33",
+     "8642b27f-533d-5aad-83d0-ba93753d2f8e"
+    ]
+   },
+   "orderIndex": 1,
+   "draftAttemptId": null,
+   "exercisesTotal": 4
+  },
+  {
+   "lessonId": "22f0395c-b56d-5da0-8667-adec8f92a4e2",
+   "metadata": {
+    "kind": "practice",
+    "goal_ky": "Тема боюнча убакыт чектелбеген тапшырмалар. Ар бир жооптон кийин талдоо дароо көрүнөт.",
+    "goal_ru": "Задания по теме без таймера. После каждого ответа сразу виден разбор.",
+    "title_en": "Exponential and logarithmic functions",
+    "title_ky": "Көрсөткүчтүү жана логарифмдик функциялар",
+    "title_ru": "Показательная и логарифмическая функции",
+    "topic_key": "m2-exp-log",
+    "est_minutes": 5,
+    "syllabus_point": "2.2"
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "completed": false,
+   "lessonKey": "csca-math-m2-exp-log-p1",
+   "lastResult": null,
+   "orderIndex": 2,
+   "draftAttemptId": null,
+   "exercisesTotal": 3
+  },
+  {
+   "lessonId": "f97f4659-8248-5af6-87b0-424a62d4ba74",
+   "metadata": {
+    "kind": "lesson",
+    "goal_ky": "Туундуну жаныманын жантаюусу катары көрүү, жаныманын теңдемесин жазуу жана туундунун белгиси боюнча функция кайда өсөрүн, кемирин жана экстремуму кайда экенин табуу.",
+    "goal_ru": "Видеть в производной наклон касательной, писать уравнение касательной и по знаку производной находить, где функция растёт, убывает и имеет экстремум.",
+    "title_en": "Derivatives: tangent lines, monotonicity and extrema",
+    "title_ky": "Туунду: жаныма, өсүү жана экстремумдар",
+    "title_ru": "Производная: касательная, рост и экстремумы",
+    "topic_key": "m2-derivative",
+    "est_minutes": 18,
+    "syllabus_point": "2.4"
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "completed": false,
+   "lessonKey": "csca-math-m2-derivative-l1",
+   "lastResult": null,
+   "orderIndex": 3,
+   "draftAttemptId": null,
+   "exercisesTotal": 4
+  },
+  {
+   "lessonId": "6a642eaf-446e-551e-8193-8ce8695fd52e",
+   "metadata": {
+    "kind": "practice",
+    "goal_ky": "Тема боюнча убакыт чектелбеген тапшырмалар. Ар бир жооптон кийин талдоо дароо көрүнөт.",
+    "goal_ru": "Задания по теме без таймера. После каждого ответа сразу виден разбор.",
+    "title_en": "Derivatives: tangent lines, monotonicity and extrema",
+    "title_ky": "Туунду: жаныма, өсүү жана экстремумдар",
+    "title_ru": "Производная: касательная, рост и экстремумы",
+    "topic_key": "m2-derivative",
+    "est_minutes": 5,
+    "syllabus_point": "2.4"
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "completed": false,
+   "lessonKey": "csca-math-m2-derivative-p1",
+   "lastResult": null,
+   "orderIndex": 4,
+   "draftAttemptId": null,
+   "exercisesTotal": 3
+  },
+  {
+   "lessonId": "7f014b02-b63a-5322-8c71-d1e6ab8955db",
+   "metadata": {
+    "kind": "lesson",
+    "goal_ky": "Түз сызыктын жантаюусун жана перпендикулярдын теңдемесин табуу, айлананын теңдемесин борбору жана радиусу көрүнгөн түргө келтирүү, борбордон түз сызыкка чейинки аралык боюнча жануу жана хорда маселелерин чыгаруу.",
+    "goal_ru": "Находить наклон прямой и уравнение перпендикуляра, приводить уравнение окружности к виду с центром и радиусом, по расстоянию от центра до прямой решать задачи о касании и хордах.",
+    "title_en": "Lines and circles: distance decides",
+    "title_ky": "Түз сызык жана айлана: баарын аралык чечет",
+    "title_ru": "Прямая и окружность: всё решает расстояние",
+    "topic_key": "m3-line-circle",
+    "est_minutes": 18,
+    "syllabus_point": "3.1"
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "completed": false,
+   "lessonKey": "csca-math-m3-line-circle-l1",
+   "lastResult": null,
+   "orderIndex": 5,
+   "draftAttemptId": null,
+   "exercisesTotal": 4
+  },
+  {
+   "lessonId": "43386f2c-1fae-57eb-8bb2-5f435235e9e3",
+   "metadata": {
+    "kind": "practice",
+    "goal_ky": "Тема боюнча убакыт чектелбеген тапшырмалар. Ар бир жооптон кийин талдоо дароо көрүнөт.",
+    "goal_ru": "Задания по теме без таймера. После каждого ответа сразу виден разбор.",
+    "title_en": "Lines and circles: distance decides",
+    "title_ky": "Түз сызык жана айлана: баарын аралык чечет",
+    "title_ru": "Прямая и окружность: всё решает расстояние",
+    "topic_key": "m3-line-circle",
+    "est_minutes": 5,
+    "syllabus_point": "3.1"
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "completed": false,
+   "lessonKey": "csca-math-m3-line-circle-p1",
+   "lastResult": null,
+   "orderIndex": 6,
+   "draftAttemptId": null,
+   "exercisesTotal": 3
+  }
+ ],
+ "modules": [
+  {
+   "version": "1.0.0",
+   "metadata": {
+    "sections": [
+     {
+      "points": [
+       {
+        "point": "1.1",
+        "label_en": "Sets",
+        "label_ky": "Көптүктөр: аныктамасы, амалдар, жазуу жолдору",
+        "label_ru": "Множества: определение, операции, способы записи"
+       },
+       {
+        "point": "1.2",
+        "label_en": "Inequalities",
+        "label_ky": "Барабарсыздыктар: касиеттери жана чыгаруу жолдору, анын ичинде квадраттык жана бөлчөк-рационалдык",
+        "label_ru": "Неравенства: свойства и способы решения, включая квадратные и дробно-рациональные"
+       }
+      ],
+      "section": 1,
+      "title_en": "Sets and Inequalities",
+      "title_ky": "Көптүктөр жана барабарсыздыктар",
+      "title_ru": "Множества и неравенства",
+      "mock_items_estimate": 7
+     },
+     {
+      "points": [
+       {
+        "point": "2.1",
+        "label_en": "Function concepts and properties",
+        "label_ky": "Функция жана анын касиеттери: аныкталуу областы, маанилер областы, монотондуулук, жуптук",
+        "label_ru": "Функция и её свойства: область определения, множество значений, монотонность, чётность"
+       },
+       {
+        "point": "2.2",
+        "label_en": "Basic elementary functions",
+        "label_ky": "Негизги элементардык функциялар: даражалуу, көрсөткүчтүү, логарифмдик, тригонометриялык",
+        "label_ru": "Основные элементарные функции: степенная, показательная, логарифмическая, тригонометрические"
+       },
+       {
+        "point": "2.3",
+        "label_en": "Sequences",
+        "label_ky": "Удаалаштыктар: арифметикалык жана геометриялык прогрессиялардын жалпы мүчөсү жана суммасы",
+        "label_ru": "Последовательности: общий член и сумма арифметической и геометрической прогрессий"
+       },
+       {
+        "point": "2.4",
+        "label_en": "Derivatives",
+        "label_ky": "Туундунун негиздери: аныктамасы, геометриялык мааниси, жөнөкөй колдонуулар",
+        "label_ru": "Основы производной: определение, геометрический смысл, простые применения"
+       }
+      ],
+      "section": 2,
+      "title_en": "Functions",
+      "title_ky": "Функциялар",
+      "title_ru": "Функции",
+      "mock_items_estimate": 19
+     },
+     {
+      "points": [
+       {
+        "point": "3.1",
+        "label_en": "Plane analytic geometry",
+        "label_ky": "Тегиздиктеги аналитикалык геометрия: түз сызык, айлана, эллипс, гипербола, парабола",
+        "label_ru": "Аналитическая геометрия на плоскости: прямая, окружность, эллипс, гипербола, парабола"
+       },
+       {
+        "point": "3.2",
+        "label_en": "Vectors and complex numbers",
+        "label_ky": "Векторлор жана комплекстүү сандар: амалдар",
+        "label_ru": "Векторы и комплексные числа: действия"
+       },
+       {
+        "point": "3.3",
+        "label_en": "Solid geometry",
+        "label_ky": "Стереометрия: мейкиндиктеги тик бурчтуу координаталар системасы, жөнөкөй телолор",
+        "label_ru": "Стереометрия: прямоугольная система координат в пространстве, простые тела"
+       }
+      ],
+      "section": 3,
+      "title_en": "Geometry and Algebra",
+      "title_ky": "Геометрия жана алгебра",
+      "title_ru": "Геометрия и алгебра",
+      "mock_items_estimate": 14
+     },
+     {
+      "points": [
+       {
+        "point": "4.1",
+        "label_en": "Classical probability",
+        "label_ky": "Классикалык ыктымалдык жана ыктымалдыктарды эсептөө",
+        "label_ru": "Классическая вероятность и вычисление вероятностей"
+       },
+       {
+        "point": "4.2",
+        "label_en": "Numerical characteristics of data",
+        "label_ky": "Маалыматтардын сандык мүнөздөмөлөрү: орточо маани, дисперсия",
+        "label_ru": "Числовые характеристики данных: среднее, дисперсия"
+       },
+       {
+        "point": "4.3",
+        "label_en": "Normal distribution",
+        "label_ky": "Нормалдуу бөлүштүрүү: негизги түшүнүктөр",
+        "label_ru": "Нормальное распределение: основные понятия"
+       }
+      ],
+      "section": 4,
+      "title_en": "Probability and Statistics",
+      "title_ky": "Ыктымалдык жана статистика",
+      "title_ru": "Вероятность и статистика",
+      "mock_items_estimate": 8
+     }
+    ],
+    "title_ky": "Математика",
+    "title_ru": "Математика",
+    "syllabus_url": "https://csca.cn/about/testprep",
+    "level_note_ky": "Тапшырмалар экзамендегидей англис тилинде. Түшүндүрмөлөр орус жана кыргыз тилдеринде, терминдер англис тилинде. Бардык тапшырмалар калькуляторсуз чыгарылат.",
+    "level_note_ru": "Задания на английском, как на экзамене. Объяснения на русском и кыргызском, термины на английском. Все задания решаются без калькулятора.",
+    "syllabus_edition": "2025"
+   },
+   "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+   "moduleKey": "csca-math"
+  }
+ ],
+ "nextStep": {
+  "kind": "lesson",
+  "lessonId": "22f0395c-b56d-5da0-8667-adec8f92a4e2",
+  "topicKey": "m2-exp-log",
+  "lessonKey": "csca-math-m2-exp-log-p1",
+  "lessonKind": "practice",
+  "topicState": "gap"
+ },
+ "sessions": [
+  {
+   "examTo": "2026-11-15",
+   "examFrom": "2026-11-14",
+   "sourceUrl": "https://csca.cn/about/examintro",
+   "sessionKey": "2026-11",
+   "verifiedOn": "2026-10-16",
+   "registrationOpensAt": "2026-10-15T07:00:00+00:00",
+   "registrationClosesAt": "2026-10-21T15:59:00+00:00"
+  },
+  {
+   "examTo": "2026-12-20",
+   "examFrom": "2026-12-19",
+   "sourceUrl": "https://csca.cn/about/examintro",
+   "sessionKey": "2026-12",
+   "verifiedOn": "2026-10-16",
+   "registrationOpensAt": null,
+   "registrationClosesAt": null
+  },
+  {
+   "examTo": "2027-01-24",
+   "examFrom": "2027-01-23",
+   "sourceUrl": "https://csca.cn/about/examintro",
+   "sessionKey": "2027-01",
+   "verifiedOn": "2026-10-16",
+   "registrationOpensAt": null,
+   "registrationClosesAt": null
+  },
+  {
+   "examTo": "2027-03-14",
+   "examFrom": "2027-03-13",
+   "sourceUrl": "https://csca.cn/about/examintro",
+   "sessionKey": "2027-03",
+   "verifiedOn": "2026-10-16",
+   "registrationOpensAt": null,
+   "registrationClosesAt": null
+  },
+  {
+   "examTo": "2027-04-25",
+   "examFrom": "2027-04-24",
+   "sourceUrl": "https://csca.cn/about/examintro",
+   "sessionKey": "2027-04",
+   "verifiedOn": "2026-10-16",
+   "registrationOpensAt": null,
+   "registrationClosesAt": null
+  },
+  {
+   "examTo": "2027-06-27",
+   "examFrom": "2027-06-26",
+   "sourceUrl": "https://csca.cn/about/examintro",
+   "sessionKey": "2027-06",
+   "verifiedOn": "2026-10-16",
+   "registrationOpensAt": null,
+   "registrationClosesAt": null
+  }
+ ],
+ "serverNow": "2026-10-16T10:56:54.633314+00:00",
+ "targetSessionKey": null
+}

@@ -1,0 +1,139 @@
+{
+  "schema": "evo.csca.figures/0.1",
+  "palette_light": {
+    "paper": "#ffffff",
+    "ink": "#191714",
+    "muted": "#6b6660",
+    "grid": "#e4dfd7",
+    "accent": "#d70217",
+    "ok": "#177245"
+  },
+  "palette_dark": {
+    "paper": "#1e1c19",
+    "ink": "#f2efe9",
+    "muted": "#a39d94",
+    "grid": "#2c2925",
+    "accent": "#ff4a57",
+    "ok": "#4cc38a"
+  },
+  "figures": [
+    {
+      "figure_key": "exp-log-mirror",
+      "file": "figures/exp-log-mirror.svg",
+      "view_box": "0 0 400 400",
+      "bytes": 11601,
+      "sha256": "3fd31e8adf469e3979fd115d7ad71067be2869c401c149eb15d2d45d94caba43",
+      "alt_ru": "Графики y = 2^x и y = log₂ x на одной координатной плоскости. Они зеркальны относительно пунктирной прямой y = x. Отмечены пары точек (0, 1) и (1, 0), (1, 2) и (2, 1), (2, 4) и (4, 2).",
+      "alt_ky": "y = 2^x жана y = log₂ x графиктери бир координаталык тегиздикте. Алар пунктир y = x түз сызыгына карата күзгүдөй симметриялуу. (0, 1) жана (1, 0), (1, 2) жана (2, 1), (2, 4) жана (4, 2) чекит жуптары белгиленген.",
+      "alt_en": "Graphs of y = 2^x and y = log base 2 of x on one plane, mirror images across the dashed line y = x, with point pairs (0, 1) and (1, 0), (1, 2) and (2, 1), (2, 4) and (4, 2).",
+      "used_by": [
+        "csca-math-m2-exp-log-l1"
+      ]
+    },
+    {
+      "figure_key": "exp-base",
+      "file": "figures/exp-base.svg",
+      "view_box": "0 0 400 300",
+      "bytes": 8590,
+      "sha256": "2393559c47d44f97aee40baa6e531f5dec7bd54cc9e937882dfaa674ae9b2d9b",
+      "alt_ru": "Графики y = 2^x и y = (1/2)^x. Первый поднимается слева направо, второй опускается. Оба проходят через точку (0, 1) и зеркальны относительно оси y.",
+      "alt_ky": "y = 2^x жана y = (1/2)^x графиктери. Биринчиси солдон оңго көтөрүлөт, экинчиси төмөндөйт. Экөө тең (0, 1) чекити аркылуу өтөт жана y огуна карата күзгүдөй симметриялуу.",
+      "alt_en": "Graphs of y = 2^x rising and y = (1/2)^x falling, both through (0, 1), mirror images across the y-axis.",
+      "used_by": [
+        "csca-math-m2-exp-log-l1"
+      ]
+    },
+    {
+      "figure_key": "deriv-secant-tangent",
+      "file": "figures/deriv-secant-tangent.svg",
+      "view_box": "0 0 400 330",
+      "bytes": 11220,
+      "sha256": "b5ed5bd73229f19add85ccda69803a9c697357744115ee785187c6c920fb3238",
+      "alt_ru": "Парабола y = x². На ней точка P(1, 1) и точки Q₁(3, 9), Q₂(2, 4). Серые секущие PQ₁ и PQ₂ имеют наклоны 4 и 3. Красная касательная в точке P имеет наклон 2.",
+      "alt_ky": "y = x² параболасы. Анда P(1, 1) чекити жана Q₁(3, 9), Q₂(2, 4) чекиттери. Боз PQ₁ жана PQ₂ кесүүчүлөрүнүн жантаюулары 4 жана 3. P чекитиндеги кызыл жаныманын жантаюусу 2.",
+      "alt_en": "Parabola y = x^2 with P(1, 1), Q1(3, 9) and Q2(2, 4). Grey secants PQ1 and PQ2 have slopes 4 and 3; the red tangent at P has slope 2.",
+      "used_by": [
+        "csca-math-m2-derivative-l1"
+      ]
+    },
+    {
+      "figure_key": "deriv-sign-chart",
+      "file": "figures/deriv-sign-chart.svg",
+      "view_box": "0 0 400 360",
+      "bytes": 7417,
+      "sha256": "01f92a9c68eaae8b6df7e3986f69089f3f6d9adb93d925fbfb1989559884cfe8",
+      "alt_ru": "Сверху график f(x) = x³ − 12x с максимумом в точке (−2, 16) и минимумом в точке (2, −16). Снизу числовая прямая со знаками f′(x): плюс левее −2, минус между −2 и 2, плюс правее 2. Стрелки показывают рост, убывание и снова рост.",
+      "alt_ky": "Үстүндө f(x) = x³ − 12x графиги, максимуму (−2, 16) чекитинде, минимуму (2, −16) чекитинде. Астында f′(x) белгилери менен сан түз сызыгы: −2ден солдо плюс, −2 менен 2 ортосунда минус, 2ден оңдо плюс. Жебелер өсүүнү, кемүүнү жана кайра өсүүнү көрсөтөт.",
+      "alt_en": "Graph of f(x) = x^3 - 12x with a local maximum at (-2, 16) and a local minimum at (2, -16); below, the sign chart of f'(x): plus, minus, plus, with arrows up, down, up.",
+      "used_by": [
+        "csca-math-m2-derivative-l1"
+      ]
+    },
+    {
+      "figure_key": "circle-line-positions",
+      "file": "figures/circle-line-positions.svg",
+      "view_box": "0 0 450 200",
+      "bytes": 2870,
+      "sha256": "282af61ee78746b3e47fc0a3173428f01c1b64c60c0a8334febd6ebd2d10d615",
+      "alt_ru": "Три окружности одного радиуса r и три прямые. Слева расстояние d от центра до прямой больше r, общих точек нет. В центре d = r, одна точка касания. Справа d меньше r, две точки пересечения.",
+      "alt_ky": "Радиусу r бирдей үч айлана жана үч түз сызык. Солдо борбордон түз сызыкка чейинки d аралыгы r радиусунан чоң, жалпы чекит жок. Ортодо d = r, бир жануу чекити. Оңдо d радиустан кичине, эки кесилишүү чекити.",
+      "alt_en": "Three equal circles of radius r and three lines: left d > r with no common points, middle d = r with one point of tangency, right d < r with two intersection points.",
+      "used_by": [
+        "csca-math-m3-line-circle-l1"
+      ]
+    },
+    {
+      "figure_key": "circle-chord",
+      "file": "figures/circle-chord.svg",
+      "view_box": "0 0 400 352",
+      "bytes": 2957,
+      "sha256": "701991d51ccd31d9ec4e8050d356ec72c42bd4f735d0f3869db14f1e83e42c6a",
+      "alt_ru": "Окружность с центром C(−1, 2) и радиусом 3. Прямая 4x − 3y + 5 = 0 пересекает её в точках A и B. Из центра опущен перпендикуляр CH длиной 1 на хорду AB. Радиус CA, отрезок CH и половина хорды AH образуют прямоугольный треугольник с прямым углом в H.",
+      "alt_ky": "Борбору C(−1, 2), радиусу 3 болгон айлана. 4x − 3y + 5 = 0 түз сызыгы аны A жана B чекиттеринде кесет. Борбордон AB хордасына узундугу 1 болгон CH перпендикуляры түшүрүлгөн. CA радиусу, CH кесиндиси жана хорданын жарымы AH тик бурчу H чекитинде болгон тик бурчтуу үч бурчтукту түзөт.",
+      "alt_en": "Circle with center C(-1, 2) and radius 3; the line 4x - 3y + 5 = 0 meets it at A and B. The perpendicular CH from the center has length 1; radius CA, segment CH and half-chord AH form a right triangle with the right angle at H.",
+      "used_by": [
+        "csca-math-m3-line-circle-l1"
+      ]
+    },
+    {
+      "figure_key": "item-exp-graph",
+      "file": "figures/item-exp-graph.svg",
+      "view_box": "0 0 360 300",
+      "bytes": 8391,
+      "sha256": "04902197670d0c69848007f5e9404c9984e8610c03f90e0ee5219d85488f2fdf",
+      "alt_ru": "График возрастающей кривой y = a^x + b. Слева кривая приближается к пунктирной горизонтальной прямой y = −1. Кривая проходит через начало координат и через отмеченные точки (1, 1) и (2, 3).",
+      "alt_ky": "Өсүүчү y = a^x + b ийри сызыгынын графиги. Солдо ийри сызык пунктир горизонталдык y = −1 түз сызыгына жакындайт. Ийри сызык координаталар башталышы жана белгиленген (1, 1), (2, 3) чекиттери аркылуу өтөт.",
+      "alt_en": "Increasing curve y = a^x + b approaching the dashed horizontal line y = -1 on the left, passing through the origin and the marked points (1, 1) and (2, 3).",
+      "used_by": [
+        "csca-math-exp-log-006"
+      ]
+    },
+    {
+      "figure_key": "item-derivative-graph",
+      "file": "figures/item-derivative-graph.svg",
+      "view_box": "0 0 360 300",
+      "bytes": 5590,
+      "sha256": "aec95750981a0a6676542b637894e8722cb7232d2cb97a95a2e091f87d74336e",
+      "alt_ru": "График производной y = f′(x). Это парабола ветвями вверх, она пересекает ось x в точках x = −1 и x = 2. Левее −1 и правее 2 график выше оси x, между ними ниже.",
+      "alt_ky": "y = f′(x) туундусунун графиги. Бул тармактары өйдө караган парабола, ал x огун x = −1 жана x = 2 чекиттеринде кесет. −1ден солдо жана 2ден оңдо график x огунан жогору, алардын ортосунда төмөн.",
+      "alt_en": "Graph of y = f'(x): an upward parabola crossing the x-axis at x = -1 and x = 2, above the axis outside that interval and below it between them.",
+      "used_by": [
+        "csca-math-derivative-005"
+      ]
+    },
+    {
+      "figure_key": "item-circle-tangent",
+      "file": "figures/item-circle-tangent.svg",
+      "view_box": "0 0 360 348",
+      "bytes": 4240,
+      "sha256": "6211049c50d3976b0cc679866e422be3cc484550bf2e11c323e7a9be43d6f30e",
+      "alt_ru": "Окружность с центром C(3, 4), проходящая через начало координат O. Проведён радиус OC и красная касательная к окружности в точке O. Радиус и касательная перпендикулярны.",
+      "alt_ky": "Борбору C(3, 4) болгон жана координаталар башталышы O аркылуу өткөн айлана. OC радиусу жана O чекитиндеги кызыл жаныма жүргүзүлгөн. Радиус менен жаныманын ортосундагы бурч тик.",
+      "alt_en": "Circle with center C(3, 4) passing through the origin O; the radius OC and the red tangent line at O, which meet at a right angle.",
+      "used_by": [
+        "csca-math-line-circle-006"
+      ]
+    }
+  ],
+  "ky_review": "pending"
+}

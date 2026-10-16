@@ -1,0 +1,74 @@
+{
+ "items": [
+  {
+   "box": 1,
+   "item": {
+    "stemEn": "Find the value of $\\log_2 8 + \\log_2 4$.",
+    "itemKey": "csca-math-exp-log-001",
+    "options": [
+     {
+      "id": "a",
+      "label": "$6$"
+     },
+     {
+      "id": "b",
+      "label": "$5$"
+     },
+     {
+      "id": "c",
+      "label": "$\\log_2 12$"
+     },
+     {
+      "id": "d",
+      "label": "$32$"
+     }
+    ],
+    "topicKey": "m2-exp-log",
+    "difficulty": 1,
+    "estSeconds": 45,
+    "syllabusPoint": "2.2"
+   },
+   "dueOn": "2026-10-16",
+   "lapses": 0,
+   "itemKey": "csca-math-exp-log-001"
+  },
+  {
+   "box": 1,
+   "item": {
+    "stemEn": "Let $\\log_a 2 = m$ and $\\log_a 3 = n$. Express $\\log_a 12$ in terms of $m$ and $n$.",
+    "itemKey": "csca-math-exp-log-005",
+    "options": [
+     {
+      "id": "a",
+      "label": "$2m + n$"
+     },
+     {
+      "id": "b",
+      "label": "$m^2 + n$"
+     },
+     {
+      "id": "c",
+      "label": "$2mn$"
+     },
+     {
+      "id": "d",
+      "label": "$2(m + n)$"
+     }
+    ],
+    "topicKey": "m2-exp-log",
+    "difficulty": 2,
+    "estSeconds": 75,
+    "syllabusPoint": "2.2"
+   },
+   "dueOn": "2026-10-16",
+   "lapses": 0,
+   "itemKey": "csca-math-exp-log-005"
+  }
+ ],
+ "today": "2026-10-16",
+ "track": "csca-math",
+ "figures": {},
+ "dueCount": 2,
+ "nextDueOn": "2026-10-19",
+ "activeCount": 3
+}

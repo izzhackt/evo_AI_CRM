@@ -1,0 +1,39 @@
+{
+  "schema": "evo.csca.forms/0.1",
+  "ky_review": "pending",
+  "forms": [
+    {
+      "form_key": "csca-math-diagnostic-1",
+      "kind": "diagnostic",
+      "duration_seconds": 240,
+      "allow_early_finish": true,
+      "title_ru": "Диагностика",
+      "title_ky": "Диагностика",
+      "intro_ru": "3 задания, 4 минуты. Это не экзамен: итог покажет, с каких тем начать. Закончить можно раньше.",
+      "intro_ky": "3 тапшырма, 4 мүнөт. Бул экзамен эмес: жыйынтык кайсы темалардан баштоону көрсөтөт. Эртерээк бүтүрүүгө болот.",
+      "item_keys": [
+        "csca-math-exp-log-007",
+        "csca-math-derivative-007",
+        "csca-math-line-circle-007"
+      ]
+    },
+    {
+      "form_key": "csca-math-mock-1",
+      "kind": "mock",
+      "duration_seconds": 450,
+      "allow_early_finish": false,
+      "title_ru": "Пробный тест",
+      "title_ky": "Сынамык тест",
+      "intro_ru": "6 заданий, 7 минут 30 секунд: 75 секунд на задание, как на экзамене. Завершить раньше нельзя: когда время выйдет, ответы отправятся сами.",
+      "intro_ky": "6 тапшырма, 7 мүнөт 30 секунд: экзамендегидей ар бир тапшырмага 75 секунд. Эрте бүтүрүүгө болбойт: убакыт бүткөндө жооптор өзү жөнөтүлөт.",
+      "item_keys": [
+        "csca-math-exp-log-006",
+        "csca-math-derivative-005",
+        "csca-math-exp-log-008",
+        "csca-math-derivative-010",
+        "csca-math-line-circle-006",
+        "csca-math-line-circle-009"
+      ]
+    }
+  ]
+}

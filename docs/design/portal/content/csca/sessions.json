@@ -1,0 +1,50 @@
+{
+  "schema": "evo.csca.sessions/0.1",
+  "source_url": "https://csca.cn/about/examintro",
+  "verified_on": "2026-10-16",
+  "method_ru": "Даты сессий и окно регистрации взяты из открытого календаря csca.cn (проверено 16.10.2026, время регистрации по Пекину, UTC+8). Окно регистрации записано только там, где его опубликовал csca.cn.",
+  "sessions": [
+    {
+      "session_key": "2026-11",
+      "exam_from": "2026-11-14",
+      "exam_to": "2026-11-15",
+      "registration_opens_at": "2026-10-15T15:00:00+08:00",
+      "registration_closes_at": "2026-10-21T23:59:00+08:00"
+    },
+    {
+      "session_key": "2026-12",
+      "exam_from": "2026-12-19",
+      "exam_to": "2026-12-20",
+      "registration_opens_at": null,
+      "registration_closes_at": null
+    },
+    {
+      "session_key": "2027-01",
+      "exam_from": "2027-01-23",
+      "exam_to": "2027-01-24",
+      "registration_opens_at": null,
+      "registration_closes_at": null
+    },
+    {
+      "session_key": "2027-03",
+      "exam_from": "2027-03-13",
+      "exam_to": "2027-03-14",
+      "registration_opens_at": null,
+      "registration_closes_at": null
+    },
+    {
+      "session_key": "2027-04",
+      "exam_from": "2027-04-24",
+      "exam_to": "2027-04-25",
+      "registration_opens_at": null,
+      "registration_closes_at": null
+    },
+    {
+      "session_key": "2027-06",
+      "exam_from": "2027-06-26",
+      "exam_to": "2027-06-27",
+      "registration_opens_at": null,
+      "registration_closes_at": null
+    }
+  ]
+}

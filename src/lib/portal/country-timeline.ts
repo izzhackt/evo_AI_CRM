@@ -136,6 +136,14 @@ export const INTERNAL_MARKERS: readonly RegExp[] = Object.freeze([
   /[^\s@]+@[^\s@]+\.[^\s@]+/u,
   /\+\d[\d\s()-]{7,}/u,
 ]);
+/**
+ * Разряды числа через разрывный пробел («2 500» с U+0020): строка рвётся
+ * посередине суммы. Между разрядами допустимы ровно два знака: неразрывный
+ * пробел U+00A0 и узкий неразрывный U+202F; любой другой пробел `\s`
+ * отклоняется. Тот же класс у iPhone (`CountryTimelineRules.digitGroupSpace`).
+ * `\d` здесь только ASCII-цифры.
+ */
+export const DIGIT_GROUP_SPACE = /\d[^\S\u00A0\u202F]\d{3}(?!\d)/u;
 /** Внутренние пути никогда не попадают в файл: он целиком лежит в bundle iPhone. */
 const INTERNAL_PATHS = /~\/|Downloads|EVO_Знания|\.docx|\.pdf\b|supabase\/admissions-content/u;
 const LETTERS = /[\p{L}]+/gu;
@@ -192,6 +200,7 @@ function plain(ctx: Ctx, value: unknown, path: string): string {
     ctx.fail(path, "empty or untrimmed text");
   }
   if (DASHES.test(value as string)) ctx.fail(path, "em or en dash");
+  if (DIGIT_GROUP_SPACE.test(value as string)) ctx.fail(path, "digit groups need U+00A0 or U+202F");
   if (INTERNAL_PATHS.test(value as string)) ctx.fail(path, "internal path");
   return value as string;
 }

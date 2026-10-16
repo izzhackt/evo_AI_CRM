@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   ABSOLUTE_DATE,
   COUNTRY_TIMELINES,
+  DIGIT_GROUP_SPACE,
   COUNTRY_TIMELINE_FILE_KEYS,
   FORBIDDEN_PROMISES,
   INTERNAL_MARKERS,
@@ -59,13 +60,18 @@ test("the content folder holds exactly the seven files and every file passes the
     ["applications"], ["decisions"], ["visa_and_predeparture"], ["arrival_and_adaptation"]]);
   assert.ok(general.steps.every((step) => step.timing === null));
   assert.equal(general.intake.model, "none");
-  // Titles of the general route are the stage names of the cabinet (admission.stage.*).
+  // Titles of the general route are the stage names of the cabinet (admission.stage.*),
+  // except step 4: the cabinet says «подача через партнёра», a parent reads
+  // «Подача заявок в университеты» (review s4-web-review-1 F6).
   const i18n = read("src/lib/portal/i18n.ts");
   for (const step of general.steps) {
     const stage = step.stageKeys[0];
+    if (stage === "applications") continue;
     assert.match(i18n, new RegExp(`"stage\\.${stage}": "${step.title.ru.toLowerCase()}"`), stage);
     assert.match(i18n, new RegExp(`"stage\\.${stage}": "${step.title.ky.toLowerCase()}"`), stage);
   }
+  assert.deepEqual(general.steps[3].title, { ru: "Подача заявок в университеты", ky: "Университеттерге арыз тапшыруу" });
+  assert.doesNotMatch(JSON.stringify(raw("undecided")), /партн|өнөктөш/iu);
 });
 
 test("the strict parser refuses drifted content", () => {
@@ -79,7 +85,9 @@ test("the strict parser refuses drifted content", () => {
     [(c) => { c.steps[0].checklist[0].text.ru = "Вы точно получите визу."; }, /forbidden promise/],
     [(c) => { c.steps[0].checklist[0].text.ky = "Ийгилик 100 % болот."; }, /forbidden promise/],
     [(c) => { c.steps[0].checklist[0].text.ru = "Напишите в отдел продаж."; }, /internal detail/],
-    [(c) => { c.steps[0].checklist[0].text.ru = "Позвоните +996 555 123 456."; }, /internal detail/],
+    [(c) => { c.steps[0].checklist[0].text.ru = "Позвоните +996 (555) 12-34-56."; }, /internal detail/],
+    // Spaced digit groups in a phone number fail earlier, on the no-break space rule.
+    [(c) => { c.steps[0].checklist[0].text.ru = "Позвоните +996 555 123 456."; }, /digit groups need/],
     [(c) => { c.steps[0].checklist[0].text.ru = "Сдайте до 1 мая 2027 года."; }, /needs an undated variant/],
     [(c) => { delete c.steps[0].timing.label.undated; }, /needs an undated variant/],
     [(c) => { c.steps[0].title.undated = { ru: "x", ky: "y" }; }, /undated variant for a text without a date/],
@@ -101,10 +109,65 @@ test("the strict parser refuses drifted content", () => {
     [(c) => { c.steps[0].checklist[0].text.ru = "Зарегистрируйтесь на СSCA."; }, /mixed script word/],
     [(c) => { c.name.ru = "Китай континентальный"; }, /study-countries/],
     [(c) => { c.country = "MY"; }, /not CN/],
+    [(c) => { c.steps[0].checklist[0].text.ru = "Сбор 2 500\u00a0долларов."; }, /digit groups need U\+00A0 or U\+202F/],
+    [(c) => { c.steps[0].checklist[0].text.ky = "Жыйым 2\u2009500\u00a0доллар."; }, /digit groups need/],
+    [(c) => { c.sources[0].title = "Пошлина 3 000 крон"; }, /digit groups need/],
   ];
   for (const [mutate, message] of cases) assert.throws(broken(mutate), message, String(message));
   assert.throws(() => parseCountryTimelineFile(raw("undecided"), "cn"), /not CN|unknown key|missing/);
   assert.throws(() => parseCountryTimelineFile(cn, "pl"), /unknown file key/);
+});
+
+// Review s4-web-review-1 F1: «на счёте не меньше 2» / «500 долларов США» on 1440 px.
+test("money amounts never wrap: digit groups and the currency word use a no-break space", () => {
+  const cn = raw("cn");
+  const withText = (ru) => { const copy = structuredClone(cn); copy.steps[0].checklist[0].text.ru = ru; return copy; };
+  // Exactly U+00A0 and U+202F are accepted between digit groups (the iPhone port takes the same two).
+  for (const space of ["\u00a0", "\u202f"]) {
+    assert.doesNotThrow(() => parseCountryTimelineFile(withText(`Сбор 2${space}500${space}долларов.`), "cn"), JSON.stringify(space));
+  }
+  for (const space of [" ", "\t", "\u2009", "\u2007", "\u3000"]) {
+    assert.throws(() => parseCountryTimelineFile(withText(`Сбор 2${space}500\u00a0долларов.`), "cn"), /digit groups need/u, JSON.stringify(space));
+  }
+  assert.doesNotThrow(() => parseCountryTimelineFile(withText("Сбор 2500 долларов, 2 фото, 1 2345."), "cn"));
+  // Every string of every file: no breaking space inside a number or before a currency word.
+  const currency = /\d[^\S\u00a0\u202f](?:долл|USD|юан|евро|EUR|крон|чешск\p{L}* крон|чех крон|АКШ доллар|ринггит|MYR|лир|дирхам|AED|CNY|CZK)/u;
+  const strings = (value) => (typeof value === "string" ? [value] : Array.isArray(value) ? value.flatMap(strings)
+    : value && typeof value === "object" ? Object.values(value).flatMap(strings) : []);
+  let amounts = 0;
+  for (const key of COUNTRY_TIMELINE_FILE_KEYS) {
+    for (const text of strings(raw(key))) {
+      assert.doesNotMatch(text, DIGIT_GROUP_SPACE, `${key}: ${text}`);
+      assert.doesNotMatch(text, currency, `${key}: ${text}`);
+      amounts += (text.match(/\d\u00a0(?:\d{3}\u00a0)?(?:долл|юан|евро|чешск|чех|АКШ|крон)/gu) ?? []).length;
+    }
+  }
+  assert.ok(amounts >= 20, `amounts with a no-break space: ${amounts}`);
+  const bank = selectCountryTimeline("CN", { locale: "ru", today: BEFORE }).steps
+    .flatMap((step) => step.items).find((item) => item.id === "cn-3-08");
+  assert.match(bank.text, /не меньше 2\u00a0500\u00a0долларов США/u);
+  const fee = selectCountryTimeline("CN", { locale: "ky", today: BEFORE }).steps
+    .flatMap((step) => step.items).find((item) => item.id === "cn-3-08");
+  assert.match(fee.text, /кеминде 2\u00a0500\u00a0АКШ доллары/u);
+});
+
+// Review s4-web-review-1 F3: a self-serve student (tier approved) sees the
+// timelines but not the sections of сопровождение (Shell.tsx, tiers ["assisted"]).
+test("no timeline sends a student to a cabinet section their tier does not have", () => {
+  const shell = read("src/components/portal/Shell.tsx");
+  const assistedOnly = [...shell.matchAll(/key: "(nav\.[a-z]+)", tiers: \["assisted"\] \}/gu)].map((m) => m[1]);
+  assert.deepEqual(assistedOnly.sort(), ["nav.documents", "nav.messages", "nav.notifications", "nav.payments"]);
+  const i18n = read("src/lib/portal/i18n.ts");
+  const labels = assistedOnly.flatMap((key) => [...i18n.matchAll(new RegExp(`"${key.replace(".", "\\.")}": "([^"]+)"`, "gu"))].map((m) => m[1]));
+  assert.deepEqual(labels.sort(), ["Билдирмелер", "Билдирүүлөр", "Документтер", "Документы", "Оплата", "Сообщения", "Төлөм", "Уведомления"].sort());
+  for (const { choice, locale, today, view } of views()) {
+    for (const text of viewStrings(view)) {
+      for (const label of labels) assert.ok(!text.includes(`«${label}`), `${choice} ${locale} ${today}: ${text}`);
+    }
+  }
+  const general = selectCountryTimeline(TIMELINE_UNDECIDED, { locale: "ru", today: BEFORE });
+  assert.equal(general.steps[2].items.find((item) => item.id === "undecided-3-03").text,
+    "Передавайте готовые документы по одному, не дожидаясь полного пакета: так ошибки найдутся раньше.");
 });
 
 test("every text is in RU and KY and the Kyrgyz is not a copy of the Russian", () => {

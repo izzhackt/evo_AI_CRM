@@ -1,0 +1,348 @@
+{
+  "generatedBy": "scripts/portal/write-country-timeline-ios-parity.mjs",
+  "contentVersions": {
+    "cn": 1,
+    "my": 1,
+    "ae": 1,
+    "tr": 1,
+    "it": 1,
+    "cz": 1,
+    "undecided": 1
+  },
+  "cases": [
+    {
+      "choice": "CN",
+      "locale": "ru",
+      "today": "2026-10-16",
+      "modules": null,
+      "kind": "country",
+      "file": "cn",
+      "steps": 8,
+      "items": 54,
+      "sha256": "971c590e397ee1335158a12c46bdb9f3860ec4b7d7ad14569d9f768fd8189cf2"
+    },
+    {
+      "choice": "CN",
+      "locale": "ru",
+      "today": "2027-11-01",
+      "modules": null,
+      "kind": "country",
+      "file": "cn",
+      "steps": 8,
+      "items": 54,
+      "sha256": "e7c021f4d0d0650720033ce5d8e2fd6c25283661dbce2931eb4372fc1a7c3139"
+    },
+    {
+      "choice": "CN",
+      "locale": "ky",
+      "today": "2026-10-16",
+      "modules": null,
+      "kind": "country",
+      "file": "cn",
+      "steps": 8,
+      "items": 54,
+      "sha256": "d60087cd388ebf6cf839fc32beee381417b28baa0605730d904779420be7cbb4"
+    },
+    {
+      "choice": "CN",
+      "locale": "ky",
+      "today": "2027-11-01",
+      "modules": null,
+      "kind": "country",
+      "file": "cn",
+      "steps": 8,
+      "items": 54,
+      "sha256": "b5bd79df3116a616d0913752b1c3f2d87163e62601a606277aae5fe9d16b7b4d"
+    },
+    {
+      "choice": "MY",
+      "locale": "ru",
+      "today": "2026-10-16",
+      "modules": null,
+      "kind": "country",
+      "file": "my",
+      "steps": 7,
+      "items": 37,
+      "sha256": "25f0df1d7461460935d35c31866387c368834edb7dfb902ffde5ffd0905e9c40"
+    },
+    {
+      "choice": "MY",
+      "locale": "ru",
+      "today": "2027-11-01",
+      "modules": null,
+      "kind": "country",
+      "file": "my",
+      "steps": 7,
+      "items": 37,
+      "sha256": "02612ad8db008f4062f751c86fac82104171ebd01f0275905724f12abcdb140e"
+    },
+    {
+      "choice": "MY",
+      "locale": "ky",
+      "today": "2026-10-16",
+      "modules": null,
+      "kind": "country",
+      "file": "my",
+      "steps": 7,
+      "items": 37,
+      "sha256": "f259a80cde7bbf90b14af1ba7c2be1d62525dc5f65d6bce01b62571c4df7aa47"
+    },
+    {
+      "choice": "MY",
+      "locale": "ky",
+      "today": "2027-11-01",
+      "modules": null,
+      "kind": "country",
+      "file": "my",
+      "steps": 7,
+      "items": 37,
+      "sha256": "5da0263fd55323eff47858de95318763601064af1586105589d0140674b6374c"
+    },
+    {
+      "choice": "AE",
+      "locale": "ru",
+      "today": "2026-10-16",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "c45425503d87b8d933c4baecc5d44d1e6858845d07f976b2e424d1be11f5cd41"
+    },
+    {
+      "choice": "AE",
+      "locale": "ru",
+      "today": "2027-11-01",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "6bff695d31ece1a6691c85ccde38304da809dfebe99de188209899fec5dda4a7"
+    },
+    {
+      "choice": "AE",
+      "locale": "ky",
+      "today": "2026-10-16",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "f05d73a0db6a6e85e2ae2f14cd5821c6c5b72157419546505b027929c3954246"
+    },
+    {
+      "choice": "AE",
+      "locale": "ky",
+      "today": "2027-11-01",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "d4c1614056c8caf0468a8b3dbc226b4b895ba0bb91f973a68507eac3ed4cb164"
+    },
+    {
+      "choice": "TR",
+      "locale": "ru",
+      "today": "2026-10-16",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "13c5e50e0995851fb9a3d0cb035b3233fca26f9799f8366acd1278ae686d130b"
+    },
+    {
+      "choice": "TR",
+      "locale": "ru",
+      "today": "2027-11-01",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "bc6d7546e16e57d4a05d9231ff424b07dd608a69cd6e6377bcee28b0d2355625"
+    },
+    {
+      "choice": "TR",
+      "locale": "ky",
+      "today": "2026-10-16",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "72fadd1a9b1957e3656c9ca609031305c57dc0f6a429e186037af1dc9085e313"
+    },
+    {
+      "choice": "TR",
+      "locale": "ky",
+      "today": "2027-11-01",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "dd9c52cf0bb2656e52c432eb456aa9435e073db23a421f715a1484c7513e3f16"
+    },
+    {
+      "choice": "IT",
+      "locale": "ru",
+      "today": "2026-10-16",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "f956c7f52d13ffe00137d6f23a040b46d28359bb96b29a741754175856a56f04"
+    },
+    {
+      "choice": "IT",
+      "locale": "ru",
+      "today": "2027-11-01",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "b2e80718d6fd745ba7de419f2748bc0244f4a38042ea136edc24514ce7583f0e"
+    },
+    {
+      "choice": "IT",
+      "locale": "ky",
+      "today": "2026-10-16",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "c76ea7df22da9c577b49db86d0b84a26185fb1d9eca9fc0303fcef771b907aaa"
+    },
+    {
+      "choice": "IT",
+      "locale": "ky",
+      "today": "2027-11-01",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "85dfe30116f96faa76abba89839ecb55064096bd41a409f785194f984ba0fa0f"
+    },
+    {
+      "choice": "CZ",
+      "locale": "ru",
+      "today": "2026-10-16",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "ae6b5525256b3a012e679e310aa6b0f3b931f7d68a8fbfbc15b942b9a832e0f3"
+    },
+    {
+      "choice": "CZ",
+      "locale": "ru",
+      "today": "2027-11-01",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "40b7572df273b242e04b6ff398865219309abdc63dcf97f9881ef7b4b3c4b614"
+    },
+    {
+      "choice": "CZ",
+      "locale": "ky",
+      "today": "2026-10-16",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "491d8b1e10f8b3d8ef6dc2ba40708dce4ddb6b4878a222aacfebc4782bf0ca39"
+    },
+    {
+      "choice": "CZ",
+      "locale": "ky",
+      "today": "2027-11-01",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "30d7063ce42cbb69a1ce570e044b6aff7faf10ea7df6b03f1dd4921b77deed3c"
+    },
+    {
+      "choice": "UNDECIDED",
+      "locale": "ru",
+      "today": "2026-10-16",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "58f5eab9e2fb4095913a4c2b966ea96527c08b4f01a2ed026c7ebd773250da7e"
+    },
+    {
+      "choice": "UNDECIDED",
+      "locale": "ru",
+      "today": "2027-11-01",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "57de046e7563e60ff8b54c8861b68d768190782ba59841a298382f896b08fbfe"
+    },
+    {
+      "choice": "UNDECIDED",
+      "locale": "ky",
+      "today": "2026-10-16",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "160e847a3ac1fa86b12820ec47e34ebf0bbbda325b27ca0209bfb7ebe9d9bf9f"
+    },
+    {
+      "choice": "UNDECIDED",
+      "locale": "ky",
+      "today": "2027-11-01",
+      "modules": null,
+      "kind": "general",
+      "file": "undecided",
+      "steps": 7,
+      "items": 26,
+      "sha256": "086b16382c4082a566082fd232148e4d91235c5a8cf2a87c643b00bd7ff25257"
+    },
+    {
+      "choice": "CN",
+      "locale": "ru",
+      "today": "2026-10-16",
+      "modules": {
+        "csca": "evo-app://csca"
+      },
+      "kind": "country",
+      "file": "cn",
+      "steps": 8,
+      "items": 54,
+      "sha256": "daf5a1ef861ab092b1d8b54dd1ba736e539ee9435dd03ae404f58258308a766b"
+    },
+    {
+      "choice": "CN",
+      "locale": "ky",
+      "today": "2026-10-16",
+      "modules": {
+        "csca": "evo-app://csca"
+      },
+      "kind": "country",
+      "file": "cn",
+      "steps": 8,
+      "items": 54,
+      "sha256": "49658e730a0887afbdd13046b686122d8c7a8bad612d4e912acf4f374430399f"
+    }
+  ]
+}

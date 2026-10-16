@@ -3311,6 +3311,204 @@
         }
       }
     },
+    "home_timeline_heading" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тапшыруу жолу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Путь поступления"
+          }
+        }
+      }
+    },
+    "home_timeline_heading_country" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тапшыруу жолу: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Путь поступления: %@"
+          }
+        }
+      }
+    },
+    "home_timeline_choose_title" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Өлкөнү тандаңыз"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите страну"
+          }
+        }
+      }
+    },
+    "home_timeline_change_country" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Өлкөнү алмаштыруу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сменить страну"
+          }
+        }
+      }
+    },
+    "home_timeline_step_of" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$lld кадамдын %1$lld-кадамы"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Шаг %1$lld из %2$lld"
+          }
+        }
+      }
+    },
+    "home_timeline_step_hint" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кадамдын пункттарын ачат"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Откроет пункты шага"
+          }
+        }
+      }
+    },
+    "home_timeline_checklist_heading" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Эмне кылуу керек"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Что сделать"
+          }
+        }
+      }
+    },
+    "home_timeline_done_when_heading" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кадам качан бүтөт"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Когда шаг пройден"
+          }
+        }
+      }
+    },
+    "home_timeline_links_heading" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Шилтемелер"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ссылки"
+          }
+        }
+      }
+    },
+    "home_timeline_save_failed" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тандоо сакталган жок, дагы бир жолу аракет кылыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить выбор, попробуйте ещё раз."
+          }
+        }
+      }
+    },
+    "home_timeline_unavailable" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тапшыруу жолу жүктөлгөн жок."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось загрузить путь поступления."
+          }
+        }
+      }
+    },
     "adm_stage_label" : {
       "localizations" : {
         "ru" : {

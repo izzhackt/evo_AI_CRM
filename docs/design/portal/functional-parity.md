@@ -26,6 +26,16 @@ Real checks: successful Xcode builds (`home-build.log`, `home-final-build.log`).
 An empty-state localization-key mismatch found during source inspection was corrected and the app rebuilt/reinstalled. No fabricated data. Approved-tier application UI, actual lesson-draft resumption, all-complete/empty/error states, KY render and hardware were not exercised: current QA account is assisted, has content/favorites and no lesson draft. No result submission or production deployment.
 
 
+## 2026-10-16 iPhone «Путь поступления» (S4, build 1.1)
+
+Home shows the admission path of the student's country from the same seven bundled files as the web (`src/content/timelines/*.json`) and the same selection rules (docs/portal/country-timeline-contract.md §3). Self-serve student: first section; client: right after the case section. Steps sit on a numbered vertical line; a step opens a sheet with its checklist («Что сделать»), «Когда шаг пройден» and links; the three disclaimers stand under the timeline and in every step sheet. «Сменить страну» opens the six countries and «Пока не решил»; with no choice Home shows the «Выберите страну» card. Saving goes through `set_student_country_choice_v1` (284) with a new request id per tap and the same id on a retry after a failure, then rereads `student_country_choice_v1`. At accessibility text sizes a step becomes a plain row with «Шаг N из M» instead of the line.
+
+Parity: `scripts/portal/write-country-timeline-ios-parity.mjs` writes SHA-256 fingerprints of the web `selectCountryTimeline` output (7 choices, RU and KY, before and after `validUntil`, CN with a CSCA module route) to `ios/EVOAdmissionsTests/Fixtures/country-timeline-parity.json`; `CountryTimelineTests` recomputes them from the Swift port and the bundled files. After a content edit, rerun the script; the Swift test fails until both sides agree again.
+
+Real checks on 2026-10-16: `CountryTimelineTests`, `CountryChoiceTests` and `StudyCountriesTests` 20/20 on an iOS 26.5 Simulator; a tamper run (verify items shown) failed 12 assertions. The app ran against the local evo-video-demo stack, signed in as a synthetic demo student (credentials read at runtime). China timeline, step sheet, picker, Italy (general route with the country name), «Пока не решил», back to China, and the «Выберите страну» card with an inline save; each save was read back through the RPC. Light, dark, accessibility-large and KY screenshots are in the canonical checkout's ignored `output/student-app-v2/screens/timeline-ios/`. For the card, the student's application and case country were blanked for a few minutes with triggers disabled and then restored byte-identical; the test choice rows and receipts were deleted afterwards.
+
+Limits: Simulator only, no hardware, VoiceOver checked through the accessibility tree, not by ear. A failed save and a failed read were not induced. KY text needs native proofreading. No production sign-in or deploy.
+
 ## Web notifications / authority
 
 Single Atlas header bell replaces the old v3 status strip; RU/KY label/count/error/retry, assisted-only navigation, `actor.accessTier` authority in layout. Existing polling retained, Home included among operational refresh destinations; test/lesson runners excluded.

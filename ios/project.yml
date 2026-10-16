@@ -108,6 +108,9 @@ targets:
       - path: EVOAdmissions/Services/UniversityGeoLibrary.swift
       - path: EVOAdmissions/Services/UniversityCatalogFilterPolicy.swift
       - path: EVOAdmissions/Services/StudyCountries.swift
+      # «Путь поступления» (S4): строгий разбор, выбор и ответ RPC 284.
+      - path: EVOAdmissions/Services/CountryTimeline.swift
+      - path: EVOAdmissions/Services/CountryChoiceModels.swift
       - path: EVOAdmissions/Services/UniversityMapPolicy.swift
       - path: EVOAdmissions/Services/SingleFlightReloadGate.swift
       - path: EVOAdmissions/Services/PostgresTimestamp.swift

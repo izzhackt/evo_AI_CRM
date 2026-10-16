@@ -138,6 +138,9 @@ targets:
       # подменяется заглушкой URLProtocol).
       - path: EVOAdmissions/Services/UniversityAtlas
       - path: EVOAdmissions/Services/AtlasImageLoader.swift
+      # «Путь поступления» (S4): строгий разбор, выбор и ответ RPC 284.
+      - path: EVOAdmissions/Services/CountryTimeline.swift
+      - path: EVOAdmissions/Services/CountryChoiceModels.swift
       - path: EVOAdmissions/Services/UniversityMapPolicy.swift
       - path: EVOAdmissions/Services/SingleFlightReloadGate.swift
       - path: EVOAdmissions/Services/PostgresTimestamp.swift

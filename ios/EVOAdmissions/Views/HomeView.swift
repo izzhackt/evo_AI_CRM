@@ -70,6 +70,7 @@ struct HomeView: View {
     @Binding var selectedTab: PortalTab
     @StateObject private var model = HomeViewModel()
     @StateObject private var admission = AdmissionHubModel()
+    @StateObject private var countryTimeline = CountryTimelineModel()
     @State private var runContext: AssessmentRunContext?
     @Environment(\.scenePhase) private var scenePhase
 
@@ -80,7 +81,12 @@ struct HomeView: View {
                     Text(session.authority.displayName).font(.title2.bold())
                         .motionStagger(index: 0, key: "home.greeting")
                 }
-                if session.accessTier == .assisted && admissionNeedsAttention { admissionSection }
+                // «Путь поступления» (S4): у самостоятельного студента первым, у клиента после дела.
+                if session.accessTier == .approved { CountryTimelineSection(model: countryTimeline) }
+                if session.accessTier == .assisted && admissionNeedsAttention {
+                    admissionSection
+                    CountryTimelineSection(model: countryTimeline)
+                }
                 if hasTestDraft {
                     testsSection
                     learningSection
@@ -88,7 +94,10 @@ struct HomeView: View {
                     learningSection
                     testsSection
                 }
-                if session.accessTier == .assisted && !admissionNeedsAttention { admissionSection }
+                if session.accessTier == .assisted && !admissionNeedsAttention {
+                    admissionSection
+                    CountryTimelineSection(model: countryTimeline)
+                }
                 if session.accessTier == .approved { applicationSection }
                 favoritesSection
                 if session.accessTier == .assisted {
@@ -115,7 +124,9 @@ struct HomeView: View {
     }
 
     private func refresh() async {
+        async let path: () = countryTimeline.load()
         await model.refresh(tier: session.accessTier, admission: admission)
+        await path
     }
 
     // Never move an unknown/failed admission state below optional learning.

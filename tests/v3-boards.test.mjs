@@ -314,7 +314,9 @@ test("one solid red per board page: the shell «Создать задачу» is
     assert.doesNotMatch(classOf(create), /\bbg-accent\b/u);
     const solid = [...html.matchAll(/<(?:a|button)\b[^>]*class="([^"]*)"[^>]*>([\s\S]*?)<\/(?:a|button)>/gu)]
       .filter(([, className]) => /(?:^|\s)bg-accent(?:\s|$)/u.test(className)).map(([, , text]) => text.replace(/<[^>]+>/gu, "").trim());
-    assert.deepEqual(solid, name === "admissions" ? [] : ["Добавить лида"], name);
+    // «Добавить студента» (281) is the admissions board's one main action, as «Добавить лида» is the
+    // sales board's: the solid red stays one per board page.
+    assert.deepEqual(solid, name === "admissions" ? ["Добавить студента"] : ["Добавить лида"], name);
   }
   assert.match(read("src/components/v3/PipelineDecisionForm.tsx"), /className="inline-flex min-h-11 items-center rounded-ctl bg-fg px-4 text-sm font-semibold text-surface/u);
 });

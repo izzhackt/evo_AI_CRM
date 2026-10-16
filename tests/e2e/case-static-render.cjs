@@ -370,6 +370,20 @@ const SCENARIOS = {
   // Дело ждёт куратора: у того, кто назначает кураторов, «Назначить куратора» — прежняя форма в шапке.
   "needs-curator": { actor: ADMIN, profile: profile(), draft: { ...draft({ handoff: null }), responsible: null }, sales: null,
     work: { ...work({ row: queueRow({ flags: ["needs_curator"] }), activity: ACTIVITY_AWAITING }), needsCurator: true } },
+  // Руководитель поступления открыл дело из «Ждут куратора» (248/281): назначает куратора, а права на само
+  // дело нет. Ни «Задачи по делу», ни заметки; задачи, обращения и журнал — «нет доступа», без «Обновите страницу».
+  "assign-only": { actor: { ...CURATOR, displayName: "Руководитель поступления (синтетический)",
+      assignments: [{ label: "Руководитель поступления", scope: { kind: "department" } }],
+      permissionKeys: [...CURATOR.permissionKeys, "case.curator.assign", "task.assign"] },
+    profile: profile({ state: "pending" }),
+    draft: { ...draft({ state: "pending", documents: false, handoff: null, handedOffBy: null }), responsible: null,
+      access: { documents: false, finance: false, studentProfile: false, contract: false }, assignOnly: true,
+      // Как loadFullCase для такого читателя: приёма дела нет, отвечать не на что.
+      handoffAcknowledgement: { organizationId: ORG, studentCaseId: CASE_ID, assignmentEventId: null, canRespond: false, current: null,
+        requestId: uuid("12121212", 16) } },
+    sales: null, notes: { ...NOTES, rows: [] },
+    work: { ...work({ row: queueRow({ state: "pending", flags: ["needs_curator"] }), tasks: { kind: "forbidden" },
+      chat: { kind: "forbidden" }, activity: { kind: "forbidden" } }), needsCurator: true } },
   // Просмотр роли Admin: ничего не пишет — ни «Принять дело», ни задачи, ни заметки, даже если снимок ждёт ответа.
   "preview-awaiting": { actor: { ...ADMIN, presentationRole: "admissions" }, profile: profile(), draft: draft({ handoff: HANDOFF_PENDING }), sales: null,
     work: work({ row: queueRow({ flags: ["awaiting_ack"] }), activity: ACTIVITY_AWAITING }) },

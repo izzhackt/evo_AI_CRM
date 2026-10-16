@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { AdmissionsPipelineBoard } from "@/components/v3/AdmissionsPipelineBoard";
+import { AddStudentDrawer } from "@/components/v3/admissions/AddStudentDrawer";
 import { BoardReset, BoardSearch, BoardSegments } from "@/components/v3/board/Board";
 import { BoardFilters, NavigateSelect } from "@/components/v3/board/BoardToolbar";
 import { PartShell } from "@/components/v3/PartShell";
@@ -19,6 +20,7 @@ import {
   isPlatformApplicationCountryCode,
 } from "@/lib/platform-application-contract";
 import { listStudentPortalActiveCurators } from "@/lib/server/student-portal-curator-options";
+import { readAdmissionsDirectCuratorOptions } from "@/lib/v3/admissions-direct-student-source";
 import { admissionsPipelineTab, country as countryLabel } from "@/lib/v3/wording";
 
 export const dynamic = "force-dynamic";
@@ -89,9 +91,14 @@ export default async function AdmissionsPipelinePart({
   if (view !== undefined) redirect(EVO_DOCS_QUEUE_HREF[view]);
   const query = parseBoardQuery(params);
   const canReadDocuments = !isStaffPreview(actor) && staffHasPermission(actor, "document.read.full");
+  // «Добавить студента» (миграция 281): у держателей `case.create.direct` вне
+  // просмотра роли. Назначающий кураторов (`case.curator.assign`) выбирает
+  // куратора или оставляет дело ждать его; куратор заводит студента себе.
+  const canAddStudent = !isStaffPreview(actor) && staffHasPermission(actor, "case.create.direct");
+  const assignsCurators = !isStaffPreview(actor) && staffHasPermission(actor, "case.curator.assign");
 
   const owner = { organizationId: actor.organizationId, membershipId: actor.membershipId };
-  const [boardResult, curatorsResult, documentsResult, packagesResult] = await Promise.allSettled([
+  const [boardResult, curatorsResult, documentsResult, packagesResult, addCuratorsResult] = await Promise.allSettled([
     readAdmissionsPipelineBoard(actor, {
       country: query.country,
       curatorMembershipId: query.curator,
@@ -111,6 +118,9 @@ export default async function AdmissionsPipelinePart({
     canReadDocuments
       ? readStaffApplicationPackageQueueAction(owner).then((result) => (result.ok ? result.queue : null))
       : Promise.resolve(null),
+    // «Куратор» в «Добавить студента»: только те, кого актёр может назначить
+    // (правило области команды 281), и можно ли оставить дело без куратора.
+    canAddStudent && assignsCurators ? readAdmissionsDirectCuratorOptions(actor) : Promise.resolve(null),
   ]);
   const board = boardResult.status === "fulfilled" ? boardResult.value : null;
   const curatorOptions = curatorsResult.status === "fulfilled" ? curatorsResult.value : [];
@@ -122,6 +132,19 @@ export default async function AdmissionsPipelinePart({
     board && !board.truncated ? board.rows.filter((row) => admissionsPipelineTabOf(row.pipelineStage) === tabKey).length : null;
   const documentsCount = queueCount(documentsResult);
   const packagesCount = queueCount(packagesResult);
+
+  // Чтение списка не удалось: прежний список кураторов организации; базу это
+  // не обходит, а отказ говорит, кого выбрать.
+  const addCurators = addCuratorsResult.status === "fulfilled" && addCuratorsResult.value !== null
+    ? addCuratorsResult.value
+    : { options: curatorOptions, withoutCurator: true };
+  const addStudent = canAddStudent ? (
+    <AddStudentDrawer
+      curator={assignsCurators
+        ? { kind: "choose", options: addCurators.options, withoutCurator: addCurators.withoutCurator }
+        : { kind: "self", membershipId: actor.membershipId }}
+    />
+  ) : null;
 
   const queues = canReadDocuments ? (
     // Одна тихая строка и на телефоне: две ссылки столбиком отодвигали доску
@@ -157,7 +180,16 @@ export default async function AdmissionsPipelinePart({
   ];
 
   return (
-    <PartShell width="board" title="Воронка поступления" action={queues}>
+    <PartShell
+      width="board"
+      title="Воронка поступления"
+      action={queues || addStudent ? (
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+          {queues}
+          {addStudent}
+        </div>
+      ) : undefined}
+    >
       <div className="flex shrink-0 flex-wrap items-center gap-2 @2xl:gap-3">
         <BoardSegments
           label="Разделы воронки поступления"

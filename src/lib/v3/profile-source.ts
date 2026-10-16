@@ -162,6 +162,8 @@ type FullCaseData = Readonly<{
   contract: PlatformCaseContractWorkspace | null;
   handoff: PlatformStudentCaseHandoffContext | null;
   handoffAcknowledgement: HandoffAcknowledgement;
+  /** Читатель «Ждут куратора» без права на само дело (снимок разделов ответил 42501). */
+  assignOnly: boolean;
 }>;
 
 type FinanceSummary = Pick<
@@ -532,8 +534,16 @@ async function loadFullCase(
   const sectionResponse = await client.schema("platform").rpc("staff_case_access_snapshot", {
     p_organization_id: actor.organizationId, p_student_case_id: studentCaseId,
   });
-  if (sectionResponse.error) throw new Error("case_access_unavailable");
-  const access = parseCaseSectionAccess(sectionResponse.data, actor.organizationId, studentCaseId);
+  // «Ждут куратора» (248, 281): дело без куратора читает и тот, кто назначает
+  // ему куратора, хотя case.read.full по самому делу у него нет. Снимок
+  // разделов отвечает такому читателю 42501: дело открывается без разделов и
+  // без чтений передачи (они требуют того же права), с назначением куратора.
+  // Чтение дела (`getPlatformStudentCaseView`, access "full") уже подтвердило право.
+  const assignOnly = sectionResponse.error?.code === "42501";
+  if (sectionResponse.error && !assignOnly) throw new Error("case_access_unavailable");
+  const access: CaseSectionAccess = assignOnly
+    ? { documents: false, finance: false, studentProfile: false, contract: false }
+    : parseCaseSectionAccess(sectionResponse.data, actor.organizationId, studentCaseId);
   const [
     applicationsPage,
     visa,
@@ -551,8 +561,12 @@ async function loadFullCase(
       documents: () => getPlatformCaseDocumentWorkspace(actor, studentCaseId),
       contract: () => getPlatformCaseContractWorkspace(actor, studentCaseId),
     }),
-    getPlatformStudentCaseHandoffContext(actor, studentCaseId),
-    getHandoffAcknowledgement(actor, studentCaseId),
+    assignOnly ? null : getPlatformStudentCaseHandoffContext(actor, studentCaseId),
+    assignOnly
+      ? Object.freeze({
+          organizationId: actor.organizationId, studentCaseId, assignmentEventId: null, canRespond: false, current: null,
+        })
+      : getHandoffAcknowledgement(actor, studentCaseId),
     access.studentProfile && staffHasPermission(actor, "profile.read.full")
       ? getPlatformStudentProfileFields(actor, studentCaseId)
       : null,
@@ -589,6 +603,7 @@ async function loadFullCase(
     visa,
     handoff,
     handoffAcknowledgement,
+    assignOnly,
   };
 }
 
@@ -659,6 +674,7 @@ function fullCaseDetails(
     leadCabinetCase: null,
     contractSignedAt,
     handedOffBy: data.handoff ? { name: data.handoff.actorDisplayName, at: data.handoff.handedOffAt } : null,
+    assignOnly: data.assignOnly,
   };
 }
 
@@ -1121,9 +1137,12 @@ export async function readProfileTarget(
   if (core === null) return null;
 
   const caseId = core.details.admissions?.studentCaseId;
+  // Читатель «Ждут куратора» без права на само дело (248/281): журнал дела
+  // (`staff_student_case_activity`) ему не отвечает, «История» говорит «нет доступа».
+  const assignOnly = core.details.assignOnly === true;
   const [page, history] = await Promise.all([
     readCaseNotes(actor, subject, { limit: 50, cursor: noteCursor }),
-    activity && caseId && staffPresentationCan(actor, "admissions.read")
+    activity && caseId && !assignOnly && staffPresentationCan(actor, "admissions.read")
       ? readProfileActivity(actor, caseId, activity.cursor) : null,
   ]);
   const historyHref = (cursor: ProfileActivityCursor | null) => {
@@ -1141,7 +1160,7 @@ export async function readProfileTarget(
       ...core.profile, timeline: history.events,
       timelineOlderHref: history.nextCursor ? historyHref(history.nextCursor) : null,
       timelineLatestHref: activity?.cursor ? historyHref(null) : null,
-    }) : core.profile,
+    }) : assignOnly ? Object.freeze({ ...core.profile, timeline: [], timelineForbidden: true }) : core.profile,
     notes: Object.freeze({ subject, page }),
   });
 }

@@ -3360,6 +3360,24 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_account_deletion.sql
   fi
+
+  # «Добавить студента» без отдела продаж и импорт клиентов (решения владельца
+  # 16.10.2026). Matched by name, not number, so a renumbering at merge keeps
+  # the hook. Members are modelled like production (coarse role NULL, the 244
+  # bundles) and receive case.create.direct through the migration's own
+  # publication function; the suite proves who may create (a curator only for
+  # itself, the manager within its department or without a curator, the Admin
+  # for anyone; Sales, the Student, no membership and anon refused),
+  # idempotency, stage, profile and money, «Ждут куратора» and the assignment
+  # of a curator-less case (the e1 portal-activation fix), the service-only
+  # import (refused to authenticated and anon, idempotent by external
+  # reference), and that no sales record, handoff, open lead or marketing
+  # cohort row appears.
+  if [[ "$(basename "$migration")" == *_platform_admissions_direct_student.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_admissions_direct_student.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

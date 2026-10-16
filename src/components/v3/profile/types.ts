@@ -145,6 +145,8 @@ export type PersonProfile = Readonly<{
   timeline: readonly ProfileEvent[];
   timelineOlderHref?: string | null;
   timelineLatestHref?: string | null;
+  /** Журнал дела не читается: читатель «Ждут куратора» без права на само дело (248/281). */
+  timelineForbidden?: boolean;
 }>;
 
 export type ProfileActorRole = FixedRole;
@@ -355,6 +357,13 @@ export type ProfileDraft = Readonly<{
    * продаж или это не дело. «Передал» в «Сведениях» Student 360 (Э4).
    */
   handedOffBy?: Readonly<{ name: string; at: string }> | null;
+  /**
+   * Дело открыл читатель «Ждут куратора» (248, 281): он назначает куратора, но
+   * права на само дело у него нет. Задачи, заметки, обращения и журнал дела
+   * ему не читаются и не пишутся: страница говорит «нет доступа», а действий,
+   * которые база отклонит, не предлагает.
+   */
+  assignOnly?: boolean;
 }>;
 
 export const TABS = [

@@ -52775,3 +52775,138 @@ Reviewer notes: ожидает независимого review точного he
 **Слияние и выпуск.** Squash `7d1431a9a2d26f187ef320b531163caee6ab0c14`; миграций нет. CI `38979820215` → release `38979851800` success, проверка с входом пройдена, armed в false. Контейнер на `evo-crm:7d1431a9a…`, healthy, ошибок в журнале нет.
 
 **Не проверено и открыто:** редактор в production глазами Admin (агенты не входят); два сохранения связи «вуз → город» без обновления страницы между ними: побеждает последнее, у RPC связи нет версии (задача на будущую миграцию); полный набор интерфейсных тестов не запускался.
+
+## 2026-10-17 · Поступление: дописать и закрыть импортированные дела (миграция 287, запись до кода)
+
+Записи выше не переписываются. Продолжение миграции 281 (импорт клиентов из
+amoCRM): та же служебная граница `service_role`, тот же актёр (Admin-членство
+владельца), но для дел, которые уже заведены.
+
+```text
+Date: 2026-10-17, workspace timezone.
+Author: Claude Code (Opus 5.5), по поручению ведущего агента.
+Change type: scope, architecture, numbering, data model, validation.
+Affected plan section: поручение владельца 16.10 (импорт клиентов, миграция
+  281), runbook docs/runbooks/admissions-direct-import.md.
+Reason: поручение владельца 17.10: дополнить 24 импортированных дела данными
+  amoCRM и закрыть успешно завершённых студентов Малайзии и Китая, которых
+  заведёт импорт. amoCRM считается правдой, включая этап и куратора: данные из
+  выгрузки перезаписывают то, что уже записано. Импорт 281 только создаёт
+  дело и повторно данные не применяет (повтор той же ссылки возвращает ту же
+  квитанцию), а закрыть дело в production можно сегодня только из интерфейса
+  от имени самого сотрудника. Нужен один служебный вызов, который дописывает,
+  правит и закрывает дело и оставляет честный журнал.
+Decision:
+  1. Номер 287: `287_platform_admissions_direct_update.sql`. На свежем
+     origin/main (f8f566a05) источник миграций содержит 001-286 (284 и 285-286
+     слиты и выпущены 17.10, PR #1205 и #1207); production ledger 001-286
+     (квитанция выше). План телефонии
+     (#1209) ориентирован на 287-293, но номера присваиваются при слиянии,
+     поэтому 287 окончательно сверяется при слиянии: ledger и release-гейт
+     (scripts/fast-release-ledger-gate.mjs) требуют непрерывности, при другом
+     порядке слияния номер и название хука в
+     scripts/test-postgres-authorization.sh (он найден по имени, не по номеру)
+     переименовываются в том же PR.
+  2. Функция `platform.update_admissions_direct_case_v1(p_organization_id,
+     p_actor_membership_id, p_student_case_id, p_update_source, p_external_ref,
+     p_payload, p_reason) RETURNS jsonb`, SECURITY DEFINER, `search_path = ''`,
+     EXECUTE только `service_role`, вызов с `sub` в JWT отклоняется 42501,
+     как у `import_admissions_student_case_v1`. Актёр: активное Admin-членство
+     (`staff_membership_identity.system_role = 'admin'`), с тем же правом
+     `case.create.direct`, что проверяет импорт; для этапа, закрытия, маршрута,
+     анкеты и заметки дополнительно право на дело (`case.update.append`,
+     `case.lifecycle.change`, `case.route.manage`, `profile.manage`) через
+     `staff_can_access`, для куратора правило `admissions_direct_actor_may_name`
+     как в 281.
+  3. Только дела прямого импорта: дело должно быть в
+     `platform_private.admissions_direct_case_receipts` этой организации и
+     иметь `import_source` (квитанции формы «Добавить студента» без источника
+     не принимаются). Иначе `42501 admissions_direct_update_not_imported_case`.
+     Чужие дела функция не трогает.
+  4. Идемпотентность: новая таблица
+     `platform_private.admissions_direct_case_updates` (организация,
+     `update_source`, `external_ref`, дело, актёр, `payload_md5`, итог, время),
+     ключ (организация, источник, ссылка), RLS включён и принудительный, прав
+     у клиентских ролей нет, строки не меняются и не удаляются. Тот же запрос
+     возвращает прежний итог с `replayed: true`; другое тело под той же парой
+     (отпечаток: дело, данные, причина, актёр) - `PT409
+     admissions_direct_update_conflict`. Ошибка при применении откатывает вызов
+     целиком, строка квитанции не пишется, повтор возможен.
+  5. Данные (строгий разбор, лишний ключ `22023 admissions_direct_invalid:<ключ>`,
+     все поля необязательны, пустое значение и null значат «не менять»,
+     присутствующее значение перезаписывает): `student` (имя, фамилия, полное
+     имя, телефон, почта, дата рождения), `parents.mother`/`parents.father`
+     (имя, фамилия, телефон), `education` (текущее образование, английский,
+     китайский, как в 281), `route` (ступень, программа, набор; страна и
+     направление не меняются), `pipelineStage`, `curatorMembershipId`,
+     `amoLeadId`, `note`, `close`. Деньги (`money`, платежи, транши,
+     стоимость) не принимаются: функция их не меняет, чтобы не задвоить
+     финансы. Валидаторы и нормализация берутся из 281 без копий:
+     `admissions_direct_text`, `admissions_direct_phone`,
+     `admissions_direct_phone_keys`, `admissions_direct_date`,
+     `normalize_student_profile_field_value`.
+  6. Контакты. Телефон и почта клиента обновляются, если нормализованное
+     значение не принадлежит другому активному клиенту организации (телефон
+     ищется по всем написаниям, `admissions_direct_phone_keys`). При
+     совпадении эта часть не меняется (ни клиент, ни поле анкеты), а в ответе
+     возвращается `contact_conflict`: список пар `{field, other_client_id}`
+     (список, потому что телефон и почта могут принадлежать разным клиентам),
+     без персональных данных; остальные части применяются. Блокировки
+     контактов те же, что у 281 и ручного лида продаж. Имя клиента и дела
+     выводится из имени и фамилии только если одна из частей действительно
+     изменилась и известны обе; полное имя `name` главнее.
+  7. Порядок внутри вызова: анкета и контакты, образование, маршрут,
+     куратор, этап, привязка amoCRM, заметка, закрытие последним. Куратор:
+     другой куратор назначается общей `assign_student_case_curator_authorized_e1`
+     (журнал `case.curator.set` от принципала `auth:<Admin>`, как у импорта,
+     потому что e1 не меняется), тот же куратор не делает ничего. Этап:
+     прежняя логика `move_case_pipeline_v2` без `current_actor_authority`
+     (позиция на доске сбрасывает скрытие, версию позиции увеличивает
+     триггер 251), только для дела в работе (`pending`, `active`); перенос
+     закрытого дела отклоняется `55000 admissions_direct_update_case_closed`,
+     тот же этап ничего не делает. Закрытие: правила 246 (`active` -> `closed`,
+     исходы `enrolled`, `declined`, `not_admitted`, `other`; для `other`
+     заметка обязательна до 500 знаков в одну строку, для остальных пустая),
+     событие `student_case_lifecycle_events` и журнал `case.lifecycle.change`
+     с исходом, `admissions_version` + 1; уже закрытое дело не меняется,
+     ответ `already_closed: true`; дело без куратора (`pending`) не закрывается
+     (`55000 admissions_direct_update_case_not_active`, ничего не применяется).
+  8. amoCRM. `amoLeadId` (цифры, 1-20, без ведущего нуля) привязывается к
+     лиду дела записью `platform.external_identifiers` (`source_system =
+     'amocrm'`, `external_object_type = 'lead'`, как 'client' и 'lead' в 084) и
+     записью `subject_provenance` (`imported`). Таблица неизменяемая, поэтому
+     та же привязка ничего не делает, а этот номер на другом лиде или клиенте,
+     как и другой amo-номер на том же лиде, даёт `PT409
+     admissions_direct_update_amo_conflict` без применения остального.
+     Привязка к клиенту не делается: одна запись относится к одному субъекту,
+     а номер контакта amoCRM в данных не приходит.
+  9. Журнал. Все строки с `actor_principal = 'service:admissions-import'`,
+     профилем Admin-актёра и причиной `p_reason`; `request_id` =
+     `uuid_generate_v5(uuid_generate_v5(ns, 'evo:admissions-direct-update:<org>:
+     <source>:<ref>'), 'admissions-direct-update:<операция>')`. Действия из
+     allowlist P7A: `student.profile.upsert` (анкета и контакты),
+     `case.route.change`, `case.pipeline.move`, `note.create`,
+     `case.lifecycle.change`; `case.curator.set` пишет e1. Одно новое действие
+     `lead.amocrm.link` (привязка amoCRM), оно пока вне allowlist журнала
+     администратора: список действий и `src/lib/platform-audit.ts` не меняются
+     в этом срезе, поле видно в `platform.audit_events`. В состояниях журнала
+     нет значений телефонов, почт и дат, только названия изменённых полей.
+  10. Ответ: `status: 'updated'`, `student_case_id`, `changed` (изменившиеся
+     части, пустой список если всё уже было таким), `state`, `pipeline_stage`,
+     `replayed`, при необходимости `contact_conflict`, `closed: true` или
+     `already_closed: true`.
+  11. Приложение (TypeScript) не меняется. Нового клиентского вызова нет.
+Validation impact: новый набор `supabase/tests/platform_admissions_direct_update.sql`
+  (после миграции, хук по имени в scripts/test-postgres-authorization.sh): отказ
+  с `sub` в JWT, для authenticated и anon, для дела не из импорта и для чужой
+  организации; перезапись имени, телефона, почты, даты рождения; конфликт
+  телефона и почты; родители; маршрут; этап (версия растёт, журнал); смена и
+  повтор куратора; привязка amoCRM, повтор и конфликт; заметка; закрытие для
+  каждого исхода, уже закрытое и дело без куратора; повтор и `PT409`; лишние и
+  запрещённые ключи; принципалы журнала. Затем полный
+  scripts/test-postgres-authorization.sh на OrbStack. Production не
+  затрагивается: миграция не применяется, функция не вызывается.
+Reviewer notes: ожидает независимого review точного head PR. Применение 287 в
+  production, выпуск и сам вызов функции остаются отдельными решениями
+  владельца.
+```

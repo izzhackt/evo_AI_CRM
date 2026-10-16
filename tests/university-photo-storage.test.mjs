@@ -18,9 +18,12 @@ import {
   universityPhotoPublicUrl,
 } from "../scripts/portal/migrate-university-photos.mjs";
 import {
+  resolveUniversityPhotoSrcSet,
   resolveUniversityPhotoUrl,
+  universityPhotoSrcSet,
   universityPhotoUrl,
   UNIVERSITY_PHOTO_PUBLIC_BASE_URL,
+  UNIVERSITY_PHOTO_RENDER_BASE_URL,
 } from "../src/lib/university-photo-url.ts";
 
 // PORT-9d (docs/PLAN_CHANGES.md): managed-хранение фото вузов. Манифест
@@ -324,4 +327,32 @@ test("CLI: offline default plan, explicit modes only, no secret leakage", async 
   assert.equal(exitCode, 1);
   assert.match(written, /configuration_invalid/u);
   assert.equal(manifestWrites, 0);
+});
+
+test("reduced copies (srcset) exist only for verified migrated photos and keep the aspect ratio (план A)", () => {
+  const render = UNIVERSITY_PHOTO_RENDER_BASE_URL;
+  assert.equal(render, UNIVERSITY_PHOTO_PUBLIC_BASE_URL.replace("/object/public/", "/render/image/public/"));
+  assert.equal(
+    resolveUniversityPhotoSrcSet("alpha", FIXTURE_PHOTOS, { alpha: migratedEntry }, render, [480, 800]),
+    `${render}/alpha.jpg?width=480&height=2500&resize=contain&quality=70 480w, ${render}/alpha.jpg?width=800&height=2500&resize=contain&quality=70 800w`,
+  );
+  for (const entry of [{ ...migratedEntry, migrated: false }, { ...migratedEntry, status: "ineligible" }, { ...migratedEntry, objectPath: "beta.jpg" }]) {
+    assert.equal(resolveUniversityPhotoSrcSet("alpha", FIXTURE_PHOTOS, { alpha: entry }, render, [480]), null, "a hotlink is never resized by us");
+  }
+  assert.equal(resolveUniversityPhotoSrcSet("alpha", FIXTURE_PHOTOS, { alpha: migratedEntry }, render, []), null);
+  assert.equal(resolveUniversityPhotoSrcSet(null, FIXTURE_PHOTOS, { alpha: migratedEntry }, render, [480]), null);
+  assert.equal(resolveUniversityPhotoSrcSet("toString", FIXTURE_PHOTOS, { alpha: migratedEntry }, render, [480]), null);
+
+  // Real manifest: every migrated photo gets reduced copies, every hotlink none.
+  for (const [key, entry] of Object.entries(manifest.entries)) {
+    const srcSet = universityPhotoSrcSet(key, [480, 800]);
+    if (entry.status === "verified" && entry.migrated === true) {
+      assert.match(srcSet, new RegExp(`^${render.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/${key}\\.[a-z]+\\?width=480&height=2500&resize=contain&quality=70 480w, `), key);
+    } else {
+      assert.equal(srcSet, null, key);
+    }
+  }
+  // The frame falls back to the original src once before it reports a failure.
+  const frame = readFileSync(new URL("../src/components/platform/universities/UniversityPhotoFrame.tsx", import.meta.url), "utf8");
+  assert.match(frame, /onError=\{\(\) => \(reduced \? setOriginalOnly\(src\) : setFailedUrl\(src\)\)\}/u);
 });

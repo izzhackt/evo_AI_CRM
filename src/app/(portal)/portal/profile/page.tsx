@@ -92,25 +92,16 @@ export default async function ProfilePage() {
   const consultationStrings = getPortalStrings("consultation", locale);
   const deletionStrings = getPortalStrings("accountDeletion", locale);
 
-  let profile: PortalProfile | null = null;
-  try {
-    profile = await readOwnPortalProfile();
-  } catch {
-    profile = null;
-  }
-
+  // Три независимых чтения — одним заходом (план A, 16.10.2026).
   // Запрос консультации (PORT-5b): история и открытый запрос читаются
   // отдельно от профиля; сбой чтения — честная строка, не пустая история.
   // Удаление аккаунта (280): статус своего запроса читается отдельно от
   // профиля 196, который не знает «в обработке».
-  const deletion = await readOwnAccountDeletion();
-
-  let consultationHistory: readonly ConsultationReceipt[] | null = null;
-  try {
-    consultationHistory = await readOwnConsultationRequests();
-  } catch {
-    consultationHistory = null;
-  }
+  const [profile, deletion, consultationHistory] = await Promise.all([
+    readOwnPortalProfile().catch((): PortalProfile | null => null),
+    readOwnAccountDeletion(),
+    readOwnConsultationRequests().catch((): readonly ConsultationReceipt[] | null => null),
+  ]);
 
   return (
     <main className="pt-page">

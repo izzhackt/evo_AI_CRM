@@ -5,9 +5,23 @@ import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import { usePathname, useRouter } from "next/navigation";
 import { startTransition, useEffect, useRef, useState } from "react";
-import { loadStudentPortalNotificationState } from "@/lib/student-portal-notification-updates";
+import { loadStudentPortalNotificationState, type StudentPortalUpdateSection } from "@/lib/student-portal-notification-updates";
 import { isStaleDeployment, noteStaleDeployment } from "@/lib/stale-deployment";
 import { useStaleDeployment } from "@/lib/use-stale-deployment";
+
+/** Опрос раз в минуту; возврат на вкладку — не чаще раза в 30 с (план A). */
+const POLL_MS = 60_000;
+const RESUME_MIN_MS = 30_000;
+
+/** Раздел, чьи данные опрос сверяет подписью; null — только колокольчик. */
+function updateSection(pathname: string): StudentPortalUpdateSection | null {
+  if (pathname === "/portal/home") return "home";
+  if (pathname === "/portal") return "admission";
+  if (pathname === "/portal/documents") return "documents";
+  if (pathname === "/portal/payments") return "payments";
+  if (pathname === "/portal/notifications" || pathname.startsWith("/portal/notifications/")) return "notifications";
+  return null;
+}
 
 export function PortalNotificationUpdates({ locale }: { locale: Locale }) {
   const strings = getPortalStrings("shell", locale);
@@ -24,20 +38,28 @@ export function PortalNotificationUpdates({ locale }: { locale: Locale }) {
     if (stale) return;
     let disposed = false;
     let running = false;
-    const refreshPage = ["/portal/home", "/portal", "/portal/documents", "/portal/applications", "/portal/payments", "/portal/notifications"].includes(pathname)
-      || pathname.startsWith("/portal/notifications/");
-    async function update(refreshContent = true) {
+    let lastUpdate = 0;
+    // Подпись данных раздела на момент последнего чтения. Первое чтение на
+    // входе в раздел только запоминает её: содержимое уже пришло с маршрутом.
+    let known: string | null = null;
+    const section = updateSection(pathname);
+    async function update() {
       if (disposed || running || isStaleDeployment() || document.visibilityState !== "visible") return;
       running = true;
+      lastUpdate = Date.now();
       try {
-        const result = await loadStudentPortalNotificationState();
+        const result = await loadStudentPortalNotificationState(section);
         if (disposed) return;
         if (!result.ok) { setFailed(true); setUnread(null); return; }
         setFailed(false);
         setUnread(result.unread);
-        // Refresh operational pages even when no notification was emitted (for
-        // example, approval). Assessment runners keep their own save lifecycle.
-        if (refreshContent && refreshPage) {
+        // Раздел перечитывается, только если его данные изменились (в том
+        // числе без уведомления, например одобрение). Тренажёры тестов
+        // живут своим циклом сохранения.
+        if (result.signature === null) return;
+        const changed = known !== null && result.signature !== known;
+        known = result.signature;
+        if (changed && section !== null) {
           startTransition(() => router.refresh());
         }
       } catch (cause) {
@@ -48,21 +70,22 @@ export function PortalNotificationUpdates({ locale }: { locale: Locale }) {
       }
     }
     retry.current = () => { void update(); };
-    const timer = window.setInterval(() => { void update(); }, 30_000);
-    const resume = () => { void update(); };
+    const timer = window.setInterval(() => { void update(); }, POLL_MS);
+    const resume = () => { if (Date.now() - lastUpdate >= RESUME_MIN_MS) void update(); };
+    const online = () => { void update(); };
     document.addEventListener("visibilitychange", resume);
     window.addEventListener("focus", resume);
-    window.addEventListener("online", resume);
-    // Route entry already fetched its content. Read the badge now, but only
-    // periodic/resume/manual updates need another operational-page render.
-    void update(false);
+    window.addEventListener("online", online);
+    // Route entry already fetched its content: this read sets the badge and
+    // the section signature.
+    void update();
     return () => {
       disposed = true;
       retry.current = () => {};
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("focus", resume);
-      window.removeEventListener("online", resume);
+      window.removeEventListener("online", online);
     };
   }, [pathname, router, stale]);
 

@@ -96,15 +96,31 @@ export function parseStaffAccessSnapshot(data: unknown, authUserId: string, emai
     platformAccessVersion: accessVersion, assignments, permissionKeys };
 }
 
+/** Interprets one successful `staff_access_snapshot` answer for verified claims. */
+export function platformAuthorityFromSnapshot(data: unknown, claims: JwtPayload): PlatformAuthorityResult {
+  if (!isUuid(claims.sub) || typeof claims.email !== "string" || !claims.email.trim()) return { status: "invalid", authority: null };
+  const authority = parseStaffAccessSnapshot(data, claims.sub, claims.email);
+  return authority ? { status: "authenticated", authority } : { status: "invalid", authority: null };
+}
+
+export type PlatformAuthorityRead = Readonly<{
+  result: PlatformAuthorityResult;
+  /** The raw successful answer, for the request-bound proxy handoff. */
+  rows: Readonly<{ staff?: unknown }>;
+}>;
+
 /**
  * Supabase verifies the JWT; the RPC verifies the live staff identity and reads
  * current assignments. An old JWT access version cannot prolong revoked rights.
  * Student authority remains in the separate owner-private Student resolver.
  */
-export async function readVerifiedPlatformAuthority(client: SupabaseClient, claims: JwtPayload): Promise<PlatformAuthorityResult> {
-  if (!isUuid(claims.sub) || typeof claims.email !== "string" || !claims.email.trim()) return { status: "invalid", authority: null };
+export async function readPlatformAuthoritySnapshot(client: SupabaseClient, claims: JwtPayload): Promise<PlatformAuthorityRead> {
+  if (!isUuid(claims.sub) || typeof claims.email !== "string" || !claims.email.trim()) return { result: { status: "invalid", authority: null }, rows: {} };
   const { data, error } = await client.schema("platform").rpc("staff_access_snapshot");
-  if (error) return { status: "unavailable", authority: null };
-  const authority = parseStaffAccessSnapshot(data, claims.sub, claims.email);
-  return authority ? { status: "authenticated", authority } : { status: "invalid", authority: null };
+  if (error) return { result: { status: "unavailable", authority: null }, rows: {} };
+  return { result: platformAuthorityFromSnapshot(data, claims), rows: { staff: data } };
+}
+
+export async function readVerifiedPlatformAuthority(client: SupabaseClient, claims: JwtPayload): Promise<PlatformAuthorityResult> {
+  return (await readPlatformAuthoritySnapshot(client, claims)).result;
 }

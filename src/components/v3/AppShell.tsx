@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useEffect,
@@ -109,7 +109,7 @@ function MenuLink({
   onNavigate: () => void;
 }) {
   return (
-    <Link
+    <IntentPrefetchLink
       href={link.href}
       aria-current={activeId === link.id ? "page" : undefined}
       onNavigate={onNavigate}
@@ -118,7 +118,7 @@ function MenuLink({
     >
       <Icon name={LINK_ICONS[link.id]} size={20} className="shrink-0" />
       <span className={cn("min-w-0", rail && "md:max-2xl:sr-only")}>{link.label}</span>
-    </Link>
+    </IntentPrefetchLink>
   );
 }
 
@@ -330,7 +330,7 @@ function TabBar({
           const label = shellTabLabel(link);
           return (
             <li key={link.id}>
-              <Link
+              <IntentPrefetchLink
                 href={link.href}
                 aria-current={activeId === link.id ? "page" : undefined}
                 aria-label={label.name}
@@ -342,7 +342,7 @@ function TabBar({
                   <Icon name={LINK_ICONS[link.id]} size={20} />
                 </span>
                 <span className={TAB_LABEL}>{label.text}</span>
-              </Link>
+              </IntentPrefetchLink>
             </li>
           );
         })}
@@ -493,13 +493,13 @@ export function AppShell({
         data-testid="v3-shell-topbar"
         className="flex h-[var(--shell-top)] shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-4 md:hidden"
       >
-        <Link
+        <IntentPrefetchLink
           href={home}
           aria-label="EVO Admissions — начало работы"
           className={`inline-flex min-h-11 shrink-0 items-center rounded-nav ${FOCUS}`}
         >
           <EvoLogo width={88} />
-        </Link>
+        </IntentPrefetchLink>
         {previewRole !== null ? (
           <span className="t-caption min-w-0 truncate rounded-full bg-surface-2 px-3 py-1 text-fg-2">Просмотр: {previewRole}</span>
         ) : null}
@@ -525,28 +525,28 @@ export function AppShell({
         {sheetOpen ? (
           <div className="flex h-[var(--shell-top)] shrink-0 items-center border-b border-border px-4 md:hidden">
             <h2 id={headingId} className="sr-only">Меню</h2>
-            <Link
+            <IntentPrefetchLink
               href={home}
               aria-label="EVO Admissions — начало работы"
               onNavigate={closeAfterNavigation}
               className={`inline-flex min-h-11 shrink-0 items-center rounded-nav ${FOCUS}`}
             >
               <EvoLogo width={88} />
-            </Link>
+            </IntentPrefetchLink>
           </div>
         ) : null}
 
         <nav aria-label="Разделы" data-shell-menu-body="" className="flex min-h-0 flex-1 flex-col">
           {/* Строка логотипа по центру совпадает с заголовком страницы (`--shell-page-top` в v3.css). */}
           <div className={cn("hidden shrink-0 px-5 pb-4 pt-3.5 md:flex", rail && "md:max-2xl:hidden")}>
-            <Link
+            <IntentPrefetchLink
               href={home}
               aria-label="EVO Admissions — начало работы"
               onNavigate={closeAfterNavigation}
               className={`inline-flex rounded-nav ${FOCUS} focus-visible:outline-offset-4`}
             >
               <EvoLogo width={112} />
-            </Link>
+            </IntentPrefetchLink>
           </div>
 
           {previewRole !== null ? (
@@ -581,7 +581,7 @@ export function AppShell({
           {canCreateTask || !previewing ? (
             <div className={cn("flex shrink-0 items-center gap-2 px-3 pb-3 max-md:pt-3", rail && "md:max-2xl:flex-col md:max-2xl:px-2 md:max-2xl:pt-3")}>
               {canCreateTask ? (
-                <Link
+                <IntentPrefetchLink
                   href="/v3/tasks?create=staff"
                   // Э7: диалог «Новая задача» на месте, с контекстом страницы; из листа «Ещё» фокус потом — на «Ещё».
                   onClick={(event) => {
@@ -593,7 +593,7 @@ export function AppShell({
                 >
                   <Icon name="plus" size={18} className="shrink-0" />
                   <span className={cn("truncate", rail && "md:max-2xl:sr-only")}>Создать задачу</span>
-                </Link>
+                </IntentPrefetchLink>
               ) : null}
               {!previewing ? (
                 <StaffNotifications initialPage={initialNotifications} onCountChange={setUnread} triggerProps={hint("Уведомления")} />

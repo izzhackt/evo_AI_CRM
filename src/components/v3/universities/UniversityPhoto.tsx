@@ -1,7 +1,7 @@
 import { Icon } from "@/components/icons";
 import { UniversityPhotoFrame } from "@/components/platform/universities/UniversityPhotoFrame";
 import { UNIVERSITY_PHOTOS, type UniversityContent } from "@/lib/platform-university-catalog";
-import { universityPhotoUrl } from "@/lib/university-photo-url";
+import { universityPhotoSrcSet, universityPhotoUrl } from "@/lib/university-photo-url";
 import { photoAuthorRu, photoLicenseRu } from "@/lib/v3/university-view";
 
 /**
@@ -26,7 +26,7 @@ export function UniversityPhoto({ content, variant }: { content: Pick<University
       return <span aria-hidden="true" className={empty}><Icon name="building" size={20} /></span>;
     }
     return (
-      <UniversityPhotoFrame src={src} alt="" className="size-12 shrink-0 overflow-hidden rounded-nav border border-border bg-surface-2" imageClassName="size-full object-cover" emptyClassName={empty} failedText="">
+      <UniversityPhotoFrame src={src} srcSet={universityPhotoSrcSet(content.photoKey, [96, 160])} sizes="48px" alt="" className="size-12 shrink-0 overflow-hidden rounded-nav border border-border bg-surface-2" imageClassName="size-full object-cover" emptyClassName={empty} failedText="">
         {null}
       </UniversityPhotoFrame>
     );
@@ -34,7 +34,7 @@ export function UniversityPhoto({ content, variant }: { content: Pick<University
   const emptyClassName = "flex aspect-[4/3] items-center justify-center rounded-card border border-border bg-surface-2 px-6 text-center t-body-compact text-fg-3";
   if (!photo || src === null) return <div className={emptyClassName}>Проверенное фото кампуса пока не добавлено</div>;
   return (
-    <UniversityPhotoFrame src={src} alt={photo.caption} className="min-w-0" imageClassName="aspect-[4/3] w-full rounded-card border border-border bg-surface-2 object-cover" emptyClassName={emptyClassName} failedText="Не удалось загрузить фото кампуса">
+    <UniversityPhotoFrame src={src} srcSet={universityPhotoSrcSet(content.photoKey, [480, 800])} sizes="(min-width: 1024px) 320px, 100vw" priority alt={photo.caption} className="min-w-0" imageClassName="aspect-[4/3] w-full rounded-card border border-border bg-surface-2 object-cover" emptyClassName={emptyClassName} failedText="Не удалось загрузить фото кампуса">
       <figcaption className="t-meta mt-1.5 text-fg-3 [overflow-wrap:anywhere]" data-photo-credit="">
         Фото: <a href={photo.sourceUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-fg">{photoAuthorRu(photo.author)}<span className="sr-only"> (в новой вкладке)</span></a>
         {" · "}

@@ -474,6 +474,50 @@ test("the student portal notification poller stops on a stale action and the she
   }
 });
 
+test("the student portal poller re-reads its section only when the data signature changes (план A)", async () => {
+  const browser = fakeBrowser();
+  const restore = browser.install();
+  const runtime = createRuntime();
+  try {
+    const { shared } = await staleModules(runtime);
+    const answers = [
+      { ok: true, unread: 1, signature: "a" },
+      { ok: true, unread: 1, signature: "a" },
+      { ok: true, unread: 2, signature: "b" },
+    ];
+    const sections = [];
+    const refreshes = [];
+    // Next keeps one router object per page; a new one per render would re-run the effect.
+    const router = { refresh: () => refreshes.push("refresh") };
+    const { PortalNotificationUpdates } = compile("src/components/portal/PortalNotificationUpdates.tsx", (id) => shared(id) ?? ({
+      "next/link": { default: () => null },
+      "next/navigation": { usePathname: () => "/portal/documents", useRouter: () => router },
+      "@/lib/portal/i18n": portalI18n,
+      "@/lib/student-portal-notification-updates": {
+        loadStudentPortalNotificationState: async (section) => { sections.push(section); return answers.shift(); },
+      },
+    })[id]);
+    runtime.render(PortalNotificationUpdates, { locale: "ru" });
+    await runtime.flush();
+    assert.deepEqual(sections, ["documents"], "the entry read asks for the open section");
+    assert.deepEqual(refreshes, [], "the entry read only remembers the signature");
+    assert.deepEqual([...browser.intervals.values()].map(({ ms }) => ms), [60000], "one 60 s poller");
+    browser.dispatch("window", "focus");
+    await runtime.flush();
+    assert.equal(sections.length, 1, "a focus right after a read is throttled");
+    for (const { handler } of [...browser.intervals.values()]) handler();
+    await runtime.flush();
+    assert.deepEqual(refreshes, [], "unchanged data: no page re-render");
+    for (const { handler } of [...browser.intervals.values()]) handler();
+    await runtime.flush();
+    assert.deepEqual(refreshes, ["refresh"], "changed data: exactly one re-render");
+    assert.equal(sections.length, 3);
+  } finally {
+    runtime.unmount();
+    restore();
+  }
+});
+
 function messagesThread(runtime, shared, actions) {
   return compile("src/components/portal/messages/MessagesThread.tsx", (id) => shared(id) ?? ({
     "@/lib/portal/messages": {

@@ -49,6 +49,23 @@ targets:
       # Один список стран продукта (282): тот же файл, что у веба и CRM.
       - path: ../src/lib/study-countries.json
         buildPhase: resources
+      # «Путь поступления» (S4, 284): те же семь файлов, что читает веб
+      # (src/lib/portal/country-timeline.ts); правила выбора в
+      # docs/portal/country-timeline-contract.md.
+      - path: ../src/content/timelines/cn.json
+        buildPhase: resources
+      - path: ../src/content/timelines/my.json
+        buildPhase: resources
+      - path: ../src/content/timelines/ae.json
+        buildPhase: resources
+      - path: ../src/content/timelines/tr.json
+        buildPhase: resources
+      - path: ../src/content/timelines/it.json
+        buildPhase: resources
+      - path: ../src/content/timelines/cz.json
+        buildPhase: resources
+      - path: ../src/content/timelines/undecided.json
+        buildPhase: resources
     settings:
       base:
         PRODUCT_NAME: "EVO admissions"
@@ -112,6 +129,20 @@ targets:
       - path: ../src/lib/university-geo-library.json
         buildPhase: resources
       - path: ../src/lib/study-countries.json
+        buildPhase: resources
+      - path: ../src/content/timelines/cn.json
+        buildPhase: resources
+      - path: ../src/content/timelines/my.json
+        buildPhase: resources
+      - path: ../src/content/timelines/ae.json
+        buildPhase: resources
+      - path: ../src/content/timelines/tr.json
+        buildPhase: resources
+      - path: ../src/content/timelines/it.json
+        buildPhase: resources
+      - path: ../src/content/timelines/cz.json
+        buildPhase: resources
+      - path: ../src/content/timelines/undecided.json
         buildPhase: resources
     settings:
       base:

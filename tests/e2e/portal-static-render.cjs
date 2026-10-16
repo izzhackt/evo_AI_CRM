@@ -78,6 +78,10 @@ const { AssessmentRunner } = require(join(ROOT, "src/components/portal/tests/Ass
 const { AssessmentResults } = require(join(ROOT, "src/components/portal/tests/AssessmentResults.tsx"));
 // PORT-9c: «Главная» кабинета.
 const { HomeView } = require(join(ROOT, "src/components/portal/home/HomeView.tsx"));
+// S4: «Путь поступления» на «Главной», настоящий контент src/content/timelines.
+const { CountryTimeline } = require(join(ROOT, "src/components/portal/home/CountryTimeline.tsx"));
+const { TIMELINE_UNDECIDED, selectCountryTimeline } = require(join(ROOT, "src/lib/portal/country-timeline.ts"));
+const { STUDY_COUNTRY_UNDECIDED, studyCountryOptions } = require(join(ROOT, "src/lib/study-countries.ts"));
 
 const PORTAL_CSS = readFileSync(join(ROOT, "src/app/(portal)/portal.css"), "utf8");
 
@@ -474,6 +478,19 @@ const consultationStrings = getPortalStrings("consultation", "ru");
 // (LearningModule движка 198, AssessmentCatalog E2, PublishedUniversity 148).
 const homeStrings = getPortalStrings("home", "ru");
 const HOME_NOW = new Date("2026-09-20T12:00:00Z");
+const timelineStrings = getPortalStrings("timeline", "ru");
+const timelineOptions = studyCountryOptions("ru", { undecided: true }).map((option) => ({
+  code: option.code === STUDY_COUNTRY_UNDECIDED ? TIMELINE_UNDECIDED : option.code,
+  label: option.label,
+}));
+/** Карточка «Выберите страну» (выбора нет) и путь Китая (страна из анкеты). */
+const timelineChoose = createElement(CountryTimeline, {
+  view: null, source: "none", readFailed: false, options: timelineOptions, strings: timelineStrings,
+});
+const timelineChina = createElement(CountryTimeline, {
+  view: selectCountryTimeline("CN", { locale: "ru", today: "2026-10-16" }),
+  source: "application", readFailed: false, options: timelineOptions, strings: timelineStrings,
+});
 
 const learningModulesDraftFixture = [
   {
@@ -737,6 +754,9 @@ const surfaces = [
           assessments: assessmentCatalogFixture,
           favorites: [favoriteUniversityFixture],
           favoritesTotal: 1,
+          // Не передавался с #929: HomeView падал на recentUniversities.length.
+          recentUniversities: [],
+          journey: timelineChoose,
           locale: "ru",
           now: HOME_NOW,
         }),
@@ -759,6 +779,8 @@ const surfaces = [
           assessments: assessmentCatalogNoDraftFixture,
           favorites: [],
           favoritesTotal: 0,
+          recentUniversities: [],
+          journey: timelineChina,
           locale: "ru",
           now: HOME_NOW,
         }),

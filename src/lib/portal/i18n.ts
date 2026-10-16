@@ -1708,8 +1708,8 @@ const applyKy: Readonly<Record<ApplyKey, string>> = {
 const homeRu = {
   kicker: "Кабинет студента",
   title: "Главная",
-  leadApproved: "Продолжение уроков, тесты и сохранённые университеты.",
-  leadAssisted: "Ближайшие действия дела, уроки и сохранённые университеты.",
+  leadApproved: "Путь поступления, уроки, тесты и сохранённые университеты.",
+  leadAssisted: "Ближайшие действия дела, путь поступления, уроки и сохранённые университеты.",
   caseHeading: "Ближайшие действия дела",
   caseUnavailable: "Не удалось загрузить действия по делу. Обновите страницу.",
   caseMore: "Ещё действий: {count}",
@@ -1738,8 +1738,8 @@ type HomeKey = keyof typeof homeRu;
 const homeKy: Readonly<Record<HomeKey, string>> = {
   kicker: "Студенттин кабинети",
   title: "Башкы бет",
-  leadApproved: "Сабактарды улантуу, тесттер жана сакталган университеттер.",
-  leadAssisted: "Иш боюнча жакынкы аракеттер, сабактар жана сакталган университеттер.",
+  leadApproved: "Тапшыруу жолу, сабактар, тесттер жана сакталган университеттер.",
+  leadAssisted: "Иш боюнча жакынкы аракеттер, тапшыруу жолу, сабактар жана сакталган университеттер.",
   caseHeading: "Иш боюнча жакынкы аракеттер",
   caseUnavailable: "Иш боюнча аракеттер жүктөлгөн жок. Баракты жаңыртыңыз.",
   caseMore: "Дагы аракеттер: {count}",
@@ -1761,6 +1761,63 @@ const homeKy: Readonly<Record<HomeKey, string>> = {
   recentPublished: "Кошулган күнү",
   recentEmpty: "Акыркы 30 күндө жаңы университеттер кошулган жок. Бардык жеткиликтүү университеттер каталогдо.",
   recentUnavailable: "Жаңы университеттер жүктөлгөн жок. Баракты жаңыртыңыз.",
+};
+
+/**
+ * «Путь поступления» на «Главной» (S4, план §8.4; контракт
+ * docs/portal/country-timeline-contract.md). Тексты шагов приходят из
+ * src/content/timelines/*.json; здесь только подписи блока и выбора страны.
+ * Названия стран и «Пока не решил» берутся из src/lib/study-countries.json.
+ */
+const timelineRu = {
+  heading: "Путь поступления",
+  headingCountry: "Путь поступления: {country}",
+  changeCountry: "Сменить страну",
+  cancelChange: "Отмена",
+  chooseTitle: "Выберите страну",
+  chooseLead: "Покажем шаги поступления и примерные сроки для этой страны.",
+  changeLead: "Путь обновится сразу после выбора.",
+  choiceGroup: "Страна поступления",
+  current: "Сейчас выбрано",
+  saving: "Сохраняем выбор…",
+  saveError: "Не удалось сохранить выбор, попробуйте ещё раз.",
+  readError: "Не удалось загрузить сохранённый выбор. Выберите страну или обновите страницу.",
+  sourceApplication: "Страна из вашей анкеты.",
+  sourceCase: "Страна из вашего дела.",
+  stepsLabel: "Шаги поступления",
+  stepOf: "Шаг {n} из {total}.",
+  period: "Сроки:",
+  checklist: "Что входит в шаг",
+  doneWhen: "Когда шаг пройден",
+  external: "откроется на другом сайте",
+  notesLabel: "Важно знать",
+} as const;
+
+type TimelineKey = keyof typeof timelineRu;
+
+// KY: носитель языка вычитывает в PR.
+const timelineKy: Readonly<Record<TimelineKey, string>> = {
+  heading: "Тапшыруу жолу",
+  headingCountry: "Тапшыруу жолу: {country}",
+  changeCountry: "Өлкөнү алмаштыруу",
+  cancelChange: "Жокко чыгаруу",
+  chooseTitle: "Өлкөнү тандаңыз",
+  chooseLead: "Ушул өлкөгө тапшыруунун кадамдарын жана болжолдуу мөөнөттөрүн көрсөтөбүз.",
+  changeLead: "Тандагандан кийин жол дароо жаңырат.",
+  choiceGroup: "Тапшыра турган өлкө",
+  current: "Азыр тандалган",
+  saving: "Тандоо сакталууда…",
+  saveError: "Тандоо сакталган жок, кайра аракет кылыңыз.",
+  readError: "Сакталган тандоо жүктөлгөн жок. Өлкөнү тандаңыз же баракты жаңыртыңыз.",
+  sourceApplication: "Өлкө анкетаңыздан алынды.",
+  sourceCase: "Өлкө ишиңизден алынды.",
+  stepsLabel: "Тапшыруунун кадамдары",
+  stepOf: "{total} кадамдын {n}-кадамы.",
+  period: "Мөөнөттөр:",
+  checklist: "Кадамга эмнелер кирет",
+  doneWhen: "Кадам качан бүтөт",
+  external: "башка сайтта ачылат",
+  notesLabel: "Билүү маанилүү",
 };
 
 /** Все портальные словари, по неймспейсам. Экспорт — для контракт-теста. */
@@ -2151,6 +2208,7 @@ export const PORTAL_DICTIONARIES = {
   preparations: { ru: preparationsRu, ky: preparationsKy },
   shell: { ru: shellRu, ky: shellKy },
   home: { ru: homeRu, ky: homeKy },
+  timeline: { ru: timelineRu, ky: timelineKy },
   admission: { ru: admissionRu, ky: admissionKy },
   messages: { ru: messagesRu, ky: messagesKy },
   universities: { ru: universitiesRu, ky: universitiesKy },

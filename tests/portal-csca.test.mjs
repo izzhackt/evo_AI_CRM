@@ -6,10 +6,15 @@ import {
   CSCA_FIGURE_DARK_PALETTE,
   CscaParseError,
   clockOffsetMs,
+  cscaDayLabel,
   cscaErrorCode,
+  cscaMomentDayLabel,
   darkFigureSvg,
   daysBetween,
+  figureMinWidth,
   formatClock,
+  itemSecondsChanged,
+  laterClockOffset,
   parseCscaAnswerReceipt,
   parseCscaHome,
   parseCscaLessonView,
@@ -18,6 +23,7 @@ import {
   parseCscaReviewReceipt,
   parseCscaTestAttempt,
   remainingSeconds,
+  serverAcceptsSave,
   splitMathText,
   svgDataUrl,
   testSavePayload,
@@ -148,6 +154,67 @@ test("the test clock follows the server time with the client offset", () => {
   assert.equal(formatClock(241), "04:01");
   assert.equal(formatClock(3725), "1:02:05");
   assert.equal(daysBetween("2026-10-16", "2026-11-14"), 29);
+});
+
+test("a save receipt never winds the test clock back; saves end at deadline + grace", () => {
+  // Монотонное время страницы: первая квитанция пришла на 1000 мс, повтор
+  // того же сохранения на 31 000 мс принёс старый serverNow (до правки сервера).
+  const first = clockOffsetMs("2026-10-16T10:00:00.000Z", 1_000);
+  const replayed = clockOffsetMs("2026-10-16T10:00:00.000Z", 31_000);
+  const fresh = clockOffsetMs("2026-10-16T10:00:30.200Z", 31_000);
+  assert.equal(laterClockOffset(first, replayed), first, "an older serverNow keeps the clock");
+  assert.equal(laterClockOffset(first, fresh), fresh, "a later estimate wins");
+  assert.equal(laterClockOffset(null, replayed), replayed);
+  const deadline = "2026-10-16T10:04:00.000Z";
+  assert.equal(remainingSeconds(deadline, laterClockOffset(first, replayed), 31_000), 210);
+  assert.equal(serverAcceptsSave(deadline, 15, first, 1_000 + 254_000), true);
+  assert.equal(serverAcceptsSave(deadline, 15, first, 1_000 + 255_000), false);
+});
+
+test("time on an item counts as unsaved once its rounded seconds change", () => {
+  const items = [{ itemKey: "csca-math-a" }, { itemKey: "csca-math-b" }];
+  assert.equal(itemSecondsChanged(items, { "csca-math-a": 12.4 }, { "csca-math-a": 12 }), false);
+  assert.equal(itemSecondsChanged(items, { "csca-math-a": 12.6 }, { "csca-math-a": 12 }), true);
+  assert.equal(itemSecondsChanged(items, { "csca-math-a": 12, "csca-math-b": 0.4 }, { "csca-math-a": 12 }), false);
+  assert.equal(itemSecondsChanged(items, { "csca-math-a": 12, "csca-math-b": 7 }, { "csca-math-a": 12 }), true);
+  assert.equal(itemSecondsChanged(items, { "csca-math-x": 40 }, {}), false, "only form items count");
+});
+
+test("completion dates are Bishkek dates, the day fields stay as they are", () => {
+  // 19:30 UTC 16 октября это 01:30 17 октября в Бишкеке (UTC+6).
+  assert.equal(cscaMomentDayLabel("2026-10-16T19:30:00+00:00", "ru"), "17 октября");
+  assert.equal(cscaMomentDayLabel("2026-10-16T17:59:59+00:00", "ru"), "16 октября");
+  assert.equal(cscaMomentDayLabel("2026-10-16T18:00:00+00:00", "ru"), "17 октября");
+  assert.equal(cscaDayLabel("2026-10-17", "ru"), "17 октября");
+  for (const page of ["src/app/(portal)/portal/csca/page.tsx", "src/app/(portal)/portal/csca/math/progress/page.tsx"]) {
+    assert.doesNotMatch(source(page), /cscaDayLabel\([^)]*completedAt/u, page);
+  }
+});
+
+test("figures never shrink below the label floor: 12 px text, 11 px indices", () => {
+  const svg = (text, span) => `<svg viewBox="0 0 400 300"><text x="1" y="2" font-size="${text}">a<tspan dy="4" font-size="${span}">2</tspan></text></svg>`;
+  assert.equal(figureMinWidth(svg(14, 13), 400), 343);
+  assert.equal(figureMinWidth(svg(12, 13), 400), 400);
+  assert.equal(figureMinWidth(svg(16, 11), 400), 400);
+  assert.equal(figureMinWidth(svg(24, 22), 400), 200);
+  assert.equal(figureMinWidth('<svg viewBox="0 0 360 300"><text font-size="13">1</text></svg>', 360), 333);
+  // Все рисунки контента помещаются в карточку телефона 375 px (343 px) без прокрутки.
+  const index = JSON.parse(source("docs/design/portal/content/csca/math/figures/index.json"));
+  for (const figure of index.figures) {
+    const width = Number(figure.view_box.split(" ")[2]);
+    const minWidth = figureMinWidth(source(`docs/design/portal/content/csca/math/${figure.file}`), width);
+    assert.ok(minWidth <= 343, `${figure.figure_key}: ${minWidth} px`);
+  }
+});
+
+test("the timed runner keeps a monotonic clock, saves time on finish and reads a known draft first", () => {
+  const runner = source("src/components/portal/csca/TimedTestRunner.tsx");
+  assert.doesNotMatch(runner, /Date\.now\(\)/u, "the countdown must not follow the computer clock");
+  assert.match(runner, /laterClockOffset\(offsetRef\.current, clockOffsetMs\(response\.receipt\.serverNow, receivedAt\)\)/u);
+  assert.match(runner, /await flush\(\{ settle: true \}\)/u);
+  assert.match(runner, /serverAcceptsSave\(/u);
+  assert.match(runner, /readCscaTestAttemptAction\(knownDraft\)/u);
+  assert.match(runner, /onClick=\{restart\}>\{strings\.repeat\}/u, "«Пройти ещё раз» resets the runner, a link to the same page did not");
 });
 
 test("test saves send only form items, unique flags and clamped seconds", () => {

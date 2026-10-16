@@ -1356,7 +1356,10 @@ $$;
 
 -- Запись теста: start/save/complete с квитанциями по request_id (как 198).
 -- start и complete возвращают свежий ответ (serverNow меняется), квитанция
--- хранит только id попытки; save возвращает сохранённую квитанцию.
+-- хранит только id попытки; save возвращает сохранённую квитанцию, но тоже со
+-- свежим serverNow: повтор не переводит часы клиента назад. start по форме,
+-- черновик которой истёк и завершён этим же вызовом, отдаёт эту завершённую
+-- попытку (итог и разбор), а не новую: ученик вернулся именно к ней.
 CREATE FUNCTION platform_private.write_learning_test(
   p_operation TEXT, p_form_id UUID, p_attempt_id UUID, p_expected_revision BIGINT,
   p_answers JSONB, p_flags JSONB, p_item_seconds JSONB, p_request_id UUID
@@ -1366,6 +1369,7 @@ DECLARE
   attempt platform.learning_test_attempts%ROWTYPE;
   form platform_private.learning_test_forms%ROWTYPE;
   previous_request platform_private.learning_test_requests%ROWTYPE;
+  expired platform.learning_test_attempts%ROWTYPE;
   response JSONB; receipt JSONB; input_hash TEXT; now_time TIMESTAMPTZ;
 BEGIN
   IF p_request_id IS NULL OR p_operation IS NULL OR p_operation NOT IN ('start', 'save', 'complete')
@@ -1397,7 +1401,7 @@ BEGIN
       RAISE EXCEPTION 'Learning request was already used' USING ERRCODE = '22023';
     END IF;
     IF p_operation = 'save' THEN
-      RETURN previous_request.receipt;
+      RETURN previous_request.receipt || jsonb_build_object('serverNow', clock_timestamp());
     END IF;
     PERFORM platform_private.learning_tests_finalize_expired(actor.organization_id, actor.membership_id);
     SELECT * INTO attempt FROM platform.learning_test_attempts WHERE id = previous_request.attempt_id;
@@ -1411,12 +1415,21 @@ BEGIN
     END IF;
     PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
       'learning-test-form:' || actor.membership_id::TEXT || ':' || form.id::TEXT, 0));
+    SELECT * INTO expired FROM platform.learning_test_attempts
+      WHERE organization_id = actor.organization_id AND student_membership_id = actor.membership_id
+        AND form_id = form.id AND status = 'draft'
+        AND clock_timestamp() > deadline_at + platform_private.learning_test_grace()
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1;
     PERFORM platform_private.learning_tests_finalize_expired(actor.organization_id, actor.membership_id);
     SELECT * INTO attempt FROM platform.learning_test_attempts
       WHERE organization_id = actor.organization_id AND student_membership_id = actor.membership_id
         AND form_id = form.id AND status = 'draft'
       FOR UPDATE;
-    IF NOT FOUND THEN
+    IF NOT FOUND AND expired.id IS NOT NULL THEN
+      -- «Продолжить тест» после срока: итог той попытки, без новой.
+      SELECT * INTO attempt FROM platform.learning_test_attempts WHERE id = expired.id;
+    ELSIF NOT FOUND THEN
       now_time := clock_timestamp();
       INSERT INTO platform.learning_test_attempts (organization_id, student_membership_id, form_id,
         started_at, deadline_at, created_at, updated_at)
@@ -1863,11 +1876,13 @@ END $$;
 -- Повторение с интервалами.
 -- ---------------------------------------------------------------------------
 CREATE FUNCTION platform.learning_review_v2(p_track TEXT)
-RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE actor RECORD; today DATE; items JSONB; figures JSONB; counts RECORD;
 BEGIN
   SELECT * INTO actor FROM platform_private.require_learning_actor_read();
   PERFORM platform_private.require_csca_track(p_track);
+  -- Брошенный тест: его неверные ответы попадают в «Ошибки» сразу (§7.5).
+  PERFORM platform_private.learning_tests_settle(actor.organization_id, actor.membership_id);
   today := platform_private.learning_local_date(clock_timestamp());
   WITH due AS (
     SELECT review.*, platform_private.learning_track_item(p_track, review.item_key) AS item
@@ -1910,6 +1925,8 @@ DECLARE
   previous_request platform_private.learning_review_requests%ROWTYPE;
   grade JSONB; response JSONB; input_hash TEXT; today DATE; is_correct BOOLEAN; retired BOOLEAN := FALSE;
 BEGIN
+  -- Сначала актор: сотрудник получает 42501 и при неверных аргументах (§1).
+  PERFORM platform_private.require_learning_actor_read();
   PERFORM platform_private.require_csca_track(p_track);
   IF p_request_id IS NULL OR p_item_key IS NULL OR p_answer IS NULL OR jsonb_typeof(p_answer) <> 'object'
     OR octet_length(p_answer::TEXT) > 1024
@@ -2076,6 +2093,8 @@ DECLARE
   previous platform_private.learning_item_reports%ROWTYPE; report platform_private.learning_item_reports%ROWTYPE;
   message TEXT := btrim(COALESCE(p_message, ''));
 BEGIN
+  -- Сначала актор: сотрудник получает 42501 и при неверных аргументах (§1).
+  PERFORM platform_private.require_learning_actor_read();
   PERFORM platform_private.require_csca_track(p_track);
   IF p_request_id IS NULL OR p_item_key IS NULL OR char_length(message) NOT BETWEEN 1 AND 500
     OR message ~ '[\x01-\x09\x0b-\x1f\x7f]'
@@ -2142,9 +2161,16 @@ CREATE FUNCTION platform.set_learning_target_session_v1(p_track TEXT, p_session_
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE actor RECORD; saved platform.learning_track_preferences%ROWTYPE;
 BEGIN
+  -- Сначала актор: сотрудник получает 42501 и при неверных аргументах (§1).
+  PERFORM platform_private.require_learning_actor_read();
   PERFORM platform_private.require_csca_track(p_track);
-  IF p_session_key IS NOT NULL AND NOT EXISTS (SELECT 1 FROM platform_private.csca_exam_sessions session
-    WHERE session.session_key = p_session_key)
+  -- Только сессия, которая ещё не закончилась (по Бишкеку), как на главной.
+  IF p_session_key IS NOT NULL AND NOT EXISTS (SELECT 1 FROM (
+      SELECT DISTINCT ON (candidate.session_key) candidate.*
+      FROM platform_private.csca_exam_sessions candidate
+      WHERE candidate.session_key = p_session_key
+      ORDER BY candidate.session_key, candidate.published_at DESC, candidate.id DESC) session
+    WHERE session.exam_to >= platform_private.learning_local_date(clock_timestamp()))
   THEN
     RAISE EXCEPTION 'Invalid learning session' USING ERRCODE = '22023';
   END IF;

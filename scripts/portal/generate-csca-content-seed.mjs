@@ -176,7 +176,15 @@ export function checkNoCalculator(text, path) {
 // ---------------------------------------------------------------------------
 // SVG profile (mirrors platform_private.learning_svg_ok of migration 285).
 // ---------------------------------------------------------------------------
+// Figure width on the reference phone (375 px screen, 16 px gutters, the
+// figure spans the card): the label floor of §15 holds there without scroll.
+export const PHONE_FIGURE_WIDTH = 343;
+
 export function checkSvg(svg, viewBox, path) {
+  const size = /^0 0 ([0-9]{3})(?:\.[0-9]+)? ([0-9]{2,3})(?:\.[0-9]+)?$/u.exec(viewBox);
+  assert.ok(size && Number(size[1]) >= 360 && Number(size[1]) <= 450 && Number(size[2]) >= 100
+    && Number(size[2]) <= 600, `${path}: viewBox width 360..450, height 100..600`);
+  const viewBoxWidth = Number(size[1]);
   assert.ok(Buffer.byteLength(svg, "utf8") <= 24576, `${path}: SVG larger than 24 KB`);
   assert.ok(svg.startsWith("<svg "), `${path}: SVG must start with <svg`);
   assert.ok(svg.trimEnd().endsWith("</svg>"), `${path}: SVG must end with </svg>`);
@@ -201,6 +209,11 @@ export function checkSvg(svg, viewBox, path) {
         // 12 units for text; 11 only for a sub- or superscript tspan.
         const minimum = name === "tspan" ? 11 : 12;
         assert.ok(Number(value) >= minimum, `${path}: font-size ${value} on <${name}> is below ${minimum}`);
+        // The same floor in CSS px on a 375 px phone, where the figure spans
+        // the card: 343 px for the viewBox width (contract §15).
+        const onPhone = (Number(value) * PHONE_FIGURE_WIDTH) / viewBoxWidth;
+        assert.ok(onPhone >= minimum - 1e-9,
+          `${path}: font-size ${value} on <${name}> renders ${onPhone.toFixed(1)} px on a phone, below ${minimum} px`);
       }
       if (attrName === "xmlns") assert.equal(value, "http://www.w3.org/2000/svg", `${path}: xmlns`);
       if (name === "svg" && attrName === "viewBox") rootViewBox = value;
@@ -213,9 +226,6 @@ export function checkSvg(svg, viewBox, path) {
     assert.ok(palette.has(colour[0].toLowerCase()), `${path}: colour ${colour[0]} is not in the palette`);
   }
   assert.equal(rootViewBox, viewBox, `${path}: viewBox differs from the index`);
-  const size = /^0 0 ([0-9]{3})(?:\.[0-9]+)? ([0-9]{2,3})(?:\.[0-9]+)?$/u.exec(viewBox);
-  assert.ok(size && Number(size[1]) >= 360 && Number(size[1]) <= 450 && Number(size[2]) >= 100
-    && Number(size[2]) <= 600, `${path}: viewBox width 360..450, height 100..600`);
   // Visible text uses the real minus sign U+2212, not a hyphen.
   for (const text of svg.matchAll(/<(text|tspan)[^<>]*>([^<]*)/gu)) {
     assert.ok(!/(^|[\s(=])-(?=\s*[\dA-Za-z(])/u.test(text[2]), `${path}: use U+2212 for minus in "${text[2]}"`);

@@ -25,14 +25,18 @@
 --          review (keys and разборы) is hidden until completion, the mock has
 --          no early finish, the diagnostic has, completion is idempotent, a
 --          late save is refused, an expired draft is finished by the server on
---          the first read (completion = timeout), receipts replay;
+--          the first read (completion = timeout), receipts replay (a save
+--          replay with a fresh serverNow), a start on a form whose draft
+--          expired returns that finished attempt, «Ошибки» finish expired
+--          tests first;
 --   (v)    spaced review: due items only, boxes 1..4 with 1/3/7/14 days,
 --          retirement after box 4, receipts replay;
 --   (vi)   progress, «Сообщить об ошибке» (Admin sees the text, never the
---          author), the target session;
+--          author), the target session (an ended session is refused);
 --   (vii)  privacy: Admin, Sales, Curator, another Student of the same
 --          organization, a Student of another organization, anon and
---          service_role are refused (42501); no table grants; no audit rows;
+--          service_role are refused (42501), also with invalid arguments;
+--          no table grants; no audit rows;
 --   (viii) account deletion (280) erases every new state table of a simple
 --          account automatically.
 BEGIN;
@@ -604,13 +608,18 @@ SELECT pg_temp.p285_assert(
   :'p285_diag_save'::JSONB ->> 'revision' = '2' AND :'p285_diag_save'::JSONB ->> 'answeredCount' = '2'
     AND :'p285_diag_save'::TEXT NOT LIKE '%correct%',
   'a save replaces the draft state and reveals nothing about correctness');
+SELECT pg_sleep(0.01);
+SELECT platform.save_learning_test_v1(:'p285_diag_attempt', 1,
+  jsonb_build_object('csca-math-exp-log-007', 'a', 'csca-math-derivative-007',
+    :'p285_keys'::JSONB ->> 'csca-math-derivative-007'),
+  '["csca-math-line-circle-007"]', '{"csca-math-exp-log-007": 40, "csca-math-derivative-007": 70}',
+  pg_temp.p285_id(923))::TEXT AS p285_diag_save_replay \gset
 SELECT pg_temp.p285_assert(
-  platform.save_learning_test_v1(:'p285_diag_attempt', 1,
-    jsonb_build_object('csca-math-exp-log-007', 'a', 'csca-math-derivative-007',
-      :'p285_keys'::JSONB ->> 'csca-math-derivative-007'),
-    '["csca-math-line-circle-007"]', '{"csca-math-exp-log-007": 40, "csca-math-derivative-007": 70}',
-    pg_temp.p285_id(923))::TEXT = :'p285_diag_save',
-  'the save receipt replays');
+  (:'p285_diag_save_replay'::JSONB - 'serverNow') = (:'p285_diag_save'::JSONB - 'serverNow')
+    AND (:'p285_diag_save_replay'::JSONB ->> 'serverNow')::TIMESTAMPTZ
+      > (:'p285_diag_save'::JSONB ->> 'serverNow')::TIMESTAMPTZ
+    AND (:'p285_diag_save_replay'::JSONB ->> 'serverNow')::TIMESTAMPTZ >= clock_timestamp() - INTERVAL '5 seconds',
+  'the save receipt replays with a fresh serverNow, so a replay never winds a client clock back');
 SELECT pg_temp.p285_assert(
   pg_temp.p285_error(format('SELECT platform.save_learning_test_v1(%L, 1, ''{}'', ''[]'', ''{}'', %L)',
     :'p285_diag_attempt', pg_temp.p285_id(924))) = '40001'
@@ -724,6 +733,54 @@ SELECT pg_temp.p285_assert(
   AND pg_temp.p285_error('DELETE FROM platform_private.learning_test_requests') = '55000',
   'completed attempts, the deadline of a draft, the answer log and receipts are immutable even for the SQL owner');
 
+-- «Продолжить тест» after the deadline: a start on a form whose draft expired
+-- (and is finished by that very call) returns the finished attempt with its
+-- result and review, never a fresh attempt; the next start opens a new one.
+SET request.jwt.claims TO :'p285_student_a';
+SET ROLE authenticated;
+SELECT platform.start_learning_test_v1(:'p285_mock', pg_temp.p285_id(954)) ->> 'attemptId' AS p285_mock3 \gset
+SELECT platform.save_learning_test_v1(:'p285_mock3', 1,
+  jsonb_build_object('csca-math-line-circle-006', :'p285_keys'::JSONB ->> 'csca-math-line-circle-006'),
+  '[]', '{}', pg_temp.p285_id(955)) IS NOT NULL AS ok \gset
+RESET ROLE;
+SELECT pg_temp.p285_age_attempt(:'p285_mock3', 470);
+SET request.jwt.claims TO :'p285_student_a';
+SET ROLE authenticated;
+SELECT platform.start_learning_test_v1(:'p285_mock', pg_temp.p285_id(956))::TEXT AS p285_mock3_resume \gset
+SELECT pg_temp.p285_assert(
+  :'p285_mock3' NOT IN (:'p285_mock2', :'p285_mock_attempt')
+    AND :'p285_mock3_resume'::JSONB ->> 'attemptId' = :'p285_mock3'
+    AND :'p285_mock3_resume'::JSONB ->> 'status' = 'completed'
+    AND :'p285_mock3_resume'::JSONB ->> 'completion' = 'timeout'
+    AND :'p285_mock3_resume'::JSONB #>> '{result,answeredCount}' = '1'
+    AND :'p285_mock3_resume'::JSONB #>> '{result,correctCount}' = '1'
+    AND jsonb_array_length(:'p285_mock3_resume'::JSONB -> 'review') = 6
+    AND platform.start_learning_test_v1(:'p285_mock', pg_temp.p285_id(956)) ->> 'attemptId' = :'p285_mock3',
+  'a start on a form whose draft expired returns that finished attempt with its review, also on replay');
+SELECT platform.start_learning_test_v1(:'p285_mock', pg_temp.p285_id(957)) ->> 'attemptId' AS p285_mock4 \gset
+SELECT pg_temp.p285_assert(
+  :'p285_mock4' NOT IN (:'p285_mock3', :'p285_mock2', :'p285_mock_attempt')
+    AND platform.learning_test_attempt_v1(:'p285_mock4') ->> 'status' = 'draft',
+  'after the finished attempt was shown, the next start opens a new attempt');
+
+-- «Ошибки» finish an abandoned test first: its wrong answer is in the bank
+-- in the very same read (contract §7.5).
+SELECT platform.save_learning_test_v1(:'p285_mock4', 1,
+  jsonb_build_object('csca-math-exp-log-006',
+    CASE WHEN :'p285_keys'::JSONB ->> 'csca-math-exp-log-006' = 'a' THEN 'b' ELSE 'a' END),
+  '[]', '{}', pg_temp.p285_id(958)) IS NOT NULL AS ok \gset
+SELECT platform.learning_review_v2('csca-math') ->> 'activeCount' AS p285_active_before \gset
+RESET ROLE;
+SELECT pg_temp.p285_age_attempt(:'p285_mock4', 470);
+SET request.jwt.claims TO :'p285_student_a';
+SET ROLE authenticated;
+SELECT platform.learning_review_v2('csca-math') ->> 'activeCount' AS p285_active_after \gset
+RESET ROLE;
+SELECT pg_temp.p285_assert(
+  (SELECT status = 'completed' AND completion = 'timeout' FROM platform.learning_test_attempts WHERE id = :'p285_mock4')
+    AND :'p285_active_after'::INTEGER = :'p285_active_before'::INTEGER + 1,
+  'the review read finishes an expired draft first, so its wrong answer reaches «Ошибки» at once');
+
 -- ===========================================================================
 -- (v) Spaced review.
 -- ===========================================================================
@@ -798,7 +855,7 @@ SELECT platform.learning_track_progress_v1('csca-math')::TEXT AS p285_progress \
 SELECT pg_temp.p285_assert(
   :'p285_progress'::JSONB #>> '{coverage,topicsTotal}' = '28'
     AND :'p285_progress'::JSONB #>> '{coverage,topicsWithCompletedLesson}' = '1'
-    AND jsonb_array_length(:'p285_progress'::JSONB -> 'tests') = 3
+    AND jsonb_array_length(:'p285_progress'::JSONB -> 'tests') = 5
     AND :'p285_progress'::JSONB #>> '{streak,current}' = '1'
     AND :'p285_progress'::JSONB #>> '{streak,timeZone}' = 'Asia/Bishkek'
     AND :'p285_progress'::JSONB #>> '{pace,budgetSeconds}' = '75'
@@ -828,6 +885,21 @@ SELECT pg_temp.p285_assert(
     AND pg_temp.p285_error('SELECT platform.set_learning_target_session_v1(''csca-math'', ''2030-01'')') = '22023'
     AND platform.set_learning_target_session_v1('csca-math', NULL) -> 'targetSessionKey' = 'null'::JSONB,
   'the target session is stored per Student and track; unknown sessions are refused');
+RESET ROLE;
+-- A session that has already ended (by the Bishkek date) is neither listed on
+-- the home nor accepted as the target.
+INSERT INTO platform_private.csca_exam_sessions (session_key, exam_from, exam_to, source_url, verified_on)
+VALUES ('2026-06', '2026-06-13', '2026-06-14', 'https://csca.cn/about/examintro', '2026-10-16');
+SET request.jwt.claims TO :'p285_student_a';
+SET ROLE authenticated;
+SELECT pg_temp.p285_assert(
+  pg_temp.p285_failure('SELECT platform.set_learning_target_session_v1(''csca-math'', ''2026-06'')')
+      = '22023:Invalid learning session'
+    AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(platform.learning_track_home_v1('csca-math') -> 'sessions') session
+      WHERE session ->> 'sessionKey' = '2026-06')
+    AND platform.set_learning_target_session_v1('csca-math', '2027-01') ->> 'targetSessionKey' = '2027-01'
+    AND platform.set_learning_target_session_v1('csca-math', NULL) -> 'targetSessionKey' = 'null'::JSONB,
+  'a session that has ended is refused as the target, a coming one is accepted');
 RESET ROLE;
 
 SET request.jwt.claims TO :'p285_admin';
@@ -861,7 +933,20 @@ INSERT INTO p285_calls (sql) VALUES
     pg_temp.p285_id(984))),
   ('SELECT platform.learning_track_progress_v1(''csca-math'')'),
   (format('SELECT platform.report_learning_item_v1(''csca-math'', ''csca-math-exp-log-001'', ''x'', %L)', pg_temp.p285_id(985))),
-  ('SELECT platform.set_learning_target_session_v1(''csca-math'', ''2026-12'')');
+  ('SELECT platform.set_learning_target_session_v1(''csca-math'', ''2026-12'')'),
+  -- Invalid arguments still answer 42501 to everyone who is not the Student.
+  ('SELECT platform.learning_track_home_v1(''nope'')'),
+  ('SELECT platform.learning_modules_v2(''nope'')'),
+  ('SELECT platform.learning_review_v2(''nope'')'),
+  ('SELECT platform.learning_track_progress_v1(''nope'')'),
+  (format('SELECT platform.record_learning_review_v1(''nope'', ''csca-math-derivative-005'', ''{"selected":"a"}'', %L)',
+    pg_temp.p285_id(991))),
+  (format('SELECT platform.record_learning_review_v1(''csca-math'', ''csca-math-derivative-005'', ''[]'', %L)',
+    pg_temp.p285_id(992))),
+  (format('SELECT platform.report_learning_item_v1(''nope'', ''csca-math-exp-log-001'', ''x'', %L)', pg_temp.p285_id(993))),
+  (format('SELECT platform.report_learning_item_v1(''csca-math'', ''csca-math-exp-log-001'', ''  '', %L)', pg_temp.p285_id(994))),
+  ('SELECT platform.set_learning_target_session_v1(''nope'', ''2026-12'')'),
+  ('SELECT platform.set_learning_target_session_v1(''csca-math'', ''2030-01'')');
 
 CREATE TEMP TABLE p285_peer_calls (sql TEXT NOT NULL);
 GRANT SELECT ON p285_peer_calls TO authenticated;

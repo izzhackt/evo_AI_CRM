@@ -32,4 +32,3 @@ export function sessionLabels(sessions: CscaSession[], locale: Locale, strings: 
       : strings.sessionRegistrationPending,
   }]));
 }
-

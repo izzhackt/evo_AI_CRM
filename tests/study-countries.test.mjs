@@ -8,6 +8,7 @@ import { countryLabel, localizedCountryLabel } from "../src/lib/student-applicat
 import { PLATFORM_APPLICATION_COUNTRIES, isPlatformApplicationCountryCode } from "../src/lib/platform-application-contract.ts";
 import { WEBSITE_ENQUIRY_COUNTRIES, WEBSITE_ENQUIRY_LEGACY_COUNTRIES } from "../src/lib/website-enquiry-contract.ts";
 import { isStudentUniversityCountryFilter, universityCountryFilterOptions, universityCountryLabel } from "../src/lib/portal/universities.ts";
+import { countryCodeFromSlug, resolveUniversitiesRoute } from "../src/lib/portal/university-index.ts";
 import { country as crmCountry } from "../src/lib/v3/wording.ts";
 
 // Один список стран продукта (решение владельца 16.10.2026, миграция 282).
@@ -83,7 +84,12 @@ test("the student catalogue filter is the six countries, not the 249-region menu
   assert.equal(universityCountryLabel("AE", "ru"), "ОАЭ");
   assert.doesNotMatch(read("src/lib/platform-university-catalog.ts"), /UNIVERSITY_COUNTRIES/);
   assert.doesNotMatch(read("src/components/portal/universities/Catalog.tsx"), /UNIVERSITY_COUNTRIES|localeCompare/);
-  assert.match(read("src/app/(portal)/portal/universities/page.tsx"), /if \(!isStudentUniversityCountryFilter\(filters\.country\)\) notFound\(\);/);
+  // S3: страна в адресе — только из шести (иначе 404), прежний ?country= другой страны — тоже 404.
+  assert.equal(countryCodeFromSlug("cz"), "CZ");
+  assert.equal(countryCodeFromSlug("pl"), null);
+  assert.equal(resolveUniversitiesRoute({ country: "PL" }).kind, "invalid");
+  assert.match(read("src/app/(portal)/portal/universities/page.tsx"), /if \(route\.kind === "invalid"\) notFound\(\);/);
+  assert.match(read("src/app/(portal)/portal/universities/country/[code]/page.tsx"), /countryCodeFromSlug\(route\.code\) \?\? notFound\(\)/);
 });
 
 function draft(destinationCountries) {

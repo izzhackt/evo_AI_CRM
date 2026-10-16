@@ -3,7 +3,8 @@ import "server-only";
 import type { ActiveStudentPortalActor } from "../student-portal-auth";
 import { createSupabaseServerClient } from "../supabase/server";
 import { readStudentAssessmentAttempt, readStudentAssessments } from "../v3/student-assessment-source";
-import { readStudentUniversitiesComplete } from "./university-catalog-reader";
+import type { PublishedUniversity } from "../platform-university-catalog.ts";
+import { UniversityNotFoundError, readStudentUniversityDetail, readStudentUniversityIndex } from "./university-index-source";
 import { readStudentUniversities, reviewedUniversityNameForPhotoKey } from "../v3/university-source";
 import {
   parseProfessionCard,
@@ -56,10 +57,11 @@ const CATALOGUE_QUERY_LIMIT = 100;
  * Сначала точечно: по имени проверенного шаблона для каждого photoKey —
  * одна страница `student_university_catalog` на связь, все параллельно.
  * Совпадение решает строгое сравнение photoKey в ответе базы. Если хоть одна
- * связь не нашлась или поиск не удался, читается весь каталог, как раньше
- * (те же страницы, что у карты, см. readStudentUniversitiesComplete).
- * Ненайденный photoKey или программа — честный текст без ссылки, а не
- * фиктивный переход.
+ * связь не нашлась или поиск не удался, вместо пяти страниц всего каталога
+ * (план 7.2) вуз ищется по photoKey в индексе шести стран (одна выдача,
+ * повторный показ из кэша по версии), а его программы приходят со страницы
+ * вуза одним вызовом на вуз, все параллельно. Ненайденный photoKey или
+ * программа: честный текст без ссылки, а не фиктивный переход.
  */
 export async function resolveProfessionPrograms(
   actor: ActiveStudentPortalActor,
@@ -81,8 +83,20 @@ export async function resolveProfessionPrograms(
       // Точечный поиск не удался — ниже прежнее полное чтение.
     }
   }
-  const universities = await readStudentUniversitiesComplete(actor, ALL_UNIVERSITIES);
-  return resolveLinkedPrograms(refs, universities);
+  const index = await readStudentUniversityIndex(actor);
+  const wanted = new Set(refs.map((ref) => ref.institution_photo_key));
+  const ids = [...new Set(index.universities
+    .filter((item) => item.photoKey !== null && wanted.has(item.photoKey))
+    .map((item) => item.id))];
+  const universities = await Promise.all(ids.map((id) => readStudentUniversityDetail(id).then(
+    (detail): PublishedUniversity | null => detail.university,
+    (error: unknown) => {
+      // Вуз сняли с публикации между двумя чтениями: связь без ссылки.
+      if (error instanceof UniversityNotFoundError) return null;
+      throw error;
+    },
+  )));
+  return resolveLinkedPrograms(refs, universities.filter((item): item is PublishedUniversity => item !== null));
 }
 
 /**

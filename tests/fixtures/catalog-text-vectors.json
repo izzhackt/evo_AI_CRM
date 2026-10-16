@@ -1,0 +1,598 @@
+{
+  "schema": "evo-catalog-text-vectors/v1",
+  "about": "Shared vectors for platform_private.catalog_text_ok / catalog_url_ok / catalog_agency_url (migration 283) and catalogText / catalogUrl / catalogAgencyUrl (src/lib/catalog-text.ts). Both supabase/tests/platform_catalog_geography_costs.sql and tests/catalog-text.test.mjs must agree with every ok value. Generated, edit by hand only together with both tests.",
+  "text": [
+    {
+      "case": "plain Cyrillic",
+      "value": "Ханчжоу",
+      "max": 100,
+      "ok": true
+    },
+    {
+      "case": "Latin with typographic apostrophe",
+      "value": "Xi’an Jiaotong-Liverpool University",
+      "max": 300,
+      "ok": true
+    },
+    {
+      "case": "Turkish letters",
+      "value": "Boğaziçi Üniversitesi",
+      "max": 300,
+      "ok": true
+    },
+    {
+      "case": "Chinese",
+      "value": "杭州 西湖",
+      "max": 100,
+      "ok": true
+    },
+    {
+      "case": "no-break space inside",
+      "value": "1\u00a0000 юаней",
+      "max": 100,
+      "ok": true
+    },
+    {
+      "case": "ordinary space inside",
+      "value": "Шан хай",
+      "max": 100,
+      "ok": true
+    },
+    {
+      "case": "thin space inside",
+      "value": "6\u2009%",
+      "max": 100,
+      "ok": true
+    },
+    {
+      "case": "ideographic space inside",
+      "value": "杭州\u3000西湖",
+      "max": 100,
+      "ok": true
+    },
+    {
+      "case": "single character at max 1",
+      "value": "a",
+      "max": 1,
+      "ok": true
+    },
+    {
+      "case": "exactly max code points",
+      "value": "яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя",
+      "max": 100,
+      "ok": true
+    },
+    {
+      "case": "one over max",
+      "value": "яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "astral characters counted as code points at max",
+      "value": "😀😀",
+      "max": 2,
+      "ok": true
+    },
+    {
+      "case": "astral characters over max",
+      "value": "😀😀😀",
+      "max": 2,
+      "ok": false
+    },
+    {
+      "case": "combining mark counts as its own code point",
+      "value": "é",
+      "max": 2,
+      "ok": true
+    },
+    {
+      "case": "combining mark over max",
+      "value": "é",
+      "max": 1,
+      "ok": false
+    },
+    {
+      "case": "empty",
+      "value": "",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "space only",
+      "value": " ",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "no-break space only",
+      "value": "\u00a0",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "trailing space",
+      "value": "Шанхай ",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "leading space",
+      "value": " Шанхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "trailing no-break space (F12)",
+      "value": "Шанхай\u00a0",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "leading no-break space",
+      "value": "\u00a0Шанхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "trailing narrow no-break space",
+      "value": "Шанхай\u202f",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "trailing thin space",
+      "value": "Шанхай\u2009",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "trailing en quad",
+      "value": "Шанхай\u2000",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "trailing hair space",
+      "value": "Шанхай\u200a",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "trailing ogham space",
+      "value": "Шанхай\u1680",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "trailing medium mathematical space",
+      "value": "Шанхай\u205f",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "trailing ideographic space",
+      "value": "Шанхай\u3000",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "soft hyphen inside",
+      "value": "Шан\u00adхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "soft hyphen at end",
+      "value": "Шанхай\u00ad",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "zero-width space inside",
+      "value": "Шан\u200bхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "zero-width space at start",
+      "value": "\u200bШанхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "zero-width non-joiner",
+      "value": "Шан\u200cхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "zero-width joiner",
+      "value": "Шан\u200dхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "left-to-right mark",
+      "value": "Шан\u200eхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "right-to-left mark",
+      "value": "Шан\u200fхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "right-to-left override",
+      "value": "Шан\u202eхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "left-to-right isolate",
+      "value": "Шан\u2066хай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "pop directional isolate",
+      "value": "Шан\u2069хай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "word joiner",
+      "value": "Шан\u2060хай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "invisible separator",
+      "value": "Шан\u2063хай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "byte order mark at start",
+      "value": "\ufeffШанхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "byte order mark at end",
+      "value": "Шанхай\ufeff",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "Arabic letter mark",
+      "value": "Шан\u061cхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "Mongolian vowel separator",
+      "value": "Шан\u180eхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "interlinear annotation anchor",
+      "value": "Шан\ufff9хай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "line feed at end",
+      "value": "Шанхай\n",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "line feed inside",
+      "value": "Шан\nхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "carriage return and line feed inside",
+      "value": "Шан\r\nхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "tab inside",
+      "value": "Шан\tхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "line separator",
+      "value": "Шан\u2028хай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "paragraph separator",
+      "value": "Шан\u2029хай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "next line (C1)",
+      "value": "Шан\u0085хай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "C1 control",
+      "value": "Шан\u009fхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "delete",
+      "value": "Шанхай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "C0 control",
+      "value": "Шан\u0001хай",
+      "max": 100,
+      "ok": false
+    },
+    {
+      "case": "escape",
+      "value": "Шан\u001bхай",
+      "max": 100,
+      "ok": false
+    }
+  ],
+  "url": [
+    {
+      "case": "Pexels photo page",
+      "value": "https://www.pexels.com/photo/example-123/",
+      "ok": true
+    },
+    {
+      "case": "Commons file page, percent-encoded",
+      "value": "https://commons.wikimedia.org/wiki/File:Chang%27an_University_Gate.jpg",
+      "ok": true
+    },
+    {
+      "case": "UNESCO fact source",
+      "value": "https://whc.unesco.org/en/list/1334",
+      "ok": true
+    },
+    {
+      "case": "upper-case host",
+      "value": "https://WWW.Example-University.EDU/fees",
+      "ok": true
+    },
+    {
+      "case": "typographic apostrophe in the query (agency source of the seed)",
+      "value": "https://www.eduprchina.com/chinese-universities/details?urlname=Chang’an-University",
+      "ok": true
+    },
+    {
+      "case": "Cyrillic path",
+      "value": "https://ru.wikipedia.org/wiki/Ханчжоу",
+      "ok": true
+    },
+    {
+      "case": "query with two keys",
+      "value": "https://university.edu.cn/fees?lang=en&year=2026",
+      "ok": true
+    },
+    {
+      "case": "host only",
+      "value": "https://www.apu.edu.my",
+      "ok": true
+    },
+    {
+      "case": "exactly 1000 characters",
+      "value": "https://example.org/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ok": true
+    },
+    {
+      "case": "1001 characters",
+      "value": "https://example.org/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ok": false
+    },
+    {
+      "case": "http",
+      "value": "http://example.org/a",
+      "ok": false
+    },
+    {
+      "case": "empty",
+      "value": "",
+      "ok": false
+    },
+    {
+      "case": "space in the path",
+      "value": "https://example.org/a b",
+      "ok": false
+    },
+    {
+      "case": "no-break space in the path",
+      "value": "https://example.org/a\u00a0b",
+      "ok": false
+    },
+    {
+      "case": "trailing no-break space",
+      "value": "https://example.org/a\u00a0",
+      "ok": false
+    },
+    {
+      "case": "leading space",
+      "value": " https://example.org/a",
+      "ok": false
+    },
+    {
+      "case": "trailing space",
+      "value": "https://example.org/a ",
+      "ok": false
+    },
+    {
+      "case": "zero-width space",
+      "value": "https://example.org/a\u200b",
+      "ok": false
+    },
+    {
+      "case": "soft hyphen",
+      "value": "https://example.org/a\u00adb",
+      "ok": false
+    },
+    {
+      "case": "byte order mark",
+      "value": "\ufeffhttps://example.org/a",
+      "ok": false
+    },
+    {
+      "case": "line feed",
+      "value": "https://example.org/a\n",
+      "ok": false
+    },
+    {
+      "case": "line separator",
+      "value": "https://example.org/a\u2028",
+      "ok": false
+    },
+    {
+      "case": "thin space",
+      "value": "https://example.org/a\u2009b",
+      "ok": false
+    },
+    {
+      "case": "astral character",
+      "value": "https://example.org/😀",
+      "ok": false
+    },
+    {
+      "case": "port",
+      "value": "https://example.org:8443/a",
+      "ok": false
+    },
+    {
+      "case": "user info",
+      "value": "https://user@example.org/a",
+      "ok": false
+    },
+    {
+      "case": "fragment",
+      "value": "https://example.org/a#part",
+      "ok": false
+    },
+    {
+      "case": "backslash",
+      "value": "https://example.org/a\\b",
+      "ok": false
+    },
+    {
+      "case": "no dot in the host",
+      "value": "https://localhost/a",
+      "ok": false
+    },
+    {
+      "case": "private suffix",
+      "value": "https://site.local/a",
+      "ok": false
+    },
+    {
+      "case": "private suffix in the path",
+      "value": "https://example.org/x.test/",
+      "ok": false
+    },
+    {
+      "case": "token in the query",
+      "value": "https://example.org/?token=1",
+      "ok": false
+    },
+    {
+      "case": "api key in the query",
+      "value": "https://example.org/?api_key=1",
+      "ok": false
+    },
+    {
+      "case": "upper-case secret in the query",
+      "value": "https://example.org/?Secret=1",
+      "ok": false
+    },
+    {
+      "case": "percent in a query key",
+      "value": "https://example.org/?a%3D=1",
+      "ok": false
+    },
+    {
+      "case": "label starting with a hyphen",
+      "value": "https://-bad.org/",
+      "ok": false
+    },
+    {
+      "case": "one-letter top-level domain",
+      "value": "https://example.c/",
+      "ok": false
+    }
+  ],
+  "agency": [
+    {
+      "case": "EDUPRCHINA",
+      "value": "https://www.eduprchina.com/chinese-universities/details?urlname=Zhejiang-University",
+      "agency": true
+    },
+    {
+      "case": "EDUPRCHINA without www",
+      "value": "https://eduprchina.com/x",
+      "agency": true
+    },
+    {
+      "case": "EDUPRCHINA upper case",
+      "value": "https://EDUPRCHINA.COM/x",
+      "agency": true
+    },
+    {
+      "case": "EasyUni subdomain",
+      "value": "https://m.easyuni.my/apu",
+      "agency": true
+    },
+    {
+      "case": "EasyUni .com",
+      "value": "https://www.easyuni.com/malaysia/",
+      "agency": true
+    },
+    {
+      "case": "English Path",
+      "value": "https://www.englishpath.com/destinations/middle-east/dubai/",
+      "agency": true
+    },
+    {
+      "case": "CUCAS",
+      "value": "https://www.cucas.cn/school/1",
+      "agency": true
+    },
+    {
+      "case": "agency name inside another host",
+      "value": "https://eduprchina.com.example.org/x",
+      "agency": false
+    },
+    {
+      "case": "agency name as a prefix of another domain",
+      "value": "https://noteduprchina.com/x",
+      "agency": false
+    },
+    {
+      "case": "university site",
+      "value": "https://www.apu.edu.my/fees",
+      "agency": false
+    },
+    {
+      "case": "similar but not listed",
+      "value": "https://studyinchina.edu.cn/",
+      "agency": false
+    }
+  ]
+}

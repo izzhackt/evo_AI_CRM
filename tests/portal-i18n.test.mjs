@@ -75,13 +75,13 @@ test("universities dictionary covers levels, intake statuses and honest map line
   const ru = getPortalStrings("universities", "ru");
   const ky = getPortalStrings("universities", "ky");
   assert.equal(ru.detailLead, "Программы, условия поступления и даты наборов.");
-  assert.equal(ky.viewList, "Тизме");
+  assert.equal(ky.viewCities, "Шаарлар");
   assert.equal(ky["level.foundation"], "Даярдоо программасы");
   assert.equal(ky["intakeStatus.open"], "Булактын маалыматы боюнча кабыл алуу ачык");
   for (const strings of [ru, ky]) {
     assert.ok(strings.intakeDeadlineByDate.includes("{date}"));
     assert.ok(strings.mapWithoutPoint.includes("{count}"));
-    assert.ok(strings.photoBy.includes("{author}"));
+    assert.ok(strings.photoCredit.includes("{author}") && strings.photoCredit.includes("{license}"));
   }
 });
 

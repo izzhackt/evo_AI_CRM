@@ -67,6 +67,7 @@ struct MyAdmissionView: View {
                     Group {
                         LabeledContent {
                             Text(statusKey)
+                                .foregroundStyle(.secondaryText)
                         } label: {
                             Text("home_case_status_label")
                         }
@@ -74,7 +75,7 @@ struct MyAdmissionView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("adm_stage_label")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.secondaryText)
                                 Text(stage)
                                     .font(.headline)
                             }
@@ -84,7 +85,7 @@ struct MyAdmissionView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("home_next_action_label")
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.secondaryText)
                                 Text(nextAction)
                                     .font(.subheadline)
                             }
@@ -125,6 +126,7 @@ struct MyAdmissionView: View {
                     .motionStagger(index: 2, key: "admission.links")
                 } footer: {
                     Text("messages_section_note")
+                        .foregroundStyle(.secondaryText)
                 }
             }
             .navigationTitle("tab_my_admission")
@@ -161,7 +163,7 @@ struct MyAdmissionView: View {
                         // или обзор ещё не опубликован (нет строки).
                         Text(model.overview == nil ? "adm_calm_no_plan" : "adm_calm_done")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                     ForEach(Array(model.remainingActions.enumerated()), id: \.offset) { _, action in
                         AdmissionActionRow(action: action, isPrimary: false)
@@ -170,7 +172,7 @@ struct MyAdmissionView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("adm_section_unavailable")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                         Button("retry_button") {
                             Task { await model.load() }
                         }
@@ -184,10 +186,14 @@ struct MyAdmissionView: View {
             .id(nextStepPhase)
         } header: {
             Text("adm_next_step_heading")
+                .foregroundStyle(.secondaryText)
         } footer: {
-            if model.isLoaded, model.primaryAction != nil {
-                Text("adm_next_step_note")
+            Group {
+                if model.isLoaded, model.primaryAction != nil {
+                    Text("adm_next_step_note")
+                }
             }
+            .foregroundStyle(.secondaryText)
         }
     }
 
@@ -196,7 +202,7 @@ struct MyAdmissionView: View {
     @ViewBuilder
     private var evoSection: some View {
         if model.isLoaded {
-            Section("adm_evo_heading") {
+            Section {
                 if let evoAction = model.overview?.evoAction {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(evoAction.title)
@@ -213,26 +219,29 @@ struct MyAdmissionView: View {
                             if let due = evoDueLabel(evoAction) {
                                 (Text("adm_due_term") + Text(verbatim: " \(due)"))
                                     .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.secondaryText)
                             }
                         }
                     }
                 } else {
                     Text("adm_evo_empty")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
 
                 LabeledContent {
                     if let curator = model.overview?.curatorDisplayName {
                         Text(curator)
+                            .foregroundStyle(.secondaryText)
                     } else {
                         Text("adm_curator_empty")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                 } label: {
                     Text("adm_curator_heading")
                 }
+            } header: {
+                Text("adm_evo_heading").foregroundStyle(.secondaryText)
             }
         }
     }
@@ -276,23 +285,23 @@ struct AdmissionActionRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 (Text(verbKey) + Text(verbatim: ": \(action.label)"))
                     .font(isPrimary ? .subheadline.weight(.semibold) : .subheadline)
-                HStack(spacing: 10) {
+                // Срок и сумма основным цветом, серым только подписи «Срок:» и
+                // «Сумма:» (аудит UX/UI 2026-10: caption серым 4,0:1).
+                VStack(alignment: .leading, spacing: 2) {
                     if let due = AdmissionTimestamp.label(from: action.dueAt) {
-                        (Text("adm_due_term") + Text(verbatim: " \(due)"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        (Text("adm_due_term").foregroundStyle(.secondaryText)
+                            + Text(verbatim: " \(due)").foregroundStyle(.primary))
                     } else {
-                        (Text("adm_due_term") + Text(verbatim: " ") + Text("adm_due_unknown"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        (Text("adm_due_term").foregroundStyle(.secondaryText)
+                            + Text(verbatim: " ")
+                            + Text("adm_due_unknown").foregroundStyle(.primary))
                     }
                     if action.kind == .payment, let amount = action.amountMinor, let currency = action.currency {
-                        (Text("adm_amount_term")
-                            + Text(verbatim: " \(AdmissionMoney.label(minor: amount, currency: currency))"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        (Text("adm_amount_term").foregroundStyle(.secondaryText)
+                            + Text(verbatim: " \(AdmissionMoney.label(minor: amount, currency: currency))").foregroundStyle(.primary))
                     }
                 }
+                .font(.subheadline)
             }
         }
     }

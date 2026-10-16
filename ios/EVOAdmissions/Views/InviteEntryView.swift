@@ -121,7 +121,7 @@ struct InviteEntryView: View {
                     if let errorKey = model.errorKey {
                         Text(LocalizedStringKey(errorKey))
                             .font(.footnote)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.dangerText)
                     }
                 }
                 .padding(20)
@@ -147,7 +147,7 @@ struct InviteEntryView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("apply_invite_hint")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                 TextField("apply_invite_field_placeholder", text: $model.pasted, axis: .vertical)
                     .lineLimit(2...4)
                     .textInputAutocapitalization(.never)
@@ -166,8 +166,7 @@ struct InviteEntryView: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color("AccentColor"))
+                .accentProminent()
                 .disabled(model.pasted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                           || model.phase == .verifying)
                 .accessibilityLabel(Text("apply_invite_continue"))
@@ -176,12 +175,11 @@ struct InviteEntryView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("apply_invite_accept_retry_hint")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                 Button("retry_button") {
                     Task { await model.accept() }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color("AccentColor"))
+                .accentProminent()
                 .accessibilityLabel(Text("retry_button"))
             }
         case let .setPassword(displayName):
@@ -199,7 +197,7 @@ struct InviteEntryView: View {
             }
             Text("apply_invite_password_hint")
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             Group {
                 if model.showPassword {
                     TextField("apply_password_label", text: $model.password)
@@ -237,8 +235,7 @@ struct InviteEntryView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Color("AccentColor"))
+            .accentProminent()
             .disabled(model.phase == .saving)
             .accessibilityLabel(Text("apply_invite_save_password"))
         }

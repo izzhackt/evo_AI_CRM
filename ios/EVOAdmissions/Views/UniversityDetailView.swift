@@ -93,12 +93,12 @@ struct UniversityDetailView: View {
         VStack(spacing: 12) {
             Text(key)
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
                 .multilineTextAlignment(.center)
             Button("retry_button") {
                 Task { await model.load(institutionId: institutionId) }
             }
-            .buttonStyle(.bordered)
+            .accentBordered()
         }
         .padding(32)
     }
@@ -140,10 +140,10 @@ struct UniversityDetailView: View {
                     if model.refreshFailed {
                         Text("university_card_refresh_failed")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(12)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
                     }
 
                     Text(item.content.overview)
@@ -157,7 +157,7 @@ struct UniversityDetailView: View {
                             .frame(maxWidth: .infinity, minHeight: 44)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .accentProminent()
 
                     Text("university_programs_heading")
                         .font(.title3.bold())
@@ -167,12 +167,12 @@ struct UniversityDetailView: View {
                     if preparations.isLoading {
                         ProgressView("prep_loading")
                     } else if preparations.loadFailed, let context = preparationSession.context {
-                        Text("prep_read_failed").font(.footnote).foregroundStyle(.secondary)
+                        Text("prep_read_failed").font(.footnote).foregroundStyle(.secondaryText)
                         Button("retry_button") { Task { await preparations.load(context: context) } }
                             .frame(minHeight: 44)
                     }
                     if let key = preparations.errorKey, !preparations.savedNotice {
-                        Text(LocalizedStringKey(key)).font(.subheadline).foregroundStyle(.red)
+                        Text(LocalizedStringKey(key)).font(.subheadline).foregroundStyle(.dangerText)
                     }
 
                     ForEach(item.content.programs) { program in
@@ -265,7 +265,7 @@ struct UniversityPhotoView: View {
                     case .empty:
                         ZStack {
                             RoundedRectangle(cornerRadius: 14)
-                                .fill(.thinMaterial)
+                                .fill(Color(.secondarySystemBackground))
                                 .frame(height: 180)
                             ProgressView()
                         }
@@ -319,11 +319,11 @@ struct UniversityPhotoView: View {
     private func placeholder(_ key: LocalizedStringKey) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 14)
-                .fill(.thinMaterial)
+                .fill(Color(.secondarySystemBackground))
                 .frame(height: 120)
             Text(key)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
         }

@@ -13,7 +13,7 @@ struct FavoriteHeartButton: View {
             Task { await store.toggle(institutionId) }
         } label: {
             Image(systemName: favored ? "heart.fill" : "heart")
-                .foregroundStyle(favored ? Color("AccentColor") : Color.secondary)
+                .foregroundStyle(favored ? Color("AccentColor") : Color.secondaryText)
                 .motionSymbolSwap(on: favored)
                 .motionBounce(whenOn: favored)
         }
@@ -104,7 +104,7 @@ struct FavoritesView: View {
                     Button("retry_button") {
                         Task { await model.load(store: store) }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
                 .padding(32)
             } else if visibleItems.isEmpty {
@@ -113,7 +113,7 @@ struct FavoritesView: View {
                         .font(.headline)
                     Text("favorites_empty_body")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .multilineTextAlignment(.center)
                     if model.hiddenCount > 0 {
                         hiddenCountLine
@@ -146,7 +146,7 @@ struct FavoritesView: View {
                             Image(systemName: compareSelection.contains(item.id)
                                 ? "checkmark.circle.fill" : "circle")
                                 .foregroundStyle(compareSelection.contains(item.id)
-                                    ? Color("AccentColor") : Color.secondary)
+                                    ? Color("AccentColor") : Color.secondaryText)
                                 .motionSymbolSwap(on: compareSelection.contains(item.id))
                                 .motionBounce(whenOn: compareSelection.contains(item.id))
                         }
@@ -161,13 +161,13 @@ struct FavoritesView: View {
                             compareSelection.contains(item.id) ? [.isSelected] : []
                         )
 
-                        NavigationLink(value: item.id) {
+                        NavigationLink(value: FavoriteUniversityRoute(institutionId: item.id, initialItem: item)) {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(item.content.name)
                                     .font(.headline)
                                 Text(universityPlaceLine(item.content))
                                     .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.secondaryText)
                             }
                         }
 
@@ -180,10 +180,13 @@ struct FavoritesView: View {
                     )
                 }
             } header: {
-                Text(String(
-                    format: String(localized: "favorites_saved_count"),
-                    visibleItems.count
-                ))
+                Group {
+                    Text(String(
+                        format: String(localized: "favorites_saved_count"),
+                        visibleItems.count
+                    ))
+                }
+                .foregroundStyle(.secondaryText)
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
                     if model.loadFailed {
@@ -194,6 +197,7 @@ struct FavoritesView: View {
                         hiddenCountLine
                     }
                 }
+                .foregroundStyle(.secondaryText)
             }
 
             Section {
@@ -204,28 +208,23 @@ struct FavoritesView: View {
                 } else {
                     Text("favorites_compare_hint")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
             } header: {
                 Text("favorites_compare_heading")
+                    .foregroundStyle(.secondaryText)
             }
         }
         .refreshable { await model.load(store: store) }
         // Un-favouriting: the row eases out of the list instead of vanishing.
         .motionAnimated(value: rows.map(\.id))
-        .navigationDestination(for: UUID.self) { institutionId in
-            UniversityDetailView(
-                institutionId: institutionId,
-                initialItem: model.items.first(where: { $0.id == institutionId })
-            )
-        }
     }
 
     /// «Больше нет в каталоге: N» (282, план §6.3).
     private var hiddenCountLine: some View {
         Text(String(format: String(localized: "favorites_hidden_count"), model.hiddenCount))
             .font(.footnote)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
             .multilineTextAlignment(.center)
     }
 
@@ -253,7 +252,7 @@ struct FavoritesComparisonView: View {
                     GridRow {
                         Text("favorites_compare_property")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                         ForEach(items) { item in
                             Text(item.content.name)
                                 .font(.subheadline.weight(.semibold))
@@ -293,7 +292,7 @@ struct FavoritesComparisonView: View {
         GridRow(alignment: .top) {
             Text(key)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
                 .frame(width: 90, alignment: .leading)
             ForEach(items) { item in
                 Text(value(item))

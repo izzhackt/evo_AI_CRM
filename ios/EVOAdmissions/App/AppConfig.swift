@@ -1,7 +1,9 @@
 import Foundation
 
 /// Reads the Supabase configuration that `project.yml` injects into
-/// `Info.plist` from `ios/Local.xcconfig` (see `ios/Local.xcconfig.example`).
+/// `Info.plist`: Debug from `ios/Local.xcconfig` (see
+/// `ios/Local.xcconfig.example`), Release from `ios/Release.xcconfig`
+/// (written by `ios/scripts/write-release-config.sh`).
 ///
 /// Fails loudly at launch when a value is missing or empty, instead of
 /// silently sending requests to an empty host and failing confusingly deep
@@ -55,9 +57,10 @@ enum AppConfig {
         """
         \(key) is missing or empty in Info.plist.
 
-        Copy ios/Local.xcconfig.example to ios/Local.xcconfig, fill in the \
-        real Supabase project URL and publishable key, then run \
-        `xcodegen generate` again before building.
+        Debug: copy ios/Local.xcconfig.example to ios/Local.xcconfig and fill \
+        in the Supabase project URL and publishable key. Release: write \
+        ios/Release.xcconfig with ios/scripts/write-release-config.sh. Then \
+        run `xcodegen generate` again before building.
         """
     }
 }

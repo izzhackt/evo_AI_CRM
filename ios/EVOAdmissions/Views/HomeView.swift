@@ -72,7 +72,6 @@ struct HomeView: View {
     @StateObject private var admission = AdmissionHubModel()
     @State private var runContext: AssessmentRunContext?
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         NavigationStack {
@@ -94,15 +93,14 @@ struct HomeView: View {
                 favoritesSection
                 if session.accessTier == .assisted {
                     Section {
-                        NavigationLink {
-                            ProfessionsContentView()
-                        } label: {
+                        NavigationLink(value: PortalRoute.professions) {
                             Label("tab_professions", systemImage: "person.text.rectangle")
                         }
                     }
                 }
             }
             .navigationTitle("tab_home")
+            .portalRouteDestinations()
             .refreshable { await refresh() }
             .task { await refresh() }
             .onChange(of: scenePhase) { _, phase in
@@ -118,11 +116,6 @@ struct HomeView: View {
 
     private func refresh() async {
         await model.refresh(tier: session.accessTier, admission: admission)
-    }
-
-    // Keep the filled brand CTA, but use a readable native red for dark text links.
-    private var linkTint: Color {
-        colorScheme == .dark ? Color(uiColor: .systemRed) : Color("AccentColor")
     }
 
     // Never move an unknown/failed admission state below optional learning.
@@ -141,7 +134,7 @@ struct HomeView: View {
     }
 
     private var admissionSection: some View {
-        Section("home_admission_heading") {
+        Section {
             Group {
                 if admission.loadFailed {
                     retryRow("adm_section_unavailable") { await admission.load() }
@@ -150,7 +143,7 @@ struct HomeView: View {
                 } else {
                     if let stage = admission.overview.flatMap({ AdmissionStageLabel.key(for: $0.operationalStage) }) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("adm_stage_label").font(.caption).foregroundStyle(.secondary)
+                            Text("adm_stage_label").font(.caption).foregroundStyle(.secondaryText)
                             Text(stage).font(.headline)
                         }
                         .accessibilityElement(children: .combine)
@@ -159,19 +152,20 @@ struct HomeView: View {
                         AdmissionActionRow(action: action, isPrimary: true)
                     } else {
                         Text(admission.overview == nil ? "adm_calm_no_plan" : "adm_calm_done")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                     Button("home_open_admission") { selectedTab = .admission }
-                        .tint(linkTint)
                 }
             }
             .motionStagger(index: 1, key: "home.admission.\(admissionPhase)")
             .id(admissionPhase)
+        } header: {
+            Text("home_admission_heading").foregroundStyle(.secondaryText)
         }
     }
 
     private var learningSection: some View {
-        Section("home_learning_heading") {
+        Section {
             Group {
                 switch model.lessons {
                 case .loading: ProgressView()
@@ -186,27 +180,28 @@ struct HomeView: View {
                                 Text(AppLocale.pick(ru: picked.lesson.metadata.titleRu, ky: picked.lesson.metadata.titleKy))
                                     .font(.headline)
                                 Text(String(format: String(localized: "home_module_progress"), picked.module.lessonsCompleted, picked.module.lessonsTotal))
-                                    .font(.subheadline).foregroundStyle(.secondary)
+                                    .font(.subheadline).foregroundStyle(.secondaryText)
                                 Text(picked.lesson.draftAttemptId == nil ? "home_start_lesson" : "home_resume_lesson")
-                                    .foregroundStyle(linkTint)
+                                    .foregroundStyle(Color.accentColor)
                             }
                             .padding(.vertical, 4)
                         }
                     } else {
                         Text(modules.contains { !$0.lessons.isEmpty } ? "home_lessons_done" : "english_empty_title")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                     }
                     Button("home_open_english") { selectedTab = .english }
-                        .tint(linkTint)
                 }
             }
             .motionStagger(index: 2, key: "home.learning.\(model.lessons.phase)")
             .id(model.lessons.phase)
+        } header: {
+            Text("home_learning_heading").foregroundStyle(.secondaryText)
         }
     }
 
     private var testsSection: some View {
-        Section("tab_tests") {
+        Section {
             Group {
                 switch model.tests {
                 case .loading: ProgressView()
@@ -218,7 +213,7 @@ struct HomeView: View {
                             Text(instrument.metadata.title ?? instrument.instrumentKey).font(.headline)
                             if let attempt = catalog.attempts.first(where: { $0.attemptId == instrument.draftAttemptId }) {
                                 Text(String(format: String(localized: "home_test_progress"), attempt.answeredCount, attempt.questionCount))
-                                    .font(.subheadline).foregroundStyle(.secondary)
+                                    .font(.subheadline).foregroundStyle(.secondaryText)
                             }
                             Button {
                                 runContext = AssessmentRunContext(instrument: instrument, draftAttemptId: instrument.draftAttemptId)
@@ -226,7 +221,7 @@ struct HomeView: View {
                                 Text("tests_continue")
                                     .frame(maxWidth: .infinity, minHeight: 44)
                             }
-                            .buttonStyle(.borderedProminent)
+                            .accentProminent()
                         }
                         .padding(.vertical, 4)
                     }
@@ -235,11 +230,13 @@ struct HomeView: View {
             }
             .motionStagger(index: 3, key: "home.tests.\(model.tests.phase)")
             .id(model.tests.phase)
+        } header: {
+            Text("tab_tests").foregroundStyle(.secondaryText)
         }
     }
 
     private var applicationSection: some View {
-        Section("apply_status_kicker") {
+        Section {
             Group {
                 switch model.application {
                 case .loading: ProgressView()
@@ -251,23 +248,25 @@ struct HomeView: View {
                             ApplicationStatusView(router: router, application: application)
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(LocalizedStringKey("apply_status_\(application.status.rawValue)_title"))
+                                Text(LocalizedStringKey(application.status.titleKey))
                                     .font(.headline)
-                                Text("home_open_application").foregroundStyle(.secondary)
+                                Text("home_open_application").foregroundStyle(.secondaryText)
                             }
                         }
                     } else {
-                        Text("home_application_absent").foregroundStyle(.secondary)
+                        Text("home_application_absent").foregroundStyle(.secondaryText)
                     }
                 }
             }
             .motionStagger(index: 4, key: "home.application.\(model.application.phase)")
             .id(model.application.phase)
+        } header: {
+            Text("apply_status_kicker").foregroundStyle(.secondaryText)
         }
     }
 
     private var favoritesSection: some View {
-        Section("favorites_title") {
+        Section {
             Group {
                 switch model.favorites {
                 case .loading: ProgressView()
@@ -275,9 +274,8 @@ struct HomeView: View {
                     retryRow("favorites_unavailable") { await model.loadFavorites() }
                 case .loaded(let items):
                     if items.isEmpty {
-                        Text("favorites_empty_title").foregroundStyle(.secondary)
+                        Text("favorites_empty_title").foregroundStyle(.secondaryText)
                         Button("tab_universities") { selectedTab = .universities }
-                            .tint(linkTint)
                     }
                     ForEach(items) { item in
                         NavigationLink {
@@ -286,24 +284,25 @@ struct HomeView: View {
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(item.content.name).font(.headline)
                                 Text(nearestIntakeLabel(item.content, now: Date()))
-                                    .font(.subheadline).foregroundStyle(.secondary)
+                                    .font(.subheadline).foregroundStyle(.secondaryText)
                             }
                             .padding(.vertical, 4)
                         }
                     }
-                    NavigationLink { FavoritesView() } label: { Text("home_all_favorites") }
+                    NavigationLink(value: PortalRoute.favorites) { Text("home_all_favorites") }
                 }
             }
             .motionStagger(index: 5, key: "home.favorites.\(model.favorites.phase)")
             .id(model.favorites.phase)
+        } header: {
+            Text("favorites_title").foregroundStyle(.secondaryText)
         }
     }
 
     private func retryRow(_ key: LocalizedStringKey, retry: @escaping () async -> Void) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(key).foregroundStyle(.secondary)
+            Text(key).foregroundStyle(.secondaryText)
             Button("retry_button") { Task { await retry() } }
-                .tint(linkTint)
                 .frame(minHeight: 44)
         }
     }

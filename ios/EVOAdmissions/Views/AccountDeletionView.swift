@@ -62,7 +62,7 @@ struct AccountDeletionContent: View {
             } else if model.loadFailed {
                 Text("account_deletion_unavailable")
                     .font(.footnote)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(.dangerText)
             } else {
                 Button(role: .destructive) {
                     showsConfirm = true
@@ -70,7 +70,9 @@ struct AccountDeletionContent: View {
                     if model.isSending {
                         ProgressView()
                     } else {
+                        // Системный красный на белом 3,57:1; DangerText 6,45:1.
                         Text("account_deletion_action")
+                            .foregroundStyle(.dangerText)
                     }
                 }
                 .disabled(model.isSending || model.isLoading)
@@ -94,12 +96,13 @@ struct AccountDeletionContent: View {
                 if model.sendFailed {
                     Text("account_deletion_error")
                         .font(.footnote)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(.dangerText)
                 }
             }
         } header: {
             if showsHeader {
                 Text("account_deletion_heading")
+                    .foregroundStyle(.secondaryText)
             }
         } footer: {
             VStack(alignment: .leading, spacing: 6) {
@@ -108,6 +111,7 @@ struct AccountDeletionContent: View {
                 }
                 Text("account_deletion_kept_note")
             }
+            .foregroundStyle(.secondaryText)
         }
     }
 
@@ -134,7 +138,7 @@ struct AccountDeletionContent: View {
                     AccountDeletionPolicy.dayLabel(from: request.dueAt) ?? String(request.dueAt.prefix(10))
                 ))
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("account-deletion-status")

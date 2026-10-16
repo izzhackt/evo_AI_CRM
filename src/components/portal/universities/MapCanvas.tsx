@@ -25,8 +25,11 @@ import type { UniversitiesMapStrings } from "./MapView";
  * Холст MapLibre GL (PORT-3a, S3: карта страны с кластерами). Тайлы —
  * публичный инстанс OpenFreeMap: условия проверены 2026-09-19 (без ключей и
  * лимитов, коммерческое использование разрешено; обязательная атрибуция
- * OpenMapTiles + OSM) — запись в docs/PLAN_CHANGES.md. Пины — только вузы с
- * проверенной координатой из src/lib/university-geo-library.json.
+ * OpenMapTiles + OSM), запись в docs/PLAN_CHANGES.md. Подпись даёт сам
+ * источник тайлов (TileJSON OpenFreeMap: «OpenFreeMap © OpenMapTiles Data
+ * from OpenStreetMap», проверено 16.10.2026), один раз: своя подпись сверху
+ * её повторяла (review S3 веба, F10). Пины: только вузы с проверенной
+ * координатой из src/lib/university-geo-library.json.
  *
  * Кластеры (S3, как в iPhone 1.0): точки собирает GeoJSON-источник MapLibre
  * (`cluster: true`), а рисуются они DOM-кнопками: и одиночный вуз, и группа
@@ -44,9 +47,6 @@ const TILE_STYLES: Readonly<Record<Theme, string>> = {
   light: "https://tiles.openfreemap.org/styles/positron",
   dark: "https://tiles.openfreemap.org/styles/dark",
 };
-
-const ATTRIBUTION =
-  '<a href="https://openfreemap.org" target="_blank" rel="noopener noreferrer">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors';
 
 const SOURCE_ID = "pt-universities";
 const LAYER_ID = "pt-universities-points";
@@ -114,7 +114,7 @@ export function MapCanvas({ pins, base, strings, onReady, onFail }: MapCanvasPro
       }
       mapRef.current = map;
       const markers = markersRef.current;
-      map.addControl(new AttributionControl({ compact: false, customAttribution: ATTRIBUTION }));
+      map.addControl(new AttributionControl({ compact: false }));
       map.addControl(new NavigationControl({ showCompass: false }), "top-right");
 
       const ensureSource = () => {

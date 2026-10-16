@@ -10,13 +10,16 @@ import { PhotoRights, type PhotoRightsStrings } from "./PhotoRights";
 const HERO_WIDTHS = [800, 1200, 1600] as const;
 const HERO_SIZES = "(min-width: 1100px) 1000px, 100vw";
 
-export type PhotoFigureStrings = Pick<PortalStrings<"universities">, "photoMissing" | "photoFailed"> & PhotoRightsStrings;
+export type PhotoFigureStrings = Pick<PortalStrings<"universities">, "photoFailed"> & PhotoRightsStrings;
 
 /**
- * Фото-герой страницы вуза. Только managed-копия из нашего бакета: без неё
- * честная заглушка, а не hotlink с сайта вуза (план 4.4, приёмка 7.6.5).
- * Строки лицензии под фото нет; автор и лицензия, у официальных медиа вуза
- * «Фото: <вуз>, официальный сайт», открываются тихой кнопкой «©».
+ * Фото-герой страницы вуза. Только managed-копия из нашего бакета, не
+ * hotlink с сайта вуза (план 4.4, приёмка 7.6.5). Без копии героя нет
+ * вовсе (review S3 веба, N6: пустой блок первым экраном ничего не говорил),
+ * как и блока «Стоимость» без строк; заглушка «фото не добавлено» остаётся
+ * на карточках вузов в сетке. Строки лицензии под фото нет; автор и
+ * лицензия, у официальных медиа вуза «Фото: <вуз>, официальный сайт»,
+ * открываются тихой кнопкой «©».
  */
 export function PhotoFigure({
   content,
@@ -29,9 +32,7 @@ export function PhotoFigure({
   const src = managedUniversityPhotoUrl(content.photoKey);
   const credit = universityPhotoCredit(content.photoKey);
   const emptyClassName = "pt-photo-empty pt-photo-empty-large";
-  if (!photo || src === null || credit === null) {
-    return <div className={emptyClassName}>{strings.photoMissing}</div>;
-  }
+  if (!photo || src === null || credit === null) return null;
   return (
     <UniversityPhotoFrame
       src={src}

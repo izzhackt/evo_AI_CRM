@@ -61,18 +61,45 @@ CREATE TEMP TABLE a283_old_rpcs ON COMMIT DROP AS
 -- ---------------------------------------------------------------------------
 -- 1. Проверки значений
 -- ---------------------------------------------------------------------------
--- Текст для студента: непустой, без управляющих символов, не длиннее max.
+-- Текст для студента (review S3 веба, F2 и F12): от 1 до max знаков Unicode,
+-- ни одного знака запрещённого класса (управляющие C0, DEL и C1, мягкий
+-- перенос, знаки нулевой ширины и направления письма, разделители строк и
+-- абзацев, BOM) и ни одного пробельного знака в начале и в конце. Классы
+-- записаны явно: [[:cntrl:]] и [[:space:]] зависят от локали базы. Те же
+-- строки классов в src/lib/catalog-text.ts (веб, iPhone, сид, импорт), общие
+-- векторы в tests/fixtures/catalog-text-vectors.json проверяют обе стороны.
 CREATE FUNCTION platform_private.catalog_text_ok(p_value TEXT, p_max INTEGER)
 RETURNS BOOLEAN LANGUAGE SQL IMMUTABLE SET search_path = '' AS $$
-  SELECT p_value IS NOT NULL AND btrim(p_value) <> '' AND p_value = btrim(p_value)
-    AND char_length(p_value) <= p_max AND p_value !~ '[[:cntrl:]]'
+  SELECT COALESCE(char_length(p_value) BETWEEN 1 AND p_max
+    AND p_value !~ '[\u0001-\u001F\u007F-\u009F\u00AD\u061C\u180E\u200B-\u200F\u2028-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\uFFF9-\uFFFB]'
+    AND p_value !~ '^[\u0020\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]'
+    AND p_value !~ '[\u0020\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]$', FALSE)
+$$;
+
+-- Ссылка каталога: правило 148 (university_public_url) и сверх него ни
+-- одного знака запрещённого класса, ни одного пробельного знака и ни одного
+-- знака вне BMP (длина в знаках и в UTF-16 тогда одна). Та же функция
+-- catalogUrl в src/lib/catalog-text.ts.
+CREATE FUNCTION platform_private.catalog_url_ok(p_url TEXT)
+RETURNS BOOLEAN LANGUAGE SQL IMMUTABLE SET search_path = '' AS $$
+  SELECT COALESCE(platform_private.university_public_url(p_url)
+    AND p_url !~ '[\u0001-\u001F\u007F-\u009F\u00AD\u061C\u180E\u200B-\u200F\u2028-\u202E\u2060-\u2064\u2066-\u206F\uFEFF\uFFF9-\uFFFB\u0020\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\U00010000-\U0010FFFF]', FALSE)
+$$;
+
+-- Хост образовательного агентства (review CRM R4): строка стоимости с таким
+-- адресом может быть только agency. Список как CATALOG_AGENCY_DOMAINS в
+-- src/lib/catalog-text.ts.
+CREATE FUNCTION platform_private.catalog_agency_url(p_url TEXT)
+RETURNS BOOLEAN LANGUAGE SQL IMMUTABLE SET search_path = '' AS $$
+  SELECT COALESCE(lower(substring(p_url FROM '^https://([^/?#]+)'))
+    ~ '(^|\.)(eduprchina\.com|easyuni\.my|easyuni\.com|applyforchina\.com|directlyeducation\.com|cucas\.cn|cucas\.edu\.cn|china-admissions\.com|chinaadmissions\.com|studyinchina\.io|studyinchina\.net|universitiesofchina\.com|englishpath\.com)$', FALSE)
 $$;
 
 -- Источник фото стран и городов (решение Р3): только Unsplash, Pexels и
 -- Wikimedia Commons. Фото агентств (EDUPRCHINA и похожих) не берём.
 CREATE FUNCTION platform_private.catalog_photo_source_allowed(p_url TEXT)
 RETURNS BOOLEAN LANGUAGE SQL IMMUTABLE SET search_path = '' AS $$
-  SELECT p_url IS NOT NULL AND platform_private.university_public_url(p_url)
+  SELECT p_url IS NOT NULL AND platform_private.catalog_url_ok(p_url)
     AND lower(substring(p_url FROM '^https://([^/?#]+)')) IN (
       'unsplash.com', 'www.unsplash.com', 'pexels.com', 'www.pexels.com',
       'commons.wikimedia.org', 'upload.wikimedia.org')
@@ -95,7 +122,7 @@ BEGIN
     AND jsonb_typeof(p_photo -> 'width') = 'number' AND (p_photo ->> 'width') ~ '^[1-9][0-9]{0,4}$'
     AND jsonb_typeof(p_photo -> 'height') = 'number' AND (p_photo ->> 'height') ~ '^[1-9][0-9]{0,4}$'
     AND jsonb_typeof(p_photo -> 'author') = 'string' AND platform_private.catalog_text_ok(p_photo ->> 'author', 200)
-    AND (p_photo -> 'authorUrl' = 'null'::JSONB OR platform_private.university_public_url(p_photo ->> 'authorUrl'))
+    AND (p_photo -> 'authorUrl' = 'null'::JSONB OR platform_private.catalog_url_ok(p_photo ->> 'authorUrl'))
     AND p_photo ->> 'sourceName' IN ('Unsplash', 'Pexels', 'Wikimedia Commons')
     AND platform_private.catalog_photo_source_allowed(p_photo ->> 'sourceUrl')
     AND lower(substring(p_photo ->> 'sourceUrl' FROM '^https://([^/?#]+)')) = ANY (CASE p_photo ->> 'sourceName'
@@ -104,7 +131,7 @@ BEGIN
       WHEN 'Wikimedia Commons' THEN ARRAY['commons.wikimedia.org', 'upload.wikimedia.org']
       ELSE ARRAY[]::TEXT[] END)
     AND jsonb_typeof(p_photo -> 'license') = 'string' AND platform_private.catalog_text_ok(p_photo ->> 'license', 120)
-    AND (p_photo -> 'licenseUrl' = 'null'::JSONB OR platform_private.university_public_url(p_photo ->> 'licenseUrl'))
+    AND (p_photo -> 'licenseUrl' = 'null'::JSONB OR platform_private.catalog_url_ok(p_photo ->> 'licenseUrl'))
     AND lower(p_photo::TEXT) !~ 'eduprchina';
 EXCEPTION WHEN OTHERS THEN
   RETURN FALSE;
@@ -146,6 +173,8 @@ $$;
 
 REVOKE ALL ON FUNCTION
   platform_private.catalog_text_ok(TEXT, INTEGER),
+  platform_private.catalog_url_ok(TEXT),
+  platform_private.catalog_agency_url(TEXT),
   platform_private.catalog_photo_source_allowed(TEXT),
   platform_private.catalog_photo_valid(JSONB, TEXT),
   platform_private.catalog_academic_year_ok(TEXT),
@@ -184,7 +213,7 @@ CREATE TABLE platform.catalog_cities (
   summary_ky TEXT CHECK (summary_ky IS NULL OR platform_private.catalog_text_ok(summary_ky, 300)),
   fact_ru TEXT CHECK (fact_ru IS NULL OR platform_private.catalog_text_ok(fact_ru, 200)),
   fact_ky TEXT CHECK (fact_ky IS NULL OR platform_private.catalog_text_ok(fact_ky, 200)),
-  fact_source_url TEXT CHECK (fact_source_url IS NULL OR platform_private.university_public_url(fact_source_url)),
+  fact_source_url TEXT CHECK (fact_source_url IS NULL OR platform_private.catalog_url_ok(fact_source_url)),
   fact_verified_on DATE CHECK (fact_verified_on IS NULL OR fact_verified_on >= DATE '2000-01-01'),
   ky_review TEXT NOT NULL DEFAULT 'pending' CHECK (ky_review IN ('pending', 'done')),
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
@@ -241,7 +270,7 @@ CREATE TABLE platform.catalog_costs (
   note_ky TEXT CHECK (note_ky IS NULL OR platform_private.catalog_text_ok(note_ky, 300)),
   source_kind TEXT NOT NULL CHECK (source_kind IN ('official', 'agency', 'evo_document')),
   source_name TEXT NOT NULL CHECK (platform_private.catalog_text_ok(source_name, 200)),
-  source_url TEXT CHECK (source_url IS NULL OR platform_private.university_public_url(source_url)),
+  source_url TEXT CHECK (source_url IS NULL OR platform_private.catalog_url_ok(source_url)),
   verified_on DATE NOT NULL CHECK (verified_on >= DATE '2000-01-01'),
   confirmed_by_membership_id UUID,
   confirmed_at TIMESTAMPTZ,
@@ -272,6 +301,9 @@ CREATE TABLE platform.catalog_costs (
   -- Строка агентства публикуется только после подтверждения владельцем (план 4.5).
   CONSTRAINT catalog_costs_agency_published_confirmed CHECK (
     status <> 'published' OR source_kind <> 'agency' OR confirmed_at IS NOT NULL),
+  -- Адрес агентства бывает только у строки agency (review CRM R4).
+  CONSTRAINT catalog_costs_agency_url_is_agency CHECK (
+    source_kind = 'agency' OR NOT platform_private.catalog_agency_url(source_url)),
   CHECK (status <> 'published' OR (published_at IS NOT NULL AND published_by_membership_id IS NOT NULL))
 );
 CREATE INDEX catalog_costs_institution_idx ON platform.catalog_costs(organization_id, institution_id, status);
@@ -283,7 +315,7 @@ CREATE TABLE platform.catalog_fx_rates (
   -- «1 USD = units_per_usd <валюта>», как в строке под таблицей.
   units_per_usd NUMERIC NOT NULL CHECK (units_per_usd > 0 AND units_per_usd < 1000000000),
   source_name TEXT NOT NULL CHECK (platform_private.catalog_text_ok(source_name, 200)),
-  source_url TEXT CHECK (source_url IS NULL OR platform_private.university_public_url(source_url)),
+  source_url TEXT CHECK (source_url IS NULL OR platform_private.catalog_url_ok(source_url)),
   set_by_membership_id UUID NOT NULL,
   set_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
   request_id UUID NOT NULL UNIQUE,
@@ -756,11 +788,17 @@ BEGIN
     OR (c.note_ru IS NOT NULL AND NOT (platform_private.catalog_text_ok(c.note_ru, 300) AND platform_private.catalog_text_ok(c.note_ky, 300)))
     OR c.source_kind IS NULL OR c.source_kind NOT IN ('official', 'agency', 'evo_document')
     OR NOT platform_private.catalog_text_ok(c.source_name, 200)
-    OR (c.source_url IS NOT NULL AND NOT platform_private.university_public_url(c.source_url))
+    OR (c.source_url IS NOT NULL AND NOT platform_private.catalog_url_ok(c.source_url))
     OR (c.source_kind <> 'evo_document' AND c.source_url IS NULL)
     OR c.verified_on < DATE '2000-01-01' OR c.verified_on > current_date
   THEN
     RAISE EXCEPTION 'catalog_cost_invalid' USING ERRCODE = '22023';
+  END IF;
+  -- Данные агентства не подписываются «сайт университета» или «материалы
+  -- EVO» (review CRM R4): строка с адресом агентства только agency и
+  -- публикуется только с подтверждением системного Admin.
+  IF c.source_kind <> 'agency' AND platform_private.catalog_agency_url(c.source_url) THEN
+    RAISE EXCEPTION 'catalog_cost_agency_source_mislabeled' USING ERRCODE = '22023';
   END IF;
   -- Программа, если названа, есть в последней опубликованной карточке; её
   -- уровень совпадает с названным.
@@ -894,7 +932,7 @@ BEGIN
       OR (platform_private.catalog_text_ok(p_city ->> 'summaryRu', 300) AND platform_private.catalog_text_ok(p_city ->> 'summaryKy', 300)))
     OR NOT ((p_city -> 'factRu' = 'null'::JSONB AND p_city -> 'factKy' = 'null'::JSONB)
       OR (platform_private.catalog_text_ok(p_city ->> 'factRu', 200) AND platform_private.catalog_text_ok(p_city ->> 'factKy', 200)))
-    OR NOT (p_city -> 'factSourceUrl' = 'null'::JSONB OR platform_private.university_public_url(p_city ->> 'factSourceUrl'))
+    OR NOT (p_city -> 'factSourceUrl' = 'null'::JSONB OR platform_private.catalog_url_ok(p_city ->> 'factSourceUrl'))
     OR NOT (p_city -> 'factVerifiedOn' = 'null'::JSONB OR COALESCE(p_city ->> 'factVerifiedOn', '') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
     OR COALESCE(p_city ->> 'kyReview', '') NOT IN ('pending', 'done')
   THEN
@@ -932,6 +970,14 @@ BEGIN
     END IF;
     IF existing.country_code <> p_city ->> 'country' THEN
       RAISE EXCEPTION 'catalog_city_country_immutable' USING ERRCODE = '22023';
+    END IF;
+    -- Опубликованная карточка с новым фото: файл уже лежит в бакете (review
+    -- CRM R5), иначе студент увидел бы карточку без фото (приёмка 7.6.3).
+    IF existing.status = 'published' AND p_city -> 'photo' <> 'null'::JSONB
+      AND (p_city -> 'photo' ->> 'path') IS DISTINCT FROM (existing.photo ->> 'path')
+      AND NOT EXISTS (SELECT 1 FROM storage.objects o
+        WHERE o.bucket_id = 'portal-university-photos' AND o.name = p_city -> 'photo' ->> 'path') THEN
+      RAISE EXCEPTION 'catalog_city_photo_missing' USING ERRCODE = '22023';
     END IF;
     UPDATE platform.catalog_cities c SET name_ru = p_city ->> 'nameRu', name_ky = p_city ->> 'nameKy', name_en = p_city ->> 'nameEn',
       lat = v_lat, lng = v_lng, photo = NULLIF(p_city -> 'photo', 'null'::JSONB),
@@ -972,6 +1018,14 @@ BEGIN
   IF p_published AND (existing.photo IS NULL OR existing.summary_ru IS NULL OR existing.fact_ru IS NULL
     OR existing.fact_source_url IS NULL OR existing.fact_verified_on IS NULL) THEN
     RAISE EXCEPTION 'catalog_city_incomplete' USING ERRCODE = '22023';
+  END IF;
+  -- Публикуется только карточка, чей файл фото уже лежит в бакете
+  -- portal-university-photos (review CRM R5, приёмка 7.6.3): ссылка на
+  -- отсутствующий объект дала бы студенту карточку без фото. Карточки стран
+  -- публикует только миграция, команды для них нет.
+  IF p_published AND NOT EXISTS (SELECT 1 FROM storage.objects o
+    WHERE o.bucket_id = 'portal-university-photos' AND o.name = existing.photo ->> 'path') THEN
+    RAISE EXCEPTION 'catalog_city_photo_missing' USING ERRCODE = '22023';
   END IF;
   IF (existing.status = 'published') = p_published THEN
     saved := existing;
@@ -1076,6 +1130,14 @@ BEGIN
     END IF;
     IF existing.version <> p_base_version THEN
       RAISE EXCEPTION 'catalog_cost_version_changed' USING ERRCODE = '40001';
+    END IF;
+    -- Вид источника строки агентства меняет только системный Admin (review
+    -- CRM R4): иначе редактор без права подтверждения опубликовал бы данные
+    -- агентства как «сайт университета». Правка адреса или имени источника
+    -- у строки агентства или подтверждённой строки, как и любая правка ниже,
+    -- возвращает её в черновик и снимает подтверждение.
+    IF existing.source_kind = 'agency' AND input.source_kind <> 'agency' AND NOT actor.is_admin THEN
+      RAISE EXCEPTION 'catalog_admin_required' USING ERRCODE = '42501';
     END IF;
     UPDATE platform.catalog_costs c SET program_id = input.program_id, study_level = input.study_level,
       teaching_language = input.teaching_language, cost_kind = input.cost_kind, period = input.period,
@@ -1288,7 +1350,7 @@ BEGIN
     OR p_as_of IS NULL OR p_as_of < DATE '2000-01-01' OR p_as_of > current_date
     OR p_units_per_usd IS NULL OR p_units_per_usd <= 0 OR p_units_per_usd >= 1000000000
     OR NOT platform_private.catalog_text_ok(p_source_name, 200)
-    OR (p_source_url IS NOT NULL AND NOT platform_private.university_public_url(p_source_url)) THEN
+    OR (p_source_url IS NOT NULL AND NOT platform_private.catalog_url_ok(p_source_url)) THEN
     RAISE EXCEPTION 'catalog_fx_rate_invalid' USING ERRCODE = '22023';
   END IF;
   digest := platform_private.bw5_input_sha256(jsonb_build_object('currency', p_currency, 'asOf', p_as_of,
@@ -1585,15 +1647,16 @@ BEGIN
   FOR routine IN
     SELECT p.oid::REGPROCEDURE AS signature, p.proconfig, p.prosecdef, n.nspname,
       p.proname IN ('staff_catalog_cost_import_v1', 'staff_catalog_fx_rate_set_v1') AS service_allowed,
-      p.proname IN ('catalog_text_ok', 'catalog_photo_source_allowed', 'catalog_photo_valid', 'catalog_academic_year_ok',
-        'catalog_currency_exponent', 'catalog_usd_approx', 'catalog_content_levels', 'catalog_content_intakes',
-        'guard_catalog_city_identity') AS invoker_ok
+      p.proname IN ('catalog_text_ok', 'catalog_url_ok', 'catalog_agency_url', 'catalog_photo_source_allowed',
+        'catalog_photo_valid', 'catalog_academic_year_ok', 'catalog_currency_exponent', 'catalog_usd_approx',
+        'catalog_content_levels', 'catalog_content_intakes', 'guard_catalog_city_identity') AS invoker_ok
     FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
     WHERE (n.nspname = 'platform' AND p.proname IN ('student_university_index_v1', 'student_university_detail_v1',
         'staff_catalog_geography_v1', 'staff_catalog_city_upsert_v1', 'staff_catalog_city_publish_v1',
         'staff_catalog_institution_city_set_v1', 'staff_catalog_cost_upsert_v1', 'staff_catalog_cost_confirm_v1',
         'staff_catalog_cost_publish_v1', 'staff_catalog_cost_import_v1', 'staff_catalog_fx_rate_set_v1'))
-      OR (n.nspname = 'platform_private' AND p.proname IN ('catalog_text_ok', 'catalog_photo_source_allowed',
+      OR (n.nspname = 'platform_private' AND p.proname IN ('catalog_text_ok', 'catalog_url_ok', 'catalog_agency_url',
+        'catalog_photo_source_allowed',
         'catalog_photo_valid', 'catalog_academic_year_ok', 'catalog_currency_exponent', 'catalog_usd_approx',
         'guard_catalog_city_identity', 'guard_catalog_institution_city', 'catalog_student_latest',
         'catalog_content_levels', 'catalog_content_intakes', 'catalog_city_student_json', 'catalog_student_index',
@@ -1610,11 +1673,12 @@ BEGIN
     END IF;
   END LOOP;
   IF (SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.pronamespace = 'platform_private'::REGNAMESPACE
-      AND p.proname IN ('catalog_text_ok', 'catalog_photo_source_allowed', 'catalog_photo_valid', 'catalog_academic_year_ok',
-        'catalog_currency_exponent', 'catalog_usd_approx', 'guard_catalog_city_identity', 'guard_catalog_institution_city',
+      AND p.proname IN ('catalog_text_ok', 'catalog_url_ok', 'catalog_agency_url', 'catalog_photo_source_allowed',
+        'catalog_photo_valid', 'catalog_academic_year_ok', 'catalog_currency_exponent', 'catalog_usd_approx',
+        'guard_catalog_city_identity', 'guard_catalog_institution_city',
         'catalog_student_latest', 'catalog_content_levels', 'catalog_content_intakes', 'catalog_city_student_json',
         'catalog_student_index', 'catalog_student_costs', 'catalog_geo_actor', 'catalog_geo_replay', 'catalog_geo_record',
-        'catalog_geo_institution', 'catalog_cost_input', 'catalog_cost_staff_json', 'catalog_city_staff_json')) <> 21
+        'catalog_geo_institution', 'catalog_cost_input', 'catalog_cost_staff_json', 'catalog_city_staff_json')) <> 23
     OR (SELECT count(*) FROM pg_catalog.pg_proc p WHERE p.pronamespace = 'platform'::REGNAMESPACE
       AND p.proname IN ('student_university_index_v1', 'student_university_detail_v1', 'staff_catalog_geography_v1',
         'staff_catalog_city_upsert_v1', 'staff_catalog_city_publish_v1', 'staff_catalog_institution_city_set_v1',

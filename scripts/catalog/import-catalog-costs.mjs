@@ -32,6 +32,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { catalogAgencyUrl, catalogText } from "../../src/lib/catalog-text.ts";
 import { publicUrlOk } from "./geography-seed-lib.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
@@ -66,8 +67,8 @@ export function toMinor(value, exponent) {
   return minor <= 1000000000000000n ? Number(minor) : null;
 }
 
-const textOk = (value, max) => typeof value === "string" && value.trim() !== "" && value === value.trim()
-  && [...value].length <= max && !/[\u0000-\u001f\u007f]/u.test(value);
+// Текст как catalog_text_ok в 283 (src/lib/catalog-text.ts).
+const textOk = catalogText;
 function dateOk(value, today) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00Z`);
@@ -130,6 +131,10 @@ export function planImport(file, { fileSha256, organizationId, today = new Date(
     if (!textOk(row.sourceName, 200)) problems.push(`${where}.sourceName`);
     if (row.sourceUrl != null && !publicUrlOk(row.sourceUrl)) problems.push(`${where}.sourceUrl: public https URL`);
     if (row.sourceKind !== "evo_document" && row.sourceUrl == null) problems.push(`${where}.sourceUrl: required for ${row.sourceKind}`);
+    // Как catalog_cost_input 283 (review CRM R4): адрес агентства только у agency.
+    if (row.sourceKind !== "agency" && typeof row.sourceUrl === "string" && catalogAgencyUrl(row.sourceUrl)) {
+      problems.push(`${where}.sourceUrl: an agency address needs sourceKind agency`);
+    }
     if (!dateOk(row.verifiedOn, today)) problems.push(`${where}.verifiedOn: YYYY-MM-DD not in the future`);
     if (row.confirmation != null) {
       const c = row.confirmation;

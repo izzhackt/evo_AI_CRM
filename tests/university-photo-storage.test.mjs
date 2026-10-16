@@ -110,7 +110,7 @@ test("the student resolver returns only the managed copy, never a hotlink (пл�
   }
 });
 
-test("committed manifest keeps the site on hotlinks until the coordinator flips migrated", () => {
+test("staff screens fall back to the library address until migrated; the student resolver never does", () => {
   assert.equal(
     UNIVERSITY_PHOTO_PUBLIC_BASE_URL,
     `https://${UNIVERSITY_PHOTO_PROJECT}.supabase.co/storage/v1/object/public/${UNIVERSITY_PHOTO_BUCKET.id}`,
@@ -201,8 +201,18 @@ test("offline plan validates metadata and splits records by exact license allowl
     assert.ok(isOfficialMediaLicense(library[key].license), key);
     assert.ok(sites.get(key).every(website => onOfficialSite(library[key].sourceUrl, website)), key);
   }
-  for (const key of ["gbs-global-banking-school-dubai-campus", "guangzhou-huashang-vocational-college", "kozminski-university"]) {
-    assert.ok(plan.ineligible.some(entry => entry.key === key), `${key}: partner, related-school or non-catalogue photo stays ineligible`);
+  assert.ok(plan.ineligible.some(entry => entry.key === "kozminski-university"), "a non-catalogue photo stays ineligible");
+  // Review S3 веба, раунд 3: GBS Dubai и Guangzhou Huashang больше не с
+  // сайтов агентства и родственной школы, а со своих официальных сайтов;
+  // Chang’an University с Wikimedia Commons (CC BY-SA 3.0).
+  for (const [key, domain] of [["gbs-global-banking-school-dubai-campus", "gbs.ac.ae"], ["guangzhou-huashang-vocational-college", "gzhsvc.edu.cn"]]) {
+    assert.ok(plan.officialMedia.includes(key), key);
+    assert.equal(siteDomain(new URL(library[key].sourceUrl).hostname), domain, key);
+    assert.equal(siteDomain(new URL(library[key].path).hostname), domain, `${key}: the file is on the official site too`);
+  }
+  assert.equal(universityPhotoRights("chang-an-university", library["chang-an-university"], sites), PHOTO_RIGHTS_OPEN_LICENSE);
+  for (const key of sites.keys()) {
+    assert.doesNotMatch(`${library[key].path} ${library[key].sourceUrl}`, /englishpath\.com|gbabs\.hk/u, key);
   }
 
   assert.deepEqual(libraryEntryProblems("ok-key", { path: "https://a.example/x.jpg", author: "A", title: "T",
@@ -245,6 +255,43 @@ test("official media of a catalogue university are copied with a visible categor
   assert.equal(result.manifest.entries.official.status, "verified");
   assert.equal(result.manifest.entries.official.rights, PHOTO_RIGHTS_OFFICIAL_MEDIA);
   assert.equal(result.manifest.entries.official.migrated, false);
+});
+
+test("check --only re-checks named keys and keeps every other entry byte for byte", async () => {
+  const previous = { schema: UNIVERSITY_PHOTO_MANIFEST_SCHEMA, generatedAt: "2026-10-01T00:00:00.000Z", entries: {
+    ok: { sourceUrl: CHECK_LIBRARY.ok.path, finalUrl: null, pageUrl: CHECK_LIBRARY.ok.sourceUrl, license: CHECK_LIBRARY.ok.license,
+      licenseUrl: CHECK_LIBRARY.ok.licenseUrl, attribution: CHECK_LIBRARY.ok.author, rights: PHOTO_RIGHTS_OPEN_LICENSE,
+      sha256: "a".repeat(64), bytes: 4096, contentType: "image/jpeg", objectPath: "ok.jpg", status: "verified", reason: null, migrated: true },
+    gone: { sourceUrl: CHECK_LIBRARY.gone.path, finalUrl: null, pageUrl: CHECK_LIBRARY.gone.sourceUrl, license: CHECK_LIBRARY.gone.license,
+      licenseUrl: CHECK_LIBRARY.gone.licenseUrl, attribution: CHECK_LIBRARY.gone.author, rights: PHOTO_RIGHTS_OPEN_LICENSE,
+      sha256: null, bytes: null, contentType: null, objectPath: null, status: "failed", reason: "check_pending_library_updated", migrated: false },
+  } };
+  const library = { ok: CHECK_LIBRARY.ok, gone: CHECK_LIBRARY.gone };
+  const requests = [];
+  const fetchImpl = async (url) => {
+    requests.push(url);
+    if (url === CHECK_LIBRARY.gone.path) return imageResponse(OK_BYTES);
+    throw new Error(`unexpected url: ${url}`);
+  };
+  const result = await checkUniversityPhotoMigration({ library, sites: new Map(), fetchImpl, previous, only: ["gone"] });
+  assert.equal(result.exitCode, 0);
+  assert.deepEqual(requests, [CHECK_LIBRARY.gone.path], "only the named key reaches the network");
+  assert.deepEqual(result.manifest.entries.ok, previous.entries.ok, "the migrated entry is untouched");
+  assert.equal(result.manifest.entries.gone.status, "verified");
+  assert.equal(result.manifest.entries.gone.sha256, sha256(OK_BYTES));
+  assert.equal(result.manifest.entries.gone.objectPath, "gone.jpg");
+  assert.equal(result.manifest.totals.migrated, 1);
+  // Другая запись разошлась с библиотекой: нужна полная --check, не частичная.
+  const stale = await checkUniversityPhotoMigration({ library: { ...library, ok: { ...CHECK_LIBRARY.ok, author: "Someone else" } },
+    sites: new Map(), fetchImpl() { assert.fail("a stale manifest must not reach the network"); }, previous, only: ["gone"] });
+  assert.equal(stale.exitCode, 1);
+  assert.deepEqual(stale.report.stale, ["ok"]);
+  const unknown = await checkUniversityPhotoMigration({ library, sites: new Map(), fetchImpl() { assert.fail("no network"); }, previous, only: ["nope"] });
+  assert.equal(unknown.report.status, "only_invalid");
+  // CLI: --check --only=a,b принимается, иные формы нет.
+  const lines = [];
+  assert.equal(await runUniversityPhotoMigrationCli(["--check", "--only=Bad Key"], { write: (line) => lines.push(line) }), 1);
+  assert.match(lines[0], /arguments_invalid/u);
 });
 
 test("check is read-only, records failures honestly and never drops entries", async () => {

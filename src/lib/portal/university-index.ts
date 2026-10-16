@@ -2,10 +2,13 @@
  * Индекс университетов студента и страница вуза одним вызовом (миграция 283,
  * контракт docs/catalog/geography-costs-contract.md, раздел 2).
  *
- * Строгие разборщики ответов `student_university_index_v1` и
+ * Разборщики ответов `student_university_index_v1` и
  * `student_university_detail_v1` и чистые помощники экранов «Страны →
- * города → вузы». Любое отклонение формы ответа даёт null: экран честно
- * говорит «не удалось загрузить», а не рисует половину каталога.
+ * города → вузы». Неверная обёртка ответа даёт null: экран честно говорит
+ * «не удалось загрузить». Неверная карточка города, вуза, поле страны или
+ * строка стоимости отбрасывается по одному с записью в журнал сервера
+ * (`CatalogParseReporter`), остальной каталог показывается. Тексты и ссылки
+ * проверяются тем же правилом, что в базе (`src/lib/catalog-text.ts`).
  *
  * Файл клиент-безопасный: без server-only и без Supabase (поиск по названию
  * работает в браузере на этом же коде).
@@ -16,13 +19,18 @@ import {
   UNIVERSITY_PHOTOS,
   parseUniversityPage,
   universityDate,
-  universityPublicUrl,
   universityUuid,
   type PublishedUniversity,
   type UniversityLevel,
   type UniversityPhotoKey,
 } from "../platform-university-catalog.ts";
-import { STUDY_COUNTRY_CODES } from "../study-countries.ts";
+import {
+  catalogPhotoSourceMatches,
+  catalogText,
+  catalogUrl,
+  type CatalogPhotoSource,
+} from "../catalog-text.ts";
+import { STUDY_COUNTRY_CODES, studyCountryName } from "../study-countries.ts";
 import { parseCatalogPreparations, type CatalogPreparation } from "./catalog-preparations.ts";
 import { parseConsultationReceipt, type ConsultationReceipt } from "./consultation.ts";
 
@@ -35,7 +43,7 @@ export type GeographyPhoto = Readonly<{
   height: number;
   author: string;
   authorUrl: string | null;
-  sourceName: "Unsplash" | "Pexels" | "Wikimedia Commons";
+  sourceName: CatalogPhotoSource;
   sourceUrl: string;
   license: string;
   licenseUrl: string | null;
@@ -139,7 +147,28 @@ export type StudentUniversityDetail = Readonly<{
 // Разбор
 // ---------------------------------------------------------------------------
 
+/**
+ * Что разборщик отбросил или заменил (review S3 веба, F12): неверная
+ * карточка страны, города, вуза или строка стоимости больше не роняет весь
+ * каталог. Город пропускается (его вузы уходят в «Другие вузы страны»),
+ * строка стоимости опускается, фото или текст страны становятся пустыми,
+ * а сервер пишет строку журнала. Ключи только каталожные (код страны, ключ
+ * города, id вуза или строки, валюта): личных данных нет.
+ */
+export type CatalogParseIssue = Readonly<{
+  item: "country" | "city" | "university" | "cost" | "costs" | "fx_rate";
+  key: string | null;
+  reason: string;
+}>;
+export type CatalogParseReporter = (issue: CatalogParseIssue) => void;
+
+const ignore: CatalogParseReporter = () => {};
+
 type Row = Record<string, unknown>;
+/** Значение или причина отказа (имя поля). */
+type Parsed<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; reason: string }>;
+const good = <T,>(value: T): Parsed<T> => ({ ok: true, value });
+const bad = (reason: string): Parsed<never> => ({ ok: false, reason });
 
 function record(value: unknown): Row | null {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Row : null;
@@ -150,9 +179,16 @@ function exact(row: Row, keys: readonly string[]): boolean {
   return present.length === keys.length && present.every((key) => keys.includes(key));
 }
 
-function text(value: unknown, max: number): value is string {
-  return typeof value === "string" && value.trim().length > 0 && value === value.trim()
-    && value.length <= max && !/[\u0000-\u001f\u007f]/u.test(value);
+/** Текст каталога 283: то же правило, что `catalog_text_ok` в базе. */
+const text = catalogText;
+
+/**
+ * Название вуза и строка его города приходят из карточки вуза (148,
+ * `university_text`): разбор не строже базы, иначе одна карточка вычеркнула
+ * бы вуз из каталога.
+ */
+function contentText(value: unknown, max: number): value is string {
+  return typeof value === "string" && /[^ ]/u.test(value) && [...value].length <= max && !/[\u0000-\u001f\u007f]/u.test(value);
 }
 
 function count(value: unknown): value is number {
@@ -165,32 +201,25 @@ function localized(value: unknown, max: number): LocalizedText | null {
   return { ru: row.ru, ky: row.ky };
 }
 
-const PHOTO_SOURCES: readonly GeographyPhoto["sourceName"][] = ["Unsplash", "Pexels", "Wikimedia Commons"];
-const PHOTO_HOSTS: Readonly<Record<GeographyPhoto["sourceName"], readonly string[]>> = {
-  Unsplash: ["unsplash.com", "www.unsplash.com"],
-  Pexels: ["pexels.com", "www.pexels.com"],
-  "Wikimedia Commons": ["commons.wikimedia.org", "upload.wikimedia.org"],
-};
+const PHOTO_KEYS = ["path", "width", "height", "author", "authorUrl", "sourceName", "sourceUrl", "license", "licenseUrl"] as const;
 
 function photo(value: unknown, scope: "countries" | "cities"): GeographyPhoto | null {
   const row = record(value);
-  if (!row || !exact(row, ["path", "width", "height", "author", "authorUrl", "sourceName", "sourceUrl", "license", "licenseUrl"])) return null;
+  if (!row || !exact(row, PHOTO_KEYS)) return null;
   const pattern = new RegExp(`^geography/${scope}/[a-z0-9]+(?:-[a-z0-9]+)*-[0-9a-f]{12}\\.(?:jpg|png|webp|avif)$`, "u");
   if (typeof row.path !== "string" || !pattern.test(row.path)
     || !Number.isSafeInteger(row.width) || Number(row.width) < 1 || Number(row.width) > 99999
     || !Number.isSafeInteger(row.height) || Number(row.height) < 1 || Number(row.height) > 99999
-    || !text(row.author, 200) || !(row.authorUrl === null || universityPublicUrl(row.authorUrl))
-    || !PHOTO_SOURCES.includes(row.sourceName as GeographyPhoto["sourceName"])
-    || !universityPublicUrl(row.sourceUrl)
-    || !PHOTO_HOSTS[row.sourceName as GeographyPhoto["sourceName"]].includes(new URL(row.sourceUrl).hostname)
-    || !text(row.license, 120) || !(row.licenseUrl === null || universityPublicUrl(row.licenseUrl))) return null;
+    || !text(row.author, 200) || !(row.authorUrl === null || catalogUrl(row.authorUrl))
+    || !catalogUrl(row.sourceUrl) || !catalogPhotoSourceMatches(row.sourceName, row.sourceUrl)
+    || !text(row.license, 120) || !(row.licenseUrl === null || catalogUrl(row.licenseUrl))) return null;
   return {
     path: row.path,
     width: row.width as number,
     height: row.height as number,
     author: row.author,
     authorUrl: row.authorUrl as string | null,
-    sourceName: row.sourceName as GeographyPhoto["sourceName"],
+    sourceName: row.sourceName,
     sourceUrl: row.sourceUrl,
     license: row.license,
     licenseUrl: row.licenseUrl as string | null,
@@ -200,32 +229,40 @@ function photo(value: unknown, scope: "countries" | "cities"): GeographyPhoto | 
 function fact(value: unknown): CityFact | null {
   const row = record(value);
   if (!row || !exact(row, ["ru", "ky", "sourceUrl", "verifiedOn"]) || !text(row.ru, 200) || !text(row.ky, 200)
-    || !universityPublicUrl(row.sourceUrl) || !universityDate(row.verifiedOn)) return null;
+    || !catalogUrl(row.sourceUrl) || !universityDate(row.verifiedOn)) return null;
   return { ru: row.ru, ky: row.ky, sourceUrl: row.sourceUrl, verifiedOn: row.verifiedOn };
 }
 
 const CITY_KEY = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])$/u;
 
-function city(value: unknown, withCount: boolean): (DetailCity & { universityCount?: number }) | null {
+function cityKeyOf(value: unknown): string | null {
+  const row = record(value);
+  return row && typeof row.key === "string" && CITY_KEY.test(row.key) ? row.key : null;
+}
+
+function city(value: unknown, withCount: boolean): Parsed<DetailCity & { universityCount?: number }> {
   const row = record(value);
   const keys = ["key", "country", "name", "photo", "summary", "fact", ...(withCount ? ["universityCount"] : [])];
-  if (!row || !exact(row, keys) || typeof row.key !== "string" || !CITY_KEY.test(row.key)
-    || typeof row.country !== "string" || !STUDY_COUNTRY_CODES.includes(row.country)) return null;
+  if (!row || !exact(row, keys)) return bad("keys");
+  if (typeof row.key !== "string" || !CITY_KEY.test(row.key)) return bad("key");
+  if (typeof row.country !== "string" || !STUDY_COUNTRY_CODES.includes(row.country)) return bad("country");
   const name = localized(row.name, 100);
+  if (!name) return bad("name");
   const cityPhoto = photo(row.photo, "cities");
+  if (!cityPhoto) return bad("photo");
   const summary = localized(row.summary, 300);
+  if (!summary) return bad("summary");
   const cityFact = fact(row.fact);
-  if (!name || !cityPhoto || !summary || !cityFact) return null;
-  if (withCount && (!count(row.universityCount) || row.universityCount < 1)) return null;
-  return {
+  if (!cityFact) return bad("fact");
+  return good({
     key: row.key,
     country: row.country,
     name,
     photo: cityPhoto,
     summary,
     fact: cityFact,
-    ...(withCount ? { universityCount: row.universityCount as number } : {}),
-  };
+    ...(withCount && count(row.universityCount) ? { universityCount: row.universityCount } : {}),
+  });
 }
 
 function month(value: unknown): value is string {
@@ -241,48 +278,102 @@ function intake(value: unknown): IndexIntake | null {
   return { deadline: row.deadline as string | null, start: row.start as string | null, startMonth: row.startMonth as string | null };
 }
 
-function university(value: unknown): IndexUniversity | null {
+const UNIVERSITY_KEYS = ["id", "name", "country", "cityKey", "cityLabel", "levels", "photoKey", "intakes", "hasCosts"] as const;
+
+/**
+ * Краткая карточка вуза. Без id, названия и страны вуза нет; остальное
+ * деградирует по полю: неверный набор дат даёт «даты уточняются», неверный
+ * ключ города или подпись города уводят вуз в «Другие вузы страны».
+ */
+function university(value: unknown, report: CatalogParseReporter): Parsed<IndexUniversity> {
   const row = record(value);
-  if (!row || !exact(row, ["id", "name", "country", "cityKey", "cityLabel", "levels", "photoKey", "intakes", "hasCosts"])) return null;
+  if (!row) return bad("shape");
   const id = universityUuid(row.id);
-  if (!id || !text(row.name, 300) || typeof row.country !== "string" || !STUDY_COUNTRY_CODES.includes(row.country)
-    || !(row.cityKey === null || (typeof row.cityKey === "string" && CITY_KEY.test(row.cityKey)))
-    || !(row.cityLabel === null || text(row.cityLabel, 200))
-    || !Array.isArray(row.levels) || row.levels.length > UNIVERSITY_LEVELS.length
-    || !row.levels.every((level) => UNIVERSITY_LEVELS.includes(level as UniversityLevel))
-    || new Set(row.levels).size !== row.levels.length
-    || !(row.photoKey === null || typeof row.photoKey === "string")
-    || !Array.isArray(row.intakes) || row.intakes.length > 400 || typeof row.hasCosts !== "boolean") return null;
-  const intakes: IndexIntake[] = [];
-  for (const entry of row.intakes) {
-    const parsed = intake(entry);
-    if (!parsed) return null;
-    intakes.push(parsed);
+  if (!id) return bad("id");
+  if (!contentText(row.name, 300)) return bad("name");
+  if (typeof row.country !== "string" || !STUDY_COUNTRY_CODES.includes(row.country)) return bad("country");
+  const note = (reason: string) => report({ item: "university", key: id, reason });
+  if (!exact(row, UNIVERSITY_KEYS)) note("keys");
+  let cityKey: string | null = null;
+  if (row.cityKey !== null && row.cityKey !== undefined) {
+    if (typeof row.cityKey === "string" && CITY_KEY.test(row.cityKey)) cityKey = row.cityKey;
+    else note("cityKey");
   }
+  let cityLabel: string | null = null;
+  if (row.cityLabel !== null && row.cityLabel !== undefined) {
+    if (contentText(row.cityLabel, 200)) cityLabel = row.cityLabel;
+    else note("cityLabel");
+  }
+  const rawLevels = Array.isArray(row.levels) ? row.levels : [];
+  if (!Array.isArray(row.levels) || rawLevels.some((level) => !UNIVERSITY_LEVELS.includes(level as UniversityLevel))
+    || new Set(rawLevels).size !== rawLevels.length) note("levels");
+  const intakes: IndexIntake[] = [];
+  if (Array.isArray(row.intakes) && row.intakes.length <= 400) {
+    for (const entry of row.intakes) {
+      const parsed = intake(entry);
+      if (!parsed) {
+        // Один неверный срок: честное «даты уточняются», а не чужой срок.
+        note("intakes");
+        intakes.length = 0;
+        break;
+      }
+      intakes.push(parsed);
+    }
+  } else note("intakes");
+  if (typeof row.hasCosts !== "boolean") note("hasCosts");
   // Ключ фото, которого нет в библиотеке этой сборки: честная заглушка
   // «фото не добавлено», а не отказ всего каталога.
   const photoKey = typeof row.photoKey === "string" && Object.hasOwn(UNIVERSITY_PHOTOS, row.photoKey)
     ? row.photoKey as UniversityPhotoKey
     : null;
-  return {
+  return good({
     id,
     name: row.name,
     country: row.country,
-    cityKey: row.cityKey as string | null,
-    cityLabel: row.cityLabel as string | null,
-    levels: UNIVERSITY_LEVELS.filter((level) => (row.levels as unknown[]).includes(level)),
+    cityKey,
+    cityLabel,
+    levels: UNIVERSITY_LEVELS.filter((level) => rawLevels.includes(level)),
     photoKey,
     intakes,
-    hasCosts: row.hasCosts,
-  };
+    hasCosts: row.hasCosts === true,
+  });
 }
 
 function version(value: unknown): value is string {
   return text(value, 100);
 }
 
-/** Строгий разбор `student_university_index_v1`; null при любом отклонении. */
-export function parseStudentUniversityIndexResponse(value: unknown): StudentUniversityIndexResponse | null {
+const COUNTRY_KEYS = ["code", "name", "photo", "summary", "universityCount", "cityCount"] as const;
+
+/** Карточка страны: код и порядок обязательны (282), остальное деградирует. */
+function country(item: Row, code: string, report: CatalogParseReporter): Omit<IndexCountry, "universityCount" | "cityCount"> {
+  const note = (reason: string) => report({ item: "country", key: code, reason });
+  if (!exact(item, COUNTRY_KEYS)) note("keys");
+  let name = localized(item.name, 100);
+  if (!name) {
+    note("name");
+    name = { ru: studyCountryName(code, "ru") ?? code, ky: studyCountryName(code, "ky") ?? code };
+  }
+  let countryPhoto: GeographyPhoto | null = null;
+  if (item.photo !== null && item.photo !== undefined) {
+    countryPhoto = photo(item.photo, "countries");
+    if (!countryPhoto) note("photo");
+  }
+  let summary: LocalizedText | null = null;
+  if (item.summary !== null && item.summary !== undefined) {
+    summary = localized(item.summary, 300);
+    if (!summary) note("summary");
+  }
+  return { code, name, photo: countryPhoto, summary };
+}
+
+/**
+ * Разбор `student_university_index_v1`. Отказ всего индекса (null) только
+ * при неверной обёртке: ключи ответа, версия, шесть стран в порядке
+ * продукта. Неверный город, вуз или поле страны отбрасываются по одному
+ * (`report`), счётчики считаются по тому, что осталось (приёмка 7.6.2).
+ */
+export function parseStudentUniversityIndexResponse(value: unknown, report: CatalogParseReporter = ignore): StudentUniversityIndexResponse | null {
   const row = record(value);
   if (!row) return null;
   if (row.notModified === true) {
@@ -292,53 +383,79 @@ export function parseStudentUniversityIndexResponse(value: unknown): StudentUniv
   }
   if (row.notModified !== false || !exact(row, ["notModified", "version", "countries", "cities", "universities"])
     || !version(row.version) || !Array.isArray(row.countries) || !Array.isArray(row.cities)
-    || !Array.isArray(row.universities) || row.universities.length > 5000 || row.cities.length > 1000) return null;
+    || !Array.isArray(row.universities) || row.universities.length > 5000 || row.cities.length > 1000
+    || row.countries.length !== STUDY_COUNTRY_CODES.length) return null;
 
-  const countries: IndexCountry[] = [];
-  for (const entry of row.countries) {
-    const item = record(entry);
-    if (!item || !exact(item, ["code", "name", "photo", "summary", "universityCount", "cityCount"])) return null;
-    const name = localized(item.name, 100);
-    const countryPhoto = item.photo === null ? null : photo(item.photo, "countries");
-    const summary = item.summary === null ? null : localized(item.summary, 300);
-    if (typeof item.code !== "string" || !name || (item.photo !== null && !countryPhoto)
-      || (item.summary !== null && !summary) || !count(item.universityCount) || !count(item.cityCount)) return null;
-    countries.push({ code: item.code, name, photo: countryPhoto, summary, universityCount: item.universityCount, cityCount: item.cityCount });
-  }
   // Страны всегда шесть и в порядке продукта (282).
-  if (countries.map((entry) => entry.code).join(",") !== STUDY_COUNTRY_CODES.join(",")) return null;
+  const countryItems: Row[] = [];
+  for (const [index, entry] of row.countries.entries()) {
+    const item = record(entry);
+    if (!item || item.code !== STUDY_COUNTRY_CODES[index]) return null;
+    countryItems.push(item);
+  }
 
-  const cities: IndexCity[] = [];
-  const cityKeys = new Map<string, string>();
+  const cities: (DetailCity & { universityCount?: number })[] = [];
+  const cityCountry = new Map<string, string>();
   for (const entry of row.cities) {
     const parsed = city(entry, true);
-    if (!parsed || cityKeys.has(parsed.key)) return null;
-    cityKeys.set(parsed.key, parsed.country);
-    cities.push(parsed as IndexCity);
+    const key = parsed.ok ? parsed.value.key : cityKeyOf(entry);
+    if (!parsed.ok) {
+      report({ item: "city", key, reason: parsed.reason });
+      continue;
+    }
+    if (cityCountry.has(parsed.value.key)) {
+      report({ item: "city", key, reason: "duplicate" });
+      continue;
+    }
+    cityCountry.set(parsed.value.key, parsed.value.country);
+    cities.push(parsed.value);
   }
 
   const universities: IndexUniversity[] = [];
   const ids = new Set<string>();
   for (const entry of row.universities) {
-    const parsed = university(entry);
-    if (!parsed || ids.has(parsed.id)) return null;
-    if (parsed.cityKey !== null && cityKeys.get(parsed.cityKey) !== parsed.country) return null;
-    ids.add(parsed.id);
-    universities.push(parsed);
+    const parsed = university(entry, report);
+    if (!parsed.ok) {
+      report({ item: "university", key: universityUuid(record(entry)?.id), reason: parsed.reason });
+      continue;
+    }
+    let item = parsed.value;
+    if (ids.has(item.id)) {
+      report({ item: "university", key: item.id, reason: "duplicate" });
+      continue;
+    }
+    // Город, которого нет в индексе или который другой страны: вуз в
+    // «Другие вузы страны».
+    if (item.cityKey !== null && cityCountry.get(item.cityKey) !== item.country) {
+      report({ item: "university", key: item.id, reason: "city" });
+      item = { ...item, cityKey: null };
+    }
+    ids.add(item.id);
+    universities.push(item);
   }
 
   // Счётчики выдачи сходятся с её же списками: сумма вузов по странам равна
-  // числу вузов, город считает свои вузы (приёмка 7.6.2).
-  for (const country of countries) {
-    const own = universities.filter((entry) => entry.country === country.code);
-    if (own.length !== country.universityCount
-      || cities.filter((entry) => entry.country === country.code).length !== country.cityCount) return null;
-  }
+  // числу вузов, город считает свои вузы (приёмка 7.6.2). Расхождение с
+  // числами сервера только пишется в журнал.
+  const indexCities: IndexCity[] = [];
   for (const entry of cities) {
-    if (universities.filter((item) => item.cityKey === entry.key).length !== entry.universityCount) return null;
+    const own = universities.filter((item) => item.cityKey === entry.key).length;
+    if (own === 0) {
+      report({ item: "city", key: entry.key, reason: "empty" });
+      continue;
+    }
+    if (entry.universityCount !== own) report({ item: "city", key: entry.key, reason: "count" });
+    indexCities.push({ ...entry, universityCount: own });
   }
+  const countries: IndexCountry[] = countryItems.map((item, index) => {
+    const code = STUDY_COUNTRY_CODES[index]!;
+    const universityCount = universities.filter((entry) => entry.country === code).length;
+    const cityCount = indexCities.filter((entry) => entry.country === code).length;
+    if (item.universityCount !== universityCount || item.cityCount !== cityCount) report({ item: "country", key: code, reason: "count" });
+    return { ...country(item, code, report), universityCount, cityCount };
+  });
 
-  return { notModified: false, index: { version: row.version, countries, cities, universities } };
+  return { notModified: false, index: { version: row.version, countries, cities: indexCities, universities } };
 }
 
 const COST_KEYS = [
@@ -350,27 +467,29 @@ function amount(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
-function costRow(value: unknown): CostRow | null {
+function costRow(value: unknown): Parsed<CostRow> {
   const row = record(value);
-  if (!row || !exact(row, COST_KEYS)) return null;
+  if (!row || !exact(row, COST_KEYS)) return bad("keys");
   const id = universityUuid(row.id);
-  const source = record(row.source);
+  if (!id) return bad("id");
+  if (!COST_KINDS.includes(row.kind as CostKind)) return bad("kind");
+  if (!COST_PERIODS.includes(row.period as CostPeriod)) return bad("period");
+  if (!(row.studyLevel === null || UNIVERSITY_LEVELS.includes(row.studyLevel as UniversityLevel))) return bad("studyLevel");
+  if (!(row.programId === null || (typeof row.programId === "string" && /^[a-z0-9][a-z0-9-]{0,63}$/u.test(row.programId)))) return bad("programId");
+  if (!(row.teachingLanguage === null || (typeof row.teachingLanguage === "string" && /^[a-z]{2}$/u.test(row.teachingLanguage)))) return bad("teachingLanguage");
+  if (typeof row.currency !== "string" || !/^[A-Z]{3}$/u.test(row.currency)) return bad("currency");
+  if (!Number.isSafeInteger(row.exponent) || Number(row.exponent) < 0 || Number(row.exponent) > 4) return bad("exponent");
+  if (!amount(row.amountMinMinor) || !(row.amountMaxMinor === null || (amount(row.amountMaxMinor) && row.amountMaxMinor > row.amountMinMinor))) return bad("amount");
+  if (!(row.usdApproxMin === null || amount(row.usdApproxMin)) || !(row.usdApproxMax === null || amount(row.usdApproxMax))
+    || (row.usdApproxMax !== null && (row.amountMaxMinor === null || row.usdApproxMin === null))) return bad("usd");
+  if (!(row.academicYear === null || (typeof row.academicYear === "string" && /^20\d{2}(?:\/\d{2})?$/u.test(row.academicYear)))) return bad("academicYear");
   const note = row.note === null ? null : localized(row.note, 300);
-  if (!id || !COST_KINDS.includes(row.kind as CostKind) || !COST_PERIODS.includes(row.period as CostPeriod)
-    || !(row.studyLevel === null || UNIVERSITY_LEVELS.includes(row.studyLevel as UniversityLevel))
-    || !(row.programId === null || (typeof row.programId === "string" && /^[a-z0-9][a-z0-9-]{0,63}$/u.test(row.programId)))
-    || !(row.teachingLanguage === null || (typeof row.teachingLanguage === "string" && /^[a-z]{2}$/u.test(row.teachingLanguage)))
-    || typeof row.currency !== "string" || !/^[A-Z]{3}$/u.test(row.currency)
-    || !Number.isSafeInteger(row.exponent) || Number(row.exponent) < 0 || Number(row.exponent) > 4
-    || !amount(row.amountMinMinor) || !(row.amountMaxMinor === null || (amount(row.amountMaxMinor) && row.amountMaxMinor > row.amountMinMinor))
-    || !(row.usdApproxMin === null || amount(row.usdApproxMin)) || !(row.usdApproxMax === null || amount(row.usdApproxMax))
-    || (row.usdApproxMax !== null && (row.amountMaxMinor === null || row.usdApproxMin === null))
-    || !(row.academicYear === null || (typeof row.academicYear === "string" && /^20\d{2}(?:\/\d{2})?$/u.test(row.academicYear)))
-    || (row.note !== null && !note)
-    || !source || !exact(source, ["kind", "url"])
-    || !(source.kind === "official" ? universityPublicUrl(source.url) : ((source.kind === "agency" || source.kind === "evo_document") && source.url === null))
-    || !universityDate(row.verifiedOn)) return null;
-  return {
+  if (row.note !== null && !note) return bad("note");
+  const source = record(row.source);
+  if (!source || !exact(source, ["kind", "url"])
+    || !(source.kind === "official" ? catalogUrl(source.url) : ((source.kind === "agency" || source.kind === "evo_document") && source.url === null))) return bad("source");
+  if (!universityDate(row.verifiedOn)) return bad("verifiedOn");
+  return good({
     id,
     kind: row.kind as CostKind,
     period: row.period as CostPeriod,
@@ -389,7 +508,7 @@ function costRow(value: unknown): CostRow | null {
       ? { kind: "official", url: source.url as string }
       : { kind: source.kind as "agency" | "evo_document", url: null },
     verifiedOn: row.verifiedOn,
-  };
+  });
 }
 
 function fxRate(value: unknown): FxRate | null {
@@ -397,52 +516,91 @@ function fxRate(value: unknown): FxRate | null {
   if (!row || !exact(row, ["currency", "unitsPerUsd", "asOf", "sourceName"])
     || typeof row.currency !== "string" || !/^[A-Z]{3}$/u.test(row.currency)
     || typeof row.unitsPerUsd !== "number" || !Number.isFinite(row.unitsPerUsd) || row.unitsPerUsd <= 0
-    || !universityDate(row.asOf) || !text(row.sourceName, 300)) return null;
+    || !universityDate(row.asOf) || !text(row.sourceName, 200)) return null;
   return { currency: row.currency, unitsPerUsd: row.unitsPerUsd, asOf: row.asOf, sourceName: row.sourceName };
 }
 
-function costs(value: unknown): UniversityCosts | null | undefined {
+/**
+ * Блок «Стоимость»: неверная строка или курс опускаются по одному; строка
+ * без своего курса теряет ориентир в USD (сумма без названного курса не
+ * показывается); не осталось строк: блока нет.
+ */
+function costs(value: unknown, report: CatalogParseReporter): UniversityCosts | null {
   if (value === null) return null;
   const row = record(value);
-  if (!row || !exact(row, ["rows", "fxRates"]) || !Array.isArray(row.rows) || row.rows.length < 1 || row.rows.length > 500
-    || !Array.isArray(row.fxRates) || row.fxRates.length > 50) return undefined;
+  if (!row || !exact(row, ["rows", "fxRates"]) || !Array.isArray(row.rows) || !Array.isArray(row.fxRates)) {
+    report({ item: "costs", key: null, reason: "shape" });
+    return null;
+  }
   const rows: CostRow[] = [];
   const ids = new Set<string>();
-  for (const entry of row.rows) {
+  for (const entry of row.rows.slice(0, 500)) {
     const parsed = costRow(entry);
-    if (!parsed || ids.has(parsed.id)) return undefined;
-    ids.add(parsed.id);
-    rows.push(parsed);
+    if (!parsed.ok) {
+      report({ item: "cost", key: universityUuid(record(entry)?.id), reason: parsed.reason });
+      continue;
+    }
+    if (ids.has(parsed.value.id)) {
+      report({ item: "cost", key: parsed.value.id, reason: "duplicate" });
+      continue;
+    }
+    ids.add(parsed.value.id);
+    rows.push(parsed.value);
   }
+  if (row.rows.length > 500) report({ item: "costs", key: null, reason: "rows" });
   const fxRates: FxRate[] = [];
-  for (const entry of row.fxRates) {
+  for (const entry of row.fxRates.slice(0, 50)) {
     const parsed = fxRate(entry);
-    if (!parsed || fxRates.some((rate) => rate.currency === parsed.currency)) return undefined;
+    const currency = typeof record(entry)?.currency === "string" ? String(record(entry)?.currency).slice(0, 3) : null;
+    if (!parsed || fxRates.some((rate) => rate.currency === parsed.currency)) {
+      report({ item: "fx_rate", key: currency, reason: parsed ? "duplicate" : "invalid" });
+      continue;
+    }
     fxRates.push(parsed);
   }
-  return { rows, fxRates };
+  const rated = new Set(fxRates.map((rate) => rate.currency));
+  const shown = rows.map((entry) => {
+    if (entry.usdApproxMin === null || rated.has(entry.currency)) return entry;
+    report({ item: "cost", key: entry.id, reason: "rate" });
+    return { ...entry, usdApproxMin: null, usdApproxMax: null };
+  });
+  if (shown.length === 0) {
+    report({ item: "costs", key: null, reason: "empty" });
+    return null;
+  }
+  return { rows: shown, fxRates };
 }
 
 /**
- * Строгий разбор `student_university_detail_v1`. `expectedId`: вуз из
- * адреса страницы: ответ о другом вузе считается сбоем, а не подменой.
+ * Разбор `student_university_detail_v1`. `expectedId`: вуз из адреса
+ * страницы: ответ о другом вузе считается сбоем, а не подменой. Карточка
+ * вуза, страна, избранное, консультация и подготовки строгие (null при
+ * отклонении); город и стоимость деградируют по одному (`report`).
  */
-export function parseStudentUniversityDetail(value: unknown, expectedId: string): StudentUniversityDetail | null {
+export function parseStudentUniversityDetail(value: unknown, expectedId: string, report: CatalogParseReporter = ignore): StudentUniversityDetail | null {
   const row = record(value);
   if (!row || !exact(row, ["university", "country", "city", "favored", "openConsultation", "preparations", "costs"])) return null;
   const page = parseUniversityPage({ items: [row.university], nextOffset: null });
   const item = page?.items[0];
-  const country = record(row.country);
-  const countryName = country ? localized(country.name, 100) : null;
-  const detailCity = row.city === null ? null : city(row.city, false);
+  const countryRow = record(row.country);
   const openConsultation = row.openConsultation === null ? null : parseConsultationReceipt(row.openConsultation);
-  const parsedCosts = costs(row.costs);
-  if (!item || item.id !== expectedId || !country || !exact(country, ["code", "name"]) || !countryName
-    || country.code !== item.content.country || !STUDY_COUNTRY_CODES.includes(country.code as string)
-    || (row.city !== null && (!detailCity || detailCity.country !== country.code))
+  if (!item || item.id !== expectedId || !countryRow || countryRow.code !== item.content.country
+    || typeof countryRow.code !== "string" || !STUDY_COUNTRY_CODES.includes(countryRow.code)
     || typeof row.favored !== "boolean"
-    || (row.openConsultation !== null && !openConsultation)
-    || parsedCosts === undefined) return null;
+    || (row.openConsultation !== null && !openConsultation)) return null;
+  const code = countryRow.code;
+  let countryName = exact(countryRow, ["code", "name"]) ? localized(countryRow.name, 100) : null;
+  if (!countryName) {
+    report({ item: "country", key: code, reason: "name" });
+    countryName = { ru: studyCountryName(code, "ru") ?? code, ky: studyCountryName(code, "ky") ?? code };
+  }
+  let detailCity: DetailCity | null = null;
+  if (row.city !== null) {
+    const parsed = city(row.city, false);
+    if (!parsed.ok) report({ item: "city", key: cityKeyOf(row.city), reason: parsed.reason });
+    else if (parsed.value.country !== code) report({ item: "city", key: parsed.value.key, reason: "country" });
+    else detailCity = parsed.value;
+  }
   let preparations: StudentUniversityDetail["preparations"] = null;
   if (row.preparations !== null) {
     const prep = record(row.preparations);
@@ -454,12 +612,12 @@ export function parseStudentUniversityDetail(value: unknown, expectedId: string)
   }
   return {
     university: item,
-    country: { code: country.code as string, name: countryName },
+    country: { code, name: countryName },
     city: detailCity,
     favored: row.favored,
     openConsultation,
     preparations,
-    costs: parsedCosts,
+    costs: costs(row.costs, report),
   };
 }
 

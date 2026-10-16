@@ -13,6 +13,7 @@ import "server-only";
 
 import manifest from "../../scripts/portal/university-photos-manifest.json" with { type: "json" };
 import { UNIVERSITY_PHOTOS } from "./platform-university-catalog.ts";
+import { getSupabasePublicConfig } from "./supabase/config.ts";
 
 export const UNIVERSITY_PHOTO_PUBLIC_BASE_URL =
   "https://iosckaqtovbbnssqcpde.supabase.co/storage/v1/object/public/portal-university-photos";
@@ -89,4 +90,38 @@ export function universityPhotoUrl(photoKey: string | null): string | null {
 /** Боевая обвязка `srcset`: те же библиотека и манифест. */
 export function universityPhotoSrcSet(photoKey: string | null, widths: readonly number[]): string | null {
   return resolveUniversityPhotoSrcSet(photoKey, LIBRARY, MANIFEST_ENTRIES, UNIVERSITY_PHOTO_RENDER_BASE_URL, widths);
+}
+
+/** Бакет фото вузов, стран и городов (283 кладёт фото стран и городов под `geography/`). */
+export const UNIVERSITY_PHOTO_BUCKET_NAME = "portal-university-photos";
+
+export type PhotoSources = Readonly<{ src: string; srcSet: string | null }>;
+
+const GEOGRAPHY_PATH = /^geography\/(?:countries|cities)\/[a-z0-9]+(?:-[a-z0-9]+)*-[0-9a-f]{12}\.(?:jpg|png|webp|avif)$/u;
+
+/**
+ * Фото страны или города (миграция 283, контракт 2.5): оригинал и уменьшенные
+ * копии того же объекта через Image Transformations, как у фото вузов.
+ * Адрес проекта — из окружения (production или локальный стенд), путь —
+ * только `geography/...` с 12 знаками sha256; иной путь даёт null.
+ */
+export function resolveGeographyPhotoSources(
+  path: string,
+  supabaseUrl: string,
+  widths: readonly number[],
+): PhotoSources | null {
+  if (!GEOGRAPHY_PATH.test(path)) return null;
+  const origin = supabaseUrl.replace(/\/+$/u, "");
+  const object = path.split("/").map(encodeURIComponent).join("/");
+  const src = `${origin}/storage/v1/object/public/${UNIVERSITY_PHOTO_BUCKET_NAME}/${object}`;
+  const render = `${origin}/storage/v1/render/image/public/${UNIVERSITY_PHOTO_BUCKET_NAME}/${object}`;
+  const srcSet = widths.length === 0
+    ? null
+    : widths.map((width) => `${render}?width=${width}&height=2500&resize=contain&quality=70 ${width}w`).join(", ");
+  return { src, srcSet };
+}
+
+/** Боевая обвязка: адрес проекта из NEXT_PUBLIC_SUPABASE_URL. */
+export function geographyPhotoSources(path: string, widths: readonly number[]): PhotoSources | null {
+  return resolveGeographyPhotoSources(path, getSupabasePublicConfig().url, widths);
 }

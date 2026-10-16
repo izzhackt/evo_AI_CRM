@@ -72,7 +72,6 @@ export default async function FavoritesPage() {
             <UniversityCard
               key={item.id}
               item={item}
-              base="/portal/universities"
               strings={universitiesStrings}
               locale={locale}
               now={now}

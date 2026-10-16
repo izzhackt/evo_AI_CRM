@@ -9,14 +9,15 @@ import type { UniversityMapPin } from "@/lib/portal/universities";
 import type { MapCanvasProps } from "./MapCanvas";
 
 /**
- * Клиентская обёртка карты (PORT-3a): MapLibre загружается динамически и
- * только в браузере (без SSR); неудачная загрузка чанка или тайлов — явное
- * состояние ошибки, список остаётся полноценным представлением (план §6).
+ * Клиентская обёртка карты (PORT-3a, S3: карта страны): MapLibre загружается
+ * динамически и только в браузере (без SSR); неудачная загрузка чанка или
+ * тайлов — явное состояние ошибки, города страны остаются полноценным
+ * представлением (план 7.3).
  */
 
 export type UniversitiesMapStrings = Pick<
   PortalStrings<"universities">,
-  "mapAria" | "mapLoading" | "mapFailed" | "mapOpenCard" | "mapCloseCard" | "viewList"
+  "mapAria" | "mapLoading" | "mapFailed" | "mapOpenCard" | "mapCloseCard" | "mapCluster" | "viewCities"
 >;
 
 export function UniversitiesMapView({
@@ -68,7 +69,7 @@ export function UniversitiesMapView({
       {status === "failed" ? (
         <div className="pt-map-status pt-map-status-error" role="alert">
           <p>{strings.mapFailed}</p>
-          <Link href={listHref} className="pt-btn">{strings.viewList}</Link>
+          <Link href={listHref} className="pt-btn">{strings.viewCities}</Link>
         </div>
       ) : null}
     </div>

@@ -1,13 +1,18 @@
 /**
  * Университеты v2 в CRM (план S3.5, контракт docs/catalog/geography-costs-contract.md
  * раздел 3): разбор `staff_catalog_geography_v1`, проверка ввода города,
- * строки стоимости и курса перед RPC, деньги и подписи.
+ * строки стоимости и курса перед RPC, деньги, подписи и слова отказов.
  *
  * Модуль клиент-безопасный (без server-only и Supabase): его читают и формы
- * в браузере, и серверное действие. Проверки повторяют SQL 283, но решает
- * всегда RPC: здесь только ранний понятный отказ.
+ * в браузере, и серверное действие. Тексты и ссылки проверяются тем же
+ * правилом, что база (`catalogText`, `catalogUrl` из `catalog-text.ts`,
+ * контракт 2.2a); решает всегда RPC, здесь только ранний понятный отказ.
  */
-import { UNIVERSITY_LEVELS, UNIVERSITY_LEVEL_LABELS, universityPublicUrl, type UniversityLevel } from "./platform-university-catalog.ts";
+import {
+  CATALOG_PHOTO_SOURCE_HOSTS, catalogAgencyUrl, catalogPhotoSourceMatches, catalogText, catalogUrl, catalogUrlHost,
+  type CatalogPhotoSource,
+} from "./catalog-text.ts";
+import { UNIVERSITY_LEVELS, UNIVERSITY_LEVEL_LABELS, type UniversityLevel } from "./platform-university-catalog.ts";
 import { STUDY_COUNTRY_CODES, isStudyCountryCode } from "./study-countries.ts";
 
 export const COST_KINDS = ["tuition", "accommodation", "application_fee", "insurance", "other"] as const;
@@ -18,8 +23,9 @@ export const COST_SOURCE_KINDS = ["official", "agency", "evo_document"] as const
 export type CostSourceKind = (typeof COST_SOURCE_KINDS)[number];
 export const COST_STATUSES = ["draft", "published", "retired"] as const;
 export type CostStatus = (typeof COST_STATUSES)[number];
-export const PHOTO_SOURCES = ["Unsplash", "Pexels", "Wikimedia Commons"] as const;
-export type PhotoSource = (typeof PHOTO_SOURCES)[number];
+/** Источники фото стран и городов (CHECK 283, контракт 2.5): те же, что `CATALOG_PHOTO_SOURCE_HOSTS`. */
+export const PHOTO_SOURCES = Object.freeze(Object.keys(CATALOG_PHOTO_SOURCE_HOSTS)) as readonly CatalogPhotoSource[];
+export type PhotoSource = CatalogPhotoSource;
 
 export const COST_KIND_LABELS: Record<CostKind, string> = {
   tuition: "Обучение",
@@ -239,19 +245,33 @@ function languagePrepositional(adjective: string): string {
 
 /* ----------------------------------------------------------- проверка ввода */
 
-const CONTROL = /[\u0000-\u001f\u007f]/;
-/** Длинное и среднее тире в текстах для студентов не используются (правило текстов EVO, как у генератора сида). */
-const DASH = /[\u2013\u2014]/;
-export function studentText(value: string, max: number): boolean {
-  return value.length > 0 && value === value.trim() && [...value].length <= max && !CONTROL.test(value) && !DASH.test(value);
+/** Длинное, среднее и похожие тире в текстах для людей не используются (правило EVO, как DASH_PATTERN генератора сида). */
+const DASH = /[‒-―]/u;
+/**
+ * Текст по правилу базы (`catalog_text_ok`, контракт 2.2a); у текстов для
+ * студента ещё без тире. Возвращает слова ошибки или null, если текст верный.
+ */
+export function catalogTextIssue(value: string, max: number, student: boolean): string | null {
+  if (catalogText(value, max) && !(student && DASH.test(value))) return null;
+  if (value.length === 0) return "Заполните поле.";
+  const length = [...value].length;
+  if (length > max) return `Слишком длинно: ${length} из ${max} знаков.`;
+  if (student && DASH.test(value)) return "Без длинного и среднего тире: поставьте дефис, запятую или двоеточие.";
+  return "Уберите невидимые знаки: перевод строки, табуляцию, мягкий перенос, знаки нулевой ширины или направления письма.";
 }
-const plain = (value: string, max: number) => value.length > 0 && value === value.trim() && [...value].length <= max && !CONTROL.test(value);
+/** Текст для студента: правило базы и без тире. */
+export function studentText(value: string, max: number): boolean {
+  return catalogTextIssue(value, max, true) === null;
+}
+const URL_ISSUE = "Адрес публичной страницы https://, без пробелов, порта и невидимых знаков.";
 const pastDay = (value: string, today: string) => DAY.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && value >= "2000-01-01" && value <= today;
 export function academicYearOk(value: string): boolean {
   if (/^20\d{2}$/.test(value)) return true;
   const match = /^(20\d{2})\/(\d{2})$/.exec(value);
   return match !== null && Number(match[2]) === (Number(match[1]) + 1) % 100;
 }
+/** Ошибки формы: поле и слова (null: общие слова поля у формы). */
+export type FieldErrors<F extends string> = ReadonlyMap<F, string | null>;
 
 export type CityDraft = {
   key: string; country: string; nameRu: string; nameKy: string; nameEn: string; lat: string; lng: string;
@@ -274,53 +294,72 @@ export function cityDraft(city: GeoCity | null, countryCode: string): CityDraft 
     factKy: city?.factKy ?? "", factSourceUrl: city?.factSourceUrl ?? "", factVerifiedOn: city?.factVerifiedOn ?? "", kyReview: city?.kyReview ?? "pending",
   };
 }
+/** `photo`, `summary`, `fact`: сводные ключи групп (у каждого поля группы своя ошибка). */
 export type CityField = keyof CityDraft | "photo" | "summary" | "fact" | "coordinates";
-const PHOTO_HOSTS: Readonly<Record<PhotoSource, readonly string[]>> = {
-  Unsplash: ["unsplash.com", "www.unsplash.com"],
-  Pexels: ["pexels.com", "www.pexels.com"],
-  "Wikimedia Commons": ["commons.wikimedia.org", "upload.wikimedia.org"],
-};
-const PHOTO_PATH = /^geography\/cities\/[a-z0-9]+(-[a-z0-9]+)*-[0-9a-f]{12}\.(jpg|png|webp|avif)$/;
+export const CITY_PHOTO_PATH = /^geography\/cities\/[a-z0-9]+(-[a-z0-9]+)*-[0-9a-f]{12}\.(jpg|png|webp|avif)$/;
 const coordinate = (value: string, limit: number) => /^-?\d{1,3}(\.\d{1,8})?$/.test(value) && Math.abs(Number(value)) <= limit;
 const sideOk = (value: string) => /^[1-9]\d{0,4}$/.test(value);
 /** Пара RU и KY: оба текста или ни одного. */
-function pair(ru: string, ky: string, max: number, errors: Set<CityField>, name: "summary" | "fact"): [string | null, string | null] {
+function pair(ru: string, ky: string, max: number, errors: Map<CityField, string | null>, name: "summary" | "fact"): [string | null, string | null] {
   const a = ru.trim(), b = ky.trim();
   if (!a && !b) return [null, null];
-  if (!studentText(a, max) || !studentText(b, max)) errors.add(name);
+  if (!a || !b) errors.set(name, `Нужны оба языка, RU и KY, или ни одного: сейчас нет ${a ? "KY" : "RU"}.`);
+  else {
+    const issue = catalogTextIssue(a, max, true) ?? catalogTextIssue(b, max, true);
+    if (issue) errors.set(name, `${catalogTextIssue(a, max, true) ? "RU" : "KY"}: ${issue}`);
+  }
   return [a, b];
 }
 /**
- * Черновик формы → вход `staff_catalog_city_upsert_v1` (контракт 3.2) или
- * список полей с ошибкой. Пустое поле пути фото значит «без фото».
+ * Черновик формы → вход `staff_catalog_city_upsert_v1` (контракт 3.2) и
+ * ошибки полей словами. Пустое поле пути фото значит «без фото».
  */
-export function cityInput(draft: CityDraft, today: string): { input: CityInput; errors: ReadonlySet<CityField> } {
-  const errors = new Set<CityField>();
-  if (draft.key.length < 2 || draft.key.length > 64 || !CITY_KEY.test(draft.key)) errors.add("key");
-  if (!isStudyCountryCode(draft.country)) errors.add("country");
-  for (const field of ["nameRu", "nameKy", "nameEn"] as const) if (!studentText(draft[field].trim(), 100)) errors.add(field);
+export function cityInput(draft: CityDraft, today: string): { input: CityInput; errors: FieldErrors<CityField> } {
+  const errors = new Map<CityField, string | null>();
+  if (draft.key.length < 2 || draft.key.length > 64 || !CITY_KEY.test(draft.key)) errors.set("key", null);
+  if (!isStudyCountryCode(draft.country)) errors.set("country", null);
+  for (const field of ["nameRu", "nameKy", "nameEn"] as const) {
+    const issue = catalogTextIssue(draft[field].trim(), 100, true);
+    if (issue) errors.set(field, issue);
+  }
   const lat = draft.lat.trim(), lng = draft.lng.trim();
-  if ((lat === "") !== (lng === "") || (lat && (!coordinate(lat, 90) || !coordinate(lng, 180)))) errors.add("coordinates");
+  if ((lat === "") !== (lng === "") || (lat && (!coordinate(lat, 90) || !coordinate(lng, 180)))) errors.set("coordinates", null);
   let image: GeoPhoto | null = null;
   if (draft.photoPath.trim()) {
-    const source = draft.photoSourceName as PhotoSource;
-    const host = (() => { try { return new URL(draft.photoSourceUrl.trim()).hostname.toLowerCase(); } catch { return ""; } })();
-    if (!PHOTO_PATH.test(draft.photoPath.trim()) || !sideOk(draft.photoWidth.trim()) || !sideOk(draft.photoHeight.trim())
-      || !plain(draft.photoAuthor.trim(), 200) || !(draft.photoAuthorUrl.trim() === "" || universityPublicUrl(draft.photoAuthorUrl.trim()))
-      || !oneOf(PHOTO_SOURCES, source) || !universityPublicUrl(draft.photoSourceUrl.trim()) || !PHOTO_HOSTS[source].includes(host)
-      || !plain(draft.photoLicense.trim(), 120) || !(draft.photoLicenseUrl.trim() === "" || universityPublicUrl(draft.photoLicenseUrl.trim()))
-      || /eduprchina/i.test([draft.photoPath, draft.photoAuthorUrl, draft.photoSourceUrl, draft.photoLicenseUrl].join(" "))) errors.add("photo");
+    const photo = {
+      path: draft.photoPath.trim(), width: draft.photoWidth.trim(), height: draft.photoHeight.trim(), author: draft.photoAuthor.trim(),
+      authorUrl: draft.photoAuthorUrl.trim(), sourceName: draft.photoSourceName, sourceUrl: draft.photoSourceUrl.trim(),
+      license: draft.photoLicense.trim(), licenseUrl: draft.photoLicenseUrl.trim(),
+    };
+    const fail = (field: CityField, text: string | null) => { if (!errors.has(field)) errors.set(field, text); errors.set("photo", null); };
+    if (!CITY_PHOTO_PATH.test(photo.path)) fail("photoPath", null);
+    if (!sideOk(photo.width)) fail("photoWidth", null);
+    if (!sideOk(photo.height)) fail("photoHeight", null);
+    const author = catalogTextIssue(photo.author, 200, false);
+    if (author) fail("photoAuthor", author);
+    if (photo.authorUrl && !catalogUrl(photo.authorUrl)) fail("photoAuthorUrl", URL_ISSUE);
+    if (!oneOf(PHOTO_SOURCES, photo.sourceName)) fail("photoSourceName", null);
+    else if (!catalogUrl(photo.sourceUrl)) fail("photoSourceUrl", URL_ISSUE);
+    else if (!catalogPhotoSourceMatches(photo.sourceName, photo.sourceUrl)) {
+      fail("photoSourceUrl", `Нужна страница фото на ${CATALOG_PHOTO_SOURCE_HOSTS[photo.sourceName][0]}: адрес ${catalogUrlHost(photo.sourceUrl) ?? ""} не относится к ${photo.sourceName}.`);
+    }
+    const license = catalogTextIssue(photo.license, 120, false);
+    if (license) fail("photoLicense", license);
+    if (photo.licenseUrl && !catalogUrl(photo.licenseUrl)) fail("photoLicenseUrl", URL_ISSUE);
+    // Фото агентств не берём (CHECK 283 сверяет весь объект фото).
+    for (const [field, value] of [["photoPath", photo.path], ["photoAuthor", photo.author], ["photoAuthorUrl", photo.authorUrl], ["photoSourceUrl", photo.sourceUrl], ["photoLicense", photo.license], ["photoLicenseUrl", photo.licenseUrl]] as const) {
+      if (/eduprchina/i.test(value)) fail(field, "Фото агентств нельзя: только Unsplash, Pexels или Wikimedia Commons.");
+    }
     image = {
-      path: draft.photoPath.trim(), width: Number(draft.photoWidth.trim()), height: Number(draft.photoHeight.trim()), author: draft.photoAuthor.trim(),
-      authorUrl: draft.photoAuthorUrl.trim() || null, sourceName: source, sourceUrl: draft.photoSourceUrl.trim(), license: draft.photoLicense.trim(),
-      licenseUrl: draft.photoLicenseUrl.trim() || null,
+      path: photo.path, width: Number(photo.width), height: Number(photo.height), author: photo.author, authorUrl: photo.authorUrl || null,
+      sourceName: photo.sourceName as PhotoSource, sourceUrl: photo.sourceUrl, license: photo.license, licenseUrl: photo.licenseUrl || null,
     };
   }
   const [summaryRu, summaryKy] = pair(draft.summaryRu, draft.summaryKy, 300, errors, "summary");
   const [factRu, factKy] = pair(draft.factRu, draft.factKy, 200, errors, "fact");
   const factSourceUrl = draft.factSourceUrl.trim() || null, factVerifiedOn = draft.factVerifiedOn.trim() || null;
-  if (factSourceUrl !== null && !universityPublicUrl(factSourceUrl)) errors.add("factSourceUrl");
-  if (factVerifiedOn !== null && !pastDay(factVerifiedOn, today)) errors.add("factVerifiedOn");
+  if (factSourceUrl !== null && !catalogUrl(factSourceUrl)) errors.set("factSourceUrl", URL_ISSUE);
+  if (factVerifiedOn !== null && !pastDay(factVerifiedOn, today)) errors.set("factVerifiedOn", null);
   return {
     input: {
       key: draft.key, country: draft.country, nameRu: draft.nameRu.trim(), nameKy: draft.nameKy.trim(), nameEn: draft.nameEn.trim(),
@@ -328,6 +367,14 @@ export function cityInput(draft: CityDraft, today: string): { input: CityInput; 
     },
     errors,
   };
+}
+/**
+ * Черновик отличается от сохранённой карточки по смыслу: сравнивается вход
+ * RPC, а не строки формы (хвостовой пробел и «30.250» против «30.25» это то
+ * же самое; review CRM R2). Новый город всегда «изменён».
+ */
+export function cityDraftChanged(draft: CityDraft, city: GeoCity | null, today: string): boolean {
+  return city === null || canonical(cityInput(draft, today).input) !== canonical(cityInput(cityDraft(city, city.country), today).input);
 }
 /** Чего не хватает карточке для публикации (план 7.1): пусто, если карточка полная. */
 export function cityMissing(city: Pick<CityInput, "photo" | "summaryRu" | "factRu" | "factSourceUrl" | "factVerifiedOn">): string[] {
@@ -369,35 +416,45 @@ export function costDraft(row: GeoCost | null, countryCode: string, today: strin
 /**
  * Черновик формы → вход `staff_catalog_cost_upsert_v1` (контракт 3.3).
  * `programs` это программы последней опубликованной карточки вуза: строка
- * программы получает её уровень (SQL требует совпадения).
+ * программы получает её уровень (SQL требует совпадения). Адрес
+ * образовательного агентства бывает только у строки «Агентство» (review CRM R4).
  */
-export function costInput(draft: CostDraft, ids: { id: string | null; institutionId: string }, programs: readonly { id: string; level: UniversityLevel }[], today: string): { input: CostInput; errors: ReadonlySet<CostField> } {
-  const errors = new Set<CostField>();
-  if (!oneOf(COST_KINDS, draft.costKind)) errors.add("costKind");
-  if (!oneOf(COST_PERIODS, draft.period)) errors.add("period");
+export function costInput(draft: CostDraft, ids: { id: string | null; institutionId: string }, programs: readonly { id: string; level: UniversityLevel }[], today: string): { input: CostInput; errors: FieldErrors<CostField> } {
+  const errors = new Map<CostField, string | null>();
+  if (!oneOf(COST_KINDS, draft.costKind)) errors.set("costKind", null);
+  if (!oneOf(COST_PERIODS, draft.period)) errors.set("period", null);
   const program = draft.programId ? programs.find((item) => item.id === draft.programId) ?? null : null;
-  if (draft.programId && !program) errors.add("programId");
+  if (draft.programId && !program) errors.set("programId", null);
   const studyLevel = program ? program.level : draft.studyLevel ? draft.studyLevel : null;
-  if (studyLevel !== null && !oneOf(UNIVERSITY_LEVELS, studyLevel)) errors.add("studyLevel");
+  if (studyLevel !== null && !oneOf(UNIVERSITY_LEVELS, studyLevel)) errors.set("studyLevel", null);
   const teachingLanguage = draft.teachingLanguage || null;
-  if (teachingLanguage !== null && !/^[a-z]{2}$/.test(teachingLanguage)) errors.add("teachingLanguage");
+  if (teachingLanguage !== null && !/^[a-z]{2}$/.test(teachingLanguage)) errors.set("teachingLanguage", null);
   const currency = draft.currency.trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(currency)) errors.add("currency");
+  if (!/^[A-Z]{3}$/.test(currency)) errors.set("currency", null);
   const exponent = currencyExponent(currency);
   const min = amountToMinor(draft.amountMin, exponent);
   const max = draft.amountMax.trim() ? amountToMinor(draft.amountMax, exponent) : null;
-  if (min === null) errors.add("amountMin");
+  if (min === null) errors.set("amountMin", null);
   // Равные «от» и «до» это одна сумма (как в импорте).
-  if (draft.amountMax.trim() && (max === null || (min !== null && max < min))) errors.add("amountMax");
+  if (draft.amountMax.trim() && (max === null || (min !== null && max < min))) errors.set("amountMax", null);
   const academicYear = draft.academicYear.trim() || null;
-  if (academicYear !== null && !academicYearOk(academicYear)) errors.add("academicYear");
+  if (academicYear !== null && !academicYearOk(academicYear)) errors.set("academicYear", null);
   const noteRu = draft.noteRu.trim() || null, noteKy = draft.noteKy.trim() || null;
-  if ((noteRu === null) !== (noteKy === null) || (noteRu !== null && (!studentText(noteRu, 300) || !studentText(noteKy!, 300)))) errors.add("note");
-  if (!oneOf(COST_SOURCE_KINDS, draft.sourceKind)) errors.add("sourceKind");
+  if ((noteRu === null) !== (noteKy === null)) errors.set("note", `Нужны оба языка, RU и KY, или ни одного: сейчас нет ${noteRu ? "KY" : "RU"}.`);
+  else if (noteRu !== null && noteKy !== null) {
+    const ru = catalogTextIssue(noteRu, 300, true), ky = catalogTextIssue(noteKy, 300, true);
+    if (ru || ky) errors.set("note", ru ? `RU: ${ru}` : `KY: ${ky}`);
+  }
+  if (!oneOf(COST_SOURCE_KINDS, draft.sourceKind)) errors.set("sourceKind", null);
   const sourceName = draft.sourceName.trim(), sourceUrl = draft.sourceUrl.trim() || null;
-  if (!plain(sourceName, 200)) errors.add("sourceName");
-  if ((sourceUrl !== null && !universityPublicUrl(sourceUrl)) || (draft.sourceKind !== "evo_document" && sourceUrl === null)) errors.add("sourceUrl");
-  if (!pastDay(draft.verifiedOn.trim(), today)) errors.add("verifiedOn");
+  const nameIssue = catalogTextIssue(sourceName, 200, false);
+  if (nameIssue) errors.set("sourceName", nameIssue);
+  if (sourceUrl !== null && !catalogUrl(sourceUrl)) errors.set("sourceUrl", URL_ISSUE);
+  else if (draft.sourceKind !== "evo_document" && sourceUrl === null) errors.set("sourceUrl", null);
+  else if (sourceUrl !== null && draft.sourceKind !== "agency" && catalogAgencyUrl(sourceUrl)) {
+    errors.set("sourceKind", `Адрес ${catalogUrlHost(sourceUrl)} принадлежит образовательному агентству: выберите источник «Агентство».`);
+  }
+  if (!pastDay(draft.verifiedOn.trim(), today)) errors.set("verifiedOn", null);
   return {
     input: {
       id: ids.id, institutionId: ids.institutionId, programId: program?.id ?? null, studyLevel: studyLevel as UniversityLevel | null, teachingLanguage,
@@ -411,18 +468,96 @@ export function costInput(draft: CostDraft, ids: { id: string | null; institutio
 export type FxDraft = { currency: string; asOf: string; unitsPerUsd: string; sourceName: string; sourceUrl: string };
 export type FxInput = Readonly<{ currency: string; asOf: string; unitsPerUsd: number; sourceName: string; sourceUrl: string | null }>;
 export type FxField = keyof FxDraft;
-export function fxInput(draft: FxDraft, today: string): { input: FxInput; errors: ReadonlySet<FxField> } {
-  const errors = new Set<FxField>();
+export function fxInput(draft: FxDraft, today: string): { input: FxInput; errors: FieldErrors<FxField> } {
+  const errors = new Map<FxField, string | null>();
   const currency = draft.currency.trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(currency) || currency === "USD") errors.add("currency");
-  if (!pastDay(draft.asOf.trim(), today)) errors.add("asOf");
+  if (!/^[A-Z]{3}$/.test(currency) || currency === "USD") errors.set("currency", null);
+  if (!pastDay(draft.asOf.trim(), today)) errors.set("asOf", null);
   const raw = draft.unitsPerUsd.trim().replace(",", ".");
   const units = /^\d{1,9}(\.\d{1,10})?$/.test(raw) ? Number(raw) : Number.NaN;
-  if (!(units > 0 && units < 1_000_000_000)) errors.add("unitsPerUsd");
+  if (!(units > 0 && units < 1_000_000_000)) errors.set("unitsPerUsd", null);
   const sourceName = draft.sourceName.trim(), sourceUrl = draft.sourceUrl.trim() || null;
-  if (!plain(sourceName, 200)) errors.add("sourceName");
-  if (sourceUrl !== null && !universityPublicUrl(sourceUrl)) errors.add("sourceUrl");
+  const nameIssue = catalogTextIssue(sourceName, 200, false);
+  if (nameIssue) errors.set("sourceName", nameIssue);
+  if (sourceUrl !== null && !catalogUrl(sourceUrl)) errors.set("sourceUrl", URL_ISSUE);
   return { input: { currency, asOf: draft.asOf.trim(), unitsPerUsd: units, sourceName, sourceUrl }, errors };
+}
+
+/* ------------------------------------------------------ итог команд словами */
+
+export type GeographyOperation = "city_upsert" | "city_publish" | "institution_city_set" | "cost_upsert" | "cost_confirm" | "cost_publish" | "fx_rate_set";
+export type GeographyActionStatus = "idle" | "saved" | "invalid" | "forbidden" | "stale" | "request_conflict" | "rejected" | "unavailable";
+/** Известная причина отказа RPC 283 (контракт 3.5); другие отказы говорят словами операции. */
+export type GeographyRefusal = "photo_missing" | "city_incomplete" | "city_exists" | "duplicate_city_name" | "agency_mislabeled" | "admin_required" | "agency_unconfirmed" | "city_country_mismatch" | "program_unknown";
+const REFUSALS: Readonly<Record<string, GeographyRefusal>> = {
+  catalog_city_photo_missing: "photo_missing",
+  catalog_city_incomplete: "city_incomplete",
+  catalog_cities_published_complete: "city_incomplete",
+  catalog_cities_organization_id_country_code_name_ru_key: "duplicate_city_name",
+  catalog_cost_agency_source_mislabeled: "agency_mislabeled",
+  catalog_costs_agency_url_is_agency: "agency_mislabeled",
+  catalog_admin_required: "admin_required",
+  catalog_cost_agency_unconfirmed: "agency_unconfirmed",
+  catalog_costs_agency_published_confirmed: "agency_unconfirmed",
+  catalog_city_country_mismatch: "city_country_mismatch",
+  catalog_cost_program_unknown: "program_unknown",
+};
+/** Причина из текста ошибки базы: только закрытый список имён 283, сам текст наружу не уходит. */
+export function geographyRefusal(message: unknown): GeographyRefusal | null {
+  if (typeof message !== "string") return null;
+  for (const token of message.slice(0, 500).match(/catalog_[a-z0-9_]+/g) ?? []) if (Object.hasOwn(REFUSALS, token)) return REFUSALS[token];
+  return null;
+}
+const REFUSAL_TEXT: Readonly<Record<GeographyRefusal, string | Partial<Record<GeographyOperation | "default", string>>>> = {
+  photo_missing: {
+    city_publish: "Файла фото этого города ещё нет в хранилище: студент увидел бы карточку без фото. Город не опубликован, опубликуйте его после загрузки фото.",
+    default: "Нового фото ещё нет в хранилище, а город уже видят студенты. Ничего не сохранено: оставьте прежнее фото или дождитесь загрузки нового.",
+  },
+  city_incomplete: {
+    city_publish: "Карточка неполная: для публикации нужны фото, короткий текст и факт с источником и датой проверки.",
+    default: "Город видят студенты, поэтому карточка должна остаться полной. Ничего не сохранено: верните поля или сначала снимите город с публикации.",
+  },
+  city_exists: "Город с таким ключом уже есть. Откройте его из списка городов или выберите другой ключ.",
+  duplicate_city_name: "В этой стране уже есть город с таким названием RU. Ничего не сохранено.",
+  agency_mislabeled: "Адрес источника принадлежит образовательному агентству: такую строку можно сохранить только с источником «Агентство». Ничего не сохранено.",
+  admin_required: {
+    cost_upsert: "Вид источника у строки агентства меняет только системный Admin. Ничего не сохранено.",
+    cost_confirm: "Подтверждать данные агентств может только системный Admin.",
+    default: "Это действие доступно только системному Admin.",
+  },
+  agency_unconfirmed: "Строку агентства можно опубликовать только после подтверждения системного Admin.",
+  city_country_mismatch: "Этот город из другой страны: вузу можно назначить только город его страны.",
+  program_unknown: "Этой программы нет в опубликованной карточке вуза. Выберите программу из списка или «Весь вуз».",
+};
+const INVALID_TEXT: Readonly<Record<GeographyOperation, string>> = {
+  city_upsert: "Сервер не принял карточку города: проверьте поля, ссылки https:// и даты. Ничего не сохранено.",
+  city_publish: "Сервер не принял публикацию. Обновите страницу и проверьте карточку.",
+  institution_city_set: "Сервер не принял город для этого вуза. Обновите страницу и выберите снова.",
+  cost_upsert: "Сервер не принял строку стоимости: проверьте сумму, источник, ссылку https:// и дату. Ничего не сохранено.",
+  cost_confirm: "Подтвердить можно только строку агентства, основание до 500 знаков.",
+  cost_publish: "Сервер не принял смену публикации. Обновите страницу.",
+  fx_rate_set: "Сервер не принял курс: проверьте валюту, дату, число и источник. Курс не сохранён.",
+};
+const STATUS_TEXT: Readonly<Record<"forbidden" | "stale" | "request_conflict" | "unavailable", string>> = {
+  forbidden: "Нет права на это действие. Обновите страницу или войдите снова.",
+  stale: "Запись уже изменили. Обновите страницу и повторите с актуальной версией.",
+  request_conflict: "Этот запрос уже использован с другими данными. Обновите страницу перед новой попыткой.",
+  unavailable: "Ответ сервера не подтверждён. Повторите: тот же запрос не создаст дубликат.",
+};
+/** Отказ команды словами: сначала известная причина, затем слова операции (review CRM R7). */
+export function geographyMessage(operation: GeographyOperation | null, status: Exclude<GeographyActionStatus, "idle" | "saved">, reason: GeographyRefusal | null): string {
+  if (reason) {
+    const text = REFUSAL_TEXT[reason];
+    return typeof text === "string" ? text : (operation ? text[operation] : undefined) ?? text.default ?? STATUS_TEXT.forbidden;
+  }
+  if (status === "invalid") return operation ? INVALID_TEXT[operation] : "Сервер не принял данные. Ничего не сохранено.";
+  if (status === "rejected") {
+    if (operation === "city_upsert") return (REFUSAL_TEXT.city_incomplete as Record<string, string>).default;
+    if (operation === "cost_publish") return REFUSAL_TEXT.agency_unconfirmed as string;
+    if (operation === "institution_city_set") return REFUSAL_TEXT.city_country_mismatch as string;
+    return "База отклонила изменение. Обновите страницу и проверьте данные.";
+  }
+  return STATUS_TEXT[status];
 }
 
 /** Строгая проверка входа на сервере: тот же разбор, ключи и типы ровно как в контракте 3.2 и 3.3. */
@@ -474,6 +609,8 @@ function pick(row: Row, keys: readonly string[]): Row {
 }
 /** JSON с ключами по алфавиту на каждом уровне: сравнение без учёта порядка ключей. */
 function canonical(value: unknown): string {
+  // Нечитаемое число формы (NaN) не равно null: иначе «abc» в широте совпало бы с пустой.
+  if (typeof value === "number" && !Number.isFinite(value)) return "\"#invalid-number\"";
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
   const row = object(value);
   if (row) return `{${Object.keys(row).sort().map((key) => `${JSON.stringify(key)}:${canonical(row[key])}`).join(",")}}`;

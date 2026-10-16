@@ -24,13 +24,17 @@ export function UniversityGeographyPanel({ institutionId, content, geography, ca
   }
   return (
     <div className={frame} data-testid="university-geography">
-      <UniversityCityPicker institution={institution} cities={geography.cities} />
+      {/* В браузер уходят только поля выбора городов страны вуза и последние курсы (review CRM R3). */}
+      <UniversityCityPicker
+        institution={institution}
+        cities={geography.cities.filter((city) => city.country === institution.country).map(({ key, country, nameRu, status }) => ({ key, country, nameRu, status }))}
+      />
       <UniversityCosts
         institutionId={institutionId}
         country={institution.country}
         programs={content.programs.map((program) => ({ id: program.id, title: program.title, level: program.level }))}
         costs={geography.costs.filter((row) => row.institutionId === institutionId)}
-        rates={geography.fxRates}
+        rates={geography.fxRates.filter((rate) => rate.latest)}
         canConfirm={canConfirm}
         today={today}
       />

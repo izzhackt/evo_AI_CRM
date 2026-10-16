@@ -5,6 +5,9 @@ import { useState } from "react";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import type { GeoCity, GeoInstitution } from "@/lib/catalog-geography";
 
+/** Выбору города нужны только ключ, страна, название и статус (тексты городов в браузер не уходят, review CRM R3). */
+export type CityOption = Readonly<Pick<GeoCity, "key" | "country" | "nameRu" | "status">>;
+
 import { CommandResult, FIELD, GHOST, LABEL, useGeographyCommand } from "./command";
 
 /**
@@ -13,7 +16,7 @@ import { CommandResult, FIELD, GHOST, LABEL, useGeographyCommand } from "./comma
  * (`catalog_institution_cities`). Без города вуз виден студенту в «Других
  * вузах страны»; город-черновик студент тоже не видит.
  */
-export function UniversityCityPicker({ institution, cities }: Readonly<{ institution: GeoInstitution; cities: readonly GeoCity[] }>) {
+export function UniversityCityPicker({ institution, cities }: Readonly<{ institution: GeoInstitution; cities: readonly CityOption[] }>) {
   const [choice, setChoice] = useState(institution.cityKey ?? "");
   const { state, run, pending, refresh } = useGeographyCommand("institution_city_set");
   const own = cities.filter((city) => city.country === institution.country).sort((a, b) => a.nameRu.localeCompare(b.nameRu, "ru"));
@@ -41,7 +44,7 @@ export function UniversityCityPicker({ institution, cities }: Readonly<{ institu
       </form>
       <dl className="flex flex-wrap gap-x-5 gap-y-1 t-meta text-fg-2">
         <div className="flex gap-1"><dt className="text-fg-3">В карточке вуза:</dt><dd>{institution.cityLabel ?? "город не указан"}</dd></div>
-        <div className="flex gap-1"><dt className="text-fg-3">Связь:</dt><dd>{current ? `${current.nameRu}, ${institution.assignedVia === "staff" ? "назначил сотрудник" : "из сида 283"}` : "нет"}</dd></div>
+        <div className="flex gap-1"><dt className="text-fg-3">Связь:</dt><dd>{current ? `${current.nameRu}, ${institution.assignedVia === "staff" ? "назначил сотрудник" : "назначен при первой загрузке"}` : "нет"}</dd></div>
       </dl>
       {chosen?.status === "draft" ? (
         <p className="flex flex-wrap items-center gap-2 t-body-compact text-fg-2">

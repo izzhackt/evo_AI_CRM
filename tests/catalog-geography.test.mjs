@@ -3,12 +3,14 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
-  amountToMinor, cityDraft, cityInput, cityMissing, costDraft, costInput, exactCityInput, exactCostInput, formatCostAmount,
-  fxInput, minorToAmount, parseStaffGeography, rateIsStale, usdApprox,
+  amountToMinor, catalogTextIssue, cityDraft, cityDraftChanged, cityInput, cityMissing, costDraft, costInput, exactCityInput, exactCostInput,
+  formatCostAmount, fxInput, geographyMessage, geographyRefusal, minorToAmount, parseStaffGeography, rateIsStale, usdApprox,
 } from "../src/lib/catalog-geography.ts";
+import { catalogAgencyUrl, catalogText, catalogUrl } from "../src/lib/catalog-text.ts";
 import { STUDENT_UNIVERSITY_INDEX_TAG } from "../src/lib/portal/university-index-tag.ts";
 
 const today = "2026-10-16";
+const vectors = JSON.parse(readFileSync(new URL("./fixtures/catalog-text-vectors.json", import.meta.url), "utf8"));
 const institutionId = "0b9c2f8e-3f0a-4b8e-9d55-7a1d2c3e4f50";
 const photo = { path: "geography/cities/cn-hangzhou-c6acd1b0f6fb.jpg", width: 2400, height: 1800, author: "miyou_ 77", authorUrl: "https://www.pexels.com/@miyou_-77-696995602/", sourceName: "Pexels", sourceUrl: "https://www.pexels.com/photo/view-of-the-west-lake-20700881/", license: "Pexels License", licenseUrl: "https://www.pexels.com/license/" };
 const city = { key: "hangzhou", country: "CN", nameRu: "Ханчжоу", nameKy: "Ханчжоу", nameEn: "Hangzhou", lat: 30.27, lng: 120.15, photo, summaryRu: "Столица провинции Чжэцзян.", summaryKy: "Чжэцзян провинциясынын борбору.", factRu: "Озеро Сиху внесено в список ЮНЕСКО в 2011 году.", factKy: "Сиху көлү 2011-жылы ЮНЕСКОнун тизмесине киргизилген.", factSourceUrl: "https://whc.unesco.org/en/list/1334", factVerifiedOn: "2026-10-16", kyReview: "pending", status: "published", publishedAt: "2026-10-16T08:00:00+00:00", publishedVia: "migration", reviewedByName: null, complete: true, version: 2, updatedAt: "2026-10-16T08:00:00+00:00", institutionCount: 9 };
@@ -106,9 +108,84 @@ test("cost row: agency and official need an https source, program fixes its leve
   assert.ok(fxInput({ currency: "USD", asOf: today, unitsPerUsd: "1", sourceName: "x", sourceUrl: "" }, today).errors.has("currency"));
 });
 
+test("city editor is dirty by meaning, not by raw form strings (review CRM R2)", () => {
+  const saved = parseStaffGeography({ ...geography, cities: [{ ...city, nameEn: "Suzhou", lat: 30.25, lng: 120.62 }] }).cities[0];
+  const draft = cityDraft(saved, "CN");
+  assert.equal(cityDraftChanged(draft, saved, today), false);
+  // Trailing space, pasted newline-free padding and trailing zeros are what the database stores anyway.
+  assert.equal(cityDraftChanged({ ...draft, nameEn: "Suzhou " }, saved, today), false);
+  assert.equal(cityDraftChanged({ ...draft, lat: "30.250", lng: " 120.620" }, saved, today), false);
+  assert.equal(cityDraftChanged({ ...draft, summaryRu: `${draft.summaryRu}  ` }, saved, today), false);
+  // Photo fields without a path are not sent, so they do not make the card dirty.
+  const bare = parseStaffGeography({ ...geography, cities: [{ ...city, photo: null }] }).cities[0];
+  assert.equal(cityDraftChanged({ ...cityDraft(bare, "CN"), photoSourceName: "Unsplash", photoAuthor: "x" }, bare, today), false);
+  // A real change, or an unreadable number instead of an empty coordinate, is dirty.
+  assert.equal(cityDraftChanged({ ...draft, nameEn: "Suzhou City" }, saved, today), true);
+  assert.equal(cityDraftChanged({ ...cityDraft(bare, "CN"), lat: "abc", lng: "def" }, { ...bare, lat: null, lng: null }, today), true);
+  assert.equal(cityDraftChanged(draft, null, today), true);
+});
+
+test("editor fields use the database text and URL rule on the shared vectors (contract 2.2a)", () => {
+  // Same verdict as catalog_text_ok for every shared vector (staff fields without the student dash rule).
+  assert.deepEqual(vectors.text.filter((entry) => (catalogTextIssue(entry.value, entry.max, false) === null) !== entry.ok).map((entry) => entry.case), []);
+  const programs = [];
+  const row = costInput({ ...costDraft(null, "CN", today), amountMin: "100", sourceName: "Zhejiang University", sourceUrl: "https://www.zju.edu.cn/english/" }, { id: null, institutionId }, programs, today).input;
+  assert.deepEqual(exactCostInput(row, null, today), row);
+  for (const entry of vectors.text) {
+    // The server re-check accepts a source name exactly when the database would.
+    assert.equal(exactCostInput({ ...row, sourceName: entry.value }, null, today) !== null, catalogText(entry.value, 200), entry.case);
+  }
+  const draft = cityDraft(parseStaffGeography(geography).cities[0], "CN");
+  const cityRow = cityInput(draft, today).input;
+  // An empty form field means "no address"; the form trims, the server re-check refuses untrimmed input.
+  for (const entry of vectors.url) {
+    assert.equal(exactCostInput({ ...row, sourceUrl: entry.value }, null, today) !== null, entry.ok && !catalogAgencyUrl(entry.value), entry.case);
+    assert.equal(exactCityInput({ ...cityRow, factSourceUrl: entry.value }, today) !== null, entry.ok, entry.case);
+    assert.equal(fxInput({ currency: "CNY", asOf: today, unitsPerUsd: "7.1", sourceName: "ECB", sourceUrl: entry.value }, today).errors.has("sourceUrl"), entry.value.trim() !== "" && !catalogUrl(entry.value.trim()), entry.case);
+  }
+  // Invisible characters get specific words, not a generic refusal.
+  assert.match(cityInput({ ...draft, nameRu: "Хан\u00adчжоу" }, today).errors.get("nameRu"), /невидимые знаки/u);
+  assert.match(cityInput({ ...draft, summaryKy: "x".repeat(301) }, today).errors.get("summary"), /^KY: Слишком длинно: 301 из 300/u);
+  assert.match(cityInput({ ...draft, summaryKy: "" }, today).errors.get("summary"), /сейчас нет KY/u);
+});
+
+test("agency addresses only on agency rows and photo hosts per named source (review CRM R4)", () => {
+  const draft = { ...costDraft(null, "CN", today), amountMin: "25000", sourceName: "EDUPRCHINA", sourceUrl: "https://www.eduprchina.com/fees" };
+  for (const entry of vectors.agency) {
+    const official = costInput({ ...draft, sourceKind: "official", sourceUrl: entry.value }, { id: null, institutionId }, [], today);
+    assert.equal(official.errors.has("sourceKind"), entry.agency, entry.case);
+    assert.equal(costInput({ ...draft, sourceKind: "agency", sourceUrl: entry.value }, { id: null, institutionId }, [], today).errors.has("sourceKind"), false, entry.case);
+  }
+  assert.match(costInput({ ...draft, sourceKind: "evo_document" }, { id: null, institutionId }, [], today).errors.get("sourceKind"), /www\.eduprchina\.com принадлежит образовательному агентству/u);
+  const cityRow = cityDraft(parseStaffGeography(geography).cities[0], "CN");
+  const wrongHost = cityInput({ ...cityRow, photoSourceUrl: "https://commons.wikimedia.org/wiki/File:West_Lake.jpg" }, today).errors;
+  assert.ok(wrongHost.has("photo"));
+  assert.match(wrongHost.get("photoSourceUrl"), /pexels\.com/u);
+  assert.ok(cityInput({ ...cityRow, photoAuthorUrl: "https://www.eduprchina.com/u/1" }, today).errors.has("photoAuthorUrl"));
+  assert.ok(cityInput({ ...cityRow, photoWidth: "0" }, today).errors.has("photoWidth"));
+});
+
+test("refusals: only known 283 names become reasons, and words follow the operation (review CRM R7)", () => {
+  assert.equal(geographyRefusal("catalog_city_photo_missing"), "photo_missing");
+  assert.equal(geographyRefusal('new row for relation "catalog_cities" violates check constraint "catalog_cities_published_complete"'), "city_incomplete");
+  assert.equal(geographyRefusal('duplicate key value violates unique constraint "catalog_cities_organization_id_country_code_name_ru_key"'), "duplicate_city_name");
+  assert.equal(geographyRefusal("catalog_cost_invalid"), null);
+  assert.equal(geographyRefusal("private detail"), null);
+  assert.equal(geographyRefusal(undefined), null);
+  assert.match(geographyMessage("city_publish", "invalid", "photo_missing"), /Город не опубликован/u);
+  assert.match(geographyMessage("city_upsert", "invalid", "photo_missing"), /Ничего не сохранено/u);
+  assert.match(geographyMessage("city_publish", "invalid", "city_incomplete"), /для публикации нужны фото/u);
+  assert.match(geographyMessage("cost_upsert", "forbidden", "admin_required"), /Вид источника у строки агентства/u);
+  assert.match(geographyMessage("cost_publish", "rejected", null), /после подтверждения системного Admin/u);
+  assert.match(geographyMessage("city_upsert", "rejected", null), /карточка должна остаться полной/u);
+  assert.doesNotMatch(geographyMessage("city_upsert", "rejected", null), /агентства/u);
+  assert.match(geographyMessage("fx_rate_set", "invalid", null), /Курс не сохранён/u);
+  assert.match(geographyMessage("city_upsert", "invalid", "city_exists"), /таким ключом уже есть/u);
+});
+
 test("CRM editor never prints the curator phrase and shares the student index cache tag", () => {
   assert.equal(STUDENT_UNIVERSITY_INDEX_TAG, "portal-student-university-index");
-  const files = ["src/lib/catalog-geography.ts", "src/lib/catalog-geography-actions.ts", "src/components/v3/universities/geography/UniversityCosts.tsx", "src/components/v3/universities/geography/FxRates.tsx", "src/components/v3/universities/geography/CityEditor.tsx"];
+  const files = ["src/lib/catalog-geography.ts", "src/lib/catalog-geography-actions.ts", "src/components/v3/universities/geography/UniversityCosts.tsx", "src/components/v3/universities/geography/FxRates.tsx", "src/components/v3/universities/geography/CityEditor.tsx", "src/components/v3/universities/geography/UniversityCityPicker.tsx", "src/components/v3/universities/geography/CityList.tsx", "src/components/v3/universities/geography/FxRateForm.tsx", "src/components/v3/universities/geography/command.tsx"];
   for (const file of files) {
     const text = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
     assert.doesNotMatch(text, /Стоимость уточняет куратор/u, file);
@@ -117,4 +194,11 @@ test("CRM editor never prints the curator phrase and shares the student index ca
   }
   const action = readFileSync(new URL("../src/lib/catalog-geography-actions.ts", import.meta.url), "utf8");
   assert.match(action, /revalidateTag\(STUDENT_UNIVERSITY_INDEX_TAG, \{ expire: 0 \}\)/u);
+  // No internal jargon on the staff screens (review CRM R7).
+  const picker = readFileSync(new URL("../src/components/v3/universities/geography/UniversityCityPicker.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(picker, /из сида|сид 283/u);
+  // The city select gets only key, country, name and status; full city texts stay on the server (review CRM R3).
+  const panel = readFileSync(new URL("../src/components/v3/universities/geography/UniversityGeographyPanel.tsx", import.meta.url), "utf8");
+  assert.match(panel, /map\(\(\{ key, country, nameRu, status \}\) => \(\{ key, country, nameRu, status \}\)\)/u);
+  assert.doesNotMatch(panel, /cities=\{geography\.cities\}/u);
 });

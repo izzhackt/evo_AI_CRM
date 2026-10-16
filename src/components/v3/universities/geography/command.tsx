@@ -2,7 +2,8 @@
 import { unstable_rethrow, useRouter } from "next/navigation";
 import { startTransition, useActionState, useRef } from "react";
 
-import { mutateCatalogGeographyAction, type GeographyActionState, type GeographyActionStatus, type GeographyOperation } from "@/lib/catalog-geography-actions";
+import { geographyMessage } from "@/lib/catalog-geography";
+import { mutateCatalogGeographyAction, type GeographyActionState, type GeographyOperation } from "@/lib/catalog-geography-actions";
 
 /*
  * Общие части редактора географии и стоимости (план 7.5): команда RPC с
@@ -18,15 +19,6 @@ export const PRIMARY = "v3-raised inline-flex h-11 min-w-11 items-center justify
 /** Подтверждение в панели: тёмная нейтральная кнопка (сплошной красный на странице один). */
 export const DARK = "v3-raised inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-fg bg-fg px-4 t-label text-surface hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
 export const QUIET = "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 underline underline-offset-4 hover:text-fg disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline";
-
-export const GEOGRAPHY_MESSAGES: Readonly<Record<Exclude<GeographyActionStatus, "idle" | "saved">, string>> = {
-  invalid: "Сервер не принял данные. Проверьте поля, ссылки HTTPS и даты: ничего не сохранено.",
-  forbidden: "Нет права на это действие. Обновите страницу или войдите снова.",
-  stale: "Запись уже изменили. Обновите страницу и повторите с актуальной версией.",
-  request_conflict: "Этот запрос уже использован с другими данными. Обновите страницу перед новой попыткой.",
-  rejected: "База отклонила изменение: строку агентства нельзя опубликовать без подтверждения, а опубликованная карточка города должна остаться полной.",
-  unavailable: "Ответ сервера не подтверждён. Повторите: тот же запрос не создаст дубликат.",
-};
 
 /**
  * Команда одной формы. Повтор после неподтверждённого ответа идёт с тем же
@@ -48,22 +40,22 @@ export function useGeographyCommand(operation: GeographyOperation) {
       return await mutateCatalogGeographyAction({ ...previous, requestId, operation }, form);
     } catch (error) {
       unstable_rethrow(error);
-      return { status: "unavailable", requestId, operation };
+      return { status: "unavailable", requestId, operation, reason: null };
     }
-  }, { status: "idle", requestId: "", operation });
+  }, { status: "idle", requestId: "", operation, reason: null });
   const run = (payload: unknown) => startTransition(() => dispatch(JSON.stringify(payload)));
   const refresh = () => router.refresh();
   return { state, run, pending, refresh };
 }
 
-/** Итог команды словами; ошибка у «stale» и «request_conflict» даёт «Обновить страницу». */
+/** Итог команды словами операции и причины (review CRM R7); у «stale» и «request_conflict» ещё «Обновить страницу». */
 export function CommandResult({ state, saved, refresh }: Readonly<{ state: GeographyActionState; saved?: string; refresh: () => void }>) {
   if (state.status === "idle") return null;
   if (state.status === "saved") return saved ? <p role="status" className="t-body-compact text-ok">{saved}</p> : null;
   return (
     <p role="alert" className="flex flex-wrap items-center gap-x-3 t-body-compact text-danger">
-      {GEOGRAPHY_MESSAGES[state.status]}
-      {state.status === "stale" || state.status === "request_conflict" ? <button type="button" className={QUIET} onClick={refresh}>Обновить страницу</button> : null}
+      {geographyMessage(state.operation, state.status, state.reason)}
+      {(state.status === "stale" || state.status === "request_conflict") && state.reason === null ? <button type="button" className={QUIET} onClick={refresh}>Обновить страницу</button> : null}
     </p>
   );
 }

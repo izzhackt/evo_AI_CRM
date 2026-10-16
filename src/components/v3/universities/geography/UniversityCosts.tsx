@@ -6,7 +6,7 @@ import { Icon } from "@/components/icons";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import {
   COST_CURRENCIES, COST_KINDS, COST_KIND_LABELS, COST_PERIODS, COST_PERIOD_LABELS, COST_SOURCE_KINDS, COST_SOURCE_LABELS, COST_STATUS_LABELS,
-  TEACHING_LANGUAGES, costDraft, costInput, costWhat, formatCostAmount, rateIsStale, usdApprox,
+  TEACHING_LANGUAGES, catalogTextIssue, costDraft, costInput, costWhat, formatCostAmount, rateIsStale, usdApprox,
   type CostDraft, type CostField, type CostStatus, type GeoCost, type GeoFxRate,
 } from "@/lib/catalog-geography";
 import { UNIVERSITY_LEVELS, UNIVERSITY_LEVEL_LABELS, type UniversityLevel } from "@/lib/platform-university-catalog";
@@ -60,7 +60,7 @@ export function UniversityCosts({ institutionId, country, programs, costs, rates
         </div>
       </div>
       <RateNotes currencies={currencies} latest={latest} />
-      {editing === "new" ? <CostEditor key="new" row={null} institutionId={institutionId} country={country} programs={programs} today={today} onDone={() => setEditing(null)} /> : null}
+      {editing === "new" ? <CostEditor key="new" row={null} institutionId={institutionId} country={country} programs={programs} canConfirm={canConfirm} today={today} onDone={() => setEditing(null)} /> : null}
       {rows.length ? (
         <table role="table" className="block w-full" data-testid="university-costs-table">
           <caption className="sr-only">Строки стоимости вуза: сначала те, что видят студенты</caption>
@@ -73,7 +73,7 @@ export function UniversityCosts({ institutionId, country, programs, costs, rates
             {rows.map((row) => editing === row.id ? (
               // Ключ без версии: после сохранения редактор сам закрывается, а не открывается заново.
               <tr key={`${row.id}:edit`} role="row" className="block border-b border-border py-3">
-                <td role="cell" className="block"><CostEditor row={row} institutionId={institutionId} country={country} programs={programs} today={today} onDone={() => setEditing(null)} /></td>
+                <td role="cell" className="block"><CostEditor row={row} institutionId={institutionId} country={country} programs={programs} canConfirm={canConfirm} today={today} onDone={() => setEditing(null)} /></td>
               </tr>
             ) : (
               <CostRow
@@ -180,12 +180,15 @@ function ConfirmAgency({ row, onCancel }: Readonly<{ row: GeoCost; onCancel: () 
   const [reason, setReason] = useState(OWNER_AGENCY_CONFIRMATION);
   const { state, run, pending, refresh } = useGeographyCommand("cost_confirm");
   const id = useId();
-  const valid = reason.trim().length > 0 && [...reason.trim()].length <= 500;
+  // Основание по правилу текстов базы (catalog_text_ok, до 500 знаков).
+  const issue = catalogTextIssue(reason.trim(), 500, false);
+  const valid = issue === null;
   return (
     <form className="space-y-3 rounded-card border border-border bg-surface-2 p-4" onSubmit={(event) => { event.preventDefault(); if (valid) run({ costId: row.id, baseVersion: row.version, reason: reason.trim() }); }} data-testid="cost-confirm-form">
       <p className="t-body-compact text-fg">Данные агентства «{row.sourceName}» для студентов будут подписаны как «открытые данные образовательных агентств», без названия агентства. Подтверждение не публикует строку.</p>
       <label className={LABEL} htmlFor={`${id}-reason`}>Основание подтверждения</label>
-      <textarea id={`${id}-reason`} className={AREA} value={reason} maxLength={500} rows={2} disabled={pending} onChange={(event) => setReason(event.target.value.replace(/[\r\n]+/g, " "))} aria-invalid={!valid} />
+      <textarea id={`${id}-reason`} className={AREA} value={reason} maxLength={520} rows={2} disabled={pending} onChange={(event) => setReason(event.target.value.replace(/[\r\n]+/g, " "))} aria-invalid={!valid} aria-describedby={issue ? `${id}-reason-error` : undefined} />
+      <FieldError id={`${id}-reason-error`} text={issue} />
       <div className="flex flex-wrap items-center gap-3">
         <button type="submit" className={DARK} disabled={pending || !valid}>{pending ? "Подтверждаем…" : "Подтвердить данные агентства"}</button>
         <button type="button" className={GHOST} onClick={onCancel} disabled={pending}>Отмена</button>
@@ -200,15 +203,16 @@ const FIELD_ERRORS: Readonly<Partial<Record<CostField, string>>> = {
   amountMin: "Сумма числом, не больше двух знаков после запятой.",
   amountMax: "Сумма «до» больше суммы «от» или пусто.",
   academicYear: "Например 2026/27 или 2026; пусто, если источник год не называет.",
-  note: "Пояснение на двух языках или ни одного, до 300 знаков, без длинного тире.",
+  note: "Пояснение на двух языках или ни одного, до 300 знаков.",
   sourceName: "Название источника, до 200 знаков.",
   sourceUrl: "Адрес https:// обязателен для сайта университета и агентства.",
+  sourceKind: "Выберите вид источника.",
   verifiedOn: "Дата проверки не позже сегодняшней.",
   currency: "Три латинские буквы ISO 4217.",
 };
 
-function CostEditor({ row, institutionId, country, programs, today, onDone }: Readonly<{
-  row: GeoCost | null; institutionId: string; country: string; programs: readonly Program[]; today: string; onDone: () => void;
+function CostEditor({ row, institutionId, country, programs, canConfirm, today, onDone }: Readonly<{
+  row: GeoCost | null; institutionId: string; country: string; programs: readonly Program[]; canConfirm: boolean; today: string; onDone: () => void;
 }>) {
   const [draft, setDraft] = useState<CostDraft>(() => costDraft(row, country, today));
   const [shown, setShown] = useState(false);
@@ -219,11 +223,13 @@ function CostEditor({ row, institutionId, country, programs, today, onDone }: Re
   useEffect(() => { if (state.status === "saved") done.current(); }, [state]);
   const { input, errors } = costInput(draft, { id: row?.id ?? null, institutionId }, programs, today);
   const set = <K extends keyof CostDraft>(key: K, value: CostDraft[K]) => setDraft((current) => ({ ...current, [key]: value }));
-  const error = (field: CostField) => (shown && errors.has(field) ? FIELD_ERRORS[field] ?? "Проверьте поле." : null);
+  const error = (field: CostField) => (shown && errors.has(field) ? errors.get(field) ?? FIELD_ERRORS[field] ?? "Проверьте поле." : null);
   const invalid = (field: CostField) => (shown && errors.has(field) ? true : undefined);
   const program = programs.find((item) => item.id === draft.programId) ?? null;
   const currencies: readonly string[] = COST_CURRENCIES.includes(draft.currency as never) ? COST_CURRENCIES : [...COST_CURRENCIES, draft.currency];
   const resets = row !== null && (row.status !== "draft" || row.confirmedOn !== null);
+  // Вид источника строки агентства меняет только системный Admin (283, review CRM R4).
+  const kindLocked = row?.sourceKind === "agency" && !canConfirm;
   const field = (name: CostField) => ({ id: `${id}-${name}`, "aria-invalid": invalid(name), "aria-describedby": error(name) ? `${id}-${name}-error` : undefined });
   return (
     <form
@@ -234,7 +240,7 @@ function CostEditor({ row, institutionId, country, programs, today, onDone }: Re
       aria-busy={pending}
     >
       <h3 className="t-item text-fg">{row ? "Изменить строку стоимости" : "Новая строка стоимости"}</h3>
-      {resets ? <p className="t-body-compact text-warn">После сохранения строка станет черновиком: студенты не увидят её, пока её снова не опубликуют{row?.confirmedOn ? ", а подтверждение агентства снимется" : ""}.</p> : null}
+      {resets ? <p className="t-body-compact text-warn">После сохранения строка станет черновиком: студенты не увидят её, пока её снова не опубликуют{row?.confirmedOn ? ". Подтверждение агентства снимется, и опубликовать строку можно будет только после нового подтверждения системного Admin" : ""}.</p> : null}
       <fieldset disabled={pending} className="space-y-4">
         <legend className="sr-only">Строка стоимости</legend>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -267,7 +273,11 @@ function CostEditor({ row, institutionId, country, programs, today, onDone }: Re
         </div>
         <FieldError id={`${id}-note-error`} text={error("note")} />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
-          <label className={LABEL}>Источник<select className={FIELD} value={draft.sourceKind} onChange={(event) => set("sourceKind", event.target.value as CostDraft["sourceKind"])}>{COST_SOURCE_KINDS.map((kind) => <option key={kind} value={kind}>{COST_SOURCE_LABELS[kind]}</option>)}</select></label>
+          <label className={LABEL}>Источник
+            <select className={FIELD} value={draft.sourceKind} disabled={kindLocked} {...field("sourceKind")} aria-describedby={[error("sourceKind") ? `${id}-sourceKind-error` : null, kindLocked ? `${id}-sourceKind-locked` : null].filter(Boolean).join(" ") || undefined} onChange={(event) => set("sourceKind", event.target.value as CostDraft["sourceKind"])}>{COST_SOURCE_KINDS.map((kind) => <option key={kind} value={kind}>{COST_SOURCE_LABELS[kind]}</option>)}</select>
+            <FieldError id={`${id}-sourceKind-error`} text={error("sourceKind")} />
+            {kindLocked ? <span id={`${id}-sourceKind-locked`} className="mt-1 block t-meta text-fg-3">Вид источника строки агентства меняет только системный Admin.</span> : null}
+          </label>
           <label className={LABEL}>Название источника<input className={FIELD} value={draft.sourceName} maxLength={200} {...field("sourceName")} onChange={(event) => set("sourceName", event.target.value)} required /><FieldError id={`${id}-sourceName-error`} text={error("sourceName")} /></label>
           <label className={LABEL}>Адрес источника (https)<input className={FIELD} type="url" value={draft.sourceUrl} maxLength={1000} {...field("sourceUrl")} onChange={(event) => set("sourceUrl", event.target.value)} /><FieldError id={`${id}-sourceUrl-error`} text={error("sourceUrl")} /></label>
           <label className={LABEL}>Проверено<input className={`${FIELD} font-mono`} type="date" max={today} value={draft.verifiedOn} {...field("verifiedOn")} onChange={(event) => set("verifiedOn", event.target.value)} required /><FieldError id={`${id}-verifiedOn-error`} text={error("verifiedOn")} /></label>

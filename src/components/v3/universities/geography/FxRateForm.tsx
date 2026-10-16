@@ -26,7 +26,7 @@ export function FxRateForm({ currencies, latest, initialCurrency, today }: Reado
   const id = useId();
   const { input, errors } = fxInput(draft, today);
   const set = <K extends keyof FxDraft>(key: K, value: FxDraft[K]) => setDraft((current) => ({ ...current, [key]: value }));
-  const error = (field: FxField) => (shown && errors.has(field) ? FIELD_ERRORS[field] : null);
+  const error = (field: FxField) => (shown && errors.has(field) ? errors.get(field) ?? FIELD_ERRORS[field] : null);
   const control = (field: FxField) => ({ id: `${id}-${field}`, "aria-invalid": error(field) ? true : undefined, "aria-describedby": error(field) ? `${id}-${field}-error` : undefined });
   return (
     <form

@@ -27,7 +27,7 @@ const { mutateCatalogGeographyAction } = await import("../src/lib/catalog-geogra
 const requestId = "59948000-0000-4000-8000-000000000801";
 const costId = "59948000-0000-4000-8000-000000000802";
 const institutionId = "59948000-0000-4000-8000-000000000803";
-const previous = { status: "idle", requestId: "", operation: null };
+const previous = { status: "idle", requestId: "", operation: null, reason: null };
 function reset(role = "admin") {
   harness.actor = { systemRole: role, permissionKeys: role === "admin" ? [] : ["catalog.read"], assignments: [], presentationRole: null, organizationId };
   harness.calls = []; harness.revalidated = []; harness.tags = []; harness.fail = false;
@@ -43,7 +43,7 @@ const publish = { costId, status: "published", baseVersion: 3 };
 test("publish binds the session organization, calls only the cost RPC and expires the student index tag", async () => {
   reset();
   const outcome = await mutateCatalogGeographyAction(previous, form("cost_publish", publish));
-  assert.deepEqual(outcome, { status: "saved", requestId, operation: "cost_publish" });
+  assert.deepEqual(outcome, { status: "saved", requestId, operation: "cost_publish", reason: null });
   assert.equal(harness.calls.length, 1);
   assert.deepEqual(harness.calls[0], { schema: "platform", name: "staff_catalog_cost_publish_v1", args: { p_cost_id: costId, p_status: "published", p_base_version: 3, p_organization_id: organizationId, p_request_id: requestId } });
   assert.deepEqual(harness.tags, [["portal-student-university-index", { expire: 0 }]]);
@@ -110,4 +110,67 @@ test("city link and FX rate reach their RPCs with exact arguments", async () => 
   assert.equal(harness.calls[0].name, "staff_catalog_fx_rate_set_v1");
   assert.equal(harness.calls[0].args.p_actor_membership_id, null);
   assert.equal(harness.calls[0].args.p_units_per_usd, 3.6725);
+});
+
+const city = { key: "suzhou", country: "CN", nameRu: "Сучжоу", nameKy: "Сучжоу", nameEn: "Suzhou", lat: 31.3, lng: 120.62,
+  photo: { path: "geography/cities/cn-suzhou-0123456789ab.jpg", width: 2400, height: 1600, author: "Demo Author", authorUrl: null, sourceName: "Pexels",
+    sourceUrl: "https://www.pexels.com/photo/suzhou-1/", license: "Pexels License", licenseUrl: "https://www.pexels.com/license/" },
+  summaryRu: "Город садов.", summaryKy: "Бактар шаары.", factRu: "Сады Сучжоу в списке ЮНЕСКО.", factKy: "Сучжоу бактары ЮНЕСКОнун тизмесинде.",
+  factSourceUrl: "https://whc.unesco.org/en/list/813", factVerifiedOn: "2026-10-01", kyReview: "pending" };
+const cost = { id: costId, institutionId, programId: null, studyLevel: null, teachingLanguage: null, costKind: "tuition", period: "year", amountMinMinor: 2500000,
+  amountMaxMinor: null, currency: "CNY", academicYear: null, noteRu: null, noteKy: null, sourceKind: "official", sourceName: "Soochow University",
+  sourceUrl: "https://www.suda.edu.cn/", verifiedOn: "2026-10-01" };
+
+test("only writes that change the student index expire its tag (contract 2.4, review CRM R7)", async () => {
+  const cases = [
+    ["city_upsert", { city, baseVersion: 2 }, { requestId, cityKey: "suzhou", version: 3, status: "draft" }, false],
+    ["city_upsert", { city, baseVersion: 2 }, { requestId, cityKey: "suzhou", version: 3, status: "published" }, true],
+    ["city_publish", { cityKey: "suzhou", published: true, baseVersion: 3 }, { requestId, cityKey: "suzhou", version: 4, status: "published" }, true],
+    ["institution_city_set", { institutionId, cityKey: "suzhou" }, { requestId, institutionId, cityKey: "suzhou" }, true],
+    ["cost_upsert", { cost: { ...cost, id: null }, baseVersion: 0 }, { requestId, costId, version: 1, status: "draft" }, false],
+    ["cost_upsert", { cost, baseVersion: 2 }, { requestId, costId, version: 3, status: "draft" }, true],
+    ["cost_confirm", { costId, baseVersion: 3, reason: "Решение владельца" }, { requestId, costId, version: 4, status: "draft", confirmedOn: "2026-10-16" }, false],
+    ["cost_publish", publish, { requestId, costId, version: 4, status: "published" }, true],
+    ["fx_rate_set", { currency: "CNY", asOf: "2026-10-01", unitsPerUsd: 7.1, sourceName: "ECB", sourceUrl: null }, { requestId, currency: "CNY", asOf: "2026-10-01", unitsPerUsd: 7.1 }, false],
+  ];
+  for (const [operation, payload, data, expires] of cases) {
+    reset(); harness.response = { data, error: null };
+    const outcome = await mutateCatalogGeographyAction(previous, form(operation, payload));
+    assert.equal(outcome.status, "saved", `${operation} ${JSON.stringify(data)}`);
+    assert.equal(harness.revalidated.length, 2, operation);
+    assert.equal(harness.tags.length, expires ? 1 : 0, `${operation} ${JSON.stringify(data)}`);
+  }
+});
+
+test("known database refusals reach the form as a reason, never as the database text", async () => {
+  const cases = [
+    ["city_publish", { cityKey: "suzhou", published: true, baseVersion: 3 }, "22023", "catalog_city_photo_missing", "invalid", "photo_missing"],
+    ["city_publish", { cityKey: "suzhou", published: true, baseVersion: 3 }, "22023", "catalog_city_incomplete", "invalid", "city_incomplete"],
+    ["city_upsert", { city, baseVersion: 2 }, "22023", "catalog_city_photo_missing", "invalid", "photo_missing"],
+    ["city_upsert", { city, baseVersion: 2 }, "23514", 'new row for relation "catalog_cities" violates check constraint "catalog_cities_published_complete"', "rejected", "city_incomplete"],
+    ["city_upsert", { city, baseVersion: 0 }, "40001", "catalog_city_version_changed", "invalid", "city_exists"],
+    ["city_upsert", { city, baseVersion: 2 }, "40001", "catalog_city_version_changed", "stale", null],
+    ["city_upsert", { city, baseVersion: 0 }, "23505", 'duplicate key value violates unique constraint "catalog_cities_organization_id_country_code_name_ru_key"', "invalid", "duplicate_city_name"],
+    ["city_upsert", { city, baseVersion: 0 }, "23505", "catalog_request_reused", "request_conflict", null],
+    ["cost_upsert", { cost, baseVersion: 2 }, "42501", "catalog_admin_required", "forbidden", "admin_required"],
+    ["cost_upsert", { cost, baseVersion: 2 }, "22023", "catalog_cost_agency_source_mislabeled", "invalid", "agency_mislabeled"],
+    ["cost_publish", publish, "23514", "catalog_cost_agency_unconfirmed", "rejected", "agency_unconfirmed"],
+    ["institution_city_set", { institutionId, cityKey: "suzhou" }, "22023", "catalog_city_country_mismatch", "invalid", "city_country_mismatch"],
+    ["cost_publish", publish, "22023", "private detail with secret-ish text", "invalid", null],
+  ];
+  for (const [operation, payload, code, message, status, reason] of cases) {
+    reset(); harness.response = { data: null, error: { code, message } };
+    const outcome = await mutateCatalogGeographyAction(previous, form(operation, payload));
+    assert.deepEqual(outcome, { status, requestId, operation, reason }, `${operation} ${message}`);
+    assert.equal(JSON.stringify(outcome).includes(message), false);
+    assert.equal(harness.tags.length + harness.revalidated.length, 0);
+  }
+});
+
+test("agency confirmation reason follows the database text rule before any RPC", async () => {
+  for (const reason of ["", " Решение", "Решение\u200b владельца", "x".repeat(501)]) {
+    reset();
+    assert.equal((await mutateCatalogGeographyAction(previous, form("cost_confirm", { costId, baseVersion: 3, reason }))).status, "invalid", JSON.stringify(reason));
+    assert.equal(harness.calls.length, 0);
+  }
 });

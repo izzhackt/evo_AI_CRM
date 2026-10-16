@@ -141,3 +141,12 @@ but the overview still offers “Все документы”, “Все нач�
 Align the overview's actions/copy with the existing approved/assisted contract
 in a separate B-4 slice; keep those authorization boundaries intact. This is a
 UX inconsistency, not evidence that209 should grant assisted permissions.
+
+
+## 2026-10-16: CSCA S5.1, web screens (iPhone pending)
+
+Web `/portal/csca/*` over RPC 285/286 (`docs/portal/csca-contract.md` §17): track home (subjects, next step, topic map, timed tests, mistakes, progress, official sessions with target choice), lesson with typed theory blocks (KaTeX HTML+MathML, SVG figures with dark palette swap), practice, timed test (server clock, batched saves, no early finish for the mock, review after finish), spaced review and progress. RU/KY strings in the `csca` portal dictionary (KY pending native proofreading).
+
+Real evidence on the local `evo-video-demo` stack only (synthetic students, no production): headless Chromium at 1440×900 and 390×844, light and dark, RU and KY; diagnostic finished early with review; a real 450 s mock deadline auto-submitted by the client and returned `Время вышло`; lesson answers wrong and right (keyboard), report sent, practice, review answer moving an item to box 2, progress. Screenshots and receipts are kept outside Git in `output/student-app-v2/screens/csca-web/` of the canonical checkout.
+
+iPhone parity is not built in this slice: SwiftMath spike, figures in `WKWebView`, the same six screens. Until then the iPhone has no CSCA entry (`learning_modules_v1` returns English only).

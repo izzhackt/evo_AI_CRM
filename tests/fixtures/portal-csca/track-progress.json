@@ -1,0 +1,372 @@
+{
+ "pace": {
+  "avgSeconds": 50,
+  "budgetSeconds": 75,
+  "answeredWithTime": 1
+ },
+ "tests": [
+  {
+   "kind": "mock",
+   "formKey": "csca-math-mock-1",
+   "attemptId": "ea2181ee-8f24-4638-bad5-acc6064ee8bf",
+   "avgSeconds": null,
+   "completion": "timeout",
+   "itemsTotal": 6,
+   "completedAt": "2026-10-16T10:56:54.628541+00:00",
+   "correctCount": 0,
+   "correctShare": 0,
+   "answeredCount": 0
+  },
+  {
+   "kind": "diagnostic",
+   "formKey": "csca-math-diagnostic-1",
+   "attemptId": "7416088d-2a67-4c99-9d48-310f4a479ae1",
+   "avgSeconds": null,
+   "completion": "timeout",
+   "itemsTotal": 3,
+   "completedAt": "2026-10-16T10:36:02.636627+00:00",
+   "correctCount": 0,
+   "correctShare": 0,
+   "answeredCount": 1
+  },
+  {
+   "kind": "diagnostic",
+   "formKey": "csca-math-diagnostic-1",
+   "attemptId": "b930dfe8-a738-412b-b29c-3b08347748bb",
+   "avgSeconds": 50,
+   "completion": "submitted",
+   "itemsTotal": 3,
+   "completedAt": "2026-10-16T10:31:46.49964+00:00",
+   "correctCount": 0,
+   "correctShare": 0,
+   "answeredCount": 2
+  }
+ ],
+ "today": "2026-10-16",
+ "track": "csca-math",
+ "review": {
+  "dueCount": 0,
+  "activeCount": 4,
+  "retiredCount": 0
+ },
+ "streak": {
+  "best": 1,
+  "current": 1,
+  "timeZone": "Asia/Bishkek",
+  "lastActiveOn": "2026-10-16"
+ },
+ "topics": [
+  {
+   "state": "not_started",
+   "section": 1,
+   "topicKey": "m1-sets",
+   "orderIndex": 1,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 1,
+   "topicKey": "m1-ineq-basics",
+   "orderIndex": 2,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 1,
+   "topicKey": "m1-ineq-quadratic",
+   "orderIndex": 3,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 1,
+   "topicKey": "m1-ineq-rational",
+   "orderIndex": 4,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 1,
+   "topicKey": "m1-ineq-amgm",
+   "orderIndex": 5,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 2,
+   "topicKey": "m2-func-basics",
+   "orderIndex": 6,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 2,
+   "topicKey": "m2-func-properties",
+   "orderIndex": 7,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 2,
+   "topicKey": "m2-func-graphs",
+   "orderIndex": 8,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 2,
+   "topicKey": "m2-quadratic-power",
+   "orderIndex": 9,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "gap",
+   "section": 2,
+   "topicKey": "m2-exp-log",
+   "orderIndex": 10,
+   "answersTotal": 5,
+   "correctTotal": 2,
+   "windowAnswers": 5,
+   "windowCorrect": 2,
+   "lessonCompleted": true
+  },
+  {
+   "state": "not_started",
+   "section": 2,
+   "topicKey": "m2-trig-basics",
+   "orderIndex": 11,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 2,
+   "topicKey": "m2-trig-identities",
+   "orderIndex": 12,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 2,
+   "topicKey": "m2-trig-graphs",
+   "orderIndex": 13,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 2,
+   "topicKey": "m2-seq-arithmetic",
+   "orderIndex": 14,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 2,
+   "topicKey": "m2-seq-geometric",
+   "orderIndex": 15,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "few_data",
+   "section": 2,
+   "topicKey": "m2-derivative",
+   "orderIndex": 16,
+   "answersTotal": 2,
+   "correctTotal": 0,
+   "windowAnswers": 2,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 3,
+   "topicKey": "m3-line-circle",
+   "orderIndex": 17,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 3,
+   "topicKey": "m3-ellipse",
+   "orderIndex": 18,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 3,
+   "topicKey": "m3-hyperbola",
+   "orderIndex": 19,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 3,
+   "topicKey": "m3-parabola",
+   "orderIndex": 20,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 3,
+   "topicKey": "m3-vectors",
+   "orderIndex": 21,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 3,
+   "topicKey": "m3-complex",
+   "orderIndex": 22,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 3,
+   "topicKey": "m3-space-coords",
+   "orderIndex": 23,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 3,
+   "topicKey": "m3-solids",
+   "orderIndex": 24,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 4,
+   "topicKey": "m4-classical-probability",
+   "orderIndex": 25,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 4,
+   "topicKey": "m4-events",
+   "orderIndex": 26,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 4,
+   "topicKey": "m4-statistics",
+   "orderIndex": 27,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  },
+  {
+   "state": "not_started",
+   "section": 4,
+   "topicKey": "m4-normal",
+   "orderIndex": 28,
+   "answersTotal": 0,
+   "correctTotal": 0,
+   "windowAnswers": 0,
+   "windowCorrect": 0,
+   "lessonCompleted": false
+  }
+ ],
+ "coverage": {
+  "topicsTotal": 28,
+  "topicsWithCompletedLesson": 1
+ }
+}

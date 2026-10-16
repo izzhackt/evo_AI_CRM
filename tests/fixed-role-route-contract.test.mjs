@@ -327,6 +327,10 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
     "/portal/profile",
     "/portal/english",
     "/portal/english/review",
+    // S5.1: CSCA (миграции 285, 286).
+    "/portal/csca",
+    "/portal/csca/math/review",
+    "/portal/csca/math/progress",
     "/portal/professions",
     // PORT-5c: сообщения по делу (assisted; граница — RPC миграции 200).
     "/portal/messages",
@@ -356,6 +360,8 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
   for (const path of [
     `/portal/english/lesson/${detailId}`,
     `/portal/professions/${detailId}`,
+    `/portal/csca/math/lesson/${detailId}`,
+    `/portal/csca/math/test/${detailId}`,
   ]) {
     assert.equal(isConnectedStudentPortalPage(path), true, path);
     assert.equal(isConnectedPlatformPage(path), true, path);
@@ -369,6 +375,9 @@ test("Student Portal and auth-only routes are exact and disjoint from tombstones
     "/portal/tests/english/child",
     "/portal/english/lesson/not-an-id",
     `/portal/english/lesson/${detailId}/child`,
+    "/portal/csca/math",
+    "/portal/csca/math/lesson/not-an-id",
+    `/portal/csca/math/test/${detailId}/child`,
     "/portal/professions/not-an-id",
     `/portal/professions/${detailId}/edit`,
     "/portal/messages/child",

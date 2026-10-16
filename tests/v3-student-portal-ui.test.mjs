@@ -42,6 +42,12 @@ test("the Student workspace preserves four portal pages, private tests and publi
   // with its own reader/view — see the "direct strict E2 result" test below.
   assert.deepEqual(pageFiles, [
     "src/app/(portal)/portal/applications/page.tsx",
+    // S5.1 (миграции 285, 286): CSCA, предмет в пути оставляет место физике и химии.
+    "src/app/(portal)/portal/csca/math/lesson/[lessonId]/page.tsx",
+    "src/app/(portal)/portal/csca/math/progress/page.tsx",
+    "src/app/(portal)/portal/csca/math/review/page.tsx",
+    "src/app/(portal)/portal/csca/math/test/[formId]/page.tsx",
+    "src/app/(portal)/portal/csca/page.tsx",
     "src/app/(portal)/portal/document-notifications/[notificationId]/page.tsx",
     "src/app/(portal)/portal/documents/page.tsx",
     "src/app/(portal)/portal/english/lesson/[lessonId]/page.tsx",
@@ -88,6 +94,8 @@ test("the Student workspace preserves four portal pages, private tests and publi
       "/portal/universities",
       "/portal/professions",
       "/portal/english",
+      // S5.1: CSCA рядом с «Английским», навигация не перестраивается.
+      "/portal/csca",
       "/portal/favorites",
       "/portal/payments",
       "/portal/notifications",

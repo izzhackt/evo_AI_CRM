@@ -282,14 +282,15 @@ test("the retired /v3/admissions-requests route stays connected for old links bu
 
 test("university routes admit only catalogue, management and bounded detail paths", () => {
   const id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-  for (const path of ["/v3/universities", "/v3/universities/manage", `/v3/universities/${id}`, "/portal/universities", `/portal/universities/${id}`]) {
+  for (const path of ["/v3/universities", "/v3/universities/manage", "/v3/universities/cities", "/v3/universities/rates", `/v3/universities/${id}`, "/portal/universities", `/portal/universities/${id}`]) {
     assert.equal(isConnectedPlatformPage(path), true, path);
   }
-  for (const path of ["/v3/universities/manage/extra", "/portal/universities/manage", "/v3/universities/not-an-id", `/portal/universities/${id}/edit`]) {
+  for (const path of ["/v3/universities/manage/extra", "/v3/universities/cities/hangzhou", "/v3/universities/rates/CNY", "/portal/universities/manage", "/v3/universities/not-an-id", `/portal/universities/${id}/edit`]) {
     assert.equal(isConnectedPlatformPage(path), false, path);
   }
   assert.equal(isConnectedStudentPortalPage(`/portal/universities/${id}`), true);
   assert.equal(isConnectedStudentPortalPage("/v3/universities/manage"), false);
+  assert.equal(isConnectedStudentPortalPage("/v3/universities/cities"), false);
   // S3: страна и город каталога; что страна из шести и город опубликован, решает страница.
   for (const path of ["/portal/universities/country/cn", "/portal/universities/country/cn/shanghai", "/portal/universities/country/my/kuala-lumpur"]) {
     assert.equal(isConnectedStudentPortalPage(path), true, path);

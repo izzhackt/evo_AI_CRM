@@ -14,11 +14,15 @@ export default async function UniversitiesPage({ searchParams }: { searchParams:
   const [actor, params] = await Promise.all([requireV3PageActor("/v3/universities"), searchParams]);
   const filters = parseUniversityFilters(params) ?? notFound();
   const canManage = !isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage");
-  // Управление каталогом — редкая задача Admin (Э6): тихая ссылка, не красная кнопка.
+  // Управление каталогом это редкая задача Admin (Э6): тихие ссылки, не красная кнопка.
+  // Города и курсы валют кабинета студента (план 7.5) рядом, без нового пункта меню.
+  const quiet = "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 underline underline-offset-4 hover:text-fg";
   const manageAction = canManage ? (
-    <Link href="/v3/universities/manage" className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 underline underline-offset-4 hover:text-fg">
-      <Icon name="settings" size={16} />Управлять каталогом
-    </Link>
+    <div className="flex flex-wrap gap-x-4 max-sm:-my-2">
+      <Link href="/v3/universities/cities" className={quiet}>Города</Link>
+      <Link href="/v3/universities/rates" className={quiet}>Курсы валют</Link>
+      <Link href="/v3/universities/manage" className={quiet}><Icon name="settings" size={16} />Управлять каталогом</Link>
+    </div>
   ) : undefined;
   let catalogue, facet;
   try { [catalogue, facet] = await Promise.all([readStaffUniversityCatalogue(actor, filters), readStaffUniversityCountries(actor)]); } catch { return <PartShell title="Университеты" action={manageAction}><UniversityUnavailable /></PartShell>; }

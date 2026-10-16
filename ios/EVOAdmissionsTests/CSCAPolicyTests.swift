@@ -51,6 +51,30 @@ final class CSCAPolicyTests: XCTestCase {
         XCTAssertFalse(clock.acceptsSave(deadline: deadline, graceSeconds: 15, at: 1_015))
     }
 
+    /// N2 (review 2): a replayed save returns its first receipt with the
+    /// `serverNow` of that moment. Re-anchoring on it would give the
+    /// countdown back the time between the sends; the later estimate wins.
+    func testReplayedReceiptNeverWindsTheClockBack() {
+        let start = Date(timeIntervalSince1970: 1_000_000)
+        let deadline = start.addingTimeInterval(240)
+        // Started at monotonic second 100.
+        let clock = CSCAServerClock(serverAtAnchor: start, anchor: 100)
+        // The first save landed 5 s in; its answer was lost. The replay
+        // arrives 31 s later with that same serverNow.
+        let replay = CSCAServerClock(serverAtAnchor: start.addingTimeInterval(5), anchor: 136)
+        let kept = clock.keepingLater(replay)
+        XCTAssertEqual(kept, clock)
+        XCTAssertEqual(kept.remaining(until: deadline, at: 136), 204, accuracy: 0.001)
+        XCTAssertEqual(replay.remaining(until: deadline, at: 136), 235, accuracy: 0.001, "what the old code showed")
+        // A fresh receipt that is later than the estimate is taken.
+        let fresh = CSCAServerClock(serverAtAnchor: start.addingTimeInterval(36.4), anchor: 136)
+        XCTAssertEqual(clock.keepingLater(fresh), fresh)
+        // The device stand-in always gives way to the server, even backwards.
+        let device = CSCAServerClock(serverAtAnchor: start.addingTimeInterval(300), anchor: 100, isFromServer: false)
+        XCTAssertEqual(device.keepingLater(replay), replay)
+        XCTAssertFalse(CSCAServerClock.device().isFromServer)
+    }
+
     func testCountdownLabel() {
         XCTAssertEqual(CSCACountdown.label(2467), "41:07")
         XCTAssertEqual(CSCACountdown.label(0.2), "00:01", "rounds up: 00:00 only when time is out")
@@ -76,6 +100,61 @@ final class CSCAPolicyTests: XCTestCase {
         XCTAssertTrue(CSCASaveSchedule.shouldSave(trigger: .background, isDirty: true, inFlight: false, lastSaveAt: t0, now: at(0.1)))
         XCTAssertTrue(CSCASaveSchedule.shouldSave(trigger: .deadline, isDirty: true, inFlight: false, lastSaveAt: t0, now: at(0.1)))
         XCTAssertTrue(CSCASaveSchedule.shouldSave(trigger: .tick, isDirty: true, inFlight: false, lastSaveAt: nil, now: at(0)))
+    }
+
+    private func saveState(_ answers: [String: String]) -> CSCATestSaveState {
+        CSCATestSaveState(answers: answers, flags: [], itemSeconds: [:])
+    }
+
+    /// N1 (review 2): after a lost save the same request goes again, and
+    /// once it lands the answers given since are still unsaved and go out
+    /// in a fresh request with the new revision.
+    func testFrozenRetryThenTheAnswersGivenSince() {
+        var queue = CSCASaveQueue()
+        XCTAssertFalse(queue.hasUnsaved)
+        queue.changed()
+        let first = queue.next(revision: 1) { saveState(["q1": "a"]) }
+        XCTAssertFalse(queue.hasUnsaved, "sent state counts as sent")
+        queue.lostInTransit(first)
+        XCTAssertTrue(queue.hasUnsaved)
+        // Items 2 and 3 answered offline.
+        queue.changed()
+        let resent = queue.next(revision: 1) {
+            XCTFail("a frozen retry never takes the current state")
+            return saveState([:])
+        }
+        XCTAssertEqual(resent, first, "same request id, revision and state")
+        queue.landed()
+        XCTAssertTrue(queue.hasUnsaved, "the answers given after the failure are not saved yet")
+        let current = queue.next(revision: 2) { saveState(["q1": "a", "q2": "b", "q3": "c"]) }
+        XCTAssertNotEqual(current.requestId, first.requestId)
+        XCTAssertEqual(current.revision, 2)
+        XCTAssertEqual(current.state.answers.count, 3)
+        queue.landed()
+        XCTAssertFalse(queue.hasUnsaved)
+        // One save sends the retry and the current state at least.
+        XCTAssertGreaterThanOrEqual(CSCASaveQueue.maxRequestsPerSave, 2)
+    }
+
+    func testSaveQueueRefusalsAndServerState() {
+        var queue = CSCASaveQueue()
+        queue.changed()
+        var request = queue.next(revision: 1) { saveState(["q1": "a"]) }
+        // Refused outright: what it carried is unsaved again, never resent as is.
+        queue.refused()
+        XCTAssertTrue(queue.hasUnsaved)
+        XCTAssertNil(queue.retry)
+        request = queue.next(revision: 1) { saveState(["q1": "a"]) }
+        queue.lostInTransit(request)
+        // Deadline or a finished test: the request is not repeated.
+        queue.dropRetry()
+        XCTAssertFalse(queue.hasUnsaved)
+        // The server attempt replaced this device's state.
+        queue.changed()
+        queue.lostInTransit(queue.next(revision: 1) { saveState(["q1": "b"]) })
+        queue.changed()
+        queue.clear()
+        XCTAssertFalse(queue.hasUnsaved)
     }
 
     func testItemTimerAccumulatesAndClamps() {

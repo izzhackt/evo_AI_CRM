@@ -133,15 +133,6 @@ struct CSCATestAttemptBox: Identifiable {
     var id: UUID { timed.value.attemptId }
 }
 
-/// One `save_learning_test_v1` request. After a transport failure it is
-/// resent unchanged, same request id, revision and state (contract §1):
-/// if the first one landed, the server returns the same receipt.
-struct CSCAFrozenTestSave: Equatable {
-    let requestId: UUID
-    let revision: Int64
-    let state: CSCATestSaveState
-}
-
 /// Timed test on the server clock (contract §7). The countdown is display
 /// only and runs on monotonic time anchored at `serverNow`, so changing the
 /// device time does not move it; the server sets the deadline, refuses late
@@ -187,8 +178,7 @@ final class CSCATestRunnerModel: ObservableObject {
     private let deadline: Date
     private var revision: Int64
     private var timer: CSCAItemTimer
-    private var dirty = false
-    private var retrySave: CSCAFrozenTestSave?
+    private var queue = CSCASaveQueue()
     private var lastSaveAt: TimeInterval?
     private var ticker: Task<Void, Never>?
     private var completeRequestId = UUID()
@@ -214,7 +204,7 @@ final class CSCATestRunnerModel: ObservableObject {
     var remaining: TimeInterval { clock.remaining(until: deadline, at: now) }
     var answeredCount: Int { items.filter { answers[$0.itemKey] != nil }.count }
     var isLocked: Bool { phase != .running || remaining <= 0 }
-    var hasUnsavedChanges: Bool { dirty || retrySave != nil }
+    var hasUnsavedChanges: Bool { queue.hasUnsaved }
 
     /// Read at the moment it is asked: the ticker is stopped after a failed
     /// finish, so `remaining` may be stale there.
@@ -264,14 +254,14 @@ final class CSCATestRunnerModel: ObservableObject {
     func select(_ optionId: String) {
         guard !isLocked, let current else { return }
         answers[current.itemKey] = optionId
-        dirty = true
+        queue.changed()
         notice = nil
     }
 
     func toggleFlag() {
         guard !isLocked, let current else { return }
         flags = CSCANavigator.toggled(flags, current.itemKey)
-        dirty = true
+        queue.changed()
         notice = nil
     }
 
@@ -302,7 +292,10 @@ final class CSCATestRunnerModel: ObservableObject {
         return CSCATestSaveState(answers: answers, flags: flags, itemSeconds: seconds)
     }
 
-    /// true when nothing is left unsaved afterwards.
+    /// true when nothing is left unsaved afterwards. A frozen retry carries
+    /// only the state of its first send, so once it lands the answers given
+    /// since go out right away in a fresh request (as on the web); finishing
+    /// and leaving never stop at the frozen state.
     @discardableResult
     func save(_ trigger: CSCASaveSchedule.Trigger) async -> Bool {
         let at = CSCAMonotonic.now()
@@ -311,51 +304,60 @@ final class CSCATestRunnerModel: ObservableObject {
         ) else {
             return !hasUnsavedChanges
         }
-        guard clock.acceptsSave(deadline: deadline, graceSeconds: attempt.graceSeconds, at: at) else { return false }
         let background = trigger == .background ? UIApplication.shared.beginBackgroundTask(withName: "csca-save") : .invalid
         defer { if background != .invalid { UIApplication.shared.endBackgroundTask(background) } }
         isSaving = true
         defer { isSaving = false }
-        let request: CSCAFrozenTestSave
-        if let retrySave {
-            request = retrySave
-        } else {
-            request = CSCAFrozenTestSave(requestId: UUID(), revision: revision, state: saveState)
-            dirty = false
+        for _ in 0..<CSCASaveQueue.maxRequestsPerSave {
+            let sentAt = CSCAMonotonic.now()
+            guard clock.acceptsSave(deadline: deadline, graceSeconds: attempt.graceSeconds, at: sentAt) else { return false }
+            guard await send(at: sentAt) else { return false }
+            if !hasUnsavedChanges { return true }
         }
+        return !hasUnsavedChanges
+    }
+
+    /// One request: the frozen retry, else the current state. true when the
+    /// server took it.
+    private func send(at sentAt: TimeInterval) async -> Bool {
+        let request = queue.next(revision: revision) { saveState }
         do {
             let receipt = try await service.cscaSaveTest(
                 attemptId: attempt.attemptId, expectedRevision: request.revision, state: request.state,
                 requestId: request.requestId
             )
-            retrySave = nil
+            queue.landed()
             revision = receipt.value.revision
+            // A replayed request returns its first receipt and the
+            // `serverNow` of that moment: the countdown never goes back.
             if let fresh = CSCAServerClock(serverNow: receipt.value.serverNow, receivedAt: receipt.receivedAt) {
-                clock = fresh
+                clock = clock.keepingLater(fresh)
             }
-            lastSaveAt = at
+            lastSaveAt = sentAt
             saveFailure = nil
-            if request.state.answers != answers || request.state.flags != flags { dirty = true }
-            return !hasUnsavedChanges
+            if request.state.answers != answers || request.state.flags != flags { queue.changed() }
+            return true
         } catch {
-            lastSaveAt = at
+            lastSaveAt = sentAt
             let failure = error.cscaFailure
             switch failure {
             case .network:
                 // The server may have stored it: resend this very request.
-                retrySave = request
+                queue.lostInTransit(request)
                 saveFailure = .network
             case .conflict:
                 // Another device saved first. As on the web, the server
                 // attempt wins and the student is told.
-                retrySave = nil
+                queue.dropRetry()
                 await adoptServerAttempt()
             case .deadlinePassed, .testCompleted:
-                retrySave = nil
+                // The server finishes with what it has; an older network
+                // failure no longer holds the finish back.
+                queue.dropRetry()
+                saveFailure = nil
                 finishInOwnTask()
             default:
-                retrySave = nil
-                dirty = true
+                queue.refused()
                 saveFailure = failure
             }
             return false
@@ -373,7 +375,7 @@ final class CSCATestRunnerModel: ObservableObject {
     private func adoptServerAttempt() async {
         guard let fresh = try? await service.cscaTestAttempt(attemptId: attempt.attemptId) else {
             // Unreadable right now: the next save conflicts and rereads again.
-            dirty = true
+            queue.changed()
             saveFailure = .network
             return
         }
@@ -397,8 +399,7 @@ final class CSCATestRunnerModel: ObservableObject {
         }
         timer = CSCAItemTimer(initial: value.itemSeconds)
         if wasCounting, let current { timer.enter(current.itemKey, at: CSCAMonotonic.now()) }
-        dirty = false
-        retrySave = nil
+        queue.clear()
         saveFailure = nil
     }
 
@@ -415,8 +416,16 @@ final class CSCATestRunnerModel: ObservableObject {
         // Let a save already in flight land first, then send what is left.
         while isSaving { try? await Task.sleep(for: .milliseconds(100)) }
         if hasUnsavedChanges {
-            _ = await save(.deadline)
+            let saved = await save(.deadline)
             if phase == .completed { return }
+            // Answers this device could not send stay here: do not complete
+            // without them while the server still takes saves. «Отправить
+            // ответы ещё раз» sends them first, then completes.
+            if !saved, saveFailure == .network,
+               clock.acceptsSave(deadline: deadline, graceSeconds: attempt.graceSeconds, at: CSCAMonotonic.now()) {
+                phase = .failed(.network)
+                return
+            }
         }
         for _ in 0..<30 {
             do {
@@ -491,8 +500,7 @@ final class CSCATestRunnerModel: ObservableObject {
         attempt = completed
         answers = completed.answers
         flags = completed.flags
-        dirty = false
-        retrySave = nil
+        queue.clear()
         phase = .completed
     }
 }

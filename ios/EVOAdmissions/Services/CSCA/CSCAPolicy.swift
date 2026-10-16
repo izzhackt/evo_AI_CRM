@@ -89,10 +89,13 @@ enum CSCAMonotonic {
 struct CSCAServerClock: Equatable {
     let serverAtAnchor: Date
     let anchor: TimeInterval
+    /// false only for the device stand-in, which any server anchor replaces.
+    let isFromServer: Bool
 
-    init(serverAtAnchor: Date, anchor: TimeInterval) {
+    init(serverAtAnchor: Date, anchor: TimeInterval, isFromServer: Bool = true) {
         self.serverAtAnchor = serverAtAnchor
         self.anchor = anchor
+        self.isFromServer = isFromServer
     }
 
     init?(serverNow raw: String, receivedAt anchor: TimeInterval) {
@@ -102,11 +105,24 @@ struct CSCAServerClock: Equatable {
 
     /// Without a readable `serverNow` the device clock stands in.
     static func device() -> CSCAServerClock {
-        CSCAServerClock(serverAtAnchor: Date(), anchor: CSCAMonotonic.now())
+        CSCAServerClock(serverAtAnchor: Date(), anchor: CSCAMonotonic.now(), isFromServer: false)
     }
 
     func serverTime(at monotonic: TimeInterval) -> Date {
         serverAtAnchor.addingTimeInterval(monotonic - anchor)
+    }
+
+    /// The clock to keep when a save receipt brings a new anchor. A replay
+    /// of a save the server already took (same `p_request_id`) returns its
+    /// first receipt, with the `serverNow` of that moment; anchoring on it
+    /// would wind the countdown back by the time between the two sends.
+    /// Every anchor trails the real server time by its response's trip, so
+    /// the later estimate is the better one. Both run on the same monotonic
+    /// seconds, so comparing them at one instant decides it.
+    func keepingLater(_ other: CSCAServerClock) -> CSCAServerClock {
+        guard isFromServer else { return other }
+        let at = max(anchor, other.anchor)
+        return other.serverTime(at: at) > serverTime(at: at) ? other : self
     }
 
     /// Seconds left until `deadline`, never negative.
@@ -166,6 +182,64 @@ struct CSCASaveSchedule {
         case .navigation: return since >= navigationInterval
         case .background, .deadline: return true
         }
+    }
+}
+
+/// One `save_learning_test_v1` request. After a transport failure it is
+/// resent unchanged, same request id, revision and state (contract §1):
+/// if the first one landed, the server returns the same receipt.
+struct CSCAFrozenTestSave: Equatable {
+    let requestId: UUID
+    let revision: Int64
+    let state: CSCATestSaveState
+}
+
+/// What the test runner still has to send. A request lost in transit is
+/// resent as it was, so it does not carry the answers given after it. When
+/// it lands those are still unsaved and go out in a fresh request within
+/// the same save, as on the web: finishing or leaving never stops at the
+/// frozen state.
+struct CSCASaveQueue: Equatable {
+    /// Requests one save sends in a row at most: the frozen retry, the
+    /// current state, and one more for a change made while they were sent.
+    static let maxRequestsPerSave = 3
+
+    private(set) var retry: CSCAFrozenTestSave?
+    private(set) var isDirty = false
+
+    var hasUnsaved: Bool { isDirty || retry != nil }
+
+    /// An answer, flag or time changed on this device.
+    mutating func changed() { isDirty = true }
+
+    /// The request to send now: the frozen retry first, else the current
+    /// state, which from then on counts as sent.
+    mutating func next(revision: Int64, state: () -> CSCATestSaveState) -> CSCAFrozenTestSave {
+        if let retry { return retry }
+        isDirty = false
+        return CSCAFrozenTestSave(requestId: UUID(), revision: revision, state: state())
+    }
+
+    /// The server took it; anything changed after `next` is still unsaved.
+    mutating func landed() { retry = nil }
+
+    /// No answer: the server may have stored it, so resend this very request.
+    mutating func lostInTransit(_ request: CSCAFrozenTestSave) { retry = request }
+
+    /// The server will not take this request again (conflict, deadline,
+    /// finished test): do not resend it.
+    mutating func dropRetry() { retry = nil }
+
+    /// Refused outright: what it carried is unsaved again.
+    mutating func refused() {
+        retry = nil
+        isDirty = true
+    }
+
+    /// The server attempt replaced this device's state.
+    mutating func clear() {
+        retry = nil
+        isDirty = false
     }
 }
 

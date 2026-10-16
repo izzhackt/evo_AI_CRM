@@ -56,6 +56,7 @@ export function PortalNotificationUpdates({ locale }: { locale: Locale }) {
         // Раздел перечитывается, только если его данные изменились (в том
         // числе без уведомления, например одобрение). Тренажёры тестов
         // живут своим циклом сохранения.
+        if (result.signature === null) return;
         const changed = known !== null && result.signature !== known;
         known = result.signature;
         if (changed && section !== null) {

@@ -3,8 +3,8 @@ import { UNIVERSITY_PHOTOS, type UniversityContent } from "@/lib/platform-univer
 import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 import { universityPhotoSrcSet, universityPhotoUrl } from "@/lib/university-photo-url";
 
-/** Ширины уменьшенных копий: карточка ≈ 300–400 px, герой — до ширины колонки. */
-const CARD_WIDTHS = [480, 800] as const;
+/** Ширины уменьшенных копий: карточка ≈ 300–400 px (640w ≤ 80 КБ по приёмке S1), герой до ширины колонки. */
+const CARD_WIDTHS = [480, 640] as const;
 const HERO_WIDTHS = [800, 1200, 1600] as const;
 const CARD_SIZES = "(min-width: 640px) 400px, 100vw";
 const HERO_SIZES = "(min-width: 1100px) 1000px, 100vw";

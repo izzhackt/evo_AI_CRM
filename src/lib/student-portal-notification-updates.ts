@@ -45,21 +45,25 @@ async function sectionContent(section: StudentPortalUpdateSection | null, actor:
   }
 }
 
+const SECTION_UNKNOWN = Symbol("section-unknown");
+
 export async function loadStudentPortalNotificationState(section: unknown = null) {
   try {
     const target = SECTIONS.find((value) => value === section) ?? null;
     // Проверка доступа и чтения идут одновременно: каждое RPC само проверяет
     // живого студента, а ответ возвращается только после проверки.
     const actorRead = requireStudentPortalActor();
+    // Сбой чтения раздела не прячет счётчик колокольчика: подпись тогда
+    // неизвестна (null), и клиент не перечитывает страницу.
     const [actor, notifications, content] = await Promise.all([
       actorRead,
       readStudentPortalNotifications(),
-      sectionContent(target, actorRead),
+      sectionContent(target, actorRead).catch(() => SECTION_UNKNOWN),
     ]);
     return {
       ok: true as const,
       unread: notifications.filter(item => item.readAt === null).length,
-      signature: signature({
+      signature: content === SECTION_UNKNOWN ? null : signature({
         tier: actor.accessTier,
         state: actor.caseState,
         notifications: notifications.map((item) => [item.notificationId, item.readAt]),

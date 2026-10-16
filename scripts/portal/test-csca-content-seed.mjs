@@ -191,12 +191,16 @@ test("SVG profile and the six-colour palette", () => {
     [good.replace('fill="#ffffff"', 'style="fill:#ffffff"'), /forbidden construct/u],
     [good.replace("<rect", '<image width="1" height="1"/><rect'), /forbidden construct/u],
     [good.replace('font-size="14"', 'font-size="10"'), /below 12/u],
+    [good.replace('font-size="14"', 'font-size="13"'), /renders 11\.1 px on a phone, below 12 px/u],
     [good.replace("−1", "-1"), /U\+2212/u],
     [good.replace("<rect", '<ellipse rx="1" ry="1"/><rect'), /not in the SVG profile/u],
     [good.replace('<rect width', '<rect onload="x()" width'), /not in the SVG profile/u],
   ];
   for (const [svg, pattern] of cases) assert.throws(() => checkSvg(svg, "0 0 400 300", "svg"), pattern);
   assert.throws(() => checkSvg(good, "0 0 800 300", "svg"), /viewBox/u);
+  // 13 units are enough on a 360 viewBox (13 × 343 / 360 = 12.4 px), not on 400.
+  const narrow = good.replace('viewBox="0 0 400 300"', 'viewBox="0 0 360 300"').replace('font-size="14"', 'font-size="13"');
+  assert.doesNotThrow(() => checkSvg(narrow, "0 0 360 300", "svg"));
   for (const figure of content.figures.values()) {
     assert.doesNotThrow(() => checkSvg(figure.svg, figure.view_box, figure.figure_key));
   }

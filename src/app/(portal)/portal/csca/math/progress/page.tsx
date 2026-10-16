@@ -4,7 +4,7 @@ import Link from "next/link";
 import { StateChip, TopicStrip } from "@/components/portal/csca/StateChip";
 import { getLocale } from "@/lib/i18n";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
-import { cscaDayLabel } from "@/lib/portal/csca";
+import { cscaMomentDayLabel } from "@/lib/portal/csca";
 import { readCscaHome, readCscaProgress } from "@/lib/portal/csca-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
@@ -175,7 +175,7 @@ export default async function CscaProgressPage() {
                   const formId = formIdByKey.get(test.formKey);
                   return (
                     <tr key={test.attemptId}>
-                      <td className="pt-data">{cscaDayLabel(test.completedAt, locale)}</td>
+                      <td className="pt-data">{cscaMomentDayLabel(test.completedAt, locale)}</td>
                       <th scope="row">{testTitle.get(test.formKey) ?? test.formKey}</th>
                       <td className="pt-data">
                         {formatPortalString(strings.tallyLabel, { correct: String(test.correctCount), total: String(test.itemsTotal) })}

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Locale } from "@/lib/i18n-data";
@@ -8,7 +9,10 @@ import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 import {
   clockOffsetMs,
   formatClock,
+  itemSecondsChanged,
+  laterClockOffset,
   remainingSeconds,
+  serverAcceptsSave,
   testSavePayload,
   type CscaOptionId,
   type CscaTestAttempt,
@@ -30,6 +34,7 @@ import { TestResultView, type TitleMaps } from "./TestResultView";
 type Strings = PortalStrings<"csca">;
 type Phase = "intro" | "starting" | "running" | "finishing" | "result";
 type SaveStatus = "idle" | "saving" | "saved" | "retrying";
+type FlushOptions = { settle?: boolean };
 type SaveRequest = {
   requestId: string;
   expectedRevision: number;
@@ -45,7 +50,8 @@ export type TimedTestForm = {
   durationSeconds: number;
   allowEarlyFinish: boolean;
   itemsTotal: number;
-  hasDraft: boolean;
+  /** Открытый черновик этой формы с главной трека (`tests[].draft`). */
+  draftAttemptId: string | null;
 };
 
 const SAVE_BATCH_MS = 10_000;
@@ -53,8 +59,9 @@ const SAVE_ON_MOVE_MS = 2_000;
 const RETRY_MS = 3_000;
 
 // Часы читаются только в обработчиках событий и таймерах, не при отрисовке.
-const clockNow = () => Date.now();
-const perfNow = () => performance.now();
+// Время страницы монотонное: перевод часов компьютера отсчёт не двигает
+// (как ContinuousClock на iPhone); поправка до сервера в offsetRef (§7.2).
+const monoNow = () => performance.now();
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -63,10 +70,14 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * показывает «Осталось» по своим часам с поправкой на serverNow. Ответы
  * можно менять до конца; сохранение пачкой раз в 10 с, при переходе между
  * заданиями не чаще раза в 2 с и при уходе страницы в фон, запросы строго
- * по очереди с актуальной ревизией, повтор после сбоя тем же запросом.
- * Пробный тест (allowEarlyFinish = false) кнопки «Завершить» не имеет:
- * когда время выходит, клиент сам отправляет ответы. Разбор приходит только
- * в ответе завершения.
+ * по очереди с актуальной ревизией, повтор после сбоя тем же запросом, после
+ * него сразу текущее состояние. Время на задании сохраняется и тогда, когда
+ * ответы не менялись (завершение, уход). Завершение не теряет ответы, не
+ * ушедшие из-за сети, пока сервер ещё принимает сохранения. Пробный тест
+ * (allowEarlyFinish = false) кнопки «Завершить» не имеет: когда время
+ * выходит, клиент сам отправляет ответы. Разбор приходит только в ответе
+ * завершения. «Продолжить тест» сначала читает известный черновик: если его
+ * срок вышел, виден итог этой попытки, а не новая попытка.
  */
 export function TimedTestRunner({
   form,
@@ -84,7 +95,10 @@ export function TimedTestRunner({
   homeHref: string;
 }) {
   const ky = locale === "ky";
+  const router = useRouter();
   const [phase, setPhase] = useState<Phase>(initialResult ? "result" : "intro");
+  // Черновик с главной: «Продолжить тест» читает его первым, один раз.
+  const [knownDraft, setKnownDraft] = useState<string | null>(form.draftAttemptId);
   const [attempt, setAttempt] = useState<CscaTestAttempt | null>(initialResult);
   const [answers, setAnswers] = useState<Record<string, CscaOptionId>>({});
   const [flags, setFlags] = useState<string[]>([]);
@@ -98,10 +112,11 @@ export function TimedTestRunner({
 
   const attemptRef = useRef<CscaTestAttempt | null>(null);
   const revisionRef = useRef(0);
-  const offsetRef = useRef(0);
+  const offsetRef = useRef<number | null>(null);
   const answersRef = useRef<Record<string, CscaOptionId>>({});
   const flagsRef = useRef<string[]>([]);
   const secondsRef = useRef<Record<string, number>>({});
+  const sentSecondsRef = useRef<Record<string, number>>({});
   const enteredAtRef = useRef<number | null>(null);
   const indexRef = useRef(0);
   const dirtyRef = useRef(false);
@@ -111,18 +126,21 @@ export function TimedTestRunner({
   const batchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const finalizingRef = useRef(false);
   const startRequestId = useRef<string | null>(null);
+
   const finalizeRef = useRef<() => Promise<void>>(async () => {});
-  const flushRef = useRef<() => Promise<void>>(async () => {});
+  const flushRef = useRef<(options?: FlushOptions) => Promise<void>>(async () => {});
   const heading = useRef<HTMLHeadingElement>(null);
   const resultHeading = useRef<HTMLHeadingElement>(null);
 
   const adopt = useCallback((next: CscaTestAttempt, receivedAt: number) => {
     attemptRef.current = next;
     revisionRef.current = next.revision;
+    // Чтение попытки и старт несут свежий serverNow: отсчёт ставится по нему.
     offsetRef.current = clockOffsetMs(next.serverNow, receivedAt);
     answersRef.current = { ...next.answers };
     flagsRef.current = [...next.flags];
     secondsRef.current = { ...next.itemSeconds };
+    sentSecondsRef.current = { ...next.itemSeconds };
     dirtyRef.current = false;
     retryRef.current = null;
     setAttempt(next);
@@ -134,7 +152,7 @@ export function TimedTestRunner({
   const settleSeconds = useCallback(() => {
     const current = attemptRef.current?.items[indexRef.current];
     if (!current || enteredAtRef.current === null) return;
-    const now = performance.now();
+    const now = monoNow();
     const spent = (now - enteredAtRef.current) / 1000;
     enteredAtRef.current = document.visibilityState === "visible" ? now : null;
     if (spent <= 0) return;
@@ -162,8 +180,8 @@ export function TimedTestRunner({
   const reloadAttempt = useCallback(async (): Promise<CscaTestAttempt | null> => {
     const current = attemptRef.current;
     if (!current) return null;
-    const receivedAt = Date.now();
     const response = await readCscaTestAttemptAction(current.attemptId);
+    const receivedAt = monoNow();
     if (!response.ok) return null;
     if (response.attempt.status === "completed") {
       showResult(response.attempt);
@@ -173,10 +191,16 @@ export function TimedTestRunner({
     return response.attempt;
   }, [adopt, showResult]);
 
-  const flush = useCallback(async (): Promise<void> => {
+  const flush = useCallback(async (options?: FlushOptions): Promise<void> => {
     while (savingRef.current) await savingRef.current;
     const current = attemptRef.current;
     if (!current || current.status !== "draft") return;
+    if (options?.settle) {
+      // Завершение и уход: время на задании после последнего изменения тоже
+      // состояние, его надо сохранить и без новых ответов (§7.3).
+      settleSeconds();
+      if (itemSecondsChanged(current.items, secondsRef.current, sentSecondsRef.current)) dirtyRef.current = true;
+    }
     if (!dirtyRef.current && !retryRef.current) return;
     if (batchTimerRef.current) {
       clearTimeout(batchTimerRef.current);
@@ -191,10 +215,10 @@ export function TimedTestRunner({
           expectedRevision: revisionRef.current,
           ...testSavePayload(current.items, answersRef.current, flagsRef.current, secondsRef.current),
         };
+        sentSecondsRef.current = request.itemSeconds;
         dirtyRef.current = false;
       }
       setSaveStatus("saving");
-      const receivedAt = Date.now();
       let response: Awaited<ReturnType<typeof saveCscaTestAction>>;
       try {
         response = await saveCscaTestAction({
@@ -209,11 +233,13 @@ export function TimedTestRunner({
       } catch {
         response = { ok: false, code: "unavailable" };
       }
-      lastSaveAtRef.current = Date.now();
+      const receivedAt = monoNow();
+      lastSaveAtRef.current = receivedAt;
       if (response.ok) {
         retryRef.current = null;
         revisionRef.current = response.receipt.revision;
-        offsetRef.current = clockOffsetMs(response.receipt.serverNow, receivedAt);
+        // По квитанции отсчёт назад не переводится (§7.2).
+        offsetRef.current = laterClockOffset(offsetRef.current, clockOffsetMs(response.receipt.serverNow, receivedAt));
         setSaveStatus("saved");
         return;
       }
@@ -276,7 +302,26 @@ export function TimedTestRunner({
     setConfirming(false);
     setError(null);
     try {
-      await flush();
+      // Сначала несохранённое (§7.4): повтор после сбоя, текущее состояние и
+      // время на задании. Пока сервер принимает сохранения, тест не
+      // завершается без ответов, которые не ушли из-за сети.
+      for (;;) {
+        await flush({ settle: true });
+        const latest = attemptRef.current;
+        if (!latest || latest.status !== "draft") return;
+        if (!dirtyRef.current && !retryRef.current) break;
+        const now = monoNow();
+        const offset = offsetRef.current ?? 0;
+        if (!serverAcceptsSave(latest.deadlineAt, latest.graceSeconds, offset, now)) break;
+        if (remainingSeconds(latest.deadlineAt, offset, now) > 0) {
+          // Досрочно и без связи: назад к заданиям, сохранение повторится само.
+          setError(strings.finishUnsent);
+          setPhase("running");
+          return;
+        }
+        // Время вышло, запас ещё идёт: повторяем отправку, потом завершаем.
+        await wait(RETRY_MS);
+      }
       let completeRequest = { requestId: crypto.randomUUID(), expectedRevision: revisionRef.current };
       for (let attemptNo = 0; attemptNo < 12; attemptNo += 1) {
         if (completeRequest.expectedRevision !== revisionRef.current) {
@@ -321,17 +366,85 @@ export function TimedTestRunner({
     finalizeRef.current = finalize;
   }, [finalize]);
 
+  function run(draft: CscaTestAttempt, receivedAt: number) {
+    adopt(draft, receivedAt);
+    const firstOpen = draft.items.findIndex((entry) => !(entry.itemKey in draft.answers));
+    const startIndex = firstOpen === -1 ? 0 : firstOpen;
+    indexRef.current = startIndex;
+    setIndex(startIndex);
+    enteredAtRef.current = monoNow();
+    setRemaining(remainingSeconds(draft.deadlineAt, offsetRef.current ?? 0, monoNow()));
+    setPhase("running");
+    requestAnimationFrame(() => heading.current?.focus());
+  }
+
+  /**
+   * «Пройти ещё раз» после итога: снова вступление с новой попыткой. Ссылка
+   * на тот же адрес не помогала: страница оставалась тем же экземпляром с
+   * итогом на экране.
+   */
+  function restart() {
+    attemptRef.current = null;
+    revisionRef.current = 0;
+    offsetRef.current = null;
+    answersRef.current = {};
+    flagsRef.current = [];
+    secondsRef.current = {};
+    sentSecondsRef.current = {};
+    dirtyRef.current = false;
+    retryRef.current = null;
+    enteredAtRef.current = null;
+    indexRef.current = 0;
+    startRequestId.current = null;
+    setKnownDraft(null);
+    setAttempt(null);
+    setAnswers({});
+    setFlags([]);
+    setIndex(0);
+    setRemaining(null);
+    setSaveStatus("idle");
+    setError(null);
+    setNotice(null);
+    setMinuteNotice("");
+    setPhase("intro");
+    router.replace(`/portal/csca/math/test/${form.formId}`, { scroll: true });
+  }
+
   async function start() {
     setPhase("starting");
     setError(null);
+    if (knownDraft) {
+      // «Продолжить тест»: сначала тот самый черновик. Если его срок вышел,
+      // чтение завершает его на сервере (§7.5), и ученик видит итог и разбор
+      // этой попытки, а не новый тест с полным временем.
+      let read: Awaited<ReturnType<typeof readCscaTestAttemptAction>>;
+      try {
+        read = await readCscaTestAttemptAction(knownDraft);
+      } catch {
+        read = { ok: false, code: "unavailable" };
+      }
+      const receivedAt = monoNow();
+      if (!read.ok) {
+        setError(read.code === "denied" ? strings.errorDenied : strings.errorUnavailable);
+        setPhase("intro");
+        return;
+      }
+      setKnownDraft(null);
+      if (read.attempt.status === "completed") {
+        showResult(read.attempt);
+        return;
+      }
+      run(read.attempt, receivedAt);
+      return;
+    }
     startRequestId.current ??= crypto.randomUUID();
-    const receivedAt = clockNow();
     let response: Awaited<ReturnType<typeof startCscaTestAction>>;
     try {
       response = await startCscaTestAction(form.formId, startRequestId.current);
     } catch {
       response = { ok: false, code: "unavailable" };
     }
+    const receivedAt = monoNow();
     if (!response.ok) {
       setError(response.code === "denied" ? strings.errorDenied : strings.errorUnavailable);
       setPhase("intro");
@@ -339,18 +452,11 @@ export function TimedTestRunner({
     }
     startRequestId.current = null;
     if (response.attempt.status === "completed") {
+      // Сервер отдаёт завершённую попытку, если черновик формы истёк (§7.1).
       showResult(response.attempt);
       return;
     }
-    adopt(response.attempt, receivedAt);
-    const firstOpen = response.attempt.items.findIndex((entry) => !(entry.itemKey in response.attempt.answers));
-    const startIndex = firstOpen === -1 ? 0 : firstOpen;
-    indexRef.current = startIndex;
-    setIndex(startIndex);
-    enteredAtRef.current = perfNow();
-    setRemaining(remainingSeconds(response.attempt.deadlineAt, offsetRef.current, clockNow()));
-    setPhase("running");
-    requestAnimationFrame(() => heading.current?.focus());
+    run(response.attempt, receivedAt);
   }
 
   // Часы: только отображение, срок держит сервер.
@@ -359,7 +465,7 @@ export function TimedTestRunner({
     const tick = () => {
       const current = attemptRef.current;
       if (!current || current.status !== "draft") return;
-      const left = remainingSeconds(current.deadlineAt, offsetRef.current, Date.now());
+      const left = remainingSeconds(current.deadlineAt, offsetRef.current ?? 0, monoNow());
       setRemaining(left);
       if (left === 60) setMinuteNotice(formatPortalString(strings.remainingAria, { time: formatClock(60) }));
       if (left === 0) void finalize();
@@ -376,13 +482,13 @@ export function TimedTestRunner({
       if (document.visibilityState === "hidden") {
         settleSeconds();
         enteredAtRef.current = null;
-        if (dirtyRef.current) void flush();
+        void flush({ settle: true });
       } else {
-        enteredAtRef.current = performance.now();
+        enteredAtRef.current = monoNow();
       }
     };
     const onPageHide = () => {
-      if (dirtyRef.current) void flush();
+      void flush({ settle: true });
     };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", onPageHide);
@@ -402,6 +508,32 @@ export function TimedTestRunner({
       },
     });
   }, [flush, phase, strings]);
+
+  // Уход по ссылке кабинета, когда несохранённым осталось только время на
+  // задании: сначала короткое сохранение, потом переход. Запрос, начатый
+  // после перехода, роутер обрывает. Слушатель стоит после защиты выхода:
+  // несохранённые ответы по-прежнему останавливают переход там.
+  useEffect(() => {
+    if (phase !== "running") return;
+    const onLinkClick = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+      if (!link || link.hasAttribute("download") || (link.target && link.target !== "_self")) return;
+      if (link.href.split("#")[0] === window.location.href.split("#")[0]) return;
+      const current = attemptRef.current;
+      // Несохранённые ответы, повтор или запрос в пути: решает защита выхода.
+      if (!current || current.status !== "draft" || savingRef.current || finalizingRef.current
+        || dirtyRef.current || retryRef.current) return;
+      settleSeconds();
+      if (!itemSecondsChanged(current.items, secondsRef.current, sentSecondsRef.current)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const href = link.href;
+      void Promise.race([flush({ settle: true }), wait(1_500)]).then(() => router.push(href));
+    };
+    document.addEventListener("click", onLinkClick, true);
+    return () => document.removeEventListener("click", onLinkClick, true);
+  }, [flush, phase, router, settleSeconds]);
 
   useEffect(() => () => {
     if (batchTimerRef.current) clearTimeout(batchTimerRef.current);
@@ -425,11 +557,11 @@ export function TimedTestRunner({
     const current = attemptRef.current;
     if (!current || nextIndex < 0 || nextIndex >= current.items.length) return;
     settleSeconds();
-    enteredAtRef.current = perfNow();
+    enteredAtRef.current = monoNow();
     indexRef.current = nextIndex;
     setIndex(nextIndex);
     setConfirming(false);
-    if (dirtyRef.current && clockNow() - lastSaveAtRef.current >= SAVE_ON_MOVE_MS) void flush();
+    if (dirtyRef.current && monoNow() - lastSaveAtRef.current >= SAVE_ON_MOVE_MS) void flush();
     requestAnimationFrame(() => heading.current?.focus({ preventScroll: true }));
   }
 
@@ -446,7 +578,7 @@ export function TimedTestRunner({
         actions={
           <>
             <Link className="pt-btn" href={homeHref}>{strings.backToTopics}</Link>
-            <Link className="pt-btn-ghost" href={`/portal/csca/math/test/${form.formId}`}>{strings.repeat}</Link>
+            <button type="button" className="pt-btn-ghost" onClick={restart}>{strings.repeat}</button>
           </>
         }
       />
@@ -475,7 +607,7 @@ export function TimedTestRunner({
         {error ? <p role="alert" className="cs-alert">{error}</p> : null}
         <div className="cs-test-intro-actions">
           <button type="button" className="pt-btn" disabled={phase === "starting"} onClick={() => void start()}>
-            {phase === "starting" ? strings.testStarting : form.hasDraft ? strings.testResume : strings.testBegin}
+            {phase === "starting" ? strings.testStarting : knownDraft ? strings.testResume : strings.testBegin}
           </button>
           <Link className="cs-text-btn" href={homeHref}>{strings.backToTopics}</Link>
         </div>

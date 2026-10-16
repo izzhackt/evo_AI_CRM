@@ -1191,13 +1191,52 @@ export function svgDataUrl(svg: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-/** Поправка часов: сервер минус клиент в момент получения ответа (§7.2). */
+/** Нижняя планка подписей рисунка на экране (§15): текст 12 px, индексы и степени 11 px. */
+export const CSCA_FIGURE_TEXT_FLOOR_PX = 12;
+export const CSCA_FIGURE_INDEX_FLOOR_PX = 11;
+
+/**
+ * Наименьшая ширина рисунка в CSS px, при которой ни одна подпись не мельче
+ * планки (§15): масштаб = ширина / ширина viewBox, подпись = font-size × масштаб.
+ * Уже этой ширины рисунок не сжимается, а прокручивается в своей рамке.
+ */
+export function figureMinWidth(svg: string, viewBoxWidth: number): number {
+  let scale = 0;
+  for (const match of svg.matchAll(/<(text|tspan)\b[^>]*?\sfont-size="([0-9]+(?:\.[0-9]+)?)"/gu)) {
+    const size = Number(match[2]);
+    if (!(size > 0)) continue;
+    const floor = match[1] === "tspan" ? CSCA_FIGURE_INDEX_FLOOR_PX : CSCA_FIGURE_TEXT_FLOOR_PX;
+    scale = Math.max(scale, floor / size);
+  }
+  return Math.ceil(viewBoxWidth * scale);
+}
+
+/**
+ * Поправка часов: сервер минус клиент в момент получения ответа (§7.2).
+ * Клиентское время монотонное (`performance.now()` на вебе), поэтому
+ * перевод часов компьютера отсчёт не двигает.
+ */
 export function clockOffsetMs(serverNow: string, receivedAtMs: number): number {
   return Date.parse(serverNow) - receivedAtMs;
 }
 
+/**
+ * Поправка после квитанции сохранения (§7.2): из двух оценок серверного
+ * времени остаётся более поздняя. Момент получения берётся после ответа,
+ * поэтому каждая оценка отстаёт от сервера на дорогу ответа; квитанция с
+ * более ранним `serverNow` отсчёт назад не переводит.
+ */
+export function laterClockOffset(currentMs: number | null, nextMs: number): number {
+  return currentMs === null || !Number.isFinite(currentMs) ? nextMs : Math.max(currentMs, nextMs);
+}
+
 export function remainingSeconds(deadlineAt: string, offsetMs: number, nowMs: number): number {
   return Math.max(0, Math.ceil((Date.parse(deadlineAt) - (nowMs + offsetMs)) / 1000));
+}
+
+/** Сервер ещё принимает сохранения: до `deadlineAt + graceSeconds` по оценке часов (§7.3). */
+export function serverAcceptsSave(deadlineAt: string, graceSeconds: number, offsetMs: number, nowMs: number): boolean {
+  return nowMs + offsetMs < Date.parse(deadlineAt) + graceSeconds * 1000;
 }
 
 export function formatClock(totalSeconds: number): string {
@@ -1210,7 +1249,10 @@ export function formatClock(totalSeconds: number): string {
   return hours > 0 ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-/** «17 октября» или «17 октября 2026 г.»: дата `YYYY-MM-DD` без сдвига пояса. */
+/**
+ * «17 октября» или «17 октября 2026 г.»: дата `YYYY-MM-DD` (поля `…On`, уже по
+ * Бишкеку) без сдвига пояса. Для меток времени `…At` есть `cscaMomentDayLabel`.
+ */
 export function cscaDayLabel(value: string, locale: string, withYear = false): string {
   return new Intl.DateTimeFormat(locale === "ky" ? "ky" : "ru", {
     day: "numeric",
@@ -1218,6 +1260,20 @@ export function cscaDayLabel(value: string, locale: string, withYear = false): s
     ...(withYear ? { year: "numeric" } : {}),
     timeZone: "UTC",
   }).format(new Date(`${value.slice(0, 10)}T12:00:00Z`));
+}
+
+/**
+ * День метки времени `…At` по Бишкеку («17 октября»): тест, сданный в 00:30 по
+ * Бишкеку (18:30 UTC накануне), получает дату Бишкека, как серия дней на
+ * сервере (§1).
+ */
+export function cscaMomentDayLabel(value: string, locale: string, withYear = false): string {
+  return new Intl.DateTimeFormat(locale === "ky" ? "ky" : "ru", {
+    day: "numeric",
+    month: "long",
+    ...(withYear ? { year: "numeric" } : {}),
+    timeZone: "Asia/Bishkek",
+  }).format(new Date(value));
 }
 
 /** Дата и время в Бишкеке для окна регистрации («21 октября, 21:59»). */
@@ -1235,6 +1291,21 @@ export function cscaBishkekLabel(value: string, locale: string): string {
 /** Дни между двумя датами `YYYY-MM-DD` (по календарю, без часовых поясов). */
 export function daysBetween(fromDay: string, toDay: string): number {
   return Math.round((Date.parse(`${toDay}T00:00:00Z`) - Date.parse(`${fromDay}T00:00:00Z`)) / 86_400_000);
+}
+
+/**
+ * Время на заданиях изменилось после последней отправки (с тем же округлением,
+ * что и сохранение): тогда завершение и уход сохраняют его, даже если ответы
+ * и флажки не менялись (§7.3).
+ */
+export function itemSecondsChanged(
+  items: readonly Pick<CscaItem, "itemKey">[],
+  seconds: Readonly<Record<string, number>>,
+  sent: Readonly<Record<string, number>>,
+): boolean {
+  const pending = testSavePayload(items, {}, [], seconds).itemSeconds;
+  const previous = testSavePayload(items, {}, [], sent).itemSeconds;
+  return items.some(({ itemKey }) => (pending[itemKey] ?? 0) !== (previous[itemKey] ?? 0));
 }
 
 /** Ответы теста для сохранения: только задания формы, только a..d. */

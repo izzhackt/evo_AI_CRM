@@ -93,7 +93,7 @@ export default async function CscaTestPage({
           durationSeconds: form.durationSeconds,
           allowEarlyFinish: form.allowEarlyFinish,
           itemsTotal: form.itemsTotal,
-          hasDraft: form.draft !== null,
+          draftAttemptId: form.draft?.attemptId ?? null,
         }}
         locale={locale}
         strings={strings}

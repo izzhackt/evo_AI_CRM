@@ -947,7 +947,11 @@
 .cs-figure-frame {
   width: 100%;
   max-width: 560px;
-  overflow: hidden;
+  /* Уже --cs-figure-min рисунок не сжимается (подписи не мельче 12 px, §15),
+     а прокручивается здесь, страница вбок не едет. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
   border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius-item);
   background: var(--pt-surface);
@@ -960,6 +964,7 @@
 .cs-figure-frame img {
   display: block;
   width: 100%;
+  min-width: var(--cs-figure-min, 0px);
   height: auto;
 }
 
@@ -1524,6 +1529,13 @@ label.cs-option:active {
 .cs-verdict[data-result="ok"] {
   color: var(--pt-ok);
   background: var(--cs-ok-tint);
+}
+
+/* Фокус переходит на вердикт после ответа с клавиатуры: кольцо цвета
+   результата, а не красное кольцо кабинета вокруг «Верно». */
+.cs-verdict:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 
 .cs-verdict[data-result="bad"] {
@@ -2331,8 +2343,40 @@ label.cs-option:active {
   }
 
   .cs-sheet {
+    --cs-card-inline: 18px;
     gap: 24px;
     padding: 24px 18px 28px;
+  }
+
+  /* Рисунок на всю ширину карточки: на телефоне 375 px это 343 px, и
+     подписи не мельче 12 px без прокрутки (§15). */
+  .cs-figure {
+    margin-inline: calc(-1 * var(--cs-card-inline, 0px));
+  }
+
+  .cs-figure-frame,
+  .cs-figure[data-size="item"] .cs-figure-frame {
+    max-width: none;
+    border-inline: 0;
+    border-radius: 0;
+  }
+
+  .cs-figure-caption {
+    padding-inline: var(--cs-card-inline, 0px);
+  }
+
+  /* Отвеченный сегмент прогресса это кнопка: цель касания 44 px, видимая
+     полоса прежняя, место в раскладке тоже (поле выходит в отступы). */
+  .cs-run-progress {
+    margin-block: -10px;
+  }
+
+  .cs-run-seg {
+    height: 44px;
+  }
+
+  .cs-run-seg::before {
+    top: 19px;
   }
 
   .cs-formula {
@@ -2350,6 +2394,7 @@ label.cs-option:active {
   }
 
   .cs-item {
+    --cs-card-inline: 16px;
     padding: 18px 16px 10px;
     gap: 16px;
   }

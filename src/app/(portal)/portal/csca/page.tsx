@@ -10,6 +10,7 @@ import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings, type PortalStrings } from "@/lib/portal/i18n";
 import {
   cscaDayLabel,
+  cscaMomentDayLabel,
   type CscaHome,
   type CscaLessonSummary,
   type CscaTestSummary,
@@ -230,7 +231,7 @@ function TestRow({ test, locale, strings }: { test: CscaTestSummary; locale: Loc
         {last ? (
           <p className="cs-test-row-last">
             {formatPortalString(strings.testLast, {
-              date: cscaDayLabel(last.completedAt, locale),
+              date: cscaMomentDayLabel(last.completedAt, locale),
               correct: String(last.correctCount),
               total: String(last.itemsTotal),
             })}

@@ -33,41 +33,69 @@ struct EnglishView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
+            // Подготовка к CSCA (миграции 285, 286): вход рядом с английским и
+            // от его загрузки не зависит (CSCA для каждого студента), вкладка
+            // не переименовывается (решение владельца по умолчанию).
+            List {
+                Section {
+                    NavigationLink(value: CSCARoute.home) {
+                        CSCAEntryRow()
+                    }
+                }
+
                 if model.isLoading && model.modules.isEmpty {
-                    ProgressView()
+                    Section {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 24)
+                    }
+                    .listRowBackground(Color.clear)
                 } else if let errorMessage = model.errorMessage, model.modules.isEmpty {
-                    VStack(spacing: 12) {
-                        Text("english_unavailable")
-                            .font(.body)
-                            .multilineTextAlignment(.center)
-                        Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.secondaryText)
-                            .multilineTextAlignment(.center)
-                        Button("retry_button") {
-                            Task { await model.load() }
+                    Section {
+                        VStack(spacing: 12) {
+                            Text("english_unavailable")
+                                .font(.body)
+                                .multilineTextAlignment(.center)
+                            Text(errorMessage)
+                                .font(.footnote)
+                                .foregroundStyle(.secondaryText)
+                                .multilineTextAlignment(.center)
+                            Button("retry_button") {
+                                Task { await model.load() }
+                            }
+                            .accentBordered()
                         }
-                        .accentBordered()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 20)
                     }
-                    .padding(32)
+                    .listRowBackground(Color.clear)
                 } else if model.modules.isEmpty {
-                    VStack(spacing: 8) {
-                        Text("english_empty_title")
-                            .font(.headline)
-                        Text("english_empty_body")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondaryText)
-                            .multilineTextAlignment(.center)
+                    Section {
+                        VStack(spacing: 8) {
+                            Text("english_empty_title")
+                                .font(.headline)
+                            Text("english_empty_body")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondaryText)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 20)
                     }
-                    .padding(32)
+                    .listRowBackground(Color.clear)
                 } else {
-                    moduleList
+                    moduleSections
                 }
             }
+            .refreshable { await model.load() }
             .navigationTitle("tab_english")
             .navigationDestination(for: UUID.self) { lessonId in
                 LessonContentView(lessonId: lessonId)
+            }
+            // Экраны CSCA объявлены у корня стека (SwiftUI берёт ближайшее
+            // к корню объявление).
+            .navigationDestination(for: CSCARoute.self) { route in
+                CSCARouteView(route: route)
             }
             .task {
                 if model.modules.isEmpty {
@@ -77,52 +105,50 @@ struct EnglishView: View {
         }
     }
 
-    private var moduleList: some View {
-        List {
-            ForEach(model.modules) { module in
-                Section {
-                    moduleSummary(module)
-                    ForEach(module.lessons) { lesson in
-                        NavigationLink(value: lesson.lessonId) {
-                            LessonRow(lesson: lesson)
-                        }
-                        .motionStagger(
-                            index: module.id == model.modules.first?.id
-                                ? MotionPolicy.staggerIndex(of: lesson, in: module.lessons) : nil,
-                            key: "english.\(lesson.id)"
-                        )
+    @ViewBuilder
+    private var moduleSections: some View {
+        ForEach(model.modules) { module in
+            Section {
+                moduleSummary(module)
+                ForEach(module.lessons) { lesson in
+                    NavigationLink(value: lesson.lessonId) {
+                        LessonRow(lesson: lesson)
                     }
+                    .motionStagger(
+                        index: module.id == model.modules.first?.id
+                            ? MotionPolicy.staggerIndex(of: lesson, in: module.lessons) : nil,
+                        key: "english.\(lesson.id)"
+                    )
+                }
 
-                    // Повторение ошибок модуля (198: learning_review_v1) —
-                    // пустой банк показывает честное пустое состояние.
-                    NavigationLink {
-                        ReviewRunnerView(moduleId: module.moduleId)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("english_review_entry")
-                                .font(.subheadline.weight(.medium))
-                            Text("english_review_lead")
-                                .font(.footnote)
-                                .foregroundStyle(.secondaryText)
-                        }
+                // Повторение ошибок модуля (198: learning_review_v1) —
+                // пустой банк показывает честное пустое состояние.
+                NavigationLink {
+                    ReviewRunnerView(moduleId: module.moduleId)
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("english_review_entry")
+                            .font(.subheadline.weight(.medium))
+                        Text("english_review_lead")
+                            .font(.footnote)
+                            .foregroundStyle(.secondaryText)
                     }
+                }
 
-                    // Вход в тест english36 — из раздела (дизайн-контракт §4).
-                    NavigationLink {
-                        TestsContentView()
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("english_test_entry")
-                                .font(.subheadline.weight(.medium))
-                            Text("english_test_entry_hint")
-                                .font(.footnote)
-                                .foregroundStyle(.secondaryText)
-                        }
+                // Вход в тест english36 — из раздела (дизайн-контракт §4).
+                NavigationLink {
+                    TestsContentView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("english_test_entry")
+                            .font(.subheadline.weight(.medium))
+                        Text("english_test_entry_hint")
+                            .font(.footnote)
+                            .foregroundStyle(.secondaryText)
                     }
                 }
             }
         }
-        .refreshable { await model.load() }
     }
 
     /// Название модуля, вводный текст и прогресс первой строкой списка,

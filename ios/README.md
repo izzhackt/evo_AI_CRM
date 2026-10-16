@@ -218,6 +218,28 @@ code of ours involved.
   MotionPolicy.staggerIndex(of: item, in: items), key: "…")`; не придумывайте
   собственные длительности — берите `Motion.*`.
 
+## Подготовка к CSCA (сборка 1.1, 16.10.2026)
+
+Те же RPC и тот же JSON, что у веба: `docs/portal/csca-contract.md`
+(миграции 285, 286). Вход первой строкой вкладки «Английский».
+
+- `Services/CSCA/` (чистый код, входит в тесты): `CSCAModels` (строгие
+  декодеры: обязательные поля, закрытые наборы значений и ключей проекции
+  задания, неизвестный блок теории пропускается), `CSCAPolicy` (серверные
+  часы теста, расписание сохранений 10 с / 2 с / уход в фон, ошибки,
+  этапы до сессии), `CSCATeX` (разбор `$…$`, метки VoiceOver),
+  `CSCASVG` (строгий профиль SVG в список фигур).
+- `Services/CSCAService.swift`: вызовы RPC расширением `SupabaseService`.
+- `Views/CSCA/`: главная, тема, урок и практика, тест на время с
+  навигатором, итог, «Ошибки», «Прогресс», сессии, «Сообщить об ошибке».
+  Формулы SwiftMath 1.7.3 (MIT) картинками внутри `Text`, рисунки
+  `Canvas` без веб-вида. Строки в своей таблице `Resources/CSCA.xcstrings`
+  (RU, KY ждёт вычитки носителем).
+- Тесты: `CSCADecodingTests` (ответы RPC, снятые с демо-стека
+  evo-video-demo, `EVOAdmissionsTests/Fixtures/CSCA`), `CSCAPolicyTests`,
+  `CSCATeXTests` (SwiftMath разбирает каждый фрагмент фикстур),
+  `CSCASVGTests`, `CSCAStringsTests`.
+
 ## Bundle identifier
 
 `com.evoadmissions.app` is **provisional**, set for this foundation slice so

@@ -3857,6 +3857,655 @@ main.pt-page > .pt-card {
   font-size: var(--pt-size-caption);
 }
 
+/* ---------- «Путь поступления» на «Главной» (S4, план §8.4) ----------
+ * Вертикальный путь: номер шага на линии, срок, название и цель; шаг
+ * раскрывается в пункты (только чтение) и «Когда шаг пройден». На широком
+ * экране сроки стоят колонкой слева от линии, на узком над названием.
+ * Красный здесь не добавляется: открытый шаг отмечен тёмным кругом, выбранная
+ * страна тёмной рамкой и словом «Сейчас выбрано».
+ */
+
+.pt-journey {
+  padding: 28px 32px 24px;
+}
+
+.pt-journey-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px 32px;
+}
+
+.pt-journey-head-main {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+.pt-journey-title {
+  margin: 0;
+  font-size: var(--pt-size-title);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+/* Фокус ставится на заголовок программно после сохранения выбора: читалка
+   называет новую страну. Заголовок не интерактивен, обводка не нужна. */
+.pt-journey-title:focus {
+  outline: none;
+}
+
+.pt-journey-intake {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 0;
+  font-size: var(--pt-size-body);
+  font-weight: 500;
+}
+
+.pt-journey-intake-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--pt-text-2);
+}
+
+.pt-journey-intake-note {
+  max-width: 68ch;
+  margin: 6px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-journey-intake + .pt-journey-intake-note {
+  padding-left: 28px;
+}
+
+.pt-journey-change {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.pt-journey-source {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-journey-alert {
+  margin: 16px 0 0;
+  padding: 12px 16px;
+  border: 1px solid var(--pt-error);
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-surface);
+  color: var(--pt-error);
+  font-size: var(--pt-size-secondary);
+}
+
+/* Выбор страны: карточка «Выберите страну» и панель «Сменить страну». */
+.pt-journey-picker-wrap {
+  margin-top: 20px;
+}
+
+.pt-journey-picker-wrap[data-mode="change"] {
+  padding: 16px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-bg);
+  animation: pt-enter var(--pt-motion-base) var(--pt-ease-out) backwards;
+}
+
+.pt-journey-picker-lead {
+  margin: 0 0 12px;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-journey-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-journey-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 16px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+  color: var(--pt-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--pt-motion-fast) var(--pt-ease),
+    transform var(--pt-motion-press) var(--pt-ease-out);
+}
+
+.pt-journey-option-name {
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+}
+
+.pt-journey-option-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-journey-option-icon {
+  width: 16px;
+  height: 16px;
+}
+
+@media (hover: hover) {
+  .pt-journey-option:hover {
+    border-color: var(--pt-control-edge);
+  }
+}
+
+.pt-journey-option:active:not([aria-disabled="true"]) {
+  transform: scale(var(--pt-press-scale));
+}
+
+.pt-journey-option[aria-pressed="true"] {
+  border-color: var(--pt-text);
+  box-shadow: inset 0 0 0 1px var(--pt-text);
+}
+
+.pt-journey-option[aria-pressed="true"] .pt-journey-option-mark {
+  color: var(--pt-text);
+}
+
+.pt-journey-option[aria-disabled="true"] {
+  cursor: progress;
+}
+
+.pt-journey-option[data-saving] {
+  border-color: var(--pt-control-edge);
+}
+
+.pt-journey-cancel {
+  margin-top: 12px;
+}
+
+/* Шаги. Геометрия линии и колонок задаётся переменными на списке. */
+.pt-journey-steps {
+  --pt-step-node: 40px;
+  --pt-step-pad-y: 16px;
+  --pt-step-pad-x: 12px;
+  --pt-step-gap: 20px;
+  --pt-step-period: 0px;
+  --pt-step-rail: calc(var(--pt-step-pad-x) + var(--pt-step-period) + var(--pt-step-node) / 2);
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+  transition: opacity var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-journey[aria-busy="true"] .pt-journey-steps {
+  opacity: 0.55;
+}
+
+.pt-step {
+  position: relative;
+}
+
+/* Линия пути: от центра первого круга до центра последнего. */
+.pt-step::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--pt-step-rail) - 1px);
+  width: 2px;
+  background: var(--pt-line);
+}
+
+.pt-step:first-child::before {
+  top: calc(var(--pt-step-pad-y) + var(--pt-step-node) / 2);
+}
+
+.pt-step:last-child::before {
+  bottom: auto;
+  height: calc(var(--pt-step-pad-y) + var(--pt-step-node) / 2);
+}
+
+.pt-step:only-child::before {
+  display: none;
+}
+
+/*
+ * Строка шага: название, срок, цель. .pt-step-main раскладывается в сетку
+ * строки (display: contents), поэтому на узком экране срок стоит под
+ * названием, а на широком колонкой слева от линии.
+ */
+.pt-step-head {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--pt-step-node) minmax(0, 1fr) 20px;
+  grid-template-areas:
+    "node title chevron"
+    "node period chevron"
+    "node goal chevron";
+  column-gap: var(--pt-step-gap);
+  align-items: start;
+  padding: var(--pt-step-pad-y) var(--pt-step-pad-x);
+  border-radius: var(--pt-radius-item);
+  transition: background-color var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-journey-steps[data-timed="false"] .pt-step-head {
+  grid-template-areas:
+    "node title chevron"
+    "node goal chevron";
+}
+
+@media (hover: hover) {
+  .pt-step-head:hover {
+    background: var(--pt-bg);
+  }
+}
+
+.pt-step-node {
+  grid-area: node;
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: var(--pt-step-node);
+  height: var(--pt-step-node);
+  border: 1.5px solid var(--pt-control-edge);
+  border-radius: 50%;
+  background: var(--pt-surface);
+  color: var(--pt-text);
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color var(--pt-motion-fast) var(--pt-ease),
+    border-color var(--pt-motion-fast) var(--pt-ease),
+    color var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-step[data-open="true"] .pt-step-node {
+  border-color: var(--pt-text);
+  background: var(--pt-text);
+  color: var(--pt-surface);
+}
+
+.pt-step-main {
+  display: contents;
+}
+
+/* Первая строка названия на уровне центра круга. */
+.pt-step-title {
+  grid-area: title;
+  min-width: 0;
+  margin: 0;
+  padding-top: calc((var(--pt-step-node) - 1.3em) / 2);
+  font-size: var(--pt-size-heading);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.pt-step-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Нажимается вся строка шага; фокус обводит всю строку. */
+.pt-step-toggle::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  border-radius: var(--pt-radius-item);
+}
+
+.pt-page .pt-step-toggle:focus-visible {
+  outline: none;
+}
+
+.pt-step-toggle:focus-visible::after {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: -2px;
+}
+
+.pt-step-goal {
+  grid-area: goal;
+  min-width: 0;
+  max-width: 68ch;
+  margin: 4px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-step-period {
+  grid-area: period;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  margin: 4px 0 0;
+  color: var(--pt-text);
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.pt-step-period-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  color: var(--pt-text-2);
+}
+
+.pt-step-chevron {
+  grid-area: chevron;
+  margin-top: 10px;
+  color: var(--pt-text-2);
+  transition: transform var(--pt-motion-fast) var(--pt-ease-out);
+}
+
+.pt-step[data-open="true"] .pt-step-chevron {
+  transform: rotate(180deg);
+}
+
+.pt-step-panel {
+  margin-left: calc(var(--pt-step-pad-x) + var(--pt-step-period) + var(--pt-step-node) + var(--pt-step-gap));
+  padding: 0 var(--pt-step-pad-x) 20px 0;
+}
+
+.pt-step-panel:not([hidden]) {
+  animation: pt-enter var(--pt-motion-base) var(--pt-ease-out) backwards;
+}
+
+.pt-step-panel-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+
+.pt-step-body {
+  min-width: 0;
+}
+
+.pt-step-note {
+  max-width: 68ch;
+  margin: 0 0 16px;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-step-subhead {
+  margin: 0 0 8px;
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+}
+
+.pt-step-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-step-item {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 4px 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-step-who {
+  align-self: start;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 1px 10px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-bg);
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  white-space: nowrap;
+}
+
+.pt-step-item[data-who="student"] .pt-step-who {
+  border-color: var(--pt-control-edge);
+  color: var(--pt-text);
+  font-weight: 600;
+}
+
+.pt-step-item-body {
+  min-width: 0;
+  max-width: 68ch;
+}
+
+.pt-step-applies {
+  margin: 0 0 2px;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+}
+
+.pt-step-item-text {
+  margin: 0;
+  font-size: var(--pt-size-secondary);
+  line-height: 1.5;
+}
+
+.pt-step-item-note {
+  margin: 4px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-step-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 20px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Значок внешней ссылки идёт в строке текста и переносится вместе с ним. */
+.pt-step-link {
+  display: inline-block;
+  min-height: 44px;
+  padding: 10px 0;
+  line-height: 24px;
+}
+
+.pt-step-link-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  vertical-align: -3px;
+}
+
+.pt-step-done {
+  align-self: start;
+  padding: 16px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-bg);
+}
+
+.pt-step-done-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pt-step-done-icon {
+  flex-shrink: 0;
+  color: var(--pt-ok);
+}
+
+.pt-step-done-text {
+  margin: 0;
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-journey-notes {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-journey-notes-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+}
+
+.pt-journey-notes-icon {
+  flex-shrink: 0;
+  color: var(--pt-text-2);
+}
+
+.pt-journey-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 68ch;
+  margin: 0;
+  padding-left: 28px;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  list-style: disc;
+}
+
+.pt-journey-notes-list li::marker {
+  color: var(--pt-control-edge);
+}
+
+/* Широкий экран: сроки колонкой слева от линии, «Когда шаг пройден» справа от пунктов. */
+@media (min-width: 960px) {
+  .pt-journey-steps[data-timed="true"] {
+    --pt-step-period: 184px;
+  }
+
+  .pt-journey-steps[data-timed="true"] .pt-step-head {
+    grid-template-columns: calc(var(--pt-step-period) - var(--pt-step-gap)) var(--pt-step-node) minmax(0, 1fr) 20px;
+    grid-template-areas:
+      "period node title chevron"
+      "period node goal chevron";
+  }
+
+  .pt-journey-steps[data-timed="true"] .pt-step-period {
+    display: block;
+    margin: 0;
+    padding-top: 9px;
+    text-align: right;
+    text-wrap: balance;
+  }
+
+  .pt-journey-steps[data-timed="true"] .pt-step-period-icon {
+    display: none;
+  }
+
+  .pt-step-panel-inner {
+    grid-template-columns: minmax(0, 1fr) minmax(200px, 260px);
+    gap: 28px;
+  }
+}
+
+/* Телефон: меньше круг и отступы; «кто делает» над текстом пункта. */
+@media (max-width: 639.98px) {
+  .pt-journey {
+    padding: 20px 16px 16px;
+  }
+
+  .pt-journey-change {
+    align-items: flex-start;
+  }
+
+  .pt-journey-intake + .pt-journey-intake-note {
+    padding-left: 0;
+  }
+
+  .pt-journey-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pt-journey-steps {
+    --pt-step-node: 34px;
+    --pt-step-pad-y: 14px;
+    --pt-step-pad-x: 6px;
+    --pt-step-gap: 12px;
+    margin-top: 16px;
+  }
+
+  .pt-step-node {
+    font-size: var(--pt-size-secondary);
+  }
+
+  .pt-step-title {
+    font-size: var(--pt-size-body);
+  }
+
+  .pt-step-chevron {
+    margin-top: 6px;
+  }
+
+  .pt-step-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pt-journey-notes-list {
+    padding-left: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-step-panel:not([hidden]),
+  .pt-journey-picker-wrap[data-mode="change"] {
+    animation: none;
+  }
+
+  .pt-step-chevron,
+  .pt-step-node,
+  .pt-step-head,
+  .pt-journey-option,
+  .pt-journey-steps {
+    transition: none;
+  }
+}
+
 /* Live notifications share the Atlas header; no second navigation strip. */
 .pt-notification-updates { position: relative; flex-shrink: 0; }
 .pt-notification-updates .pt-bell { position: relative; }

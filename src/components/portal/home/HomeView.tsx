@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
 import type { Locale } from "@/lib/i18n-data";
@@ -28,7 +30,9 @@ import { formatPortalMoney, studentActionDueLabel } from "../admission/presentat
  * «Главная» кабинета в «Атласе» (PORT-9c, дизайн-контракт §«Карта экранов»
  * п.1): продолжение урока/теста, избранное с ближайшими интейками; assisted —
  * ближайшие действия дела первым блоком (та же модель E2, что у
- * OverviewView «Моего поступления»). Серверные read model приходят пропсами,
+ * OverviewView «Моего поступления»). «Путь поступления» (S4, план §8.4)
+ * приходит готовым блоком `journey`: у клиента он стоит после ближайших
+ * действий дела, у самостоятельного студента первым. Серверные read model приходят пропсами,
  * каждый источник несёт свой честный сбой (null) и честную пустоту.
  * Новое в каталоге использует firstPublishedAt из неизменяемой истории
  * публикаций (207); reviewed_at текущей версии не является признаком новизны.
@@ -98,6 +102,7 @@ export function HomeView({
   favorites,
   favoritesTotal,
   recentUniversities,
+  journey = null,
   locale,
   now,
 }: {
@@ -111,6 +116,8 @@ export function HomeView({
   favorites: readonly PublishedUniversity[] | null;
   favoritesTotal: number;
   recentUniversities: readonly RecentUniversity[] | null;
+  /** «Путь поступления» (CountryTimeline); null, если блока нет. */
+  journey?: ReactNode;
   locale: Locale;
   now: Date;
 }) {
@@ -139,6 +146,7 @@ export function HomeView({
 
   return (
     <div className="pt-home">
+      {tier === "assisted" ? null : journey}
       {tier === "assisted" ? (
         <section aria-labelledby="home-case" className="pt-card pt-home-case">
           <header className="pt-card-header">
@@ -207,6 +215,7 @@ export function HomeView({
           </nav>
         </section>
       ) : null}
+      {tier === "assisted" ? journey : null}
 
       <section aria-labelledby="home-continue" className="pt-home-section">
         <h2 id="home-continue" className="pt-section-title">{strings.continueHeading}</h2>

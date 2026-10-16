@@ -11,7 +11,7 @@ import {
 } from "@/lib/catalog-geography";
 import { UNIVERSITY_LEVELS, UNIVERSITY_LEVEL_LABELS, type UniversityLevel } from "@/lib/platform-university-catalog";
 
-import { AREA, CommandResult, DARK, FIELD, FieldError, GHOST, LABEL, QUIET, ReplacedDraft, focusFirstInvalid, useGeographyCommand, useVersionedDraft } from "./command";
+import { AREA, BusyLabel, CommandResult, DARK, FIELD, FieldError, GHOST, LABEL, QUIET, ReplacedDraft, focusFirstInvalid, useGeographyCommand, useVersionedDraft } from "./command";
 
 /*
  * «Стоимость» в карточке вуза (план 7.5, контракт 3.3): строки с источником,
@@ -160,7 +160,7 @@ function CostRow({ row, programTitle, rate, canConfirm, confirming, onEdit, onCo
               canConfirm ? null : <span className="t-meta text-fg-3">Публикация после подтверждения Admin</span>
             ) : (
               <button type="button" className={QUIET} disabled={publish.pending} onClick={() => publish.run({ costId: row.id, status: next.status, baseVersion: row.version })}>
-                {publish.pending ? "Сохраняем…" : next.label}
+                <BusyLabel busy={publish.pending} label={next.label} />
               </button>
             )}
           </span>
@@ -191,7 +191,7 @@ function ConfirmAgency({ row, onCancel }: Readonly<{ row: GeoCost; onCancel: () 
       <textarea id={`${id}-reason`} className={AREA} value={reason} maxLength={520} rows={2} disabled={pending} onChange={(event) => setReason(event.target.value.replace(/[\r\n]+/g, " "))} aria-invalid={!valid} aria-describedby={issue ? `${id}-reason-error` : undefined} />
       <FieldError id={`${id}-reason-error`} text={issue} />
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" className={DARK} disabled={pending || !valid}>{pending ? "Подтверждаем…" : "Подтвердить данные агентства"}</button>
+        <button type="submit" className={DARK} disabled={pending || !valid}><BusyLabel busy={pending} label="Подтвердить данные агентства" busyLabel="Подтверждаем…" /></button>
         <button type="button" className={GHOST} onClick={onCancel} disabled={pending}>Отмена</button>
       </div>
       <CommandResult state={state} refresh={refresh} />
@@ -215,15 +215,15 @@ const FIELD_ERRORS: Readonly<Partial<Record<CostField, string>>> = {
 function CostEditor({ row, institutionId, country, programs, canConfirm, today, onDone }: Readonly<{
   row: GeoCost | null; institutionId: string; country: string; programs: readonly Program[]; canConfirm: boolean; today: string; onDone: () => void;
 }>) {
+  const { state, run, pending, refresh, dismiss } = useGeographyCommand("cost_upsert");
   // Черновик помнит версию строки, от которой начат: сохранение отправляет её (review CRM S1).
   const versioned = useVersionedDraft(row, {
     draft: (value) => costDraft(value, country, today),
     changed: (value, saved) => costDraftChanged(value, saved, country, programs, today),
     notes: (value, base) => costDraftNotes(value, base, country, today),
-  });
+  }, state);
   const { draft, setDraft } = versioned;
   const [shown, setShown] = useState(false);
-  const { state, run, pending, refresh, dismiss } = useGeographyCommand("cost_upsert");
   const id = useId();
   const done = useRef(onDone);
   useEffect(() => { done.current = onDone; });
@@ -291,6 +291,11 @@ function CostEditor({ row, institutionId, country, programs, canConfirm, today, 
         </div>
         {draft.sourceKind === "agency" ? <p className="t-meta text-fg-2">Название и адрес агентства видят только сотрудники. Опубликовать строку агентства можно после подтверждения системного Admin.</p> : null}
       </fieldset>
+      {/* Кнопки над итогами и одного размера во время запроса: появление и уход сообщений их не сдвигают (review CRM V2). */}
+      <div className="flex flex-wrap gap-3">
+        <button type="submit" className={DARK} disabled={pending || versioned.behind}><BusyLabel busy={pending} label={state.status === "unavailable" ? "Повторить" : "Сохранить черновиком"} /></button>
+        <button type="button" className={GHOST} onClick={onDone} disabled={pending}>Отмена</button>
+      </div>
       {shown && errors.size ? <p role="alert" className="t-body-compact text-danger">Исправьте отмеченные поля: строка не сохранена.</p> : null}
       {versioned.behind && row ? (
         <p role="status" className="flex flex-wrap items-center gap-x-3 t-body-compact text-warn" data-testid="cost-behind">
@@ -301,10 +306,6 @@ function CostEditor({ row, institutionId, country, programs, canConfirm, today, 
       {versioned.reloading ? <p role="status" className="t-body-compact text-fg-2">Загружаем сохранённую строку…</p> : null}
       {versioned.replaced ? <ReplacedDraft replaced={versioned.replaced} onClose={versioned.closeReplaced} /> : null}
       <CommandResult state={state} refresh={() => { dismiss(); versioned.reload(refresh); }} />
-      <div className="flex flex-wrap gap-3">
-        <button type="submit" className={DARK} disabled={pending || versioned.behind}>{pending ? "Сохраняем…" : state.status === "unavailable" ? "Повторить" : "Сохранить черновиком"}</button>
-        <button type="button" className={GHOST} onClick={onDone} disabled={pending}>Отмена</button>
-      </div>
     </form>
   );
 }

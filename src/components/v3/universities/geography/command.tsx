@@ -61,22 +61,31 @@ export function useGeographyCommand(operation: GeographyOperation) {
  * сотрудник не попросит сохранённую версию: «Обновить страницу» после
  * отказа (`reload`) или `showSaved`. Тогда черновик заменяется, а заменённые
  * поля (`replaced.notes`) можно скопировать.
+ *
+ * `saved`: итог команды сохранения. Подтверждённое сохранение значит, что
+ * черновик уже в базе, даже если поверх успели записать чужую версию
+ * (потерянный ответ и «Повторить», review CRM V4): тогда своих правок нет и
+ * новая версия просто становится формой.
  */
 export function useVersionedDraft<Row extends Readonly<{ version: number }>, Draft>(row: Row | null, rules: Readonly<{
   draft: (row: Row | null) => Draft;
   changed: (draft: Draft, row: Row | null) => boolean;
   notes: (draft: Draft, base: Row | null) => string;
-}>) {
+}>, saved?: GeographyActionState) {
   const [draft, setDraft] = useState<Draft>(() => rules.draft(row));
   const [base, setBase] = useState<Row | null>(row);
   const [reloadRequested, setReloadRequested] = useState(false);
   const [replaced, setReplaced] = useState<Readonly<{ version: number; notes: string }> | null>(null);
+  const [stored, setStored] = useState<Readonly<{ result: GeographyActionState; draft: Draft }> | null>(null);
   const [refreshing, startRefresh] = useTransition();
+  // Поля во время запроса заблокированы, поэтому черновик в момент подтверждения и есть записанный.
+  if (saved?.status === "saved" && stored?.result !== saved) setStored({ result: saved, draft });
   const adopt = (next: Row) => { setBase(next); setDraft(rules.draft(next)); setReloadRequested(false); };
   const replace = (next: Row) => { setReplaced({ version: next.version, notes: rules.notes(draft, base) }); adopt(next); };
   // Более старая версия (например, из кэша навигации) черновик не трогает: база всё равно решает по версии.
   if (row !== null && row.version > (base?.version ?? 0)) {
-    const sync = draftSync({ ownEdits: rules.changed(draft, base), matchesSaved: !rules.changed(draft, row), reloadRequested });
+    const ownEdits = stored?.draft === draft ? false : rules.changed(draft, base);
+    const sync = draftSync({ ownEdits, matchesSaved: !rules.changed(draft, row), reloadRequested });
     if (sync === "adopt") adopt(row);
     else if (sync === "replace") replace(row);
   } else if (reloadRequested && !refreshing) {
@@ -97,6 +106,20 @@ export function useVersionedDraft<Row extends Readonly<{ version: number }>, Dra
     showSaved: () => { if (row !== null) replace(row); },
     closeReplaced: () => setReplaced(null),
   };
+}
+
+/**
+ * Подпись кнопки, которая не меняет размер на время запроса (review CRM V2):
+ * место держит более длинная из двух подписей, поэтому соседние кнопки и
+ * ссылки не съезжают под указатель при двойном щелчке.
+ */
+export function BusyLabel({ busy, label, busyLabel = "Сохраняем…" }: Readonly<{ busy: boolean; label: string; busyLabel?: string }>) {
+  return (
+    <span className="inline-grid justify-items-center">
+      <span className={`col-start-1 row-start-1${busy ? " invisible" : ""}`}>{label}</span>
+      <span className={`col-start-1 row-start-1${busy ? "" : " invisible"}`}>{busyLabel}</span>
+    </span>
+  );
 }
 
 /** Черновик заменён сохранённой версией: сказать об этом и дать скопировать свой текст (review CRM S1). */

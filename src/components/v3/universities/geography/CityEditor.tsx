@@ -8,7 +8,7 @@ import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import { CITY_PHOTO_PATH, PHOTO_SOURCES, cityDraft, cityDraftChanged, cityDraftNotes, cityInput, cityMissing, type CityDraft, type CityField, type GeoCity, type GeoPhoto } from "@/lib/catalog-geography";
 import { STUDY_COUNTRY_CODES, studyCountryName } from "@/lib/study-countries";
 
-import { AREA, CommandResult, FIELD, FieldError, GHOST, LABEL, PRIMARY, QUIET, ReplacedDraft, focusFirstInvalid, useGeographyCommand, useVersionedDraft } from "./command";
+import { AREA, BusyLabel, CommandResult, FIELD, FieldError, GHOST, LABEL, PRIMARY, QUIET, ReplacedDraft, focusFirstInvalid, useGeographyCommand, useVersionedDraft } from "./command";
 
 /*
  * Карточка города (план 7.1, 7.5; контракт 3.2): названия RU/KY/EN, фото
@@ -40,6 +40,8 @@ function Counter({ value, max }: Readonly<{ value: string; max: number }>) {
 
 export function CityEditor({ city, country, today, photoBase }: Readonly<{ city: GeoCity | null; country: string; today: string; photoBase: string | null }>) {
   const router = useRouter();
+  const save = useGeographyCommand("city_upsert");
+  const publish = useGeographyCommand("city_publish");
   // Черновик помнит версию, от которой начат (review CRM S1). Перечитанная
   // после своего сохранения карточка, совпавшая с вводом по смыслу
   // (обрезанные пробелы, «30.250» и «30.25»), становится черновиком, и
@@ -48,13 +50,11 @@ export function CityEditor({ city, country, today, photoBase }: Readonly<{ city:
     draft: (row) => cityDraft(row, row?.country ?? country),
     changed: (value, row) => cityDraftChanged(value, row, today),
     notes: (value, base) => cityDraftNotes(value, base, base?.country ?? country),
-  });
+  }, save.state);
   const { draft, setDraft } = versioned;
   const [shown, setShown] = useState(false);
   const [photoLoad, setPhotoLoad] = useState<Readonly<{ src: string; ok: boolean }> | null>(null);
   const [recheck, setRecheck] = useState<Readonly<{ src: string; round: number }> | null>(null);
-  const save = useGeographyCommand("city_upsert");
-  const publish = useGeographyCommand("city_publish");
   const id = useId();
   const { input, errors } = cityInput(draft, today);
   const dirty = cityDraftChanged(draft, city, today);
@@ -208,6 +208,26 @@ export function CityEditor({ city, country, today, photoBase }: Readonly<{ city:
           </div>
         </article>
         <div className="space-y-3">
+          {/* Кнопки первыми и одного размера во время запроса: над ними ничего не появляется и не исчезает, второй щелчок не уходит в ссылку (review CRM V2). */}
+          <div className="flex flex-wrap gap-3">
+            <button type="submit" className={PRIMARY} disabled={pending || !dirty || breaksPublished || newPhotoMissing || versioned.behind}>
+              <BusyLabel busy={save.pending} label={save.state.status === "unavailable" ? "Повторить" : city ? "Сохранить изменения" : "Создать черновик"} />
+            </button>
+            {city ? (
+              <button
+                type="button"
+                className={GHOST}
+                disabled={pending || dirty || (!published && (savedMissing.length > 0 || savedPhotoMissing))}
+                onClick={() => runPublish(!published)}
+              >
+                <BusyLabel busy={publish.pending} label={published ? "Снять с публикации" : "Опубликовать"} />
+              </button>
+            ) : null}
+          </div>
+          {city && dirty ? <p className="t-meta text-fg-3">Сначала сохраните изменения, затем публикуйте.</p> : null}
+          {city && !published && !dirty && savedMissing.length === 0 && savedPhotoMissing ? (
+            <p className="t-meta text-warn" data-testid="city-photo-missing">Файла фото ещё нет в хранилище: опубликовать город можно после загрузки фото, иначе студент увидел бы карточку без фото. Загрузили файл: нажмите «Проверить снова» у превью.</p>
+          ) : null}
           <p className="flex flex-wrap items-center gap-2">
             <StatusChip label={published ? "Видят студенты" : city ? "Черновик" : "Новый город"} tone={published ? "ok" : "neutral"} />
             {city ? <span className="t-meta text-fg-3">Версия {city.version}{city.reviewedByName ? ` · опубликовал ${city.reviewedByName}` : ""}</span> : null}
@@ -227,23 +247,6 @@ export function CityEditor({ city, country, today, photoBase }: Readonly<{ city:
           {/* «Сохранено» не висит над новой правкой: итог показан, пока поля совпадают с сохранённой карточкой. */}
           {save.state.status !== "saved" || !dirty ? <CommandResult state={save.state} saved="Карточка сохранена." refresh={reloadSaved(save)} /> : null}
           {publish.state.status !== "saved" || !dirty ? <CommandResult state={publish.state} saved={published ? "Город опубликован: студенты видят карточку." : "Город снят с публикации."} refresh={reloadSaved(publish)} /> : null}
-          <div className="flex flex-wrap gap-3">
-            <button type="submit" className={PRIMARY} disabled={pending || !dirty || breaksPublished || newPhotoMissing || versioned.behind}>{save.pending ? "Сохраняем…" : save.state.status === "unavailable" ? "Повторить" : city ? "Сохранить изменения" : "Создать черновик"}</button>
-            {city ? (
-              <button
-                type="button"
-                className={GHOST}
-                disabled={pending || dirty || (!published && (savedMissing.length > 0 || savedPhotoMissing))}
-                onClick={() => runPublish(!published)}
-              >
-                {publish.pending ? "Сохраняем…" : published ? "Снять с публикации" : "Опубликовать"}
-              </button>
-            ) : null}
-          </div>
-          {city && dirty ? <p className="t-meta text-fg-3">Сначала сохраните изменения, затем публикуйте.</p> : null}
-          {city && !published && !dirty && savedMissing.length === 0 && savedPhotoMissing ? (
-            <p className="t-meta text-warn" data-testid="city-photo-missing">Файла фото ещё нет в хранилище: опубликовать город можно после загрузки фото, иначе студент увидел бы карточку без фото. Загрузили файл: нажмите «Проверить снова» у превью.</p>
-          ) : null}
           <Link className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg" href={`/v3/universities/cities?country=${draft.country}`}>К городам страны</Link>
         </div>
       </aside>

@@ -160,6 +160,18 @@ test("a newer saved version never lets a save overwrite it silently (review CRM 
   }
   // The photo preview checks a missing file again (review CRM N2).
   assert.match(read("CityEditor.tsx"), /Проверить снова/u);
+  // A confirmed save marks the draft as stored, so a later version on top of it is not "your unsaved text" (review CRM V4).
+  assert.match(read("CityEditor.tsx"), /\}, save\.state\);/u);
+  // Buttons keep their size while a request is pending; no bare "Сохраняем…" label swaps (review CRM V2).
+  for (const file of ["CityEditor.tsx", "UniversityCosts.tsx", "FxRateForm.tsx", "UniversityCityPicker.tsx"]) {
+    const text = read(file);
+    assert.match(text, /<BusyLabel busy=/u, file);
+    assert.doesNotMatch(text, /\? "(Сохраняем|Подтверждаем)…"/u, file);
+  }
+  // The city of a university follows the saved link and refuses to save over one the editor has not seen (review CRM V3).
+  const picker = read("UniversityCityPicker.tsx");
+  assert.match(picker, /draftSync\(\{ ownEdits: choice !== base, matchesSaved: choice === saved, reloadRequested: false \}\)/u);
+  assert.match(picker, /disabled=\{pending \|\| !changed \|\| behind\}/u);
 });
 
 test("editor fields use the database text and URL rule on the shared vectors (contract 2.2a)", () => {

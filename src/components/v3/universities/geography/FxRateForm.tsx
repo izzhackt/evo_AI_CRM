@@ -3,7 +3,7 @@ import { useId, useState } from "react";
 
 import { fxInput, type FxDraft, type FxField, type GeoFxRate } from "@/lib/catalog-geography";
 
-import { CommandResult, FIELD, FieldError, LABEL, PRIMARY, focusFirstInvalid, useGeographyCommand } from "./command";
+import { BusyLabel, CommandResult, FIELD, FieldError, LABEL, PRIMARY, focusFirstInvalid, useGeographyCommand } from "./command";
 
 const FIELD_ERRORS: Readonly<Record<FxField, string>> = {
   currency: "Код валюты ISO 4217, кроме USD.",
@@ -52,8 +52,9 @@ export function FxRateForm({ currencies, latest, initialCurrency, today }: Reado
         <label className={LABEL}>Источник курса<input className={FIELD} value={draft.sourceName} maxLength={200} {...control("sourceName")} onChange={(event) => set("sourceName", event.target.value)} required /><FieldError id={`${id}-sourceName-error`} text={error("sourceName")} /></label>
         <label className={LABEL}>Адрес источника, если есть<input className={FIELD} type="url" value={draft.sourceUrl} {...control("sourceUrl")} onChange={(event) => set("sourceUrl", event.target.value)} /><FieldError id={`${id}-sourceUrl-error`} text={error("sourceUrl")} /></label>
       </fieldset>
+      {/* Кнопка над итогом и одного размера во время запроса (review CRM V2). */}
+      <button type="submit" className={PRIMARY} disabled={pending}><BusyLabel busy={pending} label={state.status === "unavailable" ? "Повторить" : "Сохранить курс"} /></button>
       <CommandResult state={state} saved={`Курс ${input.currency} на ${input.asOf.split("-").reverse().join(".")} сохранён.`} refresh={refresh} />
-      <button type="submit" className={PRIMARY} disabled={pending}>{pending ? "Сохраняем…" : state.status === "unavailable" ? "Повторить" : "Сохранить курс"}</button>
     </form>
   );
 }

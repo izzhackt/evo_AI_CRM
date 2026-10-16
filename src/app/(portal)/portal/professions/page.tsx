@@ -40,13 +40,13 @@ export default async function ProfessionsPage({
   const activeScale = rawScale !== undefined && isOrvisScaleId(rawScale) ? rawScale : null;
   const strings = getPortalStrings("professions", locale);
 
-  let cards: ProfessionCardSummary[] | null = null;
-  try {
-    cards = await readProfessionCards();
-  } catch {
-    cards = null;
-  }
-  const topScales = cards === null ? null : await readOwnOrvisTopScales();
+  // Карточки и собственные шкалы ORVIS не зависят друг от друга — одним
+  // заходом (план A, 16.10.2026); без карточек шкалы не показываются.
+  const [cards, ownTopScales] = await Promise.all([
+    readProfessionCards().catch((): ProfessionCardSummary[] | null => null),
+    readOwnOrvisTopScales(),
+  ]);
+  const topScales = cards === null ? null : ownTopScales;
 
   const filtered = cards?.filter(
     (card) => activeScale === null || card.orvisScales.includes(activeScale),

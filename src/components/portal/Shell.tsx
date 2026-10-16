@@ -1,6 +1,7 @@
 "use client";
 
-import Link, { useLinkStatus } from "next/link";
+import { useLinkStatus } from "next/link";
+import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import { usePathname } from "next/navigation";
 import {
   useEffect,
@@ -298,7 +299,7 @@ export function Shell({
     const active = isActive(section);
     return (
       <li key={section.href}>
-        <Link
+        <IntentPrefetchLink
           href={section.href}
           aria-current={active ? "page" : undefined}
           className="pt-nav-link"
@@ -309,7 +310,7 @@ export function Shell({
             label={label}
             opening={formatPortalString(strings.openingSection, { label })}
           />
-        </Link>
+        </IntentPrefetchLink>
       </li>
     );
   };
@@ -321,9 +322,9 @@ export function Shell({
       </a>
 
       <header className="pt-topbar">
-        <Link href="/portal" aria-label={strings.home} className="pt-topbar-logo">
+        <IntentPrefetchLink href="/portal" aria-label={strings.home} className="pt-topbar-logo">
           <EvoLogo width={104} />
-        </Link>
+        </IntentPrefetchLink>
         <div className="pt-topbar-actions">
           {accessTier === "assisted" ? <PortalNotificationUpdates locale={locale} /> : null}
           {/* Тема — одна кнопка на виду и на телефоне (решение владельца 02.10). */}

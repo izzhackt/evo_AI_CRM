@@ -67,6 +67,9 @@ test("the Student workspace preserves four portal pages, private tests and publi
     "src/app/(portal)/portal/tests/english/page.tsx",
     "src/app/(portal)/portal/tests/page.tsx",
     "src/app/(portal)/portal/universities/[id]/page.tsx",
+    // S3 (план 7.3): страна и город каталога.
+    "src/app/(portal)/portal/universities/country/[code]/[city]/page.tsx",
+    "src/app/(portal)/portal/universities/country/[code]/page.tsx",
     "src/app/(portal)/portal/universities/page.tsx",
   ]);
 
@@ -127,20 +130,29 @@ test("Student render guard deduplicates only through React request-local cache",
   assert.doesNotMatch(source("src/lib/student-portal-auth.ts"), /\bcache\(/u);
 });
 
-test("route entry reads the notification badge without a duplicate route refresh", () => {
+test("route entry reads the badge and the section signature; the page re-renders only when its data changed", () => {
+  // План A (16.10.2026): раньше вкладка каждые 30 с перерисовывала раздел
+  // целиком; теперь — раз в минуту и только при изменении подписи данных.
   const updates = source("src/components/portal/PortalNotificationUpdates.tsx");
-  assert.match(updates, /async function update\(refreshContent = true\)/u);
-  assert.match(updates, /const result = await loadStudentPortalNotificationState\(\);\s*if \(disposed\) return;/u);
+  assert.match(updates, /const POLL_MS = 60_000;/u);
+  assert.match(updates, /const RESUME_MIN_MS = 30_000;/u);
+  assert.match(updates, /const result = await loadStudentPortalNotificationState\(section\);\s*if \(disposed\) return;/u);
   assert.match(updates, /if \(!result\.ok\) \{ setFailed\(true\); setUnread\(null\); return; \}/u);
-  assert.match(updates, /if \(refreshContent && refreshPage\) \{\s*startTransition\(\(\) => router\.refresh\(\)\)/u);
-  assert.match(updates, /void update\(false\);\s*return \(\) => \{\s*disposed = true;/u);
+  assert.match(updates, /const changed = known !== null && result\.signature !== known;/u);
+  assert.match(updates, /if \(changed && section !== null\) \{\s*startTransition\(\(\) => router\.refresh\(\)\)/u);
+  assert.match(updates, /void update\(\);\s*return \(\) => \{\s*disposed = true;/u);
   assert.match(updates, /retry\.current = \(\) => \{ void update\(\); \}/u);
-  assert.match(updates, /setInterval\(\(\) => \{ void update\(\); \}, 30_000\)/u);
-  assert.match(updates, /const resume = \(\) => \{ void update\(\); \}/u);
-  for (const event of ["visibilitychange", "focus", "online"]) {
-    assert.ok(updates.includes(`addEventListener("${event}", resume)`));
-    assert.ok(updates.includes(`removeEventListener("${event}", resume)`));
+  assert.match(updates, /setInterval\(\(\) => \{ void update\(\); \}, POLL_MS\)/u);
+  assert.match(updates, /const resume = \(\) => \{ if \(Date\.now\(\) - lastUpdate >= RESUME_MIN_MS\) void update\(\); \}/u);
+  for (const [event, handler] of [["visibilitychange", "resume"], ["focus", "resume"], ["online", "online"]]) {
+    assert.ok(updates.includes(`addEventListener("${event}", ${handler})`), event);
+    assert.ok(updates.includes(`removeEventListener("${event}", ${handler})`), event);
   }
+  const action = source("src/lib/student-portal-notification-updates.ts");
+  assert.match(action, /const actorRead = requireStudentPortalActor\(\);/u);
+  assert.match(action, /createHash\("sha256"\)/u);
+  assert.match(action, /SECTIONS\.find\(\(value\) => value === section\) \?\? null/u, "the client names a section, never a data scope");
+  assert.doesNotMatch(action, /redirect\(|revalidatePath|studentCaseId: section/u);
 });
 
 test("Student preview implementation and staff entry are retired without removing the real portal", () => {

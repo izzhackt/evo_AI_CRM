@@ -106,8 +106,10 @@ test("the requests screen keeps consultations as a tab and their command", () =>
 // повтор идемпотентен на сервере (request_id стабилен на попытку).
 test("the portal entry points wire the consultation request honestly", () => {
   const universityPage = source("src/app/(portal)/portal/universities/[id]/page.tsx");
-  assert.match(universityPage, /readOwnConsultationRequests/u);
-  assert.match(universityPage, /openConsultationRequest/u);
+  // S3: открытый запрос приходит в том же вызове страницы вуза
+  // (student_university_detail_v1, форма own_portal_consultation_requests_v1).
+  assert.match(universityPage, /readStudentUniversityDetail\(id\)/u);
+  assert.match(universityPage, /initialOpenRequest: detail\.openConsultation/u);
 
   const detail = source("src/components/portal/universities/Detail.tsx");
   assert.match(detail, /institutionId=\{university\.id\}/u);

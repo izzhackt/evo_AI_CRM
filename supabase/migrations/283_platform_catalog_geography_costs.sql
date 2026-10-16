@@ -80,7 +80,10 @@ $$;
 
 -- Фото карточки страны (p_scope = 'countries') или города ('cities'): объект в
 -- бакете portal-university-photos под geography/, путь с 12 знаками sha256
--- файла; автор, источник и лицензия обязательны.
+-- файла; автор, источник и лицензия обязательны. Хост sourceUrl принадлежит
+-- именно названному источнику (sourceName): то же правило, что у разбора веба
+-- (PHOTO_HOSTS в src/lib/portal/university-index.ts), иначе одна такая запись
+-- сделала бы весь индекс студента нечитаемым.
 CREATE FUNCTION platform_private.catalog_photo_valid(p_photo JSONB, p_scope TEXT)
 RETURNS BOOLEAN LANGUAGE plpgsql IMMUTABLE SET search_path = '' AS $$
 DECLARE keys CONSTANT TEXT[] := ARRAY['path', 'width', 'height', 'author', 'authorUrl',
@@ -95,6 +98,11 @@ BEGIN
     AND (p_photo -> 'authorUrl' = 'null'::JSONB OR platform_private.university_public_url(p_photo ->> 'authorUrl'))
     AND p_photo ->> 'sourceName' IN ('Unsplash', 'Pexels', 'Wikimedia Commons')
     AND platform_private.catalog_photo_source_allowed(p_photo ->> 'sourceUrl')
+    AND lower(substring(p_photo ->> 'sourceUrl' FROM '^https://([^/?#]+)')) = ANY (CASE p_photo ->> 'sourceName'
+      WHEN 'Unsplash' THEN ARRAY['unsplash.com', 'www.unsplash.com']
+      WHEN 'Pexels' THEN ARRAY['pexels.com', 'www.pexels.com']
+      WHEN 'Wikimedia Commons' THEN ARRAY['commons.wikimedia.org', 'upload.wikimedia.org']
+      ELSE ARRAY[]::TEXT[] END)
     AND jsonb_typeof(p_photo -> 'license') = 'string' AND platform_private.catalog_text_ok(p_photo ->> 'license', 120)
     AND (p_photo -> 'licenseUrl' = 'null'::JSONB OR platform_private.university_public_url(p_photo ->> 'licenseUrl'))
     AND lower(p_photo::TEXT) !~ 'eduprchina';

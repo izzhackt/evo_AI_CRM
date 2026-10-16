@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
 import type { Locale } from "@/lib/i18n-data";
 import type { PublishedUniversity } from "@/lib/platform-university-catalog";
@@ -170,9 +170,9 @@ export function HomeView({
                   ) : null}
                 </dl>
                 <div className="pt-home-case-actions">
-                  <Link href={actionHref(primary)} className="pt-btn">
+                  <IntentPrefetchLink href={actionHref(primary)} className="pt-btn">
                     {primary.kind === "payment" ? admission.openPayment : admission.openDocument}
-                  </Link>
+                  </IntentPrefetchLink>
                   {remaining > 0 ? (
                     <span className="pt-home-case-more pt-data">
                       {formatPortalString(strings.caseMore, { count: String(remaining) })}
@@ -192,18 +192,18 @@ export function HomeView({
             )}
           </div>
           <nav aria-label={strings.caseSectionsAria} className="pt-home-case-links">
-            <Link href="/portal" className="pt-link">
+            <IntentPrefetchLink href="/portal" className="pt-link">
               {strings.caseOpenAdmission} <span aria-hidden="true">→</span>
-            </Link>
-            <Link href="/portal/documents" className="pt-link">
+            </IntentPrefetchLink>
+            <IntentPrefetchLink href="/portal/documents" className="pt-link">
               {shell["nav.documents"]} <span aria-hidden="true">→</span>
-            </Link>
-            <Link href="/portal/payments" className="pt-link">
+            </IntentPrefetchLink>
+            <IntentPrefetchLink href="/portal/payments" className="pt-link">
               {shell["nav.payments"]} <span aria-hidden="true">→</span>
-            </Link>
-            <Link href="/portal/messages" className="pt-link">
+            </IntentPrefetchLink>
+            <IntentPrefetchLink href="/portal/messages" className="pt-link">
               {shell["nav.messages"]} <span aria-hidden="true">→</span>
-            </Link>
+            </IntentPrefetchLink>
           </nav>
         </section>
       ) : null}
@@ -232,9 +232,9 @@ export function HomeView({
                   <p className="pt-home-card-status"><span className="pt-chip">{english.statusDraft}</span></p>
                 ) : null}
                 <p className="pt-home-card-action">
-                  <Link className="pt-btn" href={`/portal/english/lesson/${picked.lesson.lessonId}`}>
+                  <IntentPrefetchLink className="pt-btn" href={`/portal/english/lesson/${picked.lesson.lessonId}`}>
                     {picked.kind === "continue" ? english.continueLesson : english.startLesson}
-                  </Link>
+                  </IntentPrefetchLink>
                 </p>
               </>
             ) : lessonsExist ? (
@@ -242,7 +242,7 @@ export function HomeView({
                 <h3 className="pt-home-card-title">{strings.lessonsDoneTitle}</h3>
                 <p className="pt-home-card-body">{strings.lessonsDoneBody}</p>
                 <p className="pt-home-card-action">
-                  <Link className="pt-btn-ghost" href="/portal/english">{strings.openEnglish}</Link>
+                  <IntentPrefetchLink className="pt-btn-ghost" href="/portal/english">{strings.openEnglish}</IntentPrefetchLink>
                 </p>
               </>
             ) : (
@@ -269,12 +269,12 @@ export function HomeView({
                   </p>
                 ) : null}
                 <p className="pt-home-card-action">
-                  <Link
+                  <IntentPrefetchLink
                     className="pt-btn"
                     href={`${assessmentPath(draftInstrument.instrumentKey)}?attempt=${draftInstrument.draftAttemptId}`}
                   >
                     {tests.cardContinue}
-                  </Link>
+                  </IntentPrefetchLink>
                 </p>
               </>
             ) : (
@@ -282,7 +282,7 @@ export function HomeView({
                 <h3 className="pt-home-card-title">{strings.testsEntryTitle}</h3>
                 <p className="pt-home-card-body">{strings.testsEntryBody}</p>
                 <p className="pt-home-card-action">
-                  <Link className="pt-btn-ghost" href="/portal/tests">{strings.openTests}</Link>
+                  <IntentPrefetchLink className="pt-btn-ghost" href="/portal/tests">{strings.openTests}</IntentPrefetchLink>
                 </p>
               </>
             )}
@@ -294,9 +294,9 @@ export function HomeView({
               <h3 className="pt-home-card-title">{admission.pendingApplicationHeading}</h3>
               <p className="pt-home-card-body">{admission.pendingApplicationHint}</p>
               <p className="pt-home-card-action">
-                <Link className="pt-btn-ghost" href="/apply/status">
+                <IntentPrefetchLink className="pt-btn-ghost" href="/apply/status">
                   {admission.pendingApplicationLink}
-                </Link>
+                </IntentPrefetchLink>
               </p>
             </article>
           ) : null}
@@ -311,9 +311,9 @@ export function HomeView({
               <span className="pt-home-fav-count pt-data">
                 {formatPortalString(favoritesStrings.savedCount, { count: String(favoritesTotal) })}
               </span>
-              <Link className="pt-link" href="/portal/favorites">
+              <IntentPrefetchLink className="pt-link" href="/portal/favorites">
                 {strings.favoritesAll} <span aria-hidden="true">→</span>
-              </Link>
+              </IntentPrefetchLink>
             </>
           ) : null}
         </div>
@@ -324,16 +324,16 @@ export function HomeView({
             <p className="pt-empty-title">{favoritesStrings.emptyTitle}</p>
             <p className="pt-empty-body">{favoritesStrings.emptyBody}</p>
             <p>
-              <Link href="/portal/universities" className="pt-btn-ghost">
+              <IntentPrefetchLink href="/portal/universities" className="pt-btn-ghost">
                 {favoritesStrings.emptyAction}
-              </Link>
+              </IntentPrefetchLink>
             </p>
           </div>
         ) : (
           <ul className="pt-home-fav-list">
             {favorites.map((item) => (
               <li key={item.id}>
-                <Link href={`/portal/universities/${item.id}`} className="pt-home-fav-row">
+                <IntentPrefetchLink href={`/portal/universities/${item.id}`} className="pt-home-fav-row">
                   <span className="pt-home-fav-main">
                     <span className="pt-home-fav-name">{item.content.name}</span>
                     <span className="pt-home-fav-place">
@@ -348,7 +348,7 @@ export function HomeView({
                       {nearestIntakeText(item, universitiesStrings, locale, now)}
                     </span>
                   </span>
-                </Link>
+                </IntentPrefetchLink>
               </li>
             ))}
           </ul>
@@ -357,7 +357,7 @@ export function HomeView({
       <section aria-labelledby="home-recent-title">
         <div className="pt-home-section-head">
           <h2 id="home-recent-title" className="pt-section-title">{strings.recentHeading}</h2>
-          <Link href="/portal/universities" className="pt-link">{strings.recentAll}</Link>
+          <IntentPrefetchLink href="/portal/universities" className="pt-link">{strings.recentAll}</IntentPrefetchLink>
         </div>
         <p className="pt-home-fav-place">{strings.recentDescription}</p>
         {recentUniversities === null ? (
@@ -368,7 +368,7 @@ export function HomeView({
           <ul className="pt-home-fav-list">
             {recentUniversities.map((item) => (
               <li key={item.id}>
-                <Link href={`/portal/universities/${item.id}`} className="pt-home-fav-row">
+                <IntentPrefetchLink href={`/portal/universities/${item.id}`} className="pt-home-fav-row">
                   <span className="pt-home-fav-main">
                     <span className="pt-home-fav-name">{item.name}</span>
                     <span className="pt-home-fav-place">
@@ -382,7 +382,7 @@ export function HomeView({
                       {universityDateLabel(new Date(item.firstPublishedAt).toISOString().slice(0, 10), locale)}
                     </time>
                   </span>
-                </Link>
+                </IntentPrefetchLink>
               </li>
             ))}
           </ul>

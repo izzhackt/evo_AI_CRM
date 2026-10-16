@@ -259,7 +259,29 @@ sha256 файла: новое фото это новый путь, кэш бра
 долго. Подпись под карточкой не печатается; автор, источник и лицензия по
 кнопке «©» из полей `author`, `authorUrl`, `sourceName`, `sourceUrl`,
 `license`, `licenseUrl`. Источник фото стран и городов только Unsplash,
-Pexels или Wikimedia Commons (CHECK в базе); фото агентств нет.
+Pexels или Wikimedia Commons (CHECK в базе); фото агентств нет. Хост
+`sourceUrl` принадлежит именно названному источнику (CHECK в базе с review
+раунда 1, 16.10.2026; те же пары проверяют разборщики веба и iPhone):
+
+| `sourceName` | хост `sourceUrl` |
+|---|---|
+| `Unsplash` | `unsplash.com`, `www.unsplash.com` |
+| `Pexels` | `pexels.com`, `www.pexels.com` |
+| `Wikimedia Commons` | `commons.wikimedia.org`, `upload.wikimedia.org` |
+
+### 2.6. Фото вузов
+
+Фото вуза по `photoKey` студент видит только из бакета
+`portal-university-photos`: запись манифеста
+`scripts/portal/university-photos-manifest.json` со `status = verified` и
+`migrated = true`. Иначе честная заглушка «Проверенное фото кампуса пока не
+добавлено», адрес на сайте вуза (hotlink) не используется (план 4.4,
+приёмка 7.6.5). Поле `rights` записи говорит, на каком основании копия
+сделана: `open_license` (CC, FAL, PD) или `official_media_owner_accepted`
+(собственный сайт вуза шести стран, риск владельца по решению Р3, правило в
+`src/lib/university-photo-rights.ts`). По кнопке «©»: у официальных медиа
+«Фото: <вуз>, официальный сайт» со ссылкой на страницу источника, у
+остальных автор и лицензия из библиотеки `src/lib/university-photo-library.json`.
 
 ## 3. Сотрудник (CRM)
 
@@ -438,6 +460,18 @@ sourceName, sourceUrl, license, licenseUrl }` из манифеста; `path` э
 (по умолчанию план без сети; `--check` читает публичные адреса; `--apply`
 загружает недостающие, бакет должен существовать). Стоимость сидом не
 грузится: только импорт 3.4 после выпуска, по разрешению.
+
+Порядок выпуска S3 (review раунда 1, F5): веб выходит только после того,
+как фото есть в бакете production, иначе карточки останутся без фото.
+
+1. Ledger: миграция 283.
+2. `upload-geography-photos.mjs --seed-dir <папка> --apply`, затем `--check`:
+   67 из 67 читаются публично. Квитанцию `--check` приложить к записи выпуска.
+3. `migrate-university-photos.mjs --apply` для 42 записей
+   `official_media_owner_accepted` со `status = verified` (запись в
+   production по разрешению), затем закоммитить манифест с `migrated = true`.
+4. `check-geography.sql` только чтением: 116 из 116 связаны.
+5. Выпуск веба с этим манифестом.
 
 Проверка production только чтением: `scripts/catalog/check-geography.sql`
 (строка на организацию: `published_institutions`, `linked_institutions`,

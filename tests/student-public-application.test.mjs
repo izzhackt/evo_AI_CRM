@@ -317,8 +317,13 @@ function proxyHarness({ claimsError = null } = {}) {
         return { data: claimsError ? null : { claims: { sub: USER } }, error: claimsError };
       } } };
     } },
-    "@/lib/supabase/platform-authority": { readVerifiedPlatformAuthority: async () => { calls.push("staffAuthority"); return { status: "invalid", authority: null }; } },
-    "@/lib/supabase/student-portal-authority": { readVerifiedStudentPortalAuthority: async () => { calls.push("studentAuthority"); return { status: "invalid", authority: null }; } },
+    "@/lib/supabase/platform-authority": { readPlatformAuthoritySnapshot: async () => { calls.push("staffAuthority"); return { result: { status: "invalid", authority: null }, rows: { staff: null } }; } },
+    "@/lib/supabase/student-portal-authority": {
+      readStudentPortalAuthorityRows: async () => { calls.push("studentAuthority"); return { result: { status: "invalid", authority: null }, rows: { actor: [] } }; },
+      isStudentAuthorityRow: () => false,
+    },
+    // One live check per request: the proxy hands its rows to the render (план A).
+    "@/lib/supabase/access-handoff": { ACCESS_HANDOFF_HEADER: "x-evo-access-handoff", createAccessHandoff: async () => null },
   });
   return { proxy: loaded.proxy, calls };
 }

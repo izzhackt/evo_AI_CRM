@@ -27,12 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
  */
 export default async function StudentPortalOverviewPage() {
   const [actor, locale] = await Promise.all([requireStudentPortalActor(), getLocale()]);
-  const [overview, preparations] = await Promise.all([
-    readStudentPortalOverview().catch(() => undefined),
-    readStudentCatalogPreparations(actor.studentCaseId).catch(() => null),
-  ]);
   const strings = getPortalStrings("admission", locale);
-  const preparationStrings = getPortalStrings("preparations", locale);
 
   return (
     <main className="pt-page">
@@ -41,11 +36,29 @@ export default async function StudentPortalOverviewPage() {
         <h1 className="pt-page-title">{strings.overviewTitle}</h1>
         <p className="pt-page-lead">{strings.overviewLead}</p>
       </header>
-      {overview === undefined ? <p className="pt-prep-error" role="status">{preparationStrings.overviewUnavailable}</p> : <OverviewView overview={overview} pending={actor.caseState === "pending"} locale={locale} />}
-      <PreparationList items={preparations} strings={preparationStrings} />
+      {/* Обзор с подготовками и обращения — соседние серверные компоненты:
+          их чтения идут одновременно, а не одно после другого (план A). */}
+      <AdmissionOverview actor={actor} locale={locale} />
       <Link className="pt-btn-ghost" href="/portal/package-recovery">{packageStrings(locale).pendingTitle}</Link>
       {/* Якорь #case-help — у самой панели (CaseHelpPanel); на обёртке id нет (#1115). */}
       <div className="pt-adm-case-help"><CaseHelpWorkspace actor={actor} caseId={actor.studentCaseId} student /></div>
     </main>
+  );
+}
+
+async function AdmissionOverview({ actor, locale }: Readonly<{
+  actor: Awaited<ReturnType<typeof requireStudentPortalActor>>;
+  locale: Awaited<ReturnType<typeof getLocale>>;
+}>) {
+  const [overview, preparations] = await Promise.all([
+    readStudentPortalOverview().catch(() => undefined),
+    readStudentCatalogPreparations(actor.studentCaseId).catch(() => null),
+  ]);
+  const preparationStrings = getPortalStrings("preparations", locale);
+  return (
+    <>
+      {overview === undefined ? <p className="pt-prep-error" role="status">{preparationStrings.overviewUnavailable}</p> : <OverviewView overview={overview} pending={actor.caseState === "pending"} locale={locale} />}
+      <PreparationList items={preparations} strings={preparationStrings} />
+    </>
   );
 }

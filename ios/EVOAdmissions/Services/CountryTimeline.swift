@@ -185,6 +185,13 @@ enum CountryTimelineRules {
     static let internalPaths = pattern(#"~/|Downloads|EVO_Знания|\.docx|\.pdf(?![A-Za-z0-9_])|supabase/admissions-content"#)
     /// Длинное и короткое тире, цифровое тире и знак минуса.
     static let dashes = pattern("[\u{2012}-\u{2015}\u{2212}]")
+    /// Пробелы `\s` JavaScript без двух неразрывных (U+00A0, U+202F): этими
+    /// пробелами строка может разорваться.
+    static let breakingSpaceClass = #"\t\n\x{0B}\f\r\x{20}\x{1680}\x{2000}-\x{200A}\x{2028}\x{2029}\x{205F}\x{3000}\x{FEFF}"#
+    /// Разряды числа через разрывный пробел («2 500» с U+0020): сумма рвётся
+    /// посередине. Между разрядами допустимы ровно U+00A0 и U+202F, как у
+    /// `DIGIT_GROUP_SPACE` веба (`/\d[^\S\u00A0\u202F]\d{3}(?!\d)/u`).
+    static let digitGroupSpace = pattern("[0-9][\(breakingSpaceClass)][0-9]{3}(?![0-9])")
     static let doubleSpace = pattern("\(space){2,}")
     static let letters = pattern(#"\p{L}+"#)
     static let latin = pattern("[A-Za-z\u{00C0}-\u{024F}]")
@@ -582,6 +589,7 @@ struct CountryTimelineParser {
             try fail(path, "empty or untrimmed text")
         }
         if CountryTimelineRules.matches(CountryTimelineRules.dashes, text) { try fail(path, "em or en dash") }
+        if CountryTimelineRules.matches(CountryTimelineRules.digitGroupSpace, text) { try fail(path, "digit groups need U+00A0 or U+202F") }
         if CountryTimelineRules.matches(CountryTimelineRules.internalPaths, text) { try fail(path, "internal path") }
         return text
     }

@@ -98,3 +98,24 @@ test("the web parser decides the regex edge cases that the iPhone port mirrors",
   }), "cn"));
   assert.equal(parseStudentCountryChoice({ country: "CN", source: "saved", savedAt: "2026-10-16T10:04:44Z\n" }), null);
 });
+
+// The same cases as CountryTimelineTests.testDigitGroupsTakeOnlyTheTwoNoBreakSpaces
+// (review #1205 F1): between digit groups exactly U+00A0 and U+202F are accepted.
+test("the web parser takes exactly the two no-break spaces between digit groups, as the iPhone port does", () => {
+  const original = JSON.parse(rawFile("cn"));
+  const parsed = (ru) => {
+    const copy = structuredClone(original);
+    copy.steps[0].checklist[0].text = { ru, ky: "Айтыңыз." };
+    try { parseCountryTimelineFile(copy, "cn"); return true; } catch { return false; }
+  };
+  const jsSpaces = [0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0xa0, 0x1680, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff];
+  for (let value = 0x2000; value <= 0x200a; value += 1) jsSpaces.push(value);
+  for (const value of jsSpaces) {
+    const space = String.fromCodePoint(value);
+    assert.match(space, /^\s$/u, value.toString(16));
+    assert.equal(parsed(`Сбор 2${space}500\u00a0долларов.`), value === 0xa0 || value === 0x202f, `U+${value.toString(16).padStart(4, "0")}`);
+  }
+  assert.equal(parsed("Сбор 2\u0085500\u00a0долларов."), true, "U+0085 is not JavaScript whitespace");
+  assert.equal(parsed("Сбор 2500 долларов, 2 фото, 1 2345."), true);
+  assert.equal(parsed("Сбор 2\u202f500\u202fдолларов."), true);
+});

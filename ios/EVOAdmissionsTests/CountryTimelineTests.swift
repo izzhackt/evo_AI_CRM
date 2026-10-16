@@ -444,6 +444,63 @@ final class CountryTimelineTests: XCTestCase {
         XCTAssertNoThrow(try parse("cn", JSONSerialization.data(withJSONObject: nel)))
     }
 
+    /// Суммы не рвутся (review #1205 F1): между разрядами ровно U+00A0 или
+    /// U+202F, как у веба (`DIGIT_GROUP_SPACE`, tests/portal-country-timeline.test.mjs
+    /// и tests/portal-country-timeline-ios-parity.test.mjs решают те же случаи).
+    func testDigitGroupsTakeOnlyTheTwoNoBreakSpaces() throws {
+        let original = try XCTUnwrap(JSONSerialization.jsonObject(with: rawFile("cn")) as? [String: Any])
+        func parsed(_ ru: String) -> Bool {
+            var copy = original
+            item(&copy, 0, 0) { $0["text"] = ["ru": ru, "ky": "Айтыңыз."] }
+            return (try? parse("cn", JSONSerialization.data(withJSONObject: copy))) != nil
+        }
+        // Каждый пробел JavaScript (`\s`) между разрядами, кроме двух неразрывных, даёт отказ.
+        var jsSpaces: [UInt32] = [0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x20, 0xA0, 0x1680, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF]
+        jsSpaces += Array(0x2000...0x200A)
+        for value in jsSpaces {
+            let scalar = try XCTUnwrap(Unicode.Scalar(value))
+            XCTAssertTrue(CountryTimelineRules.jsWhitespace.contains(scalar), String(format: "U+%04X", value))
+            let accepted = value == 0xA0 || value == 0x202F
+            let text = "Сбор 2\(Character(scalar))500\u{00A0}долларов."
+            XCTAssertEqual(CountryTimelineRules.matches(CountryTimelineRules.digitGroupSpace, text), !accepted, String(format: "U+%04X", value))
+            XCTAssertEqual(parsed(text), accepted, String(format: "U+%04X", value))
+        }
+        // U+0085 JavaScript пробелом не считает: веб и iPhone такой разряд не отклоняют.
+        XCTAssertFalse(CountryTimelineRules.matches(CountryTimelineRules.digitGroupSpace, "2\u{85}500"))
+        XCTAssertTrue(parsed("Сбор 2500 долларов, 2 фото, 1 2345."))
+        XCTAssertTrue(parsed("Сбор 2\u{202F}500\u{202F}долларов."))
+        var title = original
+        var sources = title["sources"] as! [[String: Any]]
+        sources[0]["title"] = "Пошлина 3 000 крон"
+        title["sources"] = sources
+        XCTAssertThrowsError(try parse("cn", JSONSerialization.data(withJSONObject: title))) { error in
+            XCTAssertEqual((error as? TimelineContentError)?.reason, "digit groups need U+00A0 or U+202F")
+        }
+        // Файлы bundle: суммы с неразрывным пробелом и на iPhone.
+        let ru = try XCTUnwrap(Self.library.select(choice: "CN", kyrgyz: false, today: Self.before))
+        let ky = try XCTUnwrap(Self.library.select(choice: "CN", kyrgyz: true, today: Self.before))
+        XCTAssertTrue(try XCTUnwrap(ru.steps.flatMap(\.items).first { $0.id == "cn-3-08" }).text.contains("не меньше 2\u{00A0}500\u{00A0}долларов США"))
+        XCTAssertTrue(try XCTUnwrap(ky.steps.flatMap(\.items).first { $0.id == "cn-3-08" }).text.contains("кеминде 2\u{00A0}500\u{00A0}АКШ доллары"))
+        for (label, view) in allViews() {
+            for text in strings(view) { XCTAssertFalse(CountryTimelineRules.matches(CountryTimelineRules.digitGroupSpace, text), "\(label): \(text)") }
+        }
+    }
+
+    /// Общий маршрут после review #1205 (F3, F6): без раздела «Документы»
+    /// уровня assisted и без «партнёра» в шаге 4.
+    func testGeneralRouteNamesNoAssistedSectionAndNoPartner() throws {
+        for kyrgyz in [false, true] {
+            let view = try XCTUnwrap(Self.library.select(choice: "UNDECIDED", kyrgyz: kyrgyz, today: Self.before))
+            XCTAssertEqual(view.steps[3].title, kyrgyz ? "Университеттерге арыз тапшыруу" : "Подача заявок в университеты")
+            for text in strings(view) {
+                for label in ["«Документы»", "«Документтер»", "«Сообщения»", "«Билдирүүлөр»", "«Оплата»", "«Төлөм»", "«Уведомления»", "«Билдирмелер»"] {
+                    XCTAssertFalse(text.contains(label), text)
+                }
+                XCTAssertNil(text.range(of: "партн", options: .caseInsensitive), text)
+            }
+        }
+    }
+
     func testTodayIsTheBishkekDate() {
         // 20:30 UTC 16.10 это уже 17.10 в Бишкеке (UTC+6).
         let evening = Date(timeIntervalSince1970: 1_792_182_600)

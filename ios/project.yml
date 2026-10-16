@@ -71,6 +71,10 @@ targets:
         buildPhase: resources
       - path: ../src/content/timelines/undecided.json
         buildPhase: resources
+      # Манифест переноса фото вузов в бакет (тот же файл, что читает веб,
+      # src/lib/university-photo-url.ts): управляемый адрес фото вуза.
+      - path: ../scripts/portal/university-photos-manifest.json
+        buildPhase: resources
     settings:
       base:
         PRODUCT_NAME: "EVO admissions"
@@ -128,6 +132,12 @@ targets:
       - path: EVOAdmissions/Services/UniversityGeoLibrary.swift
       - path: EVOAdmissions/Services/UniversityCatalogFilterPolicy.swift
       - path: EVOAdmissions/Services/StudyCountries.swift
+      # Университеты v2 (283): разбор индекса и страницы вуза по частям,
+      # правила экранов, адреса фото, копия индекса на диске и хранилище
+      # индекса (загрузка передаётся функцией), загрузчик фото (сеть
+      # подменяется заглушкой URLProtocol).
+      - path: EVOAdmissions/Services/UniversityAtlas
+      - path: EVOAdmissions/Services/AtlasImageLoader.swift
       - path: EVOAdmissions/Services/UniversityMapPolicy.swift
       - path: EVOAdmissions/Services/SingleFlightReloadGate.swift
       - path: EVOAdmissions/Services/PostgresTimestamp.swift
@@ -174,6 +184,10 @@ targets:
       - path: ../src/content/timelines/cz.json
         buildPhase: resources
       - path: ../src/content/timelines/undecided.json
+        buildPhase: resources
+      # Общие векторы текста и ссылок каталога 283 (контракт 2.2a): те же,
+      # что проверяют SQL-набор 283 и tests/catalog-text.test.mjs.
+      - path: ../tests/fixtures/catalog-text-vectors.json
         buildPhase: resources
     settings:
       base:

@@ -8466,6 +8466,1264 @@
         }
       }
     },
+    "catalog_breadcrumb" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Каталог боюнча жол"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Путь по каталогу"
+          }
+        }
+      }
+    },
+    "catalog_city_fact_a11y" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Кызыктуу факт: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Интересный факт: %@"
+          }
+        }
+      }
+    },
+    "catalog_city_fact_label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Кызыктуу факт"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Интересный факт"
+          }
+        }
+      }
+    },
+    "catalog_city_missing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Шаар каталогдон табылган жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Город не найден в каталоге"
+          }
+        }
+      }
+    },
+    "catalog_city_universities" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Шаардын университеттери"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Университеты города"
+          }
+        }
+      }
+    },
+    "catalog_cost_kind_accommodation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жатакана"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Общежитие"
+          }
+        }
+      }
+    },
+    "catalog_cost_kind_application_fee" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Арыз берүү төлөмдөрү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сборы при подаче"
+          }
+        }
+      }
+    },
+    "catalog_cost_kind_insurance" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Камсыздандыруу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Страховка"
+          }
+        }
+      }
+    },
+    "catalog_cost_kind_other" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Башка чыгымдар"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Другие расходы"
+          }
+        }
+      }
+    },
+    "catalog_cost_kind_tuition" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Окуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обучение"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_ar" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "араб тилинде"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на арабском"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_cs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "чех тилинде"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на чешском"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_en" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "англис тилинде"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на английском"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_it" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "италия тилинде"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на итальянском"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_ms" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "малай тилинде"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на малайском"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_other" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "окутуу тили: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "язык обучения: %@"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_ru" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "орус тилинде"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на русском"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_tr" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "түрк тилинде"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на турецком"
+          }
+        }
+      }
+    },
+    "catalog_cost_language_zh" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "кытай тилинде"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "на китайском"
+          }
+        }
+      }
+    },
+    "catalog_cost_period_day" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "күнүнө"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "в день"
+          }
+        }
+      }
+    },
+    "catalog_cost_period_month" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "айына"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "в месяц"
+          }
+        }
+      }
+    },
+    "catalog_cost_period_once" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "бир жолу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "разово"
+          }
+        }
+      }
+    },
+    "catalog_cost_period_program" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "бүт программага"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "за всю программу"
+          }
+        }
+      }
+    },
+    "catalog_cost_period_semester" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "семестрге"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "за семестр"
+          }
+        }
+      }
+    },
+    "catalog_cost_period_week" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "жумасына"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "в неделю"
+          }
+        }
+      }
+    },
+    "catalog_cost_period_year" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "жылына"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "в год"
+          }
+        }
+      }
+    },
+    "catalog_cost_range" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%1$@ … %2$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "от %1$@ до %2$@"
+          }
+        }
+      }
+    },
+    "catalog_cost_usd" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "≈ %@ USD"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "≈ %@ USD"
+          }
+        }
+      }
+    },
+    "catalog_cost_usd_a11y" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "болжол менен %@ АКШ доллары"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "примерно %@ долларов США"
+          }
+        }
+      }
+    },
+    "catalog_costs_closing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Акыркы сумманы университет көрсөтөт."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Окончательную сумму указывает университет."
+          }
+        }
+      }
+    },
+    "catalog_costs_heading" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Баасы"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стоимость"
+          }
+        }
+      }
+    },
+    "catalog_costs_join" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : " жана "
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " и "
+          }
+        }
+      }
+    },
+    "catalog_costs_official_link" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Университеттин сайтындагы баасы"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стоимость на сайте университета"
+          }
+        }
+      }
+    },
+    "catalog_costs_rate_item" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "1 USD = %1$@ %2$@ (%3$@, %4$@)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 USD = %1$@ %2$@ (%3$@, %4$@)"
+          }
+        }
+      }
+    },
+    "catalog_costs_rates" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Курс: %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Курс: %@."
+          }
+        }
+      }
+    },
+    "catalog_costs_source" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Булагы: %1$@, текшерилди: %2$@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Источник: %1$@, проверено %2$@."
+          }
+        }
+      }
+    },
+    "catalog_costs_source_agency" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "билим берүү агенттиктеринин ачык маалыматтары"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "открытые данные образовательных агентств"
+          }
+        }
+      }
+    },
+    "catalog_costs_source_evo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "EVO материалдары"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "материалы EVO"
+          }
+        }
+      }
+    },
+    "catalog_costs_source_official" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "университеттин сайты"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "сайт университета"
+          }
+        }
+      }
+    },
+    "catalog_costs_year" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Болжолдуу баа: %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ориентир на %@."
+          }
+        }
+      }
+    },
+    "catalog_count_cities_few" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%lld шаар"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld города"
+          }
+        }
+      }
+    },
+    "catalog_count_cities_many" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%lld шаар"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld городов"
+          }
+        }
+      }
+    },
+    "catalog_count_cities_one" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%lld шаар"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld город"
+          }
+        }
+      }
+    },
+    "catalog_count_universities_few" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%lld университет"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld университета"
+          }
+        }
+      }
+    },
+    "catalog_count_universities_many" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%lld университет"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld университетов"
+          }
+        }
+      }
+    },
+    "catalog_count_universities_one" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%lld университет"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld университет"
+          }
+        }
+      }
+    },
+    "catalog_country_missing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Өлкө каталогдон табылган жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Страна не найдена в каталоге"
+          }
+        }
+      }
+    },
+    "catalog_country_no_universities" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бул өлкөдө азырынча жарыяланган университеттер жок."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В этой стране пока нет опубликованных университетов."
+          }
+        }
+      }
+    },
+    "catalog_country_no_universities_short" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Азырынча университет жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пока нет университетов"
+          }
+        }
+      }
+    },
+    "catalog_fact_source" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Булагы, текшерилди: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Источник, проверено %@"
+          }
+        }
+      }
+    },
+    "catalog_fx_source_cbuae" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "БАЭнин Борбордук банкы"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ЦБ ОАЭ"
+          }
+        }
+      }
+    },
+    "catalog_fx_source_ecb" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Европа борбордук банкы"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ЕЦБ"
+          }
+        }
+      }
+    },
+    "catalog_intake_deadline" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тапшыруу мөөнөтү: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подача до %@"
+          }
+        }
+      }
+    },
+    "catalog_intake_start" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Башталышы: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Начало: %@"
+          }
+        }
+      }
+    },
+    "catalog_load_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Каталог жүктөлгөн жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось загрузить каталог"
+          }
+        }
+      }
+    },
+    "catalog_load_failed_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Интернетти текшерип, кайра аракет кылыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверьте интернет и попробуйте ещё раз."
+          }
+        }
+      }
+    },
+    "catalog_load_failed_unavailable_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бир аздан кийин кайра аракет кылыңыз. Бул жарыяланган университеттер жок дегенди билдирбейт."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Попробуйте ещё раз позже. Это не означает, что опубликованных университетов нет."
+          }
+        }
+      }
+    },
+    "catalog_loading" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Каталог жүктөлүүдө"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каталог загружается"
+          }
+        }
+      }
+    },
+    "catalog_map_cluster_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бул чекиттеги университеттердин тизмесин ачат"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открывает список университетов этой точки"
+          }
+        }
+      }
+    },
+    "catalog_map_cluster_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бул чекитте: %lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В этой точке: %lld"
+          }
+        }
+      }
+    },
+    "catalog_map_without_point" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Картада чекити жоктор: %lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без точки на карте: %lld"
+          }
+        }
+      }
+    },
+    "catalog_other_universities" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Өлкөнүн башка ЖОЖдору"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Другие вузы страны"
+          }
+        }
+      }
+    },
+    "catalog_other_universities_lead" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бул ЖОЖдор үчүн шаардын карточкасы азырынча даяр эмес."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для этих вузов карточка города пока не готова."
+          }
+        }
+      }
+    },
+    "catalog_photo_credit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сүрөттүн автору жана лицензиясы"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Автор и лицензия фото"
+          }
+        }
+      }
+    },
+    "catalog_photo_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сүрөт жүктөлгөн жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фото не загрузилось"
+          }
+        }
+      }
+    },
+    "catalog_photo_license" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Лицензия: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лицензия: %@"
+          }
+        }
+      }
+    },
+    "catalog_photo_official" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сүрөт: %@, расмий сайт"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фото: %@, официальный сайт"
+          }
+        }
+      }
+    },
+    "catalog_photo_source" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Булак: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Источник: %@"
+          }
+        }
+      }
+    },
+    "catalog_refresh_failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Каталог жаңыртылган жок. Сакталган нускасы көрсөтүлүүдө."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось обновить каталог. Показана сохранённая версия."
+          }
+        }
+      }
+    },
+    "catalog_search_count" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Табылды: %lld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Найдено: %lld"
+          }
+        }
+      }
+    },
+    "catalog_search_empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Эч нерсе табылган жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ничего не нашлось"
+          }
+        }
+      }
+    },
+    "catalog_search_empty_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жазылышын текшериңиз же аталыштын бир бөлүгүн латын тамгалары менен жазыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверьте написание или введите часть названия латиницей."
+          }
+        }
+      }
+    },
+    "catalog_search_prompt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Университеттин аталышы"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Название университета"
+          }
+        }
+      }
+    },
+    "catalog_view_cities" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Шаарлар"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Города"
+          }
+        }
+      }
+    },
     "close_button" : {
       "extractionState" : "manual",
       "localizations" : {

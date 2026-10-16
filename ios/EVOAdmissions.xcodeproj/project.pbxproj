@@ -10,10 +10,13 @@
 		00EBCE30DF311481020AEED7 /* UniversityMapPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A33583B4A63163BC921202D4 /* UniversityMapPolicyTests.swift */; };
 		01FB4E094D31EAEAD30B2FE9 /* UniversityCatalogDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 259534FBC548CC28EA94B382 /* UniversityCatalogDecodingTests.swift */; };
 		03F44A928A909E18EA45639A /* AssessmentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28BB6E2A9F0AE5B2D2B2B0C2 /* AssessmentModels.swift */; };
+		0AC9A776F6F6F12C802CEDD0 /* UniversityIndexStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE2198F2B37A1DEA697C4B24 /* UniversityIndexStore.swift */; };
 		0B6E1DB60F041F79F04120F0 /* LearningRunnerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2579774CB30D852880D29F40 /* LearningRunnerModels.swift */; };
 		0BE64931A15FA67CCB0DB622 /* MessagesThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC32638A6EB200A2EF0217B0 /* MessagesThreadView.swift */; };
 		10E26CC17AB500306B18ED61 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 005949937B65067CD79CB062 /* Localizable.xcstrings */; };
 		1222A15119C6462E6410FCFF /* PortalCaseChatDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B689B5D15EBAEBDE59C83A64 /* PortalCaseChatDecodingTests.swift */; };
+		1249141590C8726BEF07A453 /* CountryAtlasMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091AB7E89945108C9ECBE24F /* CountryAtlasMap.swift */; };
+		13582754256BEFF3E1B64EB7 /* UniversityAtlasPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8D9E6DB1FB4CA4AC919443C /* UniversityAtlasPolicy.swift */; };
 		13ECC54C2538C82C8D6041D4 /* AdmissionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0754946AA1F39422CD49E6 /* AdmissionPolicyTests.swift */; };
 		14995B46C92E5E98B92F3A4C /* StudyCountriesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCABE33F861DC9AED02969D2 /* StudyCountriesTests.swift */; };
 		1562156C0AA72ABE83543FA6 /* AccessPendingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036B63945D738592B84D329 /* AccessPendingView.swift */; };
@@ -24,31 +27,40 @@
 		1EBD22DB8A9AD99459C14030 /* cz.json in Resources */ = {isa = PBXBuildFile; fileRef = AA54E705EB2033A3F8884C64 /* cz.json */; };
 		20E7AFFA8209A525F331EBC2 /* ae.json in Resources */ = {isa = PBXBuildFile; fileRef = A60DA9416257DF90AED8D144 /* ae.json */; };
 		2113273D75E7D064E2AF1115 /* UniversityCatalogFilterPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10D552D1FAB72B356FDF47B8 /* UniversityCatalogFilterPolicy.swift */; };
+		2574A3FC3E1D72EEDE7FD80D /* university-photos-manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = C7F042E73F1D8EB6342EC23A /* university-photos-manifest.json */; };
+		28AA27FA70A8398F4DC0BC45 /* UniversityIndexDiskCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31E81717C5210F63A99CE394 /* UniversityIndexDiskCache.swift */; };
 		2AB8613C508450F9DB82FA37 /* CatalogPreparationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC70F12739DB63D364874A99 /* CatalogPreparationModels.swift */; };
 		2D1CAAD3767607BBB3DC128D /* cn.json in Resources */ = {isa = PBXBuildFile; fileRef = 32AAACB410E256C968BA03CE /* cn.json */; };
 		2EBF539E80CC079239E5AD98 /* ProfessionDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1649B16320704E7A7DCB7DC /* ProfessionDecodingTests.swift */; };
 		2F5CBCD5E81892EAB2A05255 /* ProfessionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E3A48D9B01EEF280AD9AD95 /* ProfessionModels.swift */; };
+		315E48B16EF23493B3B8A38C /* UniversityAtlasPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FE80DDC1385B9F4AC7CD43E /* UniversityAtlasPolicyTests.swift */; };
 		381095ABB7804218C6DAB59F /* AdmissionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B32E74D315F6147AFDA53377 /* AdmissionModels.swift */; };
 		387AEEB179AE91F1D8DEF13B /* PortalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9DA536AE40E6D000522F975 /* PortalModels.swift */; };
+		39794D5E6E1DA252B3269685 /* CountryAtlasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB36334DD25AE7A55D383920 /* CountryAtlasView.swift */; };
 		3A75CDF66BE998352B0E08A5 /* ApplicationDocumentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C5A1C824750576F24C4DADF /* ApplicationDocumentModels.swift */; };
 		3BAACC081C08224382CAD018 /* EnglishView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D38E00F8D964FE4DCDA857C /* EnglishView.swift */; };
 		3C020CBEFEA75EAB62003338 /* tr.json in Resources */ = {isa = PBXBuildFile; fileRef = 6BD70EA71FE0D3933C499EE5 /* tr.json */; };
 		3DC1B17D442042B0F376579D /* ApplicationIntakeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91DA8F62CFB34037771B79D1 /* ApplicationIntakeModels.swift */; };
 		3DE318749F4464ADE57243AE /* AdmissionPaymentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4ACE09B251B10B667AC566E /* AdmissionPaymentsView.swift */; };
 		3E03D82AE38652963B61B3CA /* TestsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54AA13F5351C06938BB99E9E /* TestsView.swift */; };
+		3EE9E70CEA4B0EED115FB948 /* UniversityIndexDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36DB1FA6EA3B6C0224783C79 /* UniversityIndexDecodingTests.swift */; };
+		3F1A76048B64BF0653E29955 /* CatalogText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DF42FD75A96E0962163A8DD /* CatalogText.swift */; };
 		41593CEC0EA4052054E65C8F /* MotionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69D09BF0DF78F5D6DEEE7684 /* MotionPolicyTests.swift */; };
 		432F8EDE8A7DA0FDA84CAA18 /* UniversityDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90729578002EEEABF3DBADAB /* UniversityDetailView.swift */; };
 		45DE16AD4C98B00179939449 /* NetworkErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FC2E212C9C2D1F53C6A3F68 /* NetworkErrorView.swift */; };
 		48954EF3BCE4088708D2D5C3 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6092FB55F132DB487AC29A36 /* HomeView.swift */; };
 		4A002EA2B19B55E82B92C40F /* PortalCaseChatPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B863F1ACCC11C2F3BCC68A06 /* PortalCaseChatPolicyTests.swift */; };
 		4A8D16D546F48C6AF0DFA746 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1313A946D5C91A8F7D18C143 /* Theme.swift */; };
+		4AD9D8BDB8050FB7261A3305 /* AtlasImageLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D935780EF8C05AA1F89AEF45 /* AtlasImageLoaderTests.swift */; };
 		4B719C2CF1A19ED986419366 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CDF92CA04A21A199DB841591 /* Assets.xcassets */; };
 		4BC5A89801C41212FB2F92EA /* ProgramPackageHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF939EEE333DC009907398B /* ProgramPackageHistoryView.swift */; };
 		4C57AA16907279FF70E76896 /* ae.json in Resources */ = {isa = PBXBuildFile; fileRef = A60DA9416257DF90AED8D144 /* ae.json */; };
+		4CB96D085EFE93F26DA1AAE2 /* UniversityDetailModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F535236291248F1C602DE92 /* UniversityDetailModels.swift */; };
 		4FDB07F9FCB81D2A489DBAE6 /* FavoritesModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B96E6200B0A5AA1809D60313 /* FavoritesModels.swift */; };
 		500F2545D41D2B0043AEB065 /* my.json in Resources */ = {isa = PBXBuildFile; fileRef = 48DE588DC93C44C0ADB3CCEC /* my.json */; };
 		5303BB0D6BFD819F99987958 /* university-geo-library.json in Resources */ = {isa = PBXBuildFile; fileRef = 09597A0A68A4303EC1E5785E /* university-geo-library.json */; };
 		536A1FDE3C876ACD83B4027C /* UniversityGeoLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99BAE80FF87DB4110F926ADA /* UniversityGeoLibrary.swift */; };
+		542C3821B8088EBB01CF5D7F /* AtlasPhotoSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20596F5FC8148C6E82399F56 /* AtlasPhotoSource.swift */; };
 		55735C5D56A1A6745E34344E /* AdmissionDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2048D03494EC2DE914707DC2 /* AdmissionDecodingTests.swift */; };
 		56F89E01B4D8BC88689E4112 /* LocalizationKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752980972E44B6E8F09D7BB8 /* LocalizationKeys.swift */; };
 		570B12627FC89C13007AAC25 /* ApplicationRequirementsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E714B3D7184D39D54FC9248 /* ApplicationRequirementsModels.swift */; };
@@ -56,7 +68,11 @@
 		597500B4D15B7351BC429F3B /* UniversityCatalogFilterPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4B21D0A664C40CAA299E1E4 /* UniversityCatalogFilterPolicyTests.swift */; };
 		59B21A8C1C9F6F936AFD8736 /* PortalDocumentTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 758CE9514FF1F6A618FAD396 /* PortalDocumentTransfer.swift */; };
 		5B37FDF1951EC509C0497FDD /* ConsultationRequestSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9845A78AE9B20B223C061480 /* ConsultationRequestSheet.swift */; };
+		5B93414C43B8FECC711BB830 /* UniversityDetailModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F535236291248F1C602DE92 /* UniversityDetailModels.swift */; };
+		5C1BC361DB73D05643098E32 /* FavoritesNavigationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF5667209002E23EECCDAFB1 /* FavoritesNavigationModel.swift */; };
 		6173408AFBCABC55C1099B19 /* UniversityCatalogFilterPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10D552D1FAB72B356FDF47B8 /* UniversityCatalogFilterPolicy.swift */; };
+		61E3F96A5E2E184F3287D406 /* atlas-index-demo.json in Resources */ = {isa = PBXBuildFile; fileRef = F1B1712271589B2562842FEE /* atlas-index-demo.json */; };
+		633BA99A1AB0DB91C9A00BEC /* AtlasComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68A4BC9818B35F322F3182DF /* AtlasComponents.swift */; };
 		6371C3C679EC1357FC8D0336 /* PortalDocumentTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 758CE9514FF1F6A618FAD396 /* PortalDocumentTransfer.swift */; };
 		63B6F85BC6BFCBFC7A3065C1 /* AdmissionDocumentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E398B3E2F9B79A923367AEB /* AdmissionDocumentsView.swift */; };
 		6629B0AAAFDFDB6C2FD70F0B /* ProfessionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E3A48D9B01EEF280AD9AD95 /* ProfessionModels.swift */; };
@@ -65,39 +81,56 @@
 		6999868FD585195F3B3137CC /* ServerUUIDTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 469585504188D605FB6A973D /* ServerUUIDTests.swift */; };
 		6A90423B0FDC0890A5A43756 /* UniversityPhotoLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1138EB3C6CFD2299FADB8FB4 /* UniversityPhotoLibraryTests.swift */; };
 		6B4E20DB3510993AA66A9EF0 /* Motion.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF9F29D96F9E7AD056552194 /* Motion.swift */; };
+		6CDB26EC1F8CB1687113ABA3 /* SupabaseService+UniversityAtlas.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD4D6CAA2E21BCAE2CF6CE3B /* SupabaseService+UniversityAtlas.swift */; };
 		6F0D140939ADB6FFC3F90AEE /* PostgresTimestamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31E42E055A1861064FDAF390 /* PostgresTimestamp.swift */; };
+		71394DF2C1D4E7C70E716D8E /* AtlasStrictDecoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4B0E3181E6BC402BE517CE7 /* AtlasStrictDecoding.swift */; };
 		717158FB6A92697D44EA6D11 /* MotionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5324AECA09E321809BE2D30 /* MotionPolicy.swift */; };
 		71F89E2DDED0950EE27CA772 /* ApplicationRequirementsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E714B3D7184D39D54FC9248 /* ApplicationRequirementsModels.swift */; };
 		723671D2738F06B823CC302F /* undecided.json in Resources */ = {isa = PBXBuildFile; fileRef = 0AE8DF1572C6876B6037CDE5 /* undecided.json */; };
 		732D457ED3F7275ACE70C6F8 /* university-photo-library.json in Resources */ = {isa = PBXBuildFile; fileRef = E55AC0676CEE7B41F0E74D21 /* university-photo-library.json */; };
 		7671E48CB97A88125BD7245A /* ProgramPackageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30ED4EB674CED0272D9BA3F6 /* ProgramPackageModel.swift */; };
 		76DFD4C0528E6621CBA00E27 /* ApplicationRequirementsV2Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 392347D625C4C851420D9CBD /* ApplicationRequirementsV2Models.swift */; };
+		777E96D91A1A81ED1EA688F2 /* AtlasImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D9D4CE6B7DF5A0FD73061D4 /* AtlasImageLoader.swift */; };
+		7C1B895E1E627C010C2FE7B5 /* UniversityCostSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6545F8614521A022DF728BF /* UniversityCostSection.swift */; };
 		7C82373AB42C254DFBF347FD /* it.json in Resources */ = {isa = PBXBuildFile; fileRef = 290CC1D9F04D3CE7A4BA9BEE /* it.json */; };
+		7DFC88D37E38A085EDA5FC33 /* UniversityIndexModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53565E978137B35179BA24E /* UniversityIndexModels.swift */; };
 		7EB7366B1B43CE792C680F3A /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC77892DE13ABBA6FF91B1B4 /* RootView.swift */; };
 		80569B51A7100E76B4507423 /* ApplicationIntakeDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E8A27182FF5420B32FD8F7 /* ApplicationIntakeDecodingTests.swift */; };
 		806B03ACB5D7669EAE100620 /* LocalizationKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = 752980972E44B6E8F09D7BB8 /* LocalizationKeys.swift */; };
+		82EBC440DD3B5DCF86BAF910 /* CityAtlasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50D315315992BA5F4EFE660 /* CityAtlasView.swift */; };
+		86DD52E6FBD3A11C20C027FD /* CatalogText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DF42FD75A96E0962163A8DD /* CatalogText.swift */; };
 		88FEA7728AB95C7AE1033219 /* study-countries.json in Resources */ = {isa = PBXBuildFile; fileRef = 795359512277AD8D44EA05B7 /* study-countries.json */; };
 		8A1DD2AA9A83807C86BFB0C0 /* UniversityGeoLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99BAE80FF87DB4110F926ADA /* UniversityGeoLibrary.swift */; };
 		8B7D5D867479EA13E221476B /* ApplicationIntakePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1182F909B386806025876B19 /* ApplicationIntakePolicyTests.swift */; };
 		8D56FCF9C0D283BA87289851 /* LearningRunnerDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B973A8C4875BF474F9AA2FA7 /* LearningRunnerDecodingTests.swift */; };
 		8DB1530036AD219621D169B0 /* ApplicationIntakeTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12EC9356EC02D17EF1D12164 /* ApplicationIntakeTransfer.swift */; };
 		8EDF7EA8F721F4F8A12E6532 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 2F2B8B40F10FF70688FD83B9 /* Supabase */; };
+		90464AEBA33C5C5A147FFCAD /* UniversityIndexModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53565E978137B35179BA24E /* UniversityIndexModels.swift */; };
 		907D53954A4D0A49C8D9C74E /* PortalProfileModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1748B57341B5875DDEAC04BB /* PortalProfileModels.swift */; };
+		91B3BC77D74B3BCB8D498F24 /* UniversityAtlasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF32C2BB56835C1F5AD35347 /* UniversityAtlasView.swift */; };
 		92ABBB46D6C78E6254FF0F02 /* PortalProfileModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1748B57341B5875DDEAC04BB /* PortalProfileModels.swift */; };
+		934B5360D843905798BC11B4 /* AtlasStrictDecoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4B0E3181E6BC402BE517CE7 /* AtlasStrictDecoding.swift */; };
 		93B0DE25C385F583F6D44487 /* UniversityGeoLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72846D94CB1FCC708DFB3A83 /* UniversityGeoLibraryTests.swift */; };
 		95CD815AE4E37B4ED161141E /* EVOAdmissionsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A06AEC430C456B54301DDB0 /* EVOAdmissionsApp.swift */; };
 		9671261FF17665F60EF84439 /* StudyCountries.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2564027902B500A2B2AA0B4 /* StudyCountries.swift */; };
+		980EF5C950034AA7FDDA5FB3 /* AtlasCatalogParse.swift in Sources */ = {isa = PBXBuildFile; fileRef = C620C315C9BBA871C4FF7C81 /* AtlasCatalogParse.swift */; };
+		98B3F1466D50E3B6DD3CA100 /* UniversityCostPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21795E83AB1B2AFDB92F347C /* UniversityCostPolicy.swift */; };
 		99063D3940153E29B5AA8909 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B36978FE6CEE29DDAC580E /* SupabaseService.swift */; };
+		9945743E23B29F6006D1A083 /* UniversityDetailDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA5E4D045AB34A11EF0787E9 /* UniversityDetailDecodingTests.swift */; };
 		9B0C3520647B12E41D964D89 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 37EF51A92383C1C31BB2AD16 /* PrivacyInfo.xcprivacy */; };
 		9D781D24548F7DCAAFA1B444 /* my.json in Resources */ = {isa = PBXBuildFile; fileRef = 48DE588DC93C44C0ADB3CCEC /* my.json */; };
+		9DCDDDB1BEFA6783B787D72E /* CatalogLabels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22937A7AD87D8C7E758258A9 /* CatalogLabels.swift */; };
 		9F0D38C82C7EAE76504ADA83 /* LearningModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8F3E3772ADCC2E62305E0B8 /* LearningModels.swift */; };
 		A18B4C6CE5F1776BDBF218C7 /* tr.json in Resources */ = {isa = PBXBuildFile; fileRef = 6BD70EA71FE0D3933C499EE5 /* tr.json */; };
 		A269A971EE5E5B44A06DCE78 /* CatalogPreparationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC70F12739DB63D364874A99 /* CatalogPreparationModels.swift */; };
+		A284B4087972021E32FDDF6E /* AtlasPhotoSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20596F5FC8148C6E82399F56 /* AtlasPhotoSource.swift */; };
+		A323B37BBED7616114A00BC6 /* UniversityCostPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA46593AEC20F0C5E4EE8382 /* UniversityCostPolicyTests.swift */; };
 		A33A7B570BFD41CAF763E0D7 /* AssessmentRunnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F634042E3C8EAB9AB55726EE /* AssessmentRunnerView.swift */; };
 		A442F21F4B692C6CFF004690 /* ProgramDocumentModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42E98235AF600314A5B3F0B7 /* ProgramDocumentModel.swift */; };
 		A58A3762C665294A1745FEC6 /* ApplicationWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 269383B7228C391B0852E9FD /* ApplicationWizardView.swift */; };
 		A593AF5D28AB2D2D2F8D2116 /* ProgramPreparationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C554FA1882F2FBD5E29A7D20 /* ProgramPreparationModel.swift */; };
 		A5DA30125BBF2B8E4563E393 /* cn.json in Resources */ = {isa = PBXBuildFile; fileRef = 32AAACB410E256C968BA03CE /* cn.json */; };
+		A6236ED41141783E4BF0371C /* atlas-detail-tongji-demo.json in Resources */ = {isa = PBXBuildFile; fileRef = 79DC078ADD9363287355D5F6 /* atlas-detail-tongji-demo.json */; };
 		A7840D396EB2CE17905391EC /* ApplicationDocumentPending.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0BEEE8C3FE2791A3687A3E /* ApplicationDocumentPending.swift */; };
 		A7F13491B7A1141213120DE3 /* ProgramPackageSelectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4400466D04D8589C0991F66 /* ProgramPackageSelectionState.swift */; };
 		A8810B1C44AF2230B6254FB5 /* AccountDeletionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B3DD30AA0B9A1A8EC1C6A90 /* AccountDeletionView.swift */; };
@@ -105,6 +138,7 @@
 		AF234FDE29868AEC7808392B /* ConsultationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A437F63DD1A066A64F901E16 /* ConsultationModels.swift */; };
 		B15EAF7230531E1A6751767C /* AdmissionNotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA3BFC92CF9E0C2AB6E27D16 /* AdmissionNotificationsView.swift */; };
 		B1DC6A73ED10736AFB626CA8 /* LearningDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79B0F15B1070867453F272AE /* LearningDecodingTests.swift */; };
+		B5ECC05B1379B51967867DB0 /* UniversityIndexDiskCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31E81717C5210F63A99CE394 /* UniversityIndexDiskCache.swift */; };
 		B63BE4229E1A2AEB727C94F3 /* SingleFlightReloadGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C45BD325EAB111B163381DE /* SingleFlightReloadGateTests.swift */; };
 		B687504536672E433587D296 /* SingleFlightReloadGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B45A9EBC17D0B3D7A1B639FB /* SingleFlightReloadGate.swift */; };
 		B699E97F72E58A1C510F4B9A /* ApplicationPackageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28D3BB36E87FA36DD792D36 /* ApplicationPackageModels.swift */; };
@@ -113,6 +147,7 @@
 		B78A4283ECF32D133774F200 /* AssessmentDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B57DCF3E0DB377302EEF8CBD /* AssessmentDecodingTests.swift */; };
 		B9901A282B3AA92D8EDF83D4 /* LearningRunnerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2579774CB30D852880D29F40 /* LearningRunnerModels.swift */; };
 		BA4C0AFE3B6B323496AA41A3 /* it.json in Resources */ = {isa = PBXBuildFile; fileRef = 290CC1D9F04D3CE7A4BA9BEE /* it.json */; };
+		BB8963427F044C5581BF25EB /* UniversityIndexStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73FC802D86740E23783E997 /* UniversityIndexStoreTests.swift */; };
 		C06B819DB3A34C38FFD852FD /* ApplicationIntakeTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12EC9356EC02D17EF1D12164 /* ApplicationIntakeTransfer.swift */; };
 		C134F31127DBBF926BA0728C /* LocalizationKeysTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FFDA0CF2136108419501926 /* LocalizationKeysTests.swift */; };
 		C1ACE96E001F1455E934DC9C /* ApplicationRequirementsV2Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 392347D625C4C851420D9CBD /* ApplicationRequirementsV2Models.swift */; };
@@ -133,12 +168,17 @@
 		D4432D06FA2A6B58FC20C4EB /* ProfessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 995A1A73307F3D08D8A479EF /* ProfessionsView.swift */; };
 		D4A40685371D7347FD897F85 /* university-geo-library.json in Resources */ = {isa = PBXBuildFile; fileRef = 09597A0A68A4303EC1E5785E /* university-geo-library.json */; };
 		D81CF2BD7F48E140EFDC74B4 /* AuthMessagePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC48E326393DD4A06685FD7C /* AuthMessagePolicyTests.swift */; };
+		D962406750CDCBA6D412D4BA /* AtlasFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16EBB45F671A71FA6B9668EC /* AtlasFixtures.swift */; };
+		D96E3376A9BFE33972255AF6 /* catalog-text-vectors.json in Resources */ = {isa = PBXBuildFile; fileRef = 987D1BDC6062EDDFA45B6968 /* catalog-text-vectors.json */; };
 		DABCB241480A676711F522E1 /* university-photo-library.json in Resources */ = {isa = PBXBuildFile; fileRef = E55AC0676CEE7B41F0E74D21 /* university-photo-library.json */; };
+		DBD24A25F26D89B82FB10F31 /* AtlasCatalogParse.swift in Sources */ = {isa = PBXBuildFile; fileRef = C620C315C9BBA871C4FF7C81 /* AtlasCatalogParse.swift */; };
 		DC6FFE100BC9210E4ACE3302 /* PortalCaseChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30410E2669DCC35D7ADEAE99 /* PortalCaseChatModels.swift */; };
 		DD01779BA21F742032A28C7B /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 992C64D40371C809060D0EDA /* FavoritesView.swift */; };
+		DD448027C64A3DA1D61942BE /* UniversityCostPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21795E83AB1B2AFDB92F347C /* UniversityCostPolicy.swift */; };
 		DE08387F5B3F227CEF2F53F5 /* ApplicationIntakeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91DA8F62CFB34037771B79D1 /* ApplicationIntakeModels.swift */; };
 		E0ED56AB76E58042B83B07C1 /* ApplicationDocumentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C5A1C824750576F24C4DADF /* ApplicationDocumentModels.swift */; };
 		E5BCBC100B63E4CFEF94B967 /* undecided.json in Resources */ = {isa = PBXBuildFile; fileRef = 0AE8DF1572C6876B6037CDE5 /* undecided.json */; };
+		E6FC4D65E9B15CEC529ED540 /* atlas-index-not-modified-demo.json in Resources */ = {isa = PBXBuildFile; fileRef = E010158E9DCA88472F3D7F05 /* atlas-index-not-modified-demo.json */; };
 		E721A2A6AA1D9B2B0EB8A922 /* LearningRunnerPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A9A04DD0B9D506D1216F399 /* LearningRunnerPolicyTests.swift */; };
 		E7A76AA83BDDA764C68E476B /* PostgresTimestamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31E42E055A1861064FDAF390 /* PostgresTimestamp.swift */; };
 		E7B71F8223F8D27FD4A92F29 /* ApplicationDocumentUpload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52284855EA9141A0DE454113 /* ApplicationDocumentUpload.swift */; };
@@ -147,6 +187,7 @@
 		E9AE7BEA813779FD55D8159A /* ServerUUID.swift in Sources */ = {isa = PBXBuildFile; fileRef = D603087ED55D3879DCA7E180 /* ServerUUID.swift */; };
 		E9C433B465FA99D5CB67A532 /* ProgramPackageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD75A0DE8FB011E651745EF1 /* ProgramPackageView.swift */; };
 		EA2BF19FF9BF7933A0229650 /* UniversityMapPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6D0DCF549065FDBFC3000A7 /* UniversityMapPolicy.swift */; };
+		EDCF6BEAD62BFB31BFBCB33D /* AtlasImageLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D9D4CE6B7DF5A0FD73061D4 /* AtlasImageLoader.swift */; };
 		EE87FB28050E6E996C751EB6 /* UniversityPhotoLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB720D91D659189A39BB2098 /* UniversityPhotoLibrary.swift */; };
 		EF2C4CD6306341F54F667AF4 /* AuthMessagePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77D9D0BFF8BC71A358839B8A /* AuthMessagePolicy.swift */; };
 		F1D1000DA279B51D24153650 /* ProgramPreparationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB3A5750809DEE01BB7E7B1 /* ProgramPreparationView.swift */; };
@@ -154,21 +195,26 @@
 		F1EC0EA7A2FCC1463B56B8AA /* ApplicationPackagePending.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA138DDCD355A72B28B3B83E /* ApplicationPackagePending.swift */; };
 		F30DFF225EF05FA1DF858D0F /* LearningModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8F3E3772ADCC2E62305E0B8 /* LearningModels.swift */; };
 		F35C4AB213BBF7B5BE9DB74D /* PortalCaseChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30410E2669DCC35D7ADEAE99 /* PortalCaseChatModels.swift */; };
+		F5BF16E8245056ACC8D0B9E5 /* CatalogTextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D55563D6477C879A07960BD /* CatalogTextTests.swift */; };
 		F5DE60F42625959D0CF37F4C /* LessonRunnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C17C205FA516F6645A1D5E92 /* LessonRunnerView.swift */; };
 		F7027B902B58BB0758883194 /* UniversityPhotoLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB720D91D659189A39BB2098 /* UniversityPhotoLibrary.swift */; };
 		F7583E3535D3D71DCC0682FA /* UniversitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 934F3BCA224845533993A460 /* UniversitiesView.swift */; };
 		F808E95418CFD0F82AACCDD2 /* SessionRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE1702D238F863B18144F44 /* SessionRouter.swift */; };
 		F80DBDE80E9433EF605CD37E /* ApplicationPackageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28D3BB36E87FA36DD792D36 /* ApplicationPackageModels.swift */; };
+		F8E57B39D648CA4BDD28EF85 /* UniversityIndexStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE2198F2B37A1DEA697C4B24 /* UniversityIndexStore.swift */; };
+		FA5EF19D20FDC61BCE0C9A30 /* UniversityAtlasPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8D9E6DB1FB4CA4AC919443C /* UniversityAtlasPolicy.swift */; };
 		FA87AF0650188DC787FE3FE9 /* FavoritesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADA7E12A092A4DCE19EA6C04 /* FavoritesStore.swift */; };
 		FAF4CEEC8998AE6A768EF3AF /* AdmissionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B32E74D315F6147AFDA53377 /* AdmissionModels.swift */; };
 		FB2962099ACBC8599D730317 /* ReviewRunnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D84614ADA0499B575C9815ED /* ReviewRunnerView.swift */; };
 		FB31BE4AE4E65E7403CCD69A /* FavoritesDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D2DFEDB36585854B8AF9A88 /* FavoritesDecodingTests.swift */; };
 		FBD180B0A0043468896A3697 /* MotionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5324AECA09E321809BE2D30 /* MotionPolicy.swift */; };
 		FD07B3A17A0CA2DC11FA85C1 /* TabShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD04FB295EC8AF191E69FE6A /* TabShell.swift */; };
+		FD2BFF89F6F90AA1C3EA9A9B /* atlas-detail-bilkent-demo.json in Resources */ = {isa = PBXBuildFile; fileRef = 705DFF1CBDDE363573E8967B /* atlas-detail-bilkent-demo.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		005949937B65067CD79CB062 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		091AB7E89945108C9ECBE24F /* CountryAtlasMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryAtlasMap.swift; sourceTree = "<group>"; };
 		09597A0A68A4303EC1E5785E /* university-geo-library.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "university-geo-library.json"; sourceTree = "<group>"; };
 		0AE8DF1572C6876B6037CDE5 /* undecided.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = undecided.json; sourceTree = "<group>"; };
 		0B849158C9D6896582F6522A /* PortalProfileDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalProfileDecodingTests.swift; sourceTree = "<group>"; };
@@ -178,6 +224,7 @@
 		122B8F39ABA8651CEF454758 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		12EC9356EC02D17EF1D12164 /* ApplicationIntakeTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationIntakeTransfer.swift; sourceTree = "<group>"; };
 		1313A946D5C91A8F7D18C143 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		16EBB45F671A71FA6B9668EC /* AtlasFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasFixtures.swift; sourceTree = "<group>"; };
 		1748B57341B5875DDEAC04BB /* PortalProfileModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalProfileModels.swift; sourceTree = "<group>"; };
 		17B36978FE6CEE29DDAC580E /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
 		1C223846B4B1CA8906A605E8 /* ProfileLanguagePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileLanguagePolicyTests.swift; sourceTree = "<group>"; };
@@ -185,6 +232,9 @@
 		1E3A48D9B01EEF280AD9AD95 /* ProfessionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfessionModels.swift; sourceTree = "<group>"; };
 		1E714B3D7184D39D54FC9248 /* ApplicationRequirementsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationRequirementsModels.swift; sourceTree = "<group>"; };
 		2048D03494EC2DE914707DC2 /* AdmissionDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdmissionDecodingTests.swift; sourceTree = "<group>"; };
+		20596F5FC8148C6E82399F56 /* AtlasPhotoSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasPhotoSource.swift; sourceTree = "<group>"; };
+		21795E83AB1B2AFDB92F347C /* UniversityCostPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityCostPolicy.swift; sourceTree = "<group>"; };
+		22937A7AD87D8C7E758258A9 /* CatalogLabels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogLabels.swift; sourceTree = "<group>"; };
 		2579774CB30D852880D29F40 /* LearningRunnerModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningRunnerModels.swift; sourceTree = "<group>"; };
 		259534FBC548CC28EA94B382 /* UniversityCatalogDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityCatalogDecodingTests.swift; sourceTree = "<group>"; };
 		269383B7228C391B0852E9FD /* ApplicationWizardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationWizardView.swift; sourceTree = "<group>"; };
@@ -198,7 +248,9 @@
 		30410E2669DCC35D7ADEAE99 /* PortalCaseChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalCaseChatModels.swift; sourceTree = "<group>"; };
 		30ED4EB674CED0272D9BA3F6 /* ProgramPackageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramPackageModel.swift; sourceTree = "<group>"; };
 		31E42E055A1861064FDAF390 /* PostgresTimestamp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostgresTimestamp.swift; sourceTree = "<group>"; };
+		31E81717C5210F63A99CE394 /* UniversityIndexDiskCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityIndexDiskCache.swift; sourceTree = "<group>"; };
 		32AAACB410E256C968BA03CE /* cn.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = cn.json; sourceTree = "<group>"; };
+		36DB1FA6EA3B6C0224783C79 /* UniversityIndexDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityIndexDecodingTests.swift; sourceTree = "<group>"; };
 		37EF51A92383C1C31BB2AD16 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		392347D625C4C851420D9CBD /* ApplicationRequirementsV2Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationRequirementsV2Models.swift; sourceTree = "<group>"; };
 		42E98235AF600314A5B3F0B7 /* ProgramDocumentModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramDocumentModel.swift; sourceTree = "<group>"; };
@@ -207,6 +259,8 @@
 		48DE588DC93C44C0ADB3CCEC /* my.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = my.json; sourceTree = "<group>"; };
 		4C5A1C824750576F24C4DADF /* ApplicationDocumentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationDocumentModels.swift; sourceTree = "<group>"; };
 		4D66D111BD4BE6F0AFF76ADC /* MyAdmissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyAdmissionView.swift; sourceTree = "<group>"; };
+		4DF42FD75A96E0962163A8DD /* CatalogText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogText.swift; sourceTree = "<group>"; };
+		4F535236291248F1C602DE92 /* UniversityDetailModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityDetailModels.swift; sourceTree = "<group>"; };
 		4FC2E212C9C2D1F53C6A3F68 /* NetworkErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkErrorView.swift; sourceTree = "<group>"; };
 		4FFDA0CF2136108419501926 /* LocalizationKeysTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationKeysTests.swift; sourceTree = "<group>"; };
 		5036B63945D738592B84D329 /* AccessPendingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessPendingView.swift; sourceTree = "<group>"; };
@@ -215,58 +269,77 @@
 		6054711F5C4F26BE7B0903F9 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		6092FB55F132DB487AC29A36 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		66387B3540950F6BDA473E97 /* ProgramDocumentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramDocumentView.swift; sourceTree = "<group>"; };
+		68A4BC9818B35F322F3182DF /* AtlasComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasComponents.swift; sourceTree = "<group>"; };
 		69D09BF0DF78F5D6DEEE7684 /* MotionPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionPolicyTests.swift; sourceTree = "<group>"; };
 		6BD70EA71FE0D3933C499EE5 /* tr.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = tr.json; sourceTree = "<group>"; };
+		6D9D4CE6B7DF5A0FD73061D4 /* AtlasImageLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasImageLoader.swift; sourceTree = "<group>"; };
+		705DFF1CBDDE363573E8967B /* atlas-detail-bilkent-demo.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "atlas-detail-bilkent-demo.json"; sourceTree = "<group>"; };
 		72846D94CB1FCC708DFB3A83 /* UniversityGeoLibraryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityGeoLibraryTests.swift; sourceTree = "<group>"; };
 		752980972E44B6E8F09D7BB8 /* LocalizationKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationKeys.swift; sourceTree = "<group>"; };
 		758CE9514FF1F6A618FAD396 /* PortalDocumentTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalDocumentTransfer.swift; sourceTree = "<group>"; };
 		77D9D0BFF8BC71A358839B8A /* AuthMessagePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthMessagePolicy.swift; sourceTree = "<group>"; };
 		795359512277AD8D44EA05B7 /* study-countries.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "study-countries.json"; sourceTree = "<group>"; };
 		79B0F15B1070867453F272AE /* LearningDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningDecodingTests.swift; sourceTree = "<group>"; };
+		79DC078ADD9363287355D5F6 /* atlas-detail-tongji-demo.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "atlas-detail-tongji-demo.json"; sourceTree = "<group>"; };
 		7A9A04DD0B9D506D1216F399 /* LearningRunnerPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningRunnerPolicyTests.swift; sourceTree = "<group>"; };
 		7AB25A7C26BF4F620662154D /* EVO admissions.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "EVO admissions.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		7B3DD30AA0B9A1A8EC1C6A90 /* AccountDeletionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDeletionView.swift; sourceTree = "<group>"; };
 		7BB3A5750809DEE01BB7E7B1 /* ProgramPreparationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramPreparationView.swift; sourceTree = "<group>"; };
 		7C45BD325EAB111B163381DE /* SingleFlightReloadGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingleFlightReloadGateTests.swift; sourceTree = "<group>"; };
+		7D55563D6477C879A07960BD /* CatalogTextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogTextTests.swift; sourceTree = "<group>"; };
 		80F438CFFD677C2DE858F295 /* ApplicationStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationStatusView.swift; sourceTree = "<group>"; };
 		8D38E00F8D964FE4DCDA857C /* EnglishView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnglishView.swift; sourceTree = "<group>"; };
 		90729578002EEEABF3DBADAB /* UniversityDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityDetailView.swift; sourceTree = "<group>"; };
 		91DA8F62CFB34037771B79D1 /* ApplicationIntakeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationIntakeModels.swift; sourceTree = "<group>"; };
 		934F3BCA224845533993A460 /* UniversitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversitiesView.swift; sourceTree = "<group>"; };
 		9845A78AE9B20B223C061480 /* ConsultationRequestSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsultationRequestSheet.swift; sourceTree = "<group>"; };
+		987D1BDC6062EDDFA45B6968 /* catalog-text-vectors.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "catalog-text-vectors.json"; sourceTree = "<group>"; };
 		992C64D40371C809060D0EDA /* FavoritesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesView.swift; sourceTree = "<group>"; };
 		995A1A73307F3D08D8A479EF /* ProfessionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfessionsView.swift; sourceTree = "<group>"; };
 		99BAE80FF87DB4110F926ADA /* UniversityGeoLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityGeoLibrary.swift; sourceTree = "<group>"; };
 		9A06AEC430C456B54301DDB0 /* EVOAdmissionsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EVOAdmissionsApp.swift; sourceTree = "<group>"; };
+		9FE80DDC1385B9F4AC7CD43E /* UniversityAtlasPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityAtlasPolicyTests.swift; sourceTree = "<group>"; };
 		A18DBA9591D9DAF70F220CB5 /* UniversitiesMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversitiesMapView.swift; sourceTree = "<group>"; };
 		A28D3BB36E87FA36DD792D36 /* ApplicationPackageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationPackageModels.swift; sourceTree = "<group>"; };
 		A33583B4A63163BC921202D4 /* UniversityMapPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityMapPolicyTests.swift; sourceTree = "<group>"; };
 		A437F63DD1A066A64F901E16 /* ConsultationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsultationModels.swift; sourceTree = "<group>"; };
 		A4400466D04D8589C0991F66 /* ProgramPackageSelectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramPackageSelectionState.swift; sourceTree = "<group>"; };
 		A4ACE09B251B10B667AC566E /* AdmissionPaymentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdmissionPaymentsView.swift; sourceTree = "<group>"; };
+		A4B0E3181E6BC402BE517CE7 /* AtlasStrictDecoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasStrictDecoding.swift; sourceTree = "<group>"; };
 		A5324AECA09E321809BE2D30 /* MotionPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionPolicy.swift; sourceTree = "<group>"; };
+		A53565E978137B35179BA24E /* UniversityIndexModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityIndexModels.swift; sourceTree = "<group>"; };
 		A60DA9416257DF90AED8D144 /* ae.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ae.json; sourceTree = "<group>"; };
+		A73FC802D86740E23783E997 /* UniversityIndexStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityIndexStoreTests.swift; sourceTree = "<group>"; };
+		A8D9E6DB1FB4CA4AC919443C /* UniversityAtlasPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityAtlasPolicy.swift; sourceTree = "<group>"; };
 		A9DA536AE40E6D000522F975 /* PortalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalModels.swift; sourceTree = "<group>"; };
 		AA54E705EB2033A3F8884C64 /* cz.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = cz.json; sourceTree = "<group>"; };
+		AA5E4D045AB34A11EF0787E9 /* UniversityDetailDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityDetailDecodingTests.swift; sourceTree = "<group>"; };
 		AB720D91D659189A39BB2098 /* UniversityPhotoLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityPhotoLibrary.swift; sourceTree = "<group>"; };
 		AD470A4B4BA2C62E1BB38F1B /* ConsultationDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsultationDecodingTests.swift; sourceTree = "<group>"; };
+		AD4D6CAA2E21BCAE2CF6CE3B /* SupabaseService+UniversityAtlas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SupabaseService+UniversityAtlas.swift"; sourceTree = "<group>"; };
 		ADA7E12A092A4DCE19EA6C04 /* FavoritesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStore.swift; sourceTree = "<group>"; };
+		AF32C2BB56835C1F5AD35347 /* UniversityAtlasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityAtlasView.swift; sourceTree = "<group>"; };
 		B0431409D15E803ECA5907E6 /* ApplicationPackageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationPackageService.swift; sourceTree = "<group>"; };
 		B2564027902B500A2B2AA0B4 /* StudyCountries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyCountries.swift; sourceTree = "<group>"; };
 		B32E74D315F6147AFDA53377 /* AdmissionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdmissionModels.swift; sourceTree = "<group>"; };
 		B45A9EBC17D0B3D7A1B639FB /* SingleFlightReloadGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingleFlightReloadGate.swift; sourceTree = "<group>"; };
 		B57DCF3E0DB377302EEF8CBD /* AssessmentDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentDecodingTests.swift; sourceTree = "<group>"; };
+		B6545F8614521A022DF728BF /* UniversityCostSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityCostSection.swift; sourceTree = "<group>"; };
 		B689B5D15EBAEBDE59C83A64 /* PortalCaseChatDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalCaseChatDecodingTests.swift; sourceTree = "<group>"; };
 		B863F1ACCC11C2F3BCC68A06 /* PortalCaseChatPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalCaseChatPolicyTests.swift; sourceTree = "<group>"; };
 		B96E6200B0A5AA1809D60313 /* FavoritesModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesModels.swift; sourceTree = "<group>"; };
 		B973A8C4875BF474F9AA2FA7 /* LearningRunnerDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningRunnerDecodingTests.swift; sourceTree = "<group>"; };
 		BA138DDCD355A72B28B3B83E /* ApplicationPackagePending.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationPackagePending.swift; sourceTree = "<group>"; };
+		BA46593AEC20F0C5E4EE8382 /* UniversityCostPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityCostPolicyTests.swift; sourceTree = "<group>"; };
 		BAE1702D238F863B18144F44 /* SessionRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRouter.swift; sourceTree = "<group>"; };
 		BC0BEEE8C3FE2791A3687A3E /* ApplicationDocumentPending.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationDocumentPending.swift; sourceTree = "<group>"; };
+		BE2198F2B37A1DEA697C4B24 /* UniversityIndexStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityIndexStore.swift; sourceTree = "<group>"; };
 		C1649B16320704E7A7DCB7DC /* ProfessionDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfessionDecodingTests.swift; sourceTree = "<group>"; };
 		C17C205FA516F6645A1D5E92 /* LessonRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonRunnerView.swift; sourceTree = "<group>"; };
 		C1E8A27182FF5420B32FD8F7 /* ApplicationIntakeDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationIntakeDecodingTests.swift; sourceTree = "<group>"; };
 		C554FA1882F2FBD5E29A7D20 /* ProgramPreparationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramPreparationModel.swift; sourceTree = "<group>"; };
+		C620C315C9BBA871C4FF7C81 /* AtlasCatalogParse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasCatalogParse.swift; sourceTree = "<group>"; };
+		C7F042E73F1D8EB6342EC23A /* university-photos-manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "university-photos-manifest.json"; sourceTree = "<group>"; };
 		CA3BFC92CF9E0C2AB6E27D16 /* AdmissionNotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdmissionNotificationsView.swift; sourceTree = "<group>"; };
 		CC48E326393DD4A06685FD7C /* AuthMessagePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthMessagePolicyTests.swift; sourceTree = "<group>"; };
 		CC77892DE13ABBA6FF91B1B4 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -277,17 +350,23 @@
 		D6D0DCF549065FDBFC3000A7 /* UniversityMapPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityMapPolicy.swift; sourceTree = "<group>"; };
 		D84614ADA0499B575C9815ED /* ReviewRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewRunnerView.swift; sourceTree = "<group>"; };
 		D8F3E3772ADCC2E62305E0B8 /* LearningModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningModels.swift; sourceTree = "<group>"; };
+		D935780EF8C05AA1F89AEF45 /* AtlasImageLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtlasImageLoaderTests.swift; sourceTree = "<group>"; };
+		DB36334DD25AE7A55D383920 /* CountryAtlasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryAtlasView.swift; sourceTree = "<group>"; };
 		DC70F12739DB63D364874A99 /* CatalogPreparationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogPreparationModels.swift; sourceTree = "<group>"; };
 		DD0867288823B7DC31CC77AD /* ApplicationIntakePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationIntakePolicy.swift; sourceTree = "<group>"; };
+		E010158E9DCA88472F3D7F05 /* atlas-index-not-modified-demo.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "atlas-index-not-modified-demo.json"; sourceTree = "<group>"; };
 		E2D38B1BB66FCFD684D4F792 /* InviteEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InviteEntryView.swift; sourceTree = "<group>"; };
 		E55AC0676CEE7B41F0E74D21 /* university-photo-library.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "university-photo-library.json"; sourceTree = "<group>"; };
 		EC32638A6EB200A2EF0217B0 /* MessagesThreadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesThreadView.swift; sourceTree = "<group>"; };
+		F1B1712271589B2562842FEE /* atlas-index-demo.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "atlas-index-demo.json"; sourceTree = "<group>"; };
 		F4B21D0A664C40CAA299E1E4 /* UniversityCatalogFilterPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityCatalogFilterPolicyTests.swift; sourceTree = "<group>"; };
+		F50D315315992BA5F4EFE660 /* CityAtlasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CityAtlasView.swift; sourceTree = "<group>"; };
 		F634042E3C8EAB9AB55726EE /* AssessmentRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentRunnerView.swift; sourceTree = "<group>"; };
 		FCABE33F861DC9AED02969D2 /* StudyCountriesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyCountriesTests.swift; sourceTree = "<group>"; };
 		FD04FB295EC8AF191E69FE6A /* TabShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabShell.swift; sourceTree = "<group>"; };
-		"TEMP_2F2E2AC0-9183-4326-A260-E897BC82B965" /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
-		"TEMP_B1BE4482-82E0-4D19-976E-77B5DF95DCAC" /* ReleaseBase.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = ReleaseBase.xcconfig; sourceTree = "<group>"; };
+		FF5667209002E23EECCDAFB1 /* FavoritesNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesNavigationModel.swift; sourceTree = "<group>"; };
+		"TEMP_9EDBF446-7098-4C59-8B42-081B0E027A5A" /* ReleaseBase.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = ReleaseBase.xcconfig; sourceTree = "<group>"; };
+		"TEMP_C448CB8D-FD0C-4810-91D2-B241771D3F2B" /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -314,7 +393,12 @@
 				269383B7228C391B0852E9FD /* ApplicationWizardView.swift */,
 				280E923C4B1D8CC4E01905E0 /* AssessmentResultView.swift */,
 				F634042E3C8EAB9AB55726EE /* AssessmentRunnerView.swift */,
+				68A4BC9818B35F322F3182DF /* AtlasComponents.swift */,
+				22937A7AD87D8C7E758258A9 /* CatalogLabels.swift */,
+				F50D315315992BA5F4EFE660 /* CityAtlasView.swift */,
 				9845A78AE9B20B223C061480 /* ConsultationRequestSheet.swift */,
+				091AB7E89945108C9ECBE24F /* CountryAtlasMap.swift */,
+				DB36334DD25AE7A55D383920 /* CountryAtlasView.swift */,
 				8D38E00F8D964FE4DCDA857C /* EnglishView.swift */,
 				992C64D40371C809060D0EDA /* FavoritesView.swift */,
 				6092FB55F132DB487AC29A36 /* HomeView.swift */,
@@ -338,9 +422,28 @@
 				1313A946D5C91A8F7D18C143 /* Theme.swift */,
 				A18DBA9591D9DAF70F220CB5 /* UniversitiesMapView.swift */,
 				934F3BCA224845533993A460 /* UniversitiesView.swift */,
+				AF32C2BB56835C1F5AD35347 /* UniversityAtlasView.swift */,
+				B6545F8614521A022DF728BF /* UniversityCostSection.swift */,
 				90729578002EEEABF3DBADAB /* UniversityDetailView.swift */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		0EA8A62B9461EF753289F489 /* UniversityAtlas */ = {
+			isa = PBXGroup;
+			children = (
+				C620C315C9BBA871C4FF7C81 /* AtlasCatalogParse.swift */,
+				20596F5FC8148C6E82399F56 /* AtlasPhotoSource.swift */,
+				A4B0E3181E6BC402BE517CE7 /* AtlasStrictDecoding.swift */,
+				4DF42FD75A96E0962163A8DD /* CatalogText.swift */,
+				A8D9E6DB1FB4CA4AC919443C /* UniversityAtlasPolicy.swift */,
+				21795E83AB1B2AFDB92F347C /* UniversityCostPolicy.swift */,
+				4F535236291248F1C602DE92 /* UniversityDetailModels.swift */,
+				31E81717C5210F63A99CE394 /* UniversityIndexDiskCache.swift */,
+				A53565E978137B35179BA24E /* UniversityIndexModels.swift */,
+				BE2198F2B37A1DEA697C4B24 /* UniversityIndexStore.swift */,
+			);
+			path = UniversityAtlas;
 			sourceTree = "<group>";
 		};
 		1349A8A541121D8A15002A81 /* EVOAdmissions */ = {
@@ -382,6 +485,22 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		414688D4D09FA75C844047AA /* scripts */ = {
+			isa = PBXGroup;
+			children = (
+				D61E135170F3045C0BA857C5 /* portal */,
+			);
+			path = scripts;
+			sourceTree = "<group>";
+		};
+		49242C8A15BA5DCE1D7A0B75 /* fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				987D1BDC6062EDDFA45B6968 /* catalog-text-vectors.json */,
+			);
+			path = fixtures;
+			sourceTree = "<group>";
+		};
 		6C76C8767C0DB172062D9774 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
@@ -392,13 +511,34 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		7693F90467D57EBA339E1537 /* tests */ = {
+			isa = PBXGroup;
+			children = (
+				49242C8A15BA5DCE1D7A0B75 /* fixtures */,
+			);
+			path = tests;
+			sourceTree = "<group>";
+		};
 		9570F5D45B3801E1CAF580DA /* evo_AI_CRM-ios-integration */ = {
 			isa = PBXGroup;
 			children = (
+				414688D4D09FA75C844047AA /* scripts */,
 				9ED753596C8C1B3A26929BF5 /* src */,
+				7693F90467D57EBA339E1537 /* tests */,
 			);
 			name = "evo_AI_CRM-ios-integration";
 			path = ..;
+			sourceTree = "<group>";
+		};
+		9661B4B72A813A9CAB81C6D3 /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				705DFF1CBDDE363573E8967B /* atlas-detail-bilkent-demo.json */,
+				79DC078ADD9363287355D5F6 /* atlas-detail-tongji-demo.json */,
+				F1B1712271589B2562842FEE /* atlas-index-demo.json */,
+				E010158E9DCA88472F3D7F05 /* atlas-index-not-modified-demo.json */,
+			);
+			path = Fixtures;
 			sourceTree = "<group>";
 		};
 		9ED753596C8C1B3A26929BF5 /* src */ = {
@@ -418,9 +558,13 @@
 				C1E8A27182FF5420B32FD8F7 /* ApplicationIntakeDecodingTests.swift */,
 				1182F909B386806025876B19 /* ApplicationIntakePolicyTests.swift */,
 				B57DCF3E0DB377302EEF8CBD /* AssessmentDecodingTests.swift */,
+				16EBB45F671A71FA6B9668EC /* AtlasFixtures.swift */,
+				D935780EF8C05AA1F89AEF45 /* AtlasImageLoaderTests.swift */,
 				CC48E326393DD4A06685FD7C /* AuthMessagePolicyTests.swift */,
+				7D55563D6477C879A07960BD /* CatalogTextTests.swift */,
 				AD470A4B4BA2C62E1BB38F1B /* ConsultationDecodingTests.swift */,
 				2D2DFEDB36585854B8AF9A88 /* FavoritesDecodingTests.swift */,
+				FF5667209002E23EECCDAFB1 /* FavoritesNavigationModel.swift */,
 				79B0F15B1070867453F272AE /* LearningDecodingTests.swift */,
 				B973A8C4875BF474F9AA2FA7 /* LearningRunnerDecodingTests.swift */,
 				7A9A04DD0B9D506D1216F399 /* LearningRunnerPolicyTests.swift */,
@@ -434,11 +578,17 @@
 				469585504188D605FB6A973D /* ServerUUIDTests.swift */,
 				7C45BD325EAB111B163381DE /* SingleFlightReloadGateTests.swift */,
 				FCABE33F861DC9AED02969D2 /* StudyCountriesTests.swift */,
+				9FE80DDC1385B9F4AC7CD43E /* UniversityAtlasPolicyTests.swift */,
 				259534FBC548CC28EA94B382 /* UniversityCatalogDecodingTests.swift */,
 				F4B21D0A664C40CAA299E1E4 /* UniversityCatalogFilterPolicyTests.swift */,
+				BA46593AEC20F0C5E4EE8382 /* UniversityCostPolicyTests.swift */,
+				AA5E4D045AB34A11EF0787E9 /* UniversityDetailDecodingTests.swift */,
 				72846D94CB1FCC708DFB3A83 /* UniversityGeoLibraryTests.swift */,
+				36DB1FA6EA3B6C0224783C79 /* UniversityIndexDecodingTests.swift */,
+				A73FC802D86740E23783E997 /* UniversityIndexStoreTests.swift */,
 				A33583B4A63163BC921202D4 /* UniversityMapPolicyTests.swift */,
 				1138EB3C6CFD2299FADB8FB4 /* UniversityPhotoLibraryTests.swift */,
+				9661B4B72A813A9CAB81C6D3 /* Fixtures */,
 			);
 			path = EVOAdmissionsTests;
 			sourceTree = "<group>";
@@ -469,6 +619,7 @@
 				1E714B3D7184D39D54FC9248 /* ApplicationRequirementsModels.swift */,
 				392347D625C4C851420D9CBD /* ApplicationRequirementsV2Models.swift */,
 				28BB6E2A9F0AE5B2D2B2B0C2 /* AssessmentModels.swift */,
+				6D9D4CE6B7DF5A0FD73061D4 /* AtlasImageLoader.swift */,
 				77D9D0BFF8BC71A358839B8A /* AuthMessagePolicy.swift */,
 				DC70F12739DB63D364874A99 /* CatalogPreparationModels.swift */,
 				A437F63DD1A066A64F901E16 /* ConsultationModels.swift */,
@@ -493,12 +644,22 @@
 				B45A9EBC17D0B3D7A1B639FB /* SingleFlightReloadGate.swift */,
 				B2564027902B500A2B2AA0B4 /* StudyCountries.swift */,
 				17B36978FE6CEE29DDAC580E /* SupabaseService.swift */,
+				AD4D6CAA2E21BCAE2CF6CE3B /* SupabaseService+UniversityAtlas.swift */,
 				10D552D1FAB72B356FDF47B8 /* UniversityCatalogFilterPolicy.swift */,
 				99BAE80FF87DB4110F926ADA /* UniversityGeoLibrary.swift */,
 				D6D0DCF549065FDBFC3000A7 /* UniversityMapPolicy.swift */,
 				AB720D91D659189A39BB2098 /* UniversityPhotoLibrary.swift */,
+				0EA8A62B9461EF753289F489 /* UniversityAtlas */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		D61E135170F3045C0BA857C5 /* portal */ = {
+			isa = PBXGroup;
+			children = (
+				C7F042E73F1D8EB6342EC23A /* university-photos-manifest.json */,
+			);
+			path = portal;
 			sourceTree = "<group>";
 		};
 		DBDB4FEA124DE4224DDD48F4 /* content */ = {
@@ -523,11 +684,11 @@
 			path = timelines;
 			sourceTree = "<group>";
 		};
-		"TEMP_784834E5-F8B6-4D3E-88EC-58F0457CF217" /* ios */ = {
+		"TEMP_123AA368-EFDD-4587-9F52-40F68602E8DA" /* ios */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_2F2E2AC0-9183-4326-A260-E897BC82B965" /* Local.xcconfig */,
-				"TEMP_B1BE4482-82E0-4D19-976E-77B5DF95DCAC" /* ReleaseBase.xcconfig */,
+				"TEMP_C448CB8D-FD0C-4810-91D2-B241771D3F2B" /* Local.xcconfig */,
+				"TEMP_9EDBF446-7098-4C59-8B42-081B0E027A5A" /* ReleaseBase.xcconfig */,
 			);
 			path = ios;
 			sourceTree = "<group>";
@@ -630,6 +791,7 @@
 				E5BCBC100B63E4CFEF94B967 /* undecided.json in Resources */,
 				5303BB0D6BFD819F99987958 /* university-geo-library.json in Resources */,
 				DABCB241480A676711F522E1 /* university-photo-library.json in Resources */,
+				2574A3FC3E1D72EEDE7FD80D /* university-photos-manifest.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -638,6 +800,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				20E7AFFA8209A525F331EBC2 /* ae.json in Resources */,
+				FD2BFF89F6F90AA1C3EA9A9B /* atlas-detail-bilkent-demo.json in Resources */,
+				A6236ED41141783E4BF0371C /* atlas-detail-tongji-demo.json in Resources */,
+				61E3F96A5E2E184F3287D406 /* atlas-index-demo.json in Resources */,
+				E6FC4D65E9B15CEC529ED540 /* atlas-index-not-modified-demo.json in Resources */,
+				D96E3376A9BFE33972255AF6 /* catalog-text-vectors.json in Resources */,
 				2D1CAAD3767607BBB3DC128D /* cn.json in Resources */,
 				1896777C45E1DB6D0D6A7184 /* cz.json in Resources */,
 				BA4C0AFE3B6B323496AA41A3 /* it.json in Resources */,
@@ -696,13 +863,22 @@
 				C1ACE96E001F1455E934DC9C /* ApplicationRequirementsV2Models.swift in Sources */,
 				B78A4283ECF32D133774F200 /* AssessmentDecodingTests.swift in Sources */,
 				D25B6A3BE454004A57D2D1A4 /* AssessmentModels.swift in Sources */,
+				DBD24A25F26D89B82FB10F31 /* AtlasCatalogParse.swift in Sources */,
+				D962406750CDCBA6D412D4BA /* AtlasFixtures.swift in Sources */,
+				EDCF6BEAD62BFB31BFBCB33D /* AtlasImageLoader.swift in Sources */,
+				4AD9D8BDB8050FB7261A3305 /* AtlasImageLoaderTests.swift in Sources */,
+				A284B4087972021E32FDDF6E /* AtlasPhotoSource.swift in Sources */,
+				934B5360D843905798BC11B4 /* AtlasStrictDecoding.swift in Sources */,
 				CE7CA5B99E5589C233CD3A5D /* AuthMessagePolicy.swift in Sources */,
 				D81CF2BD7F48E140EFDC74B4 /* AuthMessagePolicyTests.swift in Sources */,
 				A269A971EE5E5B44A06DCE78 /* CatalogPreparationModels.swift in Sources */,
+				3F1A76048B64BF0653E29955 /* CatalogText.swift in Sources */,
+				F5BF16E8245056ACC8D0B9E5 /* CatalogTextTests.swift in Sources */,
 				671BDE2361121A13CCA82DDA /* ConsultationDecodingTests.swift in Sources */,
 				AF234FDE29868AEC7808392B /* ConsultationModels.swift in Sources */,
 				FB31BE4AE4E65E7403CCD69A /* FavoritesDecodingTests.swift in Sources */,
 				4FDB07F9FCB81D2A489DBAE6 /* FavoritesModels.swift in Sources */,
+				5C1BC361DB73D05643098E32 /* FavoritesNavigationModel.swift in Sources */,
 				B1DC6A73ED10736AFB626CA8 /* LearningDecodingTests.swift in Sources */,
 				9F0D38C82C7EAE76504ADA83 /* LearningModels.swift in Sources */,
 				8D56FCF9C0D283BA87289851 /* LearningRunnerDecodingTests.swift in Sources */,
@@ -729,11 +905,22 @@
 				B63BE4229E1A2AEB727C94F3 /* SingleFlightReloadGateTests.swift in Sources */,
 				E8DDBECF078133C9656AE634 /* StudyCountries.swift in Sources */,
 				14995B46C92E5E98B92F3A4C /* StudyCountriesTests.swift in Sources */,
+				13582754256BEFF3E1B64EB7 /* UniversityAtlasPolicy.swift in Sources */,
+				315E48B16EF23493B3B8A38C /* UniversityAtlasPolicyTests.swift in Sources */,
 				01FB4E094D31EAEAD30B2FE9 /* UniversityCatalogDecodingTests.swift in Sources */,
 				6173408AFBCABC55C1099B19 /* UniversityCatalogFilterPolicy.swift in Sources */,
 				597500B4D15B7351BC429F3B /* UniversityCatalogFilterPolicyTests.swift in Sources */,
+				98B3F1466D50E3B6DD3CA100 /* UniversityCostPolicy.swift in Sources */,
+				A323B37BBED7616114A00BC6 /* UniversityCostPolicyTests.swift in Sources */,
+				9945743E23B29F6006D1A083 /* UniversityDetailDecodingTests.swift in Sources */,
+				5B93414C43B8FECC711BB830 /* UniversityDetailModels.swift in Sources */,
 				536A1FDE3C876ACD83B4027C /* UniversityGeoLibrary.swift in Sources */,
 				93B0DE25C385F583F6D44487 /* UniversityGeoLibraryTests.swift in Sources */,
+				3EE9E70CEA4B0EED115FB948 /* UniversityIndexDecodingTests.swift in Sources */,
+				B5ECC05B1379B51967867DB0 /* UniversityIndexDiskCache.swift in Sources */,
+				7DFC88D37E38A085EDA5FC33 /* UniversityIndexModels.swift in Sources */,
+				F8E57B39D648CA4BDD28EF85 /* UniversityIndexStore.swift in Sources */,
+				BB8963427F044C5581BF25EB /* UniversityIndexStoreTests.swift in Sources */,
 				1BDC9CAAAABDAA7C6E7FA15B /* UniversityMapPolicy.swift in Sources */,
 				00EBCE30DF311481020AEED7 /* UniversityMapPolicyTests.swift in Sources */,
 				F7027B902B58BB0758883194 /* UniversityPhotoLibrary.swift in Sources */,
@@ -768,10 +955,20 @@
 				03F44A928A909E18EA45639A /* AssessmentModels.swift in Sources */,
 				16CCE941413181944BF10D95 /* AssessmentResultView.swift in Sources */,
 				A33A7B570BFD41CAF763E0D7 /* AssessmentRunnerView.swift in Sources */,
+				980EF5C950034AA7FDDA5FB3 /* AtlasCatalogParse.swift in Sources */,
+				633BA99A1AB0DB91C9A00BEC /* AtlasComponents.swift in Sources */,
+				777E96D91A1A81ED1EA688F2 /* AtlasImageLoader.swift in Sources */,
+				542C3821B8088EBB01CF5D7F /* AtlasPhotoSource.swift in Sources */,
+				71394DF2C1D4E7C70E716D8E /* AtlasStrictDecoding.swift in Sources */,
 				EF2C4CD6306341F54F667AF4 /* AuthMessagePolicy.swift in Sources */,
+				9DCDDDB1BEFA6783B787D72E /* CatalogLabels.swift in Sources */,
 				2AB8613C508450F9DB82FA37 /* CatalogPreparationModels.swift in Sources */,
+				86DD52E6FBD3A11C20C027FD /* CatalogText.swift in Sources */,
+				82EBC440DD3B5DCF86BAF910 /* CityAtlasView.swift in Sources */,
 				D38251318F18868A0F5BAEBE /* ConsultationModels.swift in Sources */,
 				5B37FDF1951EC509C0497FDD /* ConsultationRequestSheet.swift in Sources */,
+				1249141590C8726BEF07A453 /* CountryAtlasMap.swift in Sources */,
+				39794D5E6E1DA252B3269685 /* CountryAtlasView.swift in Sources */,
 				95CD815AE4E37B4ED161141E /* EVOAdmissionsApp.swift in Sources */,
 				3BAACC081C08224382CAD018 /* EnglishView.swift in Sources */,
 				B7782A31DA97FA6DE6A80A3C /* FavoritesModels.swift in Sources */,
@@ -811,15 +1008,24 @@
 				B69DD3CC2FECC06D17808BAB /* SignInView.swift in Sources */,
 				B687504536672E433587D296 /* SingleFlightReloadGate.swift in Sources */,
 				9671261FF17665F60EF84439 /* StudyCountries.swift in Sources */,
+				6CDB26EC1F8CB1687113ABA3 /* SupabaseService+UniversityAtlas.swift in Sources */,
 				99063D3940153E29B5AA8909 /* SupabaseService.swift in Sources */,
 				FD07B3A17A0CA2DC11FA85C1 /* TabShell.swift in Sources */,
 				3E03D82AE38652963B61B3CA /* TestsView.swift in Sources */,
 				4A8D16D546F48C6AF0DFA746 /* Theme.swift in Sources */,
 				E888B48F60C5AFA74A4C9A98 /* UniversitiesMapView.swift in Sources */,
 				F7583E3535D3D71DCC0682FA /* UniversitiesView.swift in Sources */,
+				FA5EF19D20FDC61BCE0C9A30 /* UniversityAtlasPolicy.swift in Sources */,
+				91B3BC77D74B3BCB8D498F24 /* UniversityAtlasView.swift in Sources */,
 				2113273D75E7D064E2AF1115 /* UniversityCatalogFilterPolicy.swift in Sources */,
+				DD448027C64A3DA1D61942BE /* UniversityCostPolicy.swift in Sources */,
+				7C1B895E1E627C010C2FE7B5 /* UniversityCostSection.swift in Sources */,
+				4CB96D085EFE93F26DA1AAE2 /* UniversityDetailModels.swift in Sources */,
 				432F8EDE8A7DA0FDA84CAA18 /* UniversityDetailView.swift in Sources */,
 				8A1DD2AA9A83807C86BFB0C0 /* UniversityGeoLibrary.swift in Sources */,
+				28AA27FA70A8398F4DC0BC45 /* UniversityIndexDiskCache.swift in Sources */,
+				90464AEBA33C5C5A147FFCAD /* UniversityIndexModels.swift in Sources */,
+				0AC9A776F6F6F12C802CEDD0 /* UniversityIndexStore.swift in Sources */,
 				EA2BF19FF9BF7933A0229650 /* UniversityMapPolicy.swift in Sources */,
 				EE87FB28050E6E996C751EB6 /* UniversityPhotoLibrary.swift in Sources */,
 			);
@@ -852,7 +1058,7 @@
 		};
 		B6C84763ED668FD71B0D8C20 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_B1BE4482-82E0-4D19-976E-77B5DF95DCAC" /* ReleaseBase.xcconfig */;
+			baseConfigurationReference = "TEMP_9EDBF446-7098-4C59-8B42-081B0E027A5A" /* ReleaseBase.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -970,7 +1176,7 @@
 		};
 		F095E5C184A5CF5D3A673C4C /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_2F2E2AC0-9183-4326-A260-E897BC82B965" /* Local.xcconfig */;
+			baseConfigurationReference = "TEMP_C448CB8D-FD0C-4810-91D2-B241771D3F2B" /* Local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;

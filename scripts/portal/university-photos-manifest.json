@@ -1,15 +1,15 @@
 {
   "schema": "evo-university-photos-manifest/v1",
-  "generatedAt": "2026-10-16T11:15:33.808Z",
+  "generatedAt": "2026-10-16T21:44:50.166Z",
   "projectRef": "iosckaqtovbbnssqcpde",
   "bucket": "portal-university-photos",
   "source": "src/lib/university-photo-library.json",
   "totals": {
     "entries": 144,
-    "verified": 129,
+    "verified": 132,
     "ineligible": 11,
-    "failed": 4,
-    "migrated": 87
+    "failed": 1,
+    "migrated": 132
   },
   "entries": {
     "academy-of-arts-architecture-and-design-in-prague": {
@@ -74,7 +74,7 @@
       "objectPath": "apu.webp",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "australian-performing-arts-conservatory": {
       "sourceUrl": "https://apac.edu.au/media/srunjid3/image.jpg",
@@ -170,7 +170,7 @@
       "objectPath": "bilkent-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "bocconi-university": {
       "sourceUrl": "https://www.unibocconi.it/sites/default/files/styles/container_100_xxxl/public/media/images/img_6950_1.jpg.webp?itok=wX40HEkZ",
@@ -186,7 +186,7 @@
       "objectPath": "bocconi-university.webp",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "bogazici-university": {
       "sourceUrl": "https://mediastore.cc.bogazici.edu.tr/web/upload/kampusler/2-guney-kampus-20250514-174134_833x720.jpg",
@@ -202,7 +202,7 @@
       "objectPath": "bogazici-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "brno-university-of-technology": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e1/Budova_VUT_Anton%C3%ADnsk%C3%A1.jpg/1280px-Budova_VUT_Anton%C3%ADnsk%C3%A1.jpg",
@@ -244,13 +244,13 @@
       "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
       "attribution": "Devymex",
       "rights": "open_license",
-      "sha256": null,
-      "bytes": null,
-      "contentType": null,
-      "objectPath": null,
-      "status": "failed",
-      "reason": "check_pending_library_updated",
-      "migrated": false
+      "sha256": "f67c005491908f9153cdfd098f61af8ac2e5b56902edd31a76598f225a16e8e2",
+      "bytes": 614405,
+      "contentType": "image/jpeg",
+      "objectPath": "chang-an-university.jpg",
+      "status": "verified",
+      "reason": null,
+      "migrated": true
     },
     "charles-university": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/38/Prague_Charles_University.JPG/960px-Prague_Charles_University.JPG",
@@ -282,7 +282,7 @@
       "objectPath": "china-jiliang-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "city-malaysia": {
       "sourceUrl": "https://city.edu.my/wp-content/uploads/2024/11/CityU-Cyberjaya-Campus-ariel.webp",
@@ -298,7 +298,7 @@
       "objectPath": "city-malaysia.webp",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "communication-university-of-zhejiang": {
       "sourceUrl": "https://eng.cuz.edu.cn/images24/Nybg_ban052802.jpg",
@@ -314,7 +314,7 @@
       "objectPath": "communication-university-of-zhejiang.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "cyprus-university-of-technology": {
       "sourceUrl": "https://www.cut.ac.cy/digitalAssets/72/72970_1DSC_0036.jpg",
@@ -378,7 +378,7 @@
       "objectPath": "east-china-normal-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "eastern-mediterranean-university": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/95/Eastern_Mediterranean_University%2C_Famagusta.jpg/960px-Eastern_Mediterranean_University%2C_Famagusta.jpg",
@@ -474,7 +474,7 @@
       "objectPath": "fudan-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "gbs-global-banking-school-dubai-campus": {
       "sourceUrl": "https://gbs.ac.ae/media/3v4pb0jc/dubai-campus-may-22-3.webp?width=1600&height=1200&v=1d977fbd6c8f0d0&format=webp&quality=75",
@@ -484,13 +484,13 @@
       "licenseUrl": "https://gbs.ac.ae/campuses/dubai",
       "attribution": "GBS Dubai (photographer not named)",
       "rights": "official_media_owner_accepted",
-      "sha256": null,
-      "bytes": null,
-      "contentType": null,
-      "objectPath": null,
-      "status": "failed",
-      "reason": "check_pending_library_updated",
-      "migrated": false
+      "sha256": "ea4f7b71261d58bd5f46b0898760caf93e2fb2a847f055ff497f65d5eca441ee",
+      "bytes": 106996,
+      "contentType": "image/webp",
+      "objectPath": "gbs-global-banking-school-dubai-campus.webp",
+      "status": "verified",
+      "reason": null,
+      "migrated": true
     },
     "gbs-he-malta": {
       "sourceUrl": "https://gbs.edu.mt/media/mpxmxom5/gbs-malta_real-estate_campus-photography_outdoors-01-1.jpg?width=2718&height=3623&quality=75",
@@ -548,13 +548,13 @@
       "licenseUrl": "https://www.gzhsvc.edu.cn/xxgk/xyjy.htm",
       "attribution": "Guangzhou Huashang Vocational College (photographer not named)",
       "rights": "official_media_owner_accepted",
-      "sha256": null,
-      "bytes": null,
-      "contentType": null,
-      "objectPath": null,
-      "status": "failed",
-      "reason": "check_pending_library_updated",
-      "migrated": false
+      "sha256": "ddbbd2bf979b64e69faa915cd2c373712473ef62564fd3f831613133d917a1a1",
+      "bytes": 99231,
+      "contentType": "image/jpeg",
+      "objectPath": "guangzhou-huashang-vocational-college.jpg",
+      "status": "verified",
+      "reason": null,
+      "migrated": true
     },
     "hangzhou-city-university": {
       "sourceUrl": "https://english.hzcu.edu.cn/images/HZCUtushuguan.png",
@@ -570,7 +570,7 @@
       "objectPath": "hangzhou-city-university.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "hangzhou-normal-university-hznu": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fd/%E6%9D%AD%E5%B7%9E%E5%B8%88%E8%8C%83%E5%A4%A7%E5%AD%A6.jpg/960px-%E6%9D%AD%E5%B7%9E%E5%B8%88%E8%8C%83%E5%A4%A7%E5%AD%A6.jpg",
@@ -602,7 +602,7 @@
       "objectPath": "harbin-institute-of-technology-hit.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "harbin-institute-of-technology-shenzhen": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/ba/Harbin_Institute_of_Technology_%28Shenzhen%29_Old_Building_%28Bachelor%29.jpg/960px-Harbin_Institute_of_Technology_%28Shenzhen%29_Old_Building_%28Bachelor%29.jpg",
@@ -634,7 +634,7 @@
       "objectPath": "huazhong-university-of-science-and-technology-hust.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "hubei-university-of-arts-and-science": {
       "sourceUrl": "https://www.hbuas.edu.cn/__local/8/57/94/C97BD165A9989DE0A3E121BA391_76B9344F_A48FC.jpg",
@@ -650,7 +650,7 @@
       "objectPath": "hubei-university-of-arts-and-science.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "icn-business-school": {
       "sourceUrl": "https://www.icn-artem.com/wp-content/uploads/2026/03/Campus-Nancy.jpg",
@@ -682,7 +682,7 @@
       "objectPath": "inti.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "istanbul-ayd-n-university": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d5/%C4%B0stanbul_Ayd%C4%B1n_%C3%9Cniversitesi_Florya_Kamp%C3%BCs%C3%BC_Bah%C3%A7esi.jpg/960px-%C4%B0stanbul_Ayd%C4%B1n_%C3%9Cniversitesi_Florya_Kamp%C3%BCs%C3%BC_Bah%C3%A7esi.jpg",
@@ -746,7 +746,7 @@
       "objectPath": "iulm-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "jagiellonian-university": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c3/Botanika_uj_od_alei_wawelskiej.jpg/1280px-Botanika_uj_od_alei_wawelskiej.jpg",
@@ -778,7 +778,7 @@
       "objectPath": "koc-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "kozminski-university": {
       "sourceUrl": "https://www.kozminski.edu.pl/sites/leon/files/styles/baner_desktop/public/baner/kampus.jpg.webp?itok=ykH0jxCR",
@@ -954,7 +954,7 @@
       "objectPath": "nanchang-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "nanjing-university": {
       "sourceUrl": "https://nh.nju.edu.cn/en/images/26/01/23/1lnrqt8bq8/81.jpg",
@@ -970,7 +970,7 @@
       "objectPath": "nanjing-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "near-east-university": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/09/Yak%C4%B1n_Do%C4%9Fu_%C3%9Cniversitesi_Hukuk_Fak%C3%BCltesi.JPG/960px-Yak%C4%B1n_Do%C4%9Fu_%C3%9Cniversitesi_Hukuk_Fak%C3%BCltesi.JPG",
@@ -1162,7 +1162,7 @@
       "objectPath": "scuola-politecnica-di-design.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "scut": {
       "sourceUrl": "https://www.scut.edu.cn/_upload/article/images/1e/30/7b1fc261498f85ec5b4f51bf3928/70484537-bf95-405e-a4b9-7b9be51624e2.jpg",
@@ -1178,7 +1178,7 @@
       "objectPath": "scut.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shanghai-international-studies-university": {
       "sourceUrl": "https://sisutraining.shisu.edu.cn/_upload/article/images/13/f3/1f1e4d83496ea15ea2a0d5bf9594/021ef5ad-a24d-4d84-959f-02d5a3fbb73c.jpg",
@@ -1194,7 +1194,7 @@
       "objectPath": "shanghai-international-studies-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shanghai-jiao-tong-university": {
       "sourceUrl": "https://www.sjtu.edu.cn/resource/upload/202501/20250113_112126_766.png",
@@ -1210,7 +1210,7 @@
       "objectPath": "shanghai-jiao-tong-university.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shanghai-normal-university": {
       "sourceUrl": "https://cls.shnu.edu.cn/_upload/article/images/d4/59/c63bc1bc464a9b324c159cfb35c8/411b3cf6-7730-40f8-8cb1-d7e342d13d4c.jpg",
@@ -1226,7 +1226,7 @@
       "objectPath": "shanghai-normal-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shanghai-university": {
       "sourceUrl": "https://www.shu.edu.cn/images/24/04/03/1rs7a13737/8.jpg",
@@ -1242,7 +1242,7 @@
       "objectPath": "shanghai-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "shenyang-aerospace-university": {
       "sourceUrl": "https://www.sau.edu.cn/__local/7/AE/D6/8585E30E2CC0740FEA907DF3FC0_AFE4D3C5_2A087.jpg",
@@ -1258,7 +1258,7 @@
       "objectPath": "shenyang-aerospace-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "southwest-university": {
       "sourceUrl": "https://admissions.swu.edu.cn/dfiles/22419/r/cms/admissions/admissions/images/news/6374f1e30881e4c879f01c444db918d9.jpg",
@@ -1274,7 +1274,7 @@
       "objectPath": "southwest-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "southwestern-university-of-finance-and-economics": {
       "sourceUrl": "https://international.swufe.edu.cn/english/images/d31823e63018420da24ebf96b3212e21.jpg",
@@ -1290,7 +1290,7 @@
       "objectPath": "southwestern-university-of-finance-and-economics.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "sunway": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8a/Cmglee_Sunway_University_new_building.jpg/1280px-Cmglee_Sunway_University_new_building.jpg",
@@ -1354,7 +1354,7 @@
       "objectPath": "tongji-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "tongmyong-university": {
       "sourceUrl": "https://www.tu.ac.kr/_res/tongmyong/tuhome/img/main/campusVR-img.png",
@@ -1386,7 +1386,7 @@
       "objectPath": "tsinghua-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "uclan-cyprus": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c4/CampusofUCLanCyprus.jpg/960px-CampusofUCLanCyprus.jpg",
@@ -1626,7 +1626,7 @@
       "objectPath": "university-of-electronic-science-and-technology-of-china-uestc.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "university-of-florence": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a9/Rettorato_firenze%2C_aula_magna_02.JPG/960px-Rettorato_firenze%2C_aula_magna_02.JPG",
@@ -1834,7 +1834,7 @@
       "objectPath": "university-of-pavia-universita-degli-studi-di-pavia.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "university-of-perugia": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/10/Universit%C3%A0_degli_Studi_di_Perugia_-_panoramio.jpg/960px-Universit%C3%A0_degli_Studi_di_Perugia_-_panoramio.jpg",
@@ -1898,7 +1898,7 @@
       "objectPath": "university-of-science-and-technology-of-china-ustc.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "university-of-shanghai-for-science-and-technology": {
       "sourceUrl": "https://www.usst.edu.cn/_upload/article/images/6e/f7/49b9625f4b879714006ef0ff32a3/38c1835a-5d7a-4271-9f9a-cfee1723b6bf.jpg",
@@ -1914,7 +1914,7 @@
       "objectPath": "university-of-shanghai-for-science-and-technology.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "university-of-siena": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b4/University_of_Siena%2C_Faculty_of_Life_Sciences.jpg/1280px-University_of_Siena%2C_Faculty_of_Life_Sciences.jpg",
@@ -2042,7 +2042,7 @@
       "objectPath": "unnc.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "upc-east-china": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8e/%E4%B8%AD%E5%9B%BD%E7%9F%B3%E6%B2%B9%E5%A4%A7%E5%AD%A6%E9%BB%84%E5%B2%9B%E6%A0%A1%E5%8C%BA%E5%8D%97%E4%BE%A7.jpg/960px-%E4%B8%AD%E5%9B%BD%E7%9F%B3%E6%B2%B9%E5%A4%A7%E5%AD%A6%E9%BB%84%E5%B2%9B%E6%A0%A1%E5%8C%BA%E5%8D%97%E4%BE%A7.jpg",
@@ -2138,7 +2138,7 @@
       "objectPath": "wuhan-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "xi-an-international-studies-university": {
       "sourceUrl": "https://six.xisu.edu.cn/lxxwywz/images/banner318.png",
@@ -2154,7 +2154,7 @@
       "objectPath": "xi-an-international-studies-university.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "xiamen-malaysia": {
       "sourceUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/XMUM_entrance_%28211127%29.jpg/960px-XMUM_entrance_%28211127%29.jpg",
@@ -2202,7 +2202,7 @@
       "objectPath": "xjtlu.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "yeditepe-university": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/37/Yeditepe_University_26_August_Campus_%282%29_20220315.jpg/960px-Yeditepe_University_26_August_Campus_%282%29_20220315.jpg",
@@ -2234,7 +2234,7 @@
       "objectPath": "yibin-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "zhejiang-gongshang-university": {
       "sourceUrl": "https://sie.zjgsu.edu.cn/_upload/article/images/7f/56/3f865d5440749be95199ad163986/b8764650-b1bd-41f5-abe0-8235f5c4c519.jpg",
@@ -2250,7 +2250,7 @@
       "objectPath": "zhejiang-gongshang-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "zhejiang-international-studies-university": {
       "sourceUrl": "https://www.zisu.edu.cn/english/images/DSC06816.jpg",
@@ -2266,7 +2266,7 @@
       "objectPath": "zhejiang-international-studies-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "zhejiang-sci-tech-university": {
       "sourceUrl": "https://admission.zstu.edu.cn/upload/20220220/7227cbdc-dc34-461a-b2ef-703fa7580a0f.jpg",
@@ -2282,7 +2282,7 @@
       "objectPath": "zhejiang-sci-tech-university.jpg",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "zhejiang-university": {
       "sourceUrl": "https://www.zju.edu.cn/_upload/article/images/72/c9/b55bd7664bc2939c3e9a5b5b0a98/b54285f0-38e0-4a87-add9-47c59a2637aa_s.png",
@@ -2298,7 +2298,7 @@
       "objectPath": "zhejiang-university.png",
       "status": "verified",
       "reason": null,
-      "migrated": false
+      "migrated": true
     },
     "zjut": {
       "sourceUrl": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e3/20250423_Zhejiang_Gongye_Daxue.jpg/960px-20250423_Zhejiang_Gongye_Daxue.jpg",

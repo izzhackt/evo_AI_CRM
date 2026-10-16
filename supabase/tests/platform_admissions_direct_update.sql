@@ -21,8 +21,10 @@
 -- ineligible one refused); the amoCRM lead id (a binding, a repeat, a conflict
 -- that applies nothing); the note; the closure for every outcome, an already
 -- closed case, a case without a curator and the curator in the same call;
--- replay and PT409; the journal principals and request ids; that money, sales
--- and the receipts of 281 are untouched; and the posture of the new objects.
+-- replay and PT409; the journal principals and request ids; the before_state
+-- kept per call (the previous values of exactly what the call changed, never in
+-- the answer or the journal, unchanged by a replay); that money, sales and the
+-- receipts of 281 are untouched; and the posture of the new objects.
 -- Isolated synthetic SQL fixtures only.
 BEGIN;
 
@@ -443,6 +445,28 @@ SELECT pg_temp.n287_assert((SELECT count(*) = 1 FROM platform.audit_events a
 SELECT pg_temp.n287_assert(NOT EXISTS (SELECT 1 FROM platform.audit_events a WHERE a.request_id = pg_temp.n287_op('u1', 'profile')
     AND (a.after_state::TEXT ~ '70028701' OR a.before_state::TEXT ~ '70028701' OR a.after_state::TEXT ~ 'Example')),
   'u1: the journal row carries no phone or e-mail value');
+-- The previous values of exactly what u1 changed are kept for a rollback (in
+-- the backend table only): the client, the case name, the профиль and the
+-- анкета fields that existed (with their review state) or did not.
+SELECT pg_temp.n287_assert((SELECT u.before_state = jsonb_build_object(
+    'client', jsonb_build_object('display_name', 'N287 Student X', 'phone', '+996555287001', 'normalized_phone', '+996555287001',
+      'email', 'n287-x@example.invalid', 'normalized_email', 'n287-x@example.invalid'),
+    'case', jsonb_build_object('student_display_name', 'N287 Student X'),
+    'profile', jsonb_build_object('revision', 1, 'preferred_display_name', 'N287 Student X', 'date_of_birth', NULL),
+    'fields', jsonb_build_object(
+      'student_first_name', jsonb_build_object('existed', FALSE, 'value', NULL, 'review_state', NULL, 'profile_revision', NULL),
+      'student_last_name', jsonb_build_object('existed', FALSE, 'value', NULL, 'review_state', NULL, 'profile_revision', NULL),
+      'mobile_phone', jsonb_build_object('existed', TRUE, 'value', '+996555287001', 'review_state', 'needs_review', 'profile_revision', 1),
+      'student_email', jsonb_build_object('existed', TRUE, 'value', 'n287-x@example.invalid', 'review_state', 'needs_review',
+        'profile_revision', 1),
+      'date_of_birth', jsonb_build_object('existed', FALSE, 'value', NULL, 'review_state', NULL, 'profile_revision', NULL)))
+  FROM platform_private.admissions_direct_case_updates u
+  WHERE u.organization_id = pg_temp.n287_id(1) AND u.update_source = 'n287-amocrm-update' AND u.external_ref = 'u1'),
+  'u1: before_state holds the old values of exactly the changed parts');
+SELECT pg_temp.n287_assert(NOT (:'n287_u1'::JSONB ? 'before_state'),
+  'u1: the answer never carries the before_state');
+SELECT md5(u.before_state::TEXT) AS n287_u1_before_md5 FROM platform_private.admissions_direct_case_updates u
+  WHERE u.organization_id = pg_temp.n287_id(1) AND u.update_source = 'n287-amocrm-update' AND u.external_ref = 'u1' \gset
 
 -- A partial update: the last name alone, the first name stays (both are known).
 SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
@@ -468,6 +492,10 @@ SELECT pg_temp.n287_assert(:'n287_u3'::JSONB -> 'changed' = '[]'::JSONB AND :'n2
   AND NOT EXISTS (SELECT 1 FROM platform.audit_events a WHERE a.request_id IN (pg_temp.n287_op('u3', 'profile'), pg_temp.n287_op('u3', 'route'),
     pg_temp.n287_op('u3', 'note'), pg_temp.n287_op('u3b', 'profile'))),
   'u3: an absent, null or blank value (and an empty payload) changes nothing and journals nothing');
+SELECT pg_temp.n287_assert((SELECT bool_and(u.before_state = '{}'::JSONB) AND count(*) = 2
+  FROM platform_private.admissions_direct_case_updates u
+  WHERE u.organization_id = pg_temp.n287_id(1) AND u.external_ref IN ('u3', 'u3b')),
+  'u3: a call that changed nothing keeps an empty before_state');
 -- The full name wins over the parts.
 SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
 SET LOCAL ROLE service_role;
@@ -572,6 +600,16 @@ SELECT pg_temp.n287_assert((SELECT a.after_state -> 'updated_field_names'
 SELECT pg_temp.n287_assert(NOT EXISTS (SELECT 1 FROM platform.student_profile_fields f WHERE f.student_case_id = :'n287_case_x1'::UUID
     AND f.field_key IN ('program_level', 'field_major', 'english_level') AND f.review_state <> 'needs_review'),
   'u10: the written fields wait for review');
+SELECT pg_temp.n287_assert((SELECT u.before_state -> 'case' = jsonb_build_object('target_degree', 'Бакалавриат',
+      'program_direction', 'Computer Science', 'intake', NULL, 'language_assumption', NULL)
+    AND u.before_state -> 'profile' = jsonb_build_object('revision', 6, 'current_education_summary', NULL, 'language_summary', NULL)
+    AND u.before_state #> '{fields,program_level}' = jsonb_build_object('existed', TRUE, 'value', 'Бакалавриат',
+      'review_state', 'needs_review', 'profile_revision', 1)
+    AND u.before_state #> '{fields,english_level,existed}' = 'false'::JSONB
+    AND NOT (u.before_state ? 'client') AND NOT (u.before_state ? 'pipeline') AND NOT (u.before_state ? 'curator')
+  FROM platform_private.admissions_direct_case_updates u
+  WHERE u.organization_id = pg_temp.n287_id(1) AND u.external_ref = 'u10'),
+  'u10: before_state holds the old route, education and fields (and nothing of what was not changed)');
 
 -- ---------------------------------------------------------------------------
 -- 6. The board stage.
@@ -592,6 +630,10 @@ SELECT pg_temp.n287_assert((SELECT a.before_state = '{"pipeline_stage":"new","pi
     AND a.actor_principal = 'service:admissions-import' AND a.actor_profile_id = pg_temp.n287_id(201)
   FROM platform.audit_events a WHERE a.request_id = pg_temp.n287_op('u12', 'pipeline') AND a.action = 'case.pipeline.move'),
   'u12: case.pipeline.move is journaled with the before and after position');
+SELECT pg_temp.n287_assert((SELECT u.before_state = jsonb_build_object('pipeline', jsonb_build_object(
+      'pipeline_stage', 'new', 'pipeline_hidden', FALSE, 'pipeline_version', :n287_version_before))
+  FROM platform_private.admissions_direct_case_updates u WHERE u.organization_id = pg_temp.n287_id(1) AND u.external_ref = 'u12'),
+  'u12: before_state holds the previous stage and position version');
 SELECT pg_temp.n287_assert(:'n287_u13'::JSONB -> 'changed' = '[]'::JSONB
   AND (SELECT c.pipeline_version = :n287_version_before + 1 FROM platform.student_cases c WHERE c.id = :'n287_case_x1'::UUID)
   AND NOT EXISTS (SELECT 1 FROM platform.audit_events a WHERE a.request_id = pg_temp.n287_op('u13', 'pipeline')),
@@ -629,9 +671,17 @@ SELECT pg_temp.n287_assert((SELECT a.actor_principal = 'auth:' || pg_temp.n287_i
     AND a.reason = 'Дополнение дел данными amoCRM по поручению владельца'
   FROM platform.audit_events a WHERE a.request_id = pg_temp.n287_op('u14', 'assign') AND a.action = 'case.curator.set'),
   'u14: case.curator.set is written by the shared e1 as auth:<Admin> (documented), tied to the call by its request id');
+SELECT pg_temp.n287_assert((SELECT u.before_state = jsonb_build_object('curator', jsonb_build_object(
+      'current_curator_membership_id', NULL, 'state', 'pending'))
+  FROM platform_private.admissions_direct_case_updates u WHERE u.organization_id = pg_temp.n287_id(1) AND u.external_ref = 'u14'),
+  'u14: before_state holds the waiting state without a curator');
 SELECT pg_temp.n287_assert(:'n287_u15'::JSONB -> 'changed' = '[]'::JSONB
   AND NOT EXISTS (SELECT 1 FROM platform.student_case_assignment_events e WHERE e.request_id = pg_temp.n287_op('u15', 'assign')),
   'u15: the same curator is no change and no error');
+SELECT pg_temp.n287_assert((SELECT u.before_state = jsonb_build_object('curator', jsonb_build_object(
+      'current_curator_membership_id', pg_temp.n287_id(304), 'state', 'active'))
+  FROM platform_private.admissions_direct_case_updates u WHERE u.organization_id = pg_temp.n287_id(1) AND u.external_ref = 'u16'),
+  'u16: before_state holds the previous curator');
 SELECT pg_temp.n287_assert(:'n287_u16'::JSONB -> 'changed' = '["curatorMembershipId"]'::JSONB
   AND (SELECT e.event_type = 'reassigned' AND e.previous_curator_membership_id = pg_temp.n287_id(304)
       AND e.new_curator_membership_id = pg_temp.n287_id(306)
@@ -757,6 +807,10 @@ SELECT pg_temp.n287_assert((SELECT e.event_type = 'closed' AND e.previous_state 
     AND e.actor_membership_id = pg_temp.n287_id(301) AND e.reason = 'Case finished: enrolled'
   FROM platform.student_case_lifecycle_events e WHERE e.student_case_id = :'n287_case_z1'::UUID AND e.event_type = 'closed'),
   'k1: the lifecycle event is written (active -> closed)');
+SELECT pg_temp.n287_assert((SELECT u.before_state = jsonb_build_object('close', jsonb_build_object('state', 'active',
+      'closed_at', NULL, 'admissions_version', :'n287_z1_version', 'admissions_outcome', NULL))
+  FROM platform_private.admissions_direct_case_updates u WHERE u.organization_id = pg_temp.n287_id(1) AND u.external_ref = 'k1'),
+  'k1: before_state holds the state before the closing (the note it also added is not a value to restore)');
 -- The read behind «Завершено» (staff_student_case_closure_v1) joins the
 -- lifecycle event to the journal row by request id: it finds the outcome.
 SELECT pg_temp.n287_assert((SELECT audit.after_state ->> 'outcome' = 'enrolled' AND closer.display_name = 'N287 Actor 1'
@@ -823,6 +877,10 @@ SELECT pg_temp.n287_assert((:'n287_replay'::JSONB ->> 'replayed')::BOOLEAN AND (
   AND (SELECT count(*) FROM platform.audit_events) = :n287_audit_before_replay
   AND (SELECT count(*) FROM platform_private.admissions_direct_case_updates) = :n287_updates_before_replay,
   'the same reference and body return the same result, marked replayed, and write nothing (even long after the state moved on)');
+SELECT pg_temp.n287_assert(NOT (:'n287_replay'::JSONB ? 'before_state') AND NOT (:'n287_replay_close'::JSONB ? 'before_state')
+  AND (SELECT md5(u.before_state::TEXT) = :'n287_u1_before_md5' FROM platform_private.admissions_direct_case_updates u
+    WHERE u.organization_id = pg_temp.n287_id(1) AND u.update_source = 'n287-amocrm-update' AND u.external_ref = 'u1'),
+  'a replay returns no before_state and leaves the kept one exactly as the first call wrote it');
 SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
 SET LOCAL ROLE service_role;
 SELECT pg_temp.n287_assert(pg_temp.n287_try(:'n287_case_x1'::UUID, 'u1', jsonb_build_object('student', jsonb_build_object('name', 'N287 Other')))
@@ -916,6 +974,16 @@ SELECT pg_temp.n287_assert((SELECT p.prosecdef AND p.proconfig = ARRAY['search_p
   'SECURITY DEFINER with the empty search_path');
 SELECT pg_temp.n287_assert((SELECT relrowsecurity AND relforcerowsecurity FROM pg_class
   WHERE oid = 'platform_private.admissions_direct_case_updates'::regclass), 'receipts: forced RLS');
+SELECT pg_temp.n287_assert((SELECT c.is_nullable = 'NO' FROM information_schema.columns c
+    WHERE c.table_schema = 'platform_private' AND c.table_name = 'admissions_direct_case_updates' AND c.column_name = 'before_state')
+  AND pg_temp.n287_error(format('INSERT INTO platform_private.admissions_direct_case_updates (organization_id, update_source, external_ref, student_case_id, actor_membership_id, payload_md5, result, before_state) VALUES (%L, %L, %L, %L, %L, %L, %L::JSONB, NULL)',
+    pg_temp.n287_id(1), 'n287-x', 'x', :'n287_case_x1', pg_temp.n287_id(301), repeat('a', 32), '{}')) LIKE '23502:%',
+  'receipts: before_state is NOT NULL');
+SELECT pg_temp.n287_assert(NOT EXISTS (SELECT 1 FROM platform.audit_events a WHERE a.organization_id = pg_temp.n287_id(1)
+    AND a.actor_principal = 'service:admissions-import' AND a.action <> 'case.create'
+    AND (a.before_state::TEXT ~ '(Bakalavr|Бакалавриат|Computer Science|n287-x@|555287001|N287 Student X)'
+      OR a.after_state::TEXT ~ '(Бакалавриат|Computer Science|n287-x@|555287001|n287-new@|700287011)')),
+  'the journal still carries no previous or new contact, name or route value');
 SELECT pg_temp.n287_assert(pg_temp.n287_error(format('UPDATE platform_private.admissions_direct_case_updates SET external_ref = %L', 'forged')) <> 'ok'
   AND pg_temp.n287_error('DELETE FROM platform_private.admissions_direct_case_updates') <> 'ok'
   AND pg_temp.n287_error('TRUNCATE platform_private.admissions_direct_case_updates') <> 'ok'

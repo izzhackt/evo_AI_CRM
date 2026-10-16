@@ -16,8 +16,13 @@
 --
 --  a) platform_private.admissions_direct_case_updates: the idempotency receipt
 --     of one update (organization, update source, external reference) with the
---     fingerprint of what was sent and the result returned. Append-only, forced
---     RLS, no client grant (like 281's receipts).
+--     fingerprint of what was sent, the result returned and the before_state:
+--     the previous values of exactly the parts the call changed (client name,
+--     phone and e-mail, birth date, the анкета fields touched, route and
+--     education, board stage and position version, curator, the case state
+--     before the closing), kept for a rollback. Append-only, forced RLS, no
+--     client grant (like 281's receipts); the before_state is never returned by
+--     the function and never written to platform.audit_events.
 --  b) platform_private.admissions_direct_update_object: a strict key check that
 --     names the offending key (281's helper names the object).
 --  c) platform.update_admissions_direct_case_v1 (service_role only, no user JWT):
@@ -87,6 +92,8 @@ CREATE TABLE platform_private.admissions_direct_case_updates (
   actor_membership_id UUID NOT NULL,
   payload_md5 TEXT NOT NULL CHECK (payload_md5 ~ '^[0-9a-f]{32}$'),
   result JSONB NOT NULL CHECK (jsonb_typeof(result) = 'object'),
+  -- The previous values of what the call changed ('{}' when it changed nothing).
+  before_state JSONB NOT NULL CHECK (jsonb_typeof(before_state) = 'object'),
   created_at TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp(),
   PRIMARY KEY (organization_id, update_source, external_ref),
   FOREIGN KEY (organization_id, student_case_id)
@@ -107,7 +114,7 @@ CREATE TRIGGER admissions_direct_case_updates_no_truncate
   BEFORE TRUNCATE ON platform_private.admissions_direct_case_updates
   FOR EACH STATEMENT EXECUTE FUNCTION platform_private.block_append_only_mutation();
 COMMENT ON TABLE platform_private.admissions_direct_case_updates IS
-  'Migration 287: one row per accepted update_admissions_direct_case_v1 call (idempotency by organization, update source and external reference; fingerprint and result). Append-only.';
+  'Migration 287: one row per accepted update_admissions_direct_case_v1 call (idempotency by organization, update source and external reference; fingerprint, result and the before_state with the previous values of what the call changed, for a rollback). Backend only, append-only.';
 
 -- ---------------------------------------------------------------------------
 -- b) Strict keys, naming the offending key
@@ -175,7 +182,7 @@ DECLARE
   contact_conflicts JSONB := '[]'::JSONB;
   phone_blocked BOOLEAN := FALSE; email_blocked BOOLEAN := FALSE;
   other_client UUID;
-  current_first TEXT; current_last TEXT; norm_first TEXT; norm_last TEXT; current_english TEXT; current_chinese TEXT; current_value TEXT; field_found BOOLEAN;
+  current_first TEXT; current_last TEXT; norm_first TEXT; norm_last TEXT; current_english TEXT; current_chinese TEXT; current_value TEXT; current_review TEXT; current_rev BIGINT; field_found BOOLEAN;
   new_display TEXT; new_language TEXT; new_education TEXT; new_preferred TEXT; new_birth DATE;
   next_revision BIGINT; profile_changed BOOLEAN := FALSE;
   student_names TEXT[] := ARRAY[]::TEXT[]; parent_names TEXT[] := ARRAY[]::TEXT[];
@@ -191,6 +198,7 @@ DECLARE
   closed_case platform.student_cases%ROWTYPE;
   playbook_outcome TEXT;
   closed_now BOOLEAN := FALSE; already_closed BOOLEAN := FALSE;
+  before JSONB := '{}'::JSONB;
   result JSONB;
 BEGIN
   IF p_organization_id IS NULL OR p_actor_membership_id IS NULL OR p_student_case_id IS NULL THEN
@@ -450,6 +458,13 @@ BEGIN
     OR new_client_phone IS DISTINCT FROM client_row.normalized_phone
     OR new_client_email IS DISTINCT FROM client_row.normalized_email;
   IF client_changed THEN
+    before := before || jsonb_build_object('client',
+      CASE WHEN new_client_name IS DISTINCT FROM client_row.display_name
+        THEN jsonb_build_object('display_name', client_row.display_name) ELSE '{}'::JSONB END
+      || CASE WHEN new_client_phone IS DISTINCT FROM client_row.normalized_phone
+        THEN jsonb_build_object('phone', client_row.phone, 'normalized_phone', client_row.normalized_phone) ELSE '{}'::JSONB END
+      || CASE WHEN new_client_email IS DISTINCT FROM client_row.normalized_email
+        THEN jsonb_build_object('email', client_row.email, 'normalized_email', client_row.normalized_email) ELSE '{}'::JSONB END);
     -- The stored spelling of a contact changes only with the contact itself.
     UPDATE platform.clients cl SET display_name = new_client_name,
       normalized_name = platform_private.normalize_person_name(new_client_name),
@@ -474,6 +489,13 @@ BEGIN
   new_birth := profile_row.date_of_birth;
   IF birth_date IS NOT NULL AND birth_date IS DISTINCT FROM profile_row.date_of_birth THEN
     new_birth := birth_date; student_names := array_append(student_names, 'date_of_birth'::TEXT); profile_changed := TRUE;
+    SELECT f.value, f.review_state, f.profile_revision INTO current_value, current_review, current_rev
+    FROM platform.student_profile_fields f
+    WHERE f.organization_id = p_organization_id AND f.student_profile_id = profile_row.id AND f.field_key = 'date_of_birth';
+    field_found := FOUND;
+    before := jsonb_set(before, '{fields}', COALESCE(before -> 'fields', '{}'::JSONB) || jsonb_build_object('date_of_birth',
+      jsonb_build_object('existed', field_found, 'value', current_value, 'review_state', current_review,
+        'profile_revision', current_rev)));
     INSERT INTO platform.student_profile_fields (organization_id, student_case_id, student_profile_id, field_key, value,
       review_state, profile_revision)
     VALUES (p_organization_id, p_student_case_id, profile_row.id, 'date_of_birth', NULL, 'needs_review', next_revision)
@@ -526,6 +548,17 @@ BEGIN
     END IF;
   END IF;
   IF new_case_name IS DISTINCT FROM case_row.student_display_name OR cardinality(case_route_names) > 0 THEN
+    before := before || jsonb_build_object('case',
+      CASE WHEN new_case_name IS DISTINCT FROM case_row.student_display_name
+        THEN jsonb_build_object('student_display_name', case_row.student_display_name) ELSE '{}'::JSONB END
+      || CASE WHEN new_degree IS DISTINCT FROM case_row.target_degree
+        THEN jsonb_build_object('target_degree', case_row.target_degree) ELSE '{}'::JSONB END
+      || CASE WHEN new_program IS DISTINCT FROM case_row.program_direction
+        THEN jsonb_build_object('program_direction', case_row.program_direction) ELSE '{}'::JSONB END
+      || CASE WHEN new_intake IS DISTINCT FROM case_row.intake
+        THEN jsonb_build_object('intake', case_row.intake) ELSE '{}'::JSONB END
+      || CASE WHEN new_assumption IS DISTINCT FROM case_row.language_assumption
+        THEN jsonb_build_object('language_assumption', case_row.language_assumption) ELSE '{}'::JSONB END);
     UPDATE platform.student_cases c SET student_display_name = new_case_name, target_degree = new_degree,
       program_direction = new_program, intake = new_intake, language_assumption = new_assumption
     WHERE c.organization_id = p_organization_id AND c.id = p_student_case_id;
@@ -534,10 +567,14 @@ BEGIN
   -- ---- the анкета fields (student, parents, education, route) ---------------------------------
   FOR field IN SELECT f ->> 'key' AS key, f ->> 'value' AS value FROM jsonb_array_elements(profile_values) f LOOP
     IF (field.key = 'mobile_phone' AND phone_blocked) OR (field.key = 'student_email' AND email_blocked) THEN CONTINUE; END IF;
-    SELECT f.value INTO current_value FROM platform.student_profile_fields f
+    SELECT f.value, f.review_state, f.profile_revision INTO current_value, current_review, current_rev
+    FROM platform.student_profile_fields f
     WHERE f.organization_id = p_organization_id AND f.student_profile_id = profile_row.id AND f.field_key = field.key;
     field_found := FOUND;
     IF field_found AND current_value IS NOT DISTINCT FROM field.value THEN CONTINUE; END IF;
+    before := jsonb_set(before, '{fields}', COALESCE(before -> 'fields', '{}'::JSONB) || jsonb_build_object(field.key,
+      jsonb_build_object('existed', field_found, 'value', current_value, 'review_state', current_review,
+        'profile_revision', current_rev)));
     INSERT INTO platform.student_profile_fields (organization_id, student_case_id, student_profile_id, field_key, value,
       review_state, profile_revision)
     VALUES (p_organization_id, p_student_case_id, profile_row.id, field.key, field.value, 'needs_review', next_revision)
@@ -558,6 +595,15 @@ BEGIN
     END CASE;
   END LOOP;
   IF profile_changed THEN
+    before := before || jsonb_build_object('profile', jsonb_build_object('revision', profile_row.revision)
+      || CASE WHEN new_preferred IS DISTINCT FROM profile_row.preferred_display_name
+        THEN jsonb_build_object('preferred_display_name', profile_row.preferred_display_name) ELSE '{}'::JSONB END
+      || CASE WHEN new_birth IS DISTINCT FROM profile_row.date_of_birth
+        THEN jsonb_build_object('date_of_birth', profile_row.date_of_birth) ELSE '{}'::JSONB END
+      || CASE WHEN new_education IS DISTINCT FROM profile_row.current_education_summary
+        THEN jsonb_build_object('current_education_summary', profile_row.current_education_summary) ELSE '{}'::JSONB END
+      || CASE WHEN new_language IS DISTINCT FROM profile_row.language_summary
+        THEN jsonb_build_object('language_summary', profile_row.language_summary) ELSE '{}'::JSONB END);
     UPDATE platform.student_profiles p SET revision = next_revision, preferred_display_name = new_preferred,
       date_of_birth = new_birth, current_education_summary = new_education, language_summary = new_language,
       updated_by_membership_id = actor.membership_id, updated_at = clock_timestamp()
@@ -611,6 +657,8 @@ BEGIN
       OR NOT platform_private.is_eligible_staff_responsibility(p_organization_id, curator, 'curator') THEN
       RAISE EXCEPTION 'admissions_direct_invalid:curator' USING ERRCODE = '22023';
     END IF;
+    before := before || jsonb_build_object('curator', jsonb_build_object(
+      'current_curator_membership_id', case_row.current_curator_membership_id, 'state', case_row.state::TEXT));
     PERFORM platform_private.assign_student_case_curator_authorized_e1(p_organization_id, p_student_case_id, curator,
       btrim(p_reason), public.uuid_generate_v5(base_request, 'admissions-direct-update:assign'),
       actor.profile_id, actor.membership_id, actor.auth_user_id);
@@ -627,6 +675,8 @@ BEGIN
       RAISE EXCEPTION 'admissions_direct_forbidden' USING ERRCODE = '42501';
     END IF;
     stage_before := case_row.pipeline_stage; hidden_before := case_row.pipeline_hidden_at IS NOT NULL;
+    before := before || jsonb_build_object('pipeline', jsonb_build_object('pipeline_stage', case_row.pipeline_stage,
+      'pipeline_hidden', hidden_before, 'pipeline_version', case_row.pipeline_version));
     -- pipeline_stage, pipeline_hidden_at and pipeline_version sit outside the
     -- tuple 137's guard compares, so no admissions_version bump is needed; the
     -- 251 trigger raises pipeline_version on the position change.
@@ -715,6 +765,9 @@ BEGIN
             AND case_row.admissions_facts ?& ARRAY['arrivalOn', 'arrivalConfirmedBy', 'arrivalEvidence'] THEN 'arrived'
           ELSE 'cancelled' END;
       END IF;
+      before := before || jsonb_build_object('close', jsonb_build_object('state', case_row.state::TEXT,
+        'closed_at', case_row.closed_at, 'admissions_version', case_row.admissions_version::TEXT,
+        'admissions_outcome', case_row.admissions_outcome));
       UPDATE platform.student_cases c SET state = 'closed'::platform.student_case_state, closed_at = statement_timestamp(),
         admissions_outcome = CASE WHEN c.admissions_playbook_version_id IS NULL THEN c.admissions_outcome ELSE playbook_outcome END,
         admissions_version = c.admissions_version + 1
@@ -757,9 +810,9 @@ BEGIN
   IF closed_now THEN result := result || jsonb_build_object('closed', TRUE); END IF;
   IF already_closed THEN result := result || jsonb_build_object('already_closed', TRUE); END IF;
   INSERT INTO platform_private.admissions_direct_case_updates (organization_id, update_source, external_ref, student_case_id,
-    actor_membership_id, payload_md5, result)
+    actor_membership_id, payload_md5, result, before_state)
   VALUES (p_organization_id, p_update_source, ref, p_student_case_id, actor.membership_id, request_fingerprint,
-    result - 'replayed');
+    result - 'replayed', before);
   RETURN result;
 END
 $$;

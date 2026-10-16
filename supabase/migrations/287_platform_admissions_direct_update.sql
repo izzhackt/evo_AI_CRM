@@ -18,9 +18,12 @@
 --     of one update (organization, update source, external reference) with the
 --     fingerprint of what was sent, the result returned and the before_state:
 --     the previous values of exactly the parts the call changed (client name,
---     phone and e-mail, birth date, the анкета fields touched, route and
+--     phone and e-mail, birth date, the анкета fields touched as whole rows
+--     (review state, reviewer, source document and page included), route and
 --     education, board stage and position version, curator, the case state
---     before the closing), kept for a rollback. Append-only, forced RLS, no
+--     before the closing), kept so the values can be put back. The curator
+--     assignment (pending -> active) and the closing are only recorded: they
+--     are undone by the interface commands, not by writing the values back. Append-only, forced RLS, no
 --     client grant (like 281's receipts); the before_state is never returned by
 --     the function and never written to platform.audit_events.
 --  b) platform_private.admissions_direct_update_object: a strict key check that
@@ -33,7 +36,10 @@
 --     case note and, last, closes the case. One call is one transaction. A
 --     phone or e-mail that already belongs to ANOTHER client is not written and
 --     is reported as contact_conflict (no personal data in the report); the
---     other parts apply. Money (cost, tranches, payments) is not accepted: this
+--     other parts apply. The name, phone and e-mail of a client the import
+--     REUSED (281: the same e-mail and phone, shared with other subjects) are
+--     not overwritten from one case (reported as client_reused). The board
+--     stage moves a case in work (active) only, as the board does. Money (cost, tranches, payments) is not accepted: this
 --     function never touches finance.
 --  d) Journal: every change writes platform.audit_events with the principal
 --     `service:admissions-import`, the Admin actor's profile and the reason of
@@ -182,7 +188,7 @@ DECLARE
   contact_conflicts JSONB := '[]'::JSONB;
   phone_blocked BOOLEAN := FALSE; email_blocked BOOLEAN := FALSE;
   other_client UUID;
-  current_first TEXT; current_last TEXT; norm_first TEXT; norm_last TEXT; current_english TEXT; current_chinese TEXT; current_value TEXT; current_review TEXT; current_rev BIGINT; field_found BOOLEAN;
+  current_first TEXT; current_last TEXT; norm_first TEXT; norm_last TEXT; current_english TEXT; current_chinese TEXT; field_row platform.student_profile_fields%ROWTYPE; field_found BOOLEAN; client_shared BOOLEAN;
   new_display TEXT; new_language TEXT; new_education TEXT; new_preferred TEXT; new_birth DATE;
   next_revision BIGINT; profile_changed BOOLEAN := FALSE;
   student_names TEXT[] := ARRAY[]::TEXT[]; parent_names TEXT[] := ARRAY[]::TEXT[];
@@ -353,8 +359,11 @@ BEGIN
   -- ---- one call, one request: locks, replay ------------------------------------------
   base_request := public.uuid_generate_v5('6ba7b811-9dad-11d1-80b4-00c04fd430c8'::UUID,
     'evo:admissions-direct-update:' || p_organization_id::TEXT || ':' || p_update_source || ':' || ref);
-  -- The order of the case commands (246/117): the organization's case domain,
-  -- the request, then the case row.
+  -- This function takes the organization's case domain lock first, then its own
+  -- request lock, then the row locks (the order of the note path, 117). 246
+  -- takes its request lock before the domain lock, but the request lock here
+  -- is keyed by this update's source and reference, which no other command
+  -- ever holds, so the two orders cannot wait on each other in a cycle.
   PERFORM platform_private.lock_student_case_note_assignment_domain(p_organization_id);
   PERFORM platform_private.lock_p2d_request(base_request);
   request_fingerprint := md5(jsonb_build_object('studentCaseId', p_student_case_id, 'payload', p_payload,
@@ -397,12 +406,17 @@ BEGIN
   IF NOT FOUND OR client_row.lifecycle_state <> 'active' THEN
     RAISE EXCEPTION 'admissions_direct_update_client_not_active' USING ERRCODE = '55000';
   END IF;
-  IF phone_norm IS NOT NULL OR email_norm IS NOT NULL OR first_name IS NOT NULL OR last_name IS NOT NULL
-    OR explicit_name IS NOT NULL OR birth_date IS NOT NULL THEN
+  -- Every part that writes the профиль or its анкета fields (student, parents,
+  -- education, the route fields) needs profile.manage on the case.
+  IF jsonb_array_length(profile_values) > 0 OR explicit_name IS NOT NULL OR birth_date IS NOT NULL THEN
     IF NOT platform_private.staff_can_access(p_organization_id, actor.membership_id, 'profile.manage', 'student_case', p_student_case_id) THEN
       RAISE EXCEPTION 'admissions_direct_forbidden' USING ERRCODE = '42501';
     END IF;
   END IF;
+  -- 281 reuses an existing client when e-mail and phone match exactly: that
+  -- client is a person shared with other (closed) leads, so its contact data
+  -- is not overwritten from one case (reported as contact_conflict).
+  client_shared := COALESCE((receipt.receipt ->> 'client_reused')::BOOLEAN, FALSE);
 
   -- A number that already belongs to ANOTHER active client is not written;
   -- it is reported (no personal data) and the other parts still apply.
@@ -413,7 +427,8 @@ BEGIN
     ORDER BY cl.created_at, cl.id LIMIT 1;
     IF FOUND THEN
       phone_blocked := TRUE;
-      contact_conflicts := contact_conflicts || jsonb_build_array(jsonb_build_object('field', 'phone', 'other_client_id', other_client));
+      contact_conflicts := contact_conflicts || jsonb_build_array(jsonb_build_object('field', 'phone', 'reason', 'other_client',
+        'other_client_id', other_client));
     END IF;
   END IF;
   IF email_norm IS NOT NULL AND client_row.normalized_email IS DISTINCT FROM email_norm THEN
@@ -423,7 +438,8 @@ BEGIN
     ORDER BY cl.created_at, cl.id LIMIT 1;
     IF FOUND THEN
       email_blocked := TRUE;
-      contact_conflicts := contact_conflicts || jsonb_build_array(jsonb_build_object('field', 'email', 'other_client_id', other_client));
+      contact_conflicts := contact_conflicts || jsonb_build_array(jsonb_build_object('field', 'email', 'reason', 'other_client',
+        'other_client_id', other_client));
     END IF;
   END IF;
 
@@ -446,13 +462,25 @@ BEGIN
   new_client_phone := client_row.normalized_phone;
   new_client_email := client_row.normalized_email;
   IF new_display IS NOT NULL AND new_display IS DISTINCT FROM client_row.display_name THEN
-    new_client_name := new_display; student_names := array_append(student_names, 'client_display_name'::TEXT);
+    IF client_shared THEN
+      contact_conflicts := contact_conflicts || jsonb_build_array(jsonb_build_object('field', 'name', 'reason', 'client_reused'));
+    ELSE
+      new_client_name := new_display; student_names := array_append(student_names, 'client_display_name'::TEXT);
+    END IF;
   END IF;
   IF phone_norm IS NOT NULL AND NOT phone_blocked AND client_row.normalized_phone IS DISTINCT FROM phone_norm THEN
-    new_client_phone := phone_norm; student_names := array_append(student_names, 'client_phone'::TEXT);
+    IF client_shared THEN
+      contact_conflicts := contact_conflicts || jsonb_build_array(jsonb_build_object('field', 'phone', 'reason', 'client_reused'));
+    ELSE
+      new_client_phone := phone_norm; student_names := array_append(student_names, 'client_phone'::TEXT);
+    END IF;
   END IF;
   IF email_norm IS NOT NULL AND NOT email_blocked AND client_row.normalized_email IS DISTINCT FROM email_norm THEN
-    new_client_email := email_norm; student_names := array_append(student_names, 'client_email'::TEXT);
+    IF client_shared THEN
+      contact_conflicts := contact_conflicts || jsonb_build_array(jsonb_build_object('field', 'email', 'reason', 'client_reused'));
+    ELSE
+      new_client_email := email_norm; student_names := array_append(student_names, 'client_email'::TEXT);
+    END IF;
   END IF;
   client_changed := new_client_name IS DISTINCT FROM client_row.display_name
     OR new_client_phone IS DISTINCT FROM client_row.normalized_phone
@@ -489,13 +517,13 @@ BEGIN
   new_birth := profile_row.date_of_birth;
   IF birth_date IS NOT NULL AND birth_date IS DISTINCT FROM profile_row.date_of_birth THEN
     new_birth := birth_date; student_names := array_append(student_names, 'date_of_birth'::TEXT); profile_changed := TRUE;
-    SELECT f.value, f.review_state, f.profile_revision INTO current_value, current_review, current_rev
-    FROM platform.student_profile_fields f
+    SELECT * INTO field_row FROM platform.student_profile_fields f
     WHERE f.organization_id = p_organization_id AND f.student_profile_id = profile_row.id AND f.field_key = 'date_of_birth';
     field_found := FOUND;
     before := jsonb_set(before, '{fields}', COALESCE(before -> 'fields', '{}'::JSONB) || jsonb_build_object('date_of_birth',
-      jsonb_build_object('existed', field_found, 'value', current_value, 'review_state', current_review,
-        'profile_revision', current_rev)));
+      CASE WHEN field_found THEN jsonb_build_object('existed', TRUE)
+        || (to_jsonb(field_row) - 'organization_id' - 'student_case_id' - 'student_profile_id' - 'field_key')
+      ELSE jsonb_build_object('existed', FALSE) END));
     INSERT INTO platform.student_profile_fields (organization_id, student_case_id, student_profile_id, field_key, value,
       review_state, profile_revision)
     VALUES (p_organization_id, p_student_case_id, profile_row.id, 'date_of_birth', NULL, 'needs_review', next_revision)
@@ -567,14 +595,16 @@ BEGIN
   -- ---- the анкета fields (student, parents, education, route) ---------------------------------
   FOR field IN SELECT f ->> 'key' AS key, f ->> 'value' AS value FROM jsonb_array_elements(profile_values) f LOOP
     IF (field.key = 'mobile_phone' AND phone_blocked) OR (field.key = 'student_email' AND email_blocked) THEN CONTINUE; END IF;
-    SELECT f.value, f.review_state, f.profile_revision INTO current_value, current_review, current_rev
-    FROM platform.student_profile_fields f
+    SELECT * INTO field_row FROM platform.student_profile_fields f
     WHERE f.organization_id = p_organization_id AND f.student_profile_id = profile_row.id AND f.field_key = field.key;
     field_found := FOUND;
-    IF field_found AND current_value IS NOT DISTINCT FROM field.value THEN CONTINUE; END IF;
+    IF field_found AND field_row.value IS NOT DISTINCT FROM field.value THEN CONTINUE; END IF;
+    -- The whole row as it was (value, review state, reviewer, source document
+    -- and page), so it can be written back without breaking the review shape.
     before := jsonb_set(before, '{fields}', COALESCE(before -> 'fields', '{}'::JSONB) || jsonb_build_object(field.key,
-      jsonb_build_object('existed', field_found, 'value', current_value, 'review_state', current_review,
-        'profile_revision', current_rev)));
+      CASE WHEN field_found THEN jsonb_build_object('existed', TRUE)
+        || (to_jsonb(field_row) - 'organization_id' - 'student_case_id' - 'student_profile_id' - 'field_key')
+      ELSE jsonb_build_object('existed', FALSE) END));
     INSERT INTO platform.student_profile_fields (organization_id, student_case_id, student_profile_id, field_key, value,
       review_state, profile_revision)
     VALUES (p_organization_id, p_student_case_id, profile_row.id, field.key, field.value, 'needs_review', next_revision)
@@ -595,7 +625,8 @@ BEGIN
     END CASE;
   END LOOP;
   IF profile_changed THEN
-    before := before || jsonb_build_object('profile', jsonb_build_object('revision', profile_row.revision)
+    before := before || jsonb_build_object('profile', jsonb_build_object('revision', profile_row.revision,
+        'updated_by_membership_id', profile_row.updated_by_membership_id, 'updated_at', profile_row.updated_at)
       || CASE WHEN new_preferred IS DISTINCT FROM profile_row.preferred_display_name
         THEN jsonb_build_object('preferred_display_name', profile_row.preferred_display_name) ELSE '{}'::JSONB END
       || CASE WHEN new_birth IS DISTINCT FROM profile_row.date_of_birth
@@ -668,8 +699,12 @@ BEGIN
 
   -- ---- board stage (move_case_pipeline_v2 without the user authority) ---------------------------------
   IF stage IS NOT NULL AND stage IS DISTINCT FROM case_row.pipeline_stage THEN
-    IF case_row.state NOT IN ('pending', 'active') THEN
+    -- The board works with cases in work only (187, 251): a closed case is
+    -- refused as closed, a case still waiting for a curator as not active.
+    IF case_row.state = 'closed' THEN
       RAISE EXCEPTION 'admissions_direct_update_case_closed' USING ERRCODE = '55000';
+    ELSIF case_row.state <> 'active' THEN
+      RAISE EXCEPTION 'admissions_direct_update_case_not_active' USING ERRCODE = '55000';
     END IF;
     IF NOT platform_private.staff_can_access(p_organization_id, actor.membership_id, 'case.update.append', 'student_case', p_student_case_id) THEN
       RAISE EXCEPTION 'admissions_direct_forbidden' USING ERRCODE = '42501';

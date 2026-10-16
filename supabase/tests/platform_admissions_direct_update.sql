@@ -25,6 +25,19 @@
 -- kept per call (the previous values of exactly what the call changed, never in
 -- the answer or the journal, unchanged by a replay); that money, sales and the
 -- receipts of 281 are untouched; and the posture of the new objects.
+-- Review round 1 (PR #1213), each failing before its fix:
+--  P1 the previous values of a changed анкета field are the WHOLE row (review
+--     state, reviewer, source document and page): after overwriting a confirmed,
+--     document-backed field it is written back without a CHECK error;
+--  P2 a phone another client stores as 0…, 996… or 9 digits is a conflict;
+--  P3 a second organization: a foreign actor, case or client is refused, and a
+--     client of another organization is no conflict;
+--  P4 the function takes the case-domain, request, contact and amoCRM
+--     identity advisory locks (pg_locks of the calling transaction);
+--  P5 the board stage moves only a case in work (active): a waiting case is
+--     refused as not active;
+--  P6 a client reused by 281 (exact e-mail and phone) is not renamed or
+--     re-contacted from one case: reported as client_reused, the rest applies.
 -- Isolated synthetic SQL fixtures only.
 BEGIN;
 
@@ -67,7 +80,17 @@ $$;
 CREATE FUNCTION pg_temp.n287_op(p_ref TEXT, p_op TEXT) RETURNS UUID LANGUAGE SQL IMMUTABLE AS $$
   SELECT public.uuid_generate_v5(pg_temp.n287_base(p_ref), 'admissions-direct-update:' || p_op)
 $$;
+-- Does THIS transaction hold the advisory lock taken with this key text? (the
+-- locks of a transaction live until it ends, so a call's locks can be read
+-- from pg_locks right after it).
+CREATE FUNCTION pg_temp.n287_holds(p_key TEXT) RETURNS BOOLEAN LANGUAGE SQL AS $$
+  SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_locks l
+    WHERE l.locktype = 'advisory' AND l.pid = pg_catalog.pg_backend_pid() AND l.granted AND l.objsubid = 1
+      AND l.classid::BIGINT = ((hashtextextended(p_key, 0) >> 32) & 4294967295)
+      AND l.objid::BIGINT = (hashtextextended(p_key, 0) & 4294967295))
+$$;
 GRANT EXECUTE ON FUNCTION pg_temp.n287_id(INTEGER), pg_temp.n287_assert(BOOLEAN, TEXT), pg_temp.n287_error(TEXT),
+  pg_temp.n287_holds(TEXT),
   pg_temp.n287_call(UUID, TEXT, JSONB, INTEGER), pg_temp.n287_try(UUID, TEXT, JSONB, INTEGER),
   pg_temp.n287_import(TEXT, JSONB), pg_temp.n287_base(TEXT), pg_temp.n287_op(TEXT, TEXT)
   TO authenticated, anon, service_role;
@@ -173,6 +196,25 @@ SELECT claims AS n287_a FROM n287_actors WHERE n = 4 \gset
 -- Fixture cases: the real import (service path), one case made by the staff
 -- form (not an import), and clients that already hold a phone or an e-mail.
 -- ---------------------------------------------------------------------------
+-- A client the import will REUSE (281: the same e-mail and phone), for P6.
+SELECT platform_private.create_or_link_client(pg_temp.n287_id(1), 'N287 Shared Person', 'n287-shared@example.invalid',
+  '+996 555 287 800', 'n287-fixture', 'client', 'shared-1', 'staff_recorded', statement_timestamp()) AS n287_shared_client \gset
+-- A SECOND organization with its own Admin, for P3.
+INSERT INTO platform.organizations(id, name) VALUES (pg_temp.n287_id(2), 'N287 Second organization');
+INSERT INTO auth.users(id, email, raw_user_meta_data) VALUES (pg_temp.n287_id(110), 'n287-org2-admin@example.invalid', '{}'::JSONB);
+INSERT INTO platform.profiles(id, auth_user_id, display_name, status, access_version)
+  VALUES (pg_temp.n287_id(210), pg_temp.n287_id(110), 'N287 Org2 Admin', 'active', 1);
+INSERT INTO platform.organization_memberships(id, organization_id, profile_id, status, "current_role", current_bundle_id)
+  VALUES (pg_temp.n287_id(310), pg_temp.n287_id(2), pg_temp.n287_id(210), 'active', 'admin',
+    (SELECT id FROM platform.role_bundle_versions WHERE role = 'admin' AND status = 'published' ORDER BY version DESC LIMIT 1));
+UPDATE platform.organization_memberships SET is_system_admin = TRUE WHERE id = pg_temp.n287_id(310);
+INSERT INTO platform.record_scopes(id, organization_id, scope_kind, scope_key, scope_version)
+  VALUES (pg_temp.n287_id(402), pg_temp.n287_id(2), 'organization', pg_temp.n287_id(2), 1);
+INSERT INTO platform.membership_scope_assignments(organization_id, membership_id, scope_id, scope_version,
+  assignment_version, granted, actor_kind, reason, request_id)
+  VALUES (pg_temp.n287_id(2), pg_temp.n287_id(310), pg_temp.n287_id(402), 1, 1, TRUE, 'system',
+    'N287 synthetic organization scope', pg_temp.n287_id(602));
+
 SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
 SET LOCAL ROLE service_role;
 -- X1: the main case (curator A, stage new, a phone and an e-mail).
@@ -203,6 +245,20 @@ SELECT pg_temp.n287_import('m1', jsonb_build_object('student', jsonb_build_objec
   'route', jsonb_build_object('country', 'CN'), 'curatorMembershipId', pg_temp.n287_id(304)::TEXT, 'pipelineStage', 'documents',
   'money', jsonb_build_object('cost', jsonb_build_object('amountMinor', 150000, 'currency', 'USD'), 'signedOn', '2026-09-01',
     'payments', jsonb_build_array(jsonb_build_object('amountMinor', 50000, 'currency', 'USD', 'paidOn', '2026-09-05'))))) AS n287_m1 \gset
+-- L1: the case of the lock proof; C1: confirmed, document-backed анкета fields;
+-- R1: the case whose client the import reused; O2: a case of the second organization.
+SELECT pg_temp.n287_import('l1', jsonb_build_object('student', jsonb_build_object('name', 'N287 Lock Case'),
+  'route', jsonb_build_object('country', 'CN'), 'curatorMembershipId', pg_temp.n287_id(304)::TEXT)) AS n287_l1 \gset
+SELECT pg_temp.n287_import('c1', jsonb_build_object('student', jsonb_build_object('name', 'N287 Confirmed Case',
+  'phone', '+996 555 287 601', 'email', 'n287-confirmed@example.invalid', 'birthDate', '2007-07-07'),
+  'route', jsonb_build_object('country', 'MY'), 'curatorMembershipId', pg_temp.n287_id(306)::TEXT)) AS n287_c1 \gset
+SELECT pg_temp.n287_import('r1', jsonb_build_object('student', jsonb_build_object('name', 'N287 Reused Student',
+  'phone', '+996 555 287 800', 'email', 'n287-shared@example.invalid'),
+  'route', jsonb_build_object('country', 'CN'), 'curatorMembershipId', pg_temp.n287_id(304)::TEXT)) AS n287_r1 \gset
+SELECT platform.import_admissions_student_case_v1(pg_temp.n287_id(2), pg_temp.n287_id(310), 'n287-amocrm', 'o2',
+  jsonb_build_object('student', jsonb_build_object('name', 'N287 Org2 Student', 'phone', '+996 555 287 700',
+    'email', 'n287-org2@example.invalid'), 'route', jsonb_build_object('country', 'CN')),
+  'Импорт клиентов из amoCRM по поручению владельца') AS n287_o2 \gset
 RESET ROLE;
 SELECT :'n287_x1'::JSONB ->> 'student_case_id' AS n287_case_x1, :'n287_x1'::JSONB ->> 'client_id' AS n287_client_x1,
   :'n287_x1'::JSONB ->> 'lead_id' AS n287_lead_x1 \gset
@@ -215,6 +271,13 @@ SELECT :'n287_z3'::JSONB ->> 'student_case_id' AS n287_case_z3 \gset
 SELECT :'n287_z4'::JSONB ->> 'student_case_id' AS n287_case_z4 \gset
 SELECT :'n287_v1'::JSONB ->> 'student_case_id' AS n287_case_v1, :'n287_v1'::JSONB ->> 'lead_id' AS n287_lead_v1 \gset
 SELECT :'n287_m1'::JSONB ->> 'student_case_id' AS n287_case_m1 \gset
+SELECT :'n287_l1'::JSONB ->> 'student_case_id' AS n287_case_l1 \gset
+SELECT :'n287_c1'::JSONB ->> 'student_case_id' AS n287_case_c1 \gset
+SELECT :'n287_r1'::JSONB ->> 'student_case_id' AS n287_case_r1, :'n287_r1'::JSONB ->> 'client_id' AS n287_client_r1 \gset
+SELECT :'n287_o2'::JSONB ->> 'student_case_id' AS n287_case_o2, :'n287_o2'::JSONB ->> 'client_id' AS n287_client_o2 \gset
+SELECT pg_temp.n287_assert((:'n287_r1'::JSONB ->> 'client_reused')::BOOLEAN AND :'n287_client_r1' = :'n287_shared_client'
+  AND :'n287_o2'::JSONB ->> 'status' = 'created' AND :'n287_o2'::JSONB ->> 'organization_id' = pg_temp.n287_id(2)::TEXT,
+  'fixture: the import reused the shared client; the second organization has its own imported case');
 SELECT pg_temp.n287_assert((SELECT bool_and(c.state = 'active') FROM platform.student_cases c
       WHERE c.id IN (:'n287_case_x1'::UUID, :'n287_case_z1'::UUID, :'n287_case_v1'::UUID, :'n287_case_m1'::UUID))
   AND (SELECT bool_and(c.state = 'pending') FROM platform.student_cases c
@@ -240,6 +303,16 @@ SELECT platform_private.create_or_link_client(pg_temp.n287_id(1), 'N287 Email Ho
   NULL, 'n287-fixture', 'client', 'holder-2', 'staff_recorded', statement_timestamp()) AS n287_mail_holder \gset
 SELECT platform_private.create_or_link_client(pg_temp.n287_id(1), 'N287 Amo Client', NULL, '+996 555 287 998',
   'amocrm', 'lead', '4000003', 'imported', statement_timestamp()) AS n287_amo_client \gset
+-- Clients of sales and the website keep the number as typed: 0…, 996…, 9 digits.
+SELECT platform_private.create_or_link_client(pg_temp.n287_id(1), 'N287 Local Holder', NULL, '0555 287 997',
+  'n287-fixture', 'client', 'holder-local', 'staff_recorded', statement_timestamp()) AS n287_holder_local \gset
+SELECT platform_private.create_or_link_client(pg_temp.n287_id(1), 'N287 Intl Holder', NULL, '996 555 287 996',
+  'n287-fixture', 'client', 'holder-intl', 'staff_recorded', statement_timestamp()) AS n287_holder_intl \gset
+SELECT platform_private.create_or_link_client(pg_temp.n287_id(1), 'N287 Bare Holder', NULL, '555 287 995',
+  'n287-fixture', 'client', 'holder-bare', 'staff_recorded', statement_timestamp()) AS n287_holder_bare \gset
+SELECT pg_temp.n287_assert((SELECT array_agg(c.normalized_phone ORDER BY c.display_name) FROM platform.clients c
+    WHERE c.id IN (:'n287_holder_local'::UUID, :'n287_holder_intl'::UUID, :'n287_holder_bare'::UUID))
+  = ARRAY['555287995', '996555287996', '0555287997'], 'fixture: the holders keep their numbers as typed');
 
 CREATE TEMP TABLE n287_before AS SELECT
   (SELECT count(*) FROM platform_private.sales_register WHERE organization_id = pg_temp.n287_id(1)) AS register_rows,
@@ -309,10 +382,31 @@ SELECT pg_temp.n287_assert(pg_temp.n287_try(pg_temp.n287_id(777), 'a11', '{"note
   = '42501:admissions_direct_update_not_imported_case', 'a case that does not exist is not touched');
 SELECT pg_temp.n287_assert(pg_temp.n287_try(pg_temp.n287_id(1), 'a12', '{"note":"x"}'::JSONB)
   = '42501:admissions_direct_update_not_imported_case', 'an id that is no case of the organization is not touched');
+-- P3: a second organization. The case of the other organization, an actor of
+-- the other organization and an organization the actor does not belong to are
+-- refused; only the matching triple works.
+SELECT pg_temp.n287_assert(pg_temp.n287_try(:'n287_case_o2'::UUID, 'a13', '{"note":"N287 foreign"}'::JSONB)
+    = '42501:admissions_direct_update_not_imported_case'
+  AND pg_temp.n287_error(format('SELECT platform.update_admissions_direct_case_v1(%L, %L, %L, %L, %L, %L::JSONB, %L)',
+    pg_temp.n287_id(2), pg_temp.n287_id(301), :'n287_case_o2', 'n287-amocrm-update', 'a14', '{"note":"N287 foreign"}', 'N287'))
+    = '42501:admissions_direct_forbidden'
+  AND pg_temp.n287_error(format('SELECT platform.update_admissions_direct_case_v1(%L, %L, %L, %L, %L, %L::JSONB, %L)',
+    pg_temp.n287_id(1), pg_temp.n287_id(310), :'n287_case_x1', 'n287-amocrm-update', 'a15', '{"note":"N287 foreign"}', 'N287'))
+    = '42501:admissions_direct_forbidden'
+  AND pg_temp.n287_error(format('SELECT platform.update_admissions_direct_case_v1(%L, %L, %L, %L, %L, %L::JSONB, %L)',
+    pg_temp.n287_id(2), pg_temp.n287_id(310), :'n287_case_x1', 'n287-amocrm-update', 'a16', '{"note":"N287 foreign"}', 'N287'))
+    = '42501:admissions_direct_update_not_imported_case',
+  'P3: a foreign case, a foreign actor and a foreign organization are refused');
+SELECT platform.update_admissions_direct_case_v1(pg_temp.n287_id(2), pg_temp.n287_id(310), :'n287_case_o2'::UUID,
+  'n287-amocrm-update', 'a17', '{"note":"N287 org2 note"}'::JSONB, 'N287') AS n287_a17 \gset
 RESET ROLE;
-SELECT pg_temp.n287_assert(NOT EXISTS (SELECT 1 FROM platform_private.admissions_direct_case_updates)
+SELECT pg_temp.n287_assert(NOT EXISTS (SELECT 1 FROM platform_private.admissions_direct_case_updates
+      WHERE organization_id = pg_temp.n287_id(1))
   AND NOT EXISTS (SELECT 1 FROM platform.case_notes WHERE student_case_id IN (:'n287_case_x1'::UUID, :'n287_case_form'::UUID)),
   'the refused calls wrote nothing');
+SELECT pg_temp.n287_assert(:'n287_a17'::JSONB -> 'changed' = '["note"]'::JSONB
+  AND EXISTS (SELECT 1 FROM platform.case_notes n WHERE n.organization_id = pg_temp.n287_id(2) AND n.body = 'N287 org2 note'),
+  'P3: the second organization''s own Admin updates the second organization''s own case');
 
 -- ---------------------------------------------------------------------------
 -- 2. The strict payload: every refusal names its key; nothing is written.
@@ -386,16 +480,51 @@ SELECT pg_temp.n287_assert(pg_temp.n287_try(:'n287_case_x1'::UUID, 'd1', jsonb_b
   'the note limit, a non-object payload, the source label, the reference and the reason are validated');
 RESET ROLE;
 SELECT pg_temp.n287_assert((SELECT count(*) FROM platform.audit_events) = (SELECT audit_rows FROM n287_audit_mark)
-  AND NOT EXISTS (SELECT 1 FROM platform_private.admissions_direct_case_updates)
+  AND NOT EXISTS (SELECT 1 FROM platform_private.admissions_direct_case_updates WHERE organization_id = pg_temp.n287_id(1))
   AND (SELECT c.pipeline_stage = 'new' AND c.student_display_name = 'N287 Student X' FROM platform.student_cases c
     WHERE c.id = :'n287_case_x1'::UUID),
   'the refused payloads wrote nothing (no audit, no receipt, the case unchanged)');
+
+-- ---------------------------------------------------------------------------
+-- 2b. P4 The locks of one call. A transaction keeps its advisory locks until it
+-- ends, so what a call took is read from pg_locks right after it. Before this
+-- first successful call the transaction holds none of them (the refused calls
+-- above rolled their locks back with their savepoints).
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.n287_assert(NOT pg_temp.n287_holds('platform:student-case-note-assignment:organization:' || pg_temp.n287_id(1)::TEXT)
+  AND NOT pg_temp.n287_holds('evo:p2d:request:' || pg_temp.n287_base('lk1')::TEXT)
+  AND NOT pg_temp.n287_holds('manual-lead-contact:' || pg_temp.n287_id(1)::TEXT || ':+996700287555')
+  AND NOT pg_temp.n287_holds('manual-lead-contact:' || pg_temp.n287_id(1)::TEXT || ':n287-lock@example.invalid')
+  AND NOT pg_temp.n287_holds(pg_temp.n287_id(1)::TEXT || E'\x1f' || 'amocrm' || E'\x1f' || 'lead' || E'\x1f' || '4000020'),
+  'P4 fixture: none of the call''s locks is held before it');
+SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
+SET LOCAL ROLE service_role;
+SELECT pg_temp.n287_call(:'n287_case_l1'::UUID, 'lk1', jsonb_build_object('student', jsonb_build_object(
+  'phone', '+996 700 287 555', 'email', 'N287-Lock@Example.INVALID'), 'amoLeadId', '4000020')) AS n287_lk1 \gset
+RESET ROLE;
+SELECT pg_temp.n287_assert(:'n287_lk1'::JSONB -> 'changed' = '["student","amoLeadId"]'::JSONB,
+  'P4: the lock call changed the contacts and bound the amoCRM id');
+SELECT pg_temp.n287_assert(
+  pg_temp.n287_holds('platform:student-case-note-assignment:organization:' || pg_temp.n287_id(1)::TEXT),
+  'P4: the call takes the organization''s case-domain lock');
+SELECT pg_temp.n287_assert(pg_temp.n287_holds('evo:p2d:request:' || pg_temp.n287_base('lk1')::TEXT),
+  'P4: the call takes the request lock of its (source, reference)');
+SELECT pg_temp.n287_assert((SELECT bool_and(pg_temp.n287_holds('manual-lead-contact:' || pg_temp.n287_id(1)::TEXT || ':' || k))
+    AND count(*) = 8
+  FROM unnest(platform_private.admissions_direct_phone_keys('+996700287555') || ARRAY['n287-lock@example.invalid']) k),
+  'P4: the call takes the contact lock of every spelling of the phone and of the e-mail (the 281 / 143 keys)');
+SELECT pg_temp.n287_assert(pg_temp.n287_holds(pg_temp.n287_id(1)::TEXT || E'\x1f' || 'amocrm' || E'\x1f' || 'lead' || E'\x1f' || '4000020'),
+  'P4: the call takes the external identity lock of the amoCRM id');
 
 -- ---------------------------------------------------------------------------
 -- 3. Overwrite: name, phone, e-mail, birth date.
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.n287_assert((SELECT p.revision = 1 AND p.preferred_display_name = 'N287 Student X'
   FROM platform.student_profiles p WHERE p.student_case_id = :'n287_case_x1'::UUID), 'fixture: the профиль is at revision 1');
+CREATE TEMP TABLE n287_snap AS SELECT
+  (SELECT jsonb_object_agg(f.field_key, to_jsonb(f) - 'organization_id' - 'student_case_id' - 'student_profile_id' - 'field_key')
+    FROM platform.student_profile_fields f WHERE f.student_case_id = :'n287_case_x1'::UUID) AS fields,
+  (SELECT to_jsonb(p) FROM platform.student_profiles p WHERE p.student_case_id = :'n287_case_x1'::UUID) AS profile;
 SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
 SET LOCAL ROLE service_role;
 SELECT pg_temp.n287_call(:'n287_case_x1'::UUID, 'u1', jsonb_build_object('student', jsonb_build_object(
@@ -445,24 +574,31 @@ SELECT pg_temp.n287_assert((SELECT count(*) = 1 FROM platform.audit_events a
 SELECT pg_temp.n287_assert(NOT EXISTS (SELECT 1 FROM platform.audit_events a WHERE a.request_id = pg_temp.n287_op('u1', 'profile')
     AND (a.after_state::TEXT ~ '70028701' OR a.before_state::TEXT ~ '70028701' OR a.after_state::TEXT ~ 'Example')),
   'u1: the journal row carries no phone or e-mail value');
--- The previous values of exactly what u1 changed are kept for a rollback (in
--- the backend table only): the client, the case name, the профиль and the
--- анкета fields that existed (with their review state) or did not.
+-- The previous values of exactly what u1 changed are kept (in the backend
+-- table only): the client, the case name, the профиль, and every анкета field
+-- as the WHOLE row it was (or "did not exist").
 SELECT pg_temp.n287_assert((SELECT u.before_state = jsonb_build_object(
     'client', jsonb_build_object('display_name', 'N287 Student X', 'phone', '+996555287001', 'normalized_phone', '+996555287001',
       'email', 'n287-x@example.invalid', 'normalized_email', 'n287-x@example.invalid'),
     'case', jsonb_build_object('student_display_name', 'N287 Student X'),
-    'profile', jsonb_build_object('revision', 1, 'preferred_display_name', 'N287 Student X', 'date_of_birth', NULL),
+    'profile', jsonb_build_object('revision', 1, 'updated_by_membership_id', s.profile -> 'updated_by_membership_id',
+      'updated_at', s.profile -> 'updated_at', 'preferred_display_name', 'N287 Student X', 'date_of_birth', NULL),
     'fields', jsonb_build_object(
-      'student_first_name', jsonb_build_object('existed', FALSE, 'value', NULL, 'review_state', NULL, 'profile_revision', NULL),
-      'student_last_name', jsonb_build_object('existed', FALSE, 'value', NULL, 'review_state', NULL, 'profile_revision', NULL),
-      'mobile_phone', jsonb_build_object('existed', TRUE, 'value', '+996555287001', 'review_state', 'needs_review', 'profile_revision', 1),
-      'student_email', jsonb_build_object('existed', TRUE, 'value', 'n287-x@example.invalid', 'review_state', 'needs_review',
-        'profile_revision', 1),
-      'date_of_birth', jsonb_build_object('existed', FALSE, 'value', NULL, 'review_state', NULL, 'profile_revision', NULL)))
-  FROM platform_private.admissions_direct_case_updates u
+      'student_first_name', jsonb_build_object('existed', FALSE),
+      'student_last_name', jsonb_build_object('existed', FALSE),
+      'mobile_phone', jsonb_build_object('existed', TRUE) || (s.fields -> 'mobile_phone'),
+      'student_email', jsonb_build_object('existed', TRUE) || (s.fields -> 'student_email'),
+      'date_of_birth', jsonb_build_object('existed', FALSE)))
+  FROM platform_private.admissions_direct_case_updates u, n287_snap s
   WHERE u.organization_id = pg_temp.n287_id(1) AND u.update_source = 'n287-amocrm-update' AND u.external_ref = 'u1'),
-  'u1: before_state holds the old values of exactly the changed parts');
+  'u1: before_state holds the old values of exactly the changed parts, the fields as whole rows');
+SELECT pg_temp.n287_assert((SELECT u.before_state #> '{fields,mobile_phone}' ?& ARRAY['existed', 'value', 'review_state',
+      'profile_revision', 'reviewed_at', 'reviewed_by_membership_id', 'source_document_version_id', 'source_document_slot_id',
+      'source_page', 'updated_at']
+    AND NOT (u.before_state #> '{fields,mobile_phone}' ?| ARRAY['organization_id', 'student_case_id', 'student_profile_id', 'field_key'])
+  FROM platform_private.admissions_direct_case_updates u
+  WHERE u.organization_id = pg_temp.n287_id(1) AND u.external_ref = 'u1'),
+  'u1: a field snapshot carries every column that can be restored (and none of the identity columns)');
 SELECT pg_temp.n287_assert(NOT (:'n287_u1'::JSONB ? 'before_state'),
   'u1: the answer never carries the before_state');
 SELECT md5(u.before_state::TEXT) AS n287_u1_before_md5 FROM platform_private.admissions_direct_case_updates u
@@ -523,7 +659,7 @@ SELECT pg_temp.n287_call(:'n287_case_x1'::UUID, 'u7', jsonb_build_object('studen
   'phone', '996555287999', 'email', 'n287-holder@example.invalid'))) AS n287_u7 \gset
 RESET ROLE;
 SELECT pg_temp.n287_assert(:'n287_u5'::JSONB -> 'contact_conflict'
-    = jsonb_build_array(jsonb_build_object('field', 'phone', 'other_client_id', :'n287_holder'::UUID))
+    = jsonb_build_array(jsonb_build_object('field', 'phone', 'reason', 'other_client', 'other_client_id', :'n287_holder'::UUID))
   AND :'n287_u5'::JSONB -> 'changed' = '["student"]'::JSONB
   AND (SELECT cl.normalized_phone = '+996700287011' FROM platform.clients cl WHERE cl.id = :'n287_client_x1'::UUID)
   AND (SELECT f.value = '+996700287011' FROM platform.student_profile_fields f
@@ -531,7 +667,7 @@ SELECT pg_temp.n287_assert(:'n287_u5'::JSONB -> 'contact_conflict'
   AND (SELECT p.date_of_birth = DATE '2007-03-05' FROM platform.student_profiles p WHERE p.student_case_id = :'n287_case_x1'::UUID),
   'u5: another client''s phone (in another spelling) is reported, not written; the birth date still applies');
 SELECT pg_temp.n287_assert(:'n287_u6'::JSONB -> 'contact_conflict'
-    = jsonb_build_array(jsonb_build_object('field', 'email', 'other_client_id', :'n287_mail_holder'::UUID))
+    = jsonb_build_array(jsonb_build_object('field', 'email', 'reason', 'other_client', 'other_client_id', :'n287_mail_holder'::UUID))
   AND :'n287_u6'::JSONB -> 'changed' = '[]'::JSONB
   AND (SELECT cl.normalized_email = 'n287-new@example.invalid' FROM platform.clients cl WHERE cl.id = :'n287_client_x1'::UUID)
   AND (SELECT f.value = 'n287-new@example.invalid' FROM platform.student_profile_fields f
@@ -547,6 +683,114 @@ SELECT pg_temp.n287_assert(position('287999' IN :'n287_u5'::TEXT || :'n287_u6'::
 SELECT pg_temp.n287_assert((SELECT count(*) = 1 FROM platform.clients WHERE normalized_phone = '+996555287999' OR normalized_phone = '0555287999'
     OR normalized_phone = '996555287999'),
   'u5-u7: the other client keeps its number; no client took it');
+
+-- P2: the other client stores the number as typed by sales or the website
+-- (0…, 996…, 9 digits): found through every spelling of the new number.
+SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
+SET LOCAL ROLE service_role;
+SELECT pg_temp.n287_call(:'n287_case_x1'::UUID, 'u7a', '{"student":{"phone":"+996 555 287 997"}}'::JSONB) AS n287_u7a \gset
+SELECT pg_temp.n287_call(:'n287_case_x1'::UUID, 'u7b', '{"student":{"phone":"0555 287 996"}}'::JSONB) AS n287_u7b \gset
+SELECT pg_temp.n287_call(:'n287_case_x1'::UUID, 'u7c', '{"student":{"phone":"996 555 287 995"}}'::JSONB) AS n287_u7c \gset
+RESET ROLE;
+SELECT pg_temp.n287_assert(
+  :'n287_u7a'::JSONB -> 'contact_conflict' = jsonb_build_array(jsonb_build_object('field', 'phone', 'reason', 'other_client',
+    'other_client_id', :'n287_holder_local'::UUID))
+  AND :'n287_u7b'::JSONB -> 'contact_conflict' = jsonb_build_array(jsonb_build_object('field', 'phone', 'reason', 'other_client',
+    'other_client_id', :'n287_holder_intl'::UUID))
+  AND :'n287_u7c'::JSONB -> 'contact_conflict' = jsonb_build_array(jsonb_build_object('field', 'phone', 'reason', 'other_client',
+    'other_client_id', :'n287_holder_bare'::UUID))
+  AND :'n287_u7a'::JSONB -> 'changed' = '[]'::JSONB AND :'n287_u7b'::JSONB -> 'changed' = '[]'::JSONB
+  AND :'n287_u7c'::JSONB -> 'changed' = '[]'::JSONB
+  AND (SELECT cl.normalized_phone = '+996700287011' FROM platform.clients cl WHERE cl.id = :'n287_client_x1'::UUID),
+  'P2: a number held as 0…, 996… or 9 digits by another client is a conflict whatever the spelling sent');
+
+-- P3: a client of ANOTHER organization is no conflict.
+SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
+SET LOCAL ROLE service_role;
+SELECT pg_temp.n287_call(:'n287_case_v1'::UUID, 'u7d', '{"student":{"phone":"+996 555 287 700","email":"n287-org2@example.invalid"}}'::JSONB) AS n287_u7d \gset
+RESET ROLE;
+SELECT pg_temp.n287_assert(:'n287_u7d'::JSONB -> 'changed' = '["student"]'::JSONB AND NOT (:'n287_u7d'::JSONB ? 'contact_conflict')
+  AND (SELECT cl.normalized_phone = '+996555287700' AND cl.normalized_email = 'n287-org2@example.invalid'
+    FROM platform.clients cl WHERE cl.id = (:'n287_v1'::JSONB ->> 'client_id')::UUID)
+  AND (SELECT cl.normalized_phone = '+996555287700' FROM platform.clients cl WHERE cl.id = :'n287_client_o2'::UUID),
+  'P3: the number and e-mail of a client of the other organization are no conflict (each organization keeps its own)');
+
+-- P6: the import reused an existing client (exact e-mail and phone): that client
+-- is shared with other subjects, so it is neither renamed nor given other
+-- contacts from one case; the case itself and the other parts still apply.
+SELECT jsonb_build_object('display_name', cl.display_name, 'phone', cl.phone, 'normalized_phone', cl.normalized_phone,
+  'email', cl.email, 'normalized_email', cl.normalized_email) AS n287_shared_before
+FROM platform.clients cl WHERE cl.id = :'n287_shared_client'::UUID \gset
+SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
+SET LOCAL ROLE service_role;
+SELECT pg_temp.n287_call(:'n287_case_r1'::UUID, 'rc1', jsonb_build_object('student', jsonb_build_object(
+  'name', 'N287 Reused Renamed', 'phone', '+996 700 287 801', 'email', 'n287-shared-new@example.invalid',
+  'birthDate', '2008-01-01'), 'pipelineStage', 'visa')) AS n287_rc1 \gset
+RESET ROLE;
+SELECT pg_temp.n287_assert(:'n287_rc1'::JSONB -> 'changed' = '["student","pipelineStage"]'::JSONB
+  AND :'n287_rc1'::JSONB -> 'contact_conflict' = jsonb_build_array(
+    jsonb_build_object('field', 'name', 'reason', 'client_reused'),
+    jsonb_build_object('field', 'phone', 'reason', 'client_reused'),
+    jsonb_build_object('field', 'email', 'reason', 'client_reused'))
+  AND (SELECT jsonb_build_object('display_name', cl.display_name, 'phone', cl.phone, 'normalized_phone', cl.normalized_phone,
+      'email', cl.email, 'normalized_email', cl.normalized_email) = :'n287_shared_before'::JSONB
+    FROM platform.clients cl WHERE cl.id = :'n287_shared_client'::UUID),
+  'P6: a reused client keeps its name, phone and e-mail; the answer says client_reused for each');
+SELECT pg_temp.n287_assert((SELECT c.student_display_name = 'N287 Reused Renamed' AND c.pipeline_stage = 'visa'
+    FROM platform.student_cases c WHERE c.id = :'n287_case_r1'::UUID)
+  AND (SELECT p.preferred_display_name = 'N287 Reused Renamed' AND p.date_of_birth = DATE '2008-01-01'
+    FROM platform.student_profiles p WHERE p.student_case_id = :'n287_case_r1'::UUID)
+  AND (SELECT f.value = '+996700287801' FROM platform.student_profile_fields f
+    WHERE f.student_case_id = :'n287_case_r1'::UUID AND f.field_key = 'mobile_phone')
+  AND (SELECT u.before_state ? 'client' FROM platform_private.admissions_direct_case_updates u WHERE u.external_ref = 'rc1') IS FALSE,
+  'P6: the case, its профиль, its анкета and its stage are updated; nothing of the client is recorded as changed');
+
+-- P1: a CONFIRMED, document-backed анкета field overwritten by the update is
+-- put back from before_state without a CHECK error, source document included.
+INSERT INTO platform.document_slots(id, organization_id, student_case_id, status, created_by_membership_id, intent_kind,
+  display_label, group_label)
+  VALUES (pg_temp.n287_id(7001), pg_temp.n287_id(1), :'n287_case_c1'::UUID, 'required', pg_temp.n287_id(301), 'custom',
+    'N287 passport', 'N287');
+INSERT INTO platform.document_versions(id, organization_id, student_case_id, document_slot_id, version_no, original_filename,
+  declared_mime_type, byte_size, sha256_hex, ingest_evidence_ref, submitted_by_membership_id)
+  VALUES (pg_temp.n287_id(7002), pg_temp.n287_id(1), :'n287_case_c1'::UUID, pg_temp.n287_id(7001), 1, 'n287.pdf',
+    'application/pdf', 100, repeat('a', 64), 'n287-evidence', pg_temp.n287_id(301));
+UPDATE platform.student_profile_fields f SET review_state = 'confirmed', reviewed_at = TIMESTAMPTZ '2026-10-01 10:00:00+00',
+  reviewed_by_membership_id = pg_temp.n287_id(301), source_document_version_id = pg_temp.n287_id(7002),
+  source_document_slot_id = pg_temp.n287_id(7001), source_page = 2
+WHERE f.student_case_id = :'n287_case_c1'::UUID AND f.field_key IN ('student_email', 'date_of_birth');
+SELECT jsonb_object_agg(f.field_key, to_jsonb(f)) AS n287_c1_rows FROM platform.student_profile_fields f
+  WHERE f.student_case_id = :'n287_case_c1'::UUID AND f.field_key IN ('student_email', 'date_of_birth') \gset
+SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
+SET LOCAL ROLE service_role;
+SELECT pg_temp.n287_call(:'n287_case_c1'::UUID, 'cf1', '{"student":{"email":"n287-confirmed-new@example.invalid","birthDate":"2007-08-08"}}'::JSONB) AS n287_cf1 \gset
+RESET ROLE;
+SELECT pg_temp.n287_assert((SELECT f.review_state = 'needs_review' AND f.reviewed_at IS NULL AND f.source_document_version_id IS NULL
+    AND f.value = 'n287-confirmed-new@example.invalid'
+  FROM platform.student_profile_fields f WHERE f.student_case_id = :'n287_case_c1'::UUID AND f.field_key = 'student_email'),
+  'P1 fixture: the update did overwrite the confirmed, document-backed field (the review is reset)');
+SELECT pg_temp.n287_assert((SELECT u.before_state #> '{fields,student_email}' ->> 'review_state' = 'confirmed'
+    AND u.before_state #> '{fields,student_email}' ->> 'source_document_version_id' = pg_temp.n287_id(7002)::TEXT
+    AND u.before_state #> '{fields,student_email}' ->> 'source_document_slot_id' = pg_temp.n287_id(7001)::TEXT
+    AND (u.before_state #> '{fields,student_email}' ->> 'source_page')::INTEGER = 2
+    AND u.before_state #> '{fields,student_email}' ->> 'reviewed_by_membership_id' = pg_temp.n287_id(301)::TEXT
+    AND (u.before_state #> '{fields,student_email}' ->> 'reviewed_at')::TIMESTAMPTZ = TIMESTAMPTZ '2026-10-01 10:00:00+00'
+  FROM platform_private.admissions_direct_case_updates u WHERE u.external_ref = 'cf1'),
+  'P1: before_state holds the confirmed review and the source document of the overwritten field');
+-- Write both rows back exactly as before_state has them.
+UPDATE platform.student_profile_fields f SET value = r.value, review_state = r.review_state, profile_revision = r.profile_revision,
+  reviewed_at = r.reviewed_at, reviewed_by_membership_id = r.reviewed_by_membership_id,
+  source_document_version_id = r.source_document_version_id, source_document_slot_id = r.source_document_slot_id,
+  source_page = r.source_page, updated_at = r.updated_at
+FROM platform_private.admissions_direct_case_updates u
+CROSS JOIN LATERAL jsonb_each(u.before_state -> 'fields') AS b(field_key, snapshot)
+CROSS JOIN LATERAL jsonb_populate_record(NULL::platform.student_profile_fields, b.snapshot) AS r
+WHERE u.external_ref = 'cf1' AND f.student_case_id = :'n287_case_c1'::UUID AND f.field_key = b.field_key
+  AND (b.snapshot ->> 'existed')::BOOLEAN;
+SELECT pg_temp.n287_assert((SELECT jsonb_object_agg(f.field_key, to_jsonb(f)) = :'n287_c1_rows'::JSONB
+  FROM platform.student_profile_fields f
+  WHERE f.student_case_id = :'n287_case_c1'::UUID AND f.field_key IN ('student_email', 'date_of_birth')),
+  'P1: written back from before_state, both rows equal what they were (confirmed, reviewer, source document and page)');
 
 -- ---------------------------------------------------------------------------
 -- 5. Parents, education and route.
@@ -602,10 +846,11 @@ SELECT pg_temp.n287_assert(NOT EXISTS (SELECT 1 FROM platform.student_profile_fi
   'u10: the written fields wait for review');
 SELECT pg_temp.n287_assert((SELECT u.before_state -> 'case' = jsonb_build_object('target_degree', 'Бакалавриат',
       'program_direction', 'Computer Science', 'intake', NULL, 'language_assumption', NULL)
-    AND u.before_state -> 'profile' = jsonb_build_object('revision', 6, 'current_education_summary', NULL, 'language_summary', NULL)
-    AND u.before_state #> '{fields,program_level}' = jsonb_build_object('existed', TRUE, 'value', 'Бакалавриат',
+    AND u.before_state -> 'profile' @> jsonb_build_object('revision', 6, 'current_education_summary', NULL, 'language_summary', NULL)
+    AND u.before_state #> '{profile}' ?& ARRAY['updated_by_membership_id', 'updated_at']
+    AND u.before_state #> '{fields,program_level}' @> jsonb_build_object('existed', TRUE, 'value', 'Бакалавриат',
       'review_state', 'needs_review', 'profile_revision', 1)
-    AND u.before_state #> '{fields,english_level,existed}' = 'false'::JSONB
+    AND u.before_state #> '{fields,english_level}' = '{"existed":false}'::JSONB
     AND NOT (u.before_state ? 'client') AND NOT (u.before_state ? 'pipeline') AND NOT (u.before_state ? 'curator')
   FROM platform_private.admissions_direct_case_updates u
   WHERE u.organization_id = pg_temp.n287_id(1) AND u.external_ref = 'u10'),
@@ -619,7 +864,7 @@ SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
 SET LOCAL ROLE service_role;
 SELECT pg_temp.n287_call(:'n287_case_x1'::UUID, 'u12', '{"pipelineStage":"documents"}'::JSONB) AS n287_u12 \gset
 SELECT pg_temp.n287_call(:'n287_case_x1'::UUID, 'u13', '{"pipelineStage":"documents"}'::JSONB) AS n287_u13 \gset
-SELECT pg_temp.n287_call(:'n287_case_y1'::UUID, 'u13y', '{"pipelineStage":"shortlist"}'::JSONB) AS n287_u13y \gset
+SELECT pg_temp.n287_try(:'n287_case_y1'::UUID, 'u13y', '{"pipelineStage":"shortlist"}'::JSONB) AS n287_u13y \gset
 RESET ROLE;
 SELECT pg_temp.n287_assert(:'n287_u12'::JSONB -> 'changed' = '["pipelineStage"]'::JSONB AND :'n287_u12'::JSONB ->> 'pipeline_stage' = 'documents'
   AND (SELECT c.pipeline_stage = 'documents' AND c.pipeline_hidden_at IS NULL AND c.pipeline_version = :n287_version_before + 1
@@ -638,9 +883,10 @@ SELECT pg_temp.n287_assert(:'n287_u13'::JSONB -> 'changed' = '[]'::JSONB
   AND (SELECT c.pipeline_version = :n287_version_before + 1 FROM platform.student_cases c WHERE c.id = :'n287_case_x1'::UUID)
   AND NOT EXISTS (SELECT 1 FROM platform.audit_events a WHERE a.request_id = pg_temp.n287_op('u13', 'pipeline')),
   'u13: the same stage is no change: no new version, no journal row');
-SELECT pg_temp.n287_assert(:'n287_u13y'::JSONB -> 'changed' = '["pipelineStage"]'::JSONB AND :'n287_u13y'::JSONB ->> 'state' = 'pending'
-  AND (SELECT c.pipeline_stage = 'shortlist' FROM platform.student_cases c WHERE c.id = :'n287_case_y1'::UUID),
-  'u13: a case waiting for a curator takes its stage too');
+SELECT pg_temp.n287_assert(:'n287_u13y' = '55000:admissions_direct_update_case_not_active'
+  AND (SELECT c.pipeline_stage = 'new' AND c.state = 'pending' FROM platform.student_cases c WHERE c.id = :'n287_case_y1'::UUID)
+  AND NOT EXISTS (SELECT 1 FROM platform_private.admissions_direct_case_updates u WHERE u.external_ref = 'u13y'),
+  'P5: the board stage moves a case in work only: a case waiting for a curator is refused as not active, nothing written');
 SET LOCAL request.jwt.claims TO :'n287_admin';
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.n287_assert(EXISTS (SELECT 1 FROM jsonb_array_elements(platform.staff_admissions_pipeline_board_v1() -> 'rows') r
@@ -660,7 +906,7 @@ SELECT pg_temp.n287_call(:'n287_case_x1'::UUID, 'u16', jsonb_build_object('curat
 RESET ROLE;
 SELECT pg_temp.n287_assert(:'n287_u14'::JSONB -> 'changed' = '["curatorMembershipId"]'::JSONB AND :'n287_u14'::JSONB ->> 'state' = 'active'
   AND (SELECT c.state = 'active' AND c.current_curator_membership_id = pg_temp.n287_id(306) AND c.handoff_at IS NOT NULL
-      AND c.pipeline_stage = 'shortlist'
+      AND c.pipeline_stage = 'new'
     FROM platform.student_cases c WHERE c.id = :'n287_case_y1'::UUID)
   AND (SELECT e.event_type = 'assigned' AND e.new_curator_membership_id = pg_temp.n287_id(306)
       AND e.actor_membership_id = pg_temp.n287_id(301)
@@ -675,6 +921,13 @@ SELECT pg_temp.n287_assert((SELECT u.before_state = jsonb_build_object('curator'
       'current_curator_membership_id', NULL, 'state', 'pending'))
   FROM platform_private.admissions_direct_case_updates u WHERE u.organization_id = pg_temp.n287_id(1) AND u.external_ref = 'u14'),
   'u14: before_state holds the waiting state without a curator');
+SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
+SET LOCAL ROLE service_role;
+SELECT pg_temp.n287_call(:'n287_case_y1'::UUID, 'u14s', '{"pipelineStage":"shortlist"}'::JSONB) AS n287_u14s \gset
+RESET ROLE;
+SELECT pg_temp.n287_assert(:'n287_u14s'::JSONB -> 'changed' = '["pipelineStage"]'::JSONB
+  AND (SELECT c.pipeline_stage = 'shortlist' FROM platform.student_cases c WHERE c.id = :'n287_case_y1'::UUID),
+  'P5: once the curator is assigned the same case takes its board stage');
 SELECT pg_temp.n287_assert(:'n287_u15'::JSONB -> 'changed' = '[]'::JSONB
   AND NOT EXISTS (SELECT 1 FROM platform.student_case_assignment_events e WHERE e.request_id = pg_temp.n287_op('u15', 'assign')),
   'u15: the same curator is no change and no error');
@@ -844,7 +1097,9 @@ SELECT pg_temp.n287_assert(pg_temp.n287_try(:'n287_case_z2'::UUID, 'k7', '{"pipe
 -- A case without a curator cannot be closed, and nothing else of the call applies.
 SELECT pg_temp.n287_assert(pg_temp.n287_try(:'n287_case_y2'::UUID, 'k9',
     '{"note":"N287 must not exist","pipelineStage":"visa","close":{"outcome":"declined"}}'::JSONB)
-  = '55000:admissions_direct_update_case_not_active', 'a case without a curator is not closed');
+  = '55000:admissions_direct_update_case_not_active'
+  AND pg_temp.n287_try(:'n287_case_y2'::UUID, 'k9b', '{"note":"N287 must not exist","close":{"outcome":"declined"}}'::JSONB)
+  = '55000:admissions_direct_update_case_not_active', 'a case without a curator is not closed (with or without a stage in the call)');
 SELECT pg_temp.n287_call(:'n287_case_y3'::UUID, 'k10', jsonb_build_object('curatorMembershipId', pg_temp.n287_id(304)::TEXT,
   'pipelineStage', 'visa', 'close', jsonb_build_object('outcome', 'enrolled'))) AS n287_k10 \gset
 RESET ROLE;

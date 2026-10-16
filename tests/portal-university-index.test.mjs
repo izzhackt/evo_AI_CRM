@@ -109,30 +109,108 @@ test("the index parser accepts the contract shape and a notModified reply", () =
   assert.equal(parseStudentUniversityIndexResponse(unknownPhoto).index.universities[0].photoKey, null);
 });
 
-test("the index parser rejects drift instead of drawing half a catalogue", () => {
+test("the index parser refuses only a broken envelope", () => {
   const broken = [
     (value) => { value.extra = 1; },
     (value) => { value.countries.reverse(); },
     (value) => { value.countries.pop(); },
-    (value) => { value.countries[0].universityCount = 5; },
-    (value) => { value.countries[1].cityCount = 2; },
-    (value) => { value.cities[0].universityCount = 3; },
-    (value) => { value.universities[0].cityKey = "shanghai"; },
-    (value) => { value.universities[1].id = ids[0]; },
-    (value) => { value.universities[1].country = "PL"; },
-    (value) => { value.cities[0].photo.path = "photos/shanghai.jpg"; },
-    (value) => { value.cities[0].photo.sourceUrl = "https://www.eduprchina.com/photo.jpg"; },
-    (value) => { value.cities[0].photo.sourceName = "Agency"; },
-    (value) => { value.cities[0].fact.sourceUrl = "http://example.org/fact"; },
-    (value) => { value.cities[0].summary = null; },
-    (value) => { value.universities[2].intakes = [{ deadline: "2027-02-30", start: null, startMonth: null }]; },
-    (value) => { value.universities[2].levels = ["bachelor", "bachelor"]; },
+    (value) => { value.countries[0].code = "PL"; },
+    (value) => { value.countries[2] = null; },
+    (value) => { value.version = "g1.\n"; },
+    (value) => { value.cities = {}; },
+    (value) => { value.universities = null; },
+    (value) => { value.notModified = "false"; },
   ];
   for (const [index, mutate] of broken.entries()) {
     const value = indexFixture();
     mutate(value);
     assert.equal(parseStudentUniversityIndexResponse(value), null, `mutation ${index}`);
   }
+});
+
+// Review S3 веба, F12: одна неверная карточка больше не делает весь
+// каталог «не удалось загрузить». Город пропускается (его вузы уходят в
+// «Другие вузы страны»), вуз пропускается, поле деградирует; каждый случай
+// пишет строку журнала, счётчики сходятся с тем, что осталось.
+test("one broken city, university or country field degrades only itself", () => {
+  const without = (index, code) => countryUniversitiesWithoutCity(index, code).map((entry) => entry.name);
+  const cases = [
+    ["server country count", (v) => { v.countries[0].universityCount = 5; },
+      (index) => assert.equal(index.countries[0].universityCount, 4), [{ item: "country", key: "CN", reason: "count" }]],
+    ["server city count of a country", (v) => { v.countries[1].cityCount = 2; },
+      (index) => assert.equal(index.countries[1].cityCount, 1), [{ item: "country", key: "MY", reason: "count" }]],
+    ["server university count of a city", (v) => { v.cities[0].universityCount = 3; },
+      (index) => assert.equal(index.cities[0].universityCount, 2), [{ item: "city", key: "shanghai", reason: "count" }]],
+    ["a university linked to a city of another country", (v) => { v.universities[0].cityKey = "shanghai"; },
+      (index) => {
+        assert.equal(index.universities.find((entry) => entry.id === ids[0]).cityKey, null);
+        assert.deepEqual(without(index, "TR"), ["Boğaziçi University"]);
+        assert.equal(index.cities.some((entry) => entry.key === "istanbul"), false);
+        assert.equal(index.countries[3].cityCount, 0);
+      },
+      [{ item: "university", key: ids[0], reason: "city" }, { item: "city", key: "istanbul", reason: "empty" }, { item: "country", key: "TR", reason: "count" }]],
+    ["a duplicate university id", (v) => { v.universities[1].id = ids[0]; },
+      (index) => {
+        assert.equal(index.universities.length, 7);
+        assert.equal(index.countries[0].universityCount, 3);
+        assert.equal(index.cities.find((entry) => entry.key === "shanghai").universityCount, 1);
+      },
+      [{ item: "university", key: ids[0], reason: "duplicate" }, { item: "city", key: "shanghai", reason: "count" }, { item: "country", key: "CN", reason: "count" }]],
+    ["a university outside the six countries", (v) => { v.universities[1].country = "PL"; },
+      (index) => assert.equal(index.universities.some((entry) => entry.id === ids[1]), false),
+      [{ item: "university", key: ids[1], reason: "country" }, { item: "city", key: "shanghai", reason: "count" }, { item: "country", key: "CN", reason: "count" }]],
+    ["a city photo outside the bucket path", (v) => { v.cities[0].photo.path = "photos/shanghai.jpg"; },
+      (index) => {
+        assert.deepEqual(index.cities.map((entry) => entry.key), ["hangzhou", "kuala-lumpur", "istanbul"]);
+        assert.deepEqual(without(index, "CN"), ["Fudan University", "Shanghai Jiao Tong University", "Xi’an Jiaotong-Liverpool University"]);
+        assert.equal(index.countries[0].cityCount, 1);
+        assert.equal(index.countries[0].universityCount, 4);
+      },
+      [{ item: "city", key: "shanghai", reason: "photo" }, { item: "university", key: ids[1], reason: "city" },
+        { item: "university", key: ids[3], reason: "city" }, { item: "country", key: "CN", reason: "count" }]],
+    ["a city photo from an agency host", (v) => { v.cities[0].photo.sourceUrl = "https://www.eduprchina.com/photo.jpg"; }, null, "photo"],
+    ["a city photo with an unknown source", (v) => { v.cities[0].photo.sourceName = "Agency"; }, null, "photo"],
+    ["a city photo author with a trailing no-break space (F12)", (v) => { v.cities[0].photo.author = "Diana\u00a0"; }, null, "photo"],
+    ["a city fact over http", (v) => { v.cities[0].fact.sourceUrl = "http://example.org/fact"; }, null, "fact"],
+    ["a city without its summary", (v) => { v.cities[0].summary = null; }, null, "summary"],
+    ["a city name with a soft hyphen", (v) => { v.cities[0].name.ru = "Шан\u00adхай"; }, null, "name"],
+    ["an impossible intake date", (v) => { v.universities[2].intakes = [{ deadline: "2027-02-30", start: null, startMonth: null }]; },
+      (index) => assert.deepEqual(index.universities.find((entry) => entry.id === ids[2]).intakes, []),
+      [{ item: "university", key: ids[2], reason: "intakes" }]],
+    ["repeated levels", (v) => { v.universities[2].levels = ["bachelor", "bachelor"]; },
+      (index) => assert.deepEqual(index.universities.find((entry) => entry.id === ids[2]).levels, ["bachelor"]),
+      [{ item: "university", key: ids[2], reason: "levels" }]],
+    ["a broken country photo", (v) => { v.countries[0].photo.author = " Diana"; },
+      (index) => assert.equal(index.countries[0].photo, null), [{ item: "country", key: "CN", reason: "photo" }]],
+    ["a broken country name", (v) => { v.countries[0].name = { ru: "", ky: "" }; },
+      (index) => assert.deepEqual(index.countries[0].name, { ru: "Китай", ky: "Кытай" }), [{ item: "country", key: "CN", reason: "name" }]],
+  ];
+  for (const [label, mutate, check, expected] of cases) {
+    const value = indexFixture();
+    mutate(value);
+    const issues = [];
+    const parsed = parseStudentUniversityIndexResponse(value, (issue) => issues.push(issue));
+    assert.equal(parsed?.notModified, false, label);
+    const { index } = parsed;
+    // Каждый вуз виден ровно в одном месте, счётчики сходятся (приёмка 7.6.2).
+    assert.equal(index.countries.reduce((sum, entry) => sum + entry.universityCount, 0), index.universities.length, label);
+    for (const entry of index.cities) {
+      assert.equal(index.universities.filter((item) => item.cityKey === entry.key).length, entry.universityCount, label);
+    }
+    if (typeof expected === "string") {
+      // Неверный Шанхай: его два вуза в «Других вузах страны».
+      assert.equal(index.cities.some((entry) => entry.key === "shanghai"), false, label);
+      assert.deepEqual(issues[0], { item: "city", key: "shanghai", reason: expected }, label);
+      assert.equal(without(index, "CN").length, 3, label);
+    } else {
+      check(index);
+      assert.deepEqual(issues, expected, label);
+    }
+  }
+  // Целый индекс журнала не пишет.
+  const issues = [];
+  parseStudentUniversityIndexResponse(indexFixture(), (issue) => issues.push(issue));
+  assert.deepEqual(issues, []);
 });
 
 test("country and city helpers keep every university visible", () => {
@@ -247,29 +325,79 @@ test("the detail parser takes the single-call page and hides nothing it was give
   assert.equal(parseStudentUniversityDetail(withoutCity, UNIVERSITY_ID).city, null);
 });
 
-test("the detail parser rejects another university, agency addresses and malformed money", () => {
+test("the detail parser refuses another university and broken personal state", () => {
   assert.equal(parseStudentUniversityDetail(detailFixture(), "c9a9ae33-e396-49ec-8c6c-1e42a80dc627"), null);
   const broken = [
-    (value) => { value.costs.rows[1].source = { kind: "agency", url: "https://www.eduprchina.com/x" }; },
-    (value) => { value.costs.rows[0].source = { kind: "official", url: null }; },
-    (value) => { value.costs.rows[0].sourceName = "EDUPRCHINA"; },
-    (value) => { value.costs.rows[0].amountMaxMinor = 100; },
-    (value) => { value.costs.rows[0].amountMinMinor = 1.5; },
-    (value) => { value.costs.rows[0].currency = "myr"; },
-    (value) => { value.costs.rows[0].period = "decade"; },
-    (value) => { value.costs.rows[0].academicYear = "2026-27"; },
-    (value) => { value.costs.rows = []; },
-    (value) => { value.costs.fxRates[0].unitsPerUsd = 0; },
-    (value) => { value.costs.fxRates.push(clone(value.costs.fxRates[0])); },
     (value) => { value.country.code = "CN"; },
-    (value) => { value.city.country = "CN"; },
+    (value) => { value.country = null; },
     (value) => { value.favored = "yes"; },
     (value) => { value.extra = true; },
+    (value) => { value.university.content = null; },
+    (value) => { value.openConsultation = { requestId: "x" }; },
+    (value) => { value.preparations = { studentCaseId: "x", items: [] }; },
   ];
   for (const [index, mutate] of broken.entries()) {
     const value = detailFixture();
     mutate(value);
     assert.equal(parseStudentUniversityDetail(value, UNIVERSITY_ID), null, `mutation ${index}`);
+  }
+});
+
+// Review S3 веба, F12, страница вуза: неверная строка стоимости или курс
+// опускаются по одному, неверный город даёт страницу без города; агентский
+// адрес студенту не доходит никогда.
+test("a broken cost row, rate or city degrades only itself on the university page", () => {
+  const rowIds = (detail) => detail.costs?.rows.map((row) => row.id.slice(-1)) ?? null;
+  const cases = [
+    ["an agency row with an address", (v) => { v.costs.rows[1].source = { kind: "agency", url: "https://www.eduprchina.com/x" }; },
+      (d) => assert.deepEqual(rowIds(d), ["1", "3"]), [{ item: "cost", key: "785b342e-0000-4000-8000-000000000002", reason: "source" }]],
+    ["an official row without an address", (v) => { v.costs.rows[0].source = { kind: "official", url: null }; },
+      (d) => assert.deepEqual(rowIds(d), ["2", "3"]), [{ item: "cost", key: "785b342e-0000-4000-8000-000000000001", reason: "source" }]],
+    ["an agency name on a row", (v) => { v.costs.rows[0].sourceName = "EDUPRCHINA"; },
+      (d) => assert.deepEqual(rowIds(d), ["2", "3"]), [{ item: "cost", key: "785b342e-0000-4000-8000-000000000001", reason: "keys" }]],
+    ["a maximum below the minimum", (v) => { v.costs.rows[0].amountMaxMinor = 100; }, (d) => assert.deepEqual(rowIds(d), ["2", "3"]),
+      [{ item: "cost", key: "785b342e-0000-4000-8000-000000000001", reason: "amount" }]],
+    ["a fractional amount", (v) => { v.costs.rows[0].amountMinMinor = 1.5; }, (d) => assert.deepEqual(rowIds(d), ["2", "3"]),
+      [{ item: "cost", key: "785b342e-0000-4000-8000-000000000001", reason: "amount" }]],
+    ["a lower-case currency", (v) => { v.costs.rows[0].currency = "myr"; }, (d) => assert.deepEqual(rowIds(d), ["2", "3"]),
+      [{ item: "cost", key: "785b342e-0000-4000-8000-000000000001", reason: "currency" }]],
+    ["an unknown period", (v) => { v.costs.rows[0].period = "decade"; }, (d) => assert.deepEqual(rowIds(d), ["2", "3"]),
+      [{ item: "cost", key: "785b342e-0000-4000-8000-000000000001", reason: "period" }]],
+    ["a malformed academic year", (v) => { v.costs.rows[0].academicYear = "2026-27"; }, (d) => assert.deepEqual(rowIds(d), ["2", "3"]),
+      [{ item: "cost", key: "785b342e-0000-4000-8000-000000000001", reason: "academicYear" }]],
+    ["a note with a trailing no-break space", (v) => { v.costs.rows[1].note.ru = "Двухместная комната\u00a0"; },
+      (d) => assert.deepEqual(rowIds(d), ["1", "3"]), [{ item: "cost", key: "785b342e-0000-4000-8000-000000000002", reason: "note" }]],
+    ["no rows", (v) => { v.costs.rows = []; }, (d) => assert.equal(d.costs, null), [{ item: "costs", key: null, reason: "empty" }]],
+    ["every row broken", (v) => { for (const row of v.costs.rows) row.currency = "x"; }, (d) => assert.equal(d.costs, null),
+      [...["1", "2", "3"].map((n) => ({ item: "cost", key: `785b342e-0000-4000-8000-00000000000${n}`, reason: "currency" })),
+        { item: "costs", key: null, reason: "empty" }]],
+    ["a broken cost block", (v) => { v.costs = "x"; }, (d) => assert.equal(d.costs, null), [{ item: "costs", key: null, reason: "shape" }]],
+    ["a broken rate", (v) => { v.costs.fxRates[0].unitsPerUsd = 0; },
+      (d) => {
+        assert.deepEqual(d.costs.fxRates, []);
+        // Без названного курса ориентира в USD нет.
+        assert.deepEqual(d.costs.rows.map((row) => row.usdApproxMin), [null, null, null]);
+      },
+      [{ item: "fx_rate", key: "MYR", reason: "invalid" }, { item: "cost", key: "785b342e-0000-4000-8000-000000000001", reason: "rate" },
+        { item: "cost", key: "785b342e-0000-4000-8000-000000000002", reason: "rate" }]],
+    ["a repeated rate", (v) => { v.costs.fxRates.push(clone(v.costs.fxRates[0])); },
+      (d) => assert.equal(d.costs.fxRates.length, 1), [{ item: "fx_rate", key: "MYR", reason: "duplicate" }]],
+    ["a city of another country", (v) => { v.city.country = "CN"; },
+      (d) => assert.equal(d.city, null), [{ item: "city", key: "kuala-lumpur", reason: "country" }]],
+    ["a city photo with a zero-width space in the author", (v) => { v.city.photo.author = "Di\u200bana"; },
+      (d) => assert.equal(d.city, null), [{ item: "city", key: "kuala-lumpur", reason: "photo" }]],
+    ["a broken country name", (v) => { v.country.name = null; },
+      (d) => assert.deepEqual(d.country, { code: "MY", name: { ru: "Малайзия", ky: "Малайзия" } }), [{ item: "country", key: "MY", reason: "name" }]],
+  ];
+  for (const [label, mutate, check, expected] of cases) {
+    const value = detailFixture();
+    mutate(value);
+    const issues = [];
+    const detail = parseStudentUniversityDetail(value, UNIVERSITY_ID, (issue) => issues.push(issue));
+    assert.equal(detail?.university.id, UNIVERSITY_ID, label);
+    check(detail);
+    assert.deepEqual(issues, expected, label);
+    assert.doesNotMatch(JSON.stringify(detail), /eduprchina|EDUPRCHINA/u, label);
   }
 });
 

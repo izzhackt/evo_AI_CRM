@@ -47,7 +47,7 @@ export function universityPhotoCredit(photoKey: UniversityPhotoKey | null): Phot
   if (!entry) return null;
   return isOfficialMediaLicense(entry.license)
     ? { kind: "official", sourceUrl: entry.sourceUrl }
-    : { kind: "author", author: entry.author, authorUrl: entry.sourceUrl, license: entry.license, licenseUrl: entry.licenseUrl };
+    : { kind: "author", author: entry.author, authorUrl: entry.sourceUrl, license: entry.license, licenseUrl: entry.licenseUrl, source: null };
 }
 
 export function universityTilePhoto(photoKey: UniversityPhotoKey | null): TilePhoto | null {
@@ -124,6 +124,7 @@ export function tileStrings(strings: Strings): UniversityTileStrings {
     photoFailed: strings.photoFailed,
     photoRights: strings.photoRights,
     photoCredit: strings.photoCredit,
+    photoCreditSource: strings.photoCreditSource,
     photoCreditOfficial: strings.photoCreditOfficial,
     newTab: strings.newTab,
   };
@@ -134,7 +135,7 @@ export type PlacePhoto = Readonly<{
   srcSet: string | null;
   width: number;
   height: number;
-  /** Автор и лицензия по кнопке «©» (у мест всегда есть). */
+  /** Автор, источник и лицензия по кнопке «©» (у мест всегда есть). */
   credit: PhotoCredit;
 }>;
 
@@ -153,6 +154,15 @@ export function placePhoto(photo: GeographyPhoto | null, widths: readonly number
     srcSet,
     width: photo.width,
     height: photo.height,
-    credit: { kind: "author", author: photo.author, authorUrl: photo.authorUrl ?? photo.sourceUrl, license: photo.license, licenseUrl: photo.licenseUrl },
+    // Автор ведёт на свою страницу (если она есть), источник всегда на
+    // страницу файла (review S3 веба, F13).
+    credit: {
+      kind: "author",
+      author: photo.author,
+      authorUrl: photo.authorUrl,
+      license: photo.license,
+      licenseUrl: photo.licenseUrl,
+      source: { name: photo.sourceName, url: photo.sourceUrl },
+    },
   };
 }

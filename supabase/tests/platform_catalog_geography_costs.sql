@@ -25,7 +25,17 @@
 --        operation), version conflicts, re-import by importKey;
 --    (g) city rules: only a complete card publishes, a city keeps its country,
 --        a university links only to a city of its country;
---    (h) no client role reads the new tables or calls the private helpers.
+--    (h) no client role reads the new tables or calls the private helpers;
+--    (i) catalog_text_ok, catalog_url_ok and catalog_agency_url accept and
+--        reject exactly the shared vectors tests/fixtures/catalog-text-vectors.json
+--        that tests/catalog-text.test.mjs runs against src/lib/catalog-text.ts
+--        (review S3 web F2/F12);
+--    (j) a city publishes only with its photo object in the bucket, a
+--        published city changes its photo only to a stored object (CRM R5);
+--    (k) only the system Admin moves an agency row to another source kind;
+--        an edit of the source of an agency or confirmed row returns it to
+--        draft without its confirmation; an agency address is never an
+--        official or EVO row (CRM R4).
 -- Members are modelled like production (coarse role NULL, permissions only
 -- from scoped staff roles, as 281's suite). Isolated synthetic fixtures only,
 -- rolled back.
@@ -331,6 +341,35 @@ SELECT pg_temp.n283_assert((SELECT array_agg(s.country_code || ':' || s.name_ru 
   'study_countries differs from src/lib/study-countries.json');
 
 -- ===========================================================================
+-- (i) One text and URL rule for the database and the web parser (review S3
+-- web F2/F12): the shared vectors, read from the repository.
+-- ===========================================================================
+\set n283_vectors `cat /workspace/tests/fixtures/catalog-text-vectors.json`
+SELECT pg_temp.n283_assert(count(*) >= 50 AND count(*) FILTER (WHERE NOT (v ->> 'ok')::BOOLEAN) >= 30
+    AND count(*) FILTER (WHERE platform_private.catalog_text_ok(v ->> 'value', (v ->> 'max')::INTEGER) IS DISTINCT FROM (v ->> 'ok')::BOOLEAN) = 0,
+  'catalog_text_ok disagrees with tests/fixtures/catalog-text-vectors.json: ' || COALESCE(string_agg(v ->> 'case', '; ')
+    FILTER (WHERE platform_private.catalog_text_ok(v ->> 'value', (v ->> 'max')::INTEGER) IS DISTINCT FROM (v ->> 'ok')::BOOLEAN), ''))
+FROM jsonb_array_elements(:'n283_vectors'::JSONB -> 'text') v;
+SELECT pg_temp.n283_assert(count(*) >= 30
+    AND count(*) FILTER (WHERE platform_private.catalog_url_ok(v ->> 'value') IS DISTINCT FROM (v ->> 'ok')::BOOLEAN) = 0,
+  'catalog_url_ok disagrees with tests/fixtures/catalog-text-vectors.json: ' || COALESCE(string_agg(v ->> 'case', '; ')
+    FILTER (WHERE platform_private.catalog_url_ok(v ->> 'value') IS DISTINCT FROM (v ->> 'ok')::BOOLEAN), ''))
+FROM jsonb_array_elements(:'n283_vectors'::JSONB -> 'url') v;
+SELECT pg_temp.n283_assert(count(*) >= 10
+    AND count(*) FILTER (WHERE platform_private.catalog_agency_url(v ->> 'value') IS DISTINCT FROM (v ->> 'agency')::BOOLEAN) = 0,
+  'catalog_agency_url disagrees with tests/fixtures/catalog-text-vectors.json: ' || COALESCE(string_agg(v ->> 'case', '; ')
+    FILTER (WHERE platform_private.catalog_agency_url(v ->> 'value') IS DISTINCT FROM (v ->> 'agency')::BOOLEAN), ''))
+FROM jsonb_array_elements(:'n283_vectors'::JSONB -> 'agency') v;
+-- F12 itself: a photo author with a trailing no-break space, a summary with
+-- a soft hyphen or a zero-width space never reach a published card.
+SELECT pg_temp.n283_assert(NOT platform_private.catalog_photo_valid(
+      pg_temp.n283_photo('geography/cities/cn-host-0123456789ab.jpg') || '{"author": "N283 Photographer\u00a0"}'::JSONB, 'cities')
+    AND NOT platform_private.catalog_photo_valid(
+      pg_temp.n283_photo('geography/cities/cn-host-0123456789ab.jpg') || '{"sourceUrl": "https://www.pexels.com/photo/n283\u200b-1/"}'::JSONB, 'cities')
+    AND platform_private.catalog_photo_valid(pg_temp.n283_photo('geography/cities/cn-host-0123456789ab.jpg'), 'cities'),
+  'catalog_photo_valid accepted a text or URL the web parser rejects');
+
+-- ===========================================================================
 -- (d, g) Staff: the editor builds geography; the gates.
 -- ===========================================================================
 -- Every staff RPC refuses Sales, the curator, both students and anon (42501).
@@ -385,6 +424,12 @@ FROM (VALUES (pg_temp.n283_city('Bad Key', 'CN', 'Плохой', FALSE)), (pg_te
   (pg_temp.n283_city('mismatch', 'CN', 'Чужой хост', TRUE) || jsonb_build_object('photo',
     pg_temp.n283_photo('geography/cities/cn-mismatch-0123456789ab.jpg') || '{"sourceUrl":"https://unsplash.com/photos/abc"}'::JSONB)),
   (pg_temp.n283_city('long', 'CN', 'Длинный', FALSE) || jsonb_build_object('summaryRu', repeat('я', 301))),
+  -- F12: края и невидимые знаки, которые веб отверг бы.
+  (pg_temp.n283_city('nbsp', 'CN', E'Шанхай\u00A0', FALSE)),
+  (pg_temp.n283_city('shy', 'CN', E'Шан\u00ADхай', FALSE)),
+  (pg_temp.n283_city('zwsp', 'CN', 'Шанхай', FALSE) || jsonb_build_object('summaryRu', E'Текст\u200Bгорода.')),
+  (pg_temp.n283_city('newline', 'CN', 'Шанхай', FALSE) || jsonb_build_object('summaryKy', E'Шаар\nтекст.')),
+  (pg_temp.n283_city('fact-url', 'CN', 'Шанхай', TRUE) || jsonb_build_object('factSourceUrl', E'https://en.wikipedia.org/wiki/N283\u00A0')),
   (pg_temp.n283_city('extra', 'CN', 'Лишний', FALSE) || '{"rating": 5}'::JSONB)) AS v(city);
 -- Источник и хост сходятся попарно, как PHOTO_HOSTS разбора веба: хост из
 -- общего списка, но другого источника, фото не делает.
@@ -403,6 +448,21 @@ SELECT pg_temp.n283_ok('2', format('platform.staff_catalog_city_upsert_v1(%L::UU
   pg_temp.n283_id(1), pg_temp.n283_city('kuala-lumpur', 'MY', 'Куала-Лумпур', FALSE), pg_temp.n283_id(3004)));
 SELECT pg_temp.n283_assert(pg_temp.n283_state('2', format('platform.staff_catalog_city_publish_v1(%L::UUID, %L, TRUE, 1, %L::UUID)',
     pg_temp.n283_id(1), 'kuala-lumpur', pg_temp.n283_id(3005))) = '22023', 'an incomplete city card was published');
+-- (j) A complete card whose photo object is not in the bucket does not
+-- publish (CRM R5): the student would see a card without its photo.
+SELECT pg_temp.n283_assert(pg_temp.n283_call('2', format('platform.staff_catalog_city_publish_v1(%L::UUID, %L, TRUE, 1, gen_random_uuid())',
+      pg_temp.n283_id(1), 'hangzhou')) = jsonb_build_object('error', '22023', 'message', 'catalog_city_photo_missing')
+    AND (SELECT status = 'draft' AND version = 1 FROM platform.catalog_cities WHERE city_key = 'hangzhou'),
+  'a city was published while its photo object was missing from portal-university-photos');
+INSERT INTO storage.buckets(id, name, public) VALUES ('portal-university-photos', 'portal-university-photos', TRUE)
+  ON CONFLICT (id) DO NOTHING;
+-- The same path in another bucket is not the photo.
+INSERT INTO storage.buckets(id, name, public) VALUES ('n283-other-bucket', 'n283-other-bucket', TRUE);
+INSERT INTO storage.objects(bucket_id, name) VALUES ('n283-other-bucket', 'geography/cities/cn-hangzhou-0123456789ab.jpg');
+SELECT pg_temp.n283_assert(pg_temp.n283_call('1', format('platform.staff_catalog_city_publish_v1(%L::UUID, %L, TRUE, 1, gen_random_uuid())',
+      pg_temp.n283_id(1), 'hangzhou')) ->> 'message' = 'catalog_city_photo_missing',
+  'an object of another bucket counted as the city photo, or the Admin bypassed the photo check');
+INSERT INTO storage.objects(bucket_id, name) VALUES ('portal-university-photos', 'geography/cities/cn-hangzhou-0123456789ab.jpg');
 -- (A mutating call and a read of its rows go in separate statements: one
 -- statement reads one snapshot.)
 SELECT pg_temp.n283_ok('2', format('platform.staff_catalog_city_publish_v1(%L::UUID, %L, TRUE, 1, %L::UUID)',
@@ -416,6 +476,30 @@ SELECT pg_temp.n283_assert(pg_temp.n283_state('2', format('platform.staff_catalo
     pg_temp.n283_id(1), pg_temp.n283_city('hangzhou', 'CN', 'Ханчжоу', FALSE)
       || jsonb_build_object('photo', pg_temp.n283_photo('geography/cities/cn-hangzhou-0123456789ab.jpg')), pg_temp.n283_id(3007))) = '23514',
   'a published city became incomplete');
+-- (j) A published card changes its photo only to an object already in the
+-- bucket; the same edit with the object stored passes (rolled back).
+DO $n283_photo_swap$
+DECLARE outcome TEXT; swapped JSONB;
+BEGIN
+  swapped := pg_temp.n283_city('hangzhou', 'CN', 'Ханчжоу', TRUE)
+    || jsonb_build_object('photo', pg_temp.n283_photo('geography/cities/cn-hangzhou-fedcba987654.jpg'));
+  BEGIN
+    outcome := COALESCE(pg_temp.n283_call('2', format('platform.staff_catalog_city_upsert_v1(%L::UUID, %L::JSONB, 2, gen_random_uuid())',
+      pg_temp.n283_id(1), swapped)) ->> 'message', 'ok');
+    INSERT INTO storage.objects(bucket_id, name) VALUES ('portal-university-photos', 'geography/cities/cn-hangzhou-fedcba987654.jpg');
+    outcome := outcome || ',' || pg_temp.n283_state('2', format('platform.staff_catalog_city_upsert_v1(%L::UUID, %L::JSONB, 2, gen_random_uuid())',
+      pg_temp.n283_id(1), swapped));
+    outcome := outcome || ',' || (SELECT status || ':' || version || ':' || (photo ->> 'path') FROM platform.catalog_cities WHERE city_key = 'hangzhou');
+    RAISE EXCEPTION USING ERRCODE = 'N2832', MESSAGE = outcome;
+  EXCEPTION WHEN SQLSTATE 'N2832' THEN
+    outcome := SQLERRM;
+  END;
+  PERFORM pg_temp.n283_assert(outcome = 'catalog_city_photo_missing,ok,published:3:geography/cities/cn-hangzhou-fedcba987654.jpg',
+    'a published city took a photo that is not in the bucket, or refused one that is: ' || outcome);
+  PERFORM pg_temp.n283_assert((SELECT version = 2 AND photo ->> 'path' = 'geography/cities/cn-hangzhou-0123456789ab.jpg'
+    FROM platform.catalog_cities WHERE city_key = 'hangzhou'), 'the photo swap probe was not rolled back');
+END
+$n283_photo_swap$;
 
 -- Links: own country only; the trigger holds for a direct insert too.
 SELECT pg_temp.n283_ok('2', format('platform.staff_catalog_institution_city_set_v1(%L::UUID, %L::UUID, %L, %L::UUID)',
@@ -551,6 +635,7 @@ SELECT pg_temp.n283_assert(pg_temp.n283_state('2', format('platform.staff_catalo
     pg_temp.n283_id(1), :'n283_agency', 'published')) = '23514',
   'an unconfirmed agency row was published through the RPC');
 SELECT set_config('n283.agency', :'n283_agency', TRUE) AS n283_agency_setting \gset
+SELECT set_config('n283.official', :'n283_official', TRUE) AS n283_official_setting \gset
 DO $n283_check$
 BEGIN
   UPDATE platform.catalog_costs SET status = 'published', published_at = clock_timestamp(),
@@ -675,6 +760,80 @@ SELECT pg_temp.n283_assert(:'n283_edit_status' = 'draft'
       FROM platform.catalog_costs WHERE id = :'n283_agency'::UUID)
     AND jsonb_array_length(pg_temp.n283_ok('5', format('platform.student_university_detail_v1(%L::UUID)', pg_temp.n283_id(701))) #> '{costs,rows}') = 2,
   'an edited agency row kept its confirmation or stayed visible');
+
+-- (k) CRM R4. The editor (catalogue right, not the system Admin) cannot move
+-- the agency row to another source kind: it would publish agency data as
+-- «сайт университета» without the Admin confirmation.
+SELECT pg_temp.n283_assert(
+    pg_temp.n283_call('2', format('platform.staff_catalog_cost_upsert_v1(%L::UUID, %L::JSONB, 4, gen_random_uuid())', pg_temp.n283_id(1),
+      pg_temp.n283_cost(:'n283_agency'::UUID, pg_temp.n283_id(701), 'accommodation', 900000, NULL, 'CNY', 'official'))) ->> 'message' = 'catalog_admin_required'
+    AND pg_temp.n283_state('2', format('platform.staff_catalog_cost_upsert_v1(%L::UUID, %L::JSONB, 4, gen_random_uuid())', pg_temp.n283_id(1),
+      pg_temp.n283_cost(:'n283_agency'::UUID, pg_temp.n283_id(701), 'accommodation', 900000, NULL, 'CNY', 'evo_document'))) = '42501'
+    AND (SELECT source_kind = 'agency' AND version = 4 AND status = 'draft' FROM platform.catalog_costs WHERE id = :'n283_agency'::UUID),
+  'the catalogue editor relabelled an agency row as another source kind');
+-- Confirmed and published again; then the editor changes its source name and
+-- later its address: each edit returns the row to draft without the
+-- confirmation, and only a new Admin confirmation publishes it.
+SELECT pg_temp.n283_ok('1', format('platform.staff_catalog_cost_confirm_v1(%L::UUID, %L::UUID, 4, %L, gen_random_uuid())',
+  pg_temp.n283_id(1), :'n283_agency', 'N283 reconfirmation'));
+SELECT pg_temp.n283_ok('2', format('platform.staff_catalog_cost_publish_v1(%L::UUID, %L::UUID, %L, 5, gen_random_uuid())',
+  pg_temp.n283_id(1), :'n283_agency', 'published'));
+SELECT pg_temp.n283_ok('2', format('platform.staff_catalog_cost_upsert_v1(%L::UUID, %L::JSONB, 6, gen_random_uuid())', pg_temp.n283_id(1),
+  pg_temp.n283_cost(:'n283_agency'::UUID, pg_temp.n283_id(701), 'accommodation', 900000, NULL, 'CNY', 'agency')
+    || '{"sourceName": "N283 Agency renamed"}'::JSONB));
+SELECT pg_temp.n283_assert((SELECT status = 'draft' AND confirmed_at IS NULL AND confirmed_by_membership_id IS NULL AND version = 7
+      AND source_name = 'N283 Agency renamed' FROM platform.catalog_costs WHERE id = :'n283_agency'::UUID)
+    AND pg_temp.n283_state('2', format('platform.staff_catalog_cost_publish_v1(%L::UUID, %L::UUID, %L, 7, gen_random_uuid())',
+      pg_temp.n283_id(1), :'n283_agency', 'published')) = '23514',
+  'a renamed agency source kept its confirmation or published without a new Admin confirmation');
+SELECT pg_temp.n283_ok('1', format('platform.staff_catalog_cost_confirm_v1(%L::UUID, %L::UUID, 7, %L, gen_random_uuid())',
+  pg_temp.n283_id(1), :'n283_agency', 'N283 reconfirmation 2'));
+SELECT pg_temp.n283_ok('2', format('platform.staff_catalog_cost_upsert_v1(%L::UUID, %L::JSONB, 8, gen_random_uuid())', pg_temp.n283_id(1),
+  pg_temp.n283_cost(:'n283_agency'::UUID, pg_temp.n283_id(701), 'accommodation', 900000, NULL, 'CNY', 'agency')
+    || '{"sourceUrl": "https://agency.example-n283.org/fees-2027"}'::JSONB));
+SELECT pg_temp.n283_assert((SELECT status = 'draft' AND confirmed_at IS NULL AND version = 9 AND source_name = 'N283 Agency'
+      AND source_url = 'https://agency.example-n283.org/fees-2027' FROM platform.catalog_costs WHERE id = :'n283_agency'::UUID)
+    AND pg_temp.n283_state('2', format('platform.staff_catalog_cost_publish_v1(%L::UUID, %L::UUID, %L, 9, gen_random_uuid())',
+      pg_temp.n283_id(1), :'n283_agency', 'published')) = '23514',
+  'a moved agency address kept its confirmation or published without a new Admin confirmation');
+-- The system Admin may change the kind (the row returns to draft); rolled back.
+DO $n283_admin_relabel$
+DECLARE outcome TEXT;
+BEGIN
+  BEGIN
+    outcome := pg_temp.n283_state('1', format('platform.staff_catalog_cost_upsert_v1(%L::UUID, %L::JSONB, 9, gen_random_uuid())', pg_temp.n283_id(1),
+      pg_temp.n283_cost(current_setting('n283.agency')::UUID, pg_temp.n283_id(701), 'accommodation', 900000, NULL, 'CNY', 'official')));
+    outcome := outcome || ',' || (SELECT source_kind || ':' || status FROM platform.catalog_costs WHERE id = current_setting('n283.agency')::UUID);
+    RAISE EXCEPTION USING ERRCODE = 'N2833', MESSAGE = outcome;
+  EXCEPTION WHEN SQLSTATE 'N2833' THEN
+    outcome := SQLERRM;
+  END;
+  PERFORM pg_temp.n283_assert(outcome = 'ok,official:draft', 'the system Admin could not change the source kind: ' || outcome);
+END
+$n283_admin_relabel$;
+-- An agency address is never an official or EVO row, for the Admin too, in
+-- the RPC, the import and a direct update.
+SELECT pg_temp.n283_assert(bool_and(pg_temp.n283_call(v.who, format('platform.staff_catalog_cost_upsert_v1(%L::UUID, %L::JSONB, 0, gen_random_uuid())',
+      pg_temp.n283_id(1), pg_temp.n283_cost(NULL, pg_temp.n283_id(701), 'tuition', 100, NULL, 'CNY', v.kind)
+        || jsonb_build_object('sourceUrl', v.url))) = jsonb_build_object('error', '22023', 'message', 'catalog_cost_agency_source_mislabeled')),
+  'an agency address was accepted as an official or EVO row')
+FROM (VALUES ('2', 'official', 'https://www.eduprchina.com/chinese-universities/details?urlname=N283'),
+  ('1', 'official', 'https://m.easyuni.my/n283'), ('1', 'evo_document', 'https://www.englishpath.com/n283')) AS v(who, kind, url);
+SELECT pg_temp.n283_assert(pg_temp.n283_call('1', format('platform.staff_catalog_cost_import_v1(%L::UUID, %L::JSONB, gen_random_uuid())',
+      pg_temp.n283_id(1), jsonb_build_array(jsonb_build_object('importKey', 'n283:mislabeled', 'institutionId', pg_temp.n283_id(701),
+        'costKind', 'tuition', 'period', 'year', 'amountMinMinor', 100, 'currency', 'CNY', 'sourceKind', 'official',
+        'sourceName', 'N283', 'sourceUrl', 'https://www.eduprchina.com/x', 'verifiedOn', '2026-10-16', 'publish', TRUE))))
+    = jsonb_build_object('error', '22023', 'message', 'catalog_import_invalid: row 1'),
+  'an import accepted an agency address as an official row');
+DO $n283_agency_url_check$
+BEGIN
+  UPDATE platform.catalog_costs SET source_url = 'https://www.eduprchina.com/x' WHERE id = current_setting('n283.official')::UUID;
+  RAISE EXCEPTION 'N283: a direct update gave an official row an agency address';
+EXCEPTION WHEN check_violation THEN
+  IF SQLERRM NOT LIKE '%catalog_costs_agency_url_is_agency%' THEN RAISE; END IF;
+END
+$n283_agency_url_check$;
+SELECT pg_temp.n283_assert((SELECT count(*) FROM platform.catalog_costs) = 4, 'a refused relabel or mislabeled row was written');
 
 -- ===========================================================================
 -- (d, f) Import: editor without confirmations, Admin with them, service role

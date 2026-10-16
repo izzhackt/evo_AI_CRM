@@ -9,6 +9,7 @@ import { createSupabaseServerClient } from "../supabase/server";
 import {
   parseStudentUniversityDetail,
   parseStudentUniversityIndexResponse,
+  type CatalogParseReporter,
   type StudentUniversityDetail,
   type StudentUniversityIndex,
   type StudentUniversityIndexResponse,
@@ -33,10 +34,22 @@ export class UniversityNotFoundError extends Error {
 
 class IndexCacheMiss extends Error {}
 
+/**
+ * Строка журнала сервера на каждую отброшенную или заменённую часть ответа
+ * (review S3 веба, F12): каталог показывается без неё, а не падает целиком.
+ * В строке только каталожные ключи (код страны, ключ города, id вуза или
+ * строки стоимости, валюта), личных данных нет.
+ */
+function logCatalogIssue(rpc: "student_university_index_v1" | "student_university_detail_v1"): CatalogParseReporter {
+  return (issue) => {
+    console.warn(JSON.stringify({ event: "portal_university_catalog_item_degraded", rpc, ...issue }));
+  };
+}
+
 async function callIndex(knownVersion: string | null): Promise<StudentUniversityIndexResponse> {
   const client = await createSupabaseServerClient();
   const { data, error } = await client.schema("platform").rpc("student_university_index_v1", { p_known_version: knownVersion });
-  const parsed = error ? null : parseStudentUniversityIndexResponse(data);
+  const parsed = error ? null : parseStudentUniversityIndexResponse(data, logCatalogIssue("student_university_index_v1"));
   if (!parsed) throw new UniversityIndexUnavailableError();
   return parsed;
 }
@@ -112,7 +125,7 @@ export async function readStudentUniversityDetail(institutionId: string): Promis
     if (error.code === "42501") throw new UniversityNotFoundError();
     throw new UniversityIndexUnavailableError();
   }
-  const detail = parseStudentUniversityDetail(data, institutionId);
+  const detail = parseStudentUniversityDetail(data, institutionId, logCatalogIssue("student_university_detail_v1"));
   if (!detail) throw new UniversityIndexUnavailableError();
   return detail;
 }

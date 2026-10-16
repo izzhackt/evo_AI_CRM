@@ -29,6 +29,11 @@ packages:
   Supabase:
     url: https://github.com/supabase/supabase-swift
     from: 2.0.0
+  # Формулы CSCA (контракт docs/portal/csca-contract.md §14). Точная версия;
+  # MIT, шрифты пакета под GUST Font License и SIL OFL.
+  SwiftMath:
+    url: https://github.com/mgriebling/SwiftMath
+    exactVersion: 1.7.3
 
 targets:
   EVO admissions:
@@ -76,6 +81,8 @@ targets:
     dependencies:
       - package: Supabase
         product: Supabase
+      - package: SwiftMath
+        product: SwiftMath
 
   # Hostless unit tests: компилируют только чистые Codable/логические файлы
   # (без Supabase SDK и UI), поэтому не запускают приложение и не ходят в сеть.
@@ -85,6 +92,11 @@ targets:
     deploymentTarget: "17.0"
     sources:
       - path: EVOAdmissionsTests
+      # CSCA: чистые модели, политика, TeX и профиль SVG; таблица строк
+      # проверяется тестом на RU и KY.
+      - path: EVOAdmissions/Services/CSCA
+      - path: EVOAdmissions/Resources/CSCA.xcstrings
+        buildPhase: resources
       - path: EVOAdmissions/Services/PortalModels.swift
       - path: EVOAdmissions/Services/AssessmentModels.swift
       - path: EVOAdmissions/Services/UniversityPhotoLibrary.swift
@@ -117,6 +129,10 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.evoadmissions.app.tests
         GENERATE_INFOPLIST_FILE: YES
+    # Тест разбора SwiftMath на каждом фрагменте TeX из реальных ответов.
+    dependencies:
+      - package: SwiftMath
+        product: SwiftMath
 
 schemes:
   EVO admissions:

@@ -1,0 +1,319 @@
+import Foundation
+
+/// Pure CSCA client rules (no UI, no network), unit-tested headlessly:
+/// timestamps, the server clock for timed tests, the batched-save schedule,
+/// failure classification and the session plan.
+
+// MARK: - Timestamps and Bishkek dates
+
+enum CSCATime {
+    /// Postgres `timestamptz` inside JSONB with its fraction kept (the
+    /// shared `PostgresTimestamp` drops it): the test clock needs
+    /// sub-second offsets.
+    static func date(from raw: String) -> Date? {
+        guard let whole = PostgresTimestamp.date(from: raw) else { return nil }
+        guard let dot = raw.firstIndex(of: ".") else { return whole }
+        var end = raw.index(after: dot)
+        while end < raw.endIndex, raw[end].isNumber { end = raw.index(after: end) }
+        let fraction = Double("0" + raw[dot..<end]) ?? 0
+        return whole.addingTimeInterval(fraction)
+    }
+
+    static let bishkek = TimeZone(identifier: "Asia/Bishkek")!
+
+    /// `…On` and `today` values are Bishkek calendar dates `YYYY-MM-DD`.
+    static func day(from raw: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = bishkek
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: raw)
+    }
+
+    /// Whole days from `from` to `to` (both Bishkek dates).
+    static func daysBetween(_ from: String, _ to: String) -> Int? {
+        guard let a = day(from: from), let b = day(from: to) else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = bishkek
+        return calendar.dateComponents([.day], from: a, to: b).day
+    }
+
+    static func dayLabel(_ raw: String, locale: Locale) -> String {
+        guard let date = day(from: raw) else { return raw }
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = bishkek
+        formatter.setLocalizedDateFormatFromTemplate("d MMMM")
+        return formatter.string(from: date)
+    }
+
+    static func dayWithYearLabel(_ raw: String, locale: Locale) -> String {
+        guard let date = day(from: raw) else { return raw }
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = bishkek
+        formatter.setLocalizedDateFormatFromTemplate("d MMMM yyyy")
+        return formatter.string(from: date)
+    }
+
+    /// A `timestamptz` shown in Bishkek time, like every portal timestamp.
+    static func momentLabel(_ raw: String, locale: Locale) -> String {
+        guard let date = date(from: raw) else { return raw }
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.timeZone = bishkek
+        formatter.setLocalizedDateFormatFromTemplate("d MMMM HH:mm")
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Server clock (contract §7.2)
+
+/// `offset = serverNow - clientTimeWhenTheResponseArrived`. The countdown
+/// runs on the device clock corrected by this offset; the server alone
+/// decides the deadline, the client clock is display only.
+struct CSCAServerClock: Equatable {
+    let offset: TimeInterval
+
+    init(offset: TimeInterval) { self.offset = offset }
+
+    init?(serverNow raw: String, receivedAt: Date) {
+        guard let server = CSCATime.date(from: raw) else { return nil }
+        offset = server.timeIntervalSince(receivedAt)
+    }
+
+    func serverTime(at local: Date) -> Date {
+        local.addingTimeInterval(offset)
+    }
+
+    /// Seconds left until `deadline`, never negative.
+    func remaining(until deadline: Date, at local: Date) -> TimeInterval {
+        max(0, deadline.timeIntervalSince(serverTime(at: local)))
+    }
+
+    /// Whether a save would still be accepted: before deadline + grace.
+    func acceptsSave(deadline: Date, graceSeconds: Int, at local: Date) -> Bool {
+        serverTime(at: local) < deadline.addingTimeInterval(TimeInterval(graceSeconds))
+    }
+}
+
+enum CSCACountdown {
+    /// «41:07», or «1:00:00» from one hour; rounds up so 0:00 shows only
+    /// when time is really out.
+    static func label(_ remaining: TimeInterval) -> String {
+        let total = Int(remaining.rounded(.up))
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let seconds = total % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+}
+
+// MARK: - Batched save schedule (contract §7.3)
+
+/// When the runner sends `save_learning_test_v1`: a batch every 10 s while
+/// something changed, on moving between items not more often than every
+/// 2 s, and always when the app goes to the background. Requests run one
+/// at a time with the latest revision.
+struct CSCASaveSchedule {
+    static let batchInterval: TimeInterval = 10
+    static let navigationInterval: TimeInterval = 2
+
+    enum Trigger: Equatable {
+        case tick
+        case navigation
+        case background
+        case deadline
+    }
+
+    static func shouldSave(
+        trigger: Trigger,
+        isDirty: Bool,
+        inFlight: Bool,
+        lastSaveAt: Date?,
+        now: Date
+    ) -> Bool {
+        guard isDirty, !inFlight else { return false }
+        let since = lastSaveAt.map { now.timeIntervalSince($0) } ?? .infinity
+        switch trigger {
+        case .tick: return since >= batchInterval
+        case .navigation: return since >= navigationInterval
+        case .background, .deadline: return true
+        }
+    }
+}
+
+/// Seconds spent on each item, added to the server's `item_seconds` hint
+/// (pace for the student only, clamped 0..3600 like the server).
+struct CSCAItemTimer: Equatable {
+    private(set) var seconds: [String: Int]
+    private(set) var currentKey: String?
+    private(set) var enteredAt: Date?
+
+    init(initial: [String: Int]) {
+        seconds = initial
+    }
+
+    mutating func enter(_ key: String, at now: Date) {
+        flush(at: now)
+        currentKey = key
+        enteredAt = now
+    }
+
+    mutating func flush(at now: Date) {
+        guard let key = currentKey, let start = enteredAt else { return }
+        let spent = Int(now.timeIntervalSince(start).rounded())
+        if spent > 0 {
+            seconds[key] = min(3600, (seconds[key] ?? 0) + spent)
+        }
+        enteredAt = now
+    }
+
+    mutating func pause(at now: Date) {
+        flush(at: now)
+        enteredAt = nil
+    }
+}
+
+// MARK: - Failures (contract §1.1)
+
+enum CSCAFailure: Equatable {
+    case network
+    case conflict             // 40001: re-read and retry
+    case denied               // 42501: learning unavailable
+    case deadlinePassed       // learning_test_deadline_passed
+    case testCompleted        // learning_test_completed
+    case earlyFinishForbidden // learning_test_early_finish_forbidden
+    case reviewNotDue         // learning_review_not_due
+    case reportLimit          // learning_report_limit
+    case alreadyAnswered      // second answer to a lesson exercise
+    case invalid              // any other 22023: a client bug
+
+    static func classify(code: String?, message: String?, isTransport: Bool) -> CSCAFailure {
+        switch code {
+        case "40001": return .conflict
+        case "42501": return .denied
+        case "22023":
+            switch message {
+            case "learning_test_deadline_passed": return .deadlinePassed
+            case "learning_test_completed": return .testCompleted
+            case "learning_test_early_finish_forbidden": return .earlyFinishForbidden
+            case "learning_review_not_due": return .reviewNotDue
+            case "learning_report_limit": return .reportLimit
+            case "Learning exercise is already answered": return .alreadyAnswered
+            default: return .invalid
+            }
+        case .some: return .invalid
+        case nil: return isTransport ? .network : .invalid
+        }
+    }
+
+    /// Repeating the same frozen request (same request id, same input) is
+    /// safe only after a transport failure.
+    var isRetryableAsIs: Bool { self == .network }
+}
+
+// MARK: - Session plan (contract §11)
+
+/// Countdown and the three stages counted on the client from `examFrom`:
+/// foundation, then weak topics with timed items, then full mock tests.
+/// The boundaries are an EVO rule of thumb (the CSC guide puts the sprint
+/// about a week before the session), not an official schedule.
+enum CSCASessionPlan {
+    enum Stage: Equatable {
+        case foundation
+        case intensification
+        case sprint
+        case examDays
+        case past
+    }
+
+    static let sprintDays = 7
+    static let intensificationDays = 28
+
+    static func stage(daysToExam: Int, daysToExamEnd: Int) -> Stage {
+        if daysToExamEnd < 0 { return .past }
+        if daysToExam <= 0 { return .examDays }
+        if daysToExam <= sprintDays { return .sprint }
+        if daysToExam <= intensificationDays { return .intensification }
+        return .foundation
+    }
+
+    static func stage(for session: CSCASession, today: String) -> (days: Int, stage: Stage)? {
+        guard let days = CSCATime.daysBetween(today, session.examFrom),
+              let toEnd = CSCATime.daysBetween(today, session.examTo) else { return nil }
+        return (days, stage(daysToExam: days, daysToExamEnd: toEnd))
+    }
+}
+
+// MARK: - Review boxes (contract §8)
+
+enum CSCAReviewBoxes {
+    /// Days until the next repetition for each box.
+    static func intervalDays(box: Int) -> Int? {
+        switch box {
+        case 1: return 1
+        case 2: return 3
+        case 3: return 7
+        case 4: return 14
+        default: return nil
+        }
+    }
+}
+
+// MARK: - Test navigator
+
+enum CSCANavigatorCellState: Equatable {
+    case empty
+    case answered
+    case flagged
+    case answeredFlagged
+}
+
+enum CSCANavigator {
+    static func state(itemKey: String, answers: [String: String], flags: [String]) -> CSCANavigatorCellState {
+        let answered = answers[itemKey] != nil
+        let flagged = flags.contains(itemKey)
+        switch (answered, flagged) {
+        case (true, true): return .answeredFlagged
+        case (true, false): return .answered
+        case (false, true): return .flagged
+        case (false, false): return .empty
+        }
+    }
+
+    /// Flag toggle that keeps the array free of duplicates (contract §7.3).
+    static func toggled(_ flags: [String], _ key: String) -> [String] {
+        flags.contains(key) ? flags.filter { $0 != key } : flags + [key]
+    }
+}
+
+// MARK: - Report text (contract §10)
+
+enum CSCAReportText {
+    static let maxLength = 500
+
+    /// The message the server will accept (285 `report_learning_item_v1`):
+    /// 1..500 characters (`char_length`, so Unicode scalars) after trimming,
+    /// and no control character except the line feed. Carriage returns
+    /// become line feeds first. nil when the text cannot be sent.
+    static func normalized(_ raw: String) -> String? {
+        let unified = raw
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        let trimmed = unified.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.unicodeScalars.count <= maxLength else { return nil }
+        let forbidden = trimmed.unicodeScalars.contains { scalar in
+            let value = scalar.value
+            return (value >= 0x01 && value <= 0x09) || (value >= 0x0B && value <= 0x1F) || value == 0x7F
+        }
+        return forbidden ? nil : trimmed
+    }
+
+    static func length(_ raw: String) -> Int {
+        raw.trimmingCharacters(in: .whitespacesAndNewlines).unicodeScalars.count
+    }
+}

@@ -1,0 +1,256 @@
+{
+  "draft": null,
+  "topic": {
+    "metadata": {
+      "section": 3,
+      "title_en": "Lines and circles",
+      "title_ky": "Түз сызык жана айлана",
+      "title_ru": "Прямая и окружность",
+      "likely_gap": false,
+      "syllabus_fit": "explicit",
+      "prerequisites": [
+        "m1-ineq-quadratic"
+      ],
+      "syllabus_point": "3.1",
+      "lessons_planned": 2,
+      "mock_items_estimate": 3
+    },
+    "topicKey": "m3-line-circle",
+    "orderIndex": 17
+  },
+  "lesson": {
+    "theory": [],
+    "lessonId": "43386f2c-1fae-57eb-8bb2-5f435235e9e3",
+    "metadata": {
+      "kind": "practice",
+      "goal_ky": "Тема боюнча убакыт чектелбеген тапшырмалар. Ар бир жооптон кийин талдоо дароо көрүнөт.",
+      "goal_ru": "Задания по теме без таймера. После каждого ответа сразу виден разбор.",
+      "title_en": "Lines and circles: distance decides",
+      "title_ky": "Түз сызык жана айлана: баарын аралык чечет",
+      "title_ru": "Прямая и окружность: всё решает расстояние",
+      "topic_key": "m3-line-circle",
+      "est_minutes": 5,
+      "syllabus_point": "3.1"
+    },
+    "exercises": [
+      {
+        "type": "item",
+        "stemEn": "Find the equation of the line that passes through the point $(1, 2)$ and is perpendicular to the line $y = 2x + 1$.",
+        "itemKey": "csca-math-line-circle-004",
+        "options": [
+          {
+            "id": "a",
+            "label": "$2x - y = 0$"
+          },
+          {
+            "id": "b",
+            "label": "$x - 2y + 3 = 0$"
+          },
+          {
+            "id": "c",
+            "label": "$x + 2y - 3 = 0$"
+          },
+          {
+            "id": "d",
+            "label": "$x + 2y - 5 = 0$"
+          }
+        ],
+        "topicKey": "m3-line-circle",
+        "difficulty": 2,
+        "estSeconds": 75,
+        "exerciseId": "55103331-94f3-599d-8065-a088beb22256",
+        "orderIndex": 1,
+        "exerciseKey": "csca-math-line-circle-004",
+        "syllabusPoint": "3.1"
+      },
+      {
+        "type": "item",
+        "stemEn": "Find the length of the chord cut from the circle $x^2 + y^2 = 5$ by the line $x + y - 1 = 0$.",
+        "itemKey": "csca-math-line-circle-008",
+        "options": [
+          {
+            "id": "a",
+            "label": "$\\frac{3\\sqrt{2}}{2}$"
+          },
+          {
+            "id": "b",
+            "label": "$4$"
+          },
+          {
+            "id": "c",
+            "label": "$2\\sqrt{5}$"
+          },
+          {
+            "id": "d",
+            "label": "$3\\sqrt{2}$"
+          }
+        ],
+        "topicKey": "m3-line-circle",
+        "difficulty": 3,
+        "estSeconds": 105,
+        "exerciseId": "d397f2c7-5772-5a0e-8f75-b38700f1fa88",
+        "orderIndex": 2,
+        "exerciseKey": "csca-math-line-circle-008",
+        "syllabusPoint": "3.1"
+      },
+      {
+        "type": "item",
+        "stemEn": "A point $P$ moves on the circle $x^2 + y^2 = 1$. Find the maximum distance from $P$ to the line $3x + 4y - 10 = 0$.",
+        "itemKey": "csca-math-line-circle-010",
+        "options": [
+          {
+            "id": "a",
+            "label": "$2$"
+          },
+          {
+            "id": "b",
+            "label": "$3$"
+          },
+          {
+            "id": "c",
+            "label": "$1$"
+          },
+          {
+            "id": "d",
+            "label": "$\\frac{7}{5}$"
+          }
+        ],
+        "topicKey": "m3-line-circle",
+        "difficulty": 3,
+        "estSeconds": 105,
+        "exerciseId": "869261ed-b8a4-56ba-8dee-4678a51ebf19",
+        "orderIndex": 3,
+        "exerciseKey": "csca-math-line-circle-010",
+        "syllabusPoint": "3.1"
+      }
+    ],
+    "lessonKey": "csca-math-m3-line-circle-p1",
+    "orderIndex": 6
+  },
+  "module": {
+    "track": "csca-math",
+    "version": "1.0.0",
+    "metadata": {
+      "sections": [
+        {
+          "points": [
+            {
+              "point": "1.1",
+              "label_en": "Sets",
+              "label_ky": "Көптүктөр: аныктамасы, амалдар, жазуу жолдору",
+              "label_ru": "Множества: определение, операции, способы записи"
+            },
+            {
+              "point": "1.2",
+              "label_en": "Inequalities",
+              "label_ky": "Барабарсыздыктар: касиеттери жана чыгаруу жолдору, анын ичинде квадраттык жана бөлчөк-рационалдык",
+              "label_ru": "Неравенства: свойства и способы решения, включая квадратные и дробно-рациональные"
+            }
+          ],
+          "section": 1,
+          "title_en": "Sets and Inequalities",
+          "title_ky": "Көптүктөр жана барабарсыздыктар",
+          "title_ru": "Множества и неравенства",
+          "mock_items_estimate": 7
+        },
+        {
+          "points": [
+            {
+              "point": "2.1",
+              "label_en": "Function concepts and properties",
+              "label_ky": "Функция жана анын касиеттери: аныкталуу областы, маанилер областы, монотондуулук, жуптук",
+              "label_ru": "Функция и её свойства: область определения, множество значений, монотонность, чётность"
+            },
+            {
+              "point": "2.2",
+              "label_en": "Basic elementary functions",
+              "label_ky": "Негизги элементардык функциялар: даражалуу, көрсөткүчтүү, логарифмдик, тригонометриялык",
+              "label_ru": "Основные элементарные функции: степенная, показательная, логарифмическая, тригонометрические"
+            },
+            {
+              "point": "2.3",
+              "label_en": "Sequences",
+              "label_ky": "Удаалаштыктар: арифметикалык жана геометриялык прогрессиялардын жалпы мүчөсү жана суммасы",
+              "label_ru": "Последовательности: общий член и сумма арифметической и геометрической прогрессий"
+            },
+            {
+              "point": "2.4",
+              "label_en": "Derivatives",
+              "label_ky": "Туундунун негиздери: аныктамасы, геометриялык мааниси, жөнөкөй колдонуулар",
+              "label_ru": "Основы производной: определение, геометрический смысл, простые применения"
+            }
+          ],
+          "section": 2,
+          "title_en": "Functions",
+          "title_ky": "Функциялар",
+          "title_ru": "Функции",
+          "mock_items_estimate": 19
+        },
+        {
+          "points": [
+            {
+              "point": "3.1",
+              "label_en": "Plane analytic geometry",
+              "label_ky": "Тегиздиктеги аналитикалык геометрия: түз сызык, айлана, эллипс, гипербола, парабола",
+              "label_ru": "Аналитическая геометрия на плоскости: прямая, окружность, эллипс, гипербола, парабола"
+            },
+            {
+              "point": "3.2",
+              "label_en": "Vectors and complex numbers",
+              "label_ky": "Векторлор жана комплекстүү сандар: амалдар",
+              "label_ru": "Векторы и комплексные числа: действия"
+            },
+            {
+              "point": "3.3",
+              "label_en": "Solid geometry",
+              "label_ky": "Стереометрия: мейкиндиктеги тик бурчтуу координаталар системасы, жөнөкөй телолор",
+              "label_ru": "Стереометрия: прямоугольная система координат в пространстве, простые тела"
+            }
+          ],
+          "section": 3,
+          "title_en": "Geometry and Algebra",
+          "title_ky": "Геометрия жана алгебра",
+          "title_ru": "Геометрия и алгебра",
+          "mock_items_estimate": 14
+        },
+        {
+          "points": [
+            {
+              "point": "4.1",
+              "label_en": "Classical probability",
+              "label_ky": "Классикалык ыктымалдык жана ыктымалдыктарды эсептөө",
+              "label_ru": "Классическая вероятность и вычисление вероятностей"
+            },
+            {
+              "point": "4.2",
+              "label_en": "Numerical characteristics of data",
+              "label_ky": "Маалыматтардын сандык мүнөздөмөлөрү: орточо маани, дисперсия",
+              "label_ru": "Числовые характеристики данных: среднее, дисперсия"
+            },
+            {
+              "point": "4.3",
+              "label_en": "Normal distribution",
+              "label_ky": "Нормалдуу бөлүштүрүү: негизги түшүнүктөр",
+              "label_ru": "Нормальное распределение: основные понятия"
+            }
+          ],
+          "section": 4,
+          "title_en": "Probability and Statistics",
+          "title_ky": "Ыктымалдык жана статистика",
+          "title_ru": "Вероятность и статистика",
+          "mock_items_estimate": 8
+        }
+      ],
+      "title_ky": "Математика",
+      "title_ru": "Математика",
+      "syllabus_url": "https://csca.cn/about/testprep",
+      "level_note_ky": "Тапшырмалар экзамендегидей англис тилинде. Түшүндүрмөлөр орус жана кыргыз тилдеринде, терминдер англис тилинде. Бардык тапшырмалар калькуляторсуз чыгарылат.",
+      "level_note_ru": "Задания на английском, как на экзамене. Объяснения на русском и кыргызском, термины на английском. Все задания решаются без калькулятора.",
+      "syllabus_edition": "2025"
+    },
+    "moduleId": "a7bd0cdc-929a-50b1-8cdc-ed3374d8c730",
+    "moduleKey": "csca-math"
+  },
+  "figures": {},
+  "latestCompleted": null
+}

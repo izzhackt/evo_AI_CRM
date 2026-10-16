@@ -69,6 +69,11 @@ struct EnglishView: View {
             .navigationDestination(for: UUID.self) { lessonId in
                 LessonContentView(lessonId: lessonId)
             }
+            // Экраны CSCA объявлены у корня стека (SwiftUI берёт ближайшее
+            // к корню объявление).
+            .navigationDestination(for: CSCARoute.self) { route in
+                CSCARouteView(route: route)
+            }
             .task {
                 if model.modules.isEmpty {
                     await model.load()
@@ -79,6 +84,14 @@ struct EnglishView: View {
 
     private var moduleList: some View {
         List {
+            // Подготовка к CSCA (миграции 285, 286): вход рядом с английским,
+            // вкладка не переименовывается (решение владельца по умолчанию).
+            Section {
+                NavigationLink(value: CSCARoute.home) {
+                    CSCAEntryRow()
+                }
+            }
+
             ForEach(model.modules) { module in
                 Section {
                     ForEach(module.lessons) { lesson in

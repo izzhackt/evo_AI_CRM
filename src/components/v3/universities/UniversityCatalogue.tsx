@@ -4,6 +4,7 @@ import { Icon } from "@/components/icons";
 import { UNIVERSITY_LEVELS, UNIVERSITY_LEVEL_LABELS, type UniversityContent, type UniversityFilters, type UniversityProgram } from "@/lib/platform-university-catalog";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { staffUniversityCountryOptions } from "@/lib/university-staff-countries";
+import { studyCountryName } from "@/lib/study-countries";
 import { universityFormWorkspace } from "@/lib/v3/wording";
 import {
   catalogueProgramCount,
@@ -34,8 +35,9 @@ import { UniversityToolbar } from "./UniversityToolbar";
 const DATE = "font-mono tabular-nums";
 const QUIET_LINK = "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 underline underline-offset-4 hover:text-fg";
 
+/** Страны единого списка называются по `study-countries.json`; остальные карточки каталога (PL, CY и др.) по ICU. */
 export function universityCountry(code: string) {
-  const known = ({ CN: "Китай", MY: "Малайзия", AE: "ОАЭ", TR: "Турция" } as Record<string, string>)[code];
+  const known = studyCountryName(code, "ru");
   if (known) return known;
   try { return new Intl.DisplayNames(["ru"], { type: "region" }).of(code) ?? code; } catch { return code; }
 }

@@ -151,8 +151,7 @@ private struct UniversitiesMapCanvas: View {
     }
 
     private func pinPlaceLine(_ pin: UniversityMapPin) -> String {
-        let country = AppLocale.current.localizedString(forRegionCode: pin.country)
-            ?? pin.country
+        let country = studyCountryLabel(pin.country)
         if let city = pin.city, !city.isEmpty {
             // Разделитель « · » — как у мини-карточки веб-карты
             // (src/app/(portal)/portal/universities/page.tsx:74).

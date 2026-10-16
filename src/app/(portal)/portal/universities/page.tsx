@@ -15,7 +15,7 @@ import { getPortalStrings } from "@/lib/portal/i18n";
 import { readStudentUniversitiesComplete } from "@/lib/portal/university-catalog-reader";
 import { readStudentUniversityFavorites } from "@/lib/portal/university-favorites-source";
 import { universityGeo } from "@/lib/portal/university-geo";
-import { universityCountryLabel, type UniversityMapPin } from "@/lib/portal/universities";
+import { isStudentUniversityCountryFilter, universityCountryLabel, type UniversityMapPin } from "@/lib/portal/universities";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 import { readStudentUniversities } from "@/lib/v3/university-source";
 
@@ -43,6 +43,9 @@ export default async function UniversitiesPage({
   if (rawView !== undefined && rawView !== "map" && rawView !== "list") notFound();
   const view: UniversitiesView = rawView === "map" ? "map" : "list";
   const filters = parseUniversityFilters(filterParams) ?? notFound();
+  // Студенту доступны только страны единого списка (282): другой код в адресе
+  // это не пустой каталог, а неверный адрес, как и прочие неверные фильтры.
+  if (!isStudentUniversityCountryFilter(filters.country)) notFound();
   const strings = getPortalStrings("universities", locale);
   const now = new Date();
 

@@ -48,3 +48,36 @@ where created_at > now() - interval '14 days' group by 1 order by 1;
 по 10 МБ; строка пишется до проверки лимита частоты, поэтому поток мусорных POST
 может вытеснить сутки журнала — тогда смотреть квитанции в базе и postgres-логи
 Supabase (≥ 35 дней).
+
+## Список стран формы (282): порядок перехода
+
+Один список стран продукта: CN, MY, AE, TR, IT, CZ и «Пока не решил»
+(`src/lib/study-countries.json`, решение владельца 16.10.2026). Форма сайта
+шлёт английские значения: China, Malaysia, United Arab Emirates, Turkey,
+Italy, Czechia, Undecided.
+
+1. **CRM с 282.** Приёмник принимает текущие значения
+   (`platform_private.website_enquiry_country_values()`) и прежние значения
+   старой формы (`website_enquiry_legacy_country_values()`: Europe, Germany,
+   United Kingdom, Netherlands, France, Poland, Austria, Cyprus). Направление
+   лида прежнее: Italy, Czechia и прежние европейские значения дают `EU`,
+   Undecided остаётся без направления.
+2. **Сайт.** Выкладка формы с новым списком делается отдельным шагом с OK владельца.
+   Новый список целиком входит в то, что приёмник уже принимает, поэтому
+   порядок «сайт раньше CRM» тоже безопасен.
+3. **Окно.** Уже открытые страницы и повторы со старым `requestId` ещё
+   могут прийти с прежним значением. Перед сужением проверить, что прежних
+   значений нет хотя бы 14 дней (только чтение):
+
+   ```sql
+   select payload->>'country' as country, count(*) from platform_private.website_lead_receipts
+   where created_at > now() - interval '14 days'
+     and payload->>'country' in ('Europe', 'Germany', 'United Kingdom', 'Netherlands',
+       'France', 'Poland', 'Austria', 'Cyprus')
+   group by 1;
+   ```
+
+4. **Сужение.** Отдельная миграция убирает из `receive_website_lead` условие
+   с `website_enquiry_legacy_country_values()` и саму функцию; то же изменение
+   убирает `WEBSITE_ENQUIRY_LEGACY_COUNTRIES` из `src/lib/website-enquiry-contract.ts`.
+   До неё прежние значения принимаются.

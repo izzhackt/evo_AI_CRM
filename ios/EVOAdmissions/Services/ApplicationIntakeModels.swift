@@ -12,11 +12,22 @@ enum ApplicationContract {
     static let metadataKey = "student_application_draft"
     /// contract:3
     static let consentVersion = "2026-09-18"
-    /// contract:4
-    static let destinationCountries = [
-        "CN", "MY", "DE", "FR", "ES", "IT", "NL", "PL",
-        "HU", "AT", "CZ", "GB", "CY", "TR", "AE",
-    ]
+    /// contract STUDENT_APPLICATION_COUNTRIES: the one product list
+    /// (`study-countries.json`, the same bundled file as the web) and
+    /// «Пока не решил», chosen only alone. A new анкета names only these
+    /// (the server too, migration 282).
+    static var destinationCountries: [String] { StudyCountries.codes + [StudyCountries.undecidedCode] }
+
+    /// A saved draft or a pre-282 анкета may name a country that left the
+    /// list: the wizard drops it and the student chooses again (web
+    /// `currentDestinations`, ApplicationWizard.tsx); «Пока не решил» stays
+    /// only alone.
+    static func currentDestinations(_ list: [String]) -> [String] {
+        let kept = list.filter { destinationCountries.contains($0) }
+        return kept.contains(StudyCountries.undecidedCode) && kept.count > 1
+            ? kept.filter { $0 != StudyCountries.undecidedCode }
+            : kept
+    }
     /// contract:5
     static let intakeSeasons = ["spring", "summer", "autumn", "winter", "undecided"]
     /// contract:6
@@ -201,6 +212,8 @@ enum ApplicationDraftValidator {
               isStringSet(draft.destinationCountries, max: 15, validate: {    // contract:60
                   ApplicationContract.destinationCountries.contains($0)
               }),
+              !draft.destinationCountries.contains(StudyCountries.undecidedCode)  // contract destinations()
+                  || draft.destinationCountries.count == 1,
               ApplicationContract.intakeSeasons.contains(draft.intakeSeason), // contract:61
               (2026...2036).contains(draft.intakeYear),                       // contract:62
               ApplicationContract.educationLevels.contains(draft.educationLevel), // contract:63

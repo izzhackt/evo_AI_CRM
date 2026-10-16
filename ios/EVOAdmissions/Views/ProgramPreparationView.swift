@@ -22,7 +22,7 @@ struct CatalogIntakePreparationAction: View {
                     .buttonStyle(.bordered)
                     .frame(minHeight: 44)
             } else if context.canStart {
-                if !["CN", "MY", "AE", "TR", "IT", "CZ"].contains(item.content.country) {
+                if !StudyCountries.codes.contains(item.content.country) {
                     Text("prep_country_unavailable").font(.footnote).foregroundStyle(.secondary)
                 } else if intake.id == nil {
                     Text("prep_identity_unavailable").font(.footnote).foregroundStyle(.secondary)

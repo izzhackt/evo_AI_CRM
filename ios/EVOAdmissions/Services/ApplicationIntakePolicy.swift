@@ -44,7 +44,7 @@ struct ApplicationWizardValues: Equatable, Codable {
         firstName = draft.firstName
         lastName = draft.lastName
         phone = draft.phone
-        destinationCountries = draft.destinationCountries
+        destinationCountries = ApplicationContract.currentDestinations(draft.destinationCountries)
         intakeSeason = draft.intakeSeason
         intakeYear = String(draft.intakeYear)
         educationLevel = draft.educationLevel
@@ -106,6 +106,19 @@ struct ApplicationWizardValues: Equatable, Codable {
 }
 
 enum ApplicationWizardPolicy {
+    /// Web `toggle` for countries (ApplicationWizard.tsx): «Пока не решил»
+    /// and the countries exclude each other; choosing one clears the other,
+    /// choosing a selected value again removes it.
+    static func toggledDestinations(_ list: [String], value: String) -> [String] {
+        if let index = list.firstIndex(of: value) {
+            var next = list
+            next.remove(at: index)
+            return next
+        }
+        if value == StudyCountries.undecidedCode { return [value] }
+        return list.filter { $0 != StudyCountries.undecidedCode } + [value]
+    }
+
     /// Multi-select ceilings (ApplicationWizard.tsx:128-133).
     static func selectionLimit(for key: ApplicationWizardStep) -> Int {
         switch key {

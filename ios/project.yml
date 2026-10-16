@@ -46,6 +46,9 @@ targets:
       # bundle-ресурс из src/lib, ключ photoKey → проверенная координата.
       - path: ../src/lib/university-geo-library.json
         buildPhase: resources
+      # Один список стран продукта (282): тот же файл, что у веба и CRM.
+      - path: ../src/lib/study-countries.json
+        buildPhase: resources
     settings:
       base:
         PRODUCT_NAME: "EVO admissions"
@@ -87,6 +90,7 @@ targets:
       - path: EVOAdmissions/Services/UniversityPhotoLibrary.swift
       - path: EVOAdmissions/Services/UniversityGeoLibrary.swift
       - path: EVOAdmissions/Services/UniversityCatalogFilterPolicy.swift
+      - path: EVOAdmissions/Services/StudyCountries.swift
       - path: EVOAdmissions/Services/UniversityMapPolicy.swift
       - path: EVOAdmissions/Services/SingleFlightReloadGate.swift
       - path: EVOAdmissions/Services/PostgresTimestamp.swift
@@ -106,6 +110,8 @@ targets:
       - path: ../src/lib/university-photo-library.json
         buildPhase: resources
       - path: ../src/lib/university-geo-library.json
+        buildPhase: resources
+      - path: ../src/lib/study-countries.json
         buildPhase: resources
     settings:
       base:

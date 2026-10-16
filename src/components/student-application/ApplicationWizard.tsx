@@ -6,13 +6,14 @@ import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import {
-  STUDENT_APPLICATION_CONSENT_VERSION, STUDENT_APPLICATION_COUNTRIES, STUDENT_APPLICATION_EDUCATION_LEVELS,
+  isStudentApplicationCountry, STUDENT_APPLICATION_CONSENT_VERSION, STUDENT_APPLICATION_EDUCATION_LEVELS,
   STUDENT_APPLICATION_FUNDING_SOURCES, STUDENT_APPLICATION_GRADE_SCALES, STUDENT_APPLICATION_INTAKE_SEASONS,
   STUDENT_APPLICATION_STUDY_LEVELS, STUDENT_APPLICATION_TUITION_BUDGETS, validateStudentApplicationDraft,
   type StudentApplicationDraft,
 } from "@/lib/student-application-contract";
 import { ENGLISH_EXAMS, localizedCountryLabel, NATIONALITY_COUNTRIES, STUDY_FIELD_OPTIONS } from "@/lib/student-application-presentation";
 import { registerStudentAction } from "@/lib/student-signup-actions";
+import { STUDY_COUNTRY_UNDECIDED, studyCountryOptions } from "@/lib/study-countries";
 import { SignupConfirmationPending } from "./SignupConfirmationPending";
 import { getSignupConfirmationStrings } from "@/lib/portal/signup-confirmation-i18n";
 import { ApplyLangSwitcher } from "./ApplyLangSwitcher";
@@ -32,13 +33,23 @@ type WizardState = {
   englishScore: string; englishLevel: string; tuitionBudget: string; fundingSource: string; consent: boolean;
 };
 
+/**
+ * 282: only the countries the анкета offers now survive a saved draft (a country
+ * that left the list is dropped, the student chooses again); «Пока не решил»
+ * stays only alone.
+ */
+function currentDestinations(list: readonly string[]): string[] {
+  const kept = list.filter(isStudentApplicationCountry);
+  return kept.includes(STUDY_COUNTRY_UNDECIDED) && kept.length > 1 ? kept.filter((code) => code !== STUDY_COUNTRY_UNDECIDED) : kept;
+}
+
 /** PORT-1b: bounded invited-name prefill; never a substitute for the draft. */
 export type ApplicationNamePrefill = { firstName: string; lastName: string };
 
 function initialState(requestId: string, draft: StudentApplicationDraft | null, namePrefill: ApplicationNamePrefill | null = null): WizardState {
   return {
     requestId, firstName: draft?.firstName ?? namePrefill?.firstName ?? "", lastName: draft?.lastName ?? namePrefill?.lastName ?? "", phone: draft?.phone ?? "",
-    destinationCountries: draft?.destinationCountries ?? [], intakeSeason: draft?.intakeSeason ?? "",
+    destinationCountries: currentDestinations(draft?.destinationCountries ?? []), intakeSeason: draft?.intakeSeason ?? "",
     intakeYear: draft ? String(draft.intakeYear) : "", educationLevel: draft?.educationLevel ?? "",
     averageGrade: draft ? String(draft.averageGrade) : "", gradeScale: draft?.gradeScale ?? "5",
     studyFields: draft?.studyFields ?? [], studyLevels: draft?.studyLevels ?? [], nationality: draft?.nationality ?? "",
@@ -68,6 +79,7 @@ function restoredState(raw: string, base: WizardState): { values: WizardState; s
         if (Array.isArray(v) && v.length <= 15 && v.every((s) => typeof s === "string" && s.length <= 100)) Object.assign(values, { [key]: v });
       } else if (typeof v === typeof base[key] && (typeof v !== "string" || v.length <= 100)) Object.assign(values, { [key]: v });
     }
+    values.destinationCountries = currentDestinations(values.destinationCountries);
     return { values, step: Number.isInteger(parsed.step) ? Math.max(0, Math.min(8, parsed.step)) : 0 };
   } catch { return null; }
 }
@@ -138,6 +150,11 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
   useEffect(() => { if (moved.current) heading.current?.focus(); }, [step]);
   function update<K extends keyof WizardState>(key: K, value: WizardState[K]) { setValues((old) => ({ ...old, [key]: value })); setError(""); }
   function toggle(key: "destinationCountries" | "studyFields" | "studyLevels", value: string) {
+    // «Пока не решил» и страны взаимоисключающие: выбор одного снимает другое.
+    if (key === "destinationCountries" && !values.destinationCountries.includes(value)) {
+      update(key, value === STUDY_COUNTRY_UNDECIDED ? [value] : [...values.destinationCountries.filter((item) => item !== STUDY_COUNTRY_UNDECIDED), value]);
+      return;
+    }
     const list = values[key];
     const limit = key === "studyFields" ? 10 : key === "studyLevels" ? 6 : 15;
     if (!list.includes(value) && list.length >= limit) { setError(formatPortalString(strings.limitError, { limit: String(limit) })); return; }
@@ -211,7 +228,7 @@ export function ApplicationWizard({ requestId, draft = null, signedInEmail = nul
     <h1 tabIndex={-1} ref={live ? heading : undefined} className="max-w-xl text-2xl font-semibold leading-tight tracking-tight outline-none sm:text-3xl">{s === 8 && signedInEmail ? strings.contactsHeading : strings[`question.${STEP_KEYS[s]}`]}</h1>
     {stepCopyFor(s) && <p className="mt-3 text-sm leading-6 text-fg-2">{stepCopyFor(s)}</p>}
     <div className="mt-7 space-y-5">
-      {s === 0 && <div className="grid gap-3 sm:grid-cols-3">{STUDENT_APPLICATION_COUNTRIES.map((country) => <Choice key={country} selected={values.destinationCountries.includes(country)} onClick={() => toggle("destinationCountries", country)}><span className="flex items-center gap-3"><span aria-hidden="true" className="text-2xl">{String.fromCodePoint(...[...country].map((c) => c.charCodeAt(0) + 127397))}</span>{opt(country)}</span></Choice>)}</div>}
+      {s === 0 && <div className="grid gap-3 sm:grid-cols-3">{studyCountryOptions(locale, { undecided: true }).map(({ code, label }) => <Choice key={code} selected={values.destinationCountries.includes(code)} onClick={() => toggle("destinationCountries", code)}><span className="flex items-center gap-3"><span aria-hidden="true" className="text-2xl">{code === STUDY_COUNTRY_UNDECIDED ? "🌐" : String.fromCodePoint(...[...code].map((c) => c.charCodeAt(0) + 127397))}</span>{label}</span></Choice>)}</div>}
       {s === 1 && <div className="grid max-w-xl gap-5 sm:grid-cols-2">{select("intakeSeason", strings.intakeLabel, STUDENT_APPLICATION_INTAKE_SEASONS)}<label className="grid gap-2 text-sm font-medium text-fg-2">{strings.yearLabel}<select className={INPUT} required value={values.intakeYear} onChange={(e) => update("intakeYear", e.target.value)}><option value="">{strings.chooseYear}</option>{years.map((y) => <option key={y} value={y}>{y}</option>)}</select></label></div>}
       {s === 2 && <div className="max-w-xl space-y-5">{select("educationLevel", strings.educationLabel, STUDENT_APPLICATION_EDUCATION_LEVELS)}<div className="grid gap-5 sm:grid-cols-2"><label className="grid gap-2 text-sm font-medium text-fg-2">{strings.gradeLabel}<input className={INPUT} type="number" min="0" max={Number(values.gradeScale)} step="0.01" required value={values.averageGrade} onChange={(e) => update("averageGrade", e.target.value)} inputMode="decimal" /></label><label className="grid gap-2 text-sm font-medium text-fg-2">{strings.gradeScaleLabel}<select className={INPUT} value={values.gradeScale} onChange={(e) => update("gradeScale", e.target.value)}>{STUDENT_APPLICATION_GRADE_SCALES.map((scale) => <option key={scale} value={scale}>{formatPortalString(strings.gradeScaleOf, { scale })}</option>)}</select></label></div></div>}
       {s === 3 && <><label className="grid gap-2 text-sm font-medium text-fg-2">{strings.fieldSearchLabel}<input className={INPUT} value={fieldSearch} onChange={(e) => setFieldSearch(e.target.value)} placeholder={strings.fieldSearchPlaceholder} type="search" /></label><div className="grid gap-3 sm:grid-cols-2">{STUDY_FIELD_OPTIONS.filter((item) => item.toLocaleLowerCase("ru").includes(fieldSearch.toLocaleLowerCase(searchLocale)) || fieldLabel(item).toLocaleLowerCase(searchLocale).includes(fieldSearch.toLocaleLowerCase(searchLocale))).map((field) => <Choice key={field} selected={values.studyFields.includes(field)} onClick={() => toggle("studyFields", field)}>{fieldLabel(field)}</Choice>)}</div><div className="flex flex-wrap gap-2">{values.studyFields.filter((s) => !(STUDY_FIELD_OPTIONS as readonly string[]).includes(s)).map((s) => <button type="button" key={s} onClick={() => toggle("studyFields", s)} className="min-h-11 rounded-ctl border border-accent bg-accent-weak px-3 text-sm text-accent-text" aria-label={formatPortalString(strings.removeField, { field: s })}>{s} ×</button>)}</div><div className="flex items-end gap-3"><label className="grid min-w-0 flex-1 gap-2 text-sm font-medium text-fg-2">{strings.customFieldLabel}<input className={INPUT} maxLength={100} value={customField} onChange={(e) => setCustomField(e.target.value)} /></label><button type="button" disabled={!customField.trim()} onClick={() => { const field = customField.trim(); if (field && !values.studyFields.includes(field)) toggle("studyFields", field); setCustomField(""); }} className="min-h-12 rounded-ctl border border-control-edge px-4 text-sm font-medium disabled:opacity-50">{strings.addField}</button></div></>}

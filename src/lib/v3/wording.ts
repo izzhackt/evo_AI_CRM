@@ -27,6 +27,7 @@ import type {
   PlatformDocumentSlotStatus,
 } from "../platform-private-documents.ts";
 import { PROFILE_FIELDS } from "../student-profile-fields.ts";
+import { studyCountryOptions } from "../study-countries.ts";
 
 export function studentProfileFieldState(value: string): string | null {
   const labels: Record<string, string> = {
@@ -359,18 +360,13 @@ export const financeBlockedActionOptions = Object.entries(FINANCE_BLOCKED_ACTION
 
 /**
  * Страна заявки: код ISO-3166-1 alpha-2 → русское название. Здесь только
- * шесть стран, с которыми работает бизнес (см. frontend-roadmap,
- * «Требования под страну и программу»). Неизвестный код не рисуется:
- * `lookup` вернёт `null`, и вызывающий ничего не показывает.
+ * страны единого списка продукта (`study-countries.json`, решение владельца
+ * 16.10.2026). Неизвестный код не рисуется: `lookup` вернёт `null`, и
+ * вызывающий ничего не показывает.
  */
-const COUNTRY: Record<string, string> = {
-  CN: "Китай",
-  MY: "Малайзия",
-  AE: "ОАЭ",
-  TR: "Турция",
-  IT: "Италия",
-  CZ: "Чехия",
-};
+const COUNTRY: Record<string, string> = Object.fromEntries(
+  studyCountryOptions("ru").map(({ code, label }) => [code, label]),
+);
 
 /**
  * Ступень обучения университетской заявки: машинный ключ → слово. Ключи —

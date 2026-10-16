@@ -6,7 +6,8 @@ import XCTest
 ///  p_level: filters.level || null` — пустое значение веб передаёт как NULL,
 /// iOS выражает это `nil`. Границы значений — серверная валидация веба
 /// (src/lib/platform-university-catalog.ts:95): запрос ≤100 символов,
-/// страна из списка UNIVERSITY_COUNTRIES, уровень из UNIVERSITY_LEVELS.
+/// страна из единого списка продукта (study-countries.json), уровень из
+/// UNIVERSITY_LEVELS.
 final class UniversityCatalogFilterPolicyTests: XCTestCase {
 
     // MARK: - p_query
@@ -55,24 +56,12 @@ final class UniversityCatalogFilterPolicyTests: XCTestCase {
         ))
     }
 
-    func testCountryListMirrorsWebDomainList() {
-        // UNIVERSITY_COUNTRIES (platform-university-catalog.ts:7): 249 кодов,
-        // без дублей, все — две заглавные латинские буквы.
-        let countries = UniversityCatalogFilterPolicy.countries
-        XCTAssertEqual(countries.count, 249)
-        XCTAssertEqual(Set(countries).count, 249)
-        for code in countries {
-            XCTAssertTrue(
-                code.count == 2 && code.allSatisfy { $0.isUppercase && $0.isLetter },
-                "invalid code \(code)"
-            )
-        }
-        // Выборочные якоря доменного списка.
-        XCTAssertEqual(countries.first, "AD")
-        XCTAssertEqual(countries.last, "ZW")
-        XCTAssertTrue(countries.contains("KG"))
-        XCTAssertTrue(countries.contains("CN"))
-        XCTAssertTrue(countries.contains("MY"))
+    func testCountryListIsTheProductList() {
+        // Единый список продукта (study-countries.json, 282): шесть стран в
+        // порядке продукта, не меню из 249 ISO-регионов.
+        XCTAssertEqual(UniversityCatalogFilterPolicy.countries, ["CN", "MY", "AE", "TR", "IT", "CZ"])
+        XCTAssertNil(UniversityCatalogFilterPolicy.countryParameter(UniversityCatalogFilters(country: "PL")))
+        XCTAssertEqual(UniversityCatalogFilterPolicy.countryParameter(UniversityCatalogFilters(country: "CZ")), "CZ")
     }
 
     // MARK: - p_level

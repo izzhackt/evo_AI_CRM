@@ -7,7 +7,7 @@ import { SignupConfirmationFrame } from "@/components/student-application/Signup
 import { readPendingStudentSignup } from "@/lib/server/student-signup-confirmation-web";
 import { getLocale } from "@/lib/i18n";
 import { readRequestTheme } from "@/lib/theme-server";
-import { STUDENT_APPLICATION_METADATA_KEY, validateStudentApplicationDraft } from "@/lib/student-application-contract";
+import { parseStoredStudentApplicationDraft, STUDENT_APPLICATION_METADATA_KEY } from "@/lib/student-application-contract";
 import { createStudentInviteSessionRuntime } from "@/lib/server/student-invite-session-runtime";
 import { readVerifiedStudentInviteSession } from "@/lib/server/student-invite-session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -54,7 +54,9 @@ export default async function ApplyPage({ searchParams }: { searchParams: Promis
     const application = await readOwnStudentApplication(client);
     if (application && (application.status !== "rejected" || query.edit !== "1")) redirect("/apply/status");
     email = data.user.email ?? null;
-    draft = application?.questionnaire ?? validateStudentApplicationDraft(data.user.user_metadata?.[STUDENT_APPLICATION_METADATA_KEY]);
+    // A draft saved before 282 may name a country that left the list: it still
+    // opens, and the wizard drops that country from the selection.
+    draft = application?.questionnaire ?? parseStoredStudentApplicationDraft(data.user.user_metadata?.[STUDENT_APPLICATION_METADATA_KEY]);
     revision = application?.revision ?? 0;
     if (!draft) {
       // PORT-1b: an accepted anketa_v1 invite prefills the name it was

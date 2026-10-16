@@ -2,7 +2,6 @@ import Link from "next/link";
 
 import type { Locale } from "@/lib/i18n-data";
 import {
-  UNIVERSITY_COUNTRIES,
   UNIVERSITY_LEVELS,
   type PublishedUniversity,
   type UniversityFilters,
@@ -11,6 +10,7 @@ import {
 import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 import {
   nearestUniversityIntake,
+  universityCountryFilterOptions,
   universityCountryLabel,
   universityDateLabel,
   universityLevelKey,
@@ -64,10 +64,7 @@ export function UniversitiesToolbar({
   strings: Strings;
   locale: Locale;
 }) {
-  const collator = locale === "ky" ? "ky" : "ru";
-  const countries = UNIVERSITY_COUNTRIES
-    .map((code) => ({ code, label: universityCountryLabel(code, locale) }))
-    .sort((a, b) => a.label.localeCompare(b.label, collator));
+  const countries = universityCountryFilterOptions(locale);
   const filtered = Boolean(filters.query || filters.country || filters.level || filters.offset);
   return (
     <div className="pt-uni-toolbar">

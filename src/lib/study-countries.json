@@ -1,0 +1,12 @@
+{
+  "countries": [
+    { "code": "CN", "ru": "Китай", "ky": "Кытай", "website": "China" },
+    { "code": "MY", "ru": "Малайзия", "ky": "Малайзия", "website": "Malaysia" },
+    { "code": "AE", "ru": "ОАЭ", "ky": "БАЭ", "website": "United Arab Emirates" },
+    { "code": "TR", "ru": "Турция", "ky": "Түркия", "website": "Turkey" },
+    { "code": "IT", "ru": "Италия", "ky": "Италия", "website": "Italy" },
+    { "code": "CZ", "ru": "Чехия", "ky": "Чехия", "website": "Czechia" }
+  ],
+  "undecided": { "code": "undecided", "ru": "Пока не решил", "ky": "Азырынча чече элекмин", "website": "Undecided" },
+  "kyProofreading": "pending"
+}

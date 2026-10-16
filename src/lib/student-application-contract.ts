@@ -1,7 +1,20 @@
+import { STUDY_COUNTRY_CODES, STUDY_COUNTRY_UNDECIDED } from "./study-countries.ts";
+
 export const STUDENT_APPLICATION_METADATA_KEY = "student_application_draft";
 export const STUDENT_APPLICATION_NATIONALITIES = "AF AL DZ AS AD AO AI AQ AG AR AM AW AU AT AZ BS BH BD BB BY BE BZ BJ BM BT BO BQ BA BW BV BR IO BN BG BF BI CV KH CM CA KY CF TD CL CN CX CC CO KM CG CD CK CR CI HR CU CW CY CZ DK DJ DM DO EC EG SV GQ ER EE SZ ET FK FO FJ FI FR GF PF TF GA GM GE DE GH GI GR GL GD GP GU GT GG GN GW GY HT HM VA HN HK HU IS IN ID IR IQ IE IM IL IT JM JP JE JO KZ KE KI KP KR KW KG LA LV LB LS LR LY LI LT LU MO MG MW MY MV ML MT MH MQ MR MU YT MX FM MD MC MN ME MS MA MZ MM NA NR NP NL NC NZ NI NE NG NU NF MK MP NO OM PK PW PS PA PG PY PE PH PN PL PT PR QA RE RO RU RW BL SH KN LC MF PM VC WS SM ST SA SN RS SC SL SG SX SK SI SB SO ZA GS SS ES LK SD SR SJ SE CH SY TW TJ TZ TH TL TG TK TO TT TN TR TM TC TV UG UA AE GB US UM UY UZ VU VE VN VG VI WF EH YE ZM ZW".split(" ");
 export const STUDENT_APPLICATION_CONSENT_VERSION = "2026-09-18";
-export const STUDENT_APPLICATION_COUNTRIES = ["CN", "MY", "DE", "FR", "ES", "IT", "NL", "PL", "HU", "AT", "CZ", "GB", "CY", "TR", "AE"] as const;
+/**
+ * Страны анкеты: единый список продукта (study-countries.json) и «Пока не
+ * решил», который выбирается только один. Новая анкета принимает только их
+ * (здесь и в submit_student_application_v1, 282).
+ */
+export const STUDENT_APPLICATION_COUNTRIES: readonly string[] = Object.freeze([...STUDY_COUNTRY_CODES, STUDY_COUNTRY_UNDECIDED]);
+/**
+ * Коды анкеты до 282, которых больше нет в списке. Сохранённая анкета и
+ * старый черновик с ними остаются читаемыми (CHECK таблицы их тоже
+ * принимает), но отправить их снова нельзя.
+ */
+export const STUDENT_APPLICATION_LEGACY_COUNTRIES: readonly string[] = Object.freeze(["DE", "FR", "ES", "NL", "PL", "HU", "AT", "GB", "CY"]);
 export const STUDENT_APPLICATION_INTAKE_SEASONS = ["spring", "summer", "autumn", "winter", "undecided"] as const;
 export const STUDENT_APPLICATION_EDUCATION_LEVELS = ["secondary", "high_school", "foundation", "diploma", "bachelor", "master", "phd"] as const;
 export const STUDENT_APPLICATION_STUDY_LEVELS = ["foundation", "bachelor", "master", "phd", "diploma", "language"] as const;
@@ -51,13 +64,42 @@ function stringSet(value: unknown, max: number, validate: (item: unknown) => boo
 }
 const DRAFT_KEYS = ["schemaVersion", "requestId", "firstName", "lastName", "phone", "destinationCountries", "intakeSeason", "intakeYear", "educationLevel", "averageGrade", "gradeScale", "studyFields", "studyLevels", "nationality", "english", "tuitionBudget", "fundingSource", "consent", "consentVersion"].sort().join(",");
 
-/** Metadata is an editable draft, never an authority claim. Revalidate on every submission. */
+/** «Пока не решил» выбирается только один, без стран (как в SQL 282). */
+function destinations(value: unknown, allowed: readonly string[]): boolean {
+  return stringSet(value, 15, (v) => oneOf(allowed, v))
+    && (!value.includes(STUDY_COUNTRY_UNDECIDED) || value.length === 1);
+}
+const STORED_COUNTRIES: readonly string[] = Object.freeze([...STUDENT_APPLICATION_COUNTRIES, ...STUDENT_APPLICATION_LEGACY_COUNTRIES]);
+
+/** True для страны, которую анкета предлагает сейчас (включая «Пока не решил»). */
+export function isStudentApplicationCountry(value: unknown): value is string {
+  return oneOf(STUDENT_APPLICATION_COUNTRIES, value);
+}
+
+/**
+ * Metadata is an editable draft, never an authority claim. Revalidate on every
+ * submission. Only the current countries are accepted: this is the rule for a
+ * NEW submission (web, iPhone route, signup, resume).
+ */
 export function validateStudentApplicationDraft(value: unknown): StudentApplicationDraft | null {
+  return validateDraft(value, STUDENT_APPLICATION_COUNTRIES);
+}
+
+/**
+ * A questionnaire already stored before 282 (an application, an old metadata
+ * draft) may name a legacy country. It is read as is so a reviewer and the
+ * student still see it; it cannot be submitted again without re-choosing.
+ */
+export function parseStoredStudentApplicationDraft(value: unknown): StudentApplicationDraft | null {
+  return validateDraft(value, STORED_COUNTRIES);
+}
+
+function validateDraft(value: unknown, countries: readonly string[]): StudentApplicationDraft | null {
   if (!isStudentApplicationRecord(value) || Object.keys(value).sort().join(",") !== DRAFT_KEYS
     || value.schemaVersion !== 1 || !isStudentApplicationUuid(value.requestId)
     || !text(value.firstName, 60) || !text(value.lastName, 60)
     || !text(value.phone, 40) || !/^\+?[0-9 ()-]{7,40}$/.test(value.phone) || value.phone.replace(/\D/g, "").length < 7 || value.phone.replace(/\D/g, "").length > 15
-    || !stringSet(value.destinationCountries, 15, (v) => oneOf(STUDENT_APPLICATION_COUNTRIES, v))
+    || !destinations(value.destinationCountries, countries)
     || !oneOf(STUDENT_APPLICATION_INTAKE_SEASONS, value.intakeSeason)
     || !Number.isInteger(value.intakeYear) || Number(value.intakeYear) < 2026 || Number(value.intakeYear) > 2036
     || !oneOf(STUDENT_APPLICATION_EDUCATION_LEVELS, value.educationLevel)
@@ -83,7 +125,8 @@ export function validateStudentApplicationDraft(value: unknown): StudentApplicat
   return value as StudentApplicationDraft;
 }
 
+/** Направление сотрудников по стране анкеты (как student_application_direction в SQL); «Пока не решил» без направления. */
 export function studentApplicationCountryDirection(country: string): AdmissionsDirection | null {
-  if (!(STUDENT_APPLICATION_COUNTRIES as readonly string[]).includes(country)) return null;
+  if (country === STUDY_COUNTRY_UNDECIDED || !STORED_COUNTRIES.includes(country)) return null;
   return country === "CN" || country === "MY" || country === "AE" || country === "TR" ? country : "EUROPE";
 }

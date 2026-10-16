@@ -206,33 +206,171 @@ final class UniversityAtlasPolicyTests: XCTestCase {
         XCTAssertEqual(AtlasPhotoURL.widthStep(points: 2000, scale: 3), 2048)
     }
 
-    /// Фото вуза: управляемая копия, если перенос проверен (то же правило,
-    /// что `resolveUniversityPhotoUrl` веба), иначе прямая ссылка
-    /// библиотеки; неизвестный ключ: фото нет.
-    func testUniversityPhotoUsesTheManagedCopyOnlyWhenMigrated() throws {
+    /// Фото вуза: только управляемая копия, если перенос проверен (то же
+    /// правило, что `resolveManagedUniversityPhotoUrl` веба после его review
+    /// раунда 1); без копии адресов нет, прямой ссылки библиотеки тоже нет
+    /// (приёмка 7.6.5); неизвестный ключ: фото нет.
+    func testUniversityPhotoUsesOnlyTheManagedCopy() throws {
         let library = UniversityPhotoLibrary.load(from: Bundle(for: Self.self)) ?? [:]
         let key = try XCTUnwrap(library.keys.sorted().first)
         let hotlink = try XCTUnwrap(library[key]?.path)
         let migrated = [key: UniversityPhotoManifestEntry(status: "verified", migrated: true, objectPath: "\(key).jpg")]
         let managed = AtlasPhotoURL.university(photoKey: key, library: library, manifest: migrated, base: base, width: 800)
-        // Перенесённое фото только из бакета: прямой ссылки на сайт вуза нет
-        // (как `resolveUniversityPhotoUrl` веба, план 5.3).
         XCTAssertEqual(managed.candidates.map(\.url.absoluteString), [
             "http://127.0.0.1:45421/storage/v1/render/image/public/portal-university-photos/\(key).jpg?width=800&quality=70",
             "http://127.0.0.1:45421/storage/v1/object/public/portal-university-photos/\(key).jpg",
         ])
         XCTAssertFalse(managed.candidates.map(\.url.absoluteString).contains(hotlink))
+        XCTAssertTrue(AtlasPhotoURL.hasUniversityPhoto(photoKey: key, library: library, manifest: migrated))
 
-        let pending = [key: UniversityPhotoManifestEntry(status: "verified", migrated: false, objectPath: "\(key).jpg")]
-        XCTAssertEqual(AtlasPhotoURL.university(photoKey: key, library: library, manifest: pending, base: base, width: 800)
-            .candidates.map(\.url.absoluteString), [hotlink])
-        let foreign = [key: UniversityPhotoManifestEntry(status: "verified", migrated: true, objectPath: "other-key.jpg")]
-        XCTAssertEqual(AtlasPhotoURL.university(photoKey: key, library: library, manifest: foreign, base: base, width: 800)
-            .candidates.count, 1)
+        // Не перенесено, отклонено, сбой переноса или чужой файл: фото нет.
+        let rejected: [UniversityPhotoManifestEntry] = [
+            .init(status: "verified", migrated: false, objectPath: "\(key).jpg"),
+            .init(status: "ineligible", migrated: false, objectPath: nil),
+            .init(status: "failed", migrated: false, objectPath: nil),
+            .init(status: "verified", migrated: true, objectPath: "other-key.jpg"),
+        ]
+        for entry in rejected {
+            let manifest = [key: entry]
+            XCTAssertTrue(AtlasPhotoURL.university(photoKey: key, library: library, manifest: manifest, base: base, width: 800)
+                .candidates.isEmpty, "\(entry)")
+            XCTAssertFalse(AtlasPhotoURL.hasUniversityPhoto(photoKey: key, library: library, manifest: manifest))
+        }
+        XCTAssertTrue(AtlasPhotoURL.university(photoKey: key, library: library, manifest: [:], base: base, width: 800)
+            .candidates.isEmpty)
         XCTAssertTrue(AtlasPhotoURL.university(photoKey: "unknown-key", library: library, manifest: migrated, base: base, width: 800)
             .candidates.isEmpty)
         XCTAssertTrue(AtlasPhotoURL.university(photoKey: nil, library: library, manifest: migrated, base: base, width: 800)
             .candidates.isEmpty)
+    }
+
+    /// Настоящие библиотека и манифест репозитория (тот же файл, что в
+    /// сборке приложения) и все ключи фото живого индекса демо: ни один
+    /// адрес фото вуза не ведёт мимо бакета, и фото есть ровно у
+    /// перенесённых записей (review раунда 2, N2).
+    func testNoUniversityPhotoLeavesTheBucketWithTheRealManifest() throws {
+        let library = UniversityPhotoLibrary.load(from: Bundle(for: Self.self)) ?? [:]
+        XCTAssertFalse(library.isEmpty)
+        let url = iosRoot.deletingLastPathComponent().appendingPathComponent("scripts/portal/university-photos-manifest.json")
+        guard let data = try? Data(contentsOf: url) else { throw XCTSkip("Manifest is not readable from this test host") }
+        let manifest = try XCTUnwrap(UniversityPhotoManifest.decode(data))
+        XCTAssertFalse(manifest.isEmpty)
+
+        let bucketPrefixes = [
+            "http://127.0.0.1:45421/storage/v1/object/public/portal-university-photos/",
+            "http://127.0.0.1:45421/storage/v1/render/image/public/portal-university-photos/",
+        ]
+        let keys = Set(library.keys).union(index.universities.compactMap(\.photoKey))
+        var shown = 0
+        for key in keys.sorted() {
+            let source = AtlasPhotoURL.university(photoKey: key, library: library, manifest: manifest, base: base, width: 640)
+            for candidate in source.candidates {
+                XCTAssertTrue(bucketPrefixes.contains { candidate.url.absoluteString.hasPrefix($0) }, "\(key): \(candidate.url)")
+                XCTAssertNotEqual(candidate.url.absoluteString, library[key]?.path)
+            }
+            let entry = manifest[key]
+            let migrated = entry?.status == "verified" && entry?.migrated == true && library[key] != nil
+            XCTAssertEqual(!source.candidates.isEmpty, migrated, key)
+            if migrated { shown += 1 }
+        }
+        XCTAssertGreaterThan(shown, 0)
+    }
+
+    /// Подпись «Фото: <вуз>, официальный сайт» только для точных строк
+    /// лицензии официальных медиа (как `OFFICIAL_MEDIA_LICENSES` веба).
+    func testOfficialMediaLicensesMatchTheWeb() throws {
+        XCTAssertTrue(UniversityPhotoRights.isOfficialMedia(license: "Official-source embedding; no reuse license stated"))
+        XCTAssertTrue(UniversityPhotoRights.isOfficialMedia(license: "All rights reserved; official-source embedding"))
+        XCTAssertFalse(UniversityPhotoRights.isOfficialMedia(license: "CC BY-SA 4.0"))
+        XCTAssertFalse(UniversityPhotoRights.isOfficialMedia(license: "official-source embedding"))
+        let url = iosRoot.deletingLastPathComponent().appendingPathComponent("src/lib/university-photo-rights.ts")
+        guard let web = try? String(contentsOf: url, encoding: .utf8) else { throw XCTSkip("Web source is not readable from this test host") }
+        for license in UniversityPhotoRights.officialMediaLicenses {
+            XCTAssertTrue(web.contains("\"\(license)\""), license)
+        }
+    }
+
+    private var iosRoot: URL {
+        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+    }
+
+    private func appSource(_ path: String) throws -> String {
+        let url = iosRoot.appendingPathComponent("EVOAdmissions/\(path)")
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+            throw XCTSkip("\(path) is not readable from this test host")
+        }
+        return text
+    }
+
+    // MARK: - Навигация
+
+    /// Обязательный шаг слияния с #1172 (review раунда 2, N3): там строки
+    /// «Избранного» становятся `NavigationLink(value: FavoriteUniversityRoute)`,
+    /// а экран для этого значения регистрирует только
+    /// `.portalRouteDestinations()`. Текстового конфликта нет, поэтому после
+    /// слияния этот тест падает, пока вкладка «Университеты» не
+    /// зарегистрирует те же экраны и не откроет «Избранное» значением
+    /// `PortalRoute.favorites`. Ссылка по значению без экрана в стеке в
+    /// SwiftUI не переходит.
+    func testFavoritesRowsHaveADestinationInTheUniversitiesTab() throws {
+        let favorites = try appSource("Views/FavoritesView.swift")
+        let atlas = try appSource("Views/UniversityAtlasView.swift")
+        let valueTypes = Set(favorites.matches(of: #/NavigationLink\(value:\s*([A-Z][A-Za-z]*)\(/#).map { String($0.output.1) })
+        for type in valueTypes where !favorites.contains("navigationDestination(for: \(type).self") {
+            XCTAssertTrue(
+                atlas.contains(".portalRouteDestinations()"),
+                "FavoritesView открывает вуз значением \(type), а UniversityAtlasView не регистрирует для него экран: добавьте .portalRouteDestinations() и NavigationLink(value: PortalRoute.favorites)"
+            )
+        }
+        // Сейчас (до #1172) строки открывают вуз по `UUID`, и экран
+        // регистрирует сам FavoritesView или корень вкладки.
+        if favorites.contains("NavigationLink(value: item.id)") {
+            XCTAssertTrue(
+                favorites.contains("navigationDestination(for: UUID.self") || atlas.contains("navigationDestination(for: UUID.self"),
+                "строки «Избранного» по UUID без экрана"
+            )
+        }
+    }
+
+    // MARK: - Экраны страны и города без индекса
+
+    /// Экран страны или города, открытый со страницы вуза до загрузки
+    /// индекса: скелет, сбой с повтором и «места нет» различаются (N1).
+    func testPlaceStateSeparatesLoadingFailureAndMissing() throws {
+        let code = try XCTUnwrap(index.countries.first?.code)
+        let cityKey = try XCTUnwrap(index.cities.first?.key)
+        for phase: UniversityIndexStore.Phase in [.idle, .loading] {
+            guard case .loading = UniversityAtlasPolicy.countryState(code: code, index: nil, phase: phase) else {
+                return XCTFail("\(phase): expected loading")
+            }
+            guard case .loading = UniversityAtlasPolicy.cityState(key: cityKey, index: nil, phase: phase) else {
+                return XCTFail("\(phase): expected loading")
+            }
+        }
+        for failure: UniversityIndexStore.Failure in [.connection, .unavailable] {
+            guard case .failed(let shown) = UniversityAtlasPolicy.countryState(code: code, index: nil, phase: .failed(failure)) else {
+                return XCTFail("expected failed")
+            }
+            XCTAssertEqual(shown, failure)
+            guard case .failed = UniversityAtlasPolicy.cityState(key: cityKey, index: nil, phase: .failed(failure)) else {
+                return XCTFail("expected failed")
+            }
+        }
+        guard case .ready(_, let country) = UniversityAtlasPolicy.countryState(code: code, index: index, phase: .ready) else {
+            return XCTFail("expected ready")
+        }
+        XCTAssertEqual(country.code, code)
+        guard case .ready(_, let city) = UniversityAtlasPolicy.cityState(key: cityKey, index: index, phase: .ready) else {
+            return XCTFail("expected ready")
+        }
+        XCTAssertEqual(city.key, cityKey)
+        // Индекс есть (в том числе копия при неудачной сверке), а места нет.
+        guard case .missing = UniversityAtlasPolicy.countryState(code: "FR", index: index, phase: .ready) else {
+            return XCTFail("expected missing")
+        }
+        guard case .missing = UniversityAtlasPolicy.cityState(key: "paris", index: index, phase: .failed(.connection)) else {
+            return XCTFail("expected missing")
+        }
     }
 
     // MARK: - Копия индекса на диске

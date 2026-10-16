@@ -192,7 +192,7 @@ struct UniversityDetailView: View {
                         }
                     }
 
-                    UniversityDetailPhoto(photoKey: item.content.photoKey)
+                    UniversityDetailPhoto(photoKey: item.content.photoKey, universityName: item.content.name)
                         .tint(.primary)
 
                     if model.refreshFailed {

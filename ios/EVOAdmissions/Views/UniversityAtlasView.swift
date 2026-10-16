@@ -60,18 +60,7 @@ struct UniversityAtlasView: View {
                 searchResults(index)
             }
         } else if case .failed(let failure) = store.phase {
-            // Сеть не ответила: подсказка про интернет. Ответ пришёл, но его
-            // нельзя показать: нейтральная подсказка, сеть ни при чём.
-            switch failure {
-            case .connection:
-                AtlasMessageView(title: "catalog_load_failed", message: "catalog_load_failed_hint", systemImage: "wifi.exclamationmark") {
-                    await store.refresh()
-                }
-            case .unavailable:
-                AtlasMessageView(title: "catalog_load_failed", message: "catalog_load_failed_unavailable_hint", systemImage: "building.columns") {
-                    await store.refresh()
-                }
-            }
+            AtlasIndexFailureView(failure: failure, store: store)
         } else {
             skeleton
         }
@@ -94,6 +83,13 @@ struct UniversityAtlasView: View {
                             CountryAtlasCard(country: country)
                         }
                         .buttonStyle(.pressable)
+                        // «©» на фото карточки, как на вебе (план 4.4).
+                        .overlay(alignment: .topTrailing) {
+                            if let photo = country.photo {
+                                AtlasPhotoCreditButton(credit: AtlasPhotoCredit(photo))
+                                    .padding(6)
+                            }
+                        }
                         .motionStagger(
                             index: MotionPolicy.staggerIndex(of: country, in: index.countries),
                             key: "atlas.country.\(country.code)"

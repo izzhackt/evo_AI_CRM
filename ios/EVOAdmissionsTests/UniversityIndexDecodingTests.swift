@@ -101,7 +101,6 @@ final class UniversityIndexDecodingTests: XCTestCase {
         try assertRejected { $0["version"] = "" }
     }
 
-    /// Фото агентств не берём (план 4.4): ни адреса, ни имени EDUPRCHINA.
     /// Невидимые символы форматирования (Cf) база принимает:
     /// `catalog_text_ok(U&'Ино\00ADстранные', 300)` на демо-базе даёт `t`, и
     /// веб их тоже принимает. Один такой символ, вставленный из Word в
@@ -127,6 +126,7 @@ final class UniversityIndexDecodingTests: XCTestCase {
         }
     }
 
+    /// Фото агентств не берём (план 4.4): ни адреса, ни имени EDUPRCHINA.
     func testRejectsAgencyPhotos() throws {
         try assertRejected { $0.update(["cities", 0, "photo"]) { $0["sourceUrl"] = "https://www.eduprchina.com/photo/1" } }
         try assertRejected { $0.update(["countries", 0, "photo"]) { $0["author"] = "EDUPRCHINA" } }

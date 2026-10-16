@@ -44,6 +44,9 @@ final class UniversityIndexStore: ObservableObject {
     private var organizationId: UUID?
     private var checkedThisLaunch = false
     private var inFlight: Task<Void, Never>?
+    /// Запись и удаление копии идут по одной очереди: удаление после 42501
+    /// не обгонит запись, поставленную раньше, и копия не вернётся на диск.
+    private let diskQueue = DispatchQueue(label: "com.evoadmissions.university-index.disk", qos: .utility)
 
     /// - Parameter isForbidden: отказ сервера в доступе (42501). Копия
     ///   организации тогда снимается с экрана и с диска: веб тоже отдаёт
@@ -119,7 +122,7 @@ final class UniversityIndexStore: ObservableObject {
                 guard index?.version == version else { throw UniversityIndexStoreError.unexpectedNotModified }
             case .full(let fresh):
                 index = fresh
-                Task.detached(priority: .utility) {
+                diskQueue.async {
                     try? cache.write(data, organizationId: organizationId)
                 }
             }
@@ -131,7 +134,10 @@ final class UniversityIndexStore: ObservableObject {
             if isForbidden(error) {
                 index = nil
                 refreshFailed = false
-                cache.remove(organizationId: organizationId)
+                // Синхронно: после возврата копии на диске точно нет.
+                diskQueue.sync {
+                    cache.remove(organizationId: organizationId)
+                }
                 phase = .failed(.unavailable)
             } else if index == nil {
                 phase = .failed(error is URLError ? .connection : .unavailable)

@@ -10,10 +10,16 @@ struct CityAtlasView: View {
 
     var body: some View {
         Group {
-            if let index = store.index, let city = index.cities.first(where: { $0.key == cityKey }) {
+            // Те же три состояния без индекса, что у экрана страны.
+            switch UniversityAtlasPolicy.cityState(key: cityKey, index: store.index, phase: store.phase) {
+            case .ready(let index, let city):
                 content(city, index: index)
                     .navigationTitle(city.name.text(kyrgyz: AtlasText.kyrgyz))
-            } else {
+            case .loading:
+                AtlasPlaceSkeleton()
+            case .failed(let failure):
+                AtlasIndexFailureView(failure: failure, store: store)
+            case .missing:
                 AtlasMessageView(title: "catalog_city_missing", systemImage: "building.2")
             }
         }

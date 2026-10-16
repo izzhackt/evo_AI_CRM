@@ -84,6 +84,10 @@ struct UniversityPlaceLinks: View {
             VStack(alignment: .leading, spacing: 0) { links }
         }
         .font(.subheadline)
+        // VoiceOver называет группу, как `nav` с подписью `breadcrumbAria`
+        // на вебе: «Китай» и «Шанхай» читаются как путь по каталогу.
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("catalog_breadcrumb"))
     }
 
     @ViewBuilder
@@ -204,6 +208,22 @@ enum AtlasPhotoSubject: Hashable {
     case geography(AtlasPhoto)
     case university(photoKey: String?)
 
+    /// Есть ли фото для студента. Фото страны и города всегда лежит в
+    /// бакете (путь проверен разбором индекса); фото вуза только
+    /// перенесённой копией (`AtlasPhotoURL.university`).
+    var isAvailable: Bool {
+        switch self {
+        case .geography:
+            return true
+        case .university(let photoKey):
+            return AtlasPhotoURL.hasUniversityPhoto(
+                photoKey: photoKey,
+                library: UniversityPhotoLibrary.shared,
+                manifest: UniversityPhotoManifest.shared
+            )
+        }
+    }
+
     func source(width: Int) -> AtlasPhotoSource {
         switch self {
         case .geography(let photo):
@@ -223,11 +243,16 @@ enum AtlasPhotoSubject: Hashable {
 /// Фото с постоянными пропорциями: место под фото не прыгает при загрузке,
 /// вариант размера под ширину карточки, кэш на диске и в памяти. Фото это
 /// содержание карточки, а не подпись: для VoiceOver его описывает карточка
-/// или кнопка «©».
+/// или кнопка «©». Фото вуза без перенесённой копии не грузится: на его
+/// месте заглушка «Проверенное фото кампуса пока не добавлено», как на вебе
+/// (в маленькой миниатюре строки значок), а не пустой серый прямоугольник,
+/// похожий на загрузку.
 struct AtlasPhotoView: View {
     let subject: AtlasPhotoSubject
     var aspectRatio: CGFloat = 4 / 3
     var cornerRadius: CGFloat = AtlasStyle.cardRadius
+    /// Миниатюра строки (64 pt): заглушка значком, текст туда не помещается.
+    var compact = false
 
     @Environment(\.displayScale) private var displayScale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -245,6 +270,33 @@ struct AtlasPhotoView: View {
     }
 
     var body: some View {
+        if subject.isAvailable {
+            photo
+        } else {
+            missing
+        }
+    }
+
+    private var missing: some View {
+        AtlasStyle.placeholder
+            .aspectRatio(aspectRatio, contentMode: .fit)
+            .overlay {
+                if compact {
+                    Image(systemName: "building.columns")
+                        .font(.title3)
+                        .foregroundStyle(AtlasStyle.secondaryText)
+                } else {
+                    Text("university_photo_missing")
+                        .font(.footnote)
+                        .foregroundStyle(AtlasStyle.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+
+    private var photo: some View {
         AtlasStyle.placeholder
             .aspectRatio(aspectRatio, contentMode: .fit)
             .overlay {
@@ -265,8 +317,8 @@ struct AtlasPhotoView: View {
             .task(id: size.width > 0 ? LoadKey(subject: subject, width: widthStep) : nil) {
                 guard size.width > 0 else { return }
                 let source = subject.source(width: widthStep)
-                // Адресов нет (ключ фото неизвестен библиотеке этой сборки):
-                // фото просто нет, как на вебе, а не «фото не загрузилось».
+                // Адресов нет (путь не прошёл проверку): фото просто нет, а
+                // не «фото не загрузилось».
                 guard !source.candidates.isEmpty else {
                     image = nil
                     failed = false
@@ -283,8 +335,17 @@ struct AtlasPhotoView: View {
 }
 
 /// Автор, источник и лицензия фото по кнопке «©» (план 4.4): подпись под
-/// карточкой не печатается.
+/// карточкой не печатается. У официальных медиа вуза (решение владельца Р3)
+/// вместо служебной строки лицензии «Фото: <вуз>, официальный сайт», как
+/// `photoCreditOfficial` веба.
 struct AtlasPhotoCredit: Equatable {
+    enum Kind: Equatable {
+        case author
+        /// Фото с собственного сайта вуза: название вуза для подписи.
+        case official(university: String)
+    }
+
+    let kind: Kind
     let caption: String?
     let author: String
     let authorUrl: URL?
@@ -295,6 +356,7 @@ struct AtlasPhotoCredit: Equatable {
     let cropped: Bool
 
     init(_ photo: AtlasPhoto) {
+        kind = .author
         caption = nil
         author = photo.author
         authorUrl = photo.authorUrl
@@ -305,8 +367,12 @@ struct AtlasPhotoCredit: Equatable {
         cropped = true
     }
 
-    init?(universityPhotoKey: String?) {
-        guard let photo = UniversityPhotoLibrary.photo(for: universityPhotoKey) else { return nil }
+    /// Подпись фото вуза; nil, если фото студенту не показывается (ключ
+    /// неизвестен или копия не перенесена): тогда и кнопки «©» нет.
+    init?(universityPhotoKey: String?, universityName: String) {
+        guard AtlasPhotoSubject.university(photoKey: universityPhotoKey).isAvailable,
+              let photo = UniversityPhotoLibrary.photo(for: universityPhotoKey) else { return nil }
+        kind = UniversityPhotoRights.isOfficialMedia(license: photo.license) ? .official(university: universityName) : .author
         caption = photo.caption
         author = photo.author
         authorUrl = nil
@@ -337,8 +403,15 @@ struct AtlasPhotoCreditButton: View {
         .buttonStyle(.plain)
         .accessibilityLabel(Text("catalog_photo_credit"))
         .popover(isPresented: $shows) {
-            creditContent
-                .presentationCompactAdaptation(.popover)
+            // Ширина задана точно: у кнопки в левом углу карточки стрелка
+            // боковая, и при ширине «от и до» высота считалась для другой
+            // ширины, подпись обрезалась. При крупном шрифте текст
+            // прокручивается внутри.
+            ScrollView {
+                creditContent
+            }
+            .frame(width: 300)
+            .presentationCompactAdaptation(.popover)
         }
     }
 
@@ -349,11 +422,16 @@ struct AtlasPhotoCreditButton: View {
                     .font(.subheadline)
                     .padding(.bottom, 4)
             }
-            creditLine(String(format: String(localized: "university_photo_by"), credit.author), url: credit.authorUrl ?? credit.sourceUrl)
-            if let sourceName = credit.sourceName {
-                creditLine(String(format: String(localized: "catalog_photo_source"), sourceName), url: credit.sourceUrl)
+            switch credit.kind {
+            case .official(let university):
+                creditLine(String(format: String(localized: "catalog_photo_official"), university), url: credit.sourceUrl)
+            case .author:
+                creditLine(String(format: String(localized: "university_photo_by"), credit.author), url: credit.authorUrl ?? credit.sourceUrl)
+                if let sourceName = credit.sourceName {
+                    creditLine(String(format: String(localized: "catalog_photo_source"), sourceName), url: credit.sourceUrl)
+                }
+                creditLine(String(format: String(localized: "catalog_photo_license"), credit.license), url: credit.licenseUrl)
             }
-            creditLine(String(format: String(localized: "catalog_photo_license"), credit.license), url: credit.licenseUrl)
             if credit.cropped {
                 Text("university_photo_crop")
                     .font(.footnote)
@@ -363,7 +441,7 @@ struct AtlasPhotoCreditButton: View {
         }
         .fixedSize(horizontal: false, vertical: true)
         .padding(16)
-        .frame(minWidth: 260, maxWidth: 340, alignment: .leading)
+        .frame(width: 300, alignment: .leading)
     }
 
     @ViewBuilder
@@ -436,7 +514,7 @@ struct UniversityIndexRow: View {
         HStack(alignment: .center, spacing: 12) {
             AtlasLink(route: .university(university.id)) {
                 HStack(alignment: .center, spacing: 12) {
-                    AtlasPhotoView(subject: .university(photoKey: university.photoKey), aspectRatio: 1, cornerRadius: AtlasStyle.elementRadius)
+                    AtlasPhotoView(subject: .university(photoKey: university.photoKey), aspectRatio: 1, cornerRadius: AtlasStyle.elementRadius, compact: true)
                         .frame(width: 64, height: 64)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 3) {
@@ -511,6 +589,13 @@ struct UniversityAtlasCard: View {
             AtlasHeartButton(institutionId: university.id, store: favorites, onPhoto: true)
                 .padding(6)
         }
+        // «©» на фото карточки, как на вебе; справа уже сердечко.
+        .overlay(alignment: .topLeading) {
+            if let credit = AtlasPhotoCredit(universityPhotoKey: university.photoKey, universityName: university.name) {
+                AtlasPhotoCreditButton(credit: credit)
+                    .padding(6)
+            }
+        }
     }
 }
 
@@ -537,6 +622,56 @@ struct AtlasMessageView: View {
     }
 }
 
+/// Индекса нет ни на диске, ни с сервера: сеть не ответила (подсказка про
+/// интернет) или ответ нельзя показать (нейтральная подсказка, сеть ни при
+/// чём). Повтор сверяет индекс заново. Один вид на корне вкладки, на
+/// экранах страны и города.
+struct AtlasIndexFailureView: View {
+    let failure: UniversityIndexStore.Failure
+    @ObservedObject var store: UniversityIndexStore
+
+    var body: some View {
+        switch failure {
+        case .connection:
+            AtlasMessageView(title: "catalog_load_failed", message: "catalog_load_failed_hint", systemImage: "wifi.exclamationmark") {
+                await store.refresh()
+            }
+        case .unavailable:
+            AtlasMessageView(title: "catalog_load_failed", message: "catalog_load_failed_unavailable_hint", systemImage: "building.columns") {
+                await store.refresh()
+            }
+        }
+    }
+}
+
+/// Скелет экрана страны или города, пока индекс грузится.
+struct AtlasPlaceSkeleton: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                RoundedRectangle(cornerRadius: AtlasStyle.cardRadius, style: .continuous)
+                    .fill(AtlasStyle.placeholder)
+                    .aspectRatio(3 / 2, contentMode: .fit)
+                ForEach([0, 24, 96], id: \.self) { inset in
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(AtlasStyle.placeholder)
+                        .frame(height: 14)
+                        .padding(.trailing, CGFloat(inset))
+                }
+                RoundedRectangle(cornerRadius: AtlasStyle.cardRadius, style: .continuous)
+                    .fill(AtlasStyle.placeholder)
+                    .aspectRatio(16 / 9, contentMode: .fit)
+                    .padding(.top, 8)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+        }
+        .scrollDisabled(true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("catalog_loading"))
+    }
+}
+
 /// Плашка «показана сохранённая версия»: копия есть, сверка не удалась.
 struct AtlasStaleNotice: View {
     var body: some View {
@@ -555,14 +690,16 @@ struct AtlasStaleNotice: View {
     }
 }
 
-/// Фото кампуса на странице вуза: управляемая копия нужного размера (затем
-/// оригинал, затем прямая ссылка библиотеки), атрибуция по «©». Без фото в
-/// библиотеке прежняя честная заглушка.
+/// Фото кампуса на странице вуза: перенесённая копия нужного размера (затем
+/// оригинал того же объекта), атрибуция по «©». Копии нет: прежняя честная
+/// заглушка «Проверенное фото кампуса пока не добавлено» без кнопки «©», как
+/// `PhotoFigure` веба.
 struct UniversityDetailPhoto: View {
     let photoKey: String?
+    let universityName: String
 
     var body: some View {
-        if let credit = AtlasPhotoCredit(universityPhotoKey: photoKey) {
+        if let credit = AtlasPhotoCredit(universityPhotoKey: photoKey, universityName: universityName) {
             let caption = credit.caption?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             // Без подписи фото для VoiceOver оформление: пустая метка
             // давала фокус на изображении без описания.

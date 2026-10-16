@@ -58,6 +58,13 @@ struct TabShell: View {
                 .tag(PortalTab.profile)
         }
         .tint(Color("AccentColor"))
+        // Индекс университетов v2 грузится на старте сессии, а не только во
+        // вкладке «Университеты»: экраны страны и города открываются и со
+        // страницы вуза на «Главной» или в «Профессиях», а невыбранная
+        // вкладка своё `.task` не выполняет (review раунда 2, N1).
+        .task(id: session.authority.organizationId) {
+            await UniversityIndexStore.shared.load(organizationId: session.authority.organizationId)
+        }
         // Tab feedback: a light selection tap plus a 160 ms fade-in of the
         // incoming tab's content (see `tabFade`). The tab bar itself is
         // system-drawn and untouched.

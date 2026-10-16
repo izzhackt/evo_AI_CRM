@@ -14,7 +14,12 @@ struct CountryAtlasView: View {
 
     var body: some View {
         Group {
-            if let index = store.index, let country = index.countries.first(where: { $0.code == code }) {
+            // Экран открывают и со страницы вуза на «Главной» или в
+            // «Профессиях», когда вкладку «Университеты» ещё не открывали:
+            // индекс грузит `TabShell` на старте сессии, а пока его нет,
+            // экран различает загрузку, сбой (с повтором) и «страны нет».
+            switch UniversityAtlasPolicy.countryState(code: code, index: store.index, phase: store.phase) {
+            case .ready(let index, let country):
                 VStack(spacing: 0) {
                     Picker("universities_view_toggle", selection: $mode) {
                         Text("catalog_view_cities").tag(Mode.cities)
@@ -35,7 +40,11 @@ struct CountryAtlasView: View {
                     }
                 }
                 .navigationTitle(country.name.text(kyrgyz: AtlasText.kyrgyz))
-            } else {
+            case .loading:
+                AtlasPlaceSkeleton()
+            case .failed(let failure):
+                AtlasIndexFailureView(failure: failure, store: store)
+            case .missing:
                 AtlasMessageView(title: "catalog_country_missing", systemImage: "globe")
             }
         }
@@ -62,6 +71,11 @@ struct CountryAtlasView: View {
                         CityAtlasCard(city: city)
                     }
                     .buttonStyle(.pressable)
+                    // «©» на фото карточки города, как в шапке и на вебе.
+                    .overlay(alignment: .topTrailing) {
+                        AtlasPhotoCreditButton(credit: AtlasPhotoCredit(city.photo))
+                            .padding(6)
+                    }
                     .motionStagger(index: MotionPolicy.staggerIndex(of: city, in: cities), key: "atlas.city.\(city.key)")
                 }
                 if !others.isEmpty {

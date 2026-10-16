@@ -8466,6 +8466,23 @@
         }
       }
     },
+    "catalog_breadcrumb" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Каталог боюнча жол"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Путь по каталогу"
+          }
+        }
+      }
+    },
     "catalog_city_fact_a11y" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9567,6 +9584,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Лицензия: %@"
+          }
+        }
+      }
+    },
+    "catalog_photo_official" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сүрөт: %@, расмий сайт"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Фото: %@, официальный сайт"
           }
         }
       }

@@ -70,12 +70,13 @@ enum AtlasPhotoURL {
         return AtlasPhotoSource(candidates: candidates)
     }
 
-    /// Фото вуза по тому же правилу, что `resolveUniversityPhotoUrl` веба:
-    /// перенесённое фото (запись манифеста verified и migrated) грузится
-    /// только из бакета, сначала вариант размера, затем оригинал того же
-    /// объекта; прямой ссылки на сайт вуза у него нет (план 5.3, приёмка
-    /// 7.6, п. 5). Прямая ссылка библиотеки остаётся только у фото, которое
-    /// ещё не перенесено. Неизвестный ключ: фото нет.
+    /// Фото вуза по тому же правилу, что `resolveManagedUniversityPhotoUrl`
+    /// веба (студенческие экраны, план 4.4, 5.3, приёмка 7.6.5): только
+    /// перенесённая копия из бакета (запись манифеста verified и migrated),
+    /// сначала вариант размера, затем оригинал того же объекта. Фото, которое
+    /// ещё не перенесено, студенту не показывается: адресов нет, экран рисует
+    /// заглушку «фото не добавлено», прямой ссылки на сайт вуза или Wikimedia
+    /// нет. Неизвестный ключ: фото нет.
     static func university(
         photoKey: String?,
         library: [String: UniversityPhoto],
@@ -83,16 +84,50 @@ enum AtlasPhotoURL {
         base: URL,
         width: Int
     ) -> AtlasPhotoSource {
-        guard let photoKey, let photo = library[photoKey] else { return AtlasPhotoSource(candidates: []) }
-        if let objectPath = UniversityPhotoManifest.managedObjectPath(photoKey: photoKey, entries: manifest) {
-            let candidates = [
-                sized(base: base, path: objectPath, width: width).map { AtlasPhotoCandidate(url: $0, sized: true) },
-                original(base: base, path: objectPath).map { AtlasPhotoCandidate(url: $0, sized: false) },
-            ].compactMap { $0 }
-            return AtlasPhotoSource(candidates: candidates)
+        guard let objectPath = managedUniversityObjectPath(photoKey: photoKey, library: library, manifest: manifest) else {
+            return AtlasPhotoSource(candidates: [])
         }
-        guard let hotlink = AtlasValue.httpsURL(photo.path) else { return AtlasPhotoSource(candidates: []) }
-        return AtlasPhotoSource(candidates: [.init(url: hotlink, sized: false)])
+        let candidates = [
+            sized(base: base, path: objectPath, width: width).map { AtlasPhotoCandidate(url: $0, sized: true) },
+            original(base: base, path: objectPath).map { AtlasPhotoCandidate(url: $0, sized: false) },
+        ].compactMap { $0 }
+        return AtlasPhotoSource(candidates: candidates)
+    }
+
+    /// Есть ли у вуза фото для студента: ключ известен библиотеке и копия
+    /// перенесена. От этого зависят заглушка и кнопка «©».
+    static func hasUniversityPhoto(
+        photoKey: String?,
+        library: [String: UniversityPhoto],
+        manifest: [String: UniversityPhotoManifestEntry]
+    ) -> Bool {
+        managedUniversityObjectPath(photoKey: photoKey, library: library, manifest: manifest) != nil
+    }
+
+    private static func managedUniversityObjectPath(
+        photoKey: String?,
+        library: [String: UniversityPhoto],
+        manifest: [String: UniversityPhotoManifestEntry]
+    ) -> String? {
+        guard let photoKey, library[photoKey] != nil else { return nil }
+        return UniversityPhotoManifest.managedObjectPath(photoKey: photoKey, entries: manifest)
+    }
+}
+
+/// Права на фото вуза (план 4.4, решение владельца Р3), как
+/// `src/lib/university-photo-rights.ts` веба: фото с собственного сайта вуза
+/// без открытой лицензии подписывается «Фото: <вуз>, официальный сайт», а не
+/// служебной строкой лицензии библиотеки.
+enum UniversityPhotoRights {
+    /// Точные строки лицензий библиотеки для собственного сайта вуза
+    /// (`OFFICIAL_MEDIA_LICENSES` веба).
+    static let officialMediaLicenses: Set<String> = [
+        "Official-source embedding; no reuse license stated",
+        "All rights reserved; official-source embedding",
+    ]
+
+    static func isOfficialMedia(license: String) -> Bool {
+        officialMediaLicenses.contains(license)
     }
 }
 
@@ -113,9 +148,12 @@ enum UniversityPhotoManifest {
 
     static func load(from bundle: Bundle) -> [String: UniversityPhotoManifestEntry]? {
         guard let url = bundle.url(forResource: "university-photos-manifest", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let file = try? JSONDecoder().decode(File.self, from: data) else { return nil }
-        return file.entries
+              let data = try? Data(contentsOf: url) else { return nil }
+        return decode(data)
+    }
+
+    static func decode(_ data: Data) -> [String: UniversityPhotoManifestEntry]? {
+        (try? JSONDecoder().decode(File.self, from: data))?.entries
     }
 
     /// Плоское имя файла, привязанное к ключу (`<photoKey>.<ext>`), только

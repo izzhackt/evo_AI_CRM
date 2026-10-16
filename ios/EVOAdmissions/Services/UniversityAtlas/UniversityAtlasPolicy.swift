@@ -198,3 +198,40 @@ enum UniversityAtlasPolicy {
         return (pins, missing)
     }
 }
+
+/// Что показать на экране страны или города. Экран открывают и со страницы
+/// вуза на «Главной» или в «Профессиях», поэтому индекса может ещё не быть:
+/// «индекс грузится», «индекса нет» и «такого места в индексе нет» это три
+/// разных состояния (review раунда 2, N1), а не одно «не найдено».
+enum AtlasPlaceState<Place> {
+    /// Индекса ещё нет, загрузка идёт или вот-вот начнётся: скелет.
+    case loading
+    /// Индекса нет ни на диске, ни с сервера: сообщение с повтором.
+    case failed(UniversityIndexStore.Failure)
+    /// Индекс есть, а такого места в нём нет.
+    case missing
+    case ready(UniversityIndex, Place)
+}
+
+extension UniversityAtlasPolicy {
+    static func placeState<Place>(
+        index: UniversityIndex?,
+        phase: UniversityIndexStore.Phase,
+        find: (UniversityIndex) -> Place?
+    ) -> AtlasPlaceState<Place> {
+        if let index {
+            guard let place = find(index) else { return .missing }
+            return .ready(index, place)
+        }
+        if case .failed(let failure) = phase { return .failed(failure) }
+        return .loading
+    }
+
+    static func countryState(code: String, index: UniversityIndex?, phase: UniversityIndexStore.Phase) -> AtlasPlaceState<AtlasCountry> {
+        placeState(index: index, phase: phase) { $0.countries.first { $0.code == code } }
+    }
+
+    static func cityState(key: String, index: UniversityIndex?, phase: UniversityIndexStore.Phase) -> AtlasPlaceState<AtlasCity> {
+        placeState(index: index, phase: phase) { $0.cities.first { $0.key == key } }
+    }
+}

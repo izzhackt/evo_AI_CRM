@@ -283,6 +283,10 @@ export async function readInbox(
     sort: options.sort,
   });
   const readAt = new Date().toISOString();
+  // Без открытого чата состояние канала не зависит от очереди — читается
+  // вместе с ней (план A, 16.10.2026); с открытым чатом — после него, как раньше.
+  const earlyChannelStatus = options.conversationId ? null : readInboxChannelStatus(actor);
+  earlyChannelStatus?.catch(() => {});
   const [queue, resolvedThread] = await Promise.all([
     listPlatformConversations(actor, {
       cursor: options.queueCursor,
@@ -305,10 +309,10 @@ export async function readInbox(
       : null;
 
   let selected: InboxSelectedConversation | null = null;
-  const channelStatusPromise =
-    !thread || thread.conversation.wahaSessionName === "crm_primary"
+  const channelStatusPromise = earlyChannelStatus
+    ?? (!thread || thread.conversation.wahaSessionName === "crm_primary"
       ? readInboxChannelStatus(actor)
-      : Promise.resolve<InboxChannelStatus>({ channelState: "unknown" });
+      : Promise.resolve<InboxChannelStatus>({ channelState: "unknown" }));
   // Name and number of every shown chat (278): one read beside the others.
   const contactsPromise = readWhatsAppContacts(actor, [
     ...queue.rows.map((row) => row.id),

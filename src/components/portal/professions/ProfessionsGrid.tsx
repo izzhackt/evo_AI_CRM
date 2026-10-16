@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
 import type { Locale } from "@/lib/i18n-data";
 import type { PortalStrings } from "@/lib/portal/i18n";
@@ -47,9 +47,9 @@ export function ProfessionsGrid({
                   <p className="pt-prof-resonance">{strings.resonance}</p>
                 ) : null}
                 <h2 className="pt-prof-title">
-                  <Link href={`/portal/professions/${card.cardId}`}>
+                  <IntentPrefetchLink href={`/portal/professions/${card.cardId}`}>
                     {locale === "ky" ? card.titleKy : card.titleRu}
-                  </Link>
+                  </IntentPrefetchLink>
                 </h2>
                 <p className="pt-chip-row">
                   {card.orvisScales.map((scale) => (

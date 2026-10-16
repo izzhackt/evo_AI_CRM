@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
 import type { Locale } from "@/lib/i18n-data";
 import {
@@ -69,20 +69,20 @@ export function UniversitiesToolbar({
   return (
     <div className="pt-uni-toolbar">
       <nav aria-label={strings.viewAria} className="pt-view-toggle">
-        <Link
+        <IntentPrefetchLink
           href={universitiesHref(base, filters, "list")}
           aria-current={view === "list" ? "page" : undefined}
           className="pt-view-toggle-link"
         >
           {strings.viewList}
-        </Link>
-        <Link
+        </IntentPrefetchLink>
+        <IntentPrefetchLink
           href={universitiesHref(base, filters, "map")}
           aria-current={view === "map" ? "page" : undefined}
           className="pt-view-toggle-link"
         >
           {strings.viewMap}
-        </Link>
+        </IntentPrefetchLink>
       </nav>
       <form action={base} aria-label={strings.filtersAria} className="pt-uni-filters">
         {view === "map" ? <input type="hidden" name="view" value="map" /> : null}
@@ -118,12 +118,12 @@ export function UniversitiesToolbar({
         <button type="submit" className="pt-btn">{strings.submit}</button>
       </form>
       {filtered ? (
-        <Link
+        <IntentPrefetchLink
           href={view === "map" ? `${base}?view=map` : base}
           className="pt-link pt-uni-reset"
         >
           {strings.resetFilters}
-        </Link>
+        </IntentPrefetchLink>
       ) : null}
     </div>
   );
@@ -136,6 +136,7 @@ export function UniversityCard({
   locale,
   now,
   favored = null,
+  priority = false,
 }: {
   item: PublishedUniversity;
   base: string;
@@ -144,6 +145,8 @@ export function UniversityCard({
   now: Date;
   /** null — состояние избранного неизвестно (toggle не показывается). */
   favored?: boolean | null;
+  /** Первые карточки экрана: фото грузится сразу, не лениво. */
+  priority?: boolean;
 }) {
   const content = item.content;
   const nearest = nearestUniversityIntake(content, now);
@@ -160,7 +163,7 @@ export function UniversityCard({
       });
   return (
     <article className="pt-uni-card">
-      <PhotoFigure content={content} strings={strings} />
+      <PhotoFigure content={content} priority={priority} strings={strings} />
       <div className="pt-uni-card-body">
         <div className="pt-uni-card-top">
           <p className="pt-uni-meta">
@@ -181,7 +184,7 @@ export function UniversityCard({
           ) : null}
         </div>
         <h2 className="pt-uni-name">
-          <Link href={`${base}/${item.id}`}>{content.name}</Link>
+          <IntentPrefetchLink href={`${base}/${item.id}`}>{content.name}</IntentPrefetchLink>
         </h2>
         <ul className="pt-chip-row" aria-label={strings.levelLabel}>
           {universityLevels(content).map((level) => (
@@ -192,10 +195,10 @@ export function UniversityCard({
           <span>{strings.nearestIntake}: </span>
           <span className="pt-data">{intakeText}</span>
         </p>
-        <Link className="pt-btn-ghost pt-uni-card-action" href={`${base}/${item.id}`}>
+        <IntentPrefetchLink className="pt-btn-ghost pt-uni-card-action" href={`${base}/${item.id}`}>
           {strings.openCard}
           <span className="pt-sr-only"> — {content.name}</span>
-        </Link>
+        </IntentPrefetchLink>
       </div>
     </article>
   );
@@ -232,7 +235,7 @@ export function UniversityCards({
   return (
     <>
       <ul className="pt-uni-grid">
-        {page.items.map((item) => (
+        {page.items.map((item, index) => (
           <li key={item.id}>
             <UniversityCard
               item={item}
@@ -241,12 +244,13 @@ export function UniversityCards({
               locale={locale}
               now={now}
               favored={favoriteIds === null ? null : favoriteIds.includes(item.id)}
+              priority={index < 3}
             />
           </li>
         ))}
       </ul>
       {page.nextOffset !== null ? (
-        <Link className="pt-btn-ghost" href={`${base}?${next}`}>{strings.nextPage}</Link>
+        <IntentPrefetchLink className="pt-btn-ghost" href={`${base}?${next}`}>{strings.nextPage}</IntentPrefetchLink>
       ) : null}
     </>
   );

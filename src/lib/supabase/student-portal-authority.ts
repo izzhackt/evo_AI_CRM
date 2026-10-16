@@ -151,6 +151,85 @@ export function decodeVerifiedStudentPortalAuthority(
   });
 }
 
+/** True when a `current_actor_authority` answer is one Student row. */
+export function isStudentAuthorityRow(authorityData: unknown): boolean {
+  return oneRecord(authorityData)?.platform_role === "student";
+}
+
+/**
+ * Interprets the two live RPC answers exactly like the sequential reader: a
+ * non-Student authority row is rejected before the portal projection is
+ * considered, and a valid Student is decoded only from both rows. `cases`
+ * absent means the projection was not read (the caller must read it live).
+ */
+export function studentPortalAuthorityFromRows(
+  claims: JwtPayload,
+  authorityData: unknown,
+  portalCaseData: unknown,
+): StudentPortalAuthorityResult {
+  const authority = oneRecord(authorityData);
+  if (authority?.platform_role !== "student") {
+    return { status: "invalid", authority: null };
+  }
+  const decoded = decodeVerifiedStudentPortalAuthority(
+    claims,
+    authorityData,
+    portalCaseData,
+  );
+  return decoded
+    ? { status: "authenticated", authority: decoded }
+    : { status: "invalid", authority: null };
+}
+
+export type StudentPortalAuthorityRead = Readonly<{
+  result: StudentPortalAuthorityResult;
+  /** Raw successful RPC answers, for the request-bound proxy handoff. */
+  rows: Readonly<{ actor?: unknown; cases?: unknown }>;
+}>;
+
+/**
+ * Same chain as {@link readVerifiedStudentPortalAuthority}. With
+ * `parallel` (the proxy on Student routes only) both RPCs start together:
+ * each repeats its own database authorization (`student_portal_cases()`
+ * returns nothing for a non-Student), and the answer is interpreted in the
+ * same order, so a staff actor's projection is never used.
+ */
+export async function readStudentPortalAuthorityRows(
+  client: StudentPortalAuthorityClient,
+  claims: JwtPayload,
+  options: Readonly<{ parallel?: boolean }> = {},
+): Promise<StudentPortalAuthorityRead> {
+  const authorityRead = client.schema("platform").rpc("current_actor_authority");
+  const portalRead = options.parallel
+    ? client.schema("platform").rpc("student_portal_cases")
+    : null;
+  // A parallel projection read must never reject unobserved.
+  const portalSettled = portalRead ? Promise.resolve(portalRead).catch((error: unknown) => ({ data: null, error })) : null;
+  const authorityResponse = await authorityRead;
+  if (authorityResponse.error) {
+    return { result: { status: "unavailable", authority: null }, rows: {} };
+  }
+
+  // Reject staff and malformed authority before asking a Portal projection to
+  // disclose anything. A valid Student is decoded only after both rows exist.
+  const authority = oneRecord(authorityResponse.data);
+  if (authority?.platform_role !== "student") {
+    return { result: { status: "invalid", authority: null }, rows: { actor: authorityResponse.data } };
+  }
+
+  const portalResponse = portalSettled
+    ? await portalSettled
+    : await client.schema("platform").rpc("student_portal_cases");
+  if (portalResponse.error) {
+    return { result: { status: "unavailable", authority: null }, rows: {} };
+  }
+
+  return {
+    result: studentPortalAuthorityFromRows(claims, authorityResponse.data, portalResponse.data),
+    rows: { actor: authorityResponse.data, cases: portalResponse.data },
+  };
+}
+
 /**
  * `student_portal_cases()` repeats `platform_can_read_student_portal_case`, so
  * one decoded row proves active Student identity, organization scope, portal
@@ -160,33 +239,5 @@ export async function readVerifiedStudentPortalAuthority(
   client: StudentPortalAuthorityClient,
   claims: JwtPayload,
 ): Promise<StudentPortalAuthorityResult> {
-  const authorityResponse = await client
-    .schema("platform")
-    .rpc("current_actor_authority");
-  if (authorityResponse.error) {
-    return { status: "unavailable", authority: null };
-  }
-
-  // Reject staff and malformed authority before asking a Portal projection to
-  // disclose anything. A valid Student is decoded only after both rows exist.
-  const authority = oneRecord(authorityResponse.data);
-  if (authority?.platform_role !== "student") {
-    return { status: "invalid", authority: null };
-  }
-
-  const portalResponse = await client
-    .schema("platform")
-    .rpc("student_portal_cases");
-  if (portalResponse.error) {
-    return { status: "unavailable", authority: null };
-  }
-
-  const decoded = decodeVerifiedStudentPortalAuthority(
-    claims,
-    authorityResponse.data,
-    portalResponse.data,
-  );
-  return decoded
-    ? { status: "authenticated", authority: decoded }
-    : { status: "invalid", authority: null };
+  return (await readStudentPortalAuthorityRows(client, claims)).result;
 }

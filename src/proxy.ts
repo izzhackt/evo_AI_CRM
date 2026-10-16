@@ -27,8 +27,16 @@ import {
 import { STUDENT_SIGNUP_CONFIRMATION_PATH, STUDENT_SIGNUP_CONFIRMATION_CSRF_COOKIE } from "@/lib/student-signup-confirmation-contract";
 import { STUDENT_PASSWORD_FORGOT_PATH, STUDENT_PASSWORD_RESET_PATH } from "@/lib/student-password-recovery-contract";
 import { getSupabasePublicConfig } from "@/lib/supabase/config";
-import { readVerifiedPlatformAuthority } from "@/lib/supabase/platform-authority";
-import { readVerifiedStudentPortalAuthority } from "@/lib/supabase/student-portal-authority";
+import {
+  ACCESS_HANDOFF_HEADER,
+  createAccessHandoff,
+  type AccessHandoffRows,
+} from "@/lib/supabase/access-handoff";
+import { readPlatformAuthoritySnapshot } from "@/lib/supabase/platform-authority";
+import {
+  isStudentAuthorityRow,
+  readStudentPortalAuthorityRows,
+} from "@/lib/supabase/student-portal-authority";
 
 function nextResponse(requestHeaders: Headers) {
   return NextResponse.next({ request: { headers: requestHeaders } });
@@ -150,6 +158,45 @@ function hasSupabaseSessionCookie(request: NextRequest): boolean {
     );
 }
 
+type AuthorityState = Readonly<{ state: SessionState; rows: AccessHandoffRows }>;
+type SessionClient = ReturnType<typeof createServerClient>;
+type SessionClaims = NonNullable<Awaited<ReturnType<SessionClient["auth"]["getClaims"]>>["data"]>["claims"];
+
+/**
+ * The live database decides staff vs Student. Student routes ask the Student
+ * question first (both reads together) and the staff snapshot only for a
+ * non-Student row; every other route keeps staff first. The outcome is the
+ * same either way: a staff membership is never `current_role = 'student'`
+ * (migration 155, `staff_membership_identity`).
+ */
+async function readAuthorityState(
+  client: SessionClient,
+  claims: SessionClaims,
+  studentFirst: boolean,
+): Promise<AuthorityState> {
+  if (studentFirst) {
+    const student = await readStudentPortalAuthorityRows(client, claims, { parallel: true });
+    if (student.result.status === "authenticated") return { state: "student", rows: student.rows };
+    if (student.result.status === "unavailable") return { state: "unavailable", rows: {} };
+    if (isStudentAuthorityRow(student.rows.actor)) {
+      return { state: "authenticated_without_product", rows: student.rows };
+    }
+    const staff = await readPlatformAuthoritySnapshot(client, claims);
+    if (staff.result.status === "authenticated") return { state: "staff", rows: staff.rows };
+    if (staff.result.status === "unavailable") return { state: "unavailable", rows: {} };
+    return { state: "authenticated_without_product", rows: { ...student.rows, ...staff.rows } };
+  }
+
+  const staff = await readPlatformAuthoritySnapshot(client, claims);
+  if (staff.result.status === "authenticated") return { state: "staff", rows: staff.rows };
+  if (staff.result.status === "unavailable") return { state: "unavailable", rows: {} };
+
+  const student = await readStudentPortalAuthorityRows(client, claims, { parallel: true });
+  if (student.result.status === "authenticated") return { state: "student", rows: { ...staff.rows, ...student.rows } };
+  if (student.result.status === "unavailable") return { state: "unavailable", rows: {} };
+  return { state: "authenticated_without_product", rows: { ...staff.rows, ...student.rows } };
+}
+
 async function liveSessionState(
   request: NextRequest,
   requestHeaders: Headers,
@@ -195,27 +242,27 @@ async function liveSessionState(
 
     if (refreshOnly) return { state: "authenticated_without_product", response };
 
-    const authority = await readVerifiedPlatformAuthority(client, data.claims);
-    if (authority.status === "authenticated") {
-      return { state: "staff", response };
+    const claims = data.claims;
+    const path = request.nextUrl.pathname;
+    // Student routes ask the Student question first; the result is the same.
+    const studentFirst = isConnectedStudentPortalPage(path)
+      || isConnectedStudentPortalApi(path, request.method);
+    const authority = await readAuthorityState(client, claims, studentFirst);
+    // GET/HEAD only: the render of this same request reuses the live result
+    // (access-handoff.ts). Server Actions and POST APIs keep their own check.
+    const handoffRequestId = request.method === "GET" || request.method === "HEAD"
+      ? requestHeaders.get("x-request-id")
+      : null;
+    if (handoffRequestId && authority.state !== "unavailable") {
+      const handoff = await createAccessHandoff(handoffRequestId, claims, authority.rows);
+      if (handoff) {
+        requestHeaders.set(ACCESS_HANDOFF_HEADER, handoff);
+        const withHandoff = nextResponse(requestHeaders);
+        copyResponseCookies(response, withHandoff);
+        response = withHandoff;
+      }
     }
-    if (authority.status === "unavailable") {
-      return { state: "unavailable", response };
-    }
-
-    const studentAuthority = await readVerifiedStudentPortalAuthority(
-      client,
-      data.claims,
-    );
-    return {
-      state:
-        studentAuthority.status === "authenticated"
-          ? "student"
-          : studentAuthority.status === "unavailable"
-            ? "unavailable"
-            : "authenticated_without_product",
-      response,
-    };
+    return { state: authority.state, response };
   } catch {
     return { state: "unavailable", response };
   }
@@ -225,6 +272,8 @@ export async function proxy(request: NextRequest) {
   const id = requestId(request.headers.get("x-request-id"));
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-request-id", id);
+  // Only this proxy mints the access handoff, never the client.
+  requestHeaders.delete(ACCESS_HANDOFF_HEADER);
   const path = request.nextUrl.pathname;
   const studentPortalApi = isConnectedStudentPortalApi(path, request.method);
   const observabilityPathCandidate =

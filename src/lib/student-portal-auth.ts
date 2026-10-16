@@ -1,7 +1,11 @@
 import type { JwtPayload, SupabaseClient } from "@supabase/supabase-js";
 
 import {
+  isStudentAuthorityRow,
+  readStudentPortalAuthorityRows,
   readVerifiedStudentPortalAuthority,
+  studentPortalAuthorityFromRows,
+  type StudentPortalAuthorityResult,
   type VerifiedStudentPortalAuthority,
 } from "./supabase/student-portal-authority.ts";
 
@@ -23,6 +27,12 @@ export type StudentPortalActorResult =
 
 export type StudentPortalAuthDependencies = Readonly<{
   createClient?: () => Promise<SupabaseClient>;
+  /**
+   * The rows the proxy read live for this same request (access-handoff.ts).
+   * Default: the request header in production; an injected client without
+   * this dependency (tests) always reads live.
+   */
+  handedOffRows?: (claims: JwtPayload) => Promise<Readonly<{ actor?: unknown; cases?: unknown }> | null>;
 }>;
 
 export type StudentPortalBearerAuthDependencies = Readonly<{
@@ -32,6 +42,36 @@ export type StudentPortalBearerAuthDependencies = Readonly<{
 async function defaultClient(): Promise<SupabaseClient> {
   const { createSupabaseServerClient } = await import("./supabase/server.ts");
   return createSupabaseServerClient();
+}
+
+async function defaultHandedOffRows(
+  claims: JwtPayload,
+): Promise<Readonly<{ actor?: unknown; cases?: unknown }> | null> {
+  try {
+    const [{ headers }, { ACCESS_HANDOFF_HEADER, verifyAccessHandoff }] = await Promise.all([
+      import("next/headers"),
+      import("./supabase/access-handoff.ts"),
+    ]);
+    const requestHeaders = await headers();
+    return await verifyAccessHandoff(
+      requestHeaders.get(ACCESS_HANDOFF_HEADER),
+      requestHeaders.get("x-request-id"),
+      claims,
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** A Student answer from handed-off rows, or null when they are incomplete. */
+function handedOffStudentAuthority(
+  claims: JwtPayload,
+  rows: Readonly<{ actor?: unknown; cases?: unknown }> | null,
+): StudentPortalAuthorityResult | null {
+  if (!rows || !Object.hasOwn(rows, "actor")) return null;
+  // A Student row without its projection was not fully read: read it live.
+  if (isStudentAuthorityRow(rows.actor) && !Object.hasOwn(rows, "cases")) return null;
+  return studentPortalAuthorityFromRows(claims, rows.actor, rows.cases);
 }
 
 async function defaultBearerClient(
@@ -72,10 +112,15 @@ export async function resolveStudentPortalActor(
   }
   if (!claimsData?.claims) return { status: "anonymous", actor: null };
 
-  const authority = await readVerifiedStudentPortalAuthority(
-    client,
-    claimsData.claims,
-  );
+  const handedOffRows = dependencies.handedOffRows
+    ?? (dependencies.createClient ? null : defaultHandedOffRows);
+  const handedOff = handedOffRows
+    ? handedOffStudentAuthority(claimsData.claims, await handedOffRows(claimsData.claims))
+    : null;
+  // Live fallback (Server Actions, POST APIs, no handoff): both reads start
+  // together and are interpreted in the same order as the sequential reader.
+  const authority = handedOff
+    ?? (await readStudentPortalAuthorityRows(client, claimsData.claims, { parallel: true })).result;
   if (authority.status !== "authenticated") {
     return {
       status: "invalid",

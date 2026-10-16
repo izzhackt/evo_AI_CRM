@@ -403,6 +403,23 @@ SQL
     rm -f "$n282_tamper_log"
   fi
 
+  # «Университеты v2: география и стоимость» (283, PLAN_CHANGES 16.10.2026).
+  # Matched by name, not number. Immediately BEFORE it the suite prints one
+  # md5 over the definitions and ACLs of the catalogue, favourite,
+  # preparation and consultation RPCs that old iPhone builds call; the run
+  # after the migration proves they are byte-identical.
+  n283_old_rpcs=""
+  if [[ "$(basename "$migration")" == *_platform_catalog_geography_costs.sql ]]; then
+    n283_old_rpcs="$(docker exec "$container_name" \
+      psql -X -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v p283_pre=1 \
+      -f /workspace/supabase/tests/platform_catalog_geography_costs.sql)"
+    if [[ ! "$n283_old_rpcs" =~ ^N283_OLD_RPCS\ [0-9a-f]{32}$ ]]; then
+      echo "the 283 pre-run did not print the prior RPC snapshot" >&2
+      exit 1
+    fi
+  fi
+
   # Migration 260 replaces two of 259's routines wholesale and pins their 259
   # source by md5. Prove that an edited 259 definition makes 260 fail closed
   # (with its own reason), for each of the two, inside a transaction that the
@@ -3435,6 +3452,21 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_single_country_list.sql
+  fi
+  # «Университеты v2: география и стоимость» (283): the same suite after the
+  # migration proves the prior catalogue RPCs are byte-identical and keep
+  # their shape; the student index and detail show only published data of
+  # the six countries of the student's organization (another organization's
+  # student, staff and anon 42501, notModified, one-call detail equal to the
+  # four reads it replaces, agency name and URL hidden); staff RPCs by the
+  # catalogue publication right or the system Admin, agency confirmation
+  # Admin only, the service role only with a named live Admin; the agency
+  # CHECK; request_id idempotency; city rules; no client table access.
+  if [[ "$(basename "$migration")" == *_platform_catalog_geography_costs.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v "n283_old_rpcs_md5=$n283_old_rpcs" \
+      -f /workspace/supabase/tests/platform_catalog_geography_costs.sql
   fi
 
   # «Выбор страны студента» (284, PLAN_CHANGES 16.10.2026, «Путь поступления

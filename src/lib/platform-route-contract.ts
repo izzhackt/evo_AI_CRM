@@ -75,6 +75,10 @@ const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([
 const STAFF_UNIVERSITY_DETAIL_PATH = /^\/v3\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STAFF_UNIVERSITY_FORMS_PATH = /^\/v3\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/forms$/i;
 const STUDENT_UNIVERSITY_DETAIL_PATH = /^\/portal\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Университеты v2 (S3): страна и город каталога. Код страны — две строчные
+// латинские буквы, город — slug карточки города (2..64); существует ли такая
+// страна или город, решает страница (иначе 404).
+const STUDENT_UNIVERSITY_PLACE_PATH = /^\/portal\/universities\/country\/[a-z]{2}(?:\/[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9]))?$/;
 const STUDENT_PREPARATION_DETAIL_PATH = /^\/portal\/preparations\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_NOTIFICATION_DETAIL_PATH = /^\/portal\/notifications\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_DOCUMENT_NOTIFICATION_DETAIL_PATH = /^\/portal\/document-notifications\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -201,6 +205,7 @@ export function isConnectedPlatformPage(path: string): boolean {
 /** Only implemented Student pages and bounded uuid detail routes. */
 export function isConnectedStudentPortalPage(path: string): boolean {
   return STUDENT_PORTAL_PAGE_ALLOWLIST.has(path) || STUDENT_UNIVERSITY_DETAIL_PATH.test(path)
+    || STUDENT_UNIVERSITY_PLACE_PATH.test(path)
     || STUDENT_PREPARATION_DETAIL_PATH.test(path)
     || STUDENT_NOTIFICATION_DETAIL_PATH.test(path)
     || STUDENT_DOCUMENT_NOTIFICATION_DETAIL_PATH.test(path)

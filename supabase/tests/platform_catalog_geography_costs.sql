@@ -497,6 +497,8 @@ FROM (VALUES
   (pg_temp.n283_cost(NULL, pg_temp.n283_id(701), 'tuition', 100, 50, 'CNY', 'official'), '22023'),
   (pg_temp.n283_cost(NULL, pg_temp.n283_id(701), 'tuition', 100, NULL, 'cny', 'official'), '22023'),
   (pg_temp.n283_cost(NULL, pg_temp.n283_id(701), 'tuition', 100, NULL, 'CNY', 'official') || '{"academicYear": "2026/28"}', '22023'),
+  (pg_temp.n283_cost(NULL, pg_temp.n283_id(701), 'tuition', 100, NULL, 'CNY', 'official') || '{"academicYear": "26/27"}', '22023'),
+  (pg_temp.n283_cost(NULL, pg_temp.n283_id(701), 'tuition', 100, NULL, 'CNY', 'official') || '{"academicYear": "2026-27"}', '22023'),
   (pg_temp.n283_cost(NULL, pg_temp.n283_id(701), 'tuition', 100, NULL, 'CNY', 'official') || '{"sourceUrl": null}', '22023'),
   (pg_temp.n283_cost(NULL, pg_temp.n283_id(701), 'tuition', 100, NULL, 'CNY', 'official') || '{"programId": "missing"}', '22023'),
   (pg_temp.n283_cost(NULL, pg_temp.n283_id(701), 'tuition', 100, NULL, 'CNY', 'official') || '{"programId": "cs", "studyLevel": "master"}', '22023'),
@@ -505,6 +507,26 @@ FROM (VALUES
   (pg_temp.n283_cost(NULL, pg_temp.n283_id(703), 'tuition', 100, NULL, 'PLN', 'official'), '42501'),
   (pg_temp.n283_cost(NULL, pg_temp.n283_id(711), 'tuition', 100, NULL, 'CNY', 'official'), '42501')) AS v(cost, state);
 SELECT pg_temp.n283_assert((SELECT count(*) FROM platform.catalog_costs) = 4, 'a refused cost row was written');
+-- A source without a year keeps academicYear null (never invented); a
+-- calendar intake year (Malaysia) is accepted. Rolled back in a subtransaction.
+DO $n283_years$
+DECLARE outcome TEXT;
+BEGIN
+  BEGIN
+    outcome := pg_temp.n283_state('2', format('platform.staff_catalog_cost_upsert_v1(%L::UUID, %L::JSONB, 0, gen_random_uuid())',
+      pg_temp.n283_id(1), pg_temp.n283_cost(NULL, pg_temp.n283_id(701), 'tuition', 100, NULL, 'CNY', 'official') || '{"academicYear": null}'));
+    outcome := outcome || ',' || pg_temp.n283_state('2', format('platform.staff_catalog_cost_upsert_v1(%L::UUID, %L::JSONB, 0, gen_random_uuid())',
+      pg_temp.n283_id(1), pg_temp.n283_cost(NULL, pg_temp.n283_id(701), 'tuition', 100, NULL, 'CNY', 'official') || '{"academicYear": "2026"}'));
+    outcome := outcome || ',' || COALESCE((SELECT string_agg(COALESCE(c.academic_year, 'null'), '|' ORDER BY c.academic_year NULLS FIRST)
+      FROM platform.catalog_costs c WHERE c.amount_min_minor = 100), 'no rows');
+    RAISE EXCEPTION USING ERRCODE = 'N2831', MESSAGE = outcome;
+  EXCEPTION WHEN SQLSTATE 'N2831' THEN
+    outcome := SQLERRM;
+  END;
+  PERFORM pg_temp.n283_assert(outcome = 'ok,ok,null|2026', 'a null or calendar academic year was refused: ' || outcome);
+  PERFORM pg_temp.n283_assert((SELECT count(*) FROM platform.catalog_costs) = 4, 'the academic year probe was not rolled back');
+END
+$n283_years$;
 
 -- The CHECK: an unconfirmed agency row is never published.
 SELECT pg_temp.n283_assert(pg_temp.n283_state('2', format('platform.staff_catalog_cost_publish_v1(%L::UUID, %L::UUID, %L, 1, gen_random_uuid())',

@@ -10,8 +10,12 @@
  *                   выводится из sha256 файла, строки с уже импортированным
  *                   importKey не создаются второй раз.
  *
- * Вход (--file), схема в docs/catalog/geography-costs-contract.md («Импорт»):
- *   { schemaVersion: 1, organizationId?, requestId?, rows: [CostRow], fxRates: [Rate] }
+ * Вход, один из двух:
+ *   --seed-dir <папка>  сид контент-потока: costs-import.json и fx-rates.json
+ *                       (схема output/student-app-v2/seed/SEED_CONTRACT.md),
+ *                       переводится в файл ниже функцией fromContentSeed;
+ *   --file <файл>       схема docs/catalog/geography-costs-contract.md («Импорт»):
+ *     { schemaVersion: 1, organizationId?, requestId?, rows: [CostRow], fxRates: [Rate] }
  * Суммы: amountMin / amountMax в единицах валюты (строка или число, не больше
  * знаков после запятой, чем у валюты) или amountMinMinor / amountMaxMinor.
  *
@@ -69,8 +73,9 @@ function dateOk(value, today) {
   const parsed = new Date(`${value}T00:00:00Z`);
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value && value >= "2000-01-01" && value <= today;
 }
-const academicYearOk = (value) => typeof value === "string" && /^20\d{2}\/\d{2}$/u.test(value)
-  && Number(value.slice(5)) === (Number(value.slice(0, 4)) + 1) % 100;
+/** Как platform_private.catalog_academic_year_ok в 283: 2026/27, календарный 2026 или null (год не придумывается). */
+const academicYearOk = (value) => value == null || (typeof value === "string" && (/^20\d{2}$/u.test(value)
+  || (/^20\d{2}\/\d{2}$/u.test(value) && Number(value.slice(5)) === (Number(value.slice(0, 4)) + 1) % 100)));
 
 /** Детерминированный UUID из текста (стабильные request_id повторного запуска). */
 export function stableUuid(text) {
@@ -117,7 +122,7 @@ export function planImport(file, { fileSha256, organizationId, today = new Date(
     if ((row.amountMax != null || row.amountMaxMinor != null) && max !== null) {
       if (!Number.isSafeInteger(max) || !(max > min)) problems.push(`${where}: amountMax must be above amountMin`);
     }
-    if (!academicYearOk(row.academicYear)) problems.push(`${where}.academicYear: 2026/27`);
+    if (!academicYearOk(row.academicYear)) problems.push(`${where}.academicYear: 2026/27, 2026 or null`);
     if ((row.noteRu == null) !== (row.noteKy == null) || (row.noteRu != null && !(textOk(row.noteRu, 300) && textOk(row.noteKy, 300)))) {
       problems.push(`${where}: noteRu and noteKy both up to 300 or both absent`);
     }
@@ -141,7 +146,7 @@ export function planImport(file, { fileSha256, organizationId, today = new Date(
       ...(byId ? { institutionId: row.institutionId } : { country: row.country, institutionName: row.institutionName }),
       programId: row.programId ?? null, studyLevel: row.studyLevel ?? null, teachingLanguage: row.teachingLanguage ?? null,
       costKind: row.costKind, period: row.period, amountMinMinor: min, amountMaxMinor: max, currency: row.currency,
-      academicYear: row.academicYear, noteRu: row.noteRu ?? null, noteKy: row.noteKy ?? null, sourceKind: row.sourceKind,
+      academicYear: row.academicYear ?? null, noteRu: row.noteRu ?? null, noteKy: row.noteKy ?? null, sourceKind: row.sourceKind,
       sourceName: row.sourceName, sourceUrl: row.sourceUrl ?? null, verifiedOn: row.verifiedOn,
       confirmation: row.confirmation ?? null, publish: row.publish === true,
     };
@@ -176,6 +181,80 @@ export function planImport(file, { fileSha256, organizationId, today = new Date(
       publish: count((r) => r.publish), fxRates: rates.length, requestIds: batches.map((b) => b.p_request_id),
     },
   };
+}
+
+// Сид контент-потока (SEED_CONTRACT.md, costs-import.json) → строки импорта.
+// Значения, которых нет в модели 283, переводятся явно: «registration»
+// (сбор за регистрацию или зачисление) это application_fee плана 7.1 («сбор
+// за подачу или регистрацию»), уточнение остаётся в note; «programme» это
+// period program. importKey = «s3:» + request_id сида (UUIDv5, стабилен
+// между пересборками), поэтому повторный импорт строку не дублирует.
+const SEED_COST_KINDS = Object.freeze({ tuition: "tuition", accommodation: "accommodation", application_fee: "application_fee",
+  registration: "application_fee", insurance: "insurance", other: "other" });
+const SEED_PERIODS = Object.freeze({ year: "year", semester: "semester", month: "month", once: "once", programme: "program" });
+const SEED_ROW_KEYS = new Set(["request_id", "country_code", "institution_name", "program_ref", "study_level", "cost_kind", "period",
+  "amount_min_minor", "amount_max_minor", "currency", "academic_year", "note_ru", "note_ky", "ky_review", "source_kind",
+  "source_name", "source_url", "verified_on", "confirmation", "status"]);
+const SEED_CONFIRMATION_KEYS = ["confirmed_on", "confirmed_by", "channel", "statement", "scope"];
+const SEED_RATE_KEYS = new Set(["currency", "as_of", "usd_per_unit", "units_per_usd", "source", "source_url", "method"]);
+
+/**
+ * Переводит costs-import.json и fx-rates.json сида в файл импорта. Ошибки
+ * формы собираются в problems (тогда строки не годятся к импорту).
+ */
+export function fromContentSeed(costs, fx) {
+  const problems = [];
+  if (costs?.model !== "catalog_costs (plan 7.2)" || !Array.isArray(costs?.rows) || costs.count !== costs.rows.length) {
+    problems.push("costs-import.json: expected { model: \"catalog_costs (plan 7.2)\", count, rows: [] }");
+  }
+  if (!Array.isArray(fx?.rates)) problems.push("fx-rates.json: expected { rates: [] }");
+  const rows = [];
+  for (const [index, row] of (Array.isArray(costs?.rows) ? costs.rows : []).entries()) {
+    const where = `costs-import.json rows[${index}]`;
+    if (row === null || typeof row !== "object" || Array.isArray(row)) { problems.push(`${where}: object`); continue; }
+    for (const key of Object.keys(row)) if (!SEED_ROW_KEYS.has(key)) problems.push(`${where}: unknown key ${key}`);
+    if (typeof row.request_id !== "string" || !UUID.test(row.request_id)) problems.push(`${where}.request_id: uuid`);
+    if (!Object.hasOwn(SEED_COST_KINDS, row.cost_kind)) problems.push(`${where}.cost_kind: ${Object.keys(SEED_COST_KINDS).join(", ")}`);
+    if (!Object.hasOwn(SEED_PERIODS, row.period)) problems.push(`${where}.period: ${Object.keys(SEED_PERIODS).join(", ")}`);
+    if (row.program_ref != null) problems.push(`${where}.program_ref: only null is supported (rows describe a university and level)`);
+    if (!["published", "draft"].includes(row.status)) problems.push(`${where}.status: published or draft`);
+    if (!["pending", "done"].includes(row.ky_review)) problems.push(`${where}.ky_review: pending or done`);
+    let confirmation = null;
+    if (row.confirmation != null) {
+      const c = row.confirmation;
+      if (typeof c !== "object" || Array.isArray(c) || Object.keys(c).length !== SEED_CONFIRMATION_KEYS.length
+        || !SEED_CONFIRMATION_KEYS.every((key) => typeof c[key] === "string" && c[key].trim() !== "") || c.confirmed_by !== "owner") {
+        problems.push(`${where}.confirmation: { ${SEED_CONFIRMATION_KEYS.join(", ")} } with confirmed_by "owner"`);
+      } else {
+        // Видно только сотрудникам (staff_catalog_geography_v1), студенту не отдаётся.
+        confirmation = { confirmedOn: c.confirmed_on,
+          reason: `Подтверждение владельца (${c.channel}): «${c.statement}». Охват: ${c.scope}.` };
+      }
+    }
+    rows.push({
+      importKey: `s3:${row.request_id}`, country: row.country_code, institutionName: row.institution_name,
+      programId: null, studyLevel: row.study_level ?? null, teachingLanguage: null,
+      costKind: SEED_COST_KINDS[row.cost_kind] ?? row.cost_kind, period: SEED_PERIODS[row.period] ?? row.period,
+      amountMinMinor: row.amount_min_minor, amountMaxMinor: row.amount_max_minor ?? null, currency: row.currency,
+      academicYear: row.academic_year ?? null, noteRu: row.note_ru ?? null, noteKy: row.note_ky ?? null,
+      sourceKind: row.source_kind, sourceName: row.source_name, sourceUrl: row.source_url ?? null, verifiedOn: row.verified_on,
+      confirmation, publish: row.status === "published",
+    });
+  }
+  const fxRates = [];
+  for (const [index, rate] of (Array.isArray(fx?.rates) ? fx.rates : []).entries()) {
+    const where = `fx-rates.json rates[${index}]`;
+    if (rate === null || typeof rate !== "object") { problems.push(`${where}: object`); continue; }
+    for (const key of Object.keys(rate)) if (!SEED_RATE_KEYS.has(key)) problems.push(`${where}: unknown key ${key}`);
+    // Строка USD в сиде это тождество для колонки USD; курс USD к USD не хранится.
+    if (rate.currency === "USD") {
+      if (rate.units_per_usd !== "1" || rate.usd_per_unit !== "1") problems.push(`${where}: the USD row must be the identity 1`);
+      continue;
+    }
+    fxRates.push({ currency: rate.currency, asOf: rate.as_of, unitsPerUsd: rate.units_per_usd,
+      sourceName: rate.source, sourceUrl: rate.source_url ?? null });
+  }
+  return { problems, file: { schemaVersion: 1, rows, fxRates } };
 }
 
 function readAccess(environment, auth) {
@@ -226,21 +305,37 @@ async function callRpc(fetchImpl, access, name, args) {
 }
 
 export async function runImport(argv, { environment = process.env, fetchImpl = fetch, write = (text) => process.stdout.write(text) } = {}) {
-  let filePath = null, apply = false, auth = null;
+  let filePath = null, seedDir = null, apply = false, auth = null;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--file") filePath = argv[++index];
+    else if (arg === "--seed-dir") seedDir = argv[++index];
     else if (arg === "--apply") apply = true;
     else if (arg === "--auth") auth = argv[++index];
     else if (arg === "--help") {
-      write("Usage: node scripts/catalog/import-catalog-costs.mjs --file costs.json [--apply --auth staff|service]\n");
+      write("Usage: node scripts/catalog/import-catalog-costs.mjs (--seed-dir DIR | --file costs.json) [--apply --auth staff|service]\n");
       return 0;
     } else { write(`${JSON.stringify({ status: "arguments_invalid" })}\n`); return 1; }
   }
-  if (!filePath) { write(`${JSON.stringify({ status: "file_required" })}\n`); return 1; }
-  let raw, file;
-  try { raw = readFileSync(resolve(filePath)); file = JSON.parse(raw.toString("utf8")); } catch { write(`${JSON.stringify({ status: "file_invalid" })}\n`); return 1; }
-  const plan = planImport(file, { fileSha256: createHash("sha256").update(raw).digest("hex"), organizationId: environment.EVO_PLATFORM_ORGANIZATION_ID });
+  if (Boolean(filePath) === Boolean(seedDir)) { write(`${JSON.stringify({ status: "file_or_seed_dir_required" })}\n`); return 1; }
+  let digest, file;
+  if (seedDir) {
+    let costsRaw, fxRaw, converted;
+    try {
+      costsRaw = readFileSync(resolve(seedDir, "costs-import.json"));
+      fxRaw = readFileSync(resolve(seedDir, "fx-rates.json"));
+      converted = fromContentSeed(JSON.parse(costsRaw.toString("utf8")), JSON.parse(fxRaw.toString("utf8")));
+    } catch { write(`${JSON.stringify({ status: "seed_files_invalid" })}\n`); return 1; }
+    if (converted.problems.length > 0) { write(`${JSON.stringify({ status: "seed_invalid", problems: converted.problems }, null, 2)}\n`); return 1; }
+    // request_id пакета выводится из байтов обоих файлов сида.
+    digest = createHash("sha256").update(costsRaw).update("\u0000").update(fxRaw).digest("hex");
+    file = converted.file;
+  } else {
+    let raw;
+    try { raw = readFileSync(resolve(filePath)); file = JSON.parse(raw.toString("utf8")); } catch { write(`${JSON.stringify({ status: "file_invalid" })}\n`); return 1; }
+    digest = createHash("sha256").update(raw).digest("hex");
+  }
+  const plan = planImport(file, { fileSha256: digest, organizationId: environment.EVO_PLATFORM_ORGANIZATION_ID });
   if (plan.problems.length > 0) { write(`${JSON.stringify({ status: "import_invalid", problems: plan.problems }, null, 2)}\n`); return 1; }
   if (!apply) { write(`${JSON.stringify({ status: "dry_run", ...plan.summary }, null, 2)}\n`); return 0; }
   try {

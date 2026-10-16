@@ -119,12 +119,14 @@ iPhone 0.1.0 и 1.0 работают как раньше. Карточка ву�
 ближайший будущий срок подачи, иначе ближайшее начало. Так выдача не зависит
 от текущей даты и её версия не меняется каждый день.
 
-Размер (замер 16.10.2026 на синтетической копии production: 116 вузов, 60
-городов с реальными текстами RU и KY, 6 стран с фото, без текстов стран):
-146 713 байт без сжатия, 34 162 байта gzip; тексты городов на двух языках
-это 83 КБ из них. Цель плана 100 КБ без сжатия не достигнута; ответ PostgREST
-идёт через шлюз Supabase со сжатием, клиенты должны принимать gzip (браузер и
-URLSession делают это сами).
+Размер (замер 16.10.2026 на синтетической копии production с сидом 283
+контент-потока: 116 вузов, 61 город, 6 стран с фото и текстами, 629 строк
+стоимости): 145 720 байт без сжатия, 33 403 байта gzip; города (тексты и
+факты на двух языках, фото) это 107 КБ из них. Цель плана 100 КБ без сжатия
+не достигнута (вопрос владельцу). Шлюз локального стека ответ не сжимает
+(`content-encoding` нет, 16.10.2026); сжатие шлюза production не проверено.
+Веб отдаёт браузеру свой кэш и может сжимать сам; iPhone принимает gzip, если
+его отдаёт шлюз.
 
 ### 2.2. `student_university_detail_v1(p_institution_id uuid)`
 
@@ -189,7 +191,7 @@ URLSession делают это сами).
 | `amountMinMinor`, `amountMaxMinor` | сумма в минорных единицах валюты вуза; `amountMaxMinor` null: одна сумма, иначе диапазон |
 | `exponent` | число знаков минорной единицы (у валют шести стран и USD это 2): сумма = `amountMinMinor / 10^exponent` |
 | `usdApproxMin`, `usdApproxMax` | ориентир в целых USD, уже округлён до 10 (ненулевая сумма не меньше 10); null, если строка в USD или курса нет |
-| `academicYear` | вид `2026/27` |
+| `academicYear` | `2026/27`, календарный год набора `2026` (вузы Малайзии) или null: источник год не указывает, год не придумывается |
 | `source.kind` | `official` (сайт университета, `url` есть), `agency` (открытые данные образовательных агентств: `url` всегда null, название агентства студенту не отдаётся), `evo_document` (материалы EVO, `url` null) |
 | `verifiedOn` | дата проверки строки |
 | `fxRates` | последний курс по каждой валюте строк: «1 USD = `unitsPerUsd` `currency`», источник и дата |
@@ -206,6 +208,12 @@ URLSession делают это сами).
   (<sourceName>, <asOf>). Окончательную сумму указывает университет». Если в
   таблице оба вида источника, называются оба. Подпись для `evo_document`
   выбирает UI-поток (предложение: «материалы EVO»).
+- `academicYear` null у строки: часть «Ориентир на ...» для неё не печатается,
+  остаётся «проверено <дата>» (в сиде 16.10.2026 так у 545 из 629 строк,
+  почти у всех строк агентств). Разные годы строк перечисляются.
+- `sourceName` курса приходит как записан admin (в сиде 16.10.2026 это
+  полное английское название ЕЦБ или ЦБ ОАЭ); короткую подпись для студента
+  выбирает UI-поток.
 
 ### 2.3. Ошибки студенческих RPC
 
@@ -326,7 +334,7 @@ Pexels или Wikimedia Commons (CHECK в базе); фото агентств �
 `programId` (id программы из последней опубликованной карточки или null),
 `studyLevel` (совпадает с уровнем программы, если она названа), `teachingLanguage`,
 `costKind`, `period`, `amountMinMinor` (целое ≥ 0), `amountMaxMinor` (целое
-больше минимума или null), `currency` (ISO 4217), `academicYear` (`2026/27`),
+больше минимума или null), `currency` (ISO 4217), `academicYear` (`2026/27`, `2026` или null),
 `noteRu`, `noteKy` (до 300, оба или ни одного), `sourceKind`, `sourceName` (до
 200), `sourceUrl` (https; обязателен для `official` и `agency`), `verifiedOn`
 (не позже сегодня). Любая правка возвращает строку в `draft` и снимает
@@ -369,6 +377,26 @@ Pexels или Wikimedia Commons (CHECK в базе); фото агентств �
 `amountMinMinor`/`amountMaxMinor`; равные min и max становятся одной суммой.
 Без `--apply` скрипт только проверяет файл и печатает план.
 
+Вместо `--file` скрипт читает сид контент-потока: `--seed-dir <папка>` берёт
+`costs-import.json` и `fx-rates.json` (схема `SEED_CONTRACT.md` папки сида) и
+переводит их функцией `fromContentSeed`:
+
+| Сид | Импорт |
+|---|---|
+| `request_id` (UUIDv5 сида) | `importKey` = `s3:<request_id>` (повторный импорт не дублирует строку) |
+| `country_code`, `institution_name` | `country`, `institutionName` (вуз по паре, как сид городов) |
+| `cost_kind` `registration` | `application_fee` (план 7.1: «сбор за подачу или регистрацию»; уточнение в `note`) |
+| `period` `programme` | `program` |
+| `academic_year` null или `2026` | как есть |
+| `confirmation` `{confirmed_on, confirmed_by: owner, channel, statement, scope}` | `{confirmedOn, reason}`; `reason` собирается из канала, слов владельца и охвата, видна только сотрудникам |
+| `status` `published` | `publish: true` |
+| `program_ref` | только null (`programId` null) |
+| курс `USD` (тождество 1) | не вносится |
+| курс `units_per_usd`, `as_of`, `source`, `source_url` | `unitsPerUsd`, `asOf`, `sourceName`, `sourceUrl` |
+
+`request_id` пакета выводится из sha256 обоих файлов сида: тот же сид даёт тот
+же вызов, повтор возвращает ту же квитанцию.
+
 ### 3.5. Ошибки сотрудника
 
 | SQLSTATE | Когда |
@@ -384,17 +412,27 @@ Pexels или Wikimedia Commons (CHECK в базе); фото агентств �
 Раздел сида в конце миграции генерирует
 `node scripts/catalog/generate-geography-seed.mjs --seed-dir <папка> --write`
 (`--check` сверяет раздел с входами, `--prod-institutions <выгрузка>` даёт
-покрытие, `--require-complete` делает неполное покрытие ошибкой). Входы:
+покрытие, `--require-complete` делает ошибкой неполное покрытие и
+`production_id` связи, не совпавший с выгрузкой). Входная схема это контракт
+контент-потока `output/student-app-v2/seed/SEED_CONTRACT.md` (snake_case):
 
-- `countries.json`: `{ "schemaVersion": 1, "countries": [ { "code", "summaryRu"?, "summaryKy"?, "kyReview"?, "photo"? } ] }`;
-- `cities.json`: `{ "schemaVersion": 1, "cities": [ { "key", "country", "nameRu", "nameKy", "nameEn", "status" (draft | published), "lat"?, "lng"?, "summaryRu"?, "summaryKy"?, "factRu"?, "factKy"?, "factSourceUrl"?, "factVerifiedOn"?, "kyReview"?, "photo"? } ] }`;
-- `institution-cities.json`: `{ "schemaVersion": 1, "links": [ { "country", "institutionName", "cityKey" } ] }`;
-- `photo` во входе: `{ "file" (путь к файлу относительно папки сида), "author", "authorUrl"?, "sourceName" (Unsplash | Pexels | Wikimedia Commons), "sourceUrl", "license", "licenseUrl"? }`. Размер, sha256 и путь объекта генератор считает сам по файлу (JPEG, PNG, WebP).
+- `countries.json`: `{ generated_on, count, countries: [ { code, sort_order, name_ru, name_ky, name_en, summary_ru?, summary_ky?, ky_review, photo?: { key, file }, city_count?, institution_count? } ] }`; названия и порядок должны совпасть с `src/lib/study-countries.json` (в базе они фиксированы 283);
+- `cities.json`: `{ generated_on, count, cities: [ { city_key, country_code, name_ru, name_ky, name_en, lat?, lng?, summary_ru?, summary_ky?, fact_ru?, fact_ky?, fact_source_url?, fact_verified_on?, ky_review, status (draft | published), gaps, photo?: { key, file }, ... } ] }`; справочные `coord_*`, `wikidata_id`, `fact_source_title` в базу не пишутся;
+- `institution-cities.json`: `{ generated_on, count, match_rule, links: [ { country_code, institution_name, city_key, production_id?, production_city?, resolution?, owner_question?, note?, source_url? } ] }`; `production_id` только для сверки с выгрузкой production;
+- `photos-manifest.json`: `{ generated_on, count, rules, photos: [ { key, place_type, place_key, file, sha256, bytes, width, height, author, author_url, source (pexels | unsplash | wikimedia_commons), source_url, licence, licence_url, attribution_required, attribution_text, fetched_on, ... } ] }`. Ключ фото `country-<код>` или `city-<city_key>`; генератор сверяет sha256, размер и стороны с файлом, хост `source_url` с источником; фото без карточки и адреса агентств это ошибка.
+
+В `photo jsonb` базы попадает `{ path, width, height, author, authorUrl,
+sourceName, sourceUrl, license, licenseUrl }` из манифеста; `path` это путь
+объекта, который создаёт скрипт загрузки:
+`geography/countries/<код>-<12 hex sha256>.jpg` и
+`geography/cities/<страна>-<city_key>-<12 hex sha256>.jpg`.
 
 Город создаётся для каждой организации, где есть вуз этой страны. Вуз
 связывается по (`country_code`, точное `institution_name`); вуз, которого нет
-в базе, пропускается (UUID production и демо различаются). Генератор
-предупреждает о длинном и среднем тире в текстах.
+в базе, пропускается (UUID production и демо различаются). Тексты для людей с
+длинным или средним тире генератор отвергает (правило текстов EVO), так же
+неполный опубликованный город, расхождение справочных чисел и неизвестные
+поля.
 
 Фото загружает `node scripts/catalog/upload-geography-photos.mjs --seed-dir <папка>`
 (по умолчанию план без сети; `--check` читает публичные адреса; `--apply`

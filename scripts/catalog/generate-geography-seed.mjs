@@ -2,9 +2,11 @@
 /**
  * Генератор раздела сида миграции 283 (страны, города, связи вуз → город).
  *
- * Входы (схема: docs/catalog/geography-costs-contract.md, раздел «Сид»):
- *   <seed-dir>/countries.json, cities.json, institution-cities.json;
- *   src/lib/study-countries.json (коды стран продукта).
+ * Входы (схема: SEED_CONTRACT.md контент-потока в папке сида, сводка в
+ * docs/catalog/geography-costs-contract.md, раздел 4):
+ *   <seed-dir>/countries.json, cities.json, institution-cities.json,
+ *   photos-manifest.json, photos/; src/lib/study-countries.json (коды и
+ *   названия стран продукта).
  * Папка по умолчанию: output/student-app-v2/seed этого checkout (игнорируется
  * Git); другую задаёт --seed-dir или EVO_GEOGRAPHY_SEED_DIR.
  *
@@ -18,7 +20,8 @@
  *   --allow-missing            отсутствующий файл входа даёт пустую часть;
  *   --prod-institutions <file> отчёт покрытия по выгрузке production
  *                              (поля country_code, institution_name);
- *   --require-complete         код 1, если покрытие не полное.
+ *   --require-complete         код 1, если покрытие не полное или
+ *                              production_id связи не совпал с выгрузкой.
  * Сеть и база не используются.
  */
 import { readFileSync, writeFileSync } from "node:fs";
@@ -75,7 +78,6 @@ export function runGenerator(argv, { write = (text) => process.stdout.write(text
     citiesPublished: seed.cities.filter((c) => c.status === "published").length,
     links: seed.links.length,
     photos: seed.uploads.length,
-    warnings: { count: seed.warnings.length, first: seed.warnings.slice(0, 20) },
     coverage,
   };
   if (options.mode === "print") { write(sql); return 0; }
@@ -92,7 +94,8 @@ export function runGenerator(argv, { write = (text) => process.stdout.write(text
   } else {
     write(`${JSON.stringify(report, null, 2)}\n`);
   }
-  if (options.requireComplete && coverage && (coverage.missing.length > 0 || coverage.unknownLinks.length > 0)) return 1;
+  if (options.requireComplete && (!coverage || coverage.missing.length > 0 || coverage.unknownLinks.length > 0
+    || coverage.idMismatch.length > 0)) return 1;
   return 0;
 }
 

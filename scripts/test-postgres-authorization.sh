@@ -3436,6 +3436,19 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_single_country_list.sql
   fi
+
+  # «Выбор страны студента» (284, PLAN_CHANGES 16.10.2026, «Путь поступления
+  # на «Главной»»): matched by name, so a renumbering keeps the hook. Right
+  # after the migration: free-text country recognition, the default choice
+  # (анкета, then case, then none), the Student's own idempotent write (six
+  # codes or UNDECIDED), refusals of staff, an applicant, service_role and
+  # anon with nothing written, no client grants and no audit_events, and the
+  # choice counted as own rows of a simple account for deletion (280).
+  if [[ "$(basename "$migration")" == *_platform_student_country_choice.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_country_choice.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

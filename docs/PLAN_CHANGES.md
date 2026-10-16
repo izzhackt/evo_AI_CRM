@@ -51255,3 +51255,83 @@ Reviewer notes: ожидает независимого review раунда 2 т
 - студенческие экраны каталога глазами человека в production (агенты в production не входят);
 - старые сборки iPhone 0.1.0 и 1.0 не запускались; совместимость выведена из кода и ответов RPC;
 - сайт: форма со списком из 6 стран (izzhackt/evoadmissions-website#31) не выкатывалась, ждёт «да» владельца; приёмник CRM принимает и прежние значения.
+
+## 2026-10-16 · Путь поступления на «Главной» (284): контент, парсер, выбор страны
+
+```text
+Date: 2026-10-16, workspace timezone.
+Author: Claude Code (Opus 5.5), по поручению ведущего агента; решения
+  владельца 16.10 (Р5, «все да, как ты предлагаешь») и ответ «по
+  предложению» на список расхождений таймлайна.
+Change type: data model, migration numbering, scope, acceptance, validation.
+Affected plan section: docs/EVO_STUDENT_APP_V2_PLAN_2026-10-16.md §8.1, §8.3,
+  §10.1, §11 (шаг 4 «нет миграции»); запись выше от 2026-10-16 о плане
+  приложения студента v2, Decision 2 (резерв номеров 282, 283 и 284).
+Reason: 282 вышла без выбора страны студента (§8.3 относил его к 282);
+  283 занята университетами (S3, ветка izzhackt/universities-v2). Выбору
+  страны нужна своя миграция. Модель контента §8.1 и черновик схемы
+  контента 16.10 (output/student-app-v2/content/timeline/SCHEMA.md
+  канонического checkout) расходились в мелочах; продукту нужна одна схема.
+Decision:
+  1. Номер. Выбор страны студента это миграция 284
+     (284_platform_student_country_choice.sql); 283 остаётся за S3. Подготовка
+     к CSCA (S5.1), которой §10.1 отдавал 284, получает следующий свободный
+     номер при слиянии через координатора. Ledger по-прежнему строго по
+     порядку: 284 применяется только после 283. S4 больше не «без миграции»
+     (§11, шаг 4): веб S4 зависит от 284 в ledger.
+  2. 284: platform_private.student_country_choices (одна строка на
+     участника) и student_country_choice_requests (квитанции по request_id),
+     RLS обязательна, табличных грантов нет;
+     platform.student_country_choice_v1() → {country, source: saved |
+     application | case | none, savedAt}: сохранённый выбор, иначе ровно одна
+     из шести стран анкеты, иначе target_country дела, распознанный
+     platform_private.study_country_from_text (код, EN, RU, KY), иначе none;
+     platform.set_student_country_choice_v1(p_country, p_request_id): шесть
+     кодов или UNDECIDED, повтор request_id возвращает квитанцию, тот же
+     request_id с другой страной 22023. Только студент о себе; сотрудники,
+     заявитель без участия, service_role и anon 42501; в audit_events не
+     пишется. Обе таблицы добавлены в «свои» таблицы
+     account_deletion_closure (280) заменой проверенного фрагмента: иначе
+     сохранённый выбор делал бы простой аккаунт ручным.
+  3. Контент: src/content/timelines/{cn,my,ae,tr,it,cz}.json из черновика
+     16.10 плюс undecided.json (общий маршрут по 7 рабочим этапам дела,
+     заголовки как этапы в кабинете, без дат). Китай и Малайзия approved,
+     Италия, Турция, ОАЭ, Чехия owner_review: до подтверждения владельца
+     студент видит общий маршрут с названием выбранной страны. Схема
+     src/content/timelines/SCHEMA.md: три оговорки отдельными полями;
+     статус пункта confirmed или verify вместо внутренней пометки review;
+     contentVersion и validUntil (2027-10-31); у каждого текста с годом
+     вариант undated, который показывается после validUntil; ссылка шага
+     с appModule (CSCA: модуль приложения, иначе csca.cn); внутренние
+     источники без путей и с нейтральными названиями.
+  4. Правки контента по списку расхождений (предложения действуют до ответа
+     владельца): verify и скрыты my-6-01 (стойка ISAC, D11: «переспросить
+     перед релизом») и ae-2-01 (паспорт 6 месяцев, G05: не сверено на
+     icp.gov.ae), из summary шага 6 Малайзии убрано упоминание ISAC; из
+     заметки cn-2-03 убраны даты сессий CSCA (§8.2: даты только в модуле
+     CSCA); сумма средств для визы Италии (G03, вопрос владельцу) заменена
+     на «назовёт куратор»; из intake.note Китая убрана служебная фраза о
+     пересчёте календаря (её делает validUntil).
+  5. Код: src/lib/portal/country-timeline.ts (строгий парсер при импорте,
+     selectCountryTimeline, todayForTimeline по Бишкеку),
+     src/lib/portal/country-choice.ts (строгий разбор ответа RPC). iPhone:
+     те же семь файлов ресурсами bundle обеих целей ios/project.yml
+     (xcodegen). Контракт для веба и iPhone:
+     docs/portal/country-timeline-contract.md. Интерфейс (§8.4) и Swift
+     делают следующие PR.
+Validation impact: node-тест tests/portal-country-timeline.test.mjs (схема и
+  29 видов порчи, RU/KY, три оговорки, запрещённые слова и внутренние
+  сведения, нет verify и дат CSCA в выдаче, owner_review не показывается
+  своим таймлайном, нет абсолютных дат после validUntil, ресурсы iPhone,
+  разбор ответа RPC); tests/study-countries.test.mjs; typecheck; eslint
+  новых файлов. SQL-набор supabase/tests/platform_student_country_choice.sql
+  на одноразовой базе (закреплённый образ, вся цепочка миграций), подключён
+  в scripts/test-postgres-authorization.sh после 284; набор ловит
+  подмену прав, распознавания стран и повтора request_id. Сборка
+  EVOAdmissionsTests: семь файлов в bundle байт в байт. Стек evo-video-demo:
+  резервная копия 20261016T100444Z-pre-284-country-choice, 284 применена и
+  записана в ledger (284), реальный путь через локальный Auth и PostgREST
+  (вывод по умолчанию у шести демо-студентов, запись, повтор, отказы),
+  синтетический выбор удалён. Production не меняется.
+Reviewer notes: ожидает независимого review точного head PR.
+```

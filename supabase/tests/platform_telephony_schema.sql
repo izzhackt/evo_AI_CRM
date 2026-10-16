@@ -23,8 +23,10 @@
 --     eleven tables that can hold a link is telephony_call_legs.recording_link
 --     (https, no blanks), evidence and the work queue carry only has_link; the
 --     evidence fields refuse token/link/record/url-like KEYS in any spelling
---     (case, padding) and link-like VALUES under any key, nested values,
---     oversized keys and values, while all 19 documented PBX field names pass;
+--     (case, padding), keys that are not plain field names (a link, a number,
+--     punctuation: in the fields and in the rejected-form shape) and link-like
+--     VALUES under any key, nested values, oversized keys and values, while
+--     all 19 documented PBX field names pass;
 --     missing_fields hold names only; the chronology keeps a soft (non-FK)
 --     evidence reference so the 12-month purge of evidence (T11) cannot block
 --     it;
@@ -33,8 +35,9 @@
 --     cadence); every hard bound and cross-field rule refuses what it must;
 --  5. append-only: UPDATE, DELETE and TRUNCATE of the evidence and the
 --     chronology are refused (55000), even for the owner (the one exception is
---     migration 280's row DELETE inside an account-erasure transaction; it is
---     not exercised here);
+--     migration 280's row DELETE inside an account-erasure transaction, which
+--     is exercised here: it opens only for a real request of this very
+--     transaction and only for a row DELETE);
 --  6. evidence: dedup key unique per organization (rejected forms carry none
 --     and repeat), request id unique, state/shape rules (ok, incomplete,
 --     rejected), token slot, hash shapes, cross-organization reference refused;
@@ -43,6 +46,7 @@
 --  8. calls and legs: unique call id per organization, state/outcome rules
 --     (ringing without outcome, answered means outcome answered, a recorded
 --     answer time forbids any other outcome, ended has an outcome and an end),
+--     a dialed call always names its dial request,
 --     pull-only no_answer_unknown, client/lead match rules (a lead must belong
 --     to the call's client; a client merge that moves the lead moves the call
 --     with it), result rules, dial rules, the leg key (call, user, start), the
@@ -466,6 +470,18 @@ SELECT pg_temp.t287_assert(bool_and(pg_temp.t287_ins('telephony_pbx_events', jso
   FROM unnest(ARRAY['mp3', 'url', 'URL', 'uri', 'href', 'record_url', 'recordUrl', 'recording', 'Record ', 'token ', ' token',
     'Authorization', 'X-Api-Key', 'passwd', 'client_secret', 'my_crm_token_2', 'RecordingLink', 'mp3_file',
     'phone ', ' phone', E'ph\tone', E'phone\n']) s(k);
+-- A key is a field NAME: a link, a number or any text with punctuation, digits first, blanks or non-Latin
+-- letters is refused as a key whatever its value (a link or a phone number as a key would land in a row nothing
+-- but the erasure bypass can remove).
+SELECT pg_temp.t287_assert(bool_and(pg_temp.t287_ins('telephony_pbx_events', jsonb_build_object('fields', jsonb_build_object(s.k, 'x'))) = '23514'
+    AND pg_temp.t287_ins('telephony_pbx_events', jsonb_build_object('fields', jsonb_build_object('cmd', 'event', s.k, 7))) = '23514'),
+  'evidence fields refuse a link, a phone number, a digit-first, underscore-first, dotted, dashed, slashed, spaced or non-Latin name and a 65-character name as a KEY, alone or beside a good key')
+  FROM unnest(ARRAY['https://pbx.example.invalid/r/1', 'http://pbx.example.invalid', '//pbx.example.invalid/r/1.ogg', '996555000111',
+    '+996555000111', '1', '1phone', '_phone', 'ph.one', 'ph-one', 'ph/one', 'ph one', 'ph:one', 'телефон', 'ph[0]',
+    'a' || repeat('b', 64), '']) s(k);
+SELECT pg_temp.t287_assert(pg_temp.t287_ins('telephony_pbx_events', jsonb_build_object('fields',
+      jsonb_build_object('Phone2', 'x', 'a_b9', 1, 'Z', true, 'a' || repeat('b', 63), 'edge'))) = 'ok',
+  'plain field names (letters, digits and underscores after a letter), including a 64-character name, are accepted as keys');
 -- A link is refused as a VALUE under any innocuous key.
 SELECT pg_temp.t287_assert(bool_and(pg_temp.t287_ins('telephony_pbx_events', jsonb_build_object('fields', jsonb_build_object(s.k, s.v))) = '23514'),
   'evidence fields refuse a link as a value under file, audio, status, note and the like: https://, HTTPS://, ftp://, file:///, a leading scheme without slashes, a bare //host path to .ogg, .mp3 or .wav, with or without a query')
@@ -500,6 +516,20 @@ SELECT pg_temp.t287_assert(bool_and(pg_temp.t287_ins('telephony_pbx_events', jso
     ('{"cmd":1.5}'::JSONB), (jsonb_build_object(repeat('k', 65), 1)), (jsonb_build_object(E'a\nb', 1)),
     ((SELECT jsonb_object_agg('f' || g, g) FROM generate_series(1, 65) g)), ('[]'::JSONB), ('"x"'::JSONB)
   ) s(shape);
+-- The shape holds field NAMES (with lengths): a link or a number cannot be one.
+SELECT pg_temp.t287_assert(bool_and(pg_temp.t287_ins('telephony_pbx_events', jsonb_build_object('validation_state', 'rejected',
+      'cmd', 'x', 'fields', NULL, 'dedup_key', NULL, 'pbx_callid', NULL, 'event_type', NULL,
+      'form_shape', jsonb_build_object(s.k, 3))) = '23514'
+    AND pg_temp.t287_ins('telephony_pbx_events', jsonb_build_object('validation_state', 'rejected',
+      'cmd', 'x', 'fields', NULL, 'dedup_key', NULL, 'pbx_callid', NULL, 'event_type', NULL,
+      'form_shape', jsonb_build_object('cmd', 7, s.k, 3))) = '23514'),
+  'the rejected-form shape refuses a link, a phone number, a digit-first, underscore-first, dotted, dashed, slashed, spaced, non-Latin, empty or 65-character name as a field name, alone or beside a good one')
+  FROM unnest(ARRAY['https://pbx.example.invalid/r/1.mp3?t=abc', 'http://pbx.example.invalid', '996555000111', '+996555000111', '1',
+    '1phone', '_phone', 'ph.one', 'ph-one', 'ph/one', 'ph one', 'ph:one', 'телефон', 'ph[0]', 'a' || repeat('b', 64), '']) s(k);
+SELECT pg_temp.t287_assert(pg_temp.t287_ins('telephony_pbx_events', jsonb_build_object('validation_state', 'rejected',
+      'cmd', 'x', 'fields', NULL, 'dedup_key', NULL, 'pbx_callid', NULL, 'event_type', NULL,
+      'form_shape', jsonb_build_object('crm_token', 0, 'Phone2', 12, 'a_b9', 1, 'a' || repeat('b', 63), 99999))) = 'ok',
+  'the rejected-form shape keeps plain field names with their lengths (even a token field''s name: only the length is stored), up to 64 characters');
 SELECT pg_temp.t287_assert(pg_temp.t287_ins('telephony_pbx_events', jsonb_build_object('organization_id', pg_temp.t287_id(9))) = '23503',
   'evidence needs an existing organization');
 
@@ -723,8 +753,9 @@ SELECT pg_temp.t287_assert(pg_temp.t287_ins('telephony_calls', jsonb_build_objec
 SELECT pg_temp.t287_assert(pg_temp.t287_ins('telephony_calls', jsonb_build_object('direction', 'in', 'created_via', 'dial')) = '23514'
   AND pg_temp.t287_ins('telephony_calls', jsonb_build_object('direction', 'in', 'dial_request_id', pg_temp.t287_id(1403))) = '23514'
   AND pg_temp.t287_ins('telephony_calls', jsonb_build_object('direction', 'out', 'created_via', 'dial',
-    'dial_request_id', pg_temp.t287_id(9998))) = '23503',
-  'a dialed call is outgoing; a dial request cannot sit on an incoming call; a dial request must exist');
+    'dial_request_id', pg_temp.t287_id(9998))) = '23503'
+  AND pg_temp.t287_ins('telephony_calls', jsonb_build_object('direction', 'out', 'created_via', 'dial')) = '23514',
+  'a dialed call is outgoing and always names its dial request; a dial request cannot sit on an incoming call; a dial request must exist');
 
 -- ---------------------------------------------------------------------------
 -- Legs.
@@ -800,6 +831,39 @@ SELECT pg_temp.t287_assert(pg_temp.t287_state(format('UPDATE platform_private.te
     pg_temp.t287_id(3002))) = 'ok',
   'expiry must clear the link in the same update (the link goes with the state)');
 
+-- Premise of the writer rule (migration header; PLAN_CHANGES item 13): an integrity violation raised inside an
+-- owner's function carries the failing VALUES, a recording link included, in the error DETAIL, for a NOT NULL as well as
+-- for a CHECK violation (SQLSTATE class 23). What stays free of values: the SQLSTATE and the constraint or
+-- column name. A T1b writer therefore stores only those and never SQLERRM, DETAIL or CONTEXT.
+DO $t287_detail$
+DECLARE
+  v_link CONSTANT TEXT := 'https://example.invalid/SECRETPATH.mp3';
+  v_state TEXT; v_detail TEXT; v_constraint TEXT; v_column TEXT;
+BEGIN
+  BEGIN  -- NOT NULL: the leg start is missing
+    INSERT INTO platform_private.telephony_call_legs(organization_id, call_id, pbx_user, leg_started_at, leg_start_source, recording_state, recording_link)
+    VALUES (pg_temp.t287_id(1), pg_temp.t287_id(2001), 'detail-1', NULL, 'event', 'available', v_link);
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_detail = PG_EXCEPTION_DETAIL,
+      v_constraint = CONSTRAINT_NAME, v_column = COLUMN_NAME;
+  END;
+  PERFORM pg_temp.t287_assert(v_state = '23502' AND v_detail LIKE '%SECRETPATH%' AND v_column = 'leg_started_at'
+    AND COALESCE(v_constraint, '') NOT LIKE '%SECRETPATH%' AND v_column NOT LIKE '%SECRETPATH%',
+    'NOT NULL violation: DETAIL carries the link, the column name does not');
+  v_state := NULL; v_detail := NULL; v_constraint := NULL; v_column := NULL;
+  BEGIN  -- CHECK: a link on a leg whose recording state allows none
+    INSERT INTO platform_private.telephony_call_legs(organization_id, call_id, pbx_user, leg_started_at, leg_start_source, recording_state, recording_link)
+    VALUES (pg_temp.t287_id(1), pg_temp.t287_id(2001), 'detail-2', '2031-01-07T09:05:00Z', 'event', 'none', v_link);
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_detail = PG_EXCEPTION_DETAIL,
+      v_constraint = CONSTRAINT_NAME, v_column = COLUMN_NAME;
+  END;
+  PERFORM pg_temp.t287_assert(v_state = '23514' AND v_detail LIKE '%SECRETPATH%'
+    AND v_constraint = 'telephony_call_legs_recording_check' AND v_constraint NOT LIKE '%SECRETPATH%',
+    'CHECK violation: DETAIL carries the link, the constraint name does not');
+END
+$t287_detail$;
+
 -- 3. The link is a secret in one place.
 SELECT pg_temp.t287_assert((SELECT array_agg(c.table_name || '.' || c.column_name ORDER BY c.table_name, c.column_name)
     FROM information_schema.columns c
@@ -854,6 +918,63 @@ SELECT pg_temp.t287_assert(pg_temp.t287_state(format('UPDATE platform_private.te
   AND pg_temp.t287_state('TRUNCATE platform_private.telephony_call_events') = '55000',
   'the chronology is append-only: UPDATE, DELETE and TRUNCATE are refused even for the owner');
 
+-- Account erasure (migration 280; docs/runbooks/account-deletion.md, section «Телефония»): the one hole in
+-- append-only is a row DELETE inside the erasure transaction of a real request. A marker that names no request,
+-- a request that is not erasing in this transaction, UPDATE and TRUNCATE all stay refused.
+INSERT INTO platform_private.account_deletion_requests(id, organization_id, membership_id, request_id, subject_auth_user_id, subject_kind)
+  VALUES (pg_temp.t287_id(1500), pg_temp.t287_id(1), pg_temp.t287_id(301), pg_temp.t287_id(1501), pg_temp.t287_id(101), 'student');
+SELECT pg_temp.t287_assert(pg_temp.t287_ins('telephony_pbx_events', jsonb_build_object('id', pg_temp.t287_id(1090))) = 'ok'
+  AND pg_temp.t287_ins('telephony_call_events', jsonb_build_object('id', pg_temp.t287_id(4090), 'call_id', pg_temp.t287_id(2001))) = 'ok'
+  AND pg_temp.t287_ins('telephony_call_events', jsonb_build_object('id', pg_temp.t287_id(4091), 'call_id', pg_temp.t287_id(2001))) = 'ok',
+  'rows for the erasure case: one evidence row without work and two chronology events');
+DO $t287_erasure$
+DECLARE
+  v_state TEXT;
+  v_rows BIGINT;
+BEGIN
+  -- 1. No marker, a marker that names no request, a marker of a request that is not erasing: refused.
+  PERFORM set_config('platform.account_erasure_request_id', pg_temp.t287_id(1599)::TEXT, TRUE);
+  PERFORM pg_temp.t287_assert(pg_temp.t287_state(format('DELETE FROM platform_private.telephony_call_events WHERE id = %L', pg_temp.t287_id(4090))) = '55000'
+    AND pg_temp.t287_state(format('DELETE FROM platform_private.telephony_pbx_events WHERE id = %L', pg_temp.t287_id(1090))) = '55000',
+    'a marker that names no request opened the append-only lock');
+  PERFORM set_config('platform.account_erasure_request_id', pg_temp.t287_id(1500)::TEXT, TRUE);
+  PERFORM pg_temp.t287_assert(pg_temp.t287_state(format('DELETE FROM platform_private.telephony_call_events WHERE id = %L', pg_temp.t287_id(4090))) = '55000',
+    'a request that is not erasing in this transaction opened the append-only lock');
+  PERFORM set_config('platform.account_erasure_request_id', 'not-a-uuid', TRUE);
+  PERFORM pg_temp.t287_assert(pg_temp.t287_state(format('DELETE FROM platform_private.telephony_call_events WHERE id = %L', pg_temp.t287_id(4090))) = '55000',
+    'a malformed marker opened the append-only lock');
+
+  -- 2. The request is erasing in this very transaction (what process_account_deletion_v1 does).
+  UPDATE platform_private.account_deletion_requests SET erasure_transaction_id = pg_catalog.pg_current_xact_id()
+  WHERE id = pg_temp.t287_id(1500);
+  PERFORM set_config('platform.account_erasure_request_id', pg_temp.t287_id(1500)::TEXT, TRUE);
+  -- Row DELETE passes, for the chronology and the evidence...
+  DELETE FROM platform_private.telephony_call_events WHERE id = pg_temp.t287_id(4090);
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  PERFORM pg_temp.t287_assert(v_rows = 1, 'the erasure could not delete a chronology row');
+  DELETE FROM platform_private.telephony_pbx_events WHERE id = pg_temp.t287_id(1090);
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  PERFORM pg_temp.t287_assert(v_rows = 1, 'the erasure could not delete an evidence row');
+  -- ...but UPDATE and TRUNCATE never pass, and a referenced evidence row is still RESTRICTed.
+  PERFORM pg_temp.t287_assert(pg_temp.t287_state(format('UPDATE platform_private.telephony_call_events SET event_type = ''completed'' WHERE id = %L', pg_temp.t287_id(4091))) = '55000'
+    AND pg_temp.t287_state(format('UPDATE platform_private.telephony_pbx_events SET has_link = NOT has_link WHERE id = %L', pg_temp.t287_id(1001))) = '55000'
+    AND pg_temp.t287_state('TRUNCATE platform_private.telephony_call_events') = '55000'
+    AND pg_temp.t287_state(format('DELETE FROM platform_private.telephony_pbx_events WHERE id = %L', pg_temp.t287_id(1001))) = '23503',
+    'inside the erasure UPDATE and TRUNCATE must stay refused and a referenced evidence row must stay RESTRICTed');
+
+  -- 3. After the erasure the marker is cleared: the lock is closed again.
+  PERFORM set_config('platform.account_erasure_request_id', '', TRUE);
+  PERFORM pg_temp.t287_assert(pg_temp.t287_state(format('DELETE FROM platform_private.telephony_call_events WHERE id = %L', pg_temp.t287_id(4091))) = '55000',
+    'after the marker is cleared the chronology must be append-only again');
+  UPDATE platform_private.account_deletion_requests SET erasure_transaction_id = NULL WHERE id = pg_temp.t287_id(1500);
+END
+$t287_erasure$;
+SELECT pg_temp.t287_assert(NOT EXISTS (SELECT 1 FROM platform_private.telephony_call_events WHERE id = pg_temp.t287_id(4090))
+    AND EXISTS (SELECT 1 FROM platform_private.telephony_call_events WHERE id = pg_temp.t287_id(4091))
+    AND NOT EXISTS (SELECT 1 FROM platform_private.telephony_pbx_events WHERE id = pg_temp.t287_id(1090))
+    AND EXISTS (SELECT 1 FROM platform_private.telephony_pbx_events WHERE id = pg_temp.t287_id(1001)),
+  'the erasure case removed exactly the two rows it was allowed to remove');
+
 -- ---------------------------------------------------------------------------
 -- RESTRICT: referenced rows cannot disappear silently.
 -- ---------------------------------------------------------------------------
@@ -871,6 +992,12 @@ SELECT pg_temp.t287_assert((SELECT array_agg(k.conname::TEXT ORDER BY k.conname)
       FROM pg_constraint k WHERE k.contype = 'f' AND k.conname IN ('telephony_calls_lead_fkey',
         'telephony_dial_requests_lead_fkey', 'telephony_task_links_lead_fkey')),
   'the three lead keys are (organization, client, lead) onto platform.leads and the only keys with an ON UPDATE action');
+-- The client/lead keys that a client merge walks have an index led by (organization, client) on each table.
+SELECT pg_temp.t287_assert((SELECT count(DISTINCT i.tablename) = 3 FROM pg_indexes i
+    WHERE i.schemaname = 'platform_private'
+      AND i.tablename IN ('telephony_calls', 'telephony_dial_requests', 'telephony_task_links')
+      AND i.indexdef LIKE '%(organization_id, client_id%'),
+  'calls, dial requests and task links each have an index led by (organization, client) for the client/lead keys');
 -- A client merge: the lead moves to the surviving client and the telephony rows follow it.
 INSERT INTO platform.clients(id, organization_id, display_name, normalized_name) VALUES
   (pg_temp.t287_id(713), pg_temp.t287_id(1), 'T287 Client M1', platform_private.normalize_person_name('T287 Client M1')),

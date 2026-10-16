@@ -51,13 +51,42 @@
 -- контролируемая функция среза T11 вместе с заменой этого замка; до тех пор
 -- доказательства не очищаются.
 --
--- Требование к функциям-писателям следующих срезов (T1b, T4a, T6): нарушение
--- CHECK внутри функции владельца кладёт в DETAIL ошибки всю строку целиком
--- («Failing row contains …»), а в строке может быть ссылка на запись или номер.
--- Писатель ловит ошибку и сохраняет только SQLSTATE и имя ограничения
--- (last_error_code по форме ^[a-z][a-z0-9_]{0,63}$); SQLERRM,
--- PG_EXCEPTION_DETAIL и PG_EXCEPTION_CONTEXT не сохраняются и не логируются;
--- приложение не пишет в журнал поле details ответа RPC.
+-- Требования к следующим срезам (записаны и в docs/PLAN_CHANGES.md, пункты
+-- 13, 15–17):
+--  * Писатели T1b, T4a, T6. Нарушение ЛЮБОГО ограничения целостности внутри
+--    функции владельца (SQLSTATE класса 23: 23502 NOT NULL, 23503 внешний ключ,
+--    23505 уникальность, 23514 CHECK) кладёт в DETAIL ошибки значения: всю
+--    строку целиком («Failing row contains …») или ключ («Key (…)=(…)»), а в
+--    них может быть ссылка на запись или номер. Писатель ловит ошибку и
+--    сохраняет только SQLSTATE и имя ограничения (для NOT NULL — имя столбца;
+--    GET STACKED DIAGNOSTICS CONSTRAINT_NAME, COLUMN_NAME) в last_error_code по
+--    форме ^[a-z][a-z0-9_]{0,63}$; SQLERRM, PG_EXCEPTION_DETAIL и
+--    PG_EXCEPTION_CONTEXT не сохраняются и не логируются; приложение не пишет в
+--    журнал поле details ответа RPC. Тест T1b: нога со ссылкой и пустым
+--    leg_started_at (NOT NULL), нога со ссылкой при recording_state 'none'
+--    (CHECK) и повтор ключа ноги (UNIQUE) — ни ссылки, ни номера в сохранённой
+--    ошибке. Предпосылка (DETAIL несёт значения при 23502) закреплена в наборе
+--    T1a.
+--  * Функции T1b, T2 и далее, закрытые флагами. Строк telephony_settings
+--    миграция не создаёт, поэтому «выключено» включает «строки нет». В plpgsql
+--    IF NOT v.flag при отсутствующей строке даёт NULL и отказ НЕ срабатывает:
+--    проверка пишется как NOT COALESCE(v.flag, FALSE). Тест T1b: без строки
+--    telephony_settings каждая закрытая флагом функция отказывает.
+--  * Ключ ноги (call_id, pbx_user, leg_started_at) содержит изменяемый столбец
+--    (см. «Решения этого среза»). Функция слияния ног и её тесты — блокирующее
+--    условие приёмки T1b: повтор события, history после event, воспроизведение
+--    сообщения, одна нога на сотрудника в групповом звонке и переводе не дают
+--    ни дубля, ни коллизии ключа. Если настоящие групповой звонок и перевод
+--    (план §15, строка 5) покажут, что ключ неверен, ограничение заменяется
+--    новой миграцией.
+--  * Разбор T3. Имена полей доказательства и формы отклонённого запроса обязаны
+--    соответствовать ^[A-Za-z][A-Za-z0-9_]{0,63}$ (замок схемы): разбор не
+--    пропускает к писателю другие имена, а отклонённый запрос с таким именем
+--    записывает без него (например, под общим ключом invalid_name_N), чтобы
+--    чужое имя не роняло запись. Свободный текст ВАТС (pbx_callid, second_callid,
+--    group_name, company_number_name, extension, pbx_user, lease_owner) схема от
+--    ссылок не защищает: значение-ссылку разбор отклоняет до писателя; набор T1a
+--    проверяет инвариант «ссылка хранится в одной колонке» по именам столбцов.
 --
 -- Решения этого среза, которых нет дословно в плане (точная схема «уточняется
 -- в T1a», §6.1):
@@ -103,10 +132,11 @@
 --    no_answer_callback, result_callback, verify_call, reached_followup (§9.2–
 --    §9.4); предмет «одной открытой задачи» — лид, иначе клиент, иначе звонок;
 --  * поле fields доказательства — последний замок от секрета, а не его
---    единственная защита: ключ не должен содержать (без учёта регистра) token,
---    link, record, url, uri, href, mp3, secret, passw, api[_-]key или
---    authorization, не должен иметь пробелов по краям и управляющих знаков, а
---    строковое значение не должно быть ссылкой (содержать «://», начинаться с
+--    единственная защита: ключ — имя вида ^[A-Za-z][A-Za-z0-9_]{0,63}$ (ссылка,
+--    номер, пробелы и управляющие знаки именем быть не могут) и не содержит
+--    (без учёта регистра) token, link, record, url, uri, href, mp3, secret,
+--    passw, api[_-]key или authorization, а строковое значение не должно быть
+--    ссылкой (содержать «://», начинаться с
 --    https:/http:/ftp:/file: или оканчиваться на .mp3, .wav, .ogg и т. п.). Ни
 --    одно из 19 полей, документированных для запросов ВАТС (event, history,
 --    rating), этим правилам не противоречит. Проверка эвристическая: список
@@ -226,11 +256,11 @@ END
 $$;
 
 -- Очищенные поля доказательства (§5.2): плоский объект из скаляров, до 32
--- ключей, ключ до 64 знаков без пробелов по краям и управляющих знаков, строка
--- до 2 048 знаков. Последний замок от секрета (эвристика, не белый список):
--- ключ не называется как токен, ссылка или запись, а строка не похожа на ссылку.
--- Белый список документированных полей и вырезание токена и ссылки делает
--- разбор среза T3.
+-- ключей, ключ — имя вида ^[A-Za-z][A-Za-z0-9_]{0,63}$ (так ссылка или номер не
+-- могут лежать в самом ключе), строка до 2 048 знаков. Последний замок от
+-- секрета (эвристика, не белый список): ключ не называется как токен, ссылка или
+-- запись, а строка не похожа на ссылку. Белый список документированных полей и
+-- вырезание токена и ссылки делает разбор среза T3.
 CREATE FUNCTION platform_private.telephony_fields_ok(p_fields JSONB)
 RETURNS BOOLEAN LANGUAGE plpgsql IMMUTABLE SET search_path = '' AS $$
 BEGIN
@@ -242,9 +272,7 @@ BEGIN
   END IF;
   RETURN NOT EXISTS (
     SELECT 1 FROM jsonb_each(p_fields) AS e
-    WHERE char_length(e.key) NOT BETWEEN 1 AND 64
-      OR e.key <> btrim(e.key)
-      OR e.key ~ '[[:cntrl:]]'
+    WHERE e.key !~ '^[A-Za-z][A-Za-z0-9_]{0,63}$'
       OR e.key ~* '(token|link|record|url|uri|href|mp3|secret|passw|api.?key|authorization)'
       OR jsonb_typeof(e.value) NOT IN ('string', 'number', 'boolean', 'null')
       OR (jsonb_typeof(e.value) = 'string' AND (
@@ -255,7 +283,8 @@ END
 $$;
 
 -- Форма отклонённого после токена запроса (§5.1, пункт 6): имя поля → длина
--- значения. Значений нет.
+-- значения. Значений нет; имя — вида ^[A-Za-z][A-Za-z0-9_]{0,63}$, чужие имена
+-- (ссылка, номер) в форму не попадают.
 CREATE FUNCTION platform_private.telephony_form_shape_ok(p_shape JSONB)
 RETURNS BOOLEAN LANGUAGE plpgsql IMMUTABLE SET search_path = '' AS $$
 BEGIN
@@ -267,8 +296,7 @@ BEGIN
   END IF;
   RETURN NOT EXISTS (
     SELECT 1 FROM jsonb_each(p_shape) AS e
-    WHERE char_length(e.key) NOT BETWEEN 1 AND 64
-      OR e.key ~ '[[:cntrl:]]'
+    WHERE e.key !~ '^[A-Za-z][A-Za-z0-9_]{0,63}$'
       OR jsonb_typeof(e.value) <> 'number'
       OR (e.value #>> '{}') !~ '^[0-9]{1,5}$'
   );
@@ -554,6 +582,12 @@ CREATE INDEX telephony_dial_requests_org_created_idx
   ON platform_private.telephony_dial_requests (organization_id, created_at DESC);
 CREATE INDEX telephony_dial_requests_member_created_idx
   ON platform_private.telephony_dial_requests (organization_id, membership_id, created_at DESC);
+-- Под внешние ключи на клиента и лид: слияние дублей клиентов (UPDATE
+-- platform.leads.client_id с ON UPDATE CASCADE) и удаление клиента ищут строки по
+-- (организация, клиент[, лид]).
+CREATE INDEX telephony_dial_requests_client_idx
+  ON platform_private.telephony_dial_requests (organization_id, client_id, lead_id)
+  WHERE client_id IS NOT NULL;
 CREATE INDEX telephony_dial_requests_callid_idx
   ON platform_private.telephony_dial_requests (organization_id, pbx_callid)
   WHERE pbx_callid IS NOT NULL;
@@ -670,8 +704,12 @@ CREATE TABLE platform_private.telephony_calls (
       ELSE result_at IS NOT NULL AND result_by IS NOT NULL
     END
   ),
+  -- Звонок из «Позвонить» (created_via 'dial') всегда несёт свой набор (§6.1:
+  -- dial_request_id — «для исходящих из EVO»); и он, и любая строка с набором
+  -- исходящие. Сверка может привязать исходящий звонок к набору позже.
   CONSTRAINT telephony_calls_dial_direction_check CHECK (
-    (created_via <> 'dial' AND dial_request_id IS NULL) OR direction = 'out'
+    (created_via <> 'dial' OR dial_request_id IS NOT NULL)
+    AND ((created_via <> 'dial' AND dial_request_id IS NULL) OR direction = 'out')
   )
 );
 -- Один набор — не больше одного звонка.
@@ -893,6 +931,9 @@ CREATE UNIQUE INDEX telephony_task_links_open_key
   WHERE closed_at IS NULL;
 CREATE INDEX telephony_task_links_call_idx
   ON platform_private.telephony_task_links (organization_id, call_id);
+CREATE INDEX telephony_task_links_client_idx
+  ON platform_private.telephony_task_links (organization_id, client_id, lead_id)
+  WHERE client_id IS NOT NULL;
 CREATE INDEX telephony_task_links_closed_call_idx
   ON platform_private.telephony_task_links (organization_id, closed_call_id)
   WHERE closed_call_id IS NOT NULL;

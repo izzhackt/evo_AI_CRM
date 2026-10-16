@@ -43,9 +43,21 @@
 -- проверки (platform_private.telephony_*_ok) тоже без грантов.
 -- Append-only: telephony_pbx_events и telephony_call_events закрыты от
 -- UPDATE, DELETE и TRUNCATE общим platform_private.block_append_only_mutation
--- (041). Очистка доказательств старше 12 месяцев (§13) — отдельная
+-- (041), в том числе для владельца таблицы. Единственное исключение — то, что
+-- миграция 280 уже встроила в эту функцию: УДАЛЕНИЕ СТРОКИ (не UPDATE и не
+-- TRUNCATE) внутри транзакции удаления аккаунта, помеченной номером запроса;
+-- эти таблицы его наследуют (docs/runbooks/account-deletion.md, раздел
+-- «Телефония»). Очистка доказательств старше 12 месяцев (§13) — отдельная
 -- контролируемая функция среза T11 вместе с заменой этого замка; до тех пор
 -- доказательства не очищаются.
+--
+-- Требование к функциям-писателям следующих срезов (T1b, T4a, T6): нарушение
+-- CHECK внутри функции владельца кладёт в DETAIL ошибки всю строку целиком
+-- («Failing row contains …»), а в строке может быть ссылка на запись или номер.
+-- Писатель ловит ошибку и сохраняет только SQLSTATE и имя ограничения
+-- (last_error_code по форме ^[a-z][a-z0-9_]{0,63}$); SQLERRM,
+-- PG_EXCEPTION_DETAIL и PG_EXCEPTION_CONTEXT не сохраняются и не логируются;
+-- приложение не пишет в журнал поле details ответа RPC.
 --
 -- Решения этого среза, которых нет дословно в плане (точная схема «уточняется
 -- в T1a», §6.1):
@@ -60,11 +72,23 @@
 --    собственных состояний (state, outcome, match_state, created_via и др.);
 --  * ссылка на запись связана со своим состоянием проверкой: она есть тогда и
 --    только тогда, когда recording_state = 'available' или 'unavailable'
---    (§7.3: 'none' — ссылки нет, 'expired' — ссылка обнулена);
+--    (§7.3: 'none' — ссылки нет, 'expired' — ссылка обнулена); форма ссылки —
+--    https без пробелов и управляющих знаков (закрепление хоста и пути — срез
+--    T6, функция выдачи);
 --  * в telephony_call_events ссылка на доказательство — мягкая (без внешнего
 --    ключа): доказательства очищаются через 12 месяцев (T11), хронология остаётся;
 --  * все внешние ключи — ON DELETE RESTRICT: ни каскадов, ни SET NULL (SET NULL
 --    был бы UPDATE строки append-only таблицы);
+--  * согласованность между строками там, где её даёт ключ: лид звонка, набора и
+--    связи задачи обязан принадлежать указанному клиенту (составной ключ
+--    (организация, клиент, лид) на platform.leads, 084), а событие хронологии —
+--    ноге того же звонка (составной ключ (организация, звонок, нога)). Составной
+--    ключ на лид с ON UPDATE CASCADE: слияние дублей клиентов
+--    (platform.resolve_client_duplicate, 084) переносит лиды на выжившего
+--    клиента UPDATE-ом platform.leads.client_id, и строки телефонии следуют
+--    за лидом, а не блокируют слияние;
+--  * связь задачи хранит и звонок-источник (call_id), и звонок, закрывший
+--    задачу (closed_call_id, §9.2: «закрывается системой со ссылкой на звонок»);
 --  * жёсткие верхние границы настроек, которых план не называет: срок
 --    перезвона 1–480 рабочих минут; лимиты набора — сотрудник до 1 000 в сутки
 --    и пауза до 3 600 с, организация до 1 000 в час и 5 000 в сутки; потолки
@@ -78,10 +102,18 @@
 --  * виды системных задач (telephony_task_links.kind): missed_callback,
 --    no_answer_callback, result_callback, verify_call, reached_followup (§9.2–
 --    §9.4); предмет «одной открытой задачи» — лид, иначе клиент, иначе звонок;
---  * поле fields доказательства не может содержать ключи crm_token, token,
---    link, record, recording_link, x-api-key, api_key, apikey, password,
---    secret: последний замок от попадания секрета в доказательство (разбор в
---    T1b/T3 сам убирает токен и ссылку).
+--  * поле fields доказательства — последний замок от секрета, а не его
+--    единственная защита: ключ не должен содержать (без учёта регистра) token,
+--    link, record, url, uri, href, mp3, secret, passw, api[_-]key или
+--    authorization, не должен иметь пробелов по краям и управляющих знаков, а
+--    строковое значение не должно быть ссылкой (содержать «://», начинаться с
+--    https:/http:/ftp:/file: или оканчиваться на .mp3, .wav, .ogg и т. п.). Ни
+--    одно из 19 полей, документированных для запросов ВАТС (event, history,
+--    rating), этим правилам не противоречит. Проверка эвристическая: список
+--    разрешённых имён и вырезание токена и ссылки делает разбор среза T3 (имена
+--    полей «link» вебхука и «record» истории не подтверждены на настоящем
+--    запросе, план §5.1, шаг 8); missing_fields — только имена
+--    ^[A-Za-z][A-Za-z0-9_]{0,31}$, до 16 штук;
 --
 -- Безопасно для production: только новые таблицы и функции без данных; ни одна
 -- существующая таблица, функция, политика или право не меняется; приём
@@ -122,6 +154,27 @@ RETURNS BOOLEAN LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
     AND array_position(p_prefixes, NULL) IS NULL
     AND NOT EXISTS (SELECT 1 FROM unnest(p_prefixes) AS p WHERE p !~ '^\+[1-9][0-9]{0,3}$')
     AND (SELECT count(DISTINCT p) FROM unnest(p_prefixes) AS p) = cardinality(p_prefixes)
+$$;
+
+-- Рабочие дни недели: 1–7 различных значений 1..7 (1 — понедельник).
+CREATE FUNCTION platform_private.telephony_working_days_ok(p_days SMALLINT[])
+RETURNS BOOLEAN LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
+  SELECT p_days IS NOT NULL
+    AND cardinality(p_days) BETWEEN 1 AND 7
+    AND array_position(p_days, NULL) IS NULL
+    AND p_days <@ '{1,2,3,4,5,6,7}'::SMALLINT[]
+    AND (SELECT count(DISTINCT d) FROM unnest(p_days) AS d) = cardinality(p_days)
+$$;
+
+-- Имена недостающих полей доказательства: до 16 имён вида слова из латиницы,
+-- цифр и «_» (до 32 знаков), без пустых значений. Значений полей здесь нет и
+-- быть не может: ни ссылки, ни номера, ни длинного текста.
+CREATE FUNCTION platform_private.telephony_names_ok(p_names TEXT[])
+RETURNS BOOLEAN LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
+  SELECT p_names IS NOT NULL
+    AND cardinality(p_names) <= 16
+    AND array_position(p_names, NULL) IS NULL
+    AND NOT EXISTS (SELECT 1 FROM unnest(p_names) AS n WHERE n !~ '^[A-Za-z][A-Za-z0-9_]{0,31}$')
 $$;
 
 -- Один шаг каденса «Недозвона»: {"unit":"work_hours","n":1..24},
@@ -173,7 +226,11 @@ END
 $$;
 
 -- Очищенные поля доказательства (§5.2): плоский объект из скаляров, до 32
--- ключей, ключ до 64 знаков, строка до 2 048 знаков, без секретных ключей.
+-- ключей, ключ до 64 знаков без пробелов по краям и управляющих знаков, строка
+-- до 2 048 знаков. Последний замок от секрета (эвристика, не белый список):
+-- ключ не называется как токен, ссылка или запись, а строка не похожа на ссылку.
+-- Белый список документированных полей и вырезание токена и ссылки делает
+-- разбор среза T3.
 CREATE FUNCTION platform_private.telephony_fields_ok(p_fields JSONB)
 RETURNS BOOLEAN LANGUAGE plpgsql IMMUTABLE SET search_path = '' AS $$
 BEGIN
@@ -186,10 +243,13 @@ BEGIN
   RETURN NOT EXISTS (
     SELECT 1 FROM jsonb_each(p_fields) AS e
     WHERE char_length(e.key) NOT BETWEEN 1 AND 64
-      OR lower(e.key) IN ('crm_token', 'token', 'link', 'record', 'recording_link',
-        'x-api-key', 'api_key', 'apikey', 'password', 'secret')
+      OR e.key <> btrim(e.key)
+      OR e.key ~ '[[:cntrl:]]'
+      OR e.key ~* '(token|link|record|url|uri|href|mp3|secret|passw|api.?key|authorization)'
       OR jsonb_typeof(e.value) NOT IN ('string', 'number', 'boolean', 'null')
-      OR (jsonb_typeof(e.value) = 'string' AND char_length(e.value #>> '{}') > 2048)
+      OR (jsonb_typeof(e.value) = 'string' AND (
+        char_length(e.value #>> '{}') > 2048
+        OR (e.value #>> '{}') ~* '(://|^\s*(https?|ftp|file):|\.(mp3|wav|ogg|m4a|aac|opus|flac)(\?|$))'))
   );
 END
 $$;
@@ -232,9 +292,7 @@ CREATE TABLE platform_private.telephony_settings (
   -- не подтверждал (§18.1, № 5).
   timezone TEXT NOT NULL DEFAULT 'Asia/Bishkek' CHECK (timezone = 'Asia/Bishkek'),
   working_days SMALLINT[] NOT NULL DEFAULT '{1,2,3,4,5,6}'
-    CHECK (cardinality(working_days) BETWEEN 1 AND 7
-      AND working_days <@ '{1,2,3,4,5,6,7}'::SMALLINT[]
-      AND array_position(working_days, NULL) IS NULL),
+    CHECK (platform_private.telephony_working_days_ok(working_days)),
   work_from TIME NOT NULL DEFAULT '10:00',
   work_to TIME NOT NULL DEFAULT '20:00',
   callback_work_minutes INTEGER NOT NULL DEFAULT 15 CHECK (callback_work_minutes BETWEEN 1 AND 480),
@@ -352,8 +410,10 @@ CREATE TABLE platform_private.telephony_pbx_events (
   -- иначе пусто. Значений остальных полей отклонённого запроса нет (§5.1).
   cmd TEXT NOT NULL CHECK (cmd ~ '^[A-Za-z0-9_.:-]{0,32}$'),
   event_type TEXT CHECK (event_type ~ '^[A-Za-z][A-Za-z0-9_]{0,31}$'),
-  pbx_callid TEXT CHECK (char_length(pbx_callid) BETWEEN 1 AND 200 AND pbx_callid !~ '[[:cntrl:]]'),
-  second_callid TEXT CHECK (char_length(second_callid) BETWEEN 1 AND 200 AND second_callid !~ '[[:cntrl:]]'),
+  pbx_callid TEXT CHECK (char_length(pbx_callid) BETWEEN 1 AND 200
+    AND pbx_callid = btrim(pbx_callid) AND pbx_callid !~ '[[:cntrl:]]'),
+  second_callid TEXT CHECK (char_length(second_callid) BETWEEN 1 AND 200
+    AND second_callid = btrim(second_callid) AND second_callid !~ '[[:cntrl:]]'),
   -- SHA-256 канонической строки (cmd, type, callid, second_callid, user, status,
   -- missedStatus, start, ext, phone) без токена и ссылки; у отклонённого пусто.
   dedup_key TEXT CHECK (dedup_key ~ '^[0-9a-f]{64}$'),
@@ -361,7 +421,8 @@ CREATE TABLE platform_private.telephony_pbx_events (
   -- Каким ключом принят запрос: текущим или «следующим» (ротация, §5.5).
   token_slot TEXT NOT NULL CHECK (token_slot IN ('current', 'next')),
   validation_state TEXT NOT NULL CHECK (validation_state IN ('ok', 'incomplete', 'rejected')),
-  -- Обязательные по документации поля, которых не было (user, phone, callid…).
+  -- Обязательные по документации поля, которых не было (user, phone, callid…):
+  -- только имена (CHECK ниже), без значений.
   missing_fields TEXT[] NOT NULL DEFAULT '{}',
   -- Очищенные поля; ссылка заменена has_link, токена нет (CHECK).
   fields JSONB CHECK (fields IS NULL OR platform_private.telephony_fields_ok(fields)),
@@ -380,8 +441,7 @@ CREATE TABLE platform_private.telephony_pbx_events (
   ),
   CONSTRAINT telephony_pbx_events_missing_check CHECK (
     (validation_state = 'incomplete') = (cardinality(missing_fields) > 0)
-    AND cardinality(missing_fields) <= 16
-    AND array_position(missing_fields, NULL) IS NULL
+    AND platform_private.telephony_names_ok(missing_fields)
   )
 );
 CREATE INDEX telephony_pbx_events_received_idx
@@ -457,12 +517,14 @@ CREATE TABLE platform_private.telephony_dial_requests (
   lead_id UUID,
   -- Логин пользователя ВАТС, на чьё устройство звонили; номер клиента (E.164)
   -- нужен сверке, чтобы найти звонок, у которого makecall не вернул callid.
-  pbx_user TEXT CHECK (char_length(pbx_user) BETWEEN 1 AND 128 AND pbx_user !~ '[[:cntrl:]]'),
+  pbx_user TEXT CHECK (char_length(pbx_user) BETWEEN 1 AND 128
+    AND pbx_user = btrim(pbx_user) AND pbx_user !~ '[[:cntrl:]]'),
   client_phone TEXT CHECK (client_phone ~ '^\+[1-9][0-9]{6,14}$'),
   status TEXT NOT NULL DEFAULT 'requested'
     CHECK (status IN ('requested', 'sent', 'unconfirmed', 'refused', 'failed')),
   refusal_code TEXT CHECK (refusal_code ~ '^[a-z][a-z0-9_]{0,63}$'),
-  pbx_callid TEXT CHECK (char_length(pbx_callid) BETWEEN 1 AND 200 AND pbx_callid !~ '[[:cntrl:]]'),
+  pbx_callid TEXT CHECK (char_length(pbx_callid) BETWEEN 1 AND 200
+    AND pbx_callid = btrim(pbx_callid) AND pbx_callid !~ '[[:cntrl:]]'),
   pbx_http_status SMALLINT CHECK (pbx_http_status BETWEEN 100 AND 599),
   pbx_error_code TEXT CHECK (pbx_error_code ~ '^[a-z][a-z0-9_]{0,63}$'),
   created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
@@ -473,8 +535,11 @@ CREATE TABLE platform_private.telephony_dial_requests (
     REFERENCES platform.organization_memberships(organization_id, id) ON DELETE RESTRICT,
   CONSTRAINT telephony_dial_requests_client_fkey FOREIGN KEY (organization_id, client_id)
     REFERENCES platform.clients(organization_id, id) ON DELETE RESTRICT,
-  CONSTRAINT telephony_dial_requests_lead_fkey FOREIGN KEY (organization_id, lead_id)
-    REFERENCES platform.leads(organization_id, id) ON DELETE RESTRICT,
+  -- Лид набора принадлежит указанному клиенту; ON UPDATE CASCADE — слияние
+  -- дублей клиентов переносит лиды на выжившего клиента (084).
+  CONSTRAINT telephony_dial_requests_lead_fkey FOREIGN KEY (organization_id, client_id, lead_id)
+    REFERENCES platform.leads(organization_id, client_id, id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT telephony_dial_requests_lead_client_check CHECK (lead_id IS NULL OR client_id IS NOT NULL),
   -- Отказ всегда с кодом причины и только отказ; номер и пользователь ВАТС
   -- обязательны у всего, что не отказ (отказ «нет номера» или «не сопоставлен»
   -- их иметь не может).
@@ -561,20 +626,30 @@ CREATE TABLE platform_private.telephony_calls (
     REFERENCES platform.organization_memberships(organization_id, id) ON DELETE RESTRICT,
   CONSTRAINT telephony_calls_client_fkey FOREIGN KEY (organization_id, client_id)
     REFERENCES platform.clients(organization_id, id) ON DELETE RESTRICT,
-  CONSTRAINT telephony_calls_lead_fkey FOREIGN KEY (organization_id, lead_id)
-    REFERENCES platform.leads(organization_id, id) ON DELETE RESTRICT,
+  -- Лид звонка принадлежит клиенту звонка (лид без клиента невозможен, см.
+  -- telephony_calls_match_check); ON UPDATE CASCADE — слияние дублей клиентов
+  -- переносит лиды на выжившего клиента (084), звонки следуют за лидом.
+  CONSTRAINT telephony_calls_lead_fkey FOREIGN KEY (organization_id, client_id, lead_id)
+    REFERENCES platform.leads(organization_id, client_id, id) ON UPDATE CASCADE ON DELETE RESTRICT,
   CONSTRAINT telephony_calls_dial_fkey FOREIGN KEY (organization_id, dial_request_id)
     REFERENCES platform_private.telephony_dial_requests(organization_id, id) ON DELETE RESTRICT,
   CONSTRAINT telephony_calls_linked_self_check CHECK (linked_call_id IS DISTINCT FROM id),
-  -- Ответ необратим (правило 2): ringing — итога нет, answered — итог answered,
-  -- ended — итог и время окончания есть. CASE, а не OR: у CHECK неопределённый
-  -- (NULL) результат означает «прошло».
+  -- Снимок состояния (правило 2, «ответ необратим»): ringing — итога нет,
+  -- answered — итог answered, ended — итог и время окончания есть; а раз время
+  -- ответа записано, итог — answered, а не missed или cancelled. CASE, а не OR:
+  -- у CHECK неопределённый (NULL) результат означает «прошло». CHECK видит
+  -- только новую строку, поэтому ПРАВИЛО ПЕРЕХОДА (ответ никогда не
+  -- перезаписывается более поздней ногой) — логика функций проекции T1b, их
+  -- тесты обязательны; здесь закрыта лишь запись самого противоречия.
   CONSTRAINT telephony_calls_state_outcome_check CHECK (
     CASE state
       WHEN 'ringing' THEN outcome IS NULL
       WHEN 'answered' THEN outcome IS NOT NULL AND outcome = 'answered'
       ELSE outcome IS NOT NULL AND ended_at IS NOT NULL
     END
+  ),
+  CONSTRAINT telephony_calls_answered_at_check CHECK (
+    answered_at IS NULL OR outcome IS NOT DISTINCT FROM 'answered'
   ),
   CONSTRAINT telephony_calls_outcome_pair_check CHECK (
     (outcome IS NULL) = (outcome_source IS NULL)
@@ -634,7 +709,8 @@ CREATE TABLE platform_private.telephony_call_legs (
   organization_id UUID NOT NULL REFERENCES platform.organizations(id) ON DELETE RESTRICT,
   call_id UUID NOT NULL,
   -- Логин сотрудника ВАТС; '' — нога группы без сотрудника (nobody took it).
-  pbx_user TEXT NOT NULL DEFAULT '' CHECK (char_length(pbx_user) <= 128 AND pbx_user !~ '[[:cntrl:]]'),
+  pbx_user TEXT NOT NULL DEFAULT '' CHECK (char_length(pbx_user) <= 128
+    AND pbx_user = btrim(pbx_user) AND pbx_user !~ '[[:cntrl:]]'),
   extension TEXT CHECK (char_length(extension) BETWEEN 1 AND 32 AND extension !~ '[[:cntrl:]]'),
   group_name TEXT CHECK (char_length(group_name) BETWEEN 1 AND 200 AND group_name !~ '[[:cntrl:]]'),
   membership_id UUID,
@@ -656,7 +732,8 @@ CREATE TABLE platform_private.telephony_call_legs (
   -- СЕКРЕТ (§7.1): единственное место хранения ссылки на запись. Любой, у кого
   -- есть ссылка, слушает запись. Не копировать в другие таблицы, журналы,
   -- ответы, аналитику и в браузер; читает только серверная функция выдачи.
-  recording_link TEXT CHECK (char_length(recording_link) BETWEEN 1 AND 1024),
+  recording_link TEXT CHECK (char_length(recording_link) BETWEEN 1 AND 1024
+    AND recording_link ~ '^https://[^[:space:][:cntrl:]]+$'),
   recording_state TEXT NOT NULL DEFAULT 'none'
     CHECK (recording_state IN ('none', 'available', 'unavailable', 'expired')),
   not_found_count INTEGER NOT NULL DEFAULT 0 CHECK (not_found_count >= 0),
@@ -666,6 +743,8 @@ CREATE TABLE platform_private.telephony_call_legs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
   CONSTRAINT telephony_call_legs_org_id_key UNIQUE (organization_id, id),
+  -- Цель составного ключа хронологии: событие обязано ссылаться на ногу СВОЕГО звонка.
+  CONSTRAINT telephony_call_legs_org_call_id_key UNIQUE (organization_id, call_id, id),
   CONSTRAINT telephony_call_legs_key UNIQUE (organization_id, call_id, pbx_user, leg_started_at),
   CONSTRAINT telephony_call_legs_call_fkey FOREIGN KEY (organization_id, call_id)
     REFERENCES platform_private.telephony_calls(organization_id, id) ON DELETE RESTRICT,
@@ -702,7 +781,7 @@ CREATE TABLE platform_private.telephony_call_events (
   -- Слово в нижнем регистре: incoming, accepted, completed, cancelled,
   -- outgoing, transferred, history, reconcile.
   event_type TEXT NOT NULL CHECK (event_type ~ '^[a-z][a-z0-9_]{0,31}$'),
-  pbx_user TEXT CHECK (char_length(pbx_user) <= 128 AND pbx_user !~ '[[:cntrl:]]'),
+  pbx_user TEXT CHECK (char_length(pbx_user) <= 128 AND pbx_user = btrim(pbx_user) AND pbx_user !~ '[[:cntrl:]]'),
   occurred_at TIMESTAMPTZ NOT NULL,
   recorded_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
   -- Мягкая ссылка на telephony_pbx_events.id (без внешнего ключа): доказательства
@@ -711,8 +790,10 @@ CREATE TABLE platform_private.telephony_call_events (
   CONSTRAINT telephony_call_events_org_id_key UNIQUE (organization_id, id),
   CONSTRAINT telephony_call_events_call_fkey FOREIGN KEY (organization_id, call_id)
     REFERENCES platform_private.telephony_calls(organization_id, id) ON DELETE RESTRICT,
-  CONSTRAINT telephony_call_events_leg_fkey FOREIGN KEY (organization_id, leg_id)
-    REFERENCES platform_private.telephony_call_legs(organization_id, id) ON DELETE RESTRICT,
+  -- Нога события принадлежит тому же звонку (при пустой ноге ключ не проверяется,
+  -- звонок проверяет ключ выше).
+  CONSTRAINT telephony_call_events_leg_fkey FOREIGN KEY (organization_id, call_id, leg_id)
+    REFERENCES platform_private.telephony_call_legs(organization_id, call_id, id) ON DELETE RESTRICT,
   CONSTRAINT telephony_call_events_webhook_ref_check CHECK ((source = 'webhook') = (pbx_event_id IS NOT NULL))
 );
 CREATE INDEX telephony_call_events_call_idx
@@ -738,7 +819,8 @@ CREATE TABLE platform_private.telephony_recording_grants (
   membership_id UUID NOT NULL,
   leg_id UUID NOT NULL,
   granted_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
-  -- Срок 15 минут и число обращений до 40 назначает функция выдачи (T6).
+  -- Срок 15 минут и число обращений до 40 назначает функция выдачи (T6); схема
+  -- держит жёсткий потолок срока — час.
   expires_at TIMESTAMPTZ NOT NULL,
   max_uses INTEGER NOT NULL DEFAULT 40 CHECK (max_uses BETWEEN 1 AND 100),
   use_count INTEGER NOT NULL DEFAULT 0 CHECK (use_count >= 0),
@@ -748,7 +830,9 @@ CREATE TABLE platform_private.telephony_recording_grants (
     REFERENCES platform.organization_memberships(organization_id, id) ON DELETE RESTRICT,
   CONSTRAINT telephony_recording_grants_leg_fkey FOREIGN KEY (organization_id, leg_id)
     REFERENCES platform_private.telephony_call_legs(organization_id, id) ON DELETE RESTRICT,
-  CONSTRAINT telephony_recording_grants_term_check CHECK (expires_at > granted_at),
+  CONSTRAINT telephony_recording_grants_term_check CHECK (
+    expires_at > granted_at AND expires_at - granted_at <= INTERVAL '1 hour'
+  ),
   CONSTRAINT telephony_recording_grants_uses_check CHECK (
     use_count <= max_uses AND ((use_count = 0) = (last_used_at IS NULL))
   )
@@ -778,6 +862,8 @@ CREATE TABLE platform_private.telephony_task_links (
   created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
   closed_at TIMESTAMPTZ,
   closed_reason TEXT CHECK (closed_reason IN ('task_done', 'answered_call', 'replaced', 'cancelled')),
+  -- Звонок, закрывший задачу (§9.2: автозакрытие «со ссылкой на звонок»).
+  closed_call_id UUID,
   CONSTRAINT telephony_task_links_org_id_key UNIQUE (organization_id, id),
   CONSTRAINT telephony_task_links_task_key UNIQUE (organization_id, task_id),
   CONSTRAINT telephony_task_links_task_fkey FOREIGN KEY (organization_id, task_id)
@@ -786,16 +872,30 @@ CREATE TABLE platform_private.telephony_task_links (
     REFERENCES platform_private.telephony_calls(organization_id, id) ON DELETE RESTRICT,
   CONSTRAINT telephony_task_links_client_fkey FOREIGN KEY (organization_id, client_id)
     REFERENCES platform.clients(organization_id, id) ON DELETE RESTRICT,
-  CONSTRAINT telephony_task_links_lead_fkey FOREIGN KEY (organization_id, lead_id)
-    REFERENCES platform.leads(organization_id, id) ON DELETE RESTRICT,
+  CONSTRAINT telephony_task_links_closed_call_fkey FOREIGN KEY (organization_id, closed_call_id)
+    REFERENCES platform_private.telephony_calls(organization_id, id) ON DELETE RESTRICT,
+  -- Лид связи принадлежит указанному клиенту; ON UPDATE CASCADE — слияние
+  -- дублей клиентов переносит лиды на выжившего клиента (084).
+  CONSTRAINT telephony_task_links_lead_fkey FOREIGN KEY (organization_id, client_id, lead_id)
+    REFERENCES platform.leads(organization_id, client_id, id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT telephony_task_links_lead_client_check CHECK (lead_id IS NULL OR client_id IS NOT NULL),
   CONSTRAINT telephony_task_links_scope_check CHECK (scope_id = COALESCE(lead_id, client_id, call_id)),
-  CONSTRAINT telephony_task_links_closed_check CHECK ((closed_at IS NULL) = (closed_reason IS NULL))
+  CONSTRAINT telephony_task_links_closed_check CHECK ((closed_at IS NULL) = (closed_reason IS NULL)),
+  -- Звонок закрытия — только у закрытой связи; автозакрытие по отвеченному
+  -- звонку (answered_call) без звонка невозможно.
+  CONSTRAINT telephony_task_links_closed_call_check CHECK (
+    (closed_call_id IS NULL OR closed_at IS NOT NULL)
+    AND (closed_reason IS DISTINCT FROM 'answered_call' OR closed_call_id IS NOT NULL)
+  )
 );
 CREATE UNIQUE INDEX telephony_task_links_open_key
   ON platform_private.telephony_task_links (organization_id, kind, scope_id)
   WHERE closed_at IS NULL;
 CREATE INDEX telephony_task_links_call_idx
   ON platform_private.telephony_task_links (organization_id, call_id);
+CREATE INDEX telephony_task_links_closed_call_idx
+  ON platform_private.telephony_task_links (organization_id, closed_call_id)
+  WHERE closed_call_id IS NOT NULL;
 COMMENT ON TABLE platform_private.telephony_task_links IS
   'Telephony T1a: system tasks created from calls. The partial unique index allows one open task per subject (lead, else client, else call) and kind.';
 

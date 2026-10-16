@@ -290,6 +290,15 @@ test("university routes admit only catalogue, management and bounded detail path
   }
   assert.equal(isConnectedStudentPortalPage(`/portal/universities/${id}`), true);
   assert.equal(isConnectedStudentPortalPage("/v3/universities/manage"), false);
+  // S3: страна и город каталога; что страна из шести и город опубликован, решает страница.
+  for (const path of ["/portal/universities/country/cn", "/portal/universities/country/cn/shanghai", "/portal/universities/country/my/kuala-lumpur"]) {
+    assert.equal(isConnectedStudentPortalPage(path), true, path);
+  }
+  for (const path of ["/portal/universities/country", "/portal/universities/country/CN", "/portal/universities/country/chn",
+    "/portal/universities/country/cn/", "/portal/universities/country/cn/Shanghai", "/portal/universities/country/cn/shanghai/x",
+    "/portal/universities/country/cn/-a", "/portal/universities/country/cn/a"]) {
+    assert.equal(isConnectedStudentPortalPage(path), false, path);
+  }
 });
 
 test("program preparation detail connects only a bounded Student page, never new APIs or descendants", () => {

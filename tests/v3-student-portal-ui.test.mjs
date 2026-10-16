@@ -73,6 +73,9 @@ test("the Student workspace preserves four portal pages, private tests and publi
     "src/app/(portal)/portal/tests/english/page.tsx",
     "src/app/(portal)/portal/tests/page.tsx",
     "src/app/(portal)/portal/universities/[id]/page.tsx",
+    // S3 (план 7.3): страна и город каталога.
+    "src/app/(portal)/portal/universities/country/[code]/[city]/page.tsx",
+    "src/app/(portal)/portal/universities/country/[code]/page.tsx",
     "src/app/(portal)/portal/universities/page.tsx",
   ]);
 

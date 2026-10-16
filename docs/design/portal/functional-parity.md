@@ -142,6 +142,11 @@ Align the overview's actions/copy with the existing approved/assisted contract
 in a separate B-4 slice; keep those authorization boundaries intact. This is a
 UX inconsistency, not evidence that209 should grant assisted permissions.
 
+## 2026-10-16: web «Путь поступления» on Home (S4)
+
+Web block per `docs/portal/country-timeline-contract.md` §7: country timeline or general route named after the chosen country, steps expand read-only into checklist and «Когда шаг пройден», three disclaimers, «Сменить страну» with six countries and «Пока не решил» saved through `set_student_country_choice_v1` (284). The iPhone builds the same screen from the same seven JSON files and the same RPC in its own PR; until then parity is the shared content, selection rules and saved choice, not the iPhone screen.
+
+Real check: next dev on port 3106 against the local evo-video-demo stack, own headless Chromium, two assisted demo students at 1440x900 and 390x844, 36/36 journey checks (default from the application, China, steps, reload, Italy as general route, «Пока не решил», KY, dark). Synthetic choices removed afterwards. Not exercised: a self-serve student (no demo credentials), the «Выберите страну» card on the live path (every demo student has a default; static axe render only), save failure and retry, iPhone, production.
 
 ## 2026-10-16: CSCA S5.1, web screens (iPhone pending)
 

@@ -104,9 +104,10 @@ test("favorites section, toggle wiring and server action stay in place", () => {
     /\{ href: "\/portal\/favorites", key: "nav\.favorites", tiers: \["approved", "assisted"\] \}/u,
   );
 
-  const catalog = source("src/components/portal/universities/Catalog.tsx");
+  // S3: карточка вуза одна для города, поиска и «Избранного» (UniversityTile).
+  const tile = source("src/components/portal/universities/UniversityTile.tsx");
   const detail = source("src/components/portal/universities/Detail.tsx");
-  for (const surface of [catalog, detail]) {
+  for (const surface of [tile, detail]) {
     assert.match(surface, /<FavoriteToggle/u);
   }
 

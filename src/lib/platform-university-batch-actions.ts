@@ -1,7 +1,8 @@
 "use server";
 import { staffHasPermission, isStaffPreview } from "./platform-access.ts";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { requirePlatformStaffActor } from "./platform-guards";
+import { STUDENT_UNIVERSITY_INDEX_TAG } from "./portal/university-index-tag.ts";
 import { universityUuid, type UniversityActionState } from "./platform-university-catalog";
 import { universityBatchRequestId, universityContentHash } from "./server/university-catalog-batch";
 import { createSupabaseServerClient } from "./supabase/server";
@@ -54,6 +55,7 @@ export async function publishReviewedUniversityAction(input: unknown): Promise<U
     revalidatePath("/portal/universities");
     revalidatePath(`/v3/universities/${published.data.institutionId}`);
     revalidatePath(`/portal/universities/${published.data.institutionId}`);
+    revalidateTag(STUDENT_UNIVERSITY_INDEX_TAG, { expire: 0 });
     return "published";
   } catch { return "unavailable"; }
 }

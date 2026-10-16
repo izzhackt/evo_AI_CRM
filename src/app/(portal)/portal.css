@@ -828,20 +828,7 @@
   background: var(--pt-bg);
 }
 
-/* ---------- Панель фильтров и переключатель Список⇄Карта ---------- */
-
-.pt-uni-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: 12px 16px;
-  margin-top: 24px;
-  padding: 16px;
-  background: var(--pt-surface);
-  border: 1px solid var(--pt-line);
-  border-radius: var(--pt-radius-card);
-  box-shadow: var(--pt-shadow-card);
-}
+/* ---------- Переключатель «Города / Карта» и поля ---------- */
 
 .pt-view-toggle {
   display: inline-flex;
@@ -876,15 +863,6 @@
   box-shadow: var(--pt-shadow-card);
 }
 
-.pt-uni-filters {
-  display: grid;
-  flex: 1;
-  min-width: 0;
-  grid-template-columns: minmax(180px, 2fr) minmax(140px, 1fr) minmax(140px, 1fr) auto;
-  gap: 12px;
-  align-items: end;
-}
-
 .pt-field {
   display: grid;
   gap: 4px;
@@ -906,25 +884,6 @@
   background: var(--pt-surface);
   color: var(--pt-text);
   font: inherit;
-}
-
-.pt-uni-reset {
-  flex-basis: 100%;
-  min-height: 32px;
-}
-
-@media (max-width: 860px) {
-  /*
-   * minmax(0, 1fr), не 1fr: колонка 1fr не уже содержимого селекта, и на
-   * 320 px фильтр «Уровень» уходил за край экрана (x 320…374, #1118).
-   */
-  .pt-uni-filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .pt-field-query {
-    grid-column: 1 / -1;
-  }
 }
 
 /* ---------- Сетка карточек «Атлас» ---------- */
@@ -1035,13 +994,6 @@
 }
 
 /* ---------- Избранное: сердечко и сравнение (PORT-3b) ---------- */
-
-.pt-uni-card-top {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  justify-content: space-between;
-}
 
 .pt-favorite {
   display: inline-flex;
@@ -1356,25 +1308,6 @@
   }
 }
 
-.pt-photo-caption {
-  display: grid;
-  gap: 2px;
-  padding: 8px 12px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--pt-text-2);
-}
-
-.pt-photo-caption a {
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.pt-photo-caption-title {
-  font-weight: 500;
-}
-
 .pt-photo-empty {
   display: flex;
   align-items: center;
@@ -1440,7 +1373,9 @@
   box-shadow: var(--pt-shadow-card);
 }
 
-.pt-map-canvas {
+/* maplibre-gl.css ставит контейнеру карты position: relative; без высоты
+   карта схлопывалась в 0 px. Двойной класс сильнее стиля пакета. */
+.pt-map-wrap > .pt-map-canvas {
   position: absolute;
   inset: 0;
 }
@@ -1470,19 +1405,35 @@
   margin: 0;
 }
 
+/*
+ * Точка вуза: кнопка 44×44 (цель касания), видимая точка 16 px внутри.
+ * Положение кнопки задаёт MapLibre через inline transform, поэтому масштаб
+ * при наведении — у внутренней точки.
+ */
 .pt-map-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.pt-map-dot {
   width: 16px;
   height: 16px;
-  padding: 0;
   border: 2px solid var(--pt-surface);
   border-radius: 50%;
   background: var(--pt-accent);
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
-  cursor: pointer;
   transition: transform var(--pt-motion-fast) var(--pt-ease);
 }
 
-.pt-map-marker:hover {
+.pt-map-marker:hover .pt-map-dot {
   transform: scale(1.3);
 }
 
@@ -1541,10 +1492,6 @@
 .pt-uni-hero .pt-photo {
   margin-bottom: 12px;
   background: none;
-}
-
-.pt-uni-hero .pt-photo-caption {
-  padding-inline: 0;
 }
 
 .pt-uni-overview {
@@ -1645,6 +1592,916 @@
 .pt-map-marker:focus-visible {
   outline: 2px solid var(--pt-accent);
   outline-offset: 2px;
+}
+
+/* ================================================================
+ * Университеты v2 (S3, план 7.3): страны → города → вузы.
+ * Места — путеводитель: фото несёт атмосферу, текст на фото лежит на
+ * затемнении (подложка тёмная и без фото), интерфейс вокруг — «Атлас».
+ * ================================================================ */
+
+.pt-atlas {
+  /* Подложка мест: тёплый тёмный тон, одинаковый в обеих темах, чтобы белый
+     текст на фото читался и до загрузки снимка. */
+  --pt-place-ink: #2a2520;
+  --pt-place-scrim: linear-gradient(180deg, rgb(20 16 12 / 0) 34%, rgb(20 16 12 / 0.38) 62%, rgb(20 16 12 / 0.82) 100%);
+  --pt-place-on: #ffffff;
+}
+
+/* ---------- Карточка вуза S3: сердечко на фото ---------- */
+
+.pt-uni-card-media {
+  position: relative;
+}
+
+.pt-uni-card-fav {
+  position: absolute;
+  inset-inline-end: 10px;
+  top: 10px;
+  z-index: 1;
+}
+
+.pt-uni-card-fav .pt-favorite-btn {
+  margin: 0;
+  border-radius: 50%;
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-uni-card-fav .pt-favorite-error {
+  max-width: 220px;
+  padding: 6px 10px;
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-raised);
+}
+
+/* ---------- Поиск по названию и вход в «Избранное» ---------- */
+
+.pt-uni-search-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 24px;
+}
+
+.pt-uni-search {
+  position: relative;
+  display: flex;
+  flex: 1 1 320px;
+  max-width: 640px;
+  min-width: 0;
+}
+
+.pt-uni-search-field {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.pt-uni-search-icon {
+  position: absolute;
+  inset-inline-start: 16px;
+  top: 50%;
+  translate: 0 -50%;
+  color: var(--pt-text-2);
+  pointer-events: none;
+}
+
+.pt-uni-search-input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 52px 0 48px;
+  border: 1px solid var(--pt-control-edge);
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-surface);
+  color: var(--pt-text);
+  font: inherit;
+  font-size: var(--pt-size-body);
+  box-shadow: var(--pt-shadow-card);
+  appearance: none;
+}
+
+.pt-uni-search-input::placeholder {
+  color: var(--pt-text-2);
+}
+
+/* Своя кнопка «Очистить»: системный крестик поля поиска не нужен. */
+.pt-uni-search-input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.pt-uni-search-clear {
+  position: absolute;
+  inset-inline-end: 4px;
+  top: 50%;
+  translate: 0 -50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--pt-radius-control);
+  background: none;
+  color: var(--pt-text-2);
+  cursor: pointer;
+}
+
+.pt-uni-search-clear:hover {
+  color: var(--pt-text);
+  background: var(--pt-bg);
+}
+
+.pt-uni-favorites-link {
+  min-height: 52px;
+  border-radius: var(--pt-radius-item);
+}
+
+.pt-uni-favorites-link svg {
+  flex: none;
+  color: var(--pt-accent);
+}
+
+@media (max-width: 559px) {
+  /* Узкий телефон: «Избранное» — квадратная кнопка рядом с полем, подпись
+     остаётся доступным именем. */
+  .pt-uni-search-row {
+    flex-wrap: nowrap;
+  }
+
+  .pt-uni-search {
+    flex: 1 1 auto;
+  }
+
+  .pt-uni-favorites-link {
+    flex: none;
+    width: 52px;
+    padding: 0;
+  }
+
+  .pt-uni-favorites-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+.pt-uni-search-status {
+  min-height: 0;
+  margin: 12px 0 0;
+  font-size: var(--pt-size-caption);
+  color: var(--pt-text-2);
+}
+
+.pt-uni-search-status:empty {
+  margin: 0;
+}
+
+.pt-uni-search-empty {
+  margin-top: 16px;
+}
+
+/* ---------- Карточки стран и городов ---------- */
+
+.pt-place-grid {
+  display: grid;
+  gap: 20px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-place-grid > li {
+  display: flex;
+  min-width: 0;
+}
+
+.pt-country-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .pt-country-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+
+.pt-place-card {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--pt-radius-card);
+  box-shadow: var(--pt-shadow-card);
+  transition:
+    box-shadow var(--pt-motion-fast) var(--pt-ease),
+    transform var(--pt-motion-press) var(--pt-ease-out);
+}
+
+.pt-place-card:hover {
+  box-shadow: var(--pt-shadow-raised);
+}
+
+.pt-place-card:has(.pt-place-link:active) {
+  transform: scale(var(--pt-press-scale));
+}
+
+.pt-place-card:has(.pt-place-link:focus-visible) {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 3px;
+}
+
+.pt-place-media {
+  position: relative;
+  overflow: hidden;
+  background: var(--pt-place-ink);
+}
+
+.pt-place-img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--pt-motion-slow) var(--pt-ease-out);
+}
+
+.pt-place-card:hover .pt-place-img {
+  transform: scale(1.04);
+}
+
+/* Вся карточка — одна ссылка: ссылка заголовка растянута на карточку. */
+.pt-place-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.pt-place-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+}
+
+.pt-page .pt-place-link:focus-visible {
+  outline: none;
+}
+
+.pt-country-card {
+  aspect-ratio: 3 / 4;
+  background: var(--pt-place-ink);
+}
+
+@media (min-width: 640px) {
+  .pt-country-card {
+    aspect-ratio: 5 / 4;
+  }
+}
+
+.pt-country-card .pt-place-media {
+  position: absolute;
+  inset: 0;
+}
+
+.pt-country-card .pt-place-media::after,
+.pt-place-hero-media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--pt-place-scrim);
+  pointer-events: none;
+}
+
+.pt-place-overlay {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 4px;
+  margin-top: auto;
+  padding: 16px;
+  color: var(--pt-place-on);
+}
+
+@media (min-width: 640px) {
+  .pt-place-overlay {
+    padding: 22px 24px;
+  }
+}
+
+.pt-place-name {
+  margin: 0;
+  font-size: var(--pt-size-heading);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 640px) {
+  .pt-place-name {
+    font-size: 28px;
+  }
+}
+
+.pt-place-count {
+  margin: 0;
+  font-size: var(--pt-size-caption);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+
+@media (min-width: 640px) {
+  .pt-place-count {
+    font-size: var(--pt-size-secondary);
+  }
+}
+
+.pt-city-grid {
+  grid-template-columns: repeat(auto-fill, minmax(var(--pt-card-min), 1fr));
+}
+
+.pt-city-card {
+  background: var(--pt-surface);
+  border: 1px solid var(--pt-line);
+}
+
+.pt-city-media {
+  aspect-ratio: 3 / 2;
+}
+
+.pt-city-count {
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 12px;
+  /* Над растянутой ссылкой карточки; нажатие проходит к ссылке. */
+  z-index: 3;
+  pointer-events: none;
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: var(--pt-radius-chip);
+  background: rgb(20 16 12 / 0.72);
+  color: var(--pt-place-on);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-city-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px 18px;
+}
+
+.pt-city-name {
+  margin: 0;
+  font-size: var(--pt-size-heading);
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.pt-city-summary {
+  margin: 0;
+  color: var(--pt-text);
+}
+
+.pt-city-fact {
+  display: grid;
+  gap: 2px;
+  margin: auto 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--pt-line);
+  font-size: var(--pt-size-caption);
+  line-height: 1.45;
+  color: var(--pt-text-2);
+}
+
+.pt-city-fact-label {
+  font-weight: 600;
+  color: var(--pt-text);
+}
+
+/* ---------- Шапка страны и города ---------- */
+
+.pt-place-hero {
+  display: grid;
+  gap: 16px;
+  margin-top: 4px;
+}
+
+.pt-place-hero-media {
+  position: relative;
+  display: flex;
+  min-height: 240px;
+  overflow: hidden;
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-place-ink);
+  box-shadow: var(--pt-shadow-card);
+}
+
+@media (min-width: 640px) {
+  .pt-place-hero-media {
+    min-height: 360px;
+  }
+}
+
+.pt-place-hero-compact .pt-place-hero-media {
+  min-height: 150px;
+}
+
+@media (min-width: 640px) {
+  .pt-place-hero-compact .pt-place-hero-media {
+    min-height: 200px;
+  }
+}
+
+.pt-place-hero-title {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 6px;
+  align-self: end;
+  padding: 20px;
+  color: var(--pt-place-on);
+}
+
+@media (min-width: 640px) {
+  .pt-place-hero-title {
+    padding: 28px 32px;
+  }
+}
+
+.pt-place-hero-name {
+  margin: 0;
+  font-size: var(--pt-size-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 640px) {
+  .pt-place-hero-name {
+    font-size: 44px;
+  }
+}
+
+.pt-place-hero-count {
+  margin: 0;
+  font-size: var(--pt-size-secondary);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Кнопка «©» на фото (план 4.4): автор, источник, лицензия ---------- */
+
+.pt-photo-hero {
+  position: relative;
+}
+
+.pt-photo-rights {
+  position: absolute;
+  inset-inline-end: 2px;
+  /* Над растянутой ссылкой карточки места (z-index 2): нажимается отдельно. */
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: calc(100% - 4px);
+}
+
+.pt-photo-rights-top {
+  top: 2px;
+}
+
+.pt-photo-rights-bottom {
+  bottom: 2px;
+  flex-direction: column-reverse;
+}
+
+/* Цель нажатия 44 px, видимый кружок 28 px. */
+.pt-photo-rights-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pt-photo-rights-btn::-webkit-details-marker {
+  display: none;
+}
+
+.pt-photo-rights-btn::marker {
+  content: "";
+}
+
+.pt-photo-rights-btn > span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgb(20 16 12 / 0.55);
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 1;
+  transition: background-color var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-photo-rights-btn:hover > span,
+.pt-photo-rights[open] .pt-photo-rights-btn > span {
+  background: rgb(20 16 12 / 0.86);
+}
+
+.pt-page .pt-photo-rights-btn:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: -6px;
+}
+
+.pt-photo-rights-text {
+  max-width: 260px;
+  margin: 0;
+  margin-inline-end: 8px;
+  padding: 8px 10px;
+  border-radius: var(--pt-radius-item);
+  background: rgb(20 16 12 / 0.86);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.pt-photo-rights-text a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Фото места не загрузилось: кнопке не к чему относиться. */
+.pt-place-media:not(:has(img)) .pt-photo-rights,
+.pt-place-hero-media:not(:has(img)) .pt-photo-rights {
+  display: none;
+}
+
+.pt-place-summary {
+  max-width: 62ch;
+  margin: 0;
+  font-size: var(--pt-size-body);
+  line-height: 1.55;
+}
+
+.pt-place-fact {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 18px 20px 8px;
+  background: var(--pt-surface);
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-place-fact-label {
+  margin: 0;
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  color: var(--pt-text-2);
+}
+
+.pt-place-fact-text {
+  margin: 0;
+  font-size: var(--pt-size-body);
+  line-height: 1.5;
+}
+
+.pt-place-fact-source {
+  justify-self: start;
+}
+
+@media (min-width: 960px) {
+  /* Город: текст и факт рядом, как разворот путеводителя. */
+  .pt-place-hero:has(.pt-place-fact) {
+    grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
+    column-gap: 32px;
+  }
+
+  .pt-place-hero:has(.pt-place-fact) > .pt-place-hero-media {
+    grid-column: 1 / -1;
+  }
+}
+
+.pt-place-toggle {
+  margin-top: 28px;
+}
+
+.pt-place-section {
+  margin-top: 32px;
+}
+
+.pt-place-section > .pt-section-title + .pt-uni-grid {
+  margin-top: 16px;
+}
+
+.pt-place-section-lead {
+  max-width: 70ch;
+  margin: 6px 0 0;
+  color: var(--pt-text-2);
+}
+
+/* ---------- Путь по каталогу ---------- */
+
+.pt-crumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-crumbs li {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pt-crumbs-sep {
+  flex: none;
+  color: var(--pt-text-2);
+}
+
+.pt-crumbs-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
+  color: var(--pt-text-2);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 4px;
+  transition: color var(--pt-motion-fast) var(--pt-ease), text-decoration-color var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-crumbs-link:hover {
+  color: var(--pt-text);
+  text-decoration-color: currentColor;
+}
+
+.pt-crumbs li:first-child .pt-crumbs-link {
+  padding-inline-start: 0;
+}
+
+.pt-crumbs-current {
+  padding: 0 4px;
+  color: var(--pt-text);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Карта страны: группы точек ---------- */
+
+.pt-map-cluster {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--pt-radius-chip);
+  background: none;
+  cursor: pointer;
+}
+
+.pt-map-cluster-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 9px;
+  border: 2px solid var(--pt-surface);
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-accent);
+  color: var(--pt-on-accent);
+  font: 600 var(--pt-size-caption) / 1 var(--pt-font-sans);
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  transition: transform var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-map-cluster:hover .pt-map-cluster-dot {
+  transform: scale(1.08);
+}
+
+.pt-map-cluster:focus-visible,
+.pt-map-marker:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 0;
+}
+
+/* ---------- Страница вуза: шапка и стоимость ---------- */
+
+.pt-uni-hero-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.pt-uni-hero-head .pt-page-title {
+  margin: 0;
+}
+
+.pt-uni-hero-head .pt-favorite-btn {
+  margin: -2px -10px 0 0;
+}
+
+.pt-alert-action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pt-alert-action p {
+  max-width: 70ch;
+  margin: 0;
+}
+
+.pt-costs {
+  display: grid;
+  gap: 16px;
+}
+
+.pt-costs-frame {
+  overflow-x: auto;
+  background: var(--pt-surface);
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-costs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-costs-table th,
+.pt-costs-table td {
+  padding: 12px 18px;
+  text-align: start;
+  vertical-align: top;
+}
+
+.pt-costs-table thead th {
+  padding-block: 12px 10px;
+  border-bottom: 1px solid var(--pt-line);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  color: var(--pt-text-2);
+}
+
+.pt-costs-group th {
+  padding-block: 10px;
+  background: var(--pt-bg);
+  border-top: 1px solid var(--pt-line);
+  border-bottom: 1px solid var(--pt-line);
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+}
+
+.pt-costs-table thead + tbody .pt-costs-group th {
+  border-top: 0;
+}
+
+.pt-costs-table tbody tr:not(.pt-costs-group) + tr th,
+.pt-costs-table tbody tr:not(.pt-costs-group) + tr td {
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-costs-item {
+  font-weight: 400;
+}
+
+.pt-costs-label {
+  display: block;
+  font-weight: 500;
+}
+
+.pt-costs-detail {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--pt-size-caption);
+  color: var(--pt-text-2);
+}
+
+.pt-costs-period {
+  color: var(--pt-text-2);
+  white-space: nowrap;
+}
+
+.pt-costs-table .pt-costs-amount,
+.pt-costs-table .pt-costs-usd {
+  text-align: end;
+}
+
+.pt-costs-figure {
+  font-size: var(--pt-size-secondary);
+}
+
+/*
+ * Суммы: Golos с табличными цифрами (DESIGN.md «Цифры»). В JetBrains Mono
+ * разделитель разрядов занимает целую клетку, и «16 400» читалось как два
+ * числа (critique 16.10.2026).
+ */
+.pt-costs-num {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pt-costs-period-inline,
+.pt-costs-usd-inline {
+  display: none;
+}
+
+.pt-costs-usd {
+  font-size: var(--pt-size-caption);
+  color: var(--pt-text-2);
+}
+
+@media (max-width: 639px) {
+  /* Телефон: период уходит под сумму, колонок три. */
+  .pt-costs-table .pt-costs-period,
+  .pt-costs-table .pt-costs-usd {
+    display: none;
+  }
+
+  .pt-costs-period-inline,
+  .pt-costs-usd-inline {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--pt-size-caption);
+    color: var(--pt-text-2);
+  }
+
+  .pt-costs-usd-inline .pt-costs-num {
+    font-weight: 400;
+  }
+
+  .pt-costs-table th,
+  .pt-costs-table td {
+    padding: 10px 12px;
+  }
+
+  .pt-costs-figure {
+    font-size: var(--pt-size-caption);
+  }
+}
+
+.pt-costs-notes {
+  display: grid;
+  gap: 4px;
+  max-width: 72ch;
+  font-size: var(--pt-size-caption);
+  line-height: 1.5;
+  color: var(--pt-text-2);
+}
+
+.pt-costs-notes p {
+  margin: 0;
+}
+
+.pt-costs-notes a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* ---------- Запрос консультации (PORT-5b) ---------- */
@@ -3857,6 +4714,655 @@ main.pt-page > .pt-card {
   font-size: var(--pt-size-caption);
 }
 
+/* ---------- «Путь поступления» на «Главной» (S4, план §8.4) ----------
+ * Вертикальный путь: номер шага на линии, срок, название и цель; шаг
+ * раскрывается в пункты (только чтение) и «Когда шаг пройден». На широком
+ * экране сроки стоят колонкой слева от линии, на узком над названием.
+ * Красный здесь не добавляется: открытый шаг отмечен тёмным кругом, выбранная
+ * страна тёмной рамкой и словом «Сейчас выбрано».
+ */
+
+.pt-journey {
+  padding: 28px 32px 24px;
+}
+
+.pt-journey-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px 32px;
+}
+
+.pt-journey-head-main {
+  flex: 1 1 420px;
+  min-width: 0;
+}
+
+.pt-journey-title {
+  margin: 0;
+  font-size: var(--pt-size-title);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+/* Фокус ставится на заголовок программно после сохранения выбора: читалка
+   называет новую страну. Заголовок не интерактивен, обводка не нужна. */
+.pt-journey-title:focus {
+  outline: none;
+}
+
+.pt-journey-intake {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 0;
+  font-size: var(--pt-size-body);
+  font-weight: 500;
+}
+
+.pt-journey-intake-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--pt-text-2);
+}
+
+.pt-journey-intake-note {
+  max-width: 68ch;
+  margin: 6px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-journey-intake + .pt-journey-intake-note {
+  padding-left: 28px;
+}
+
+.pt-journey-change {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.pt-journey-source {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-journey-alert {
+  margin: 16px 0 0;
+  padding: 12px 16px;
+  border: 1px solid var(--pt-error);
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-surface);
+  color: var(--pt-error);
+  font-size: var(--pt-size-secondary);
+}
+
+/* Выбор страны: карточка «Выберите страну» и панель «Сменить страну». */
+.pt-journey-picker-wrap {
+  margin-top: 20px;
+}
+
+.pt-journey-picker-wrap[data-mode="change"] {
+  padding: 16px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-bg);
+  animation: pt-enter var(--pt-motion-base) var(--pt-ease-out) backwards;
+}
+
+.pt-journey-picker-lead {
+  margin: 0 0 12px;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-journey-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-journey-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 16px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+  color: var(--pt-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--pt-motion-fast) var(--pt-ease),
+    transform var(--pt-motion-press) var(--pt-ease-out);
+}
+
+.pt-journey-option-name {
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+}
+
+.pt-journey-option-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-journey-option-icon {
+  width: 16px;
+  height: 16px;
+}
+
+@media (hover: hover) {
+  .pt-journey-option:hover {
+    border-color: var(--pt-control-edge);
+  }
+}
+
+.pt-journey-option:active:not([aria-disabled="true"]) {
+  transform: scale(var(--pt-press-scale));
+}
+
+.pt-journey-option[aria-pressed="true"] {
+  border-color: var(--pt-text);
+  box-shadow: inset 0 0 0 1px var(--pt-text);
+}
+
+.pt-journey-option[aria-pressed="true"] .pt-journey-option-mark {
+  color: var(--pt-text);
+}
+
+.pt-journey-option[aria-disabled="true"] {
+  cursor: progress;
+}
+
+.pt-journey-option[data-saving] {
+  border-color: var(--pt-control-edge);
+}
+
+.pt-journey-cancel {
+  margin-top: 12px;
+}
+
+/* Шаги. Геометрия линии и колонок задаётся переменными на списке. */
+.pt-journey-steps {
+  --pt-step-node: 40px;
+  --pt-step-pad-y: 16px;
+  --pt-step-pad-x: 12px;
+  --pt-step-gap: 20px;
+  --pt-step-period: 0px;
+  --pt-step-rail: calc(var(--pt-step-pad-x) + var(--pt-step-period) + var(--pt-step-node) / 2);
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+  transition: opacity var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-journey[aria-busy="true"] .pt-journey-steps {
+  opacity: 0.55;
+}
+
+.pt-step {
+  position: relative;
+}
+
+/* Линия пути: от центра первого круга до центра последнего. */
+.pt-step::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--pt-step-rail) - 1px);
+  width: 2px;
+  background: var(--pt-line);
+}
+
+.pt-step:first-child::before {
+  top: calc(var(--pt-step-pad-y) + var(--pt-step-node) / 2);
+}
+
+.pt-step:last-child::before {
+  bottom: auto;
+  height: calc(var(--pt-step-pad-y) + var(--pt-step-node) / 2);
+}
+
+.pt-step:only-child::before {
+  display: none;
+}
+
+/*
+ * Строка шага: название, срок, цель. .pt-step-main раскладывается в сетку
+ * строки (display: contents), поэтому на узком экране срок стоит под
+ * названием, а на широком колонкой слева от линии.
+ */
+.pt-step-head {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--pt-step-node) minmax(0, 1fr) 20px;
+  grid-template-areas:
+    "node title chevron"
+    "node period chevron"
+    "node goal chevron";
+  column-gap: var(--pt-step-gap);
+  align-items: start;
+  padding: var(--pt-step-pad-y) var(--pt-step-pad-x);
+  border-radius: var(--pt-radius-item);
+  transition: background-color var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-journey-steps[data-timed="false"] .pt-step-head {
+  grid-template-areas:
+    "node title chevron"
+    "node goal chevron";
+}
+
+@media (hover: hover) {
+  .pt-step-head:hover {
+    background: var(--pt-bg);
+  }
+}
+
+.pt-step-node {
+  grid-area: node;
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: var(--pt-step-node);
+  height: var(--pt-step-node);
+  border: 1.5px solid var(--pt-control-edge);
+  border-radius: 50%;
+  background: var(--pt-surface);
+  color: var(--pt-text);
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color var(--pt-motion-fast) var(--pt-ease),
+    border-color var(--pt-motion-fast) var(--pt-ease),
+    color var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-step[data-open="true"] .pt-step-node {
+  border-color: var(--pt-text);
+  background: var(--pt-text);
+  color: var(--pt-surface);
+}
+
+.pt-step-main {
+  display: contents;
+}
+
+/* Первая строка названия на уровне центра круга. */
+.pt-step-title {
+  grid-area: title;
+  min-width: 0;
+  margin: 0;
+  padding-top: calc((var(--pt-step-node) - 1.3em) / 2);
+  font-size: var(--pt-size-heading);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.pt-step-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Нажимается вся строка шага; фокус обводит всю строку. */
+.pt-step-toggle::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  border-radius: var(--pt-radius-item);
+}
+
+.pt-page .pt-step-toggle:focus-visible {
+  outline: none;
+}
+
+.pt-step-toggle:focus-visible::after {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: -2px;
+}
+
+.pt-step-goal {
+  grid-area: goal;
+  min-width: 0;
+  max-width: 68ch;
+  margin: 4px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-step-period {
+  grid-area: period;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  margin: 4px 0 0;
+  color: var(--pt-text);
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.pt-step-period-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  color: var(--pt-text-2);
+}
+
+.pt-step-chevron {
+  grid-area: chevron;
+  margin-top: 10px;
+  color: var(--pt-text-2);
+  transition: transform var(--pt-motion-fast) var(--pt-ease-out);
+}
+
+.pt-step[data-open="true"] .pt-step-chevron {
+  transform: rotate(180deg);
+}
+
+.pt-step-panel {
+  margin-left: calc(var(--pt-step-pad-x) + var(--pt-step-period) + var(--pt-step-node) + var(--pt-step-gap));
+  padding: 0 var(--pt-step-pad-x) 20px 0;
+}
+
+.pt-step-panel:not([hidden]) {
+  animation: pt-enter var(--pt-motion-base) var(--pt-ease-out) backwards;
+}
+
+.pt-step-panel-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+
+.pt-step-body {
+  min-width: 0;
+}
+
+.pt-step-note {
+  max-width: 68ch;
+  margin: 0 0 16px;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-step-subhead {
+  margin: 0 0 8px;
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+}
+
+.pt-step-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-step-item {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 4px 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-step-who {
+  align-self: start;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 1px 10px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-bg);
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  white-space: nowrap;
+}
+
+.pt-step-item[data-who="student"] .pt-step-who {
+  border-color: var(--pt-control-edge);
+  color: var(--pt-text);
+  font-weight: 600;
+}
+
+.pt-step-item-body {
+  min-width: 0;
+  max-width: 68ch;
+}
+
+.pt-step-applies {
+  margin: 0 0 2px;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+}
+
+.pt-step-item-text {
+  margin: 0;
+  font-size: var(--pt-size-secondary);
+  line-height: 1.5;
+}
+
+.pt-step-item-note {
+  margin: 4px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-step-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 20px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Значок внешней ссылки идёт в строке текста и переносится вместе с ним. */
+.pt-step-link {
+  display: inline-block;
+  min-height: 44px;
+  padding: 10px 0;
+  line-height: 24px;
+}
+
+.pt-step-link-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  vertical-align: -3px;
+}
+
+.pt-step-done {
+  align-self: start;
+  padding: 16px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-bg);
+}
+
+.pt-step-done-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pt-step-done-icon {
+  flex-shrink: 0;
+  color: var(--pt-ok);
+}
+
+.pt-step-done-text {
+  margin: 0;
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-journey-notes {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-journey-notes-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+}
+
+.pt-journey-notes-icon {
+  flex-shrink: 0;
+  color: var(--pt-text-2);
+}
+
+.pt-journey-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 68ch;
+  margin: 0;
+  padding-left: 28px;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  list-style: disc;
+}
+
+.pt-journey-notes-list li::marker {
+  color: var(--pt-control-edge);
+}
+
+/* Широкий экран: сроки колонкой слева от линии, «Когда шаг пройден» справа от пунктов. */
+@media (min-width: 960px) {
+  .pt-journey-steps[data-timed="true"] {
+    --pt-step-period: 184px;
+  }
+
+  .pt-journey-steps[data-timed="true"] .pt-step-head {
+    grid-template-columns: calc(var(--pt-step-period) - var(--pt-step-gap)) var(--pt-step-node) minmax(0, 1fr) 20px;
+    grid-template-areas:
+      "period node title chevron"
+      "period node goal chevron";
+  }
+
+  .pt-journey-steps[data-timed="true"] .pt-step-period {
+    display: block;
+    margin: 0;
+    padding-top: 9px;
+    text-align: right;
+    text-wrap: balance;
+  }
+
+  .pt-journey-steps[data-timed="true"] .pt-step-period-icon {
+    display: none;
+  }
+
+  .pt-step-panel-inner {
+    grid-template-columns: minmax(0, 1fr) minmax(200px, 260px);
+    gap: 28px;
+  }
+}
+
+/* Телефон: меньше круг и отступы; «кто делает» над текстом пункта. */
+@media (max-width: 639.98px) {
+  .pt-journey {
+    padding: 20px 16px 16px;
+  }
+
+  .pt-journey-change {
+    align-items: flex-start;
+  }
+
+  .pt-journey-intake + .pt-journey-intake-note {
+    padding-left: 0;
+  }
+
+  .pt-journey-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pt-journey-steps {
+    --pt-step-node: 34px;
+    --pt-step-pad-y: 14px;
+    --pt-step-pad-x: 6px;
+    --pt-step-gap: 12px;
+    margin-top: 16px;
+  }
+
+  .pt-step-node {
+    font-size: var(--pt-size-secondary);
+  }
+
+  .pt-step-title {
+    font-size: var(--pt-size-body);
+  }
+
+  .pt-step-chevron {
+    margin-top: 6px;
+  }
+
+  .pt-step-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pt-journey-notes-list {
+    padding-left: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-step-panel:not([hidden]),
+  .pt-journey-picker-wrap[data-mode="change"] {
+    animation: none;
+  }
+
+  .pt-step-chevron,
+  .pt-step-node,
+  .pt-step-head,
+  .pt-journey-option,
+  .pt-journey-steps {
+    transition: none;
+  }
+}
+
 /* Live notifications share the Atlas header; no second navigation strip. */
 .pt-notification-updates { position: relative; flex-shrink: 0; }
 .pt-notification-updates .pt-bell { position: relative; }
@@ -4081,6 +5587,7 @@ main.pt-page > .pt-card {
  */
 :is(
   .pt-uni-grid,
+  .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
   .pt-home-grid,
@@ -4094,6 +5601,7 @@ main.pt-page > .pt-card {
 
 :is(
   .pt-uni-grid,
+  .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
   .pt-home-grid,
@@ -4107,6 +5615,7 @@ main.pt-page > .pt-card {
 
 :is(
   .pt-uni-grid,
+  .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
   .pt-home-grid,
@@ -4120,6 +5629,7 @@ main.pt-page > .pt-card {
 
 :is(
   .pt-uni-grid,
+  .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
   .pt-home-grid,
@@ -4133,6 +5643,7 @@ main.pt-page > .pt-card {
 
 :is(
   .pt-uni-grid,
+  .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
   .pt-home-grid,
@@ -4146,6 +5657,7 @@ main.pt-page > .pt-card {
 
 :is(
   .pt-uni-grid,
+  .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
   .pt-home-grid,
@@ -4310,6 +5822,7 @@ main.pt-page > .pt-card {
   .pt-route > [data-pt-loading],
   :is(
     .pt-uni-grid,
+  .pt-place-grid,
     .pt-prof-grid,
     .pt-tests-grid,
     .pt-home-grid,

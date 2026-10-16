@@ -510,6 +510,7 @@ struct CSCATestRunnerView: View {
         }
         .background(Color(.systemBackground))
         .safeAreaInset(edge: .bottom) { bottomBar }
+        .cscaReadingColumn()
     }
 
     @ViewBuilder

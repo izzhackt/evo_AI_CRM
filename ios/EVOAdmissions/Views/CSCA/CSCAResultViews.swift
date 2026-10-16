@@ -23,6 +23,7 @@ struct CSCATestResultView: View {
             }
         }
         .background(Color(.systemBackground))
+        .cscaReadingColumn()
         .navigationTitle(Text(verbatim: AppLocale.pick(ru: attempt.metadata.titleRu, ky: attempt.metadata.titleKy)))
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -330,6 +331,7 @@ struct CSCAReviewView: View {
             .frame(maxWidth: .infinity)
         }
         .refreshable { await model.load() }
+        .cscaReadingColumn()
     }
 
     private func empty(_ response: CSCAReviewResponse) -> some View {

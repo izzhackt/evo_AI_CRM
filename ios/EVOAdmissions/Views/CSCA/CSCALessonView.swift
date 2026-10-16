@@ -249,6 +249,7 @@ struct CSCALessonView: View {
             .frame(maxWidth: .infinity)
         }
         .refreshable { await model.load() }
+        .cscaReadingColumn()
     }
 
     @ViewBuilder

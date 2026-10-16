@@ -82,6 +82,42 @@ final class CSCAMathRenderer {
     }
 }
 
+/// Width of the reading column, measured on the scroll view (independent
+/// of the content, so a wide formula cannot inflate it). 0 while unknown.
+private struct CSCAColumnWidthKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 0
+}
+
+extension EnvironmentValues {
+    var cscaColumnWidth: CGFloat {
+        get { self[CSCAColumnWidthKey.self] }
+        set { self[CSCAColumnWidthKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Measures the scroll view and hands the column width to formulas.
+    func cscaReadingColumn(maxWidth: CGFloat = 680, horizontalPadding: CGFloat = 20) -> some View {
+        modifier(CSCAReadingColumn(maxWidth: maxWidth, horizontalPadding: horizontalPadding))
+    }
+}
+
+private struct CSCAReadingColumn: ViewModifier {
+    let maxWidth: CGFloat
+    let horizontalPadding: CGFloat
+    @State private var viewport: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            .environment(\.cscaColumnWidth, viewport > 0 ? min(maxWidth, viewport - 2 * horizontalPadding) : 0)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.width
+            } action: { width in
+                if abs(width - viewport) > 0.5 { viewport = width }
+            }
+    }
+}
+
 enum CSCAType {
     /// Point size of a text style at the current Dynamic Type size.
     static func pointSize(_ style: UIFont.TextStyle, _ size: DynamicTypeSize) -> CGFloat {
@@ -137,7 +173,16 @@ struct CSCAMathText: View {
     var isEnglish = false
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.cscaColumnWidth) private var columnWidth
     @State private var availableWidth: CGFloat = 0
+
+    /// The widest a formula may be on this line: the measured width, and
+    /// never more than the column less the room cards and option rows take.
+    private var formulaLimit: CGFloat {
+        let column = columnWidth > 0 ? columnWidth - 100 : .infinity
+        let measured = availableWidth > 0 ? availableWidth : .infinity
+        return min(column, measured)
+    }
 
     var body: some View {
         composed
@@ -176,8 +221,9 @@ struct CSCAMathText: View {
             return Text(verbatim: tex)
         }
         let width = rendered.image.size.width
-        if availableWidth > 0, width > availableWidth {
-            let scaled = max(mathSize * 0.55, mathSize * (availableWidth - 2) / width)
+        let limit = formulaLimit
+        if limit.isFinite, limit > 0, width > limit {
+            let scaled = max(mathSize * 0.55, mathSize * (limit - 2) / width)
             if let smaller = renderer.render(tex, fontSize: scaled, display: false) {
                 rendered = smaller
             }
@@ -210,23 +256,31 @@ struct CSCAMathBlock: View {
     let tex: String
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.cscaColumnWidth) private var columnWidth
     @State private var availableWidth: CGFloat = 0
 
     var body: some View {
         let size = CSCAType.pointSize(.body, dynamicTypeSize) * 1.15
         Group {
             if let rendered = fitted(size) {
-                let image = Image(uiImage: rendered.image)
-                    .renderingMode(.template)
-                    .foregroundStyle(.primary)
-                if availableWidth > 0, rendered.image.size.width > availableWidth {
-                    // Still wider than the screen at the smallest size we
+                let image = Image(uiImage: rendered.image).renderingMode(.template)
+                if availableWidth > 0, rendered.image.size.width > availableWidth + 1 {
+                    // Still wider than the line at the smallest size we
                     // allow: scroll sideways instead of clipping.
                     ScrollView(.horizontal, showsIndicators: true) {
-                        image.padding(.vertical, 2)
+                        image
+                            .foregroundStyle(.primary)
+                            .padding(.vertical, 2)
                     }
                 } else {
-                    image.frame(maxWidth: .infinity)
+                    // Resizable with its natural width as the cap: the image
+                    // can never push the page wider than the screen.
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .foregroundStyle(.primary)
+                        .frame(maxWidth: rendered.image.size.width)
+                        .frame(maxWidth: .infinity)
                 }
             } else {
                 Text(verbatim: tex)
@@ -249,8 +303,9 @@ struct CSCAMathBlock: View {
     private func fitted(_ size: CGFloat) -> CSCAMathRenderer.Rendered? {
         let renderer = CSCAMathRenderer.shared
         guard let natural = renderer.render(tex, fontSize: size, display: true) else { return nil }
-        guard availableWidth > 0, natural.image.size.width > availableWidth else { return natural }
-        let scaled = max(size * 0.75, size * (availableWidth - 2) / natural.image.size.width)
+        let limit = min(availableWidth > 0 ? availableWidth : .infinity, columnWidth > 0 ? columnWidth - 16 : .infinity)
+        guard limit.isFinite, natural.image.size.width > limit else { return natural }
+        let scaled = max(size * 0.75, size * (limit - 2) / natural.image.size.width)
         return renderer.render(tex, fontSize: scaled, display: true) ?? natural
     }
 }

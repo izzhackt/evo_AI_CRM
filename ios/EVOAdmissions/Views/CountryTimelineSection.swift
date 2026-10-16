@@ -12,8 +12,10 @@ import SwiftUI
 final class CountryTimelineModel: ObservableObject {
     enum Read: Equatable {
         case loading
+        /// Первое чтение не удалось (сеть, отказ RPC или ответ не той формы):
+        /// карточка выбора и честная плашка, как у веба (`readError`).
         case failed
-        case loaded(StudentCountryChoice?)
+        case loaded(StudentCountryChoice)
     }
 
     @Published private(set) var read: Read = .loading
@@ -33,8 +35,15 @@ final class CountryTimelineModel: ObservableObject {
             // Разбор семи файлов (≈260 КБ) один раз и не на главном потоке.
             library = await Task.detached(priority: .userInitiated) { CountryTimelineLibrary.bundled }.value
         }
-        do { read = .loaded(try await SupabaseService.shared.studentCountryChoice()) }
-        catch { if !Task.isCancelled { read = .failed } }
+        do {
+            read = .loaded(try await SupabaseService.shared.studentCountryChoice())
+        } catch {
+            guard !Task.isCancelled else { return }
+            // Неудачное фоновое обновление (возврат в приложение, обновление
+            // потягиванием) не прячет уже показанный путь.
+            if case .loaded = read { return }
+            read = .failed
+        }
     }
 
     /// Сохраняет выбор; true, если сервер его принял. Затем перечитывает
@@ -45,22 +54,50 @@ final class CountryTimelineModel: ObservableObject {
         let attempt = CountryChoiceAttempt.next(for: country, after: failedAttempt)
         savingCountry = country
         saveFailed = false
+        // VoiceOver слышит то же, что веб отдаёт через role="status" и role="alert".
+        Self.announce(String(localized: "home_timeline_saving"))
         defer { savingCountry = nil }
         do {
             let receipt = try await SupabaseService.shared.setStudentCountryChoice(attempt)
             failedAttempt = nil
             read = .loaded(receipt)
             if let fresh = try? await SupabaseService.shared.studentCountryChoice() { read = .loaded(fresh) }
+            // Как фокус на заголовке у веба: читалка называет новую страну.
+            Self.announce(Self.heading(countryCode: country))
             return true
         } catch {
             // 22023: сервер отклонил значение, повтор того же id не поможет.
             failedAttempt = (error as? PostgrestError)?.code == "22023" ? nil : attempt
             saveFailed = true
+            Self.announce(String(localized: "home_timeline_save_failed"))
             return false
         }
     }
 
     func clearSaveError() { saveFailed = false }
+
+    /// «Путь поступления: Китай»; для «Пока не решил» и без страны просто
+    /// «Путь поступления».
+    static func heading(countryCode: String?) -> String {
+        guard let name = countryCode.flatMap({ StudyCountries.name(for: $0, kyrgyz: AppLocale.isKyrgyz) }),
+              countryCode != CountryTimelineRules.undecided else {
+            return String(localized: "home_timeline_heading")
+        }
+        return String(format: String(localized: "home_timeline_heading_country"), name)
+    }
+
+    private static func announce(_ message: String) {
+        AccessibilityNotification.Announcement(message).post()
+    }
+}
+
+/// Цвета блока в одном месте. После слияния с #1172 (`Theme.swift`) здесь
+/// меняются три строки: `secondary` на `.secondaryText`, `danger` на
+/// `.dangerText`, оттенок ссылок `TimelineLinkTint` на `AccentColor` #1172
+/// (в тёмной теме #FF8A8A): системные цвета дают 3,3..3,4:1 при норме 4,5:1.
+private enum TimelinePalette {
+    static let secondary = Color.secondary
+    static let danger = Color.red
 }
 
 /// Тон текстовых ссылок «Главной»: фирменный красный, в тёмной теме
@@ -87,6 +124,14 @@ struct CountryTimelineSection: View {
         return nil
     }
 
+    private func sourceNote(_ source: StudentCountryChoice.Source) -> LocalizedStringKey? {
+        switch source {
+        case .application: return "home_timeline_source_application"
+        case .case: return "home_timeline_source_case"
+        case .saved, .none: return nil
+        }
+    }
+
     private var view: CountryTimelineView? {
         guard let country = choice?.country else { return nil }
         return model.library?.select(choice: country, kyrgyz: kyrgyz, today: CountryTimelineLibrary.today())
@@ -97,7 +142,7 @@ struct CountryTimelineSection: View {
         case .loading: return "loading"
         case .failed: return "failed"
         case .loaded(let choice):
-            if choice?.country == nil { return "choose" }
+            if choice.country == nil { return "choose" }
             return view == nil ? "unavailable" : "timeline"
         }
     }
@@ -111,14 +156,14 @@ struct CountryTimelineSection: View {
                 case .loading:
                     ProgressView()
                 case .failed:
-                    retryRow
+                    CountryChoiceCard(model: model, readFailed: true)
                 case .loaded(let choice):
-                    if choice?.country == nil {
-                        CountryChoiceCard(model: model)
+                    if choice.country == nil {
+                        CountryChoiceCard(model: model, readFailed: false)
                     } else if let view {
-                        timeline(view)
+                        timeline(view, choice: choice)
                     } else {
-                        retryRow
+                        unavailableRow
                     }
                 }
             }
@@ -133,16 +178,15 @@ struct CountryTimelineSection: View {
 
     /// «Путь поступления: Китай»; для «Пока не решил» и до выбора без страны.
     private func heading(_ view: CountryTimelineView?) -> String {
-        guard let name = view?.countryName else { return String(localized: "home_timeline_heading") }
-        return String(format: String(localized: "home_timeline_heading_country"), name)
+        CountryTimelineModel.heading(countryCode: view?.countryCode)
     }
 
     @ViewBuilder
-    private func timeline(_ view: CountryTimelineView) -> some View {
+    private func timeline(_ view: CountryTimelineView, choice: StudentCountryChoice) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(view.intakeLabel).font(.subheadline.weight(.semibold))
             if let note = view.intakeNote {
-                Text(note).font(.footnote).foregroundStyle(.secondary)
+                Text(note).font(.footnote).foregroundStyle(TimelinePalette.secondary)
             }
         }
         .padding(.vertical, 4)
@@ -150,16 +194,19 @@ struct CountryTimelineSection: View {
         ForEach(view.steps) { step in
             CountryTimelineStepRow(step: step, total: view.steps.count, disclaimers: view.disclaimers)
         }
-        CountryChoiceButton(model: model, current: choice)
+        VStack(alignment: .leading, spacing: 2) {
+            CountryChoiceButton(model: model, current: choice)
+            // Вывод по умолчанию называет свой источник (план §8.3), как у веба.
+            if let note = sourceNote(choice.source) {
+                Text(note).font(.footnote).foregroundStyle(TimelinePalette.secondary)
+            }
+        }
     }
 
-    private var retryRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("home_timeline_unavailable").foregroundStyle(.secondary)
-            Button("retry_button") { Task { await model.load() } }
-                .timelineLinkTint()
-                .frame(minHeight: 44)
-        }
+    /// Общий маршрут не разобрался (дефект сборки, тесты его не пропускают):
+    /// повтор чтения не поможет, поэтому кнопки «Обновить» нет.
+    private var unavailableRow: some View {
+        Text("home_timeline_unavailable").foregroundStyle(TimelinePalette.secondary)
     }
 }
 
@@ -189,11 +236,11 @@ private struct CountryTimelineStepRow: View {
                 // стили (.primary, .secondary) своим тоном.
                 VStack(alignment: .leading, spacing: 4) {
                     if stacked {
-                        Text(verbatim: stepOf).font(.subheadline.weight(.semibold)).foregroundStyle(Color.secondary)
+                        Text(verbatim: stepOf).font(.subheadline.weight(.semibold)).foregroundStyle(TimelinePalette.secondary)
                     }
                     Text(step.title).font(.headline).foregroundStyle(Color.primary)
                     if let timing = step.timing { TimelineTimingLabel(text: timing) }
-                    Text(step.summary).font(.subheadline).foregroundStyle(Color.secondary)
+                    Text(step.summary).font(.subheadline).foregroundStyle(TimelinePalette.secondary)
                 }
                 .multilineTextAlignment(.leading)
                 .padding(.vertical, rowPadding)
@@ -260,7 +307,7 @@ private struct CountryTimelineStepSheet: View {
                         if let timing = step.timing { TimelineTimingLabel(text: timing) }
                         Text(step.summary)
                         if let note = step.note {
-                            Text(note).font(.footnote).foregroundStyle(.secondary)
+                            Text(note).font(.footnote).foregroundStyle(TimelinePalette.secondary)
                         }
                     }
                     .padding(.vertical, 4)
@@ -272,7 +319,7 @@ private struct CountryTimelineStepSheet: View {
                     Label {
                         Text(step.doneWhen)
                     } icon: {
-                        Image(systemName: "checkmark.circle").foregroundStyle(.secondary)
+                        Image(systemName: "checkmark.circle").foregroundStyle(TimelinePalette.secondary)
                     }
                 } header: {
                     Text("home_timeline_done_when_heading")
@@ -282,13 +329,16 @@ private struct CountryTimelineStepSheet: View {
                 if !step.links.isEmpty {
                     Section {
                         // Модулей приложения (CSCA) на iPhone пока нет: ссылки
-                        // ведут на внешний адрес (контракт §3, п. 6).
+                        // ведут на внешний адрес (контракт §3, п. 6). S5: когда
+                        // появится экран CSCA и в `select` придут `modules`,
+                        // здесь нужна и внутренняя ссылка, иначе она пропадёт.
                         ForEach(step.links.filter(\.external)) { link in
                             if let url = URL(string: link.href) {
                                 Link(destination: url) {
                                     Label(link.label, systemImage: "arrow.up.right.square")
                                 }
                                 .timelineLinkTint()
+                                .accessibilityHint(Text("home_timeline_external_hint"))
                             }
                         }
                     } header: {
@@ -326,13 +376,13 @@ private struct CountryTimelineItemRow: View {
         VStack(alignment: .leading, spacing: 6) {
             Label(item.whoLabel, systemImage: symbol)
                 .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TimelinePalette.secondary)
             if let appliesTo = item.appliesTo {
                 Text(appliesTo).font(.subheadline.weight(.semibold))
             }
             Text(item.text)
             if let note = item.note {
-                Text(note).font(.footnote).foregroundStyle(.secondary)
+                Text(note).font(.footnote).foregroundStyle(TimelinePalette.secondary)
             }
         }
         .padding(.vertical, 4)
@@ -350,7 +400,7 @@ private struct TimelineTimingLabel: View {
             Text(text)
         }
         .font(.subheadline)
-        .foregroundStyle(Color.secondary)
+        .foregroundStyle(TimelinePalette.secondary)
     }
 }
 
@@ -383,18 +433,33 @@ private struct CountryChoiceOption: Identifiable {
     }
 }
 
-/// Карточка «Выберите страну», когда выбора нет (source = none).
+/// Карточка «Выберите страну»: выбора нет (source = none) или его не
+/// удалось прочитать (`readFailed`, тогда над вариантами честная плашка).
 private struct CountryChoiceCard: View {
     @ObservedObject var model: CountryTimelineModel
+    let readFailed: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         let options = CountryChoiceOption.all(kyrgyz: AppLocale.isKyrgyz)
         let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2)
         VStack(alignment: .leading, spacing: 12) {
-            Text("home_timeline_choose_title")
-                .font(.headline)
-                .accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("home_timeline_choose_title")
+                    .font(.headline)
+                    .accessibilityAddTraits(.isHeader)
+                // Без fixedSize строка карточки в List обрезала вводную до одной строки.
+                Text("home_timeline_choose_lead")
+                    .font(.subheadline)
+                    .foregroundStyle(TimelinePalette.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if readFailed {
+                CountryTimelineNotice(text: "home_timeline_read_failed")
+                Button("retry_button") { Task { await model.load() } }
+                    .timelineLinkTint()
+                    .frame(minHeight: 44)
+            }
             LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
                 ForEach(options.countries) { option in choiceButton(option) }
             }
@@ -424,15 +489,24 @@ private struct CountryChoiceCard: View {
     }
 }
 
-private struct CountryChoiceError: View {
+/// Плашка ошибки блока: значок и текст (сохранение или чтение выбора).
+private struct CountryTimelineNotice: View {
+    let text: LocalizedStringKey
+
     var body: some View {
         Label {
-            Text("home_timeline_save_failed")
+            Text(text).fixedSize(horizontal: false, vertical: true)
         } icon: {
-            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(TimelinePalette.danger)
+                .accessibilityHidden(true)
         }
         .font(.subheadline)
     }
+}
+
+private struct CountryChoiceError: View {
+    var body: some View { CountryTimelineNotice(text: "home_timeline_save_failed") }
 }
 
 /// «Сменить страну» под таймлайном: лист с шестью странами и «Пока не решил».
@@ -467,6 +541,8 @@ private struct CountryChoiceSheet: View {
                 }
                 Section {
                     ForEach(options.countries) { option in row(option) }
+                } header: {
+                    Text("home_timeline_change_lead").textCase(nil)
                 }
                 if let undecided = options.undecided {
                     Section { row(undecided) }
@@ -501,7 +577,9 @@ private struct CountryChoiceSheet: View {
                 if model.savingCountry == option.code {
                     ProgressView()
                 } else if selected {
+                    // Выбор озвучивает признак .isSelected; значок читалке не нужен.
                     Image(systemName: "checkmark").font(.body.weight(.semibold)).timelineLinkTint().foregroundStyle(.tint)
+                        .accessibilityHidden(true)
                 }
             }
             .frame(minHeight: 44)

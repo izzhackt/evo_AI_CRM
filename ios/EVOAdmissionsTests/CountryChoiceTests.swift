@@ -40,6 +40,8 @@ final class CountryChoiceTests: XCTestCase {
             #"{"country":null,"source":"case","savedAt":null}"#,
             #"{"country":"CN","source":"crm","savedAt":null}"#,
             #"{"country":1,"source":"case","savedAt":null}"#,
+            // `$` JavaScript не пропускает перевод строки в конце (у ICU это `\z`).
+            #"{"country":"CN","source":"saved","savedAt":"2026-10-16T10:04:44Z\n"}"#,
         ]
         for json in rejected { XCTAssertNil(parse(json), json) }
     }

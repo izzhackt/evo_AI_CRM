@@ -27,6 +27,7 @@ final class CountryTimelineTests: XCTestCase {
 
     func testEveryBundledFileParsesStrictly() throws {
         XCTAssertEqual(Self.library.failures, [:])
+        XCTAssertEqual(CountryTimelineKeys.countries, ["cn", "my", "ae", "tr", "it", "cz"])
         XCTAssertEqual(Set(Self.library.files.keys), Set(CountryTimelineKeys.all))
         let expected: [String: (TimelineStatus, Int)] = [
             "cn": (.approved, 8), "my": (.approved, 7), "ae": (.ownerReview, 6), "tr": (.ownerReview, 6),
@@ -56,6 +57,12 @@ final class CountryTimelineTests: XCTestCase {
     // MARK: Паритет с вебом
 
     private struct ParityFixture: Decodable {
+        struct File: Decodable {
+            let contentVersion: Int
+            let validUntil: String
+            let sha256: String
+        }
+
         struct Case: Decodable {
             let choice: String
             let locale: String
@@ -63,13 +70,18 @@ final class CountryTimelineTests: XCTestCase {
             let modules: [String: String]?
             let kind: String
             let file: String
+            let datesHidden: Bool
             let steps: Int
             let items: Int
             let sha256: String
         }
 
-        let contentVersions: [String: Int]
+        let files: [String: File]
         let cases: [Case]
+    }
+
+    private static func hex(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
     /// Тот же порядок полей, что `canonicalTimelineView` в
@@ -98,21 +110,28 @@ final class CountryTimelineTests: XCTestCase {
     func testSelectionMatchesTheWebSelection() throws {
         let url = try XCTUnwrap(Self.bundle.url(forResource: "country-timeline-parity", withExtension: "json"))
         let fixture = try JSONDecoder().decode(ParityFixture.self, from: Data(contentsOf: url))
-        for (key, version) in fixture.contentVersions {
-            XCTAssertEqual(Self.library.files[key]?.contentVersion, version,
+        // Фикстура привязана к байтам файлов: любая правка контента без
+        // перезапуска скрипта видна здесь и в node-тесте (`--check`).
+        XCTAssertEqual(Set(fixture.files.keys), Set(CountryTimelineKeys.all))
+        for (key, file) in fixture.files {
+            XCTAssertEqual(Self.hex(try rawFile(key)), file.sha256,
                            "\(key).json changed: run scripts/portal/write-country-timeline-ios-parity.mjs")
+            XCTAssertEqual(Self.library.files[key]?.contentVersion, file.contentVersion, key)
+            XCTAssertEqual(Self.library.files[key]?.validUntil, file.validUntil, key)
         }
-        XCTAssertEqual(fixture.cases.count, 30)
+        // 7 выборов × RU/KY × (до validUntil, сам validUntil, день после) + Китай с модулем CSCA.
+        XCTAssertEqual(fixture.cases.count, 44)
+        XCTAssertTrue(fixture.cases.contains { $0.today == "2027-10-31" && $0.file == "cn" && !$0.datesHidden })
         for entry in fixture.cases {
             let label = "\(entry.choice) \(entry.locale) \(entry.today) \(entry.modules ?? [:])"
             let view = try XCTUnwrap(Self.library.select(choice: entry.choice, kyrgyz: entry.locale == "ky",
                                                          today: entry.today, modules: entry.modules ?? [:]), label)
             XCTAssertEqual(view.kind.rawValue, entry.kind, label)
             XCTAssertEqual(view.file, entry.file, label)
+            XCTAssertEqual(view.datesHidden, entry.datesHidden, label)
             XCTAssertEqual(view.steps.count, entry.steps, label)
             XCTAssertEqual(view.steps.reduce(0) { $0 + $1.items.count }, entry.items, label)
-            let digest = SHA256.hash(data: Data(Self.canonical(view).utf8)).map { String(format: "%02x", $0) }.joined()
-            XCTAssertEqual(digest, entry.sha256, "\(label): iPhone shows something other than the web")
+            XCTAssertEqual(Self.hex(Data(Self.canonical(view).utf8)), entry.sha256, "\(label): iPhone shows something other than the web")
         }
     }
 
@@ -339,6 +358,90 @@ final class CountryTimelineTests: XCTestCase {
         }
         XCTAssertThrowsError(try parse("pl", JSONSerialization.data(withJSONObject: original)))
         XCTAssertThrowsError(try parse("cn", Data("not json".utf8)))
+    }
+
+    // MARK: Сырой JSON (review #1208 M1, n2)
+
+    private func text(_ key: String) throws -> String {
+        try XCTUnwrap(String(data: rawFile(key), encoding: .utf8))
+    }
+
+    /// Повтор ключа: `JSONDecoder` взял бы первое значение, `JSON.parse` веба
+    /// последнее. iPhone отклоняет файл, поэтому страна `owner_review` не
+    /// показывается своим таймлайном ни при каком порядке повтора.
+    func testARepeatedKeyRejectsTheFileAndOwnerReviewStaysOnTheGeneralRoute() throws {
+        for key in ["it", "cz"] {
+            let marker = "  \"status\": \"owner_review\",\n"
+            let original = try text(key)
+            XCTAssertTrue(original.contains(marker), key)
+            for repeated in [original.replacingOccurrences(of: marker, with: "  \"status\": \"approved\",\n" + marker),
+                             original.replacingOccurrences(of: marker, with: marker + "  \"status\": \"approved\",\n")] {
+                let library = CountryTimelineLibrary.load { name in
+                    name == key ? Data(repeated.utf8) : try? self.rawFile(name)
+                }
+                XCTAssertNil(library.files[key], key)
+                XCTAssertEqual(library.failures[key], "timeline \(key): $: repeated key status", key)
+                let view = try XCTUnwrap(library.select(choice: key.uppercased(), kyrgyz: false, today: Self.before), key)
+                XCTAssertEqual(view.kind, .general, key)
+                XCTAssertEqual(view.file, "undecided", key)
+            }
+        }
+    }
+
+    func testTheRawScanRejectsRepeatsAtAnyDepthAndAByteOrderMark() throws {
+        XCTAssertNil(TimelineRawJSON.problem(in: try rawFile("cn")))
+        let cases: [(String, String?)] = [
+            (#"{"a":1,"b":2}"#, nil),
+            // Те же ключи в соседних объектах и текст ключа внутри строки не повтор.
+            (#"{"steps":[{"id":"x","order":1},{"id":"y","order":2}],"note":"\"id\": {\"id\":"}"#, nil),
+            (#"{"a":{"b":1},"b":{"a":1}}"#, nil),
+            (#"{"a":1,"a":2}"#, "repeated key a"),
+            (#"{"a":[{"b":1,"c":{"d":1,"d":1}}]}"#, "repeated key d"),
+            // Ключ с escape-последовательностью сравнивается раскрытым, как у JSON.parse.
+            (#"{"status":"approved","status":"owner_review"}"#, "repeated key status"),
+            (#"{"status":"approved","st\u0061tus":"owner_review"}"#, "repeated key status"),
+            (#"{"a\"b":1,"a\u0022b":2}"#, "repeated key a\"b"),
+            ("\u{FEFF}{\"a\":1}", "byte order mark"),
+            (#"{"a":"unterminated}"#, "not JSON"),
+            (#"{"a":1}}"#, "not JSON"),
+        ]
+        for (json, expected) in cases {
+            XCTAssertEqual(TimelineRawJSON.problem(in: Data(json.utf8)), expected, json)
+        }
+        let bom = Data([0xEF, 0xBB, 0xBF]) + (try rawFile("cn"))
+        XCTAssertThrowsError(try parse("cn", bom)) { error in
+            XCTAssertEqual(error as? TimelineContentError, TimelineContentError(file: "cn", path: "$", reason: "byte order mark"))
+        }
+    }
+
+    /// Те же решения, что у веба (tests/portal-country-timeline-ios-parity.test.mjs
+    /// проверяет их на `parseCountryTimelineFile`): `$` только в конце строки,
+    /// `trim()` и `\s` с U+FEFF и U+000B, `\b` по ASCII.
+    func testTextRulesFollowJavaScriptSemantics() throws {
+        let original = try XCTUnwrap(JSONSerialization.jsonObject(with: rawFile("cn")) as? [String: Any])
+        let cases: [(String, Mutation)] = [
+            ("step id with a final newline", { root in self.step(&root, 0) { $0["id"] = "cn-1-route\n" } }),
+            ("item id with a final newline", { root in self.item(&root, 0, 0) { $0["id"] = "cn-1-01\n" } }),
+            ("source url with a final newline", { root in
+                var sources = root["sources"] as! [[String: Any]]
+                let index = sources.firstIndex { $0["url"] != nil }!
+                sources[index]["url"] = "\(sources[index]["url"]!)\n"
+                root["sources"] = sources
+            }),
+            ("text ends with U+FEFF", { root in self.item(&root, 0, 0) { $0["text"] = ["ru": "Расскажите о себе.\u{FEFF}", "ky": "Айтыңыз."] } }),
+            ("U+FEFF and a space", { root in self.item(&root, 0, 0) { $0["text"] = ["ru": "Расскажите\u{FEFF} о себе.", "ky": "Айтыңыз."] } }),
+            ("vertical tab and a space", { root in self.item(&root, 0, 0) { $0["text"] = ["ru": "Расскажите\u{0B} о себе.", "ky": "Айтыңыз."] } }),
+            (".pdf before a Cyrillic ending", { root in self.item(&root, 0, 0) { $0["text"] = ["ru": "Загрузите скан.pdfке.", "ky": "Айтыңыз."] } }),
+        ]
+        for (name, mutate) in cases {
+            var broken = original
+            mutate(&broken)
+            XCTAssertThrowsError(try parse("cn", JSONSerialization.data(withJSONObject: broken)), name)
+        }
+        // U+0085 JavaScript пробелом не считает: такой текст веб принимает, iPhone тоже.
+        var nel = original
+        item(&nel, 0, 0) { $0["text"] = ["ru": "Расскажите о себе.\u{85}", "ky": "Айтыңыз."] }
+        XCTAssertNoThrow(try parse("cn", JSONSerialization.data(withJSONObject: nel)))
     }
 
     func testTodayIsTheBishkekDate() {

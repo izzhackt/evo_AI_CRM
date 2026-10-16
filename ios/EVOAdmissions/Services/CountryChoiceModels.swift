@@ -22,12 +22,12 @@ struct StudentCountryChoice: Equatable, Sendable {
     let savedAt: String?
 
     /// Шесть кодов стран (study-countries.json) в порядке продукта.
-    static let countryCodes = CountryTimelineKeys.countries.map { $0.uppercased() }
+    static let countryCodes = StudyCountries.codes
     /// Значения, которые принимает `set_student_country_choice_v1`.
     static let values = countryCodes + [CountryTimelineRules.undecided]
 
     private static let timestamp = CountryTimelineRules.pattern(
-        #"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|[+-][0-9]{2}:[0-9]{2})$"#
+        #"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|[+-][0-9]{2}:[0-9]{2})\z"#
     )
 
     /// Тело ответа PostgREST (JSONB объекта) → выбор или nil.

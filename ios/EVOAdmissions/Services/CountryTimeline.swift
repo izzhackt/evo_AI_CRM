@@ -7,10 +7,14 @@ import Foundation
 // docs/portal/country-timeline-contract.md §2 и §3).
 //
 // Разбор строгий, как у веба: закрытый набор ключей, словари значений,
-// правила текста. Файл, который не прошёл разбор, не показывается: вместо
-// страны студент видит общий маршрут, а «Главная» не падает. Паритет с вебом
-// проверяет `CountryTimelineTests` по отпечаткам выдачи, которые считает
-// scripts/portal/write-country-timeline-ios-parity.mjs.
+// правила текста. Регулярные выражения повторяют семантику JavaScript, а не
+// ICU: `\s` и `trim()` с U+FEFF и U+000B, `$` только в конце строки (`\z`),
+// `\b` по ASCII. Файл с повтором ключа или BOM отклоняется до `JSONDecoder`:
+// при повторе `JSONDecoder` взял бы первое значение, а `JSON.parse` веба
+// берёт последнее (review #1208 M1). Файл, который не прошёл разбор, не
+// показывается: вместо страны студент видит общий маршрут, а «Главная» не
+// падает. Паритет с вебом проверяет `CountryTimelineTests` по отпечаткам
+// выдачи, которые считает scripts/portal/write-country-timeline-ios-parity.mjs.
 
 // MARK: - Файл контента
 
@@ -142,50 +146,66 @@ enum CountryTimelineRules {
                             "visa_and_predeparture", "arrival_and_adaptation"]
     static let appModules = ["csca"]
 
+    /// Пробелы `\s` и `trim()` JavaScript: WhiteSpace и LineTerminator
+    /// (U+0009..U+000D, U+0020, U+00A0, U+1680, U+2000..U+200A, U+2028,
+    /// U+2029, U+202F, U+205F, U+3000, U+FEFF). У ICU `\s` нет U+000B и
+    /// U+FEFF, у `.whitespacesAndNewlines` нет U+FEFF и есть U+0085.
+    static let jsSpaceClass = #"\t\n\x{0B}\f\r\x{20}\x{A0}\x{1680}\x{2000}-\x{200A}\x{2028}\x{2029}\x{202F}\x{205F}\x{3000}\x{FEFF}"#
+    static let jsWhitespace: CharacterSet = {
+        var set = CharacterSet(charactersIn: "\t\n\u{0B}\u{0C}\r \u{A0}\u{1680}\u{2028}\u{2029}\u{202F}\u{205F}\u{3000}\u{FEFF}")
+        set.insert(charactersIn: Unicode.Scalar(0x2000)!...Unicode.Scalar(0x200A)!)
+        return set
+    }()
+    private static let space = "[\(jsSpaceClass)]"
+
     /// Абсолютная дата: год 19xx/20xx или полная дата дд.мм.гггг.
     static let absoluteDate = pattern(#"(?<![0-9])(?:19|20)[0-9]{2}(?![0-9])|(?<![0-9])[0-9]{1,2}\.[0-9]{1,2}\.[0-9]{2,4}(?![0-9])"#)
     /// Обещания (план §8.1). В оговорке `decisions` есть только отрицание.
     static let forbiddenPromises: [NSRegularExpression] = [
         pattern("гарантир", caseInsensitive: true),
-        pattern(#"100\s*%"#),
-        pattern(#"точно\s+получ"#, caseInsensitive: true),
+        pattern("100\(space)*%"),
+        pattern("точно\(space)+получ", caseInsensitive: true),
         pattern("кепилд", caseInsensitive: true),
-        pattern(#"сөзсүз\s+аласыз"#, caseInsensitive: true),
+        pattern("сөзсүз\(space)+аласыз", caseInsensitive: true),
     ]
     /// Внутренние сведения, которых студент не видит.
     static let internalMarkers: [NSRegularExpression] = [
         pattern("ОЗО"),
-        pattern(#"отдел\p{L}*\s+продаж"#, caseInsensitive: true),
+        pattern(#"отдел\p{L}*"# + "\(space)+продаж", caseInsensitive: true),
         pattern("регламент", caseInsensitive: true),
         pattern("плейбук", caseInsensitive: true),
         pattern("скрипт", caseInsensitive: true),
         pattern("агентск", caseInsensitive: true),
         pattern("EDUPRCHINA", caseInsensitive: true),
         pattern("промокод|скидк", caseInsensitive: true),
-        pattern(#"[^\s@]+@[^\s@]+\.[^\s@]+"#),
-        pattern(#"\+[0-9][0-9\s()-]{7,}"#),
+        pattern("[^\(jsSpaceClass)@]+@[^\(jsSpaceClass)@]+\\.[^\(jsSpaceClass)@]+"),
+        pattern("\\+[0-9][0-9\(jsSpaceClass)()-]{7,}"),
     ]
-    static let internalPaths = pattern(#"~/|Downloads|EVO_Знания|\.docx|\.pdf\b|supabase/admissions-content"#)
+    /// `\b` JavaScript считает границу по ASCII, у ICU она юникодная.
+    static let internalPaths = pattern(#"~/|Downloads|EVO_Знания|\.docx|\.pdf(?![A-Za-z0-9_])|supabase/admissions-content"#)
     /// Длинное и короткое тире, цифровое тире и знак минуса.
     static let dashes = pattern("[\u{2012}-\u{2015}\u{2212}]")
-    static let doubleSpace = pattern(#"\s{2,}"#)
+    static let doubleSpace = pattern("\(space){2,}")
     static let letters = pattern(#"\p{L}+"#)
     static let latin = pattern("[A-Za-z\u{00C0}-\u{024F}]")
     static let cyrillic = pattern("[\u{0400}-\u{04FF}]")
     /// Латинский термин с кыргызским окончанием («HSKга») допустим.
-    static let latinWithSuffix = pattern("^[A-Za-z\u{00C0}-\u{024F}]+[\u{0400}-\u{04FF}]+$")
-    static let isoDate = pattern(#"^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"#)
-    static let isoMonth = pattern(#"^[0-9]{4}-(0[1-9]|1[0-2])$"#)
-    static let sourceId = pattern(#"^[A-Z0-9][A-Z0-9-]{0,31}$"#)
-    static let linkId = pattern(#"^[a-z][a-z0-9-]{0,31}$"#)
-    static let httpsURL = pattern(#"^https://[^\s]+$"#)
+    // `$` у ICU совпадает и перед последним переводом строки; `$` JavaScript
+    // без флага m только в самом конце, это `\z`.
+    static let latinWithSuffix = pattern("^[A-Za-z\u{00C0}-\u{024F}]+[\u{0400}-\u{04FF}]+\\z")
+    static let isoDate = pattern(#"^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])\z"#)
+    static let isoMonth = pattern(#"^[0-9]{4}-(0[1-9]|1[0-2])\z"#)
+    static let sourceId = pattern(#"^[A-Z0-9][A-Z0-9-]{0,31}\z"#)
+    static let linkId = pattern(#"^[a-z][a-z0-9-]{0,31}\z"#)
+    static let httpsURL = pattern("^https://[^\(jsSpaceClass)]+\\z")
 
     static let disclaimerTiming = (ru: pattern("^Сроки ориентировочные"), ky: pattern("^Мөөнөттөр болжолдуу"))
     static let disclaimerDocuments = (ru: pattern("^Окончательный список документов зависит от "),
                                       ky: pattern("^Документтердин акыркы тизмеси "))
-    static let disclaimerDecisions = (ru: pattern(#"^Решение о зачислении.*; EVO их не гарантирует\.$"#),
-                                      ky: pattern(#"; EVO буларга кепилдик бербейт\.$"#))
-    static let decisionsNegation = pattern(#"EVO их не гарантирует\.$|EVO буларга кепилдик бербейт\.$"#)
+    /// `.` JavaScript не берёт только \n, \r, U+2028 и U+2029; у ICU список шире.
+    static let disclaimerDecisions = (ru: pattern(#"^Решение о зачислении[^\n\r\x{2028}\x{2029}]*; EVO их не гарантирует\.\z"#),
+                                      ky: pattern(#"; EVO буларга кепилдик бербейт\.\z"#))
+    static let decisionsNegation = pattern(#"EVO их не гарантирует\.\z|EVO буларга кепилдик бербейт\.\z"#)
 
     static func pattern(_ source: String, caseInsensitive: Bool = false) -> NSRegularExpression {
         // Литералы выше проверены тестами; неверный шаблон это ошибка сборки
@@ -212,10 +232,65 @@ enum CountryTimelineRules {
 
 // MARK: - Строгий разбор
 
-/// Ключи файлов: шесть стран в порядке продукта и общий маршрут.
+/// Ключи файлов: шесть стран в порядке продукта (study-countries.json, как
+/// `COUNTRY_TIMELINE_FILE_KEYS` веба) и общий маршрут.
 enum CountryTimelineKeys {
-    static let countries = ["cn", "my", "ae", "tr", "it", "cz"]
+    static let countries = StudyCountries.codes.map { $0.lowercased() }
     static let all = countries + ["undecided"]
+}
+
+/// Проверка сырого JSON до `JSONDecoder`: BOM в начале и повтор ключа в любом
+/// объекте. `JSON.parse` веба не принимает BOM, а при повторе ключа берёт
+/// последнее значение; `JSONDecoder` принимает BOM и берёт первое. Такой файл
+/// iPhone не показывает (review #1208 M1), веб его не пропускает тестом
+/// канонического вида (tests/portal-country-timeline-ios-parity.test.mjs).
+enum TimelineRawJSON {
+    /// Причина отказа или nil, если повторов нет. Синтаксис целиком
+    /// проверяет `JSONDecoder` следом.
+    static func problem(in data: Data) -> String? {
+        let bytes = [UInt8](data)
+        if bytes.starts(with: [0xEF, 0xBB, 0xBF]) { return "byte order mark" }
+        // Для объекта набор его ключей и «следующая строка это ключ»; для массива keys == nil.
+        var stack: [(keys: Set<String>?, expectingKey: Bool)] = []
+        var index = 0
+        while index < bytes.count {
+            switch bytes[index] {
+            case UInt8(ascii: "{"):
+                stack.append((keys: [], expectingKey: true))
+            case UInt8(ascii: "["):
+                stack.append((keys: nil, expectingKey: false))
+            case UInt8(ascii: "}"), UInt8(ascii: "]"):
+                if stack.popLast() == nil { return "not JSON" }
+            case UInt8(ascii: ","):
+                if let top = stack.indices.last, stack[top].keys != nil { stack[top].expectingKey = true }
+            case UInt8(ascii: "\""):
+                let start = index + 1
+                var end = start
+                var escaped = false
+                while end < bytes.count, bytes[end] != UInt8(ascii: "\"") {
+                    if bytes[end] == UInt8(ascii: "\\") { escaped = true; end += 1 }
+                    end += 1
+                }
+                if end >= bytes.count { return "not JSON" }
+                if let top = stack.indices.last, stack[top].keys != nil, stack[top].expectingKey {
+                    let raw = Array(bytes[start..<end])
+                    // Ключ с escape-последовательностью сравнивается раскрытым, как у JSON.parse.
+                    let key = escaped
+                        ? (try? JSONSerialization.jsonObject(with: Data([UInt8(ascii: "\"")] + raw + [UInt8(ascii: "\"")]),
+                                                             options: .fragmentsAllowed)) as? String
+                        : String(decoding: raw, as: UTF8.self)
+                    guard let key else { return "not JSON" }
+                    if stack[top].keys?.insert(key).inserted == false { return "repeated key \(key)" }
+                    stack[top].expectingKey = false
+                }
+                index = end
+            default:
+                break
+            }
+            index += 1
+        }
+        return stack.isEmpty ? nil : "not JSON"
+    }
 }
 
 private struct TimelineJSONKey: CodingKey {
@@ -267,6 +342,7 @@ struct CountryTimelineParser {
     let countryName: (_ code: String, _ kyrgyz: Bool) -> String?
 
     func parse(_ data: Data) throws -> CountryTimelineFile {
+        if let problem = TimelineRawJSON.problem(in: data) { try fail("$", problem) }
         let json: TimelineJSON
         do { json = try JSONDecoder().decode(TimelineJSON.self, from: data) } catch { try fail("$", "not JSON") }
         return try parse(json)
@@ -375,7 +451,7 @@ struct CountryTimelineParser {
             let order = index + 1
             guard row["order"] == .int(order) else { try fail("\(path).order", "not \(order)") }
             guard case .string(let stepId) = row["id"],
-                  CountryTimelineRules.matches(CountryTimelineRules.pattern("^\(key)-\(order)-[a-z0-9]+(?:-[a-z0-9]+)*$"), stepId) else {
+                  CountryTimelineRules.matches(CountryTimelineRules.pattern("^\(key)-\(order)-[a-z0-9]+(?:-[a-z0-9]+)*\\z"), stepId) else {
                 try fail("\(path).id", "not <file>-<order>-<slug>")
             }
             guard case .array(let rawStages) = row["stageKeys"], !rawStages.isEmpty, Set(rawStages).count == rawStages.count else {
@@ -400,7 +476,7 @@ struct CountryTimelineParser {
                 timing = TimelineTiming(from: from, to: to, label: try text(t["label"], "\(path).timing.label", hideable: false), basis: basis)
             }
             guard case .array(let rawItems) = row["checklist"], !rawItems.isEmpty else { try fail("\(path).checklist", "needs at least one item") }
-            let itemPattern = CountryTimelineRules.pattern("^\(key)-\(order)-[0-9]{2}$")
+            let itemPattern = CountryTimelineRules.pattern("^\(key)-\(order)-[0-9]{2}\\z")
             var checklist: [TimelineItem] = []
             for (n, rawItem) in rawItems.enumerated() {
                 let itemPath = "\(path).checklist[\(n)]"
@@ -501,7 +577,7 @@ struct CountryTimelineParser {
 
     private func plain(_ value: TimelineJSON?, _ path: String) throws -> String {
         guard case .string(let text) = value, !text.isEmpty,
-              text == text.trimmingCharacters(in: .whitespacesAndNewlines),
+              text == text.trimmingCharacters(in: CountryTimelineRules.jsWhitespace),
               !CountryTimelineRules.matches(CountryTimelineRules.doubleSpace, text) else {
             try fail(path, "empty or untrimmed text")
         }
@@ -647,11 +723,17 @@ struct CountryTimelineLibrary: Sendable {
     static let bundled = load(from: Bundle(for: CountryTimelineBundleToken.self))
 
     static func load(from bundle: Bundle) -> CountryTimelineLibrary {
+        load { key in bundle.url(forResource: key, withExtension: "json").flatMap { try? Data(contentsOf: $0) } }
+    }
+
+    /// Тот же разбор для любого источника сырых файлов по ключу (тесты
+    /// подменяют один файл и проверяют запасной путь).
+    static func load(data source: (String) -> Data?) -> CountryTimelineLibrary {
         var files: [String: CountryTimelineFile] = [:]
         var failures: [String: String] = [:]
         let names: (String, Bool) -> String? = { code, kyrgyz in StudyCountries.name(for: code, kyrgyz: kyrgyz) }
         for key in CountryTimelineKeys.all {
-            guard let url = bundle.url(forResource: key, withExtension: "json"), let data = try? Data(contentsOf: url) else {
+            guard let data = source(key) else {
                 failures[key] = "missing from the bundle"
                 continue
             }

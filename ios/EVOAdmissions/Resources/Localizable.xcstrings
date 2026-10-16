@@ -3509,6 +3509,132 @@
         }
       }
     },
+    "home_timeline_choose_lead" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ушул өлкөгө тапшыруунун кадамдарын жана болжолдуу мөөнөттөрүн көрсөтөбүз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Покажем шаги поступления и примерные сроки для этой страны."
+          }
+        }
+      }
+    },
+    "home_timeline_change_lead" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тандагандан кийин жол дароо жаңырат."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Путь обновится сразу после выбора."
+          }
+        }
+      }
+    },
+    "home_timeline_source_application" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Өлкө анкетаңыздан алынды."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Страна из вашей анкеты."
+          }
+        }
+      }
+    },
+    "home_timeline_source_case" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Өлкө ишиңизден алынды."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Страна из вашего дела."
+          }
+        }
+      }
+    },
+    "home_timeline_read_failed" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сакталган тандоо жүктөлгөн жок. Өлкөнү тандаңыз же экранды жаңыртыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось загрузить сохранённый выбор. Выберите страну или обновите экран."
+          }
+        }
+      }
+    },
+    "home_timeline_saving" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тандоо сакталууда…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохраняем выбор…"
+          }
+        }
+      }
+    },
+    "home_timeline_external_hint" : {
+      "comment" : "«Путь поступления» (S4). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Башка сайтта ачылат."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Откроется на другом сайте."
+          }
+        }
+      }
+    },
     "adm_stage_label" : {
       "localizations" : {
         "ru" : {

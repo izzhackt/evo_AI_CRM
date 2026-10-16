@@ -55,6 +55,10 @@ const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([
   // PORT-4c: обучение и профессии (движок 198, сид 199).
   "/portal/english",
   "/portal/english/review",
+  // S5.1: CSCA (миграции 285, 286); урок и тест ниже по строгому uuid.
+  "/portal/csca",
+  "/portal/csca/math/review",
+  "/portal/csca/math/progress",
   "/portal/professions",
   // PORT-5c: сообщения по делу (assisted; граница — RPC миграции 200).
   "/portal/messages",
@@ -84,6 +88,8 @@ const STUDENT_NOTIFICATION_DETAIL_PATH = /^\/portal\/notifications\/[0-9a-f]{8}-
 const STUDENT_DOCUMENT_NOTIFICATION_DETAIL_PATH = /^\/portal\/document-notifications\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_PACKAGE_NOTIFICATION_DETAIL_PATH = /^\/portal\/package-notifications\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_LESSON_DETAIL_PATH = /^\/portal\/english\/lesson\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const STUDENT_CSCA_LESSON_PATH = /^\/portal\/csca\/math\/lesson\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const STUDENT_CSCA_TEST_PATH = /^\/portal\/csca\/math\/test\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STUDENT_PROFESSION_DETAIL_PATH = /^\/portal\/professions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const STUDENT_DOCUMENT_VERSION_UPLOAD_PATH =
@@ -211,7 +217,9 @@ export function isConnectedStudentPortalPage(path: string): boolean {
     || STUDENT_DOCUMENT_NOTIFICATION_DETAIL_PATH.test(path)
     || STUDENT_PACKAGE_NOTIFICATION_DETAIL_PATH.test(path)
     || STUDENT_LESSON_DETAIL_PATH.test(path)
-    || STUDENT_PROFESSION_DETAIL_PATH.test(path);
+    || STUDENT_PROFESSION_DETAIL_PATH.test(path)
+    || STUDENT_CSCA_LESSON_PATH.test(path)
+    || STUDENT_CSCA_TEST_PATH.test(path);
 }
 
 /** Auth-only invite surfaces; none grants Student or staff product authority. */

@@ -51227,3 +51227,80 @@ Validation impact: одноразовый Postgres (образ resolve-postgres-
   через API: студент, Admin, продажи, куратор, anon.
 Reviewer notes: ожидает независимого review точного head PR.
 ```
+
+## 2026-10-16 · Университеты v2: редактор городов и стоимости в CRM (S3.5)
+
+```text
+Date: 2026-10-16, workspace timezone.
+Author: Claude Code (Opus), поток S3.5 плана docs/EVO_STUDENT_APP_V2_PLAN_2026-10-16.md
+  (PR #1197, раздел 7.5); PR поверх #1202 (миграция 283).
+Change type: UI, API usage, validation.
+Affected plan section: S3 (7.5, 7.6), 4.5 «Деньги»; записи выше о миграции 283.
+Reason: план 7.5 требует минимальный редактор CRM: город вуза из
+  справочника, блок «Стоимость» с источником, подтверждением строк агентств
+  (Admin) и публикацией, страницу курсов с пометкой старше 45 дней, список
+  городов с карточкой. SQL не меняется: только RPC сотрудника 283.
+Decision:
+  1. Без нового пункта меню. В шапке «Университетов» у держателя
+     catalog.import.manage вне просмотра роли тихие ссылки «Города» и «Курсы
+     валют» рядом с «Управлять каталогом». Новые адреса /v3/universities/cities
+     (?country=, ?city=<ключ>, ?new=<код>) и /v3/universities/rates внесены в
+     allowlist прокси; без права страница уводит на /access-denied, как
+     /v3/universities/manage (держатель catalog.read возвращается в каталог).
+  2. Права в интерфейсе только подсказка: блоки города и стоимости,
+     ссылки и страницы есть у того же права, что «Управлять каталогом»;
+     «Подтвердить» строку агентства видит только системный Admin. Серверное
+     действие повторяет оба условия до RPC, решает RPC 283 (42501).
+  3. Одно серверное действие mutateCatalogGeographyAction на семь команд
+     (city_upsert, city_publish, institution_city_set, cost_upsert,
+     cost_confirm, cost_publish, fx_rate_set): форма шлёт operation,
+     request_id и строгий JSON; организация из сессии. Вход проверяется теми
+     же правилами, что форма (src/lib/catalog-geography.ts), квитанция RPC
+     сверяется по ключам и значениям; ответ без квитанции это
+     «не подтверждено», повтор идёт тем же request_id. Импорт пакетом
+     (staff_catalog_cost_import_v1) в CRM не выводится: это скрипт
+     координатора.
+  4. После подтверждённой квитанции: revalidatePath("/v3/universities",
+     "layout"), revalidatePath("/portal/universities", "layout") и
+     revalidateTag("portal-student-university-index", { expire: 0 }). Тег из
+     src/lib/portal/university-index-tag.ts, файл побайтно тот же, что у
+     потока веба S3.3 (его кэш индекса помечен этим тегом).
+  5. Чтение одно: staff_catalog_geography_v1 (вся география, стоимость и
+     курсы организации). На демо-стеке 320 447 байт (221 строка стоимости,
+     58 городов); production с 629 строками будет больше. Читают его только
+     страница вуза у редактора, «Города» и «Курсы валют», не каталог.
+  6. Стоимость: сумма вводится в единицах валюты и хранится минорными
+     единицами; равные «от» и «до» это одна сумма; ≈ USD в CRM считается тем
+     же правилом, что SQL catalog_usd_approx. Удаления строк нет (в 283 нет
+     такой команды): строку снимают с публикации.
+  7. Фото города в CRM задаётся ссылкой на объект бакета и авторством;
+     загрузка файла остаётся шагом выпуска (upload-geography-photos.mjs).
+     Проверка формы повторяет CHECK 283: путь geography/cities/...-<12 hex>,
+     источник только Unsplash, Pexels, Wikimedia Commons, адреса агентств
+     отвергаются. В текстах для студента нет длинного и среднего тире, как
+     у генератора сида.
+  8. Нумерация не меняется: выбор страны студента для S4 не входит в 283
+     (запись выше «миграция 283», пункт 1).
+Validation impact: npm run typecheck; eslint изменённых файлов; node --test
+  tests/catalog-geography.test.mjs, tests/catalog-geography-actions.test.mjs,
+  tests/fixed-role-route-contract.test.mjs, tests/v3-navigation.test.mjs,
+  tests/v3-truthful-state.test.mjs, tests/v3-e8-universities.test.mjs,
+  tests/study-countries.test.mjs. Настоящий путь: next dev на 3104 перед
+  демо-стеком evo-video-demo (синтетические данные, снимок перед записью
+  20261016T093648Z-pre-s35-crm-journey), headless Chromium из
+  node_modules: Admin связал вуз с городом и вернул связь, провёл строку
+  агентства через правку, подтверждение и публикацию, снял и вернул
+  строку сайта вуза, увидел пометку курса AED старше 45 дней и снял её
+  новым курсом (привязка 3,6725 AED за USD), снял и вернул публикацию
+  города (индекс студента потерял и вернул город, версия вернулась
+  прежней); куратор не видит ссылок и блоков, адреса редактора уводят в
+  каталог, пять RPC сотрудника от его сессии дают 42501. 36 из 36 проверок,
+  снимки output/student-app-v2/screens/crm/.
+  Не проверено: production (запись и чтение не делались); сброс кэша веба
+  на деле (кэш индекса появится с PR потока S3.3); телефон проверен только
+  шириной 393 px в Chromium. Не связанные с изменением падения на базе
+  c3d158de9: tests/platform-university-catalog-actions.test.mjs 6 и 8
+  (модуль @/lib/university-manage-contract не находится в этом режиме
+  node --test), tests/v3-brand-design.test.mjs 5 (таблица отчёта продаж).
+Reviewer notes: ожидает независимого review точного head PR.
+```

@@ -31,6 +31,9 @@ const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/v3/messages",
   "/v3/universities",
   "/v3/universities/manage",
+  // Университеты v2 (план 7.5): справочник городов с карточкой и курсы валют.
+  "/v3/universities/cities",
+  "/v3/universities/rates",
 ]);
 
 const STUDENT_PORTAL_PAGE_ALLOWLIST = new Set([

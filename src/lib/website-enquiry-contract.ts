@@ -1,7 +1,19 @@
-export const WEBSITE_ENQUIRY_COUNTRIES = new Set([
-  "China", "Malaysia", "Europe", "Germany", "United Kingdom", "Italy",
-  "Netherlands", "France", "Poland", "Czechia", "Austria", "Cyprus",
-  "United Arab Emirates", "Turkey", "Undecided",
+import { WEBSITE_STUDY_COUNTRY_VALUES } from "./study-countries.ts";
+
+/**
+ * Значения прежней формы сайта, которых нет в едином списке стран (282).
+ * Приёмник сознательно продолжает их принимать (план §6.4): кэшированная
+ * старая страница или откат сайта не должны терять заявку. Здесь и в SQL
+ * (platform_private.website_enquiry_legacy_country_values) одни значения.
+ */
+export const WEBSITE_ENQUIRY_LEGACY_COUNTRIES: readonly string[] = Object.freeze([
+  "Europe", "Germany", "United Kingdom", "Netherlands", "France", "Poland", "Austria", "Cyprus",
+]);
+
+/** Всё, что принимает приёмник: шесть стран и «Undecided» из единого списка и прежние значения. */
+export const WEBSITE_ENQUIRY_COUNTRIES: ReadonlySet<string> = new Set([
+  ...WEBSITE_STUDY_COUNTRY_VALUES,
+  ...WEBSITE_ENQUIRY_LEGACY_COUNTRIES,
 ]);
 
 export type WebsiteEnquiryUniversity = Readonly<{ slug: string; name: string }>;

@@ -59,6 +59,7 @@ final class ApplicationWizardViewModel: ObservableObject {
             values = ApplicationWizardValues(draft: draft)
         } else if let restored = Self.restore(key: storageKey) {
             values = restored.values
+            values.destinationCountries = ApplicationContract.currentDestinations(values.destinationCountries)
             step = restored.step
         } else {
             values = ApplicationWizardValues()
@@ -108,6 +109,14 @@ final class ApplicationWizardViewModel: ObservableObject {
     // MARK: Step mechanics (web parity)
 
     func toggle(_ key: WritableKeyPath<ApplicationWizardValues, [String]>, value: String, step: ApplicationWizardStep) {
+        if step == .countries {
+            values.destinationCountries = ApplicationWizardPolicy.toggledDestinations(
+                values.destinationCountries, value: value
+            )
+            errorKey = nil
+            persistDraft()
+            return
+        }
         var list = values[keyPath: key]
         let limit = ApplicationWizardPolicy.selectionLimit(for: step)
         if !list.contains(value) && list.count >= limit {
@@ -280,9 +289,13 @@ func applyFieldLabel(_ value: String) -> String {
     Bundle.main.localizedString(forKey: "apply_field_\(value)", value: value, table: nil)
 }
 
-/// localizedCountryLabel parity (student-application-presentation.ts:29-39):
-/// KY из ICU, честный фолбэк на RU-имена.
+/// localizedCountryLabel parity (student-application-presentation.ts):
+/// страны единого списка и «Пока не решил» по study-countries.json, прочие
+/// (гражданство, страны анкет до 282) KY из ICU, честный фолбэк на RU-имена.
 func applyCountryName(_ code: String) -> String {
+    if let known = StudyCountries.name(for: code, kyrgyz: AppLocale.isKyrgyz) {
+        return known
+    }
     if AppLocale.isKyrgyz,
        let name = Locale(identifier: "ky").localizedString(forRegionCode: code) {
         return name
@@ -490,12 +503,12 @@ struct ApplicationWizardView: View {
 
     private var countriesStep: some View {
         VStack(spacing: 10) {
-            ForEach(ApplicationContract.destinationCountries, id: \.self) { country in
+            ForEach(StudyCountries.options(kyrgyz: AppLocale.isKyrgyz, undecided: true), id: \.code) { option in
                 choiceRow(
-                    "\(applyCountryFlag(country)) \(applyOptionLabel(country))",
-                    selected: model.values.destinationCountries.contains(country)
+                    "\(option.code == StudyCountries.undecidedCode ? "🌐" : applyCountryFlag(option.code)) \(option.label)",
+                    selected: model.values.destinationCountries.contains(option.code)
                 ) {
-                    model.toggle(\.destinationCountries, value: country, step: .countries)
+                    model.toggle(\.destinationCountries, value: option.code, step: .countries)
                 }
             }
         }

@@ -17,6 +17,13 @@ struct FavoriteReceipt: Decodable {
     let favoritesCount: Int
 }
 
+/// `platform.student_hidden_university_favorites_v1` (282):
+/// `{"hiddenCount": n}`, the caller's own favourites whose country left the
+/// product list. They are no longer listed; the section says how many.
+struct HiddenUniversityFavorites: Decodable, Equatable {
+    let hiddenCount: Int
+}
+
 /// One row of `platform.student_university_favorites_v1` (195:107-109):
 /// `jsonb_build_object('institutionId', f.institution_id, 'createdAt',
 /// f.created_at)`, newest first. `createdAt` is a timestamptz rendered into

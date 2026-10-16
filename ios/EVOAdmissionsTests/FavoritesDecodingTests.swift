@@ -117,4 +117,17 @@ final class FavoritesDecodingTests: XCTestCase {
         XCTAssertEqual(page.items.count, 1)
         XCTAssertEqual(page.items[0].content.name, "Sunway University")
     }
+
+    func testDecodesHiddenFavoritesCount() throws {
+        // 282: jsonb_build_object('hiddenCount', count(*)).
+        let hidden = try JSONDecoder().decode(
+            HiddenUniversityFavorites.self,
+            from: Data(#"{"hiddenCount": 2}"#.utf8)
+        )
+        XCTAssertEqual(hidden.hiddenCount, 2)
+        XCTAssertThrowsError(try JSONDecoder().decode(
+            HiddenUniversityFavorites.self,
+            from: Data(#"{"hidden": 2}"#.utf8)
+        ))
+    }
 }

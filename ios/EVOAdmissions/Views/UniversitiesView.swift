@@ -21,6 +21,15 @@ enum AppLocale {
     }
 }
 
+/// Название страны на языке интерфейса: страны единого списка и «Пока не
+/// решил» по `study-countries.json` (как веб), прочие коды (избранное и
+/// история прежних стран) по ICU, затем сам код.
+func studyCountryLabel(_ code: String) -> String {
+    StudyCountries.name(for: code, kyrgyz: AppLocale.isKyrgyz)
+        ?? AppLocale.current.localizedString(forRegionCode: code)
+        ?? code
+}
+
 /// Список⇄карта — те же два представления одного набора и одних фильтров,
 /// что на вебе (Catalog.tsx `UniversitiesView`, дизайн-контракт: «веб и
 /// iPhone — одни возможности»).
@@ -69,15 +78,10 @@ final class UniversitiesViewModel: ObservableObject {
 
     var hasMore: Bool { nextOffset != nil }
 
-    /// Полный ISO-список стран веб-фильтра, локализованный и отсортированный
-    /// коллацией активного языка интерфейса — как веб (Catalog.tsx:67-70).
+    /// Страны единого списка в порядке продукта, как веб
+    /// (`universityCountryFilterOptions`, src/lib/portal/universities.ts).
     lazy var countryOptions: [(code: String, label: String)] = {
-        let locale = AppLocale.current
-        return UniversityCatalogFilterPolicy.countries
-            .map { code in
-                (code: code, label: locale.localizedString(forRegionCode: code) ?? code)
-            }
-            .sorted { $0.label.compare($1.label, locale: locale) == .orderedAscending }
+        StudyCountries.options(kyrgyz: AppLocale.isKyrgyz)
     }()
 
     func loadFirstPage() async {
@@ -379,7 +383,7 @@ struct UniversitiesView: View {
     }
 
     private func countryLabel(_ code: String) -> String {
-        AppLocale.current.localizedString(forRegionCode: code) ?? code
+        studyCountryLabel(code)
     }
 
     @ViewBuilder
@@ -528,8 +532,7 @@ func universityLevelLabel(_ level: String) -> String {
 
 /// «Город, Страна» — country name localized to the interface language.
 func universityPlaceLine(_ content: UniversityContent) -> String {
-    let country = AppLocale.current.localizedString(forRegionCode: content.country)
-        ?? content.country
+    let country = studyCountryLabel(content.country)
     if let city = content.city, !city.isEmpty {
         return "\(city), \(country)"
     }

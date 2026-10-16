@@ -1,4 +1,5 @@
 import type { StudentApplicationDraft } from "./student-application-contract.ts";
+import { studyCountryName } from "./study-countries.ts";
 
 export const STATUS_LABELS = { pending: "На рассмотрении", approved: "Одобрена", rejected: "Отклонена" };
 
@@ -22,8 +23,14 @@ export const APPLICATION_LABELS: Record<string, string> = {
 
 export { STUDENT_APPLICATION_NATIONALITIES as NATIONALITY_COUNTRIES } from "./student-application-contract.ts";
 
+/**
+ * Страна анкеты по-русски: страны единого списка и «Пока не решил» по
+ * study-countries.json, прочие (гражданство, страны анкет до 282) по ICU.
+ */
 export function countryLabel(code: string): string {
-  return new Intl.DisplayNames(["ru"], { type: "region" }).of(code) ?? code;
+  const known = studyCountryName(code, "ru");
+  if (known) return known;
+  try { return new Intl.DisplayNames(["ru"], { type: "region" }).of(code) ?? code; } catch { return code; }
 }
 
 /**
@@ -33,6 +40,8 @@ export function countryLabel(code: string): string {
  * `countryLabel` выше не меняется.
  */
 export function localizedCountryLabel(code: string, locale: string): string {
+  const known = studyCountryName(code, locale);
+  if (known) return known;
   if (locale === "ky") {
     try {
       const names = new Intl.DisplayNames(["ky"], { type: "region" });

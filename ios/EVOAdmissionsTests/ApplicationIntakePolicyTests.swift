@@ -40,6 +40,53 @@ final class ApplicationIntakePolicyTests: XCTestCase {
         XCTAssertTrue(ApplicationDraftValidator.isValid(validDraft()))
     }
 
+    // MARK: - Countries (282: one product list, «Пока не решил» alone)
+
+    func testDestinationsAreTheProductListAndUndecided() {
+        XCTAssertEqual(ApplicationContract.destinationCountries, ["CN", "MY", "AE", "TR", "IT", "CZ", "undecided"])
+        var draft = validDraft()
+        draft.destinationCountries = ["undecided"]
+        XCTAssertTrue(ApplicationDraftValidator.isValid(draft))
+        draft.destinationCountries = ["IT", "CZ", "AE"]
+        XCTAssertTrue(ApplicationDraftValidator.isValid(draft))
+    }
+
+    func testLegacyCountriesStayValidButTheWizardOffersOnlyTheList() {
+        // The server still accepts the pre-282 codes (plan §4.1): a stored
+        // анкета and a metadata draft with them stay valid.
+        XCTAssertEqual(ApplicationContract.legacyDestinationCountries, ["DE", "FR", "ES", "NL", "PL", "HU", "AT", "GB", "CY"])
+        var draft = validDraft()
+        for countries in [["PL"], ["PL", "CN"], ["GB", "CN"], ["DE", "CZ"]] {
+            draft.destinationCountries = countries
+            XCTAssertTrue(ApplicationDraftValidator.isValid(draft), countries.joined(separator: ","))
+        }
+        // The wizard step refuses what it does not offer.
+        var values = ApplicationWizardValues()
+        values.destinationCountries = ["PL"]
+        XCTAssertEqual(
+            ApplicationWizardPolicy.validationKey(step: .countries, values: values, requestId: validDraft().requestId),
+            "apply_validation_countries"
+        )
+        values.destinationCountries = ["CN", "IT"]
+        XCTAssertNil(ApplicationWizardPolicy.validationKey(step: .countries, values: values, requestId: validDraft().requestId))
+    }
+
+    func testUndecidedAndCountriesExcludeEachOther() {
+        XCTAssertEqual(ApplicationWizardPolicy.toggledDestinations(["CN", "IT"], value: "undecided"), ["undecided"])
+        XCTAssertEqual(ApplicationWizardPolicy.toggledDestinations(["undecided"], value: "TR"), ["TR"])
+        XCTAssertEqual(ApplicationWizardPolicy.toggledDestinations(["CN"], value: "MY"), ["CN", "MY"])
+        XCTAssertEqual(ApplicationWizardPolicy.toggledDestinations(["CN", "MY"], value: "CN"), ["MY"])
+        XCTAssertEqual(ApplicationWizardPolicy.toggledDestinations(["undecided"], value: "undecided"), [])
+    }
+
+    func testSavedDraftDropsCountriesThatLeftTheList() {
+        XCTAssertEqual(ApplicationContract.currentDestinations(["PL", "CN", "DE"]), ["CN"])
+        XCTAssertEqual(ApplicationContract.currentDestinations(["undecided", "IT"]), ["IT"])
+        var draft = validDraft()
+        draft.destinationCountries = ["PL", "CY"]
+        XCTAssertEqual(ApplicationWizardValues(draft: draft).destinationCountries, [])
+    }
+
     func testEveryContractRuleRejects() {
         var cases: [(String, (inout StudentApplicationDraft) -> Void)] = []
         cases.append(("schemaVersion", { $0.schemaVersion = 2 }))                        // contract:57
@@ -54,6 +101,7 @@ final class ApplicationIntakePolicyTests: XCTestCase {
         cases.append(("empty countries", { $0.destinationCountries = [] }))              // contract:60
         cases.append(("unknown country", { $0.destinationCountries = ["US"] }))          // contract:60
         cases.append(("duplicate countries", { $0.destinationCountries = ["CN", "CN"] })) // contract:50
+        cases.append(("undecided with a country", { $0.destinationCountries = ["CN", "undecided"] })) // 282
         cases.append(("season", { $0.intakeSeason = "fall" }))                           // contract:61
         cases.append(("year below 2026", { $0.intakeYear = 2025 }))                      // contract:62
         cases.append(("year above 2036", { $0.intakeYear = 2037 }))                      // contract:62

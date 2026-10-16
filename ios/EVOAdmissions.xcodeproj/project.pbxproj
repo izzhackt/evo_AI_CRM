@@ -16,8 +16,8 @@
 		10E26CC17AB500306B18ED61 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 005949937B65067CD79CB062 /* Localizable.xcstrings */; };
 		1222A15119C6462E6410FCFF /* PortalCaseChatDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B689B5D15EBAEBDE59C83A64 /* PortalCaseChatDecodingTests.swift */; };
 		13ECC54C2538C82C8D6041D4 /* AdmissionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C0754946AA1F39422CD49E6 /* AdmissionPolicyTests.swift */; };
+		14995B46C92E5E98B92F3A4C /* StudyCountriesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCABE33F861DC9AED02969D2 /* StudyCountriesTests.swift */; };
 		1562156C0AA72ABE83543FA6 /* AccessPendingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5036B63945D738592B84D329 /* AccessPendingView.swift */; };
-		A8810B1C44AF2230B6254FB5 /* AccountDeletionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B3DD30AA0B9A1A8EC1C6A90 /* AccountDeletionView.swift */; };
 		16CCE941413181944BF10D95 /* AssessmentResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 280E923C4B1D8CC4E01905E0 /* AssessmentResultView.swift */; };
 		18286AF5B327A304BAE546DB /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6054711F5C4F26BE7B0903F9 /* ProfileView.swift */; };
 		1BDC9CAAAABDAA7C6E7FA15B /* UniversityMapPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6D0DCF549065FDBFC3000A7 /* UniversityMapPolicy.swift */; };
@@ -59,6 +59,7 @@
 		71F89E2DDED0950EE27CA772 /* ApplicationRequirementsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E714B3D7184D39D54FC9248 /* ApplicationRequirementsModels.swift */; };
 		7671E48CB97A88125BD7245A /* ProgramPackageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30ED4EB674CED0272D9BA3F6 /* ProgramPackageModel.swift */; };
 		76DFD4C0528E6621CBA00E27 /* ApplicationRequirementsV2Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 392347D625C4C851420D9CBD /* ApplicationRequirementsV2Models.swift */; };
+		77D5E462F65559A1E26B4F59 /* study-countries.json in Resources */ = {isa = PBXBuildFile; fileRef = C94EC6A375E1057963F7E908 /* study-countries.json */; };
 		7EB7366B1B43CE792C680F3A /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC77892DE13ABBA6FF91B1B4 /* RootView.swift */; };
 		80569B51A7100E76B4507423 /* ApplicationIntakeDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E8A27182FF5420B32FD8F7 /* ApplicationIntakeDecodingTests.swift */; };
 		82D32B2049F05B3B96CF4C46 /* university-geo-library.json in Resources */ = {isa = PBXBuildFile; fileRef = 7389C2AA5DCC33C0C187B01A /* university-geo-library.json */; };
@@ -71,6 +72,7 @@
 		92ABBB46D6C78E6254FF0F02 /* PortalProfileModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1748B57341B5875DDEAC04BB /* PortalProfileModels.swift */; };
 		93B0DE25C385F583F6D44487 /* UniversityGeoLibraryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72846D94CB1FCC708DFB3A83 /* UniversityGeoLibraryTests.swift */; };
 		95CD815AE4E37B4ED161141E /* EVOAdmissionsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A06AEC430C456B54301DDB0 /* EVOAdmissionsApp.swift */; };
+		9671261FF17665F60EF84439 /* StudyCountries.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2564027902B500A2B2AA0B4 /* StudyCountries.swift */; };
 		99063D3940153E29B5AA8909 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B36978FE6CEE29DDAC580E /* SupabaseService.swift */; };
 		9F0D38C82C7EAE76504ADA83 /* LearningModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8F3E3772ADCC2E62305E0B8 /* LearningModels.swift */; };
 		A33A7B570BFD41CAF763E0D7 /* AssessmentRunnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F634042E3C8EAB9AB55726EE /* AssessmentRunnerView.swift */; };
@@ -79,6 +81,7 @@
 		A593AF5D28AB2D2D2F8D2116 /* ProgramPreparationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C554FA1882F2FBD5E29A7D20 /* ProgramPreparationModel.swift */; };
 		A7840D396EB2CE17905391EC /* ApplicationDocumentPending.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0BEEE8C3FE2791A3687A3E /* ApplicationDocumentPending.swift */; };
 		A7F13491B7A1141213120DE3 /* ProgramPackageSelectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4400466D04D8589C0991F66 /* ProgramPackageSelectionState.swift */; };
+		A8810B1C44AF2230B6254FB5 /* AccountDeletionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B3DD30AA0B9A1A8EC1C6A90 /* AccountDeletionView.swift */; };
 		AEA41C8F0F0212ABBA198F0F /* ProgramDocumentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66387B3540950F6BDA473E97 /* ProgramDocumentView.swift */; };
 		AF234FDE29868AEC7808392B /* ConsultationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A437F63DD1A066A64F901E16 /* ConsultationModels.swift */; };
 		B15EAF7230531E1A6751767C /* AdmissionNotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA3BFC92CF9E0C2AB6E27D16 /* AdmissionNotificationsView.swift */; };
@@ -109,10 +112,12 @@
 		E721A2A6AA1D9B2B0EB8A922 /* LearningRunnerPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A9A04DD0B9D506D1216F399 /* LearningRunnerPolicyTests.swift */; };
 		E7A76AA83BDDA764C68E476B /* PostgresTimestamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31E42E055A1861064FDAF390 /* PostgresTimestamp.swift */; };
 		E888B48F60C5AFA74A4C9A98 /* UniversitiesMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A18DBA9591D9DAF70F220CB5 /* UniversitiesMapView.swift */; };
+		E8DDBECF078133C9656AE634 /* StudyCountries.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2564027902B500A2B2AA0B4 /* StudyCountries.swift */; };
 		E9C433B465FA99D5CB67A532 /* ProgramPackageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD75A0DE8FB011E651745EF1 /* ProgramPackageView.swift */; };
 		EA2BF19FF9BF7933A0229650 /* UniversityMapPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6D0DCF549065FDBFC3000A7 /* UniversityMapPolicy.swift */; };
 		ECFDBBC3D9DBA8BAF0ADC22E /* university-geo-library.json in Resources */ = {isa = PBXBuildFile; fileRef = 7389C2AA5DCC33C0C187B01A /* university-geo-library.json */; };
 		EE87FB28050E6E996C751EB6 /* UniversityPhotoLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB720D91D659189A39BB2098 /* UniversityPhotoLibrary.swift */; };
+		EED8E5652E4E0E24D1019041 /* study-countries.json in Resources */ = {isa = PBXBuildFile; fileRef = C94EC6A375E1057963F7E908 /* study-countries.json */; };
 		F1D1000DA279B51D24153650 /* ProgramPreparationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB3A5750809DEE01BB7E7B1 /* ProgramPreparationView.swift */; };
 		F1E5BF3BB0BA09CE6CA32E93 /* InviteEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2D38B1BB66FCFD684D4F792 /* InviteEntryView.swift */; };
 		F1EC0EA7A2FCC1463B56B8AA /* ApplicationPackagePending.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA138DDCD355A72B28B3B83E /* ApplicationPackagePending.swift */; };
@@ -165,7 +170,6 @@
 		4D66D111BD4BE6F0AFF76ADC /* MyAdmissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyAdmissionView.swift; sourceTree = "<group>"; };
 		4FC2E212C9C2D1F53C6A3F68 /* NetworkErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkErrorView.swift; sourceTree = "<group>"; };
 		5036B63945D738592B84D329 /* AccessPendingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessPendingView.swift; sourceTree = "<group>"; };
-		7B3DD30AA0B9A1A8EC1C6A90 /* AccountDeletionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDeletionView.swift; sourceTree = "<group>"; };
 		52284855EA9141A0DE454113 /* ApplicationDocumentUpload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationDocumentUpload.swift; sourceTree = "<group>"; };
 		54AA13F5351C06938BB99E9E /* TestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestsView.swift; sourceTree = "<group>"; };
 		6054711F5C4F26BE7B0903F9 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
@@ -178,6 +182,7 @@
 		79B0F15B1070867453F272AE /* LearningDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningDecodingTests.swift; sourceTree = "<group>"; };
 		7A9A04DD0B9D506D1216F399 /* LearningRunnerPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningRunnerPolicyTests.swift; sourceTree = "<group>"; };
 		7AB25A7C26BF4F620662154D /* EVO admissions.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "EVO admissions.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		7B3DD30AA0B9A1A8EC1C6A90 /* AccountDeletionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountDeletionView.swift; sourceTree = "<group>"; };
 		7BB3A5750809DEE01BB7E7B1 /* ProgramPreparationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramPreparationView.swift; sourceTree = "<group>"; };
 		7C45BD325EAB111B163381DE /* SingleFlightReloadGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingleFlightReloadGateTests.swift; sourceTree = "<group>"; };
 		80F438CFFD677C2DE858F295 /* ApplicationStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationStatusView.swift; sourceTree = "<group>"; };
@@ -202,6 +207,7 @@
 		AD470A4B4BA2C62E1BB38F1B /* ConsultationDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsultationDecodingTests.swift; sourceTree = "<group>"; };
 		ADA7E12A092A4DCE19EA6C04 /* FavoritesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStore.swift; sourceTree = "<group>"; };
 		B0431409D15E803ECA5907E6 /* ApplicationPackageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationPackageService.swift; sourceTree = "<group>"; };
+		B2564027902B500A2B2AA0B4 /* StudyCountries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyCountries.swift; sourceTree = "<group>"; };
 		B32E74D315F6147AFDA53377 /* AdmissionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdmissionModels.swift; sourceTree = "<group>"; };
 		B45A9EBC17D0B3D7A1B639FB /* SingleFlightReloadGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingleFlightReloadGate.swift; sourceTree = "<group>"; };
 		B57DCF3E0DB377302EEF8CBD /* AssessmentDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentDecodingTests.swift; sourceTree = "<group>"; };
@@ -217,6 +223,7 @@
 		C17C205FA516F6645A1D5E92 /* LessonRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonRunnerView.swift; sourceTree = "<group>"; };
 		C1E8A27182FF5420B32FD8F7 /* ApplicationIntakeDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationIntakeDecodingTests.swift; sourceTree = "<group>"; };
 		C554FA1882F2FBD5E29A7D20 /* ProgramPreparationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramPreparationModel.swift; sourceTree = "<group>"; };
+		C94EC6A375E1057963F7E908 /* study-countries.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "study-countries.json"; sourceTree = "<group>"; };
 		CA3BFC92CF9E0C2AB6E27D16 /* AdmissionNotificationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdmissionNotificationsView.swift; sourceTree = "<group>"; };
 		CC77892DE13ABBA6FF91B1B4 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		CD75A0DE8FB011E651745EF1 /* ProgramPackageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramPackageView.swift; sourceTree = "<group>"; };
@@ -231,8 +238,9 @@
 		EC32638A6EB200A2EF0217B0 /* MessagesThreadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesThreadView.swift; sourceTree = "<group>"; };
 		F4B21D0A664C40CAA299E1E4 /* UniversityCatalogFilterPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityCatalogFilterPolicyTests.swift; sourceTree = "<group>"; };
 		F634042E3C8EAB9AB55726EE /* AssessmentRunnerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentRunnerView.swift; sourceTree = "<group>"; };
+		FCABE33F861DC9AED02969D2 /* StudyCountriesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyCountriesTests.swift; sourceTree = "<group>"; };
 		FD04FB295EC8AF191E69FE6A /* TabShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabShell.swift; sourceTree = "<group>"; };
-		"TEMP_F4FCD03D-43D7-4D25-83C6-ADC836293326" /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
+		"TEMP_7650A6ED-4FF8-44B4-BBAF-B27B1A6609BF" /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -362,6 +370,7 @@
 				C1649B16320704E7A7DCB7DC /* ProfessionDecodingTests.swift */,
 				1C223846B4B1CA8906A605E8 /* ProfileLanguagePolicyTests.swift */,
 				7C45BD325EAB111B163381DE /* SingleFlightReloadGateTests.swift */,
+				FCABE33F861DC9AED02969D2 /* StudyCountriesTests.swift */,
 				259534FBC548CC28EA94B382 /* UniversityCatalogDecodingTests.swift */,
 				F4B21D0A664C40CAA299E1E4 /* UniversityCatalogFilterPolicyTests.swift */,
 				72846D94CB1FCC708DFB3A83 /* UniversityGeoLibraryTests.swift */,
@@ -416,6 +425,7 @@
 				C554FA1882F2FBD5E29A7D20 /* ProgramPreparationModel.swift */,
 				BAE1702D238F863B18144F44 /* SessionRouter.swift */,
 				B45A9EBC17D0B3D7A1B639FB /* SingleFlightReloadGate.swift */,
+				B2564027902B500A2B2AA0B4 /* StudyCountries.swift */,
 				17B36978FE6CEE29DDAC580E /* SupabaseService.swift */,
 				10D552D1FAB72B356FDF47B8 /* UniversityCatalogFilterPolicy.swift */,
 				99BAE80FF87DB4110F926ADA /* UniversityGeoLibrary.swift */,
@@ -428,16 +438,17 @@
 		DD5CFBBD968C4AB989F2B981 /* lib */ = {
 			isa = PBXGroup;
 			children = (
+				C94EC6A375E1057963F7E908 /* study-countries.json */,
 				7389C2AA5DCC33C0C187B01A /* university-geo-library.json */,
 				B89DB64C9B44A32D426FC429 /* university-photo-library.json */,
 			);
 			path = lib;
 			sourceTree = "<group>";
 		};
-		"TEMP_D40D192D-A9F3-4B74-A256-F341F55E05C6" /* ios */ = {
+		"TEMP_1BCEEC68-6B01-4EF9-9E0C-2BB6A6245EA3" /* ios */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_F4FCD03D-43D7-4D25-83C6-ADC836293326" /* Local.xcconfig */,
+				"TEMP_7650A6ED-4FF8-44B4-BBAF-B27B1A6609BF" /* Local.xcconfig */,
 			);
 			path = ios;
 			sourceTree = "<group>";
@@ -528,6 +539,7 @@
 			files = (
 				4B719C2CF1A19ED986419366 /* Assets.xcassets in Resources */,
 				10E26CC17AB500306B18ED61 /* Localizable.xcstrings in Resources */,
+				EED8E5652E4E0E24D1019041 /* study-countries.json in Resources */,
 				ECFDBBC3D9DBA8BAF0ADC22E /* university-geo-library.json in Resources */,
 				105EDC814240B4F44A1ACD99 /* university-photo-library.json in Resources */,
 			);
@@ -537,6 +549,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				77D5E462F65559A1E26B4F59 /* study-countries.json in Resources */,
 				82D32B2049F05B3B96CF4C46 /* university-geo-library.json in Resources */,
 				56D78C7176FA6A8D274965AF /* university-photo-library.json in Resources */,
 			);
@@ -583,6 +596,8 @@
 				CCF485A32444DB98E3E685E9 /* ProfileLanguagePolicyTests.swift in Sources */,
 				D341E2B8E30CF10EFC9FB52C /* SingleFlightReloadGate.swift in Sources */,
 				B63BE4229E1A2AEB727C94F3 /* SingleFlightReloadGateTests.swift in Sources */,
+				E8DDBECF078133C9656AE634 /* StudyCountries.swift in Sources */,
+				14995B46C92E5E98B92F3A4C /* StudyCountriesTests.swift in Sources */,
 				01FB4E094D31EAEAD30B2FE9 /* UniversityCatalogDecodingTests.swift in Sources */,
 				6173408AFBCABC55C1099B19 /* UniversityCatalogFilterPolicy.swift in Sources */,
 				597500B4D15B7351BC429F3B /* UniversityCatalogFilterPolicyTests.swift in Sources */,
@@ -661,6 +676,7 @@
 				F808E95418CFD0F82AACCDD2 /* SessionRouter.swift in Sources */,
 				B69DD3CC2FECC06D17808BAB /* SignInView.swift in Sources */,
 				B687504536672E433587D296 /* SingleFlightReloadGate.swift in Sources */,
+				9671261FF17665F60EF84439 /* StudyCountries.swift in Sources */,
 				99063D3940153E29B5AA8909 /* SupabaseService.swift in Sources */,
 				FD07B3A17A0CA2DC11FA85C1 /* TabShell.swift in Sources */,
 				3E03D82AE38652963B61B3CA /* TestsView.swift in Sources */,
@@ -701,7 +717,7 @@
 		};
 		B6C84763ED668FD71B0D8C20 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_F4FCD03D-43D7-4D25-83C6-ADC836293326" /* Local.xcconfig */;
+			baseConfigurationReference = "TEMP_7650A6ED-4FF8-44B4-BBAF-B27B1A6609BF" /* Local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -819,7 +835,7 @@
 		};
 		F095E5C184A5CF5D3A673C4C /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_F4FCD03D-43D7-4D25-83C6-ADC836293326" /* Local.xcconfig */;
+			baseConfigurationReference = "TEMP_7650A6ED-4FF8-44B4-BBAF-B27B1A6609BF" /* Local.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;

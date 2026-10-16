@@ -1,3 +1,5 @@
+import { STUDY_COUNTRY_CODES } from "./study-countries.ts";
+
 export const PLATFORM_APPLICATION_STATUSES = [
   "preparation",
   "ready",
@@ -30,21 +32,16 @@ export const PLATFORM_APPLICATION_FORWARD_STATUSES =
   );
 
 /**
- * The exact six destination countries the business works with, represented as
- * ISO-3166-1 alpha-2 codes. This allowlist is shared by response validation and
- * every staff form; no other two-letter code is a valid application country.
+ * The exact destination countries the business works with, represented as
+ * ISO-3166-1 alpha-2 codes, in product order. This allowlist is shared by
+ * response validation and every staff form; no other two-letter code is a
+ * valid application country. It is the one product list
+ * (`study-countries.json`, owner decision 16.10.2026); the database CHECK and
+ * functions of 118/190/214 hold the same six codes and the 282 suite pins them.
  */
-export const PLATFORM_APPLICATION_COUNTRIES = [
-  "CN",
-  "MY",
-  "AE",
-  "TR",
-  "IT",
-  "CZ",
-] as const;
+export const PLATFORM_APPLICATION_COUNTRIES: readonly string[] = STUDY_COUNTRY_CODES;
 
-export type PlatformApplicationCountry =
-  (typeof PLATFORM_APPLICATION_COUNTRIES)[number];
+export type PlatformApplicationCountry = string;
 
 /**
  * Canonical machine degree keys of a university application. The schema

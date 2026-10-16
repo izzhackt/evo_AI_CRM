@@ -30,6 +30,10 @@ final class FavoritesViewModel: ObservableObject {
     @Published var items: [UniversityCatalogItem] = []
     @Published var isLoading = false
     @Published var loadFailed = false
+    /// Избранные вузы стран вне списка продукта (282): их нет в списке,
+    /// раздел говорит «Больше нет в каталоге: N». Сбой чтения даёт 0 и не
+    /// прячет список.
+    @Published var hiddenCount = 0
 
     private let service: SupabaseService
 
@@ -42,7 +46,10 @@ final class FavoritesViewModel: ObservableObject {
         if isLoading { return }
         isLoading = true
         loadFailed = false
+        // Read alongside the list, not after it (one more round trip).
+        async let hidden = service.studentHiddenUniversityFavorites()
         await store.refresh()
+        hiddenCount = (try? await hidden)?.hiddenCount ?? 0
         guard store.loadState == .loaded else {
             loadFailed = true
             isLoading = false
@@ -108,6 +115,9 @@ struct FavoritesView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
+                    if model.hiddenCount > 0 {
+                        hiddenCountLine
+                    }
                 }
                 .padding(32)
             } else {
@@ -175,9 +185,14 @@ struct FavoritesView: View {
                     visibleItems.count
                 ))
             } footer: {
-                if model.loadFailed {
-                    // Часть карточек могла не догрузиться — честно говорим.
-                    Text("favorites_unavailable")
+                VStack(alignment: .leading, spacing: 4) {
+                    if model.loadFailed {
+                        // Часть карточек могла не догрузиться — честно говорим.
+                        Text("favorites_unavailable")
+                    }
+                    if model.hiddenCount > 0 {
+                        hiddenCountLine
+                    }
                 }
             }
 
@@ -204,6 +219,14 @@ struct FavoritesView: View {
                 initialItem: model.items.first(where: { $0.id == institutionId })
             )
         }
+    }
+
+    /// «Больше нет в каталоге: N» (282, план §6.3).
+    private var hiddenCountLine: some View {
+        Text(String(format: String(localized: "favorites_hidden_count"), model.hiddenCount))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
     }
 
     private func toggleCompare(_ id: UUID) {

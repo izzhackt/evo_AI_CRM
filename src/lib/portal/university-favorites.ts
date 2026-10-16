@@ -61,6 +61,18 @@ export function chunkInstitutionIds(
   return chunks;
 }
 
+/**
+ * Разбор ответа student_hidden_university_favorites_v1 (282): число своих
+ * избранных вузов, страны которых больше нет в списке продукта. Любое
+ * отклонение формы даёт null.
+ */
+export function parseHiddenUniversityFavorites(value: unknown): number | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (Object.keys(row).length !== 1 || !Number.isSafeInteger(row.hiddenCount) || (row.hiddenCount as number) < 0) return null;
+  return row.hiddenCount as number;
+}
+
 /** Разбор ответа set_university_favorite_v1 в результат действия. */
 export function parseFavoriteReceipt(value: unknown): FavoriteActionResult {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {

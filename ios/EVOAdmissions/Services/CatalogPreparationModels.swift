@@ -242,7 +242,8 @@ enum CatalogPreparationFailure: String, Error {
 }
 
 private enum CatalogPreparationContract {
-    static let countries: Set<String> = ["CN", "MY", "AE", "TR", "IT", "CZ"]
+    /// Страны подготовки: единый список продукта (`study-countries.json`, 282).
+    static var countries: Set<String> { Set(StudyCountries.codes) }
 
     static func validUUID(_ value: UUID) -> Bool {
         validIntakeID(value.uuidString.lowercased())

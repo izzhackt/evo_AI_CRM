@@ -22,11 +22,10 @@ enum UniversityCatalogFilterPolicy {
     /// (src/lib/platform-university-catalog.ts:3), порядок сохранён.
     static let levels = ["language", "foundation", "diploma", "bachelor", "master", "doctorate"]
 
-    /// Полный ISO-список веб-фильтра стран — `UNIVERSITY_COUNTRIES`
-    /// (src/lib/platform-university-catalog.ts:7), 249 кодов, той же строкой.
-    static let countries: [String] = "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW"
-        .split(separator: " ")
-        .map(String.init)
+    /// Страны фильтра: единый список продукта (`study-countries.json`,
+    /// тот же файл, что у веба; каталог студента и сервер отдают только их,
+    /// миграция 282). Порядок продукта, не алфавит.
+    static var countries: [String] { StudyCountries.codes }
 
     /// Веб ограничивает запрос 100 символами (`maxLength={100}`,
     /// Catalog.tsx:98; сервер отвергает более длинный —
@@ -41,10 +40,9 @@ enum UniversityCatalogFilterPolicy {
         return query.isEmpty ? nil : query
     }
 
-    /// `p_country`: только код из доменного списка — недоменное значение
-    /// веб-страница отвергает целиком (`/^[A-Z]{2}$/` + список,
-    /// platform-university-catalog.ts:95); iOS-пикер его не порождает,
-    /// проверка защищает от рассинхронизации формы и домена.
+    /// `p_country`: только код единого списка; другую страну веб-страница
+    /// отвергает целиком (404), сервер студенту её не отдаёт (282); iOS-пикер
+    /// её не порождает, проверка защищает от рассинхронизации формы и домена.
     static func countryParameter(_ filters: UniversityCatalogFilters) -> String? {
         countries.contains(filters.country) ? filters.country : nil
     }

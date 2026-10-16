@@ -7,6 +7,7 @@ import {
 import { createSupabaseServerClient } from "../supabase/server";
 import {
   chunkInstitutionIds,
+  parseHiddenUniversityFavorites,
   parseUniversityFavorites,
   type UniversityFavorite,
 } from "./university-favorites";
@@ -25,6 +26,20 @@ export async function readStudentUniversityFavorites(): Promise<readonly Univers
   const favorites = !error && parseUniversityFavorites(data);
   if (!favorites) throw new Error("Favourites unavailable");
   return favorites;
+}
+
+/**
+ * Число избранных вузов, которых больше нет в каталоге студента (страна вне
+ * списка продукта, 282). Только свои записи актора; сами вузы не называются.
+ */
+export async function readStudentHiddenUniversityFavorites(): Promise<number> {
+  const client = await createSupabaseServerClient();
+  const { data, error } = await client
+    .schema("platform")
+    .rpc("student_hidden_university_favorites_v1");
+  const count = error ? null : parseHiddenUniversityFavorites(data);
+  if (count === null) throw new Error("Favourites unavailable");
+  return count;
 }
 
 /**

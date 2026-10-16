@@ -7,12 +7,13 @@ import { btnCls, btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
 import { UNIVERSITY_LEVEL_LABELS, universityIntakeLabel, type PublishedUniversity, type UniversityIntake, type UniversityPage, type UniversityProgram } from "@/lib/platform-university-catalog";
 import type { CatalogPreparation, CatalogPreparationIntent } from "@/lib/portal/catalog-preparations";
 import { readStaffPreparationsAction, searchStaffPreparationCatalogAction, selectStaffPreparationAction, type StaffPreparationRead } from "@/lib/v3/staff-catalog-preparation-actions";
+import { STUDY_COUNTRY_CODES } from "@/lib/study-countries";
 import { country } from "@/lib/v3/wording";
 import { QUEUE_SECONDARY } from "../queue/queue-buttons";
 import styles from "./ApplicationCreateDialog.module.css";
 import { clearStaffPending, continueStaffRequirements, preparationError, useStaffPending, saveStaffPending, type StaffPreparationScope } from "./staff-preparation-client";
 
-const countries = new Set(["CN", "MY", "AE", "TR", "IT", "CZ"]);
+const countries: ReadonlySet<string> = new Set(STUDY_COUNTRY_CODES);
 /** Страны каталога словами: «Китай, Малайзия, …» — чтобы было видно, когда нужен ручной ввод. */
 const COUNTRY_WORDS = [...countries].map((code) => country(code)).filter((word): word is string => word !== null).join(", ");
 

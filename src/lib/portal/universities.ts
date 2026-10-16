@@ -14,6 +14,7 @@ import {
   type UniversityIntake,
   type UniversityLevel,
 } from "../platform-university-catalog.ts";
+import { STUDY_COUNTRY_CODES, studyCountryName } from "../study-countries.ts";
 
 /**
  * Точка на карте: сериализуемый DTO от серверной страницы к клиентской карте.
@@ -49,10 +50,14 @@ function localeTag(locale: Locale): "ky" | "ru" {
 }
 
 /**
- * Название страны по ISO-коду. KY берётся из Intl (CLDR содержит ky);
- * если среда не даёт локализованное имя — честный фолбэк на RU, затем код.
+ * Название страны по ISO-коду. Страны единого списка продукта называются по
+ * `study-countries.json` (RU/KY), одинаково с iPhone. Для прочих кодов
+ * (избранное и история прежних стран) KY берётся из Intl (CLDR содержит ky);
+ * если среда не даёт локализованное имя, честный фолбэк на RU, затем код.
  */
 export function universityCountryLabel(code: string, locale: Locale): string {
+  const known = studyCountryName(code, locale);
+  if (known) return known;
   const tags: readonly string[] = locale === "ky" ? ["ky", "ru"] : ["ru"];
   for (const tag of tags) {
     try {
@@ -63,6 +68,19 @@ export function universityCountryLabel(code: string, locale: Locale): string {
     }
   }
   return code;
+}
+
+/**
+ * Фильтр «Страна» каталога студента: только страны единого списка, в порядке
+ * продукта (не по алфавиту), как и выдача каталога (282).
+ */
+export function universityCountryFilterOptions(locale: Locale): readonly Readonly<{ code: string; label: string }>[] {
+  return STUDY_COUNTRY_CODES.map((code) => ({ code, label: universityCountryLabel(code, locale) }));
+}
+
+/** Пустой фильтр или страна единого списка; прочие коды студенту не отдаются. */
+export function isStudentUniversityCountryFilter(country: string): boolean {
+  return country === "" || STUDY_COUNTRY_CODES.includes(country);
 }
 
 export function universityDateLabel(value: string, locale: Locale): string {

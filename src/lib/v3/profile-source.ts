@@ -768,6 +768,11 @@ async function readLeadProfile(
   // «Передача» (Э2): its own read, in parallel; it never throws — a failed
   // read is `unavailable`, shown as such, never a guessed stage or tick.
   const stripRead = readLeadHandoffStrip(actor, leadId);
+  // «Условия продажи» зависят только от лида — чтение (STABLE, 184) идёт
+  // вместе с остальными, а ждём его там же, где раньше (план A, 16.10.2026).
+  // Сбой виден в той же точке; ранний выход просто отбрасывает ответ.
+  const saleConditionsRead = readLeadSaleConditions(actor, leadId);
+  saleConditionsRead.catch(() => {});
   // Чаты лида называются как в списке WhatsApp (278): имя и номер; never throws.
   const linkedConversationsRead = withWhatsAppTitles(actor, lead.linkedConversations);
 
@@ -851,7 +856,7 @@ async function readLeadProfile(
   // «Условия продажи» (unified workflow S2): the same card block the report
   // later reads back through platform.create_sales_report_handoff. Keep this
   // same revisioned row available after handoff for linked full-case cards.
-  const saleConditions = await readLeadSaleConditions(actor, leadId);
+  const saleConditions = await saleConditionsRead;
   // «Подготовить кабинет» (unified workflow S7): whether this lead already
   // has a linked case — regardless of anketa (site/WhatsApp leads never have
   // one) and regardless of admissions.read (a handed-off case the actor can't
@@ -1131,6 +1136,11 @@ export async function readProfileTarget(
     throw new Error("V3 profile route target is invalid.");
   }
 
+  // Заметки зависят только от адреса (лид или дело) — читаются (STABLE, 117)
+  // одновременно с карточкой, а не после неё (план A, 16.10.2026). Нет
+  // доступа к карточке — ответ отбрасывается, сбой виден в прежней точке.
+  const notesRead = readCaseNotes(actor, subject, { limit: 50, cursor: noteCursor });
+  notesRead.catch(() => {});
   const core = target.leadId !== null
     ? await readLeadProfile(actor, target.leadId, target)
     : await readCaseProfile(actor, target.studentCaseId);
@@ -1141,7 +1151,7 @@ export async function readProfileTarget(
   // (`staff_student_case_activity`) ему не отвечает, «История» говорит «нет доступа».
   const assignOnly = core.details.assignOnly === true;
   const [page, history] = await Promise.all([
-    readCaseNotes(actor, subject, { limit: 50, cursor: noteCursor }),
+    notesRead,
     activity && caseId && !assignOnly && staffPresentationCan(actor, "admissions.read")
       ? readProfileActivity(actor, caseId, activity.cursor) : null,
   ]);

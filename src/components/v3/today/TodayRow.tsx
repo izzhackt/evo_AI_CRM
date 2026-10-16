@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
 import { Icon, type IconName } from "@/components/icons";
 import { todayWhen, type TodayItem, type TodaySource } from "@/lib/v3/today-queue";
@@ -81,10 +81,10 @@ export function TodayRow({ item, nowIso }: Readonly<{ item: TodayItem; nowIso: s
             {item.who ? (
               <span className={`${PIECE} order-2 min-w-[5.5rem] flex-1 basis-0 @min-[32rem]:order-1 @min-[32rem]:min-w-0 @min-[32rem]:max-w-full @min-[32rem]:flex-initial @min-[32rem]:basis-auto`}>
                 {/* Рамка фокуса внутрь: у края обрезанной строки внешняя срезалась бы. */}
-                <Link href={item.who.href} title={item.who.name}
+                <IntentPrefetchLink href={item.who.href} title={item.who.name}
                   className="relative z-10 hidden h-6 min-w-0 items-center rounded-nav underline-offset-2 hover:text-fg hover:underline focus-visible:outline-offset-[-2px] md:pointer-fine:flex">
                   <span className="truncate">{item.who.name}</span>
-                </Link>
+                </IntentPrefetchLink>
                 <span className="min-w-0 truncate md:pointer-fine:hidden">{item.who.name}</span>
               </span>
             ) : null}
@@ -93,7 +93,7 @@ export function TodayRow({ item, nowIso }: Readonly<{ item: TodayItem; nowIso: s
       </div>
 
       <div className="flex justify-end">
-        <Link
+        <IntentPrefetchLink
           href={item.openHref}
           data-queue-open=""
           aria-label={`Открыть: ${item.title}${item.who ? ` — ${item.who.name}` : ""}`}
@@ -101,7 +101,7 @@ export function TodayRow({ item, nowIso }: Readonly<{ item: TodayItem; nowIso: s
         >
           <span aria-hidden="true" className="hidden @min-[32rem]:inline">Открыть</span>
           <Icon name="chevron-right" size={20} className="@min-[32rem]:hidden" />
-        </Link>
+        </IntentPrefetchLink>
       </div>
     </li>
   );

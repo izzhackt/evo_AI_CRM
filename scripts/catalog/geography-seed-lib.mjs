@@ -18,17 +18,20 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  CATALOG_PHOTO_SOURCE_HOSTS,
+  catalogText,
+  catalogUrl,
+  catalogUrlHost,
+} from "../../src/lib/catalog-text.ts";
+
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 export const MIGRATION_FILE = resolve(REPO_ROOT, "supabase/migrations/283_platform_catalog_geography_costs.sql");
 export const SEED_BEGIN = "-- >>> BEGIN GENERATED GEOGRAPHY SEED (scripts/catalog/generate-geography-seed.mjs)";
 export const SEED_END = "-- <<< END GENERATED GEOGRAPHY SEED";
 export const PHOTO_BUCKET = "portal-university-photos";
 export const STUDY_COUNTRY_CODES = Object.freeze(["CN", "MY", "AE", "TR", "IT", "CZ"]);
-const PHOTO_SOURCE_HOSTS = Object.freeze(new Map([
-  ["Unsplash", ["unsplash.com", "www.unsplash.com"]],
-  ["Pexels", ["pexels.com", "www.pexels.com"]],
-  ["Wikimedia Commons", ["commons.wikimedia.org", "upload.wikimedia.org"]],
-]));
+const PHOTO_SOURCE_HOSTS = Object.freeze(new Map(Object.entries(CATALOG_PHOTO_SOURCE_HOSTS)));
 const BLOCKED_HOST_PATTERN = /eduprchina/i;
 const KEY_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -43,22 +46,13 @@ export class SeedError extends Error {
 
 export const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
-/** Текст для студента: непустой, без управляющих символов и краевых пробелов (как catalog_text_ok в 283). */
-function textOk(value, max) {
-  return typeof value === "string" && value.trim() !== "" && value === value.trim()
-    && [...value].length <= max && !/[\u0000-\u001f\u007f]/u.test(value);
-}
+/** Текст для студента: catalog_text_ok в 283, правило src/lib/catalog-text.ts. */
+const textOk = catalogText;
 
-/** Как platform_private.university_public_url в 148: https, публичный хост, без секретов в запросе. */
-export function publicUrlOk(value) {
-  if (typeof value !== "string" || value.length > 1000 || /[\u0000-\u001f\u007f\s]/u.test(value)) return false;
-  if (!/^https:\/\/([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}([/?][^\s#\\]*)?$/u.test(value)) return false;
-  if (/\.(localhost|local|internal|test|invalid|example)([/?]|$)/iu.test(value)) return false;
-  if (/[?&][^=&]*%[^=&]*(=|&|$)/u.test(value)) return false;
-  return !/[?&][^=&]*(token|secret|password|auth|api.?key)[^=&]*(=|&|$)/iu.test(value);
-}
+/** Ссылка каталога: catalog_url_ok в 283 (правило 148 и явные классы знаков). */
+export const publicUrlOk = catalogUrl;
 
-const hostOf = (url) => { try { return new URL(url).hostname.toLowerCase(); } catch { return ""; } };
+const hostOf = (url) => catalogUrlHost(url) ?? "";
 
 function dateOk(value, today) {
   if (typeof value !== "string" || !DATE_PATTERN.test(value)) return false;

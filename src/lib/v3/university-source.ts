@@ -138,6 +138,25 @@ export function reviewedUniversityTemplates() {
   });
 }
 
+/**
+ * Имя проверенного шаблона по ключу фото (key = photoKey у всех 143 шаблонов)
+ * — только подсказка для точечного поиска `student_university_catalog` по
+ * имени. Совпадение решает строгое сравнение photoKey в ответе базы, а не
+ * этот словарь.
+ */
+let reviewedNamesByPhotoKey: ReadonlyMap<string, string> | null = null;
+export function reviewedUniversityNameForPhotoKey(photoKey: string): string | null {
+  if (!reviewedNamesByPhotoKey) {
+    const names = new Map<string, string>();
+    for (const entry of [...chinaContent, ...malaysiaContent, ...europeContent, ...turkeyContent, ...internationalContent, ...otherContent]) {
+      const name = (entry.content as { name?: unknown }).name;
+      if (typeof name === "string" && name.trim() && !names.has(entry.key)) names.set(entry.key, name);
+    }
+    reviewedNamesByPhotoKey = names;
+  }
+  return reviewedNamesByPhotoKey.get(photoKey) ?? null;
+}
+
 /** Complete filtered pending queue via additive238; never fall back to the first50 reader. */
 export async function readUniversityManageDraftPage(actor: ActivePlatformActor, index: ManageIndex) {
   if (isStaffPreview(actor) || !staffHasPermission(actor, "catalog.import.manage") || !parseManageIndex(index.q, index.cursor)) throw new Error("Drafts unavailable");

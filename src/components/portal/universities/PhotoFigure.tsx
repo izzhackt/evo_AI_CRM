@@ -1,64 +1,51 @@
 import { UniversityPhotoFrame } from "@/components/platform/universities/UniversityPhotoFrame";
 import { UNIVERSITY_PHOTOS, type UniversityContent } from "@/lib/platform-university-catalog";
-import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
-import { universityPhotoUrl } from "@/lib/university-photo-url";
+import type { PortalStrings } from "@/lib/portal/i18n";
+import { universityPhotoCredit } from "@/lib/portal/university-tiles";
+import { managedUniversityPhotoUrl, universityPhotoSrcSet } from "@/lib/university-photo-url";
 
-export type PhotoFigureStrings = Pick<
-  PortalStrings<"universities">,
-  "photoMissing" | "photoFailed" | "photoBy" | "photoCrop" | "newTab"
->;
+import { PhotoRights, type PhotoRightsStrings } from "./PhotoRights";
+
+/** Ширины уменьшенных копий фото-героя вуза: до ширины колонки. */
+const HERO_WIDTHS = [800, 1200, 1600] as const;
+const HERO_SIZES = "(min-width: 1100px) 1000px, 100vw";
+
+export type PhotoFigureStrings = Pick<PortalStrings<"universities">, "photoFailed"> & PhotoRightsStrings;
 
 /**
- * Фото кампуса с сохранённой атрибуцией CC (PORT-3a): подпись, автор со
- * ссылкой на источник, лицензия со ссылкой и пометка о кадрировании — тот же
- * атрибуционный UX, что в staff-каталоге, но на портальных токенах и
- * словаре RU/KY.
+ * Фото-герой страницы вуза. Только managed-копия из нашего бакета, не
+ * hotlink с сайта вуза (план 4.4, приёмка 7.6.5). Без копии героя нет
+ * вовсе (review S3 веба, N6: пустой блок первым экраном ничего не говорил),
+ * как и блока «Стоимость» без строк; заглушка «фото не добавлено» остаётся
+ * на карточках вузов в сетке. Строки лицензии под фото нет; автор и
+ * лицензия, у официальных медиа вуза «Фото: <вуз>, официальный сайт»,
+ * открываются тихой кнопкой «©».
  */
 export function PhotoFigure({
   content,
-  large = false,
   strings,
 }: {
-  content: Pick<UniversityContent, "photoKey">;
-  large?: boolean;
+  content: Pick<UniversityContent, "photoKey" | "name">;
   strings: PhotoFigureStrings;
 }) {
   const photo = content.photoKey ? UNIVERSITY_PHOTOS[content.photoKey] : null;
-  // PORT-9d: managed-URL после migrated=true в манифесте, иначе прежний hotlink.
-  const src = universityPhotoUrl(content.photoKey) ?? photo?.path ?? null;
-  const emptyClassName = `pt-photo-empty${large ? " pt-photo-empty-large" : ""}`;
-  if (!photo || src === null) {
-    return (
-      <div className={emptyClassName}>
-        {strings.photoMissing}
-      </div>
-    );
-  }
+  const src = managedUniversityPhotoUrl(content.photoKey);
+  const credit = universityPhotoCredit(content.photoKey);
+  const emptyClassName = "pt-photo-empty pt-photo-empty-large";
+  if (!photo || src === null || credit === null) return null;
   return (
     <UniversityPhotoFrame
       src={src}
+      srcSet={universityPhotoSrcSet(content.photoKey, HERO_WIDTHS)}
+      sizes={HERO_SIZES}
+      priority
       alt={photo.caption}
-      className="pt-photo"
-      imageClassName={`pt-photo-img${large ? " pt-photo-img-large" : ""}`}
+      className="pt-photo pt-photo-hero"
+      imageClassName="pt-photo-img pt-photo-img-large"
       emptyClassName={emptyClassName}
       failedText={strings.photoFailed}
     >
-      <figcaption className="pt-photo-caption">
-        <span className="pt-photo-caption-title">{photo.caption}</span>
-        <span>
-          <a href={photo.sourceUrl} target="_blank" rel="noopener noreferrer">
-            {formatPortalString(strings.photoBy, { author: photo.author })}
-            <span className="pt-sr-only"> {strings.newTab}</span>
-          </a>
-          {" · "}
-          <a href={photo.licenseUrl} target="_blank" rel="noopener noreferrer">
-            {photo.license}
-            <span className="pt-sr-only"> {strings.newTab}</span>
-          </a>
-          {". "}
-          {strings.photoCrop}
-        </span>
-      </figcaption>
+      <PhotoRights credit={credit} universityName={content.name} strings={strings} placement="bottom" />
     </UniversityPhotoFrame>
   );
 }

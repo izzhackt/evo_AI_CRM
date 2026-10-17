@@ -38,9 +38,11 @@ source of truth for structural changes.
 
 ## Выпуск в App Store (07.10.2026)
 
-Версия `1.0.0`, сборка `1`: `MARKETING_VERSION` и `CURRENT_PROJECT_VERSION` в
-`project.yml`, `Info.plist` берёт их оттуда. Каждая новая загрузка той же версии
-получает новый `CURRENT_PROJECT_VERSION`. Тексты и ответы для App Store Connect и
+Версия `1.1.0`, сборка `1`: `MARKETING_VERSION` и `CURRENT_PROJECT_VERSION` в
+`project.yml`, `Info.plist` берёт их оттуда. Первая отправка в App Store идёт как
+версия 1.1 (решение владельца 17.10.2026), отдельной отправки 1.0.0 не будет.
+Каждая новая загрузка той же версии получает
+новый `CURRENT_PROJECT_VERSION`. Тексты и ответы для App Store Connect и
 чеклист владельца лежат в `docs/app-store/`.
 
 Конфигурации:
@@ -107,7 +109,7 @@ source of truth for structural changes.
    ```
    xcodebuild -project ios/EVOAdmissions.xcodeproj -scheme "EVO admissions" \
      -configuration Release -destination "generic/platform=iOS" \
-     -archivePath <папка вне репозитория>/EVOAdmissions-1.0.0-1.xcarchive \
+     -archivePath <папка вне репозитория>/EVOAdmissions-1.1.0-1.xcarchive \
      -allowProvisioningUpdates archive
    ```
 6. Отчёт о приватности: «Window» → «Organizer» → правый клик по архиву →
@@ -115,7 +117,7 @@ source of truth for structural changes.
 7. Загрузка в App Store Connect:
    ```
    xcodebuild -exportArchive \
-     -archivePath <папка вне репозитория>/EVOAdmissions-1.0.0-1.xcarchive \
+     -archivePath <папка вне репозитория>/EVOAdmissions-1.1.0-1.xcarchive \
      -exportOptionsPlist ios/ExportOptions-AppStore.plist \
      -exportPath <папка вне репозитория>/export -allowProvisioningUpdates
    ```
@@ -123,7 +125,7 @@ source of truth for structural changes.
    `upload`, номер сборки Xcode не меняет. То же можно сделать в «Organizer» →
    «Distribute App» → «App Store Connect».
 8. Дальше по `docs/app-store/owner-checklist.md`: TestFlight, страница версии
-   `1.0.0`, отправка на проверку. Отправляет и выпускает владелец. Публичная
+   `1.1.0`, отправка на проверку. Отправляет и выпускает владелец. Публичная
    отправка идёт только после перевода членства Individual в Organization
    (шаг 2.1 чеклиста, решение владельца 07.10.2026); TestFlight на Individual
    этого не ждёт.
@@ -138,6 +140,13 @@ source of truth for structural changes.
 JWT `service_role`, пропускают `sb_publishable_` и JWT `anon`.
 Не проверено: подпись, архив под устройство и загрузка, потому что Team ID
 ещё нет.
+
+Проверено 17.10.2026 на Xcode 26.5 после перехода на версию 1.1: `xcodegen
+generate`, Release под симулятор с `Release.xcconfig` из скрипта с заглушкой
+ключа; в собранном `Info.plist` `CFBundleShortVersionString` `1.1.0`,
+`CFBundleVersion` `1`, нет `NSAppTransportSecurity`, в `.app` есть
+`PrivacyInfo.xcprivacy`. Тестов, которые читают версию или `Info.plist`, в
+проекте нет, unit-тесты не запускались. Подпись, архив и загрузка не проверялись.
 
 ## Architecture (PORT-2 foundation)
 
@@ -226,7 +235,7 @@ code of ours involved.
   MotionPolicy.staggerIndex(of: item, in: items), key: "…")`; не придумывайте
   собственные длительности — берите `Motion.*`.
 
-## Подготовка к CSCA (сборка 1.1, 16.10.2026)
+## Подготовка к CSCA (версия 1.1, 16.10.2026)
 
 Те же RPC и тот же JSON, что у веба: `docs/portal/csca-contract.md`
 (миграции 285, 286). Вход первой строкой вкладки «Английский».

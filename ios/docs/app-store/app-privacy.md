@@ -46,7 +46,7 @@
 | Physical Address, Other User Contact Info | Не собирается | В анкете нет адреса и других контактов (`StudentApplicationDraft` в `Services/ApplicationIntakeModels.swift`) |
 | Payment Info, Credit Info | Не собирается | Оплаты в приложении нет. Экран «Оплата» только читает начисления, которые сотрудники ведут в CRM (`SupabaseService.studentPortalFinance`, RPC `student_portal_finance_v2`) |
 | Purchases (Purchase History) | Не собирается | Покупок в приложении нет; начисления создаёт не приложение, а сотрудники |
-| Precise Location, Coarse Location | Не собирается | Карта страны на MapKit (сегмент «Карта», `Views/CountryAtlasMap.swift`; прежняя `UniversitiesMapView.swift` сборки 1.0 больше не вызывается) показывает только точки кампусов из библиотеки `src/lib/university-geo-library.json`; `CLLocationManager` и разрешения на геолокацию нет, координаты точек только из библиотеки (в `Info.plist` нет ключей `NSLocation*`) |
+| Precise Location, Coarse Location | Не собирается | Карта страны на MapKit (сегмент «Карта», `Views/CountryAtlasMap.swift`; прежняя `UniversitiesMapView.swift` из #1172 больше не вызывается) показывает только точки кампусов из библиотеки `src/lib/university-geo-library.json`; `CLLocationManager` и разрешения на геолокацию нет, координаты точек только из библиотеки (в `Info.plist` нет ключей `NSLocation*`) |
 | Sensitive Info | Не собирается | Приложение не спрашивает этническую принадлежность, религию, взгляды, биометрию. Гражданство это не этническая принадлежность в смысле Apple |
 | Contacts | Не собирается | Доступа к контактам нет |
 | Audio Data, Gameplay Content | Не собирается | Нет записи звука и игр |
@@ -119,9 +119,9 @@ Apple требует указать причину для каждой груп�
 3. **Аналитика.** Если команда разбирает ответы анкеты в сводных отчётах для планирования (страны, бюджеты, аудитория), Apple считает это целью **Analytics**. Тогда её нужно добавить к Other Data Types и Other Financial Info (в файле приватности `NSPrivacyCollectedDataTypePurposeAnalytics`).
 4. **IP-адреса и заголовки в серверных журналах.** Apple не требует указывать IP-адрес и технические заголовки, если они не хранятся и не используются. Если журналы Supabase или веб-сервера хранят IP и `X-Client-Info` дольше, чем нужно для ответа, это покрывается уже отмеченным Other Data Types с целью App Functionality (безопасность). Настройки хранения журналов в рабочей системе не проверялись.
 
-## 8. Сборка 1.1: университеты v2, путь поступления, CSCA (проверено 17.10.2026)
+## 8. Версия 1.1: университеты v2, путь поступления, CSCA (проверено 17.10.2026)
 
-Основание: сводная ветка `izzhackt/ios-1-1-integration` (#1172 вместе с #1206, #1208, #1210 на `main`). Новых типов данных нет, `PrivacyInfo.xcprivacy` не меняется: всё новое ложится в уже отмеченные типы с теми же ответами (linked, без tracking, только App Functionality).
+Основание: версия 1.1, первая отправка в App Store (решение владельца 17.10.2026); код слит PR #1215 из сводной ветки `izzhackt/ios-1-1-integration` (#1172 вместе с #1206, #1208, #1210 на `main`). Новых типов данных нет, `PrivacyInfo.xcprivacy` не меняется: всё новое ложится в уже отмеченные типы с теми же ответами (linked, без tracking, только App Functionality).
 
 | Что отправляется | Экран | RPC | Тип в разделе 2 |
 | --- | --- | --- | --- |
@@ -132,9 +132,9 @@ Apple требует указать причину для каждой груп�
 | Целевая сессия экзамена | «CSCA» → календарь сессий | `set_learning_target_session_v1` | Product Interaction |
 | Выбранная страна или «Пока не решил» | «Главная» → «Путь поступления» → «Сменить страну» | `set_student_country_choice_v1` (284) | Product Interaction |
 
-Без новых данных от студента (чтение; `learning_review_v2` ещё завершает просроченные тесты по уже сохранённым ответам): индекс и страница вуза (`student_university_index_v1`, `student_university_detail_v1`), главная, прогресс и уроки CSCA (`learning_track_home_v1`, `learning_track_progress_v1`, `learning_lesson_v2`, `learning_review_v2`, `learning_test_attempt_v1`), выбор страны (`student_country_choice_v1`). Поиск по названию вуза в сборке 1.1 идёт на устройстве по индексу и на сервер не уходит (строка Search History в разделе 3 остаётся верной).
+Без новых данных от студента (чтение; `learning_review_v2` ещё завершает просроченные тесты по уже сохранённым ответам): индекс и страница вуза (`student_university_index_v1`, `student_university_detail_v1`), главная, прогресс и уроки CSCA (`learning_track_home_v1`, `learning_track_progress_v1`, `learning_lesson_v2`, `learning_review_v2`, `learning_test_attempt_v1`), выбор страны (`student_country_choice_v1`). Поиск по названию вуза в версии 1.1 идёт на устройстве по индексу и на сервер не уходит (строка Search History в разделе 3 остаётся верной).
 
-На устройстве, без отправки: копия индекса университетов в Caches приложения (файл на организацию) и свой `URLCache` на диске для фото каталога. Фото стран, городов и вузов сборка 1.1 берёт только из публичного бакета Supabase EVO, прямых ссылок на сайты вузов и Wikimedia нет; строка о Wikimedia Commons и сайтах вузов в разделе 6 относится к экрану 1.0 `UniversityPhotoView`, у которого в сборке 1.1 нет вызовов.
+На устройстве, без отправки: копия индекса университетов в Caches приложения (файл на организацию) и свой `URLCache` на диске для фото каталога. Фото стран, городов и вузов версия 1.1 берёт только из публичного бакета Supabase EVO, прямых ссылок на сайты вузов и Wikimedia нет; строка о Wikimedia Commons и сайтах вузов в разделе 6 относится к экрану из #1172 `UniversityPhotoView`, у которого в версии 1.1 нет вызовов.
 
 API с обязательной причиной (список Apple для `NSPrivacyAccessedAPIType` сверен 17.10.2026): новых нет. Таймер теста CSCA идёт по `ContinuousClock` Swift, а в группе System boot time Apple называет только `ProcessInfo.systemUptime` и `mach_absolute_time()`. Копия индекса читается и пишется через `Data(contentsOf:)` и `write(to:)`, без дат файлов и свободного места. В собранном приложении из символов списка Apple импортируется только `NSUserDefaults` (проверка `nm -u` сборки Debug; независимое review App Store PR #1215 17.10.2026 повторило её на архиве Release arm64 с тем же итогом), он уже указан с причиной `CA92.1`. По тому же review ещё два импорта: `_sysctl` (из `IssueReporting` пакета xctest-dynamic-overlay; в списке API с причиной его нет) и селектор `attributesOfItemAtPath:` (читаются только `NSFileSize` и `NSFilePosixPermissions`, ключей дат нет).
 

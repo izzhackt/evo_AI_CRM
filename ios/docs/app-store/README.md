@@ -1,4 +1,4 @@
-# EVO Admissions 1.0: документы для App Store Connect
+# EVO Admissions 1.1: документы для App Store Connect
 
 Тексты и ответы, которые владелец вставляет в App Store Connect, и чеклист выпуска. Сверены с кодом ветки `izzhackt/ios-app-store-1-0` (PR #1172) 07.10.2026. Черновики писались в `output/app-store/store-docs/` основной папки (вне Git); в Git лежат эти версии, копии в `output/` приведены к ним 07.10.2026 (там же лежит `README.md`).
 
@@ -21,7 +21,7 @@
 Правила:
 
 - `app-privacy.md` и `ios/EVOAdmissions/Resources/PrivacyInfo.xcprivacy` совпадают один к одному: 12 типов данных, все связаны с аккаунтом, без tracking, цель только App Functionality. Меняются в одном PR.
-- Версия в App Store Connect `1.0.0`, ровно как `MARKETING_VERSION` в `ios/project.yml`.
+- Версия в App Store Connect `1.1.0`, ровно как `MARKETING_VERSION` в `ios/project.yml`. Первая отправка в App Store идёт как версия 1.1 (решение владельца 17.10.2026), номер сборки при первой загрузке `1`; отдельной версии 1.0 не будет.
 - Заполненный `review-notes.md` (имя, телефон, данные review-аккаунта), Team ID, ключи, пароли и данные юрлица (название, D-U-N-S, документы) в Git не попадают.
 - Публичный контакт во всех текстах: evoadmissions@gmail.com.
 - Порядок сборки и загрузки: `ios/README.md`, «Выпуск в App Store».

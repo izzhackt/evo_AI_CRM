@@ -671,3 +671,231 @@ test("snapshot implementation opens the protected source descriptor exactly once
   assert.match(seal, /O_EXCL/u);
   assert.match(seal, /fsyncSync\(snapshotDescriptor\)/u);
 });
+
+// -------------------------------------------------------------- telephony (T3)
+// docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.5: every telephony name is OPTIONAL, so
+// a release never fails on missing telephony env; a present value must be
+// well-formed and the keys are distinct from every other value.
+
+const TELEPHONY_CRM_TOKEN = "3f1c9a52-7d44-4c0e-9b1a-5e2d8f6a7c10";
+const TELEPHONY_NEXT_TOKEN = "c8e0b7f4-1a2d-4f63-8a95-0d7e4b3c6a21";
+const TELEPHONY_PBX = {
+  EVO_PLATFORM_TELEPHONY_PBX_TOKEN: "synthetic-cabinet-key-0001",
+  EVO_PLATFORM_TELEPHONY_PBX_URL: "https://tenant.ats.example.test/crmapi/v1",
+  EVO_PLATFORM_TELEPHONY_PBX_HOST: "tenant.ats.example.test",
+};
+
+function telephonyHarness() {
+  // The shipped example (it carries the telephony names) against a complete,
+  // otherwise valid production env that may or may not carry them.
+  const shipped = readFileSync("deploy/env.production.example", "utf8");
+  const base = {
+    EVO_CRM_DOMAIN: "crm.evoadmissions.com",
+    EVO_CADDY_NETWORK: "evo_public_web",
+    NEXT_PUBLIC_SUPABASE_URL: `https://${TEST_SUPABASE_PROJECT_REF}.supabase.co`,
+    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_runtime_safe",
+    EVO_PLATFORM_SUPABASE_SECRET_KEY: TEST_SECRET_KEY,
+    EVO_PLATFORM_ORGANIZATION_ID: TEST_ORGANIZATION_ID,
+    EVO_STAFF_ADMIN_LOGIN_EMAIL: "",
+    EVO_PLATFORM_WAHA_INGRESS_ENABLED: "0",
+    EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "",
+    EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: "",
+    EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "0",
+    EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: "",
+    ANTHROPIC_API_KEY: "",
+    ZAI_API_KEY: "",
+    NEXT_PUBLIC_TRANSCRIPTION_SPLINE_SCENE_URL: "",
+    EVO_ENABLE_LOCAL_TRANSCRIPTION: "0",
+  };
+  const text = (extra = {}) =>
+    Object.entries({ ...base, ...extra })
+      .filter(([, value]) => value !== undefined)
+      .map(([key, value]) => `${key}=${value}`)
+      .join("\n");
+  const check = (actualText) =>
+    validateAppEnvironmentContract({
+      exampleText: shipped,
+      actualText,
+      expectedSupabaseProjectRef: TEST_SUPABASE_PROJECT_REF,
+    });
+  return { shipped, text, check };
+}
+
+test("telephony env: the shipped example documents the names and an env without them still releases", () => {
+  const { shipped, text, check } = telephonyHarness();
+  for (const name of [
+    "EVO_PLATFORM_TELEPHONY_ENABLED",
+    "EVO_PLATFORM_TELEPHONY_CRM_TOKEN",
+    "EVO_PLATFORM_TELEPHONY_CRM_TOKEN_NEXT",
+    "EVO_PLATFORM_TELEPHONY_PBX_TOKEN",
+    "EVO_PLATFORM_TELEPHONY_PBX_URL",
+    "EVO_PLATFORM_TELEPHONY_PBX_HOST",
+  ]) {
+    assert.match(shipped, new RegExp(`^${name}=`, "mu"), `${name} is documented`);
+  }
+  assert.match(shipped, /^EVO_PLATFORM_TELEPHONY_ENABLED=0$/mu);
+  const valid = { ok: true, code: "valid" };
+  // A production env file from before this slice: no telephony name at all.
+  assert.deepEqual(check(text()), valid);
+  // Every name present and empty, and the switch explicitly off.
+  assert.deepEqual(
+    check(
+      text({
+        EVO_PLATFORM_TELEPHONY_ENABLED: "0",
+        EVO_PLATFORM_TELEPHONY_CRM_TOKEN: "",
+        EVO_PLATFORM_TELEPHONY_CRM_TOKEN_NEXT: "",
+        EVO_PLATFORM_TELEPHONY_PBX_TOKEN: "",
+        EVO_PLATFORM_TELEPHONY_PBX_URL: "",
+        EVO_PLATFORM_TELEPHONY_PBX_HOST: "",
+      }),
+    ),
+    valid,
+  );
+  assert.deepEqual(check(text({ EVO_PLATFORM_TELEPHONY_ENABLED: "" })), valid);
+  // The unrelated required names are still required.
+  assert.throws(
+    () => check(text({ EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: undefined })),
+    /required_env_name_missing/u,
+  );
+});
+
+test("telephony env: the switch is '', 0 or 1; 1 needs a well-formed intake key", () => {
+  const { text, check } = telephonyHarness();
+  const valid = { ok: true, code: "valid" };
+  // (The env parser trims the padding of a value, so «1 » is «1».)
+  for (const flag of ["true", "yes", "2", "on", "01", "1 0", "TRUE"]) {
+    assert.throws(
+      () => check(text({ EVO_PLATFORM_TELEPHONY_ENABLED: flag })),
+      /unsafe_runtime_flag/u,
+      JSON.stringify(flag),
+    );
+  }
+  // A staged key with the switch off is fine.
+  assert.deepEqual(
+    check(text({ EVO_PLATFORM_TELEPHONY_ENABLED: "0", EVO_PLATFORM_TELEPHONY_CRM_TOKEN: TELEPHONY_CRM_TOKEN })),
+    valid,
+  );
+  assert.deepEqual(
+    check(text({ EVO_PLATFORM_TELEPHONY_ENABLED: "1", EVO_PLATFORM_TELEPHONY_CRM_TOKEN: TELEPHONY_CRM_TOKEN })),
+    valid,
+  );
+  for (const absent of [undefined, ""]) {
+    assert.throws(
+      () => check(text({ EVO_PLATFORM_TELEPHONY_ENABLED: "1", EVO_PLATFORM_TELEPHONY_CRM_TOKEN: absent })),
+      /enabled_feature_configuration_missing/u,
+      "1 without a key",
+    );
+  }
+  // NEXT alone is not a key.
+  assert.throws(
+    () => check(text({ EVO_PLATFORM_TELEPHONY_ENABLED: "1", EVO_PLATFORM_TELEPHONY_CRM_TOKEN_NEXT: TELEPHONY_NEXT_TOKEN })),
+    /optional_feature_configuration_invalid/u,
+  );
+});
+
+test("telephony env: the intake key is 32-64 characters of [A-Za-z0-9-], and NEXT only joins it for a rotation", () => {
+  const { text, check } = telephonyHarness();
+  const valid = { ok: true, code: "valid" };
+  assert.deepEqual(check(text({ EVO_PLATFORM_TELEPHONY_CRM_TOKEN: "a".repeat(32) })), valid);
+  assert.deepEqual(check(text({ EVO_PLATFORM_TELEPHONY_CRM_TOKEN: "a".repeat(64) })), valid);
+  for (const bad of ["a".repeat(31), "a".repeat(65), `${TELEPHONY_CRM_TOKEN} x`, `${TELEPHONY_CRM_TOKEN.slice(0, 35)}_`, `${TELEPHONY_CRM_TOKEN.slice(0, 35)}.`, `${TELEPHONY_CRM_TOKEN.slice(0, 35)}я`]) {
+    assert.throws(
+      () => check(text({ EVO_PLATFORM_TELEPHONY_CRM_TOKEN: bad })),
+      /optional_feature_configuration_invalid/u,
+      bad,
+    );
+  }
+  // A placeholder is refused like for every other value.
+  assert.throws(
+    () => check(text({ EVO_PLATFORM_TELEPHONY_CRM_TOKEN: "replace-with-the-real-intake-key-0000" })),
+    /placeholder_env_value_rejected/u,
+  );
+  // Rotation: both keys.
+  assert.deepEqual(
+    check(text({ EVO_PLATFORM_TELEPHONY_CRM_TOKEN: TELEPHONY_CRM_TOKEN, EVO_PLATFORM_TELEPHONY_CRM_TOKEN_NEXT: TELEPHONY_NEXT_TOKEN })),
+    valid,
+  );
+  for (const next of [TELEPHONY_CRM_TOKEN, "short", `${TELEPHONY_NEXT_TOKEN} x`]) {
+    assert.throws(
+      () => check(text({ EVO_PLATFORM_TELEPHONY_CRM_TOKEN: TELEPHONY_CRM_TOKEN, EVO_PLATFORM_TELEPHONY_CRM_TOKEN_NEXT: next })),
+      /optional_feature_configuration_invalid/u,
+      next,
+    );
+  }
+});
+
+test("telephony env: the outbound group is all or nothing and each member is well-formed", () => {
+  const { text, check } = telephonyHarness();
+  const valid = { ok: true, code: "valid" };
+  assert.deepEqual(check(text(TELEPHONY_PBX)), valid);
+  for (const name of Object.keys(TELEPHONY_PBX)) {
+    for (const absent of [undefined, ""]) {
+      assert.throws(
+        () => check(text({ ...TELEPHONY_PBX, [name]: absent })),
+        /optional_feature_configuration_invalid/u,
+        `${name} ${JSON.stringify(absent)}`,
+      );
+      assert.throws(
+        () => check(text({ [name]: TELEPHONY_PBX[name] })),
+        /optional_feature_configuration_invalid/u,
+        `only ${name}`,
+      );
+    }
+  }
+  const withUrl = (url) => text({ ...TELEPHONY_PBX, EVO_PLATFORM_TELEPHONY_PBX_URL: url });
+  for (const url of [
+    "https://tenant.ats.example.test/crmapi/v1/",
+    "http://tenant.ats.example.test/crmapi/v1",
+    "https://user:pw@tenant.ats.example.test/crmapi/v1",
+    "https://tenant.ats.example.test/crmapi/v1?x=1",
+    "https://tenant.ats.example.test/crmapi/v1#f",
+    "https://Tenant.ats.example.test/crmapi/v1",
+    "https://tenant.ats.example.test",
+    "https://tenant.ats.example.test:443/crmapi/v1",
+    "tenant.ats.example.test/crmapi/v1",
+    "not a url",
+  ]) {
+    assert.throws(() => check(withUrl(url)), /optional_feature_configuration_invalid/u, url);
+  }
+  assert.deepEqual(check(withUrl("https://tenant.ats.example.test:8443/crmapi/v1")), valid);
+  const withHost = (host) => text({ ...TELEPHONY_PBX, EVO_PLATFORM_TELEPHONY_PBX_HOST: host });
+  for (const host of ["Tenant.ats.example.test", "tenant", "tenant_x.example.test", "tenant.ats.example.test/", "tenant.ats.example.test:443", "-tenant.example.test", "tenant..example.test", "tenant example.test"]) {
+    assert.throws(() => check(withHost(host)), /optional_feature_configuration_invalid/u, host);
+  }
+  for (const token of ["short", "synthetic cabinet key 01", "x".repeat(257)]) {
+    assert.throws(
+      () => check(text({ ...TELEPHONY_PBX, EVO_PLATFORM_TELEPHONY_PBX_TOKEN: token })),
+      /optional_feature_configuration_invalid/u,
+      token,
+    );
+  }
+});
+
+test("telephony env: each key is its own value, distinct from every other secret in the file", () => {
+  const { text, check } = telephonyHarness();
+  const secret = TELEPHONY_CRM_TOKEN;
+  for (const other of [
+    { EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: secret },
+    { EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: secret },
+    { EVO_AI_AGENT_INTERNAL_SECRET: secret },
+    { EVO_AI_AGENT_STORAGE_SECRET: secret },
+    { ANTHROPIC_API_KEY: secret },
+    { EVO_PLATFORM_TELEPHONY_PBX_TOKEN: secret, EVO_PLATFORM_TELEPHONY_PBX_URL: TELEPHONY_PBX.EVO_PLATFORM_TELEPHONY_PBX_URL, EVO_PLATFORM_TELEPHONY_PBX_HOST: TELEPHONY_PBX.EVO_PLATFORM_TELEPHONY_PBX_HOST },
+  ]) {
+    assert.throws(
+      () => check(text({ EVO_PLATFORM_TELEPHONY_CRM_TOKEN: secret, ...other })),
+      /optional_feature_configuration_invalid/u,
+      Object.keys(other)[0],
+    );
+  }
+  // The outbound key is held to the same rule.
+  assert.throws(
+    () => check(text({ ...TELEPHONY_PBX, EVO_PLATFORM_TELEPHONY_PBX_TOKEN: "w".repeat(32), EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "w".repeat(32) })),
+    /optional_feature_configuration_invalid/u,
+  );
+  // The NEXT key too.
+  assert.throws(
+    () => check(text({ EVO_PLATFORM_TELEPHONY_CRM_TOKEN: secret, EVO_PLATFORM_TELEPHONY_CRM_TOKEN_NEXT: TELEPHONY_NEXT_TOKEN, ANTHROPIC_API_KEY: TELEPHONY_NEXT_TOKEN })),
+    /optional_feature_configuration_invalid/u,
+  );
+});

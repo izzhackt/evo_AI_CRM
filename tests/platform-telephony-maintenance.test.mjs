@@ -913,8 +913,8 @@ test("the pause of outbound dialing does not stop the automation tick", async ()
   assert.equal(database.named("telephony_automation_tick_v1").length, 1);
 });
 
-test("the tick's call matches migration 297: one service-only function with the same parameter names, closed by both flags, opening nothing", () => {
-  const migration = readFileSync(new URL("../supabase/migrations/297_platform_telephony_missed_tasks.sql", import.meta.url), "utf8");
+test("the tick's call matches migration 298: one service-only function with the same parameter names, closed by both flags, opening nothing", () => {
+  const migration = readFileSync(new URL("../supabase/migrations/298_platform_telephony_missed_tasks.sql", import.meta.url), "utf8");
   assert.match(migration, /CREATE FUNCTION platform\.telephony_automation_tick_v1\(p_organization_id UUID, p_limit INTEGER DEFAULT 100\)/u);
   assert.match(migration, /GRANT EXECUTE ON FUNCTION platform\.telephony_automation_tick_v1\(UUID, INTEGER\) TO service_role;/u);
   assert.match(migration, /NOT s\.projection_enabled OR NOT s\.missed_task_enabled/u);

@@ -1,4 +1,4 @@
--- 297_platform_telephony_missed_tasks — «Телефония Beeline KG» срез T8: задача
+-- 298_platform_telephony_missed_tasks — «Телефония Beeline KG» срез T8: задача
 -- «Перезвонить» по пропущенному входящему, «Недозвон» с каденсом, автозакрытие по
 -- отвеченному звонку, задачи по результату звонка и потолки автоматики.
 -- Контракт: docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.1 (правила 5 и 8), §6.2, §9.1,
@@ -959,7 +959,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Права: помощники без грантов, публичная функция — только service_role.
 -- ---------------------------------------------------------------------------
-DO $tel297_private_acl$
+DO $tel298_private_acl$
 DECLARE f REGPROCEDURE;
 BEGIN
   FOR f IN SELECT p.oid::REGPROCEDURE FROM pg_catalog.pg_proc p
@@ -968,7 +968,7 @@ BEGIN
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent', f);
   END LOOP;
 END
-$tel297_private_acl$;
+$tel298_private_acl$;
 
 REVOKE ALL ON FUNCTION platform.telephony_automation_tick_v1(UUID, INTEGER)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent;
@@ -981,7 +981,7 @@ COMMENT ON FUNCTION platform_private.telephony_add_work_minutes(TIMESTAMPTZ, INT
 
 -- Самопроверка: публичная функция — definer, пустой search_path, EXECUTE только у
 -- service_role; помощники — без прав клиентских ролей и с пустым search_path.
-DO $tel297_verify$
+DO $tel298_verify$
 DECLARE f REGPROCEDURE; p pg_catalog.pg_proc%ROWTYPE;
 BEGIN
   FOR f IN SELECT x.oid::REGPROCEDURE FROM pg_catalog.pg_proc x
@@ -1013,6 +1013,6 @@ BEGIN
     END IF;
   END LOOP;
 END
-$tel297_verify$;
+$tel298_verify$;
 
 COMMIT;

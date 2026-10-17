@@ -296,6 +296,12 @@ const PAYMENT_RECEIPT_DOWNLOAD_PATH = /^\/api\/v2\/payment-receipt-files\/[0-9a-
 // windows. Strict lower-case UUID (version 1-8, variant 8-b, like the AI memory route).
 const TELEPHONY_CALL_RESULT_PATH =
   /^\/api\/v3\/telephony\/calls\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/result$/;
+// «Телефония Beeline KG» T6 (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §7, §12): the recording
+// stream proxy (GET, Range). The handler repeats the staff session, the listen right and
+// the preview refusal; the database decides the flag, the scope, the state and the limits.
+// Strict lower-case UUID (version 1-8, variant 8-b), nothing after it.
+const TELEPHONY_RECORDING_PATH =
+  /^\/api\/v3\/telephony\/recordings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 // «Продажи → WhatsApp» chat (#1157): the read-only auto-refresh pulse and the
 // «Показать ранее» older page. Both handlers repeat staff Auth, messaging.read
 // and /v3/inbox access; the database readers decide conversation scope.
@@ -329,6 +335,7 @@ export function isConnectedPlatformApi(path: string): boolean {
     path === INBOX_PULSE_PATH ||
     INBOX_OLDER_MESSAGES_PATH.test(path) ||
     TELEPHONY_CALL_RESULT_PATH.test(path) ||
+    TELEPHONY_RECORDING_PATH.test(path) ||
     COMMUNICATION_MEDIA_PATH.test(path) ||
     CASE_CONTRACT_FILE_UPLOAD_PATH.test(path) ||
     CASE_CONTRACT_FILE_DOWNLOAD_PATH.test(path) ||

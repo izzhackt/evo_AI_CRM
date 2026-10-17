@@ -8,7 +8,7 @@ import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { PlatformSalesOwnerOption, PlatformSalesStage } from "@/lib/platform-sales-contract";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { buildV3InboxHref } from "@/lib/v3/inbox-href";
-import { callbackDayBounds, type LeadCallsState } from "@/lib/v3/telephony-lead-calls";
+import { callRecordingItems, callbackDayBounds, type LeadCallsState } from "@/lib/v3/telephony-lead-calls";
 import { stageTrack } from "@/lib/v3/stages";
 import type { CaseAgreementReadResult } from "@/lib/v3/case-agreement-source";
 import { closureWords, source as sourceWord, sourceUnderLabel } from "@/lib/v3/wording";
@@ -23,6 +23,7 @@ import { FeedCall, FeedEvent, FeedNote } from "./FeedRow";
 import { handoffFootnote, handoffStripView, stripCaseMoney, type StripCaseMoney, type StripText } from "./handoff-strip-view";
 import { LeadConditionsCard, LeadEducationCard, LeadWishesCard, SaleConditionsRevisionProvider } from "./LeadCardFieldsForm";
 import { LeadEditGroups, LeadMoreMenu } from "./LeadEditGroups";
+import { LeadCallRecording } from "./LeadCallRecording";
 import { LeadCallResult } from "./LeadCallResult";
 import { LeadNoteComposer } from "./LeadNoteComposer";
 import { LeadSaleConditions } from "./LeadSaleConditions";
@@ -359,6 +360,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   // Звонки в ленту: только прочитанные (`ready`); на более ранних страницах заметок окно звонков
   // старее, и «Последний контакт» берётся с первой страницы, как заметка.
   const callRows = input.calls?.status === "ready" ? input.calls.calls : [];
+  const callRecordings = input.calls?.status === "ready" ? input.calls.recordings ?? null : null;
   const lastContact = leadLastContact(firstNotesPage ? input.notes.rows[0]?.createdAt ?? null : null, conversations,
     firstNotesPage ? callRows : []);
   // «Приём дела» — только если к полосе есть что добавить: текст куратора,
@@ -490,11 +492,16 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
             if (item.kind === "event") {
               return <FeedEvent key={`event:${item.event.key}`} text={item.event.text} at={item.at} label={leadMoment(item.at, input.now)} />;
             }
-            const row = leadCallRow(item.call, input.now);
+            // Записи (T6): прочитала база — блок записи под строкой («Слушать» или слова состояния); не прочитала —
+            // слова состояния в мелкой строке, как в T5. Просмотр роли записей не воспроизводит (выдача пишет в журнал).
+            const recordings = preview ? null : callRecordings?.[item.call.callId] ?? null;
+            const row = leadCallRow(item.call, input.now, recordings);
             const pressable = !preview && item.call.resultEditable;
+            const recordingItems = recordings === null ? [] : callRecordingItems(recordings);
             return (
               <FeedCall key={`call:${item.call.callId}`} title={row.title} outcome={row.outcome} details={row.details}
                 at={item.at} label={leadMoment(item.at, input.now)}>
+                {recordingItems.length > 0 ? <LeadCallRecording items={recordingItems} /> : null}
                 {pressable ? (
                   <LeadCallResult callId={item.call.callId} code={item.call.resultCode} callbackOn={item.call.callbackOn}
                     callbackLabel={row.callbackLabel} bounds={callResultBounds} />

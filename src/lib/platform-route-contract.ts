@@ -153,8 +153,12 @@ const AI_AGENT_STORAGE_BROKER_PATH =
 // Отправка ночного автоответа (P4, §11 правило 9): HMAC своего секрета,
 // выключатель EVO_AI_AGENT_AUTOSEND, тело — только id решения базы. Точный путь.
 const AI_AGENT_AUTOSEND_SEND_PATH = "/api/internal/ai-agent/send";
+// Телефония Beeline KG (план телефонии §5.1): ВАТС без подписи, ключ `crm_token`
+// в теле; обработчик сам проверяет метод, размер, ключ и выключатель.
+const TELEPHONY_BEELINE_INBOUND_PATH = "/api/v2/telephony/beeline/inbound";
 const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/v2/whatsapp/inbound",
+  TELEPHONY_BEELINE_INBOUND_PATH,
   "/api/internal/platform-messaging/waha/work",
   "/api/internal/platform-operations/portal-overdue",
   AI_AGENT_AUTOSEND_SEND_PATH,

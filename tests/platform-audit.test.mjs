@@ -73,6 +73,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["187_platform_admissions_pipeline_board.sql", "admissions_pipeline_board"],
   ["191_platform_case_chat.sql", "case_chat"],
   ["255_platform_audit_journal_allowlist_widen.sql", "journal_widen"],
+  // Telephony T2: six telephony.* actions and three resource types.
+  ["291_platform_telephony_rights.sql", "telephony_rights"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -281,6 +283,12 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "team.chat.edit",
     "team.chat.moderate",
     "team.chat.post",
+    "telephony.automation.stop",
+    "telephony.dial",
+    "telephony.mapping.change",
+    "telephony.recording.listen",
+    "telephony.result.set",
+    "telephony.settings.change",
     "work.review.resolve",
   ]);
   assert.deepEqual([...laterResourceTypes].sort(), [
@@ -309,6 +317,9 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     // so it disappears once the final list is de-duplicated by Set below.
     "student_case",
     "team_chat_message",
+    "telephony_call",
+    "telephony_dial_request",
+    "telephony_settings",
     "work_review_case",
   ]);
 
@@ -465,6 +476,43 @@ test("document.export.* is fully visible: both real resource types are allowlist
     const word = journalEvent(action);
     assert.equal(typeof word, "string", `${action} has no journal wording`);
     assert.equal(word.includes("анкеты"), false, `${action} wording must not assume a profile export`);
+  }
+});
+
+// Telephony T2 (migration 291): the six actions and three resource types the
+// later telephony slices write are visible in the journal and worded in
+// Russian without a raw code, a number, a name or a link.
+test("telephony journal actions and resource types are allowlisted and worded in Russian", () => {
+  const telephonyActions = [
+    "telephony.automation.stop",
+    "telephony.dial",
+    "telephony.mapping.change",
+    "telephony.recording.listen",
+    "telephony.result.set",
+    "telephony.settings.change",
+  ];
+  const telephonyResourceTypes = ["telephony_call", "telephony_dial_request", "telephony_settings"];
+  assert.deepEqual(
+    PLATFORM_AUDIT_ACTIONS.filter((action) => action.startsWith("telephony.")),
+    telephonyActions,
+  );
+  assert.deepEqual(
+    PLATFORM_AUDIT_RESOURCE_TYPES.filter((type) => type.startsWith("telephony_")),
+    telephonyResourceTypes,
+  );
+  for (const action of telephonyActions) {
+    const word = journalEvent(action);
+    assert.match(word, /[А-Яа-я]/u, `${action} has no Russian journal wording`);
+    assert.equal(word.includes("telephony"), false, `${action} wording shows a raw code`);
+  }
+  for (const resourceType of telephonyResourceTypes) {
+    const word = journalObject(resourceType);
+    assert.match(word, /[А-Яа-я]/u, `${resourceType} has no Russian journal wording`);
+    assert.equal(word.includes("telephony"), false, `${resourceType} wording shows a raw code`);
+  }
+  // The automatic intake events never reach the journal (plan §11).
+  for (const action of ["telephony.receive", "telephony.project", "telephony.settle", "telephony.claim"]) {
+    assert.equal(PLATFORM_AUDIT_ACTIONS.includes(action), false, `${action} must stay out of the journal`);
   }
 });
 

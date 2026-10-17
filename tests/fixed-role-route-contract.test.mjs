@@ -650,6 +650,56 @@ test("only the canonical WhatsApp inbound and private recovery routes enter the 
   }
 });
 
+test("the telephony intake route is one exact private service route; the retired telephony paths stay hidden", async () => {
+  const intake = "/api/v2/telephony/beeline/inbound";
+  assert.equal(isConnectedPlatformPrivateApi(intake), true);
+  assert.equal(isConnectedPlatformApi(intake), true);
+  assert.equal(isRetiredPlatformRoute(intake), false);
+  const nearMisses = [
+    `${intake}/`,
+    `${intake}/child`,
+    "/API/v2/telephony/beeline/inbound",
+    "/api/v2/telephony",
+    "/api/v2/telephony/beeline",
+    "/api/v2/telephony/beeline/",
+    "/api/v2/telephony/beeline/inbound.json",
+    "/api/v2/telephony/beeline/other",
+    "/api/v3/telephony/beeline/inbound",
+    "/api/internal/telephony/beeline/inbound",
+    "/api/webhooks/telephony",
+    "/api/v2/telephony/beeline/inbound%2f",
+  ];
+  for (const path of nearMisses) {
+    assert.equal(isConnectedPlatformPrivateApi(path), false, path);
+    assert.equal(isConnectedPlatformApi(path), false, path);
+  }
+  // The old telephony paths remain the hidden 404 of P6B.
+  for (const retired of ["/api/webhooks/telephony", "/api/webhooks/telephony/x", "/calls", "/calls/1"]) {
+    assert.equal(isRetiredPlatformRoute(retired), true, retired);
+  }
+
+  // The real proxy lets the PBX through without any session or cookie, for every
+  // method (the handler answers 405 itself), and refuses the near misses.
+  const proxy = await loadBundledProxy();
+  const request = (path, method) => new NextRequest(`https://crm.evoadmissions.com${path}`, {
+    method, headers: { host: "crm.evoadmissions.com" },
+    ...(method === "POST" ? { body: "cmd=contact", headers: { host: "crm.evoadmissions.com", "content-type": "application/x-www-form-urlencoded" } } : {}),
+  });
+  for (const method of ["POST", "GET", "PUT", "DELETE", "OPTIONS"]) {
+    const response = await proxy(request(intake, method));
+    assert.equal(response.status, 200, method);
+    assert.equal(response.headers.get("x-middleware-next"), "1", method);
+    assert.equal(response.cookies.getAll().length, 0, method);
+  }
+  for (const path of nearMisses.filter((value) => value.startsWith("/api/v2/") || value.startsWith("/api/v3/"))) {
+    const response = await proxy(request(path, "POST"));
+    assert.notEqual(response.headers.get("x-middleware-next"), "1", path);
+  }
+  const retired = await proxy(request("/api/webhooks/telephony", "POST"));
+  assert.equal(retired.status, 404);
+  assert.notEqual(retired.headers.get("x-middleware-next"), "1");
+});
+
 test("proxy hands a present-Authorization student document request to its fail-closed handler", () => {
   const proxy = source("src/proxy.ts");
 

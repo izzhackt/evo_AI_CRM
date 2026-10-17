@@ -1,6 +1,6 @@
 # Страница App Store: английский (дополнительная локализация)
 
-Тексты на английском для второй локализации. Интерфейс приложения только на русском и кыргызском, поэтому описание прямо это говорит и даёт русские подписи кнопок в «ёлочках» с переводом.
+Тексты на английском для второй локализации. Интерфейс приложения только на русском и кыргызском, поэтому описание прямо это говорит и даёт русские подписи кнопок в «ёлочках» с переводом. Содержание совпадает с listing-ru.md (сводная сборка PR #1215, обновлено 17.10.2026).
 
 ## Какую английскую локаль выбрать (решение владельца)
 
@@ -17,8 +17,8 @@
 | --- | --- | --- |
 | Название | 14 | 30 |
 | Подзаголовок | 27 | 30 |
-| Рекламный текст | 159 | 170 |
-| Описание | 2368 | 4000 |
+| Рекламный текст | 149 | 170 |
+| Описание | 3275 | 4000 |
 | Ключевые слова | 91 симв., 91 байт | 100 байт |
 
 ## Name
@@ -36,7 +36,7 @@ Study abroad student portal
 ## Promotional Text
 
 ```
-University catalog with a map, English lessons from zero, tests and career cards. EVO clients follow their case, documents, charges and messages with the team.
+Admission path by country, universities with a map and costs, English from zero and CSCA prep. EVO clients follow their case, documents and messages.
 ```
 
 ## Description
@@ -50,10 +50,15 @@ HOW TO GET ACCESS
 You need an EVO account to sign in. New users tap «Подать анкету» (Apply) and answer questions about countries, start date, education, study areas, English and budget. Then they confirm their email. The EVO team reviews the application. Until a decision is made, the app shows only the application status. After approval, the account opens.
 If EVO has sent you an invitation, tap «У меня есть приглашение» (I have an invitation) and paste the link or code from the email.
 
+ADMISSION PATH
+• On Home: the admission steps for the country you choose, approximate timing, what to do at each step and when the step is done.
+• Change the country at any time with «Сменить страну» (Change country).
+
 UNIVERSITIES
-• University catalog as a list and on a map.
-• Search by name, filters by country and study level.
-• University card: campus photo with its source, programs, intakes and application deadlines with a link to the source.
+• Catalog by country and city: country and city overviews, interesting facts, the universities of each city.
+• Map of the universities in a country.
+• Search for a university by name.
+• University card: campus photo with its source, programs, intakes and application deadlines with a link to the source, approximate tuition and accommodation costs with their source and check date.
 • Favorites and comparison of saved universities.
 • Consultation request: an EVO manager will contact you.
 
@@ -61,6 +66,13 @@ ENGLISH
 • Lessons for complete beginners, explained in Russian or Kyrgyz.
 • Answers are checked right away. Tasks you got wrong go to a review list.
 • The English test shows results by topic with advice. It is not a language level certificate.
+
+CSCA PREPARATION
+• The «CSCA» section in the English tab: math in English for the CSCA exam taken by applicants to universities in China.
+• Lessons with formulas and graphs, practice with explanations, a diagnostic test and a timed mock exam.
+• Mistakes come back after 1, 3, 7 and 14 days; Progress shows topics and pace.
+• Calendar of CSCA sessions with dates from csca.cn.
+• The tasks are written by the EVO team. A test result is EVO's estimate on our tasks, not a CSCA score.
 
 CAREERS
 • Career cards: a day in the job, skills, what is interesting and what is hard, a sample task.
@@ -79,6 +91,7 @@ FOR STUDENTS WITH EVO SUPPORT
 
 PROFILE
 • Interface language: Russian or Kyrgyz. Your choice is saved to your account and applies on all your devices.
+• Privacy policy and open source licenses.
 • Sign out and account deletion request.
 
 Questions: evoadmissions@gmail.com
@@ -94,7 +107,7 @@ university,college,applicant,english,lessons,test,career,professions,campus,bach
 
 ## Категории, ссылки, Copyright
 
-Те же, что в listing-ru.md: Education и Reference; Support URL https://evoadmissions.com/ru/support/, Privacy Policy URL https://evoadmissions.com/ru/privacy/, Marketing URL https://evoadmissions.com/ru/, Copyright «2026 EVO Admissions». Support URL и Marketing URL можно задать отдельно для этой локали, если появятся английские страницы сайта; сейчас указаны русские.
+Те же, что в listing-ru.md: Education и Reference; Support URL https://evoadmissions.com/ru/support/, Privacy Policy URL https://evoadmissions.com/ru/privacy/, Marketing URL https://evoadmissions.com/ru/, Copyright «2026 EVO Admissions». Support URL и Marketing URL можно задать отдельно для этой локали, если появятся английские страницы сайта; сейчас указаны русские. PR сайта №26 готовит и английские страницы `/privacy/` и `/support/`; после его выпуска их можно указать здесь (решение владельца). 17.10.2026 все эти адреса отвечают 404, это блокер отправки (listing-ru.md, «Что проверить до отправки»).
 
 ## Источники (проверено 07.10.2026)
 
@@ -103,4 +116,4 @@ university,college,applicant,english,lessons,test,career,professions,campus,bach
 - Правила метаданных 2.3.7, 2.3.8, 2.3.10: https://developer.apple.com/app-store/review/guidelines/
 - Определения категорий: https://developer.apple.com/app-store/categories/
 - Языки витрин и правило показа локализаций: https://developer.apple.com/help/app-store-connect/reference/app-information/app-store-localizations и https://developer.apple.com/help/app-store-connect/manage-app-information/localize-app-information/
-- Факты о приложении: книга продукта `output/app-store/inputs/book.json` в основной папке, вне Git (главы «Приложение для iPhone» и «Кабинет студента»), код ветки `izzhackt/ios-app-store-1-0`: `ios/project.yml`, `ios/EVOAdmissions/Resources/Localizable.xcstrings`, `ios/EVOAdmissions/Views/*.swift`.
+- Факты о приложении: книга продукта `output/app-store/inputs/book.json` в основной папке, вне Git (главы «Приложение для iPhone» и «Кабинет студента»), код сводной ветки `izzhackt/ios-1-1-integration` (PR #1215): `ios/project.yml`, `ios/EVOAdmissions/Resources/Localizable.xcstrings`, `ios/EVOAdmissions/Resources/CSCA.xcstrings`, `ios/EVOAdmissions/Views/*.swift`, `ios/EVOAdmissions/Views/CSCA/*.swift`.

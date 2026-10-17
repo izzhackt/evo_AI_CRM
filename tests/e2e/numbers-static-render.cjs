@@ -555,7 +555,7 @@ function shell(actor, title, body) {
 // --- Lead 360 ----------------------------------------------------------------
 // Как `profile/page.tsx` для `?id=`: имя — h1, возврат «Воронка продаж» над ним,
 // действия у заголовка, шапка «Этап · Что дальше» и «Обзор» из `leadWorkParts`.
-function leadPage(name, tab = "overview") {
+function leadPage(name, tab = "overview", extra = {}) {
   const scenario = LEAD_SCENARIOS[name] ?? E4_LEADS[name];
   const { Profile } = require(join(ROOT, "src/components/v3/profile/Profile.tsx"));
   const { buildV3ProfileHref } = require(join(ROOT, "src/components/v3/profile/types.ts"));
@@ -591,7 +591,7 @@ function leadPage(name, tab = "overview") {
     requestIds: { ...requestIds, portal: "", cabinetPortal: "" },
     stages: ["new", "contacting", "qualified", "meeting_scheduled", "meeting_completed", "potential"].map((key) => ({ key, title: wording.salesStage(key) })),
     ownerOptions: [{ membershipId: ME, displayLabel: "Санжар Эскизов" }], ownerOptionsHaveMore: false, curators: [], curatorsAvailable: true,
-    agreement: scenario.agreement ?? null, submissions: null, hrefFor, now: new Date("2026-09-27T06:00:00.000Z"),
+    agreement: scenario.agreement ?? null, submissions: null, calls: extra.calls ?? null, hrefFor, now: new Date("2026-09-27T06:00:00.000Z"),
   });
   const body = createElement(Profile, {
     profile, draft, sales, actor: ADMIN, organizationId: ORG, studentPortalCurators: [], studentPortalCuratorsAvailable: true,
@@ -1145,7 +1145,54 @@ async function f1() {
   if (failures.length) throw new Error(`side panel (report): ${failures.length} failed:\n${failures.join("\n")}`);
 }
 
-if (process.argv.includes("--f1")) {
+// --- «Телефония Beeline KG», T5: строки звонков в «Ленте» лида ------------------------------
+// Синтетические строки той же формы, что отдаёт platform.telephony_lead_calls_v1 (миграция 292):
+// маска номера, без ссылки на запись, результат и признак «можно нажать» решила база.
+const CALL_PHONE = "+996 ••• 00 00 01";
+const callRow = (n, fields) => ({
+  callId: uuid("92929292", n), direction: "out", state: "ended", outcome: "answered", outcomeSource: "webhook",
+  startedAt: "2026-09-26T08:00:00.000Z", answeredAt: "2026-09-26T08:00:05.000Z", endedAt: "2026-09-26T08:03:00.000Z",
+  talkSeconds: 125, phone: CALL_PHONE, managerName: "Санжар Эскизов",
+  participants: [{ name: "Санжар Эскизов", state: "completed" }], recording: "none",
+  resultCode: null, resultAt: null, resultByName: null, callbackOn: null, resultEditable: false, ...fields,
+});
+const CALLS_READY = {
+  status: "ready", canSetResult: true, hasMore: false, calls: [
+    // Новее всех заметок: «Последний контакт» берёт этот звонок.
+    callRow(1, { startedAt: "2026-09-26T08:00:00.000Z", recording: "available", resultEditable: true }),
+    callRow(2, { direction: "in", outcome: "missed", answeredAt: null, talkSeconds: null, managerName: null,
+      participants: [{ name: "Санжар Эскизов", state: "missed" }, { name: "Алия Учебная", state: "missed" }],
+      startedAt: "2026-09-26T07:00:00.000Z" }),
+    callRow(3, { direction: "in", startedAt: "2026-09-25T10:00:00.000Z", talkSeconds: null, recording: "expired",
+      resultCode: "reached", resultAt: "2026-09-25T10:05:00.000Z", resultByName: "Санжар Эскизов" }),
+    callRow(4, { startedAt: "2026-09-25T09:00:00.000Z", resultCode: "callback", callbackOn: "2026-09-30",
+      resultAt: "2026-09-25T09:10:00.000Z", resultByName: "Санжар Эскизов", resultEditable: true }),
+    callRow(5, { outcome: "busy", answeredAt: null, talkSeconds: null, managerName: null, participants: [],
+      startedAt: "2026-09-24T09:00:00.000Z" }),
+  ],
+};
+async function telephonyPages() {
+  useE4Report();
+  return [
+    { name: "lead-none", html: leadPage("early") },
+    { name: "lead-off", html: leadPage("early", "overview", { calls: { status: "off" } }) },
+    { name: "lead-ready", html: leadPage("early", "overview", { calls: CALLS_READY }) },
+    { name: "lead-readonly", html: leadPage("early", "overview", { calls: {
+      ...CALLS_READY, canSetResult: false, calls: CALLS_READY.calls.map((row) => ({ ...row, resultEditable: false })) } }) },
+    { name: "lead-unavailable", html: leadPage("early", "overview", { calls: { status: "unavailable" } }) },
+    { name: "lead-more", html: leadPage("early", "overview", { calls: { ...CALLS_READY, hasMore: true } }) },
+  ];
+}
+
+if (process.argv.includes("--json-telephony")) {
+  // «Телефония» T5 (для tests/platform-telephony-lead-feed.test.mjs).
+  telephonyPages()
+    .then((pages) => process.stdout.write(JSON.stringify(pages)))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+} else if (process.argv.includes("--f1")) {
   f1().catch((error) => {
     console.error(error);
     process.exit(1);
@@ -1179,6 +1226,6 @@ if (process.argv.includes("--f1")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: numbers-static-render.cjs --json | --json-e4 | --screenshots [outDir] | --e4-screenshots [outDir] | --e86-screenshots [outDir] | --f1 [outDir]");
+  console.error("usage: numbers-static-render.cjs --json | --json-e4 | --json-telephony | --screenshots [outDir] | --e4-screenshots [outDir] | --e86-screenshots [outDir] | --f1 [outDir]");
   process.exit(2);
 }

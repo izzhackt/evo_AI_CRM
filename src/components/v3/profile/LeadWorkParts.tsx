@@ -8,6 +8,7 @@ import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { PlatformSalesOwnerOption, PlatformSalesStage } from "@/lib/platform-sales-contract";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { buildV3InboxHref } from "@/lib/v3/inbox-href";
+import { callbackDayBounds, type LeadCallsState } from "@/lib/v3/telephony-lead-calls";
 import { stageTrack } from "@/lib/v3/stages";
 import type { CaseAgreementReadResult } from "@/lib/v3/case-agreement-source";
 import { closureWords, source as sourceWord, sourceUnderLabel } from "@/lib/v3/wording";
@@ -18,10 +19,11 @@ import { StageTrack } from "../blocks/StageTrack";
 import { dueWordOf } from "../queue/due-bucket";
 import { TaskComposerDialog } from "../tasks/TaskComposerDialog";
 import { TaskComposerContextMark, type TaskComposerPageContext } from "../tasks/task-composer-context";
-import { FeedEvent, FeedNote } from "./FeedRow";
+import { FeedCall, FeedEvent, FeedNote } from "./FeedRow";
 import { handoffFootnote, handoffStripView, stripCaseMoney, type StripCaseMoney, type StripText } from "./handoff-strip-view";
 import { LeadConditionsCard, LeadEducationCard, LeadWishesCard, SaleConditionsRevisionProvider } from "./LeadCardFieldsForm";
 import { LeadEditGroups, LeadMoreMenu } from "./LeadEditGroups";
+import { LeadCallResult } from "./LeadCallResult";
 import { LeadNoteComposer } from "./LeadNoteComposer";
 import { LeadSaleConditions } from "./LeadSaleConditions";
 import { LeadStepDrawer } from "./LeadStepDrawer";
@@ -34,6 +36,7 @@ import {
   LEAD_STEP_DRAWER_ID,
   contractWorkspaceWritable,
   hasHandoffGateForms,
+  leadCallRow,
   leadDay,
   leadFeed,
   leadGroupSummaries,
@@ -90,6 +93,12 @@ export type LeadWorkPartsInput = Readonly<{
   channel?: ReactNode;
   /** «Заявки с сайта» — своё чтение (`WebsiteLeadSubmissions`); null — не показываются. */
   submissions: ReactNode;
+  /**
+   * Звонки лида в окне этой страницы заметок («Телефония Beeline KG», T5): `off` и
+   * отсутствие — телефония в интерфейсе выключена, ничего не рисуется; `unavailable` —
+   * лента говорит, что звонки не загрузились. Строки и право нажать результат решила база.
+   */
+  calls?: LeadCallsState | null;
   hrefFor: (tab: string) => string;
   now: Date;
 }>;
@@ -347,7 +356,11 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   // --- Сведения ------------------------------------------------------------
   const owner = sales.lead.currentOwnerDisplayName;
   const firstNotesPage = input.notesLatestHref === null;
-  const lastContact = leadLastContact(firstNotesPage ? input.notes.rows[0]?.createdAt ?? null : null, conversations);
+  // Звонки в ленту: только прочитанные (`ready`); на более ранних страницах заметок окно звонков
+  // старее, и «Последний контакт» берётся с первой страницы, как заметка.
+  const callRows = input.calls?.status === "ready" ? input.calls.calls : [];
+  const lastContact = leadLastContact(firstNotesPage ? input.notes.rows[0]?.createdAt ?? null : null, conversations,
+    firstNotesPage ? callRows : []);
   // «Приём дела» — только если к полосе есть что добавить: текст куратора,
   // согласованный контакт или ответ в деле. Решение само по себе уже в «Принято».
   const curatorAnswer = draft.handoffAcknowledgement;
@@ -450,8 +463,10 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
     events.push({ key: "acceptance", at: stripRead.acceptance.at,
       text: decision === "accepted" ? "Куратор принял дело" : decision === "declined" ? "Куратор отклонил передачу" : "Куратор просит уточнить передачу" });
   }
-  const feed = leadFeed(input.notes.rows, events, firstNotesPage);
+  const feed = leadFeed(input.notes.rows, events, firstNotesPage, callRows);
   const notesWritable = !preview;
+  // Результат звонка нажимает тот, кому его дала база (`resultEditable`); просмотр роли ничего не пишет.
+  const callResultBounds = callbackDayBounds(today);
   const feedPart = (
     <section className="min-w-0" aria-labelledby="lead-feed-title" data-testid="v3-lead-feed">
       <h2 id="lead-feed-title" className="t-section text-fg">Лента</h2>
@@ -465,16 +480,42 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
       {feed.length > 0 ? (
         <ol className="mt-3 divide-y divide-border border-t border-border" data-testid="v3-lead-feed-items">
           {/* Общая разметка строк с Student 360 (`FeedRow`): одна метка, один край текста. */}
-          {feed.map((item, index) => item.kind === "note" ? (
-            <FeedNote key={`note:${item.at}:${index}`} body={item.note.body} author={item.note.authorDisplayName}
-              at={item.at} label={leadMoment(item.at, input.now)} />
-          ) : (
-            <FeedEvent key={`event:${item.event.key}`} text={item.event.text} at={item.at} label={leadMoment(item.at, input.now)} />
-          ))}
+          {feed.map((item, index) => {
+            if (item.kind === "note") {
+              return (
+                <FeedNote key={`note:${item.at}:${index}`} body={item.note.body} author={item.note.authorDisplayName}
+                  at={item.at} label={leadMoment(item.at, input.now)} />
+              );
+            }
+            if (item.kind === "event") {
+              return <FeedEvent key={`event:${item.event.key}`} text={item.event.text} at={item.at} label={leadMoment(item.at, input.now)} />;
+            }
+            const row = leadCallRow(item.call, input.now);
+            const pressable = !preview && item.call.resultEditable;
+            return (
+              <FeedCall key={`call:${item.call.callId}`} title={row.title} outcome={row.outcome} details={row.details}
+                at={item.at} label={leadMoment(item.at, input.now)}>
+                {pressable ? (
+                  <LeadCallResult callId={item.call.callId} code={item.call.resultCode} callbackOn={item.call.callbackOn}
+                    callbackLabel={row.callbackLabel} bounds={callResultBounds} />
+                ) : row.result ? <p className="mt-0.5 break-words t-meta text-fg-2" data-testid="v3-call-result-text">{row.result}</p> : null}
+              </FeedCall>
+            );
+          })}
         </ol>
       ) : (
         <p className="mt-3 border-t border-border pt-3 t-body-compact text-fg-2">Заметок пока нет.</p>
       )}
+      {input.calls?.status === "unavailable" ? (
+        <p role="status" className="border-t border-border pt-3 t-body-compact text-fg-2" data-testid="v3-calls-unavailable">
+          Звонки не загрузились. Обновите страницу.
+        </p>
+      ) : null}
+      {input.calls?.status === "ready" && input.calls.hasMore ? (
+        <p className="border-t border-border pt-3 t-meta text-fg-2" data-testid="v3-calls-more">
+          Показаны последние {input.calls.calls.length} звонков.
+        </p>
+      ) : null}
       {input.notesOlderHref || input.notesLatestHref ? (
         <nav aria-label="Страницы заметок" className="flex flex-wrap gap-x-5 border-t border-border">
           {input.notesLatestHref ? <Link href={input.notesLatestHref} prefetch={false} className={QUIET_LINK}>К последним</Link> : null}

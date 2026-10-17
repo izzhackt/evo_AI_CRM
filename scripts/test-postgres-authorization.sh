@@ -470,10 +470,13 @@ SQL
   # telephony definition that already exists with another group
   # (telephony_permission_catalog_drift). The ordinary apply below then proves
   # nothing was kept.
+  # No `docker exec -i` here: the loop reads its migration list from stdin, and
+  # an attached stdin would swallow every migration after this one (found at
+  # T11a, when migration 292 was silently never applied).
   if [[ "$(basename "$migration")" == *_platform_telephony_rights.sql ]]; then
     for t290_case in admin_missing catalog_drift; do
       t290_tamper_log="$(mktemp -t evo-t290-final-check.XXXXXX)"
-      if docker exec -i "$container_name" \
+      if docker exec "$container_name" \
         psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
         -v "t290_case=$t290_case" \
         -v "migration_file=/workspace/$migration" \
@@ -3611,6 +3614,30 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_telephony_rights.sql
+  fi
+
+  # «Телефония Beeline KG», срез T5 (строки звонков в «Ленте» лида и результат
+  # звонка одним нажатием; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §9.4, §11, §12).
+  # Matched by name, not number, so a renumbering at merge keeps the hook. Right
+  # after the migration the suite proves: the two public functions (SECURITY
+  # DEFINER, empty search_path, authenticated only) and the two closed helpers;
+  # the callback day exists exactly with result «callback»; the switch (no
+  # settings row or ui_enabled = false shows nothing and answers 42501 to the
+  # unauthorised first); the row's exact keys, the masked phone, no number, no
+  # link and no https text anywhere, newest first, leg participants, the client's
+  # calls from before the lead, nothing of another client or organization,
+  # hasMore, the since/until window; visibility by lead.read (department manager,
+  # other department, supervisor, plain reader, Student, no roles, another
+  # organization); who may set a result (dial_enabled and the dial right, own
+  # calls for a manager, any visible call for the supervisor and the Admin, the
+  # 7-day offer and 24-hour change windows, backfill and unanswered calls closed);
+  # the command's error matrix without an existence leak, saved / unchanged /
+  # changed results, the audit rows without number or name, and that nothing but
+  # the result columns changes.
+  if [[ "$(basename "$migration")" == *_platform_telephony_lead_feed.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_telephony_lead_feed.sql
   fi
 
   # «Данные продажи» и направление на деле прямого студента (290, PLAN_CHANGES

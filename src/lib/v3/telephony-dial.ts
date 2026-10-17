@@ -73,6 +73,9 @@ export const DIAL_COPY = Object.freeze({
   button: "Позвонить",
   busy: "Звоним…",
   sent: `Звоним. ${DIAL_ABOUT}`,
+  // Повтор запроса, на который не дошёл ответ: звонок был набран раньше, нового нет.
+  sentBefore:
+    "Этот звонок уже был набран раньше, второй не создан. Если нужен новый звонок, нажмите «Позвонить» ещё раз.",
   unconfirmed:
     "ВАТС не подтвердила звонок. Проверьте телефон и приложение ВАТС. Повторно не нажимайте, пока не убедитесь, что звонка нет: он мог уйти.",
   inProgress: "Этот звонок уже набирается. Подождите.",
@@ -142,4 +145,25 @@ export function dialSuccessCopy(status: unknown): string | null {
   if (status === "unconfirmed") return DIAL_COPY.unconfirmed;
   if (status === "in_progress") return DIAL_COPY.inProgress;
   return null;
+}
+
+/**
+ * Ответ маршрута для кнопки. `answered` — ответил именно наш маршрут: успех с известным `status`
+ * или ошибка со своим `error.code`. Только тогда попытка завершена и следующее нажатие — новый
+ * звонок. Всё прочее (страница шлюза 502/504, пустой или чужой ответ) о звонке ничего не говорит:
+ * он мог уйти, поэтому `requestId` остаётся (повтор не удвоит звонок), а слова — «проверьте, пошёл
+ * ли звонок», а не «клиенту не звонили». Повтор уже набранного звонка (`replayed`) говорит, что
+ * звонок был, а не «Звоним».
+ */
+export function dialRouteAnswer(ok: boolean, body: unknown): Readonly<{ answered: boolean; note: string }> {
+  const object: Record<string, unknown> = typeof body === "object" && body !== null && !Array.isArray(body)
+    ? (body as Record<string, unknown>) : {};
+  if (ok) {
+    const note = object.replayed === true && object.status === "sent" ? DIAL_COPY.sentBefore : dialSuccessCopy(object.status);
+    return note === null ? { answered: false, note: DIAL_COPY.network } : { answered: true, note };
+  }
+  const error = typeof object.error === "object" && object.error !== null && !Array.isArray(object.error)
+    ? (object.error as Record<string, unknown>) : undefined;
+  if (typeof error?.code !== "string") return { answered: false, note: DIAL_COPY.network };
+  return { answered: true, note: dialErrorCopy(error) };
 }

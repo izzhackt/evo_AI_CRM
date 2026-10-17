@@ -16,7 +16,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { isConnectedPlatformApi, isConnectedPlatformPage } from "../src/lib/platform-route-contract.ts";
-import { TelephonyPbxError } from "../src/lib/server/platform-telephony-pbx-client.ts";
+import { createTelephonyPbxClient, TelephonyPbxError } from "../src/lib/server/platform-telephony-pbx-client.ts";
 import {
   classifyMakeCallError,
   createTelephonyDialHandler,
@@ -38,6 +38,7 @@ import {
   dialFailureCopy,
   dialOptionsState,
   dialRefusalCopy,
+  dialRouteAnswer,
   dialSuccessCopy,
   todayDialLeadId,
 } from "../src/lib/v3/telephony-dial.ts";
@@ -245,12 +246,20 @@ test("route: the database's start errors become the documented statuses", async 
     assert.equal((await response.json()).error.code, code);
     assert.deepEqual(calls.order, ["begin"], "after a refused start nothing else is asked");
   }
+  // Too many refusals in a minute (PT429): the database wrote nothing; the employee is told to wait, like for the gap.
+  const throttled = harness({ begin: async () => ({ status: "error", kind: "throttled" }) });
+  const waiting = await throttled.handler(postRequest());
+  assert.equal(waiting.status, 429);
+  assert.deepEqual((await waiting.json()).error, { code: "dial_refused", reason: "rate_gap" });
+  assert.deepEqual(throttled.calls.order, ["begin"]);
+  assert.equal(dialErrorCopy({ code: "dial_refused", reason: "rate_gap" }), dialRefusalCopy("rate_gap"));
   // The raw SQLSTATEs of the database map to the same kinds; anything else is «unavailable».
   assert.deepEqual(dialBeginRefusal({ code: "42501" }), { status: "error", kind: "forbidden" });
   assert.deepEqual(dialBeginRefusal({ code: "55000" }), { status: "error", kind: "off" });
   assert.deepEqual(dialBeginRefusal({ code: "P0002" }), { status: "error", kind: "not_found" });
   assert.deepEqual(dialBeginRefusal({ code: "PT409" }), { status: "error", kind: "conflict" });
   assert.deepEqual(dialBeginRefusal({ code: "22023" }), { status: "error", kind: "invalid" });
+  assert.deepEqual(dialBeginRefusal({ code: "PT429" }), { status: "error", kind: "throttled" });
   for (const code of ["57014", "XX000", undefined, "23505"]) assert.deepEqual(dialBeginRefusal({ code }), { status: "error", kind: "unavailable" });
 });
 
@@ -385,13 +394,21 @@ test("route: the live check is a separate short client, and the call is a separa
 
 // ------------------------------------------------------------ the call itself
 
-test("route: a call the PBX did not number, a timeout, a lost connection and an unreadable 2xx are «unconfirmed» — one attempt, never two", async () => {
+test("route: a call the PBX did not number, a timeout, a lost connection, a 2xx that broke off or was unreadable, and a 5xx are «unconfirmed» — one attempt, never two", async () => {
   const cases = [
     [async () => ({ callId: null }), "pbx_no_callid", 200],
     [async () => { throw pbxError("pbx_timeout"); }, "pbx_timeout", null],
     [async () => { throw pbxError("pbx_network_error"); }, "pbx_network_error", null],
     [async () => { throw pbxError("pbx_bad_response", 200); }, "pbx_bad_response", 200],
     [async () => { throw pbxError("pbx_response_too_large", 200); }, "pbx_response_too_large", 200],
+    // The PBX answered 2xx and the body then timed out or the connection dropped: the call probably exists.
+    [async () => { throw pbxError("pbx_timeout", 200); }, "pbx_timeout", 200],
+    [async () => { throw pbxError("pbx_network_error", 200); }, "pbx_network_error", 200],
+    // A gateway or the PBX may answer 5xx after the dial has started: the call may exist.
+    [async () => { throw pbxError("pbx_server_error", 500); }, "pbx_server_error", 500],
+    [async () => { throw pbxError("pbx_server_error", 502); }, "pbx_server_error", 502],
+    [async () => { throw pbxError("pbx_server_error", 503); }, "pbx_server_error", 503],
+    [async () => { throw pbxError("pbx_server_error", 504); }, "pbx_server_error", 504],
     [async () => { throw new Error("unexpected"); }, "pbx_network_error", null],
   ];
   for (const [makeCall, errorCode, httpStatus] of cases) {
@@ -404,13 +421,13 @@ test("route: a call the PBX did not number, a timeout, a lost connection and an 
   }
 });
 
-test("route: an error answer of the PBX is «failed» — the call was not created — with the right word for the employee", async () => {
+test("route: a 4xx answer of the PBX is «failed» — the call was not created — with the right word for the employee", async () => {
   for (const [code, status, reason] of [
     ["pbx_invalid_token", 401, "pbx_auth"], ["pbx_crm_disabled", 401, "pbx_auth"], ["pbx_crm_switched_off", 401, "pbx_auth"],
     ["pbx_unauthorized", 401, "pbx_auth"], ["pbx_forbidden", 403, "pbx_auth"],
     ["pbx_validation_error", 400, "pbx_rejected"], ["pbx_method_not_allowed", 405, "pbx_rejected"], ["pbx_not_found", 404, "pbx_rejected"],
     ["pbx_redirect_refused", 302, "pbx_rejected"],
-    ["pbx_server_error", 500, "pbx_unavailable"], ["pbx_rate_limited", 429, "pbx_unavailable"], ["pbx_unexpected_status", 418, "pbx_unavailable"],
+    ["pbx_rate_limited", 429, "pbx_unavailable"], ["pbx_unexpected_status", 418, "pbx_unavailable"],
   ]) {
     const { handler, calls } = harness({ pbx: { makeCall: async () => { throw pbxError(code, status); } } });
     const response = await handler(postRequest());
@@ -419,6 +436,67 @@ test("route: an error answer of the PBX is «failed» — the call was not creat
     assert.equal(calls.makeCall.length, 1, `${code}: not retried`);
     assert.deepEqual(calls.finish[0].result, { outcome: "failed", errorCode: code, httpStatus: status }, code);
   }
+});
+
+test("route: the real PBX client — a 2xx whose body dies mid-read — is «unconfirmed», never «failed»; a 4xx stays «failed»", async () => {
+  const dyingBody = (error) => new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('{"callid"'));
+      controller.error(error);
+    },
+  }), { status: 200, headers: { "content-type": "application/json" } });
+  const cases = [
+    [() => dyingBody(new TypeError("terminated")), "pbx_network_error", 200],
+    [() => dyingBody(Object.assign(new Error("slow"), { name: "TimeoutError" })), "pbx_timeout", 200],
+    [() => new Response("<html>gateway</html>", { status: 200 }), "pbx_bad_response", 200],
+    [() => new Response("", { status: 504 }), "pbx_server_error", 504],
+  ];
+  for (const [respond, errorCode, httpStatus] of cases) {
+    const fetched = [];
+    const { handler, calls } = harness({
+      overrides: {
+        pbxClient: (config, purpose) => {
+          calls.clients.push({ config, purpose });
+          if (purpose === "status") {
+            return { getUser: async (login) => ({ login, status: "online", forwardingSip: true, forwardingMobile: false }) };
+          }
+          return createTelephonyPbxClient(config, { fetch: async (url, init) => { fetched.push({ url, init }); return respond(); }, sleep: async () => undefined });
+        },
+      },
+    });
+    const response = await handler(postRequest());
+    assert.equal(response.status, 200, errorCode);
+    assert.deepEqual(await response.json(), { status: "unconfirmed", replayed: false }, errorCode);
+    assert.equal(fetched.length, 1, `${errorCode}: one POST, no retry`);
+    assert.deepEqual(calls.finish[0].result, { outcome: "unconfirmed", errorCode, httpStatus }, errorCode);
+  }
+  const rejected = harness({
+    overrides: {
+      pbxClient: (config, purpose) => purpose === "status"
+        ? { getUser: async (login) => ({ login, status: "online", forwardingSip: true, forwardingMobile: false }) }
+        : createTelephonyPbxClient(config, { fetch: async () => new Response("Validation error", { status: 400 }), sleep: async () => undefined }),
+    },
+  });
+  const refusal = await rejected.handler(postRequest());
+  assert.equal(refusal.status, 502);
+  assert.deepEqual(rejected.calls.finish[0].result, { outcome: "failed", errorCode: "pbx_validation_error", httpStatus: 400 });
+});
+
+test("route: if the number cannot be fetched — an unavailable answer or an exception — the dial is closed as failed", async () => {
+  for (const target of [async () => ({ status: "unavailable" }), async () => { throw new Error("service key is not configured"); }]) {
+    const { handler, calls } = harness({ target });
+    const response = await handler(postRequest());
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { error: { code: "unavailable" } });
+    assert.deepEqual(calls.order, ["begin", "target", "finish"], "the row never stays «requested»");
+    assert.deepEqual(calls.finish[0].result, { outcome: "failed", errorCode: "target_unavailable", httpStatus: null });
+    assert.equal(calls.clients.length, 0);
+    assert.equal(calls.log.at(-1).reason, "target_unavailable");
+  }
+  const source = read("src/lib/server/telephony-dial-route-handlers.ts");
+  const defaultTarget = source.slice(source.indexOf("async target(actor, dialRequestId) {"), source.indexOf("async finish(actor, dialRequestId, result) {"));
+  assert.match(defaultTarget, /try \{\s+const client = await serviceClient\(\);/u, "the service client is built inside the try");
+  assert.match(defaultTarget, /\} catch \{\s+return \{ status: "unavailable" \};/u);
 });
 
 test("route: if recording the result fails after the call, the employee still gets what the PBX really said", async () => {
@@ -430,15 +508,6 @@ test("route: if recording the result fails after the call, the employee still ge
   assert.equal(calls.log.at(-1).reason, "sent_unrecorded");
   const unconfirmed = harness({ pbx: { makeCall: async () => { throw pbxError("pbx_timeout"); } }, finish: async () => ({ status: "failed" }) });
   assert.deepEqual(await (await unconfirmed.handler(postRequest())).json(), { status: "unconfirmed", replayed: false });
-});
-
-test("route: if the number cannot be fetched, the dial is closed as failed and the PBX is not asked", async () => {
-  const { handler, calls } = harness({ target: async () => ({ status: "unavailable" }) });
-  const response = await handler(postRequest());
-  assert.equal(response.status, 503);
-  assert.deepEqual(calls.order, ["begin", "target", "finish"]);
-  assert.deepEqual(calls.finish[0].result, { outcome: "failed", errorCode: "target_unavailable", httpStatus: null });
-  assert.equal(calls.clients.length, 0);
 });
 
 test("route: the response and the application log never hold the number, the login, the call id, an id or the key", async () => {
@@ -465,15 +534,27 @@ test("route: the response and the application log never hold the number, the log
 
 // ------------------------------------------------------------ pure pieces
 
-test("classification: an error answer is «failed», a lost or unreadable answer is «unconfirmed»", () => {
+test("classification: a 4xx answer is «failed»; a lost, broken-off or unreadable answer, any 2xx failure and a 5xx are «unconfirmed»", () => {
   const cases = [
     [pbxError("pbx_timeout"), "unconfirmed", "pbx_timeout", null],
     [pbxError("pbx_network_error"), "unconfirmed", "pbx_network_error", null],
     [pbxError("pbx_bad_response", 200), "unconfirmed", "pbx_bad_response", 200],
     [pbxError("pbx_bad_response", 204), "unconfirmed", "pbx_bad_response", 204],
     [pbxError("pbx_response_too_large", 200), "unconfirmed", "pbx_response_too_large", 200],
-    [pbxError("pbx_server_error", 502), "failed", "pbx_server_error", 502],
+    // 2xx answered, then the body timed out or the connection dropped (review finding): whatever the code.
+    [new TelephonyPbxError("pbx_timeout", 200), "unconfirmed", "pbx_timeout", 200],
+    [new TelephonyPbxError("pbx_network_error", 200, true), "unconfirmed", "pbx_network_error", 200],
+    [new TelephonyPbxError("pbx_timeout", 299), "unconfirmed", "pbx_timeout", 299],
+    // 5xx may arrive after the dial started.
+    [pbxError("pbx_server_error", 500), "unconfirmed", "pbx_server_error", 500],
+    [pbxError("pbx_server_error", 502), "unconfirmed", "pbx_server_error", 502],
+    [pbxError("pbx_server_error", 503), "unconfirmed", "pbx_server_error", 503],
+    [pbxError("pbx_server_error", 504), "unconfirmed", "pbx_server_error", 504],
+    // 4xx and the refusal of a redirect: the PBX did not take the request.
+    [pbxError("pbx_rate_limited", 429), "failed", "pbx_rate_limited", 429],
     [pbxError("pbx_validation_error", 400), "failed", "pbx_validation_error", 400],
+    [pbxError("pbx_invalid_token", 401), "failed", "pbx_invalid_token", 401],
+    [pbxError("pbx_unexpected_status", 418), "failed", "pbx_unexpected_status", 418],
     [pbxError("pbx_redirect_refused", 301), "failed", "pbx_redirect_refused", 301],
     [new RangeError("x"), "unconfirmed", "pbx_network_error", null],
     [null, "unconfirmed", "pbx_network_error", null],
@@ -614,10 +695,35 @@ test("words: every refusal, failure reason and route error has its own sentence 
   assert.equal(dialSuccessCopy("in_progress"), DIAL_COPY.inProgress);
   assert.equal(dialSuccessCopy("failed"), null);
   assert.equal(dialSuccessCopy(undefined), null);
+  assert.match(DIAL_COPY.sentBefore, /уже был набран раньше, второй не создан/u, "a replay of a dialled call does not say «Звоним»");
+  assert.doesNotMatch(DIAL_COPY.sentBefore, /^Звоним/u);
   for (const sentence of [...DIAL_REFUSAL_CODES.map(dialRefusalCopy), ...DIAL_FAILURE_REASONS.map(dialFailureCopy), ...Object.values(DIAL_COPY)]) {
     assertNoSecrets(sentence, sentence);
     assert.doesNotMatch(sentence, /\bpbx_|\bundefined\b|\bnull\b|https?:/iu, sentence);
   }
+});
+
+test("button: only an answer of our own route settles the attempt; a gateway page or a foreign body keeps the request id and says «check the phone»", () => {
+  // Our route answered: the attempt is over, the next press is a new call.
+  assert.deepEqual(dialRouteAnswer(true, { status: "sent", replayed: false }), { answered: true, note: DIAL_COPY.sent });
+  assert.deepEqual(dialRouteAnswer(true, { status: "unconfirmed", replayed: false }), { answered: true, note: DIAL_COPY.unconfirmed });
+  assert.deepEqual(dialRouteAnswer(true, { status: "unconfirmed", replayed: true }), { answered: true, note: DIAL_COPY.unconfirmed });
+  assert.deepEqual(dialRouteAnswer(true, { status: "in_progress", replayed: true }), { answered: true, note: DIAL_COPY.inProgress });
+  // A replay of a dialled call: the words say that the call was dialled earlier — not «Звоним» for a call that was not placed now.
+  assert.deepEqual(dialRouteAnswer(true, { status: "sent", replayed: true }), { answered: true, note: DIAL_COPY.sentBefore });
+  assert.deepEqual(dialRouteAnswer(false, { error: { code: "dial_refused", reason: "rate_gap" } }), { answered: true, note: dialRefusalCopy("rate_gap") });
+  assert.deepEqual(dialRouteAnswer(false, { error: { code: "pbx_failed", reason: "pbx_unavailable" } }), { answered: true, note: dialFailureCopy("pbx_unavailable") });
+  assert.deepEqual(dialRouteAnswer(false, { error: { code: "unavailable" } }), { answered: true, note: dialErrorCopy({ code: "unavailable" }) });
+  assert.deepEqual(dialRouteAnswer(false, { error: { code: "something_new" } }), { answered: true, note: DIAL_COPY.fallback },
+    "a route code the page does not know yet is still our route: the fallback words, the attempt is over");
+  // Not our route: a gateway 502/504 (HTML or empty), JSON of someone else, a 2xx without our status.
+  for (const [ok, body] of [[false, null], [false, {}], [false, "<html>Bad gateway</html>"], [false, []], [false, { error: "Bad Gateway" }],
+    [false, { error: { reason: "x" } }], [false, { error: { code: 502 } }], [false, { message: "Service Unavailable" }],
+    [true, null], [true, {}], [true, { status: "done" }], [true, { status: 200 }], [true, []]]) {
+    assert.deepEqual(dialRouteAnswer(ok, body), { answered: false, note: DIAL_COPY.network }, JSON.stringify([ok, body]));
+  }
+  assert.doesNotMatch(DIAL_COPY.network, /Клиенту не звонили/u, "the unknown outcome never claims that the client was not called");
+  assert.match(DIAL_COPY.network, /Проверьте, пошёл ли звонок/u);
 });
 
 test("contract: the refusal codes of the migration are exactly the codes the words and the route know", () => {
@@ -643,6 +749,12 @@ test("wiring: the migration, its suite and the test script agree", () => {
   // The switch is read inside the database for begin and options, with «no row» meaning «off».
   assert.match(migration, /NOT FOUND OR NOT \(v_settings\.ui_enabled AND v_settings\.dial_enabled\) OR v_settings\.outbound_paused/u);
   assert.match(migration, /v_enabled := FOUND AND v_settings\.ui_enabled AND v_settings\.dial_enabled AND NOT v_settings\.outbound_paused/u);
+  // Refusals are bounded per employee (PT429, nothing written), and a refusal of the PBX status check
+  // starts the gap and erases the number and the login of its row.
+  assert.match(migration, /AND d\.status = 'refused' AND d\.created_at > v_now - INTERVAL '1 minute'\) >= 20 THEN\s+RAISE EXCEPTION 'telephony_dial_throttled' USING ERRCODE = 'PT429';/u);
+  assert.match(migration, /d\.status <> 'refused' OR d\.refusal_code IN \('pbx_offline', 'pbx_user_not_found'\)/u);
+  assert.match(migration, /client_phone = CASE WHEN p_outcome = 'refused' THEN NULL ELSE client_phone END/u);
+  assert.match(migration, /pbx_user = CASE WHEN p_outcome = 'refused' THEN NULL ELSE pbx_user END/u);
   // The client number leaves the database through target only.
   assert.match(migration, /jsonb_build_object\('pbxUser', v_row\.pbx_user, 'phone', v_row\.client_phone\)/u);
   assert.equal((migration.match(/jsonb_build_object\('pbxUser'/gu) ?? []).length, 1);
@@ -680,11 +792,14 @@ test("wiring: the client holds a lead id and a request id, posts to one route an
   assert.match(button, /body: JSON\.stringify\(\{ leadId, requestId: id \}\)/u);
   assert.doesNotMatch(button, /\bphone[:=]|\+996|tel:/u, "the button knows no number and makes no tel: link");
   assert.match(button, /popover="manual"[^>]*className="v3-toasts" data-edge="top"/u, "the message is a top-layer line at the top edge, clear of the chat field");
-  assert.match(button, /requestId\.current = null;\s+const body/u, "any answer of the server ends the attempt");
+  assert.match(button, /const answer = dialRouteAnswer\(response\.ok, body\);\s+\/\/[^\n]*\n\s+\/\/[^\n]*\n\s+if \(answer\.answered\) requestId\.current = null;/u,
+    "only an answer of our own route ends the attempt; a gateway page keeps the id");
+  assert.doesNotMatch(button.slice(button.indexOf("const response = await fetch")), /requestId\.current = null;\s+const body/u, "the id is not dropped before the answer is read");
+  assert.match(button, /typeof element\.showPopover === "function" && !element\.matches\(":popover-open"\)/u, "no top layer in an old browser: no crash");
   const lostAnswer = button.slice(button.indexOf("} catch {", button.indexOf("fetch(\"/api/v3/telephony/dial\"")), button.indexOf("} finally {"));
   assert.match(lostAnswer, /setNote\(DIAL_COPY\.network\)/u);
   assert.doesNotMatch(lostAnswer, /requestId\.current = null/u, "a lost answer keeps the id, so a retry is a replay and not a second call");
-  assert.match(button, /setNote\(dialSuccessCopy\(body\.status\) \?\? DIAL_COPY\.fallback\);\s+setCooling\(true\);/u,
+  assert.match(button, /setNote\(answer\.note\);\s+if \(response\.ok && answer\.answered\) setCooling\(true\);/u,
     "after an accepted call the button rests, so a second press does not run into the pause between dials");
   assert.match(button, /const COOLDOWN_MS = 6_000;/u);
   const page = read("src/app/(v3)/v3/profile/page.tsx");

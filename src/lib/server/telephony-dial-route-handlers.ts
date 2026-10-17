@@ -37,14 +37,18 @@ import {
  *  6. живой статус сотрудника (`GET /users/{login}?with=status`, без повторов, 5 с): нет в сети
  *     и нет переадресации на мобильный — отказ `pbx_offline`, клиенту не звонят;
  *  7. `POST /makecall` — ОДНА попытка, без повторов: двойной звонок опаснее потерянного. Ответ
- *     с `callid` — `sent`; 2xx без `callid`, таймаут или обрыв — `unconfirmed` («Проверьте
- *     телефон»; сверка по истории потом найдёт звонок); ответ-ошибка ВАТС — `failed`;
+ *     с `callid` — `sent`; всё, после чего звонок мог уйти, — `unconfirmed` («Проверьте
+ *     телефон»): 2xx без `callid`, 2xx с оборванным или нечитаемым телом, таймаут, обрыв и
+ *     ответ 5xx (шлюз или ВАТС могут ответить уже после начала набора); ответ 4xx (включая
+ *     429) — `failed`: звонок не создан;
  *  8. `telephony_dial_finish_v1` записывает итог и одну строку журнала `telephony.dial`.
  *
  * Сбой записи итога после звонка ответа не меняет: пользователь получает то, что на самом деле
- * сказала ВАТС; строка набора без итога через две минуты сама становится `unconfirmed`.
- * В журнал приложения идут только слова и числа (статус, причина, миллисекунды): ни номера,
- * ни логина, ни `callid`, ни идентификаторов.
+ * сказала ВАТС. Строка набора без итога остаётся `requested` и считается в лимитах; в
+ * `unconfirmed` (`finish_lost`) её переводит только повтор того же `requestId` через две минуты
+ * (кнопка повторяет id лишь после обрыва связи), поэтому после `begin` итог пишется на КАЖДОМ
+ * пути, в том числе при сбое `target`. В журнал приложения идут только слова и числа (статус,
+ * причина, миллисекунды): ни номера, ни логина, ни `callid`, ни идентификаторов.
  */
 type Authorization =
   | Readonly<{ status: "authorized"; actor: ActivePlatformActor }>
@@ -58,7 +62,7 @@ export type DialBeginResult =
   | Readonly<{ status: "accepted"; dialRequestId: string }>
   | Readonly<{ status: "refused"; dialRequestId: string; code: string }>
   | Readonly<{ status: "replayed"; dialRequestId: string; requestStatus: DialRequestStatus; code: string | null }>
-  | Readonly<{ status: "error"; kind: "forbidden" | "off" | "not_found" | "conflict" | "invalid" | "unavailable" }>;
+  | Readonly<{ status: "error"; kind: "forbidden" | "off" | "not_found" | "conflict" | "invalid" | "throttled" | "unavailable" }>;
 
 export type DialTargetResult =
   | Readonly<{ status: "ready"; pbxUser: string; phone: string }>
@@ -111,6 +115,8 @@ export function dialBeginRefusal(error: RpcError): DialBeginResult {
   if (error.code === "P0002") return { status: "error", kind: "not_found" };
   if (error.code === "PT409") return { status: "error", kind: "conflict" };
   if (error.code === "22023") return { status: "error", kind: "invalid" };
+  // Слишком много отказов подряд у одного сотрудника: база ничего не записала.
+  if (error.code === "PT429") return { status: "error", kind: "throttled" };
   return { status: "error", kind: "unavailable" };
 }
 
@@ -211,13 +217,19 @@ const defaultDependencies: TelephonyDialDependencies = {
     return error ? dialBeginRefusal(error) : dialBeginReceipt(data);
   },
   async target(actor, dialRequestId) {
-    const client = await serviceClient();
-    const { data, error } = await client.schema("platform").rpc("telephony_dial_target_v1", {
-      p_organization_id: actor.organizationId,
-      p_dial_request_id: dialRequestId,
-      p_membership_id: actor.membershipId,
-    });
-    return error ? { status: "unavailable" } : dialTargetReceipt(data);
+    // Набор уже записан как `requested`: любой сбой (в том числе настройки служебного ключа)
+    // здесь — «нет цели», после чего маршрут закрывает набор как `failed`, а не бросает.
+    try {
+      const client = await serviceClient();
+      const { data, error } = await client.schema("platform").rpc("telephony_dial_target_v1", {
+        p_organization_id: actor.organizationId,
+        p_dial_request_id: dialRequestId,
+        p_membership_id: actor.membershipId,
+      });
+      return error ? { status: "unavailable" } : dialTargetReceipt(data);
+    } catch {
+      return { status: "unavailable" };
+    }
   },
   async finish(actor, dialRequestId, result) {
     try {
@@ -261,19 +273,24 @@ export function dialFailureReason(code: TelephonyPbxErrorCode): DialFailureReaso
 }
 
 /**
- * Итог неудачного `makecall`. Ответ-ошибка ВАТС (есть HTTP-статус не 2xx) — `failed`: звонок не
- * создан. Таймаут и обрыв (статуса нет) и 2xx с нечитаемым телом — `unconfirmed`: запрос мог дойти
- * и звонок мог уйти, поэтому повтора нет, а пользователь проверяет телефон.
+ * Итог неудачного `makecall`. `failed` («клиенту не звонили») — только ответ 4xx ВАТС (в том числе
+ * 429 и отказ редиректа): запрос отвергнут, звонка нет. Всё остальное `unconfirmed`: запрос мог
+ * дойти и звонок мог уйти, поэтому повтора нет, а пользователь проверяет телефон. Это таймаут и
+ * обрыв (статуса нет), ЛЮБАЯ ошибка при ответе 2xx (тело нечитаемо, слишком велико или оборвалось
+ * на чтении: ВАТС уже ответила «да»), и ответ 5xx (шлюз или ВАТС отвечают ошибкой и после начала
+ * набора). Двойной звонок опаснее потерянного (план §5.4).
  */
 export function classifyMakeCallError(error: unknown): Extract<DialFinish, { outcome: "unconfirmed" | "failed" }> {
   if (!(error instanceof TelephonyPbxError)) {
     return { outcome: "unconfirmed", errorCode: "pbx_network_error", httpStatus: null };
   }
-  const readable2xx = error.status !== null && error.status >= 200 && error.status < 300;
-  if (error.status === null || ((error.code === "pbx_bad_response" || error.code === "pbx_response_too_large") && readable2xx)) {
-    return { outcome: "unconfirmed", errorCode: error.code, httpStatus: error.status };
+  const status = error.status;
+  const answered2xx = status !== null && status >= 200 && status < 300;
+  const serverSide = status !== null && status >= 500;
+  if (status === null || answered2xx || serverSide) {
+    return { outcome: "unconfirmed", errorCode: error.code, httpStatus: status };
   }
-  return { outcome: "failed", errorCode: error.code, httpStatus: error.status };
+  return { outcome: "failed", errorCode: error.code, httpStatus: status };
 }
 
 function refusalResponse(code: string): Response {
@@ -343,6 +360,7 @@ export function createTelephonyDialHandler(dependencies: TelephonyDialDependenci
           case "not_found": return finish(failure(404, "not_found"), "begin_not_found");
           case "conflict": return finish(failure(409, "request_conflict"), "begin_conflict");
           case "invalid": return finish(failure(400, "invalid_request"), "begin_invalid");
+          case "throttled": return finish(failure(429, "dial_refused", { reason: "rate_gap" }), "begin_throttled");
           default: return finish(failure(503, "unavailable"), "begin_unavailable");
         }
       }
@@ -360,7 +378,12 @@ export function createTelephonyDialHandler(dependencies: TelephonyDialDependenci
 
       // Дальше набор принят и записан как `requested`: у него обязан появиться итог.
       const dialRequestId = begun.dialRequestId;
-      const target = await dependencies.target(actor, dialRequestId);
+      let target: DialTargetResult;
+      try {
+        target = await dependencies.target(actor, dialRequestId);
+      } catch {
+        target = { status: "unavailable" };
+      }
       if (target.status !== "ready") {
         await dependencies.finish(actor, dialRequestId, { outcome: "failed", errorCode: "target_unavailable", httpStatus: null });
         return finish(failure(503, "unavailable"), "target_unavailable");

@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 
 import { Icon } from "@/components/icons";
-import { DIAL_ABOUT, DIAL_COPY, dialErrorCopy, dialSuccessCopy } from "@/lib/v3/telephony-dial";
+import { DIAL_ABOUT, DIAL_COPY, dialRouteAnswer } from "@/lib/v3/telephony-dial";
 
 /** Как у соседних вторичных действий заголовка карточки лида и чата: 44 px, рамка контрола, без красного. */
 const ACTION_CLASS = "inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:text-fg-3";
@@ -31,9 +31,10 @@ function newRequestId(): string {
  * не клиенту, а сначала самому сотруднику (приложение или вкладка с телефоном), и только после
  * ответа набирает клиента — поэтому подсказка и ответ говорят об этом прямо.
  *
- * Один и тот же `requestId` живёт, пока ответа сервера не было (обрыв связи): повторное нажатие
- * тогда повторяет тот же запрос, и второго звонка не будет. Любой ответ сервера завершает
- * попытку, следующее нажатие — новый звонок. После принятого звонка кнопка ненадолго замирает,
+ * Один и тот же `requestId` живёт, пока ответа НАШЕГО маршрута не было (обрыв связи, страница
+ * шлюза 502/504): повторное нажатие тогда повторяет тот же запрос, и второго звонка не будет;
+ * если звонок уже был набран, маршрут отвечает, что он был, а не «Звоним». Ответ маршрута
+ * завершает попытку, следующее нажатие — новый звонок. После принятого звонка кнопка ненадолго замирает,
  * чтобы не упереться в паузу между наборами. Сообщение — строка в верхнем слое у верхнего края
  * (как «Вышла новая версия»): нижний край занят «Отменить» и полями ответа чата. Решает база и
  * сервер; кнопка показывает их слова. Не сопоставленному сотруднику кнопка отвечает, что делать,
@@ -68,7 +69,8 @@ export function DialButton({
   useEffect(() => {
     const element = toast.current;
     if (note === null || !element) return;
-    if (!element.matches(":popover-open")) element.showPopover();
+    // Как у «Вышла новая версия»: без верхнего слоя (старый браузер) строка остаётся в потоке.
+    if (typeof element.showPopover === "function" && !element.matches(":popover-open")) element.showPopover();
     const timer = setTimeout(() => setNote(null), TOAST_MS);
     return () => clearTimeout(timer);
   }, [note]);
@@ -97,18 +99,13 @@ export function DialButton({
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ leadId, requestId: id }),
       });
-      // Любой ответ сервера завершает попытку: следующее нажатие — новый звонок.
-      requestId.current = null;
-      const body = await response.json().then(
-        (value: { status?: unknown; error?: { code?: unknown; reason?: unknown } }) => value,
-        () => ({} as { status?: unknown; error?: { code?: unknown; reason?: unknown } }),
-      );
-      if (response.ok) {
-        setNote(dialSuccessCopy(body.status) ?? DIAL_COPY.fallback);
-        setCooling(true);
-      } else {
-        setNote(dialErrorCopy(body.error));
-      }
+      const body: unknown = await response.json().then((value: unknown) => value, () => null);
+      const answer = dialRouteAnswer(response.ok, body);
+      // Ответ нашего маршрута завершает попытку: следующее нажатие — новый звонок. Ответ шлюза
+      // (502/504, чужое тело) о звонке не говорит: id остаётся, повтор не удвоит звонок.
+      if (answer.answered) requestId.current = null;
+      setNote(answer.note);
+      if (response.ok && answer.answered) setCooling(true);
     } catch {
       // Ответа не было: звонок мог уйти. Тот же requestId сохранён, повтор его не удвоит.
       setNote(DIAL_COPY.network);

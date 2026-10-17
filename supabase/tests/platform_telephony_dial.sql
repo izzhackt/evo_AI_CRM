@@ -24,13 +24,16 @@
 --     without number or PBX login and ONE journal row; adding a prefix opens that country;
 --  5. the mapping: an employee without an active PBX user is refused (not_mapped); the options show it;
 --  6. limits: not more than one dial per gap, the per-employee day, the per-organization hour and day;
---     refusals do not count; windows slide; the hour limit does not look at the day and vice versa;
+--     refusals do not count (except a refusal of the PBX status check, which starts the gap); windows
+--     slide; the hour limit does not look at the day and vice versa; not more than twenty recorded
+--     refusals per employee per minute (PT429 beyond, nothing written);
 --  7. idempotency: the same request id of the same employee returns the earlier result and writes
 --     nothing; another lead under the same id is a conflict (PT409); another employee has his own id space;
 --     a refused request replays as refused; a request that never got its result becomes unconfirmed;
 --  8. target and finish: the number and the login are read only by target (service role, the right
 --     employee, status requested, fresh); finish is the single transition to sent / unconfirmed / failed /
---     refused with the right fields; a repeat changes nothing and journals nothing;
+--     refused with the right fields (a refused row loses the number and the login: no call was made); a
+--     repeat changes nothing and journals nothing;
 --  9. the journal: one telephony.dial row per dial, ids and codes only — never a number, a PBX login or a
 --     call id; and nothing leaks from any answer.
 BEGIN;
@@ -589,6 +592,23 @@ SELECT pg_temp.t299_assert(
   AND (SELECT d.status = 'refused' AND d.refusal_code = 'pbx_user_not_found' FROM platform_private.telephony_dial_requests d
     WHERE d.id = pg_temp.t299_did(:'t299_a6'::JSONB)),
   'unconfirmed (a timeout), failed (the PBX said no) and refused (offline / unknown PBX user) are stored with their codes');
+-- A refused dial made no call: it keeps neither the number nor the PBX login. Every other outcome keeps both
+-- (an unconfirmed call is looked up by them).
+SELECT pg_temp.t299_assert(
+  (SELECT d.client_phone IS NULL AND d.pbx_user IS NULL FROM platform_private.telephony_dial_requests d
+    WHERE d.id = pg_temp.t299_did(:'t299_a5'::JSONB))
+  AND (SELECT d.client_phone IS NULL AND d.pbx_user IS NULL FROM platform_private.telephony_dial_requests d
+    WHERE d.id = pg_temp.t299_did(:'t299_a6'::JSONB))
+  AND (SELECT d.client_phone = '+996700000001' AND d.pbx_user = 'u9902' FROM platform_private.telephony_dial_requests d
+    WHERE d.id = pg_temp.t299_did(:'t299_a2'::JSONB))
+  AND (SELECT d.client_phone = '+996700000001' AND d.pbx_user = 'u9902' FROM platform_private.telephony_dial_requests d
+    WHERE d.id = pg_temp.t299_did(:'t299_a3'::JSONB))
+  AND (SELECT d.client_phone = '+996700000001' AND d.pbx_user = 'u9902' FROM platform_private.telephony_dial_requests d
+    WHERE d.id = pg_temp.t299_did(:'t299_a4'::JSONB)),
+  'a refusal of the PBX status check erases the number and the login of its row; sent, unconfirmed and failed keep both');
+SELECT pg_temp.t299_assert(
+  pg_temp.t299_code(pg_temp.t299_target(pg_temp.t299_did(:'t299_a5'::JSONB), 2)) = 'P0002',
+  'a refused dial is never handed out by target');
 
 -- ---------------------------------------------------------------------------
 -- 7. Idempotency.
@@ -639,9 +659,11 @@ SELECT pg_temp.t299_finish(pg_temp.t299_did(:'t299_a7'::JSONB), 2, 'sent', 'late
 SELECT pg_temp.t299_assert(:'t299_late'::JSONB = '{"status": "unconfirmed", "changed": false}'::JSONB,
   'a late finish after the conversion changes nothing');
 SELECT pg_temp.t299_assert(
-  (SELECT count(*) FROM platform_private.telephony_dial_requests d WHERE d.status = 'refused' AND d.client_phone IS NOT NULL
-     AND d.refusal_code NOT IN ('pbx_offline', 'pbx_user_not_found')) = 0,
-  'a rule refusal never keeps the number; only the PBX-status refusals (decided after the number was stored) keep it for the erasure function');
+  (SELECT count(*) FROM platform_private.telephony_dial_requests d WHERE d.status = 'refused'
+     AND (d.client_phone IS NOT NULL OR d.pbx_user IS NOT NULL)) = 0
+  AND (SELECT count(*) FROM platform_private.telephony_dial_requests d WHERE d.status = 'refused'
+     AND d.refusal_code IN ('pbx_offline', 'pbx_user_not_found')) >= 2,
+  'no refused row keeps a number or a PBX login — neither a rule refusal nor a refusal of the PBX status check (both kinds exist here)');
 
 -- ---------------------------------------------------------------------------
 -- 8. Limits (all windows slide; refusals do not count).
@@ -659,6 +681,43 @@ SELECT pg_temp.t299_assert(
 SELECT pg_temp.t299_age(INTERVAL '1 minute');
 SELECT pg_temp.t299_assert(pg_temp.t299_dial(2, 9, 53) ->> 'status' = 'accepted',
   'after the gap the employee dials again (a refusal did not start a new gap)');
+-- A refusal of the PBX status check costs a request to the PBX, so it starts the gap too: an employee whose
+-- device is offline cannot poll the PBX in a loop. A refusal by a rule (the next one below) does not.
+DELETE FROM platform_private.telephony_dial_requests;
+SELECT pg_temp.t299_dial(2, 9, 54) AS t299_g1 \gset
+SELECT pg_temp.t299_finish(pg_temp.t299_did(:'t299_g1'::JSONB), 2, 'refused', NULL, NULL, NULL, 'pbx_offline') AS t299_g1f \gset
+SELECT pg_temp.t299_assert(
+  pg_temp.t299_dial(2, 9, 56) ->> 'code' = 'rate_gap'
+  AND pg_temp.t299_dial(4, 2, 57) ->> 'status' = 'accepted',
+  'a refusal of the PBX status check (pbx_offline) starts the gap for that employee; a colleague is not held up');
+SELECT pg_temp.t299_age(INTERVAL '1 minute');
+SELECT pg_temp.t299_assert(pg_temp.t299_dial(2, 9, 58) ->> 'status' = 'accepted',
+  'after the gap the employee dials again');
+DELETE FROM platform_private.telephony_dial_requests;
+SELECT pg_temp.t299_dial(2, 3, 80) ->> 'code' AS t299_g2 \gset
+SELECT pg_temp.t299_assert(:'t299_g2' = 'lead_no_phone' AND pg_temp.t299_dial(2, 9, 81) ->> 'status' = 'accepted',
+  'a refusal by a rule (no phone) does not start the gap: the next dial of the same employee goes through');
+-- Refusals are rows and journal entries too: twenty per employee per minute are recorded, the next ones are
+-- PT429 and write nothing; a replay of an earlier refusal, another employee and a real dial are not held up.
+DELETE FROM platform_private.telephony_dial_requests;
+SELECT pg_temp.t299_journal() AS t299_fj0 \gset
+SELECT count(*) AS t299_flood FROM generate_series(1, 20) g WHERE pg_temp.t299_dial(2, 3, 300 + g) ->> 'code' = 'lead_no_phone' \gset
+SELECT pg_temp.t299_dials() AS t299_fr, pg_temp.t299_journal() AS t299_fj \gset
+SELECT pg_temp.t299_assert(
+  :t299_flood = 20 AND :t299_fr = 20 AND :t299_fj = :t299_fj0 + 20
+  AND pg_temp.t299_dial(2, 3, 330) ->> 'error' = 'PT429:telephony_dial_throttled'
+  AND pg_temp.t299_dial(2, 4, 331) ->> 'error' = 'PT429:telephony_dial_throttled'
+  AND pg_temp.t299_dials() = :t299_fr AND pg_temp.t299_journal() = :t299_fj,
+  'the twenty-first refusal of an employee within a minute is PT429 and writes neither a row nor a journal entry');
+SELECT pg_temp.t299_assert(
+  pg_temp.t299_dial(2, 3, 301) ->> 'status' = 'replayed' AND pg_temp.t299_dial(2, 3, 301) ->> 'code' = 'lead_no_phone'
+  AND pg_temp.t299_dial(5, 3, 332) ->> 'code' = 'lead_no_phone'
+  AND pg_temp.t299_dial(2, 1, 333) ->> 'status' = 'accepted',
+  'the throttle holds only the refusals of that employee: a replay of an earlier refusal, a colleague''s refusal and a real dial still work');
+SELECT pg_temp.t299_age(INTERVAL '2 minutes');
+SELECT pg_temp.t299_assert(pg_temp.t299_dial(2, 3, 334) ->> 'code' = 'lead_no_phone',
+  'a minute later the employee''s refusals are recorded again');
+DELETE FROM platform_private.telephony_dial_requests;
 -- User day limit: 3 per rolling 24 hours.
 DELETE FROM platform_private.telephony_dial_requests;
 UPDATE platform_private.telephony_settings SET limit_user_day = 3 WHERE organization_id = pg_temp.t299_id(1);
@@ -730,14 +789,18 @@ SELECT pg_temp.t299_assert(
 SELECT pg_temp.t299_assert(
   (SELECT array_agg(p.proname::TEXT ORDER BY p.proname COLLATE "C") FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'platform' AND p.proname LIKE 'telephony\_dial\_%' AND pg_get_functiondef(p.oid) ILIKE '%client_phone%')
-  = ARRAY['telephony_dial_begin_v1', 'telephony_dial_target_v1'],
-  'the dial-row phone column is named only by begin (writes it) and target (the single reader)');
+  = ARRAY['telephony_dial_begin_v1', 'telephony_dial_finish_v1', 'telephony_dial_target_v1'],
+  'the dial-row phone column is named only by begin (writes it), target (the single reader) and finish (erases it on a refusal)');
+-- Finish touches the number and the login in one place only, to erase them; it never reads them out.
 SELECT pg_temp.t299_assert(
-  (SELECT d NOT ILIKE '%phone%' AND d NOT ILIKE '%.pbx_user%'
+  (SELECT d !~* 'v_row\.(client_phone|pbx_user)' AND d !~* '(RETURN|RAISE)[^;]*(client_phone|pbx_user)'
+      AND (SELECT count(*) FROM regexp_matches(d, 'client_phone', 'g')) = 2
+      AND d ~ 'client_phone = CASE WHEN p_outcome = ''refused'' THEN NULL ELSE client_phone END'
+      AND d ~ 'pbx_user = CASE WHEN p_outcome = ''refused'' THEN NULL ELSE pbx_user END'
     FROM (SELECT pg_get_functiondef('platform.telephony_dial_finish_v1(uuid,uuid,uuid,text,text,integer,text,text)'::regprocedure) AS d) x)
   AND (SELECT d NOT ILIKE '%phone%' AND d NOT ILIKE '%.pbx_user%'
     FROM (SELECT pg_get_functiondef('platform.telephony_dial_options_v1(uuid)'::regprocedure) AS d) x),
-  'finish and options never name the number or the PBX login of a dial row');
+  'finish only erases the number and the login of a refused row (never reads or returns them); options never names them');
 -- The earlier telephony functions keep their ACL.
 SELECT pg_temp.t299_assert(
   has_function_privilege('authenticated', 'platform.telephony_set_result_v1(uuid,uuid,text,date)', 'EXECUTE')

@@ -191,6 +191,31 @@ test("makeCall is never retried: a timeout, a network error, a 429 and a 5xx eac
   }
 });
 
+test("makeCall: a 2xx answer whose body breaks off or times out keeps the 2xx status — it is not an answer that never came", async () => {
+  const dying = (error) => () => new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('{"callid"'));
+      controller.error(error);
+    },
+  }), { status: 200, headers: { "content-type": "application/json" } });
+  const cases = [
+    [dying(new TypeError("terminated")), "pbx_network_error"],
+    [dying(Object.assign(new Error("slow body"), { name: "TimeoutError" })), "pbx_timeout"],
+    [dying(Object.assign(new Error("aborted"), { name: "AbortError" })), "pbx_timeout"],
+  ];
+  for (const [handler, code] of cases) {
+    const { client, state } = harness(handler);
+    await assert.rejects(client.makeCall({ phone: "996700000001", user: "u701" }),
+      (error) => error instanceof TelephonyPbxError && error.code === code && error.status === 200, code);
+    assert.equal(state.calls.length, 1, `${code}: one request, no retry`);
+    assert.deepEqual(state.sleeps, [], code);
+    assert.deepEqual(state.attempts.map((attempt) => [attempt.status, attempt.errorCode]), [[200, code]], `${code}: the attempt log has the 2xx status`);
+  }
+  // Before any answer there is no status at all.
+  const { client } = harness(() => { throw new TypeError("fetch failed"); });
+  await assert.rejects(client.makeCall({ phone: "996700000001", user: "u701" }), (error) => error.code === "pbx_network_error" && error.status === null);
+});
+
 test("makeCall classifies the PBX answers by code, and a redirect is refused", async () => {
   const cases = [
     [jsonResponse("Invalid token", 401), "pbx_invalid_token"],

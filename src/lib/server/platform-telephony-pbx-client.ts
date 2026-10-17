@@ -221,8 +221,10 @@ export type TelephonyPbxClient = Readonly<{
   /**
    * One attempt, no retry. Resolves with the call id (or null for a 2xx without one);
    * rejects with a `TelephonyPbxError`: an error answer (4xx/5xx) has a `status`, a
-   * timeout / network error has none, a 2xx with an unreadable body is `pbx_bad_response`
-   * with a 2xx `status` — the caller tells «failed» from «unconfirmed» by that.
+   * timeout / network error before any answer has none, and every failure AFTER a 2xx
+   * answer (an unreadable, oversized or broken-off body: `pbx_bad_response`,
+   * `pbx_response_too_large`, `pbx_timeout`, `pbx_network_error`) keeps that 2xx `status` —
+   * the caller tells «failed» (a 4xx) from «unconfirmed» (no status, a 2xx, a 5xx) by it.
    */
   makeCall(request: TelephonyPbxMakeCallRequest): Promise<TelephonyPbxMakeCallResult>;
 }>;

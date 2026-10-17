@@ -33,8 +33,11 @@
 --    `limit_org_hour`, `limit_org_day`. Отказ записывается строкой набора
 --    (`status = 'refused'`, без номера и логина) и одной строкой журнала
 --    `telephony.dial`; при согласии создаётся строка `requested` с номером E.164 и
---    логином ВАТС (сверка находит по ним звонок без `callid`). Ответ: только
---    идентификатор набора и слова, ни номера, ни логина.
+--    логином ВАТС (они нужны будущей привязке звонка к набору: приём 289 и сверка 293 их
+--    пока НЕ читают, см. PLAN_CHANGES «Телефония T7», п. 14б). Не больше двадцати
+--    записанных отказов одного сотрудника за скользящую минуту: дальше PT429 и ничего не
+--    записывается (иначе отказы можно плодить без конца). Ответ: только идентификатор
+--    набора и слова, ни номера, ни логина.
 --  * platform.telephony_dial_target_v1(организация, набор, сотрудник) — только
 --    service_role. Отдаёт `{pbxUser, phone}` набора в состоянии `requested` этого
 --    сотрудника не старше двух минут: единственное место, где номер читается.
@@ -43,9 +46,10 @@
 --    `requested` → `sent` (нужен `callid`) | `unconfirmed` (ответ 2xx без `callid`,
 --    таймаут, обрыв: звонок мог уйти, второго набора нет) | `failed` (ВАТС ответила
 --    ошибкой) | `refused` (`pbx_offline`, `pbx_user_not_found`: проверка статуса
---    сотрудника перед набором, §5.4). Повтор итога ничего не меняет и не пишется в
---    журнал. Итог — одна строка журнала `telephony.dial` (идентификаторы и коды, без
---    номера, логина и `callid`).
+--    сотрудника перед набором, §5.4). Звонка не было, поэтому у `refused` номер и логин в
+--    строке набора стираются (`client_phone`, `pbx_user` = NULL). Повтор итога ничего не
+--    меняет и не пишется в журнал. Итог — одна строка журнала `telephony.dial`
+--    (идентификаторы и коды, без номера, логина и `callid`).
 --  * Набор, у которого итог так и не пришёл (процесс упал между вызовами), при повторе
 --    с тем же `request_id` через две минуты становится `unconfirmed` (`finish_lost`) и
 --    получает свою строку журнала; он продолжает считаться в лимитах.
@@ -57,7 +61,9 @@
 -- сотрудника; не больше `limit_org_hour` за скользящий час и `limit_org_day` за
 -- скользящие 24 часа на организацию. В лимиты входят все наборы, кроме отказов
 -- (`requested`, `sent`, `unconfirmed`, `failed`): неподтверждённый звонок мог состояться
--- и стоит денег. Отказы не засчитываются.
+-- и стоит денег. Отказы не засчитываются в суточные и часовые лимиты, но отказ проверки статуса
+-- сотрудника (`pbx_offline`, `pbx_user_not_found`) идёт в паузу между наборами: он стоит
+-- запроса к ВАТС, и сотрудник с выключенным устройством не должен опрашивать её без конца.
 -- Номер (§6.5): E.164 из карточки клиента (строго: с «+», «00» или в национальной форме
 -- КР), разрешённые префиксы из настроек (по умолчанию только +996), а короткие,
 -- служебные и платные диапазоны блокируются всегда (`telephony_dial_number_blocked`).
@@ -303,13 +309,15 @@ BEGIN
 
   IF v_code IS NULL THEN
     -- Лимиты (§6.5): считаются наборы, кроме отказов, за скользящие окна.
-    SELECT count(*) FILTER (WHERE d.membership_id = v_actor.membership_id),
-           count(*) FILTER (WHERE d.created_at > v_now - INTERVAL '1 hour'),
-           count(*),
-           max(d.created_at) FILTER (WHERE d.membership_id = v_actor.membership_id)
+    SELECT count(*) FILTER (WHERE d.status <> 'refused' AND d.membership_id = v_actor.membership_id),
+           count(*) FILTER (WHERE d.status <> 'refused' AND d.created_at > v_now - INTERVAL '1 hour'),
+           count(*) FILTER (WHERE d.status <> 'refused'),
+           -- Пауза между наборами: не только наборы, но и отказ проверки статуса (запрос к ВАТС).
+           max(d.created_at) FILTER (WHERE d.membership_id = v_actor.membership_id
+             AND (d.status <> 'refused' OR d.refusal_code IN ('pbx_offline', 'pbx_user_not_found')))
       INTO v_user_day, v_org_hour, v_org_day, v_last
       FROM platform_private.telephony_dial_requests d
-     WHERE d.organization_id = p_organization_id AND d.status <> 'refused'
+     WHERE d.organization_id = p_organization_id
        AND d.created_at > v_now - INTERVAL '24 hours';
     IF v_last IS NOT NULL AND v_now - v_last < make_interval(secs => v_settings.limit_user_gap_seconds) THEN
       v_code := 'rate_gap';
@@ -323,6 +331,14 @@ BEGIN
   END IF;
 
   IF v_code IS NOT NULL THEN
+    -- Отказы тоже строка и запись журнала: больше двадцати за минуту у одного сотрудника не
+    -- записываются (PT429), чтобы прямыми вызовами их нельзя было плодить без конца. Повтор
+    -- request_id (выше) этим не затрагивается; пока отказов меньше двадцати, всё как раньше.
+    IF (SELECT count(*) FROM platform_private.telephony_dial_requests d
+         WHERE d.organization_id = p_organization_id AND d.membership_id = v_actor.membership_id
+           AND d.status = 'refused' AND d.created_at > v_now - INTERVAL '1 minute') >= 20 THEN
+      RAISE EXCEPTION 'telephony_dial_throttled' USING ERRCODE = 'PT429';
+    END IF;
     RETURN platform_private.telephony_dial_record_refusal(p_organization_id, p_request_id, v_actor.membership_id,
       v_actor.profile_id, v_actor.auth_user_id, v_client, p_lead_id, v_code, v_now);
   END IF;
@@ -421,9 +437,12 @@ BEGIN
     RETURN jsonb_build_object('status', v_row.status, 'changed', FALSE);
   END IF;
 
+  -- Отказ проверки статуса: звонка не было, номер и логин в строке не нужны и стираются.
   UPDATE platform_private.telephony_dial_requests d
      SET status = p_outcome, pbx_callid = p_pbx_callid, pbx_http_status = p_pbx_http_status,
-         pbx_error_code = p_error_code, refusal_code = p_refusal_code, updated_at = v_now
+         pbx_error_code = p_error_code, refusal_code = p_refusal_code, updated_at = v_now,
+         client_phone = CASE WHEN p_outcome = 'refused' THEN NULL ELSE client_phone END,
+         pbx_user = CASE WHEN p_outcome = 'refused' THEN NULL ELSE pbx_user END
    WHERE d.organization_id = p_organization_id AND d.id = p_dial_request_id;
 
   SELECT m.profile_id, pr.auth_user_id INTO v_profile, v_auth
@@ -476,11 +495,11 @@ COMMENT ON FUNCTION platform_private.telephony_dial_record_refusal(UUID, UUID, U
 COMMENT ON FUNCTION platform.telephony_dial_options_v1(UUID) IS
   'Telephony T7: whether the Call button is shown to this employee (flags ui_enabled and dial_enabled on, not paused, telephony.call.dial) and whether they are mapped to a PBX user. No number, no login.';
 COMMENT ON FUNCTION platform.telephony_dial_begin_v1(UUID, UUID, UUID) IS
-  'Telephony T7: all dial checks in the database (right, flags, idempotency by request id, lead visibility, number from the card, allowed prefixes, blocked ranges, PBX mapping, per-employee and per-organization limits). Records a refusal or a requested row; answers ids and words only, never a number or a PBX login.';
+  'Telephony T7: all dial checks in the database (right, flags, idempotency by request id, lead visibility, number from the card, allowed prefixes, blocked ranges, PBX mapping, per-employee and per-organization limits, at most twenty recorded refusals per employee per minute: PT429 beyond). Records a refusal or a requested row; answers ids and words only, never a number or a PBX login.';
 COMMENT ON FUNCTION platform.telephony_dial_target_v1(UUID, UUID, UUID) IS
   'Telephony T7: service-only. The PBX login and the client number of a requested dial of this employee, younger than two minutes; the only place the number is read from the dial row.';
 COMMENT ON FUNCTION platform.telephony_dial_finish_v1(UUID, UUID, UUID, TEXT, TEXT, INTEGER, TEXT, TEXT) IS
-  'Telephony T7: service-only. The single transition requested -> sent (call id) | unconfirmed | failed | refused (pbx_offline, pbx_user_not_found), with one telephony.dial journal row; a repeat changes nothing.';
+  'Telephony T7: service-only. The single transition requested -> sent (call id) | unconfirmed | failed | refused (pbx_offline, pbx_user_not_found), with one telephony.dial journal row; a refused row loses the number and the PBX login (no call was made); a repeat changes nothing.';
 
 -- Проверка в конце: права ровно такие, как задумано.
 DO $tel299_verify$

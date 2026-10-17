@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import { StaffSection } from "./StaffSection";
 import { AccountDeletionSection } from "./AccountDeletionSection";
+import { TelephonySection } from "./TelephonySection";
+import type { TelephonyAdminRead } from "@/lib/server/platform-telephony-admin";
 import type { AccountDeletionDetailRead, AccountDeletionQueueRead } from "@/lib/v3/account-deletion-source";
 import type { StaffWorkspaceData } from "@/lib/v3/staff-workspace-contract";
 import type { StaffRoleWorkspace } from "@/lib/v3/staff-roles-contract";
@@ -57,6 +59,8 @@ export function Settings({
   deletionQueue,
   deletionDetail,
   deletionHrefFor,
+  telephony,
+  telephonyReadOnly,
 }: {
   section: SectionKey;
   staffView: StaffView;
@@ -85,6 +89,10 @@ export function Settings({
   deletionQueue?: AccountDeletionQueueRead;
   deletionDetail?: AccountDeletionDetailRead | null;
   deletionHrefFor?: (requestId: string | null) => string;
+  /** «Телефония» (срез T4b): чтение экрана; `null` — раздел не открыт. */
+  telephony?: TelephonyAdminRead | null;
+  /** Просмотр роли: экран виден, настройки не меняются. */
+  telephonyReadOnly?: boolean;
 }) {
   const current = SECTIONS.find((entry) => entry.key === section && (entry.view === null || entry.view === staffView)) ?? SECTIONS[0];
   // Разделы сотрудников ставят свой видимый h2 с числом («Сотрудники · 5»,
@@ -122,6 +130,7 @@ export function Settings({
             view={staffView} selectedMemberId={selectedStaffMemberId} selectedRoleId={selectedStaffRoleId} />
             : <h2 className="t-section mb-3 text-fg">{current.title}</h2>}
           {current.key === "integrations" ? <IntegrationsSection rows={integrations} /> : null}
+          {current.key === "telephony" ? <TelephonySection read={telephony ?? null} readOnly={telephonyReadOnly ?? false} now={new Date()} /> : null}
           {current.key === "journal" ? (
             <JournalSection
               entries={journal}

@@ -156,6 +156,14 @@ const AI_AGENT_AUTOSEND_SEND_PATH = "/api/internal/ai-agent/send";
 // Телефония Beeline KG (план телефонии §5.1): ВАТС без подписи, ключ `crm_token`
 // в теле; обработчик сам проверяет метод, размер, ключ и выключатель.
 const TELEPHONY_BEELINE_INBOUND_PATH = "/api/v2/telephony/beeline/inbound";
+// «Настройки → Телефония» (план телефонии §12, срез T4b): две команды сотрудника
+// с правом telephony.manage — настройки и сопоставление пользователей ВАТС. Два
+// точных пути, только POST (метод проверяет обработчик); остальное под
+// /api/v3/telephony закрыто, пока свои срезы (записи, набор) не добавят свои.
+const TELEPHONY_ADMIN_API_PATHS: ReadonlySet<string> = new Set([
+  "/api/v3/telephony/settings",
+  "/api/v3/telephony/extensions",
+]);
 const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/v2/whatsapp/inbound",
   TELEPHONY_BEELINE_INBOUND_PATH,
@@ -332,6 +340,7 @@ export function isConnectedPlatformApi(path: string): boolean {
     AI_AGENT_PAGE_IMAGE_PATH.test(path) ||
     AI_AGENT_CROP_PATH.test(path) ||
     AI_AGENT_LAB_PATH.test(path) ||
+    TELEPHONY_ADMIN_API_PATHS.has(path) ||
     isConnectedPlatformPrivateApi(path)
   );
 }

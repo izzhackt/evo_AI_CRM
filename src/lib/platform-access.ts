@@ -47,6 +47,11 @@ export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRole
   // «ИИ-агент» (план ИИ-агента §12.2, §13): право ai.agent.use — у всех
   // сотрудников через роли «… — общие разделы» (268); решает каждый RPC раздела.
   if (route === "/v3/ai-agent") return staffHasPermission(actor, "ai.agent.use");
+  // «Настройки → Телефония» (план телефонии §11, §12; срез T4b): администратор,
+  // как и раньше, и держатель telephony.manage («Телефония — руководитель»). Этому
+  // сотруднику страница показывает один раздел — «Телефония»; остальные разделы
+  // настроек, их чтения и действия по-прежнему только у администратора.
+  if (route === "/v3/settings") return staffCan(actor, "admin.preview") || staffHasPermission(actor, "telephony.manage");
   if (route === "/v3/calendar") return staffCan(actor, "admissions.read") || staffHasPermission(actor, "task.manage") || staffHasPermission(actor, "staff.task.read");
   if (route === "/v3/tasks") return staffHasPermission(actor, "staff.task.read") || staffHasPermission(actor, "staff.task.create")
     || staffHasPermission(actor, "task.manage")

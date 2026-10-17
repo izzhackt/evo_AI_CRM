@@ -1,5 +1,5 @@
 // «Телефония Beeline KG», срез T10 (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §10, §11, §12;
-// миграция 299): блок «Звонки» в «Отчёте продаж». Проверки без сети и без базы: строгий разбор
+// миграция 301): блок «Звонки» в «Отчёте продаж». Проверки без сети и без базы: строгий разбор
 // ответа `platform.telephony_report_v1` (чужая форма, расхождение арифметики, утечка номера — ошибка,
 // а не пустой блок), слова ячеек, чтение страницы с поддельной базой (права, просмотр роли, 42501,
 // сбой, чужой период), проводка в странице «Отчёт продаж» и настоящий компонент статическим рендером
@@ -49,9 +49,9 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
 const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
 const solidRed = (html) => html.match(/(?<![\w:-])bg-accent(?![\w-])/gu)?.length ?? 0;
 const PERIOD = { from: "2026-09-01", to: "2026-09-26" };
-const ID = (n) => `29900000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const ID = (n) => `30100000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 /** Идентификатор с буквами: в нём видно, что разбор приводит id к нижнему регистру. */
-const HEX = "29900000-0000-4000-8000-0000000000ab";
+const HEX = "30100000-0000-4000-8000-0000000000ab";
 
 // --------------------------------------------------------------- fixtures (the shape the database gives)
 const ZERO_FIRST = { leads: 0, called: 0, reached: 0, inTime: 0, late: 0, pending: 0, medianCallSeconds: null, medianReachSeconds: null };
@@ -377,7 +377,7 @@ test("wiring: the block sits under «Динамика по дням», shares it
   const source = read("src/lib/v3/telephony-report-source.ts");
   assert.match(source, /rpc\("telephony_report_v1"/u);
   assert.doesNotMatch(source, /recording|phone/iu, "the reader names neither a recording nor a number");
-  assert.match(read("supabase/migrations/299_platform_telephony_report.sql"), /telephony\.report\.read\.all/u);
+  assert.match(read("supabase/migrations/301_platform_telephony_report.sql"), /telephony\.report\.read\.all/u);
 });
 
 // ------------------------------------------------------------ the rendered block

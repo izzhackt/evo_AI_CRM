@@ -12,7 +12,7 @@ export function canReadTelephonyReport(actor: ActivePlatformActor): boolean {
 }
 
 /**
- * Блок «Звонки» «Отчёта продаж» («Телефония Beeline KG», срез T10; миграция 299,
+ * Блок «Звонки» «Отчёта продаж» («Телефония Beeline KG», срез T10; миграция 301,
  * `platform.telephony_report_v1`). Читает база под сессией сотрудника: права `telephony.report.read.*`
  * и включатель `ui_enabled` (по умолчанию выключен — тогда ответ «выключено» и блок не рисуется) решает
  * она, не страница. Номер клиента приходит только маской.

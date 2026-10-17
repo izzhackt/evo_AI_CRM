@@ -2,27 +2,33 @@ import { PLATFORM_SALES_STAGES, type PlatformSalesStage } from "./platform-sales
 import type { StudentApplication } from "./student-application-contract.ts";
 
 /**
- * «Заявки» (Э3, 27.09.2026): контракт чтения `platform.staff_requests_queue_v2`
- * (миграция 250). Вкладка — источник, состояние — «Ждут разбора» или «Все»;
+ * «Заявки» (Э3, 27.09.2026): контракт чтения `platform.staff_requests_queue_v3`
+ * (телефония T9; v2 из миграции 250 берёт лиды только `website` и `whatsapp`).
+ * Вкладка — источник, состояние — «Ждут разбора» или «Все»;
  * ждёт разбора лид без ответственного и не переданный, анкета `pending`,
  * консультация `requested`. Числа вкладок приходят из чтения при выбранном
  * состоянии; вид, который роль не читает, числа не имеет (null), а не ноль.
+ *
+ * Вкладка «Звонки» (`phone_call`) — лиды по звонкам (неизвестный номер, T9). Она есть
+ * только при включённом `ui_enabled` телефонии и праве читать лиды: ответ несёт
+ * `phoneCalls`, и без него звонков в чтении нет вовсе (ни строк, ни числа), чтобы слияние
+ * кода ничего не открывало до приёмки (план телефонии §9.1).
  */
-export const REQUEST_SOURCE_FILTERS = ["all", "website", "whatsapp", "platform_application", "portal_consultation"] as const;
+export const REQUEST_SOURCE_FILTERS = ["all", "website", "whatsapp", "phone_call", "platform_application", "portal_consultation"] as const;
 export type RequestSourceFilter = typeof REQUEST_SOURCE_FILTERS[number];
 export const REQUEST_STATUS_FILTERS = ["waiting", "all"] as const;
 export type RequestStatusFilter = typeof REQUEST_STATUS_FILTERS[number];
 export const REQUEST_KINDS = ["lead", "application", "consultation"] as const;
 export type RequestKind = typeof REQUEST_KINDS[number];
 export type RequestKindState = "ready" | "forbidden";
-/** Ключи чисел вкладок: у лидов два источника, у анкет и консультаций — по одному. */
-export const REQUEST_TABS = ["website", "whatsapp", "application", "consultation"] as const;
+/** Ключи чисел вкладок: у лидов три источника, у анкет и консультаций — по одному. */
+export const REQUEST_TABS = ["website", "whatsapp", "phone_call", "application", "consultation"] as const;
 export type RequestTab = typeof REQUEST_TABS[number];
 export const REQUEST_TAB_SOURCE: Readonly<Record<RequestTab, Exclude<RequestSourceFilter, "all">>> = {
-  website: "website", whatsapp: "whatsapp", application: "platform_application", consultation: "portal_consultation",
+  website: "website", whatsapp: "whatsapp", phone_call: "phone_call", application: "platform_application", consultation: "portal_consultation",
 };
 const TAB_KIND: Readonly<Record<RequestTab, RequestKind>> = {
-  website: "lead", whatsapp: "lead", application: "application", consultation: "consultation",
+  website: "lead", whatsapp: "lead", phone_call: "lead", application: "application", consultation: "consultation",
 };
 export const REQUESTS_PAGE_SIZE = 50;
 
@@ -32,7 +38,7 @@ export type RequestFilters = Readonly<{
   limit: number;
 }>;
 export type RequestCursor = RequestFilters & Readonly<{
-  v: 2; direction: "next" | "previous"; timestamp: string; kind: RequestKind; id: string;
+  v: 3; direction: "next" | "previous"; timestamp: string; kind: RequestKind; id: string;
 }>;
 export type RequestSelection = RequestFilters & Readonly<{ cursor: RequestCursor | null }>;
 export type ConsultationRow = Readonly<{
@@ -55,7 +61,7 @@ export type RequestLeadTake = Readonly<{
 }>;
 type RowBase = Readonly<{ id: string; occurredAt: string; personName: string }>;
 export type RequestLeadRow = RowBase & Readonly<{
-  kind: "lead"; source: "website" | "whatsapp"; email: string | null; phone: string | null; leadId: string;
+  kind: "lead"; source: "website" | "whatsapp" | "phone_call"; email: string | null; phone: string | null; leadId: string;
   owner: RequestLeadOwner | null; handedOff: boolean; take: RequestLeadTake | null;
 }>;
 export type RequestApplicationRow = RowBase & Readonly<{
@@ -68,6 +74,8 @@ export type RequestRow = RequestLeadRow | RequestApplicationRow | RequestConsult
 export type RequestsQueue = Readonly<{
   rows: readonly RequestRow[];
   states: Readonly<Record<RequestKind, RequestKindState>>;
+  /** Звонки входят в чтение: телефония включена для сотрудников (`ui_enabled`) и роль читает лиды. */
+  phoneCalls: boolean;
   counts: Readonly<Record<RequestTab, number | null>>;
   /** Последняя заявка выбранного источника в любом состоянии; null — заявок не было. */
   latestAt: string | null;
@@ -96,15 +104,18 @@ function date(value: unknown): value is string {
 function sameFilters(value: Record<string, unknown>, filters: RequestFilters): boolean {
   return value.source === filters.source && value.status === filters.status && value.limit === filters.limit;
 }
+function isLeadSource(source: string): source is "website" | "whatsapp" | "phone_call" {
+  return source === "website" || source === "whatsapp" || source === "phone_call";
+}
 export function requestKindOfSource(source: Exclude<RequestSourceFilter, "all">): RequestKind {
-  return source === "website" || source === "whatsapp" ? "lead" : source === "platform_application" ? "application" : "consultation";
+  return isLeadSource(source) ? "lead" : source === "platform_application" ? "application" : "consultation";
 }
 export function requestKindSelected(kind: RequestKind, source: RequestSourceFilter): boolean {
   return source === "all" || requestKindOfSource(source) === kind;
 }
 export function parseRequestCursor(value: unknown, filters: RequestFilters): RequestCursor {
   if (!keys(value, "direction,id,kind,limit,source,status,timestamp,v")
-    || value.v !== 2 || !sameFilters(value, filters)
+    || value.v !== 3 || !sameFilters(value, filters)
     || (value.direction !== "next" && value.direction !== "previous")
     || !REQUEST_KINDS.includes(value.kind as RequestKind) || !requestKindSelected(value.kind as RequestKind, filters.source)
     || !timestamp(value.timestamp) || !uuid(value.id)) return invalid();
@@ -188,7 +199,7 @@ function compare(a: Position, b: Position): number {
 function position(row: RequestRow): Position { return { timestamp: row.occurredAt, kind: row.kind, id: row.id }; }
 /** Вкладка строки: у лида — его источник, у анкеты и консультации — их вид. */
 export function requestRowTab(row: Pick<RequestRow, "kind" | "source">): RequestTab {
-  return row.source === "website" || row.source === "whatsapp" ? row.source : row.kind === "application" ? "application" : "consultation";
+  return isLeadSource(row.source) ? row.source : row.kind === "application" ? "application" : "consultation";
 }
 function selectedTabs(source: RequestSourceFilter): readonly RequestTab[] {
   return source === "all" ? REQUEST_TABS : REQUEST_TABS.filter((tab) => REQUEST_TAB_SOURCE[tab] === source);
@@ -219,19 +230,24 @@ export function parseRequestsQueue(
   decodeApplication: (raw: unknown) => StudentApplication,
   decodeConsultation: (raw: unknown) => ConsultationRow,
 ): RequestsQueue {
-  if (!keys(value, "counts,latestAt,limit,nextCursor,organizationId,previousCursor,rows,source,states,status,version")
-    || value.version !== 2 || value.organizationId !== organizationId || !sameFilters(value, selection)
+  if (!keys(value, "counts,latestAt,limit,nextCursor,organizationId,phoneCalls,previousCursor,rows,source,states,status,version")
+    || value.version !== 3 || value.organizationId !== organizationId || !sameFilters(value, selection)
     || !keys(value.states, "application,consultation,lead")
-    || !keys(value.counts, "application,consultation,website,whatsapp")
+    || !keys(value.counts, "application,consultation,phone_call,website,whatsapp")
+    || typeof value.phoneCalls !== "boolean"
     || (value.latestAt !== null && !timestamp(value.latestAt))
     || !Array.isArray(value.rows) || value.rows.length > selection.limit) return invalid();
   const states = value.states as Record<RequestKind, RequestKindState>;
   const counts = value.counts as RequestsQueue["counts"];
+  const phoneCalls = value.phoneCalls as boolean;
   for (const kind of REQUEST_KINDS) if (states[kind] !== "ready" && states[kind] !== "forbidden") return invalid();
-  // Нет чтения — нет числа: у закрытого роли вида число null, у читаемого — целое ≥ 0.
+  // Звонки есть в чтении только у роли, которая читает лиды (и при включённой телефонии).
+  if (phoneCalls && states.lead !== "ready") return invalid();
+  // Нет чтения — нет числа: у закрытого роли вида (и выключенных звонков) число null, у читаемого — целое ≥ 0.
   for (const tab of REQUEST_TABS) {
     const count = counts[tab];
-    if (states[TAB_KIND[tab]] === "ready" ? !Number.isSafeInteger(count) || (count as number) < 0 : count !== null) return invalid();
+    const readable = states[TAB_KIND[tab]] === "ready" && (tab !== "phone_call" || phoneCalls);
+    if (readable ? !Number.isSafeInteger(count) || (count as number) < 0 : count !== null) return invalid();
   }
   const latestAt = value.latestAt as string | null;
   const rows: RequestRow[] = value.rows.map((raw): RequestRow => {
@@ -242,7 +258,7 @@ export function parseRequestsQueue(
     const base = { id: raw.id, occurredAt: raw.occurredAt, personName: raw.personName };
     if (raw.kind === "lead") {
       if (!keys(raw, "email,handedOff,id,kind,leadId,occurredAt,owner,personName,phone,source,take")
-        || (raw.source !== "website" && raw.source !== "whatsapp") || raw.leadId !== raw.id
+        || !isLeadSource(raw.source as string) || (raw.source === "phone_call" && !phoneCalls) || raw.leadId !== raw.id
         || (raw.email !== null && !text(raw.email, 320)) || (raw.phone !== null && !text(raw.phone, 100))
         || typeof raw.handedOff !== "boolean") return invalid();
       const owner = parseOwner(raw.owner);
@@ -250,7 +266,7 @@ export function parseRequestsQueue(
       // Взять можно только лид без ответственного и не переданный; «Ждут разбора» — только такие.
       if ((take && (owner || raw.handedOff)) || (selection.status === "waiting" && (owner || raw.handedOff))) return invalid();
       return {
-        ...base, kind: "lead", source: raw.source, leadId: raw.id, email: raw.email as string | null, phone: raw.phone as string | null,
+        ...base, kind: "lead", source: raw.source as "website" | "whatsapp" | "phone_call", leadId: raw.id, email: raw.email as string | null, phone: raw.phone as string | null,
         owner, handedOff: raw.handedOff, take,
       };
     }
@@ -289,5 +305,5 @@ export function parseRequestsQueue(
     if (cursor && (cursor.direction !== direction || (boundary ? compare(cursor, position(boundary)) !== 0
       : !selection.cursor || compare(cursor, selection.cursor) !== 0 || cursor.direction === selection.cursor.direction))) return invalid();
   }
-  return { rows, states, counts, latestAt, nextCursor, previousCursor };
+  return { rows, states, phoneCalls, counts, latestAt, nextCursor, previousCursor };
 }

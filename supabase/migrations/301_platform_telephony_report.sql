@@ -1,4 +1,4 @@
--- 299_platform_telephony_report — «Телефония Beeline KG» срез T10: блок «Звонки»
+-- 301_platform_telephony_report — «Телефония Beeline KG» срез T10: блок «Звонки»
 -- в «Отчёте продаж».
 -- Контракт: docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.1, §9.1, §9.2, §10, §11, §12, §16
 -- (срез T10), ADR 0033; docs/PLAN_CHANGES.md (запись «Телефония T10»). Только чтение
@@ -386,7 +386,7 @@ COMMENT ON FUNCTION platform_private.telephony_report_deadline(TIMESTAMPTZ, SMAL
   'Telephony T10: the close of the first working day strictly after the local date of the moment (the callback deadline of a missed incoming call).';
 
 -- Проверка в конце: права ровно такие, как задумано.
-DO $tel299_verify$
+DO $tel301_verify$
 DECLARE
   r TEXT;
 BEGIN
@@ -406,6 +406,6 @@ BEGIN
     END IF;
   END LOOP;
 END
-$tel299_verify$;
+$tel301_verify$;
 
 COMMIT;

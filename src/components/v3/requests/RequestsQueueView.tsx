@@ -13,6 +13,7 @@ import { formatStudentApplicationAnswers } from "@/lib/student-application-prese
 import {
   REQUEST_SOURCE_WORDS,
   REQUEST_STATUS_LABELS,
+  requestCallsOff,
   requestClosedKinds,
   requestClosedLine,
   requestEmptyWhat,
@@ -276,6 +277,13 @@ function RequestsEmpty({ queue, props, now }: Readonly<{
       </div>
     );
   }
+  if (requestCallsOff(queue, selection.source)) {
+    return (
+      <div role="status" className="border-t border-border py-12 text-center" data-testid="queue-empty">
+        <p className="t-item text-fg">Звонки пока не подключены.</p>
+      </div>
+    );
+  }
   const latest = requestLatestLine(queue.latestAt, now);
   const what = requestEmptyWhat(queue, selection.source);
   return (
@@ -296,7 +304,8 @@ function RequestsEmpty({ queue, props, now }: Readonly<{
  * «Заявки» (Э3, 27.09.2026): очередь разбора. Вкладки источников с числами
  * из чтения, «Ждут разбора / Все» — сразу по нажатию, строки на волосяных
  * линиях, одно «Открыть» — правая панель. Группы «Больше 2 ч» нет: SLA
- * менеджеров план не вводит.
+ * менеджеров план не вводит. Вкладка «Звонки» (телефония T9) — те же строки
+ * лидов с источником «Звонок»; её нет, пока телефония не включена.
  */
 export function RequestsQueueView(props: ViewProps) {
   const { selection, read } = props;

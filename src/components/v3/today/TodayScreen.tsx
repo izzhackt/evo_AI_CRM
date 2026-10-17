@@ -1,5 +1,6 @@
 import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
+import type { DialOptions } from "@/lib/v3/telephony-dial";
 import type { TodayLink, TodayNotice, TodayQueue } from "@/lib/v3/today-queue";
 
 import { QUEUE_QUIET_LINK, QueueEmpty } from "../queue/QueueStates";
@@ -62,12 +63,15 @@ export function TodayScreen({
   nowIso,
   permissions,
   mainAction,
+  dial = null,
 }: Readonly<{
   queue: TodayQueue;
   nowIso: string;
   permissions: TaskRowPermissions;
   /** Главное действие роли для пустого дня; null — у роли его нет. */
   mainAction: TodayLink | null;
+  /** «Позвонить» (Телефония, T7): решение базы для этого сотрудника; нет — кнопок нет. */
+  dial?: DialOptions | null;
 }>) {
   const link = mainAction ? <IntentPrefetchLink href={mainAction.href} className={QUEUE_QUIET_LINK}>{mainAction.label}</IntentPrefetchLink> : null;
   const note = queue.emptyNote ? <p className="t-body-compact text-fg-2" data-today-empty-note="">{queue.emptyNote}</p> : null;
@@ -88,7 +92,7 @@ export function TodayScreen({
       ) : null}
       {queue.bands.length ? (
         <div className="@container min-w-0" data-today-queue="">
-          <TodayQueueList bands={queue.bands} nowIso={nowIso} permissions={permissions} />
+          <TodayQueueList bands={queue.bands} nowIso={nowIso} permissions={permissions} dial={dial} />
         </div>
       ) : null}
     </div>

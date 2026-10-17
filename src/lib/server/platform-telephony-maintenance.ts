@@ -64,6 +64,7 @@ const RETRY_LEASE_SECONDS = 120;
 const SETTLE_BATCH = 200;
 const AUTOMATION_BATCH = 100;
 const APPLY_BATCH = 100;
+const INTAKE_BATCH = 100;
 const USERS_MAX = 200;
 const HISTORY_MAX_REQUESTS = 16;
 const HISTORY_PAUSE_MS = 1_000;
@@ -279,6 +280,36 @@ export async function runTelephonyMaintenance(
         p_organization_id: organizationId,
         p_limit: SETTLE_BATCH,
       });
+      // Unknown-number intake (T9): an unknown inbound number becomes a client and a «Звонок» lead, a
+      // known client without an open lead gets one task. It decides what the quiet window just settled
+      // and MUST run before the missed-call tick (T8), which leaves an unknown number to this step and
+      // then finds the created lead. The database answers `disabled` while its flags are off. A failure
+      // is recorded as a fixed word and ends the run with exit code 1, but never stops the PBX jobs.
+      try {
+        const intake = await rpc("telephony_intake_tick_v1", {
+          p_organization_id: organizationId,
+          p_limit: INTAKE_BATCH,
+        });
+        log.intake = typeof intake.status === "string" && FIXED_WORD_PATTERN.test(intake.status)
+          ? intake.status
+          : "unknown";
+        if (log.intake === "ok" || log.intake === "stopped") {
+          log.intake_created = count(intake.created);
+          log.intake_attached = count(intake.attached);
+          log.intake_tasks = count(intake.tasks);
+          log.intake_failed = count(intake.failed);
+          if (typeof intake.stop_code === "string" && FIXED_WORD_PATTERN.test(intake.stop_code)) {
+            log.intake_stop = intake.stop_code;
+          }
+          if (typeof intake.last_error_code === "string" && ERROR_CODE_PATTERN.test(intake.last_error_code)) {
+            log.intake_error = intake.last_error_code;
+          }
+        }
+      } catch (error) {
+        if (!(error instanceof TelephonyDatabaseError)) throw error;
+        log.intake = "failed";
+        automationFailed = true;
+      }
       log.settled = count(settled.settled);
       log.settle_flagged = count(settled.flagged);
       log.settle_failed = count(settled.failed);

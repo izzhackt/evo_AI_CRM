@@ -1,7 +1,10 @@
 import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
 import { Icon, type IconName } from "@/components/icons";
+import { todayDialLeadId, type DialOptions } from "@/lib/v3/telephony-dial";
 import { todayWhen, type TodayItem, type TodaySource } from "@/lib/v3/today-queue";
+
+import { DialButton } from "../telephony/DialButton";
 
 /** Знак источника в колонке, где у задачи круг завершения: строка без действия на месте. */
 const SOURCE_ICON: Readonly<Record<Exclude<TodaySource, "tasks">, IconName>> = {
@@ -36,9 +39,14 @@ const PIECE = "relative flex min-h-6 items-center gap-x-1 ps-3 before:absolute b
  * никогда: на узкой строке она идёт сразу за сроком, а имя — последним и
  * сокращается; если части или имени места нет, они переносятся целиком.
  * На широкой — «имя · причина»; имя сокращается, только если длиннее строки.
+ *
+ * «Позвонить» («Телефония Beeline KG», T7): у строки лида или заявки, когда база открыла набор
+ * этому сотруднику (`dial`) — значок 44 px рядом с «Открыть», над ссылкой, покрывающей строку.
+ * Задачи и дела студентов кнопки не получают: в строке нет лида (`todayDialLeadId`).
  */
-export function TodayRow({ item, nowIso }: Readonly<{ item: TodayItem; nowIso: string }>) {
+export function TodayRow({ item, nowIso, dial = null }: Readonly<{ item: TodayItem; nowIso: string; dial?: DialOptions | null }>) {
   const when = todayWhen(item, new Date(nowIso));
+  const dialLeadId = dial?.status === "ready" ? todayDialLeadId(item) : null;
   const icon = item.source === "tasks" ? "check-square" : SOURCE_ICON[item.source];
   // На узкой строке слово срока остаётся только у «Ближайших» и там, где даты
   // нет: «прошёл» и «сегодня» повторили бы заголовок группы.
@@ -48,7 +56,7 @@ export function TodayRow({ item, nowIso }: Readonly<{ item: TodayItem; nowIso: s
     <li
       data-queue-row={item.key}
       data-today-source={item.source}
-      className="v3-queue-row relative grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-x-2 border-b border-border hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface @min-[32rem]:grid-cols-[2.75rem_7rem_minmax(0,1fr)_auto]"
+      className={`v3-queue-row relative grid ${dialLeadId ? "grid-cols-[2.75rem_minmax(0,1fr)_5.5rem]" : "grid-cols-[2.75rem_minmax(0,1fr)_2.75rem]"} items-center gap-x-2 border-b border-border hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface @min-[32rem]:grid-cols-[2.75rem_7rem_minmax(0,1fr)_auto]`}
     >
       <span aria-hidden="true" className="grid size-11 place-items-center text-fg-3">
         <Icon name={icon} size={20} />
@@ -93,6 +101,9 @@ export function TodayRow({ item, nowIso }: Readonly<{ item: TodayItem; nowIso: s
       </div>
 
       <div className="flex justify-end">
+        {dialLeadId && dial?.status === "ready" ? (
+          <DialButton leadId={dialLeadId} mapped={dial.mapped} variant="row" subject={item.who?.name ?? item.title} />
+        ) : null}
         <IntentPrefetchLink
           href={item.openHref}
           data-queue-open=""

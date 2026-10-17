@@ -1,35 +1,5 @@
 import SwiftUI
 
-/// UI language of the bundle actually being displayed (ru or ky). Used for
-/// data-driven labels (country names, dates) so they match the interface
-/// language instead of an English device locale.
-enum AppLocale {
-    static var current: Locale {
-        Locale(identifier: Bundle.main.preferredLocalizations.first ?? "ru")
-    }
-
-    /// Отображается ли сейчас кыргызская локализация bundle'а. Управляет
-    /// выбором RU/KY-полей ДВУЯЗЫЧНОГО контента (обучение, профессии), где
-    /// перевод приходит данными, а не через String Catalog.
-    static var isKyrgyz: Bool {
-        Bundle.main.preferredLocalizations.first == "ky"
-    }
-
-    /// Пара RU/KY контентных строк → строка активного языка интерфейса.
-    static func pick(ru: String, ky: String) -> String {
-        isKyrgyz ? ky : ru
-    }
-}
-
-/// Название страны на языке интерфейса: страны единого списка и «Пока не
-/// решил» по `study-countries.json` (как веб), прочие коды (избранное и
-/// история прежних стран) по ICU, затем сам код.
-func studyCountryLabel(_ code: String) -> String {
-    StudyCountries.name(for: code, kyrgyz: AppLocale.isKyrgyz)
-        ?? AppLocale.current.localizedString(forRegionCode: code)
-        ?? code
-}
-
 /// Список⇄карта — те же два представления одного набора и одних фильтров,
 /// что на вебе (Catalog.tsx `UniversitiesView`, дизайн-контракт: «веб и
 /// iPhone — одни возможности»).
@@ -268,9 +238,7 @@ struct UniversitiesView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     // Раздел «Избранное» (195) живёт внутри вкладки каталога.
-                    NavigationLink {
-                        FavoritesView()
-                    } label: {
+                    NavigationLink(value: PortalRoute.favorites) {
                         Label("favorites_title", systemImage: "heart")
                     }
                 }
@@ -281,6 +249,7 @@ struct UniversitiesView: View {
                     initialItem: model.knownItem(for: institutionId)
                 )
             }
+            .portalRouteDestinations()
             .task {
                 if model.items.isEmpty {
                     await model.loadFirstPage()
@@ -321,6 +290,9 @@ struct UniversitiesView: View {
                     )
                 }
                 .accessibilityLabel(Text("universities_country"))
+                .accessibilityValue(Text(model.filters.country.isEmpty
+                    ? String(localized: "universities_all_countries")
+                    : countryLabel(model.filters.country)))
 
                 Menu {
                     Picker("universities_level", selection: levelBinding) {
@@ -338,6 +310,9 @@ struct UniversitiesView: View {
                     )
                 }
                 .accessibilityLabel(Text("universities_level"))
+                .accessibilityValue(Text(model.filters.level.isEmpty
+                    ? String(localized: "universities_all_levels")
+                    : universityLevelLabel(model.filters.level)))
 
                 Spacer()
 
@@ -361,11 +336,16 @@ struct UniversitiesView: View {
                 .imageScale(.small)
         }
         .font(.subheadline)
+        // Текст акцента темнее на тонированной заливке (4,09:1 → 5,5:1), зона
+        // нажатия 44 pt при видимой высоте 30 pt (аудит UX/UI 2026-10).
+        .foregroundStyle(.accentText)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(
             Capsule().fill(active ? Color.accentColor.opacity(0.15) : Color(.secondarySystemBackground))
         )
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
     }
 
     private var countryBinding: Binding<String> {
@@ -409,12 +389,12 @@ struct UniversitiesView: View {
                     .multilineTextAlignment(.center)
                 Text(errorMessage)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .multilineTextAlignment(.center)
                 Button("retry_button") {
                     Task { await model.loadFirstPage() }
                 }
-                .buttonStyle(.bordered)
+                .accentBordered()
             }
             .padding(32)
             Spacer()
@@ -429,18 +409,18 @@ struct UniversitiesView: View {
                         .multilineTextAlignment(.center)
                     Text("universities_filtered_empty_body")
                         .font(.body)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .multilineTextAlignment(.center)
                     Button("universities_reset_filters") {
                         Task { await model.resetFilters() }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
                 .padding(32)
             } else {
                 Text("universities_empty")
                     .font(.body)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .multilineTextAlignment(.center)
                     .padding(32)
             }
@@ -476,7 +456,7 @@ struct UniversitiesView: View {
                             Button("universities_load_more") {
                                 Task { await model.loadNextPage() }
                             }
-                            .buttonStyle(.bordered)
+                            .accentBordered()
                         }
                         Spacer()
                     }
@@ -486,7 +466,7 @@ struct UniversitiesView: View {
                 if model.loadMoreFailed {
                     Text("universities_load_more_failed")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .listRowSeparator(.hidden)
                 }
             }
@@ -505,36 +485,11 @@ private struct UniversityRow: View {
                 .font(.headline)
             Text(universityPlaceLine(item.content))
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
         }
         .padding(.vertical, 4)
         // A11y-проход 9b: строка читается VoiceOver одним элементом
         // («название, город, страна»), а не двумя отдельными строками.
         .accessibilityElement(children: .combine)
     }
-}
-
-/// Локализованная подпись уровня программы (151). Общая для карточки вуза и
-/// таблицы сравнения избранного.
-func universityLevelLabel(_ level: String) -> String {
-    let key: String.LocalizationValue
-    switch level {
-    case "language": key = "university_level_language"
-    case "foundation": key = "university_level_foundation"
-    case "diploma": key = "university_level_diploma"
-    case "bachelor": key = "university_level_bachelor"
-    case "master": key = "university_level_master"
-    case "doctorate": key = "university_level_doctorate"
-    default: return level
-    }
-    return String(localized: key)
-}
-
-/// «Город, Страна» — country name localized to the interface language.
-func universityPlaceLine(_ content: UniversityContent) -> String {
-    let country = studyCountryLabel(content.country)
-    if let city = content.city, !city.isEmpty {
-        return "\(city), \(country)"
-    }
-    return country
 }

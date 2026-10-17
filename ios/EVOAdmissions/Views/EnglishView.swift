@@ -33,41 +33,69 @@ struct EnglishView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
+            // Подготовка к CSCA (миграции 285, 286): вход рядом с английским и
+            // от его загрузки не зависит (CSCA для каждого студента), вкладка
+            // не переименовывается (решение владельца по умолчанию).
+            List {
+                Section {
+                    NavigationLink(value: CSCARoute.home) {
+                        CSCAEntryRow()
+                    }
+                }
+
                 if model.isLoading && model.modules.isEmpty {
-                    ProgressView()
+                    Section {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 24)
+                    }
+                    .listRowBackground(Color.clear)
                 } else if let errorMessage = model.errorMessage, model.modules.isEmpty {
-                    VStack(spacing: 12) {
-                        Text("english_unavailable")
-                            .font(.body)
-                            .multilineTextAlignment(.center)
-                        Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                        Button("retry_button") {
-                            Task { await model.load() }
+                    Section {
+                        VStack(spacing: 12) {
+                            Text("english_unavailable")
+                                .font(.body)
+                                .multilineTextAlignment(.center)
+                            Text(errorMessage)
+                                .font(.footnote)
+                                .foregroundStyle(.secondaryText)
+                                .multilineTextAlignment(.center)
+                            Button("retry_button") {
+                                Task { await model.load() }
+                            }
+                            .accentBordered()
                         }
-                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 20)
                     }
-                    .padding(32)
+                    .listRowBackground(Color.clear)
                 } else if model.modules.isEmpty {
-                    VStack(spacing: 8) {
-                        Text("english_empty_title")
-                            .font(.headline)
-                        Text("english_empty_body")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
+                    Section {
+                        VStack(spacing: 8) {
+                            Text("english_empty_title")
+                                .font(.headline)
+                            Text("english_empty_body")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondaryText)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 20)
                     }
-                    .padding(32)
+                    .listRowBackground(Color.clear)
                 } else {
-                    moduleList
+                    moduleSections
                 }
             }
+            .refreshable { await model.load() }
             .navigationTitle("tab_english")
             .navigationDestination(for: UUID.self) { lessonId in
                 LessonContentView(lessonId: lessonId)
+            }
+            // Экраны CSCA объявлены у корня стека (SwiftUI берёт ближайшее
+            // к корню объявление).
+            .navigationDestination(for: CSCARoute.self) { route in
+                CSCARouteView(route: route)
             }
             .task {
                 if model.modules.isEmpty {
@@ -77,73 +105,81 @@ struct EnglishView: View {
         }
     }
 
-    private var moduleList: some View {
-        List {
-            ForEach(model.modules) { module in
-                Section {
-                    ForEach(module.lessons) { lesson in
-                        NavigationLink(value: lesson.lessonId) {
-                            LessonRow(lesson: lesson)
-                        }
-                        .motionStagger(
-                            index: module.id == model.modules.first?.id
-                                ? MotionPolicy.staggerIndex(of: lesson, in: module.lessons) : nil,
-                            key: "english.\(lesson.id)"
-                        )
+    @ViewBuilder
+    private var moduleSections: some View {
+        ForEach(model.modules) { module in
+            Section {
+                moduleSummary(module)
+                ForEach(module.lessons) { lesson in
+                    NavigationLink(value: lesson.lessonId) {
+                        LessonRow(lesson: lesson)
                     }
+                    .motionStagger(
+                        index: module.id == model.modules.first?.id
+                            ? MotionPolicy.staggerIndex(of: lesson, in: module.lessons) : nil,
+                        key: "english.\(lesson.id)"
+                    )
+                }
 
-                    // Повторение ошибок модуля (198: learning_review_v1) —
-                    // пустой банк показывает честное пустое состояние.
-                    NavigationLink {
-                        ReviewRunnerView(moduleId: module.moduleId)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("english_review_entry")
-                                .font(.subheadline.weight(.medium))
-                            Text("english_review_lead")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
+                // Повторение ошибок модуля (198: learning_review_v1) —
+                // пустой банк показывает честное пустое состояние.
+                NavigationLink {
+                    ReviewRunnerView(moduleId: module.moduleId)
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("english_review_entry")
+                            .font(.subheadline.weight(.medium))
+                        Text("english_review_lead")
+                            .font(.footnote)
+                            .foregroundStyle(.secondaryText)
                     }
+                }
 
-                    // Вход в тест english36 — из раздела (дизайн-контракт §4).
-                    NavigationLink {
-                        TestsContentView()
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("english_test_entry")
-                                .font(.subheadline.weight(.medium))
-                            Text("english_test_entry_hint")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
+                // Вход в тест english36 — из раздела (дизайн-контракт §4).
+                NavigationLink {
+                    TestsContentView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("english_test_entry")
+                            .font(.subheadline.weight(.medium))
+                        Text("english_test_entry_hint")
+                            .font(.footnote)
+                            .foregroundStyle(.secondaryText)
                     }
-                } header: {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(AppLocale.pick(
-                            ru: module.metadata.titleRu,
-                            ky: module.metadata.titleKy
-                        ))
-                        .font(.headline)
-                        .textCase(nil)
-                        Text(String(
-                            format: String(localized: "english_progress"),
-                            module.lessonsCompleted, module.lessonsTotal
-                        ))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .textCase(nil)
-                    }
-                    .padding(.bottom, 4)
-                } footer: {
-                    Text(AppLocale.pick(
-                        ru: module.metadata.levelNoteRu,
-                        ky: module.metadata.levelNoteKy
-                    ))
                 }
             }
         }
-        .refreshable { await model.load() }
+    }
+
+    /// Название модуля, вводный текст и прогресс первой строкой списка,
+    /// основным цветом и с полосой прогресса. Раньше это были заголовок и
+    /// подпись секции: прогресс «Пройдено уроков» давал 1,7:1, а вводный
+    /// текст стоял под всеми уроками (аудит UX/UI 2026-10).
+    private func moduleSummary(_ module: LearningModule) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(AppLocale.pick(ru: module.metadata.titleRu, ky: module.metadata.titleKy))
+                .font(.headline)
+                .accessibilityAddTraits(.isHeader)
+            let note = AppLocale.pick(ru: module.metadata.levelNoteRu, ky: module.metadata.levelNoteKy)
+            if !note.isEmpty {
+                Text(note)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondaryText)
+            }
+            ProgressView(
+                value: Double(min(module.lessonsCompleted, module.lessonsTotal)),
+                total: Double(max(module.lessonsTotal, 1))
+            )
+            .tint(Color.accentColor)
+            .accessibilityHidden(true)
+            Text(String(
+                format: String(localized: "english_progress"),
+                module.lessonsCompleted, module.lessonsTotal
+            ))
+            .font(.subheadline)
+            .foregroundStyle(.primary)
+        }
+        .padding(.vertical, 6)
     }
 }
 
@@ -163,7 +199,7 @@ private struct LessonRow: View {
                 lesson.orderIndex
             ))
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
             Text(AppLocale.pick(ru: lesson.metadata.titleRu, ky: lesson.metadata.titleKy))
                 .font(.subheadline.weight(.medium))
             HStack(spacing: 8) {
@@ -183,14 +219,14 @@ private struct LessonRow: View {
                         result.correctCount, result.exercisesTotal
                     ))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                 }
                 Text(String(
                     format: String(localized: "english_exercises_count"),
                     lesson.exercisesTotal
                 ))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             }
         }
         .padding(.vertical, 2)
@@ -241,12 +277,12 @@ struct LessonContentView: View {
                 VStack(spacing: 12) {
                     Text("english_unavailable")
                         .font(.body)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .multilineTextAlignment(.center)
                     Button("retry_button") {
                         Task { await model.load(lessonId: lessonId) }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
                 .padding(32)
             }
@@ -263,7 +299,7 @@ struct LessonContentView: View {
                         response.lesson.orderIndex
                     ))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     Text(AppLocale.pick(
                         ru: response.lesson.metadata.titleRu,
                         ky: response.lesson.metadata.titleKy
@@ -274,7 +310,7 @@ struct LessonContentView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("english_goal_heading")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                     Text(AppLocale.pick(
                         ru: response.lesson.metadata.goalRu,
                         ky: response.lesson.metadata.goalKy
@@ -283,7 +319,7 @@ struct LessonContentView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
 
                 Text("english_theory_heading")
                     .font(.title3.bold())
@@ -308,7 +344,7 @@ struct LessonContentView: View {
                                 draft.answeredCount, draft.exercisesTotal
                             ))
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                         }
                         if let completed = response.latestCompleted, let result = completed.result {
                             Text(String(
@@ -316,7 +352,7 @@ struct LessonContentView: View {
                                 result.correctCount, result.exercisesTotal
                             ))
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                         }
 
                         Button {
@@ -333,8 +369,7 @@ struct LessonContentView: View {
                             }
                             .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Color("AccentColor"))
+                        .accentProminent()
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
@@ -372,7 +407,7 @@ private struct TheoryBlockView: View {
                         .font(.subheadline.weight(.semibold))
                     Text(AppLocale.pick(ru: example.ru, ky: example.ky))
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
@@ -381,6 +416,6 @@ private struct TheoryBlockView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 }

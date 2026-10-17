@@ -1,0 +1,7 @@
+// База конфигурации Release (архив для App Store), в Git.
+// Настоящие значения лежат в игнорируемом Release.xcconfig рядом: его пишет
+// scripts/write-release-config.sh из переменных окружения, образец в
+// Release.xcconfig.example. `#include?` не требует файла, поэтому
+// `xcodegen generate` и Debug работают без него, а Release без значений
+// останавливает шаг сборки scripts/check-release-config.sh.
+#include? "Release.xcconfig"

@@ -21,7 +21,7 @@ struct AccessPendingView: View {
 
             Text("access_pending_body")
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
                 .multilineTextAlignment(.center)
 
             Button {
@@ -37,8 +37,7 @@ struct AccessPendingView: View {
                     Text("retry_button")
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Color("AccentColor"))
+            .accentProminent()
             // A11y (9b): во время повтора label — ProgressView без текста.
             .accessibilityLabel(Text("retry_button"))
 
@@ -46,15 +45,16 @@ struct AccessPendingView: View {
                 Task { await router.signOut() }
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
 
             // 280: удалить аккаунт можно и до готовности доступа.
             Button("account_deletion_action") {
                 showsDeletion = true
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.red)
+            .foregroundStyle(.dangerText)
             .frame(minHeight: 44)
+            .contentShape(Rectangle())
             .accessibilityIdentifier("account-deletion-open")
         }
         .padding(32)

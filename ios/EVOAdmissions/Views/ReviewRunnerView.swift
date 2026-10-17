@@ -128,7 +128,7 @@ struct ReviewRunnerView: View {
                     Button("retry_button") {
                         Task { await model.load(moduleId: moduleId) }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
                 .padding(32)
             case .empty:
@@ -137,7 +137,7 @@ struct ReviewRunnerView: View {
                         .font(.headline)
                     Text("english_review_empty_body")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .multilineTextAlignment(.center)
                 }
                 .padding(32)
@@ -157,7 +157,7 @@ struct ReviewRunnerView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("english_review_lead")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
 
                 if let item = model.currentItem {
                     HStack {
@@ -172,10 +172,10 @@ struct ReviewRunnerView: View {
                             item.lessonOrderIndex
                         ))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                     }
                     .padding(14)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
 
                     failureCard
 
@@ -186,14 +186,14 @@ struct ReviewRunnerView: View {
                             Button("english_next_button") {
                                 model.advance()
                             }
-                            .buttonStyle(.borderedProminent)
-                            .tint(Color("AccentColor"))
+                            .accentProminent()
                             .frame(maxWidth: .infinity, alignment: .trailing)
                         } else {
                             ExerciseFormView(
                                 exercise: item.exercise,
                                 form: $model.form,
-                                disabled: model.isChecking
+                                disabled: model.isChecking,
+                                onSubmit: { if model.canSubmit { Task { await model.check() } } }
                             )
                             Button {
                                 Task { await model.check() }
@@ -207,15 +207,14 @@ struct ReviewRunnerView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .tint(Color("AccentColor"))
+                            .accentProminent()
                             .disabled(!model.canSubmit)
                             // A11y (9b): во время проверки label — ProgressView.
                             .accessibilityLabel(Text("english_answer_button"))
                         }
                     }
                     .padding(16)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
                 }
             }
             .padding(20)
@@ -233,7 +232,7 @@ struct ReviewRunnerView: View {
                     Button("retry_button") {
                         Task { await model.check() }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -260,7 +259,7 @@ struct ReviewRunnerView: View {
             .font(.title3.bold())
             Text("english_review_lead")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
                 .multilineTextAlignment(.center)
         }
         .padding(32)

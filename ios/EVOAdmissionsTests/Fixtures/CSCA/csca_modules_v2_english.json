@@ -1,0 +1,201 @@
+{
+  "track": "english",
+  "modules": [
+    {
+      "track": "english",
+      "lessons": [
+        {
+          "lessonId": "87c8be87-fcc1-5480-8de4-1b5731a87de0",
+          "metadata": {
+            "goal_ky": "Англисче саламдашып, өз атыңды айтып, маектешиңдин атын сурайсың.",
+            "goal_ru": "Поздороваться по-английски, назвать своё имя и спросить имя собеседника.",
+            "title_ky": "Саламдашуу жана таанышуу",
+            "title_ru": "Приветствие и знакомство"
+          },
+          "completed": false,
+          "lessonKey": "en-m1-l01",
+          "lastResult": null,
+          "orderIndex": 1,
+          "draftAttemptId": null,
+          "exercisesTotal": 8
+        },
+        {
+          "lessonId": "030eb00c-c994-5867-831d-b92931fdc2af",
+          "metadata": {
+            "goal_ky": "Англис алфавитинин тамгаларын атап, өз атыңды тамгалап айтасың.",
+            "goal_ru": "Называть буквы английского алфавита и диктовать своё имя по буквам.",
+            "title_ky": "Алфавит, тыбыштар жана атты тамгалап айтуу",
+            "title_ru": "Алфавит, звуки и spelling имени"
+          },
+          "completed": false,
+          "lessonKey": "en-m1-l02",
+          "lastResult": null,
+          "orderIndex": 2,
+          "draftAttemptId": null,
+          "exercisesTotal": 8
+        },
+        {
+          "lessonId": "395d23b1-6f33-51af-88fe-5373f11e97a4",
+          "metadata": {
+            "goal_ky": "Сандарды, апта күндөрүн жана убакытты англисче айтасың.",
+            "goal_ru": "Называть числа, дни недели и время по-английски.",
+            "title_ky": "Сандар, даталар, убакыт",
+            "title_ru": "Числа, даты, время"
+          },
+          "completed": false,
+          "lessonKey": "en-m1-l03",
+          "lastResult": null,
+          "orderIndex": 3,
+          "draftAttemptId": null,
+          "exercisesTotal": 8
+        },
+        {
+          "lessonId": "3ae94907-c32a-5661-8670-6e9768ae5415",
+          "metadata": {
+            "goal_ky": "Атыңды, жашыңды айтып, үй-бүлөңдү тааныштырасың.",
+            "goal_ru": "Сказать, как вас зовут и сколько вам лет, и представить свою семью.",
+            "title_ky": "Өзүң жана үй-бүлөң жөнүндө",
+            "title_ru": "Рассказ о себе и семье"
+          },
+          "completed": false,
+          "lessonKey": "en-m1-l04",
+          "lastResult": null,
+          "orderIndex": 4,
+          "draftAttemptId": null,
+          "exercisesTotal": 8
+        },
+        {
+          "lessonId": "f549276e-6dd5-5cc6-8d24-41f814bc8c08",
+          "metadata": {
+            "goal_ky": "Мектеп, сабактар жана предметтер жөнүндө негизги сөздөрдү колдоносуң.",
+            "goal_ru": "Использовать основные слова о школе, уроках и предметах.",
+            "title_ky": "Мектеп жана окуу",
+            "title_ru": "Школа и учёба"
+          },
+          "completed": false,
+          "lessonKey": "en-m1-l05",
+          "lastResult": null,
+          "orderIndex": 5,
+          "draftAttemptId": null,
+          "exercisesTotal": 8
+        },
+        {
+          "lessonId": "eac5c627-0bba-5df1-8ebb-84a2dd6394ac",
+          "metadata": {
+            "goal_ky": "Who, what, where, when менен жөнөкөй суроолорду берип, жоопторун түшүнөсүң.",
+            "goal_ru": "Задавать простые вопросы с who, what, where, when и понимать ответы.",
+            "title_ky": "Жөнөкөй суроолор: who, what, where, when",
+            "title_ru": "Простые вопросы: who, what, where, when"
+          },
+          "completed": false,
+          "lessonKey": "en-m1-l06",
+          "lastResult": null,
+          "orderIndex": 6,
+          "draftAttemptId": null,
+          "exercisesTotal": 8
+        },
+        {
+          "lessonId": "33026e22-2c44-5d9a-8eb3-e394be53f94a",
+          "metadata": {
+            "goal_ky": "Am/is/are менен иш-аракет этиштерин айырмалап, he/she дегенден кийин -s мүчөсүн туура жалгайсың.",
+            "goal_ru": "Различать am/is/are и глаголы действия и правильно добавлять -s после he/she.",
+            "title_ky": "Болуу жана иш-аракет: учур чак",
+            "title_ru": "Быть и делать: настоящее время"
+          },
+          "completed": false,
+          "lessonKey": "en-m1-l07",
+          "lastResult": null,
+          "orderIndex": 7,
+          "draftAttemptId": null,
+          "exercisesTotal": 9
+        },
+        {
+          "lessonId": "7b6defd1-04ce-552c-8b87-12874a87626f",
+          "metadata": {
+            "goal_ky": "Жөнөкөй сылык фразалар менен суранып, баасын сурап, билет сатып аласың.",
+            "goal_ru": "Попросить, спросить цену и купить билет простыми вежливыми фразами.",
+            "title_ky": "Күнүмдүк кырдаалдар: кафе, транспорт, сатып алуу",
+            "title_ru": "Повседневные ситуации: кафе, транспорт, покупки"
+          },
+          "completed": false,
+          "lessonKey": "en-m1-l08",
+          "lastResult": null,
+          "orderIndex": 8,
+          "draftAttemptId": null,
+          "exercisesTotal": 8
+        },
+        {
+          "lessonId": "0369c08c-75ed-526f-89c2-ed2348c5d78b",
+          "metadata": {
+            "goal_ky": "Кыска англисче текстти окуп, андан керектүү маалыматты табасың.",
+            "goal_ru": "Прочитать короткий английский текст и найти в нём нужную информацию.",
+            "title_ky": "Кыска тексттерди окуу",
+            "title_ru": "Чтение коротких текстов"
+          },
+          "completed": false,
+          "lessonKey": "en-m1-l09",
+          "lastResult": null,
+          "orderIndex": 9,
+          "draftAttemptId": null,
+          "exercisesTotal": 8
+        },
+        {
+          "lessonId": "9e3aff49-3517-568b-80cf-48447a32e566",
+          "metadata": {
+            "goal_ky": "Эмне жакканын жана ким болгуң же кайда окугуң келгенин айтасың.",
+            "goal_ru": "Сказать, что вам нравится и кем или где вы хотите учиться и стать.",
+            "title_ky": "Окуу жана пландар жөнүндө сөздөр",
+            "title_ru": "Слова об учёбе и планах"
+          },
+          "completed": false,
+          "lessonKey": "en-m1-l10",
+          "lastResult": null,
+          "orderIndex": 10,
+          "draftAttemptId": null,
+          "exercisesTotal": 8
+        },
+        {
+          "lessonId": "87ff1dca-bd45-5077-87fd-100b7dd58fd4",
+          "metadata": {
+            "goal_ky": "Кайдан экениңди, кайда жашаганыңды жана кайсы өлкөдө окугуң келгенин айтасың.",
+            "goal_ru": "Сказать, откуда вы, где живёте и в какой стране хотите учиться.",
+            "title_ky": "Өлкө жана шаар: кайдансың жана кайда баргың келет",
+            "title_ru": "Страна и город: откуда ты и куда хочешь"
+          },
+          "completed": false,
+          "lessonKey": "en-m1-l11",
+          "lastResult": null,
+          "orderIndex": 11,
+          "draftAttemptId": null,
+          "exercisesTotal": 8
+        },
+        {
+          "lessonId": "89b7604b-965a-5fa1-8a76-8e584c2972b4",
+          "metadata": {
+            "goal_ky": "1–11-сабактардын эң кыйын жерлерин жаңы тапшырма варианттары менен бекемдейсиң.",
+            "goal_ru": "Закрепить самые трудные места уроков 1–11 на новых вариантах заданий.",
+            "title_ky": "Модулду кайталоо",
+            "title_ru": "Повторение модуля"
+          },
+          "completed": false,
+          "lessonKey": "en-m1-l12",
+          "lastResult": null,
+          "orderIndex": 12,
+          "draftAttemptId": null,
+          "exercisesTotal": 10
+        }
+      ],
+      "version": "1.0.0",
+      "metadata": {
+        "title_ky": "Англис тили. 1-модуль — старт",
+        "title_ru": "Английский. Модуль 1 — старт",
+        "level_note_ky": "Нөлдөн баштагандар же дээрлик баарын унутуп калгандар үчүн. Модуль саламдашуудан баштап, өзүң, үй-бүлөң жана окуу пландарың жөнүндө айтууга чейин алып барат.",
+        "level_note_ru": "Для тех, кто начинает с нуля или почти всё забыл. Модуль ведёт от приветствия до рассказа о себе, своей семье и планах на учёбу."
+      },
+      "moduleId": "de7d4fe3-38b1-5971-858e-b03f71f9f2b2",
+      "moduleKey": "en-m1-start",
+      "lessonsTotal": 12,
+      "lessonsCompleted": 0
+    }
+  ]
+}

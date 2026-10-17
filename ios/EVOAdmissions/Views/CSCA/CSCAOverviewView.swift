@@ -57,7 +57,12 @@ struct CSCAOverviewSections: View {
     // MARK: Строка с названием и кнопкой
 
     private var titleRow: some View {
-        HStack(alignment: .top, spacing: 12) {
+        // При крупном шрифте миниатюра встаёт над текстом: рядом с ней
+        // колонка текста теряет треть ширины и сводка идёт в восемь строк.
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+        return layout {
             if !open, let hero = content.hero {
                 CSCAOverviewThumb(photo: hero)
             }
@@ -95,12 +100,14 @@ struct CSCAOverviewSections: View {
                     .accessibilityHidden(true)
             }
             .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Color.primary)
             .frame(minHeight: 44)
         }
         // Нейтральная, как на вебе: красным на экране остаются ссылки и
-        // главное действие занятий, а не сворачивание справки.
+        // главное действие занятий, а не сворачивание справки. Серый тон с
+        // основным текстом, как кнопки выбора страны (FillContrastSourceTests).
         .buttonStyle(.bordered)
-        .tint(Color.primary)
+        .tint(Color(uiColor: .systemGray))
         .accessibilityValue(Text(csca: open ? "csca_overview_state_open" : "csca_overview_state_closed"))
     }
 

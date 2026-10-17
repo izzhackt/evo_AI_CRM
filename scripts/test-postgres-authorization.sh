@@ -470,10 +470,13 @@ SQL
   # telephony definition that already exists with another group
   # (telephony_permission_catalog_drift). The ordinary apply below then proves
   # nothing was kept.
+  # No `docker exec -i` here: the loop reads its migration list from stdin, and
+  # an attached stdin would swallow every migration after this one (found at
+  # T11a, when migration 292 was silently never applied).
   if [[ "$(basename "$migration")" == *_platform_telephony_rights.sql ]]; then
     for t290_case in admin_missing catalog_drift; do
       t290_tamper_log="$(mktemp -t evo-t290-final-check.XXXXXX)"
-      if docker exec -i "$container_name" \
+      if docker exec "$container_name" \
         psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
         -v "t290_case=$t290_case" \
         -v "migration_file=/workspace/$migration" \
@@ -3631,6 +3634,30 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_case_sale_conditions.sql
+  fi
+
+  # «Телефония Beeline KG», срез T11a (стирание телефонии по человеку и очистка
+  # доказательств по сроку; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §13). Matched
+  # by name, not number, so a renumbering at merge keeps the hook. Right after
+  # the migration the suite proves: six public functions (service-only) and six
+  # closed private helpers; the receipt table closed to every client role; the
+  # phone_match_keys column (the keys of the client match for every spelling,
+  # none for an extension, an unreadable number or a rejected form); the lock
+  # (UPDATE and DELETE refused with the shared text, TRUNCATE on the shared
+  # guard, migration 280's account erasure still opens it, and a forged,
+  # finished, foreign-organization or wrong-kind telephony receipt does not);
+  # erasure by person with an md5 snapshot of every row of the six schemas
+  # (by number, client and lead; by number alone; by client alone; by lead
+  # alone; by a number nobody owns): exactly that person's calls, legs,
+  # chronology, grants, task links, dial requests, evidence and work are gone
+  # and no other row changed, including a bystander and the same number in
+  # another organization; dry run, replay and conflicts; who may erase (a named
+  # active system Admin of the organization only); and the 12-month evidence
+  # purge in batches that keeps younger evidence and evidence with open work.
+  if [[ "$(basename "$migration")" == *_platform_telephony_erasure.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_telephony_erasure.sql
   fi
 done < <(
   cd "$repo_root"

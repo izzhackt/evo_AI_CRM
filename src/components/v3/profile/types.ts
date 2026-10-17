@@ -232,11 +232,6 @@ export type ProfileAdmissionsWorkspace = Readonly<{
   isCabinetCase: boolean;
   /** Unified workflow S4: the case DTO's own direction, replacing CaseHeader's deleted route-workspace read. */
   direction: AdmissionsDirection | null;
-  /**
-   * Страна цели дела (`student_cases.target_country`): запасное значение для
-   * «Направления», пока снимок дела направления не отдаёт (`caseDirectionLabel`).
-   */
-  targetCountry: string | null;
   applications: readonly PlatformApplicationQueueRow[];
   /**
    * Kept in the model, intentionally not rendered (unified workflow S4): the
@@ -336,11 +331,20 @@ export type ProfileDraft = Readonly<{
   handoffAcknowledgement: (HandoffAcknowledgement & Readonly<{ requestId: string }>) | null;
   salesHandoffAcknowledgement: SalesHandoffAcknowledgement | null;
   /**
-   * «Условия продажи» (unified workflow S2): populated only on the lead-only
-   * Overview branch (readLeadProfile without a loaded full case) — the block
-   * where заполнение условий happens before any report save. null elsewhere.
+   * «Условия продажи» (unified workflow S2): populated on the lead Overview
+   * branch (readLeadProfile) — the block where заполнение условий happens before
+   * any report save; the group is then editable. On the case-only branch
+   * (readCaseProfile) it holds the conditions of a direct-admissions case's
+   * lead (290, `staff_student_case_sale_conditions_v1`): the group «Данные
+   * продажи» shows them READ-ONLY, and only when something is filled. null
+   * elsewhere.
    */
   saleConditions: LeadSaleConditions | null;
+  /**
+   * Дело без лида для чтения: чтение условий (290) не удалось. Группа «Данные
+   * продажи» называет это, а не молчит. Только ветка «только дело».
+   */
+  saleConditionsUnavailable?: boolean;
   /**
    * «Подготовить кабинет» (unified workflow S7): populated only on the
    * lead-only Overview branch, same scoping as `saleConditions` above. null

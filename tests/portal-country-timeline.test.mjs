@@ -151,6 +151,35 @@ test("money amounts never wrap: digit groups and the currency word use a no-brea
   assert.match(fee.text, /кеминде 2\u00a0500\u00a0АКШ доллары/u);
 });
 
+// Owner decision Q8 (18.10.2026): Italy shows the official funds amount for the visa
+// with the year label; the amount is the Italian MFA FAQ for 2026/27 (IT-FAQ).
+test("Italy shows the official visa funds amount with its year, and the year-free sentence after validUntil", () => {
+  const note = (locale, today) => selectCountryTimeline("IT", { locale, today }).steps
+    .flatMap((step) => step.items).find((item) => item.id === "it-7-02").note;
+  assert.match(note("ru", BEFORE), /^На 2026\/27 учебный год нужно подтвердить 10\u00a0179,85\u00a0евро \(783,06\u00a0евро в месяц на 13 месяцев\)/u);
+  assert.match(note("ky", BEFORE), /^2026\/27 окуу жылы үчүн 10\u00a0179,85\u00a0евро \(13 айга айына 783,06\u00a0евро\)/u);
+  for (const locale of ["ru", "ky"]) {
+    const after = note(locale, AFTER);
+    assert.doesNotMatch(after, /\d/u, `${locale}: no amount and no year after validUntil`);
+    assert.doesNotMatch(after, ABSOLUTE_DATE, locale);
+  }
+  const faq = raw("it").sources.find((source) => source.id === "IT-FAQ");
+  assert.equal(faq.kind, "official");
+  assert.match(faq.title, /783,06\u00a0евро в месяц на 13 месяцев, итого 10\u00a0179,85\u00a0евро/u);
+  assert.equal(faq.checkedOn, "2026-10-18");
+});
+
+// Owner decision Q9: Turkey, UAE and Czechia have no EVO procedure, so the curator
+// is described as someone who files or helps to file, never as someone who always files.
+test("the curator is named as «подаёт или помогает подать» for Turkey, UAE and Czechia", () => {
+  for (const [code, id] of [["TR", "tr-4-01"], ["TR", "tr-2-04"], ["AE", "ae-3-01"], ["CZ", "cz-3-04"]]) {
+    const item = selectCountryTimeline(code, { locale: "ru", today: BEFORE }).steps.flatMap((step) => step.items).find((entry) => entry.id === id);
+    assert.equal(item.who, "evo", id);
+    assert.match(item.text, /подаёт.*или помогает подать/u, id);
+    assert.doesNotMatch(item.text, /ведёт подачу|проверит заявки/u, id);
+  }
+});
+
 // Review s4-web-review-1 F3: a self-serve student (tier approved) sees the
 // timelines but not the sections of сопровождение (Shell.tsx, tiers ["assisted"]).
 test("no timeline sends a student to a cabinet section their tier does not have", () => {
@@ -244,7 +273,9 @@ test("verify items are never shown", () => {
 });
 
 test("only an approved country is shown as its own timeline; the others show the general route with their name", () => {
-  assert.deepEqual(COUNTRY_TIMELINE_FILE_KEYS.filter((key) => COUNTRY_TIMELINES[key].status === "approved"), ["cn", "my", "undecided"]);
+  // 18.10.2026: the owner approved Italy, Turkey, UAE and Czechia (decisions Q10), so all six countries show their own path.
+  assert.deepEqual(COUNTRY_TIMELINE_FILE_KEYS.filter((key) => COUNTRY_TIMELINES[key].status === "approved"),
+    ["cn", "my", "ae", "tr", "it", "cz", "undecided"]);
   for (const code of STUDY_COUNTRY_CODES) {
     for (const locale of ["ru", "ky"]) {
       const view = selectCountryTimeline(code, { locale, today: BEFORE });
@@ -257,6 +288,15 @@ test("only an approved country is shown as its own timeline; the others show the
         assert.deepEqual(view, { ...selectCountryTimeline(TIMELINE_UNDECIDED, { locale, today: BEFORE }),
           choice: code, countryCode: code, countryName: studyCountryName(code, locale) }, code);
       }
+    }
+  }
+  for (const [code, steps] of [["AE", 6], ["TR", 6], ["IT", 8], ["CZ", 6]]) {
+    for (const locale of ["ru", "ky"]) {
+      const view = selectCountryTimeline(code, { locale, today: BEFORE });
+      assert.equal(view.kind, "country", `${code} ${locale}`);
+      assert.equal(view.file, code.toLowerCase(), `${code} ${locale}`);
+      assert.equal(view.steps.length, steps, `${code} ${locale}`);
+      assert.ok(view.steps.every((step) => step.timing !== null), `${code} ${locale}: a country path has dates`);
     }
   }
   const undecided = selectCountryTimeline(TIMELINE_UNDECIDED, { locale: "ru", today: BEFORE });

@@ -1,4 +1,4 @@
--- 287_platform_telephony_schema — «Телефония Beeline KG» срез T1a: схема и RLS.
+-- 288_platform_telephony_schema — «Телефония Beeline KG» срез T1a: схема и RLS.
 -- Контракт: docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.2, §6 (6.1–6.5), §7.1,
 -- §9.1, §11; ADR 0033 (решения 3–5); docs/PLAN_CHANGES.md (запись «Телефония
 -- T1a»). Только таблицы, проверки, индексы и замки доступа. Функций приёма,
@@ -151,7 +151,7 @@
 -- цепочки останавливается на уже существующих таблицах.
 BEGIN;
 
-DO $tel287_preconditions$
+DO $tel288_preconditions$
 BEGIN
   IF to_regclass('platform.organizations') IS NULL
     OR to_regclass('platform.organization_memberships') IS NULL
@@ -170,7 +170,7 @@ BEGIN
     RAISE EXCEPTION 'telephony_t1a_tables_already_exist' USING ERRCODE = '55000';
   END IF;
 END
-$tel287_preconditions$;
+$tel288_preconditions$;
 
 -- ---------------------------------------------------------------------------
 -- Проверки формы (IMMUTABLE; используются в CHECK; без грантов).
@@ -943,7 +943,7 @@ COMMENT ON TABLE platform_private.telephony_task_links IS
 -- ---------------------------------------------------------------------------
 -- Замки: FORCE RLS без политик, права отозваны у всех клиентских ролей.
 -- ---------------------------------------------------------------------------
-DO $tel287_lockdown$
+DO $tel288_lockdown$
 DECLARE t TEXT;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
@@ -960,9 +960,9 @@ BEGIN
     END IF;
   END LOOP;
 END
-$tel287_lockdown$;
+$tel288_lockdown$;
 
-DO $tel287_private_acl$
+DO $tel288_private_acl$
 DECLARE f REGPROCEDURE;
 BEGIN
   FOR f IN SELECT p.oid::REGPROCEDURE FROM pg_catalog.pg_proc p
@@ -971,6 +971,6 @@ BEGIN
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent', f);
   END LOOP;
 END
-$tel287_private_acl$;
+$tel288_private_acl$;
 
 COMMIT;

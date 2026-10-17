@@ -461,6 +461,41 @@ SQL
     done
   fi
 
+  # «Телефония Beeline KG», срез T2 (права и роли; docs/EVO_TELEPHONY_PLAN_
+  # 2026-10-16.md §11). Matched by name, not number, so a renumbering at merge
+  # keeps the hook. IMMEDIATELY BEFORE the ordinary apply, inside a transaction
+  # that the failure rolls back, the migration must refuse (SQLSTATE 55000) and
+  # name its reason in two tampered starts: an active system admin for whom one
+  # telephony key is not effective (telephony_rights_admin_missing) and a
+  # telephony definition that already exists with another group
+  # (telephony_permission_catalog_drift). The ordinary apply below then proves
+  # nothing was kept.
+  if [[ "$(basename "$migration")" == *_platform_telephony_rights.sql ]]; then
+    for t290_case in admin_missing catalog_drift; do
+      t290_tamper_log="$(mktemp -t evo-t290-final-check.XXXXXX)"
+      if docker exec -i "$container_name" \
+        psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+        -v "t290_case=$t290_case" \
+        -v "migration_file=/workspace/$migration" \
+        -f /workspace/supabase/tests/platform_telephony_rights_pre.sql \
+        >"$t290_tamper_log" 2>&1; then
+        echo "migration 290 accepted the tampered start $t290_case" >&2
+        exit 1
+      fi
+      if [[ "$t290_case" == admin_missing ]]; then
+        t290_expected_reason='telephony_rights_admin_missing: [1-9][0-9]*'
+      else
+        t290_expected_reason='telephony_permission_catalog_drift'
+      fi
+      if ! grep -Eq "ERROR:  55000: $t290_expected_reason" "$t290_tamper_log"; then
+        echo "migration 290 failed for the wrong final-check reason ($t290_case)" >&2
+        sed -n '1,60p' "$t290_tamper_log" >&2
+        exit 1
+      fi
+      rm -f "$t290_tamper_log"
+    done
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -3556,6 +3591,26 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_telephony_ingest.sql
+  fi
+
+  # «Телефония Beeline KG», срез T2 (права и роли, allowlist журнала;
+  # docs/EVO_TELEPHONY_PLAN_2026-10-16.md §11). Matched by name, not number, so
+  # a renumbering at merge keeps the hook. Right after the migration the suite
+  # proves: the six organization-level definitions; the two roles per active
+  # organization (exact keys, bundle 1, nobody assigned, no access version
+  # moved, an administrator-made role of the same label left alone, a second
+  # run changing nothing, the function closed to every client role); that no
+  # other role carries a telephony key; the rights matrix through the real
+  # assignment RPC for manager, supervisor, a common-sections role, no role and
+  # a Student, own scope and another organization refused, an inactive member
+  # and an archived role losing the keys; every system admin holding all six
+  # with no role, and the final check refusing a drifted catalog or a missing
+  # admin key; the journal allowlist as the previous list plus exactly six
+  # actions and three resource types, with closed ACLs.
+  if [[ "$(basename "$migration")" == *_platform_telephony_rights.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_telephony_rights.sql
   fi
 done < <(
   cd "$repo_root"

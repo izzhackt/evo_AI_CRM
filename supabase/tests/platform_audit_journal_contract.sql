@@ -42,7 +42,8 @@
 --      partner-package exports write 'document_export'). The hardcoded list
 --      of the 80 real pairs of the 71 actions 255 added is seeded and every
 --      pair must be read back; that page is emitted too, so the checker
---      script replays it through the real TS normalizer.
+--      script replays it through the real TS normalizer. Migration 290
+--      (telephony T2) adds the 6 telephony pairs to the same list (86 pairs).
 --
 -- Fixture: one organization + one Platform Admin membership, modelled like
 -- production per 155 (platform_private.staff_membership_identity,
@@ -399,7 +400,17 @@ INSERT INTO p7aj_pairs(action, resource_type) VALUES
     ('team.chat.edit', 'team_chat_message'),
     ('team.chat.moderate', 'team_chat_message'),
     ('team.chat.post', 'team_chat_message'),
-    ('work.review.resolve', 'work_review_case');
+    ('work.review.resolve', 'work_review_case'),
+    -- Telephony T2 (migration 290): the pairs the later telephony slices write
+    -- (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §11): a recording grant and a call
+    -- result on the call, a dial request, and the settings/mapping/automation
+    -- events on the organization's settings row.
+    ('telephony.recording.listen', 'telephony_call'),
+    ('telephony.result.set', 'telephony_call'),
+    ('telephony.dial', 'telephony_dial_request'),
+    ('telephony.settings.change', 'telephony_settings'),
+    ('telephony.mapping.change', 'telephony_settings'),
+    ('telephony.automation.stop', 'telephony_settings');
 
 INSERT INTO platform.audit_events(
   organization_id, actor_kind, actor_principal, action, resource_type, resource_id,
@@ -410,9 +421,15 @@ SELECT pg_temp.p7aj_id(1), 'system', 'P7AJ synthetic real-writer pair fixture ac
 FROM p7aj_pairs;
 
 SELECT pg_temp.p7aj_assert(
-  (SELECT count(DISTINCT action) FROM p7aj_pairs) = 71
-    AND (SELECT count(*) FROM p7aj_pairs) = 80,
+  (SELECT count(DISTINCT action) FROM p7aj_pairs WHERE action NOT LIKE 'telephony.%') = 71
+    AND (SELECT count(*) FROM p7aj_pairs WHERE action NOT LIKE 'telephony.%') = 80,
   'the real-writer pair list covers the 71 actions 255 added (80 pairs: 9 document.export.* carry two resource types)');
+SELECT pg_temp.p7aj_assert(
+  (SELECT count(DISTINCT action) FROM p7aj_pairs WHERE action LIKE 'telephony.%') = 6
+    AND (SELECT count(*) FROM p7aj_pairs WHERE action LIKE 'telephony.%') = 6
+    AND (SELECT array_agg(action ORDER BY action) FROM p7aj_pairs WHERE action LIKE 'telephony.%')
+      = (SELECT array_agg(a ORDER BY a) FROM unnest(platform_private.p7a_safe_audit_actions()) a WHERE a LIKE 'telephony.%'),
+  'the pair list covers exactly the six telephony actions migration 290 added');
 
 SET LOCAL ROLE authenticated;
 CREATE TEMP TABLE p7aj_pair_pages(page JSONB);

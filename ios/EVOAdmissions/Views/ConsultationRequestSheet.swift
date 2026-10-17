@@ -80,28 +80,34 @@ struct ConsultationRequestSheet: View {
                 Section {
                     Text("consultation_hint")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                     if let institutionName {
                         LabeledContent {
                             Text(institutionName)
+                                .foregroundStyle(.secondaryText)
                         } label: {
                             Text("consultation_university_label")
                         }
                     }
                 }
 
-                Section("consultation_note_label") {
+                Section {
+                    // Имя поля для VoiceOver из заголовка секции; подсказка
+                    // набрана цветом 4,5:1 вместо системного placeholder 1,72:1.
                     TextField(
-                        "consultation_note_placeholder",
+                        "consultation_note_label",
                         text: $model.note,
+                        prompt: Text("consultation_note_placeholder").foregroundStyle(.secondaryText),
                         axis: .vertical
                     )
                     .lineLimit(3...6)
                     if model.note.count > 500 {
                         Text("consultation_note_too_long")
                             .font(.footnote)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.dangerText)
                     }
+                } header: {
+                    Text("consultation_note_label").foregroundStyle(.secondaryText)
                 }
 
                 Section {
@@ -136,14 +142,14 @@ struct ConsultationRequestSheet: View {
                                     date
                                 ))
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.secondaryText)
                             }
                         }
                     case .failed:
                         VStack(alignment: .leading, spacing: 8) {
                             Text("consultation_error")
                                 .font(.subheadline)
-                                .foregroundStyle(.red)
+                                .foregroundStyle(.dangerText)
                             Button("retry_button") {
                                 Task { await model.submit(institutionId: institutionId) }
                             }

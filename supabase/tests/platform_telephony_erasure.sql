@@ -10,11 +10,11 @@
 -- called through the same request.jwt.claims role gate the service path uses.
 --
 -- Proves:
---  1. catalog and grants: exactly six platform.telephony_*_v1 functions (the four
---     of T1b and the two of T11a), SECURITY DEFINER, empty search_path, owner
---     postgres, EXECUTE only for service_role; the private helpers closed to
---     PUBLIC and the five client roles (the earlier twenty-six and the six of
---     T11a); anon, authenticated,
+--  1. catalog and grants: exactly eleven platform.telephony_*_v1 functions (the
+--     four of T1b, the five of T4a and the two of T11a), SECURITY DEFINER, empty
+--     search_path, owner postgres, EXECUTE only for service_role; the private
+--     helpers closed to PUBLIC and the five client roles (the earlier
+--     twenty-nine of T1a, T1b, T2 and T4a and the six of T11a); anon, authenticated,
 --     supabase_auth_admin, the AI agent role and a service_role without the
 --     service claim are refused with 42501 on both new functions; the receipt
 --     table is FORCE RLS with no policy and no grant, and the five client roles
@@ -185,9 +185,11 @@ INSERT INTO platform.leads(id, organization_id, client_id, current_owner_members
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.t11a_assert((SELECT array_agg(p.proname::TEXT ORDER BY p.proname) FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'platform' AND p.proname LIKE 'telephony\_%')
-  = ARRAY['telephony_claim_work_v1', 'telephony_erase_person_v1', 'telephony_project_work_v1', 'telephony_purge_evidence_v1',
-    'telephony_receive_v1', 'telephony_settle_calls_v1'],
-  'exactly six public telephony functions exist in platform: the four of T1b and the two of T11a');
+  = ARRAY['telephony_claim_work_v1', 'telephony_erase_person_v1', 'telephony_integration_health_v1',
+    'telephony_maintenance_plan_v1', 'telephony_project_work_v1', 'telephony_purge_evidence_v1',
+    'telephony_receive_v1', 'telephony_reconcile_apply_v1', 'telephony_runtime_mark_v1', 'telephony_settle_calls_v1',
+    'telephony_sync_extensions_v1'],
+  'exactly eleven public telephony functions exist in platform: the four of T1b, the five of T4a and the two of T11a');
 SELECT pg_temp.t11a_assert((SELECT bool_and(p.prosecdef AND p.proconfig = ARRAY['search_path=""']::TEXT[]
       AND pg_get_userbyid(p.proowner) = 'postgres' AND p.provolatile = 'v'
       AND has_function_privilege('service_role', p.oid, 'EXECUTE')
@@ -203,13 +205,14 @@ SELECT pg_temp.t11a_assert((SELECT array_agg(p.proname::TEXT ORDER BY p.proname)
   = ARRAY['telephony_block_mutation', 'telephony_cadence_ok', 'telephony_cadence_step_ok', 'telephony_chain_answered',
     'telephony_clean_text', 'telephony_erasure_bypass', 'telephony_erasure_counts', 'telephony_erasure_scope',
     'telephony_erasure_task_ids',
-    'telephony_error_code', 'telephony_fields_ok', 'telephony_form_shape_of', 'telephony_form_shape_ok',
+    'telephony_error_code', 'telephony_facts_ok', 'telephony_fields_ok', 'telephony_form_shape_of', 'telephony_form_shape_ok',
     'telephony_leg_state_merge', 'telephony_leg_state_rank', 'telephony_match_phone', 'telephony_names_ok',
     'telephony_parse_ts', 'telephony_phone_e164', 'telephony_phone_keys', 'telephony_place_leg', 'telephony_prefixes_ok',
-    'telephony_project_event', 'telephony_projection_enabled', 'telephony_recompute_call', 'telephony_resolve_user',
-    'telephony_rights_provision', 'telephony_rights_verify',
-    'telephony_status_word', 'telephony_store_rejected', 'telephony_to_int', 'telephony_working_days_ok'],
-  'the private telephony helpers are exactly the earlier twenty-six (T1a, T1b, T2) and the six of T11a');
+    'telephony_project_event', 'telephony_projection_enabled', 'telephony_recompute_call', 'telephony_reconcile_row',
+    'telephony_resolve_user', 'telephony_rights_provision', 'telephony_rights_verify',
+    'telephony_status_word', 'telephony_store_rejected', 'telephony_summary_ok', 'telephony_to_int',
+    'telephony_working_days_ok'],
+  'the private telephony helpers are exactly the earlier twenty-nine (T1a, T1b, T2, T4a) and the six of T11a');
 SELECT pg_temp.t11a_assert((SELECT bool_and(NOT has_function_privilege(r.role, p.oid, 'EXECUTE'))
     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
     CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role'), ('supabase_auth_admin'), ('evo_ai_agent')) r(role)

@@ -7,8 +7,15 @@ struct ProgramPackageSection: View {
     @State private var showingPreview = false
     var body: some View {
         Section {
+            // Главное правило блока строкой основным цветом, а не мелкой
+            // подписью секции 3,3:1 (аудит UX/UI 2026-10).
+            Label {
+                Text("package_help").font(.subheadline)
+            } icon: {
+                Image(systemName: "info.circle").foregroundStyle(.secondaryText)
+            }
             if let ready = model.readiness {
-                if ready.requirements.revision?.origin == .evoStarter { Text("package_starter_note").font(.footnote).foregroundStyle(.secondary) }
+                if ready.requirements.revision?.origin == .evoStarter { Text("package_starter_note").font(.footnote).foregroundStyle(.secondaryText) }
                 if let latest = ready.latestPackage {
                     NavigationLink { ProgramPackageDetailView(applicationId: applicationId, packageId: latest.packageId) } label: { ProgramPackageSummaryLabel(package: latest) }
                 }
@@ -37,8 +44,8 @@ struct ProgramPackageSection: View {
                 }
                 NavigationLink("package_history") { ProgramPackageHistoryView(applicationId: applicationId) }.frame(minHeight: 44)
             }
-            if let error = model.errorKey { Text(LocalizedStringKey(error)).foregroundStyle(.red) }
-        } header: { Text("package_title") } footer: { Text("package_help") }
+            if let error = model.errorKey { Text(LocalizedStringKey(error)).foregroundStyle(.dangerText) }
+        } header: { Text("package_title").foregroundStyle(.secondaryText) }
         .sheet(isPresented: $showingPreview) {
             NavigationStack { ProgramPackagePreviewView(model: model) }
         }
@@ -53,15 +60,15 @@ private struct ProgramPackageChoiceRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(requirement.label).font(.headline)
-            if requirement.required { Text("prep_required").font(.caption).foregroundStyle(.secondary) }
+            if requirement.required { Text("prep_required").font(.caption).foregroundStyle(.secondaryText) }
             else {
                 Toggle("package_include_optional", isOn: Binding(get: { included }, set: { model.include(item.id, value: $0) })).frame(minHeight: 44)
             }
             if included {
                 if let choice = model.selection.choices[item.id] {
                     ProgramDocumentFileLabel(file: choice.file)
-                    Text("package_choice_retained").font(.footnote).foregroundStyle(.secondary)
-                } else { Text("package_choose_file").font(.subheadline).foregroundStyle(.secondary) }
+                    Text("package_choice_retained").font(.footnote).foregroundStyle(.secondaryText)
+                } else { Text("package_choose_file").font(.subheadline).foregroundStyle(.secondaryText) }
                 if let submission = item.submission {
                     Button("package_choose_submission") {
                         model.choose(item, selection: .init(kind: "existing_version", documentVersionId: submission.file.id), file: submission.file, sourceScope: sourceScope)
@@ -98,26 +105,26 @@ private struct ProgramPackagePreviewView: View {
                                     required: requirement.required, instructions: requirement.instructions, deadline: requirement.deadline)
                             }
                             if let file = selected.file { ProgramDocumentFileLabel(file: file) }
-                            ForEach(selected.reasons, id: \.rawValue) { Text(LocalizedStringKey("package_reason_\($0.rawValue)")).font(.footnote) }
+                            ForEach(selected.reasons, id: \.rawValue) { Text(LocalizedStringKey($0.labelKey)).font(.footnote) }
                         }.padding(.vertical, 4)
                     }
                     if ready.selections.isEmpty { Text("package_empty_composition") }
-                } header: { Text("package_selected_composition") }
+                } header: { Text("package_selected_composition").foregroundStyle(.secondaryText) }
                 if !ready.missingRequiredItemIds.isEmpty {
                     Section {
                         ForEach(ready.missingRequiredItemIds, id: \.self) { id in
                             Text(ready.requirements.items.first { $0.id.uuidString.lowercased() == id }?.label ?? String(localized: "package_document"))
                         }
-                    } header: { Text("package_missing_required") }
+                    } header: { Text("package_missing_required").foregroundStyle(.secondaryText) }
                 }
                 if model.selection.missingOptionalFile(in: ready) { Text("package_optional_missing_file").font(.footnote) }
-                ForEach(ready.reasons, id: \.rawValue) { Text(LocalizedStringKey("package_reason_\($0.rawValue)")).font(.footnote) }
+                ForEach(ready.reasons, id: \.rawValue) { Text(LocalizedStringKey($0.labelKey)).font(.footnote) }
                 Button("package_submit") {
                     Task { await model.submit(session: session); if model.receipt != nil { dismiss() } }
-                }.buttonStyle(.borderedProminent).frame(minHeight: 44).disabled(!model.canSubmit)
-                Text("package_help").font(.footnote).foregroundStyle(.secondary)
+                }.accentProminent().frame(minHeight: 44).disabled(!model.canSubmit)
+                Text("package_help").font(.footnote).foregroundStyle(.secondaryText)
             }
-            if let error = model.errorKey { Text(LocalizedStringKey(error)).foregroundStyle(.red) }
+            if let error = model.errorKey { Text(LocalizedStringKey(error)).foregroundStyle(.dangerText) }
             if model.pending != nil { Text("package_pending_help").font(.footnote) }
             else if !model.busy && model.preview == nil {
                 Button("retry_button") { Task { await model.check(session: session) } }.frame(minHeight: 44)
@@ -155,17 +162,19 @@ struct ProgramPackageRecoveryView: View {
                         if model.hasMetadata(pending) {
                             Button("package_retry_same") { Task { await model.resolve(pending, retry: true, session: session) } }.frame(minHeight: 44)
                         }
-                        NavigationLink("program_document_open_program") { ProgramPreparationView(applicationId: UUID(uuidString: pending.intent.applicationId)!) }.frame(minHeight: 44)
+                        if let applicationId = ServerUUID.parse(pending.intent.applicationId) {
+                            NavigationLink("program_document_open_program") { ProgramPreparationView(applicationId: applicationId) }.frame(minHeight: 44)
+                        }
                         if model.busyRequest == pending.intent.requestId { ProgressView("prep_loading") }
-                    } header: { Text("package_pending_submission") }
+                    } header: { Text("package_pending_submission").foregroundStyle(.secondaryText) }
                     .disabled(model.busyRequest != nil)
                     .task(id: pending.intent.requestId) { await model.readMetadata(pending, session: session) }
                 }
                 if let notice = model.noticeKey { Text(LocalizedStringKey(notice)) }
-                if let receipt = model.receipt {
-                    NavigationLink("package_open_sent") { ProgramPackageDetailView(applicationId: UUID(uuidString: receipt.applicationId)!, packageId: receipt.packageId) }.frame(minHeight: 44)
+                if let receipt = model.receipt, let applicationId = ServerUUID.parse(receipt.applicationId) {
+                    NavigationLink("package_open_sent") { ProgramPackageDetailView(applicationId: applicationId, packageId: receipt.packageId) }.frame(minHeight: 44)
                 }
-                if let error = model.errorKey { Text(LocalizedStringKey(error)).foregroundStyle(.red) }
+                if let error = model.errorKey { Text(LocalizedStringKey(error)).foregroundStyle(.dangerText) }
                 Button("package_reload_pending") { model.load(context: session.context) }.frame(minHeight: 44).disabled(model.busyRequest != nil)
             }
         }
@@ -179,7 +188,7 @@ struct ProgramPackageTimestamp: View {
     @Environment(\.locale) private var locale
     var body: some View {
         Text(PostgresTimestamp.date(from: raw)?.formatted(.dateTime.day().month().year().hour().minute().locale(locale)) ?? raw)
-            .font(.footnote).foregroundStyle(.secondary)
+            .font(.footnote).foregroundStyle(.secondaryText)
     }
 }
 struct ProgramPackageSummaryLabel: View {
@@ -189,10 +198,10 @@ struct ProgramPackageSummaryLabel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(String(localized: "package_version", locale: locale) + " " + package.packageVersion).font(.headline)
-            Text(LocalizedStringKey((review ?? package.latestReview).map { "package_decision_" + $0.decision.rawValue } ?? "package_sent"))
+            Text(LocalizedStringKey((review ?? package.latestReview).map { $0.decision.labelKey } ?? "package_sent"))
             ProgramPackageTimestamp(raw: package.submittedAt)
             if package.origin == .evoStarter { Text("prep_starter_title").font(.footnote) }
-            if !package.isCurrentRequirements { Text("package_previous_requirements").font(.footnote).foregroundStyle(.secondary) }
+            if !package.isCurrentRequirements { Text("package_previous_requirements").font(.footnote).foregroundStyle(.secondaryText) }
         }.padding(.vertical, 4)
     }
 }

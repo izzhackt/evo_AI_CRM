@@ -1,13 +1,15 @@
 import SwiftUI
 
-/// Карточка вуза: свежая загрузка той же публикации через
-/// `student_university_catalog(p_institution_id:)` (миграция 148). Пока идёт
-/// запрос, показывается уже полученная в списке версия той же публикации;
-/// при ошибке обновления — честная плашка, данные списка не выдаются за
-/// свежие молча.
+/// Карточка вуза одним вызовом `student_university_detail_v1` (283): та же
+/// публикация, что у прежних RPC каталога, плюс страна, город, подготовки и
+/// опубликованная стоимость. Пока идёт запрос, показывается уже полученная
+/// в списке версия той же публикации; при ошибке обновления видна честная
+/// плашка, данные списка не выдаются за свежие молча.
 @MainActor
 final class UniversityCardViewModel: ObservableObject {
     @Published var item: UniversityCatalogItem?
+    /// Последний удачный ответ страницы вуза (страна, город, стоимость).
+    @Published private(set) var detail: UniversityDetail?
     @Published var isLoading = false
     @Published var refreshFailed = false
     @Published var cardMissing = false
@@ -18,21 +20,58 @@ final class UniversityCardViewModel: ObservableObject {
         self.service = service
     }
 
+    /// Номер последнего запроса: ответ прежнего запроса (его отменил
+    /// перезапуск `.task(id:)` или его обогнал pull-to-refresh) не
+    /// показывается и не считается сбоем.
+    private var generation = 0
+
     func load(institutionId: UUID) async {
-        if isLoading { return }
+        generation += 1
+        let request = generation
         isLoading = true
         refreshFailed = false
         cardMissing = false
         do {
-            if let fresh = try await service.studentUniversityCard(institutionId: institutionId) {
-                item = fresh
-            } else {
-                cardMissing = true
-            }
+            let data = try await service.studentUniversityDetailData(institutionId: institutionId)
+            let fresh = try UniversityDetail.decode(
+                data,
+                expectedId: institutionId,
+                report: CatalogParseLog.reporter(rpc: CatalogParseLog.detailRpc)
+            )
+            guard request == generation else { return }
+            detail = fresh
+            item = fresh.university
         } catch {
-            refreshFailed = true
+            guard request == generation else { return }
+            if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
+                isLoading = false
+                return
+            }
+            // 42501: вуз снят с публикации или недоступен (сервер не
+            // различает), как прежнее «карточки нет».
+            if UniversityDetailFailure.classify(error) == .unavailable {
+                cardMissing = true
+            } else {
+                refreshFailed = true
+            }
         }
         isLoading = false
+    }
+
+    /// Подготовки этого вуза из того же ответа, если он свежий и про это
+    /// дело; иначе nil, и экран читает подготовки отдельно, как раньше.
+    /// Те же проверки, что у отдельного чтения (`CatalogPreparationList`):
+    /// строки этого дела и этого вуза, без повторов. Не прошли: отдельное
+    /// чтение, а не чужие или задвоенные подготовки на экране.
+    func preparations(for context: ProgramPreparationContext) -> [CatalogPreparation]? {
+        guard !refreshFailed, !cardMissing, let detail, let prepared = detail.preparations,
+              prepared.studentCaseId == context.scope.caseId else { return nil }
+        let items = prepared.items
+        guard items.allSatisfy({ $0.selection.studentCaseId == prepared.studentCaseId
+                                 && $0.selection.institutionId == detail.university.id }),
+              Set(items.map(\.id)).count == items.count,
+              Set(items.map { "\($0.selection.programId)/\($0.selection.intakeId)" }).count == items.count else { return nil }
+        return items
     }
 }
 
@@ -77,15 +116,38 @@ struct UniversityDetailView: View {
                 institutionName: item?.content.name
             )
         }
-        .task {
-            await model.load(institutionId: institutionId)
-            await favorites.loadIfNeeded()
-        }
         .task(id: preparationSession.context?.scope) {
-            if let context = preparationSession.context { await preparations.load(context: context) }
+            async let saved: Void = favorites.loadIfNeeded()
+            await reload()
+            await saved
         }
         .navigationDestination(item: $preparationRoute) { route in
             ProgramPreparationView(applicationId: route.applicationId, initialSavedNotice: route.savedNotice)
+        }
+    }
+
+    /// Страница вуза одним RPC; подготовки берутся из него же (283), отдельное
+    /// чтение подготовок остаётся запасным путём.
+    private func reload() async {
+        await model.load(institutionId: institutionId)
+        guard let context = preparationSession.context else { return }
+        if let items = model.preparations(for: context) {
+            preparations.adopt(items, context: context)
+        } else {
+            await preparations.load(context: context)
+        }
+    }
+
+    /// «Страна › Город» из ответа 283 ссылками на экраны страны и города
+    /// (план 7.3, как путь по каталогу на вебе); до ответа прежняя строка
+    /// карточки текстом.
+    @ViewBuilder
+    private func placeView(for item: UniversityCatalogItem) -> some View {
+        if let detail = model.detail, detail.university.id == item.id {
+            UniversityPlaceLinks(country: detail.country, city: detail.city)
+        } else {
+            Text(universityPlaceLine(item.content))
+                .font(.subheadline)
         }
     }
 
@@ -93,12 +155,12 @@ struct UniversityDetailView: View {
         VStack(spacing: 12) {
             Text(key)
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
                 .multilineTextAlignment(.center)
             Button("retry_button") {
                 Task { await model.load(institutionId: institutionId) }
             }
-            .buttonStyle(.bordered)
+            .accentBordered()
         }
         .padding(32)
     }
@@ -111,8 +173,7 @@ struct UniversityDetailView: View {
                         Text(item.content.name)
                             .font(.title2.bold())
                             .accessibilityAddTraits(.isHeader)
-                        Text(universityPlaceLine(item.content))
-                            .font(.subheadline)
+                        placeView(for: item)
                         if !item.content.programs.isEmpty {
                             Button {
                                 proxy.scrollTo("university-programs", anchor: .top)
@@ -134,16 +195,16 @@ struct UniversityDetailView: View {
                         }
                     }
 
-                    UniversityPhotoView(photoKey: item.content.photoKey)
+                    UniversityDetailPhoto(photoKey: item.content.photoKey, universityName: item.content.name)
                         .tint(.primary)
 
                     if model.refreshFailed {
                         Text("university_card_refresh_failed")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(12)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
                     }
 
                     Text(item.content.overview)
@@ -157,7 +218,17 @@ struct UniversityDetailView: View {
                             .frame(maxWidth: .infinity, minHeight: 44)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .accentProminent()
+
+                    // Блок «Стоимость» только при опубликованных строках (283):
+                    // нет данных, нет блока. Порядок как на вебе: описание,
+                    // консультация, стоимость, программы.
+                    if let plan = UniversityCostPolicy.plan(model.detail?.costs) {
+                        UniversityCostSection(
+                            plan: plan,
+                            programTitles: Dictionary(item.content.programs.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
+                        )
+                    }
 
                     Text("university_programs_heading")
                         .font(.title3.bold())
@@ -167,12 +238,12 @@ struct UniversityDetailView: View {
                     if preparations.isLoading {
                         ProgressView("prep_loading")
                     } else if preparations.loadFailed, let context = preparationSession.context {
-                        Text("prep_read_failed").font(.footnote).foregroundStyle(.secondary)
+                        Text("prep_read_failed").font(.footnote).foregroundStyle(.secondaryText)
                         Button("retry_button") { Task { await preparations.load(context: context) } }
                             .frame(minHeight: 44)
                     }
                     if let key = preparations.errorKey, !preparations.savedNotice {
-                        Text(LocalizedStringKey(key)).font(.subheadline).foregroundStyle(.red)
+                        Text(LocalizedStringKey(key)).font(.subheadline).foregroundStyle(.dangerText)
                     }
 
                     ForEach(item.content.programs) { program in
@@ -204,9 +275,7 @@ struct UniversityDetailView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(colorScheme, for: .navigationBar)
         .refreshable {
-            async let card: () = model.load(institutionId: institutionId)
-            if let context = preparationSession.context { await preparations.load(context: context) }
-            await card
+            await reload()
         }
     }
 
@@ -265,7 +334,7 @@ struct UniversityPhotoView: View {
                     case .empty:
                         ZStack {
                             RoundedRectangle(cornerRadius: 14)
-                                .fill(.thinMaterial)
+                                .fill(Color(.secondarySystemBackground))
                                 .frame(height: 180)
                             ProgressView()
                         }
@@ -319,11 +388,11 @@ struct UniversityPhotoView: View {
     private func placeholder(_ key: LocalizedStringKey) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 14)
-                .fill(.thinMaterial)
+                .fill(Color(.secondarySystemBackground))
                 .frame(height: 120)
             Text(key)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
         }

@@ -1,4 +1,4 @@
--- 292_platform_telephony_erasure — «Телефония Beeline KG» срез T11a: стирание
+-- 294_platform_telephony_erasure — «Телефония Beeline KG» срез T11a: стирание
 -- телефонии по человеку и очистка доказательств по сроку.
 -- Контракт: docs/EVO_TELEPHONY_PLAN_2026-10-16.md §13 («Приватность и
 -- юридическое»), §16 (срез T11); ADR 0033; docs/PLAN_CHANGES.md (запись

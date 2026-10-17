@@ -129,4 +129,47 @@ final class UniversityMapPolicyTests: XCTestCase {
         XCTAssertTrue(selection.pins.isEmpty)
         XCTAssertEqual(selection.missing, 0)
     }
+
+    // MARK: - clusters (аудит UX/UI 2026-10: стопки точек на карте)
+
+    private func pin(_ name: String, _ lat: Double, _ lng: Double) -> UniversityMapPin {
+        UniversityMapPin(id: UUID(), name: name, country: "CN", city: nil, lat: lat, lng: lng)
+    }
+
+    func testNearbyPinsShareOneMarkerAndDistantOnesStayApart() {
+        let shanghai = [pin("Tongji", 31.28, 121.50), pin("Fudan", 31.30, 121.50), pin("SJTU", 31.03, 121.43)]
+        let wuhan = pin("Wuhan University", 30.54, 114.36)
+        // Карта Китая: широта 20° на 700 pt, долгота 30° на 400 pt.
+        let cell = UniversityMapPolicy.clusterCell(latitudeDelta: 20, longitudeDelta: 30, mapWidth: 400, mapHeight: 700)
+        let clusters = UniversityMapPolicy.clusters(shanghai + [wuhan], cell: cell)
+        XCTAssertEqual(clusters.count, 2)
+        XCTAssertEqual(clusters[0].pins.map(\.name), ["Fudan", "SJTU", "Tongji"])
+        XCTAssertNil(clusters[0].single)
+        XCTAssertEqual(clusters[1].single?.name, "Wuhan University")
+    }
+
+    func testIdenticalCoordinatesNeverHideAUniversity() {
+        // Три вуза Куала-Лумпура с одной координатой: при любом масштабе все
+        // три остаются доступны через общую метку.
+        let pins = [pin("INTI", 3.07, 101.60), pin("Sunway", 3.07, 101.60), pin("Taylor's", 3.07, 101.60)]
+        let cell = UniversityMapPolicy.clusterCell(latitudeDelta: 0.01, longitudeDelta: 0.01, mapWidth: 400, mapHeight: 700)
+        let clusters = UniversityMapPolicy.clusters(pins, cell: cell)
+        XCTAssertEqual(clusters.count, 1)
+        XCTAssertEqual(Set(clusters[0].pins.map(\.name)), ["INTI", "Sunway", "Taylor's"])
+    }
+
+    func testZoomingInSplitsAMarker() {
+        let pins = [pin("A", 31.28, 121.50), pin("B", 31.30, 121.50)]
+        let wide = UniversityMapPolicy.clusterCell(latitudeDelta: 20, longitudeDelta: 30, mapWidth: 400, mapHeight: 700)
+        let close = UniversityMapPolicy.clusterCell(latitudeDelta: 0.1, longitudeDelta: 0.1, mapWidth: 400, mapHeight: 700)
+        XCTAssertEqual(UniversityMapPolicy.clusters(pins, cell: wide).count, 1)
+        XCTAssertEqual(UniversityMapPolicy.clusters(pins, cell: close).count, 2)
+    }
+
+    func testUnmeasuredMapKeepsEveryPinSeparate() {
+        let pins = [pin("A", 1, 1), pin("B", 1, 1)]
+        XCTAssertNil(UniversityMapPolicy.clusterCell(latitudeDelta: 0, longitudeDelta: 1, mapWidth: 400, mapHeight: 700))
+        XCTAssertNil(UniversityMapPolicy.clusterCell(latitudeDelta: 1, longitudeDelta: 1, mapWidth: 0, mapHeight: 700))
+        XCTAssertEqual(UniversityMapPolicy.clusters(pins, cell: nil).count, 2)
+    }
 }

@@ -5,6 +5,7 @@ import { Icon } from "@/components/icons";
 import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { CaseClosure } from "@/lib/platform-closure-contract";
+import { caseDocumentsAwaitCurator } from "@/lib/v3/case-access-contract";
 
 import { ApplicationDecision } from "../admissions/StudentApplications";
 import { studentsHandoffPending, type NextStepAccess } from "../students/students-queue-view";
@@ -230,7 +231,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
         caseManage: staffHasPermission(actor, "task.manage"), caseAssign: staffHasPermission(actor, "task.assign"),
       }}
       documents={draft.access.documents ? caseChecklistCounts(draft.documents) : null}
-      documentsAwaitCurator={admissions.caseState === "pending"}
+      documentsAwaitCurator={caseDocumentsAwaitCurator(admissions.caseState)}
       applications={applicationLines}
       payment={draft.access.finance ? { percent: draft.paidPercent, remaining: draft.remaining, financeStop: profile.financeStop } : null}
       // Клиент лида, если лид прочитан; дело прямого студента лида для чтения не имеет — тогда поля анкеты.

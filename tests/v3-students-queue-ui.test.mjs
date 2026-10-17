@@ -32,6 +32,7 @@ import { shiftDay } from "../src/components/v3/calendar/types.ts";
 import { parseCaseNextActionInput } from "../src/lib/platform-student-case-queue-contract.ts";
 import { resolveStudentsCoverage } from "../src/lib/v3/students-coverage.ts";
 import * as editor from "../src/components/v3/students/next-step-input.ts";
+import { caseDocumentsWords } from "../src/lib/v3/wording.ts";
 
 /**
  * «Студенты» — рабочая очередь дел (PLAN_CHANGES «Студенты» PR 2, 25.09.2026).
@@ -774,6 +775,52 @@ test("«Ожидает начала» is a queue view: pending cases, no due gro
   const panel = surfaces.get("pending-panel");
   assert.match(texts(panel), /Созвониться о старте занятий · 18\.09 Шаг задаётся только делу в работе/u);
   assert.doesNotMatch(panel, /<time[^>]*text-danger[^>]*>18\.09/u);
+});
+
+// «Быстрый просмотр» дела «Ждёт куратора» (17.10.2026): рабочего места документов у такого дела нет (113), вкладки
+// «Документы» в деле тоже, поэтому панель не пишет «Чек-лист не собран» (собирать некому) и не ведёт по ссылке в никуда.
+test("the quick view of a «Ждёт куратора» case says why there are no documents and has no link to a missing tab", () => {
+  const documentsSection = (html) => html.match(/<section aria-label="Документы дела"[\s\S]*?<\/section>/u)?.[0] ?? "";
+  for (const name of ["pending-panel", "pending-panel-no-read"]) {
+    const section = documentsSection(surfaces.get(name));
+    assert.ok(section, `${name}: the documents section is rendered`);
+    assert.equal(texts(section), "Документы появятся, когда у дела будет куратор", name);
+    assert.match(section, /data-testid="v3-students-panel-documents-await"/u, name);
+    assert.doesNotMatch(section, /<a /u, `${name}: no link to the Documents tab the case does not have`);
+    assert.doesNotMatch(section, /tab=documents/u, name);
+    assert.doesNotMatch(texts(surfaces.get(name)), /Чек-лист не собран|Нет доступа к документам/u, name);
+  }
+  // Причина — состояние дела: без права чтения документов та же строка, а не «нет доступа».
+  assert.equal(
+    texts(documentsSection(surfaces.get("pending-panel"))),
+    texts(documentsSection(surfaces.get("pending-panel-no-read"))),
+  );
+  // Те же слова, что в «Сведениях» дела: одна строка в wording.ts.
+  assert.equal(caseDocumentsWords.awaitCurator, "появятся, когда у дела будет куратор");
+});
+
+test("the quick view of a case in work keeps its documents line and the link to the Documents tab", () => {
+  const section = surfaces.get("admin-panel").match(/<section aria-label="Документы дела"[\s\S]*?<\/section>/u)?.[0] ?? "";
+  assert.match(texts(section), /^Документы \d+ из \d+ принято/u);
+  assert.match(section, /<a [^>]*href="[^"]*tab=documents[^"]*"[^>]*>Документы дела<\/a>/u);
+  assert.doesNotMatch(section, /появятся, когда у дела будет куратор/u);
+  // Закрытое дело: как в работе (у закрытого с куратором рабочее место документов есть, 113).
+  const closed = surfaces.get("panel-closed").match(/<section aria-label="Документы дела"[\s\S]*?<\/section>/u)?.[0] ?? "";
+  assert.match(closed, /tab=documents/u);
+  assert.doesNotMatch(closed, /появятся, когда у дела будет куратор/u);
+  // Без права читать документы дела в работе - прежнее «нет доступа» и ссылка: причина здесь права, не состояние.
+  const view = read("src/components/v3/students/StudentQuickView.tsx");
+  assert.match(view, /documentsAwaitCurator \? \(\s*<p[^>]*data-testid="v3-students-panel-documents-await">\{caseDocumentsWords\.awaitCurator\}<\/p>\s*\) : documents \? \(/u);
+  assert.match(view, /<p className="t-body-compact text-fg-3">Нет доступа к документам этого дела\.<\/p>/u);
+});
+
+test("the quick view asks the one case-state rule and does not spell it again", () => {
+  const view = read("src/components/v3/students/StudentQuickView.tsx");
+  assert.match(view, /import \{ caseDocumentsAwaitCurator \} from "@\/lib\/v3\/case-access-contract";/u);
+  assert.match(view, /const documentsAwaitCurator = caseDocumentsAwaitCurator\(row\.state\);/u);
+  assert.doesNotMatch(view, /state === "pending"[^\n]*(documents|Документ)/u);
+  // Ссылка строится в очереди как и раньше; панель просто не рисует её у дела без куратора.
+  assert.match(read("src/components/v3/students/StudentsQueueBody.tsx"), /documents: studentsCaseHref\(openRow\.studentCaseId, \{ tab: "documents"/u);
 });
 
 test("«Принять дело» in the panel reuses the case card, only for the curator who can answer", () => {

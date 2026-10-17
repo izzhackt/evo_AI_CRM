@@ -6,7 +6,7 @@ import { createSupabaseServerClient } from "../supabase/server";
 import { caseSectionAccessForState, parseCaseSectionAccess, readCaseProfileSections, type CaseSectionAccess } from "./case-access-contract";
 import { loadProfileSalesContext } from "./profile-route-load";
 import { loadStudentApplicationForCase, loadStudentApplicationForLead } from "./student-application-source";
-import { readLeadSaleConditions } from "./lead-sale-conditions-source";
+import { readCaseSaleConditions, readLeadSaleConditions } from "./lead-sale-conditions-source";
 import { readLeadCabinetCase, readStudentCaseCabinetOrigin } from "./lead-cabinet-source";
 import { readLeadHandoffStrip } from "./sales-numbers-source";
 import { withWhatsAppTitles } from "./whatsapp-contact-source";
@@ -16,6 +16,7 @@ import { ADMISSIONS_DIRECTIONS, ADMISSIONS_ATTENTION, type AdmissionsDirection, 
 import { readProfileActivity, type ProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import { getHandoffAcknowledgement, getSalesHandoffAcknowledgement, type HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 
+import { caseSaleBlocks } from "@/components/v3/profile/case-work-view";
 import type {
   DocumentCaseLinkTarget,
   DocumentGroup,
@@ -475,7 +476,6 @@ function admissionsWorkspace(
     // Unified workflow S4: CaseHeader used to fetch this separately via the
     // now-deleted route workspace read; the case DTO already carries it.
     direction: data.studentCase.admissionsDirection ?? null,
-    targetCountry: data.studentCase.targetCountry,
     applications: data.applications,
     visa: data.visa,
     finance: data.finance,
@@ -674,8 +674,9 @@ function fullCaseDetails(
     // lead profile to attach it to: docs-intake origin, insufficient
     // sales.read, or a direct-admissions case whose lead is `converted` —
     // staff_sales_lead_detail (and the two admissions-gate/handoff reads) only
-    // return `open` leads (a separate slice: docs/PLAN_CHANGES.md 2026-10-17).
-    // It stays null here — see readLeadProfile below.
+    // return `open` leads. The editable block stays null here (see
+    // readLeadProfile below); a direct case gets its conditions READ-ONLY from
+    // readCaseSaleData in readCaseProfile (290).
     saleConditions: null,
     // Same scoping as saleConditions above: a full case already exists by
     // definition on this branch, so there is nothing left to "prepare".
@@ -721,6 +722,9 @@ async function readCaseProfile(
     if (leadProfile) return leadProfile;
   }
 
+  // «Данные продажи» дела прямого студента (290): отдельное чтение по праву на дело, параллельно с делом.
+  // Не бросает: сбой - честная строка в группе, а не недоступная страница.
+  const saleRead = readCaseSaleData(actor, canonicalCaseId);
   const data = await loadFullCase(actor, view.studentCase);
   if (link && data.handoff && data.handoff.leadId !== link.leadId) {
     throw new Error("V3 profile handoff lead does not match the canonical case link.");
@@ -763,9 +767,27 @@ async function readCaseProfile(
         null,
         isCabinetCase,
       ),
+      ...(await saleRead),
     },
     sales: null,
   };
+}
+
+/**
+ * Условия продажи для группы «Данные продажи» дела без лида для чтения. Нечего
+ * показывать (нет условий, все значения пусты, у читателя нет права) - группы нет;
+ * сбой чтения - `saleConditionsUnavailable`.
+ */
+async function readCaseSaleData(
+  actor: ActivePlatformActor,
+  studentCaseId: string,
+): Promise<Pick<ProfileDraft, "saleConditions" | "saleConditionsUnavailable">> {
+  try {
+    const conditions = await readCaseSaleConditions(actor, studentCaseId);
+    return { saleConditions: conditions && caseSaleBlocks(conditions).length > 0 ? conditions : null };
+  } catch {
+    return { saleConditions: null, saleConditionsUnavailable: true };
+  }
 }
 
 async function readLeadProfile(

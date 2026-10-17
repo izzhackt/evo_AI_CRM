@@ -937,6 +937,28 @@ test("existing unbound case keeps an explicit null handoff", () => {
   assert.equal(snapshot.handoff, null);
 });
 
+test("290: the case snapshot reads admissions_direction by name; the row before and after the migration both normalize", () => {
+  const noHandoff = {
+    student_case_op_handoff_id: null, op_workflow_contract_version_id: null, approved_commercial_fields: null,
+    unresolved_questions: null, promises: null, handoff_next_step: null, handoff_due_at: null,
+    handoff_responsible_role: null, handoff_created_at: null,
+  };
+  // Строка до миграции 290: ключа нет - направление null, ничего не падает (работающее приложение до выпуска).
+  const before = normalizePlatformStudentCaseSnapshot({ ...caseRow(), ...noHandoff }, ORGANIZATION_ID);
+  assert.equal(before.admissionsDirection, null);
+  // Строка после: последний столбец; sales_summary отдаёт NULL.
+  for (const direction of ["CN", "MY", "EUROPE", "AE", "TR"]) {
+    assert.equal(normalizePlatformStudentCaseSnapshot({ ...caseRow(), ...noHandoff, admissions_direction: direction }, ORGANIZATION_ID).admissionsDirection, direction);
+  }
+  assert.equal(normalizePlatformStudentCaseSnapshot({ ...caseRow(), ...noHandoff, admissions_direction: null }, ORGANIZATION_ID).admissionsDirection, null);
+  // Незнакомое значение - не слово и не молчаливый null: форма ответа неверна.
+  for (const unknown of ["China", "unknown", "", 7]) {
+    assert.throws(() => normalizePlatformStudentCaseSnapshot({ ...caseRow(), ...noHandoff, admissions_direction: unknown }, ORGANIZATION_ID), PlatformAdmissionsRepositoryError);
+  }
+  // Набор ключей не проверяется: лишний ключ строки (например, будущий столбец) приложение не роняет.
+  assert.equal(normalizePlatformStudentCaseSnapshot({ ...caseRow(), ...noHandoff, admissions_direction: "CN", extra_future_column: "x" }, ORGANIZATION_ID).admissionsDirection, "CN");
+});
+
 test("U6 case projections allow null intake facts without inventing defaults", () => {
   const snapshot = normalizePlatformStudentCaseSnapshot({
     ...caseRow({

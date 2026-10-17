@@ -1,5 +1,6 @@
 import type { PlatformComponentStatus } from "../platform-observability.ts";
 import type { ProviderDisplayStatus } from "../provider-display-status.ts";
+import { telephonyIntegrationRow, type TelephonyIntegrationFacts } from "./telephony-health.ts";
 import { settingsBlockedWahaDetail, settingsStatusWords } from "./wording.ts";
 
 /**
@@ -26,7 +27,7 @@ import { settingsBlockedWahaDetail, settingsStatusWords } from "./wording.ts";
 export type IntegrationTone = "ok" | "warn" | "blocked" | "off";
 
 export type IntegrationRow = Readonly<{
-  key: "whatsapp" | "amocrm" | "gemini";
+  key: "whatsapp" | "amocrm" | "gemini" | "telephony";
   name: string;
   /** Состояние словом; значок и цвет его только подкрепляют. */
   state: string;
@@ -76,6 +77,12 @@ export type SettingsIntegrationFacts = Readonly<{
   }>;
   gemini: ProviderDisplayStatus;
   amo: SettingsAmoAvailability;
+  /**
+   * Телефония Beeline (план телефонии §12, срез T4b): строка появляется, только
+   * когда факты переданы. Читает их держатель `telephony.manage`; без них таблица
+   * остаётся из трёх сервисов.
+   */
+  telephony?: TelephonyIntegrationFacts;
 }>;
 
 export type SettingsDatabaseFact = Readonly<{
@@ -196,9 +203,10 @@ function amoRow(amo: SettingsAmoAvailability): IntegrationRow {
   };
 }
 
-/** Строки таблицы «Интеграции»: WhatsApp, amoCRM, Gemini — в этом порядке. */
+/** Строки таблицы «Интеграции»: WhatsApp, amoCRM, Gemini и — если переданы факты — Телефония. */
 export function settingsIntegrations(facts: SettingsIntegrationFacts, now: Date): readonly IntegrationRow[] {
-  return [whatsappRow(facts.waha, now), amoRow(facts.amo), geminiRow(facts.gemini)];
+  const rows = [whatsappRow(facts.waha, now), amoRow(facts.amo), geminiRow(facts.gemini)];
+  return facts.telephony ? [...rows, telephonyIntegrationRow(facts.telephony, now)] : rows;
 }
 
 /** Сервисы, из-за которых работа стоит: имена для одного предупреждения сверху. */

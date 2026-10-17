@@ -94,6 +94,8 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "task-composer-actions.ts", // #1085 (27.09.2026)
     "task-queue.ts",
     "team-chat-source.ts",
+    "telephony-health.ts", // «Настройки → Телефония» T4b (17.10.2026): pure state words, no Supabase
+    "telephony-settings.ts", // «Настройки → Телефония» T4b (17.10.2026): pure screen contract, no Supabase
     "today-queue.ts", // #1067 (26.09.2026)
     "today-source.ts", // #1067 (26.09.2026)
     "university-form-source.ts",

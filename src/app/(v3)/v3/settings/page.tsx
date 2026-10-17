@@ -1,7 +1,10 @@
 import { PartShell } from "@/components/v3/PartShell";
 import { Settings } from "@/components/v3/settings/Settings";
+import { TelephonySection } from "@/components/v3/settings/TelephonySection";
 import { isSectionKey, staffViewOf, type SectionKey, type StaffView } from "@/components/v3/settings/types";
+import { isStaffPreview } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { readTelephonyAdmin, telephonyIntegrationFactsFrom } from "@/lib/server/platform-telephony-admin";
 import { redirect } from "next/navigation";
 
 import { normalizeJournalFilters } from "@/lib/v3/settings-journal-contract";
@@ -51,9 +54,23 @@ export default async function SettingsPart({
   const actor = await requireV3PageActor("/v3/settings");
   const isAdmin = actor.systemRole === "admin" && actor.presentationRole === null;
 
+  // «Телефония — руководитель» без прав Admin (`telephony.manage`, срез T4b
+  // телефонии): страница открыта ему ради одного раздела. Остальные разделы,
+  // их чтения и действия — только Admin, поэтому дальше этот сотрудник не идёт.
+  if (actor.systemRole !== "admin") {
+    return (
+      <PartShell title="Настройки">
+        <h2 className="t-section mb-3 text-fg">Телефония</h2>
+        <TelephonySection read={await readTelephonyAdmin(actor)} readOnly={false} now={new Date()} />
+      </PartShell>
+    );
+  }
+  // «Телефония» и строка «Телефония» таблицы «Интеграции» читают одно и то же.
+  const telephonyRead = section === "telephony" || section === "integrations" ? readTelephonyAdmin(actor) : Promise.resolve(null);
+
   const deletionSelected = isAdmin && section === "deletion" && typeof params.request === "string" ? params.request : null;
-  const [integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement, deletionQueue, deletionDetail] = await Promise.all([
-    readIntegrations(actor),
+  const [integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement, deletionQueue, deletionDetail, telephony] = await Promise.all([
+    telephonyRead.then((read) => readIntegrations(actor, new Date(), telephonyIntegrationFactsFrom(read))),
     isAdmin
       ? readJournal(actor, journalFilters, {
           snapshotCreatedAt: params.snapshot,
@@ -72,6 +89,7 @@ export default async function SettingsPart({
     isAdmin && section === "platform" ? readSalesRegisterManagement(actor, null) : Promise.resolve(undefined),
     section === "deletion" ? readAccountDeletionQueue(actor) : Promise.resolve(undefined),
     deletionSelected ? readAccountDeletionDetail(actor, deletionSelected) : Promise.resolve(null),
+    telephonyRead,
   ]);
 
   // Протухший курсор из адреса читается первой страницей; адрес при этом
@@ -139,6 +157,9 @@ export default async function SettingsPart({
         deletionQueue={deletionQueue}
         deletionDetail={deletionDetail}
         deletionHrefFor={(requestId: string | null) => query({ section: "deletion", request: requestId ?? undefined })}
+        telephony={telephony}
+        // Просмотр роли виден, но не меняет настройки телефонии.
+        telephonyReadOnly={isStaffPreview(actor)}
       />
     </PartShell>
   );

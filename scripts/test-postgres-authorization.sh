@@ -3731,6 +3731,31 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_telephony_erasure.sql
   fi
+
+  # «Телефония Beeline KG», срез T4b («Настройки → Телефония»: чтение, правка
+  # настроек, сопоставление пользователей ВАТС; docs/EVO_TELEPHONY_PLAN_2026-10-16.md
+  # §5.5, §6.3, §6.4, §9.1, §11, §12). Matched by name, not number, so a
+  # renumbering at merge keeps the hook. Right after the migration the suite
+  # proves: three authenticated-only staff functions and four closed private
+  # helpers, the service health function (293) unchanged in posture and answer;
+  # who may call them (the Admin and a «Телефония — руководитель» holder without
+  # admin rights, through the real role assignment; the manager role, a member
+  # without a role, a Student, an inactive member, another organization, anon,
+  # service_role and a session without claims refused); the overview (default OFF
+  # settings row created on the first read, PBX users with the count of legs
+  # without a staff member, the staff list, no phone, link or token); versioned
+  # saving (PT409, replay and conflict by request id, unchanged writes nothing,
+  # CHECKs answered with the constraint name only, automation and import need
+  # the projection flag, the escalation recipient must hold telephony.manage,
+  # the ceiling stop mark cleared only by enabling automation); the journal rows
+  # without a name, login or phone; the mapping confirmed against what the person
+  # saw, one member per active PBX user, a switched-off PBX user not assignable,
+  # past legs not reassigned.
+  if [[ "$(basename "$migration")" == *_platform_telephony_settings.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_telephony_settings.sql </dev/null
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

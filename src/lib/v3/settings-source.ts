@@ -34,6 +34,7 @@ import {
   settingsIntegrations,
   type IntegrationRow,
 } from "@/lib/v3/settings-health";
+import type { TelephonyIntegrationFacts } from "@/lib/v3/telephony-health";
 
 export type { JournalFilters } from "@/lib/v3/settings-journal-contract";
 
@@ -98,11 +99,14 @@ function formatSettingsObservedAt(value: string | undefined): string {
 /**
  * «Настройки → Интеграции»: одна строка на сервис (Э6). Время последней
  * проверки — момент наблюдения сессии WhatsApp; у amoCRM и Gemini читаются
- * только параметры, проверки нет.
+ * только параметры, проверки нет. Строку «Телефония» (срез T4b) добавляют факты,
+ * которые страница прочитала сама сессией держателя `telephony.manage`; без них
+ * таблица прежняя.
  */
 export async function readIntegrations(
   actor: ActivePlatformActor,
   now: Date = new Date(),
+  telephony?: TelephonyIntegrationFacts,
 ): Promise<readonly IntegrationRow[]> {
   assertAdminAuthority(actor);
   const facts = await readProviderFacts(actor);
@@ -115,6 +119,7 @@ export async function readIntegrations(
     },
     gemini: facts.geminiDisplay,
     amo: facts.amo,
+    telephony,
   }, now);
 }
 

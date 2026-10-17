@@ -76,6 +76,24 @@ targets:
         buildPhase: resources
       - path: ../src/content/timelines/undecided.json
         buildPhase: resources
+      # Обзор экзамена CSCA (§19 контракта CSCA): тот же файл и манифест фото,
+      # что читает веб (src/lib/portal/csca-overview.ts), и те же файлы WebP
+      # (720 для 2x, 1280 для 3x, 240 миниатюра; JPEG манифеста нужен только
+      # браузерам). Ресурсы лежат в корне bundle.
+      - path: ../src/content/csca/overview.json
+        buildPhase: resources
+      - path: ../src/content/csca/photos.json
+        buildPhase: resources
+      - path: ../src/content/csca/photos/campus-sichuan-240.webp
+        buildPhase: resources
+      - path: ../src/content/csca/photos/campus-sichuan-720.webp
+        buildPhase: resources
+      - path: ../src/content/csca/photos/campus-sichuan-1280.webp
+        buildPhase: resources
+      - path: ../src/content/csca/photos/campus-xiamen-720.webp
+        buildPhase: resources
+      - path: ../src/content/csca/photos/campus-xiamen-1280.webp
+        buildPhase: resources
       # Манифест переноса фото вузов в бакет (тот же файл, что читает веб,
       # src/lib/university-photo-url.ts): управляемый адрес фото вуза.
       - path: ../scripts/portal/university-photos-manifest.json
@@ -204,6 +222,22 @@ targets:
       - path: ../src/content/timelines/cz.json
         buildPhase: resources
       - path: ../src/content/timelines/undecided.json
+        buildPhase: resources
+      # Обзор экзамена CSCA: те же файлы, что у приложения; тест сверяет
+      # фото с хешами манифеста и разбор с вебом (фикстура паритета).
+      - path: ../src/content/csca/overview.json
+        buildPhase: resources
+      - path: ../src/content/csca/photos.json
+        buildPhase: resources
+      - path: ../src/content/csca/photos/campus-sichuan-240.webp
+        buildPhase: resources
+      - path: ../src/content/csca/photos/campus-sichuan-720.webp
+        buildPhase: resources
+      - path: ../src/content/csca/photos/campus-sichuan-1280.webp
+        buildPhase: resources
+      - path: ../src/content/csca/photos/campus-xiamen-720.webp
+        buildPhase: resources
+      - path: ../src/content/csca/photos/campus-xiamen-1280.webp
         buildPhase: resources
       # Общие векторы текста и ссылок каталога 283 (контракт 2.2a): те же,
       # что проверяют SQL-набор 283 и tests/catalog-text.test.mjs.

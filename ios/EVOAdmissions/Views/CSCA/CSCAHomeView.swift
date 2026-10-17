@@ -166,7 +166,18 @@ struct CSCAHomeView: View {
             CSCAHomeList(home: home)
                 .refreshable { await model.load() }
         } else if let failure = model.failure {
-            CSCAFailureView(failure: failure) { Task { await model.load() } }
+            // Обзор статичен и виден, даже если занятия не загрузились (§19).
+            if case .success(let overview) = CSCAOverviewContent.bundled {
+                List {
+                    CSCAOverviewSections(content: overview, started: false, sessionsShown: false, moduleShown: false) {}
+                    Section {
+                        CSCAFailureView(failure: failure) { Task { await model.load() } }
+                    }
+                }
+                .listStyle(.insetGrouped)
+            } else {
+                CSCAFailureView(failure: failure) { Task { await model.load() } }
+            }
         } else {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -176,9 +187,32 @@ struct CSCAHomeView: View {
 private struct CSCAHomeList: View {
     let home: CSCAHome
     @EnvironmentObject private var model: CSCAHomeModel
+    @AccessibilityFocusState private var moduleFocused: Bool
+
+    private static let moduleRow = "csca-module"
 
     var body: some View {
+        ScrollViewReader { proxy in
+            list(proxy)
+        }
+    }
+
+    private func list(_ proxy: ScrollViewProxy) -> some View {
         List {
+            // Обзор экзамена сверху (§19): новичку открыт, тому, кто уже
+            // занимается, свёрнут; ответ о датах ведёт к сессиям.
+            if case .success(let overview) = CSCAOverviewContent.bundled {
+                CSCAOverviewSections(
+                    content: overview,
+                    started: home.hasStarted,
+                    sessionsShown: home.modules.first != nil && !home.sessions.isEmpty,
+                    moduleShown: home.modules.first != nil
+                ) {
+                    withAnimation { proxy.scrollTo(Self.moduleRow, anchor: .top) }
+                    moduleFocused = true
+                }
+            }
+
             if let module = home.modules.first {
                 Section {
                     VStack(alignment: .leading, spacing: 6) {
@@ -190,6 +224,9 @@ private struct CSCAHomeList: View {
                             .foregroundStyle(CSCAColor.secondaryText)
                     }
                     .padding(.vertical, 4)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityFocused($moduleFocused)
+                    .id(Self.moduleRow)
                 }
             }
 
@@ -463,12 +500,32 @@ private struct CSCATargetRow: View {
                         .font(.subheadline)
                         .foregroundStyle(CSCAColor.secondaryText)
                 }
+                // Окно регистрации выбранной сессии закрывается скоро: тот же
+                // мягкий срок, что у строки сессии веба.
+                let registration = CSCASessionRegistration.state(for: session, serverNow: home.serverNow, today: home.today)
+                if registration.closesSoon != nil {
+                    CSCASessionCopy.registration(registration)
+                        .font(.subheadline)
+                        .foregroundStyle(CSCAColor.secondaryText)
+                }
             } else {
                 Text(csca: "csca_target_choose")
                     .font(.body.weight(.semibold))
                 Text(verbatim: CSCAText.f("csca_sessions_count", home.sessions.count))
                     .font(.subheadline)
                     .foregroundStyle(CSCAColor.secondaryText)
+                // Веб показывает срок у каждой сессии прямо на главной; здесь
+                // без выбранной сессии видна та, чьё окно закрывается скоро.
+                if let soon = home.sessions.first(where: {
+                    CSCASessionRegistration.state(for: $0, serverNow: home.serverNow, today: home.today).closesSoon != nil
+                }) {
+                    Text(verbatim: CSCASessionCopy.dates(soon))
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.top, 4)
+                    CSCASessionCopy.registration(CSCASessionRegistration.state(for: soon, serverNow: home.serverNow, today: home.today))
+                        .font(.subheadline)
+                        .foregroundStyle(CSCAColor.secondaryText)
+                }
             }
         }
         .padding(.vertical, 4)
@@ -487,6 +544,30 @@ enum CSCASessionCopy {
             CSCATime.dayLabel(session.examFrom, locale: locale),
             CSCATime.dayWithYearLabel(session.examTo, locale: locale)
         )
+    }
+
+    /// «закрывается через 4 дня», в день закрытия «закрывается сегодня».
+    static func closesIn(_ days: Int) -> String {
+        days <= 0 ? CSCAText.t("csca_closes_today") : CSCAText.f("csca_closes_in", days)
+    }
+
+    /// Окно регистрации словами веба (`sessionLabels`): время Бишкека, у
+    /// открытого окна при N ≤ 60 ещё « · закрывается через N дней» жирным.
+    static func registration(_ state: CSCASessionRegistration) -> Text {
+        let locale = AppLocale.current
+        switch state {
+        case .pending:
+            return Text(csca: "csca_registration_unknown")
+        case .upcoming(let opensAt):
+            return Text(verbatim: CSCAText.f("csca_registration_opens", CSCATime.momentLabel(opensAt, locale: locale)))
+        case .open(let closesAt, _):
+            let until = Text(verbatim: CSCAText.f("csca_registration_until", CSCATime.momentLabel(closesAt, locale: locale)))
+            guard let days = state.closesSoon else { return until }
+            return until + Text(verbatim: " · ")
+                + Text(verbatim: closesIn(days)).fontWeight(.semibold).foregroundStyle(Color.primary)
+        case .closed(let closesAt):
+            return Text(verbatim: CSCAText.f("csca_registration_closed", CSCATime.momentLabel(closesAt, locale: locale)))
+        }
     }
 
     static func countdown(_ days: Int, _ stage: CSCASessionPlan.Stage) -> String {
@@ -602,7 +683,8 @@ struct CSCASessionsView: View {
                                 await model.setTarget(home.targetSessionKey == session.sessionKey ? nil : session.sessionKey)
                             }
                         } label: {
-                            CSCASessionRow(session: session, today: home.today, isTarget: home.targetSessionKey == session.sessionKey)
+                            CSCASessionRow(session: session, serverNow: home.serverNow, today: home.today,
+                                           isTarget: home.targetSessionKey == session.sessionKey)
                         }
                         .buttonStyle(.plain)
                         .disabled(model.isSavingTarget)
@@ -642,6 +724,7 @@ struct CSCASessionsView: View {
 
 private struct CSCASessionRow: View {
     let session: CSCASession
+    let serverNow: String
     let today: String
     let isTarget: Bool
 
@@ -654,7 +737,7 @@ private struct CSCASessionRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(verbatim: CSCASessionCopy.dates(session))
                     .font(.body.weight(.semibold))
-                Text(verbatim: registration)
+                CSCASessionCopy.registration(CSCASessionRegistration.state(for: session, serverNow: serverNow, today: today))
                     .font(.subheadline)
                     .foregroundStyle(CSCAColor.secondaryText)
                 if isTarget, let plan = CSCASessionPlan.stage(for: session, today: today) {
@@ -667,16 +750,6 @@ private struct CSCASessionRow: View {
         .padding(.vertical, 4)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-    }
-
-    private var registration: String {
-        let locale = AppLocale.current
-        guard let opens = session.registrationOpensAt, let closes = session.registrationClosesAt else {
-            return CSCAText.t("csca_registration_unknown")
-        }
-        return CSCAText.f(
-            "csca_registration_window", CSCATime.momentLabel(opens, locale: locale), CSCATime.momentLabel(closes, locale: locale)
-        )
     }
 }
 

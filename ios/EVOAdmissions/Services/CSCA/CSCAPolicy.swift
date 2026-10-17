@@ -347,6 +347,51 @@ enum CSCASessionPlan {
     }
 }
 
+/// Окно регистрации сессии на момент `serverNow` главной трека, как
+/// `sessionRegistration` веба (src/components/portal/csca/session-labels.ts):
+/// окна нет, ещё не открылось, открыто (до закрытия дней по Бишкеку), закрыто.
+enum CSCASessionRegistration: Equatable {
+    case pending
+    case upcoming(opensAt: String)
+    /// `daysLeft` nil, если дату закрытия нельзя прочитать как день.
+    case open(closesAt: String, daysLeft: Int?)
+    case closed(closesAt: String)
+
+    /// Мягкий срок «закрывается через N дней» только при N ≤ 60
+    /// (дизайн-контракт портала, `SESSION_CLOSES_SOON_DAYS` веба).
+    static let closesSoonDays = 60
+
+    static func state(for session: CSCASession, serverNow: String, today: String) -> CSCASessionRegistration {
+        guard let closes = session.registrationClosesAt else { return .pending }
+        // Как `Date.parse` веба: метка, которую нельзя прочитать, ни с чем не
+        // сравнивается (NaN), поэтому окно не «открыто» и не «ещё не открылось».
+        let now = CSCATime.date(from: serverNow)
+        if let now, let opens = session.registrationOpensAt.flatMap(CSCATime.date(from:)), now < opens {
+            return .upcoming(opensAt: session.registrationOpensAt ?? "")
+        }
+        if let now, let closesAt = CSCATime.date(from: closes), now <= closesAt {
+            let days = CSCATime.daysBetween(today, bishkekDay(closesAt)).map { max(0, $0) }
+            return .open(closesAt: closes, daysLeft: days)
+        }
+        return .closed(closesAt: closes)
+    }
+
+    /// Дней до закрытия, если окно открыто и закрывается не позже чем через 60 дней.
+    var closesSoon: Int? {
+        guard case .open(_, let days?) = self, days <= Self.closesSoonDays else { return nil }
+        return days
+    }
+
+    static func bishkekDay(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = CSCATime.bishkek
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+}
+
 // MARK: - Review boxes (contract §8)
 
 enum CSCAReviewBoxes {

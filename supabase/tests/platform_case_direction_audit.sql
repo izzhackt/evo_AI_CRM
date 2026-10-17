@@ -20,6 +20,18 @@
 -- Isolated synthetic SQL fixtures only.
 BEGIN;
 
+-- The Supabase auth.role() helper that private.staff_student_case_activity calls first
+-- (absent from the bare test image); created inside this transaction only, as in the
+-- 241 and 262 suites, and discarded by ROLLBACK.
+DO $n302_auth_role$
+BEGIN
+  IF to_regprocedure('auth.role()') IS NULL THEN
+    EXECUTE $fn$CREATE FUNCTION auth.role() RETURNS TEXT LANGUAGE SQL STABLE SET search_path = '' AS
+      'SELECT NULLIF(current_setting(''request.jwt.claims'', TRUE), '''')::JSONB ->> ''role'''$fn$;
+  END IF;
+END
+$n302_auth_role$;
+
 CREATE FUNCTION pg_temp.n302_id(n INTEGER) RETURNS UUID LANGUAGE SQL IMMUTABLE AS $$
   SELECT ('30200000-0000-4000-8000-' || lpad(n::TEXT, 12, '0'))::UUID
 $$;

@@ -59,7 +59,7 @@ try {
         if (route === "/v3/main") {
           await page.getByRole("heading", { level: 1, name: "Сегодня" }).waitFor();
         }
-        await assertStyled(page, base, { v3: true });
+        await assertStyled(page, base, { v3: true, surface: "staff" });
         const axe = await new AxeBuilder({ page })
           .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
           .analyze();

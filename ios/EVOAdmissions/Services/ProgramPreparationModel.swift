@@ -145,6 +145,19 @@ final class ProgramPreparationModel: ObservableObject {
         }
     }
 
+    /// Подготовки одного вуза из `student_university_detail_v1` (283): та же
+    /// форма строк и та же проверка дела, что у `student_catalog_preparations_v1`,
+    /// поэтому странице вуза не нужно второе чтение. Начатое чтение
+    /// отменяется (его результат старше); `existing` смотрит только этот вуз.
+    func adopt(_ values: [CatalogPreparation], context: ProgramPreparationContext) {
+        readGeneration += 1
+        scope = context.scope
+        items = values
+        loaded = true
+        loadFailed = false
+        isLoading = false
+    }
+
     func existing(institutionId: UUID, programId: String, intakeId: String?) -> CatalogPreparation? {
         guard loaded, let intakeId else { return nil }
         return items.first {

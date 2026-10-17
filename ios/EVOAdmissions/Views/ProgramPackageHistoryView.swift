@@ -61,30 +61,30 @@ struct ProgramPackageDetailView: View {
                         Text(detail.program.universityTitle)
                         Text(detail.program.intakeLabel).font(.subheadline)
                         ProgramPackageSummaryLabel(package: detail.package, review: reviews.displayed)
-                        if historicalReview != nil { Text("package_notification_snapshot").font(.footnote).foregroundStyle(.secondary) }
+                        if historicalReview != nil { Text("package_notification_snapshot").font(.footnote).foregroundStyle(.secondaryText) }
                         if detail.package.origin == .evoStarter { Text("package_starter_note").font(.footnote) }
                     }
                     if let review = reviews.displayed {
-                        Section { ProgramPackageReviewSummary(review: review, items: detail.items) } header: { Text("package_review") }
+                        Section { ProgramPackageReviewSummary(review: review, items: detail.items) } header: { Text("package_review").foregroundStyle(.secondaryText) }
                     }
                     if let later = reviews.later {
-                        Section { ProgramPackageReviewSummary(review: later, items: detail.items) } header: { Text("package_later_review") }
+                        Section { ProgramPackageReviewSummary(review: later, items: detail.items) } header: { Text("package_later_review").foregroundStyle(.secondaryText) }
                     }
                     ForEach(detail.items) { item in
                         Section {
                             ProgramPackageDefinitionView(definition: item.definition, material: item.materialSnapshot)
                             ProgramDocumentFileLabel(file: item.submission.file)
                             if let evidence = reviews.displayed?.documentReviews.first(where: { $0.requirementItemId == item.requirementItemId }), let review = evidence.review {
-                                Text(LocalizedStringKey("prep_review_\(review.decision.rawValue)"))
+                                Text(LocalizedStringKey(review.decision.labelKey))
                                 if let reason = review.reason { Text(reason) }
                                 ProgramPackageTimestamp(raw: review.reviewedAt)
                                 if evidence.reusedFromReview != nil { Text("package_reused_review").font(.footnote) }
                             }
-                            if item.submission.file.technicalAvailability != .available { Text("package_warning_file_unavailable").font(.footnote).foregroundStyle(.secondary) }
+                            if item.submission.file.technicalAvailability != .available { Text("package_warning_file_unavailable").font(.footnote).foregroundStyle(.secondaryText) }
                             if reviewChanged(item: item, detail: detail) {
-                                Text("package_warning_review_changed").font(.footnote).foregroundStyle(.secondary)
+                                Text("package_warning_review_changed").font(.footnote).foregroundStyle(.secondaryText)
                                 if let current = item.submission.review {
-                                    Text(LocalizedStringKey("prep_review_\(current.decision.rawValue)"))
+                                    Text(LocalizedStringKey(current.decision.labelKey))
                                     if let reason = current.reason { Text(reason) }
                                     ProgramPackageTimestamp(raw: current.reviewedAt)
                                 }
@@ -98,11 +98,11 @@ struct ProgramPackageDetailView: View {
                     Section {
                         NavigationLink("package_review_history") { ProgramPackageReviewHistoryView(applicationId: applicationId, packageId: packageId, items: detail.items) }.frame(minHeight: 44)
                         NavigationLink("program_document_open_program") { ProgramPreparationView(applicationId: applicationId) }.frame(minHeight: 44)
-                    } footer: { Text("package_help") }
+                    } footer: { Text("package_help").foregroundStyle(.secondaryText) }
                 }
                 if loading || documentModel.busy { ProgressView("prep_loading") }
                 if failed { Text("prep_read_failed"); Button("retry_button") { Task { await load() } }.frame(minHeight: 44) }
-                if let error = documentModel.errorKey { Text(LocalizedStringKey(error)).foregroundStyle(.red) }
+                if let error = documentModel.errorKey { Text(LocalizedStringKey(error)).foregroundStyle(.dangerText) }
             }
         }.navigationTitle("package_detail").navigationBarTitleDisplayMode(.inline)
         .quickLookPreview($documentModel.previewURL)
@@ -137,7 +137,7 @@ struct ProgramPackageDefinitionView: View {
     var body: some View {
         ProgramPackageRequirementDetails(label: definition.label, groupLabel: definition.groupLabel,
             required: definition.required, instructions: definition.instructions, deadline: definition.deadline)
-        if let material { Text(material.label + " · " + material.groupLabel).font(.footnote).foregroundStyle(.secondary) }
+        if let material { Text(material.label + " · " + material.groupLabel).font(.footnote).foregroundStyle(.secondaryText) }
     }
 }
 
@@ -149,13 +149,13 @@ struct ProgramPackageRequirementDetails: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label).font(.headline)
             Text(groupLabel).font(.subheadline)
-            Text(LocalizedStringKey(required ? "prep_required" : "prep_optional")).font(.caption).foregroundStyle(.secondary)
+            Text(LocalizedStringKey(required ? "prep_required" : "prep_optional")).font(.caption).foregroundStyle(.secondaryText)
             Text(instructions).font(.footnote)
             if let deadline {
                 Text("prep_requirement_deadline").font(.subheadline)
                 Text(deadlineLabel(deadline)).font(.footnote)
                 if let source = deadline.sourceUrl, let url = URL(string: source) { Link("prep_deadline_source", destination: url).frame(minHeight: 44) }
-                Text(String(localized: "prep_deadline_verified", locale: locale) + " " + (CatalogDate.dayLabel(from: deadline.verifiedOn, locale: locale) ?? deadline.verifiedOn)).font(.footnote).foregroundStyle(.secondary)
+                Text(String(localized: "prep_deadline_verified", locale: locale) + " " + (CatalogDate.dayLabel(from: deadline.verifiedOn, locale: locale) ?? deadline.verifiedOn)).font(.footnote).foregroundStyle(.secondaryText)
             }
         }
     }
@@ -170,7 +170,7 @@ private struct ProgramPackageReviewSummary: View {
     let review: ApplicationPackageReview, items: [ApplicationPackageItem]
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(LocalizedStringKey("package_decision_\(review.decision.rawValue)")).font(.headline)
+            Text(LocalizedStringKey(review.decision.labelKey)).font(.headline)
             ProgramPackageTimestamp(raw: review.reviewedAt)
             if let reason = review.reason { Text(reason) }
             ForEach(review.affectedItemIds, id: \.self) { id in
@@ -229,8 +229,8 @@ struct ProgramPackageNotificationView: View {
     @State private var token = UUID()
     var body: some View {
         Group {
-            if visibleScope == session.context?.scope, let notification {
-                ProgramPackageDetailView(applicationId: UUID(uuidString: notification.applicationId)!, packageId: notification.packageId, historicalReview: notification.review)
+            if visibleScope == session.context?.scope, let notification, let applicationId = ServerUUID.parse(notification.applicationId) {
+                ProgramPackageDetailView(applicationId: applicationId, packageId: notification.packageId, historicalReview: notification.review)
             } else {
                 List {
                     if loading { ProgressView("prep_loading") }

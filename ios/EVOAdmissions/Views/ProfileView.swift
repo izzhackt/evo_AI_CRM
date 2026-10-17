@@ -144,16 +144,19 @@ struct ProfileView: View {
         Section {
             LabeledContent {
                 Text(model.profile?.displayName ?? session.authority.displayName)
+                    .foregroundStyle(.secondaryText)
             } label: {
                 Text("profile_name_label")
             }
             LabeledContent {
                 Text(model.profile?.email ?? sessionEmail ?? "—")
+                    .foregroundStyle(.secondaryText)
             } label: {
                 Text("profile_email_label")
             }
             LabeledContent {
                 Text(accessStatusKey)
+                    .foregroundStyle(.secondaryText)
             } label: {
                 Text("profile_access_label")
             }
@@ -163,9 +166,12 @@ struct ProfileView: View {
                 Text("profile_tests_link")
             }
         } footer: {
-            if model.profileLoadFailed {
-                Text("profile_unavailable")
+            Group {
+                if model.profileLoadFailed {
+                    Text("profile_unavailable")
+                }
             }
+            .foregroundStyle(.secondaryText)
         }
     }
 
@@ -202,18 +208,20 @@ struct ProfileView: View {
             case .saved:
                 Text("profile_language_saved_restart")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             case .failed:
                 Text("profile_language_error")
                     .font(.footnote)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(.dangerText)
             case .idle, .saving:
                 EmptyView()
             }
         } header: {
             Text("profile_language_heading")
+                .foregroundStyle(.secondaryText)
         } footer: {
             Text("profile_language_hint")
+                .foregroundStyle(.secondaryText)
         }
     }
 
@@ -228,7 +236,7 @@ struct ProfileView: View {
             if model.historyLoadFailed {
                 Text("consultation_history_unavailable")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             } else {
                 ForEach(model.consultationHistory) { receipt in
                     ConsultationHistoryRow(receipt: receipt)
@@ -236,26 +244,41 @@ struct ProfileView: View {
             }
         } header: {
             Text("consultation_heading")
+                .foregroundStyle(.secondaryText)
         } footer: {
-            if !model.consultationHistory.isEmpty {
-                Text("consultation_history_heading_note")
+            Group {
+                if !model.consultationHistory.isEmpty {
+                    Text("consultation_history_heading_note")
+                }
             }
+            .foregroundStyle(.secondaryText)
         }
     }
 
+    /// Политика конфиденциальности (правило App Store 5.1.1(i): ссылка и в
+    /// приложении) и уведомления лицензий рядом с версией (review #1215).
     private var appSection: some View {
         Section {
+            PrivacyPolicyLink()
+            NavigationLink {
+                LicensesView()
+            } label: {
+                Text("licenses_title")
+            }
             LabeledContent {
                 Text(appVersion)
+                    .foregroundStyle(.secondaryText)
             } label: {
                 Text("profile_app_version")
             }
         }
     }
 
+    // Выход ничего не удаляет, поэтому кнопка без роли .destructive (аудит
+    // UX/UI 2026-10): цвет даёт акцент, а не системный красный 3,57:1.
     private var sessionSection: some View {
         Section {
-            Button(role: .destructive) {
+            Button {
                 Task {
                     isSigningOut = true
                     // Личные данные (избранное) не переживают выход.
@@ -290,12 +313,12 @@ private struct ConsultationHistoryRow: View {
                     name
                 ))
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             }
             if let note = receipt.note, !note.isEmpty {
                 Text(note)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .lineLimit(2)
             }
             if let date = PostgresTimestamp.dayLabel(
@@ -307,7 +330,7 @@ private struct ConsultationHistoryRow: View {
                     date
                 ))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             }
             if let handledAt = receipt.handledAt,
                let date = PostgresTimestamp.dayLabel(from: handledAt, locale: AppLocale.current) {
@@ -316,7 +339,7 @@ private struct ConsultationHistoryRow: View {
                     date
                 ))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             }
         }
         .padding(.vertical, 2)

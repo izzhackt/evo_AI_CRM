@@ -116,7 +116,7 @@ final class ProgramPackageRecoveryModel: ObservableObject {
             // Bounded history search. Missing original metadata never permits a
             // blind retry; authoritative status recovery remains available.
             for _ in 0..<5 {
-                let page = try await service.applicationDocumentHistory(studentCaseId: UUID(uuidString: value.intent.studentCaseId)!, applicationId: UUID(uuidString: value.intent.applicationId)!, cursor: cursor)
+                let page = try await service.applicationDocumentHistory(studentCaseId: ServerUUID.require(value.intent.studentCaseId, orThrow: ApplicationPackageClientError.pendingUnavailable), applicationId: ServerUUID.require(value.intent.applicationId, orThrow: ApplicationPackageClientError.pendingUnavailable), cursor: cursor)
                 guard generation == run, session.matches(context, generation: sessionGeneration), value.owner == owner else { return }
                 for item in value.intent.items {
                     if let exact = page.events.first(where: { event in

@@ -1,0 +1,202 @@
+{
+  "items": [
+    {
+      "box": 1,
+      "item": {
+        "stemEn": "Find the value of $\\log_2 8 + \\log_2 4$.",
+        "itemKey": "csca-math-exp-log-001",
+        "options": [
+          {
+            "id": "a",
+            "label": "$6$"
+          },
+          {
+            "id": "b",
+            "label": "$5$"
+          },
+          {
+            "id": "c",
+            "label": "$\\log_2 12$"
+          },
+          {
+            "id": "d",
+            "label": "$32$"
+          }
+        ],
+        "topicKey": "m2-exp-log",
+        "difficulty": 1,
+        "estSeconds": 45,
+        "syllabusPoint": "2.2"
+      },
+      "dueOn": "2026-10-16",
+      "lapses": 0,
+      "itemKey": "csca-math-exp-log-001"
+    },
+    {
+      "box": 1,
+      "item": {
+        "stemEn": "Which of the following functions is decreasing on its entire domain?",
+        "itemKey": "csca-math-exp-log-002",
+        "options": [
+          {
+            "id": "a",
+            "label": "$y = 3^x$"
+          },
+          {
+            "id": "b",
+            "label": "$y = \\log_5 x$"
+          },
+          {
+            "id": "c",
+            "label": "$y = \\left(\\frac{1}{2}\\right)^{-x}$"
+          },
+          {
+            "id": "d",
+            "label": "$y = \\log_{1/2} x$"
+          }
+        ],
+        "topicKey": "m2-exp-log",
+        "difficulty": 1,
+        "estSeconds": 45,
+        "syllabusPoint": "2.2"
+      },
+      "dueOn": "2026-10-16",
+      "lapses": 0,
+      "itemKey": "csca-math-exp-log-002"
+    },
+    {
+      "box": 1,
+      "item": {
+        "stemEn": "What is the domain of the function $f(x) = \\log_2 (x - 3)$?",
+        "itemKey": "csca-math-exp-log-003",
+        "options": [
+          {
+            "id": "a",
+            "label": "$(3, +\\infty)$"
+          },
+          {
+            "id": "b",
+            "label": "$[3, +\\infty)$"
+          },
+          {
+            "id": "c",
+            "label": "$(0, +\\infty)$"
+          },
+          {
+            "id": "d",
+            "label": "$(-3, +\\infty)$"
+          }
+        ],
+        "topicKey": "m2-exp-log",
+        "difficulty": 1,
+        "estSeconds": 45,
+        "syllabusPoint": "2.2"
+      },
+      "dueOn": "2026-10-16",
+      "lapses": 0,
+      "itemKey": "csca-math-exp-log-003"
+    },
+    {
+      "box": 1,
+      "item": {
+        "stemEn": "Let $\\log_a 2 = m$ and $\\log_a 3 = n$. Express $\\log_a 12$ in terms of $m$ and $n$.",
+        "itemKey": "csca-math-exp-log-005",
+        "options": [
+          {
+            "id": "a",
+            "label": "$2m + n$"
+          },
+          {
+            "id": "b",
+            "label": "$m^2 + n$"
+          },
+          {
+            "id": "c",
+            "label": "$2mn$"
+          },
+          {
+            "id": "d",
+            "label": "$2(m + n)$"
+          }
+        ],
+        "topicKey": "m2-exp-log",
+        "difficulty": 2,
+        "estSeconds": 75,
+        "syllabusPoint": "2.2"
+      },
+      "dueOn": "2026-10-16",
+      "lapses": 0,
+      "itemKey": "csca-math-exp-log-005"
+    },
+    {
+      "box": 1,
+      "item": {
+        "stemEn": "Let $a = \\log_2 3$, $b = \\log_3 2$ and $c = \\log_{1/2} 3$. Which of the following is correct?",
+        "itemKey": "csca-math-exp-log-007",
+        "options": [
+          {
+            "id": "a",
+            "label": "$b > a > c$"
+          },
+          {
+            "id": "b",
+            "label": "$a > c > b$"
+          },
+          {
+            "id": "c",
+            "label": "$c > a > b$"
+          },
+          {
+            "id": "d",
+            "label": "$a > b > c$"
+          }
+        ],
+        "topicKey": "m2-exp-log",
+        "difficulty": 2,
+        "estSeconds": 75,
+        "syllabusPoint": "2.2"
+      },
+      "dueOn": "2026-10-16",
+      "lapses": 0,
+      "itemKey": "csca-math-exp-log-007"
+    },
+    {
+      "box": 1,
+      "item": {
+        "stemEn": "A particle moves along a straight line. At time $t$ (in seconds), its position is $s(t) = t^2 + 3t$ meters. Find its instantaneous velocity at $t = 2$.",
+        "itemKey": "csca-math-derivative-007",
+        "options": [
+          {
+            "id": "a",
+            "label": "$10$ m/s"
+          },
+          {
+            "id": "b",
+            "label": "$5$ m/s"
+          },
+          {
+            "id": "c",
+            "label": "$4$ m/s"
+          },
+          {
+            "id": "d",
+            "label": "$7$ m/s"
+          }
+        ],
+        "topicKey": "m2-derivative",
+        "difficulty": 2,
+        "estSeconds": 75,
+        "syllabusPoint": "2.4"
+      },
+      "dueOn": "2026-10-16",
+      "lapses": 0,
+      "itemKey": "csca-math-derivative-007"
+    }
+  ],
+  "today": "2026-10-16",
+  "track": "csca-math",
+  "figures": {},
+  "dueCount": 6,
+  "nextDueOn": null,
+  "activeCount": 6
+}

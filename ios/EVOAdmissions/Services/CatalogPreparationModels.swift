@@ -151,7 +151,7 @@ struct CatalogPreparationReceipt: Decodable {
 
 /// Existing `platform.application_status` values, shared with the staff/web
 /// contract in src/lib/platform-application-contract.ts.
-enum CatalogPreparationApplicationStatus: String, Decodable {
+enum CatalogPreparationApplicationStatus: String, Decodable, CaseIterable {
     case preparation, ready, submitted
     case underReview = "under_review"
     case offer, rejected, enrolled, withdrawn, closed

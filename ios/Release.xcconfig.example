@@ -1,0 +1,16 @@
+// Образец ios/Release.xcconfig для конфигурации Release (архив для App Store).
+// Настоящий файл в .gitignore. Пишите его командой
+// ios/scripts/write-release-config.sh из переменных окружения, а не руками:
+// скрипт проверяет https:// и формат значений.
+//
+// Все значения публичные клиентские: адрес проекта Supabase и publishable
+// ключ попадают в любое собранное приложение. Секретов (service_role,
+// sb_secret_, пароли, ключ App Store Connect API) здесь быть не может.
+// xcconfig считает `//` началом комментария в любом месте строки, поэтому
+// адреса записаны как `https:/$()/host`.
+SUPABASE_URL = https:/$()/iosckaqtovbbnssqcpde.supabase.co
+// Supabase Dashboard, Project Settings, API Keys: publishable key.
+SUPABASE_PUBLISHABLE_KEY = REPLACE_WITH_PUBLISHABLE_KEY
+PORTAL_WEB_BASE_URL = https:/$()/app.evoadmissions.com
+// Team ID из developer.apple.com/account, «Membership details».
+DEVELOPMENT_TEAM = REPLACE_WITH_TEAM_ID

@@ -203,7 +203,7 @@ SELECT pg_temp.n290_assert(NOT EXISTS (SELECT 1 FROM platform_private.lead_sale_
 -- Case 2 also carries every money key and the client's budget, so the blanking is proved on values, not on absence
 -- (the creation command stores only the cost and the signing day).
 UPDATE platform_private.lead_sale_conditions c SET fields = platform_private.lead_sale_condition_fields(c.fields || jsonb_build_object(
-    'paid_raw', '400', 'paid_minor', '40000', 'paid_currency', 'USD', 'payment_note', 'N290 payment note',
+    'service_cost_raw', '990 у.е.', 'paid_raw', '400', 'paid_minor', '40000', 'paid_currency', 'USD', 'payment_note', 'N290 payment note',
     'conditions_budget_raw', '8000', 'conditions_budget_minor', '800000', 'conditions_budget_currency', 'USD',
     'conditions_budget_period', 'year'))
   WHERE c.lead_id = :'n290_lead2'::UUID;
@@ -332,6 +332,7 @@ SELECT pg_temp.n290_assert(NOT (:'n290_n_access'::JSONB ->> 'finance')::BOOLEAN,
   'R: fixture: curator N has no finance section on its case');
 SELECT pg_temp.n290_assert(:'n290_admin_c2'::JSONB -> 'service_cost_minor' = '99000'::JSONB
     AND :'n290_admin_c2'::JSONB ->> 'service_cost_currency' = 'USD'
+    AND :'n290_admin_c2'::JSONB ->> 'service_cost_raw' = '990 у.е.'
     AND (:'n290_admin_c2'::JSONB ->> 'paid_minor')::BIGINT = 40000 AND :'n290_admin_c2'::JSONB ->> 'paid_currency' = 'USD'
     AND :'n290_admin_c2'::JSONB ->> 'paid_raw' = '400' AND :'n290_admin_c2'::JSONB ->> 'payment_note' = 'N290 payment note'
     AND (:'n290_admin_c2'::JSONB ->> 'conditions_budget_minor')::BIGINT = 800000

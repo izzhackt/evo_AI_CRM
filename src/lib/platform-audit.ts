@@ -43,6 +43,12 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // (yet) in these lists is not rejected outright: `parseSafeRow` keeps it with
 // `recognized: false` rather than dropping it or failing the whole page —
 // dropping would make the journal and the CSV export silently incomplete.
+// Migration 291 (telephony T2, docs/PLAN_CHANGES.md «2026-10-17 — Телефония T2:
+// права, роли и журнал (миграция 291)») adds six `telephony.*` actions and the
+// three resource types `telephony_call`, `telephony_dial_request` and
+// `telephony_settings` by the same rename-and-union wrapper
+// (`..._pre_telephony_rights`); they fall through to the `["record_status"]`
+// default of `expectedChangedFieldCodes`, exactly like the server's `ELSE`.
 // `expectedChangedFieldCodes` below needed no new branch for 255's 71
 // actions: 9 `document.export.*` actions already hit the existing
 // `action.startsWith("document.")` branch (mirroring the server's
@@ -243,6 +249,12 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "team.chat.edit",
   "team.chat.moderate",
   "team.chat.post",
+  "telephony.automation.stop",
+  "telephony.dial",
+  "telephony.mapping.change",
+  "telephony.recording.listen",
+  "telephony.result.set",
+  "telephony.settings.change",
   "visa.create",
   "visa.status.change",
   "work.review.resolve",
@@ -322,6 +334,9 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "student_case_update",
   "student_profile",
   "team_chat_message",
+  "telephony_call",
+  "telephony_dial_request",
+  "telephony_settings",
   "university_application",
   "visa_case",
   "waha_history_reconciliation_run",

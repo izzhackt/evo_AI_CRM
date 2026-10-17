@@ -18,21 +18,32 @@ export function parseCaseSectionAccess(value: unknown, organizationId: string, s
   return { documents: row.documents, finance: row.finance, studentProfile: row.studentProfile, contract: row.contract };
 }
 
+export type CaseLifecycleState = "pending" | "active" | "closed";
+
 /**
  * The document workspace (113, `staff_student_case_document_workspace`) reads only a case in
  * work: `active` or `closed`, with its curator's handoff (the table shape allows no other
  * state to carry a curator). A case «Ждёт куратора» (`pending`) is outside that definition: the
  * database answers the read 42501 to everyone, the Admin included, while the access snapshot
- * (156), which checks the permission and not the state, still says `documents: true`. Such a
- * section is not read and not promised. This only narrows what the
- * snapshot said: no permission is granted, and for `active` and `closed` the snapshot stands, so
- * a refusal of the workspace read there stays an error.
+ * (156), which checks the permission and not the state, still says `documents: true`.
+ * This is the one place that says so: every screen that would read or promise the documents of
+ * a case (the case page, the «Студенты» quick view, the Knowledge dossier) asks it, so the
+ * reason shown is the case's state and not the reader's rights.
+ */
+export function caseDocumentsAwaitCurator(state: CaseLifecycleState): boolean {
+  return state === "pending";
+}
+
+/**
+ * Such a section is not read and not promised. This only narrows what the snapshot said: no
+ * permission is granted, and for `active` and `closed` the snapshot stands, so a refusal of
+ * the workspace read there stays an error.
  */
 export function caseSectionAccessForState(
   access: CaseSectionAccess,
-  state: "pending" | "active" | "closed",
+  state: CaseLifecycleState,
 ): CaseSectionAccess {
-  return state === "pending" && access.documents ? { ...access, documents: false } : access;
+  return caseDocumentsAwaitCurator(state) && access.documents ? { ...access, documents: false } : access;
 }
 
 /** Preserve unavailable sections as null; an authorized reader failure must propagate. */

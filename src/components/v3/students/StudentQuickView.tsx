@@ -5,7 +5,8 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import type { CaseClosure, CaseClosureReceipt } from "@/lib/platform-closure-contract";
 import type { CaseNextActionReceipt, StudentCaseQueueRow } from "@/lib/platform-student-case-queue-contract";
-import { admissionsPipelineStage, taskStatus } from "@/lib/v3/wording";
+import { caseDocumentsAwaitCurator } from "@/lib/v3/case-access-contract";
+import { admissionsPipelineStage, caseDocumentsWords, taskStatus } from "@/lib/v3/wording";
 
 import { DueWord } from "../blocks/DueWord";
 import { Initials } from "../blocks/Initials";
@@ -109,6 +110,9 @@ export function StudentQuickView({
   // Неизвестный этап не показывается ключом базы (CLAUDE.md).
   const stage = admissionsPipelineStage(row.pipelineStage);
   const awaiting = !answered && row.attentionFlags.includes("awaiting_ack");
+  // Рабочего места документов у дела без куратора нет (113): причина — состояние дела, а не права
+  // и не «чек-лист не собран»; вкладки «Документы» у такого дела тоже нет.
+  const documentsAwaitCurator = caseDocumentsAwaitCurator(row.state);
   const documents = studentsDocumentsLine(row.documents);
   // Шаг ведётся только у дела в работе: у закрытого и ожидающего начала дата без «прошёл».
   const due = row.nextAction && row.nextActionDueOn ? queueDue({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state === "active") : null;
@@ -226,7 +230,9 @@ export function StudentQuickView({
 
       <section aria-label="Документы дела" className={`mt-4 ${SECTION}`}>
         <h3 className="t-item text-fg">Документы</h3>
-        {documents ? (
+        {documentsAwaitCurator ? (
+          <p className="t-body-compact text-fg-2" data-testid="v3-students-panel-documents-await">{caseDocumentsWords.awaitCurator}</p>
+        ) : documents ? (
           // Полоса «N из M принято» — только из прочитанных чисел чек-листа;
           // пустой чек-лист или числа, которые не сходятся, — строка итога, без полосы.
           <div className="space-y-2">
@@ -239,7 +245,8 @@ export function StudentQuickView({
             ) : null}
           </div>
         ) : <p className="t-body-compact text-fg-3">Нет доступа к документам этого дела.</p>}
-        <Link href={links.documents} className={LINK}>Документы дела</Link>
+        {/* У дела без куратора вкладки «Документы» нет — ссылке вести некуда. */}
+        {documentsAwaitCurator ? null : <Link href={links.documents} className={LINK}>Документы дела</Link>}
       </section>
     </SidePanel>
   );

@@ -119,6 +119,27 @@ Apple требует указать причину для каждой груп�
 3. **Аналитика.** Если команда разбирает ответы анкеты в сводных отчётах для планирования (страны, бюджеты, аудитория), Apple считает это целью **Analytics**. Тогда её нужно добавить к Other Data Types и Other Financial Info (в файле приватности `NSPrivacyCollectedDataTypePurposeAnalytics`).
 4. **IP-адреса и заголовки в серверных журналах.** Apple не требует указывать IP-адрес и технические заголовки, если они не хранятся и не используются. Если журналы Supabase или веб-сервера хранят IP и `X-Client-Info` дольше, чем нужно для ответа, это покрывается уже отмеченным Other Data Types с целью App Functionality (безопасность). Настройки хранения журналов в рабочей системе не проверялись.
 
+## 8. Сборка 1.1: университеты v2, путь поступления, CSCA (проверено 17.10.2026)
+
+Основание: сводная ветка `izzhackt/ios-1-1-integration` (#1172 вместе с #1206, #1208, #1210 на `main`). Новых типов данных нет, `PrivacyInfo.xcprivacy` не меняется: всё новое ложится в уже отмеченные типы с теми же ответами (linked, без tracking, только App Functionality).
+
+| Что отправляется | Экран | RPC | Тип в разделе 2 |
+| --- | --- | --- | --- |
+| Ответы диагностики и пробного теста, флажки, время на задании | «Английский» → «CSCA», тест на время | `start_learning_test_v1`, `save_learning_test_v1`, `complete_learning_test_v1` | Other User Content (ответы), Product Interaction (прогресс) |
+| Ответы уроков CSCA | Урок CSCA | `start_learning_lesson_v1`, `save_learning_answer_v1`, `complete_learning_lesson_v1` (те же, что у «Английского») | Other User Content, Product Interaction |
+| Ответы в «Ошибках» | «CSCA» → «Ошибки» | `record_learning_review_v1` | Other User Content, Product Interaction |
+| Сообщение об ошибке в задании, до 500 символов | «Сообщить об ошибке» | `report_learning_item_v1` | Customer Support |
+| Целевая сессия экзамена | «CSCA» → календарь сессий | `set_learning_target_session_v1` | Product Interaction |
+| Выбранная страна или «Пока не решил» | «Главная» → «Путь поступления» → «Сменить страну» | `set_student_country_choice_v1` (284) | Product Interaction |
+
+Без новых данных от студента (чтение; `learning_review_v2` ещё завершает просроченные тесты по уже сохранённым ответам): индекс и страница вуза (`student_university_index_v1`, `student_university_detail_v1`), главная, прогресс и уроки CSCA (`learning_track_home_v1`, `learning_track_progress_v1`, `learning_lesson_v2`, `learning_review_v2`, `learning_test_attempt_v1`), выбор страны (`student_country_choice_v1`). Поиск по названию вуза в сборке 1.1 идёт на устройстве по индексу и на сервер не уходит (строка Search History в разделе 3 остаётся верной).
+
+На устройстве, без отправки: копия индекса университетов в Caches приложения (файл на организацию) и свой `URLCache` на диске для фото каталога. Фото стран, городов и вузов сборка 1.1 берёт только из публичного бакета Supabase EVO, прямых ссылок на сайты вузов и Wikimedia нет; строка о Wikimedia Commons и сайтах вузов в разделе 6 относится к экрану 1.0 `UniversityPhotoView`, у которого в сборке 1.1 нет вызовов.
+
+API с обязательной причиной (список Apple для `NSPrivacyAccessedAPIType` сверен 17.10.2026): новых нет. Таймер теста CSCA идёт по `ContinuousClock` Swift, а в группе System boot time Apple называет только `ProcessInfo.systemUptime` и `mach_absolute_time()`. Копия индекса читается и пишется через `Data(contentsOf:)` и `write(to:)`, без дат файлов и свободного места. В собранном приложении из символов списка Apple импортируется только `NSUserDefaults` (проверка `nm -u` сборки Debug), он уже указан с причиной `CA92.1`.
+
+Пакет SwiftMath 1.7.3 (ревизия `fa8244ed`, MIT): своего файла приватности нет, вызовов API из списка в исходниках нет (поиск по `Sources`). Пакет приносит 12 шрифтов формул и тексты лицензий `GUST-FONT-LICENSE.txt`, `OFL.txt`, `LICENSE` в `SwiftMath_SwiftMath.bundle/mathFonts.bundle`; уведомление MIT SwiftMath и iosMath и список всех 12 шрифтов с лицензиями показывает экран «CSCA» → лицензии (`Views/CSCA/CSCALicensesView.swift`).
+
 ## Источники (проверено 07.10.2026)
 
 - Определения сбора, типов данных, целей, tracking и linked data: https://developer.apple.com/app-store/app-privacy-details/

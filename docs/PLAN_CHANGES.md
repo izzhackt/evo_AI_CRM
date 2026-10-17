@@ -53473,3 +53473,58 @@ Validation impact: только тестовые классы CSCA iPhone (но�
   воспроизведены) и после. Production не затрагивается.
 Reviewer notes: ожидает независимого review точного head PR.
 ```
+
+## 2026-10-17 · iPhone 1.0 и сборка 1.1: сведение #1172, #1206, #1208, #1210 на main
+
+Записи выше не переписываются. Ветка `izzhackt/ios-1-1-integration` от
+`origin/main` `dc6540b42`; в неё по очереди слиты #1172 (`d6fd1a621`),
+#1206 (`af16a6946`), #1208 (`b2d94c3a7`), #1210 (`fdf87fdc8`). Цель: одно
+приложение для показа владельцу в симуляторе против production; после
+слияния этот PR заменяет четыре исходных.
+
+```text
+Date: 2026-10-17, workspace timezone.
+Author: Claude Code (Opus 5.5), по поручению ведущего агента.
+Change type: integration (merge), без нового поведения.
+Affected plan section: план v2 §7.4, §8.4, §9 (iPhone сборки 1.1);
+  iPhone 1.0 по записи «2026-10-07, iPhone 1.0 для App Store».
+Reason: веб-части S3, S4, S5 слиты в main squash-коммитами (#1202
+  e4926420e, #1205 810b1f2f8, #1207 fc5d82485), ветки iPhone стояли на
+  их ветках до squash и конфликтовали с main и с #1172.
+Decision:
+  1. Вне ios/ всё, что ветки несли только из-за своей основы до squash
+     (веб, SQL 283..286, скрипты, контент), оставлено как в main.
+     Собственные файлы #1208 вне ios/ сохранены: скрипт паритета
+     scripts/portal/write-country-timeline-ios-parity.mjs, node-тест
+     tests/portal-country-timeline-ios-parity.test.mjs и его строка в
+     test:frontend (package.json).
+  2. Документы: PLAN_CHANGES дописан записями #1172, #1206, #1210 (у #1208
+     своих нет), текст main побайтный префикс; csca-contract.md как в
+     #1210 (в main файл равен 42ec20b46); functional-parity.md: строки
+     main не удалялись, разделы iPhone S3, S4 и CSCA дописаны.
+  3. Шаг слияния #1206 N3 и P2: UniversityAtlasView открывает «Избранное»
+     через NavigationLink(value: PortalRoute.favorites), регистрирует
+     .portalRouteDestinations(), двойная регистрация UUID убрана.
+  4. Рецепт #1208 m3 и r2-m1: TimelinePalette и TimelineLinkTint на
+     токены Theme.swift, заголовки секций, вводная листа выбора и три
+     оговорки тоже .secondaryText.
+  5. Рецепт #1210 R1 в EnglishView.swift: структура #1210, правки #1172
+     (moduleSummary, .accentBordered(), все .secondary на .secondaryText).
+  6. Правило контраста #1172 для нового кода #1206: кнопка «Повторить» в
+     AtlasMessageView через .accentBordered(); hiddenCountLine main (282)
+     в FavoritesView на .secondaryText.
+  7. Версия не менялась: MARKETING_VERSION 1.0.0, CURRENT_PROJECT_VERSION
+     1, как поставил #1172. Отправить всё одной версией 1.0 или назвать
+     сборку 1.1 решает владелец. PrivacyInfo.xcprivacy не менялся: новых
+     типов данных и API с обязательной причиной нет; раздел 8 в
+     ios/docs/app-store/app-privacy.md.
+Validation impact: xcodegen generate; полный набор unit-тестов iPhone на
+  своём симуляторе (iPhone 17, iOS 26.5): 42 класса, 336 тестов, 0 ошибок,
+  0 пропусков. Сборка Release под симулятор с временным Release.xcconfig
+  и заглушкой ключа (не запускалась). Реальный путь против локального
+  стека evo-video-demo (синтетический студент): вход через экран входа,
+  «Путь поступления» на «Главной», «Университеты» → «Избранное» → вуз →
+  «Китай», «Английский» → «CSCA», экран лицензий формул. Node-тест
+  паритета #1208 на контенте main 6 из 6. Production не затрагивается.
+Reviewer notes: ожидает независимого review точного head PR.
+```

@@ -3783,6 +3783,32 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_telephony_recordings.sql </dev/null
   fi
+
+  # «Телефония Beeline KG», срез T8 (задача «Перезвонить» по пропущенному, «Недозвон»
+  # с каденсом, автозакрытие, задачи по результату звонка, потолки автоматики;
+  # docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.1, §9.1, §9.2, §9.4). Matched by name, not
+  # number, so a renumbering at merge keeps the hook. Right after the migration the suite
+  # proves: the full catalog of twenty-one public telephony functions (one new, service-only)
+  # and 22 closed private helpers; the automation mark and the new link kind; the
+  # working-hours math as pure rules (19:55 -> tomorrow 10:10, 03:00 -> 10:15, Sunday,
+  # closing edge, the local day across UTC midnight, the cadence units); the switches
+  # (no settings row, projection off, automation flag off: nothing written); missed
+  # inbound calls (the responsible person and every fallback, one decision per call,
+  # repeats raising a counter, a task a person finished, chain / later-answered /
+  # unmatched / ambiguous / age / backfill / unsettled / no-assignee rules); auto-close by
+  # an answered call (same client, later than the task's call, the explicit day, a
+  # reconciled call); unanswered outbound calls (the «Недозвон» result without an author,
+  # the cadence and its replacement, the hint after five misses, refused and pull rows);
+  # the result button («Перезвонить» + day, a changed day, a taken-back result, «Не
+  # интересно»); the hourly and daily ceilings (both flags off, version, stop state,
+  # journal, the unmarked call, merges and button tasks not counted); isolation of
+  # organizations; a failing call costing only itself with a coded error; and no phone,
+  # link or name in anything the automation wrote.
+  if [[ "$(basename "$migration")" == *_platform_telephony_missed_tasks.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_telephony_missed_tasks.sql </dev/null
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

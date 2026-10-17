@@ -238,6 +238,7 @@ function inboxModule() {
     if (id === "@/components/v3/inbox/InboxChat") return { InboxChat: () => null };
     if (id === "@/components/v3/inbox/InboxListPulse") return { InboxListPulse: () => null };
     if (id === "@/components/v3/queue/FilterMenu") return { FilterMenu: function FilterMenu() { return null; } };
+    if (id === "@/components/v3/telephony/DialButton") return { DialButton: () => null };
     return undefined;
   });
 }

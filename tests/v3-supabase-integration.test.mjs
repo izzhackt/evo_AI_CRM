@@ -94,6 +94,8 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "task-composer-actions.ts", // #1085 (27.09.2026)
     "task-queue.ts",
     "team-chat-source.ts",
+    "telephony-dial-source.ts", // «Позвонить» T7 (17.10.2026): whether the button is shown (platform.telephony_dial_options_v1, session)
+    "telephony-dial.ts", // «Позвонить» T7 (17.10.2026): pure contract and words of the button, no Supabase
     "telephony-health.ts", // «Настройки → Телефония» T4b (17.10.2026): pure state words, no Supabase
     "telephony-settings.ts", // «Настройки → Телефония» T4b (17.10.2026): pure screen contract, no Supabase
     "today-queue.ts", // #1067 (26.09.2026)
@@ -160,6 +162,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "students-coverage-source.ts", // #1050 (24.09.2026)
     "students-queue-source.ts",
     "team-chat-source.ts",
+    "telephony-dial-source.ts", // «Позвонить» T7 (17.10.2026)
     "today-source.ts", // #1067 (26.09.2026)
     "university-form-source.ts",
     "university-source.ts",

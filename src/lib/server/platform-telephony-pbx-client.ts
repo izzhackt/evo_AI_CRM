@@ -7,8 +7,8 @@ import type { PlatformTelephonyPbxConfig } from "./platform-telephony-pbx-config
  * docs/EVO_TELEPHONY_PLAN_2026-10-16.md §3.2 and §5.4, ADR 0033.
  *
  * What it is allowed to do is a closed list (`TELEPHONY_PBX_OPERATIONS`): six
- * read paths and one `makecall` stub that never reaches the network yet. Every
- * other path is unreachable from here, and the PBX management methods
+ * read paths and one write, `POST /makecall` (slice T7, the «Позвонить» button).
+ * Every other path is unreachable from here, and the PBX management methods
  * (employees, departments, numbers, blacklist, restrictions, SIP, branches,
  * webhook subscriptions) are not callable at all.
  *
@@ -21,6 +21,9 @@ import type { PlatformTelephonyPbxConfig } from "./platform-telephony-pbx-config
  *    enforced; the body is read with a hard size bound;
  *  - reads are retried twice, with a pause, on a timeout, a network error, a
  *    429 or a 5xx; a definitive answer (400, 401, 403, 405) is never retried;
+ *    `makecall` is NEVER retried (a second call is worse than a lost one, plan
+ *    5.4): one attempt, and its answer — or the lack of one — is the caller's
+ *    to classify (`confirmed` / `unconfirmed` / `failed`);
  *  - errors carry a fixed code (`pbx_*`), never the PBX's text, the key, a URL
  *    or a number; `message` is the code.
  */
@@ -42,8 +45,7 @@ export type TelephonyPbxErrorCode =
   | "pbx_redirect_refused"
   | "pbx_bad_response"
   | "pbx_response_too_large"
-  | "pbx_window_too_dense"
-  | "pbx_makecall_disabled";
+  | "pbx_window_too_dense";
 
 /** Errors after which no further request of this run can succeed. */
 export const TELEPHONY_PBX_STOPPING_ERRORS: ReadonlySet<TelephonyPbxErrorCode> = new Set([
@@ -106,6 +108,9 @@ const MAX_ERROR_BODY_BYTES = 2 * 1024;
 const USERS_PAGE_SIZE = 100;
 const USERS_MAX_PAGES = 10;
 const LOGIN_PATTERN = /^[A-Za-z0-9._@+-]{1,128}$/u;
+// A number as the PBX takes it (plan 5.4): digits only, no «+», 9–15 of them.
+const MAKECALL_PHONE_PATTERN = /^[1-9][0-9]{8,14}$/u;
+const CALLID_PATTERN = /^[^\p{Cc}\s](?:[^\p{Cc}]{0,198}[^\p{Cc}\s])?$/u;
 export const TELEPHONY_PBX_HISTORY_LIMIT = 500;
 
 type JsonObject = Record<string, unknown>;
@@ -194,6 +199,18 @@ export type TelephonyPbxHistoryResult = Readonly<{
   full: boolean;
 }>;
 
+/**
+ * One `POST /makecall` (plan 5.4, 8.1): the PBX rings the employee's registered
+ * device first and connects the client after the answer. `phone` is the client's
+ * number in digits without «+»; `user` is the employee's PBX login. `clid` and
+ * `show_phone` are never sent: the PBX uses the company's main number and its own
+ * behaviour.
+ */
+export type TelephonyPbxMakeCallRequest = Readonly<{ phone: string; user: string }>;
+
+/** `callId` is null when the PBX answered 2xx without a usable `callid`: the call may exist. */
+export type TelephonyPbxMakeCallResult = Readonly<{ callId: string | null }>;
+
 export type TelephonyPbxClient = Readonly<{
   listUsers(): Promise<Readonly<{ users: readonly TelephonyPbxUser[]; complete: boolean }>>;
   getUser(login: string): Promise<TelephonyPbxUserStatus>;
@@ -201,8 +218,15 @@ export type TelephonyPbxClient = Readonly<{
   getHistory(request: TelephonyPbxHistoryRequest): Promise<TelephonyPbxHistoryResult>;
   getDomain(): Promise<TelephonyPbxDomain>;
   getRecordSettings(): Promise<TelephonyPbxRecordSettings>;
-  /** Not enabled in slice T4a: refuses without touching the network. */
-  makeCall(): Promise<never>;
+  /**
+   * One attempt, no retry. Resolves with the call id (or null for a 2xx without one);
+   * rejects with a `TelephonyPbxError`: an error answer (4xx/5xx) has a `status`, a
+   * timeout / network error before any answer has none, and every failure AFTER a 2xx
+   * answer (an unreadable, oversized or broken-off body: `pbx_bad_response`,
+   * `pbx_response_too_large`, `pbx_timeout`, `pbx_network_error`) keeps that 2xx `status` —
+   * the caller tells «failed» (a 4xx) from «unconfirmed» (no status, a 2xx, a 5xx) by it.
+   */
+  makeCall(request: TelephonyPbxMakeCallRequest): Promise<TelephonyPbxMakeCallResult>;
 }>;
 
 function isObject(value: unknown): value is JsonObject {
@@ -316,6 +340,7 @@ export function createTelephonyPbxClient(
     operation: TelephonyPbxOperation,
     url: string,
     attempt: number,
+    body: string | null = null,
   ): Promise<unknown> {
     const started = now();
     let status: number | null = null;
@@ -325,7 +350,10 @@ export function createTelephonyPbxClient(
       try {
         response = await fetchImplementation(url, {
           method: operation.method,
-          headers: { "X-API-KEY": config.apiKey, Accept: "application/json" },
+          headers: body === null
+            ? { "X-API-KEY": config.apiKey, Accept: "application/json" }
+            : { "X-API-KEY": config.apiKey, Accept: "application/json", "Content-Type": "application/json" },
+          ...(body === null ? {} : { body }),
           redirect: "manual",
           cache: "no-store",
           signal: AbortSignal.timeout(timeoutMs),
@@ -522,9 +550,32 @@ export function createTelephonyPbxClient(
       });
     },
 
-    async makeCall(): Promise<never> {
-      // Slice T7 turns this on (dial flag, limits, idempotency, live status).
-      throw new TelephonyPbxError("pbx_makecall_disabled");
+    async makeCall(request) {
+      // Everything a request must satisfy is checked before the network: a wrong value is a
+      // programming error of the caller, never something the PBX should be asked about.
+      if (
+        typeof request !== "object" || request === null
+        || typeof request.phone !== "string" || !MAKECALL_PHONE_PATTERN.test(request.phone)
+        || typeof request.user !== "string" || !LOGIN_PATTERN.test(request.user)
+      ) {
+        throw new TelephonyPbxError("pbx_validation_error");
+      }
+      const operation = OPERATION_BY_NAME.get("makecall");
+      if (operation === undefined || operation.method !== "POST") {
+        throw new TelephonyPbxError("pbx_method_not_allowed");
+      }
+      // One attempt: a second call is worse than a lost one (plan 5.4).
+      const payload = await attemptOnce(
+        operation,
+        buildUrl(operation, {}, {}),
+        1,
+        JSON.stringify({ phone: request.phone, user: request.user }),
+      );
+      if (!isObject(payload)) throw new TelephonyPbxError("pbx_bad_response", 200);
+      const raw = payload.callid;
+      const callId = typeof raw === "number" && Number.isSafeInteger(raw) ? String(raw)
+        : typeof raw === "string" && raw.length <= 200 && CALLID_PATTERN.test(raw) ? raw : null;
+      return Object.freeze({ callId });
     },
   });
 }

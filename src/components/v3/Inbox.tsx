@@ -8,9 +8,11 @@ import { InboxChat, type InboxChatData } from "@/components/v3/inbox/InboxChat";
 import { InboxListPulse } from "@/components/v3/inbox/InboxListPulse";
 import { Pill } from "@/components/v3/Pill";
 import { FilterMenu } from "@/components/v3/queue/FilterMenu";
+import { DialButton } from "@/components/v3/telephony/DialButton";
 import type { ReplySnippetPickerItem } from "@/components/v3/reply-snippets/ReplySnippetPicker";
 import type { V3InboxSort } from "@/lib/v3/inbox-href";
 import type { V3InboxMediaAttachmentContext } from "@/lib/v3/inbox-media";
+import type { DialOptions } from "@/lib/v3/telephony-dial";
 import type { StagePhase } from "@/lib/v3/stages";
 
 export type InboxCanonicalContext = Readonly<{
@@ -142,6 +144,7 @@ export function Inbox({
   replySnippets = null,
   mediaAttachmentContext = null,
   assistant = null,
+  dial = null,
 }: Readonly<{
   view: InboxView;
   profileHref: string | null;
@@ -155,6 +158,11 @@ export function Inbox({
   mediaAttachmentContext?: V3InboxMediaAttachmentContext | null;
   /** Окно ИИ (план ИИ-агента §12.1): null — у сотрудника нет права ai.agent.use. */
   assistant?: InboxAssistantConfig | null;
+  /**
+   * «Позвонить» («Телефония Beeline KG», T7): `ready` — кнопка в шапке диалога с привязанным
+   * лидом; номер в шапке остаётся маской, набор получает идентификатор лида. Нет — кнопки нет.
+   */
+  dial?: DialOptions | null;
 }>) {
   const open = view.selected;
   const listWarning = channelWarning(view.channelState);
@@ -395,6 +403,9 @@ export function Inbox({
                 </p>
               ) : null}
             </div>
+            {dial?.status === "ready" && open.canonicalContext.leadId ? (
+              <DialButton leadId={open.canonicalContext.leadId} mapped={dial.mapped} subject={open.person} />
+            ) : null}
             {profileHref ? (
               <Link
                 href={profileHref}

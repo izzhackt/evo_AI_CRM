@@ -1,7 +1,9 @@
 import Link from "next/link";
 
 import { Icon } from "@/components/icons";
+import { caseDocumentsAwaitCurator } from "@/lib/v3/case-access-contract";
 import type { V3ProfileCaseDirectory, V3ProfileCaseDirectoryParams, V3ProfileCaseDirectoryRow } from "@/lib/v3/profile-source";
+import { caseDocumentsWords } from "@/lib/v3/wording";
 
 import { admissionsDirectoryHref, DIRECTION_LABELS, withDocsSection } from "../profile/admissions-view";
 import { FilterMenu } from "../queue/FilterMenu";
@@ -18,7 +20,11 @@ const STATE: Readonly<Record<V3ProfileCaseDirectoryRow["state"], string>> = { ac
 
 function rowHref(row: V3ProfileCaseDirectoryRow, docsMode: boolean): string | null {
   // Итог передачи (Sales) ведёт в карточку лида; полное дело — в «Обзор» дела.
-  if (row.access === "full") return withDocsSection(`/v3/profile?case=${row.studentCaseId}&tab=${docsMode ? "documents" : "overview"}`, docsMode);
+  // В «EVO Docs» имя ведёт на вкладку «Документы», но у дела без куратора её нет (правило — `caseDocumentsAwaitCurator`): туда имя ведёт в «Обзор».
+  if (row.access === "full") {
+    const tab = docsMode && !caseDocumentsAwaitCurator(row.state) ? "documents" : "overview";
+    return withDocsSection(`/v3/profile?case=${row.studentCaseId}&tab=${tab}`, docsMode);
+  }
   return row.leadId ? `/v3/profile?id=${row.leadId}` : null;
 }
 
@@ -86,6 +92,8 @@ export function StudentsDirectoryFallback({
                         <Link href={href} data-queue-open="" title={row.studentDisplayName} className="block truncate t-item text-fg before:absolute before:inset-0 before:content-[''] hover:underline">{row.studentDisplayName}</Link>
                       ) : <span className="block truncate t-item text-fg" title={row.studentDisplayName}>{row.studentDisplayName}</span>}
                       <span className="block truncate t-meta text-fg-2" title={meta}>{meta}{row.access === "sales_summary" ? " · итог передачи" : ""}</span>
+                      {docsMode && caseDocumentsAwaitCurator(row.state)
+                        ? <span className="block t-meta text-fg-2" data-testid="v3-student-case-documents-await">Документы {caseDocumentsWords.awaitCurator}.</span> : null}
                     </th>
                     <td role="cell" className={`${CELL} [grid-area:curator] t-body-compact text-fg`}>
                       <span className="@min-[40rem]/directory:hidden text-fg-2">Куратор: </span>

@@ -76,6 +76,8 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Не удалось открыть папку."); }
     finally { setBusy(false); }
   }
+  // Одно правило на экраны дела: у дела без куратора вкладки «Документы» нет, и ссылки на неё тоже.
+  const documentsAwait = record !== null && caseDocumentsAwaitCurator(record.state);
   return <section className="space-y-3 pb-4" aria-busy={busy} data-testid="knowledge-dossiers">
     {error && <p className={KB_ERROR} role="alert">{error}<button type="button" className={QUEUE_SECONDARY} onClick={() => void load()}>Повторить</button></p>}
     {!caseId ? <>
@@ -109,7 +111,9 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
           return <li key={message.id} className="space-y-1 py-3">
             <p className="flex flex-wrap items-baseline gap-x-2"><span className="t-item text-fg">{message.authorName}</span>{at ? <time dateTime={message.createdAt} className="t-meta text-fg-3"><span className="font-mono">{at}</span></time> : null}</p>
             <p className="max-w-[70ch] whitespace-pre-wrap t-body text-fg">{message.body}</p>
-            {message.attachmentId && <Link href={`/v3/profile?case=${caseId}&tab=${message.attachmentKind === "document" ? "documents" : "overview"}`} className={KB_QUIET}>{message.attachmentLabel ?? "Вложение"}</Link>}
+            {message.attachmentId && (message.attachmentKind === "document" && documentsAwait
+              ? <p className="flex flex-wrap items-baseline gap-x-2 t-meta" data-testid="knowledge-chat-attachment-await"><span className="text-fg-2 [overflow-wrap:anywhere]">{message.attachmentLabel ?? "Вложение"}</span><span className="text-fg-3">Документы {caseDocumentsWords.awaitCurator}.</span></p>
+              : <Link href={`/v3/profile?case=${caseId}&tab=${message.attachmentKind === "document" ? "documents" : "overview"}`} className={KB_QUIET}>{message.attachmentLabel ?? "Вложение"}</Link>)}
           </li>;
         })}</ol>
       </>}

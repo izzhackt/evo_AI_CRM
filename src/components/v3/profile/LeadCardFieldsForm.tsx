@@ -339,15 +339,18 @@ export function LeadConditionsCard({
                   className={cn(inputCls, "min-h-11 w-full")}
                 />
               </label>
-              <select
-                value={budgetCurrency}
-                disabled={locked}
-                onChange={(event) => setBudgetCurrency(event.target.value)}
-                className={cn(inputCls, "min-h-11 w-full")}
-              >
-                <option value="">Не указана</option>
-                {SALE_CONDITION_CURRENCIES.map((code: SaleConditionCurrency) => <option key={code} value={code}>{code}</option>)}
-              </select>
+              <label>
+                <span className={fieldLabelCls}>Валюта</span>
+                <select
+                  value={budgetCurrency}
+                  disabled={locked}
+                  onChange={(event) => setBudgetCurrency(event.target.value)}
+                  className={cn(inputCls, "min-h-11 w-full")}
+                >
+                  <option value="">Не указана</option>
+                  {SALE_CONDITION_CURRENCIES.map((code: SaleConditionCurrency) => <option key={code} value={code}>{code}</option>)}
+                </select>
+              </label>
             </div>
             <label>
               <span className={fieldLabelCls}>Период</span>

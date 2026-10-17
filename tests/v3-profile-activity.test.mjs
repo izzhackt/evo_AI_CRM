@@ -48,3 +48,48 @@ test("history cursor is explicit and never escalates Sales into full-case reads"
   assert.match(read("src/lib/v3/profile-source.ts"), /staffPresentationCan\(actor, "admissions\.read"\)/u);
   assert.match(page, /singleSearchParam\(params\.tab\) === "history" \? \{ cursor: activityCursor \}/u);
 });
+
+// Смена направления дела в «Истории» (миграция «аудит направления», номер 294 временный).
+// Исходные проверки дополняют, но не заменяют настоящую проверку БД и браузера.
+const directionMigration = read("supabase/migrations/294_platform_case_direction_audit.sql");
+
+test("the history stream gains the direction event and its one field, and nothing else changes", () => {
+  // Список действий: самопроверяемая замена куска (приём 241), ровно одно действие.
+  assert.match(directionMigration, /\$old\$'case\.next\.action\.change'\]::TEXT\[\]\)\$old\$/u);
+  assert.match(directionMigration, /\$new\$'case\.next\.action\.change','case\.direction\.set'\]::TEXT\[\]\)\$new\$/u);
+  // Поле только у этого действия; остальные события остаются как были (выгрузка базы знаний не меняется).
+  assert.match(directionMigration, /\) \|\| CASE WHEN action = 'case\.direction\.set' THEN jsonb_build_object\('direction_change',/u);
+  assert.match(directionMigration, /ELSE '\{\}'::JSONB END\s+ORDER BY created_at DESC, id DESC\) FILTER \(WHERE ordinal <= p_limit\)/u);
+  // Значения берутся из записи события этой организации и проходят общий помощник (только пять кодов).
+  assert.match(directionMigration, /direction_event\.organization_id = actor\.organization_id AND direction_event\.id = numbered\.id/u);
+  assert.match(directionMigration, /platform_private\.case_direction_change\(direction_event\.before_state, direction_event\.after_state\)/u);
+  // Любой кусок, найденный не ровно один раз, откатывает миграцию.
+  assert.match(directionMigration, /staff_student_case_activity_source_anchor_drift/u);
+  assert.match(directionMigration, /a294_activity_anchor_drift/u);
+  // Сама функция потока по-прежнему не меняет подпись и права (CREATE OR REPLACE по её же телу).
+  assert.doesNotMatch(directionMigration, /DROP FUNCTION|GRANT |CREATE FUNCTION private\.staff_student_case_activity/u);
+});
+
+test("the history reads the direction change as codes only, requires it on its event alone, and words come from wording.ts", () => {
+  assert.match(source, /parseCaseDirectionChange\(row\[DIRECTION_KEY\]\)/u);
+  assert.match(source, /carriesDirection !== \(row\.action === DIRECTION_ACTION\)\) return fail\(\)/u);
+  assert.match(source, /\.\.\.\(directionChange \? \{ directionChange \} : \{\}\)/u);
+  // Ни один экран не переводит направление по месту: слова даёт journalEventText.
+  for (const file of [
+    "src/components/v3/profile/tabs.tsx",
+    "src/components/v3/profile/case-work-view.ts",
+    "src/components/v3/knowledge/KnowledgeDossiers.tsx",
+    "src/components/v3/settings/sections.tsx",
+  ]) {
+    const text = read(file);
+    assert.match(text, /journalEventText\(/u, file);
+    assert.doesNotMatch(text, /Направление: |DIRECTION_LABELS/u, file);
+  }
+  assert.match(read("src/components/v3/profile/tabs.tsx"), /journalEventText\(entry\.transition, entry\.directionChange\)/u);
+  assert.match(read("src/components/v3/profile/case-work-view.ts"), /journalEventText\(event\.transition, event\.directionChange\)/u);
+  assert.match(read("src/components/v3/settings/sections.tsx"), /journalEventText\(entry\.transition, entry\.directionChange\)/u);
+});
+
+test("the direction event in the history has wording, so the stream does not refuse the page", () => {
+  assert.equal(journalEvent("case.direction.set"), "Направление дела изменено");
+});

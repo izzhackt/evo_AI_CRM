@@ -9,7 +9,7 @@ import type { ProfileEvent } from "@/components/v3/profile/types";
 import { Icon } from "@/components/icons";
 import { SkeletonBlock } from "@/components/ui";
 import { caseDocumentsAwaitCurator } from "@/lib/v3/case-access-contract";
-import { caseDocumentsWords, journalEvent } from "@/lib/v3/wording";
+import { caseDocumentsWords, journalEventText } from "@/lib/v3/wording";
 import { QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { knowledgeFetch, command } from "./client";
 import { KnowledgeCaseDocuments } from "./KnowledgeCaseDocuments";
@@ -116,7 +116,7 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
       {tab === "history" && history && <>
         {!history.events.length && <p className="t-body-compact text-fg-2">История пока пуста.</p>}
         <ul className="divide-y divide-border border-y border-border">{history.events.map((event) => <li key={event.id} className="flex flex-wrap items-center gap-x-3 py-1 t-body-compact">
-          <Link href={event.href ?? `/v3/profile?case=${caseId}`} className="inline-flex min-h-11 items-center text-fg underline-offset-4 hover:underline">{journalEvent(event.transition) ?? event.transition}</Link>
+          <Link href={event.href ?? `/v3/profile?case=${caseId}`} className="inline-flex min-h-11 items-center text-fg underline-offset-4 hover:underline">{journalEventText(event.transition, event.directionChange) ?? event.transition}</Link>
           {event.at ? <span className="font-mono text-fg-3">{event.at}</span> : null}
         </li>)}</ul>
         {history.nextCursor && <button type="button" className={KB_QUIET} disabled={busy} onClick={() => void more()}>Показать ещё события</button>}

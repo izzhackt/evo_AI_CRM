@@ -232,6 +232,11 @@ export type ProfileAdmissionsWorkspace = Readonly<{
   isCabinetCase: boolean;
   /** Unified workflow S4: the case DTO's own direction, replacing CaseHeader's deleted route-workspace read. */
   direction: AdmissionsDirection | null;
+  /**
+   * Страна цели дела (`student_cases.target_country`): запасное значение для
+   * «Направления», пока снимок дела направления не отдаёт (`caseDirectionLabel`).
+   */
+  targetCountry: string | null;
   applications: readonly PlatformApplicationQueueRow[];
   /**
    * Kept in the model, intentionally not rendered (unified workflow S4): the

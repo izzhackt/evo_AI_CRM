@@ -8,11 +8,14 @@ import {
   caseApplicationLines,
   caseChatWork,
   caseChecklistCounts,
+  caseContacts,
+  caseDirectionLabel,
   caseMomentLabel,
   caseOpenTasks,
   casePortalStatus,
 } from "../src/components/v3/profile/case-work-view.ts";
 import { studentsDocumentsLine } from "../src/components/v3/students/students-queue-view.ts";
+import { country } from "../src/lib/v3/wording.ts";
 
 /**
  * Дело студента «сначала работа» (решение владельца 26.09.2026,
@@ -251,4 +254,116 @@ test("the page: name as h1, «Дело студента» tab title, back to the
   const source = read("src/lib/v3/case-work-source.ts");
   assert.match(source, /view: target\.state, sort: "due", pageSize: STUDENT_CASE_QUEUE_PAGE_SIZE_MAX, query,/u);
   assert.match(source, /page\.rows\.find\(\(row\) => row\.studentCaseId === target\.studentCaseId\) \?\? null/u);
+});
+
+// --- Дело без лида для чтения: контакты и направление в «Сведениях» ----------------------------
+// Дело прямого студента (форма «Добавить студента», импорт из amoCRM): его лид `converted`, лидовые
+// чтения отдают только `open`, и `readCaseProfile` идёт по ветке «только дело» без клиента лида.
+
+test("direct case: «Контакты» come from the анкета fields with one quiet note, «Направление» from the queue row", () => {
+  const html = surfaces.get("direct-case");
+  const text = texts(html);
+  // Строка очереди (Китай) главнее страны цели (Малайзия).
+  assert.match(text, /Сведения Направление Китай Куратор .* Контакты \+996 000 000 002 student-2@example\.invalid не подтверждено Документы/u);
+  // «Доступ к порталу» по-прежнему ждёт подтверждённую почту клиента: неподтверждённое поле анкеты его не заполняет.
+  assert.match(text, /Сначала добавьте студенту подтверждённый рабочий email/u);
+  assert.doesNotMatch(html, /name="email" value="student-2@example\.invalid"/u);
+  // Одна подпись на оба значения, а не по подписи у каждого.
+  assert.equal((text.match(/не подтверждено/gu) ?? []).length, 1);
+  assert.match(html, /href="tel:\+996000000002"/u);
+  assert.match(html, /href="mailto:student-2@example\.invalid"/u);
+  // Продажи у дела нет: ни «Данных продажи», ни «Условий продажи», ни «Продажа» в «Сведениях».
+  assert.doesNotMatch(text, /Данные продажи|Условия продажи|Продажа /u);
+  // Ни ключа поля, ни ключа состояния на экране.
+  assert.doesNotMatch(html, /needs_review|mobile_phone|student_email|admissions_direction|converted/u);
+  assert.doesNotMatch(text, /Не выбрано/u);
+  // Подпись без цвета: это не ошибка и не состояние записи.
+  assert.doesNotMatch(html, /<[^>]+class="[^"]*\b(?:text-danger|text-warn)\b[^"]*"[^>]*>не подтверждено/u);
+});
+
+test("direct case without a queue row: direction by the target country, a note only on the value that needs it", () => {
+  const html = surfaces.get("direct-case-no-row");
+  const text = texts(html);
+  assert.match(text, /Направление Малайзия /u);
+  // Телефон подтверждён - без подписи; у почты своя.
+  assert.match(text, /Контакты \+996 000 000 002 student-2@example\.invalid источники расходятся Документы/u);
+  assert.equal((text.match(/источники расходятся/gu) ?? []).length, 1);
+  assert.doesNotMatch(text, /не подтверждено/u);
+  assert.doesNotMatch(html, /\bconflict\b|\bconfirmed\b/u);
+});
+
+test("direct case with free-text анкета fields: a value that is not one number or one address is plain text, not a link", () => {
+  const html = surfaces.get("direct-case-free-text");
+  const text = texts(html);
+  assert.match(text, /Контакты \+996 000 000 005, \+996 000 000 006 см\. анкету не подтверждено Документы/u);
+  assert.doesNotMatch(html, /href="(?:tel|mailto):/u);
+  assert.equal((text.match(/не подтверждено/gu) ?? []).length, 1);
+  // Длинное значение без пробелов переносится, а не обрезается по краю экрана (телефон 393 px).
+  assert.match(html, /<span class="flex min-h-11 w-fit max-w-full items-center gap-1\.5 break-all tabular-nums text-fg">/u);
+  // Два номера через пробел и адрес с темой письма - тоже не ссылки.
+  const two = surfaces.get("direct-case-two-numbers");
+  assert.match(texts(two), /Контакты 0000 000 005 0000 000 006 a@example\.invalid\?subject=x не подтверждено/u);
+  assert.doesNotMatch(two, /href="(?:tel|mailto):/u);
+});
+
+test("direct case without the анкета read and with an unknown country: no contacts, no invented direction", () => {
+  const html = surfaces.get("direct-case-closed-fields");
+  const text = texts(html);
+  assert.match(text, /Направление Не выбрано /u);
+  assert.doesNotMatch(text, /Контакты/u);
+  assert.doesNotMatch(html, /href="(?:tel|mailto):/u);
+  assert.doesNotMatch(text, /China/u, "an unknown target country is never shown raw");
+});
+
+test("a lead's client contact wins over the анкета field and has no note; the sales case keeps its contacts line", () => {
+  const admin = texts(surfaces.get("admin"));
+  assert.match(admin, /Контакты \+996 000 000 001 student@example\.invalid Приём дела/u);
+  assert.doesNotMatch(admin, /не подтверждено|источники расходятся/u);
+});
+
+test("caseContacts: own client value first, then the field with its state word; blank or unread is nothing", () => {
+  const fields = (list) => ({ fields: list.map(([key, value, state]) => ({ key, value, state })) });
+  const both = fields([["mobile_phone", " +996 000 000 003 ", "needs_review"], ["student_email", "a@example.invalid", "confirmed"]]);
+  assert.deepEqual(caseContacts({ phone: null, email: null }, both), {
+    phone: { value: "+996 000 000 003", note: "не подтверждено" },
+    email: { value: "a@example.invalid", note: null },
+  });
+  // Клиент лида главнее поля и состояния не имеет; пустое поле ничего не даёт.
+  assert.deepEqual(caseContacts({ phone: "+996 000 000 001", email: "  " }, fields([["mobile_phone", "x", "extracted"], ["student_email", " ", "needs_review"]])), {
+    phone: { value: "+996 000 000 001", note: null },
+    email: null,
+  });
+  assert.deepEqual(caseContacts({ phone: null, email: null }, fields([["student_email", "b@example.invalid", "conflict"], ["father_mobile_phone", "+996 000 000 004", "needs_review"]])), {
+    phone: null,
+    email: { value: "b@example.invalid", note: "источники расходятся" },
+  });
+  // Анкета не прочитана (нет права) - контактов нет, а не пустые поля.
+  assert.deepEqual(caseContacts({ phone: null, email: null }, null), { phone: null, email: null });
+});
+
+test("caseDirectionLabel: snapshot, then the queue row, then the target country; unknown values are never shown", () => {
+  const label = (snapshot, row, targetCountry) => caseDirectionLabel({ snapshot, row, targetCountry });
+  assert.equal(label("TR", "CN", "MY"), "Турция");
+  assert.equal(label(null, "CN", "MY"), "Китай");
+  assert.equal(label(null, undefined, "MY"), "Малайзия");
+  assert.equal(label(null, null, "EUROPE"), "Европа");
+  assert.equal(label(null, null, " AE "), "ОАЭ");
+  assert.equal(label(null, null, "IT"), "Италия");
+  for (const unknown of ["China", "unknown", "handed_off", "", "  ", null, "constructor", "__proto__", "toString", "hasOwnProperty"]) {
+    assert.equal(label(null, null, unknown), null, String(unknown));
+  }
+  // Словарь стран знает только свои ключи: имена из прототипа объекта - не слова.
+  for (const inherited of ["constructor", "__proto__", "toString", "valueOf"]) assert.equal(country(inherited), null, inherited);
+});
+
+test("the case-only branch of readCaseProfile keeps the client e-mail/phone null (portal access needs a confirmed e-mail) and carries the target country", () => {
+  const source = read("src/lib/v3/profile-source.ts");
+  const branch = source.slice(source.indexOf("async function readCaseProfile("), source.indexOf("async function readLeadProfile("));
+  assert.match(branch, /person: data\.studentCase\.studentDisplayName,[\s\S]*?email: null,\n {4}phone: null,\n {4}student: true,/u);
+  assert.match(source, /direction: data\.studentCase\.admissionsDirection \?\? null,\n {4}targetCountry: data\.studentCase\.targetCountry,/u);
+  // Контакты и направление собираются чистыми функциями из уже прочитанного, без нового чтения.
+  const parts = read("src/components/v3/profile/CaseWorkParts.tsx");
+  assert.match(parts, /contacts=\{caseContacts\(\{ phone: profile\.phone, email: profile\.email \}, draft\.profileFields\)\}/u);
+  assert.match(parts, /snapshot: admissions\.direction, row: work\.row\?\.admissionsDirection, targetCountry: admissions\.targetCountry,/u);
+  assert.match(parts, /email=\{profile\.email\}/u, "portal access still takes the client e-mail only");
 });

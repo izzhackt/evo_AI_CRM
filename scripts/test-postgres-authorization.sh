@@ -469,7 +469,10 @@ SQL
   # telephony key is not effective (telephony_rights_admin_missing) and a
   # telephony definition that already exists with another group
   # (telephony_permission_catalog_drift). The ordinary apply below then proves
-  # nothing was kept.
+  # nothing was kept. `docker exec -i` reads its stdin, which here is the
+  # migration list feeding this loop: without `</dev/null` it swallowed every
+  # migration after this one (T4a, PLAN_CHANGES), so each later hook silently
+  # never ran.
   if [[ "$(basename "$migration")" == *_platform_telephony_rights.sql ]]; then
     for t290_case in admin_missing catalog_drift; do
       t290_tamper_log="$(mktemp -t evo-t290-final-check.XXXXXX)"
@@ -478,7 +481,7 @@ SQL
         -v "t290_case=$t290_case" \
         -v "migration_file=/workspace/$migration" \
         -f /workspace/supabase/tests/platform_telephony_rights_pre.sql \
-        >"$t290_tamper_log" 2>&1; then
+        </dev/null >"$t290_tamper_log" 2>&1; then
         echo "migration 291 accepted the tampered start $t290_case" >&2
         exit 1
       fi
@@ -3611,6 +3614,28 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_telephony_rights.sql
+  fi
+
+  # «Телефония Beeline KG», срез T4a (сверка по истории ВАТС, первичный импорт,
+  # справочник сотрудников ВАТС, состояние и здоровье фоновой работы;
+  # docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.3, §5.4). Matched by name, not
+  # number, so a renumbering at merge keeps the hook. Right after the migration
+  # the suite proves: five new service-only public functions and three closed
+  # private helpers; the import flag shipping OFF and the shape locks of the new
+  # state columns; the directory sync (by login without case, never assigning an
+  # EVO employee, partial vs complete lists, reactivation and the one-employee
+  # conflict); the plan (no settings row = nothing that writes calls, the
+  # windows by the database clock, the daily window, the import floor); the
+  # history apply (closed by the projection flag, the import by its own flag;
+  # the pull outcome and the answer rule, a webhook outcome never overwritten,
+  # an answer irreversible, the link only in the leg, the 360-day rule, the
+  # import dropping unmatched numbers without a trace, a failing row costing
+  # only itself with a coded error); the run mark (forward-only reconcile
+  # cursor, backward-only import cursor with its floor); the health data.
+  if [[ "$(basename "$migration")" == *_platform_telephony_reconcile.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_telephony_reconcile.sql
   fi
 
   # «Данные продажи» и направление на деле прямого студента (290, PLAN_CHANGES

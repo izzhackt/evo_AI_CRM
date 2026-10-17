@@ -445,6 +445,8 @@ test("route: SQLSTATEs of migration 295 map to outcomes; the receipt must be the
   }
 });
 
+// The recordings stream path (GET) is connected by slice T6 and checked strictly in
+// tests/platform-telephony-recordings.test.mjs; this list is about the result path only.
 test("route contract: exactly the strict POST path is connected; its near misses are not", () => {
   const path = `/api/v3/telephony/calls/${ID(1)}/result`;
   assert.equal(isConnectedPlatformApi(path), true);
@@ -453,7 +455,7 @@ test("route contract: exactly the strict POST path is connected; its near misses
     `${path}/`, `${path}/x`, `/api/v3/telephony/calls/${ID(1)}`, `/api/v3/telephony/calls/${HEX_ID.toUpperCase()}/result`,
     "/api/v3/telephony/calls/not-a-uuid/result", `/api/v3/telephony/calls/${ID(1)}/results`, `/api/v3/telephony/calls//result`,
     `/api/v3/telephony/calls/${ID(1)}%2fresult`, `/api/v3/telephony/call/${ID(1)}/result`, `/api/v3/telephony/dial`,
-    `/api/v3/telephony/recordings/${ID(1)}`, `/api/v2/telephony/calls/${ID(1)}/result`, `/api/v3/telephony/calls/${ID(1)}/result.json`,
+    `/api/v2/telephony/calls/${ID(1)}/result`, `/api/v3/telephony/calls/${ID(1)}/result.json`,
   ]) {
     assert.equal(isConnectedPlatformApi(wrong), false, wrong);
   }

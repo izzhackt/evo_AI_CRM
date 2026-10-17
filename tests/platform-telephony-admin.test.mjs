@@ -738,9 +738,11 @@ test("the two commands are exact connected staff APIs; everything near them stay
     assert.equal(isConnectedPlatformPage(path), false, path);
     assert.equal(isRetiredPlatformRoute(path), false, path);
   }
+  // The recordings stream (GET /api/v3/telephony/recordings/<leg>) is connected by slice T6 and checked strictly in
+  // tests/platform-telephony-recordings.test.mjs; only its bare prefix stays in this list.
   const near = ["/api/v3/telephony", "/api/v3/telephony/", "/api/v3/telephony/settings/", "/api/v3/telephony/settings/x", "/api/v3/telephony/settings.json",
     "/api/v3/telephony/Settings", "/API/v3/telephony/settings", "/api/v3/telephony/extension", "/api/v3/telephony/extensions/", "/api/v3/telephony/extensions/x",
-    "/api/v3/telephony/dial", "/api/v3/telephony/pulse", `/api/v3/telephony/recordings/${REQ}`, "/api/v2/telephony/settings", "/api/internal/telephony/settings",
+    "/api/v3/telephony/dial", "/api/v3/telephony/pulse", "/api/v3/telephony/recordings", "/api/v2/telephony/settings", "/api/internal/telephony/settings",
     "/api/v3/telephony/settings%2f", "/api/v3/telephony//settings"];
   for (const path of near) assert.equal(isConnectedPlatformApi(path), false, path);
 });

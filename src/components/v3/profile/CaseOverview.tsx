@@ -127,21 +127,26 @@ function Tasks({ input }: Readonly<{ input: CaseOverviewInput }>) {
 
 /**
  * Ссылка набора номера: только у значения, которое выглядит одним номером
- * (цифры, «+» в начале, пробелы, скобки, точки, дефисы; не меньше пяти цифр).
- * Поле анкеты после импорта - свободный текст: «+996 555 123456, +996 700 111222»
- * ссылкой стать не должно, нажатие набрало бы склеенный мусор.
+ * (цифры, «+» в начале, пробелы, скобки, точки, дефисы; от пяти до пятнадцати
+ * цифр - предел E.164). Поле анкеты после импорта - свободный текст: два номера
+ * («+996 000 000 005, +996 000 000 006» или через пробел) ссылкой стать не
+ * должны, нажатие набрало бы склеенный мусор.
  */
 function telHref(value: string): string | null {
   const dialable = value.replace(/[^\d+]/gu, "");
-  return /^\+?[\d\s().-]+$/u.test(value) && /^\+?\d{5,}$/u.test(dialable) ? `tel:${dialable}` : null;
+  return /^\+?[\d\u0020\u00a0().-]+$/u.test(value) && /^\+?\d{5,15}$/u.test(dialable) ? `tel:${dialable}` : null;
 }
 
-/** Ссылка письма: только у значения, похожего на адрес (в анкете до проверки бывает что угодно). */
+/**
+ * Ссылка письма: только у значения, похожего на один адрес (в анкете до проверки
+ * бывает что угодно). Знаки `? & < > , ; "` в адресе не бывают: иначе значение
+ * несло бы в ссылку тему, текст или второго получателя.
+ */
 function mailHref(value: string): string | null {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(value) ? `mailto:${value}` : null;
+  return /^[^\s@?&<>,;"]+@[^\s@?&<>,;"]+\.[^\s@?&<>,;"]+$/u.test(value) ? `mailto:${value}` : null;
 }
 
-const PHONE_ROW = "flex min-h-11 w-fit max-w-full items-center gap-1.5 tabular-nums text-fg";
+const PHONE_ROW = "flex min-h-11 w-fit max-w-full items-center gap-1.5 break-all tabular-nums text-fg";
 const MAIL_ROW = "flex min-h-11 w-fit max-w-full items-center break-all text-fg";
 
 /**

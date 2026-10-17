@@ -295,9 +295,15 @@ test("direct case without a queue row: direction by the target country, a note o
 test("direct case with free-text анкета fields: a value that is not one number or one address is plain text, not a link", () => {
   const html = surfaces.get("direct-case-free-text");
   const text = texts(html);
-  assert.match(text, /Контакты \+996 555 123456, \+996 700 111222 см\. анкету не подтверждено Документы/u);
+  assert.match(text, /Контакты \+996 000 000 005, \+996 000 000 006 см\. анкету не подтверждено Документы/u);
   assert.doesNotMatch(html, /href="(?:tel|mailto):/u);
   assert.equal((text.match(/не подтверждено/gu) ?? []).length, 1);
+  // Длинное значение без пробелов переносится, а не обрезается по краю экрана (телефон 393 px).
+  assert.match(html, /<span class="flex min-h-11 w-fit max-w-full items-center gap-1\.5 break-all tabular-nums text-fg">/u);
+  // Два номера через пробел и адрес с темой письма - тоже не ссылки.
+  const two = surfaces.get("direct-case-two-numbers");
+  assert.match(texts(two), /Контакты 0000 000 005 0000 000 006 a@example\.invalid\?subject=x не подтверждено/u);
+  assert.doesNotMatch(two, /href="(?:tel|mailto):/u);
 });
 
 test("direct case without the анкета read and with an unknown country: no contacts, no invented direction", () => {

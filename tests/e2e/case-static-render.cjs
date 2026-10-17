@@ -405,10 +405,15 @@ const SCENARIOS = {
   "direct-case": { actor: ADMIN, profile: profile(), sales: null,
     draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null, targetCountry: "MY", profileFields: DIRECT_FIELDS }),
     work: work({ row: queueRow({ direction: "CN", flags: [] }), activity: ACTIVITY_AWAITING }) },
-  // Поля анкеты после импорта - свободный текст: два номера и «не почта» ссылками не становятся, подпись одна.
+  // Поля анкеты после импорта - свободный текст: два номера и «не почта» ссылками не становятся, подпись одна;
+  // два номера через пробел и почта с темой письма тоже остаются текстом.
   "direct-case-free-text": { actor: ADMIN, profile: profile(), sales: null,
     draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null, targetCountry: "MY",
-      profileFields: profileFields([profileField("mobile_phone", "+996 555 123456, +996 700 111222", "needs_review"), profileField("student_email", "см. анкету", "needs_review")]) }),
+      profileFields: profileFields([profileField("mobile_phone", "+996 000 000 005, +996 000 000 006", "needs_review"), profileField("student_email", "см. анкету", "needs_review")]) }),
+    work: work({ row: null, activity: ACTIVITY_AWAITING }) },
+  "direct-case-two-numbers": { actor: ADMIN, profile: profile(), sales: null,
+    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null, targetCountry: "MY",
+      profileFields: profileFields([profileField("mobile_phone", "0000 000 005 0000 000 006", "needs_review"), profileField("student_email", "a@example.invalid?subject=x", "needs_review")]) }),
     work: work({ row: null, activity: ACTIVITY_AWAITING }) },
   // То же без строки очереди: направление — по стране цели дела; телефон подтверждён (без подписи), почта нет (своя подпись).
   "direct-case-no-row": { actor: ADMIN, profile: profile(), sales: null,

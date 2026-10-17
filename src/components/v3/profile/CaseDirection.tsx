@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useId, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 import { ADMISSIONS_DIRECTIONS, type AdmissionsDirection } from "@/lib/platform-admissions-playbook-contract";
 import { setCaseDirectionAction, type CaseDirectionActionState } from "@/lib/platform-case-direction-actions";
@@ -71,6 +71,15 @@ export function CaseDirection({
   const label = current ? DIRECTION_LABELS[current] : null;
   const dirty = selected !== "" && selected !== (current ?? "");
 
+  // Не `<form action>`: React 19 после ответа сбрасывает поля формы к начальным, а управляемый выбор остался бы
+  // в состоянии с прежним значением на экране. Отправка вручную сохраняет выбор человека при отказе сервера.
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pending || !dirty || stale) return;
+    const data = new FormData(event.currentTarget);
+    startTransition(() => action(data));
+  }
+
   return (
     <div className="min-w-0" data-testid="v3-case-direction">
       <p className="flex min-w-0 flex-wrap items-baseline gap-x-3">
@@ -89,12 +98,13 @@ export function CaseDirection({
         ) : null}
       </p>
       {open ? (
-        <form action={action} aria-busy={pending} className="mt-1 space-y-3" data-testid="v3-case-direction-form">
+        <form onSubmit={submit} aria-busy={pending} className="mt-1 space-y-3" data-testid="v3-case-direction-form">
           <input type="hidden" name="student_case_id" value={studentCaseId} />
           <input type="hidden" name="expected_version" value={expectedVersion} />
           <input type="hidden" name="request_id" value={state.requestId} />
           <div>
-            <label htmlFor={fieldId} className="block t-label text-fg">{caseDirectionWords.field}</label>
+            {/* Название поля уже сказано строкой «Направление» над формой: для глаза не повторяется, для чтения с экрана остаётся. */}
+            <label htmlFor={fieldId} className="sr-only">{caseDirectionWords.field}</label>
             <select
               ref={selectRef}
               id={fieldId}

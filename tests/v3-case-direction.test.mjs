@@ -129,16 +129,16 @@ test("the form action checks the permission and the preview before it writes, an
   assert.ok(actions.includes('status === "request_conflict" || requestId === null ? randomUUID() : requestId'));
 });
 
-test("the case page offers the action only to who assigns curators, on a case in work, with a real version", () => {
+test("the case page offers the action only to who assigns curators and reads the case, on a case not closed, with a real version", () => {
   const parts = source("src/components/v3/profile/CaseWorkParts.tsx");
   const gate = parts.slice(parts.indexOf("const directionAction ="), parts.indexOf("const acceptContext"));
-  for (const part of ['!preview', 'staffHasPermission(actor, "case.curator.assign")', "input.requestIds.direction", "work.row !== null", 'admissions.caseState !== "closed"', "work.row.admissionsVersion"]) {
+  for (const part of ['!preview', '!assignOnly', 'staffHasPermission(actor, "case.curator.assign")', "input.requestIds.direction", "work.row !== null", 'admissions.caseState !== "closed"', "work.row.admissionsVersion"]) {
     assert.ok(gate.includes(part), `the gate keeps ${part}`);
   }
   assert.ok(source('src/app/(v3)/v3/profile/page.tsx').includes("direction: randomUUID()"), "the page gives the form its own request id");
 });
 
-test("«Сведения»: Admin and the head see «Задать направление» / «Сменить»; the curator, the preview and the closed case see the plain value", () => {
+test("«Сведения»: Admin and the head see «Задать направление» / «Сменить»; the curator, the preview, the closed case and the needs-curator reader see the plain value", () => {
   const facts = (name) => {
     const html = surfaces.get(name);
     assert.ok(html, `${name} is rendered`);
@@ -157,8 +157,10 @@ test("«Сведения»: Admin and the head see «Задать направл
   // Без строки очереди версии для записи нет: значение без действия, ничего не выдумано.
   assert.ok(!action("direct-case-free-text"));
   assert.match(factText("direct-case-free-text"), /Направление\s+Не выбрано\s+Куратор/u);
-  // Руководитель из «Ждут куратора» назначает кураторов - действие у него есть.
-  assert.ok(action("assign-only"));
+  // Руководитель из «Ждут куратора» читает дело только ради назначения куратора: права `case.read.full` на дело у него нет,
+  // команда начинается с него и ответила бы отказом, поэтому действия нет (значение словами остаётся).
+  assert.ok(!action("assign-only"));
+  assert.match(texts(facts("assign-only")), /Направление\s+Китай\s+Куратор/u);
   // Куратор (право case.route.manage, но не case.curator.assign), просмотр роли и закрытое дело: значение без действия.
   for (const name of ["unread", "fresh", "closed", "closed-outcome", "notes-page", "preview-awaiting", "closed-admin", "direct-case-closed-fields"]) {
     if (surfaces.has(name)) assert.ok(!action(name), `${name}: no direction action`);

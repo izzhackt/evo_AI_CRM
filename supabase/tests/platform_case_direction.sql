@@ -33,6 +33,9 @@
 --    and service_role have no EXECUTE.
 --  L lockout: a manager whose role is scoped to the direction CN cannot set a CN
 --    case to MY (22023 case_direction_actor_access_lost, everything rolled back);
+--    the same when only ONE of the two rights (read the case, assign curators) is tied
+--    to the direction: reading in the organization with assigning scoped to CN, and
+--    the other way round;
 --    it cannot see a case with no direction; once the Admin sets CN on that case it
 --    sees it, and once the Admin moves it to MY it loses it (the visibility effect
 --    of the direction, proved).
@@ -89,11 +92,13 @@ SELECT 'N292_CASE_DIRECTION_SUITE_START' AS n292_suite_marker;
 -- Fixture: organization 1 with 1 Admin (system); invited staff with coarse
 -- role NULL: 2 Sales Manager, 3 Admissions A (own scope), 4 Admissions B (own
 -- scope), 7 Admissions Manager (department), 9 Admissions Manager whose role is
--- scoped to the direction CN; 5 Student. Organization 2 has its own Admin (8).
+-- scoped to the direction CN; 10 reads cases in the organization but assigns curators
+-- only for the direction CN; 11 reads cases only for the direction CN but assigns curators
+-- in the organization; 5 Student. Organization 2 has its own Admin (8).
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE n292_actors(n INTEGER, coarse platform.business_role, claims TEXT);
 INSERT INTO n292_actors(n, coarse) VALUES (1, 'admin'), (2, NULL), (3, NULL), (4, NULL), (5, 'student'), (7, NULL),
-  (8, 'admin'), (9, NULL);
+  (8, 'admin'), (9, NULL), (10, NULL), (11, NULL);
 GRANT SELECT ON n292_actors TO authenticated, anon, service_role;
 
 INSERT INTO platform.organizations(id, name) VALUES (pg_temp.n292_id(1), 'N292 Fictional organization'),
@@ -140,6 +145,9 @@ INSERT INTO n292_roles VALUES
  (pg_temp.n292_id(1103), 'Sales Manager', '["ai.draft.request","ai.draft.review","case.read.summary","case.workflow.read","client.read","communication.manual.send","communication.read.full","communication.read.summary","contract.draft.manage","contract.evidence.confirm","document.read.sales","finance.event.confirm","finance.first.payment.confirm","finance.read.summary","lead.read","lead.sales.owner.assign","lead.sales.workflow.manage","sales.register.manage","sales.register.read","staff.task.complete","staff.task.edit","staff.task.read","task.create"]', 1130),
  -- A role that can be scoped to a direction holds only direction-capable keys (the staff.task.* keys cannot be).
  (pg_temp.n292_id(1106), 'Admissions direction head', '["case.curator.assign","case.read.full","case.read.summary","case.route.manage","case.workflow.read"]', 1160),
+ -- The two halves of a head's authority, to be scoped differently (reading a case / assigning its curator).
+ (pg_temp.n292_id(1107), 'Case reader', '["case.read.full","case.read.summary"]', 1170),
+ (pg_temp.n292_id(1108), 'Direction assigner', '["case.curator.assign"]', 1180),
  (pg_temp.n292_id(1105), 'Admissions common', '["catalog.read","company.file.download","company.file.manage","company.file.read","company.file.upload","contract.template.read","knowledge.read.approved","organization.read","reply.snippet.admissions","reply.snippet.all","reply.snippet.manage","staff.assistant.use","staff.task.create","team.chat.admissions","team.chat.general","workflow.contract.read"]', 1150);
 CREATE TEMP TABLE n292_grants(membership INTEGER, role_id UUID, scope JSONB);
 INSERT INTO n292_grants VALUES
@@ -152,7 +160,13 @@ INSERT INTO n292_grants VALUES
  (307, pg_temp.n292_id(1105), jsonb_build_object('kind', 'organization', 'key', pg_temp.n292_id(1), 'resourceKind', NULL)),
  -- 309: the direction head scoped to ONE direction (CN): it reads and assigns only cases whose direction is CN.
  (309, pg_temp.n292_id(1106), jsonb_build_object('kind', 'direction', 'key', 'CN', 'resourceKind', NULL)),
- (309, pg_temp.n292_id(1105), jsonb_build_object('kind', 'organization', 'key', pg_temp.n292_id(1), 'resourceKind', NULL));
+ (309, pg_temp.n292_id(1105), jsonb_build_object('kind', 'organization', 'key', pg_temp.n292_id(1), 'resourceKind', NULL)),
+ -- 310: reads in the whole organization, assigns curators only for the direction CN.
+ (310, pg_temp.n292_id(1107), jsonb_build_object('kind', 'organization', 'key', pg_temp.n292_id(1), 'resourceKind', NULL)),
+ (310, pg_temp.n292_id(1108), jsonb_build_object('kind', 'direction', 'key', 'CN', 'resourceKind', NULL)),
+ -- 311: reads only the direction CN, assigns curators in the whole organization.
+ (311, pg_temp.n292_id(1107), jsonb_build_object('kind', 'direction', 'key', 'CN', 'resourceKind', NULL)),
+ (311, pg_temp.n292_id(1108), jsonb_build_object('kind', 'organization', 'key', pg_temp.n292_id(1), 'resourceKind', NULL));
 CREATE TEMP TABLE n292_versions AS SELECT m.id AS membership_id, p.access_version
   FROM platform.organization_memberships m JOIN platform.profiles p ON p.id = m.profile_id
   WHERE m.organization_id = pg_temp.n292_id(1);
@@ -198,6 +212,8 @@ SELECT claims AS n292_student FROM n292_actors WHERE n = 5 \gset
 SELECT claims AS n292_manager FROM n292_actors WHERE n = 7 \gset
 SELECT claims AS n292_other_admin FROM n292_actors WHERE n = 8 \gset
 SELECT claims AS n292_cn_manager FROM n292_actors WHERE n = 9 \gset
+SELECT claims AS n292_split_a FROM n292_actors WHERE n = 10 \gset
+SELECT claims AS n292_split_b FROM n292_actors WHERE n = 11 \gset
 SELECT jsonb_build_object('sub', pg_temp.n292_id(199), 'role', 'authenticated')::TEXT AS n292_no_member \gset
 
 -- ---------------------------------------------------------------------------
@@ -226,6 +242,12 @@ SELECT platform.create_admissions_student_case_v1(pg_temp.n292_id(1), pg_temp.n2
 SELECT platform.create_admissions_student_case_v1(pg_temp.n292_id(1), pg_temp.n292_id(5006), jsonb_build_object(
   'student', jsonb_build_object('name', 'N292 Student Six', 'phone', '+996 555 292 006'),
   'route', jsonb_build_object('country', 'CN'), 'curatorMembershipId', pg_temp.n292_id(303)::TEXT)) AS n292_r6 \gset
+SELECT platform.create_admissions_student_case_v1(pg_temp.n292_id(1), pg_temp.n292_id(5007), jsonb_build_object(
+  'student', jsonb_build_object('name', 'N292 Student Seven', 'phone', '+996 555 292 007'),
+  'route', jsonb_build_object('country', 'CN'), 'curatorMembershipId', pg_temp.n292_id(303)::TEXT)) AS n292_r7 \gset
+SELECT platform.create_admissions_student_case_v1(pg_temp.n292_id(1), pg_temp.n292_id(5008), jsonb_build_object(
+  'student', jsonb_build_object('name', 'N292 Student Eight', 'phone', '+996 555 292 008'),
+  'route', jsonb_build_object('country', 'CN'), 'curatorMembershipId', pg_temp.n292_id(303)::TEXT)) AS n292_r8 \gset
 RESET ROLE;
 SELECT :'n292_r1'::JSONB ->> 'student_case_id' AS n292_case1 \gset
 SELECT :'n292_r2'::JSONB ->> 'student_case_id' AS n292_case2 \gset
@@ -233,12 +255,17 @@ SELECT :'n292_r3'::JSONB ->> 'student_case_id' AS n292_case3 \gset
 SELECT :'n292_r4'::JSONB ->> 'student_case_id' AS n292_case4 \gset
 SELECT :'n292_r5'::JSONB ->> 'student_case_id' AS n292_case5 \gset
 SELECT :'n292_r6'::JSONB ->> 'student_case_id' AS n292_case6 \gset
+SELECT :'n292_r7'::JSONB ->> 'student_case_id' AS n292_case7 \gset
+SELECT :'n292_r8'::JSONB ->> 'student_case_id' AS n292_case8 \gset
 SELECT pg_temp.n292_assert((SELECT c.state = 'active' AND c.current_curator_membership_id = pg_temp.n292_id(303)
     AND c.admissions_direction = 'CN' AND c.admissions_playbook_version_id IS NULL
   FROM platform.student_cases c WHERE c.id = :'n292_case1'::UUID), 'fixture: case 1 is active with curator A and direction CN, no playbook');
 SELECT pg_temp.n292_assert((SELECT c.state = 'pending' AND c.current_curator_membership_id IS NULL AND c.admissions_direction = 'MY'
   FROM platform.student_cases c WHERE c.id = :'n292_case3'::UUID), 'fixture: case 3 waits for a curator');
 
+-- The cases carry a next step and a due day, so that clearing them would show in the 'nothing else changed' proofs.
+UPDATE platform.student_cases SET next_action = 'N292 next step', next_action_due_on = DATE '2026-12-01'
+  WHERE id IN (:'n292_case1'::UUID, :'n292_case3'::UUID, :'n292_case6'::UUID);
 -- Case 3 has no direction (a sales-made case); case 4 is closed; case 5 is bound to the CN playbook.
 UPDATE platform.student_cases SET admissions_direction = NULL WHERE id = :'n292_case3'::UUID;
 UPDATE platform.student_cases SET state = 'closed', closed_at = statement_timestamp() WHERE id = :'n292_case4'::UUID;
@@ -526,6 +553,37 @@ SELECT private.platform_can_read_student_case(pg_temp.n292_id(1), :'n292_case3':
 SELECT pg_temp.n292_assert(:'n292_cn_reads3_null' = 'f', 'L: a case with no direction is invisible to a direction-scoped manager');
 SELECT pg_temp.n292_assert(pg_temp.n292_set(pg_temp.n292_id(1), :'n292_case3'::UUID, 'CN', '0', pg_temp.n292_id(7604)) ~ '^42501:',
   'L: ... and it cannot set its direction either');
+RESET ROLE;
+
+-- Only ONE half of the authority is tied to the direction: the lockout guard must look at both rights.
+SELECT pg_temp.n292_effects(:'n292_case7'::UUID) AS n292_fx7_before \gset
+SELECT pg_temp.n292_effects(:'n292_case8'::UUID) AS n292_fx8_before \gset
+SET LOCAL request.jwt.claims TO :'n292_split_a';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n292_assert(pg_temp.n292_set(pg_temp.n292_id(1), :'n292_case7'::UUID, 'MY', '0', pg_temp.n292_id(7701)) = '22023:case_direction_actor_access_lost',
+  'L: reading in the organization is not enough: assigning scoped to CN would be lost, so the move is refused');
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'n292_split_b';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n292_assert(pg_temp.n292_set(pg_temp.n292_id(1), :'n292_case8'::UUID, 'MY', '0', pg_temp.n292_id(7702)) = '22023:case_direction_actor_access_lost',
+  'L: assigning in the organization is not enough: reading scoped to CN would be lost, so the move is refused');
+RESET ROLE;
+SELECT pg_temp.n292_assert(pg_temp.n292_effects(:'n292_case7'::UUID) = :'n292_fx7_before'::JSONB
+    AND pg_temp.n292_effects(:'n292_case8'::UUID) = :'n292_fx8_before'::JSONB
+    AND (SELECT count(*) = 2 FROM platform.student_cases c WHERE c.id IN (:'n292_case7'::UUID, :'n292_case8'::UUID)
+      AND c.admissions_direction = 'CN' AND c.admissions_version = 0)
+    AND NOT EXISTS (SELECT 1 FROM platform.audit_events a WHERE a.request_id IN (pg_temp.n292_id(7701), pg_temp.n292_id(7702))),
+  'L: both refused moves rolled back (direction CN, version 0, no audit row)');
+-- Once the Admin has moved case 7 away from CN, the organization reader whose assigning right is tied to CN can still read
+-- the case but can no longer act on it.
+SET LOCAL request.jwt.claims TO :'n292_admin';
+SET LOCAL ROLE authenticated;
+SELECT platform.set_student_case_direction_v1(pg_temp.n292_id(1), :'n292_case7'::UUID, 'MY', 0, pg_temp.n292_id(7703)) AS n292_move7 \gset
+RESET ROLE;
+SET LOCAL request.jwt.claims TO :'n292_split_a';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n292_assert(pg_temp.n292_set(pg_temp.n292_id(1), :'n292_case7'::UUID, 'CN', '1', pg_temp.n292_id(7704)) ~ '^42501:',
+  'L: after the Admin moved case 7 to MY the organization reader without the assigning right for MY is refused');
 RESET ROLE;
 
 -- ---------------------------------------------------------------------------

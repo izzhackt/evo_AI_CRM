@@ -48,7 +48,7 @@ export type CaseOverviewInput = Readonly<{
   taskPermissions: TaskRowPermissions;
   /** null — нет права читать документы дела (нет чтения — нет числа). */
   documents: StudentCaseChecklistCounts | null;
-  /** Дело ждёт куратора (`pending`): документов в базе ещё нет, причина — состояние дела, а не права. */
+  /** Дело ждёт куратора (`pending`): рабочее место документов у такого дела не читается, причина — состояние дела, а не права. */
   documentsAwaitCurator: boolean;
   applications: readonly CaseApplicationLine[];
   /** null — оплаты в этом деле этому сотруднику не видно. */

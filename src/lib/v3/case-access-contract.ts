@@ -20,10 +20,11 @@ export function parseCaseSectionAccess(value: unknown, organizationId: string, s
 
 /**
  * The document workspace (113, `staff_student_case_document_workspace`) reads only a case in
- * work: `active` or `closed`, with its curator's handoff. A case «Ждёт куратора» (`pending`) has
- * no checklist yet and the database answers that read 42501 to everyone, the Admin included,
- * while the access snapshot (156), which checks the permission and not the state, still says
- * `documents: true`. Such a section is not read and not promised. This only narrows what the
+ * work: `active` or `closed`, with its curator's handoff (the table shape allows no other
+ * state to carry a curator). A case «Ждёт куратора» (`pending`) is outside that definition: the
+ * database answers the read 42501 to everyone, the Admin included, while the access snapshot
+ * (156), which checks the permission and not the state, still says `documents: true`. Such a
+ * section is not read and not promised. This only narrows what the
  * snapshot said: no permission is granted, and for `active` and `closed` the snapshot stands, so
  * a refusal of the workspace read there stays an error.
  */

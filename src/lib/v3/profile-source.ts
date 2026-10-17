@@ -545,8 +545,9 @@ async function loadFullCase(
   const snapshotAccess: CaseSectionAccess = assignOnly
     ? { documents: false, finance: false, studentProfile: false, contract: false }
     : parseCaseSectionAccess(sectionResponse.data, actor.organizationId, studentCaseId);
-  // 17.10.2026: у дела «Ждёт куратора» рабочего места документов в базе ещё нет (113: только
-  // `active` и `closed`), хотя снимок разделов обещает документы любому, у кого есть право.
+  // 17.10.2026: рабочее место документов определено только для дела в работе (113: `active` и
+  // `closed`), у «Ждёт куратора» его читать нельзя, а снимок разделов обещает документы любому,
+  // у кого есть право.
   const access = caseSectionAccessForState(snapshotAccess, studentCase.state);
   const [
     applicationsPage,

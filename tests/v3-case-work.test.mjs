@@ -458,3 +458,16 @@ test("the coordinator does not read documents of a pending case, and a refused d
   assert.equal(reads, 2, "active and closed still attempt the read");
   assert.deepEqual(rpcCalls, ["staff_student_case_document_workspace", "staff_student_case_document_workspace"], "and the refusal comes from the database, not from a local guard");
 });
+
+test("the TypeScript rule mirrors the SQL it narrows: the workspace is defined for active/closed only, the snapshot never looks at state", () => {
+  const workspace = read("supabase/migrations/113_platform_document_case_links.sql");
+  const body = workspace.slice(workspace.indexOf("CREATE OR REPLACE FUNCTION platform.staff_student_case_document_workspace("));
+  const lookup = body.slice(0, body.indexOf("IF NOT FOUND THEN"));
+  assert.match(lookup, /AND student_case\.state IN \('active', 'closed'\)\s+AND student_case\.handoff_at IS NOT NULL/u);
+  assert.match(lookup, /student_case\.id = p_student_case_id/u);
+  const scoped = read("supabase/migrations/156_platform_scoped_staff_consumers.sql");
+  const snapshotAt = scoped.indexOf("CREATE FUNCTION platform.staff_case_access_snapshot(");
+  const snapshot = scoped.slice(snapshotAt, scoped.indexOf("REVOKE ALL ON FUNCTION platform.staff_case_access_snapshot", snapshotAt));
+  assert.match(snapshot, /'documents', platform_private\.staff_can_access\(p_organization_id, a\.membership_id, 'document\.read\.full', 'student_case', p_student_case_id\)/u);
+  assert.doesNotMatch(snapshot, /\bstate\b/u, "the snapshot checks permissions, not the case state: that is why the page narrows it");
+});

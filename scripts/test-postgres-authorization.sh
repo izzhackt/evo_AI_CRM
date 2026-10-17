@@ -3683,6 +3683,21 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_case_direction.sql
   fi
+
+  # Смена направления в «Журнале действий» и «Истории» дела (миграция «аудит
+  # направления», provisional 294, PLAN_CHANGES 17.10.2026). Matched by name, not
+  # number. Real 292 command as the Admin on cases made by 281's command, plus
+  # owner-written rows no command produces. The suite proves: the journal row of
+  # case.direction.set has exactly one extra key, case_direction {from, to} (the
+  # first set has from null), null for a code outside CN/MY/EUROPE/AE/TR; no other
+  # action's row has it; the case history has direction_change on the same events
+  # only; neither leaks a version, raw before/after or an unknown code; the helper
+  # and the wrapped functions are owner-only; the allowlist gained the action once.
+  if [[ "$(basename "$migration")" == *_platform_case_direction_audit.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_direction_audit.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

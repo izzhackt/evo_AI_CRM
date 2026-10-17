@@ -7,7 +7,7 @@ import {
   allDayDate,
   applicationStatus,
   eventLabel,
-  journalEvent,
+  journalEventText,
   taskChangeField,
   role as roleWord,
   source as sourceWord,
@@ -576,7 +576,7 @@ export function History({ profile }: { profile: PersonProfile }) {
         >
           <ol>
             {profile.timeline.map((entry) => {
-              const label = journalEvent(entry.transition) ?? eventLabel(entry.transition);
+              const label = journalEventText(entry.transition, entry.directionChange) ?? eventLabel(entry.transition);
               // Неизвестное событие пропускается: сырой ключ на экране — это
               // ровно то, что мы убирали.
               if (!label) return null;

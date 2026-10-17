@@ -13,7 +13,7 @@ import type { StudentApplication } from "../../../lib/student-application-contra
 import { dayInOrganizationTimezone } from "../../../lib/platform-task-deadline.ts";
 import { compareQueueTasks, taskIsOpen, type QueueTask } from "../../../lib/v3/task-queue.ts";
 import { financeMoney } from "../../../lib/platform-finance-entry-contract.ts";
-import { documentReviewDecision, journalEvent, studentProfileContactNote } from "../../../lib/v3/wording.ts";
+import { documentReviewDecision, journalEventText, studentProfileContactNote } from "../../../lib/v3/wording.ts";
 import { formatQueueDay } from "../queue/due-bucket.ts";
 import type { DocumentGroup } from "./document-types.ts";
 import type { ProfileEvent } from "./types.ts";
@@ -440,7 +440,7 @@ export function caseFeed(input: Readonly<{
   if (input.firstPage) {
     if (input.activity.kind === "ready") {
       for (const event of input.activity.events) {
-        const text = journalEvent(event.transition);
+        const text = journalEventText(event.transition, event.directionChange);
         if (!text || !FEED_TARGETS.has(event.targetKind ?? "") || FEED_SKIPPED.has(event.transition) || !validMoment(event.occurredAt)) continue;
         const title = event.transition.startsWith("application.") && event.targetId ? applicationTitle.get(event.targetId) : undefined;
         items.push({ kind: "event", at: event.occurredAt, key: `activity:${event.id}`, text: title ? `${text} · ${title}` : text,

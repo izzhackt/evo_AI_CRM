@@ -18,6 +18,7 @@ import type {
 } from "@/lib/platform-student-handoff";
 import type { PlatformCaseVisa } from "@/lib/platform-case-operations-contract";
 import type { AdmissionsDirection } from "@/lib/platform-admissions-playbook-contract";
+import type { CaseDirectionChange } from "@/lib/platform-case-direction-change";
 import type {
   PlatformCaseContractWorkspace,
   PlatformContractRetryOperation,
@@ -122,6 +123,12 @@ export type ProfileEvent = Readonly<{
    * id заявки, по нему лента называет вуз и программу из уже прочитанных заявок.
    */
   targetId?: string;
+  /**
+   * Только у смены направления (`case.direction.set`): что было и что стало,
+   * коды пяти направлений сотрудников. Нет поля - действие другое либо код
+   * неизвестен; подпись со словами строит `journalEventText`.
+   */
+  directionChange?: CaseDirectionChange;
 }>;
 
 /** Настоящие данные. */

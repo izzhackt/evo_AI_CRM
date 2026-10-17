@@ -472,13 +472,15 @@ SQL
   # nothing was kept.
   if [[ "$(basename "$migration")" == *_platform_telephony_rights.sql ]]; then
     for t290_case in admin_missing catalog_drift; do
+      # `docker exec -i` without `</dev/null` below read the loop's own stdin (the
+      # migration list), so every migration after 291 was silently never applied.
       t290_tamper_log="$(mktemp -t evo-t290-final-check.XXXXXX)"
       if docker exec -i "$container_name" \
         psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
         -v "t290_case=$t290_case" \
         -v "migration_file=/workspace/$migration" \
         -f /workspace/supabase/tests/platform_telephony_rights_pre.sql \
-        >"$t290_tamper_log" 2>&1; then
+        >"$t290_tamper_log" 2>&1 </dev/null; then
         echo "migration 291 accepted the tampered start $t290_case" >&2
         exit 1
       fi
@@ -3631,6 +3633,33 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_case_sale_conditions.sql
+  fi
+
+  # «Задать направление» делу студента (292, PLAN_CHANGES 17.10.2026). Matched by
+  # name, not number, so a renumbering at merge keeps the hook. Members are
+  # modelled like production (coarse role NULL, the 244 bundles); cases come
+  # through 281's own command, the ones no command can make (no direction,
+  # closed, bound to a playbook) are written as the table owner. The suite
+  # proves: the Admin sets a direction on a case that has none and changes a set
+  # one; the Admissions Manager of the department changes its department's case;
+  # the receipt is the committed row, admissions_version rises by one, one
+  # audit_events row `case.direction.set` carries only the codes and versions, and
+  # nothing else changes (the case row but the direction, version and updated_at,
+  # tasks, assignments, lifecycle, money, applications, admissions events, the
+  # lead's interest_direction, the audit count +1); the same value is a no-op even
+  # with a stale version; the exact replay returns the original receipt and the
+  # same request id with another payload, case or actor is a conflict; a stale or
+  # overflowing version is PT409; IT, CZ and made-up values are 22023; a case
+  # bound to a playbook refuses every value and a closed case is refused; the
+  # curator of the case, another curator, Sales, the Student, no membership,
+  # another organization, an unknown case and anon/service_role are refused; a
+  # CN-scoped manager cannot move a CN case away from itself (rolled back) and
+  # sees a case only while its direction is CN; owner, definer, search_path,
+  # VOLATILE, ACL and the unchanged five-value CHECK.
+  if [[ "$(basename "$migration")" == *_platform_case_direction.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_direction.sql
   fi
 done < <(
   cd "$repo_root"

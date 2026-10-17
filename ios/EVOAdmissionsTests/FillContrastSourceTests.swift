@@ -42,6 +42,29 @@ final class FillContrastSourceTests: XCTestCase {
         XCTAssertEqual(offenders, [], ".borderedProminent без AccentFill или постоянного цвета")
     }
 
+    /// `.bordered` красится цветом, который проходит 4,5:1 на собственной
+    /// тонированной заливке: `AccentText` (#B00016 / #FF8A8A) или серый под
+    /// основным текстом. Кнопка без своей `.tint` берёт тон контейнера.
+    func testEveryBorderedButtonUsesAccentText() throws {
+        let allowed = [".tint(.accentText)", ".tint(CSCAColor.accentText)", ".tint(AtlasStyle.linkText)",
+                       ".tint(Color(uiColor: .systemGray))"]
+        var offenders: [String] = []
+        for (name, lines) in try swiftSources() {
+            for (index, line) in lines.enumerated() where line.contains("buttonStyle(.bordered)") {
+                if Self.isComment(line) { continue }
+                let sameLine = line.components(separatedBy: "buttonStyle(.bordered)").last ?? ""
+                let next = lines[(index + 1)...].first { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? ""
+                let tint = sameLine.contains(".tint(") ? sameLine : next
+                guard tint.contains(".tint(") else { continue }
+                if !allowed.contains(where: tint.contains) { offenders.append("\(name):\(index + 1)") }
+            }
+        }
+        XCTAssertEqual(offenders, [], ".bordered с тоном без 4,5:1 на своей заливке")
+        let style = try XCTUnwrap(try swiftSources().first { $0.name == "CSCAStyle.swift" })
+        XCTAssertTrue(style.lines.contains { $0.contains(#"static let accentText = Color("AccentText")"#) },
+                      "CSCAColor.accentText из ассета AccentText")
+    }
+
     /// Сплошной `AccentColor` (и `CSCAColor.accent`) не стоит заливкой или
     /// фоном: под заливкой в коде белый текст или значок. Тонировка
     /// `.opacity(…)` под основным текстом допустима.

@@ -69,7 +69,7 @@ ENGLISH
 
 CSCA PREPARATION
 • The «CSCA» section in the English tab: math in English for the CSCA exam taken by applicants to universities in China.
-• Lessons with formulas and graphs, practice with explanations, a diagnostic test and a timed mock exam.
+• Lessons with formulas and graphs, practice with explanations, a diagnostic test and a timed mock test.
 • Mistakes come back after 1, 3, 7 and 14 days; Progress shows topics and pace.
 • Calendar of CSCA sessions with dates from csca.cn.
 • The tasks are written by the EVO team. A test result is EVO's estimate on our tasks, not a CSCA score.

@@ -85,6 +85,23 @@ final class ThirdPartyNoticesTests: XCTestCase {
         XCTAssertTrue(text.contains("The SwiftCrypto Project"))
     }
 
+    /// Склейка строк для экрана не теряет и не переставляет слов, абзацы
+    /// остаются, строки внутри абзаца склеены.
+    func testReflowKeepsEveryWordInOrder() throws {
+        for name in try FileManager.default.contentsOfDirectory(atPath: Self.licensesDir.path) {
+            let raw = try String(contentsOf: Self.licensesDir.appendingPathComponent(name), encoding: .utf8)
+            let shown = ThirdPartyNotices.reflow(raw)
+            let words: (String) -> [Substring] = { $0.split(whereSeparator: \.isWhitespace) }
+            XCTAssertEqual(words(shown), words(raw), name)
+        }
+        let mit = "Permission is hereby granted, free of charge, to any person obtaining a copy\nof this software.\n\nTHE SOFTWARE IS PROVIDED"
+        XCTAssertEqual(ThirdPartyNotices.reflow(mit),
+                       "Permission is hereby granted, free of charge, to any person obtaining a copy of this software.\n\nTHE SOFTWARE IS PROVIDED")
+        let notice = "This product contains:\n\n  * LICENSE (Apache License 2.0):\n    * https://example.org/LICENSE"
+        XCTAssertEqual(ThirdPartyNotices.reflow(notice),
+                       "This product contains:\n\n  * LICENSE (Apache License 2.0):\n    * https://example.org/LICENSE")
+    }
+
     /// Ссылка в приложении совпадает с полем «Privacy Policy URL» в App Store
     /// Connect (`listing-ru.md`), иначе проверяющий увидит две разные политики.
     func testPrivacyPolicyLinkMatchesTheStoreListing() throws {

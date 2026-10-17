@@ -83,14 +83,48 @@ enum ThirdPartyNotices {
     1.1).
     """
 
-    /// Текст уведомления: файлы по порядку, через пустую строку.
+    /// Текст уведомления для экрана: файлы по порядку, абзацы через пустую
+    /// строку, строки внутри абзаца склеены (`reflow`).
     static func text(of notice: ThirdPartyNotice, in bundle: Bundle = .main) -> String? {
         let parts = notice.files.compactMap { name -> String? in
             guard let url = bundle.url(forResource: name, withExtension: "txt") else { return nil }
             return try? String(contentsOf: url, encoding: .utf8)
         }
         guard parts.count == notice.files.count else { return nil }
-        return parts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.joined(separator: "\n\n\n")
+        return parts.map(reflow).joined(separator: "\n\n\n")
+    }
+
+    /// Файлы лицензий свёрстаны жёстким переносом на 80 знаков; на ширине
+    /// телефона такие строки рвутся посередине. Внутри абзаца строки
+    /// склеиваются пробелом, кроме строк-пунктов (`* `), строк комментария
+    /// (`%`) и линеек из `=`, `-`, `_`. Слова и их порядок не меняются
+    /// (`ThirdPartyNoticesTests`).
+    static func reflow(_ text: String) -> String {
+        let paragraphs = text.components(separatedBy: "\n")
+            .split { $0.trimmingCharacters(in: .whitespaces).isEmpty }
+        return paragraphs.map { lines -> String in
+            var out = ""
+            var previousKeeps = false
+            for raw in lines {
+                let line = raw.trimmingCharacters(in: .whitespaces)
+                let keeps = keepsOwnLine(line)
+                // Пункт списка сохраняет свой отступ (вложенность в NOTICE).
+                let shown = line.hasPrefix("* ") ? String(raw.prefix { $0 == " " }) + line : line
+                if out.isEmpty {
+                    out = shown
+                } else if keeps || previousKeeps {
+                    out += "\n" + shown
+                } else {
+                    out += " " + shown
+                }
+                previousKeeps = keeps
+            }
+            return out
+        }.joined(separator: "\n\n")
+    }
+
+    private static func keepsOwnLine(_ line: String) -> Bool {
+        line.hasPrefix("* ") || line.hasPrefix("%") || line.allSatisfy { "=-_".contains($0) }
     }
 }
 

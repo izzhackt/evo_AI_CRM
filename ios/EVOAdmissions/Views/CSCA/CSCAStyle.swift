@@ -72,10 +72,13 @@ enum CSCAColor {
     /// 3.3:1); white on #177245 is 5.95:1 and on #c00215 6.44:1.
     static let okSolid = constant(CSCAPaletteRole.ok.lightHex)
     static let dangerSolid = constant("#c00215")
-    /// Red for text and outlined controls: the palette accent, lighter in
-    /// dark mode so text keeps at least 4.5:1 (filled controls use
-    /// `accentFill`).
-    static let accentText = dynamic(light: CSCAPaletteRole.accent.lightHex, dark: CSCAPaletteRole.accent.darkHex)
+    /// Red for text and outlined controls: the app `AccentText` asset
+    /// (#B00016, #FF8A8A in dark mode, darker and lighter with Increase
+    /// Contrast). As the tint of a `.bordered` button it keeps 5.19:1 and
+    /// 5.38:1 on its own tinted fill; the palette accent (#d70217, #ff4a57)
+    /// gave 3.5:1 and 4.0:1 there (#1215, contrast rule of #1172). Filled
+    /// controls use `accentFill`.
+    static let accentText = Color("AccentText")
     static let okFill = dynamic(light: "#e6f2eb", dark: "#183326")
     static let dangerFill = dynamic(light: "#fbe6e8", dark: "#3a1d20")
     static let selectedFill = dynamic(light: "#f3e7e2", dark: "#33292a")

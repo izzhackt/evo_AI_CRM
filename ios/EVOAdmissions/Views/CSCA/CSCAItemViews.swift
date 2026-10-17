@@ -105,7 +105,10 @@ struct CSCAOptionList: View {
 
     private func letter(_ id: String, isSelected: Bool, outcome: CSCAOptionOutcome) -> some View {
         let filled = isSelected || outcome == .correct
-        let tint: Color = outcome == .correct ? CSCAColor.ok : (outcome == .wrongChoice ? CSCAColor.danger : CSCAColor.accent)
+        // Solid fills under the white letter in both appearances.
+        let tint: Color = outcome == .correct
+            ? CSCAColor.okSolid
+            : (outcome == .wrongChoice ? CSCAColor.dangerSolid : CSCAColor.accentFill)
         return Text(verbatim: id.uppercased())
             .font(.subheadline.weight(.semibold))
             .frame(width: letterSize, height: letterSize)

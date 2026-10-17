@@ -746,7 +746,7 @@ struct CSCATestRunnerView: View {
                     .frame(minHeight: 44)
             }
             .buttonStyle(.borderedProminent)
-            .tint(CSCAColor.accent)
+            .tint(CSCAColor.accentFill)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -846,7 +846,7 @@ private struct CSCANavigatorSheet: View {
                     .foregroundStyle(answered ? Color.white : Color.primary)
                     .background(
                         RoundedRectangle(cornerRadius: 10)
-                            .fill(answered ? CSCAColor.accent : Color(.secondarySystemBackground))
+                            .fill(answered ? CSCAColor.accentFill : Color(.secondarySystemBackground))
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
@@ -877,7 +877,7 @@ private struct CSCANavigatorSheet: View {
             Label {
                 Text(csca: "csca_cell_answered")
             } icon: {
-                RoundedRectangle(cornerRadius: 4).fill(CSCAColor.accent).frame(width: 16, height: 16)
+                RoundedRectangle(cornerRadius: 4).fill(CSCAColor.accentFill).frame(width: 16, height: 16)
             }
             Label {
                 Text(csca: "csca_flag")

@@ -1369,42 +1369,6 @@
         }
       }
     },
-    "csca_licenses_fonts" : {
-      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
-      "extractionState" : "manual",
-      "localizations" : {
-        "ky" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Шрифттер"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Шрифты"
-          }
-        }
-      }
-    },
-    "csca_licenses_title" : {
-      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
-      "extractionState" : "manual",
-      "localizations" : {
-        "ky" : {
-          "stringUnit" : {
-            "state" : "needs_review",
-            "value" : "Формулалардын лицензиялары"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Лицензии формул"
-          }
-        }
-      }
-    },
     "csca_mock" : {
       "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
       "extractionState" : "manual",

@@ -99,7 +99,7 @@ struct CSCAEntryRow: View {
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.white)
                 .frame(width: 40, height: 40)
-                .background(CSCAColor.accent, in: RoundedRectangle(cornerRadius: 10))
+                .background(CSCAColor.accentFill, in: RoundedRectangle(cornerRadius: 10))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(csca: "csca_entry_title")
@@ -134,7 +134,7 @@ struct CSCARouteView: View {
         case .review: CSCAReviewView()
         case .progress: CSCAProgressView()
         case .sessions: CSCASessionsView()
-        case .licenses: CSCALicensesView()
+        case .licenses: LicensesView()
         }
     }
 }
@@ -260,8 +260,9 @@ private struct CSCAHomeList: View {
                         .font(.footnote)
                         .tint(.primary)
                     }
+                    // Тот же экран «Лицензии», что в «Профиле» (review #1215, M3).
                     NavigationLink(value: CSCARoute.licenses) {
-                        Text(csca: "csca_licenses_title").underline()
+                        Text("licenses_title").underline()
                     }
                     .font(.footnote)
                     .tint(.primary)
@@ -396,7 +397,7 @@ private struct CSCAReviewRow: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2)
-                    .background(CSCAColor.accent, in: Capsule())
+                    .background(CSCAColor.accentFill, in: Capsule())
                     .accessibilityHidden(true)
             }
         }

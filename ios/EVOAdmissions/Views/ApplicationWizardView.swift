@@ -738,6 +738,9 @@ struct ApplicationWizardView: View {
             }
             .tint(Color("AccentColor"))
             .accessibilityLabel(Text("apply_consent_label"))
+            // Правило App Store 5.1.1(i): политика рядом с согласием.
+            PrivacyPolicyLink()
+                .font(.subheadline)
         }
     }
 

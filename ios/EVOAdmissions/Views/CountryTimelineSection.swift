@@ -97,6 +97,8 @@ final class CountryTimelineModel: ObservableObject {
 /// раунда 2, r2-m1), как у остальных секций «Главной».
 private enum TimelinePalette {
     static let secondary = Color.secondaryText
+    /// Тот же ассет `SecondaryText` для абзацев на `UILabel`.
+    static let secondaryUIColor = UIColor(named: "SecondaryText") ?? .secondaryLabel
     static let danger = Color.dangerText
 }
 
@@ -236,9 +238,15 @@ private struct CountryTimelineStepRow: View {
                     if stacked {
                         Text(verbatim: stepOf).font(.subheadline.weight(.semibold)).foregroundStyle(TimelinePalette.secondary)
                     }
-                    Text(step.title).font(.headline).foregroundStyle(Color.primary)
+                    // Заголовок и описание рисует `UILabel`: SwiftUI Text на
+                    // iOS 26 обрезал описание шага 5 Малайзии многоточием на
+                    // 402 pt (review #1215, m1), как абзацы каталога раньше.
+                    // VoiceOver читает строку целиком из label и value кнопки.
+                    AtlasParagraph(text: step.title, style: .headline)
+                        .accessibilityHidden(true)
                     if let timing = step.timing { TimelineTimingLabel(text: timing) }
-                    Text(step.summary).font(.subheadline).foregroundStyle(TimelinePalette.secondary)
+                    AtlasParagraph(text: step.summary, style: .subheadline, color: TimelinePalette.secondaryUIColor)
+                        .accessibilityHidden(true)
                 }
                 .multilineTextAlignment(.leading)
                 .padding(.vertical, rowPadding)
@@ -328,10 +336,11 @@ private struct CountryTimelineStepSheet: View {
                 }
                 if !step.links.isEmpty {
                     Section {
-                        // Модулей приложения (CSCA) на iPhone пока нет: ссылки
-                        // ведут на внешний адрес (контракт §3, п. 6). S5: когда
-                        // появится экран CSCA и в `select` придут `modules`,
-                        // здесь нужна и внутренняя ссылка, иначе она пропадёт.
+                        // Экран CSCA на iPhone есть, но `select` получает
+                        // пустые `modules`, как веб (`TIMELINE_MODULE_ROUTES`
+                        // пуст): ссылки ведут на внешний адрес (контракт §3,
+                        // п. 6). Внутреннюю ссылку добавлять на вебе и здесь
+                        // одним шагом, иначе пропадёт паритет.
                         ForEach(step.links.filter(\.external)) { link in
                             if let url = URL(string: link.href) {
                                 Link(destination: url) {

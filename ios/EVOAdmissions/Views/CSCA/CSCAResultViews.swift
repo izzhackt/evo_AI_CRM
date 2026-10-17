@@ -105,7 +105,7 @@ struct CSCATestResultView: View {
                         .frame(maxWidth: .infinity, minHeight: 50)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(CSCAColor.accent)
+                .tint(CSCAColor.accentFill)
             }
         }
     }

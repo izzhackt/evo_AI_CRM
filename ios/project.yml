@@ -180,6 +180,11 @@ targets:
       - path: EVOAdmissions/Services/ApplicationDocumentModels.swift
       - path: EVOAdmissions/Services/ApplicationPackageModels.swift
       - path: EVOAdmissions/Services/ApplicationDocumentUpload.swift
+      # Экран «Лицензии» и ссылка на политику (review #1215): список
+      # уведомлений сверяется с Package.resolved, тексты читаются из бандла.
+      - path: EVOAdmissions/Services/ThirdPartyNotices.swift
+      - path: EVOAdmissions/Resources/Licenses
+        buildPhase: resources
       - path: ../src/lib/university-photo-library.json
         buildPhase: resources
       - path: ../src/lib/university-geo-library.json

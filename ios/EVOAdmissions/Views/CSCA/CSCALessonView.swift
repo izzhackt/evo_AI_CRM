@@ -298,7 +298,7 @@ struct CSCALessonView: View {
                             .frame(maxWidth: .infinity, minHeight: 50)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(CSCAColor.accent)
+                    .tint(CSCAColor.accentFill)
                 }
                 if !result.wrongExerciseIds.isEmpty {
                     NavigationLink(value: CSCARoute.review) {

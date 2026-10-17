@@ -50,12 +50,31 @@ enum CSCAColor {
         })
     }
 
+    private static func constant(_ hex: String) -> Color {
+        let (r, g, b) = CSCAPaletteRole.components(hex)
+        return Color(red: r, green: g, blue: b)
+    }
+
     static let secondaryText = dynamic(light: "#5f5a54", dark: "#b3ada4")
     static let ok = dynamic(light: CSCAPaletteRole.ok.lightHex, dark: CSCAPaletteRole.ok.darkHex)
     static let danger = dynamic(light: "#c00215", dark: CSCAPaletteRole.accent.darkHex)
+    /// Red for symbols and progress on the page background: the app
+    /// `AccentColor`, #FF8A8A in dark mode. Never a fill under white content:
+    /// white on #FF8A8A is 2.27:1 (`Theme.swift`).
     static let accent = Color("AccentColor")
+    /// Fill under white text and symbols (filled buttons, answered navigator
+    /// cells, the review count): `AccentFill`, #D70217 in both appearances
+    /// and #B00016 with Increase Contrast (white 5.37:1 and 7.35:1).
+    static let accentFill = Color("AccentFill")
+    /// Fills of a checked option letter under white text. Constant in both
+    /// appearances: the dark variants of `ok` and `danger` are light colours
+    /// for text on dark backgrounds (white on #4cc38a 2.2:1, on #ff4a57
+    /// 3.3:1); white on #177245 is 5.95:1 and on #c00215 6.44:1.
+    static let okSolid = constant(CSCAPaletteRole.ok.lightHex)
+    static let dangerSolid = constant("#c00215")
     /// Red for text and outlined controls: the palette accent, lighter in
-    /// dark mode so text keeps at least 4.5:1 (filled buttons use `accent`).
+    /// dark mode so text keeps at least 4.5:1 (filled controls use
+    /// `accentFill`).
     static let accentText = dynamic(light: CSCAPaletteRole.accent.lightHex, dark: CSCAPaletteRole.accent.darkHex)
     static let okFill = dynamic(light: "#e6f2eb", dark: "#183326")
     static let dangerFill = dynamic(light: "#fbe6e8", dark: "#3a1d20")
@@ -191,7 +210,7 @@ struct CSCAPrimaryButton: View {
             .frame(maxWidth: .infinity, minHeight: 50)
         }
         .buttonStyle(.borderedProminent)
-        .tint(CSCAColor.accent)
+        .tint(CSCAColor.accentFill)
         .disabled(!isEnabled || isWorking)
         .accessibilityLabel(Text(csca: titleKey))
     }

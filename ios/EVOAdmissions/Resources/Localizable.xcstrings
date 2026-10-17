@@ -3317,7 +3317,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Тапшыруу жолу"
           }
         },
@@ -3335,7 +3335,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Тапшыруу жолу: %@"
           }
         },
@@ -3353,7 +3353,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Өлкөнү тандаңыз"
           }
         },
@@ -3371,7 +3371,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Өлкөнү алмаштыруу"
           }
         },
@@ -3389,7 +3389,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "%2$lld кадамдын %1$lld-кадамы"
           }
         },
@@ -3407,7 +3407,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Кадамдын пункттарын ачат"
           }
         },
@@ -3425,7 +3425,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Эмне кылуу керек"
           }
         },
@@ -3443,7 +3443,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Кадам качан бүтөт"
           }
         },
@@ -3461,7 +3461,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Шилтемелер"
           }
         },
@@ -3479,7 +3479,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Тандоо сакталган жок, дагы бир жолу аракет кылыңыз."
           }
         },
@@ -3497,7 +3497,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Тапшыруу жолу жүктөлгөн жок."
           }
         },
@@ -3515,7 +3515,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Ушул өлкөгө тапшыруунун кадамдарын жана болжолдуу мөөнөттөрүн көрсөтөбүз."
           }
         },
@@ -3533,7 +3533,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Тандагандан кийин жол дароо жаңырат."
           }
         },
@@ -3551,7 +3551,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Өлкө анкетаңыздан алынды."
           }
         },
@@ -3569,7 +3569,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Өлкө ишиңизден алынды."
           }
         },
@@ -3587,7 +3587,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Сакталган тандоо жүктөлгөн жок. Өлкөнү тандаңыз же экранды жаңыртыңыз."
           }
         },
@@ -3605,7 +3605,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Тандоо сакталууда…"
           }
         },
@@ -3623,7 +3623,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Башка сайтта ачылат."
           }
         },
@@ -14745,7 +14745,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Сырсөздү унуттуңузбу?"
           }
         },
@@ -14762,7 +14762,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Email же сырсөз туура эмес."
           }
         },
@@ -14779,7 +14779,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Почта али ырастала элек. EVO жиберген катты ачып, дарегиңизди ырастаңыз."
           }
         },
@@ -14796,7 +14796,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Кирүү аракеттери өтө көп. Бир мүнөт күтүп, кайра аракет кылыңыз."
           }
         },
@@ -14813,7 +14813,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Сервер менен байланыш жок. Интернетти текшерип, кайра аракет кылыңыз."
           }
         },
@@ -14830,7 +14830,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Кирүү ишке ашкан жок. Дагы бир жолу аракет кылыңыз."
           }
         },
@@ -14847,7 +14847,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Сырсөздү калыбына келтирүү"
           }
         },
@@ -14864,7 +14864,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Кабинетке кирген email дарегиңизди жазыңыз. Жаңы сырсөз коюу үчүн шилтеме жөнөтөбүз."
           }
         },
@@ -14881,7 +14881,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Шилтеме жөнөтүү"
           }
         },
@@ -14898,7 +14898,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Мындай аккаунт болсо, жаңы сырсөз үчүн шилтемеси бар кат жөнөттүк. Почтаңызды, анын ичинде «Спам» папкасын текшериңиз."
           }
         },
@@ -14915,7 +14915,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Каттагы шилтеме аркылуу жаңы сырсөз коюп, анан тиркемеге кайтып, аны менен кириңиз."
           }
         },
@@ -14932,7 +14932,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Суроо-талаптар өтө көп. Бир мүнөт күтүп, кайра аракет кылыңыз."
           }
         },
@@ -14949,7 +14949,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Email дарегин текшериңиз."
           }
         },
@@ -14966,7 +14966,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Кат жөнөтүлгөн жок. Байланышты текшерип, кайра аракет кылыңыз."
           }
         },
@@ -14983,7 +14983,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Кайра жөнөтүү %lld секунддан кийин мүмкүн"
           }
         },
@@ -15000,7 +15000,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Бул чекиттеги ЖОЖдор: %lld"
           }
         },
@@ -15017,7 +15017,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "ЖОЖдордун тизмесин көрсөтөт."
           }
         },
@@ -15034,7 +15034,7 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Статус"
           }
         },
@@ -15042,6 +15042,132 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Статус"
+          }
+        }
+      }
+    },
+    "licenses_title" : {
+      "comment" : "Сводная сборка iPhone (#1215): политика конфиденциальности и лицензии. KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Лицензиялар"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лицензии"
+          }
+        }
+      }
+    },
+    "licenses_libraries_heading" : {
+      "comment" : "Сводная сборка iPhone (#1215): политика конфиденциальности и лицензии. KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Китепканалар"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Библиотеки"
+          }
+        }
+      }
+    },
+    "licenses_fonts_heading" : {
+      "comment" : "Сводная сборка iPhone (#1215): политика конфиденциальности и лицензии. KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Формулалардын шрифттери"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Шрифты формул"
+          }
+        }
+      }
+    },
+    "licenses_original_language_note" : {
+      "comment" : "Сводная сборка iPhone (#1215): политика конфиденциальности и лицензии. KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Лицензиялардын тексттери түп нускадагыдай, англис тилинде берилген."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тексты лицензий приведены на языке оригинала, английском."
+          }
+        }
+      }
+    },
+    "licenses_text_unavailable" : {
+      "comment" : "Сводная сборка iPhone (#1215): политика конфиденциальности и лицензии. KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Лицензиянын тексти табылган жок. Колдонмону кайра орнотуңуз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текст лицензии не найден. Переустановите приложение."
+          }
+        }
+      }
+    },
+    "privacy_policy_link" : {
+      "comment" : "Сводная сборка iPhone (#1215): политика конфиденциальности и лицензии. KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Купуялык саясаты"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Политика конфиденциальности"
+          }
+        }
+      }
+    },
+    "privacy_policy_hint" : {
+      "comment" : "Сводная сборка iPhone (#1215): политика конфиденциальности и лицензии. KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "EVO сайтында ачылат."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Откроется на сайте EVO."
           }
         }
       }

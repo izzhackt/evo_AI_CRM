@@ -121,10 +121,14 @@ struct UniversityPlaceLinks: View {
 /// («по», «на») на следующую строку, а рисовал с ним: на границе ширины
 /// последняя строка обрезалась многоточием (снимок экрана «Китай»,
 /// 16.10.2026). `UILabel` меряет и рисует одним набором, Dynamic Type и
-/// VoiceOver у него системные.
+/// VoiceOver у него системные. Тем же абзацем идут заголовок и описание шага
+/// «Пути поступления» (review #1215, m1: шаг 5 Малайзии на 402 pt).
 struct AtlasParagraph: UIViewRepresentable {
     let text: String
     var style: UIFont.TextStyle = .body
+    /// Цвет из каталога ассетов, чтобы работали тёмная тема и «Увеличение
+    /// контраста» (`UIColor(named:)` несёт все варианты).
+    var color: UIColor = .label
 
     func makeUIView(context: Context) -> UILabel {
         let label = UILabel()
@@ -140,6 +144,7 @@ struct AtlasParagraph: UIViewRepresentable {
 
     func updateUIView(_ label: UILabel, context: Context) {
         label.font = .preferredFont(forTextStyle: style, compatibleWith: label.traitCollection)
+        label.textColor = color
         label.text = text
     }
 

@@ -255,8 +255,16 @@ struct ProfileView: View {
         }
     }
 
+    /// Политика конфиденциальности (правило App Store 5.1.1(i): ссылка и в
+    /// приложении) и уведомления лицензий рядом с версией (review #1215).
     private var appSection: some View {
         Section {
+            PrivacyPolicyLink()
+            NavigationLink {
+                LicensesView()
+            } label: {
+                Text("licenses_title")
+            }
             LabeledContent {
                 Text(appVersion)
                     .foregroundStyle(.secondaryText)

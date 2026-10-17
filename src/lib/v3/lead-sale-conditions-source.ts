@@ -2,7 +2,7 @@ import "server-only";
 import { staffPresentationCan } from "../platform-access.ts";
 import type { ActivePlatformActor } from "../platform-auth";
 import { createSupabaseServerClient } from "../supabase/server";
-import { parseLeadSaleConditions, type LeadSaleConditions } from "../lead-sale-conditions-contract";
+import { parseCaseSaleConditionsResult, parseLeadSaleConditions, type LeadSaleConditions } from "../lead-sale-conditions-contract";
 
 /**
  * «Условия продажи» read. Used both by the lead card block (Overview) and,
@@ -31,9 +31,5 @@ export async function readCaseSaleConditions(actor: ActivePlatformActor, student
   const { data, error } = await (await createSupabaseServerClient()).schema("platform").rpc("staff_student_case_sale_conditions_v1", {
     p_organization_id: actor.organizationId, p_student_case_id: studentCaseId,
   });
-  // Отказ самой функции (нет права на дело целиком) - условий нет; любой другой сбой, в том числе «нет права на
-  // функцию» из-за неприменённой миграции, - исключение, а не молчание.
-  if (error?.code === "42501" && error.message === "case_sale_conditions_forbidden") return null;
-  if (error) throw new Error("Sale conditions unavailable.");
-  return data === null ? null : parseLeadSaleConditions(data, actor.organizationId);
+  return parseCaseSaleConditionsResult({ data, error }, actor.organizationId);
 }

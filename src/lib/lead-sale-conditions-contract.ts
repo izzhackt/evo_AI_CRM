@@ -140,3 +140,19 @@ export function parseLeadSaleConditions(raw: unknown, organizationId: string): L
     linkedSalesRegister: linked,
   };
 }
+
+/**
+ * Ответ `staff_student_case_sale_conditions_v1` (290) -> условия или null.
+ * null: у дела нет условий для показа - функция ответила NULL (не дело прямого
+ * студента) или отказала сама (`case_sale_conditions_forbidden`: нет права на
+ * дело целиком, читатель «Ждут куратора»). Любой другой сбой - исключение: в
+ * том числе «нет права на функцию» (миграция не применена) и неверная форма.
+ */
+export function parseCaseSaleConditionsResult(
+  result: Readonly<{ data: unknown; error: Readonly<{ code?: string; message?: string }> | null }>,
+  organizationId: string,
+): LeadSaleConditions | null {
+  if (result.error?.code === "42501" && result.error.message === "case_sale_conditions_forbidden") return null;
+  if (result.error) return fail();
+  return result.data === null ? null : parseLeadSaleConditions(result.data, organizationId);
+}

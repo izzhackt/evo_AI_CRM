@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { build } from "esbuild";
+
 import {
   caseApplicationLines,
   caseChatWork,
@@ -34,6 +36,11 @@ const surfaces = new Map(JSON.parse(execFileSync(
   [fileURLToPath(new URL("./e2e/case-static-render.cjs", import.meta.url)), "--json"],
   { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
 )).map((surface) => [surface.name, surface.html]));
+// Настоящий разбор ответа RPC условий дела (290) с его зависимостями, без подмен: модуль тянет импорты без расширения.
+const { parseCaseSaleConditionsResult } = await import(`data:text/javascript;base64,${Buffer.from((await build({
+  entryPoints: [fileURLToPath(new URL("../src/lib/lead-sale-conditions-contract.ts", import.meta.url))],
+  bundle: true, write: false, platform: "node", format: "esm",
+})).outputFiles[0].text).toString("base64")}`);
 const texts = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
 /**
  * Разметка без свёрнутого: закрытых `<details>` и скрытых областей
@@ -427,9 +434,41 @@ test("the case-only branch of readCaseProfile keeps the client e-mail/phone null
   assert.match(source, /return \{ saleConditions: null, saleConditionsUnavailable: true \};/u);
   assert.match(source, /\n {4}saleConditions: null,\n {4}\/\/ Same scoping as saleConditions above/u);
   const read290 = read("src/lib/v3/lead-sale-conditions-source.ts");
-  assert.match(read290, /rpc\("staff_student_case_sale_conditions_v1", \{\n {4}p_organization_id: actor\.organizationId, p_student_case_id: studentCaseId,\n {2}\}\)/u);
-  assert.match(read290, /if \(error\?\.code === "42501" && error\.message === "case_sale_conditions_forbidden"\) return null;\n {2}if \(error\) throw new Error\("Sale conditions unavailable\."\);/u);
-  assert.match(read290, /data === null \? null : parseLeadSaleConditions\(data, actor\.organizationId\)/u);
+  assert.match(read290, /rpc\("staff_student_case_sale_conditions_v1", \{\n {4}p_organization_id: actor\.organizationId, p_student_case_id: studentCaseId,\n {2}\}\);\n {2}return parseCaseSaleConditionsResult\(\{ data, error \}, actor\.organizationId\);/u);
+});
+
+test("parseCaseSaleConditionsResult: the function's own refusal and NULL are «no conditions»; every other failure is a failure", () => {
+  const ORG = "00000000-0000-4000-8000-0000000000a1";
+  const answer = {
+    organization_id: ORG, lead_id: "00000000-0000-4000-8000-0000000000b1", revision: "1", service_label: "", signing_date: "2026-09-01",
+    service_cost_raw: "", service_cost_minor: 150000, service_cost_currency: "USD", paid_raw: "", paid_minor: null, paid_currency: null,
+    payment_note: "", wishes_countries: "", wishes_study_fields: "", wishes_education_level: "", wishes_intake_year: null,
+    wishes_intake_season: "", wishes_universities: "", education_current: "", education_grade: "", education_marks: "",
+    education_english: "", education_certificates: "", conditions_budget_raw: "", conditions_budget_minor: null,
+    conditions_budget_currency: null, conditions_budget_period: "", conditions_scholarship: "", conditions_note: "",
+    updated_by_membership_id: null, updated_at: null, linked_sales_register: null,
+  };
+  const ok = parseCaseSaleConditionsResult({ data: answer, error: null }, ORG);
+  assert.equal(ok.serviceCostMinor, 150000);
+  assert.equal(ok.serviceCostCurrency, "USD");
+  assert.equal(ok.signingDate, "2026-09-01");
+  assert.equal(ok.revision, 1);
+  assert.equal(ok.linkedSalesRegister, null);
+  // Не дело прямого студента: функция ответила NULL.
+  assert.equal(parseCaseSaleConditionsResult({ data: null, error: null }, ORG), null);
+  // Отказ самой функции (нет права на дело целиком, читатель «Ждут куратора»): условий нет, не сбой.
+  assert.equal(parseCaseSaleConditionsResult({ data: null, error: { code: "42501", message: "case_sale_conditions_forbidden" } }, ORG), null);
+  // «Нет права на функцию» (миграция не применена, EXECUTE отозван) - тот же код 42501, но это сбой, не молчание.
+  for (const error of [
+    { code: "42501", message: "permission denied for function staff_student_case_sale_conditions_v1" },
+    { code: "42883", message: "function platform.staff_student_case_sale_conditions_v1(uuid, uuid) does not exist" },
+    { code: "PGRST202", message: "Could not find the function" },
+    { code: "42501" },
+    { message: "case_sale_conditions_forbidden" },
+  ]) assert.throws(() => parseCaseSaleConditionsResult({ data: null, error }, ORG), /Sale conditions are unavailable/u, JSON.stringify(error));
+  // Неверная форма и чужая организация - сбой, а не показ.
+  assert.throws(() => parseCaseSaleConditionsResult({ data: { ...answer, extra: 1 }, error: null }, ORG), /unavailable/u);
+  assert.throws(() => parseCaseSaleConditionsResult({ data: answer, error: null }, "00000000-0000-4000-8000-0000000000ff"), /unavailable/u);
 });
 
 test("caseSaleBlocks: only what is filled, the lead card's words, money as the money tab writes it, nothing raw", () => {

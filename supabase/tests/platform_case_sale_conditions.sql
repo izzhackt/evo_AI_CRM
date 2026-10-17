@@ -15,8 +15,9 @@
 --    currency, signing day from the creation); a case created without money
 --    returns the blank card (revision 0); a sales-origin case (lead-cabinet)
 --    returns NULL even for the Admin, so its lead conditions stay behind the lead
---    right; the money keys are blank for a case reader without finance.read.*
---    while the signing day stays.
+--    right; the money keys (cost, paid amount, payment note), stored with values
+--    for case 2, are blank for a case reader without finance.read.* while the
+--    signing day and the client's budget wish stay.
 --  D denial (42501, nothing leaked): another curator, Sales, the Student, a user
 --    without membership, the Admin of another organization, the organization id
 --    of another organization, an unknown case, NULL arguments, and the reader of
@@ -199,6 +200,13 @@ SELECT pg_temp.n290_assert((SELECT c.state = 'pending' AND c.current_curator_mem
   'fixture: case 3 waits for a curator with direction MY');
 SELECT pg_temp.n290_assert(NOT EXISTS (SELECT 1 FROM platform_private.lead_sale_conditions WHERE lead_id = :'n290_lead3'::UUID),
   'fixture: case 3 has no stored conditions');
+-- Case 2 also carries every money key and the client's budget, so the blanking is proved on values, not on absence
+-- (the creation command stores only the cost and the signing day).
+UPDATE platform_private.lead_sale_conditions c SET fields = platform_private.lead_sale_condition_fields(c.fields || jsonb_build_object(
+    'paid_raw', '400', 'paid_minor', '40000', 'paid_currency', 'USD', 'payment_note', 'N290 payment note',
+    'conditions_budget_raw', '8000', 'conditions_budget_minor', '800000', 'conditions_budget_currency', 'USD',
+    'conditions_budget_period', 'year'))
+  WHERE c.lead_id = :'n290_lead2'::UUID;
 
 -- A sales-origin case (the lead-cabinet origin of 184) with an OPEN lead and
 -- stored conditions: the new read must not serve it.
@@ -271,6 +279,7 @@ GRANT SELECT ON n290_keys TO authenticated;
 SET LOCAL request.jwt.claims TO :'n290_admin';
 SET LOCAL ROLE authenticated;
 SELECT platform.staff_student_case_sale_conditions_v1(pg_temp.n290_id(1), :'n290_case1'::UUID) AS n290_admin_c1 \gset
+SELECT platform.staff_student_case_sale_conditions_v1(pg_temp.n290_id(1), :'n290_case2'::UUID) AS n290_admin_c2 \gset
 SELECT platform.staff_student_case_sale_conditions_v1(pg_temp.n290_id(1), :'n290_case3'::UUID) AS n290_admin_c3 \gset
 SELECT platform.staff_student_case_sale_conditions_v1(pg_temp.n290_id(1), pg_temp.n290_id(7001)) IS NULL AS n290_admin_sales_null \gset
 SELECT platform.staff_lead_sale_conditions_v1(pg_temp.n290_id(1), :'n290_lead1'::UUID) AS n290_lead_read \gset
@@ -321,13 +330,25 @@ SELECT platform.staff_case_access_snapshot(pg_temp.n290_id(1), :'n290_case2'::UU
 RESET ROLE;
 SELECT pg_temp.n290_assert(NOT (:'n290_n_access'::JSONB ->> 'finance')::BOOLEAN,
   'R: fixture: curator N has no finance section on its case');
+SELECT pg_temp.n290_assert(:'n290_admin_c2'::JSONB -> 'service_cost_minor' = '99000'::JSONB
+    AND :'n290_admin_c2'::JSONB ->> 'service_cost_currency' = 'USD'
+    AND (:'n290_admin_c2'::JSONB ->> 'paid_minor')::BIGINT = 40000 AND :'n290_admin_c2'::JSONB ->> 'paid_currency' = 'USD'
+    AND :'n290_admin_c2'::JSONB ->> 'paid_raw' = '400' AND :'n290_admin_c2'::JSONB ->> 'payment_note' = 'N290 payment note'
+    AND (:'n290_admin_c2'::JSONB ->> 'conditions_budget_minor')::BIGINT = 800000
+    AND :'n290_admin_c2'::JSONB ->> 'conditions_budget_period' = 'year',
+  'R: fixture: the Admin sees every stored money key and the budget of case 2');
 SELECT pg_temp.n290_assert(:'n290_n_c2'::JSONB -> 'service_cost_minor' = 'null'::JSONB
     AND :'n290_n_c2'::JSONB -> 'service_cost_currency' = 'null'::JSONB AND :'n290_n_c2'::JSONB ->> 'service_cost_raw' = ''
     AND :'n290_n_c2'::JSONB -> 'paid_minor' = 'null'::JSONB AND :'n290_n_c2'::JSONB ->> 'paid_raw' = ''
     AND :'n290_n_c2'::JSONB ->> 'payment_note' = ''
+    AND :'n290_n_c2'::JSONB -> 'paid_currency' = 'null'::JSONB
     AND :'n290_n_c2'::JSONB ->> 'signing_date' = '2026-09-02' AND :'n290_n_c2'::JSONB ->> 'revision' = '1'
     AND (SELECT count(*) = 32 FROM jsonb_object_keys(:'n290_n_c2'::JSONB)),
-  'R: without a finance section the money keys are blank; the signing day and the shape stay');
+  'R: without a finance section every money key (cost, paid, payment note) is blank; the signing day and the shape stay');
+-- The client's budget is a wish of the lead card, not a finance record: it stays for the same reader (documented in 290).
+SELECT pg_temp.n290_assert((:'n290_n_c2'::JSONB ->> 'conditions_budget_minor')::BIGINT = 800000
+    AND :'n290_n_c2'::JSONB ->> 'conditions_budget_currency' = 'USD' AND :'n290_n_c2'::JSONB ->> 'conditions_budget_period' = 'year',
+  'R: the client''s budget wish is not blanked');
 
 -- ---------------------------------------------------------------------------
 -- D. Denials: 42501, nothing leaked.

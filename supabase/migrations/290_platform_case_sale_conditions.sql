@@ -2,7 +2,7 @@
 -- 17.10.2026). docs/PLAN_CHANGES.md «Дело студента: «Данные продажи» и
 -- направление у дел прямого импорта (миграция 290, запись до кода)».
 --
--- Forward-only, on the LIVE definitions of 001–288. SECURITY DEFINER with the
+-- Forward-only, on the LIVE definitions of 001–289. SECURITY DEFINER with the
 -- empty search_path; client-callable functions only in `platform`, EXECUTE only
 -- for `authenticated`.
 --
@@ -28,7 +28,10 @@
 --        sales leads stay behind lead.read on the lead card;
 --      * the money keys (cost, paid, payment note) are blanked unless the actor
 --        holds finance.read.full or finance.read.summary on the case — the
---        `finance` section flag of staff_case_access_snapshot.
+--        `finance` section flag of staff_case_access_snapshot. The client's
+--        budget («Условия» of the lead card: a wish, not a finance record) and
+--        the row's `revision` / `updated_by_membership_id` stay: the first is
+--        shown like the other wishes, the others are the lead read's own keys.
 --     Students, Sales without case.read.full, another organization, a user without
 --     membership: 42501; anon: no EXECUTE.
 --  b) platform.staff_student_case_read_snapshot gains `admissions_direction` as
@@ -42,7 +45,7 @@
 BEGIN;
 
 -- ---------------------------------------------------------------------------
--- Anchors: the replaced snapshot and its source are the live 001–288 definitions.
+-- Anchors: the replaced snapshot and its source are the live 001–289 definitions.
 -- ---------------------------------------------------------------------------
 DO $a290_anchor$
 BEGIN

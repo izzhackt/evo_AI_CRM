@@ -216,7 +216,7 @@ test("Admin: sales forms and portal access are collapsed groups under «Свед
   assert.match(text, /Оплата 40% оплачено · остаток 900 \$ Договор и оплата/u);
   assert.match(html, /<details name="case-edit" id="portal-access" data-lead-group="" data-testid="v3-case-portal"[^>]*>/u);
   assert.match(text, /Доступ к порталу анкета одобрена/u);
-  assert.match(text, /Сведения Направление Китай Куратор АО Айгүл Осмонова Нагрузка кураторов Передал Эрмек Токтосунов · 30\.08 12:00 Продажа Эрмек Токтосунов Передано в поступление Контакты \+996 000 000 001 student@example\.invalid Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026/u);
+  assert.match(text, /Сведения Направление Китай Сменить направление Куратор АО Айгүл Осмонова Нагрузка кураторов Передал Эрмек Токтосунов · 30\.08 12:00 Продажа Эрмек Токтосунов Передано в поступление Контакты \+996 000 000 001 student@example\.invalid Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026/u);
   assert.match(html, /href="tel:\+996000000001"/u);
   assert.match(html, /href="\/v3\/profile\?view=curators&amp;coverage_curator=aaaaaaaa-1111-4111-8111-000000000001&amp;coverage_case=cccccccc-2222-4222-8222-000000000001#curator-coverage"/u);
 });
@@ -274,7 +274,7 @@ test("direct case: «Контакты» come from the анкета fields with o
   const html = surfaces.get("direct-case");
   const text = texts(html);
   // Снимок дела (Малайзия) - единственный источник; в строке очереди (Китай) другое значение, оно не берётся.
-  assert.match(text, /Сведения Направление Малайзия Куратор .* Контакты \+996 000 000 002 student-2@example\.invalid не подтверждено Документы/u);
+  assert.match(text, /Сведения Направление Малайзия Сменить направление Куратор .* Контакты \+996 000 000 002 student-2@example\.invalid не подтверждено Документы/u);
   assert.doesNotMatch(text, /Направление Китай/u);
   // «Доступ к порталу» по-прежнему ждёт подтверждённую почту клиента: неподтверждённое поле анкеты его не заполняет.
   assert.match(text, /Сначала добавьте студенту подтверждённый рабочий email/u);

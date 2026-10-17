@@ -3497,6 +3497,27 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_csca_learning.sql
   fi
+
+  # «Дописать и закрыть дела прямого импорта» (поручение владельца 17.10.2026):
+  # matched by name, not number, so a renumbering at merge keeps the hook.
+  # Members are modelled like production (coarse role NULL, the 244 bundles)
+  # and receive case.create.direct through 281's own publication function; the
+  # suite proves the service-only boundary (a user JWT, authenticated, anon, a
+  # non-Admin actor, a Student refused), that only cases created by the import
+  # are touched, the strict payload (every extra or forbidden key named, money
+  # and country included), the overwrite of the name, phone, e-mail and birth
+  # date and that an absent or blank value changes nothing, the contact of
+  # another client reported without personal data, parents, education, route,
+  # the board stage, the curator, the amoCRM lead id (a repeat and a conflict
+  # that applies nothing), the note, the closure for every outcome (an already
+  # closed case, a case without a curator, the curator in the same call),
+  # replay and PT409, the journal principals and request ids, that money,
+  # sales and 281's receipts are untouched, and the posture of the new objects.
+  if [[ "$(basename "$migration")" == *_platform_admissions_direct_update.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_admissions_direct_update.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

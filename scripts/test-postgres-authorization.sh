@@ -3518,6 +3518,24 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_admissions_direct_update.sql
   fi
+
+  # «Телефония Beeline KG», срез T1a (схема и RLS; docs/EVO_TELEPHONY_PLAN_
+  # 2026-10-16.md §5.2, §6, §7.1; ADR 0033). Matched by name, not number, so a
+  # renumbering at merge keeps the hook. The suite proves, with no telephony
+  # function yet: eleven FORCE-RLS tables and seven check helpers with no policy
+  # and no grant for any client role (catalog and 275 refused statements);
+  # every flag ships OFF with the plan's defaults and every bound refuses what
+  # it must; the recording link exists in one column (the leg, https only) and
+  # nowhere else, the evidence refuses token/link-like keys and link-like values
+  # and accepts the 19 documented PBX fields; the evidence and the chronology
+  # are append-only; the state, outcome, match, result, dial, leg, grant and
+  # task-link rules; a lead belongs to its client and follows it in a client
+  # merge; every foreign key is ON DELETE RESTRICT.
+  if [[ "$(basename "$migration")" == *_platform_telephony_schema.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_telephony_schema.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

@@ -3899,6 +3899,27 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_case_direction_audit.sql
   fi
+
+  # «Телефоны: остаточные случаи сопоставления после 281» (issue #1198,
+  # PLAN_CHANGES 17.10.2026). Matched by name, not number (the migration number
+  # is provisional), so a renumbering at merge keeps the hook. Members are
+  # modelled like production (coarse role NULL, the 244 bundles); cases come
+  # through 281's own command and import. Right after the migration the suite
+  # proves: a number of another country typed without «+» (10-15 digits) has the
+  # keys the direct path searches (+N, N, 00N) while the Kyrgyz spellings,
+  # numbers with «+», short numbers and national prefixes (8 701 ..., 0532 ...)
+  # keep what they had; a manual sales lead in any spelling of a stored +7 / +90
+  # number is a duplicate and creates nothing, the website lands on that client;
+  # a website enquiry on a client whose direct case is waiting for a curator or
+  # active joins the lead of that case (receipt, repeat touch, journal row with
+  # the case) and opens no sales lead, client or case, keeps the direction of
+  # the lead, replays and conflicts as before; an open lead still wins; a closed
+  # case opens a new lead as before; posture and refusals unchanged.
+  if [[ "$(basename "$migration")" == *_platform_phone_match_followup.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_phone_match_followup.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

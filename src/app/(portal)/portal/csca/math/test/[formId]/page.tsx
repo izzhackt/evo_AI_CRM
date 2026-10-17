@@ -6,7 +6,7 @@ import { TimedTestRunner } from "@/components/portal/csca/TimedTestRunner";
 import type { TitleMaps } from "@/components/portal/csca/TestResultView";
 import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
-import { isCscaUuid, type CscaHome, type CscaTestAttempt } from "@/lib/portal/csca";
+import { cscaTopicNextLessons, isCscaUuid, type CscaHome, type CscaTestAttempt } from "@/lib/portal/csca";
 import { readCscaHome, readCscaTestAttempt } from "@/lib/portal/csca-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
@@ -100,6 +100,7 @@ export default async function CscaTestPage({
         titles={titleMaps(home)}
         initialResult={result}
         homeHref="/portal/csca"
+        nextLessons={cscaTopicNextLessons(home.topics, home.lessons)}
       />
     </main>
   );

@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "rules": "Licence manifest of the CSCA overview photos (src/content/csca/photos, bundled by static import so they are served from /_next/static/media). Real campus photos only, Pexels only; no logos, signage, CSC or CSCA marks, no images from csca.cn or agencies; no caption presents a university as a partner (Pexels License: no implied endorsement). Files re-encoded on 2026-10-17 from the unchanged originals: WebP q72 method 6 and JPEG q:v 6 (720 px fallback), Lanczos, metadata stripped. Originals and the selection log stay outside Git in output/student-app-v2/csca-overview/photos of the canonical checkout.",
+  "photos": [
+    {
+      "key": "campus-sichuan",
+      "alt": {
+        "ru": "Исторический корпус Сычуаньского университета в Чэнду: красные колонны, черепичная крыша и широкая лестница",
+        "ky": "Чэнду шаарындагы Сычуань университетинин тарыхый имараты: кызыл колонналар, черепица чатыр жана кенен тепкич"
+      },
+      "author": "Oli Liao",
+      "authorUrl": "https://www.pexels.com/@oli-liao-883836674/",
+      "sourceName": "Pexels",
+      "sourceUrl": "https://www.pexels.com/photo/historic-building-at-sichuan-university-chengdu-37333836/",
+      "sourceTitle": "Historic Building at Sichuan University, Chengdu",
+      "licence": "Pexels License",
+      "licenceUrl": "https://www.pexels.com/license/",
+      "attributionRequired": false,
+      "uploadedOn": "2026-04-30",
+      "fetchedOn": "2026-10-17",
+      "licenceCheck": "2026-10-17: Pexels photo page opened; schema.org ImageObject license = https://www.pexels.com/license/, creator = Oli Liao; licence page re-read: attribution not required, no implied endorsement, no resale of unaltered copies",
+      "visualCheck": "2026-10-17: symmetrical front of a traditional style university building under a white overcast sky, sharp, no people, no readable signage, no logos, no watermark",
+      "people": "none",
+      "locationEvidence": "Pexels title and description name Sichuan University, Chengdu; contentLocation: Chengdu, China",
+      "objectPosition": "50% 55%",
+      "original": {
+        "width": 7562,
+        "height": 5044,
+        "bytes": 6612970,
+        "sha256": "85c55e52b5b8ffb6a15bc34a561d07e35230eea63de1a39d86314a317e4c7d8b",
+        "downloadUrl": "https://images.pexels.com/photos/37333836/pexels-photo-37333836.jpeg"
+      },
+      "files": [
+        { "path": "photos/campus-sichuan-240.webp", "format": "webp", "width": 240, "height": 161, "bytes": 7282, "sha256": "87e421a3642099f95aae46ca559a93e16032ed3ad3cb2aeae3c84f2b51d5c102" },
+        { "path": "photos/campus-sichuan-720.webp", "format": "webp", "width": 720, "height": 481, "bytes": 52592, "sha256": "2c6d812d579fe106af5d05b83e94c8ac0711b6e8a95d0dde9a35d444ab1ad48f" },
+        { "path": "photos/campus-sichuan-1280.webp", "format": "webp", "width": 1280, "height": 854, "bytes": 146720, "sha256": "264d50fa0095af882c18f126c62ae372a03ad565e23ca1037b36eeed4c1f26d7" },
+        { "path": "photos/campus-sichuan-720.jpg", "format": "jpeg", "width": 720, "height": 480, "bytes": 63025, "sha256": "7f3367b05751f4f6bb28ec870138287942dd08fb1b3fd6562b389f58e31c7af8" }
+      ]
+    },
+    {
+      "key": "campus-xiamen",
+      "alt": {
+        "ru": "Каменные трибуны и беговая дорожка университетского стадиона в Сямэне, над ними здания в традиционном китайском стиле",
+        "ky": "Сямэндеги университет стадионунун таш трибуналары жана чуркоо жолу, алардын үстүндө салттуу кытай стилиндеги имараттар"
+      },
+      "author": "gang liang",
+      "authorUrl": "https://www.pexels.com/@gang-liang-2159128498/",
+      "sourceName": "Pexels",
+      "sourceUrl": "https://www.pexels.com/photo/expansive-track-and-field-in-school-campus-36393321/",
+      "sourceTitle": "Expansive Track and Field in School Campus",
+      "licence": "Pexels License",
+      "licenceUrl": "https://www.pexels.com/license/",
+      "attributionRequired": false,
+      "uploadedOn": "2026-03-02",
+      "fetchedOn": "2026-10-17",
+      "licenceCheck": "2026-10-17: Pexels photo page opened; schema.org ImageObject license = https://www.pexels.com/license/, creator = gang liang; licence page re-read: attribution not required, no implied endorsement, no resale of unaltered copies",
+      "visualCheck": "2026-10-17: golden light, deep blue sky, sharp, no readable signage, no logos, no watermark",
+      "people": "several small distant figures exercising or sitting; none is the subject or identifiable",
+      "locationEvidence": "Pexels contentLocation: Xiamen, China. Pexels does not name the university, so the UI does not name it either",
+      "objectPosition": "45% 40%",
+      "original": {
+        "width": 4912,
+        "height": 3264,
+        "bytes": 2406609,
+        "sha256": "02bc92bf34931f0b089260c57dc9c35b48c3a9e1d52ca39d1052ad1ae7c3f058",
+        "downloadUrl": "https://images.pexels.com/photos/36393321/pexels-photo-36393321.jpeg"
+      },
+      "files": [
+        { "path": "photos/campus-xiamen-720.webp", "format": "webp", "width": 720, "height": 479, "bytes": 40680, "sha256": "b99536c3a8871289011aa44cfc9f855f99cf49aed590ddad840e63d3b3175405" },
+        { "path": "photos/campus-xiamen-1280.webp", "format": "webp", "width": 1280, "height": 851, "bytes": 115286, "sha256": "1bb80387962d1f6cbc6dad1ce45549c1b906fc78d16890858d6a67e7fa8731f0" },
+        { "path": "photos/campus-xiamen-720.jpg", "format": "jpeg", "width": 720, "height": 478, "bytes": 50165, "sha256": "5a35e151e11ffb75f846bee0ac6a020640901cf5f21749653dd7625ba19068ca" }
+      ]
+    }
+  ]
+}

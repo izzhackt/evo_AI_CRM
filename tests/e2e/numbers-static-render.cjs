@@ -591,7 +591,8 @@ function leadPage(name, tab = "overview", extra = {}) {
     requestIds: { ...requestIds, portal: "", cabinetPortal: "" },
     stages: ["new", "contacting", "qualified", "meeting_scheduled", "meeting_completed", "potential"].map((key) => ({ key, title: wording.salesStage(key) })),
     ownerOptions: [{ membershipId: ME, displayLabel: "Санжар Эскизов" }], ownerOptionsHaveMore: false, curators: [], curatorsAvailable: true,
-    agreement: scenario.agreement ?? null, submissions: null, calls: extra.calls ?? null, hrefFor, now: new Date("2026-09-27T06:00:00.000Z"),
+    agreement: scenario.agreement ?? null, submissions: null, calls: extra.calls ?? null, dial: extra.dial ?? null, hrefFor,
+    now: new Date("2026-09-27T06:00:00.000Z"),
   });
   const body = createElement(Profile, {
     profile, draft, sales, actor: ADMIN, organizationId: ORG, studentPortalCurators: [], studentPortalCuratorsAvailable: true,
@@ -1193,6 +1194,22 @@ const RECORDINGS_READ = Object.freeze({
   [uuid("92959295", 15)]: { canListen: false, legs: [{ legId: legId(6), state: "available" }] },
   // Звонок 16 с записью в ленте, но без ответа по записям (нет в карте): слова состояния, как в T5.
 });
+// «Телефония» T7: «Позвонить». Строка «Сегодня» лида и заявки — как её собирает `todayLeadItems`; задача — без лида в строке.
+function todayDialRows(dial) {
+  const { TodayRow } = require(join(ROOT, "src/components/v3/today/TodayRow.tsx"));
+  const row = (key, source, title) => ({
+    key, source, band: "today", title, who: { name: "Алина Тестовая", href: `/v3/profile?id=${LEAD_ID}` }, reason: "действие на сегодня",
+    due: { dueOn: "2026-09-27", dueAt: null }, since: null, waitingDays: null, openHref: `/v3/pipeline?lead=${LEAD_ID}`, task: null,
+  });
+  const items = [
+    row(`lead:${LEAD_ID}`, "leads", "Назначить следующее действие"),
+    row(`lead:${uuid("aaaaaaaa", 7)}`, "requests", "Разобрать заявку"),
+    row(`student:${uuid("aaaaaaaa", 8)}`, "students", "Задать следующий шаг"),
+    row(`staff:${uuid("aaaaaaaa", 9)}`, "tasks", "Рабочая задача"),
+  ];
+  const list = createElement("ul", null, items.map((item) => createElement(TodayRow, { key: item.key, item, nowIso: "2026-09-27T06:00:00.000Z", dial })));
+  return renderToStaticMarkup(withContexts(shell(ADMIN, null, list), "/v3/main", ""));
+}
 async function telephonyPages() {
   useE4Report();
   return [
@@ -1208,6 +1225,13 @@ async function telephonyPages() {
     { name: "lead-recordings", html: leadPage("early", "overview", { calls: { ...CALLS_WITH_RECORDINGS, recordings: RECORDINGS_READ } }) },
     { name: "lead-recordings-null", html: leadPage("early", "overview", { calls: { ...CALLS_WITH_RECORDINGS, recordings: null } }) },
     { name: "lead-recordings-unread", html: leadPage("early", "overview", { calls: CALLS_WITH_RECORDINGS }) },
+    // T7: «Позвонить» в заголовке лида и в строках «Сегодня»: открыт набор (сопоставлен / нет), выключен, не читался.
+    { name: "lead-dial", html: leadPage("early", "overview", { dial: { status: "ready", mapped: true } }) },
+    { name: "lead-dial-unmapped", html: leadPage("early", "overview", { dial: { status: "ready", mapped: false } }) },
+    { name: "lead-dial-off", html: leadPage("early", "overview", { dial: { status: "off" } }) },
+    { name: "today-dial", html: todayDialRows({ status: "ready", mapped: true }) },
+    { name: "today-dial-off", html: todayDialRows({ status: "off" }) },
+    { name: "today-dial-none", html: todayDialRows(null) },
   ];
 }
 

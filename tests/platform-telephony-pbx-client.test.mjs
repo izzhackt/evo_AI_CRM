@@ -119,7 +119,7 @@ function parsed(call) {
   return new URL(call.url);
 }
 
-test("the closed operation list is exactly six reads and the makecall stub", () => {
+test("the closed operation list is exactly six reads and the makecall write", () => {
   assert.deepEqual(
     TELEPHONY_PBX_OPERATIONS.map((operation) => `${operation.method} ${operation.path}`),
     [
@@ -135,9 +135,90 @@ test("the closed operation list is exactly six reads and the makecall stub", () 
   assert.ok(Object.isFrozen(TELEPHONY_PBX_OPERATIONS));
 });
 
-test("makeCall is a stub: it refuses without touching the network", async () => {
-  const { client, state } = harness(() => jsonResponse({}));
-  await assert.rejects(client.makeCall(), (error) => error instanceof TelephonyPbxError && error.code === "pbx_makecall_disabled");
+test("makeCall sends exactly one POST with a JSON body of phone and user, the key only in X-API-KEY", async () => {
+  const { client, state } = harness(() => jsonResponse({ callid: "2015948553" }));
+  const result = await client.makeCall({ phone: "996700000001", user: "u701" });
+  assert.deepEqual(result, { callId: "2015948553" });
+  assert.equal(state.calls.length, 1);
+  const call = state.calls[0];
+  const url = parsed(call);
+  assert.equal(url.protocol, "https:");
+  assert.equal(url.host, "tenant-test.ats.beeline.kg");
+  assert.equal(url.pathname, "/crmapi/v1/makecall");
+  assert.equal(url.search, "");
+  assert.equal(call.init.method, "POST");
+  assert.equal(call.init.headers["X-API-KEY"], KEY);
+  assert.equal(call.init.headers["Content-Type"], "application/json");
+  assert.equal(call.init.redirect, "manual");
+  assert.equal(call.init.cache, "no-store");
+  assert.ok(call.init.signal instanceof AbortSignal);
+  // Only the two fields EVO decides; never clid or show_phone, never the key, never a plus.
+  assert.deepEqual(JSON.parse(call.init.body), { phone: "996700000001", user: "u701" });
+  assert.ok(!call.init.body.includes(KEY) && !call.url.includes(KEY));
+  assert.ok(!Object.entries(call.init.headers).some(([name, value]) => name !== "X-API-KEY" && String(value).includes(KEY)));
+  assert.deepEqual(state.attempts.map((attempt) => [attempt.operation, attempt.attempt, attempt.status, attempt.errorCode]), [["makecall", 1, 200, null]]);
+});
+
+test("makeCall reads callid as a string or a number and keeps null when the PBX gave none", async () => {
+  assert.deepEqual(await harness(() => jsonResponse({ callid: 2015948553 })).client.makeCall({ phone: "996700000001", user: "u701" }), { callId: "2015948553" });
+  assert.deepEqual(await harness(() => jsonResponse({ callid: "c-1", clid: "996777777777" })).client.makeCall({ phone: "996700000001", user: "u701" }), { callId: "c-1" });
+  for (const body of [{}, { callid: "" }, { callid: " x " }, { callid: "a\nb" }, { callid: "x".repeat(201) }, { callid: null }, { callid: { id: 1 } }, { callid: 1.5 }]) {
+    assert.deepEqual(await harness(() => jsonResponse(body)).client.makeCall({ phone: "996700000001", user: "u701" }), { callId: null }, JSON.stringify(body));
+  }
+  // Not an object, or not JSON at all: a 2xx the caller cannot read (unconfirmed, never retried).
+  for (const body of ["[]", "7", "null", "not json", ""]) {
+    const { client, state } = harness(() => jsonResponse(body));
+    await assert.rejects(client.makeCall({ phone: "996700000001", user: "u701" }),
+      (error) => error instanceof TelephonyPbxError && error.code === "pbx_bad_response" && error.status >= 200 && error.status < 300, JSON.stringify(body));
+    assert.equal(state.calls.length, 1, "a body that cannot be read is not a reason to call twice");
+  }
+});
+
+test("makeCall is never retried: a timeout, a network error, a 429 and a 5xx each cost exactly one request", async () => {
+  const cases = [
+    [() => { throw Object.assign(new Error("x"), { name: "TimeoutError" }); }, "pbx_timeout", null],
+    [() => { throw new TypeError("fetch failed"); }, "pbx_network_error", null],
+    [() => jsonResponse({}, 429), "pbx_rate_limited", 429],
+    [() => jsonResponse({}, 500), "pbx_server_error", 500],
+    [() => jsonResponse({}, 503), "pbx_server_error", 503],
+  ];
+  for (const [handler, code, status] of cases) {
+    const { client, state } = harness(handler);
+    await assert.rejects(client.makeCall({ phone: "996700000001", user: "u701" }),
+      (error) => error instanceof TelephonyPbxError && error.code === code && error.status === status, code);
+    assert.equal(state.calls.length, 1, code);
+    assert.deepEqual(state.sleeps, [], code);
+  }
+});
+
+test("makeCall classifies the PBX answers by code, and a redirect is refused", async () => {
+  const cases = [
+    [jsonResponse("Invalid token", 401), "pbx_invalid_token"],
+    [jsonResponse("CRM switched off", 401), "pbx_crm_switched_off"],
+    [jsonResponse("CRM disabled", 401), "pbx_crm_disabled"],
+    [jsonResponse({}, 403), "pbx_forbidden"],
+    [jsonResponse("Validation error", 400), "pbx_validation_error"],
+    [jsonResponse({}, 405), "pbx_method_not_allowed"],
+    [new Response(null, { status: 302, headers: { location: "https://elsewhere.example.invalid/x" } }), "pbx_redirect_refused"],
+  ];
+  for (const [response, code] of cases) {
+    const { client, state } = harness(() => response);
+    await assert.rejects(client.makeCall({ phone: "996700000001", user: "u701" }), (error) => error.code === code, code);
+    assert.equal(state.calls.length, 1, code);
+  }
+});
+
+test("makeCall refuses a malformed phone or login before any request", async () => {
+  const { client, state } = harness(() => jsonResponse({ callid: "x" }));
+  for (const request of [
+    { phone: "+996700000001", user: "u701" }, { phone: "0700000001", user: "u701" }, { phone: "99670000", user: "u701" },
+    { phone: "9967000000011111", user: "u701" }, { phone: "99670000000a", user: "u701" }, { phone: "996700000001 ", user: "u701" },
+    { phone: "996700000001", user: "" }, { phone: "996700000001", user: "../groups" }, { phone: "996700000001", user: "u 701" },
+    { phone: "996700000001", user: "u701\n" }, { phone: 996700000001, user: "u701" }, { phone: "996700000001" },
+    { user: "u701" }, null, undefined, "996700000001",
+  ]) {
+    await assert.rejects(client.makeCall(request), (error) => error instanceof TelephonyPbxError && error.code === "pbx_validation_error", JSON.stringify(request));
+  }
   assert.equal(state.calls.length, 0);
 });
 

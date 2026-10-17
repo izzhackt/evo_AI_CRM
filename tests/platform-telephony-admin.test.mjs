@@ -739,10 +739,11 @@ test("the two commands are exact connected staff APIs; everything near them stay
     assert.equal(isRetiredPlatformRoute(path), false, path);
   }
   // The recordings stream (GET /api/v3/telephony/recordings/<leg>) is connected by slice T6 and checked strictly in
-  // tests/platform-telephony-recordings.test.mjs; only its bare prefix stays in this list.
+  // tests/platform-telephony-recordings.test.mjs; only its bare prefix stays in this list. The dial route
+  // (POST /api/v3/telephony/dial) is connected by slice T7 and checked in tests/platform-telephony-dial.test.mjs.
   const near = ["/api/v3/telephony", "/api/v3/telephony/", "/api/v3/telephony/settings/", "/api/v3/telephony/settings/x", "/api/v3/telephony/settings.json",
     "/api/v3/telephony/Settings", "/API/v3/telephony/settings", "/api/v3/telephony/extension", "/api/v3/telephony/extensions/", "/api/v3/telephony/extensions/x",
-    "/api/v3/telephony/dial", "/api/v3/telephony/pulse", "/api/v3/telephony/recordings", "/api/v2/telephony/settings", "/api/internal/telephony/settings",
+    "/api/v3/telephony/dial/", "/api/v3/telephony/dial/x", "/api/v3/telephony/pulse", "/api/v3/telephony/recordings", "/api/v2/telephony/settings", "/api/internal/telephony/settings",
     "/api/v3/telephony/settings%2f", "/api/v3/telephony//settings"];
   for (const path of near) assert.equal(isConnectedPlatformApi(path), false, path);
 });
@@ -773,7 +774,7 @@ test("the real proxy sends the two commands through the staff session gate and r
         assert.deepEqual(await response.json(), { error: "authentication_required" }, `${method} ${path}`);
       }
     }
-    for (const path of ["/api/v3/telephony/settings/x", "/api/v3/telephony/dial", "/api/v3/telephony"]) {
+    for (const path of ["/api/v3/telephony/settings/x", "/api/v3/telephony/dial/x", "/api/v3/telephony"]) {
       const response = await proxy(request(path));
       assert.equal(response.status, 403, path);
       assert.equal((await response.json()).error, "platform_route_not_connected", path);

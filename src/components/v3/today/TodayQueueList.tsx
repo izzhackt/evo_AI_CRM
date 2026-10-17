@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 
+import type { DialOptions } from "@/lib/v3/telephony-dial";
 import type { TodayBandView, TodayItem } from "@/lib/v3/today-queue";
 
 import { UndoToast } from "../blocks/UndoToast";
@@ -23,11 +24,14 @@ export function TodayQueueList({
   bands,
   nowIso,
   permissions,
+  dial = null,
 }: Readonly<{
   bands: readonly TodayBandView[];
   /** Момент чтения сервера: одинаковые сроки при рендере и гидрации. */
   nowIso: string;
   permissions: TaskRowPermissions;
+  /** «Позвонить» (Телефония, T7): у строк лидов и заявок, когда база открыла набор. */
+  dial?: DialOptions | null;
 }>) {
   // Одна ссылка на группы, пока сервер не прислал новые: иначе завершения сбрасывались бы каждый рендер.
   const completionBands = useMemo<readonly CompletionBand<TodayItem>[]>(() => bands.map((band) => ({
@@ -64,7 +68,7 @@ export function TodayQueueList({
               announce={announce}
               onCompleted={(completion) => completed(item, band, index, completion)}
             />
-          ) : <TodayRow key={item.key} item={item} nowIso={nowIso} />),
+          ) : <TodayRow key={item.key} item={item} nowIso={nowIso} dial={dial} />),
         }))}
       />
       <UndoToast items={toasts} onHold={hold} />

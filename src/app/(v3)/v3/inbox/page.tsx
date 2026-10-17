@@ -14,6 +14,8 @@ import { buildV3InboxHref, type V3InboxSort } from "@/lib/v3/inbox-href";
 import { v3InboxProfileHref } from "@/lib/v3/inbox-profile-link";
 import { readV3InboxMediaAttachmentContext } from "@/lib/v3/inbox-media";
 import { readInbox } from "@/lib/v3/inbox-source";
+import { DIAL_OFF, type DialOptions } from "@/lib/v3/telephony-dial";
+import { readDialOptions } from "@/lib/v3/telephony-dial-source";
 import { readV3ReplySnippets } from "@/lib/v3/reply-snippets-source";
 import { aiAgentFeatureOn } from "@/lib/server/ai-agent-internal-auth";
 
@@ -89,16 +91,20 @@ export default async function InboxPart({
   let mediaAttachmentContext: Awaited<
     ReturnType<typeof readV3InboxMediaAttachmentContext>
   > = null;
+  // «Позвонить» («Телефония Beeline KG», T7): только у диалога с привязанным лидом — набор получает
+  // идентификатор лида, а номер берётся на сервере. Нет лида, права или сбой — кнопки нет.
+  let dial: DialOptions = DIAL_OFF;
   if (view.selected) {
     const selected = view.selected;
     const canReply = selected.chat.replyAccess === "allowed" || selected.chat.replyAccess === "attention";
-    [replySnippets, mediaAttachmentContext] = await Promise.all([
+    [replySnippets, mediaAttachmentContext, dial] = await Promise.all([
       canReply ? readSnippets(actor) : Promise.resolve(null),
       readV3InboxMediaAttachmentContext(actor, {
         conversationId: selected.id,
         studentCaseId: selected.canonicalContext.studentCaseId,
         media: selected.chat.messages.flatMap((message) => message.media),
       }),
+      selected.canonicalContext.leadId ? readDialOptions(actor) : Promise.resolve(DIAL_OFF),
     ]);
     profileHref = v3InboxProfileHref(actor, selected.canonicalContext);
     profileLabel = profileHref?.startsWith("/v3/profile?case=") ? "Открыть дело" : "Карточка лида";
@@ -131,6 +137,7 @@ export default async function InboxPart({
         replySnippets={replySnippets}
         mediaAttachmentContext={mediaAttachmentContext}
         assistant={assistant}
+        dial={dial}
       />
     </PartShell>
   );

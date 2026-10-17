@@ -84,7 +84,18 @@ export type LeadCallsRead = Readonly<{
  */
 export type LeadCallsState =
   | Readonly<{ status: "off" }>
-  | Readonly<{ status: "ready"; canSetResult: boolean; hasMore: boolean; calls: readonly LeadCall[] }>
+  | Readonly<{
+      status: "ready";
+      canSetResult: boolean;
+      hasMore: boolean;
+      calls: readonly LeadCall[];
+      /**
+       * Записи звонков (срез T6): ноги с записью и право слушать, по `callId`. Нет поля — записи
+       * не читались (лента как в T5, слова о состоянии без плеера); `null` — чтение не удалось
+       * (то же); объект — база ответила, и плеер рисуется там, где она разрешила.
+       */
+      recordings?: LeadRecordings | null;
+    }>
   | Readonly<{ status: "unavailable" }>;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
@@ -236,6 +247,92 @@ export function leadCallsWindow(
   return Object.freeze({ since: notes.hasNext ? oldest : null, until: cursor?.createdAt ?? null });
 }
 
+// --- Записи звонков (срез T6) -------------------------------------------------
+
+/**
+ * Записи звонков лида («Телефония Beeline KG», срез T6; миграция 297,
+ * `platform.telephony_lead_recordings_v1`): у каких звонков есть записи, какие у них ноги
+ * (идентификатор и состояние) и может ли ЭТОТ сотрудник слушать. Ссылки на запись здесь нет и
+ * быть не может: звук идёт только через `GET /api/v3/telephony/recordings/<legId>`, а право
+ * слушать повторяют выдача и погашение в базе при каждом обращении.
+ */
+export const LEAD_RECORDING_LEG_STATES = ["available", "unavailable", "expired"] as const;
+export type LeadRecordingLegState = (typeof LEAD_RECORDING_LEG_STATES)[number];
+export type LeadRecordingLeg = Readonly<{ legId: string; state: LeadRecordingLegState }>;
+export type LeadCallRecordings = Readonly<{ canListen: boolean; legs: readonly LeadRecordingLeg[] }>;
+export type LeadRecordings = Readonly<Record<string, LeadCallRecordings>>;
+
+const RECORDINGS_KEYS = ["enabled", "calls"] as const;
+const RECORDINGS_CALL_KEYS = ["callId", "canListen", "legs"] as const;
+const RECORDINGS_LEG_KEYS = ["legId", "state"] as const;
+
+/**
+ * Ответ `telephony_lead_recordings_v1` по запрошенным звонкам: `enabled = false` (флаг
+ * выключили между двумя чтениями) — null; чужая форма, чужой звонок, повтор звонка, пустые ноги —
+ * `TelephonyShapeError`.
+ */
+export function normalizeLeadRecordingsRead(value: unknown, requested: readonly string[]): LeadRecordings | null {
+  const read = record(value, RECORDINGS_KEYS);
+  if (typeof read.enabled !== "boolean" || !Array.isArray(read.calls)) fail();
+  if (!read.enabled) {
+    if (read.calls.length > 0) fail();
+    return null;
+  }
+  if (read.calls.length > MAX_CALLS) fail();
+  const wanted = new Set(requested.map((id) => id.toLowerCase()));
+  const calls: Record<string, LeadCallRecordings> = {};
+  for (const entry of read.calls) {
+    const row = record(entry, RECORDINGS_CALL_KEYS);
+    if (typeof row.callId !== "string" || !UUID.test(row.callId) || typeof row.canListen !== "boolean") fail();
+    const callId = row.callId.toLowerCase();
+    if (!wanted.has(callId) || Object.hasOwn(calls, callId)) fail();
+    if (!Array.isArray(row.legs) || row.legs.length < 1 || row.legs.length > MAX_PARTICIPANTS) fail();
+    const seen = new Set<string>();
+    const legs = row.legs.map((item): LeadRecordingLeg => {
+      const leg = record(item, RECORDINGS_LEG_KEYS);
+      if (typeof leg.legId !== "string" || !UUID.test(leg.legId)) fail();
+      const legId = leg.legId.toLowerCase();
+      if (seen.has(legId)) fail();
+      seen.add(legId);
+      return Object.freeze({ legId, state: member(leg.state, LEAD_RECORDING_LEG_STATES) });
+    });
+    calls[callId] = Object.freeze({ canListen: row.canListen, legs: Object.freeze(legs) });
+  }
+  return Object.freeze(calls);
+}
+
+/** Ответ базы → записи звонков страницы; чужая форма и выключенный флаг — null (лента без плеера). */
+export function leadRecordingsState(value: unknown, requested: readonly string[]): LeadRecordings | null {
+  try {
+    return normalizeLeadRecordingsRead(value, requested);
+  } catch {
+    return null;
+  }
+}
+
+export type CallRecordingItem =
+  | Readonly<{ kind: "player"; legId: string; label: string }>
+  | Readonly<{ kind: "text"; text: string }>;
+
+/**
+ * Записи одного звонка словами: у доступной записи, которую сотрудник вправе слушать, — «Слушать»
+ * (у звонка из нескольких ног с записями — «Слушать запись 1», «Слушать запись 2»); у доступной,
+ * которую он слушать не вправе, — «Запись доступна руководителю»; у «временно недоступной» и
+ * «удалённой по сроку» — слова состояния. Ничего не выдумывается: нет записи — нет строки.
+ */
+export function callRecordingItems(recordings: LeadCallRecordings): readonly CallRecordingItem[] {
+  const many = recordings.legs.length > 1;
+  return recordings.legs.map((leg, index): CallRecordingItem => {
+    const name = many ? `Запись ${index + 1}` : "Запись";
+    if (leg.state === "available") {
+      return recordings.canListen
+        ? { kind: "player", legId: leg.legId, label: many ? `Слушать запись ${index + 1}` : "Слушать" }
+        : { kind: "text", text: `${name} доступна руководителю` };
+    }
+    return { kind: "text", text: leg.state === "unavailable" ? `${name} временно недоступна` : `${name} удалена по сроку хранения` };
+  });
+}
+
 // --- Слова ------------------------------------------------------------------
 
 /** «Входящий звонок» / «Исходящий звонок». */
@@ -290,7 +387,7 @@ export function callTalkText(call: Pick<LeadCall, "outcome" | "talkSeconds">): s
   return call.talkSeconds === null ? "—" : callDuration(call.talkSeconds);
 }
 
-/** Запись — только состояние словами; кнопки «Слушать» здесь нет (срез T6). */
+/** Запись — только состояние словами (так лента выглядит, пока записи не прочитаны; плеер — `callRecordingItems`). */
 export function callRecordingText(recording: LeadCallRecording): string | null {
   switch (recording) {
     case "available": return "Есть запись";

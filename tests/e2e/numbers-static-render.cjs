@@ -1171,6 +1171,28 @@ const CALLS_READY = {
       startedAt: "2026-09-24T09:00:00.000Z" }),
   ],
 };
+// «Телефония» T6: записи звонков (миграция 296, platform.telephony_lead_recordings_v1). Ноги — только
+// идентификатор и состояние, ссылки на запись нет; «может слушать» решила база.
+const legId = (n) => uuid("96969696", n);
+const CALLS_WITH_RECORDINGS = {
+  status: "ready", canSetResult: false, hasMore: false, calls: [
+    callRow(11, { startedAt: "2026-09-26T08:00:00.000Z", recording: "available" }),
+    callRow(12, { startedAt: "2026-09-26T07:30:00.000Z", recording: "available", direction: "in" }),
+    callRow(13, { startedAt: "2026-09-26T07:00:00.000Z", recording: "unavailable" }),
+    callRow(14, { startedAt: "2026-09-26T06:30:00.000Z", recording: "expired" }),
+    callRow(15, { startedAt: "2026-09-26T06:00:00.000Z", recording: "available" }),
+    callRow(16, { startedAt: "2026-09-26T05:30:00.000Z", recording: "available" }),
+    callRow(17, { startedAt: "2026-09-26T05:00:00.000Z", recording: "none", outcome: "busy", answeredAt: null, talkSeconds: null, managerName: null, participants: [] }),
+  ],
+};
+const RECORDINGS_READ = Object.freeze({
+  [uuid("92959295", 11)]: { canListen: true, legs: [{ legId: legId(1), state: "available" }] },
+  [uuid("92959295", 12)]: { canListen: true, legs: [{ legId: legId(2), state: "available" }, { legId: legId(3), state: "available" }] },
+  [uuid("92959295", 13)]: { canListen: true, legs: [{ legId: legId(4), state: "unavailable" }] },
+  [uuid("92959295", 14)]: { canListen: true, legs: [{ legId: legId(5), state: "expired" }] },
+  [uuid("92959295", 15)]: { canListen: false, legs: [{ legId: legId(6), state: "available" }] },
+  // Звонок 16 с записью в ленте, но без ответа по записям (нет в карте): слова состояния, как в T5.
+});
 async function telephonyPages() {
   useE4Report();
   return [
@@ -1181,6 +1203,11 @@ async function telephonyPages() {
       ...CALLS_READY, canSetResult: false, calls: CALLS_READY.calls.map((row) => ({ ...row, resultEditable: false })) } }) },
     { name: "lead-unavailable", html: leadPage("early", "overview", { calls: { status: "unavailable" } }) },
     { name: "lead-more", html: leadPage("early", "overview", { calls: { ...CALLS_READY, hasMore: true } }) },
+    // T6: записи звонков. Прочитаны — «Слушать»/слова состояния под строкой; не прочитаны (null) и не читались
+    // (поля нет) — слова состояния в мелкой строке, как в T5.
+    { name: "lead-recordings", html: leadPage("early", "overview", { calls: { ...CALLS_WITH_RECORDINGS, recordings: RECORDINGS_READ } }) },
+    { name: "lead-recordings-null", html: leadPage("early", "overview", { calls: { ...CALLS_WITH_RECORDINGS, recordings: null } }) },
+    { name: "lead-recordings-unread", html: leadPage("early", "overview", { calls: CALLS_WITH_RECORDINGS }) },
   ];
 }
 

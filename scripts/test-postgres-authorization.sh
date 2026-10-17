@@ -3756,6 +3756,33 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_telephony_settings.sql </dev/null
   fi
+
+  # «Телефония Beeline KG», срез T6 (выдача и погашение права слушать запись,
+  # учёт ответов источника, список записей звонков лида;
+  # docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.4, §7, §11, §12). Matched by name,
+  # not number, so a renumbering at merge keeps the hook. Right after the
+  # migration the suite proves: four public functions (grant and list for
+  # authenticated, consume and report for service_role only, the role check
+  # inside) and a closed scope helper; the whole telephony catalog; the switch
+  # (no settings row or ui_enabled = false refuses everyone, the Admin included);
+  # the rights (listen.all any recording, listen.own a call he is on ANY leg of,
+  # nobody else; an unknown leg looks like «not allowed» to everyone but a
+  # listen.all holder); expired / unavailable / no-recording legs; the grant
+  # (15 minutes, 40 uses, reused while valid, replaced after expiry or exhaustion,
+  # one journal row per NEW grant and none per Range request, no number, name or
+  # link in it, 30 new grants an hour per employee); consume (exact keys, the link
+  # only here, the use counted atomically, wrong employee / organization / expired
+  # / exhausted refused, a leg that stopped being available refused without
+  # counting the use); report (a 404 on a call younger than 360 days keeps the
+  # link and counts, three answers over six hours make it unavailable, 360 days
+  # clear the link and expire it, the call follows its legs, ok resets); the lead
+  # list (visibility by lead.read, who may listen, no link or number in it); and
+  # that the link is read by consume only.
+  if [[ "$(basename "$migration")" == *_platform_telephony_recordings.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_telephony_recordings.sql </dev/null
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

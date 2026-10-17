@@ -9,6 +9,7 @@ import type { PlatformSalesStage } from "../../../lib/platform-sales-contract.ts
 import { dayInOrganizationTimezone } from "../../../lib/platform-task-deadline.ts";
 import {
   callContact, callOutcomeText, callPeopleText, callRecordingText, callResultText, callTalkText, callTitle, type LeadCall,
+  type LeadCallRecordings,
 } from "../../../lib/v3/telephony-lead-calls.ts";
 
 /** id панели «Что дальше»: её открывают главное действие и «Изменить» в шапке (`popoverTarget`). */
@@ -225,10 +226,12 @@ export type LeadCallRowView = Readonly<{
  * выдумывается (нет разговора из сверки — «—», нет записи — ничего), полного
  * номера и ссылки на запись в данных нет.
  */
-export function leadCallRow(call: LeadCall, now: Date): LeadCallRowView {
+export function leadCallRow(call: LeadCall, now: Date, recordings: LeadCallRecordings | null = null): LeadCallRowView {
   const today = dayInOrganizationTimezone(now);
   const resultText = callResultText(call, (day) => leadDay(day, today));
-  const details = [call.phone, callPeopleText(call), callRecordingText(call.recording)]
+  // Записи прочитаны (срез T6): состояние записи говорит блок записи под строкой («Слушать», «Запись
+  // удалена по сроку хранения»), а не мелкая строка; не прочитаны — слова состояния, как в T5.
+  const details = [call.phone, callPeopleText(call), recordings === null ? callRecordingText(call.recording) : null]
     .filter((part): part is string => Boolean(part));
   const resultParts = [call.resultByName, call.resultAt ? leadMoment(call.resultAt, now) : null].filter((part): part is string => Boolean(part));
   const talk = callTalkText(call);

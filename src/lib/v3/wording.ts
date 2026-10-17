@@ -37,6 +37,17 @@ export function studentProfileFieldState(value: string): string | null {
   return Object.hasOwn(labels, value) ? labels[value] : null;
 }
 
+/**
+ * Пометка к контакту из анкеты в «Сведениях» дела (телефон и почта студента,
+ * когда клиента лида нет). Подтверждённое значение идёт без пометки; всё
+ * остальное - предложение распознавания или значение с импорта, ещё не
+ * сверенное с человеком, - называется одним словом, а не ключом состояния.
+ */
+export function studentProfileContactNote(state: string): string | null {
+  if (state === "confirmed") return null;
+  return state === "conflict" ? "источники расходятся" : "не подтверждено";
+}
+
 export function studentProfileProposalState(value: string): string | null {
   const labels: Record<string, string> = {
     pending: "Ожидает решения", accepted: "Принято", rejected: "Отклонено",

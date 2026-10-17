@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import type { HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
-import type { AdmissionsDirection } from "@/lib/platform-admissions-playbook-contract";
 import type { StudentCaseChecklistCounts } from "@/lib/platform-student-case-queue-contract";
 import { applicationStatus, caseChatAwaitState } from "@/lib/v3/wording";
 
@@ -15,7 +14,6 @@ import { Initials } from "../blocks/Initials";
 import { ProgressBar } from "../blocks/ProgressBar";
 import { StatusChip } from "../blocks/StatusChip";
 import type { TaskRowPermissions } from "../tasks/TaskQueueRow";
-import { DIRECTION_LABELS } from "./admissions-view";
 import { CaseHandoffBlock } from "./CaseHandoffBlock";
 import { CaseTaskList } from "./CaseTaskList";
 import { LeadEditGroups } from "./LeadEditGroups";
@@ -29,6 +27,8 @@ import {
   CASE_SALES_GROUP_ID,
   caseMomentLabel,
   type CaseApplicationLine,
+  type CaseContact,
+  type CaseContacts,
   type CaseFeedItem,
   type CaseWorkRead,
 } from "./case-work-view";
@@ -51,8 +51,10 @@ export type CaseOverviewInput = Readonly<{
   applications: readonly CaseApplicationLine[];
   /** null — оплаты в этом деле этому сотруднику не видно. */
   payment: Readonly<{ percent: number | null; remaining: string | null; financeStop: string | null }> | null;
-  contacts: Readonly<{ phone: string | null; email: string | null }>;
-  direction: AdmissionsDirection | null;
+  /** Телефон и почта студента с пометкой состояния (`caseContacts`); оба null - строки «Контакты» нет. */
+  contacts: CaseContacts;
+  /** Направление словом (`caseDirectionLabel`); null - «Не выбрано». */
+  direction: string | null;
   /** Куратор дела: имя из дела, id — из строки очереди (для «Нагрузки кураторов»). */
   curator: Readonly<{ name: string | null; membershipId: string | null; coverage: boolean }>;
   /** Кто и когда передал дело (контекст передачи); null — дело не из продаж. */
@@ -120,6 +122,61 @@ function Tasks({ input }: Readonly<{ input: CaseOverviewInput }>) {
         <CaseTaskList tasks={work.tasks.tasks} permissions={input.taskPermissions} nowIso={work.nowIso} />
       )}
     </section>
+  );
+}
+
+/** Ссылка набора номера: только у значения, в котором есть хотя бы пять цифр. */
+function telHref(value: string): string | null {
+  const dialable = value.replace(/[^\d+]/gu, "");
+  return /\d{5,}/u.test(dialable) ? `tel:${dialable}` : null;
+}
+
+/** Ссылка письма: только у значения, похожего на адрес (в анкете до проверки бывает что угодно). */
+function mailHref(value: string): string | null {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(value) ? `mailto:${value}` : null;
+}
+
+const PHONE_ROW = "flex min-h-11 w-fit max-w-full items-center gap-1.5 tabular-nums text-fg";
+const MAIL_ROW = "flex min-h-11 w-fit max-w-full items-center break-all text-fg";
+
+/**
+ * «Контакты»: телефон и почта студента. Пометка состояния («не подтверждено»)
+ * - тихая подпись без цвета: одна под значениями, если у них одно состояние,
+ * иначе у каждого своя. Нет значений - нет и строки.
+ */
+function ContactsFact({ contacts }: Readonly<{ contacts: CaseContacts }>) {
+  const present = [contacts.phone, contacts.email].filter((contact): contact is CaseContact => contact !== null);
+  if (present.length === 0) return null;
+  const shared = present.every((contact) => contact.note === present[0].note) ? present[0].note : null;
+  const note = (contact: CaseContact) => (shared === null && contact.note ? <span className="t-caption text-fg-2">{contact.note}</span> : null);
+  const phoneHref = contacts.phone ? telHref(contacts.phone.value) : null;
+  const emailHref = contacts.email ? mailHref(contacts.email.value) : null;
+  return (
+    <Fact term="Контакты" testId="v3-case-contacts">
+      {contacts.phone ? (
+        <div className="flex flex-wrap items-center gap-x-2">
+          {phoneHref ? (
+            <a href={phoneHref} className={`${PHONE_ROW} underline-offset-4 hover:underline`}>
+              <Icon name="phone" size={16} className="shrink-0 text-fg-3" />{contacts.phone.value}
+            </a>
+          ) : (
+            <span className={PHONE_ROW}><Icon name="phone" size={16} className="shrink-0 text-fg-3" />{contacts.phone.value}</span>
+          )}
+          {note(contacts.phone)}
+        </div>
+      ) : null}
+      {contacts.email ? (
+        <div className="flex flex-wrap items-center gap-x-2">
+          {emailHref ? (
+            <a href={emailHref} className={`${MAIL_ROW} underline-offset-4 hover:underline`}>{contacts.email.value}</a>
+          ) : (
+            <span className={MAIL_ROW}>{contacts.email.value}</span>
+          )}
+          {note(contacts.email)}
+        </div>
+      ) : null}
+      {shared ? <p className="t-caption text-fg-2">{shared}</p> : null}
+    </Fact>
   );
 }
 
@@ -205,7 +262,7 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
     <aside id={CASE_FACTS_ID} aria-labelledby="case-facts-title" className="min-w-0 scroll-mt-4" data-testid="v3-case-facts">
       <h2 id="case-facts-title" className="t-section text-fg">Сведения</h2>
       <dl className="mt-1">
-        <Fact term="Направление">{input.direction ? DIRECTION_LABELS[input.direction] : "Не выбрано"}</Fact>
+        <Fact term="Направление">{input.direction ?? "Не выбрано"}</Fact>
         <Fact term="Куратор">
           {(curator.name ? (
             <span className="inline-flex items-center gap-2"><Initials name={curator.name} decorative />{curator.name}</span>
@@ -229,18 +286,7 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
             {input.sales.nextAction ? <span className="block text-fg-2">{input.sales.nextAction}</span> : null}
           </Fact>
         ) : null}
-        {input.contacts.phone || input.contacts.email ? (
-          <Fact term="Контакты">
-            {input.contacts.phone ? (
-              <a href={`tel:${input.contacts.phone.replace(/[^\d+]/gu, "")}`} className="flex min-h-11 w-fit items-center gap-1.5 tabular-nums text-fg underline-offset-4 hover:underline">
-                <Icon name="phone" size={16} className="shrink-0 text-fg-3" />{input.contacts.phone}
-              </a>
-            ) : null}
-            {input.contacts.email ? (
-              <a href={`mailto:${input.contacts.email}`} className="flex min-h-11 w-fit max-w-full items-center break-all text-fg underline-offset-4 hover:underline">{input.contacts.email}</a>
-            ) : null}
-          </Fact>
-        ) : null}
+        <ContactsFact contacts={input.contacts} />
         {onRecord && handoff ? (
           <Fact term="Приём дела">
             {/* Как прежняя карточка «Приём дела»: решение, текст куратора (уточнение или причина отказа)

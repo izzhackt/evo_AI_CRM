@@ -225,7 +225,7 @@ function queueRow(fields = {}) {
   const nextAction = fields.step === undefined ? "Собрать апостиль на аттестат" : fields.step;
   const dueOn = nextAction ? fields.due === undefined ? "2026-09-20" : fields.due : null;
   return {
-    studentCaseId: CASE_ID, studentDisplayName: NAME, state: fields.state ?? "active", admissionsDirection: "CN",
+    studentCaseId: CASE_ID, studentDisplayName: NAME, state: fields.state ?? "active", admissionsDirection: fields.direction === undefined ? "CN" : fields.direction,
     targetCountry: "CN", targetDegree: "Бакалавриат", pipelineStage: fields.stage ?? "documents", pipelineHidden: false,
     nextAction, nextActionDueOn: dueOn, dueBand: queueView.caseNextActionBand(nextAction, dueOn, NOW), admissionsVersion: "7",
     currentCuratorMembershipId: ME, currentCuratorDisplayName: "Айгүл Осмонова", isMine: true,
@@ -273,12 +273,13 @@ function draft(fields = {}) {
   return {
     access: { documents: fields.documents ?? true, finance: fields.finance ?? false, studentProfile: true, contract: fields.contract ?? false },
     routeTarget: { leadId: null, studentCaseId: CASE_ID }, responsible: "Айгүл Осмонова", provider: null, person: [], study: [],
-    profileFields: null, studentApplication: fields.studentApplication ?? null, profileFieldSources: [],
+    profileFields: fields.profileFields ?? null, studentApplication: fields.studentApplication ?? null, profileFieldSources: [],
     documents: fields.documents === false ? [] : fields.documentGroups ?? DOCUMENTS,
     otherFiles: [], budget: null, currency: null, payments: [], paid: fields.paid ?? null, remaining: fields.remaining ?? null,
     paidPercent: fields.paidPercent ?? null,
     admissions: {
-      studentCaseId: CASE_ID, caseState: fields.state ?? "active", isCabinetCase: false, direction: "CN", applications: APPLICATIONS,
+      studentCaseId: CASE_ID, caseState: fields.state ?? "active", isCabinetCase: false, direction: fields.direction === undefined ? "CN" : fields.direction,
+      targetCountry: fields.targetCountry === undefined ? "CN" : fields.targetCountry, applications: APPLICATIONS,
       visa: null, finance: null,
       requestIds: { createApplication: uuid("22222222", 1), applications: {}, applicationDetails: {}, createStops: {}, resolveStops: {}, partnerDetails: {}, changeStatus: {} },
     },
@@ -343,6 +344,20 @@ function work(fields = {}) {
 // Закрытое дело: в журнале — «Состояние дела изменено» в момент закрытия.
 const CLOSED_ACTIVITY = { ...ACTIVITY, events: [activityEvent(20, "case.lifecycle.change", "overview", "2026-09-22T06:30:00.000Z"), ...ACTIVITY.events] };
 
+// Дело прямого студента (форма «Добавить студента», импорт): лид `converted`, его лидовые чтения не отдают,
+// поэтому у дела нет ни продажи, ни клиента лида. Контакты лежат в полях анкеты (`needs_review`), приёма дела нет.
+function profileField(key, value, state) {
+  return { key, value, state, reviewedAt: null, sourceDocumentVersionId: null, sourcePage: null, proposals: [] };
+}
+function profileFields(fields) {
+  return { studentCaseId: CASE_ID, profile: { id: uuid("11111111", 9), revision: 1 }, canInitialize: false, canReview: false, canExport: false, fields };
+}
+const NO_HANDOFF = { organizationId: ORG, studentCaseId: CASE_ID, assignmentEventId: null, canRespond: false, current: null, requestId: uuid("44444444", 9) };
+const DIRECT_FIELDS = profileFields([
+  profileField("mobile_phone", "+996 000 000 002", "needs_review"),
+  profileField("student_email", "student-2@example.invalid", "needs_review"),
+]);
+
 const SCENARIOS = {
   // Куратор открывает переданное ему дело: «Принять дело» — единственная красная кнопка.
   "curator-accept": { actor: CURATOR, profile: profile(), draft: draft({ handoff: HANDOFF_PENDING }), sales: null,
@@ -384,6 +399,20 @@ const SCENARIOS = {
     sales: null, notes: { ...NOTES, rows: [] },
     work: { ...work({ row: queueRow({ state: "pending", flags: ["needs_curator"] }), tasks: { kind: "forbidden" },
       chat: { kind: "forbidden" }, activity: { kind: "forbidden" } }), needsCurator: true } },
+  // Дело прямого студента, лида для чтения нет: «Контакты» из полей анкеты с одной подписью «не подтверждено»,
+  // «Направление» — из строки очереди дела (снимок дела направления не отдаёт). «Данных продажи» нет.
+  "direct-case": { actor: ADMIN, profile: profile(), sales: null,
+    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null, targetCountry: "MY", profileFields: DIRECT_FIELDS }),
+    work: work({ row: queueRow({ direction: "MY", flags: [] }), activity: ACTIVITY_AWAITING }) },
+  // То же без строки очереди: направление — по стране цели дела; телефон подтверждён (без подписи), почта нет (своя подпись).
+  "direct-case-no-row": { actor: ADMIN, profile: profile(), sales: null,
+    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null, targetCountry: "MY",
+      profileFields: profileFields([profileField("mobile_phone", "+996 000 000 002", "confirmed"), profileField("student_email", "student-2@example.invalid", "conflict")]) }),
+    work: work({ row: null, activity: ACTIVITY_AWAITING }) },
+  // Права на анкету нет и страна цели не из словарей: ни «Контактов», ни выдуманного направления.
+  "direct-case-closed-fields": { actor: CURATOR, profile: profile(), sales: null,
+    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null, targetCountry: "China", profileFields: null }),
+    work: work({ row: null, activity: ACTIVITY_AWAITING }) },
   // Просмотр роли Admin: ничего не пишет — ни «Принять дело», ни задачи, ни заметки, даже если снимок ждёт ответа.
   "preview-awaiting": { actor: { ...ADMIN, presentationRole: "admissions" }, profile: profile(), draft: draft({ handoff: HANDOFF_PENDING }), sales: null,
     work: work({ row: queueRow({ flags: ["awaiting_ack"] }), activity: ACTIVITY_AWAITING }) },

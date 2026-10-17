@@ -10,7 +10,6 @@ import { ApplicationDecision } from "../admissions/StudentApplications";
 import { studentsHandoffPending, type NextStepAccess } from "../students/students-queue-view";
 import { TaskComposerDialog } from "../tasks/TaskComposerDialog";
 import { TaskComposerContextMark } from "../tasks/task-composer-context";
-import { DIRECTION_LABELS } from "./admissions-view";
 import { CaseAcceptDrawer } from "./CaseAcceptDrawer";
 import { CaseHeader } from "./CaseHeader";
 import { CaseMoreMenu } from "./CaseMoreMenu";
@@ -21,6 +20,8 @@ import {
   CASE_PORTAL_GROUP_ID,
   caseApplicationLines,
   caseChecklistCounts,
+  caseContacts,
+  caseDirectionLabel,
   caseFeed,
   caseMomentLabel,
   casePortalStatus,
@@ -123,10 +124,14 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
   const caseAssignees = work.tasks.kind === "ready" ? work.tasks.assignees : [];
   const taskAllowed = !preview && !assignOnly && staffHasPermission(actor, "task.create");
   const closable = input.closure?.state === "active" && input.closure.canChange;
+  // Направление дела словом: снимок дела его не отдаёт, поэтому — строка очереди дела, затем страна цели.
+  const direction = caseDirectionLabel({
+    snapshot: admissions.direction, row: work.row?.admissionsDirection, targetCountry: admissions.targetCountry,
+  });
   // Контекст панели «Принять дело» — из уже прочитанного (передача, направление, шаг, продажа).
   const acceptContext = {
     handedOffBy: draft.handedOffBy ? { ...draft.handedOffBy, label: caseMomentLabel(draft.handedOffBy.at, work.today) } : null,
-    direction: admissions.direction ? DIRECTION_LABELS[admissions.direction] : null,
+    direction,
     step: work.row ? work.row.nextAction : profile.nextAction,
     sale: salesVisible && sales ? { manager: sales.lead.currentOwnerDisplayName, nextAction: sales.lead.nextActionText } : null,
   };
@@ -215,8 +220,9 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       documents={draft.access.documents ? caseChecklistCounts(draft.documents) : null}
       applications={applicationLines}
       payment={draft.access.finance ? { percent: draft.paidPercent, remaining: draft.remaining, financeStop: profile.financeStop } : null}
-      contacts={{ phone: profile.phone, email: profile.email }}
-      direction={admissions.direction}
+      // Клиент лида, если лид прочитан; дело прямого студента лида для чтения не имеет — тогда поля анкеты.
+      contacts={caseContacts({ phone: profile.phone, email: profile.email }, draft.profileFields)}
+      direction={direction}
       curator={{
         name: draft.responsible,
         membershipId: work.row?.currentCuratorMembershipId ?? null,

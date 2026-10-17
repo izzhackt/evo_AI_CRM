@@ -1,8 +1,8 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for the migration «Телефоны: остаточные случаи сопоставления
 -- после 281» (issue #1198; docs/PLAN_CHANGES.md «2026-10-17 · Телефоны:
--- остаточные случаи сопоставления после 281 (#1198, миграция 296, запись до
--- кода)»). Номер миграции предварительный; хук в
+-- остаточные случаи сопоставления после 281 (#1198, миграция 296,
+-- запись до кода)»; итоговый номер миграции 303); хук в
 -- scripts/test-postgres-authorization.sh привязан к имени файла миграции
 -- (*_platform_phone_match_followup.sql), поэтому переименование при слиянии его
 -- не ломает. Набор выполняется сразу после этой миграции. Набор 281
@@ -413,7 +413,7 @@ SELECT pg_temp.p198_assert((SELECT count(*) = 3 AND bool_and(e.resource_type = '
   AND (SELECT e.resource_id = :'p198_lead_a'::UUID AND e.after_state ->> 'student_case_id' = :'p198_case_a'
     FROM platform.audit_events e WHERE e.action = 'lead.website.receive' AND e.request_id = pg_temp.p198_id(5304)),
   'C5: the journal row stands on the lead of the case and names the case');
--- C6: an open lead is still joined first, as before 296; the journal row is the plain one.
+-- C6: an open lead is still joined first, as before 303; the journal row is the plain one.
 SELECT pg_temp.p198_assert((SELECT r.lead_id = :'p198_open_lead'::UUID FROM platform_private.website_lead_receipts r
       WHERE r.request_id = pg_temp.p198_id(5305))
   AND (SELECT t.lead_id = :'p198_open_lead'::UUID AND t.is_repeat FROM platform_private.lead_attribution_touches t

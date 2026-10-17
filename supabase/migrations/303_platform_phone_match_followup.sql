@@ -1,9 +1,10 @@
--- 296: телефоны, остаточные случаи сопоставления после 281 (issue #1198,
+-- 303: телефоны, остаточные случаи сопоставления после 281 (issue #1198,
 -- docs/PLAN_CHANGES.md «2026-10-17 · Телефоны: остаточные случаи сопоставления
--- после 281 (#1198, миграция 296, запись до кода)»). Номер предварительный:
--- окончательный присваивается при слиянии по свежему origin/main и ledger.
+-- после 281 (#1198, миграция 296, запись до кода)»). Запись писалась под номером 296;
+-- итоговый номер 303 присвоен при сведении 18.10 по свежему origin/main (последняя
+-- миграция 301, 302 занята аудитом направления) и сверяется ещё раз перед слиянием.
 --
--- Forward-only, на живых определениях 001–293. Обе заменяемые функции закреплены
+-- Forward-only, на живых определениях 001–302. Обе заменяемые функции закреплены
 -- md5 их текущего тела (шаблон 253/256/281): расхождение останавливает миграцию.
 -- Подписи, владельцы, права и search_path не меняются (CREATE OR REPLACE и
 -- замена фрагментов через pg_get_functiondef их сохраняют); новых клиентских
@@ -56,13 +57,13 @@ BEGIN;
 -- ---------------------------------------------------------------------------
 -- Якоря: заменяемые тела ровно те, что собрали 281 и 282.
 -- ---------------------------------------------------------------------------
-DO $a296_anchor$
+DO $a303_anchor$
 BEGIN
   -- Тело 281, без изменений до этой миграции.
   IF (SELECT md5(p.prosrc) FROM pg_catalog.pg_proc p
       WHERE p.oid = 'platform_private.person_phone_match_keys(text)'::regprocedure)
     IS DISTINCT FROM '4155ff91fac1be0e11843425a0ef3d66' THEN
-    RAISE EXCEPTION 'a296_anchor_drift: platform_private.person_phone_match_keys is not the 281 definition';
+    RAISE EXCEPTION 'a303_anchor_drift: platform_private.person_phone_match_keys is not the 281 definition';
   END IF;
   -- Тело 263 с заменами 281 (замки и поиск по написаниям) и 282 (список
   -- стран); значение посчитано по тексту миграций, метод сверен с якорем 281
@@ -70,20 +71,20 @@ BEGIN
   IF (SELECT md5(p.prosrc) FROM pg_catalog.pg_proc p
       WHERE p.oid = 'platform.receive_website_lead(uuid,uuid,uuid,text,text,integer,text,text,boolean,text,jsonb,jsonb)'::regprocedure)
     IS DISTINCT FROM '5ff3e987f45f568b4129af6b1fa7b242' THEN
-    RAISE EXCEPTION 'a296_anchor_drift: platform.receive_website_lead is not the 263 body with the 281 and 282 replacements';
+    RAISE EXCEPTION 'a303_anchor_drift: platform.receive_website_lead is not the 263 body with the 281 and 282 replacements';
   END IF;
 END
-$a296_anchor$;
+$a303_anchor$;
 
 -- Замена проверяемого фрагмента внутри тела (шаблон 173/244/281/282).
-CREATE FUNCTION pg_temp.a296_replace(p_signature TEXT, p_old TEXT, p_new TEXT, p_count INTEGER)
+CREATE FUNCTION pg_temp.a303_replace(p_signature TEXT, p_old TEXT, p_new TEXT, p_count INTEGER)
 RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE body TEXT; matches INTEGER;
 BEGIN
   body := pg_get_functiondef(to_regprocedure(p_signature));
   matches := (length(body) - length(replace(body, p_old, ''))) / length(p_old);
   IF body IS NULL OR matches IS DISTINCT FROM p_count THEN
-    RAISE EXCEPTION 'a296_replace_drift: % expected %, found %', p_signature, p_count, matches;
+    RAISE EXCEPTION 'a303_replace_drift: % expected %, found %', p_signature, p_count, matches;
   END IF;
   EXECUTE replace(body, p_old, p_new);
 END $$;
@@ -109,20 +110,20 @@ RETURNS TEXT[] LANGUAGE SQL IMMUTABLE SET search_path = '' AS $$
 $$;
 
 COMMENT ON FUNCTION platform_private.person_phone_match_keys(TEXT) IS
-  'Migration 281 + 296: every spelling under which another intake may have stored the number as typed; since 296 also a number of another country typed without «+» (10-15 digits) reads as «+» and those digits. Compare only; nothing is guessed.';
+  'Migration 281 + 303: every spelling under which another intake may have stored the number as typed; since 303 also a number of another country typed without «+» (10-15 digits) reads as «+» and those digits. Compare only; nothing is guessed.';
 
 -- ---------------------------------------------------------------------------
 -- b) Заявка с сайта после прямого дела: присоединение вместо нового лида
 -- ---------------------------------------------------------------------------
-SELECT pg_temp.a296_replace(
+SELECT pg_temp.a303_replace(
   'platform.receive_website_lead(uuid,uuid,uuid,text,text,integer,text,text,boolean,text,jsonb,jsonb)',
   $old$ touch JSONB; joined BOOLEAN:=FALSE;$old$,
   $new$ touch JSONB; joined BOOLEAN:=FALSE; direct_case UUID;$new$, 1);
 
-SELECT pg_temp.a296_replace(
+SELECT pg_temp.a303_replace(
   'platform.receive_website_lead(uuid,uuid,uuid,text,text,integer,text,text,boolean,text,jsonb,jsonb)',
   $old$  joined:=resolved_lead IS NOT NULL;$old$,
-  $new$  -- 296: no open lead, but the client has a direct-admissions case (the add-a-student button or the
+  $new$  -- 303: no open lead, but the client has a direct-admissions case (the add-a-student button or the
   -- import) in work: already an admissions student. The submission joins the lead of that case instead
   -- of opening a sales lead, which a handoff would turn into a second case (handoff_lead_to_admissions
   -- finds a case by the lead, not by the client). An open lead found above still wins; a closed case
@@ -138,7 +139,7 @@ SELECT pg_temp.a296_replace(
   END IF;
   joined:=resolved_lead IS NOT NULL;$new$, 1);
 
-SELECT pg_temp.a296_replace(
+SELECT pg_temp.a303_replace(
   'platform.receive_website_lead(uuid,uuid,uuid,text,text,integer,text,text,boolean,text,jsonb,jsonb)',
   $old$jsonb_build_object('source_key','website','request_id',p_request_id),'Website inquiry received with consent',p_request_id);$old$,
   $new$CASE WHEN direct_case IS NULL THEN jsonb_build_object('source_key','website','request_id',p_request_id)
@@ -153,7 +154,7 @@ COMMENT ON FUNCTION platform.receive_website_lead(UUID,UUID,UUID,TEXT,TEXT,INTEG
 -- ---------------------------------------------------------------------------
 -- Проверка: новые тела на месте, подписи и права прежние.
 -- ---------------------------------------------------------------------------
-DO $a296_verify$
+DO $a303_verify$
 BEGIN
   IF (SELECT prosrc FROM pg_catalog.pg_proc
         WHERE oid = 'platform_private.person_phone_match_keys(text)'::regprocedure) NOT LIKE '%''^[1-9][0-9]{9,14}$'' THEN ''+'' || t.n END%'
@@ -179,10 +180,10 @@ BEGIN
     OR has_function_privilege('anon',
         'platform.receive_website_lead(uuid,uuid,uuid,text,text,integer,text,text,boolean,text,jsonb,jsonb)', 'EXECUTE')
   THEN
-    RAISE EXCEPTION 'a296_verify_failed';
+    RAISE EXCEPTION 'a303_verify_failed';
   END IF;
 END
-$a296_verify$;
+$a303_verify$;
 
 NOTIFY pgrst, 'reload schema';
 COMMIT;

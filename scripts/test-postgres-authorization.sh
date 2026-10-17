@@ -3901,8 +3901,8 @@ SQL
   fi
 
   # «Телефоны: остаточные случаи сопоставления после 281» (issue #1198,
-  # PLAN_CHANGES 17.10.2026). Matched by name, not number (the migration number
-  # is provisional), so a renumbering at merge keeps the hook. Members are
+  # PLAN_CHANGES 17.10.2026). Matched by name, not number (a renumbering at
+  # merge keeps the hook; the migration is 303). Members are
   # modelled like production (coarse role NULL, the 244 bundles); cases come
   # through 281's own command and import. Right after the migration the suite
   # proves: a number of another country typed without «+» (10-15 digits) has the

@@ -400,10 +400,16 @@ const SCENARIOS = {
     work: { ...work({ row: queueRow({ state: "pending", flags: ["needs_curator"] }), tasks: { kind: "forbidden" },
       chat: { kind: "forbidden" }, activity: { kind: "forbidden" } }), needsCurator: true } },
   // Дело прямого студента, лида для чтения нет: «Контакты» из полей анкеты с одной подписью «не подтверждено»,
-  // «Направление» — из строки очереди дела (снимок дела направления не отдаёт). «Данных продажи» нет.
+  // «Направление» — из строки очереди дела (снимок дела направления не отдаёт); у строки и страны цели значения
+  // разные, поэтому видно, какой путь сработал. «Данных продажи» нет.
   "direct-case": { actor: ADMIN, profile: profile(), sales: null,
     draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null, targetCountry: "MY", profileFields: DIRECT_FIELDS }),
-    work: work({ row: queueRow({ direction: "MY", flags: [] }), activity: ACTIVITY_AWAITING }) },
+    work: work({ row: queueRow({ direction: "CN", flags: [] }), activity: ACTIVITY_AWAITING }) },
+  // Поля анкеты после импорта - свободный текст: два номера и «не почта» ссылками не становятся, подпись одна.
+  "direct-case-free-text": { actor: ADMIN, profile: profile(), sales: null,
+    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null, targetCountry: "MY",
+      profileFields: profileFields([profileField("mobile_phone", "+996 555 123456, +996 700 111222", "needs_review"), profileField("student_email", "см. анкету", "needs_review")]) }),
+    work: work({ row: null, activity: ACTIVITY_AWAITING }) },
   // То же без строки очереди: направление — по стране цели дела; телефон подтверждён (без подписи), почта нет (своя подпись).
   "direct-case-no-row": { actor: ADMIN, profile: profile(), sales: null,
     draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null, targetCountry: "MY",

@@ -251,9 +251,10 @@ export function caseDirectionLabel(input: Readonly<{
   if (direction) return DIRECTION_LABELS[direction];
   const target = input.targetCountry?.trim();
   if (!target) return null;
-  return target !== "unknown" && Object.hasOwn(DIRECTION_LABELS, target)
+  const label = target !== "unknown" && Object.hasOwn(DIRECTION_LABELS, target)
     ? DIRECTION_LABELS[target as AdmissionsDirection]
     : country(target);
+  return typeof label === "string" ? label : null;
 }
 
 /** id группы «Доступ к порталу» — её раскрывает «⋯ → Доступ к порталу» (тот же якорь, что у Lead 360). */

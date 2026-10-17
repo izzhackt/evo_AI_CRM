@@ -15,6 +15,7 @@ import {
   casePortalStatus,
 } from "../src/components/v3/profile/case-work-view.ts";
 import { studentsDocumentsLine } from "../src/components/v3/students/students-queue-view.ts";
+import { country } from "../src/lib/v3/wording.ts";
 
 /**
  * Дело студента «сначала работа» (решение владельца 26.09.2026,
@@ -262,7 +263,11 @@ test("the page: name as h1, «Дело студента» tab title, back to the
 test("direct case: «Контакты» come from the анкета fields with one quiet note, «Направление» from the queue row", () => {
   const html = surfaces.get("direct-case");
   const text = texts(html);
-  assert.match(text, /Сведения Направление Малайзия Куратор .* Контакты \+996 000 000 002 student-2@example\.invalid не подтверждено Документы/u);
+  // Строка очереди (Китай) главнее страны цели (Малайзия).
+  assert.match(text, /Сведения Направление Китай Куратор .* Контакты \+996 000 000 002 student-2@example\.invalid не подтверждено Документы/u);
+  // «Доступ к порталу» по-прежнему ждёт подтверждённую почту клиента: неподтверждённое поле анкеты его не заполняет.
+  assert.match(text, /Сначала добавьте студенту подтверждённый рабочий email/u);
+  assert.doesNotMatch(html, /name="email" value="student-2@example\.invalid"/u);
   // Одна подпись на оба значения, а не по подписи у каждого.
   assert.equal((text.match(/не подтверждено/gu) ?? []).length, 1);
   assert.match(html, /href="tel:\+996000000002"/u);
@@ -285,6 +290,14 @@ test("direct case without a queue row: direction by the target country, a note o
   assert.equal((text.match(/источники расходятся/gu) ?? []).length, 1);
   assert.doesNotMatch(text, /не подтверждено/u);
   assert.doesNotMatch(html, /\bconflict\b|\bconfirmed\b/u);
+});
+
+test("direct case with free-text анкета fields: a value that is not one number or one address is plain text, not a link", () => {
+  const html = surfaces.get("direct-case-free-text");
+  const text = texts(html);
+  assert.match(text, /Контакты \+996 555 123456, \+996 700 111222 см\. анкету не подтверждено Документы/u);
+  assert.doesNotMatch(html, /href="(?:tel|mailto):/u);
+  assert.equal((text.match(/не подтверждено/gu) ?? []).length, 1);
 });
 
 test("direct case without the анкета read and with an unknown country: no contacts, no invented direction", () => {
@@ -330,7 +343,11 @@ test("caseDirectionLabel: snapshot, then the queue row, then the target country;
   assert.equal(label(null, null, "EUROPE"), "Европа");
   assert.equal(label(null, null, " AE "), "ОАЭ");
   assert.equal(label(null, null, "IT"), "Италия");
-  for (const unknown of ["China", "unknown", "handed_off", "", "  ", null]) assert.equal(label(null, null, unknown), null, String(unknown));
+  for (const unknown of ["China", "unknown", "handed_off", "", "  ", null, "constructor", "__proto__", "toString", "hasOwnProperty"]) {
+    assert.equal(label(null, null, unknown), null, String(unknown));
+  }
+  // Словарь стран знает только свои ключи: имена из прототипа объекта - не слова.
+  for (const inherited of ["constructor", "__proto__", "toString", "valueOf"]) assert.equal(country(inherited), null, inherited);
 });
 
 test("the case-only branch of readCaseProfile keeps the client e-mail/phone null (portal access needs a confirmed e-mail) and carries the target country", () => {

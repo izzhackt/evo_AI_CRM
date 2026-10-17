@@ -7,14 +7,14 @@
 import type { PlatformAdmissionsTask } from "../../../lib/platform-admissions-task-contract.ts";
 import type { PlatformApplicationQueueRow } from "../../../lib/platform-application-contract.ts";
 import type { CaseChatMessage, CaseChatPage } from "../../../lib/platform-case-chat-contract.ts";
-import type { AdmissionsDirection } from "../../../lib/platform-admissions-playbook-contract.ts";
+import type { LeadSaleConditions } from "../../../lib/lead-sale-conditions-contract.ts";
 import type { StudentCaseChecklistCounts, StudentCaseQueueRow } from "../../../lib/platform-student-case-queue-contract.ts";
 import type { StudentApplication } from "../../../lib/student-application-contract.ts";
 import { dayInOrganizationTimezone } from "../../../lib/platform-task-deadline.ts";
 import { compareQueueTasks, taskIsOpen, type QueueTask } from "../../../lib/v3/task-queue.ts";
-import { country, documentReviewDecision, journalEvent, studentProfileContactNote } from "../../../lib/v3/wording.ts";
+import { financeMoney } from "../../../lib/platform-finance-entry-contract.ts";
+import { documentReviewDecision, journalEvent, studentProfileContactNote } from "../../../lib/v3/wording.ts";
 import { formatQueueDay } from "../queue/due-bucket.ts";
-import { DIRECTION_LABELS } from "./admissions-view.ts";
 import type { DocumentGroup } from "./document-types.ts";
 import type { ProfileEvent } from "./types.ts";
 
@@ -235,26 +235,80 @@ export function caseContacts(
   return Object.freeze({ phone: pick(client.phone, "mobile_phone"), email: pick(client.email, "student_email") });
 }
 
+/** Строка «Данных продажи»: подпись и значение; `day` - день `YYYY-MM-DD` для `<time>`. */
+export type CaseSaleRow = Readonly<{ key: string; label: string; value: string; day?: string }>;
+export type CaseSaleBlock = Readonly<{ key: "sale" | "wishes" | "education" | "conditions"; title: string; rows: readonly CaseSaleRow[] }>;
+
+const BUDGET_PERIODS: Readonly<Record<string, string>> = { year: "в год", program: "за программу" };
+
+/** «1 500,00 USD»; сумма без валюты не бывает (чтение держит пару), текст вместо суммы - как его ввели. */
+function saleMoney(minor: number | null, currency: string | null, raw: string): string | null {
+  if (minor !== null && currency !== null) return financeMoney(String(minor), currency);
+  return raw.trim() || null;
+}
+
+/** `YYYY-MM-DD` -> `ДД.ММ.ГГГГ`: дата договора может быть из прошлых лет, год нужен. */
+function saleDay(day: string): string {
+  const [year, month, date] = day.split("-");
+  return `${date}.${month}.${year}`;
+}
+
 /**
- * «Направление» дела словом. Снимок дела (`staff_student_case_read_snapshot`)
- * направления не отдаёт, поэтому после него идёт строка очереди дела (241, её
- * страница уже читает), затем страна цели дела: значение направления
- * (CN, MY, EUROPE, AE, TR) называет словарь направлений, код страны - общий
- * словарь стран. Неизвестное значение не показывается: null - «Не выбрано».
+ * «Данные продажи» дела только чтением (290): те же блоки и подписи, что формы
+ * карточки лида («Условия продажи», «Пожелания», «Образование», «Условия»), но
+ * без полей: пустое не рисуется, блок без значений не рисуется. Деньги, которых
+ * нет у читателя (ему закрыт финансовый раздел дела), сервер отдаёт пустыми -
+ * строки тогда просто нет. Ключей базы на экране нет: период бюджета - слово.
  */
-export function caseDirectionLabel(input: Readonly<{
-  snapshot: AdmissionsDirection | null;
-  row: AdmissionsDirection | null | undefined;
-  targetCountry: string | null;
-}>): string | null {
-  const direction = input.snapshot ?? input.row ?? null;
-  if (direction) return DIRECTION_LABELS[direction];
-  const target = input.targetCountry?.trim();
-  if (!target) return null;
-  const label = target !== "unknown" && Object.hasOwn(DIRECTION_LABELS, target)
-    ? DIRECTION_LABELS[target as AdmissionsDirection]
-    : country(target);
-  return typeof label === "string" ? label : null;
+export function caseSaleBlocks(conditions: LeadSaleConditions): readonly CaseSaleBlock[] {
+  const text = (key: string, label: string, value: string): CaseSaleRow | null => {
+    const trimmed = value.trim();
+    return trimmed ? { key, label, value: trimmed } : null;
+  };
+  const budget = saleMoney(conditions.conditionsBudgetMinor, conditions.conditionsBudgetCurrency, conditions.conditionsBudgetRaw);
+  const period = conditions.conditionsBudgetPeriod ? BUDGET_PERIODS[conditions.conditionsBudgetPeriod] ?? null : null;
+  const blocks: readonly Readonly<{ key: CaseSaleBlock["key"]; title: string; rows: readonly (CaseSaleRow | null)[] }>[] = [
+    { key: "sale", title: "Условия продажи", rows: [
+      text("service_label", "Услуга/пакет", conditions.serviceLabel),
+      conditions.signingDate ? { key: "signing_date", label: "Дата продажи", value: saleDay(conditions.signingDate), day: conditions.signingDate } : null,
+      text("service_cost", "Сумма", saleMoney(conditions.serviceCostMinor, conditions.serviceCostCurrency, conditions.serviceCostRaw) ?? ""),
+      text("paid", "Оплачено", saleMoney(conditions.paidMinor, conditions.paidCurrency, conditions.paidRaw) ?? ""),
+      text("payment_note", "Заметка об оплате", conditions.paymentNote),
+    ] },
+    { key: "wishes", title: "Пожелания", rows: [
+      text("wishes_countries", "Страны", conditions.wishesCountries),
+      text("wishes_study_fields", "Направления", conditions.wishesStudyFields),
+      text("wishes_education_level", "Уровень образования", conditions.wishesEducationLevel),
+      text("wishes_intake_year", "Год поступления", conditions.wishesIntakeYear),
+      text("wishes_intake_season", "Сезон поступления", conditions.wishesIntakeSeason),
+      text("wishes_universities", "Интересующие университеты", conditions.wishesUniversities),
+    ] },
+    { key: "education", title: "Образование", rows: [
+      text("education_current", "Текущее образование", conditions.educationCurrent),
+      text("education_grade", "Класс / курс", conditions.educationGrade),
+      text("education_marks", "Оценки", conditions.educationMarks),
+      text("education_english", "Уровень английского", conditions.educationEnglish),
+      text("education_certificates", "Сертификаты", conditions.educationCertificates),
+    ] },
+    { key: "conditions", title: "Условия", rows: [
+      text("conditions_budget", "Бюджет", [budget, budget ? period : null].filter(Boolean).join(" ")),
+      text("conditions_scholarship", "Стипендия", conditions.conditionsScholarship),
+      text("conditions_note", "Ограничения и пожелания", conditions.conditionsNote),
+    ] },
+  ];
+  return blocks
+    .map((block) => ({ key: block.key, title: block.title, rows: block.rows.filter((row): row is CaseSaleRow => row !== null) }))
+    .filter((block) => block.rows.length > 0);
+}
+
+/**
+ * Строка у названия свёрнутой группы: сумма и день продажи, если они есть,
+ * иначе названия заполненных блоков.
+ */
+export function caseSaleSummary(blocks: readonly CaseSaleBlock[]): string {
+  const rows = blocks.find((block) => block.key === "sale")?.rows ?? [];
+  const lead = ["service_cost", "signing_date"].flatMap((key) => rows.find((row) => row.key === key)?.value ?? []);
+  return lead.length > 0 ? lead.join(" · ") : blocks.map((block) => block.title.toLowerCase()).join(", ");
 }
 
 /** id группы «Доступ к порталу» — её раскрывает «⋯ → Доступ к порталу» (тот же якорь, что у Lead 360). */

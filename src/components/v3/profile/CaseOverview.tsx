@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import type { HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 import type { StudentCaseChecklistCounts } from "@/lib/platform-student-case-queue-contract";
-import { applicationStatus, caseChatAwaitState } from "@/lib/v3/wording";
+import { applicationStatus, caseChatAwaitState, caseDocumentsWords } from "@/lib/v3/wording";
 
 import { Icon } from "@/components/icons";
 
@@ -48,6 +48,8 @@ export type CaseOverviewInput = Readonly<{
   taskPermissions: TaskRowPermissions;
   /** null — нет права читать документы дела (нет чтения — нет числа). */
   documents: StudentCaseChecklistCounts | null;
+  /** Дело ждёт куратора (`pending`): рабочее место документов у такого дела не читается, причина — состояние дела, а не права. */
+  documentsAwaitCurator: boolean;
   applications: readonly CaseApplicationLine[];
   /** null — оплаты в этом деле этому сотруднику не видно. */
   payment: Readonly<{ percent: number | null; remaining: string | null; financeStop: string | null }> | null;
@@ -63,8 +65,10 @@ export type CaseOverviewInput = Readonly<{
   portal: Readonly<{ text: string; tone: "muted" | "warn" | "ok"; settings: ReactNode }> | null;
   /** Продажа в «Сведениях»; null — у сотрудника нет чтения продаж. */
   sales: Readonly<{ manager: string | null; nextAction: string | null }> | null;
-  /** Формы продажи — свёрнутая группа «Данные продажи»; null — группы нет. */
+  /** Свёрнутая группа «Данные продажи» (формы лида или условия дела прямого студента только чтением); null — группы нет. */
   salesData: ReactNode;
+  /** Строка у названия группы: менеджер продаж или сумма и день продажи дела без продаж. */
+  salesDataSummary: string;
   salesDataOpen: boolean;
   help: ReactNode;
   /** Лента (`caseFeed`) и заметка в одну строку; null — писать заметки нельзя (просмотр роли). */
@@ -194,7 +198,9 @@ function DocumentsFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
   const line = studentsDocumentsLine(input.documents);
   return (
     <Fact term="Документы" testId="v3-case-documents">
-      {line ? (
+      {input.documentsAwaitCurator ? (
+        <span className="text-fg-2">{caseDocumentsWords.awaitCurator}</span>
+      ) : line ? (
         // «N из M принято» полосой (Э1.3) — только из прочитанных чисел; пустой чек-лист
         // или числа, которые не сходятся, — строка итога без полосы.
         <div className="space-y-2">
@@ -353,7 +359,7 @@ function Groups({ input }: Readonly<{ input: CaseOverviewInput }>) {
         ) : null}
         {input.salesData ? (
           <Group id={CASE_SALES_GROUP_ID} title="Данные продажи" open={input.salesDataOpen} testId="v3-case-sales-data"
-            summary={input.sales?.manager ?? "менеджер не назначен"}>
+            summary={input.salesDataSummary}>
             <div className="flex flex-col gap-4">{input.salesData}</div>
           </Group>
         ) : null}

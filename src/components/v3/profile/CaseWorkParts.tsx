@@ -10,10 +10,12 @@ import { ApplicationDecision } from "../admissions/StudentApplications";
 import { studentsHandoffPending, type NextStepAccess } from "../students/students-queue-view";
 import { TaskComposerDialog } from "../tasks/TaskComposerDialog";
 import { TaskComposerContextMark } from "../tasks/task-composer-context";
+import { DIRECTION_LABELS } from "./admissions-view";
 import { CaseAcceptDrawer } from "./CaseAcceptDrawer";
 import { CaseHeader } from "./CaseHeader";
 import { CaseMoreMenu } from "./CaseMoreMenu";
 import { CaseHelpNoAccess, CaseOverview } from "./CaseOverview";
+import { CaseSaleData, CaseSaleUnavailable } from "./CaseSaleData";
 import { LeadNoteComposer } from "./LeadNoteComposer";
 import { StudentPortalAccessControls } from "./StudentPortalAccessCard";
 import {
@@ -21,11 +23,12 @@ import {
   caseApplicationLines,
   caseChecklistCounts,
   caseContacts,
-  caseDirectionLabel,
   caseFeed,
   caseMomentLabel,
   casePortalStatus,
   casePrimaryAction,
+  caseSaleBlocks,
+  caseSaleSummary,
   type CaseWorkRead,
 } from "./case-work-view";
 import { SalesOverview } from "./tabs";
@@ -124,10 +127,8 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
   const caseAssignees = work.tasks.kind === "ready" ? work.tasks.assignees : [];
   const taskAllowed = !preview && !assignOnly && staffHasPermission(actor, "task.create");
   const closable = input.closure?.state === "active" && input.closure.canChange;
-  // Направление дела словом: снимок дела его не отдаёт, поэтому — строка очереди дела, затем страна цели.
-  const direction = caseDirectionLabel({
-    snapshot: admissions.direction, row: work.row?.admissionsDirection, targetCountry: admissions.targetCountry,
-  });
+  // Направление дела словом - из снимка дела (290: он отдаёт `admissions_direction`); не выбрано - null.
+  const direction = admissions.direction ? DIRECTION_LABELS[admissions.direction] : null;
   // Контекст панели «Принять дело» — из уже прочитанного (передача, направление, шаг, продажа).
   const acceptContext = {
     handedOffBy: draft.handedOffBy ? { ...draft.handedOffBy, label: caseMomentLabel(draft.handedOffBy.at, work.today) } : null,
@@ -207,6 +208,17 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
     applications: applicationLines,
   });
 
+  // «Данные продажи»: у дела с лидом продаж - прежние формы; у дела прямого студента лид для чтения закрыт
+  // (`converted`), условия приходят отдельным чтением дела (290) и видны только чтением, пустое не рисуется.
+  const saleBlocks = salesVisible && sales ? [] : draft.saleConditions ? caseSaleBlocks(draft.saleConditions) : [];
+  const salesData = salesVisible && sales
+    ? <SalesOverview profile={profile} sales={sales} draft={draft} actor={actor} requestIds={input.requestIds} quiet />
+    : saleBlocks.length > 0 ? <CaseSaleData blocks={saleBlocks} />
+      : draft.saleConditionsUnavailable === true ? <CaseSaleUnavailable /> : null;
+  const salesDataSummary = salesVisible && sales
+    ? sales.lead.currentOwnerDisplayName ?? "менеджер не назначен"
+    : saleBlocks.length > 0 ? caseSaleSummary(saleBlocks) : "не прочитаны";
+
   const overview = (
     <CaseOverview
       studentCaseId={caseId}
@@ -218,6 +230,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
         caseManage: staffHasPermission(actor, "task.manage"), caseAssign: staffHasPermission(actor, "task.assign"),
       }}
       documents={draft.access.documents ? caseChecklistCounts(draft.documents) : null}
+      documentsAwaitCurator={admissions.caseState === "pending"}
       applications={applicationLines}
       payment={draft.access.finance ? { percent: draft.paidPercent, remaining: draft.remaining, financeStop: profile.financeStop } : null}
       // Клиент лида, если лид прочитан; дело прямого студента лида для чтения не имеет — тогда поля анкеты.
@@ -231,7 +244,8 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       handedOffBy={draft.handedOffBy ?? null}
       portal={portal}
       sales={salesVisible && sales ? { manager: sales.lead.currentOwnerDisplayName, nextAction: sales.lead.nextActionText } : null}
-      salesData={salesVisible && sales ? <SalesOverview profile={profile} sales={sales} draft={draft} actor={actor} requestIds={input.requestIds} quiet /> : null}
+      salesData={salesData}
+      salesDataSummary={salesDataSummary}
       salesDataOpen={input.salesDataOpen}
       help={assignOnly ? <CaseHelpNoAccess /> : input.help}
       feed={feed}

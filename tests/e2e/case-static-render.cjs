@@ -279,12 +279,13 @@ function draft(fields = {}) {
     paidPercent: fields.paidPercent ?? null,
     admissions: {
       studentCaseId: CASE_ID, caseState: fields.state ?? "active", isCabinetCase: false, direction: fields.direction === undefined ? "CN" : fields.direction,
-      targetCountry: fields.targetCountry === undefined ? "CN" : fields.targetCountry, applications: APPLICATIONS,
+      applications: APPLICATIONS,
       visa: null, finance: null,
       requestIds: { createApplication: uuid("22222222", 1), applications: {}, applicationDetails: {}, createStops: {}, resolveStops: {}, partnerDetails: {}, changeStatus: {} },
     },
     contract: null, handoffAcknowledgement: fields.handoff ?? HANDOFF_ACCEPTED, salesHandoffAcknowledgement: null,
-    saleConditions: fields.saleConditions ?? null, leadCabinetCase: null, contractSignedAt: null,
+    saleConditions: fields.saleConditions ?? null, ...(fields.saleConditionsUnavailable ? { saleConditionsUnavailable: true } : {}),
+    leadCabinetCase: null, contractSignedAt: null,
     handedOffBy: fields.handedOffBy === undefined ? HANDED_OFF_BY : fields.handedOffBy,
   };
 }
@@ -297,6 +298,15 @@ const SALE_CONDITIONS = {
   educationGrade: "4,6", educationMarks: "", educationEnglish: "IELTS 6.0", educationCertificates: "", conditionsBudgetRaw: "8000",
   conditionsBudgetMinor: 800000, conditionsBudgetCurrency: "USD", conditionsBudgetPeriod: "year", conditionsScholarship: "Нужна частичная",
   conditionsNote: "", updatedByMembershipId: OTHER, updatedAt: "2026-08-28T05:00:00.000Z", linkedSalesRegister: null,
+};
+// Условия дела прямого студента (290): то, что вернул бы staff_student_case_sale_conditions_v1 - при создании
+// дела внесены сумма договора и день продажи, остальное пусто (оплаты - события, не условия).
+const DIRECT_SALE_CONDITIONS = {
+  ...SALE_CONDITIONS, revision: 1, serviceLabel: "", signingDate: "2026-09-01", serviceCostRaw: "", paidRaw: "", paidMinor: null,
+  paidCurrency: null, paymentNote: "", wishesCountries: "", wishesStudyFields: "", wishesEducationLevel: "", wishesIntakeYear: "",
+  wishesIntakeSeason: "", wishesUniversities: "", educationCurrent: "", educationGrade: "", educationMarks: "", educationEnglish: "",
+  educationCertificates: "", conditionsBudgetRaw: "", conditionsBudgetMinor: null, conditionsBudgetCurrency: null,
+  conditionsBudgetPeriod: null, conditionsScholarship: "", conditionsNote: "",
 };
 const SALES = {
   lead: { leadId: LEAD_ID, currentOwnerMembershipId: OTHER, currentOwnerDisplayName: "Эрмек Токтосунов", stageKey: "won",
@@ -385,6 +395,12 @@ const SCENARIOS = {
   // Дело ждёт куратора: у того, кто назначает кураторов, «Назначить куратора» — прежняя форма в шапке.
   "needs-curator": { actor: ADMIN, profile: profile(), draft: { ...draft({ handoff: null }), responsible: null }, sales: null,
     work: { ...work({ row: queueRow({ flags: ["needs_curator"] }), activity: ACTIVITY_AWAITING }), needsCurator: true } },
+  // Admin открыл дело «Ждёт куратора» (17.10.2026): снимок разделов обещает ему документы, а рабочего места
+  // документов у дела `pending` в базе нет — `loadFullCase` сужает доступ по состоянию дела. Вкладки «Документы»
+  // нет, строка «Сведений» называет причину (не «нет доступа»); остальные разделы Admin читаются как прежде.
+  "pending-admin": { actor: ADMIN, profile: profile({ state: "pending" }), sales: null,
+    draft: { ...draft({ state: "pending", documents: false, handoff: null, handedOffBy: null }), responsible: null },
+    work: { ...work({ row: queueRow({ state: "pending", flags: ["needs_curator"] }), activity: ACTIVITY_AWAITING }), needsCurator: true } },
   // Руководитель поступления открыл дело из «Ждут куратора» (248/281): назначает куратора, а права на само
   // дело нет. Ни «Задачи по делу», ни заметки; задачи, обращения и журнал — «нет доступа», без «Обновите страницу».
   "assign-only": { actor: { ...CURATOR, displayName: "Руководитель поступления (синтетический)",
@@ -400,29 +416,41 @@ const SCENARIOS = {
     work: { ...work({ row: queueRow({ state: "pending", flags: ["needs_curator"] }), tasks: { kind: "forbidden" },
       chat: { kind: "forbidden" }, activity: { kind: "forbidden" } }), needsCurator: true } },
   // Дело прямого студента, лида для чтения нет: «Контакты» из полей анкеты с одной подписью «не подтверждено»,
-  // «Направление» — из строки очереди дела (снимок дела направления не отдаёт); у строки и страны цели значения
-  // разные, поэтому видно, какой путь сработал. «Данных продажи» нет.
+  // «Направление» - из снимка дела (290); в строке очереди другое значение, и оно не берётся. «Данные продажи» -
+  // условия лида только чтением: сумма и день продажи, внесённые при создании дела.
   "direct-case": { actor: ADMIN, profile: profile(), sales: null,
-    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null, targetCountry: "MY", profileFields: DIRECT_FIELDS }),
+    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: "MY", profileFields: DIRECT_FIELDS, saleConditions: DIRECT_SALE_CONDITIONS }),
     work: work({ row: queueRow({ direction: "CN", flags: [] }), activity: ACTIVITY_AWAITING }) },
   // Поля анкеты после импорта - свободный текст: два номера и «не почта» ссылками не становятся, подпись одна;
   // два номера через пробел и почта с темой письма тоже остаются текстом.
   "direct-case-free-text": { actor: ADMIN, profile: profile(), sales: null,
-    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null, targetCountry: "MY",
+    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null,
       profileFields: profileFields([profileField("mobile_phone", "+996 000 000 005, +996 000 000 006", "needs_review"), profileField("student_email", "см. анкету", "needs_review")]) }),
     work: work({ row: null, activity: ACTIVITY_AWAITING }) },
   "direct-case-two-numbers": { actor: ADMIN, profile: profile(), sales: null,
-    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null, targetCountry: "MY",
+    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null,
       profileFields: profileFields([profileField("mobile_phone", "0000 000 005 0000 000 006", "needs_review"), profileField("student_email", "a@example.invalid?subject=x", "needs_review")]) }),
     work: work({ row: null, activity: ACTIVITY_AWAITING }) },
-  // То же без строки очереди: направление — по стране цели дела; телефон подтверждён (без подписи), почта нет (своя подпись).
+  // Направления в снимке нет: «Не выбрано», даже если строка очереди или страна цели что-то говорят (запасных путей нет);
+  // телефон подтверждён (без подписи), почта нет (своя подпись). Условий продажи у дела нет - группы нет.
   "direct-case-no-row": { actor: ADMIN, profile: profile(), sales: null,
-    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null, targetCountry: "MY",
+    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null,
       profileFields: profileFields([profileField("mobile_phone", "+996 000 000 002", "confirmed"), profileField("student_email", "student-2@example.invalid", "conflict")]) }),
-    work: work({ row: null, activity: ACTIVITY_AWAITING }) },
-  // Права на анкету нет и страна цели не из словарей: ни «Контактов», ни выдуманного направления.
+    work: work({ row: queueRow({ direction: "CN", flags: [] }), activity: ACTIVITY_AWAITING }) },
+  // Права на анкету нет: ни «Контактов», ни выдуманного направления; у читателя без финансового раздела сервер отдал
+  // условия без денег - в группе только день продажи.
   "direct-case-closed-fields": { actor: CURATOR, profile: profile(), sales: null,
-    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null, targetCountry: "China", profileFields: null }),
+    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: null, profileFields: null,
+      saleConditions: { ...DIRECT_SALE_CONDITIONS, serviceCostMinor: null, serviceCostCurrency: null } }),
+    work: work({ row: null, activity: ACTIVITY_AWAITING }) },
+  // Дело прямого студента с заполненными блоками: четыре блока, подзаголовки, период бюджета словом, без форм.
+  "direct-case-sale-full": { actor: ADMIN, profile: profile(), sales: null,
+    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: "CN", profileFields: DIRECT_FIELDS,
+      saleConditions: { ...SALE_CONDITIONS, leadId: LEAD_ID, paidMinor: null, paidCurrency: null, paidRaw: "" } }),
+    work: work({ row: null, activity: ACTIVITY_AWAITING }) },
+  // Чтение условий не удалось: группа называет это, страница работает.
+  "direct-case-sale-unavailable": { actor: ADMIN, profile: profile(), sales: null,
+    draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: "MY", profileFields: DIRECT_FIELDS, saleConditionsUnavailable: true }),
     work: work({ row: null, activity: ACTIVITY_AWAITING }) },
   // Просмотр роли Admin: ничего не пишет — ни «Принять дело», ни задачи, ни заметки, даже если снимок ждёт ответа.
   "preview-awaiting": { actor: { ...ADMIN, presentationRole: "admissions" }, profile: profile(), draft: draft({ handoff: HANDOFF_PENDING }), sales: null,

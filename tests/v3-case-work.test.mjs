@@ -4,18 +4,23 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { build } from "esbuild";
+
 import {
   caseApplicationLines,
   caseChatWork,
   caseChecklistCounts,
   caseContacts,
-  caseDirectionLabel,
   caseMomentLabel,
   caseOpenTasks,
   casePortalStatus,
+  caseSaleBlocks,
+  caseSaleSummary,
 } from "../src/components/v3/profile/case-work-view.ts";
 import { studentsDocumentsLine } from "../src/components/v3/students/students-queue-view.ts";
-import { country } from "../src/lib/v3/wording.ts";
+import { caseSectionAccessForState, readCaseProfileSections } from "../src/lib/v3/case-access-contract.ts";
+import { getPlatformCaseDocumentWorkspace, PlatformPrivateDocumentsRepositoryError } from "../src/lib/platform-private-documents.ts";
+import { caseDocumentsWords, country } from "../src/lib/v3/wording.ts";
 
 /**
  * Дело студента «сначала работа» (решение владельца 26.09.2026,
@@ -31,6 +36,11 @@ const surfaces = new Map(JSON.parse(execFileSync(
   [fileURLToPath(new URL("./e2e/case-static-render.cjs", import.meta.url)), "--json"],
   { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
 )).map((surface) => [surface.name, surface.html]));
+// Настоящий разбор ответа RPC условий дела (290) с его зависимостями, без подмен: модуль тянет импорты без расширения.
+const { parseCaseSaleConditionsResult } = await import(`data:text/javascript;base64,${Buffer.from((await build({
+  entryPoints: [fileURLToPath(new URL("../src/lib/lead-sale-conditions-contract.ts", import.meta.url))],
+  bundle: true, write: false, platform: "node", format: "esm",
+})).outputFiles[0].text).toString("base64")}`);
 const texts = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
 /**
  * Разметка без свёрнутого: закрытых `<details>` и скрытых областей
@@ -260,11 +270,12 @@ test("the page: name as h1, «Дело студента» tab title, back to the
 // Дело прямого студента (форма «Добавить студента», импорт из amoCRM): его лид `converted`, лидовые
 // чтения отдают только `open`, и `readCaseProfile` идёт по ветке «только дело» без клиента лида.
 
-test("direct case: «Контакты» come from the анкета fields with one quiet note, «Направление» from the queue row", () => {
+test("direct case: «Контакты» come from the анкета fields with one quiet note, «Направление» from the case snapshot only", () => {
   const html = surfaces.get("direct-case");
   const text = texts(html);
-  // Строка очереди (Китай) главнее страны цели (Малайзия).
-  assert.match(text, /Сведения Направление Китай Куратор .* Контакты \+996 000 000 002 student-2@example\.invalid не подтверждено Документы/u);
+  // Снимок дела (Малайзия) - единственный источник; в строке очереди (Китай) другое значение, оно не берётся.
+  assert.match(text, /Сведения Направление Малайзия Куратор .* Контакты \+996 000 000 002 student-2@example\.invalid не подтверждено Документы/u);
+  assert.doesNotMatch(text, /Направление Китай/u);
   // «Доступ к порталу» по-прежнему ждёт подтверждённую почту клиента: неподтверждённое поле анкеты его не заполняет.
   assert.match(text, /Сначала добавьте студенту подтверждённый рабочий email/u);
   assert.doesNotMatch(html, /name="email" value="student-2@example\.invalid"/u);
@@ -272,8 +283,8 @@ test("direct case: «Контакты» come from the анкета fields with o
   assert.equal((text.match(/не подтверждено/gu) ?? []).length, 1);
   assert.match(html, /href="tel:\+996000000002"/u);
   assert.match(html, /href="mailto:student-2@example\.invalid"/u);
-  // Продажи у дела нет: ни «Данных продажи», ни «Условий продажи», ни «Продажа» в «Сведениях».
-  assert.doesNotMatch(text, /Данные продажи|Условия продажи|Продажа /u);
+  // Менеджера продаж у дела нет: ни «Продажа» в «Сведениях», ни «менеджер не назначен», ни форм условий.
+  assert.doesNotMatch(text, /Продажа |менеджер не назначен|Условия продажи/u);
   // Ни ключа поля, ни ключа состояния на экране.
   assert.doesNotMatch(html, /needs_review|mobile_phone|student_email|admissions_direction|converted/u);
   assert.doesNotMatch(text, /Не выбрано/u);
@@ -281,15 +292,79 @@ test("direct case: «Контакты» come from the анкета fields with o
   assert.doesNotMatch(html, /<[^>]+class="[^"]*\b(?:text-danger|text-warn)\b[^"]*"[^>]*>не подтверждено/u);
 });
 
-test("direct case without a queue row: direction by the target country, a note only on the value that needs it", () => {
+/** Разметка группы «Данные продажи» (`details`) от её начала до закрытия; "" - группы нет. */
+function saleGroup(html) {
+  const at = html.indexOf('data-testid="v3-case-sales-data"');
+  if (at < 0) return "";
+  const open = html.lastIndexOf("<details", at);
+  return html.slice(open, html.indexOf("</details>", at) + "</details>".length);
+}
+
+test("direct case: «Данные продажи» show the conditions of the converted lead read-only, with the sum and the day in the title", () => {
+  const html = surfaces.get("direct-case");
+  const group = saleGroup(html);
+  assert.ok(group, "the group is drawn");
+  // Закрыта (раскрывает `?panel=sales` и `#sale-conditions`); в строке у названия - сумма и день продажи.
+  assert.doesNotMatch(group.slice(0, group.indexOf(">") + 1), /\bopen\b/u);
+  assert.match(texts(group), /^Данные продажи 1 500,00 USD · 01\.09\.2026 /u);
+  // Заполнено только то, что внесено при создании дела: один блок без подзаголовка, две строки, без пустых ключей.
+  assert.match(texts(group), /Дата продажи 01\.09\.2026 Сумма 1 500,00 USD$/u);
+  assert.doesNotMatch(texts(group), /Услуга|Оплачено|Заметка|Пожелания|Образование|Условия|Бюджет|Стипендия/u);
+  assert.equal((group.match(/<h3/gu) ?? []).length, 0);
+  // Только чтение: ни полей, ни кнопок, ни форм.
+  assert.doesNotMatch(group, /<(?:input|select|textarea|button|form)\b/u);
+  // Якорь «Условия продажи» из «Договора и оплаты» стоит в самой группе; день - <time>.
+  assert.match(group, /id="sale-conditions"/u);
+  assert.match(group, /<time dateTime="2026-09-01"[^>]*>01\.09\.2026<\/time>/u);
+});
+
+test("direct case with all four blocks: titles, the budget period as a word, no raw keys, still no form", () => {
+  const group = saleGroup(surfaces.get("direct-case-sale-full"));
+  const text = texts(group);
+  assert.match(text, /Условия продажи Услуга\/пакет Поступление в Китай «под ключ» Дата продажи 28\.08\.2026 Сумма 1 500,00 USD Заметка об оплате Вторая часть — после оффера\./u);
+  assert.match(text, /Пожелания Страны Китай Направления Экономика, IT Уровень образования Бакалавриат Год поступления 2027 Сезон поступления Осень Интересующие университеты Шанхайский университет/u);
+  assert.match(text, /Образование Текущее образование 11 класс Класс \/ курс 4,6 Уровень английского IELTS 6\.0 Условия Бюджет 8 000,00 USD в год Стипендия Нужна частичная/u);
+  // Пустые ключи (оценки, сертификаты, оплачено, примечание условий) не рисуются.
+  assert.doesNotMatch(text, /Оценки|Сертификаты|Оплачено|Ограничения и пожелания/u);
+  assert.equal((group.match(/<h3/gu) ?? []).length, 4);
+  assert.doesNotMatch(group, /<(?:input|select|textarea|button|form)\b/u);
+  assert.doesNotMatch(group, /\byear\b|\bprogram\b|service_cost|conditions_budget|wishes_|revision/u);
+  assert.match(text, /^Данные продажи 1 500,00 USD · 28\.08\.2026 /u);
+});
+
+test("direct case without a finance section: the group holds the signing day only, no money", () => {
+  const html = surfaces.get("direct-case-closed-fields");
+  const group = saleGroup(html);
+  assert.match(texts(group), /^Данные продажи 01\.09\.2026 Дата продажи 01\.09\.2026$/u);
+  assert.doesNotMatch(texts(group), /USD|Сумма|Оплачено/u);
+  // Права на анкету нет и в снимке нет направления: ни «Контактов», ни выдуманного направления.
+  const text = texts(html);
+  assert.match(text, /Направление Не выбрано /u);
+  assert.doesNotMatch(text, /Контакты/u);
+  assert.doesNotMatch(html, /href="(?:tel|mailto):/u);
+});
+
+test("direct case whose conditions could not be read: the group says so, the page works", () => {
+  const html = surfaces.get("direct-case-sale-unavailable");
+  const group = saleGroup(html);
+  assert.match(texts(group), /^Данные продажи не прочитаны Не удалось прочитать данные продажи\. Обновите страницу, чтобы повторить\.$/u);
+  assert.match(group, /<p role="alert"[^>]*data-testid="v3-case-sale-unavailable"/u);
+  assert.match(texts(html), /Сведения Направление Малайзия/u);
+});
+
+test("direct case without a direction in the snapshot and without stored conditions: «Не выбрано», no group, no fallback", () => {
   const html = surfaces.get("direct-case-no-row");
   const text = texts(html);
-  assert.match(text, /Направление Малайзия /u);
+  // В строке очереди Китай, страна цели дела Китай (CN) - ни то, ни другое направлением не называется.
+  assert.match(text, /Направление Не выбрано /u);
+  assert.doesNotMatch(text, /Направление Китай/u);
   // Телефон подтверждён - без подписи; у почты своя.
   assert.match(text, /Контакты \+996 000 000 002 student-2@example\.invalid источники расходятся Документы/u);
   assert.equal((text.match(/источники расходятся/gu) ?? []).length, 1);
   assert.doesNotMatch(text, /не подтверждено/u);
   assert.doesNotMatch(html, /\bconflict\b|\bconfirmed\b/u);
+  assert.equal(saleGroup(html), "");
+  assert.doesNotMatch(html, /id="sale-conditions"/u);
 });
 
 test("direct case with free-text анкета fields: a value that is not one number or one address is plain text, not a link", () => {
@@ -304,15 +379,6 @@ test("direct case with free-text анкета fields: a value that is not one nu
   const two = surfaces.get("direct-case-two-numbers");
   assert.match(texts(two), /Контакты 0000 000 005 0000 000 006 a@example\.invalid\?subject=x не подтверждено/u);
   assert.doesNotMatch(two, /href="(?:tel|mailto):/u);
-});
-
-test("direct case without the анкета read and with an unknown country: no contacts, no invented direction", () => {
-  const html = surfaces.get("direct-case-closed-fields");
-  const text = texts(html);
-  assert.match(text, /Направление Не выбрано /u);
-  assert.doesNotMatch(text, /Контакты/u);
-  assert.doesNotMatch(html, /href="(?:tel|mailto):/u);
-  assert.doesNotMatch(text, /China/u, "an unknown target country is never shown raw");
 });
 
 test("a lead's client contact wins over the анкета field and has no note; the sales case keeps its contacts line", () => {
@@ -341,29 +407,200 @@ test("caseContacts: own client value first, then the field with its state word; 
   assert.deepEqual(caseContacts({ phone: null, email: null }, null), { phone: null, email: null });
 });
 
-test("caseDirectionLabel: snapshot, then the queue row, then the target country; unknown values are never shown", () => {
-  const label = (snapshot, row, targetCountry) => caseDirectionLabel({ snapshot, row, targetCountry });
-  assert.equal(label("TR", "CN", "MY"), "Турция");
-  assert.equal(label(null, "CN", "MY"), "Китай");
-  assert.equal(label(null, undefined, "MY"), "Малайзия");
-  assert.equal(label(null, null, "EUROPE"), "Европа");
-  assert.equal(label(null, null, " AE "), "ОАЭ");
-  assert.equal(label(null, null, "IT"), "Италия");
-  for (const unknown of ["China", "unknown", "handed_off", "", "  ", null, "constructor", "__proto__", "toString", "hasOwnProperty"]) {
-    assert.equal(label(null, null, unknown), null, String(unknown));
-  }
+test("the direction is the snapshot's only: no queue-row or target-country fallback remains in the case parts", () => {
+  const parts = read("src/components/v3/profile/CaseWorkParts.tsx");
+  assert.match(parts, /const direction = admissions\.direction \? DIRECTION_LABELS\[admissions\.direction\] : null;/u);
+  assert.doesNotMatch(parts, /caseDirectionLabel|work\.row\?\.admissionsDirection|targetCountry/u);
+  const view = read("src/components/v3/profile/case-work-view.ts");
+  assert.doesNotMatch(view, /caseDirectionLabel|targetCountry/u);
+  assert.doesNotMatch(read("src/components/v3/profile/types.ts"), /targetCountry/u);
   // Словарь стран знает только свои ключи: имена из прототипа объекта - не слова.
   for (const inherited of ["constructor", "__proto__", "toString", "valueOf"]) assert.equal(country(inherited), null, inherited);
 });
 
-test("the case-only branch of readCaseProfile keeps the client e-mail/phone null (portal access needs a confirmed e-mail) and carries the target country", () => {
+test("the case-only branch of readCaseProfile keeps the client e-mail/phone null (portal access needs a confirmed e-mail) and reads the sale conditions apart", () => {
   const source = read("src/lib/v3/profile-source.ts");
   const branch = source.slice(source.indexOf("async function readCaseProfile("), source.indexOf("async function readLeadProfile("));
   assert.match(branch, /person: data\.studentCase\.studentDisplayName,[\s\S]*?email: null,\n {4}phone: null,\n {4}student: true,/u);
-  assert.match(source, /direction: data\.studentCase\.admissionsDirection \?\? null,\n {4}targetCountry: data\.studentCase\.targetCountry,/u);
-  // Контакты и направление собираются чистыми функциями из уже прочитанного, без нового чтения.
+  assert.match(source, /direction: data\.studentCase\.admissionsDirection \?\? null,\n {4}applications: data\.applications,/u);
+  // Контакты собираются чистой функцией из уже прочитанного, без нового чтения.
   const parts = read("src/components/v3/profile/CaseWorkParts.tsx");
   assert.match(parts, /contacts=\{caseContacts\(\{ phone: profile\.phone, email: profile\.email \}, draft\.profileFields\)\}/u);
-  assert.match(parts, /snapshot: admissions\.direction, row: work\.row\?\.admissionsDirection, targetCountry: admissions\.targetCountry,/u);
   assert.match(parts, /email=\{profile\.email\}/u, "portal access still takes the client e-mail only");
+  // Условия продажи (290): одно чтение дела параллельно с делом, не бросает, без запасного пути; блок лида остаётся null.
+  assert.match(branch, /const saleRead = readCaseSaleData\(actor, canonicalCaseId\);\n {2}const data = await loadFullCase\(actor, view\.studentCase\);/u);
+  assert.match(branch, /\.\.\.\(await saleRead\),/u);
+  assert.match(source, /saleConditions: conditions && caseSaleBlocks\(conditions\)\.length > 0 \? conditions : null/u);
+  assert.match(source, /return \{ saleConditions: null, saleConditionsUnavailable: true \};/u);
+  assert.match(source, /\n {4}saleConditions: null,\n {4}\/\/ Same scoping as saleConditions above/u);
+  const read290 = read("src/lib/v3/lead-sale-conditions-source.ts");
+  assert.match(read290, /rpc\("staff_student_case_sale_conditions_v1", \{\n {4}p_organization_id: actor\.organizationId, p_student_case_id: studentCaseId,\n {2}\}\);\n {2}return parseCaseSaleConditionsResult\(\{ data, error \}, actor\.organizationId\);/u);
+});
+
+test("parseCaseSaleConditionsResult: the function's own refusal and NULL are «no conditions»; every other failure is a failure", () => {
+  const ORG = "00000000-0000-4000-8000-0000000000a1";
+  const answer = {
+    organization_id: ORG, lead_id: "00000000-0000-4000-8000-0000000000b1", revision: "1", service_label: "", signing_date: "2026-09-01",
+    service_cost_raw: "", service_cost_minor: 150000, service_cost_currency: "USD", paid_raw: "", paid_minor: null, paid_currency: null,
+    payment_note: "", wishes_countries: "", wishes_study_fields: "", wishes_education_level: "", wishes_intake_year: null,
+    wishes_intake_season: "", wishes_universities: "", education_current: "", education_grade: "", education_marks: "",
+    education_english: "", education_certificates: "", conditions_budget_raw: "", conditions_budget_minor: null,
+    conditions_budget_currency: null, conditions_budget_period: "", conditions_scholarship: "", conditions_note: "",
+    updated_by_membership_id: null, updated_at: null, linked_sales_register: null,
+  };
+  const ok = parseCaseSaleConditionsResult({ data: answer, error: null }, ORG);
+  assert.equal(ok.serviceCostMinor, 150000);
+  assert.equal(ok.serviceCostCurrency, "USD");
+  assert.equal(ok.signingDate, "2026-09-01");
+  assert.equal(ok.revision, 1);
+  assert.equal(ok.linkedSalesRegister, null);
+  // Не дело прямого студента: функция ответила NULL.
+  assert.equal(parseCaseSaleConditionsResult({ data: null, error: null }, ORG), null);
+  // Отказ самой функции (нет права на дело целиком, читатель «Ждут куратора»): условий нет, не сбой.
+  assert.equal(parseCaseSaleConditionsResult({ data: null, error: { code: "42501", message: "case_sale_conditions_forbidden" } }, ORG), null);
+  // «Нет права на функцию» (миграция не применена, EXECUTE отозван) - тот же код 42501, но это сбой, не молчание.
+  for (const error of [
+    { code: "42501", message: "permission denied for function staff_student_case_sale_conditions_v1" },
+    { code: "42883", message: "function platform.staff_student_case_sale_conditions_v1(uuid, uuid) does not exist" },
+    { code: "PGRST202", message: "Could not find the function" },
+    { code: "42501" },
+    { message: "case_sale_conditions_forbidden" },
+  ]) assert.throws(() => parseCaseSaleConditionsResult({ data: null, error }, ORG), /Sale conditions are unavailable/u, JSON.stringify(error));
+  // Неверная форма и чужая организация - сбой, а не показ.
+  assert.throws(() => parseCaseSaleConditionsResult({ data: { ...answer, extra: 1 }, error: null }, ORG), /unavailable/u);
+  assert.throws(() => parseCaseSaleConditionsResult({ data: answer, error: null }, "00000000-0000-4000-8000-0000000000ff"), /unavailable/u);
+});
+
+test("caseSaleBlocks: only what is filled, the lead card's words, money as the money tab writes it, nothing raw", () => {
+  const blank = {
+    leadId: "l", organizationId: "o", revision: 1, serviceLabel: "", signingDate: null, serviceCostRaw: "", serviceCostMinor: null,
+    serviceCostCurrency: null, paidRaw: "", paidMinor: null, paidCurrency: null, paymentNote: "", wishesCountries: "", wishesStudyFields: "",
+    wishesEducationLevel: "", wishesIntakeYear: "", wishesIntakeSeason: "", wishesUniversities: "", educationCurrent: "", educationGrade: "",
+    educationMarks: "", educationEnglish: "", educationCertificates: "", conditionsBudgetRaw: "", conditionsBudgetMinor: null,
+    conditionsBudgetCurrency: null, conditionsBudgetPeriod: null, conditionsScholarship: "", conditionsNote: "", updatedByMembershipId: null,
+    updatedAt: null, linkedSalesRegister: null,
+  };
+  assert.deepEqual(caseSaleBlocks(blank), []);
+  assert.deepEqual(caseSaleBlocks({ ...blank, serviceLabel: "   ", paymentNote: "\n", wishesCountries: " " }), [], "blank and whitespace are nothing");
+  const sale = caseSaleBlocks({ ...blank, serviceCostMinor: 150050, serviceCostCurrency: "USD", signingDate: "2026-09-01" });
+  // Разделитель тысяч - из Intl (в ru-RU это узкий неразрывный пробел), как у вкладки «Договор и оплата».
+  const thousand = (n) => new Intl.NumberFormat("ru-RU").format(n);
+  assert.deepEqual(sale, [{ key: "sale", title: "Условия продажи", rows: [
+    { key: "signing_date", label: "Дата продажи", value: "01.09.2026", day: "2026-09-01" },
+    { key: "service_cost", label: "Сумма", value: `${thousand(1500)},50 USD` },
+  ] }]);
+  assert.equal(caseSaleSummary(sale), `${thousand(1500)},50 USD · 01.09.2026`);
+  // Сумма текстом (как её набрал продавец) показывается, если числа нет; число главнее текста.
+  assert.equal(caseSaleBlocks({ ...blank, serviceCostRaw: " 1500 у.е. " })[0].rows[0].value, "1500 у.е.");
+  assert.equal(caseSaleBlocks({ ...blank, serviceCostRaw: "5", serviceCostMinor: 100, serviceCostCurrency: "KGS" })[0].rows[0].value, "1,00 KGS");
+  // Бюджет с периодом словом; период без суммы ничего не пишет.
+  assert.equal(caseSaleBlocks({ ...blank, conditionsBudgetMinor: 800000, conditionsBudgetCurrency: "EUR", conditionsBudgetPeriod: "program" })[0].rows[0].value, `${thousand(8000)},00 EUR за программу`);
+  assert.deepEqual(caseSaleBlocks({ ...blank, conditionsBudgetPeriod: "year" }), []);
+  // Блок без значений не рисуется, подпись блока - слова карточки лида; без денег - название строкой.
+  const wishes = caseSaleBlocks({ ...blank, wishesIntakeYear: "2027", educationEnglish: "IELTS 6.0" });
+  assert.deepEqual(wishes.map((block) => block.title), ["Пожелания", "Образование"]);
+  assert.equal(caseSaleSummary(wishes), "пожелания, образование");
+  assert.equal(caseSaleSummary(caseSaleBlocks({ ...blank, signingDate: "2026-09-01" })), "01.09.2026");
+});
+
+// Дело «Ждёт куратора» у Admin (17.10.2026): снимок разделов обещает документы, рабочего места документов у
+// `pending` в базе нет (113: только `active` и `closed`) — страница не должна падать «Не удалось открыть экран».
+test("a «Ждёт куратора» case: the section access drops documents only, only for pending, and never grants anything", () => {
+  const all = { documents: true, finance: true, studentProfile: true, contract: true };
+  assert.deepEqual(caseSectionAccessForState(all, "pending"), { documents: false, finance: true, studentProfile: true, contract: true });
+  // active и closed: снимок остаётся как ответила база, чтение документов не отменяется.
+  assert.equal(caseSectionAccessForState(all, "active"), all);
+  assert.equal(caseSectionAccessForState(all, "closed"), all);
+  // Сужение, не право: нет документов в снимке — нет и после; остальное не включается.
+  const none = { documents: false, finance: false, studentProfile: false, contract: false };
+  for (const state of ["pending", "active", "closed"]) assert.deepEqual(caseSectionAccessForState(none, state), none, state);
+  const financeOnly = { documents: false, finance: true, studentProfile: false, contract: false };
+  assert.deepEqual(caseSectionAccessForState(financeOnly, "pending"), financeOnly);
+  // Исходный снимок не меняется.
+  assert.equal(all.documents, true);
+});
+
+test("an Admin opening a «Ждёт куратора» case sees why documents are absent, not «нет доступа», and no Documents tab", () => {
+  const html = surfaces.get("pending-admin");
+  assert.ok(html, "the pending Admin scenario renders");
+  const text = texts(html);
+  assert.equal(caseDocumentsWords.awaitCurator, "появятся, когда у дела будет куратор");
+  assert.match(text, /Документы появятся, когда у дела будет куратор Заявки/u);
+  assert.doesNotMatch(text, /Документы нет доступа/u);
+  // Вкладки «Документы» и ссылки «Документы дела» нет; «Анкета» Admin читает как прежде.
+  assert.doesNotMatch(html, /tab=documents/u);
+  assert.doesNotMatch(text, /Документы дела/u);
+  assert.match(html, /tab=anketa/u);
+  // Назначить куратора можно: форма шапки та же.
+  assert.match(text, /Назначить куратора/u);
+  assert.match(text, /Куратор нужен куратор/u);
+});
+
+test("the reader of «Ждут куратора» without the case right sees the same reason instead of «нет доступа»", () => {
+  const text = texts(surfaces.get("assign-only"));
+  assert.match(text, /Документы появятся, когда у дела будет куратор Заявки/u);
+  assert.doesNotMatch(text, /Документы нет доступа/u);
+  // Прочие закрытые права названы как прежде.
+  assert.match(text, /Переписка нет доступа/u);
+});
+
+test("a case in work keeps its documents line and the Documents tab (the reason line is only for pending)", () => {
+  const admin = surfaces.get("admin");
+  const text = texts(admin);
+  assert.doesNotMatch(text, /появятся, когда у дела будет куратор/u);
+  assert.match(admin, /tab=documents/u);
+  for (const name of ["curator", "closed", "closed-outcome", "admin"]) {
+    assert.doesNotMatch(texts(surfaces.get(name)), /появятся, когда у дела будет куратор/u, name);
+  }
+});
+
+test("loadFullCase narrows the snapshot by case state and passes pending to the overview; a documents read failure is never caught", () => {
+  const source = read("src/lib/v3/profile-source.ts");
+  assert.match(source, /const access = caseSectionAccessForState\(snapshotAccess, studentCase\.state\);/u);
+  assert.match(source, /readCaseProfileSections\(access, \{[\s\S]*?documents: \(\) => getPlatformCaseDocumentWorkspace\(actor, studentCaseId\),/u);
+  // Ни try/catch, ни `.catch` вокруг чтения рабочего места документов: отказ active/closed остаётся ошибкой.
+  assert.doesNotMatch(source, /getPlatformCaseDocumentWorkspace\([^)]*\)[^\n]*\.catch|catch[^\n]*getPlatformCaseDocumentWorkspace/u);
+  const parts = read("src/components/v3/profile/CaseWorkParts.tsx");
+  assert.match(parts, /documentsAwaitCurator=\{admissions\.caseState === "pending"\}/u);
+});
+
+test("the coordinator does not read documents of a pending case, and a refused documents read of an active or closed case still fails", async () => {
+  const ORG = "10000000-0000-4000-8000-000000000001";
+  const CASE_ID = "20000000-0000-4000-8000-000000000001";
+  const actor = { systemRole: "admin", presentationRole: null, organizationId: ORG, permissionKeys: ["documents.read"], assignments: [], platformAccessVersion: 1 };
+  // База отвечает рабочему месту документов 42501 (113) — как у дела не `active`/`closed`.
+  const rpcCalls = [];
+  const refusing = { schema: () => ({ rpc: async (name) => { rpcCalls.push(name); return { data: null, error: { code: "42501", message: `${name} refused` } }; } }) };
+  const snapshot = { documents: true, finance: false, studentProfile: false, contract: false };
+  const never = async () => assert.fail("a section that is not promised must not be read");
+  let reads = 0;
+  const documents = () => { reads += 1; return getPlatformCaseDocumentWorkspace(actor, CASE_ID, { client: refusing }); };
+
+  const pending = await readCaseProfileSections(caseSectionAccessForState(snapshot, "pending"),
+    { finance: never, studentProfile: never, contract: never, documents });
+  assert.equal(pending.documents, null);
+  assert.equal(pending.access.documents, false);
+  assert.equal(reads, 0, "the workspace read is not attempted for a pending case");
+  assert.deepEqual(rpcCalls, [], "and nothing is sent to the database");
+
+  for (const state of ["active", "closed"]) {
+    await assert.rejects(
+      readCaseProfileSections(caseSectionAccessForState(snapshot, state), { finance: never, studentProfile: never, contract: never, documents }),
+      PlatformPrivateDocumentsRepositoryError, `${state}: the refusal is an error, not an empty section`);
+  }
+  assert.equal(reads, 2, "active and closed still attempt the read");
+  assert.deepEqual(rpcCalls, ["staff_student_case_document_workspace", "staff_student_case_document_workspace"], "and the refusal comes from the database, not from a local guard");
+});
+
+test("the TypeScript rule mirrors the SQL it narrows: the workspace is defined for active/closed only, the snapshot never looks at state", () => {
+  const workspace = read("supabase/migrations/113_platform_document_case_links.sql");
+  const body = workspace.slice(workspace.indexOf("CREATE OR REPLACE FUNCTION platform.staff_student_case_document_workspace("));
+  const lookup = body.slice(0, body.indexOf("IF NOT FOUND THEN"));
+  assert.match(lookup, /AND student_case\.state IN \('active', 'closed'\)\s+AND student_case\.handoff_at IS NOT NULL/u);
+  assert.match(lookup, /student_case\.id = p_student_case_id/u);
+  const scoped = read("supabase/migrations/156_platform_scoped_staff_consumers.sql");
+  const snapshotAt = scoped.indexOf("CREATE FUNCTION platform.staff_case_access_snapshot(");
+  const snapshot = scoped.slice(snapshotAt, scoped.indexOf("REVOKE ALL ON FUNCTION platform.staff_case_access_snapshot", snapshotAt));
+  assert.match(snapshot, /'documents', platform_private\.staff_can_access\(p_organization_id, a\.membership_id, 'document\.read\.full', 'student_case', p_student_case_id\)/u);
+  assert.doesNotMatch(snapshot, /\bstate\b/u, "the snapshot checks permissions, not the case state: that is why the page narrows it");
 });

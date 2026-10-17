@@ -153,6 +153,10 @@ const {
   syncCanonicalAmoCrmSalesAction,
 } = await import("../src/lib/server/canonical-amocrm-command-actions.ts");
 
+// The action refuses a deadline in the past, so a fixed timestamp is a time bomb (the earlier 1790000000 is
+// 21.09.2026 and began to fail on its own). The deadline is always 30 days ahead of the real clock.
+const DUE = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
+
 const IDS = Object.freeze({
   lead: "00000000-0000-4000-8000-000000000081",
   studentCase: "00000000-0000-4000-8000-000000000082",
@@ -205,7 +209,7 @@ test("staff without the named amoCRM command permission never reaches command ex
   harness.canUseCommands = false;
   const result = await syncCanonicalAmoCrmSalesAction(INITIAL_STATE, form({
     lead_id: IDS.lead, request_id: IDS.request, note_text: "A bounded operator note",
-    task_text: "Review application", task_complete_till: "1790000000",
+    task_text: "Review application", task_complete_till: String(DUE),
   }));
   assert.deepEqual(result, { status: "blocked", reason: "permission_denied", attemptId: null, steps: [] });
   assert.deepEqual(harness.serviceCalls, []);
@@ -221,7 +225,7 @@ test("Sales sync accepts only exact fields and passes a trimmed bounded human no
       request_id: IDS.request.toUpperCase(),
       note_text: "  Sales verified the current qualification.  ",
       task_text: "  Call the applicant after syncing.  ",
-      task_complete_till: "1790000000",
+      task_complete_till: String(DUE),
     }),
   );
 
@@ -236,7 +240,7 @@ test("Sales sync accepts only exact fields and passes a trimmed bounded human no
         baseRequestId: IDS.request,
         noteText: "Sales verified the current qualification.",
         taskText: "Call the applicant after syncing.",
-        taskCompleteTill: 1790000000,
+        taskCompleteTill: DUE,
       },
     },
   ]);
@@ -258,7 +262,7 @@ test("Admissions sync uses the Admissions guard and exact Student 360 path", asy
       request_id: IDS.request,
       note_text: "Admissions accepted the handoff.",
       task_text: "Prepare the next admissions action.",
-      task_complete_till: "1790003600",
+      task_complete_till: String(DUE + 3600),
     }),
   );
 
@@ -272,7 +276,7 @@ test("Admissions sync uses the Admissions guard and exact Student 360 path", asy
       baseRequestId: IDS.request,
       noteText: "Admissions accepted the handoff.",
       taskText: "Prepare the next admissions action.",
-      taskCompleteTill: 1790003600,
+      taskCompleteTill: DUE + 3600,
     },
   });
   assert.deepEqual(harness.revalidated, [
@@ -288,7 +292,7 @@ test("unknown fields, duplicate fields, bad UUIDs, and notes outside 1..1000 UTF
       request_id: IDS.request,
       note_text: "Valid note",
       task_text: "Valid task",
-      task_complete_till: "1790000000",
+      task_complete_till: String(DUE),
       fallback: "legacy",
     }),
     (() => {
@@ -297,7 +301,7 @@ test("unknown fields, duplicate fields, bad UUIDs, and notes outside 1..1000 UTF
         request_id: IDS.request,
         note_text: "Valid note",
         task_text: "Valid task",
-        task_complete_till: "1790000000",
+        task_complete_till: String(DUE),
       });
       value.append("note_text", "Duplicate");
       return value;
@@ -307,28 +311,28 @@ test("unknown fields, duplicate fields, bad UUIDs, and notes outside 1..1000 UTF
       request_id: IDS.request,
       note_text: "Note",
       task_text: "Task",
-      task_complete_till: "1790000000",
+      task_complete_till: String(DUE),
     }),
     form({
       lead_id: IDS.lead,
       request_id: IDS.request,
       note_text: "   ",
       task_text: "Task",
-      task_complete_till: "1790000000",
+      task_complete_till: String(DUE),
     }),
     form({
       lead_id: IDS.lead,
       request_id: IDS.request,
       note_text: "🙂".repeat(251),
       task_text: "Task",
-      task_complete_till: "1790000000",
+      task_complete_till: String(DUE),
     }),
     form({
       lead_id: IDS.lead,
       request_id: IDS.request,
       note_text: "Note",
       task_text: "",
-      task_complete_till: "1790000000",
+      task_complete_till: String(DUE),
     }),
     form({
       lead_id: IDS.lead,
@@ -384,7 +388,7 @@ test("all honest service terminal states and their step evidence pass through wi
         request_id: IDS.request,
         note_text: "Human-approved note",
         task_text: "Task",
-        task_complete_till: "1790000000",
+        task_complete_till: String(DUE),
       }),
     );
     assert.deepEqual(result, harness.result);

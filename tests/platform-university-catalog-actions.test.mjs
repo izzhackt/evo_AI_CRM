@@ -22,6 +22,8 @@ registerHooks({ resolve(specifier, context, next) {
 } });
 const { mutateUniversityCatalogAction } = await import("../src/lib/platform-university-catalog-actions.ts");
 const catalog = await import("../src/lib/platform-university-catalog.ts");
+const manageContract = await import("../src/lib/university-manage-contract.ts");
+const studyCountries = await import("../src/lib/study-countries.ts");
 const requestId = "59948000-0000-4000-8000-000000000801", draftId = "59948000-0000-4000-8000-000000000802", institutionId = "59948000-0000-4000-8000-000000000803";
 const previous = { status: "idle", requestId, draftId: null, institutionId: null };
 const content = JSON.parse(readFileSync(new URL("../src/lib/server/university-catalog-reviewed-malaysia.json", import.meta.url), "utf8")).find((entry) => entry.key === "apu").content;
@@ -91,6 +93,10 @@ function reviewFormAction(serverAction = mutateUniversityCatalogAction) {
     if (specifier === "next/navigation") return require("next/dist/client/components/unstable-rethrow.browser.js");
     if (specifier === "@/lib/platform-university-catalog-actions") return { mutateUniversityCatalogAction: serverAction };
     if (specifier === "@/lib/platform-university-catalog") return catalog;
+    // The editor reads the list/editor addresses from the pure manage contract (the «Университеты» v2 list context).
+    if (specifier === "@/lib/university-manage-contract") return manageContract;
+    // The one country list of the product (282): the editor's country choice reads it.
+    if (specifier === "@/lib/study-countries") return studyCountries;
     return require(specifier);
   } });
   return componentModule.exports.UniversityReviewForm({ draftId, requestId }).props.action;

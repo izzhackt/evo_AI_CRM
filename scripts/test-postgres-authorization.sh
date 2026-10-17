@@ -3809,6 +3809,32 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_telephony_missed_tasks.sql </dev/null
   fi
+
+  # «Телефония Beeline KG», срез T9 (неизвестный входящий номер -> клиент и лид
+  # «Звонок», известный клиент без открытого лида -> задача последнему владельцу,
+  # потолки автоматики, очередь «Заявок» v3 с вкладкой «Звонки»;
+  # docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.2, §9.1, §9.3, §12, §18.2). Matched by
+  # name, not number, so a renumbering at merge keeps the hook. Right after the
+  # migration the suite proves: the service-only tick and the closed private
+  # helpers (the whole telephony catalog, the missed-call tick included when that
+  # slice is in the chain); the switches (no settings row, projection, the
+  # unknown-lead flag); an unknown inbound number (answered or missed) made a
+  # client «Звонок» + mask and a phone_call lead (stage new, no owner, channel
+  # unknown, provenance, bound to the call id), the same number again and a client
+  # that appeared in between attached instead of duplicated, and anonymous,
+  # outbound, ambiguous, no-outcome, reconciled-duplicate, old, unsettled and
+  # imported calls creating nothing; one decision per call; a known client with no
+  # open lead giving ONE task to the last lead owner (escalation recipient, then an
+  # Admin as fallbacks) and a missed call left to T8; the lead and task ceilings
+  # (hour, day, shared with T8's links) stopping both flags with the journal event;
+  # a failing call costing only itself; and the queue v3 (v2 plus phone_call leads,
+  # the «Звонки» tab only with telephony ui_enabled, paging with cursor version 3,
+  # roles without lead.read, other organizations, v2 untouched).
+  if [[ "$(basename "$migration")" == *_platform_telephony_unknown_leads.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_telephony_unknown_leads.sql </dev/null
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

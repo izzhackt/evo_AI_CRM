@@ -15,7 +15,9 @@ import {
   casePortalStatus,
 } from "../src/components/v3/profile/case-work-view.ts";
 import { studentsDocumentsLine } from "../src/components/v3/students/students-queue-view.ts";
-import { country } from "../src/lib/v3/wording.ts";
+import { caseSectionAccessForState, readCaseProfileSections } from "../src/lib/v3/case-access-contract.ts";
+import { getPlatformCaseDocumentWorkspace, PlatformPrivateDocumentsRepositoryError } from "../src/lib/platform-private-documents.ts";
+import { caseDocumentsWords, country } from "../src/lib/v3/wording.ts";
 
 /**
  * Дело студента «сначала работа» (решение владельца 26.09.2026,
@@ -366,4 +368,106 @@ test("the case-only branch of readCaseProfile keeps the client e-mail/phone null
   assert.match(parts, /contacts=\{caseContacts\(\{ phone: profile\.phone, email: profile\.email \}, draft\.profileFields\)\}/u);
   assert.match(parts, /snapshot: admissions\.direction, row: work\.row\?\.admissionsDirection, targetCountry: admissions\.targetCountry,/u);
   assert.match(parts, /email=\{profile\.email\}/u, "portal access still takes the client e-mail only");
+});
+
+// Дело «Ждёт куратора» у Admin (17.10.2026): снимок разделов обещает документы, рабочего места документов у
+// `pending` в базе нет (113: только `active` и `closed`) — страница не должна падать «Не удалось открыть экран».
+test("a «Ждёт куратора» case: the section access drops documents only, only for pending, and never grants anything", () => {
+  const all = { documents: true, finance: true, studentProfile: true, contract: true };
+  assert.deepEqual(caseSectionAccessForState(all, "pending"), { documents: false, finance: true, studentProfile: true, contract: true });
+  // active и closed: снимок остаётся как ответила база, чтение документов не отменяется.
+  assert.equal(caseSectionAccessForState(all, "active"), all);
+  assert.equal(caseSectionAccessForState(all, "closed"), all);
+  // Сужение, не право: нет документов в снимке — нет и после; остальное не включается.
+  const none = { documents: false, finance: false, studentProfile: false, contract: false };
+  for (const state of ["pending", "active", "closed"]) assert.deepEqual(caseSectionAccessForState(none, state), none, state);
+  const financeOnly = { documents: false, finance: true, studentProfile: false, contract: false };
+  assert.deepEqual(caseSectionAccessForState(financeOnly, "pending"), financeOnly);
+  // Исходный снимок не меняется.
+  assert.equal(all.documents, true);
+});
+
+test("an Admin opening a «Ждёт куратора» case sees why documents are absent, not «нет доступа», and no Documents tab", () => {
+  const html = surfaces.get("pending-admin");
+  assert.ok(html, "the pending Admin scenario renders");
+  const text = texts(html);
+  assert.equal(caseDocumentsWords.awaitCurator, "появятся, когда у дела будет куратор");
+  assert.match(text, /Документы появятся, когда у дела будет куратор Заявки/u);
+  assert.doesNotMatch(text, /Документы нет доступа/u);
+  // Вкладки «Документы» и ссылки «Документы дела» нет; «Анкета» Admin читает как прежде.
+  assert.doesNotMatch(html, /tab=documents/u);
+  assert.doesNotMatch(text, /Документы дела/u);
+  assert.match(html, /tab=anketa/u);
+  // Назначить куратора можно: форма шапки та же.
+  assert.match(text, /Назначить куратора/u);
+  assert.match(text, /Куратор нужен куратор/u);
+});
+
+test("the reader of «Ждут куратора» without the case right sees the same reason instead of «нет доступа»", () => {
+  const text = texts(surfaces.get("assign-only"));
+  assert.match(text, /Документы появятся, когда у дела будет куратор Заявки/u);
+  assert.doesNotMatch(text, /Документы нет доступа/u);
+  // Прочие закрытые права названы как прежде.
+  assert.match(text, /Переписка нет доступа/u);
+});
+
+test("a case in work keeps its documents line and the Documents tab (the reason line is only for pending)", () => {
+  const admin = surfaces.get("admin");
+  const text = texts(admin);
+  assert.doesNotMatch(text, /появятся, когда у дела будет куратор/u);
+  assert.match(admin, /tab=documents/u);
+  for (const name of ["curator", "closed", "closed-outcome", "admin"]) {
+    assert.doesNotMatch(texts(surfaces.get(name)), /появятся, когда у дела будет куратор/u, name);
+  }
+});
+
+test("loadFullCase narrows the snapshot by case state and passes pending to the overview; a documents read failure is never caught", () => {
+  const source = read("src/lib/v3/profile-source.ts");
+  assert.match(source, /const access = caseSectionAccessForState\(snapshotAccess, studentCase\.state\);/u);
+  assert.match(source, /readCaseProfileSections\(access, \{[\s\S]*?documents: \(\) => getPlatformCaseDocumentWorkspace\(actor, studentCaseId\),/u);
+  // Ни try/catch, ни `.catch` вокруг чтения рабочего места документов: отказ active/closed остаётся ошибкой.
+  assert.doesNotMatch(source, /getPlatformCaseDocumentWorkspace\([^)]*\)[^\n]*\.catch|catch[^\n]*getPlatformCaseDocumentWorkspace/u);
+  const parts = read("src/components/v3/profile/CaseWorkParts.tsx");
+  assert.match(parts, /documentsAwaitCurator=\{admissions\.caseState === "pending"\}/u);
+});
+
+test("the coordinator does not read documents of a pending case, and a refused documents read of an active or closed case still fails", async () => {
+  const ORG = "10000000-0000-4000-8000-000000000001";
+  const CASE_ID = "20000000-0000-4000-8000-000000000001";
+  const actor = { systemRole: "admin", presentationRole: null, organizationId: ORG, permissionKeys: ["documents.read"], assignments: [], platformAccessVersion: 1 };
+  // База отвечает рабочему месту документов 42501 (113) — как у дела не `active`/`closed`.
+  const rpcCalls = [];
+  const refusing = { schema: () => ({ rpc: async (name) => { rpcCalls.push(name); return { data: null, error: { code: "42501", message: `${name} refused` } }; } }) };
+  const snapshot = { documents: true, finance: false, studentProfile: false, contract: false };
+  const never = async () => assert.fail("a section that is not promised must not be read");
+  let reads = 0;
+  const documents = () => { reads += 1; return getPlatformCaseDocumentWorkspace(actor, CASE_ID, { client: refusing }); };
+
+  const pending = await readCaseProfileSections(caseSectionAccessForState(snapshot, "pending"),
+    { finance: never, studentProfile: never, contract: never, documents });
+  assert.equal(pending.documents, null);
+  assert.equal(pending.access.documents, false);
+  assert.equal(reads, 0, "the workspace read is not attempted for a pending case");
+  assert.deepEqual(rpcCalls, [], "and nothing is sent to the database");
+
+  for (const state of ["active", "closed"]) {
+    await assert.rejects(
+      readCaseProfileSections(caseSectionAccessForState(snapshot, state), { finance: never, studentProfile: never, contract: never, documents }),
+      PlatformPrivateDocumentsRepositoryError, `${state}: the refusal is an error, not an empty section`);
+  }
+  assert.equal(reads, 2, "active and closed still attempt the read");
+  assert.deepEqual(rpcCalls, ["staff_student_case_document_workspace", "staff_student_case_document_workspace"], "and the refusal comes from the database, not from a local guard");
+});
+
+test("the TypeScript rule mirrors the SQL it narrows: the workspace is defined for active/closed only, the snapshot never looks at state", () => {
+  const workspace = read("supabase/migrations/113_platform_document_case_links.sql");
+  const body = workspace.slice(workspace.indexOf("CREATE OR REPLACE FUNCTION platform.staff_student_case_document_workspace("));
+  const lookup = body.slice(0, body.indexOf("IF NOT FOUND THEN"));
+  assert.match(lookup, /AND student_case\.state IN \('active', 'closed'\)\s+AND student_case\.handoff_at IS NOT NULL/u);
+  assert.match(lookup, /student_case\.id = p_student_case_id/u);
+  const scoped = read("supabase/migrations/156_platform_scoped_staff_consumers.sql");
+  const snapshotAt = scoped.indexOf("CREATE FUNCTION platform.staff_case_access_snapshot(");
+  const snapshot = scoped.slice(snapshotAt, scoped.indexOf("REVOKE ALL ON FUNCTION platform.staff_case_access_snapshot", snapshotAt));
+  assert.match(snapshot, /'documents', platform_private\.staff_can_access\(p_organization_id, a\.membership_id, 'document\.read\.full', 'student_case', p_student_case_id\)/u);
+  assert.doesNotMatch(snapshot, /\bstate\b/u, "the snapshot checks permissions, not the case state: that is why the page narrows it");
 });

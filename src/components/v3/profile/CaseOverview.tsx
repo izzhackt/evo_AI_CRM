@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import type { HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 import type { StudentCaseChecklistCounts } from "@/lib/platform-student-case-queue-contract";
-import { applicationStatus, caseChatAwaitState } from "@/lib/v3/wording";
+import { applicationStatus, caseChatAwaitState, caseDocumentsWords } from "@/lib/v3/wording";
 
 import { Icon } from "@/components/icons";
 
@@ -48,6 +48,8 @@ export type CaseOverviewInput = Readonly<{
   taskPermissions: TaskRowPermissions;
   /** null — нет права читать документы дела (нет чтения — нет числа). */
   documents: StudentCaseChecklistCounts | null;
+  /** Дело ждёт куратора (`pending`): рабочее место документов у такого дела не читается, причина — состояние дела, а не права. */
+  documentsAwaitCurator: boolean;
   applications: readonly CaseApplicationLine[];
   /** null — оплаты в этом деле этому сотруднику не видно. */
   payment: Readonly<{ percent: number | null; remaining: string | null; financeStop: string | null }> | null;
@@ -194,7 +196,9 @@ function DocumentsFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
   const line = studentsDocumentsLine(input.documents);
   return (
     <Fact term="Документы" testId="v3-case-documents">
-      {line ? (
+      {input.documentsAwaitCurator ? (
+        <span className="text-fg-2">{caseDocumentsWords.awaitCurator}</span>
+      ) : line ? (
         // «N из M принято» полосой (Э1.3) — только из прочитанных чисел; пустой чек-лист
         // или числа, которые не сходятся, — строка итога без полосы.
         <div className="space-y-2">

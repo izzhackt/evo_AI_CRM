@@ -385,6 +385,12 @@ const SCENARIOS = {
   // Дело ждёт куратора: у того, кто назначает кураторов, «Назначить куратора» — прежняя форма в шапке.
   "needs-curator": { actor: ADMIN, profile: profile(), draft: { ...draft({ handoff: null }), responsible: null }, sales: null,
     work: { ...work({ row: queueRow({ flags: ["needs_curator"] }), activity: ACTIVITY_AWAITING }), needsCurator: true } },
+  // Admin открыл дело «Ждёт куратора» (17.10.2026): снимок разделов обещает ему документы, а рабочего места
+  // документов у дела `pending` в базе нет — `loadFullCase` сужает доступ по состоянию дела. Вкладки «Документы»
+  // нет, строка «Сведений» называет причину (не «нет доступа»); остальные разделы Admin читаются как прежде.
+  "pending-admin": { actor: ADMIN, profile: profile({ state: "pending" }), sales: null,
+    draft: { ...draft({ state: "pending", documents: false, handoff: null, handedOffBy: null }), responsible: null },
+    work: { ...work({ row: queueRow({ state: "pending", flags: ["needs_curator"] }), activity: ACTIVITY_AWAITING }), needsCurator: true } },
   // Руководитель поступления открыл дело из «Ждут куратора» (248/281): назначает куратора, а права на само
   // дело нет. Ни «Задачи по делу», ни заметки; задачи, обращения и журнал — «нет доступа», без «Обновите страницу».
   "assign-only": { actor: { ...CURATOR, displayName: "Руководитель поступления (синтетический)",

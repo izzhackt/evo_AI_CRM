@@ -3,7 +3,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { createSupabaseServerClient } from "../supabase/server";
-import { parseCaseSectionAccess, readCaseProfileSections, type CaseSectionAccess } from "./case-access-contract";
+import { caseSectionAccessForState, parseCaseSectionAccess, readCaseProfileSections, type CaseSectionAccess } from "./case-access-contract";
 import { loadProfileSalesContext } from "./profile-route-load";
 import { loadStudentApplicationForCase, loadStudentApplicationForLead } from "./student-application-source";
 import { readLeadSaleConditions } from "./lead-sale-conditions-source";
@@ -542,9 +542,13 @@ async function loadFullCase(
   // Чтение дела (`getPlatformStudentCaseView`, access "full") уже подтвердило право.
   const assignOnly = sectionResponse.error?.code === "42501";
   if (sectionResponse.error && !assignOnly) throw new Error("case_access_unavailable");
-  const access: CaseSectionAccess = assignOnly
+  const snapshotAccess: CaseSectionAccess = assignOnly
     ? { documents: false, finance: false, studentProfile: false, contract: false }
     : parseCaseSectionAccess(sectionResponse.data, actor.organizationId, studentCaseId);
+  // 17.10.2026: рабочее место документов определено только для дела в работе (113: `active` и
+  // `closed`), у «Ждёт куратора» его читать нельзя, а снимок разделов обещает документы любому,
+  // у кого есть право.
+  const access = caseSectionAccessForState(snapshotAccess, studentCase.state);
   const [
     applicationsPage,
     visa,

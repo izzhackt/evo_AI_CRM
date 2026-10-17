@@ -295,7 +295,10 @@ struct CSCAOverviewSections: View {
         } header: {
             CSCAOverviewHeading(text: t(overview.faq.title))
         } footer: {
+            // Системный цвет подвала секции даёт 3.29:1 на сгруппированном
+            // фоне в светлой теме; тон палитры держит 6.12:1 и 9.43:1.
             Text(verbatim: CSCAText.f("csca_overview_checked", CSCATime.dayWithYearLabel(overview.confirmedOn, locale: AppLocale.current)))
+                .foregroundStyle(CSCAColor.secondaryText)
                 .padding(.top, 4)
         }
     }

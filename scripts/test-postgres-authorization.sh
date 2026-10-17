@@ -3861,6 +3861,29 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_telephony_unknown_leads.sql </dev/null
   fi
+
+  # «Телефония Beeline KG», срез T10 (блок «Звонки» в «Отчёте продаж»;
+  # docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.1, §9.1, §10, §11, §12). Matched by
+  # name, not number, so a renumbering at merge keeps the hook. Right after the
+  # migration the suite proves: one STABLE SECURITY DEFINER report for
+  # authenticated only and two closed helpers; the whole telephony catalog; the
+  # helpers on fixed dates (working seconds across a night, a Sunday, the 400-day
+  # cap; the callback deadline); the switch (no settings row or ui_enabled =
+  # false answers {"enabled": false} to the authorised only) and the rights
+  # (report.read.all and report.read.own served, everyone else 42501, anon and
+  # service_role cannot execute); the figures on a hand-built fixture (calls
+  # once per call and employee, a leg cancelled by a colleague's answer not
+  # counted, answered by talking, talk time, the result strip, the time to the
+  # first touch of new leads in working seconds, the missed block with callback
+  # in time / late / none / pending, the unassigned row, the zero row, the
+  # Asia/Bishkek period bounds); the «own» scope (one row, no team, own missed
+  # list only); other organizations never leak; and no raw number, link or
+  # email in any answer.
+  if [[ "$(basename "$migration")" == *_platform_telephony_report.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_telephony_report.sql </dev/null
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

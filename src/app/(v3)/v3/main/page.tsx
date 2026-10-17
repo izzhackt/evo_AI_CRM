@@ -4,6 +4,7 @@ import { Suspense, type ComponentProps } from "react";
 
 import type { PeriodChoice } from "@/components/v3/MainHeader";
 import { PartShell } from "@/components/v3/PartShell";
+import { SalesCallsReport } from "@/components/v3/SalesCallsReport";
 import { SalesDynamics } from "@/components/v3/SalesDynamics";
 import { SalesManagerLabelsView } from "@/components/v3/SalesManagerLabelsView";
 import { SalesRegisterImportView } from "@/components/v3/SalesRegisterImportView";
@@ -11,10 +12,12 @@ import { SalesDynamicsReport, SalesRegisterView, type SalesReportQuery } from "@
 import { TodayBoardLinks, TodayScreen } from "@/components/v3/today/TodayScreen";
 import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import { isSalesImportQuery, isSalesManagersQuery, SALES_DYNAMICS_ANCHOR, salesDynamicsCarry, salesDynamicsHref } from "@/lib/sales-register-navigation";
+import { isSalesImportQuery, isSalesManagersQuery, SALES_CALLS_ANCHOR, SALES_DYNAMICS_ANCHOR, salesDynamicsCarry, salesDynamicsHref } from "@/lib/sales-register-navigation";
 import { PERIODS, periodLabel, resolvePeriod } from "@/lib/v3/funnel-source";
 import { v3SectionTitle } from "@/lib/v3/navigation";
 import { readSalesDynamics, type SalesDynamicsRead } from "@/lib/v3/sales-dynamics-source";
+import type { TelephonyReportState } from "@/lib/v3/telephony-report";
+import { canReadTelephonyReport, readTelephonyReport } from "@/lib/v3/telephony-report-source";
 import { buildTodayQueue, todayDateLabel } from "@/lib/v3/today-queue";
 import { readDialOptions } from "@/lib/v3/telephony-dial-source";
 import { readTodayQueue, todayLinks } from "@/lib/v3/today-source";
@@ -35,6 +38,11 @@ type MainQuery = Readonly<{ period?: string; from?: string; to?: string; view?: 
 /** Раздел отчёта ждёт уже начатые чтения (они не отказывают: ошибки — внутри результата). */
 async function StreamedSalesDynamics({ read, ...props }: Omit<ComponentProps<typeof SalesDynamics>, "read"> & Readonly<{ read: Promise<SalesDynamicsRead> }>) {
   return <SalesDynamics {...props} read={await read} />;
+}
+
+/** Блок «Звонки» ждёт уже начатое чтение (оно не отказывает: ошибки — внутри результата). */
+async function StreamedSalesCalls({ read, ...props }: Omit<ComponentProps<typeof SalesCallsReport>, "state"> & Readonly<{ read: Promise<TelephonyReportState> }>) {
+  return <SalesCallsReport {...props} state={await read} />;
 }
 
 /**
@@ -75,7 +83,7 @@ export default async function MainPart({
     // записи отчёта не ждут когорту и доску. Без записей отчёта раздел — вся
     // страница: открыт всегда.
     const dynamics = readSalesDynamics(actor, period);
-    const section = (
+    const dynamicsSection = (
       <Suspense fallback={<p role="status" className="mt-8 flex min-h-11 items-center border-t border-border pt-2 t-meta text-fg-3">Загружаем «Динамику по дням»…</p>}>
         <StreamedSalesDynamics
           id={SALES_DYNAMICS_ANCHOR}
@@ -90,6 +98,28 @@ export default async function MainPart({
         />
       </Suspense>
     );
+    // Блок «Звонки» («Телефония Beeline KG», срез T10) — под «Динамикой по дням», с тем же периодом.
+    // Право и включатель `ui_enabled` решает база; пока он выключен, блока нет вовсе. Пока читается,
+    // на его месте пусто: людям, у которых телефония выключена, нечего показывать «Загружаем…».
+    const callsSection = canReadTelephonyReport(actor) ? (
+      <Suspense fallback={null}>
+        <StreamedSalesCalls
+          id={SALES_CALLS_ANCHOR}
+          open={typeof query.period === "string"}
+          choices={choices.map((one) => ({
+            ...one,
+            href: salesDynamicsHref(query, one.key === "custom" && period.key === "custom" ? period : { key: one.key }, SALES_CALLS_ANCHOR),
+          }))}
+          range={period.key === "custom" ? { from: period.from, to: period.to, max: period.today } : null}
+          periodText={periodLabel(period)}
+          formAction={`/v3/main#${SALES_CALLS_ANCHOR}`}
+          carry={carry}
+          retryHref={salesDynamicsHref(query, period, SALES_CALLS_ANCHOR)}
+          read={readTelephonyReport(actor, { from: period.from, to: period.to })}
+        />
+      </Suspense>
+    ) : null;
+    const section = <>{dynamicsSection}{callsSection}</>;
     if (!canReadReport) return <SalesDynamicsReport dynamics={section} />;
     return <SalesRegisterView actor={actor} query={query} dynamics={section} />;
   }

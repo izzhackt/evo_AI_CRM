@@ -9,6 +9,7 @@ import type { PlatformSalesOwnerOption, PlatformSalesStage } from "@/lib/platfor
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { buildV3InboxHref } from "@/lib/v3/inbox-href";
 import { callRecordingItems, callbackDayBounds, type LeadCallsState } from "@/lib/v3/telephony-lead-calls";
+import type { DialOptions } from "@/lib/v3/telephony-dial";
 import { stageTrack } from "@/lib/v3/stages";
 import type { CaseAgreementReadResult } from "@/lib/v3/case-agreement-source";
 import { closureWords, source as sourceWord, sourceUnderLabel } from "@/lib/v3/wording";
@@ -16,6 +17,7 @@ import { closureWords, source as sourceWord, sourceUnderLabel } from "@/lib/v3/w
 import { DueWord } from "../blocks/DueWord";
 import { Initials } from "../blocks/Initials";
 import { StageTrack } from "../blocks/StageTrack";
+import { DialButton } from "../telephony/DialButton";
 import { dueWordOf } from "../queue/due-bucket";
 import { TaskComposerDialog } from "../tasks/TaskComposerDialog";
 import { TaskComposerContextMark, type TaskComposerPageContext } from "../tasks/task-composer-context";
@@ -100,6 +102,11 @@ export type LeadWorkPartsInput = Readonly<{
    * лента говорит, что звонки не загрузились. Строки и право нажать результат решила база.
    */
   calls?: LeadCallsState | null;
+  /**
+   * «Позвонить» («Телефония Beeline KG», T7): `ready` — кнопка в заголовке (флаги, право и пауза
+   * решены базой, `mapped` — сопоставлен ли сотрудник в ВАТС); `off` и отсутствие — кнопки нет.
+   */
+  dial?: DialOptions | null;
   hrefFor: (tab: string) => string;
   now: Date;
 }>;
@@ -274,6 +281,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
           <span className="sr-only sm:not-sr-only">Написать</span>
         </Link>
       ) : null}
+      {input.dial?.status === "ready" && !preview ? <DialButton leadId={leadId} mapped={input.dial.mapped} /> : null}
       {taskContext ? <>
         {/* «Создать задачу» меню и Ctrl+K на этой странице — с тем же лидом или делом. */}
         <TaskComposerContextMark value={taskContext} />

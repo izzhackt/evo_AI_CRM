@@ -1,4 +1,4 @@
--- 299_platform_telephony_unknown_leads — «Телефония Beeline KG» срез T9: неизвестный
+-- 300_platform_telephony_unknown_leads — «Телефония Beeline KG» срез T9: неизвестный
 -- входящий номер → клиент и лид «Звонок», известный клиент без открытого лида → задача
 -- последнему владельцу, очередь «Заявок» v3 с вкладкой «Звонки».
 -- Контракт: docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.1 (правила 5 и 8), §6.2, §9.1, §9.3, §12,
@@ -67,7 +67,7 @@ BEGIN;
 -- ---------------------------------------------------------------------------
 -- Предусловия: схема и функции 084, 250, 278, срезов T1a/T1b и помощники среза T8 (298).
 -- ---------------------------------------------------------------------------
-DO $t299_guard$
+DO $t300_guard$
 BEGIN
   IF to_regclass('platform_private.telephony_calls') IS NULL
     OR to_regclass('platform_private.telephony_settings') IS NULL
@@ -88,7 +88,7 @@ BEGIN
     RAISE EXCEPTION 'telephony_t9_prerequisites_missing' USING ERRCODE = '55000';
   END IF;
 END
-$t299_guard$;
+$t300_guard$;
 
 -- ---------------------------------------------------------------------------
 -- Метка решения приёма на звонке и индексы.
@@ -571,7 +571,7 @@ COMMENT ON FUNCTION platform.staff_requests_queue_v3(UUID,TEXT,TEXT,INTEGER,JSON
 -- ---------------------------------------------------------------------------
 -- Права: помощники без грантов, публичная функция — только service_role.
 -- ---------------------------------------------------------------------------
-DO $t299_private_acl$
+DO $t300_private_acl$
 DECLARE f REGPROCEDURE;
 BEGIN
   FOR f IN SELECT p.oid::REGPROCEDURE FROM pg_catalog.pg_proc p
@@ -580,7 +580,7 @@ BEGIN
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent', f);
   END LOOP;
 END
-$t299_private_acl$;
+$t300_private_acl$;
 
 REVOKE ALL ON FUNCTION platform.telephony_intake_tick_v1(UUID, INTEGER)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent;
@@ -591,7 +591,7 @@ COMMENT ON FUNCTION platform.telephony_intake_tick_v1(UUID, INTEGER) IS
 
 -- Самопроверка: публичные функции — definer, пустой search_path, нужные права; помощники — без
 -- прав клиентских ролей и с пустым search_path; v2 остаётся.
-DO $t299_verify$
+DO $t300_verify$
 DECLARE f REGPROCEDURE; p pg_catalog.pg_proc%ROWTYPE;
 BEGIN
   SELECT * INTO p FROM pg_catalog.pg_proc WHERE oid = 'platform.telephony_intake_tick_v1(uuid,integer)'::REGPROCEDURE;
@@ -632,6 +632,6 @@ BEGIN
     END IF;
   END LOOP;
 END
-$t299_verify$;
+$t300_verify$;
 
 COMMIT;

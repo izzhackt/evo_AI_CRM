@@ -159,7 +159,7 @@ const TELEPHONY_BEELINE_INBOUND_PATH = "/api/v2/telephony/beeline/inbound";
 // «Настройки → Телефония» (план телефонии §12, срез T4b): две команды сотрудника
 // с правом telephony.manage — настройки и сопоставление пользователей ВАТС. Два
 // точных пути, только POST (метод проверяет обработчик); остальное под
-// /api/v3/telephony закрыто, пока свои срезы (записи, набор) не добавят свои.
+// /api/v3/telephony закрыто, пока свои срезы не добавят свои (записи T6, набор T7 — ниже).
 const TELEPHONY_ADMIN_API_PATHS: ReadonlySet<string> = new Set([
   "/api/v3/telephony/settings",
   "/api/v3/telephony/extensions",
@@ -302,6 +302,12 @@ const TELEPHONY_CALL_RESULT_PATH =
 // Strict lower-case UUID (version 1-8, variant 8-b), nothing after it.
 const TELEPHONY_RECORDING_PATH =
   /^\/api\/v3\/telephony\/recordings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+// «Телефония Beeline KG» T7 (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.5, §12): the Call
+// button (POST, exact path, no id in the path: the body carries the lead id and the request
+// id, never the number). The handler repeats sameOrigin, the staff session, the preview
+// refusal and telephony.call.dial; the database decides flags, lead, number, prefixes,
+// mapping, limits and idempotency.
+const TELEPHONY_DIAL_PATH = "/api/v3/telephony/dial";
 // «Продажи → WhatsApp» chat (#1157): the read-only auto-refresh pulse and the
 // «Показать ранее» older page. Both handlers repeat staff Auth, messaging.read
 // and /v3/inbox access; the database readers decide conversation scope.
@@ -336,6 +342,7 @@ export function isConnectedPlatformApi(path: string): boolean {
     INBOX_OLDER_MESSAGES_PATH.test(path) ||
     TELEPHONY_CALL_RESULT_PATH.test(path) ||
     TELEPHONY_RECORDING_PATH.test(path) ||
+    path === TELEPHONY_DIAL_PATH ||
     COMMUNICATION_MEDIA_PATH.test(path) ||
     CASE_CONTRACT_FILE_UPLOAD_PATH.test(path) ||
     CASE_CONTRACT_FILE_DOWNLOAD_PATH.test(path) ||

@@ -454,7 +454,7 @@ test("route contract: exactly the strict POST path is connected; its near misses
   for (const wrong of [
     `${path}/`, `${path}/x`, `/api/v3/telephony/calls/${ID(1)}`, `/api/v3/telephony/calls/${HEX_ID.toUpperCase()}/result`,
     "/api/v3/telephony/calls/not-a-uuid/result", `/api/v3/telephony/calls/${ID(1)}/results`, `/api/v3/telephony/calls//result`,
-    `/api/v3/telephony/calls/${ID(1)}%2fresult`, `/api/v3/telephony/call/${ID(1)}/result`, `/api/v3/telephony/dial`,
+    `/api/v3/telephony/calls/${ID(1)}%2fresult`, `/api/v3/telephony/call/${ID(1)}/result`, `/api/v3/telephony/dial/${ID(1)}`,
     `/api/v2/telephony/calls/${ID(1)}/result`, `/api/v3/telephony/calls/${ID(1)}/result.json`,
   ]) {
     assert.equal(isConnectedPlatformApi(wrong), false, wrong);

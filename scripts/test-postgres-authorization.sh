@@ -3810,6 +3810,32 @@ SQL
       -f /workspace/supabase/tests/platform_telephony_missed_tasks.sql </dev/null
   fi
 
+  # «Телефония Beeline KG», срез T7 (кнопка «Позвонить»: проверки набора в базе,
+  # идемпотентность, лимиты, журнал; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.4, §6.5,
+  # §9.1, §12). Matched by name, not number, so a renumbering at merge keeps the hook.
+  # Right after the migration the suite proves: four public functions (options and
+  # begin for authenticated, target and finish for service_role only, the role check
+  # inside) and two closed helpers; the whole telephony catalog; the switch (no
+  # settings row, ui_enabled alone, dial_enabled alone and outbound_paused all refuse
+  # begin and hide the button, the Admin included); the rights (a plain lead reader, a
+  # Student, a member without roles, another organization and anon refused); lead
+  # visibility by lead.read (an unknown lead answers like an invisible one); the number
+  # from the card only (no phone, a bare national number, a country outside the
+  # allowed prefixes, short / service / premium ranges refused with a code, recorded as
+  # a row without number or PBX login and one journal row; an added prefix opens its
+  # country); the PBX mapping (not_mapped); the limits (gap, employee day, organization
+  # hour and day, sliding windows, refusals not counted); idempotency (replay returns the
+  # earlier result and writes nothing, another lead under the same id is PT409, another
+  # employee has his own id space, a request without a result becomes unconfirmed once);
+  # target (the number is read only here, by the right employee, status requested,
+  # fresh) and finish (the single transition, the shape of every outcome, a repeat
+  # changes nothing); and the journal (ids and codes only — no number, PBX login or call id).
+  if [[ "$(basename "$migration")" == *_platform_telephony_dial.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_telephony_dial.sql </dev/null
+  fi
+
   # «Телефония Beeline KG», срез T9 (неизвестный входящий номер -> клиент и лид
   # «Звонок», известный клиент без открытого лида -> задача последнему владельцу,
   # потолки автоматики, очередь «Заявок» v3 с вкладкой «Звонки»;

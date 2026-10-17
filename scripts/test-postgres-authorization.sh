@@ -3637,6 +3637,30 @@ SQL
       -f /workspace/supabase/tests/platform_telephony_reconcile.sql
   fi
 
+  # «Телефония Beeline KG», срез T5 (строки звонков в «Ленте» лида и результат
+  # звонка одним нажатием; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §9.4, §11, §12).
+  # Matched by name, not number, so a renumbering at merge keeps the hook. Right
+  # after the migration the suite proves: the two public functions (SECURITY
+  # DEFINER, empty search_path, authenticated only) and the two closed helpers;
+  # the callback day exists exactly with result «callback»; the switch (no
+  # settings row or ui_enabled = false shows nothing and answers 42501 to the
+  # unauthorised first); the row's exact keys, the masked phone, no number, no
+  # link and no https text anywhere, newest first, leg participants, the client's
+  # calls from before the lead, nothing of another client or organization,
+  # hasMore, the since/until window; visibility by lead.read (department manager,
+  # other department, supervisor, plain reader, Student, no roles, another
+  # organization); who may set a result (dial_enabled and the dial right, own
+  # calls for a manager, any visible call for the supervisor and the Admin, the
+  # 7-day offer and 24-hour change windows, backfill and unanswered calls closed);
+  # the command's error matrix without an existence leak, saved / unchanged /
+  # changed results, the audit rows without number or name, and that nothing but
+  # the result columns changes.
+  if [[ "$(basename "$migration")" == *_platform_telephony_lead_feed.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_telephony_lead_feed.sql
+  fi
+
   # «Данные продажи» и направление на деле прямого студента (290, PLAN_CHANGES
   # 17.10.2026). Matched by name, not number, so a renumbering at merge keeps the
   # hook. Members are modelled like production (coarse role NULL, the 244

@@ -282,6 +282,12 @@ export function isConnectedPlatformPrivateApi(path: string): boolean {
  */
 const PAYMENT_RECEIPT_UPLOAD_PATH = /^\/api\/v2\/payment-receipts\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PAYMENT_RECEIPT_DOWNLOAD_PATH = /^\/api\/v2\/payment-receipt-files\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/download$/i;
+// «Телефония Beeline KG» T5 (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §9.4, §12): the
+// one-tap call result (POST). The handler repeats the staff session, sameOrigin and
+// telephony.call.dial; the database decides the lead, the call, the flags and the
+// windows. Strict lower-case UUID (version 1-8, variant 8-b, like the AI memory route).
+const TELEPHONY_CALL_RESULT_PATH =
+  /^\/api\/v3\/telephony\/calls\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/result$/;
 // «Продажи → WhatsApp» chat (#1157): the read-only auto-refresh pulse and the
 // «Показать ранее» older page. Both handlers repeat staff Auth, messaging.read
 // and /v3/inbox access; the database readers decide conversation scope.
@@ -314,6 +320,7 @@ export function isConnectedPlatformApi(path: string): boolean {
     UNIVERSITY_TEMPLATE_SOURCE_PATH.test(path) ||
     path === INBOX_PULSE_PATH ||
     INBOX_OLDER_MESSAGES_PATH.test(path) ||
+    TELEPHONY_CALL_RESULT_PATH.test(path) ||
     COMMUNICATION_MEDIA_PATH.test(path) ||
     CASE_CONTRACT_FILE_UPLOAD_PATH.test(path) ||
     CASE_CONTRACT_FILE_DOWNLOAD_PATH.test(path) ||

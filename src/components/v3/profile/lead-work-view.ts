@@ -7,6 +7,9 @@
 import type { LeadSaleConditions } from "../../../lib/lead-sale-conditions-contract.ts";
 import type { PlatformSalesStage } from "../../../lib/platform-sales-contract.ts";
 import { dayInOrganizationTimezone } from "../../../lib/platform-task-deadline.ts";
+import {
+  callContact, callOutcomeText, callPeopleText, callRecordingText, callResultText, callTalkText, callTitle, type LeadCall,
+} from "../../../lib/v3/telephony-lead-calls.ts";
 
 /** id панели «Что дальше»: её открывают главное действие и «Изменить» в шапке (`popoverTarget`). */
 export const LEAD_STEP_DRAWER_ID = "lead-next-step";
@@ -128,17 +131,21 @@ export type LeadFeedNote = Readonly<{ body: string; authorDisplayName: string; c
 export type LeadFeedEvent = Readonly<{ key: string; at: string; text: string }>;
 export type LeadFeedItem =
   | Readonly<{ kind: "note"; at: string; note: LeadFeedNote }>
-  | Readonly<{ kind: "event"; at: string; event: LeadFeedEvent }>;
+  | Readonly<{ kind: "event"; at: string; event: LeadFeedEvent }>
+  | Readonly<{ kind: "call"; at: string; call: LeadCall }>;
 
 /**
- * Лента лида: заметки и события — новые сверху. События приходят только на
+ * Лента лида: заметки, события и звонки — новые сверху. События приходят только на
  * первую страницу заметок: на более ранних страницах лента — только заметки,
- * иначе события повторялись бы на каждой странице.
+ * иначе события повторялись бы на каждой странице. Звонки приходят уже в окне
+ * своей страницы заметок (`leadCallsWindow`): каждый — на той странице, где по
+ * времени стоят заметки рядом с ним, а не все сразу и не повторно.
  */
 export function leadFeed(
   notes: readonly LeadFeedNote[],
   events: readonly LeadFeedEvent[],
   firstPage: boolean,
+  calls: readonly LeadCall[] = [],
 ): readonly LeadFeedItem[] {
   const items: LeadFeedItem[] = notes.map((note) => ({ kind: "note", at: note.createdAt, note }));
   if (firstPage) {
@@ -146,27 +153,36 @@ export function leadFeed(
       if (Number.isFinite(Date.parse(event.at))) items.push({ kind: "event", at: event.at, event });
     }
   }
-  // Стабильно: при равном времени заметка раньше события, порядок чтения сохраняется.
+  for (const call of calls) {
+    if (Number.isFinite(Date.parse(call.startedAt))) items.push({ kind: "call", at: call.startedAt, call });
+  }
+  // Стабильно: при равном времени заметка раньше события, событие раньше звонка, порядок чтения сохраняется.
   return items
     .map((item, index) => ({ item, index, time: Date.parse(item.at) }))
     .sort((a, b) => (b.time - a.time) || (a.index - b.index))
     .map(({ item }) => item);
 }
 
+type LastContactWhat = "заметка" | "переписка" | "звонок" | "пропущенный звонок";
+
 /**
- * «Последний контакт» — самое новое из прочитанного: заметка первой страницы
- * или обновление связанной переписки. Слово говорит, что это было: заметка —
- * не звонок, и мы не называем её звонком.
+ * «Последний контакт» — самое новое из прочитанного: заметка первой страницы,
+ * обновление связанной переписки или звонок (отвеченный — контакт; входящий без
+ * ответа — обращение клиента; исходящий без ответа и идущий вызов — не контакт,
+ * см. `callContact`). Слово говорит, что это было: заметка — не звонок, и мы не
+ * называем её звонком.
  */
 export function leadLastContact(
   latestNote: string | null,
   conversations: readonly Readonly<{ updatedAt: string }>[],
-): Readonly<{ at: string; what: "заметка" | "переписка" }> | null {
-  const candidates: Readonly<{ at: string | null; what: "заметка" | "переписка" }>[] = [
+  calls: readonly LeadCall[] = [],
+): Readonly<{ at: string; what: LastContactWhat }> | null {
+  const candidates: Readonly<{ at: string | null; what: LastContactWhat }>[] = [
     { at: latestNote, what: "заметка" },
     ...conversations.map((conversation) => ({ at: conversation.updatedAt, what: "переписка" as const })),
+    ...calls.map((call) => callContact(call) ?? { at: null, what: "звонок" as const }),
   ];
-  let best: Readonly<{ at: string; what: "заметка" | "переписка" }> | null = null;
+  let best: Readonly<{ at: string; what: LastContactWhat }> | null = null;
   for (const { at, what } of candidates) {
     if (!at || !Number.isFinite(Date.parse(at))) continue;
     if (best === null || Date.parse(at) > Date.parse(best.at)) best = { at, what };
@@ -189,4 +205,39 @@ export function leadMoment(value: string, now: Date): string {
 export function leadDay(day: string, today: string): string {
   const [year, month, date] = day.split("-");
   return year === today.slice(0, 4) ? `${date}.${month}` : `${date}.${month}.${year.slice(2)}`;
+}
+
+export type LeadCallRowView = Readonly<{
+  /** «Входящий звонок» / «Исходящий звонок». */
+  title: string;
+  /** Итог словами: «разговор 2 мин 05 с», «пропущен», «занято»… */
+  outcome: string;
+  /** Маска номера · кто говорил (или кого вызывали) · состояние записи; null — сказать нечего. */
+  details: string | null;
+  /** «Результат: Дозвонился · Имя · 17.10 14:20»; null — результата нет. */
+  result: string | null;
+  /** «Перезвонить 18.10» у нажатого «Перезвонить» для подписи кнопки; null — не нажато. */
+  callbackLabel: string | null;
+}>;
+
+/**
+ * Слова одной строки звонка в «Ленте» лида из того, что отдала база: ничего не
+ * выдумывается (нет разговора из сверки — «—», нет записи — ничего), полного
+ * номера и ссылки на запись в данных нет.
+ */
+export function leadCallRow(call: LeadCall, now: Date): LeadCallRowView {
+  const today = dayInOrganizationTimezone(now);
+  const resultText = callResultText(call, (day) => leadDay(day, today));
+  const details = [call.phone, callPeopleText(call), callRecordingText(call.recording)]
+    .filter((part): part is string => Boolean(part));
+  const resultParts = [call.resultByName, call.resultAt ? leadMoment(call.resultAt, now) : null].filter((part): part is string => Boolean(part));
+  const talk = callTalkText(call);
+  return {
+    title: callTitle(call),
+    // «разговор 2 мин 05 с»; пока сверка не принесла время — «разговор —», не ноль и не длительность вебхука.
+    outcome: talk ? `${callOutcomeText(call)} ${talk}` : callOutcomeText(call),
+    details: details.length > 0 ? details.join(" · ") : null,
+    result: resultText ? `Результат: ${[resultText, ...resultParts].join(" · ")}` : null,
+    callbackLabel: call.resultCode === "callback" ? resultText : null,
+  };
 }

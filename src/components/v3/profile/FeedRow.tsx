@@ -80,6 +80,31 @@ export function FeedChat({ author, text, at, label, href, focusTarget }: Readonl
   );
 }
 
+/**
+ * Звонок («Телефония Beeline KG», T5): направление и итог словами, момент справа;
+ * ниже мелким — маска номера, время разговора, кто говорил, состояние записи.
+ * Под строкой — результат (слова или нажатия одним касанием) как `children`.
+ * Номер и имена приходят готовыми строками: полного номера и ссылки на запись
+ * у строки нет.
+ */
+export function FeedCall({ title, outcome, details, at, label, children, focusTarget }: Readonly<{
+  title: string; outcome: string; details: string | null; at: string; label: string; children?: ReactNode;
+}> & Focus) {
+  return (
+    <li className="flex gap-x-2 py-2.5" data-feed="call" tabIndex={focusTarget ? -1 : undefined}>
+      <Mark type="t-body-compact" />
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-baseline gap-x-2 t-body-compact text-fg-2">
+          <span className="min-w-0 flex-1 break-words"><span className="text-fg">{title}</span> · {outcome}</span>
+          <span className="t-meta"><Moment at={at} label={label} /></span>
+        </p>
+        {details ? <p className="mt-0.5 break-words t-meta text-fg-2">{details}</p> : null}
+        {children}
+      </div>
+    </li>
+  );
+}
+
 /** Строка-указатель (срез журнала): без метки, текст — от того же края, что у строк. */
 export function FeedPointer({ children, focusTarget }: Readonly<{ children: ReactNode }> & Focus) {
   return (

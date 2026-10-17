@@ -47,6 +47,8 @@ import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { v3SectionTitle } from "@/lib/v3/navigation";
 import { PIPELINE_PATH, isClosedLeadsReturn, parsePipelineReturnTo } from "@/lib/v3/pipeline-return";
 import { parseProfileActivityCursor } from "@/lib/v3/profile-activity-source";
+import { readLeadCalls } from "@/lib/v3/telephony-lead-calls-source";
+import { leadCallsWindow } from "@/lib/v3/telephony-lead-calls";
 import {
   listStudentPortalActiveCurators,
   type StudentPortalCuratorOption,
@@ -387,7 +389,11 @@ export default async function ProfilePart({
   // их показывает (финансы дела); права проверяет само чтение.
   const leadAgreementCaseId = leadSales && tab === "overview" && tabAccess.finance
     ? view?.details.admissions?.studentCaseId ?? leadSales.handoff.caseId : null;
-  const [curatorOptions, queuePage, caseWork, caseClosureRead, leadOwners, leadAgreement] = await Promise.all([
+  // Звонки лида («Телефония Beeline KG», T5) — в окне этой страницы заметок; база сама решает, открыта ли
+  // телефония в интерфейсе (`ui_enabled`, по умолчанию нет) и видит ли сотрудник этот лид.
+  const leadCallsRead = leadSales && tab === "overview" && view && view.details.routeTarget.leadId
+    ? readLeadCalls(actor, view.details.routeTarget.leadId, leadCallsWindow(view.notes.page, noteCursor)) : null;
+  const [curatorOptions, queuePage, caseWork, caseClosureRead, leadOwners, leadAgreement, leadCalls] = await Promise.all([
     curatorsRead,
     queueParse ? studentsQueuePage(actor, queueParse, params, curatorsRead.then((read) => read.curators)) : null,
     // Лента Student 360 (Э4): журнал дела — только на «Обзоре» и первой странице заметок.
@@ -401,6 +407,7 @@ export default async function ProfilePart({
     readsOwners ? readPipelineOwnerOptions(actor).catch(() => null) : null,
     // Сбой — полоса остаётся на подтверждении вручную и записи отчёта, ничего не угадывая.
     leadAgreementCaseId ? readCaseAgreement(actor, leadAgreementCaseId).catch(() => ({ status: "unavailable" as const })) : null,
+    leadCallsRead,
   ]);
   const caseClosure = previewClosure(actor, caseClosureRead);
   const studentPortalCurators = curatorOptions.curators;
@@ -465,6 +472,7 @@ export default async function ProfilePart({
     curators: studentPortalCurators,
     curatorsAvailable: studentPortalCuratorsAvailable,
     agreement: leadAgreement,
+    calls: leadCalls,
     channel: (
       <Suspense fallback={<span role="status" className="text-fg-2">Загружаем…</span>}>
         <LeadChannelFact actor={actor} leadId={view.details.routeTarget.leadId} requestId={randomUUID()} />

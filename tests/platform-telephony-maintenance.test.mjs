@@ -86,6 +86,7 @@ function fakeDatabase(handlers = {}) {
     telephony_maintenance_plan_v1: () => ({ data: plan(), error: null }),
     telephony_claim_work_v1: () => ({ data: { status: "ok", items: [] }, error: null }),
     telephony_project_work_v1: () => ({ data: { status: "succeeded" }, error: null }),
+    telephony_intake_tick_v1: () => ({ data: { status: "disabled" }, error: null }),
     telephony_settle_calls_v1: () => ({ data: { status: "ok", settled: 0, waiting: 0, flagged: 0, failed: 0 }, error: null }),
     telephony_automation_tick_v1: () => ({ data: { status: "disabled" }, error: null }),
     telephony_runtime_mark_v1: (args) => ({ data: { status: "ok", event: args.p_event }, error: null }),
@@ -687,6 +688,7 @@ test("the order inside one run is local jobs, directory, probe, then the single 
     "telephony_maintenance_plan_v1",
     "telephony_claim_work_v1",
     "telephony_settle_calls_v1",
+    "telephony_intake_tick_v1",
     "telephony_automation_tick_v1",
     "telephony_runtime_mark_v1",
     "telephony_sync_extensions_v1",
@@ -766,6 +768,165 @@ test("the run budgets itself: after the budget no PBX job or request starts", as
   assert.equal(stopped.report.exitCode, 0);
 });
 
+// ---------------------------------------------------------------------------
+// Slice T9: the unknown-number intake tick.
+// ---------------------------------------------------------------------------
+
+test("the intake tick runs right after the settle window with the batch limit, and the log keeps counters and fixed words", async () => {
+  const database = fakeDatabase({
+    telephony_maintenance_plan_v1: () => ({ data: plan({ settle_due: true }), error: null }),
+    telephony_intake_tick_v1: () => ({
+      data: { status: "ok", created: 2, attached: 1, tasks: 1, skipped: 5, failed: 1, stop_code: null, last_error_code: "e23505_t_key" },
+      error: null,
+    }),
+  });
+  const { report } = await run({ env: environment({ EVO_PLATFORM_TELEPHONY_PBX_TOKEN: "" }), database });
+  assert.deepEqual(database.calls.map((call) => call.functionName), [
+    "telephony_maintenance_plan_v1",
+    "telephony_settle_calls_v1",
+    "telephony_intake_tick_v1",
+    "telephony_automation_tick_v1",
+    "telephony_runtime_mark_v1",
+  ]);
+  assert.deepEqual(database.named("telephony_intake_tick_v1")[0].args, { p_organization_id: ORGANIZATION_ID, p_limit: 100 });
+  assert.equal(report.exitCode, 0, "a counter of failed calls is data, the run itself is fine");
+  assert.equal(report.log.intake, "ok");
+  assert.equal(report.log.intake_created, 2);
+  assert.equal(report.log.intake_attached, 1);
+  assert.equal(report.log.intake_tasks, 1);
+  assert.equal(report.log.intake_failed, 1);
+  assert.equal(report.log.intake_error, "e23505_t_key");
+  assert.ok(!("intake_stop" in report.log));
+  assertCleanLog(report);
+});
+
+test("no settle window due means no intake tick; the env switch off means no call at all", async () => {
+  const quiet = await run({ database: fakeDatabase({ telephony_maintenance_plan_v1: () => ({ data: plan({ retry_due: true }), error: null }) }) });
+  assert.equal(quiet.database.named("telephony_intake_tick_v1").length, 0);
+  assert.ok(!("intake" in quiet.report.log));
+  const off = await run({ env: environment({ EVO_PLATFORM_TELEPHONY_ENABLED: "0" }) });
+  assert.equal(off.database.calls.length, 0);
+});
+
+test("an intake that says disabled, busy or stopped is reported as a fixed word, with the stop code", async () => {
+  for (const [answer, expected] of [
+    [{ status: "disabled" }, "disabled"],
+    [{ status: "busy" }, "busy"],
+    [{ status: "stopped", stop_code: "leads_hour", created: 2, attached: 0, tasks: 0, failed: 0 }, "stopped"],
+  ]) {
+    const database = fakeDatabase({
+      telephony_maintenance_plan_v1: () => ({ data: plan({ settle_due: true }), error: null }),
+      telephony_intake_tick_v1: () => ({ data: answer, error: null }),
+    });
+    const { report } = await run({ database });
+    assert.equal(report.exitCode, 0);
+    assert.equal(report.log.intake, expected);
+    if (expected === "stopped") {
+      assert.equal(report.log.intake_stop, "leads_hour");
+      assert.equal(report.log.intake_created, 2);
+    } else {
+      assert.ok(!("intake_stop" in report.log) && !("intake_created" in report.log));
+    }
+    assertCleanLog(report);
+  }
+});
+
+test("a text the database should never send never reaches the intake log", async () => {
+  const database = fakeDatabase({
+    telephony_maintenance_plan_v1: () => ({ data: plan({ settle_due: true }), error: null }),
+    telephony_intake_tick_v1: () => ({
+      data: { status: `ok ${PHONE}`, created: 1, stop_code: `https://x.example.invalid/${PHONE}`, last_error_code: LINK },
+      error: null,
+    }),
+  });
+  const { report } = await run({ database });
+  assert.equal(report.log.intake, "unknown");
+  assert.ok(!("intake_stop" in report.log) && !("intake_error" in report.log) && !("intake_created" in report.log));
+  assertCleanLog(report);
+  const odd = fakeDatabase({
+    telephony_maintenance_plan_v1: () => ({ data: plan({ settle_due: true }), error: null }),
+    telephony_intake_tick_v1: () => ({ data: { status: "ok", stop_code: `Leads Hour ${PHONE}`, last_error_code: `${LINK}`, created: -4, attached: 1.5 }, error: null }),
+  });
+  const second = await run({ database: odd });
+  assert.equal(second.report.log.intake, "ok");
+  assert.ok(!("intake_stop" in second.report.log) && !("intake_error" in second.report.log));
+  assert.equal(second.report.log.intake_created, 0, "a negative count is not a count");
+  assert.equal(second.report.log.intake_attached, 0, "a fraction is not a count");
+  assertCleanLog(second.report);
+});
+
+test("a failing intake tick ends the run with exit 1 but never stops the PBX jobs", async () => {
+  for (const failing of [
+    () => ({ data: null, error: { message: `boom ${PHONE}` } }),
+    () => ({ data: { status: "ok" }, error: { message: "x" } }),
+    () => {
+      throw new Error(`network ${PHONE}`);
+    },
+  ]) {
+    const database = fakeDatabase({
+      telephony_maintenance_plan_v1: () => ({ data: plan({ settle_due: true, users_due: true, reconcile: dueWindow() }), error: null }),
+      telephony_intake_tick_v1: failing,
+    });
+    const pbx = fakePbx({ getHistory: () => ({ rows: [historyRow(1)], full: false }) });
+    const { report } = await run({ database, pbx });
+    assert.equal(report.exitCode, 1);
+    assert.equal(report.log.intake, "failed");
+    assert.equal(report.log.status, "ok", "the run itself did not fail");
+    assert.equal(report.log.users, "ok", "the directory job still ran");
+    assert.equal(report.log.reconcile, "ok", "the reconcile still ran");
+    assert.deepEqual(database.marks().map((mark) => mark.p_event), ["tick", "users_ok", "reconcile_ok"]);
+    assertCleanLog(report);
+  }
+  // The same failure with the PBX unconfigured and with the pause on also ends with exit 1.
+  const unconfigured = fakeDatabase({
+    telephony_maintenance_plan_v1: () => ({ data: plan({ settle_due: true }), error: null }),
+    telephony_intake_tick_v1: () => ({ data: null, error: { message: "boom" } }),
+  });
+  assert.equal((await run({ env: environment({ EVO_PLATFORM_TELEPHONY_PBX_TOKEN: "" }), database: unconfigured })).report.exitCode, 1);
+  const paused = fakeDatabase({
+    telephony_maintenance_plan_v1: () => ({ data: plan({ settle_due: true, outbound_paused: true }), error: null }),
+    telephony_intake_tick_v1: () => ({ data: null, error: { message: "boom" } }),
+  });
+  const pausedRun = await run({ database: paused });
+  assert.equal(pausedRun.report.exitCode, 1);
+  assert.equal(pausedRun.report.log.pbx, "paused");
+});
+
+test("the pause of outbound dialing does not stop the intake tick", async () => {
+  // outbound_paused is a kill switch for dialing and PBX requests; the intake only writes clients, leads and tasks.
+  const database = fakeDatabase({
+    telephony_maintenance_plan_v1: () => ({ data: plan({ settle_due: true, outbound_paused: true }), error: null }),
+    telephony_intake_tick_v1: () => ({ data: { status: "ok", created: 1, attached: 0, tasks: 0, failed: 0 }, error: null }),
+  });
+  const { report } = await run({ database });
+  assert.equal(report.log.pbx, "paused");
+  assert.equal(report.log.intake, "ok");
+  assert.equal(database.named("telephony_intake_tick_v1").length, 1);
+});
+
+test("the tick's call matches the unknown-leads migration: one service-only function with the same parameter names, closed by both flags, opening nothing", async () => {
+  const { readdirSync } = await import("node:fs");
+  const file = readdirSync(new URL("../supabase/migrations/", import.meta.url)).find((name) => name.endsWith("_platform_telephony_unknown_leads.sql"));
+  assert.ok(file, "the migration is found by name, not by number");
+  const migration = readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8");
+  assert.match(migration, /CREATE FUNCTION platform\.telephony_intake_tick_v1\(p_organization_id UUID, p_limit INTEGER DEFAULT 100\)/u);
+  assert.match(migration, /GRANT EXECUTE ON FUNCTION platform\.telephony_intake_tick_v1\(UUID, INTEGER\) TO service_role;/u);
+  assert.match(migration, /NOT s\.projection_enabled OR NOT s\.unknown_lead_enabled/u);
+  // The slice opens nothing: it never writes a flag to TRUE, never creates a settings row, never schedules itself.
+  assert.doesNotMatch(migration, /(missed_task_enabled|projection_enabled|unknown_lead_enabled|dial_enabled|ui_enabled)\s*=\s*TRUE/iu);
+  assert.doesNotMatch(migration, /INSERT INTO platform_private\.telephony_settings/u);
+  assert.doesNotMatch(migration, /\bcron\b|pg_cron|pg_notify|CREATE TRIGGER/iu);
+  // It writes no flag itself: a ceiling stops both automation flags through the missed-call slice's own routine.
+  assert.doesNotMatch(migration, /UPDATE platform_private\.telephony_settings/u);
+  assert.match(migration, /PERFORM platform_private\.telephony_automation_trip\(p_organization_id, v_trip\);/u);
+  const source = readFileSync(new URL("../src/lib/server/platform-telephony-maintenance.ts", import.meta.url), "utf8");
+  assert.match(source, /"telephony_intake_tick_v1",\s*\{\s*p_organization_id: organizationId,\s*p_limit: INTAKE_BATCH,/u);
+  // Order: the intake decides before the missed-call tick (T8) sees the same calls, when that tick is in the file.
+  const automation = source.indexOf('"telephony_automation_tick_v1"');
+  assert.ok(automation === -1 || source.indexOf('"telephony_intake_tick_v1"') < automation, "intake before the missed-call tick");
+  assert.ok(source.indexOf('"telephony_settle_calls_v1"') < source.indexOf('"telephony_intake_tick_v1"'), "intake after the settle window");
+});
+
 test("the script never calls makeCall or getUser", async () => {
   const database = fakeDatabase({
     telephony_maintenance_plan_v1: () =>
@@ -792,6 +953,7 @@ test("the automation tick runs right after the settle window with the batch limi
   assert.deepEqual(database.calls.map((call) => call.functionName), [
     "telephony_maintenance_plan_v1",
     "telephony_settle_calls_v1",
+    "telephony_intake_tick_v1",
     "telephony_automation_tick_v1",
     "telephony_runtime_mark_v1",
   ]);

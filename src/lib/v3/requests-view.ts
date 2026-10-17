@@ -19,11 +19,11 @@ import {
  * функции: их проверяют тесты и статический рендер.
  */
 export const REQUEST_TAB_LABELS: Readonly<Record<RequestSourceFilter, string>> = {
-  all: "Все", website: "Сайт", whatsapp: "WhatsApp", platform_application: "Анкеты", portal_consultation: "Консультации",
+  all: "Все", website: "Сайт", whatsapp: "WhatsApp", phone_call: "Звонки", platform_application: "Анкеты", portal_consultation: "Консультации",
 };
 export const REQUEST_STATUS_LABELS: Readonly<Record<RequestStatusFilter, string>> = { waiting: "Ждут разбора", all: "Все" };
 export const REQUEST_SOURCE_WORDS: Readonly<Record<RequestRow["source"], string>> = {
-  website: "Сайт", whatsapp: "WhatsApp", platform_application: "Анкета", portal_consultation: "Консультация",
+  website: "Сайт", whatsapp: "WhatsApp", phone_call: "Звонок", platform_application: "Анкета", portal_consultation: "Консультация",
 };
 const KIND_WORDS: Readonly<Record<RequestKind, string>> = {
   lead: "Заявки с сайта и WhatsApp", application: "Анкеты", consultation: "Консультации из кабинета",
@@ -84,16 +84,24 @@ export function requestTriage(row: RequestRow, options: Readonly<{ actorMembersh
 
 export type RequestTabView = Readonly<{ key: RequestSourceFilter; label: string; href: string; count: number | null; current: boolean }>;
 
+/** Вид источника: три лидовых источника — «lead», анкеты и консультации — по одному. */
+function kindOfSource(source: Exclude<RequestSourceFilter, "all">): RequestKind {
+  return source === "platform_application" ? "application" : source === "portal_consultation" ? "consultation" : "lead";
+}
+
 /**
- * Вкладки «Все · Сайт · WhatsApp · Анкеты · Консультации» с числами из
+ * Вкладки «Все · Сайт · WhatsApp · Звонки · Анкеты · Консультации» с числами из
  * чтения при выбранном состоянии. Вкладки вида, который роль не читает, нет;
- * без чтения — вкладки без чисел.
+ * без чтения — вкладки без чисел. «Звонки» есть, только когда звонки входят в
+ * чтение (телефония включена для сотрудников, T9); выбранная вкладка остаётся
+ * всегда, чтобы устаревшая ссылка не вела на страницу без места.
  */
 export function requestTabs(selection: RequestSelection, queue: RequestsQueue | null): readonly RequestTabView[] {
-  const sources: readonly RequestSourceFilter[] = ["all", "website", "whatsapp", "platform_application", "portal_consultation"];
+  const sources: readonly RequestSourceFilter[] = ["all", "website", "whatsapp", "phone_call", "platform_application", "portal_consultation"];
   return sources
-    .filter((source) => source === "all" || source === selection.source || !queue
-      || queue.states[source === "website" || source === "whatsapp" ? "lead" : source === "platform_application" ? "application" : "consultation"] === "ready")
+    .filter((source) => source === "all" || source === selection.source
+      || (source === "phone_call" ? queue !== null && queue.phoneCalls
+        : !queue || queue.states[kindOfSource(source)] === "ready"))
     .map((source) => ({
       key: source,
       label: REQUEST_TAB_LABELS[source],
@@ -105,8 +113,7 @@ export function requestTabs(selection: RequestSelection, queue: RequestsQueue | 
 
 const KINDS: readonly RequestKind[] = ["lead", "application", "consultation"];
 function kindsOfSource(source: RequestSourceFilter): readonly RequestKind[] {
-  return source === "all" ? KINDS
-    : [source === "website" || source === "whatsapp" ? "lead" : source === "platform_application" ? "application" : "consultation"];
+  return source === "all" ? KINDS : [kindOfSource(source)];
 }
 /** «а», «а{last}б», «а, б{last}в». */
 function listWords(words: readonly string[], last: string): string {
@@ -133,12 +140,23 @@ export function requestClosedLine(queue: RequestsQueue): string | null {
 const ARRIVALS: Readonly<Record<Exclude<RequestSourceFilter, "all">, string>> = {
   website: "заявки с формы сайта",
   whatsapp: "обращения из WhatsApp, когда он подключён",
+  phone_call: "звонки с неизвестных номеров",
   platform_application: "анкеты поступающих с сайта",
   portal_consultation: "запросы консультаций из кабинета студента",
 };
 const KIND_ARRIVALS: Readonly<Record<RequestKind, string>> = {
   lead: "заявки с сайта и из WhatsApp", application: "анкеты поступающих", consultation: "запросы консультаций из кабинета студента",
 };
+
+/**
+ * Выбрана вкладка «Звонки», а звонков в чтении нет (телефония для сотрудников
+ * выключена): это не граница роли, а переключатель, поэтому страница говорит об
+ * этом словом, а не «пусто». Роль, которая лиды не читает, получает ответ про
+ * закрытый вид, как и раньше.
+ */
+export function requestCallsOff(queue: RequestsQueue, source: RequestSourceFilter): boolean {
+  return source === "phone_call" && !queue.phoneCalls && queue.states.lead === "ready";
+}
 
 /**
  * Пустая очередь: что сюда приходит — только из видов, которые роль читает.
@@ -149,7 +167,8 @@ export function requestEmptyWhat(queue: RequestsQueue, source: RequestSourceFilt
   const readable = kindsOfSource(source).filter((kind) => queue.states[kind] === "ready");
   if (!readable.length) return null;
   if (source !== "all") return `Сюда приходят ${ARRIVALS[source]}.`;
-  const words = readable.map((kind) => KIND_ARRIVALS[kind]);
+  const words = readable.map((kind) => kind === "lead" && queue.phoneCalls
+    ? `${KIND_ARRIVALS.lead} и звонки с неизвестных номеров` : KIND_ARRIVALS[kind]);
   return `Сюда приходят ${listWords(words, words.length === 2 ? ", а также " : " и ")}.`;
 }
 

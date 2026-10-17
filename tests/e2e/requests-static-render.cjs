@@ -11,8 +11,8 @@
  * Рисуется НАСТОЯЩАЯ страница `src/app/(v3)/v3/requests/page.tsx` в
  * настоящем `AppShell`; подменены только границы данных и прав: смотрящий,
  * список сотрудников формы лида, серверные действия и чтение очереди.
- * Чтение отдаёт СИНТЕТИЧЕСКИЙ ответ в форме `staff_requests_queue_v2`
- * (миграция 250) и проходит через настоящий `parseRequestsQueue` с
+ * Чтение отдаёт СИНТЕТИЧЕСКИЙ ответ в форме `staff_requests_queue_v3`
+ * (телефония T9; v2 — миграция 250) и проходит через настоящий `parseRequestsQueue` с
  * настоящими декодерами анкеты и консультации — страница видит ровно то, что
  * пропустил бы контракт. Люди, контакты и заявки выдуманы для проверки
  * вёрстки и не являются записями EVO. Живой Supabase, права и данные этот
@@ -122,7 +122,7 @@ function questionnaire(n, first, last, countries) {
   };
 }
 
-/** Строки в форме v2 до отбора по вкладке и состоянию (всё, что роль читает). */
+/** Строки в форме v3 до отбора по вкладке и состоянию (всё, что роль читает). */
 function leadRow(n, fields) {
   const leadId = id("dddddddd", n);
   return {
@@ -183,6 +183,12 @@ const ALL_ROWS = [
   consultationRow(8, { name: "Руслан Черновиков", at: "2026-09-21T07:30:00Z", handledBy: "Бекболот Примеров" }),
   leadRow(9, { name: "Абитуриент с очень длинным двойным именем Нурсултан-Бекмурза Тестов", at: "2026-09-20T04:00:00Z", phone: "+996 555 000 109" }),
 ];
+// Звонки (телефония T9): лиды по неизвестным номерам, без ответственного и взятый звонок.
+const CALL_ROWS = [
+  leadRow(31, { name: "Звонок ••••4521", source: "phone_call", at: "2026-09-27T04:20:00Z", phone: "+996 700 004 521" }),
+  leadRow(32, { name: "Звонок ••••7788", source: "phone_call", at: "2026-09-26T15:05:00Z", phone: "+996 555 007 788", owner: COLLEAGUE }),
+  leadRow(33, { name: "Звонок ••••0310", source: "phone_call", at: "2026-09-25T09:41:00Z", phone: "+996 312 000 310" }),
+];
 // Продажи отдела (Sales Manager): лиды без ответственного вне области отдела (155),
 // анкеты роли закрыты — пустая очередь с последней заявкой отдела.
 const SALES_ROWS = [
@@ -190,14 +196,18 @@ const SALES_ROWS = [
 ];
 
 const TAB_OF = (row) => (row.raw.kind === "lead" ? row.raw.source : row.raw.kind);
-const SOURCE_OF_TAB = { website: "website", whatsapp: "whatsapp", application: "platform_application", consultation: "portal_consultation" };
+const SOURCE_OF_TAB = { website: "website", whatsapp: "whatsapp", phone_call: "phone_call", application: "platform_application", consultation: "portal_consultation" };
 
-/** Ответ v2 так, как его собрал бы сервер: отбор, числа всех вкладок, последняя заявка. */
-function queueResponse(rows, states, source, status, limit) {
-  const tabs = ["website", "whatsapp", "application", "consultation"];
-  const kindOfTab = { website: "lead", whatsapp: "lead", application: "application", consultation: "consultation" };
-  const readable = rows.filter((row) => states[row.raw.kind] === "ready");
-  const counts = Object.fromEntries(tabs.map((tab) => [tab, states[kindOfTab[tab]] === "ready"
+/**
+ * Ответ v3 так, как его собрал бы сервер: отбор, числа всех вкладок, последняя заявка.
+ * Звонки (`phoneCalls`) входят в чтение, только когда телефония включена для сотрудников.
+ */
+function queueResponse(rows, states, source, status, limit, calls = false) {
+  const tabs = ["website", "whatsapp", "phone_call", "application", "consultation"];
+  const kindOfTab = { website: "lead", whatsapp: "lead", phone_call: "lead", application: "application", consultation: "consultation" };
+  const phoneCalls = calls && states.lead === "ready";
+  const readable = rows.filter((row) => states[row.raw.kind] === "ready" && (phoneCalls || TAB_OF(row) !== "phone_call"));
+  const counts = Object.fromEntries(tabs.map((tab) => [tab, states[kindOfTab[tab]] === "ready" && (tab !== "phone_call" || phoneCalls)
     ? readable.filter((row) => TAB_OF(row) === tab && (status === "all" || row.waiting)).length : null]));
   const ofSource = readable.filter((row) => source === "all" || SOURCE_OF_TAB[TAB_OF(row)] === source);
   const picked = ofSource.filter((row) => status === "all" || row.waiting)
@@ -205,7 +215,7 @@ function queueResponse(rows, states, source, status, limit) {
     .slice(0, limit);
   const latestAt = ofSource.length ? ofSource.map((row) => row.sortAt).sort().at(-1) : null;
   return {
-    version: 2, organizationId: ORG, source, status, limit, states, counts, latestAt,
+    version: 3, organizationId: ORG, source, status, limit, states, phoneCalls, counts, latestAt,
     rows: picked.map((row) => row.raw), nextCursor: null, previousCursor: null,
   };
 }
@@ -227,6 +237,13 @@ const SCENARIOS = {
   "sales-untakeable": { actor: "sales", search: "", rows: [leadRow(22, { name: "Гульнара Экспериментова", at: "2026-09-27T01:00:00Z", canTake: false })], states: { lead: "ready", application: "forbidden", consultation: "ready" } },
   // Просмотр роли: те же строки, «Взять себе», решения и «Добавить лида» нет.
   preview: { actor: "preview", search: "", rows: ALL_ROWS, states: { lead: "ready", application: "ready", consultation: "ready" } },
+  // Телефония включена: вкладка «Звонки» с числом, лиды `phone_call` среди остальных.
+  calls: { actor: "admin", search: "status=all", rows: [...ALL_ROWS, ...CALL_ROWS], states: { lead: "ready", application: "ready", consultation: "ready" }, calls: true },
+  "calls-waiting": { actor: "admin", search: "source=phone_call", rows: [...ALL_ROWS, ...CALL_ROWS], states: { lead: "ready", application: "ready", consultation: "ready" }, calls: true },
+  // Звонки есть в базе, но телефония для сотрудников выключена: ни вкладки, ни строк, ни числа.
+  "calls-hidden": { actor: "admin", search: "status=all", rows: [...ALL_ROWS, ...CALL_ROWS], states: { lead: "ready", application: "ready", consultation: "ready" }, calls: false },
+  // Устаревшая ссылка на вкладку «Звонки» при выключенной телефонии.
+  "calls-off-link": { actor: "admin", search: "source=phone_call", rows: [...ALL_ROWS, ...CALL_ROWS], states: { lead: "ready", application: "ready", consultation: "ready" }, calls: false },
   // Чтение не удалось: вкладки без чисел, ошибка с «Повторить».
   error: { actor: "admin", search: "", rows: ALL_ROWS, states: { lead: "ready", application: "ready", consultation: "ready" }, fail: "unavailable" },
 };
@@ -253,7 +270,7 @@ const STUBS = {
       const { parseRequestsQueue } = require(join(ROOT, "src/lib/requests-queue-contract.ts"));
       const { decodeStudentApplication } = require(join(ROOT, "src/lib/v3/student-application-source.ts"));
       const { parsePortalConsultationRow } = require(join(ROOT, "src/lib/v3/requests-source.ts"));
-      const raw = queueResponse(current.rows, current.states, selection.source, selection.status, selection.limit);
+      const raw = queueResponse(current.rows, current.states, selection.source, selection.status, selection.limit, current.calls === true);
       return parseRequestsQueue(raw, actor.organizationId, selection, decodeStudentApplication, parsePortalConsultationRow);
     },
   },

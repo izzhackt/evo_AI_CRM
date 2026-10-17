@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -11,7 +11,7 @@ import { buildTodayQueue, todayRequestItems } from "../src/lib/v3/today-queue.ts
 /**
  * «Заявки» (Э3, 27.09.2026): очередь разбора с «Взять себе». Логика
  * представления проверяется напрямую, разметка — настоящей страницей в
- * AppShell с синтетическим ответом `staff_requests_queue_v2`
+ * AppShell с синтетическим ответом `staff_requests_queue_v3`
  * (tests/e2e/requests-static-render.cjs --json, отдельный node-процесс).
  * Права и строки на настоящем Postgres — набор 250
  * (supabase/tests/platform_requests_queue_triage.sql). Это не живая проверка
@@ -288,6 +288,77 @@ test("migration 250 is forward-only, definer with an empty search path, and keep
   assert.match(sql, /actor\.platform_role IS NOT DISTINCT FROM 'student'/u);
   assert.doesNotMatch(sql, /platform_role\s*(?:NOT\s+)?IN\s*\(|platform_role\s*<>|platform_role\s*=/u);
   assert.match(sql, /GRANT EXECUTE ON FUNCTION platform\.staff_requests_queue_v2\(UUID,TEXT,TEXT,INTEGER,JSONB\) TO authenticated;/u);
-  assert.match(read("src/lib/v3/requests-queue-source.ts"), /rpc\("staff_requests_queue_v2",/u);
   assert.match(read("scripts/test-postgres-authorization.sh"), /250_\*[\s\S]*platform_requests_queue_triage\.sql/u);
+});
+
+test("«Звонки» (телефония T9): the page reads v3 only, v3 is the v2 body plus phone_call behind ui_enabled, and v2 stays for the previous release", () => {
+  const source = read("src/lib/v3/requests-queue-source.ts");
+  assert.match(source, /rpc\("staff_requests_queue_v3",/u);
+  assert.doesNotMatch(source, /staff_requests_queue_v2/u, "no parallel adapter: the page reads one version");
+  const file = readdirSync(new URL("../supabase/migrations/", import.meta.url)).find((name) => name.endsWith("_platform_telephony_unknown_leads.sql"));
+  assert.ok(file, "the migration is found by name, not by number");
+  const sql = read(`supabase/migrations/${file}`);
+  assert.match(sql, /CREATE FUNCTION platform\.staff_requests_queue_v3\(/u);
+  assert.doesNotMatch(sql, /DROP FUNCTION|CREATE OR REPLACE FUNCTION platform\.staff_requests_queue_v[12]/u, "v1 and v2 stay for the previous release");
+  assert.match(sql, /STABLE SECURITY DEFINER SET search_path = ''/u);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION platform\.staff_requests_queue_v3\(UUID,TEXT,TEXT,INTEGER,JSONB\) TO authenticated;/u);
+  assert.match(sql, /actor\.platform_role IS NOT DISTINCT FROM 'student'/u);
+  // The calls are in the read only with telephony ui_enabled, and a missing settings row is «off».
+  assert.match(sql, /telephony_ui := COALESCE\(\(SELECT s\.ui_enabled FROM platform_private\.telephony_settings s\s+WHERE s\.organization_id=actor\.organization_id\), FALSE\);/u);
+  assert.match(sql, /\(l\.source_key IN \('website','whatsapp'\) OR \(telephony_ui AND l\.source_key='phone_call'\)\)/u);
+  // Everything else of the read is the 250 text: the same gates, only the names, the version and the new tab differ.
+  const v2 = read("supabase/migrations/250_platform_requests_queue_triage.sql");
+  const body = (text, version) => text.slice(text.indexOf(`CREATE FUNCTION platform.staff_requests_queue_v${version}(`), text.indexOf(`REVOKE ALL ON FUNCTION platform.staff_requests_queue_v${version}`));
+  for (const gate of [
+    "platform_private.staff_has_permission(actor.organization_id,actor.membership_id,'lead.read')",
+    "PERFORM private.staff_sales_lead_page(1);",
+    "platform_private.staff_can_access(l.organization_id,actor.membership_id,'lead.read','lead',l.id)",
+    "platform_private.sales_lead_handoffs(actor.organization_id,",
+    "platform_private.student_application_staff_org()",
+  ]) {
+    assert.ok(body(v2, 2).includes(gate) && body(sql, 3).includes(gate), gate);
+  }
+  assert.match(read("scripts/test-postgres-authorization.sh"), /\*_platform_telephony_unknown_leads\.sql[\s\S]*platform_telephony_unknown_leads\.sql/u);
+});
+
+test("«Звонки»: the tab, its number and its rows exist only when the read carries phone calls; «Все» adds them; an old link says so in words", () => {
+  // Телефония включена: вкладка с числом, строки с источником «Звонок», «Взять себе» как у любого лида.
+  assert.deepEqual(tabs(surfaces.get("calls")), ["Все 12", "Сайт 4", "WhatsApp 1", "Звонки 3", "Анкеты 2", "Консультации 2"]);
+  assert.deepEqual(tabs(surfaces.get("calls-waiting")), ["Все 6", "Сайт 2", "WhatsApp 0", "Звонки 2", "Анкеты 1", "Консультации 1"]);
+  const waiting = main(surfaces.get("calls-waiting"));
+  assert.equal(count(waiting, /data-queue-row=/gu), 2, "only the two unowned calls wait");
+  assert.equal(count(waiting, />Взять себе</gu), 2);
+  assert.match(waiting, /Звонок ••••4521/u);
+  assert.match(waiting, /href="\/v3\/requests\?source=phone_call&amp;open=lead%3A[0-9a-f-]+"/u, "«Открыть» keeps the tab in the address");
+  assert.equal(count(waiting, />Звонок</gu) >= 2, true, "the source column says «Звонок»");
+  const all = main(surfaces.get("calls"));
+  assert.equal(count(all, /data-queue-row=/gu), 12);
+  assert.match(all, /Звонок ••••7788/u);
+  // Телефония выключена: звонки есть в базе, но ни вкладки, ни строк, ни числа; «Все» — как раньше.
+  assert.deepEqual(tabs(surfaces.get("calls-hidden")), ["Все 9", "Сайт 4", "WhatsApp 1", "Анкеты 2", "Консультации 2"]);
+  assert.equal(count(main(surfaces.get("calls-hidden")), /data-queue-row=/gu), 9);
+  assert.doesNotMatch(main(surfaces.get("calls-hidden")), /Звонок ••••/u);
+  // Устаревшая ссылка на «Звонки»: вкладка остаётся (выбранная), числа нет, слова вместо «пусто».
+  const link = main(surfaces.get("calls-off-link"));
+  assert.deepEqual(tabs(surfaces.get("calls-off-link")), ["Все 4", "Сайт 2", "WhatsApp 0", "Звонки", "Анкеты 1", "Консультации 1"]);
+  assert.match(link, /Звонки пока не подключены\./u);
+  assert.equal(count(link, /data-queue-row=/gu), 0);
+  // Чистые функции представления: без чтения «Звонков» нет; пустая очередь не обещает звонков, пока они выключены.
+  const selection = parseRequestSelection({ source: "website" });
+  assert.deepEqual(requestTabs(selection, null).map((tab) => tab.key), ["all", "website", "whatsapp", "platform_application", "portal_consultation"]);
+  const queue = (phoneCalls) => ({
+    rows: [], states: { lead: "ready", application: "ready", consultation: "ready" }, phoneCalls,
+    counts: { website: 0, whatsapp: 0, phone_call: phoneCalls ? 0 : null, application: 0, consultation: 0 }, latestAt: null, nextCursor: null, previousCursor: null,
+  });
+  assert.match(requestEmptyWhat(queue(true), "all"), /звонки с неизвестных номеров/u);
+  assert.doesNotMatch(requestEmptyWhat(queue(false), "all"), /звонки/u);
+  assert.match(requestEmptyWhat(queue(true), "phone_call"), /звонки с неизвестных номеров/u);
+  assert.deepEqual(requestTabs(parseRequestSelection({ source: "phone_call" }), queue(false)).map((tab) => tab.key),
+    ["all", "website", "whatsapp", "phone_call", "platform_application", "portal_consultation"]);
+  assert.deepEqual(requestTabs(selection, queue(true)).map((tab) => tab.key),
+    ["all", "website", "whatsapp", "phone_call", "platform_application", "portal_consultation"]);
+  assert.deepEqual(requestTabs(selection, queue(false)).map((tab) => tab.key),
+    ["all", "website", "whatsapp", "platform_application", "portal_consultation"]);
+  // «Сегодня» не меняется: неразобранный лид по звонку по-прежнему открывается панелью доски (его вкладка бывает выключена);
+  // это держит тест выше «website and WhatsApp requests open «Заявки», other unowned leads keep the board panel».
 });

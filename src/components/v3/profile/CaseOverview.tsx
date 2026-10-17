@@ -65,8 +65,10 @@ export type CaseOverviewInput = Readonly<{
   portal: Readonly<{ text: string; tone: "muted" | "warn" | "ok"; settings: ReactNode }> | null;
   /** Продажа в «Сведениях»; null — у сотрудника нет чтения продаж. */
   sales: Readonly<{ manager: string | null; nextAction: string | null }> | null;
-  /** Формы продажи — свёрнутая группа «Данные продажи»; null — группы нет. */
+  /** Свёрнутая группа «Данные продажи» (формы лида или условия дела прямого студента только чтением); null — группы нет. */
   salesData: ReactNode;
+  /** Строка у названия группы: менеджер продаж или сумма и день продажи дела без продаж. */
+  salesDataSummary: string;
   salesDataOpen: boolean;
   help: ReactNode;
   /** Лента (`caseFeed`) и заметка в одну строку; null — писать заметки нельзя (просмотр роли). */
@@ -357,7 +359,7 @@ function Groups({ input }: Readonly<{ input: CaseOverviewInput }>) {
         ) : null}
         {input.salesData ? (
           <Group id={CASE_SALES_GROUP_ID} title="Данные продажи" open={input.salesDataOpen} testId="v3-case-sales-data"
-            summary={input.sales?.manager ?? "менеджер не назначен"}>
+            summary={input.salesDataSummary}>
             <div className="flex flex-col gap-4">{input.salesData}</div>
           </Group>
         ) : null}

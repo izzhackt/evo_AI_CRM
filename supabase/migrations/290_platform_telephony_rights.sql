@@ -53,7 +53,10 @@
 --      типы:      telephony_call, telephony_dial_request, telephony_settings
 --    Автоматические события приёма в журнал не идут (как work.* и
 --    communication.webhook.persist).
--- Повторный запуск ничего не меняет: определения прав не дублируются, роль с
+-- Повторный запуск целой миграции отказывает и ничего не меняет (CREATE FUNCTION
+-- для telephony_rights_verify/telephony_rights_provision и ALTER … RENAME
+-- allowlist-функций падают, транзакция откатывается; то же свойство, что у 255).
+-- Идемпотентна только сама platform_private.telephony_rights_provision: роль с
 -- тем же названием пропускается. Старые фиксированные bundles 041 не
 -- трогаются; студентам права не даются. Слияние ничего не открывает: ни
 -- таблиц, ни флагов, ни маршрутов, ни кнопок; действия попадут в журнал, когда
@@ -191,9 +194,15 @@ COMMENT ON FUNCTION platform_private.telephony_rights_provision(TEXT) IS
   'Migration 290: create «Телефония — менеджер» and «Телефония — руководитель» (organization scope, bundle 1) in every active organization; assigns nobody. Idempotent by role label; owner-only.';
 
 DO $tel290_provision$
+DECLARE
+  v_result JSONB;
 BEGIN
-  PERFORM platform_private.telephony_rights_provision(
+  v_result := platform_private.telephony_rights_provision(
     'Телефония T2: роли «Телефония — менеджер» и «Телефония — руководитель» (план §11); никого не назначаем');
+  -- Кто применяет ledger, видит, сколько ролей создано и сколько пропущено
+  -- (роль с тем же названием уже есть: она не меняется и ключей не получает).
+  RAISE NOTICE 'telephony_rights_roles_created: %', jsonb_array_length(v_result -> 'roles');
+  RAISE NOTICE 'telephony_rights_roles_skipped: %', jsonb_array_length(v_result -> 'skipped');
 END
 $tel290_provision$;
 

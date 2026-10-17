@@ -3809,6 +3809,31 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_telephony_missed_tasks.sql </dev/null
   fi
+
+  # «Отчёт продаж»: служебный перенос строк с созданием и связыванием карточек
+  # лидов (import_sales_report_row_v1; PLAN_CHANGES 18.10.2026). Matched by name,
+  # not number, so a renumbering at merge keeps the hook. The suite proves: the
+  # service-only boundary (authenticated, anon, a service role carrying a user
+  # identity, every actor who is not the Admin of the organization); the strict
+  # payload (every refusal names its key, nothing is written by a refused call);
+  # insert (the row, the answer, the journal, the receipt; a replay writes
+  # nothing; PT409 for another body, another actor, another source); refresh
+  # (an untouched import row brought up to a new source with its previous values
+  # in the receipt, again and again while only the import wrote it; an archived,
+  # owned or hand-edited row, or a missing one, refused); link_lead and link_only
+  # by 254's rules (one lead one row, a pipeline sale, a foreign lead, an
+  # archived row; every refusal rolls the whole call back); create_lead (client
+  # and lead, E.164 phone, converted and ownerless, provenance, the note in the
+  # receipt, outside the marketing cohort; lead_exists / case_exists create
+  # nothing; a phone-spelling duplicate candidate); a journal without personal
+  # data; isolation of organizations; the posture of the new objects. Written on
+  # 18.10.2026 and NOT yet run (the owner's decision: one pass of testing at the
+  # end of the batch).
+  if [[ "$(basename "$migration")" == *_platform_sales_report_import.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_sales_report_import.sql </dev/null
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

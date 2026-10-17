@@ -251,3 +251,31 @@ Not verified: the open default for a student who has not started (every demo stu
 игнорируемой папке канонического checkout `output/student-app-v2/screens/`
 (`ios-r2/` раунд 1, `ios-r3/` раунд 2, `ios/r4-*` раунд 3), данные демо
 синтетические.
+
+## 2026-10-18: CSCA card on Home for students who chose China (Q16)
+
+Owner decision 18.10.2026. One compact card on «Главная», on web and iPhone, only for a student whose chosen country is China. The choice is the one that drives «Путь поступления» (`student_country_choice_v1`, 284): a saved choice and the default from the application or the case count the same. No new RPC, no migration.
+
+| Rule | Web | iPhone |
+|---|---|---|
+| Visible when | choice country is `CN` (`cscaHomeCardVisible`, `src/lib/portal/csca-home-card.ts`) | the same (`CSCAHomeCardPolicy.isVisible`, `ios/EVOAdmissions/Services/CSCA/CSCAHomeCard.swift`) |
+| Hidden for | IT, MY, AE, TR, CZ, «Пока не решил», no choice, a failed choice read, a failed `learning_track_home_v1` read; never an error card (the CSCA section shows its own error) | the same; after a choice change the card appears or disappears at once, without a restart |
+| Content | title «CSCA»; one line `summary` of `src/content/csca/overview.json` (RU or KY, no new claims); nearest official session; one action «К подготовке» | the same text from the same JSON (`CSCAHomeCardPolicy.summary`) |
+| Nearest session | first by start date of the sessions whose last exam day is not before `today` of the server answer; none left: title, summary and action stay | the same (`nearestSession`) |
+| «Регистрация закрывается через N дней» | only for an open window with N at most 60, from the same `sessionLabels` as the sessions block; a closed, not yet open or unpublished window and N above 60 show the session dates alone | the same, from `CSCASessionRegistration.closesSoon` |
+| Action | `/portal/csca` | the CSCA screen, pushed in the Home stack (Back returns to Home) |
+| Reads | `readCscaHome()` hangs off the choice read inside the one `Promise.all` of the page: two chained RPCs like the favourites, so the wave is not deeper; a student with another country triggers no CSCA read | the same chain inside `refresh()` and again when the choice changes, one read at a time |
+| Place | first card of «Продолжить» for both tiers (plan v2 §9.1); the order of «Путь поступления» is unchanged | first block of the learning and tests group, right after «Путь поступления» (after the admission section when the case needs attention) |
+| Markup | `article.pt-home-card` with `h3` «CSCA», one link described by the heading, no live region | list section headed «CSCA», one combined row, one navigation link with the title as hint |
+
+Differences, named: the iPhone writes the session dates in the words of its own sessions screen («14 ноября и 15 ноября 2026 г.», and in KY the existing order «14-ноябрь жана 2026-ж., 15-ноябрь»), the web writes «14 и 15 ноября 2026 г.»; a failed background refresh on the iPhone keeps a card already shown, the web rereads on every visit; before the data arrives the iPhone shows nothing (no spinner, no empty section). KY («Жакынкы сессия», «Каттоо {срок}», «Даярдыкка») is a draft for native proofreading (`needs_review` in `CSCA.xcstrings`). The word «Подготовка» is not in the title (plan v2 §9.1), only in the action the owner gave.
+
+Not changed here: the CSCA link inside the «Путь поступления» step (`TIMELINE_MODULE_ROUTES` stays empty; the node test «module routes match the app routes» fails on clean `origin/main` 7dc07d45b for that reason), and the KY date order of the iPhone sessions screen.
+
+Real checks on 2026-10-18, local `evo-video-demo` stack (synthetic students, no production), through a local fault-injection proxy that logs paths only: web `next dev` on port 3121 with an own headless Chromium, iPhone on an own iPhone 17 Pro Simulator (iOS 26.5) driven by a scratch XCUITest outside the repo.
+
+- Web (52 checks, 1440, 390 and 320 px, light, dark, RU, KY): the hero (China from the case) shows the card as the first card of «Продолжить» with the summary line, «Ближайшая сессия: 14 и 15 ноября 2026 г.», «Регистрация закрывается через 3 дня» and one «К подготовке» (Enter opens `/portal/csca`); one real `Сменить страну` journey Italy, China, «Пока не решил», China (card gone, back without reload, persisted after reload); a student with Malaysia by default chooses China (card) and Italy (gone); a student with Czechia never sees it; with `learning_track_home_v1` answering 500 the card is gone, the China path and «Продолжить» still render, no alert; axe has no violations in the card (light and dark); no horizontal scroll; the link is 44 px high with a visible focus ring. The proxy log shows `learning_track_home_v1` only for the three students with China.
+- iPhone (scratch XCUITest, light, dark, accessibility extra large, RU and KY): card present for the hero, text and one action, the action opens the CSCA screen with Back to Home; Italy, China, «Пока не решил» and China again through the real sheet with the card appearing and disappearing without a restart; with the CSCA RPC failing no card and no error text, the China path intact; the KY card shows the three KY lines.
+- Unit: `tests/portal-csca-home-card.test.mjs` (10), `CSCAHomeCardTests` (6) with `CSCAStringsTests`, `CountryChoiceTests`, `FillContrastSourceTests`, `LocalizationKeysTests`, `CSCAPolicyTests`; four web and two iPhone mutations (any choice shows, finished sessions not skipped, card without data, CSCA read for everyone) fail the tests.
+
+Not verified: a failed background refresh keeping a shown card on the iPhone (a code rule, not exercised), the self-serve tier on a device (no demo student without a case; its place is covered by the markup test, the tier uses the same grid), VoiceOver by ear, iOS 17 runtime, hardware, production, a student without any choice (`source = none`) on the live stack (covered by the rule tests only), Increase Contrast. Screenshots and journey results stay outside Git in the canonical checkout's `output/owner-decisions-2026-10-18/q16-csca-home-card/`.

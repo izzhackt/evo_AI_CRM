@@ -1211,7 +1211,109 @@ async function telephonyPages() {
   ];
 }
 
-if (process.argv.includes("--json-telephony")) {
+// --- «Телефония Beeline KG», T10: блок «Звонки» в «Отчёте продаж» -----------------------------
+// Настоящий компонент и настоящий разбор ответа (`telephonyReportState`) на синтетических цифрах той же
+// формы, что отдаёт platform.telephony_report_v1 (миграция 299): имена выдуманы, номера — маски, ссылок нет.
+// Цифры команды и менеджеров совпадают с рукотворным набором supabase/tests/platform_telephony_report.sql.
+const REPORT_ZERO_FIRST = { leads: 0, called: 0, reached: 0, inTime: 0, late: 0, pending: 0, medianCallSeconds: null, medianReachSeconds: null };
+const REPORT_ZERO_MISSED = { total: 0, inTime: 0, late: 0, pending: 0, without: 0 };
+const reportZeroMetrics = () => ({
+  calls: { in: 0, out: 0 }, answered: { in: 0, out: 0 }, talk: { seconds: 0, calls: 0 }, result: { eligible: 0, set: 0 },
+  firstCall: { ...REPORT_ZERO_FIRST }, missed: { ...REPORT_ZERO_MISSED },
+});
+const reportMember = (n, name, fields) => ({ membershipId: uuid("94949494", n), name, ...reportZeroMetrics(), ...fields });
+const REPORT_SANZHAR = reportMember(1, "Санжар Эскизов", {
+  calls: { in: 5, out: 5 }, answered: { in: 1, out: 3 }, talk: { seconds: 280, calls: 4 }, result: { eligible: 2, set: 2 },
+  firstCall: { leads: 2, called: 1, reached: 1, inTime: 0, late: 2, pending: 0, medianCallSeconds: 3600, medianReachSeconds: 3600 },
+  missed: { total: 1, inTime: 0, late: 1, pending: 0, without: 0 },
+});
+const REPORT_ALIA = reportMember(2, "Алия Учебная", {
+  calls: { in: 3, out: 2 }, answered: { in: 1, out: 1 }, talk: { seconds: 150, calls: 2 }, result: { eligible: 2, set: 0 },
+  firstCall: { leads: 2, called: 2, reached: 1, inTime: 1, late: 1, pending: 0, medianCallSeconds: 2850, medianReachSeconds: 11100 },
+  missed: { total: 1, inTime: 1, late: 0, pending: 0, without: 0 },
+});
+const REPORT_BAKYT = reportMember(3, "Бакыт Пробный", {
+  calls: { in: 2, out: 0 },
+  firstCall: { leads: 1, called: 1, reached: 1, inTime: 0, late: 1, pending: 0, medianCallSeconds: 107100, medianReachSeconds: 107100 },
+  missed: { total: 1, inTime: 0, late: 0, pending: 0, without: 1 },
+});
+const REPORT_NURIA = reportMember(4, "Нурия Тестова", {});
+const REPORT_TEAM = {
+  calls: { in: 8, out: 7 }, answered: { in: 2, out: 4 }, talk: { seconds: 430, calls: 6 }, result: { eligible: 4, set: 2 },
+  firstCall: { leads: 6, called: 4, reached: 3, inTime: 1, late: 5, pending: 0, medianCallSeconds: 4350, medianReachSeconds: 11100 },
+  missed: { total: 4, inTime: 1, late: 1, pending: 0, without: 2 },
+};
+const REPORT_UNASSIGNED = {
+  firstCall: { leads: 1, called: 0, reached: 0, inTime: 0, late: 1, pending: 0, medianCallSeconds: null, medianReachSeconds: null },
+  missed: { total: 1, inTime: 0, late: 0, pending: 0, without: 1 },
+};
+const reportMissed = (n, startedAt, phone, leadId, ownerName) => ({ callId: uuid("94949494", 20 + n), startedAt, phone, leadId, ownerName });
+async function telephonyReportPages() {
+  const { SalesCallsReport } = require(join(ROOT, "src/components/v3/SalesCallsReport.tsx"));
+  const { telephonyReportState } = require(join(ROOT, "src/lib/v3/telephony-report.ts"));
+  const { SALES_CALLS_ANCHOR, salesDynamicsCarry, salesDynamicsHref } = require(join(ROOT, "src/lib/sales-register-navigation.ts"));
+  const period = { key: "custom", from: "2026-09-01", to: "2026-09-26", today: "2026-09-26" };
+  const query = { view: "sales", period: "custom", from: period.from, to: period.to };
+  const periods = [["today", "Сегодня"], ["yesterday", "Вчера"], ["week", "Неделя"], ["month", "Месяц"], ["custom", "Период"]];
+  const answer = (scope, fields) => ({
+    enabled: true, scope, from: period.from, to: period.to, slaMinutes: 15, team: null, managers: [], unassigned: null,
+    missedList: [], missedMore: false, ...fields,
+  });
+  const render = (state, open = true) => renderToStaticMarkup(withContexts(shell(ADMIN, "Отчёт продаж", createElement(SalesCallsReport, {
+    id: SALES_CALLS_ANCHOR, open,
+    choices: periods.map(([key, title]) => ({ key, title, href: salesDynamicsHref(query, key === "custom" ? period : { key }, SALES_CALLS_ANCHOR), active: key === "custom" })),
+    range: { from: period.from, to: period.to, max: period.today }, periodText: "1 сен — 26 сен",
+    formAction: `/v3/main#${SALES_CALLS_ANCHOR}`, carry: salesDynamicsCarry(query), retryHref: salesDynamicsHref(query, period, SALES_CALLS_ANCHOR), state,
+  })), "/v3/main", "view=sales&period=custom"));
+  const ready = (value) => {
+    const state = telephonyReportState(value, period);
+    if (state.status !== "ready") throw new Error(`the synthetic report must pass the real parser: ${JSON.stringify(state)}`);
+    return state;
+  };
+  const sixty = Array.from({ length: 50 }, (_, index) => reportMissed(index, `2026-09-${String(25 - (index % 20)).padStart(2, "0")}T10:${String(index).padStart(2, "0")}:00.000Z`, "+996 ••• 00 00 04", LEAD_ID, "Бакыт Пробный"));
+  return [
+    { name: "report-all", html: render(ready(answer("all", {
+      team: REPORT_TEAM, managers: [REPORT_SANZHAR, REPORT_ALIA, REPORT_BAKYT, REPORT_NURIA], unassigned: REPORT_UNASSIGNED,
+      missedList: [
+        reportMissed(1, "2026-09-25T10:00:00.000Z", "+996 ••• 00 00 04", LEAD_ID, "Бакыт Пробный"),
+        reportMissed(2, "2026-09-24T09:00:00.000Z", "+996 ••• 00 00 03", null, null),
+      ],
+    }))) },
+    { name: "report-own", html: render(ready(answer("own", { managers: [REPORT_SANZHAR] }))) },
+    { name: "report-own-missed", html: render(ready(answer("own", {
+      managers: [REPORT_BAKYT], missedList: [reportMissed(1, "2026-09-25T10:00:00.000Z", "+996 ••• 00 00 04", LEAD_ID, "Бакыт Пробный")],
+    }))) },
+    { name: "report-empty", html: render(ready(answer("all", {
+      team: reportZeroMetrics(), managers: [REPORT_NURIA], unassigned: { firstCall: { ...REPORT_ZERO_FIRST }, missed: { ...REPORT_ZERO_MISSED } },
+    }))) },
+    { name: "report-more", html: render(ready(answer("all", {
+      team: { ...reportZeroMetrics(), missed: { total: 60, inTime: 0, late: 0, pending: 0, without: 60 } },
+      managers: [], unassigned: { firstCall: { ...REPORT_ZERO_FIRST }, missed: { ...REPORT_ZERO_MISSED } }, missedList: sixty, missedMore: true,
+    }))) },
+    { name: "report-pending", html: render(ready(answer("all", {
+      team: { ...reportZeroMetrics(), calls: { in: 1, out: 0 },
+        firstCall: { leads: 1, called: 0, reached: 0, inTime: 0, late: 0, pending: 1, medianCallSeconds: null, medianReachSeconds: null },
+        missed: { total: 1, inTime: 0, late: 0, pending: 1, without: 0 } },
+      managers: [], unassigned: { firstCall: { ...REPORT_ZERO_FIRST }, missed: { ...REPORT_ZERO_MISSED } },
+    }))) },
+    { name: "report-closed", html: render(ready(answer("all", {
+      team: REPORT_TEAM, managers: [REPORT_SANZHAR], unassigned: REPORT_UNASSIGNED,
+      missedList: [reportMissed(1, "2026-09-25T10:00:00.000Z", "+996 ••• 00 00 04", LEAD_ID, "Бакыт Пробный"), reportMissed(2, "2026-09-24T09:00:00.000Z", "+996 ••• 00 00 03", null, null)],
+    })), false) },
+    { name: "report-unavailable", html: render({ status: "unavailable" }) },
+    { name: "report-off", html: render({ status: "off" }) },
+  ];
+}
+
+if (process.argv.includes("--json-telephony-report")) {
+  // «Телефония» T10 (для tests/platform-telephony-report.test.mjs).
+  telephonyReportPages()
+    .then((pages) => process.stdout.write(JSON.stringify(pages)))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+} else if (process.argv.includes("--json-telephony")) {
   // «Телефония» T5 (для tests/platform-telephony-lead-feed.test.mjs).
   telephonyPages()
     .then((pages) => process.stdout.write(JSON.stringify(pages)))
@@ -1253,6 +1355,6 @@ if (process.argv.includes("--json-telephony")) {
     process.exit(1);
   });
 } else {
-  console.error("usage: numbers-static-render.cjs --json | --json-e4 | --json-telephony | --screenshots [outDir] | --e4-screenshots [outDir] | --e86-screenshots [outDir] | --f1 [outDir]");
+  console.error("usage: numbers-static-render.cjs --json | --json-e4 | --json-telephony | --json-telephony-report | --screenshots [outDir] | --e4-screenshots [outDir] | --e86-screenshots [outDir] | --f1 [outDir]");
   process.exit(2);
 }

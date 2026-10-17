@@ -102,6 +102,9 @@ export function salesReportContext(query: Readonly<Record<string, unknown>>, cur
 /** Якорь раздела «Динамика по дням» внизу отчёта. */
 export const SALES_DYNAMICS_ANCHOR = "sales-dynamics";
 
+/** Якорь блока «Звонки» под «Динамикой по дням» («Телефония Beeline KG», срез T10). */
+export const SALES_CALLS_ANCHOR = "sales-calls";
+
 /**
  * Параметры отчёта, которые раздел «Динамика по дням» несёт в своих ссылках
  * периода и форме диапазона: выбор периода не сбрасывает месяц, фильтры и
@@ -116,10 +119,14 @@ export function salesDynamicsCarry(query: Readonly<Record<string, unknown>>): Re
   return carry;
 }
 
-/** Ссылка периода раздела: `/v3/main?view=sales&…&period=week#sales-dynamics`. */
+/**
+ * Ссылка периода раздела: `/v3/main?view=sales&…&period=week#sales-dynamics`. Период общий у
+ * «Динамики по дням» и блока «Звонки»; якорь говорит, к какому из двух разделов вернуться.
+ */
 export function salesDynamicsHref(
   query: Readonly<Record<string, unknown>>,
   period: Readonly<{ key: string; from?: string; to?: string }>,
+  anchor: typeof SALES_DYNAMICS_ANCHOR | typeof SALES_CALLS_ANCHOR = SALES_DYNAMICS_ANCHOR,
 ): string {
   const params = new URLSearchParams(salesDynamicsCarry(query));
   params.set("period", period.key);
@@ -127,5 +134,5 @@ export function salesDynamicsHref(
     params.set("from", period.from);
     params.set("to", period.to);
   }
-  return `/v3/main?${params.toString()}#${SALES_DYNAMICS_ANCHOR}`;
+  return `/v3/main?${params.toString()}#${anchor}`;
 }

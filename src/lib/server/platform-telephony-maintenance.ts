@@ -33,9 +33,15 @@ import {
  *  2. asks the database what is due (`platform.telephony_maintenance_plan_v1`:
  *     the windows and the schedule are decided by the database clock, so a
  *     restart or a second run never doubles a job);
- *  3. local jobs, no PBX request: retry of the stored projection backlog and
- *     the 90-second settle window (both closed by the projection flag inside
- *     the database);
+ *  3. local jobs, no PBX request: retry of the stored projection backlog, the
+ *     90-second settle window (both closed by the projection flag inside the
+ *     database) and, right after the settle window, the missed-call automation
+ *     tick of slice T8 (callback tasks, the no-answer cadence, auto-close,
+ *     automation ceilings; closed inside the database by `projection_enabled`
+ *     and `missed_task_enabled`, both OFF by default). A failure of the tick is
+ *     recorded as a fixed word and ends the run with exit code 1, but it never
+ *     stops the PBX jobs that follow: the reconcile must not stall behind a bug
+ *     in the automation;
  *  4. PBX jobs, only when the PBX key group is complete and the outbound pause
  *     is off: the user directory (`GET /users`), the facts probe
  *     (`GET /domain`, `/record`, `/groups`), then AT MOST ONE history job per
@@ -56,6 +62,7 @@ const RETRY_BATCH = 20;
 const RETRY_MAX_ROUNDS = 5;
 const RETRY_LEASE_SECONDS = 120;
 const SETTLE_BATCH = 200;
+const AUTOMATION_BATCH = 100;
 const APPLY_BATCH = 100;
 const USERS_MAX = 200;
 const HISTORY_MAX_REQUESTS = 16;
@@ -71,6 +78,8 @@ const DEFAULT_RUN_BUDGET_MS = 150_000;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const ZONE_NAME_PATTERN = /^[A-Za-z0-9_/+-]{1,64}$/u;
+const FIXED_WORD_PATTERN = /^[a-z][a-z0-9_]{0,31}$/u;
+const ERROR_CODE_PATTERN = /^[a-z][a-z0-9_]{0,63}$/u;
 
 type RpcClient = Pick<SupabaseClient, "schema">;
 type JsonObject = Record<string, unknown>;
@@ -227,6 +236,9 @@ export async function runTelephonyMaintenance(
 
     const plan = parsePlan(await rpc("telephony_maintenance_plan_v1", { p_organization_id: organizationId }));
     log.status = "ok";
+    let automationFailed = false;
+    const finish = (): TelephonyMaintenanceReport =>
+      Object.freeze({ exitCode: automationFailed ? 1 : 0, log });
 
     // -- Local jobs: no PBX request. -----------------------------------------
     if (plan.retryDue) {
@@ -270,6 +282,33 @@ export async function runTelephonyMaintenance(
       log.settled = count(settled.settled);
       log.settle_flagged = count(settled.flagged);
       log.settle_failed = count(settled.failed);
+      // Missed-call automation (T8): the decisions the quiet window waits for.
+      // The database answers `disabled` while its flags are off.
+      try {
+        const automation = await rpc("telephony_automation_tick_v1", {
+          p_organization_id: organizationId,
+          p_limit: AUTOMATION_BATCH,
+        });
+        log.automation = typeof automation.status === "string" && FIXED_WORD_PATTERN.test(automation.status)
+          ? automation.status
+          : "unknown";
+        if (log.automation === "ok" || log.automation === "stopped") {
+          log.automation_created = count(automation.created) + count(automation.callback_tasks);
+          log.automation_merged = count(automation.merged);
+          log.automation_closed = count(automation.closed) + count(automation.cancelled);
+          log.automation_failed = count(automation.failed);
+          if (typeof automation.stop_code === "string" && FIXED_WORD_PATTERN.test(automation.stop_code)) {
+            log.automation_stop = automation.stop_code;
+          }
+          if (typeof automation.last_error_code === "string" && ERROR_CODE_PATTERN.test(automation.last_error_code)) {
+            log.automation_error = automation.last_error_code;
+          }
+        }
+      } catch (error) {
+        if (!(error instanceof TelephonyDatabaseError)) throw error;
+        log.automation = "failed";
+        automationFailed = true;
+      }
     }
     if (plan.retryDue || plan.settleDue) await mark("tick");
 
@@ -277,11 +316,11 @@ export async function runTelephonyMaintenance(
     const pbxConfig = readPlatformTelephonyPbxConfig(dependencies.environment);
     if (pbxConfig.status !== "ready") {
       log.pbx = pbxConfig.status === "invalid" ? `invalid_${pbxConfig.reason}` : "not_configured";
-      return Object.freeze({ exitCode: 0, log });
+      return finish();
     }
     if (plan.outboundPaused) {
       log.pbx = "paused";
-      return Object.freeze({ exitCode: 0, log });
+      return finish();
     }
     log.pbx = "ready";
     const pbx = dependencies.createPbxClient(pbxConfig.config);
@@ -443,7 +482,7 @@ export async function runTelephonyMaintenance(
       });
     }
 
-    return Object.freeze({ exitCode: 0, log });
+    return finish();
   } catch (error) {
     log.status = "failed";
     log.reason = error instanceof TelephonyDatabaseError ? "database_error" : "internal_error";

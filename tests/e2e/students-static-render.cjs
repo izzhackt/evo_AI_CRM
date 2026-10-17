@@ -370,6 +370,12 @@ const SCENARIOS = {
   pending: withStaleStep(scenario("view=pending")),
   // То же дело в «Быстром просмотре»: шаг только для чтения, дата без «прошёл».
   "pending-panel": withStaleStep(scenario(`view=pending&open=${pageFor("pending", "updated").rows[0].studentCaseId}`, { openTasks: TASKS })),
+  // То же дело читает тот, у кого нет права на документы (`documents: null`): причина в панели — состояние дела, не «нет доступа».
+  "pending-panel-no-read": (() => {
+    const base = scenario(`view=pending&open=${pageFor("pending", "updated").rows[0].studentCaseId}`, { openTasks: TASKS });
+    const rows = base.input.read.page.rows.map((row) => ({ ...row, documents: null }));
+    return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows } } } };
+  })(),
   // Куратор открывает переданное ему дело: «Приём дела» первым в панели.
   "panel-accept": scenario(`view=active&open=${caseId(3)}`, {
     openTasks: TASKS,

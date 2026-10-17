@@ -18,7 +18,7 @@ import {
   caseSaleSummary,
 } from "../src/components/v3/profile/case-work-view.ts";
 import { studentsDocumentsLine } from "../src/components/v3/students/students-queue-view.ts";
-import { caseSectionAccessForState, readCaseProfileSections } from "../src/lib/v3/case-access-contract.ts";
+import { caseDocumentsAwaitCurator, caseSectionAccessForState, readCaseProfileSections } from "../src/lib/v3/case-access-contract.ts";
 import { getPlatformCaseDocumentWorkspace, PlatformPrivateDocumentsRepositoryError } from "../src/lib/platform-private-documents.ts";
 import { caseDocumentsWords, country } from "../src/lib/v3/wording.ts";
 
@@ -561,7 +561,40 @@ test("loadFullCase narrows the snapshot by case state and passes pending to the 
   // Ни try/catch, ни `.catch` вокруг чтения рабочего места документов: отказ active/closed остаётся ошибкой.
   assert.doesNotMatch(source, /getPlatformCaseDocumentWorkspace\([^)]*\)[^\n]*\.catch|catch[^\n]*getPlatformCaseDocumentWorkspace/u);
   const parts = read("src/components/v3/profile/CaseWorkParts.tsx");
-  assert.match(parts, /documentsAwaitCurator=\{admissions\.caseState === "pending"\}/u);
+  // Правило состояния не переписывается по месту: страница дела спрашивает ту же функцию, что и остальные экраны.
+  assert.match(parts, /documentsAwaitCurator=\{caseDocumentsAwaitCurator\(admissions\.caseState\)\}/u);
+  assert.doesNotMatch(parts, /caseState === "pending"/u);
+});
+
+// «Ждёт куратора» (17.10.2026), второй срез: правило «документов у дела без куратора нет» записано один раз и по нему
+// живут все экраны дела — страница, «Быстрый просмотр» очереди «Студенты» и досье «Клиентской базы».
+test("the case-state rule for documents is one function that every screen asks", () => {
+  assert.equal(caseDocumentsAwaitCurator("pending"), true);
+  assert.equal(caseDocumentsAwaitCurator("active"), false);
+  assert.equal(caseDocumentsAwaitCurator("closed"), false);
+  // Доступ к разделам сужается ровно этим правилом: документы пропадают тогда и только тогда, когда правило истинно.
+  const all = { documents: true, finance: true, studentProfile: true, contract: true };
+  for (const state of ["pending", "active", "closed"]) {
+    assert.equal(caseSectionAccessForState(all, state).documents, !caseDocumentsAwaitCurator(state), state);
+  }
+  const consumers = [
+    "src/components/v3/profile/CaseWorkParts.tsx",
+    "src/components/v3/students/StudentQuickView.tsx",
+    "src/components/v3/knowledge/KnowledgeDossiers.tsx",
+    "src/lib/server/knowledge-library/dossiers.ts",
+  ];
+  for (const file of consumers) {
+    const source = read(file);
+    assert.match(source, /import \{ caseDocumentsAwaitCurator \} from "@\/lib\/v3\/case-access-contract";/u, file);
+    assert.match(source, /caseDocumentsAwaitCurator\(/u, file);
+  }
+  // Второй записи правила нет: ни «не active/closed», ни собственного сравнения с `pending` рядом с документами.
+  const dossier = read("src/components/v3/knowledge/KnowledgeDossiers.tsx");
+  assert.doesNotMatch(dossier, /\["active", "closed"\]\.includes\(/u);
+  assert.doesNotMatch(dossier, /!record\.handoffAt/u);
+  // Одна строка слов: досье не держит своих «после передачи дела».
+  assert.doesNotMatch(dossier, /после передачи дела/u);
+  assert.match(dossier, /Документы \{caseDocumentsWords\.awaitCurator\}\./u);
 });
 
 test("the coordinator does not read documents of a pending case, and a refused documents read of an active or closed case still fails", async () => {
@@ -603,4 +636,87 @@ test("the TypeScript rule mirrors the SQL it narrows: the workspace is defined f
   const snapshot = scoped.slice(snapshotAt, scoped.indexOf("REVOKE ALL ON FUNCTION platform.staff_case_access_snapshot", snapshotAt));
   assert.match(snapshot, /'documents', platform_private\.staff_can_access\(p_organization_id, a\.membership_id, 'document\.read\.full', 'student_case', p_student_case_id\)/u);
   assert.doesNotMatch(snapshot, /\bstate\b/u, "the snapshot checks permissions, not the case state: that is why the page narrows it");
+});
+
+// Досье «Клиентской базы» (`readKnowledgeDossier`, раздел `documents`), 17.10.2026: у дела «Ждёт куратора» (`pending`)
+// рабочего места документов нет (113 отвечает 42501 всем), и досье его не запрашивает, а у дела в работе (`active`,
+// `closed`) запрос прежний и отказ остаётся ошибкой. Настоящий `dossiers.ts` и настоящее правило состояния
+// (`case-access-contract.ts`) собираются esbuild; подменены только чтения базы (дело, рабочее место документов, переписка,
+// история) и права Admin. Это проверка ветвления сервера, а не базы: ответ базы на `pending` доказан на локальном стеке.
+const DOSSIER_STUBS = {
+  "server-only": "",
+  "@/lib/platform-admissions": `
+    export async function getPlatformStudentCaseView(_actor, id) { const s = globalThis.__dossier; s.views.push(id); return s.view; }
+    export async function listPlatformStudentCases() { return { rows: [], hasNext: false, nextCursor: null }; }
+  `,
+  "@/lib/platform-private-documents": `
+    export async function getPlatformCaseDocumentWorkspace(_actor, id) {
+      const s = globalThis.__dossier; s.workspaceCalls.push(id);
+      if (s.workspaceRefuses) throw new Error("Platform private-document data is unavailable.");
+      return { studentCaseId: id, slots: [] };
+    }
+  `,
+  "@/lib/v3/case-chat-source": `export async function readCaseChatPage() { return { messages: [] }; }`,
+  "@/lib/v3/profile-activity-source": `export async function readProfileActivity() { return { events: [] }; } export function parseProfileActivityCursor() { return null; }`,
+  "@/lib/knowledge-library-contract": `export const KNOWLEDGE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;`,
+  "@/lib/v3/knowledge-library-source": `
+    export class KnowledgeError extends Error { constructor(code, status = 503) { super(code); this.code = code; this.status = status; } }
+    export function requireKnowledgeAdmin() {}
+  `,
+};
+
+const dossierBundle = await build({
+  entryPoints: [fileURLToPath(new URL("../src/lib/server/knowledge-library/dossiers.ts", import.meta.url))],
+  bundle: true, write: false, platform: "node", format: "esm",
+  plugins: [{
+    name: "dossier-stubs",
+    setup(b) {
+      b.onResolve({ filter: /.*/ }, (args) => (Object.hasOwn(DOSSIER_STUBS, args.path) ? { path: args.path, namespace: "dossier-stub" } : undefined));
+      b.onLoad({ filter: /.*/, namespace: "dossier-stub" }, (args) => ({ contents: DOSSIER_STUBS[args.path], loader: "js" }));
+    },
+  }],
+});
+const { readKnowledgeDossier } = await import(`data:text/javascript;base64,${Buffer.from(dossierBundle.outputFiles[0].text).toString("base64")}`);
+
+const DOSSIER_CASE = "30000000-0000-4000-8000-000000000001";
+const DOSSIER_URL = new URL("https://crm.example.test/api/v3/knowledge/clients");
+const dossierActor = { systemRole: "admin" };
+function dossierSetup(state, { workspaceRefuses = false } = {}) {
+  globalThis.__dossier = { views: [], workspaceCalls: [], workspaceRefuses, view: { access: "full", studentCase: { studentCaseId: DOSSIER_CASE, state } } };
+  return globalThis.__dossier;
+}
+
+test("a «Ждёт куратора» dossier does not ask for the document workspace and answers none", async () => {
+  const stub = dossierSetup("pending");
+  assert.equal(await readKnowledgeDossier(dossierActor, DOSSIER_CASE, "documents", DOSSIER_URL), null);
+  assert.deepEqual(stub.workspaceCalls, [], "the workspace read is not attempted");
+  assert.deepEqual(stub.views, [DOSSIER_CASE], "the case itself is still read, and its access checked, first");
+  // Даже если база отказала бы: до неё дело не доходит.
+  const refusing = dossierSetup("pending", { workspaceRefuses: true });
+  assert.equal(await readKnowledgeDossier(dossierActor, DOSSIER_CASE, "documents", DOSSIER_URL), null);
+  assert.deepEqual(refusing.workspaceCalls, []);
+});
+
+test("a dossier of a case in work still reads the document workspace, and a refusal there stays an error", async () => {
+  for (const state of ["active", "closed"]) {
+    const stub = dossierSetup(state);
+    const workspace = await readKnowledgeDossier(dossierActor, DOSSIER_CASE, "documents", DOSSIER_URL);
+    assert.equal(workspace.studentCaseId, DOSSIER_CASE, state);
+    assert.deepEqual(stub.workspaceCalls, [DOSSIER_CASE], state);
+    const refusing = dossierSetup(state, { workspaceRefuses: true });
+    await assert.rejects(readKnowledgeDossier(dossierActor, DOSSIER_CASE, "documents", DOSSIER_URL), /private-document data is unavailable/u, `${state}: not swallowed`);
+    assert.deepEqual(refusing.workspaceCalls, [DOSSIER_CASE], state);
+  }
+});
+
+test("the rule narrows only the documents section: the case record of a pending case is read as before", async () => {
+  const stub = dossierSetup("pending");
+  assert.deepEqual(await readKnowledgeDossier(dossierActor, DOSSIER_CASE, undefined, DOSSIER_URL), { studentCaseId: DOSSIER_CASE, state: "pending" });
+  assert.deepEqual(await readKnowledgeDossier(dossierActor, DOSSIER_CASE, "chat", DOSSIER_URL), { messages: [] });
+  assert.deepEqual(stub.workspaceCalls, []);
+  // Неизвестный раздел, как и раньше, - «не найдено».
+  await assert.rejects(readKnowledgeDossier(dossierActor, DOSSIER_CASE, "payments", DOSSIER_URL), (error) => error.code === "knowledge_not_found" && error.status === 404);
+  // Дело без полного доступа не раскрывается и состоянием.
+  globalThis.__dossier.view = { access: "summary", studentCase: { state: "pending" } };
+  await assert.rejects(readKnowledgeDossier(dossierActor, DOSSIER_CASE, "documents", DOSSIER_URL), (error) => error.code === "knowledge_not_found");
 });

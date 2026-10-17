@@ -2,6 +2,7 @@ import "server-only";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { getPlatformStudentCaseView, listPlatformStudentCases, type PlatformAdmissionsCursor } from "@/lib/platform-admissions";
 import { getPlatformCaseDocumentWorkspace } from "@/lib/platform-private-documents";
+import { caseDocumentsAwaitCurator } from "@/lib/v3/case-access-contract";
 import { readCaseChatPage } from "@/lib/v3/case-chat-source";
 import { readProfileActivity, parseProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import { KNOWLEDGE_UUID } from "@/lib/knowledge-library-contract";
@@ -24,7 +25,11 @@ export async function readKnowledgeDossier(actor: ActivePlatformActor, id: strin
   if (!KNOWLEDGE_UUID.test(id)) throw new KnowledgeError("knowledge_not_found", 404);
   const view = await getPlatformStudentCaseView(actor, id);
   if (!view || view.access !== "full") throw new KnowledgeError("knowledge_not_found", 404);
-  if (section === "documents") return getPlatformCaseDocumentWorkspace(actor, id);
+  if (section === "documents") {
+    // A case that waits for a curator has no document workspace (113 answers 42501 to everyone): it is
+    // not asked, and the answer is «none». A refusal for an active or closed case stays an error.
+    return caseDocumentsAwaitCurator(view.studentCase.state) ? null : getPlatformCaseDocumentWorkspace(actor, id);
+  }
   if (section === "chat") return readCaseChatPage(actor, id, url.searchParams.has("before") ? "before" : "latest", url.searchParams.get("before") ?? undefined);
   if (section === "history") {
     const at = url.searchParams.get("beforeAt"); const beforeId = url.searchParams.get("beforeId");

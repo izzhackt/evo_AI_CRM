@@ -8,7 +8,8 @@ import { appendOlderCaseChatPage, type CaseChatPage } from "@/lib/platform-case-
 import type { ProfileEvent } from "@/components/v3/profile/types";
 import { Icon } from "@/components/icons";
 import { SkeletonBlock } from "@/components/ui";
-import { journalEvent } from "@/lib/v3/wording";
+import { caseDocumentsAwaitCurator } from "@/lib/v3/case-access-contract";
+import { caseDocumentsWords, journalEvent } from "@/lib/v3/wording";
 import { QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { knowledgeFetch, command } from "./client";
 import { KnowledgeCaseDocuments } from "./KnowledgeCaseDocuments";
@@ -34,7 +35,8 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
       else {
         const current = await knowledgeFetch<PlatformStudentCaseQueueRow>(`clients/${caseId}`, { signal });
         setRecord(current);
-        if (tab === "documents") setDocuments(current.handoffAt && ["active", "closed"].includes(current.state) ? await knowledgeFetch<PlatformCaseDocumentWorkspace>(`clients/${caseId}/documents`, { signal }) : null);
+        // У дела без куратора рабочего места документов нет: его не запрашивают, а причину называют словами (одно правило на экраны дела).
+        if (tab === "documents") setDocuments(caseDocumentsAwaitCurator(current.state) ? null : await knowledgeFetch<PlatformCaseDocumentWorkspace>(`clients/${caseId}/documents`, { signal }));
         if (tab === "chat") { setChat(await knowledgeFetch<CaseChatPage>(`clients/${caseId}/chat`, { signal })); setLoadedAt(new Date()); }
         if (tab === "history") setHistory(await knowledgeFetch<History>(`clients/${caseId}/history`, { signal }));
       }
@@ -97,7 +99,7 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
       <div className="flex flex-wrap gap-1 border-b border-border pb-1" role="group" aria-label="Материалы клиента">
         {(["documents", "chat", "history"] as const).map((key) => <button type="button" key={key} className={TAB} aria-pressed={tab === key} onClick={() => setTab(key)}>{({ documents: "Документы", chat: "Переписка", history: "История" })[key]}</button>)}
       </div>
-      {tab === "documents" && record && !record.handoffAt && <p className="t-body-compact text-fg-2">Рабочий список документов появится после передачи дела.</p>}
+      {tab === "documents" && record && caseDocumentsAwaitCurator(record.state) && <p className="t-body-compact text-fg-2" data-testid="knowledge-documents-await">Документы {caseDocumentsWords.awaitCurator}.</p>}
       {tab === "documents" && documents && <KnowledgeCaseDocuments key={caseId} caseId={caseId} documents={documents} />}
       {tab === "chat" && chat && <>
         {chat.hasMore && <button disabled={busy} type="button" className={KB_QUIET} onClick={() => void more()}>Загрузить предыдущие сообщения</button>}

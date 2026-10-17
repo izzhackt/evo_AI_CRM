@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for the «Отчёт продаж» row import (platform.import_sales_report_row_v1,
--- migration 299). WRITTEN, NOT RUN: the owner decided on 17.10.2026 to build every task
+-- migration 304, written under 299). WRITTEN, NOT RUN: the owner decided on 17.10.2026 to build every task
 -- first and to test, review, merge and release them in one pass afterwards.
 -- Members are modelled like the 287 suite: invited staff have coarse role NULL, the Admin
 -- is a system Admin of its organization. Proves:

@@ -1,7 +1,9 @@
 -- «Отчёт продаж»: служебный перенос строк отчёта с созданием и связыванием карточек
 -- лидов (поручение владельца 17.10.2026). docs/PLAN_CHANGES.md «2026-10-18 · Отчёт
 -- продаж: перенос строк с созданием и связыванием карточек лидов (миграция 299,
--- запись до кода)».
+-- запись до кода)». Запись писалась под номером 299; итоговый номер 304 присвоен при
+-- сведении 18.10 по свежему origin/main (последняя миграция 301; 302 и 303 заняты
+-- аудитом направления и сопоставлением телефонов) и сверяется ещё раз перед слиянием.
 --
 -- Forward-only and additive. One table, three helper functions, one client-facing
 -- function and one body edit of an existing private read (marketing_cohort). The
@@ -50,7 +52,7 @@ BEGIN;
 -- ---------------------------------------------------------------------------
 -- Anchors: what this migration reuses is the live 134 / 253 / 254 / 281 shape.
 -- ---------------------------------------------------------------------------
-DO $a299_anchor$
+DO $a304_anchor$
 BEGIN
   IF to_regprocedure('platform_private.sales_register_fields(jsonb,boolean)') IS NULL
     -- 253's anchor: the validator is the 134 definition.
@@ -79,20 +81,20 @@ BEGIN
     OR NOT EXISTS (SELECT 1 FROM information_schema.columns c
       WHERE c.table_schema = 'platform' AND c.table_name = 'leads' AND c.column_name = 'interest_direction')
   THEN
-    RAISE EXCEPTION 'a299_anchor_drift';
+    RAISE EXCEPTION 'a304_anchor_drift';
   END IF;
 END
-$a299_anchor$;
+$a304_anchor$;
 
 -- Self-verifying replace inside one function body (the 173 / 244 / 281 pattern).
-CREATE FUNCTION pg_temp.a299_replace(p_signature TEXT, p_old TEXT, p_new TEXT, p_count INTEGER)
+CREATE FUNCTION pg_temp.a304_replace(p_signature TEXT, p_old TEXT, p_new TEXT, p_count INTEGER)
 RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE body TEXT; matches INTEGER;
 BEGIN
   body := pg_get_functiondef(to_regprocedure(p_signature));
   matches := (length(body) - length(replace(body, p_old, ''))) / length(p_old);
   IF body IS NULL OR matches IS DISTINCT FROM p_count THEN
-    RAISE EXCEPTION 'a299_replace_drift: % expected %, found %', p_signature, p_count, matches;
+    RAISE EXCEPTION 'a304_replace_drift: % expected %, found %', p_signature, p_count, matches;
   END IF;
   EXECUTE replace(body, p_old, p_new);
 END $$;
@@ -138,7 +140,7 @@ CREATE TRIGGER sales_report_import_receipts_no_truncate
   BEFORE TRUNCATE ON platform_private.sales_report_import_receipts
   FOR EACH STATEMENT EXECUTE FUNCTION platform_private.block_append_only_mutation();
 COMMENT ON TABLE platform_private.sales_report_import_receipts IS
-  'Migration 299: one row per accepted import_sales_report_row_v1 call (idempotency by organization, import source and external reference; payload md5, actor, the record and the version the call left, the lead note, the answer and the before_state with the previous values of what a refresh overwrote). Backend only, append-only.';
+  'Migration 304: one row per accepted import_sales_report_row_v1 call (idempotency by organization, import source and external reference; payload md5, actor, the record and the version the call left, the lead note, the answer and the before_state with the previous values of what a refresh overwrote). Backend only, append-only.';
 
 -- ---------------------------------------------------------------------------
 -- b) Strict parsing helpers
@@ -679,7 +681,7 @@ REVOKE ALL ON FUNCTION platform.import_sales_report_row_v1(UUID, UUID, TEXT, TEX
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 GRANT EXECUTE ON FUNCTION platform.import_sales_report_row_v1(UUID, UUID, TEXT, TEXT, JSONB, TEXT) TO service_role;
 COMMENT ON FUNCTION platform.import_sales_report_row_v1(UUID, UUID, TEXT, TEXT, JSONB, TEXT) IS
-  'Migration 299: service-only import of one «Отчёт продаж» row, attributed to the owner''s Admin membership. Lays the row down (insert), brings an untouched import row up to a new source (refresh) or leaves it (link_only), and ties it to a lead (link_lead, 254''s rules) or creates the person''s client and a converted lead and ties the row to it (create_lead; a person who already has a case or a lead is reported as case_exists / lead_exists and nothing is created). Idempotent by (organization, import source, external reference); one transaction.';
+  'Migration 304: service-only import of one «Отчёт продаж» row, attributed to the owner''s Admin membership. Lays the row down (insert), brings an untouched import row up to a new source (refresh) or leaves it (link_only), and ties it to a lead (link_lead, 254''s rules) or creates the person''s client and a converted lead and ties the row to it (create_lead; a person who already has a case or a lead is reported as case_exists / lead_exists and nothing is created). Idempotent by (organization, import source, external reference); one transaction.';
 
 -- ---------------------------------------------------------------------------
 -- d) A lead made from the sales report is not a marketing lead
@@ -687,14 +689,14 @@ COMMENT ON FUNCTION platform.import_sales_report_row_v1(UUID, UUID, TEXT, TEXT, 
 -- 281 left leads of source `admissions_direct` out of the marketing cohort
 -- (leads are counted by the day they were created). The people carried over from
 -- the sales report are customers of earlier months, not enquiries of this one.
-SELECT pg_temp.a299_replace('platform_private.marketing_cohort(uuid,date,date)',
+SELECT pg_temp.a304_replace('platform_private.marketing_cohort(uuid,date,date)',
   $old$l.source_key<>'admissions_direct'$old$,
   $new$l.source_key NOT IN ('admissions_direct','sales_report')$new$, 1);
 
 -- ---------------------------------------------------------------------------
 -- Self-check: definer, empty search_path, service_role-only EXECUTE, receipts private.
 -- ---------------------------------------------------------------------------
-DO $a299_verify$
+DO $a304_verify$
 DECLARE routine RECORD;
 BEGIN
   SELECT p.oid, p.prosecdef, p.proconfig INTO routine FROM pg_catalog.pg_proc p
@@ -712,14 +714,14 @@ BEGIN
     OR NOT (SELECT c.relforcerowsecurity FROM pg_catalog.pg_class c
       WHERE c.oid = 'platform_private.sales_report_import_receipts'::regclass)
   THEN
-    RAISE EXCEPTION 'a299_verification_failed: import_sales_report_row_v1';
+    RAISE EXCEPTION 'a304_verification_failed: import_sales_report_row_v1';
   END IF;
   IF (SELECT prosrc FROM pg_catalog.pg_proc WHERE oid = 'platform_private.marketing_cohort(uuid,date,date)'::regprocedure)
       NOT LIKE '%l.source_key NOT IN (''admissions_direct'',''sales_report'')%' THEN
-    RAISE EXCEPTION 'a299_verification_failed: marketing_cohort';
+    RAISE EXCEPTION 'a304_verification_failed: marketing_cohort';
   END IF;
 END
-$a299_verify$;
+$a304_verify$;
 
 NOTIFY pgrst, 'reload schema';
 COMMIT;

@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
--- Boundary suite for migration 290 «Телефония Beeline KG» срез T2 (права, роли,
+-- Boundary suite for migration 291 «Телефония Beeline KG» срез T2 (права, роли,
 -- журнал действий; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §11; ADR 0033). Runs on
--- the real chain right after 290 inside one transaction that is rolled back,
+-- the real chain right after 291 inside one transaction that is rolled back,
 -- with its own synthetic organizations, members and roles (modelled like
 -- production: invited staff have coarse role NULL, permissions come from scoped
 -- role assignments made through the REAL platform.staff_role_assignments_save):
@@ -274,7 +274,7 @@ SELECT pg_temp.t290_assert(
   'an administrator-made role with the same label (even archived) is untouched and reported as skipped');
 SELECT pg_temp.t290_assert(
   (SELECT count(*) FROM platform.audit_events e WHERE e.action = 'staff.roles.migrated'
-    AND e.actor_principal = 'migration:290' AND e.actor_kind = 'system' AND e.resource_type = 'staff_role'
+    AND e.actor_principal = 'migration:291' AND e.actor_kind = 'system' AND e.resource_type = 'staff_role'
     AND e.resource_id IN (SELECT role_id FROM t290_roles) AND e.reason = 'T290 provision'
     AND e.after_state -> 'affectedMembershipIds' = '[]'::JSONB
     AND e.after_state -> 'createdPermissionKeys' = (SELECT to_jsonb(r.bundle_keys) FROM t290_roles r WHERE r.role_id = e.resource_id)

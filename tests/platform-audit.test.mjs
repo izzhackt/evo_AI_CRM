@@ -74,7 +74,7 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["191_platform_case_chat.sql", "case_chat"],
   ["255_platform_audit_journal_allowlist_widen.sql", "journal_widen"],
   // Telephony T2: six telephony.* actions and three resource types.
-  ["290_platform_telephony_rights.sql", "telephony_rights"],
+  ["291_platform_telephony_rights.sql", "telephony_rights"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -479,7 +479,7 @@ test("document.export.* is fully visible: both real resource types are allowlist
   }
 });
 
-// Telephony T2 (migration 290): the six actions and three resource types the
+// Telephony T2 (migration 291): the six actions and three resource types the
 // later telephony slices write are visible in the journal and worded in
 // Russian without a raw code, a number, a name or a link.
 test("telephony journal actions and resource types are allowlisted and worded in Russian", () => {

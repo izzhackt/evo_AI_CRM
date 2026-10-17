@@ -43,8 +43,8 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // (yet) in these lists is not rejected outright: `parseSafeRow` keeps it with
 // `recognized: false` rather than dropping it or failing the whole page —
 // dropping would make the journal and the CSV export silently incomplete.
-// Migration 290 (telephony T2, docs/PLAN_CHANGES.md «2026-10-17 — Телефония T2:
-// права, роли и журнал (миграция 290)») adds six `telephony.*` actions and the
+// Migration 291 (telephony T2, docs/PLAN_CHANGES.md «2026-10-17 — Телефония T2:
+// права, роли и журнал (миграция 291)») adds six `telephony.*` actions and the
 // three resource types `telephony_call`, `telephony_dial_request` and
 // `telephony_settings` by the same rename-and-union wrapper
 // (`..._pre_telephony_rights`); they fall through to the `["record_status"]`

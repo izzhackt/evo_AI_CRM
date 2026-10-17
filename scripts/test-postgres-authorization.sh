@@ -479,7 +479,7 @@ SQL
         -v "migration_file=/workspace/$migration" \
         -f /workspace/supabase/tests/platform_telephony_rights_pre.sql \
         >"$t290_tamper_log" 2>&1; then
-        echo "migration 290 accepted the tampered start $t290_case" >&2
+        echo "migration 291 accepted the tampered start $t290_case" >&2
         exit 1
       fi
       if [[ "$t290_case" == admin_missing ]]; then
@@ -488,7 +488,7 @@ SQL
         t290_expected_reason='telephony_permission_catalog_drift'
       fi
       if ! grep -Eq "ERROR:  55000: $t290_expected_reason" "$t290_tamper_log"; then
-        echo "migration 290 failed for the wrong final-check reason ($t290_case)" >&2
+        echo "migration 291 failed for the wrong final-check reason ($t290_case)" >&2
         sed -n '1,60p' "$t290_tamper_log" >&2
         exit 1
       fi
@@ -3611,6 +3611,26 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_telephony_rights.sql
+  fi
+
+  # «Данные продажи» и направление на деле прямого студента (290, PLAN_CHANGES
+  # 17.10.2026). Matched by name, not number, so a renumbering at merge keeps the
+  # hook. Members are modelled like production (coarse role NULL, the 244
+  # bundles); cases come through 281's own command. The suite proves: the case
+  # snapshot keeps its 33 columns in order and gains admissions_direction last
+  # (full access only; the needs-curator reader still gets the row); the new
+  # read answers the Admin and the case's own curator in the 32-key shape of
+  # staff_lead_sale_conditions_v1 (equal to the lead read for the same lead), the
+  # blank card for a case created without money, NULL for a sales-origin case
+  # even to the Admin, and blank money keys without a finance section on the
+  # case; it refuses (42501, no existence leak) another curator, Sales, the
+  # Student, no membership, another organization, an unknown case, NULL
+  # arguments and the reader of a needs-curator case; anon and service_role have
+  # no EXECUTE; owner, definer, search_path, STABLE and ACL of both functions.
+  if [[ "$(basename "$migration")" == *_platform_case_sale_conditions.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_sale_conditions.sql
   fi
 done < <(
   cd "$repo_root"

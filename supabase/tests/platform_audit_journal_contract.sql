@@ -42,7 +42,7 @@
 --      partner-package exports write 'document_export'). The hardcoded list
 --      of the 80 real pairs of the 71 actions 255 added is seeded and every
 --      pair must be read back; that page is emitted too, so the checker
---      script replays it through the real TS normalizer. Migration 290
+--      script replays it through the real TS normalizer. Migration 291
 --      (telephony T2) adds the 6 telephony pairs to the same list (86 pairs).
 --
 -- Fixture: one organization + one Platform Admin membership, modelled like
@@ -401,7 +401,7 @@ INSERT INTO p7aj_pairs(action, resource_type) VALUES
     ('team.chat.moderate', 'team_chat_message'),
     ('team.chat.post', 'team_chat_message'),
     ('work.review.resolve', 'work_review_case'),
-    -- Telephony T2 (migration 290): the pairs the later telephony slices write
+    -- Telephony T2 (migration 291): the pairs the later telephony slices write
     -- (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §11): a recording grant and a call
     -- result on the call, a dial request, and the settings/mapping/automation
     -- events on the organization's settings row.
@@ -429,7 +429,7 @@ SELECT pg_temp.p7aj_assert(
     AND (SELECT count(*) FROM p7aj_pairs WHERE action LIKE 'telephony.%') = 6
     AND (SELECT array_agg(action ORDER BY action) FROM p7aj_pairs WHERE action LIKE 'telephony.%')
       = (SELECT array_agg(a ORDER BY a) FROM unnest(platform_private.p7a_safe_audit_actions()) a WHERE a LIKE 'telephony.%'),
-  'the pair list covers exactly the six telephony actions migration 290 added');
+  'the pair list covers exactly the six telephony actions migration 291 added');
 
 SET LOCAL ROLE authenticated;
 CREATE TEMP TABLE p7aj_pair_pages(page JSONB);

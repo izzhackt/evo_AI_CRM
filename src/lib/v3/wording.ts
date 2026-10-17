@@ -859,7 +859,7 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "prompt.artifact.retire": "Версия инструкции ИИ отозвана",
   "work.review.resolve": "Разбор фоновой задачи закрыт",
   "media.download.grant": "Выдан доступ к скачиванию вложения",
-  // Телефония (миграция 290, срез T2). Подписи нейтральные: в журнале нет ни
+  // Телефония (миграция 291, срез T2). Подписи нейтральные: в журнале нет ни
   // номера, ни имени клиента, ни ссылки на запись.
   "telephony.recording.listen": "Выдан доступ к прослушиванию записи звонка",
   "telephony.dial": "Запрошен звонок из CRM",
@@ -947,7 +947,7 @@ const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
   team_chat_message: "Сообщение в командном чате",
   work_review_case: "Разбор фоновой задачи",
 
-  // Телефония (миграция 290, срез T2).
+  // Телефония (миграция 291, срез T2).
   telephony_call: "Звонок",
   telephony_dial_request: "Запрос на звонок из CRM",
   telephony_settings: "Настройки телефонии",

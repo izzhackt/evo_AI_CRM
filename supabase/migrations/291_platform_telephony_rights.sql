@@ -1,7 +1,7 @@
--- 290_platform_telephony_rights — права и роли «Телефонии Beeline KG», срез T2.
+-- 291_platform_telephony_rights — права и роли «Телефонии Beeline KG», срез T2.
 -- Контракт: docs/EVO_TELEPHONY_PLAN_2026-10-16.md §11, §16 (срез T2), ADR 0033;
 -- docs/PLAN_CHANGES.md «2026-10-17 — Телефония T2: права, роли и журнал
--- (миграция 290)». Никаких таблиц, функций приёма, маршрутов или интерфейса:
+-- (миграция 291)». Никаких таблиц, функций приёма, маршрутов или интерфейса:
 -- только каталог прав, две роли, проверка в конце и расширение серверного
 -- allowlist-а журнала действий.
 --
@@ -121,7 +121,7 @@ $$;
 REVOKE ALL ON FUNCTION platform_private.telephony_rights_verify()
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 COMMENT ON FUNCTION platform_private.telephony_rights_verify() IS
-  'Migration 290: the telephony catalog keeps its shape and every system admin holds all six telephony permissions (55000 otherwise). Read-only; owner-only.';
+  'Migration 291: the telephony catalog keeps its shape and every system admin holds all six telephony permissions (55000 otherwise). Read-only; owner-only.';
 
 -- Две роли на активную организацию, по форме шаблона 173. Назначений нет.
 CREATE FUNCTION platform_private.telephony_rights_provision(p_reason TEXT)
@@ -177,7 +177,7 @@ BEGIN
 
       INSERT INTO platform.audit_events (organization_id, actor_kind, actor_principal, action, resource_type,
         resource_id, before_state, after_state, reason, request_id)
-      VALUES (org.id, 'system', 'migration:290', 'staff.roles.migrated', 'staff_role', v_role_id, NULL,
+      VALUES (org.id, 'system', 'migration:291', 'staff.roles.migrated', 'staff_role', v_role_id, NULL,
         jsonb_build_object('schemaVersion', 1, 'roleVersion', 1, 'bundleId', v_bundle_id, 'bundleVersion', 1,
           'createdPermissionKeys', to_jsonb(keys), 'affectedMembershipIds', '[]'::JSONB),
         btrim(p_reason), gen_random_uuid());
@@ -191,7 +191,7 @@ $$;
 REVOKE ALL ON FUNCTION platform_private.telephony_rights_provision(TEXT)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 COMMENT ON FUNCTION platform_private.telephony_rights_provision(TEXT) IS
-  'Migration 290: create «Телефония — менеджер» and «Телефония — руководитель» (organization scope, bundle 1) in every active organization; assigns nobody. Idempotent by role label; owner-only.';
+  'Migration 291: create «Телефония — менеджер» and «Телефония — руководитель» (organization scope, bundle 1) in every active organization; assigns nobody. Idempotent by role label; owner-only.';
 
 DO $tel290_provision$
 DECLARE

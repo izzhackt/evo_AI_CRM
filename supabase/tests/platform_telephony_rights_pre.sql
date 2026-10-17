@@ -1,8 +1,8 @@
 \set ON_ERROR_STOP on
 \set VERBOSITY verbose
--- Tamper run for migration 290 «Телефония» срез T2 (docs/EVO_TELEPHONY_PLAN_
+-- Tamper run for migration 291 «Телефония» срез T2 (docs/EVO_TELEPHONY_PLAN_
 -- 2026-10-16.md §11). scripts/test-postgres-authorization.sh runs this file
--- IMMEDIATELY BEFORE the ordinary apply of migration 290, once per case
+-- IMMEDIATELY BEFORE the ordinary apply of migration 291, once per case
 -- (-v t290_case=admin_missing | catalog_drift), and requires it to FAIL with
 -- SQLSTATE 55000 and the named reason. It proves the plan's promise that the
 -- check at the end of the migration rolls it back:

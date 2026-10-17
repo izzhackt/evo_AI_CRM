@@ -472,13 +472,15 @@ SQL
   # nothing was kept.
   if [[ "$(basename "$migration")" == *_platform_telephony_rights.sql ]]; then
     for t290_case in admin_missing catalog_drift; do
+      # `docker exec -i` without `</dev/null` below read the loop's own stdin (the
+      # migration list), so every migration after 291 was silently never applied.
       t290_tamper_log="$(mktemp -t evo-t290-final-check.XXXXXX)"
       if docker exec -i "$container_name" \
         psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
         -v "t290_case=$t290_case" \
         -v "migration_file=/workspace/$migration" \
         -f /workspace/supabase/tests/platform_telephony_rights_pre.sql \
-        >"$t290_tamper_log" 2>&1; then
+        >"$t290_tamper_log" 2>&1 </dev/null; then
         echo "migration 291 accepted the tampered start $t290_case" >&2
         exit 1
       fi

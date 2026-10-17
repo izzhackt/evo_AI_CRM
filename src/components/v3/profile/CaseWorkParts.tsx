@@ -218,6 +218,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
         caseManage: staffHasPermission(actor, "task.manage"), caseAssign: staffHasPermission(actor, "task.assign"),
       }}
       documents={draft.access.documents ? caseChecklistCounts(draft.documents) : null}
+      documentsAwaitCurator={admissions.caseState === "pending"}
       applications={applicationLines}
       payment={draft.access.finance ? { percent: draft.paidPercent, remaining: draft.remaining, financeStop: profile.financeStop } : null}
       // Клиент лида, если лид прочитан; дело прямого студента лида для чтения не имеет — тогда поля анкеты.

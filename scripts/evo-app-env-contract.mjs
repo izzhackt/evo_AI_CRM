@@ -57,6 +57,37 @@ const OPTIONAL_RUNTIME_NAMES = Object.freeze(["EVO_AI_AGENT_INTERNAL_SECRET", "E
 //    the other agent secrets and distinct from every other value.
 const OPTIONAL_AUTOSEND_NAMES = Object.freeze(["EVO_AI_AGENT_AUTOSEND", "EVO_AI_AGENT_SEND_SECRET"]);
 const OPTIONAL_SECRET_NAMES = Object.freeze([...OPTIONAL_RUNTIME_NAMES, "EVO_AI_AGENT_SEND_SECRET"]);
+// Beeline KG PBX telephony (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.5; ADR 0033),
+// also optional: every name may be absent or empty and the feature stays off, so
+// a release never fails on missing telephony env (plan §14, step 3).
+//  - EVO_PLATFORM_TELEPHONY_ENABLED: the intake switch; only '', 0 or 1. `1` is
+//    accepted only with EVO_PLATFORM_TELEPHONY_CRM_TOKEN set.
+//  - EVO_PLATFORM_TELEPHONY_CRM_TOKEN / _NEXT: the key the PBX sends as
+//    `crm_token`, 32-64 characters from [A-Za-z0-9-]; _NEXT only next to the
+//    current key (rotation) and never equal to it.
+//  - EVO_PLATFORM_TELEPHONY_PBX_TOKEN / _PBX_URL / _PBX_HOST: the outbound group,
+//    all three or none: the cabinet key, the https API base without a trailing
+//    slash and the tenant host.
+// Each key is its own value: distinct from every other value in the file.
+const TELEPHONY_ENABLED_NAME = "EVO_PLATFORM_TELEPHONY_ENABLED";
+const TELEPHONY_CRM_TOKEN_NAMES = Object.freeze([
+  "EVO_PLATFORM_TELEPHONY_CRM_TOKEN",
+  "EVO_PLATFORM_TELEPHONY_CRM_TOKEN_NEXT",
+]);
+const TELEPHONY_PBX_NAMES = Object.freeze([
+  "EVO_PLATFORM_TELEPHONY_PBX_TOKEN",
+  "EVO_PLATFORM_TELEPHONY_PBX_URL",
+  "EVO_PLATFORM_TELEPHONY_PBX_HOST",
+]);
+const OPTIONAL_TELEPHONY_NAMES = Object.freeze([
+  TELEPHONY_ENABLED_NAME,
+  ...TELEPHONY_CRM_TOKEN_NAMES,
+  ...TELEPHONY_PBX_NAMES,
+]);
+const TELEPHONY_CRM_TOKEN = /^[A-Za-z0-9-]{32,64}$/u;
+const TELEPHONY_PBX_TOKEN = /^[\x21-\x7e]{16,256}$/u;
+const TELEPHONY_PBX_HOST =
+  /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/u;
 const FORBIDDEN_SUCCESSOR_RUNTIME_VALUES = Object.freeze([
   "AUTH_SECRET",
   "EVO_SECRET_ENCRYPTION_KEY",
@@ -336,6 +367,66 @@ function validateAutosendConfiguration(entries) {
   );
 }
 
+function isTelephonyPbxUrl(value) {
+  if (value.endsWith("/")) return false;
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      url.username === "" &&
+      url.password === "" &&
+      url.search === "" &&
+      url.hash === "" &&
+      // Canonical text only (lower-case host, no default port, a path): what is
+      // written is exactly what the client will call.
+      url.href === value
+    );
+  } catch {
+    return false;
+  }
+}
+
+function validateTelephonyConfiguration(entries) {
+  const value = (name) => entries.get(name) ?? "";
+  const enabled = value(TELEPHONY_ENABLED_NAME);
+  if (enabled !== "" && enabled !== "0" && enabled !== "1") fail("unsafe_runtime_flag");
+
+  const [current, next] = TELEPHONY_CRM_TOKEN_NAMES.map(value);
+  if (current !== "" && !TELEPHONY_CRM_TOKEN.test(current)) {
+    fail("optional_feature_configuration_invalid");
+  }
+  if (next !== "" && (current === "" || !TELEPHONY_CRM_TOKEN.test(next))) {
+    fail("optional_feature_configuration_invalid");
+  }
+
+  const [pbxToken, pbxUrl, pbxHost] = TELEPHONY_PBX_NAMES.map(value);
+  const presentPbx = [pbxToken, pbxUrl, pbxHost].filter((item) => item !== "").length;
+  if (presentPbx !== 0) {
+    if (
+      presentPbx !== 3 ||
+      !TELEPHONY_PBX_TOKEN.test(pbxToken) ||
+      !isTelephonyPbxUrl(pbxUrl) ||
+      !TELEPHONY_PBX_HOST.test(pbxHost)
+    ) {
+      fail("optional_feature_configuration_invalid");
+    }
+  }
+
+  for (const secretName of [...TELEPHONY_CRM_TOKEN_NAMES, TELEPHONY_PBX_NAMES[0]]) {
+    const secret = value(secretName);
+    if (secret === "") continue;
+    for (const [name, other] of entries) {
+      if (name !== secretName && other === secret) {
+        fail("optional_feature_configuration_invalid");
+      }
+    }
+  }
+
+  if (enabled === "1" && current === "") {
+    fail("enabled_feature_configuration_missing");
+  }
+}
+
 export function validateAppEnvironmentContract({
   exampleText,
   actualText,
@@ -347,7 +438,8 @@ export function validateAppEnvironmentContract({
     if (
       !actualEntries.has(name) &&
       !OPTIONAL_RUNTIME_NAMES.includes(name) &&
-      !OPTIONAL_AUTOSEND_NAMES.includes(name)
+      !OPTIONAL_AUTOSEND_NAMES.includes(name) &&
+      !OPTIONAL_TELEPHONY_NAMES.includes(name)
     ) {
       fail("required_env_name_missing");
     }
@@ -377,6 +469,7 @@ export function validateAppEnvironmentContract({
   validateEnabledFeatureConfiguration(actualEntries);
   validateOptionalFeatureConfiguration(actualEntries);
   validateAutosendConfiguration(actualEntries);
+  validateTelephonyConfiguration(actualEntries);
   return Object.freeze({ ok: true, code: "valid" });
 }
 

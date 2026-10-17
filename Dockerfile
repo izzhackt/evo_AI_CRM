@@ -132,6 +132,9 @@ COPY --from=university-template-runtime --chown=0:0 /opt/evo-university-template
 
 COPY --from=knowledge-sops --chown=0:0 --chmod=0555 /sops /usr/local/bin/sops
 COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/knowledge-maintenance.mjs ./knowledge-maintenance.mjs
+# Telephony background job (docs/EVO_TELEPHONY_PLAN_2026-10-16.md 5.3): run by the host timer
+# deploy/telephony/ as `docker exec evo-crm-app-1 node /app/telephony-maintenance.mjs`.
+COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/telephony-maintenance.mjs ./telephony-maintenance.mjs
 
 USER nextjs
 

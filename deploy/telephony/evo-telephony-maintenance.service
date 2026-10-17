@@ -1,0 +1,11 @@
+[Unit]
+Description=EVO telephony maintenance (projection retry, settle window, PBX directory and reconcile)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+# The script does nothing unless EVO_PLATFORM_TELEPHONY_ENABLED=1 in the app
+# container. A oneshot unit never overlaps itself: the timer waits for it to end.
+ExecStart=/usr/bin/docker exec evo-crm-app-1 node /app/telephony-maintenance.mjs
+TimeoutStartSec=240

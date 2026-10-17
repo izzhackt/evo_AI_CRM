@@ -720,3 +720,65 @@ test("the rule narrows only the documents section: the case record of a pending 
   globalThis.__dossier.view = { access: "summary", studentCase: { state: "pending" } };
   await assert.rejects(readKnowledgeDossier(dossierActor, DOSSIER_CASE, "documents", DOSSIER_URL), (error) => error.code === "knowledge_not_found");
 });
+
+// «Ждёт куратора» (17.10.2026), хвосты ссылок (MINOR 2 ревью #1228): вкладки «Документы» у дела `pending` нет, и ссылки на неё
+// не рисуются ни в подготовке по программе, ни во вложении переписки досье, ни во вложении «Переписки». Правило одно:
+// `caseDocumentsAwaitCurator`, своего сравнения с `pending` ни у кого из них нет. `active` и `closed` — как прежде.
+test("the preparation panel, the dossier chat attachment and the Messages thread draw no link to the missing Documents tab of a «Ждёт куратора» case", () => {
+  // Подготовка по программе: признак приходит от панели вузов дела, которая знает состояние, и считается той же функцией.
+  const workspace = read("src/components/v3/profile/ProfileAdmissionsWorkspace.tsx");
+  assert.match(workspace, /import \{ caseDocumentsAwaitCurator \} from "@\/lib\/v3\/case-access-contract";/u);
+  assert.match(workspace, /documentsAwaitCurator=\{caseDocumentsAwaitCurator\(workspace\.caseState\)\}/u);
+  const panel = read("src/components/v3/profile/StaffPreparationPanel.tsx");
+  assert.match(panel, /import \{ caseDocumentsWords \} from "@\/lib\/v3\/wording";/u);
+  assert.match(panel, /canReview = false, documentsAwaitCurator = false \}/u, "other callers keep the link");
+  assert.match(panel, /\{documentsAwaitCurator\s*\? <p [^>]*data-testid="staff-preparation-documents-await">Документы \{caseDocumentsWords\.awaitCurator\}\.<\/p>\s*: <a href=\{docsHref\} className=\{btnGhostCls\}>Все документы дела<\/a>\}/u);
+  // У панели нет ни состояния дела, ни своей записи правила.
+  assert.doesNotMatch(panel, /caseState|state === "pending"|"pending"/u);
+
+  // Досье «Клиентской базы»: вложение-документ — метка и строка, ссылка только у дела с рабочим местом документов.
+  const dossier = read("src/components/v3/knowledge/KnowledgeDossiers.tsx");
+  assert.match(dossier, /const documentsAwait = record !== null && caseDocumentsAwaitCurator\(record\.state\);/u);
+  assert.match(dossier, /message\.attachmentKind === "document" && documentsAwait\s*\? <p [^>]*data-testid="knowledge-chat-attachment-await">[\s\S]*?Документы \{caseDocumentsWords\.awaitCurator\}\.<\/span><\/p>\s*: <Link href=\{`\/v3\/profile\?case=\$\{caseId\}&tab=\$\{message\.attachmentKind === "document" \? "documents" : "overview"\}`\}/u);
+  assert.doesNotMatch(dossier, /state === "pending"|"pending"/u);
+
+  // «Переписка» (кабинет студента): страница считает признак тем же правилом по состоянию дела, карточка вложения получает его пропсом.
+  const page = read("src/app/(v3)/v3/messages/page.tsx");
+  assert.match(page, /import \{ caseDocumentsAwaitCurator \} from "@\/lib\/v3\/case-access-contract";/u);
+  assert.match(page, /documentsAwaitCurator=\{caseDocumentsAwaitCurator\(caseState\)\}/u);
+  const thread = read("src/components/v3/case-chat/CaseChatThread.tsx");
+  assert.match(thread, /caseFacts = null, snippets = null, documentsAwaitCurator = false,/u, "the other screens that render the workspace keep the link");
+  const cardStart = thread.indexOf("function AttachmentCard(");
+  const cardEnd = thread.indexOf("function MessageRow(");
+  assert.ok(cardStart !== -1 && cardEnd > cardStart, "AttachmentCard is found");
+  const card = thread.slice(cardStart, cardEnd);
+  const branchAt = card.indexOf('if (message.attachmentKind === "document" && documentsAwaitCurator) {');
+  const hrefAt = card.indexOf("const href =");
+  assert.ok(branchAt !== -1 && hrefAt > branchAt, "the «ждёт куратора» branch comes before the link is built");
+  const branch = card.slice(branchAt, hrefAt);
+  assert.match(branch, /data-testid="case-chat-attachment-await"/u);
+  assert.match(branch, /Документы \{caseDocumentsWords\.awaitCurator\}\./u);
+  assert.doesNotMatch(branch, /<Link|href=/u, "no link in the branch for a case without a curator");
+  // Для `active` и `closed` прежняя ссылка на вкладку «Документы» и на задачу остаётся.
+  assert.match(card.slice(hrefAt), /`\/v3\/profile\?case=\$\{caseId\}&tab=documents`\s*: `\/v3\/tasks\?task=\$\{message\.attachmentId\}&kind=case&case=\$\{caseId\}`/u);
+  assert.doesNotMatch(thread, /state === "pending"|"pending"/u);
+});
+
+// Axe `select-name` (17.10.2026): у выбора валюты бюджета в форме «Условия» карточки лида не было подписи.
+test("every select of the lead-card forms has an accessible name, and the budget currency one a visible «Валюта» label", () => {
+  for (const file of ["src/components/v3/profile/LeadCardFieldsForm.tsx", "src/components/v3/profile/LeadSaleConditions.tsx"]) {
+    const source = read(file);
+    const selects = [...source.matchAll(/<select\b/gu)];
+    assert.ok(selects.length > 0, file);
+    for (const select of selects) {
+      const before = source.slice(0, select.index);
+      const insideLabel = before.lastIndexOf("<label") > before.lastIndexOf("</label>");
+      const named = /aria-label(?:ledby)?=/u.test(source.slice(select.index, source.indexOf("</select>", select.index)));
+      assert.ok(insideLabel || named, `${file}: a select at offset ${select.index} has neither a wrapping label nor aria-label`);
+    }
+  }
+  const card = read("src/components/v3/profile/LeadCardFieldsForm.tsx");
+  // Подпись — видимое слово, как у соседнего «Период» и у валют сделки; сырых ключей нет.
+  assert.match(card, /<label>\s*<span className=\{fieldLabelCls\}>Валюта<\/span>\s*<select\s+value=\{budgetCurrency\}/u);
+  assert.match(card, /<option value="">Не указана<\/option>\s*\{SALE_CONDITION_CURRENCIES\.map/u);
+});

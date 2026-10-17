@@ -1,0 +1,11 @@
+[Unit]
+Description=Run EVO telephony maintenance every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=1min
+Persistent=true
+Unit=evo-telephony-maintenance.service
+
+[Install]
+WantedBy=timers.target

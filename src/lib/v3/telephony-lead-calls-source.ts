@@ -6,7 +6,7 @@ import { createSupabaseServerClient } from "../supabase/server.ts";
 import { LEAD_CALLS_LIMIT, leadCallsState, type LeadCallsState } from "./telephony-lead-calls.ts";
 
 /**
- * Строки звонков для «Ленты» лида («Телефония Beeline KG», срез T5; миграция 293,
+ * Строки звонков для «Ленты» лида («Телефония Beeline KG», срез T5; миграция 295,
  * `platform.telephony_lead_calls_v1`). Читает база под сессией сотрудника: видимость
  * строки следует `lead.read` по лиду, телефония в интерфейсе открывается флагом
  * `ui_enabled` (по умолчанию выключен — тогда ответ «выключено», и лента ничего

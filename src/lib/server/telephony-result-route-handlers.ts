@@ -8,7 +8,7 @@ import { failure, json, readJsonObject, sameOrigin } from "./ai-agent-route-hand
 
 /**
  * Результат звонка одним нажатием («Телефония Beeline KG», срез T5; план §9.4,
- * §12; миграция 293): `POST /api/v3/telephony/calls/[callId]/result` с
+ * §12; миграция 295): `POST /api/v3/telephony/calls/[callId]/result` с
  * `{result: "reached" | "callback" | "not_interested", callbackOn?: "YYYY-MM-DD"}`.
  *
  * Маршрут ничего не решает: сессия, `sameOrigin` (403, как у остальных POST

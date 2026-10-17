@@ -749,8 +749,10 @@
 }
 
 /* Предметы группы строками на волосяных линиях: название слева, что есть
-   в EVO справа в каждой строке; на узком экране переносятся слова внутри
-   столбцов, а не статус под название. */
+   в EVO справа в каждой строке. Столбец названия не уже самого длинного
+   слова («Mathematics»), поэтому название никогда не рисуется поверх
+   статуса (review раунда 2, R1); в контейнере уже 340 px статус встаёт
+   под название. */
 .cs-ov-cards {
   margin: 4px 0 0;
   padding: 0;
@@ -759,7 +761,7 @@
 
 .cs-ov-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+  grid-template-columns: minmax(min-content, 1fr) minmax(0, max-content);
   align-items: baseline;
   gap: 4px 16px;
   padding: 12px 0;
@@ -810,6 +812,19 @@
   grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   gap: 10px 20px;
   margin: 6px 0 0;
+}
+
+/* Телефоны до 390 px (контейнер до 318 px): название и статус в один
+   столбец, статус под названием и по началу строки. */
+@container cs-ov-subjects (width < 340px) {
+  .cs-ov-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cs-ov-card > .cs-ov-evo {
+    justify-self: start;
+    text-align: start;
+  }
 }
 
 @container cs-ov-subjects (min-width: 700px) {

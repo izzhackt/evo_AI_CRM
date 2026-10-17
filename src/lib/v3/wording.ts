@@ -37,6 +37,21 @@ export function studentProfileFieldState(value: string): string | null {
   return Object.hasOwn(labels, value) ? labels[value] : null;
 }
 
+/**
+ * Пометка к контакту из анкеты в «Сведениях» дела (телефон и почта студента,
+ * когда клиента лида нет). Подтверждённое значение идёт без пометки; всё
+ * остальное - предложение распознавания или значение с импорта, ещё не
+ * сверенное с человеком, - называется одним словом, а не ключом состояния.
+ * Здесь `null` значит «пометка не нужна», а не «неизвестное»: состояние,
+ * которого словарь не знает, тоже «не подтверждено» (подтверждённым его не
+ * назвать). На вкладке «Анкета» то же состояние зовётся «Требует проверки»:
+ * там у каждого поля свой выбор действий, здесь - одно слово у значения.
+ */
+export function studentProfileContactNote(state: string): string | null {
+  if (state === "confirmed") return null;
+  return state === "conflict" ? "источники расходятся" : "не подтверждено";
+}
+
 export function studentProfileProposalState(value: string): string | null {
   const labels: Record<string, string> = {
     pending: "Ожидает решения", accepted: "Принято", rejected: "Отклонено",
@@ -453,8 +468,9 @@ const EVENT_VERB: Record<string, Readonly<{ m: string; f: string; n: string }> |
   next_action_updated: "— следующее действие изменено",
 };
 
+// Только собственные ключи таблицы: `constructor`, `toString`, `__proto__` - не слова, а null.
 const lookup = (table: Record<string, string>, value: string | null | undefined) =>
-  value == null ? null : (table[value] ?? null);
+  value == null ? null : (Object.hasOwn(table, value) ? table[value] : null);
 
 export const leadStage = (v: string | null | undefined) => lookup(LEAD_STAGE, v);
 /** Название этапа продаж, как у колонки доски; `null` — не этап продаж. */

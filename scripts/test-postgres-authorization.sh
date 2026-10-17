@@ -3536,6 +3536,27 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_telephony_schema.sql
   fi
+
+  # «Телефония Beeline KG», срез T1b (приём, проекция, ноги, окно успокоения,
+  # очередь, сопоставление телефона; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.1,
+  # §5.2, §6.1, §6.2). Matched by name, not number, so a renumbering at merge
+  # keeps the hook. Right after the migration the suite proves: four
+  # service-only public functions and closed private helpers; the flag (no
+  # settings row = off: evidence and queued work only, claim/project/settle
+  # refuse); evidence (white list, token and link never stored, soft validation,
+  # idempotency by the plan's key, request replay); the fields lock (23514)
+  # answered as a rejected form row, never as an error; legs and calls by the
+  # plan's rules 1-8 (employee answers, greeting is not an answer, answer is
+  # irreversible, precedence, group and transfer, internal calls, out-of-order
+  # messages, the leg key transition) with the recording link in the leg only;
+  # phone matching; the queue (backoff, lease, dead letter) and the writer's
+  # error capture (a NOT NULL, CHECK and UNIQUE violation leave only SQLSTATE and
+  # a name); the 90-second quiet window.
+  if [[ "$(basename "$migration")" == *_platform_telephony_ingest.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_telephony_ingest.sql
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

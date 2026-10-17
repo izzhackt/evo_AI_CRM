@@ -116,7 +116,7 @@ export function ReviewRunner({
 
   return (
     <div className="cs-runner">
-      <p className="cs-review-progress pt-data">
+      <p className="cs-review-progress cs-num">
         {formatPortalString(strings.reviewProgress, { done: String(done), total: String(total) })}
       </p>
       <p className="pt-sr-only" role="status" aria-live="polite" aria-atomic="true">

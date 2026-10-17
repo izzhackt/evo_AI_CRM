@@ -13,8 +13,10 @@ import {
   laterClockOffset,
   remainingSeconds,
   serverAcceptsSave,
+  cscaWeakTopicLesson,
   testSavePayload,
   type CscaOptionId,
+  type CscaTopicNextLesson,
   type CscaTestAttempt,
   type CscaTestKind,
   type CscaTestMeta,
@@ -33,7 +35,7 @@ import { TestResultView, type TitleMaps } from "./TestResultView";
 
 type Strings = PortalStrings<"csca">;
 type Phase = "intro" | "starting" | "running" | "finishing" | "result";
-type SaveStatus = "idle" | "saving" | "saved" | "retrying";
+type SaveStatus = "idle" | "pending" | "saving" | "saved" | "retrying";
 type FlushOptions = { settle?: boolean };
 type SaveRequest = {
   requestId: string;
@@ -54,8 +56,15 @@ export type TimedTestForm = {
   draftAttemptId: string | null;
 };
 
-const SAVE_BATCH_MS = 10_000;
 const SAVE_ON_MOVE_MS = 2_000;
+/**
+ * Выбор варианта или флажок уходят на сервер через 1,5 с после последнего
+ * действия и не чаще раза в 2 с (critique F3, контракт §7.3 от 17.10.2026:
+ * прежняя пачка раз в 10 с теряла ответ, выбранный перед перезагрузкой, при
+ * надписи «Ответы сохраняются сами»). Время на задании, как и раньше, уходит
+ * при переходе, завершении и уходе со страницы.
+ */
+const SAVE_ON_CHOICE_MS = 1_500;
 const RETRY_MS = 3_000;
 
 // Часы читаются только в обработчиках событий и таймерах, не при отрисовке.
@@ -68,8 +77,8 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 /**
  * Тест на время (контракт §7): старт и срок ставит сервер, клиент только
  * показывает «Осталось» по своим часам с поправкой на serverNow. Ответы
- * можно менять до конца; сохранение пачкой раз в 10 с, при переходе между
- * заданиями не чаще раза в 2 с и при уходе страницы в фон, запросы строго
+ * можно менять до конца; сохранение через 1,5 с после выбора, при переходе
+ * между заданиями не чаще раза в 2 с и при уходе страницы в фон, запросы строго
  * по очереди с актуальной ревизией, повтор после сбоя тем же запросом, после
  * него сразу текущее состояние. Время на задании сохраняется и тогда, когда
  * ответы не менялись (завершение, уход). Завершение не теряет ответы, не
@@ -86,6 +95,7 @@ export function TimedTestRunner({
   titles,
   initialResult,
   homeHref,
+  nextLessons,
 }: {
   form: TimedTestForm;
   locale: Locale;
@@ -93,6 +103,8 @@ export function TimedTestRunner({
   titles: TitleMaps;
   initialResult: CscaTestAttempt | null;
   homeHref: string;
+  /** Урок или практика каждой темы с уроками (§12): «Следующий шаг» итога. */
+  nextLessons: Readonly<Record<string, CscaTopicNextLesson>>;
 }) {
   const ky = locale === "ky";
   const router = useRouter();
@@ -240,7 +252,8 @@ export function TimedTestRunner({
         revisionRef.current = response.receipt.revision;
         // По квитанции отсчёт назад не переводится (§7.2).
         offsetRef.current = laterClockOffset(offsetRef.current, clockOffsetMs(response.receipt.serverNow, receivedAt));
-        setSaveStatus("saved");
+        // Пока шёл запрос, ученик мог выбрать ещё: тогда «Сохранено» неправда.
+        setSaveStatus(dirtyRef.current ? "saving" : "saved");
         return;
       }
       if (response.code === "unavailable") {
@@ -284,13 +297,21 @@ export function TimedTestRunner({
     flushRef.current = flush;
   }, [flush]);
 
+  /**
+   * Несохранённый выбор: статус сразу «Сохраняем…», отправка через 1,5 с
+   * после последнего выбора, но не раньше 2 с после прошлой отправки (§7.3).
+   * Пока идёт повтор после сбоя, его таймер не сбивается.
+   */
   const scheduleSave = useCallback(() => {
     dirtyRef.current = true;
-    if (batchTimerRef.current) return;
+    if (retryRef.current) return;
+    setSaveStatus("pending");
+    if (batchTimerRef.current) clearTimeout(batchTimerRef.current);
+    const sinceLast = monoNow() - lastSaveAtRef.current;
     batchTimerRef.current = setTimeout(() => {
       batchTimerRef.current = null;
       void flush();
-    }, SAVE_BATCH_MS);
+    }, Math.max(SAVE_ON_CHOICE_MS, SAVE_ON_MOVE_MS - sinceLast));
   }, [flush]);
 
   const finalize = useCallback(async () => {
@@ -565,9 +586,10 @@ export function TimedTestRunner({
     requestAnimationFrame(() => heading.current?.focus({ preventScroll: true }));
   }
 
-  const title = ky ? form.metadata.title_ky : form.metadata.title_ru;
-
   if (phase === "result" && attempt?.result) {
+    // Итог ведёт к уроку слабой темы (critique F6), «К темам» и «Пройти ещё
+    // раз» вторичные. Без слабой темы с уроком главным остаётся «К темам».
+    const weak = cscaWeakTopicLesson(attempt.result.byTopic, nextLessons);
     return (
       <TestResultView
         attempt={attempt}
@@ -577,7 +599,14 @@ export function TimedTestRunner({
         headingRef={resultHeading}
         actions={
           <>
-            <Link className="pt-btn" href={homeHref}>{strings.backToTopics}</Link>
+            {weak ? (
+              <Link className="pt-btn cs-result-next" href={`/portal/csca/math/lesson/${weak.lessonId}`}>
+                {formatPortalString(weak.kind === "lesson" ? strings.resultNextLesson : strings.resultNextPractice, {
+                  title: ky ? weak.titleKy : weak.titleRu,
+                })}
+              </Link>
+            ) : null}
+            <Link className={weak ? "pt-btn-ghost" : "pt-btn"} href={homeHref}>{strings.backToTopics}</Link>
             <button type="button" className="pt-btn-ghost" onClick={restart}>{strings.repeat}</button>
           </>
         }
@@ -588,11 +617,12 @@ export function TimedTestRunner({
   if (phase === "intro" || phase === "starting" || !attempt) {
     return (
       <section className="cs-test-intro" aria-labelledby="cs-test-intro-title">
-        <h2 id="cs-test-intro-title" className="cs-test-intro-title">{title}</h2>
+        {/* h1 страницы уже называет тест, здесь вид теста (critique F11). */}
+        <h2 id="cs-test-intro-title" className="cs-test-intro-title">{strings.testTitle}</h2>
         <p className="cs-test-intro-lead">{ky ? form.metadata.intro_ky : form.metadata.intro_ru}</p>
         <dl className="cs-facts">
-          <div><dt>{strings.testIntroItems}</dt><dd className="pt-data">{form.itemsTotal}</dd></div>
-          <div><dt>{strings.testIntroTime}</dt><dd className="pt-data">{durationLabel(form.durationSeconds, strings)}</dd></div>
+          <div><dt>{strings.testIntroItems}</dt><dd className="cs-num">{form.itemsTotal}</dd></div>
+          <div><dt>{strings.testIntroTime}</dt><dd className="cs-num">{durationLabel(form.durationSeconds, strings)}</dd></div>
           <div>
             <dt>{strings.testIntroEarly}</dt>
             <dd>{form.allowEarlyFinish ? strings.testIntroEarlyYes : strings.testIntroEarlyNo}</dd>
@@ -623,6 +653,7 @@ export function TimedTestRunner({
   const low = remaining !== null && remaining <= 60;
   const saveText = {
     idle: strings.saveIdle,
+    pending: strings.saveSaving,
     saving: strings.saveSaving,
     saved: strings.saveSaved,
     retrying: strings.saveRetrying,

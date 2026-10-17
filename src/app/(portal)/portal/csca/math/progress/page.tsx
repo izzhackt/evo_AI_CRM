@@ -136,7 +136,7 @@ export default async function CscaProgressPage() {
                     <li key={topic.topicKey} className="cs-topic" data-quiet={topic.answersTotal === 0 ? "" : undefined}>
                       <StateChip state={topic.state} strings={strings} />
                       <span className="cs-topic-title">{meta ? (ky ? meta.title_ky : meta.title_ru) : topic.topicKey}</span>
-                      <span className="cs-topic-none pt-data">
+                      <span className="cs-topic-none cs-num">
                         {topic.answersTotal > 0
                           ? formatPortalString(strings.topicAnswers, {
                             total: String(topic.answersTotal),
@@ -177,7 +177,7 @@ export default async function CscaProgressPage() {
                     <tr key={test.attemptId}>
                       <td className="pt-data">{cscaMomentDayLabel(test.completedAt, locale)}</td>
                       <th scope="row">{testTitle.get(test.formKey) ?? test.formKey}</th>
-                      <td className="pt-data">
+                      <td className="cs-num">
                         {formatPortalString(strings.tallyLabel, { correct: String(test.correctCount), total: String(test.itemsTotal) })}
                       </td>
                       <td>{strings[`completion.${test.completion}`]}</td>

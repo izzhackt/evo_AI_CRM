@@ -7,12 +7,14 @@
 import type { PlatformAdmissionsTask } from "../../../lib/platform-admissions-task-contract.ts";
 import type { PlatformApplicationQueueRow } from "../../../lib/platform-application-contract.ts";
 import type { CaseChatMessage, CaseChatPage } from "../../../lib/platform-case-chat-contract.ts";
+import type { AdmissionsDirection } from "../../../lib/platform-admissions-playbook-contract.ts";
 import type { StudentCaseChecklistCounts, StudentCaseQueueRow } from "../../../lib/platform-student-case-queue-contract.ts";
 import type { StudentApplication } from "../../../lib/student-application-contract.ts";
 import { dayInOrganizationTimezone } from "../../../lib/platform-task-deadline.ts";
 import { compareQueueTasks, taskIsOpen, type QueueTask } from "../../../lib/v3/task-queue.ts";
-import { documentReviewDecision, journalEvent } from "../../../lib/v3/wording.ts";
+import { country, documentReviewDecision, journalEvent, studentProfileContactNote } from "../../../lib/v3/wording.ts";
 import { formatQueueDay } from "../queue/due-bucket.ts";
+import { DIRECTION_LABELS } from "./admissions-view.ts";
 import type { DocumentGroup } from "./document-types.ts";
 import type { ProfileEvent } from "./types.ts";
 
@@ -201,6 +203,58 @@ export function casePortalStatus(application: StudentApplication | null): Readon
   if (application.status === "approved") return { text: "анкета одобрена", tone: "ok" };
   if (application.status === "rejected") return { text: "анкета отклонена", tone: "muted" };
   return { text: "анкета ждёт решения", tone: "warn" };
+}
+
+/**
+ * Контакт «Сведений»: значение и пометка его состояния. `note` - null, когда
+ * значение подтверждено или пришло от клиента лида (у него состояния нет).
+ */
+export type CaseContact = Readonly<{ value: string; note: string | null }>;
+export type CaseContacts = Readonly<{ phone: CaseContact | null; email: CaseContact | null }>;
+
+/**
+ * Телефон и почта студента для «Сведений» (Э4). Первым идёт клиент лида, если
+ * лид прочитан: это контакт, который ведёт продажа. Дело прямого студента
+ * (добавлено поступлением или импортом) лида для чтения не имеет - лид у него
+ * `converted`, лидовые чтения такие лиды не отдают, - поэтому контакт берётся
+ * из полей анкеты `mobile_phone` и `student_email` с пометкой их состояния.
+ * Анкета читается правом `profile.read.full`, как вкладка «Анкета»: нет чтения -
+ * `fields` равно null и контактов нет, а не пустые поля.
+ */
+export function caseContacts(
+  client: Readonly<{ phone: string | null; email: string | null }>,
+  fields: Readonly<{ fields: readonly Readonly<{ key: string; value: string | null; state: string }>[] }> | null,
+): CaseContacts {
+  const pick = (own: string | null, key: string): CaseContact | null => {
+    const ownValue = own?.trim();
+    if (ownValue) return Object.freeze({ value: ownValue, note: null });
+    const field = fields?.fields.find((item) => item.key === key);
+    const value = field?.value?.trim();
+    return field && value ? Object.freeze({ value, note: studentProfileContactNote(field.state) }) : null;
+  };
+  return Object.freeze({ phone: pick(client.phone, "mobile_phone"), email: pick(client.email, "student_email") });
+}
+
+/**
+ * «Направление» дела словом. Снимок дела (`staff_student_case_read_snapshot`)
+ * направления не отдаёт, поэтому после него идёт строка очереди дела (241, её
+ * страница уже читает), затем страна цели дела: значение направления
+ * (CN, MY, EUROPE, AE, TR) называет словарь направлений, код страны - общий
+ * словарь стран. Неизвестное значение не показывается: null - «Не выбрано».
+ */
+export function caseDirectionLabel(input: Readonly<{
+  snapshot: AdmissionsDirection | null;
+  row: AdmissionsDirection | null | undefined;
+  targetCountry: string | null;
+}>): string | null {
+  const direction = input.snapshot ?? input.row ?? null;
+  if (direction) return DIRECTION_LABELS[direction];
+  const target = input.targetCountry?.trim();
+  if (!target) return null;
+  const label = target !== "unknown" && Object.hasOwn(DIRECTION_LABELS, target)
+    ? DIRECTION_LABELS[target as AdmissionsDirection]
+    : country(target);
+  return typeof label === "string" ? label : null;
 }
 
 /** id группы «Доступ к порталу» — её раскрывает «⋯ → Доступ к порталу» (тот же якорь, что у Lead 360). */

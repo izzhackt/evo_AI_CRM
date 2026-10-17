@@ -475,6 +475,7 @@ function admissionsWorkspace(
     // Unified workflow S4: CaseHeader used to fetch this separately via the
     // now-deleted route workspace read; the case DTO already carries it.
     direction: data.studentCase.admissionsDirection ?? null,
+    targetCountry: data.studentCase.targetCountry,
     applications: data.applications,
     visa: data.visa,
     finance: data.finance,
@@ -666,8 +667,11 @@ function fullCaseDetails(
     },
     salesHandoffAcknowledgement: null,
     // «Условия продажи» is a lead-card block (plan §5); this branch has no
-    // lead link to attach it to (docs-intake origin or insufficient
-    // sales.read), so it stays null here — see readLeadProfile below.
+    // lead profile to attach it to: docs-intake origin, insufficient
+    // sales.read, or a direct-admissions case whose lead is `converted` —
+    // staff_sales_lead_detail (and the two admissions-gate/handoff reads) only
+    // return `open` leads (a separate slice: docs/PLAN_CHANGES.md 2026-10-17).
+    // It stays null here — see readLeadProfile below.
     saleConditions: null,
     // Same scoping as saleConditions above: a full case already exists by
     // definition on this branch, so there is nothing left to "prepare".
@@ -725,6 +729,10 @@ async function readCaseProfile(
   const profile: PersonProfile = {
     leadId: link?.leadId ?? null,
     person: data.studentCase.studentDisplayName,
+    // Нет лида для чтения (дело прямого студента: его лид `converted`, а лидовые чтения
+    // отдают только `open`). Контакты «Сведений» берёт `caseContacts` из полей анкеты;
+    // `email` остаётся null намеренно: от него зависит «Доступ к порталу», которому нужна
+    // подтверждённая почта клиента, а не неподтверждённое значение анкеты.
     email: null,
     phone: null,
     student: true,

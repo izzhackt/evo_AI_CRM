@@ -93,6 +93,7 @@ export function TheoryBlocks({
                   figure={figure}
                   locale={locale}
                   caption={<MathText text={ky ? block.caption_ky : block.caption_ru} />}
+                  scrollHint={strings.figureScrolls}
                 />
               </div>
             );

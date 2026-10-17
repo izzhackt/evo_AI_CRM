@@ -1,0 +1,111 @@
+{
+  "kind": "diagnostic",
+  "flags": [],
+  "items": [
+    {
+      "stemEn": "Let $a = \\log_2 3$, $b = \\log_3 2$ and $c = \\log_{1/2} 3$. Which of the following is correct?",
+      "itemKey": "csca-math-exp-log-007",
+      "options": [
+        {
+          "id": "a",
+          "label": "$b > a > c$"
+        },
+        {
+          "id": "b",
+          "label": "$a > c > b$"
+        },
+        {
+          "id": "c",
+          "label": "$c > a > b$"
+        },
+        {
+          "id": "d",
+          "label": "$a > b > c$"
+        }
+      ],
+      "topicKey": "m2-exp-log",
+      "difficulty": 2,
+      "estSeconds": 75,
+      "syllabusPoint": "2.2"
+    },
+    {
+      "stemEn": "A particle moves along a straight line. At time $t$ (in seconds), its position is $s(t) = t^2 + 3t$ meters. Find its instantaneous velocity at $t = 2$.",
+      "itemKey": "csca-math-derivative-007",
+      "options": [
+        {
+          "id": "a",
+          "label": "$10$ m/s"
+        },
+        {
+          "id": "b",
+          "label": "$5$ m/s"
+        },
+        {
+          "id": "c",
+          "label": "$4$ m/s"
+        },
+        {
+          "id": "d",
+          "label": "$7$ m/s"
+        }
+      ],
+      "topicKey": "m2-derivative",
+      "difficulty": 2,
+      "estSeconds": 75,
+      "syllabusPoint": "2.4"
+    },
+    {
+      "stemEn": "What is the positional relationship between the line $x - y + 1 = 0$ and the circle $(x - 1)^2 + y^2 = 1$?",
+      "itemKey": "csca-math-line-circle-007",
+      "options": [
+        {
+          "id": "a",
+          "label": "They intersect at two points."
+        },
+        {
+          "id": "b",
+          "label": "They have no common points."
+        },
+        {
+          "id": "c",
+          "label": "The line is tangent to the circle."
+        },
+        {
+          "id": "d",
+          "label": "The line passes through the center of the circle."
+        }
+      ],
+      "topicKey": "m3-line-circle",
+      "difficulty": 2,
+      "estSeconds": 75,
+      "syllabusPoint": "3.1"
+    }
+  ],
+  "track": "csca-math",
+  "formId": "1d2696aa-39b5-5b89-8f3e-e645a1b61dc2",
+  "result": null,
+  "review": null,
+  "status": "draft",
+  "answers": {},
+  "figures": {},
+  "formKey": "csca-math-diagnostic-1",
+  "metadata": {
+    "intro_ky": "3 тапшырма, 4 мүнөт. Бул экзамен эмес: жыйынтык кайсы темалардан баштоону көрсөтөт. Эртерээк бүтүрүүгө болот.",
+    "intro_ru": "3 задания, 4 минуты. Это не экзамен: итог покажет, с каких тем начать. Закончить можно раньше.",
+    "title_ky": "Диагностика",
+    "title_ru": "Диагностика"
+  },
+  "revision": 1,
+  "attemptId": "94c6025a-01d2-4d16-a9ee-ee0466ae6495",
+  "serverNow": "2026-10-16T10:58:16.783478+00:00",
+  "startedAt": "2026-10-16T10:58:16.782852+00:00",
+  "completion": null,
+  "deadlineAt": "2026-10-16T11:02:16.782852+00:00",
+  "itemsTotal": 3,
+  "completedAt": null,
+  "itemSeconds": {},
+  "graceSeconds": 15,
+  "answeredCount": 0,
+  "durationSeconds": 240,
+  "allowEarlyFinish": true
+}

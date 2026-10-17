@@ -57,12 +57,12 @@ struct TestsContentView: View {
                         .multilineTextAlignment(.center)
                     Text(errorMessage)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .multilineTextAlignment(.center)
                     Button("retry_button") {
                         Task { await model.load() }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
                 .padding(32)
             } else if let catalog = model.catalog {
@@ -97,17 +97,20 @@ struct TestsContentView: View {
                 }
             } footer: {
                 Text("tests_privacy_note")
+                    .foregroundStyle(.secondaryText)
             }
 
-            Section("tests_history_heading") {
+            Section {
                 if catalog.attempts.isEmpty {
                     Text("tests_history_empty")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 } else {
                     ForEach(catalog.attempts) { attempt in
                         attemptRow(attempt)
                     }
                 }
+            } header: {
+                Text("tests_history_heading").foregroundStyle(.secondaryText)
             }
         }
         .refreshable { await model.load() }
@@ -148,11 +151,11 @@ private struct InstrumentCard: View {
             if let description = instrument.metadata.description {
                 Text(description)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
             Text(String(format: String(localized: "tests_question_count"), instrument.questionCount))
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
 
             HStack(spacing: 12) {
                 Button {
@@ -160,8 +163,7 @@ private struct InstrumentCard: View {
                 } label: {
                     Text(instrument.draftAttemptId == nil ? "tests_start" : "tests_continue")
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color("AccentColor"))
+                .accentProminent()
 
                 if let completedId = instrument.latestCompletedAttemptId {
                     NavigationLink {
@@ -169,7 +171,7 @@ private struct InstrumentCard: View {
                     } label: {
                         Text("tests_last_result")
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
             }
             .padding(.top, 4)
@@ -202,7 +204,7 @@ private struct AttemptSummaryRow: View {
                     attempt.answeredCount, attempt.questionCount
                 ))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             }
             if let dateLabel = PostgresTimestamp.dayLabel(
                 from: attempt.completedAt ?? attempt.createdAt,
@@ -210,7 +212,7 @@ private struct AttemptSummaryRow: View {
             ) {
                 Text(dateLabel)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
             }
         }
         .padding(.vertical, 2)
@@ -240,16 +242,16 @@ struct AssessmentResultScreen: View {
                         .multilineTextAlignment(.center)
                     Text(errorMessage)
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                         .multilineTextAlignment(.center)
                     Button("retry_button") { Task { await load() } }
-                        .buttonStyle(.bordered)
+                        .accentBordered()
                 }
                 .padding(32)
             } else {
                 // Попытка без result — черновик; экран результата для неё не по адресу.
                 Text("tests_attempt_not_completed")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                     .padding(32)
             }
         }

@@ -1,0 +1,3642 @@
+{
+  "sourceLanguage" : "ru",
+  "strings" : {
+    "csca_active_topics" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жооп берилген темалар"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Темы с ответами"
+          }
+        }
+      }
+    },
+    "csca_box_label" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "4 этаптын %ld-этабы"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этап %ld из 4"
+          }
+        }
+      }
+    },
+    "csca_box_reset" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Эртең кайталайбыз, %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторим завтра, %@."
+          }
+        }
+      }
+    },
+    "csca_box_retired" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тапшырма үйрөнүлдү жана «Каталардан» чыгат."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Задание выучено и уходит из «Ошибок»."
+          }
+        }
+      }
+    },
+    "csca_box_up" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Кийинки кайталоо: %@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Следующее повторение %@."
+          }
+        }
+      }
+    },
+    "csca_by_section" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Программанын бөлүмдөрү боюнча"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По разделам программы"
+          }
+        }
+      }
+    },
+    "csca_by_topic" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Темалар боюнча"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "По темам"
+          }
+        }
+      }
+    },
+    "csca_cancel" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жокко чыгаруу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отмена"
+          }
+        }
+      }
+    },
+    "csca_cell_answered" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жооп берилди"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отвечено"
+          }
+        }
+      }
+    },
+    "csca_cell_open" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жооп жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без ответа"
+          }
+        }
+      }
+    },
+    "csca_check_button" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Текшерүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверить"
+          }
+        }
+      }
+    },
+    "csca_check_heading" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Текшерүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверка"
+          }
+        }
+      }
+    },
+    "csca_check_lead" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%ld тапшырма. Жооп дароо текшерилет, аны өзгөртүүгө болбойт."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%ld тапшырма. Жооп дароо текшерилет, аны өзгөртүүгө болбойт."
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%ld задания. Ответ проверяется сразу, изменить его нельзя."
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%ld заданий. Ответ проверяется сразу, изменить его нельзя."
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%ld задание. Ответ проверяется сразу, изменить его нельзя."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%ld задания. Ответ проверяется сразу, изменить его нельзя."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "csca_close" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жабуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закрыть"
+          }
+        }
+      }
+    },
+    "csca_closes_in" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%ld күндөн кийин жабылат"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%ld күндөн кийин жабылат"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "закрывается через %ld дня"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "закрывается через %ld дней"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "закрывается через %ld день"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "закрывается через %ld дня"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "csca_closes_today" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "бүгүн жабылат"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "закрывается сегодня"
+          }
+        }
+      }
+    },
+    "csca_completion_submitted" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тестти өзүңүз аяктадыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вы завершили тест сами."
+          }
+        }
+      }
+    },
+    "csca_completion_timeout" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Убакыт бүттү, жооптор автоматтык түрдө жөнөтүлдү."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Время вышло, ответы отправлены автоматически."
+          }
+        }
+      }
+    },
+    "csca_continue" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Улантуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжить"
+          }
+        }
+      }
+    },
+    "csca_correct_of" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%2$ld ичинен %1$ld туура"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Верно %1$ld из %2$ld"
+          }
+        }
+      }
+    },
+    "csca_correct_short" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%2$ld ичинен %1$ld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$ld из %2$ld"
+          }
+        }
+      }
+    },
+    "csca_countdown_foundation" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Экзаменге %ld күн калды. Этап: негиз"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Экзаменге %ld күн калды. Этап: негиз"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "До экзамена %ld дня. Этап: основа"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "До экзамена %ld дней. Этап: основа"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "До экзамена %ld день. Этап: основа"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "До экзамена %ld дня. Этап: основа"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "csca_countdown_intensification" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Экзаменге %ld күн калды. Этап: алсыз темалар жана убакытка тапшырмалар"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Экзаменге %ld күн калды. Этап: алсыз темалар жана убакытка тапшырмалар"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "До экзамена %ld дня. Этап: слабые темы и задания на время"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "До экзамена %ld дней. Этап: слабые темы и задания на время"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "До экзамена %ld день. Этап: слабые темы и задания на время"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "До экзамена %ld дня. Этап: слабые темы и задания на время"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "csca_countdown_sprint" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Экзаменге %ld күн калды. Этап: толук сынамык экзамендер"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Экзаменге %ld күн калды. Этап: толук сынамык экзамендер"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "До экзамена %ld дня. Этап: полные пробные экзамены"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "До экзамена %ld дней. Этап: полные пробные экзамены"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "До экзамена %ld день. Этап: полные пробные экзамены"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "До экзамена %ld дня. Этап: полные пробные экзамены"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "csca_coverage" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Программанын %2$ld темасынын %1$ld боюнча сабак өтүлдү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пройден урок по %1$ld из %2$ld тем программы"
+          }
+        }
+      }
+    },
+    "csca_diagnostic" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Диагностика"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Диагностика"
+          }
+        }
+      }
+    },
+    "csca_disclaimer" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тапшырмаларды EVO командасы жазган. Тесттердин жыйынтыгы бул биздин тапшырмалар боюнча EVO берген баа, CSCA баллы эмес."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Задания написала команда EVO. Итог тестов это оценка EVO по нашим заданиям, а не балл CSCA."
+          }
+        }
+      }
+    },
+    "csca_done" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Даяр"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готово"
+          }
+        }
+      }
+    },
+    "csca_entry_subtitle" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Англис тилинде математика: сабактар, машыгуу, убакытка тесттер"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Математика на английском: уроки, практика, тесты на время"
+          }
+        }
+      }
+    },
+    "csca_entry_title" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "CSCA"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSCA"
+          }
+        }
+      }
+    },
+    "csca_error_already_answered" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жооп буга чейин сакталган. Аны көрсөтүп жатабыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ответ уже сохранён. Показываем его."
+          }
+        }
+      }
+    },
+    "csca_error_conflict" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жооптор башка түзмөктө өзгөрдү. Сакталганын көрсөтүп жатабыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ответы изменились на другом устройстве. Показываем сохранённое."
+          }
+        }
+      }
+    },
+    "csca_error_deadline" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тесттин убактысы бүттү."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Время теста вышло."
+          }
+        }
+      }
+    },
+    "csca_error_denied" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "CSCA бул аккаунт үчүн жеткиликсиз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSCA недоступен для этого аккаунта."
+          }
+        }
+      }
+    },
+    "csca_error_early_finish" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сынамык экзамен убакыт бүткөндө өзү аяктайт."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пробный экзамен завершится сам, когда выйдет время."
+          }
+        }
+      }
+    },
+    "csca_error_invalid" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тиркеме бул маалыматты окуй алган жок. Тиркемени жаңылаңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Приложение не смогло прочитать эти данные. Обновите приложение."
+          }
+        }
+      }
+    },
+    "csca_error_network" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сервер менен байланыш жок. Интернетти текшерип, кайталаңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет связи с сервером. Проверьте интернет и повторите."
+          }
+        }
+      }
+    },
+    "csca_error_report_limit" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бүгүн көп билдирүү жөнөтүлдү. Эртең аракет кылыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сегодня отправлено много сообщений. Попробуйте завтра."
+          }
+        }
+      }
+    },
+    "csca_error_review_not_due" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бул тапшырманы кайталоого эрте. Кийинкисине өтүңүз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это задание повторять рано. Переходите к следующему."
+          }
+        }
+      }
+    },
+    "csca_error_test_completed" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тест буга чейин аяктаган."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тест уже завершён."
+          }
+        }
+      }
+    },
+    "csca_estimate_note" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бул биздин тапшырмалар боюнча EVO берген баа, CSCA баллы эмес."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это оценка EVO по нашим заданиям, а не балл CSCA."
+          }
+        }
+      }
+    },
+    "csca_example_answer" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жооп: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ответ: %@"
+          }
+        }
+      }
+    },
+    "csca_exit_confirm" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Чыгуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выйти"
+          }
+        }
+      }
+    },
+    "csca_exit_message" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жооптор сакталды. Тесттин убактысы өтө берет, тесттин экранынан кайра кирсеңиз болот."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ответы сохранены. Время теста продолжает идти, вернуться можно с экрана теста."
+          }
+        }
+      }
+    },
+    "csca_exit_message_pending" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Акыркы жоопторду сактап, чыгабыз. Тесттин убактысы өтө берет, тесттин экранынан кайра кирсеңиз болот."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сохраним последние ответы и выйдем. Время теста продолжает идти, вернуться можно с экрана теста."
+          }
+        }
+      }
+    },
+    "csca_exit_message_time_up" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тесттин убактысы бүттү. Тест сакталган жооптор менен аяктайт, жыйынтык тесттин экранында чыгат."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Время теста вышло. Тест завершится с сохранёнными ответами, итог появится на экране теста."
+          }
+        }
+      }
+    },
+    "csca_exit_message_unsaved" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Акыркы жооптор сакталган жок. Азыр чыксаңыз, алар жоголот. Тесттин убактысы өтө берет."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последние ответы не сохранены. Если выйти сейчас, они пропадут. Время теста продолжает идти."
+          }
+        }
+      }
+    },
+    "csca_exit_stay" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Калуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Остаться"
+          }
+        }
+      }
+    },
+    "csca_exit_title" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тесттен чыгасызбы?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выйти из теста?"
+          }
+        }
+      }
+    },
+    "csca_explain_all_options" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Калган варианттардын талдоосу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разбор остальных вариантов"
+          }
+        }
+      }
+    },
+    "csca_figure_zoom_hint" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Чоңойтуп ачуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть крупно"
+          }
+        }
+      }
+    },
+    "csca_figure_zoom_title" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сүрөт"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Рисунок"
+          }
+        }
+      }
+    },
+    "csca_finish_confirm" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Аяктоо"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завершить"
+          }
+        }
+      }
+    },
+    "csca_finish_lesson" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Аяктоо"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завершить"
+          }
+        }
+      }
+    },
+    "csca_finish_message" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%2$ld ичинен %1$ld жооп берилди. Аяктагандан кийин жоопторду өзгөртүүгө болбойт."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отвечено %1$ld из %2$ld. После завершения ответы изменить нельзя."
+          }
+        }
+      }
+    },
+    "csca_finish_test" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тестти аяктоо"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завершить тест"
+          }
+        }
+      }
+    },
+    "csca_finish_title" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тестти аяктайсызбы?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завершить тест?"
+          }
+        }
+      }
+    },
+    "csca_flag" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Кийин кайтуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вернуться позже"
+          }
+        }
+      }
+    },
+    "csca_go_practice" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Машыгууга өтүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перейти к практике"
+          }
+        }
+      }
+    },
+    "csca_item_counter" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%2$ld ичинен %1$ld-тапшырма"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Задание %1$ld из %2$ld"
+          }
+        }
+      }
+    },
+    "csca_item_number" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%ld-тапшырма"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Задание %ld"
+          }
+        }
+      }
+    },
+    "csca_kind_lesson" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сабак"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Урок"
+          }
+        }
+      }
+    },
+    "csca_kind_practice" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Машыгуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Практика"
+          }
+        }
+      }
+    },
+    "csca_last_result_header" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Акыркы жыйынтык"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последний итог"
+          }
+        }
+      }
+    },
+    "csca_lesson_done" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бүттү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готово"
+          }
+        }
+      }
+    },
+    "csca_lesson_done_clean" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Катасыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без ошибок."
+          }
+        }
+      }
+    },
+    "csca_lesson_done_mistakes" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ката кеткен тапшырмалар «Каталарга» түштү: аларды эртең кайталайбыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Задания с ошибкой ушли в «Ошибки»: повторим их завтра."
+          }
+        }
+      }
+    },
+    "csca_lesson_header_meta" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Программанын %1$@ пункту. Болжол менен %2$ld мүн."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пункт программы %1$@. Около %2$ld мин"
+          }
+        }
+      }
+    },
+    "csca_lesson_in_progress" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Башталган"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Начат"
+          }
+        }
+      }
+    },
+    "csca_lesson_meta" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тапшырмалар: %1$ld. Болжол менен %2$ld мүн."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заданий: %1$ld. Около %2$ld мин"
+          }
+        }
+      }
+    },
+    "csca_mock" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сынамык экзамен"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пробный экзамен"
+          }
+        }
+      }
+    },
+    "csca_navigator" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бардык тапшырмалар"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все задания"
+          }
+        }
+      }
+    },
+    "csca_navigator_summary" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%2$ld ичинен %1$ld жооп берилди. «Кийин кайтуу» белгиси менен: %3$ld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отвечено %1$ld из %2$ld. С отметкой «Вернуться позже»: %3$ld"
+          }
+        }
+      }
+    },
+    "csca_next" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Кийинки"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Далее"
+          }
+        }
+      }
+    },
+    "csca_next_lesson_detail" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%1$@. Теманын абалы: «%2$@»"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@. Состояние темы: «%2$@»"
+          }
+        }
+      }
+    },
+    "csca_next_step" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Кийинки кадам"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Следующий шаг"
+          }
+        }
+      }
+    },
+    "csca_next_step_button" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Кийинки кадам"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Следующий шаг"
+          }
+        }
+      }
+    },
+    "csca_option_is_correct" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Туура жооп"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Верный ответ"
+          }
+        }
+      }
+    },
+    "csca_option_letter" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%@ варианты"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вариант %@"
+          }
+        }
+      }
+    },
+    "csca_option_your_wrong" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сиздин жообуңуз, туура эмес"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ваш ответ, неверно"
+          }
+        }
+      }
+    },
+    "csca_overview" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тизмеге"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "К списку"
+          }
+        }
+      }
+    },
+    "csca_overview_checked" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Экзамен тууралуу маалыматты EVO %@ тастыктаган, эрежелерди жана сессиялардын даталарын csca.cn жарыялайт."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сведения об экзамене подтверждены EVO %@, правила и даты сессий публикует csca.cn."
+          }
+        }
+      }
+    },
+    "csca_overview_skip" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сабактарга өтүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "К занятиям"
+          }
+        }
+      }
+    },
+    "csca_overview_state_closed" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жабык"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Свёрнуто"
+          }
+        }
+      }
+    },
+    "csca_overview_state_open" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ачык"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Развёрнуто"
+          }
+        }
+      }
+    },
+    "csca_overview_toggle" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Экзамен жөнүндө"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Об экзамене"
+          }
+        }
+      }
+    },
+    "csca_pace" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Темп"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Темп"
+          }
+        }
+      }
+    },
+    "csca_pace_line" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тапшырмага орто эсеп менен %1$ld с, экзаменде болжол менен %2$ld с"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В среднем %1$ld с на задание, на экзамене около %2$ld с"
+          }
+        }
+      }
+    },
+    "csca_pace_none" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Темп убакытка тесттен кийин пайда болот."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Темп появится после теста на время."
+          }
+        }
+      }
+    },
+    "csca_pace_ok" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сиз экзамендин темпине жетишип жатасыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вы укладываетесь в темп экзамена."
+          }
+        }
+      }
+    },
+    "csca_pace_slow" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Экзамендин темпинен жайыраак: убакытка тапшырмаларды машыктырыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Медленнее темпа экзамена: тренируйте задания на время."
+          }
+        }
+      }
+    },
+    "csca_pitfalls" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Көп кездешкен каталар"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Типичные ошибки"
+          }
+        }
+      }
+    },
+    "csca_practice_header" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тесттер жана кайталоо"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тесты и повторение"
+          }
+        }
+      }
+    },
+    "csca_practice_heading" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тапшырмалар"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Задания"
+          }
+        }
+      }
+    },
+    "csca_previous" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Мурунку тапшырма"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Предыдущее задание"
+          }
+        }
+      }
+    },
+    "csca_progress_title" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Прогресс"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Прогресс"
+          }
+        }
+      }
+    },
+    "csca_registration_closed" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Каттоо %@ жабылды (Бишкек убактысы)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Регистрация закрыта %@ (время Бишкека)"
+          }
+        }
+      }
+    },
+    "csca_registration_opens" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Каттоо %@ ачылат (Бишкек убактысы)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Регистрация откроется %@ (время Бишкека)"
+          }
+        }
+      }
+    },
+    "csca_registration_unknown" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "csca.cn каттоо мөөнөтүн али жарыялай элек"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Окно регистрации csca.cn ещё не опубликовал"
+          }
+        }
+      }
+    },
+    "csca_registration_until" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Каттоо %@ чейин (Бишкек убактысы)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Регистрация до %@ (время Бишкека)"
+          }
+        }
+      }
+    },
+    "csca_repeat_lesson" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Дагы бир жолу өтүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пройти ещё раз"
+          }
+        }
+      }
+    },
+    "csca_report_button" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ката жөнүндө билдирүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сообщить об ошибке"
+          }
+        }
+      }
+    },
+    "csca_report_counter" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%2$ld белгинин %1$ld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$ld из %2$ld знаков"
+          }
+        }
+      }
+    },
+    "csca_report_field" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тапшырмада эмне туура эмес"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Что не так в задании"
+          }
+        }
+      }
+    },
+    "csca_report_invalid" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Кызматтык символдорсуз 1ден 500гө чейин белги жазыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Напишите от 1 до 500 знаков без служебных символов."
+          }
+        }
+      }
+    },
+    "csca_report_privacy" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Билдирүүнү EVO редакциясы атыңызсыз көрөт."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сообщение увидит редакция EVO, без вашего имени."
+          }
+        }
+      }
+    },
+    "csca_report_send" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жөнөтүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправить"
+          }
+        }
+      }
+    },
+    "csca_report_sent" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Рахмат. Билдирүү жөнөтүлдү."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Спасибо. Сообщение отправлено."
+          }
+        }
+      }
+    },
+    "csca_report_title" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Билдирүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сообщение"
+          }
+        }
+      }
+    },
+    "csca_retry" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Кайталоо"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить"
+          }
+        }
+      }
+    },
+    "csca_retry_send" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жоопторду кайра жөнөтүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправить ответы ещё раз"
+          }
+        }
+      }
+    },
+    "csca_review_counts" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "«Каталарда»: %2$ld, бүгүн кайталоого: %1$ld, үйрөнүлдү: %3$ld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В «Ошибках»: %2$ld, к повторению сегодня: %1$ld, выучено: %3$ld"
+          }
+        }
+      }
+    },
+    "csca_review_done" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бүгүнкүгө ушул"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На сегодня всё"
+          }
+        }
+      }
+    },
+    "csca_review_due_count" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бүгүн кайталоого: %ld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "К повторению сегодня: %ld"
+          }
+        }
+      }
+    },
+    "csca_review_empty_body" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бул жерде сабакта, машыгууда же тестте ката кеткен тапшырмалар пайда болот."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Здесь появятся задания, в которых вы ошиблись в уроке, практике или тесте."
+          }
+        }
+      }
+    },
+    "csca_review_empty_short" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Азырынча бош: бул жерге ката кеткен тапшырмалар түшөт"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пока пусто: сюда попадут задания с ошибкой"
+          }
+        }
+      }
+    },
+    "csca_review_empty_title" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бүгүн кайталай турган эч нерсе жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сегодня повторять нечего"
+          }
+        }
+      }
+    },
+    "csca_review_items" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тапшырмалардын талдоосу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разбор заданий"
+          }
+        }
+      }
+    },
+    "csca_review_lead" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ката кеткен тапшырмалар 1, 3, 7 жана 14 күндөн кийин кайтып келет. Акыркы этапта туура жооп берилсе, тапшырма «Каталардан» чыгат."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Задания с ошибкой возвращаются через 1, 3, 7 и 14 дней. После верного ответа на последнем этапе задание уходит из «Ошибок»."
+          }
+        }
+      }
+    },
+    "csca_review_next_detail" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Кийинки кайталоо: %1$@. «Каталардагы» тапшырмалар: %2$ld."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Следующее повторение %1$@. Заданий в «Ошибках»: %2$ld."
+          }
+        }
+      }
+    },
+    "csca_review_next_on" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Кийинки кайталоо: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Следующее повторение %@"
+          }
+        }
+      }
+    },
+    "csca_review_reload" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жаңылоо"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновить"
+          }
+        }
+      }
+    },
+    "csca_review_title" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Каталар"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ошибки"
+          }
+        }
+      }
+    },
+    "csca_rule_autosave" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жооптор өзү сакталат"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ответы сохраняются сами"
+          }
+        }
+      }
+    },
+    "csca_rule_early_ok" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Мөөнөтүнөн мурун бүтүрүүгө болот."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Можно завершить раньше срока."
+          }
+        }
+      }
+    },
+    "csca_rule_no_calculator" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Экзамендегидей калькуляторсуз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без калькулятора, как на экзамене."
+          }
+        }
+      }
+    },
+    "csca_rule_no_early" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Эрте бүтүрүүгө болбойт: убакыт бүткөндө жооптор өзү жөнөтүлөт."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Завершить раньше нельзя: когда время выйдет, ответы отправятся сами."
+          }
+        }
+      }
+    },
+    "csca_save_offline" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Байланыш жок: акыркы жооптор али сактала элек. Өзүбүз кайталайбыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет связи: последние ответы ещё не сохранены. Повторим сами."
+          }
+        }
+      }
+    },
+    "csca_seconds_spent" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%ld с"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%ld с"
+          }
+        }
+      }
+    },
+    "csca_section_weight" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сынамык экзаменде болжол менен 48 тапшырманын %ld (EVO баасы)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В пробном экзамене примерно %ld из 48 заданий (оценка EVO)"
+          }
+        }
+      }
+    },
+    "csca_sending" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жоопторду жөнөтүп жатабыз"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправляем ответы"
+          }
+        }
+      }
+    },
+    "csca_session_dates" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "%1$@ жана %2$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ и %2$@"
+          }
+        }
+      }
+    },
+    "csca_sessions_count" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Календардагы сессиялар: %ld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сессий в календаре: %ld"
+          }
+        }
+      }
+    },
+    "csca_sessions_header" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "CSCA сессиялары"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сессии CSCA"
+          }
+        }
+      }
+    },
+    "csca_sessions_note" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Даталар жана каттоо мөөнөттөрү csca.cn сайтынан алынды. EVO белгилүү бир сессияда орун убада кылбайт: каттоодон мурун даталарды сайттан текшериңиз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Даты и окна регистрации взяты с csca.cn. EVO не обещает место на конкретной сессии: проверьте даты на сайте перед регистрацией."
+          }
+        }
+      }
+    },
+    "csca_sessions_pick" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "csca.cn сайтындагы сессиялар календары"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Календарь сессий на csca.cn"
+          }
+        }
+      }
+    },
+    "csca_sessions_source" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Текшерилди: %@, csca.cn"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверено %@, csca.cn"
+          }
+        }
+      }
+    },
+    "csca_show_explain" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Талдоону көрсөтүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показать разбор"
+          }
+        }
+      }
+    },
+    "csca_show_solution" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Чыгарылышты көрсөтүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Показать решение"
+          }
+        }
+      }
+    },
+    "csca_solution" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Чыгарылышы"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Решение"
+          }
+        }
+      }
+    },
+    "csca_stage_exam_days" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Экзамен күндөрү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дни экзамена"
+          }
+        }
+      }
+    },
+    "csca_stage_foundation_detail" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Экзаменге бир айдан ашык: темалар боюнча сабактар жана машыгуу."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Больше месяца до экзамена: уроки по темам и практика."
+          }
+        }
+      }
+    },
+    "csca_stage_foundation_title" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Негиз"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Основа"
+          }
+        }
+      }
+    },
+    "csca_stage_intensification_detail" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Акыркы төрт жума: «Боштук» жана «Туруксуз» темалары, каталар, тапшырмага 75 с темп."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последние четыре недели: темы «Пробел» и «Шатко», ошибки, темп 75 с на задание."
+          }
+        }
+      }
+    },
+    "csca_stage_intensification_title" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Алсыз темалар жана убакытка тапшырмалар"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Слабые темы и задания на время"
+          }
+        }
+      }
+    },
+    "csca_stage_past" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сессия өтүп кетти"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сессия прошла"
+          }
+        }
+      }
+    },
+    "csca_stage_sprint_detail" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Акыркы жума: чыныгыдай убакытка сынамык экзамен."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последняя неделя: пробный экзамен на время, как настоящий."
+          }
+        }
+      }
+    },
+    "csca_stage_sprint_title" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Толук сынамык экзамендер"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Полные пробные экзамены"
+          }
+        }
+      }
+    },
+    "csca_stages_header" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Даярдануунун үч этабы"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Три этапа подготовки"
+          }
+        }
+      }
+    },
+    "csca_start" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Баштоо"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Начать"
+          }
+        }
+      }
+    },
+    "csca_state_confident" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Ишенимдүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Уверенно"
+          }
+        }
+      }
+    },
+    "csca_state_few_data" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Маалымат аз"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Мало данных"
+          }
+        }
+      }
+    },
+    "csca_state_gap" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Боштук"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пробел"
+          }
+        }
+      }
+    },
+    "csca_state_not_started" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Башталган жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не начато"
+          }
+        }
+      }
+    },
+    "csca_state_rule" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Теманын абалы акыркы 6 жооп боюнча эсептелет: «Ишенимдүү» 80 % туурадан баштап, «Туруксуз» 50 %дан 79 %га чейин, «Боштук» 50 %дан аз, «Маалымат аз» 3 жооптон аз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Состояние темы считается по последним 6 ответам: «Уверенно» от 80 % верных, «Шатко» от 50 % до 79 %, «Пробел» меньше 50 %, «Мало данных» меньше 3 ответов."
+          }
+        }
+      }
+    },
+    "csca_state_shaky" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Туруксуз"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Шатко"
+          }
+        }
+      }
+    },
+    "csca_streak_best" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Эң узун катар: %ld күн"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Эң узун катар: %ld күн"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Лучшая серия: %ld дня"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Лучшая серия: %ld дней"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Лучшая серия: %ld день"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Лучшая серия: %ld дня"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "csca_streak_current" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Катары менен %ld күн"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "Катары менен %ld күн"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Серия: %ld дня подряд"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Серия: %ld дней подряд"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Серия: %ld день подряд"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Серия: %ld дня подряд"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "csca_streak_note" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сабак, тест же кайталоо өтүлсө, күн эсептелет. Күндөр Бишкек убактысы менен эсептелет."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "День засчитывается, если пройден урок, тест или повторение. Дни считаются по времени Бишкека."
+          }
+        }
+      }
+    },
+    "csca_syllabus_link" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Экзамендин программасы (%@ редакциясы) csca.cn сайтында"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Программа экзамена (редакция %@) на csca.cn"
+          }
+        }
+      }
+    },
+    "csca_target_choose" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Өз сессияңызды тандаңыз"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите свою сессию"
+          }
+        }
+      }
+    },
+    "csca_target_clear_hint" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сессия тандоосун алып салуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Убрать выбор сессии"
+          }
+        }
+      }
+    },
+    "csca_target_set_hint" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бул сессияны тандоо"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрать эту сессию"
+          }
+        }
+      }
+    },
+    "csca_terms" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Терминдер"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Термины"
+          }
+        }
+      }
+    },
+    "csca_test_draft_note" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тесттин убактысы башталган учурдан тартып өтөт, тиркеме жабык болсо да."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Время теста идёт с момента старта, даже если приложение закрыто."
+          }
+        }
+      }
+    },
+    "csca_test_draft_open" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тест башталды, убакыт өтүп жатат"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тест начат, время идёт"
+          }
+        }
+      }
+    },
+    "csca_test_last_result" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Акыркы жыйынтык: %2$ld ичинен %1$ld туура"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последний итог: верно %1$ld из %2$ld"
+          }
+        }
+      }
+    },
+    "csca_test_meta" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тапшырмалар: %1$ld. Убакыт: %2$ld мүн."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заданий: %1$ld. Время: %2$ld мин"
+          }
+        }
+      }
+    },
+    "csca_test_meta_seconds" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тапшырмалар: %1$ld. Убакыт: %2$ld мүн %3$ld сек."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Заданий: %1$ld. Время: %2$ld мин %3$ld с"
+          }
+        }
+      }
+    },
+    "csca_tests_history" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тесттер"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тесты"
+          }
+        }
+      }
+    },
+    "csca_tests_none" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Азырынча тест жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тестов пока нет"
+          }
+        }
+      }
+    },
+    "csca_time_left_a11y" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%ld мүнөт калды"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "needs_review",
+                  "value" : "%ld мүнөт калды"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Осталось %ld минуты"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Осталось %ld минут"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Осталось %ld минута"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Осталось %ld минуты"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "csca_time_up_sending" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Убакыт бүттү. Жоопторду жөнөтүп жатабыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Время вышло. Отправляем ответы."
+          }
+        }
+      }
+    },
+    "csca_tip_no_calculator" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Калькуляторсуз"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без калькулятора"
+          }
+        }
+      }
+    },
+    "csca_title" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "CSCA"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CSCA"
+          }
+        }
+      }
+    },
+    "csca_topic_meta" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Программанын %1$@ пункту. Сынамык экзаменде бул тема боюнча тапшырмалар: болжол менен %2$ld (EVO баасы)."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пункт программы %1$@. Заданий по теме в пробном экзамене: около %2$ld (оценка EVO)."
+          }
+        }
+      }
+    },
+    "csca_topic_no_answers" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тема боюнча азырынча жооп жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ответов по теме пока нет"
+          }
+        }
+      }
+    },
+    "csca_topic_soon" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сабактар даярдалууда"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Уроки готовятся"
+          }
+        }
+      }
+    },
+    "csca_topic_totals" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бардыгы %2$ld ичинен %1$ld туура"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Всего верно %1$ld из %2$ld"
+          }
+        }
+      }
+    },
+    "csca_topic_window" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Акыркы жооптордон %2$ld ичинен %1$ld туура"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Из последних ответов верно %1$ld из %2$ld"
+          }
+        }
+      }
+    },
+    "csca_topics_by_state" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Темалар абалы боюнча"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Темы по состоянию"
+          }
+        }
+      }
+    },
+    "csca_unanswered_count" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жооп жок: %ld"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без ответа: %ld"
+          }
+        }
+      }
+    },
+    "csca_verdict_correct" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Туура"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Верно"
+          }
+        }
+      }
+    },
+    "csca_verdict_unanswered" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жооп жок"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Без ответа"
+          }
+        }
+      }
+    },
+    "csca_verdict_wrong" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Туура эмес"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неверно"
+          }
+        }
+      }
+    },
+    "csca_wrong_to_review" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Туура эмес жооптор «Каталарга» түштү. Жооп берилбеген тапшырмалар ал жакка түшпөйт."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неверные ответы ушли в «Ошибки». Задания без ответа туда не попадают."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

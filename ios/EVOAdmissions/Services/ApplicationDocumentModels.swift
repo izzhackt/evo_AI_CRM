@@ -68,7 +68,7 @@ private extension Dictionary where Key == String, Value == ApplicationDocumentJS
     subscript(w key: String) -> Value { self[key] ?? .null }
 }
 
-enum ApplicationDocumentUnavailableReason: String, Decodable {
+enum ApplicationDocumentUnavailableReason: String, Decodable, CaseIterable {
     case fileMissing = "file_missing", uploadNotFinalized = "upload_not_finalized"
     case integrityPending = "integrity_pending", integrityFailed = "integrity_failed"
     case malwarePending = "malware_pending", malwareInfected = "malware_infected", malwareError = "malware_error"
@@ -271,7 +271,7 @@ struct ApplicationDocumentsView: Decodable {
         guard r[w: "protocolVersion"] == .integer(1) else { throw ApplicationDocumentClientError.invalidResponse }
         studentCaseId = try r[w: "studentCaseId"].uuid(); applicationId = try r[w: "applicationId"].uuid()
         requirements = try r[w: "requirements"].decode(ApplicationRequirementsV2View.self)
-        try requirements.validate(studentCaseId: UUID(uuidString: studentCaseId)!, applicationId: UUID(uuidString: applicationId)!)
+        try requirements.validate(studentCaseId: ServerUUID.require(studentCaseId, orThrow: ApplicationDocumentClientError.invalidResponse), applicationId: ServerUUID.require(applicationId, orThrow: ApplicationDocumentClientError.invalidResponse))
         items = try r[w: "items"].array().map(ApplicationDocumentItem.init)
         guard items.count <= 50, items.count == requirements.items.count else { throw ApplicationDocumentClientError.invalidResponse }
         for (item, requirement) in zip(items, requirements.items) {
@@ -396,14 +396,16 @@ extension ApplicationDocumentWire {
         return year > 0 && (1...12).contains(month) && day > 0 && day <= days[month - 1]
     }
     static func microseconds(_ timestamp: String) -> Int64 {
-        let seconds = Int64(PostgresTimestamp.date(from: timestamp)!.timeIntervalSince1970.rounded())
+        // Метки времени проверены декодером (`timestamp()`); непарсящаяся
+        // строка даёт 0, а не падение.
+        let seconds = Int64((PostgresTimestamp.date(from: timestamp)?.timeIntervalSince1970 ?? 0).rounded())
         let fraction = timestamp.split(separator: ".").dropFirst().first.map { String($0.prefix(while: { $0.isNumber })) } ?? ""
         return seconds * 1_000_000 + (Int64((fraction + "000000").prefix(6)) ?? 0)
     }
     static func versionPage(_ versions: [ApplicationDocumentReusableVersion], cursor: ApplicationDocumentVersionCursor?) -> Bool {
         guard Set(versions.map(\.id)).count == versions.count else { return false }
         for (before, after) in zip(versions, versions.dropFirst()) {
-            let a = Int64(before.file.versionNo)!, b = Int64(after.file.versionNo)!
+            guard let a = Int64(before.file.versionNo), let b = Int64(after.file.versionNo) else { return false }
             guard a > b || (a == b && before.id > after.id) else { return false }
         }
         return cursor == nil || (versions.last?.id == cursor?.documentVersionId && versions.last?.file.versionNo == cursor?.versionNo)

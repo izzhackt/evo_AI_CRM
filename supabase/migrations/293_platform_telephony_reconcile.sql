@@ -1,4 +1,4 @@
--- 292_platform_telephony_reconcile — «Телефония Beeline KG» срез T4a: сверка по
+-- 293_platform_telephony_reconcile — «Телефония Beeline KG» срез T4a: сверка по
 -- истории ВАТС, первичный импорт, справочник сотрудников ВАТС, состояние и
 -- здоровье фоновой работы.
 -- Контракт: docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.3, §5.4 (сверка, первичный
@@ -58,7 +58,7 @@
 -- projection_enabled = false, функции ничего не пишут в звонки.
 BEGIN;
 
-DO $tel292_preconditions$
+DO $tel293_preconditions$
 BEGIN
   IF to_regclass('platform_private.telephony_settings') IS NULL
     OR to_regclass('platform_private.telephony_runtime_state') IS NULL
@@ -103,7 +103,7 @@ BEGIN
     RAISE EXCEPTION 'telephony_t4a_functions_already_exist' USING ERRCODE = '55000';
   END IF;
 END
-$tel292_preconditions$;
+$tel293_preconditions$;
 
 -- ---------------------------------------------------------------------------
 -- Проверки формы (IMMUTABLE; для CHECK; без грантов). Только числа, флаги и
@@ -913,7 +913,7 @@ COMMENT ON FUNCTION platform.telephony_integration_health_v1(UUID) IS
 
 -- Самопроверка: публичные функции — definer, пустой search_path, EXECUTE только у
 -- service_role; помощники — без прав клиентских ролей.
-DO $tel292_verify$
+DO $tel293_verify$
 DECLARE f REGPROCEDURE; p pg_catalog.pg_proc%ROWTYPE;
 BEGIN
   FOR f IN SELECT x.oid::REGPROCEDURE FROM pg_catalog.pg_proc x
@@ -947,6 +947,6 @@ BEGIN
     END IF;
   END LOOP;
 END
-$tel292_verify$;
+$tel293_verify$;
 
 COMMIT;

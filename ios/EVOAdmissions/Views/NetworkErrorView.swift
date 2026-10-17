@@ -20,7 +20,7 @@ struct NetworkErrorView: View {
 
             Text(message)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
                 .multilineTextAlignment(.center)
 
             Button {
@@ -36,8 +36,7 @@ struct NetworkErrorView: View {
                     Text("retry_button")
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(Color("AccentColor"))
+            .accentProminent()
             // A11y (9b): во время повтора label — ProgressView без текста.
             .accessibilityLabel(Text("retry_button"))
         }

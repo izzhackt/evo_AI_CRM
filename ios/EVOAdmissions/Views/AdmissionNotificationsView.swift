@@ -131,7 +131,7 @@ struct AdmissionNotificationsView: View {
                             .font(.headline)
                         Text("adm_notifications_empty_body")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                             .multilineTextAlignment(.center)
                     }
                     .padding(32)
@@ -145,7 +145,7 @@ struct AdmissionNotificationsView: View {
                     Button("retry_button") {
                         Task { await model.load() }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                 }
                 .padding(32)
             } else {
@@ -184,7 +184,7 @@ struct AdmissionNotificationsView: View {
                 if model.markAllFailed {
                     Text("adm_mark_error")
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(.dangerText)
                 }
                 ForEach(model.notifications) { notification in
                     NotificationRow(
@@ -198,6 +198,7 @@ struct AdmissionNotificationsView: View {
                 }
             } footer: {
                 Text("adm_notifications_time_note")
+                    .foregroundStyle(.secondaryText)
             }
         }
         .refreshable { await model.load() }
@@ -224,19 +225,16 @@ private struct NotificationRow: View {
                     .font(notification.isUnread ? .subheadline.weight(.semibold) : .subheadline)
                 Spacer(minLength: 8)
                 if notification.isUnread {
-                    Text("adm_status_new")
-                        .font(.caption.weight(.medium))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.blue.opacity(0.12), in: Capsule())
-                        .foregroundStyle(.blue)
+                    // Синий текст по синей заливке давал 3,1:1 (аудит UX/UI 2026-10).
+                    StatusBadge(Text("adm_status_new"), systemImage: "bell.badge.fill", tone: .info)
                 }
             }
 
             if let detail = notification.detail {
+                // Инструкция куратора: главный текст карточки, основным цветом.
                 Text(detail)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
             }
 
             metaLine
@@ -257,13 +255,14 @@ private struct NotificationRow: View {
                             Text("adm_mark_read")
                         }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
+                    .controlSize(.large)
                     .disabled(isMarking)
                     .accessibilityLabel(Text("adm_mark_read"))
                     if markFailed {
                         Text("adm_mark_error")
                             .font(.caption)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(.dangerText)
                     }
                 }
             }
@@ -283,7 +282,7 @@ private struct NotificationRow: View {
         }
         return Text(verbatim: parts.joined(separator: " · "))
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.secondaryText)
     }
 
     /// Зеркало portalNotificationTarget: реальный объект или честное
@@ -323,7 +322,7 @@ private struct NotificationRow: View {
             // нет, и мы честно говорим об этом вместо мёртвой ссылки.
             Text("adm_reply_web_note")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
         case .none:
             EmptyView()
         }

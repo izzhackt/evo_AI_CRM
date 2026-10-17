@@ -425,7 +425,7 @@ struct LessonRunnerView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("english_goal_heading")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                     Text(AppLocale.pick(
                         ru: response.lesson.metadata.goalRu,
                         ky: response.lesson.metadata.goalKy
@@ -434,7 +434,7 @@ struct LessonRunnerView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
 
                 Text("english_theory_heading")
                     .font(.title3.bold())
@@ -459,8 +459,7 @@ struct LessonRunnerView: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color("AccentColor"))
+                .accentProminent()
                 .disabled(model.isWriting || model.isReloading || model.reloadRequired || model.exercises.isEmpty)
                 // A11y (9b): во время записи label — ProgressView без текста.
                 .accessibilityLabel(model.attemptId != nil
@@ -499,7 +498,7 @@ struct LessonRunnerView: View {
                 if model.isWriting {
                     Text("english_saving")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
             }
             ProgressView(
@@ -509,7 +508,7 @@ struct LessonRunnerView: View {
             .tint(Color("AccentColor"))
         }
         .padding(14)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
     }
 
     @ViewBuilder
@@ -526,7 +525,7 @@ struct LessonRunnerView: View {
                     Button("retry_button") {
                         Task { await model.retryPending() }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                     .disabled(model.isWriting || model.isReloading)
                 case .reloadSaved:
                     // Повтор чтения, которое пользователь уже выбрал: запись
@@ -534,13 +533,13 @@ struct LessonRunnerView: View {
                     Button("english_reload_draft") {
                         Task { await model.reloadSavedAttempt() }
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                     .disabled(model.isReloading)
                 case .confirmReload:
                     Button("english_reload_draft") {
                         confirmReload = true
                     }
-                    .buttonStyle(.bordered)
+                    .accentBordered()
                     .disabled(model.isReloading)
                     .confirmationDialog(
                         "english_reload_confirm",
@@ -582,15 +581,15 @@ struct LessonRunnerView: View {
                 ) {
                     model.advance()
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color("AccentColor"))
+                .accentProminent()
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .disabled(model.reloadRequired || model.isReloading)
             } else {
                 ExerciseFormView(
                     exercise: exercise,
                     form: $model.form,
-                    disabled: model.isWriting || model.reloadRequired || model.isReloading
+                    disabled: model.isWriting || model.reloadRequired || model.isReloading,
+                    onSubmit: { if model.canSubmit { Task { await model.submit() } } }
                 )
                 Button {
                     Task { await model.submit() }
@@ -604,15 +603,14 @@ struct LessonRunnerView: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Color("AccentColor"))
+                .accentProminent()
                 .disabled(!model.canSubmit)
                 // A11y (9b): во время записи label — ProgressView без текста.
                 .accessibilityLabel(Text("english_answer_button"))
             }
         }
         .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 
     // MARK: Finish (все отвечены → завершить)
@@ -624,7 +622,7 @@ struct LessonRunnerView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("english_finish_hint")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                     Button {
                         Task { await model.complete() }
                     } label: {
@@ -637,14 +635,13 @@ struct LessonRunnerView: View {
                         }
                         .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color("AccentColor"))
+                    .accentProminent()
                     .disabled(!model.allAnswered || model.isWriting || model.reloadRequired || model.isReloading)
                     // A11y (9b): во время записи label — ProgressView.
                     .accessibilityLabel(Text("english_finish_button"))
                 }
                 .padding(16)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
             }
             .padding(20)
         }
@@ -667,20 +664,20 @@ struct LessonRunnerView: View {
                         if model.wrongCount == 0 {
                             Text("english_completion_no_mistakes")
                                 .font(.footnote)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.secondaryText)
                         } else {
                             Text(String(
                                 format: String(localized: "english_completion_mistakes"),
                                 model.wrongCount
                             ))
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.secondaryText)
                         }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
 
                 if model.wrongCount > 0 {
                     NavigationLink {
@@ -689,8 +686,7 @@ struct LessonRunnerView: View {
                         Text("english_review_entry")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Color("AccentColor"))
+                    .accentProminent()
                 }
 
                 Button {
@@ -705,7 +701,7 @@ struct LessonRunnerView: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
+                .accentBordered()
                 .disabled(model.isWriting || model.reloadRequired || model.isReloading)
                 // A11y (9b): во время записи label — ProgressView.
                 .accessibilityLabel(Text("english_repeat_lesson"))
@@ -720,7 +716,7 @@ struct LessonRunnerView: View {
                             ExplainPanelView(exercise: exercise, entry: entry)
                         }
                         .padding(16)
-                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
                     }
                 }
             }
@@ -745,7 +741,7 @@ struct RunnerTheoryBlockView: View {
                         .font(.subheadline.weight(.semibold))
                     Text(AppLocale.pick(ru: example.ru, ky: example.ky))
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
@@ -754,7 +750,7 @@ struct RunnerTheoryBlockView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
     }
 }
 
@@ -786,7 +782,7 @@ struct ExercisePromptView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("english_reading_passage")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                     // Учебный английский текст — не переводится.
                     Text(passage)
                         .font(.subheadline)
@@ -805,6 +801,8 @@ struct ExerciseFormView: View {
     let exercise: LearningExercisePublic
     @Binding var form: ExerciseFormValue
     let disabled: Bool
+    /// Return в поле краткого ответа отправляет ответ, как кнопка «Ответить».
+    var onSubmit: (() -> Void)? = nil
 
     var body: some View {
         switch exercise.type {
@@ -820,7 +818,7 @@ struct ExerciseFormView: View {
             // Неизвестный тип контента: честно ничего не имитируем.
             Text("english_error_invalid")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
         }
     }
 
@@ -842,7 +840,7 @@ struct ExerciseFormView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("english_matching_hint")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
             ForEach(Array((exercise.lefts ?? []).enumerated()), id: \.offset) { leftIndex, left in
                 HStack(spacing: 10) {
                     // Левая колонка — английское содержание, не переводится.
@@ -871,11 +869,11 @@ struct ExerciseFormView: View {
                             } else {
                                 Text("english_matching_empty")
                                     .font(.subheadline)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(.secondaryText)
                             }
                             Image(systemName: "chevron.up.chevron.down")
                                 .font(.caption2)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(.secondaryText)
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
@@ -890,19 +888,34 @@ struct ExerciseFormView: View {
         }
     }
 
+    /// Подпись и подсказка привязаны к полю для VoiceOver: раньше у
+    /// `TextField("", …)` имя было пустым (аудит UX/UI 2026-10, A11Y-03).
     private var shortAnswerForm: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("english_short_answer_label")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.primary)
+                .accessibilityHidden(true)
             TextField("", text: $form.shortText)
-                .textFieldStyle(.roundedBorder)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .submitLabel(.done)
+                .onSubmit { onSubmit?() }
+                .accessibilityLabel(Text("english_short_answer_label"))
+                .accessibilityHint(Text("english_short_answer_hint"))
+                .padding(.horizontal, 10)
+                .frame(minHeight: 44)
+                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color(.systemGray), lineWidth: 1)
+                        .allowsHitTesting(false)
+                }
                 .disabled(disabled)
             Text("english_short_answer_hint")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
+                .accessibilityHidden(true)
         }
     }
 
@@ -938,7 +951,7 @@ struct RunnerOptionButton: View {
         Button(action: action) {
             HStack {
                 Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                    .foregroundStyle(selected ? Color("AccentColor") : Color.secondary)
+                    .foregroundStyle(selected ? Color("AccentColor") : Color.secondaryText)
                     .motionSymbolSwap(on: selected)
                     .motionBounce(whenOn: selected)
                     // A11y (9b): кружок — декорация, состояние несёт trait.
@@ -1017,7 +1030,7 @@ struct ExplainPanelView: View {
         ) { option in
             Text(isKyrgyz ? option.explainKy : option.explainRu)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
         }
     }
 
@@ -1036,7 +1049,7 @@ struct ExplainPanelView: View {
                     .font(.footnote.weight(.semibold))
                 Text("—")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondaryText)
                 Text(isKyrgyz ? pair.rightKy : pair.rightRu)
                     .font(.footnote)
             }
@@ -1048,7 +1061,7 @@ struct ExplainPanelView: View {
         ) {
             Text(explain)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
         }
     }
 
@@ -1068,7 +1081,7 @@ struct ExplainPanelView: View {
         ) {
             Text(explain)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.secondaryText)
         }
     }
 
@@ -1108,7 +1121,7 @@ struct ExplainPanelView: View {
                 ) { option in
                     Text(isKyrgyz ? option.explainKy : option.explainRu)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.secondaryText)
                 }
             }
             .padding(.vertical, 2)

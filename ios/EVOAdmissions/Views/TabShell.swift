@@ -32,7 +32,10 @@ struct TabShell: View {
                 .tag(PortalTab.admission)
             }
 
-            UniversitiesView()
+            // Университеты v2 (283): страны → города → вузы с индексом на
+            // диске. Прежний список с фильтрами (UniversitiesView) сборки 1.0
+            // больше не вызывается; его удаление идёт отдельным PR (#1206 n2).
+            UniversityAtlasView(organizationId: session.authority.organizationId)
                 .tabFade(.universities, selected: selectedTab)
                 .tabItem { Label("tab_universities", systemImage: "building.columns.fill") }
                 .tag(PortalTab.universities)
@@ -55,6 +58,13 @@ struct TabShell: View {
                 .tag(PortalTab.profile)
         }
         .tint(Color("AccentColor"))
+        // Индекс университетов v2 грузится на старте сессии, а не только во
+        // вкладке «Университеты»: экраны страны и города открываются и со
+        // страницы вуза на «Главной» или в «Профессиях», а невыбранная
+        // вкладка своё `.task` не выполняет (review раунда 2, N1).
+        .task(id: session.authority.organizationId) {
+            await UniversityIndexStore.shared.load(organizationId: session.authority.organizationId)
+        }
         // Tab feedback: a light selection tap plus a 160 ms fade-in of the
         // incoming tab's content (see `tabFade`). The tab bar itself is
         // system-drawn and untouched.

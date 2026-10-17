@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 
 import { CscaOverview } from "@/components/portal/csca/Overview";
@@ -18,6 +19,7 @@ import {
   type CscaTopic,
 } from "@/lib/portal/csca";
 import { cscaHasStarted } from "@/lib/portal/csca-overview";
+import { CSCA_OVERVIEW_COOKIE, parseCscaOverviewChoice } from "@/lib/portal/csca-overview-choice";
 import { readCscaHome } from "@/lib/portal/csca-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
@@ -255,17 +257,18 @@ function TestRow({ test, locale, strings }: { test: CscaTestSummary; locale: Loc
 /**
  * «CSCA» (S5.1, обзор 17.10.2026): сверху обзор экзамена из
  * src/content/csca/overview.json (новичку открыт, тому, кто уже занимается,
- * свёрнут в строку), затем «Занятия в EVO» по одному вызову
+ * свёрнут в строку; выбор зрителя из cookie `csca_overview`), затем «Занятия в EVO» по одному вызову
  * learning_track_home_v1: следующий шаг по правилу §12 контракта, рядом
  * официальный календарь сессий (ответ обзора «Когда проходит экзамен?»),
  * тесты на время, «Ошибки», «Прогресс» и карта тем по модулям программы.
  * Обзор статичен и виден, даже если занятия не загрузились.
  */
 export default async function CscaHomePage() {
-  const [, locale, home] = await Promise.all([
+  const [, locale, home, cookieStore] = await Promise.all([
     requireStudentPortalActor(),
     getLocale(),
     readCscaHome().catch(() => null),
+    cookies(),
   ]);
   const strings = getPortalStrings("csca", locale);
   const universities = getPortalStrings("universities", locale);
@@ -278,6 +281,7 @@ export default async function CscaHomePage() {
       <CscaOverview
         locale={locale}
         started={home !== null && cscaHasStarted(home)}
+        choice={parseCscaOverviewChoice(cookieStore.get(CSCA_OVERVIEW_COOKIE)?.value)}
         sessionsShown={sessionsShown}
         moduleShown={home !== null && track !== null}
         strings={strings}

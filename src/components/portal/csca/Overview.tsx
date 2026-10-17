@@ -3,6 +3,7 @@ import type { Locale } from "@/lib/i18n-data";
 import { cscaDayLabel } from "@/lib/portal/csca";
 import {
   CSCA_OVERVIEW,
+  cscaGroupFacts,
   cscaMinutesLabel,
   cscaOverviewPhoto,
   cscaPhotoSources,
@@ -12,8 +13,10 @@ import {
   type CscaOverviewGroup,
   type CscaOverviewSubject,
   type CscaPhoto,
+  type CscaSubjectFact,
   type L10n,
 } from "@/lib/portal/csca-overview";
+import { cscaOverviewOpen, type CscaOverviewChoice } from "@/lib/portal/csca-overview-choice";
 import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 
 import { cscaPhotoUrl } from "./overview-photo-files";
@@ -68,13 +71,13 @@ function OverviewPhoto({
   );
 }
 
-function Thumb({ photo }: { photo: CscaPhoto }) {
+function Thumb({ photo, eager }: { photo: CscaPhoto; eager: boolean }) {
   const { webp, fallback } = cscaPhotoSources(photo);
   const small = webp.filter((file) => file.width < 720);
   return (
     <picture className="cs-ov-thumb">
       <source type="image/webp" srcSet={cscaPhotoSrcSet(small, cscaPhotoUrl)} sizes="72px" />
-      <img src={cscaPhotoUrl(fallback.path)} width={fallback.width} height={fallback.height} alt="" loading="lazy" decoding="async" style={{ objectPosition: photo.objectPosition }} />
+      <img src={cscaPhotoUrl(fallback.path)} width={fallback.width} height={fallback.height} alt="" loading={eager ? "eager" : "lazy"} decoding="async" style={{ objectPosition: photo.objectPosition }} />
     </picture>
   );
 }
@@ -84,7 +87,7 @@ function SubjectName({ subject, locale }: { subject: Pick<CscaOverviewSubject, "
   return (
     <>
       <span className="cs-ov-subject-en" lang="en">{subject.nameEn}</span>
-      {subject.name ? <span className="cs-ov-subject-local">{t(subject.name)}</span> : null}
+      {subject.name ? <>{" "}<span className="cs-ov-subject-local">{t(subject.name)}</span></> : null}
     </>
   );
 }
@@ -93,24 +96,34 @@ function EvoMark({ status, label }: { status: CscaEvoStatus; label: string }) {
   return <span className="cs-ov-evo" data-status={status}>{label}</span>;
 }
 
+/** Подписи и значения фактов: подпись над значением, сеткой. */
+function FactGrid({ facts, className }: { facts: readonly CscaSubjectFact[]; className: string }) {
+  return (
+    <dl className={className}>
+      {facts.map((fact) => (
+        <div key={fact.key} data-fact={fact.key}>
+          <dt>{fact.label}</dt>
+          <dd>{fact.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 /**
  * Таблица «Предметы и формат». Широкий контейнер: настоящая таблица с
  * группами (`th scope="rowgroup"`) и строкой на предмет. Узкий контейнер
- * (телефон, планшет с рейлом): тот же контент карточками со списком
- * «название: значение», без обрезанных столбцов. Видна одна из двух версий
- * (контейнерный запрос), скрытая убрана из дерева доступности.
+ * (телефон, планшет с рейлом): у каждой группы общие факты один раз сеткой
+ * «подпись над значением», ниже предметы строками с тем, что есть в EVO
+ * (review раунда 1, F2 и F3); если факт у предметов группы разный, он
+ * остаётся у предмета. Видна одна из двух версий (контейнерный запрос),
+ * скрытая убрана из дерева доступности.
  */
 function SubjectsTable({ locale, groups }: { locale: Locale; groups: readonly CscaOverviewGroup[] }) {
   const o = CSCA_OVERVIEW;
   const lang = locale === "ky" ? "ky" : "ru";
   const t = (text: L10n) => text[lang];
   const columns = o.subjects.columns;
-  const cells = (subject: CscaOverviewSubject) => [
-    { key: "language", label: t(columns.language), value: t(subject.language) },
-    { key: "duration", label: t(columns.duration), value: cscaMinutesLabel(o, subject.minutes, lang) },
-    { key: "questions", label: t(columns.questions), value: String(subject.questions) },
-    { key: "scoreRange", label: t(columns.scoreRange), value: cscaScoreRangeLabel(o, subject, lang) },
-  ];
   return (
     <div className="cs-ov-subjects-frame">
       <div className="cs-ov-table-wide">
@@ -129,7 +142,7 @@ function SubjectsTable({ locale, groups }: { locale: Locale; groups: readonly Cs
             <tbody key={group.key}>
               <tr className="cs-ov-group-row">
                 <th scope="rowgroup" colSpan={6}>
-                  <span lang="en">{group.nameEn}</span>
+                  <span lang="en">{group.nameEn}</span>{" "}
                   <span className="cs-ov-group-local">{t(group.name)}</span>
                 </th>
               </tr>
@@ -139,7 +152,7 @@ function SubjectsTable({ locale, groups }: { locale: Locale; groups: readonly Cs
                   <td>{t(subject.language)}</td>
                   <td className="cs-ov-num">{cscaMinutesLabel(o, subject.minutes, lang)}</td>
                   <td className="cs-ov-num">{subject.questions}</td>
-                  <td>{cscaScoreRangeLabel(o, subject, lang)}</td>
+                  <td className="cs-ov-score">{cscaScoreRangeLabel(o, subject, lang)}</td>
                   <td><EvoMark status={subject.evo} label={t(o.subjects.evoStatus[subject.evo])} /></td>
                 </tr>
               ))}
@@ -148,32 +161,32 @@ function SubjectsTable({ locale, groups }: { locale: Locale; groups: readonly Cs
         </table>
       </div>
       <div className="cs-ov-table-narrow">
-        {groups.map((group) => (
-          <section key={group.key} className="cs-ov-card-group" aria-labelledby={`cs-ov-group-${group.key}`}>
-            <h3 id={`cs-ov-group-${group.key}`} className="cs-ov-card-group-title">
-              <span lang="en">{group.nameEn}</span>
-              <span className="cs-ov-group-local">{t(group.name)}</span>
-            </h3>
-            <ul className="cs-ov-cards">
-              {group.subjects.map((subject) => (
-                <li key={subject.key} className="cs-ov-card">
-                  <p className="cs-ov-card-name">
-                    <SubjectName subject={subject} locale={locale} />
-                    <EvoMark status={subject.evo} label={`${t(columns.evo)}: ${t(o.subjects.evoStatus[subject.evo])}`} />
-                  </p>
-                  <dl className="cs-ov-card-facts">
-                    {cells(subject).map((cell) => (
-                      <div key={cell.key} data-cell={cell.key}>
-                        <dt>{cell.label}</dt>
-                        <dd>{cell.value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
+        {groups.map((group) => {
+          const facts = cscaGroupFacts(o, group, lang);
+          return (
+            <section key={group.key} className="cs-ov-card-group" aria-labelledby={`cs-ov-group-${group.key}`}>
+              <h3 id={`cs-ov-group-${group.key}`} className="cs-ov-card-group-title">
+                <span lang="en">{group.nameEn}</span>{" "}
+                <span className="cs-ov-group-local">{t(group.name)}</span>
+              </h3>
+              {facts.shared.length > 0 ? <FactGrid facts={facts.shared} className="cs-ov-group-facts" /> : null}
+              <ul className="cs-ov-cards">
+                {group.subjects.map((subject) => {
+                  const own = facts.bySubject[subject.key] ?? [];
+                  return (
+                    <li key={subject.key} className="cs-ov-card">
+                      <p className="cs-ov-card-name">
+                        <SubjectName subject={subject} locale={locale} />
+                      </p>
+                      <EvoMark status={subject.evo} label={`${t(columns.evo)}: ${t(o.subjects.evoStatus[subject.evo])}`} />
+                      {own.length > 0 ? <FactGrid facts={own} className="cs-ov-card-facts" /> : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          );
+        })}
       </div>
     </div>
   );
@@ -202,6 +215,7 @@ function VerdictIcon({ needed }: { needed: boolean }) {
 export function CscaOverview({
   locale,
   started,
+  choice,
   sessionsShown,
   moduleShown,
   strings,
@@ -210,6 +224,8 @@ export function CscaOverview({
   locale: Locale;
   /** Студент уже занимается: обзор по умолчанию свёрнут. */
   started: boolean;
+  /** Выбор зрителя из cookie `csca_overview` (контракт §19), без него умолчание. */
+  choice: CscaOverviewChoice | null;
   /** На странице есть блок сессий, к нему ведёт ответ о датах. */
   sessionsShown: boolean;
   /** Занятия загрузились: под вводным текстом ссылка «К занятиям» на следующий шаг. */
@@ -220,6 +236,9 @@ export function CscaOverview({
   const o = CSCA_OVERVIEW;
   const lang = locale === "ky" ? "ky" : "ru";
   const t = (text: L10n) => text[lang];
+  // Состояние первой отрисовки знает сервер: от него зависит, какое фото
+  // грузить сразу (герой открытого листа или миниатюра свёрнутого).
+  const openAtLoad = cscaOverviewOpen(choice, started);
   const hero = cscaOverviewPhoto(o.photos.hero);
   const audiencePhoto = cscaOverviewPhoto(o.photos.audience);
 
@@ -337,7 +356,8 @@ export function CscaOverview({
 
   return (
     <OverviewSheet
-      defaultOpen={!started}
+      started={started}
+      initialChoice={choice}
       toggleLabel={strings.overviewToggle}
       head={head}
       summary={<p className="cs-ov-summary">{t(o.summary)}</p>}
@@ -348,11 +368,11 @@ export function CscaOverview({
           locale={locale}
           sizes="(min-width: 1100px) 560px, 100vw"
           className="cs-ov-photo cs-ov-photo-hero"
-          eager={!started}
+          eager={openAtLoad}
           rightsStrings={rightsStrings}
         />
       )}
-      thumb={<Thumb photo={hero} />}
+      thumb={<Thumb photo={hero} eager={!openAtLoad} />}
       body={body}
     />
   );

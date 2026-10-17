@@ -9,12 +9,19 @@ import {
   CSCA_OVERVIEW_DATE,
   CSCA_OVERVIEW_FORBIDDEN,
   CSCA_OVERVIEW_PHOTOS,
+  cscaGroupFacts,
   cscaHasStarted,
   cscaMinutesLabel,
   cscaScoreRangeLabel,
   parseCscaOverview,
   parseCscaOverviewPhotos,
 } from "../src/lib/portal/csca-overview.ts";
+import {
+  CSCA_OVERVIEW_COOKIE,
+  CSCA_OVERVIEW_COOKIE_PATH,
+  cscaOverviewOpen,
+  parseCscaOverviewChoice,
+} from "../src/lib/portal/csca-overview-choice.ts";
 import { cscaTopicNextLessons, cscaWeakTopicLesson, parseCscaHome } from "../src/lib/portal/csca.ts";
 import { PORTAL_DICTIONARIES } from "../src/lib/portal/i18n.ts";
 import { closesInLabel, sessionLabels, sessionRegistration } from "../src/components/portal/csca/session-labels.ts";
@@ -197,12 +204,56 @@ test("returning students get the compact overview, new students the full one", (
   assert.equal(cscaHasStarted(fresh), false);
   assert.equal(cscaHasStarted({ ...fresh, review: { dueCount: 0, activeCount: 1, nextDueOn: "2026-10-18" } }), true);
   const sheet = read("src/components/portal/csca/OverviewSheet.tsx");
-  assert.match(sheet, /evo\.portal\.csca\.overview\.v1/u);
-  assert.match(sheet, /try \{\s*return window\.localStorage\.getItem/u);
   assert.match(sheet, /aria-expanded=\{open\}/u);
   const page = read("src/app/(portal)/portal/csca/page.tsx");
   assert.ok(page.indexOf("<CscaOverview") < page.indexOf("<NextStep"), "the overview comes before the module");
   assert.match(page, /started=\{home !== null && cscaHasStarted\(home\)\}/u);
+});
+
+test("the viewer's open or collapsed choice is a cookie the server reads, so nothing jumps after hydration", () => {
+  assert.equal(CSCA_OVERVIEW_COOKIE, "csca_overview");
+  assert.equal(CSCA_OVERVIEW_COOKIE_PATH, "/portal");
+  assert.deepEqual(["open", "closed", "", "OPEN", "1", undefined, null].map(parseCscaOverviewChoice), ["open", "closed", null, null, null, null, null]);
+  // No choice: new students see it open, returning ones collapsed; a choice always wins.
+  assert.deepEqual([[null, false], [null, true], ["open", true], ["closed", false]].map(([choice, started]) => cscaOverviewOpen(choice, started)),
+    [true, false, true, false]);
+  const page = read("src/app/(portal)/portal/csca/page.tsx");
+  assert.match(page, /choice=\{parseCscaOverviewChoice\(cookieStore\.get\(CSCA_OVERVIEW_COOKIE\)\?\.value\)\}/u);
+  const sheet = read("src/components/portal/csca/OverviewSheet.tsx");
+  // The hydration snapshot is the server's cookie value, the client reads the same cookie: one render, no shift.
+  assert.match(sheet, /useSyncExternalStore\(subscribeChoice, readChoice, \(\) => initialChoice \?\? ""\)/u);
+  assert.match(sheet, /path=\$\{CSCA_OVERVIEW_COOKIE_PATH\}; max-age=\$\{CSCA_OVERVIEW_COOKIE_MAX_AGE\}; samesite=lax/u);
+  assert.doesNotMatch(sheet, /localStorage/u);
+  const overview = read("src/components/portal/csca/Overview.tsx");
+  // The image of the first paint loads first: the hero when open, the thumbnail when collapsed.
+  assert.match(overview, /const openAtLoad = cscaOverviewOpen\(choice, started\);/u);
+  assert.match(overview, /eager=\{openAtLoad\}/u);
+  assert.match(overview, /<Thumb photo=\{hero\} eager=\{!openAtLoad\} \/>/u);
+});
+
+test("narrow screens show a group's shared facts once, subjects keep only what differs", () => {
+  for (const locale of ["ru", "ky"]) {
+    for (const group of CSCA_OVERVIEW.subjects.groups) {
+      const facts = cscaGroupFacts(CSCA_OVERVIEW, group, locale);
+      // Today every group shares language, time, questions and scale.
+      assert.deepEqual(facts.shared.map((fact) => fact.key), ["language", "duration", "questions", "scoreRange"], group.key);
+      for (const subject of group.subjects) assert.deepEqual(facts.bySubject[subject.key], [], subject.key);
+      const first = group.subjects[0];
+      assert.deepEqual(facts.shared.map((fact) => fact.value), [
+        first.language[locale], cscaMinutesLabel(CSCA_OVERVIEW, first.minutes, locale), String(first.questions), cscaScoreRangeLabel(CSCA_OVERVIEW, first, locale),
+      ]);
+    }
+  }
+  // A fact that differs inside a group stays with each subject.
+  const [group] = CSCA_OVERVIEW.subjects.groups;
+  const mixed = { ...group, subjects: [group.subjects[0], { ...group.subjects[1], minutes: 75 }] };
+  const facts = cscaGroupFacts(CSCA_OVERVIEW, mixed, "ru");
+  assert.deepEqual(facts.shared.map((fact) => fact.key), ["language", "questions", "scoreRange"]);
+  assert.deepEqual(facts.bySubject[mixed.subjects[1].key].map((fact) => fact.value), ["75 мин"]);
+  // Accessible names keep a space between the English name and its translation (review F4).
+  const overview = read("src/components/portal/csca/Overview.tsx");
+  assert.equal((overview.match(/\{group\.nameEn\}<\/span>\{" "\}/gu) ?? []).length, 2);
+  assert.match(overview, /\{subject\.nameEn\}<\/span>\n\s+\{subject\.name \? <>\{" "\}/u);
 });
 
 test("an open registration window says when it closes, Bishkek time, N up to 60 days", () => {

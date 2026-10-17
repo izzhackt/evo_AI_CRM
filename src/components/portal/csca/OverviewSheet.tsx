@@ -2,48 +2,43 @@
 
 import { useCallback, useSyncExternalStore, type ReactNode } from "react";
 
+import {
+  CSCA_OVERVIEW_COOKIE,
+  CSCA_OVERVIEW_COOKIE_MAX_AGE,
+  CSCA_OVERVIEW_COOKIE_PATH,
+  cscaOverviewOpen,
+  parseCscaOverviewChoice,
+  type CscaOverviewChoice,
+} from "@/lib/portal/csca-overview-choice";
+
 // ---------------------------------------------------------------------------
-// Выбор зрителя «обзор открыт или свёрнут» в localStorage (как раскрытые шаги
-// «Пути поступления»). Только удобство, без данных студента. Хранилище может
-// быть недоступно (приватное окно, запрет сайта): тогда выбор живёт в памяти
-// вкладки, а без выбора действует умолчание сервера.
+// Выбор зрителя «обзор открыт или свёрнут» в cookie `csca_overview`, как тема
+// и язык: сервер читает её и рисует лист сразу в нужном состоянии, поэтому
+// после гидратации ничего не прыгает (review раунда 1, F1). Если cookie
+// запрещены, выбор живёт в памяти вкладки, а без выбора действует умолчание.
 // ---------------------------------------------------------------------------
 
-export const CSCA_OVERVIEW_STORAGE_KEY = "evo.portal.csca.overview.v1";
-let memory: string | null = null;
+let memory: CscaOverviewChoice | null = null;
 const listeners = new Set<() => void>();
 
-function readStored(): string {
+function readChoice(): CscaOverviewChoice | "" {
   if (memory !== null) return memory;
-  try {
-    return window.localStorage.getItem(CSCA_OVERVIEW_STORAGE_KEY) ?? "";
-  } catch {
-    return "";
-  }
+  const prefix = `${CSCA_OVERVIEW_COOKIE}=`;
+  const entry = document.cookie.split("; ").find((part) => part.startsWith(prefix));
+  return parseCscaOverviewChoice(entry?.slice(prefix.length)) ?? "";
 }
 
-function writeStored(value: "open" | "closed"): void {
+function writeChoice(value: CscaOverviewChoice): void {
   memory = value;
-  try {
-    window.localStorage.setItem(CSCA_OVERVIEW_STORAGE_KEY, value);
-  } catch {
-    // Остаётся в памяти вкладки.
-  }
+  const secure = window.location.protocol === "https:" ? "; secure" : "";
+  document.cookie = `${CSCA_OVERVIEW_COOKIE}=${value}; path=${CSCA_OVERVIEW_COOKIE_PATH}; max-age=${CSCA_OVERVIEW_COOKIE_MAX_AGE}; samesite=lax${secure}`;
   for (const listener of listeners) listener();
 }
 
-function subscribeStored(listener: () => void): () => void {
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === CSCA_OVERVIEW_STORAGE_KEY) {
-      memory = null;
-      listener();
-    }
-  };
+function subscribeChoice(listener: () => void): () => void {
   listeners.add(listener);
-  window.addEventListener("storage", onStorage);
   return () => {
     listeners.delete(listener);
-    window.removeEventListener("storage", onStorage);
   };
 }
 
@@ -51,11 +46,12 @@ function subscribeStored(listener: () => void): () => void {
  * Лист «Об экзамене» над занятиями CSCA. Новичок видит обзор целиком;
  * у того, кто уже начал заниматься, он по умолчанию свёрнут в строку с
  * названием и сводкой, полный обзор открывается одной кнопкой. Свой выбор
- * зритель меняет кнопкой «Об экзамене», браузер его помнит. Заголовок
- * страницы и кнопка стоят на одном месте в обоих состояниях.
+ * зритель меняет кнопкой «Об экзамене», устройство помнит его в cookie.
+ * Заголовок страницы и кнопка стоят на одном месте в обоих состояниях.
  */
 export function OverviewSheet({
-  defaultOpen,
+  started,
+  initialChoice,
   toggleLabel,
   head,
   summary,
@@ -64,7 +60,10 @@ export function OverviewSheet({
   thumb,
   body,
 }: {
-  defaultOpen: boolean;
+  /** Студент уже занимается: без выбора обзор свёрнут. */
+  started: boolean;
+  /** Выбор из cookie запроса: с ним сервер и гидратация рисуют одно и то же. */
+  initialChoice: CscaOverviewChoice | null;
   toggleLabel: string;
   head: ReactNode;
   summary: ReactNode;
@@ -73,9 +72,9 @@ export function OverviewSheet({
   thumb: ReactNode;
   body: ReactNode;
 }) {
-  const stored = useSyncExternalStore(subscribeStored, readStored, () => "");
-  const open = stored === "open" ? true : stored === "closed" ? false : defaultOpen;
-  const toggle = useCallback(() => writeStored(open ? "closed" : "open"), [open]);
+  const stored = useSyncExternalStore(subscribeChoice, readChoice, () => initialChoice ?? "");
+  const open = cscaOverviewOpen(stored === "" ? null : stored, started);
+  const toggle = useCallback(() => writeChoice(open ? "closed" : "open"), [open]);
 
   return (
     <section className="cs-ov" data-open={open ? "" : undefined} aria-labelledby="cs-title">

@@ -510,10 +510,44 @@ export function cscaScoreRangeLabel(overview: CscaOverview, entry: Pick<CscaOver
   return fill(overview.subjects.formats.scoreRange[locale], { min: String(entry.scoreMin), max: String(entry.scoreMax) });
 }
 
+export const CSCA_SUBJECT_FACT_KEYS = ["language", "duration", "questions", "scoreRange"] as const;
+export type CscaSubjectFact = Readonly<{ key: (typeof CSCA_SUBJECT_FACT_KEYS)[number]; label: string; value: string }>;
+
+/** Четыре факта предмета из таблицы: язык, время, число вопросов, шкала. */
+export function cscaSubjectFacts(overview: CscaOverview, subject: CscaOverviewSubject, locale: CscaOverviewLocale): CscaSubjectFact[] {
+  const columns = overview.subjects.columns;
+  const values: Record<CscaSubjectFact["key"], string> = {
+    language: subject.language[locale],
+    duration: cscaMinutesLabel(overview, subject.minutes, locale),
+    questions: String(subject.questions),
+    scoreRange: cscaScoreRangeLabel(overview, subject, locale),
+  };
+  return CSCA_SUBJECT_FACT_KEYS.map((key) => ({ key, label: columns[key][locale], value: values[key] }));
+}
+
+/**
+ * Узкая версия таблицы предметов (review раунда 1, F3): факт, одинаковый у
+ * всех предметов группы, показывается один раз над её списком, у предмета
+ * остаются только отличия. Данные те же, что в таблице, новых нет.
+ */
+export function cscaGroupFacts(overview: CscaOverview, group: CscaOverviewGroup, locale: CscaOverviewLocale): Readonly<{
+  shared: CscaSubjectFact[];
+  bySubject: Readonly<Record<string, CscaSubjectFact[]>>;
+}> {
+  const facts = group.subjects.map((subject) => cscaSubjectFacts(overview, subject, locale));
+  const sharedKeys = new Set(CSCA_SUBJECT_FACT_KEYS.filter((key, index) =>
+    facts.every((list) => list[index].value === facts[0][index].value)));
+  return {
+    shared: facts[0].filter((fact) => sharedKeys.has(fact.key)),
+    bySubject: Object.fromEntries(group.subjects.map((subject, index) =>
+      [subject.key, facts[index].filter((fact) => !sharedKeys.has(fact.key))])),
+  };
+}
+
 /**
  * Начал ли студент заниматься: есть ответ, урок, тест или банк ошибок. Тогда
  * обзор по умолчанию свёрнут в одну строку; свой выбор зритель меняет кнопкой
- * «Об экзамене», выбор помнит браузер.
+ * «Об экзамене», устройство помнит его в cookie (`csca-overview-choice.ts`).
  */
 export function cscaHasStarted(home: Readonly<{
   topics: readonly Readonly<{ windowAnswers: number; lessonCompleted: boolean }>[];

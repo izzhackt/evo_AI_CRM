@@ -644,6 +644,21 @@
   font-weight: 400;
 }
 
+/* Шкала одной строкой (в KY «0дөн 100гө чейин» рвалась на три), а статус
+   «В EVO» может перенестись: у него столбец шире всего (review, F5). */
+.cs-ov-table .cs-ov-score {
+  white-space: nowrap;
+}
+
+.cs-ov-table .cs-ov-evo {
+  align-items: flex-start;
+  white-space: normal;
+}
+
+.cs-ov-table .cs-ov-evo::before {
+  margin-top: calc((1lh - 8px) / 2);
+}
+
 .cs-ov-table tbody tr:last-child > * {
   border-bottom: 0;
 }
@@ -686,7 +701,7 @@
 }
 
 .cs-ov-card-group + .cs-ov-card-group {
-  margin-top: 22px;
+  margin-top: 26px;
 }
 
 .cs-ov-card-group-title {
@@ -695,26 +710,73 @@
   font-weight: 600;
 }
 
-.cs-ov-cards {
+/* Общие факты группы один раз (review раунда 1, F3): подпись над значением,
+   сеткой, на утопленной подложке, чтобы читались как «у всех предметов ниже». */
+.cs-ov-group-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 12px 20px;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-bg);
+}
+
+.cs-ov-group-facts > div,
+.cs-ov-card-facts > div {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin: 0;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cs-ov-group-facts dt,
+.cs-ov-card-facts dt {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  line-height: 1.35;
+}
+
+/* Подписи сверху, значения по нижнему краю: если подпись в две строки
+   («Вопросов с выбором ответа»), значения всё равно на одной линии. */
+.cs-ov-group-facts dd,
+.cs-ov-card-facts dd {
+  margin: auto 0 0;
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+
+/* Предметы группы строками на волосяных линиях: название слева, что есть
+   в EVO справа в каждой строке; на узком экране переносятся слова внутри
+   столбцов, а не статус под название. */
+.cs-ov-cards {
+  margin: 4px 0 0;
   padding: 0;
   list-style: none;
 }
 
 .cs-ov-card {
-  padding: 12px 14px 10px;
-  border: 1px solid var(--pt-line);
-  border-radius: var(--pt-radius-item);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+  align-items: baseline;
+  gap: 4px 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--pt-line);
+}
+
+.cs-ov-card:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
 }
 
 .cs-ov-card-name {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 2px 12px;
+  gap: 2px 10px;
+  min-width: 0;
   margin: 0;
   font-weight: 600;
 }
@@ -728,42 +790,26 @@
   display: inline;
 }
 
-.cs-ov-card-name .cs-ov-evo {
-  flex-basis: 100%;
-  margin-top: 2px;
-  font-size: var(--pt-size-caption);
-}
-
-/* Строки «подпись · значение», как лист характеристик: короче карточка. */
-.cs-ov-card-facts {
-  display: flex;
-  flex-direction: column;
-  margin: 10px 0 0;
-  padding-top: 4px;
-  border-top: 1px solid var(--pt-line);
-}
-
-.cs-ov-card-facts > div {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 4px 16px;
-  padding: 5px 0;
-}
-
-.cs-ov-card-facts dt {
-  min-width: 0;
-  color: var(--pt-text-2);
+.cs-ov-card > .cs-ov-evo {
+  align-items: flex-start;
+  justify-self: end;
   font-size: var(--pt-size-caption);
   line-height: 1.35;
+  text-align: end;
+  white-space: normal;
 }
 
-.cs-ov-card-facts dd {
-  margin: 0;
-  font-size: var(--pt-size-secondary);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  text-align: end;
+.cs-ov-card > .cs-ov-evo::before {
+  margin-top: calc((1lh - 8px) / 2);
+}
+
+/* Факты, которые у предметов группы различаются, остаются у предмета. */
+.cs-ov-card-facts {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 10px 20px;
+  margin: 6px 0 0;
 }
 
 @container cs-ov-subjects (min-width: 700px) {
@@ -897,6 +943,22 @@
   .cs-ov-split {
     grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
     gap: 48px;
+  }
+}
+
+/* Средний лист (планшет с рейлом): фото сверху ниже, чтобы ответ «что такое
+   CSCA» попадал на первый экран (review раунда 1, F2). */
+/* Высота задана прямо, без aspect-ratio: иначе max-height через пропорцию
+   сужал бы фото и у края листа оставалась белая полоса. */
+@container cs-ov (560px < width < 760px) {
+  .cs-ov-photo-hero {
+    aspect-ratio: auto;
+    height: 280px;
+  }
+
+  .cs-ov-photo-audience {
+    aspect-ratio: auto;
+    height: 240px;
   }
 }
 

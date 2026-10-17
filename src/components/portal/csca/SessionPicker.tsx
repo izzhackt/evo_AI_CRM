@@ -16,8 +16,11 @@ const VISIBLE = 3;
 /**
  * Официальный календарь сессий (контракт §3, §11): даты как факт с датой
  * проверки и ссылкой на csca.cn; окно регистрации только там, где его
- * опубликовал csca.cn. Выбор «Моя сессия» хранит сервер; обратный отсчёт
- * считается от даты экзамена. Ничего не обещаем и не напоминаем.
+ * опубликовал csca.cn. У открытого окна мягкий срок «закрывается через N
+ * дней» (N ≤ 60, дизайн-контракт портала) и ссылка «Регистрация на csca.cn».
+ * Выбор «Готовлюсь к этой» хранит сервер; обратный отсчёт считается от даты
+ * экзамена. Ничего не обещаем и не напоминаем. Ответ обзора «Когда проходит
+ * экзамен?» ведёт сюда по якорю #cs-sessions.
  */
 export function SessionPicker({
   sessions,
@@ -59,15 +62,24 @@ export function SessionPicker({
 
   const row = (session: CscaSession) => {
     const chosen = session.sessionKey === target;
-    const dates = labels[session.sessionKey]?.dates ?? session.examFrom;
+    const label = labels[session.sessionKey];
+    const dates = label?.dates ?? session.examFrom;
     const daysLeft = daysBetween(today, session.examFrom);
     return (
-      <li key={session.sessionKey} className="cs-session" data-chosen={chosen ? "" : undefined}>
+      <li key={session.sessionKey} className="cs-session" data-chosen={chosen ? "" : undefined} data-open={label?.registerUrl ? "" : undefined}>
         <div className="cs-session-body">
           <p className="cs-session-dates">{dates}</p>
-          <p className="cs-session-reg">{labels[session.sessionKey]?.registration}</p>
+          <p className="cs-session-reg">
+            {label?.registration}
+            {label?.closesIn ? <> · <strong className="cs-session-soon">{label.closesIn}</strong></> : null}
+          </p>
+          {label?.registerUrl ? (
+            <a className="cs-inline-link cs-session-register" href={label.registerUrl} target="_blank" rel="noopener noreferrer">
+              {strings.sessionRegister}
+            </a>
+          ) : null}
           {chosen && daysLeft >= 0 ? (
-            <p className="cs-session-days pt-data">
+            <p className="cs-session-days cs-num">
               {formatPortalString(strings.sessionDaysLeft, { count: String(daysLeft) })}
             </p>
           ) : null}
@@ -95,8 +107,8 @@ export function SessionPicker({
   };
 
   return (
-    <section className="cs-panel" aria-labelledby="cs-sessions-title">
-      <h2 id="cs-sessions-title" className="cs-panel-title">{strings.sessionsHeading}</h2>
+    <section id="cs-sessions" className="cs-panel cs-sessions-panel" aria-labelledby="cs-sessions-title">
+      <h3 id="cs-sessions-title" className="cs-panel-title">{strings.sessionsHeading}</h3>
       <p className="cs-panel-lead">
         {formatPortalString(strings.sessionsLead, { date: verifiedLabel })}
       </p>

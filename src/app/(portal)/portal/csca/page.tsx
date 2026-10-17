@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { CscaOverview } from "@/components/portal/csca/Overview";
 import { SessionPicker } from "@/components/portal/csca/SessionPicker";
 import { sessionLabels } from "@/components/portal/csca/session-labels";
 import { StateChip, TopicStrip } from "@/components/portal/csca/StateChip";
@@ -16,6 +17,7 @@ import {
   type CscaTestSummary,
   type CscaTopic,
 } from "@/lib/portal/csca";
+import { cscaHasStarted } from "@/lib/portal/csca-overview";
 import { readCscaHome } from "@/lib/portal/csca-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
@@ -77,18 +79,21 @@ function NextStep({ home, locale, strings }: { home: CscaHome; locale: Locale; s
     action = { href: "/portal/csca/math/review", label: strings.openReview };
   }
 
+  // «Следующий шаг» входит в сам заголовок (без ярлыка над ним): новичок
+  // сразу читает, что это шаг занятий, а не название раздела (critique F5).
   return (
-    <section className="cs-next" aria-labelledby="cs-next-title">
-      <h2 id="cs-next-title" className="cs-next-title">
-        <span className="pt-sr-only">{strings.nextStepLabel}: </span>
+    <section id="cs-next" className="cs-next" aria-labelledby="cs-next-title">
+      <h3 id="cs-next-title" className="cs-next-title">
+        <span className="cs-next-lead">{strings.nextStepLabel}: </span>
         {title}
-      </h2>
+      </h3>
       {titleEn ? <p className="cs-next-en" lang="en">{titleEn}</p> : null}
       <p className="cs-next-why">{why}</p>
-      <p className="cs-next-meta">
-        <span className="cs-chip cs-chip-accent" aria-hidden="true">{strings.nextStepLabel}</span>
-        {meta.map((entry) => <span key={entry} className="cs-chip">{entry}</span>)}
-      </p>
+      {meta.length > 0 ? (
+        <p className="cs-next-meta">
+          {meta.map((entry) => <span key={entry} className="cs-chip">{entry}</span>)}
+        </p>
+      ) : null}
       {action ? <Link className="pt-btn cs-next-action" href={action.href}>{action.label}</Link> : null}
     </section>
   );
@@ -146,9 +151,9 @@ function TopicRow({
     <li className="cs-topic" data-rich="">
       <div className="cs-topic-head">
         <StateChip state={topic.state} strings={strings} />
-        <h4 className="cs-topic-title">{title}</h4>
+        <h5 className="cs-topic-title">{title}</h5>
         {topic.windowAnswers > 0 ? (
-          <span className="cs-topic-window pt-data">
+          <span className="cs-topic-window cs-num">
             {formatPortalString(strings.topicWindow, {
               correct: String(topic.windowCorrect),
               total: String(topic.windowAnswers),
@@ -221,7 +226,7 @@ function TestRow({ test, locale, strings }: { test: CscaTestSummary; locale: Loc
   return (
     <li className="cs-test-row">
       <div className="cs-test-row-body">
-        <h3 className="cs-test-row-title">{ky ? test.metadata.title_ky : test.metadata.title_ru}</h3>
+        <h4 className="cs-test-row-title">{ky ? test.metadata.title_ky : test.metadata.title_ru}</h4>
         <p className="cs-test-row-meta">
           {formatPortalString(strings.testItems, { count: String(test.itemsTotal) })}
           {" · "}
@@ -248,10 +253,13 @@ function TestRow({ test, locale, strings }: { test: CscaTestSummary; locale: Loc
 }
 
 /**
- * «CSCA» (S5.1): один вызов learning_track_home_v1 на экран. Предметы
- * (математика сейчас, физика и химия позже, без дат), следующий шаг по
- * правилу §12 контракта, карта тем по модулям программы, тесты на время,
- * «Ошибки», «Прогресс» и официальный календарь сессий.
+ * «CSCA» (S5.1, обзор 17.10.2026): сверху обзор экзамена из
+ * src/content/csca/overview.json (новичку открыт, тому, кто уже занимается,
+ * свёрнут в строку), затем «Занятия в EVO» по одному вызову
+ * learning_track_home_v1: следующий шаг по правилу §12 контракта, рядом
+ * официальный календарь сессий (ответ обзора «Когда проходит экзамен?»),
+ * тесты на время, «Ошибки», «Прогресс» и карта тем по модулям программы.
+ * Обзор статичен и виден, даже если занятия не загрузились.
  */
 export default async function CscaHomePage() {
   const [, locale, home] = await Promise.all([
@@ -260,122 +268,128 @@ export default async function CscaHomePage() {
     readCscaHome().catch(() => null),
   ]);
   const strings = getPortalStrings("csca", locale);
+  const universities = getPortalStrings("universities", locale);
   const ky = locale === "ky";
   const track = home?.modules[0] ?? null;
+  const sessionsShown = home !== null && track !== null && home.sessions.length > 0;
 
   return (
     <main className="pt-page cs-page">
-      <header className="cs-home-header">
-        <h1 className="pt-page-title">{strings.title}</h1>
-        <p className="pt-page-lead">{strings.lead}</p>
-        <ul className="cs-subjects" aria-label={strings.subjectsLabel}>
-          <li data-current="" aria-current="true">
-            <span className="cs-subject-name">{strings["subject.math"]}</span>
-            {home ? (
-              <span className="cs-subject-note pt-data">{formatPortalString(strings.subjectTopics, { count: String(home.topics.length) })}</span>
-            ) : null}
-          </li>
-          <li>
-            <span className="cs-subject-name">{strings["subject.physics"]}</span>
-            <span className="cs-subject-note">{strings.subjectLater}</span>
-          </li>
-          <li>
-            <span className="cs-subject-name">{strings["subject.chemistry"]}</span>
-            <span className="cs-subject-note">{strings.subjectLater}</span>
-          </li>
-        </ul>
-      </header>
+      <CscaOverview
+        locale={locale}
+        started={home !== null && cscaHasStarted(home)}
+        sessionsShown={sessionsShown}
+        moduleShown={home !== null && track !== null}
+        strings={strings}
+        rightsStrings={{
+          photoRights: universities.photoRights,
+          photoCredit: universities.photoCredit,
+          photoCreditSource: universities.photoCreditSource,
+          photoCreditOfficial: universities.photoCreditOfficial,
+          newTab: universities.newTab,
+        }}
+      />
 
-      {home === null ? (
-        <p role="alert" className="pt-alert">{strings.unavailable}</p>
-      ) : track === null ? (
-        <div className="pt-empty">
-          <p className="pt-empty-title">{strings.emptyTitle}</p>
-          <p className="pt-empty-body">{strings.emptyBody}</p>
-        </div>
-      ) : (
-        <div className="cs-home">
-          <NextStep home={home} locale={locale} strings={strings} />
-          <aside className="cs-home-aside">
-            {home.tests.length > 0 ? (
-              <section className="cs-panel" aria-labelledby="cs-tests-title">
-                <h2 id="cs-tests-title" className="cs-panel-title">{strings.testsHeading}</h2>
-                <ul className="cs-test-rows">
-                  {home.tests.map((test) => <TestRow key={test.formId} test={test} locale={locale} strings={strings} />)}
-                </ul>
-              </section>
-            ) : null}
+      <section className="cs-module" aria-labelledby="cs-module-title">
+        <header className="cs-module-head">
+          <h2 id="cs-module-title" className="cs-module-title">{strings.moduleHeading}</h2>
+          <p className="cs-module-lead">
+            {strings.lead}
+            {home && track ? <> {formatPortalString(strings.moduleStatus, { count: String(home.topics.length) })}</> : null}
+          </p>
+        </header>
 
-            <section className="cs-panel" aria-labelledby="cs-review-title">
-              <h2 id="cs-review-title" className="cs-panel-title">{strings.reviewHeading}</h2>
-              <p className="cs-panel-strong">
-                {home.review.dueCount > 0
-                  ? formatPortalString(strings.reviewDue, { count: String(home.review.dueCount) })
-                  : strings.reviewNone}
-              </p>
-              <p className="cs-panel-lead">
-                {home.review.activeCount > 0
-                  ? [
-                    formatPortalString(strings.reviewActive, { count: String(home.review.activeCount) }),
-                    home.review.dueCount === 0 && home.review.nextDueOn
-                      ? formatPortalString(strings.reviewNext, { date: cscaDayLabel(home.review.nextDueOn, locale) })
-                      : null,
-                  ].filter(Boolean).join(". ")
-                  : strings.reviewEmptyBank}
-              </p>
-              {home.review.dueCount > 0 ? (
-                <Link className="pt-btn-ghost" href="/portal/csca/math/review">{strings.openReview}</Link>
-              ) : null}
-            </section>
+        {home === null ? (
+          <p role="alert" className="pt-alert">{strings.unavailable}</p>
+        ) : track === null ? (
+          <div className="pt-empty">
+            <p className="pt-empty-title">{strings.emptyTitle}</p>
+            <p className="pt-empty-body">{strings.emptyBody}</p>
+          </div>
+        ) : (
+          <div className="cs-home">
+            <NextStep home={home} locale={locale} strings={strings} />
+            <aside className="cs-home-aside">
+              <SessionPicker
+                sessions={home.sessions}
+                labels={sessionLabels(home.sessions, locale, strings, { serverNow: home.serverNow, today: home.today })}
+                verifiedLabel={cscaDayLabel(home.sessions.map((session) => session.verifiedOn).sort().at(-1) ?? home.today, locale, true)}
+                initialTarget={home.targetSessionKey}
+                today={home.today}
+                strings={strings}
+              />
 
-            <section className="cs-panel" aria-labelledby="cs-progress-title">
-              <h2 id="cs-progress-title" className="cs-panel-title">{strings.progressHeading}</h2>
-              <ProgressGlance home={home} strings={strings} />
-              <Link className="cs-inline-link" href="/portal/csca/math/progress">{strings.progressOpen}</Link>
-            </section>
-
-            <SessionPicker
-              sessions={home.sessions}
-              labels={sessionLabels(home.sessions, locale, strings)}
-              verifiedLabel={cscaDayLabel(home.sessions.map((session) => session.verifiedOn).sort().at(-1) ?? home.today, locale, true)}
-              initialTarget={home.targetSessionKey}
-              today={home.today}
-              strings={strings}
-            />
-          </aside>
-          <section className="cs-map" aria-labelledby="cs-map-title">
-            <h2 id="cs-map-title" className="cs-section-title">{strings.topicsHeading}</h2>
-            <p className="cs-section-lead">{strings.topicsLead}</p>
-            <p className="cs-legend" aria-label={strings.stateLegend}>
-              {(["confident", "shaky", "gap", "few_data", "not_started"] as const).map((state) => (
-                <StateChip key={state} state={state} strings={strings} />
-              ))}
-            </p>
-            {track.metadata.sections.map((section) => {
-              const topics = home.topics
-                .filter((topic) => topic.metadata.section === section.section)
-                .sort((a, b) => a.orderIndex - b.orderIndex);
-              if (topics.length === 0) return null;
-              return (
-                <section key={section.section} className="cs-section-block" aria-labelledby={`cs-section-${section.section}`}>
-                  <header className="cs-section-head">
-                    <h3 id={`cs-section-${section.section}`} className="cs-section-name">
-                      <span className="cs-section-n">{formatPortalString(strings.sectionLabel, { n: String(section.section) })}</span>
-                      {ky ? section.title_ky : section.title_ru}
-                    </h3>
-                    <p className="cs-section-en" lang="en">{section.title_en}</p>
-                    <p className="cs-section-weight">
-                      {formatPortalString(strings.sectionWeight, { count: String(section.mock_items_estimate) })}
-                    </p>
-                    <TopicStrip states={topics.map((topic) => topic.state)} />
-                  </header>
-                  <SectionTopics topics={topics} lessons={home.lessons} locale={locale} strings={strings} />
+              {home.tests.length > 0 ? (
+                <section className="cs-panel" aria-labelledby="cs-tests-title">
+                  <h3 id="cs-tests-title" className="cs-panel-title">{strings.testsHeading}</h3>
+                  <ul className="cs-test-rows">
+                    {home.tests.map((test) => <TestRow key={test.formId} test={test} locale={locale} strings={strings} />)}
+                  </ul>
                 </section>
-              );
-            })}
-          </section>
-        </div>
-      )}
+              ) : null}
+
+              <section className="cs-panel" aria-labelledby="cs-review-title">
+                <h3 id="cs-review-title" className="cs-panel-title">{strings.reviewHeading}</h3>
+                <p className="cs-panel-strong">
+                  {home.review.dueCount > 0
+                    ? formatPortalString(strings.reviewDue, { count: String(home.review.dueCount) })
+                    : strings.reviewNone}
+                </p>
+                <p className="cs-panel-lead">
+                  {home.review.activeCount > 0
+                    ? [
+                      formatPortalString(strings.reviewActive, { count: String(home.review.activeCount) }),
+                      home.review.dueCount === 0 && home.review.nextDueOn
+                        ? formatPortalString(strings.reviewNext, { date: cscaDayLabel(home.review.nextDueOn, locale) })
+                        : null,
+                    ].filter(Boolean).join(". ")
+                    : strings.reviewEmptyBank}
+                </p>
+                {home.review.dueCount > 0 ? (
+                  <Link className="pt-btn-ghost" href="/portal/csca/math/review">{strings.openReview}</Link>
+                ) : null}
+              </section>
+
+              <section className="cs-panel" aria-labelledby="cs-progress-title">
+                <h3 id="cs-progress-title" className="cs-panel-title">{strings.progressHeading}</h3>
+                <ProgressGlance home={home} strings={strings} />
+                <Link className="cs-inline-link" href="/portal/csca/math/progress">{strings.progressOpen}</Link>
+              </section>
+            </aside>
+            <section className="cs-map" aria-labelledby="cs-map-title">
+              <h3 id="cs-map-title" className="cs-section-title">{strings.topicsHeading}</h3>
+              <p className="cs-section-lead">{strings.topicsLead}</p>
+              <p className="cs-legend" aria-label={strings.stateLegend}>
+                {(["confident", "shaky", "gap", "few_data", "not_started"] as const).map((state) => (
+                  <StateChip key={state} state={state} strings={strings} />
+                ))}
+              </p>
+              {track.metadata.sections.map((section) => {
+                const topics = home.topics
+                  .filter((topic) => topic.metadata.section === section.section)
+                  .sort((a, b) => a.orderIndex - b.orderIndex);
+                if (topics.length === 0) return null;
+                return (
+                  <section key={section.section} className="cs-section-block" aria-labelledby={`cs-section-${section.section}`}>
+                    <header className="cs-section-head">
+                      <h4 id={`cs-section-${section.section}`} className="cs-section-name">
+                        <span className="cs-section-n">{formatPortalString(strings.sectionLabel, { n: String(section.section) })}</span>
+                        {ky ? section.title_ky : section.title_ru}
+                      </h4>
+                      <p className="cs-section-en" lang="en">{section.title_en}</p>
+                      <p className="cs-section-weight">
+                        {formatPortalString(strings.sectionWeight, { count: String(section.mock_items_estimate) })}
+                      </p>
+                      <TopicStrip states={topics.map((topic) => topic.state)} />
+                    </header>
+                    <SectionTopics topics={topics} lessons={home.lessons} locale={locale} strings={strings} />
+                  </section>
+                );
+              })}
+            </section>
+          </div>
+        )}
+      </section>
 
       <footer className="cs-own">
         <p>{strings.ownWork}</p>

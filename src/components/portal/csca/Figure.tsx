@@ -3,6 +3,8 @@ import type { CSSProperties, ReactNode } from "react";
 import type { Locale } from "@/lib/i18n-data";
 import { darkFigureSvg, figureMinWidth, svgDataUrl, type CscaFigure } from "@/lib/portal/csca";
 
+import { FigureFrame } from "./FigureFrame";
+
 /**
  * Рисунок урока или задания (контракт §15): SVG по профилю через
  * `<img src="data:image/svg+xml,…">` (скрипты в таком контексте не
@@ -21,11 +23,14 @@ export function Figure({
   locale,
   caption,
   size = "wide",
+  scrollHint,
 }: {
   figure: CscaFigure;
   locale: Locale;
   caption?: ReactNode;
   size?: "wide" | "item";
+  /** «Рисунок прокручивается вбок»: показывается, только когда рамка прокручивается. */
+  scrollHint?: string;
 }) {
   const alt = locale === "ky" ? figure.altKy : figure.altRu;
   const light = svgDataUrl(figure.svg);
@@ -33,12 +38,12 @@ export function Figure({
   const frameStyle = { "--cs-figure-min": `${figureMinWidth(figure.svg, figure.width)}px` } as CSSProperties;
   return (
     <figure className="cs-figure" data-size={size}>
-      <div className="cs-figure-frame" style={frameStyle}>
+      <FigureFrame style={frameStyle} label={alt} hint={scrollHint}>
         {/* eslint-disable-next-line @next/next/no-img-element -- data: SVG по профилю, оптимизатор не нужен */}
         <img className="cs-figure-light" src={light} alt={alt} width={figure.width} height={figure.height} decoding="async" />
         {/* eslint-disable-next-line @next/next/no-img-element -- тёмная версия того же рисунка */}
         <img className="cs-figure-dark" src={dark} alt={alt} width={figure.width} height={figure.height} decoding="async" />
-      </div>
+      </FigureFrame>
       {caption ? <figcaption className="cs-figure-caption">{caption}</figcaption> : null}
     </figure>
   );

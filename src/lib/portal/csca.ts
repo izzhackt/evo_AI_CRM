@@ -1324,3 +1324,62 @@ export function testSavePayload(
       .map(([itemKey, seconds]) => [itemKey, Math.min(3600, Math.max(0, Math.round(seconds)))])),
   };
 }
+
+/** Урок или практика темы, к которым ведёт «Следующий шаг» после теста. */
+export type CscaTopicNextLesson = {
+  topicKey: string;
+  lessonId: string;
+  kind: CscaLessonKind;
+  titleRu: string;
+  titleKy: string;
+  weight: number;
+  orderIndex: number;
+};
+
+/**
+ * Шаг внутри темы по правилу §12 контракта: первый непройденный урок, затем
+ * непройденная практика, затем практика заново. Только темы с уроками.
+ */
+export function cscaTopicNextLessons(
+  topics: readonly Pick<CscaTopic, "topicKey" | "orderIndex" | "metadata" | "hasLessons">[],
+  lessons: readonly Pick<CscaLessonSummary, "lessonId" | "orderIndex" | "metadata" | "completed">[],
+): Record<string, CscaTopicNextLesson> {
+  const result: Record<string, CscaTopicNextLesson> = {};
+  for (const topic of topics) {
+    if (!topic.hasLessons) continue;
+    const own = lessons
+      .filter((lesson) => lesson.metadata.topic_key === topic.topicKey)
+      .sort((a, b) => a.orderIndex - b.orderIndex);
+    const pick = own.find((lesson) => lesson.metadata.kind === "lesson" && !lesson.completed)
+      ?? own.find((lesson) => lesson.metadata.kind === "practice" && !lesson.completed)
+      ?? own.find((lesson) => lesson.metadata.kind === "practice");
+    if (!pick) continue;
+    result[topic.topicKey] = {
+      topicKey: topic.topicKey,
+      lessonId: pick.lessonId,
+      kind: pick.metadata.kind,
+      titleRu: topic.metadata.title_ru,
+      titleKy: topic.metadata.title_ky,
+      weight: topic.metadata.mock_items_estimate,
+      orderIndex: topic.orderIndex,
+    };
+  }
+  return result;
+}
+
+/**
+ * Слабая тема итога теста (critique F6): тема с ошибкой или без ответа, у
+ * которой есть урок; первой идёт меньшая доля верных, затем больший вес в
+ * экзамене (`mock_items_estimate`), затем порядок программы. Нет такой
+ * темы: null, итог ведёт к темам.
+ */
+export function cscaWeakTopicLesson(
+  byTopic: readonly { topicKey: string; total: number; correct: number }[],
+  candidates: Readonly<Record<string, CscaTopicNextLesson>>,
+): CscaTopicNextLesson | null {
+  const weak = byTopic
+    .filter((entry) => entry.total > 0 && entry.correct < entry.total && Object.hasOwn(candidates, entry.topicKey))
+    .map((entry) => ({ share: entry.correct / entry.total, next: candidates[entry.topicKey] }))
+    .sort((a, b) => a.share - b.share || b.next.weight - a.next.weight || a.next.orderIndex - b.next.orderIndex);
+  return weak[0]?.next ?? null;
+}

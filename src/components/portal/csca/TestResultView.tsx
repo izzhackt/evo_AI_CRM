@@ -36,7 +36,7 @@ function Tally({
         {label}
         {labelEn ? <span className="cs-tally-en" lang="en">{labelEn}</span> : null}
       </span>
-      <span className="cs-tally-value pt-data">
+      <span className="cs-tally-value cs-num">
         {formatPortalString(strings.tallyLabel, { correct: String(correct), total: String(total) })}
       </span>
       <span className="cs-tally-bar" aria-hidden="true">
@@ -93,7 +93,7 @@ export function TestResultView({
           </div>
           <div>
             <dt>{strings.notAnswered}</dt>
-            <dd className="pt-data">{result.unansweredCount}</dd>
+            <dd className="cs-num">{result.unansweredCount}</dd>
           </div>
           <div>
             <dt>{strings.paceHeading}</dt>
@@ -166,7 +166,7 @@ export function TestResultView({
                   meta={
                     <>
                       {entry.seconds !== null ? (
-                        <span className="pt-data">{formatPortalString(strings.secondsSpent, { n: String(entry.seconds) })}</span>
+                        <span className="cs-num">{formatPortalString(strings.secondsSpent, { n: String(entry.seconds) })}</span>
                       ) : null}
                       {entry.flagged ? <span className="cs-chip">{strings.legendFlagged}</span> : null}
                     </>

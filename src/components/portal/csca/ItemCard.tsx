@@ -130,14 +130,14 @@ export function ItemCard({
         <Heading ref={headingRef} tabIndex={-1} className="cs-item-counter">{counter}</Heading>
         <span className="cs-item-meta">
           <Difficulty level={item.difficulty} strings={strings} />
-          <span className="pt-data">{formatPortalString(strings.estSeconds, { n: String(item.estSeconds) })}</span>
+          <span className="cs-num">{formatPortalString(strings.estSeconds, { n: String(item.estSeconds) })}</span>
           {meta}
         </span>
       </header>
 
       <MathText as="p" className="cs-item-stem" lang="en" text={item.stemEn} />
 
-      {figure ? <Figure figure={figure} locale={locale} size="item" /> : null}
+      {figure ? <Figure figure={figure} locale={locale} size="item" scrollHint={strings.figureScrolls} /> : null}
 
       {state.kind === "answered" ? (
         // Вердикт сразу под условием: взгляд ещё там, разбор вариантов ниже.

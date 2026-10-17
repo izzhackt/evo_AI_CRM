@@ -59,7 +59,7 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // `p7a_changed_field_codes` `document.%` LIKE branch, itself unchanged by
 // 255) and the remaining 62 fall through to the existing `["record_status"]`
 // default, exactly matching the server's own `ELSE` branch.
-// Migration «аудит направления» (provisional number 294, docs/PLAN_CHANGES.md
+// Migration «аудит направления» (migration 302, docs/PLAN_CHANGES.md
 // «2026-10-17 · «Журнал действий» и «История» дела показывают смену
 // направления») adds one action, `case.direction.set` (written by 292's
 // `set_student_case_direction_v1`), by the same rename-and-union wrapper

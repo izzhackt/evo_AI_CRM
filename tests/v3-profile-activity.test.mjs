@@ -49,9 +49,9 @@ test("history cursor is explicit and never escalates Sales into full-case reads"
   assert.match(page, /singleSearchParam\(params\.tab\) === "history" \? \{ cursor: activityCursor \}/u);
 });
 
-// Смена направления дела в «Истории» (миграция «аудит направления», номер 294 временный).
+// Смена направления дела в «Истории» (миграция «аудит направления», номер 302).
 // Исходные проверки дополняют, но не заменяют настоящую проверку БД и браузера.
-const directionMigration = read("supabase/migrations/294_platform_case_direction_audit.sql");
+const directionMigration = read("supabase/migrations/302_platform_case_direction_audit.sql");
 
 test("the history stream gains the direction event and its one field, and nothing else changes", () => {
   // Список действий: самопроверяемая замена куска (приём 241), ровно одно действие.
@@ -65,7 +65,7 @@ test("the history stream gains the direction event and its one field, and nothin
   assert.match(directionMigration, /platform_private\.case_direction_change\(direction_event\.before_state, direction_event\.after_state\)/u);
   // Любой кусок, найденный не ровно один раз, откатывает миграцию.
   assert.match(directionMigration, /staff_student_case_activity_source_anchor_drift/u);
-  assert.match(directionMigration, /a294_activity_anchor_drift/u);
+  assert.match(directionMigration, /a302_activity_anchor_drift/u);
   // Сама функция потока по-прежнему не меняет подпись и права (CREATE OR REPLACE по её же телу).
   assert.doesNotMatch(directionMigration, /DROP FUNCTION|GRANT |CREATE FUNCTION private\.staff_student_case_activity/u);
 });

@@ -1,4 +1,4 @@
--- 294 (НОМЕР ВРЕМЕННЫЙ, сверяется по свежему origin/main и ledger при интеграции):
+-- 302 (на свежем origin/main последняя миграция 301; номер сверяется прямо перед слиянием):
 -- смена направления дела видна в «Журнале действий» администратора и в «Истории»
 -- дела. docs/PLAN_CHANGES.md «2026-10-17 · «Журнал действий» и «История» дела
 -- показывают смену направления (запись до кода)».
@@ -50,7 +50,7 @@ BEGIN;
 -- Якоря: объекты, которые меняются, существуют; тело потока «Истории» содержит
 -- ровно тот текст, который заменяется ниже.
 -- ---------------------------------------------------------------------------
-DO $a294_anchor$
+DO $a302_anchor$
 DECLARE
   activity TEXT;
 BEGIN
@@ -64,7 +64,7 @@ BEGIN
     OR NOT EXISTS (SELECT 1 FROM information_schema.columns c
       WHERE c.table_schema = 'platform' AND c.table_name = 'audit_events' AND c.column_name = 'after_state')
   THEN
-    RAISE EXCEPTION 'a294_anchor_drift';
+    RAISE EXCEPTION 'a302_anchor_drift';
   END IF;
   activity := pg_get_functiondef('private.staff_student_case_activity(uuid,integer,timestamptz,uuid)'::regprocedure);
   IF (length(activity) - length(replace(activity, $x$'case.next.action.change']::TEXT[])$x$, '')))
@@ -74,10 +74,10 @@ BEGIN
         / length($x$) ORDER BY created_at DESC, id DESC) FILTER (WHERE ordinal <= p_limit)$x$) <> 1
     OR strpos(activity, 'case.direction.set') > 0
   THEN
-    RAISE EXCEPTION 'a294_activity_anchor_drift';
+    RAISE EXCEPTION 'a302_activity_anchor_drift';
   END IF;
 END
-$a294_anchor$;
+$a302_anchor$;
 
 -- ---------------------------------------------------------------------------
 -- a) Смена направления из записи журнала: только коды пяти направлений
@@ -97,7 +97,7 @@ $$;
 REVOKE ALL ON FUNCTION platform_private.case_direction_change(JSONB, JSONB)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 COMMENT ON FUNCTION platform_private.case_direction_change(JSONB, JSONB) IS
-  'Migration 294: {from, to} of the case direction from an audit before/after pair; only the five staff direction codes (CN, MY, EUROPE, AE, TR) pass, from may be NULL (first set), anything else is NULL. Pure; owner-only.';
+  'Migration 302: {from, to} of the case direction from an audit before/after pair; only the five staff direction codes (CN, MY, EUROPE, AE, TR) pass, from may be NULL (first set), anything else is NULL. Pure; owner-only.';
 
 -- ---------------------------------------------------------------------------
 -- b) «Журнал действий»: действие в allowlist и одно поле у его строки
@@ -150,7 +150,7 @@ REVOKE ALL ON FUNCTION
 -- ---------------------------------------------------------------------------
 -- c) «История» дела: действие в список и поле у его события
 -- ---------------------------------------------------------------------------
-DO $a294_activity$
+DO $a302_activity$
 DECLARE original TEXT; body TEXT;
 BEGIN
   original := pg_get_functiondef(
@@ -181,12 +181,12 @@ BEGIN
   END IF;
   EXECUTE body;
 END
-$a294_activity$;
+$a302_activity$;
 
 -- ---------------------------------------------------------------------------
 -- Проверка в конце: действие в allowlist, помощник и обёртки живы, поток собран.
 -- ---------------------------------------------------------------------------
-DO $a294_verify$
+DO $a302_verify$
 BEGIN
   IF NOT ('case.direction.set' = ANY (platform_private.p7a_safe_audit_actions()))
     OR 'case.direction.set' = ANY (platform_private.p7a_safe_audit_actions_pre_case_direction_audit())
@@ -202,9 +202,9 @@ BEGIN
          '{"admissions_direction":"CN"}'::JSONB) IS NOT NULL
     OR platform_private.case_direction_change(NULL, NULL) IS NOT NULL
   THEN
-    RAISE EXCEPTION 'a294_verify_failed' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a302_verify_failed' USING ERRCODE = '55000';
   END IF;
 END
-$a294_verify$;
+$a302_verify$;
 
 COMMIT;

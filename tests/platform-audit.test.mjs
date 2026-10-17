@@ -81,8 +81,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["255_platform_audit_journal_allowlist_widen.sql", "journal_widen"],
   // Telephony T2: six telephony.* actions and three resource types.
   ["291_platform_telephony_rights.sql", "telephony_rights"],
-  // Смена направления дела: одно действие case.direction.set (номер файла временный).
-  ["294_platform_case_direction_audit.sql", "case_direction_audit"],
+  // Смена направления дела: одно действие case.direction.set.
+  ["302_platform_case_direction_audit.sql", "case_direction_audit"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -525,12 +525,12 @@ test("telephony journal actions and resource types are allowlisted and worded in
   }
 });
 
-// Смена направления дела (миграция «аудит направления», номер 294 временный):
+// Смена направления дела (миграция «аудит направления», номер 302):
 // действие case.direction.set, которое пишет 292, видно в «Журнале действий».
 // Строка этого действия несёт одно лишнее поле case_direction ({from, to} с
 // кодами пяти направлений или null); у других действий этого поля нет.
 const DIRECTION_MIGRATION_SOURCE = readFileSync(
-  new URL("../supabase/migrations/294_platform_case_direction_audit.sql", import.meta.url),
+  new URL("../supabase/migrations/302_platform_case_direction_audit.sql", import.meta.url),
   "utf8",
 );
 const DIRECTION_PAGE_BASE = {
@@ -645,7 +645,7 @@ test("the direction change reads as words from the one direction dictionary, and
   assert.equal(parseCaseDirectionChange({ from: "TR", to: "TR" }), null);
 });
 
-test("migration 294 widens only the projections: the allowlist, one key on the direction row, the history stream", () => {
+test("migration 302 widens only the projections: the allowlist, one key on the direction row, the history stream", () => {
   const sql = DIRECTION_MIGRATION_SOURCE;
   assert.match(sql, /^BEGIN;$/mu);
   assert.match(sql, /COMMIT;\s*$/u);
@@ -679,7 +679,7 @@ test("migration 294 widens only the projections: the allowlist, one key on the d
   assert.match(sql, /\$new\$'case\.next\.action\.change','case\.direction\.set'\]::TEXT\[\]\)\$new\$/u);
   assert.match(sql, /WHEN action = 'case\.direction\.set' THEN jsonb_build_object\('direction_change'/u);
   assert.match(sql, /staff_student_case_activity_source_anchor_drift/u);
-  assert.match(sql, /a294_activity_anchor_drift/u);
+  assert.match(sql, /a302_activity_anchor_drift/u);
 });
 
 test("search input canonicalizes exact allowlisted filters and stable cursor pairs", () => {

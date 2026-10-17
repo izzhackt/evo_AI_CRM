@@ -3886,7 +3886,7 @@ SQL
   fi
 
   # Смена направления в «Журнале действий» и «Истории» дела (миграция «аудит
-  # направления», provisional 294, PLAN_CHANGES 17.10.2026). Matched by name, not
+  # направления», migration 302, PLAN_CHANGES 17.10.2026). Matched by name, not
   # number. Real 292 command as the Admin on cases made by 281's command, plus
   # owner-written rows no command produces. The suite proves: the journal row of
   # case.direction.set has exactly one extra key, case_direction {from, to} (the

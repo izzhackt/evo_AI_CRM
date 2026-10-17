@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
--- Boundary suite for migration 292 «Телефония Beeline KG» срез T5 (строки звонков в
+-- Boundary suite for migration 293 «Телефония Beeline KG» срез T5 (строки звонков в
 -- «Ленте» лида и результат звонка одним нажатием; docs/EVO_TELEPHONY_PLAN_2026-10-16.md
--- §6.1, §9.1, §9.4, §11, §12; ADR 0033). Runs on the real chain right after 292
+-- §6.1, §9.1, §9.4, §11, §12; ADR 0033). Runs on the real chain right after 293
 -- inside one transaction that is rolled back, with its own synthetic organizations,
 -- members (modelled like production: invited staff have coarse role NULL, rights come
 -- from scoped role assignments made through the REAL platform.staff_role_command /
@@ -45,28 +45,28 @@ BEGIN;
 
 SET LOCAL TIME ZONE 'UTC';
 
-DO $t292_auth_role$
+DO $t293_auth_role$
 BEGIN
   IF to_regprocedure('auth.role()') IS NULL THEN
     EXECUTE $fn$CREATE FUNCTION auth.role() RETURNS TEXT LANGUAGE SQL STABLE SET search_path = '' AS
       'SELECT NULLIF(current_setting(''request.jwt.claims'', TRUE), '''')::JSONB ->> ''role'''$fn$;
   END IF;
 END
-$t292_auth_role$;
+$t293_auth_role$;
 
-\echo T292_TELEPHONY_LEAD_FEED_SUITE_START
+\echo T293_TELEPHONY_LEAD_FEED_SUITE_START
 
-CREATE FUNCTION pg_temp.t292_id(n INTEGER) RETURNS UUID LANGUAGE SQL IMMUTABLE AS $$
-  SELECT ('29200000-0000-4000-8000-' || lpad(n::TEXT, 12, '0'))::UUID
+CREATE FUNCTION pg_temp.t293_id(n INTEGER) RETURNS UUID LANGUAGE SQL IMMUTABLE AS $$
+  SELECT ('29300000-0000-4000-8000-' || lpad(n::TEXT, 12, '0'))::UUID
 $$;
-CREATE FUNCTION pg_temp.t292_assert(ok BOOLEAN, message TEXT) RETURNS VOID LANGUAGE plpgsql AS $$
+CREATE FUNCTION pg_temp.t293_assert(ok BOOLEAN, message TEXT) RETURNS VOID LANGUAGE plpgsql AS $$
 BEGIN
-  IF ok IS DISTINCT FROM TRUE THEN RAISE EXCEPTION 'T292: %', message; END IF;
+  IF ok IS DISTINCT FROM TRUE THEN RAISE EXCEPTION 'T293: %', message; END IF;
 END
 $$;
 -- The JSONB result of a statement run as a role with the given JWT claims, or
 -- {"error": "SQLSTATE:message"}.
-CREATE FUNCTION pg_temp.t292_call(p_role TEXT, p_claims TEXT, p_sql TEXT) RETURNS JSONB LANGUAGE plpgsql AS $$
+CREATE FUNCTION pg_temp.t293_call(p_role TEXT, p_claims TEXT, p_sql TEXT) RETURNS JSONB LANGUAGE plpgsql AS $$
 DECLARE result JSONB; saved TEXT := current_setting('request.jwt.claims', TRUE);
 BEGIN
   PERFORM set_config('request.jwt.claims', p_claims, TRUE);
@@ -82,15 +82,15 @@ BEGIN
 END
 $$;
 -- The SQLSTATE of an error answer ('ok' when the answer carries no error).
-CREATE FUNCTION pg_temp.t292_code(p_answer JSONB) RETURNS TEXT LANGUAGE SQL IMMUTABLE AS $$
+CREATE FUNCTION pg_temp.t293_code(p_answer JSONB) RETURNS TEXT LANGUAGE SQL IMMUTABLE AS $$
   SELECT CASE WHEN p_answer ? 'error' THEN split_part(p_answer ->> 'error', ':', 1) ELSE 'ok' END
 $$;
 -- A statement run and rolled back: 'ok' when it succeeds, the SQLSTATE when it fails.
-CREATE FUNCTION pg_temp.t292_try(p_sql TEXT) RETURNS TEXT LANGUAGE plpgsql AS $$
+CREATE FUNCTION pg_temp.t293_try(p_sql TEXT) RETURNS TEXT LANGUAGE plpgsql AS $$
 BEGIN
   BEGIN
     EXECUTE p_sql;
-    RAISE EXCEPTION 'T292 rollback' USING ERRCODE = 'PT999';
+    RAISE EXCEPTION 'T293 rollback' USING ERRCODE = 'PT999';
   EXCEPTION WHEN SQLSTATE 'PT999' THEN
     RETURN 'ok';
   END;
@@ -111,67 +111,67 @@ $$;
 --   actor 8  org 1 staff without any role
 --   actor 9  org 2 Admin (system admin)
 -- ---------------------------------------------------------------------------
-CREATE TEMP TABLE t292_actors(n INTEGER PRIMARY KEY, org INTEGER, coarse platform.business_role, sysadmin BOOLEAN);
-INSERT INTO t292_actors VALUES (1, 1, 'admin', TRUE), (2, 1, NULL, FALSE), (3, 1, NULL, FALSE), (4, 1, NULL, FALSE),
+CREATE TEMP TABLE t293_actors(n INTEGER PRIMARY KEY, org INTEGER, coarse platform.business_role, sysadmin BOOLEAN);
+INSERT INTO t293_actors VALUES (1, 1, 'admin', TRUE), (2, 1, NULL, FALSE), (3, 1, NULL, FALSE), (4, 1, NULL, FALSE),
   (5, 1, NULL, FALSE), (6, 1, NULL, FALSE), (7, 1, 'student', FALSE), (8, 1, NULL, FALSE), (9, 2, 'admin', TRUE);
 INSERT INTO platform.organizations(id, name, status) VALUES
-  (pg_temp.t292_id(1), 'T292 Fictional organization', 'active'),
-  (pg_temp.t292_id(2), 'T292 Other fictional organization', 'active');
+  (pg_temp.t293_id(1), 'T293 Fictional organization', 'active'),
+  (pg_temp.t293_id(2), 'T293 Other fictional organization', 'active');
 INSERT INTO auth.users(id, email, raw_user_meta_data)
-  SELECT pg_temp.t292_id(100 + n), 't292-' || n || '@example.invalid', '{}'::JSONB FROM t292_actors;
+  SELECT pg_temp.t293_id(100 + n), 't293-' || n || '@example.invalid', '{}'::JSONB FROM t293_actors;
 INSERT INTO platform.profiles(id, auth_user_id, display_name, status, access_version)
-  SELECT pg_temp.t292_id(200 + n), pg_temp.t292_id(100 + n), 'T292 Actor ' || n, 'active', 1 FROM t292_actors;
+  SELECT pg_temp.t293_id(200 + n), pg_temp.t293_id(100 + n), 'T293 Actor ' || n, 'active', 1 FROM t293_actors;
 INSERT INTO platform.organization_memberships(id, organization_id, profile_id, status, "current_role", current_bundle_id)
-  SELECT pg_temp.t292_id(300 + a.n), pg_temp.t292_id(a.org), pg_temp.t292_id(200 + a.n), 'active', a.coarse,
+  SELECT pg_temp.t293_id(300 + a.n), pg_temp.t293_id(a.org), pg_temp.t293_id(200 + a.n), 'active', a.coarse,
     CASE WHEN a.coarse IS NULL THEN NULL ELSE (SELECT id FROM platform.role_bundle_versions
       WHERE role = a.coarse AND status = 'published' ORDER BY version DESC LIMIT 1) END
-  FROM t292_actors a;
+  FROM t293_actors a;
 UPDATE platform.organization_memberships SET is_system_admin = TRUE
-  WHERE id IN (SELECT pg_temp.t292_id(300 + n) FROM t292_actors WHERE sysadmin);
+  WHERE id IN (SELECT pg_temp.t293_id(300 + n) FROM t293_actors WHERE sysadmin);
 INSERT INTO platform.record_scopes(id, organization_id, scope_kind, scope_key, scope_version) VALUES
-  (pg_temp.t292_id(401), pg_temp.t292_id(1), 'organization', pg_temp.t292_id(1), 1),
-  (pg_temp.t292_id(402), pg_temp.t292_id(2), 'organization', pg_temp.t292_id(2), 1);
+  (pg_temp.t293_id(401), pg_temp.t293_id(1), 'organization', pg_temp.t293_id(1), 1),
+  (pg_temp.t293_id(402), pg_temp.t293_id(2), 'organization', pg_temp.t293_id(2), 1);
 INSERT INTO platform.membership_scope_assignments(organization_id, membership_id, scope_id, scope_version,
   assignment_version, granted, actor_kind, reason, request_id) VALUES
-  (pg_temp.t292_id(1), pg_temp.t292_id(301), pg_temp.t292_id(401), 1, 1, TRUE, 'system', 'T292 synthetic scope', pg_temp.t292_id(601)),
-  (pg_temp.t292_id(2), pg_temp.t292_id(309), pg_temp.t292_id(402), 1, 1, TRUE, 'system', 'T292 synthetic scope', pg_temp.t292_id(602));
+  (pg_temp.t293_id(1), pg_temp.t293_id(301), pg_temp.t293_id(401), 1, 1, TRUE, 'system', 'T293 synthetic scope', pg_temp.t293_id(601)),
+  (pg_temp.t293_id(2), pg_temp.t293_id(309), pg_temp.t293_id(402), 1, 1, TRUE, 'system', 'T293 synthetic scope', pg_temp.t293_id(602));
 INSERT INTO platform.staff_departments(id, organization_id, name) VALUES
-  (pg_temp.t292_id(901), pg_temp.t292_id(1), 'T292 Sales A'),
-  (pg_temp.t292_id(903), pg_temp.t292_id(1), 'T292 Sales B');
+  (pg_temp.t293_id(901), pg_temp.t293_id(1), 'T293 Sales A'),
+  (pg_temp.t293_id(903), pg_temp.t293_id(1), 'T293 Sales B');
 INSERT INTO platform.staff_organizational_details(organization_id, membership_id, department_id) VALUES
-  (pg_temp.t292_id(1), pg_temp.t292_id(302), pg_temp.t292_id(901)),
-  (pg_temp.t292_id(1), pg_temp.t292_id(303), pg_temp.t292_id(901)),
-  (pg_temp.t292_id(1), pg_temp.t292_id(304), pg_temp.t292_id(903));
+  (pg_temp.t293_id(1), pg_temp.t293_id(302), pg_temp.t293_id(901)),
+  (pg_temp.t293_id(1), pg_temp.t293_id(303), pg_temp.t293_id(901)),
+  (pg_temp.t293_id(1), pg_temp.t293_id(304), pg_temp.t293_id(903));
 
-SELECT (platform_private.custom_access_token_hook(jsonb_build_object('user_id', pg_temp.t292_id(101),
-  'claims', jsonb_build_object('sub', pg_temp.t292_id(101), 'role', 'authenticated'))) -> 'claims')::TEXT AS t292_admin_setup \gset
+SELECT (platform_private.custom_access_token_hook(jsonb_build_object('user_id', pg_temp.t293_id(101),
+  'claims', jsonb_build_object('sub', pg_temp.t293_id(101), 'role', 'authenticated'))) -> 'claims')::TEXT AS t293_admin_setup \gset
 
 -- The real T2 provisioning creates the two telephony roles in every active organization.
-SELECT platform_private.telephony_rights_provision('T292 provision') IS NOT NULL AS t292_provisioned \gset
-SELECT pg_temp.t292_assert(:'t292_provisioned'::BOOLEAN, 'the T2 provisioning ran');
+SELECT platform_private.telephony_rights_provision('T293 provision') IS NOT NULL AS t293_provisioned \gset
+SELECT pg_temp.t293_assert(:'t293_provisioned'::BOOLEAN, 'the T2 provisioning ran');
 
 -- The lead.read role: created and published by the Admin through the real RPCs.
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_call('authenticated', :'t292_admin_setup', format(
-    $q$SELECT platform.staff_role_command(%L::UUID, %L::UUID, 0, 'create', %L::JSONB, 'T292 create role', %L::UUID)$q$,
-    pg_temp.t292_id(1), pg_temp.t292_id(1101),
-    jsonb_build_object('label', 'T292 lead access', 'description', 'T292 synthetic lead.read role',
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_call('authenticated', :'t293_admin_setup', format(
+    $q$SELECT platform.staff_role_command(%L::UUID, %L::UUID, 0, 'create', %L::JSONB, 'T293 create role', %L::UUID)$q$,
+    pg_temp.t293_id(1), pg_temp.t293_id(1101),
+    jsonb_build_object('label', 'T293 lead access', 'description', 'T293 synthetic lead.read role',
       'permissionKeys', '["lead.read"]'::JSONB),
-    pg_temp.t292_id(1111))) ->> 'status' = 'applied',
+    pg_temp.t293_id(1111))) ->> 'status' = 'applied',
   'the Admin creates the lead.read role through the real RPC');
-SELECT pg_temp.t292_call('authenticated', :'t292_admin_setup', format(
-    $q$SELECT platform.staff_role_publish(%L::UUID, %L::UUID, 1, platform.staff_role_impact(%L::UUID, %L::UUID, 1) ->> 'impactFingerprint', 'T292 publish role', %L::UUID)$q$,
-    pg_temp.t292_id(1), pg_temp.t292_id(1101), pg_temp.t292_id(1), pg_temp.t292_id(1101), pg_temp.t292_id(1112))) ->> 'status' AS t292_published \gset
-SELECT pg_temp.t292_assert(:'t292_published' = 'applied', 'the Admin publishes the lead.read role');
+SELECT pg_temp.t293_call('authenticated', :'t293_admin_setup', format(
+    $q$SELECT platform.staff_role_publish(%L::UUID, %L::UUID, 1, platform.staff_role_impact(%L::UUID, %L::UUID, 1) ->> 'impactFingerprint', 'T293 publish role', %L::UUID)$q$,
+    pg_temp.t293_id(1), pg_temp.t293_id(1101), pg_temp.t293_id(1), pg_temp.t293_id(1101), pg_temp.t293_id(1112))) ->> 'status' AS t293_published \gset
+SELECT pg_temp.t293_assert(:'t293_published' = 'applied', 'the Admin publishes the lead.read role');
 
-CREATE FUNCTION pg_temp.t292_telrole(p_label TEXT) RETURNS UUID LANGUAGE SQL AS $$
-  SELECT id FROM platform.staff_role_definitions WHERE organization_id = pg_temp.t292_id(1) AND label = p_label
+CREATE FUNCTION pg_temp.t293_telrole(p_label TEXT) RETURNS UUID LANGUAGE SQL AS $$
+  SELECT id FROM platform.staff_role_definitions WHERE organization_id = pg_temp.t293_id(1) AND label = p_label
 $$;
 -- Role assignments of one member through staff_role_assignments_save; items are (role, scope kind, scope key).
-CREATE FUNCTION pg_temp.t292_assign(p_actor INTEGER, p_req INTEGER, p_items JSONB) RETURNS JSONB LANGUAGE plpgsql AS $$
+CREATE FUNCTION pg_temp.t293_assign(p_actor INTEGER, p_req INTEGER, p_items JSONB) RETURNS JSONB LANGUAGE plpgsql AS $$
 DECLARE items JSONB; bindings JSONB; v_version BIGINT; v_claims TEXT;
 BEGIN
-  SELECT p.access_version INTO v_version FROM platform.profiles p WHERE p.id = pg_temp.t292_id(200 + p_actor);
+  SELECT p.access_version INTO v_version FROM platform.profiles p WHERE p.id = pg_temp.t293_id(200 + p_actor);
   SELECT jsonb_agg(jsonb_build_object('roleId', r.id, 'scope', jsonb_build_object('kind', i.kind, 'key', i.scope_key,
       'resourceKind', NULL)) ORDER BY r.id),
     jsonb_agg(jsonb_build_object('roleId', r.id, 'roleVersion', r.version, 'bundleId', r.current_bundle_id,
@@ -181,63 +181,63 @@ BEGIN
   JOIN platform.staff_role_definitions r ON r.id = i.role_id
   JOIN platform.staff_role_bundle_bindings b ON b.organization_id = r.organization_id AND b.role_id = r.id
     AND b.bundle_id = r.current_bundle_id;
-  v_claims := (platform_private.custom_access_token_hook(jsonb_build_object('user_id', pg_temp.t292_id(101),
-    'claims', jsonb_build_object('sub', pg_temp.t292_id(101), 'role', 'authenticated'))) -> 'claims')::TEXT;
-  RETURN pg_temp.t292_call('authenticated', v_claims, format(
+  v_claims := (platform_private.custom_access_token_hook(jsonb_build_object('user_id', pg_temp.t293_id(101),
+    'claims', jsonb_build_object('sub', pg_temp.t293_id(101), 'role', 'authenticated'))) -> 'claims')::TEXT;
+  RETURN pg_temp.t293_call('authenticated', v_claims, format(
     'SELECT platform.staff_role_assignments_save(%L::UUID, %L::UUID, %s, %L::JSONB, %L::JSONB, %L, %L::UUID)',
-    pg_temp.t292_id(1), pg_temp.t292_id(300 + p_actor), v_version, items, bindings, 'T292 assign',
-    pg_temp.t292_id(5000 + p_req)));
+    pg_temp.t293_id(1), pg_temp.t293_id(300 + p_actor), v_version, items, bindings, 'T293 assign',
+    pg_temp.t293_id(5000 + p_req)));
 END
 $$;
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_assign(2, 1, jsonb_build_array(
-    jsonb_build_object('role_id', pg_temp.t292_telrole('Телефония — менеджер'), 'kind', 'organization', 'scope_key', pg_temp.t292_id(1)),
-    jsonb_build_object('role_id', pg_temp.t292_id(1101), 'kind', 'department', 'scope_key', pg_temp.t292_id(901)))) ->> 'status' = 'applied'
-  AND pg_temp.t292_assign(3, 2, jsonb_build_array(
-    jsonb_build_object('role_id', pg_temp.t292_telrole('Телефония — менеджер'), 'kind', 'organization', 'scope_key', pg_temp.t292_id(1)),
-    jsonb_build_object('role_id', pg_temp.t292_id(1101), 'kind', 'department', 'scope_key', pg_temp.t292_id(901)))) ->> 'status' = 'applied'
-  AND pg_temp.t292_assign(4, 3, jsonb_build_array(
-    jsonb_build_object('role_id', pg_temp.t292_telrole('Телефония — менеджер'), 'kind', 'organization', 'scope_key', pg_temp.t292_id(1)),
-    jsonb_build_object('role_id', pg_temp.t292_id(1101), 'kind', 'department', 'scope_key', pg_temp.t292_id(903)))) ->> 'status' = 'applied'
-  AND pg_temp.t292_assign(5, 4, jsonb_build_array(
-    jsonb_build_object('role_id', pg_temp.t292_telrole('Телефония — руководитель'), 'kind', 'organization', 'scope_key', pg_temp.t292_id(1)),
-    jsonb_build_object('role_id', pg_temp.t292_id(1101), 'kind', 'organization', 'scope_key', pg_temp.t292_id(1)))) ->> 'status' = 'applied'
-  AND pg_temp.t292_assign(6, 5, jsonb_build_array(
-    jsonb_build_object('role_id', pg_temp.t292_id(1101), 'kind', 'organization', 'scope_key', pg_temp.t292_id(1)))) ->> 'status' = 'applied',
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_assign(2, 1, jsonb_build_array(
+    jsonb_build_object('role_id', pg_temp.t293_telrole('Телефония — менеджер'), 'kind', 'organization', 'scope_key', pg_temp.t293_id(1)),
+    jsonb_build_object('role_id', pg_temp.t293_id(1101), 'kind', 'department', 'scope_key', pg_temp.t293_id(901)))) ->> 'status' = 'applied'
+  AND pg_temp.t293_assign(3, 2, jsonb_build_array(
+    jsonb_build_object('role_id', pg_temp.t293_telrole('Телефония — менеджер'), 'kind', 'organization', 'scope_key', pg_temp.t293_id(1)),
+    jsonb_build_object('role_id', pg_temp.t293_id(1101), 'kind', 'department', 'scope_key', pg_temp.t293_id(901)))) ->> 'status' = 'applied'
+  AND pg_temp.t293_assign(4, 3, jsonb_build_array(
+    jsonb_build_object('role_id', pg_temp.t293_telrole('Телефония — менеджер'), 'kind', 'organization', 'scope_key', pg_temp.t293_id(1)),
+    jsonb_build_object('role_id', pg_temp.t293_id(1101), 'kind', 'department', 'scope_key', pg_temp.t293_id(903)))) ->> 'status' = 'applied'
+  AND pg_temp.t293_assign(5, 4, jsonb_build_array(
+    jsonb_build_object('role_id', pg_temp.t293_telrole('Телефония — руководитель'), 'kind', 'organization', 'scope_key', pg_temp.t293_id(1)),
+    jsonb_build_object('role_id', pg_temp.t293_id(1101), 'kind', 'organization', 'scope_key', pg_temp.t293_id(1)))) ->> 'status' = 'applied'
+  AND pg_temp.t293_assign(6, 5, jsonb_build_array(
+    jsonb_build_object('role_id', pg_temp.t293_id(1101), 'kind', 'organization', 'scope_key', pg_temp.t293_id(1)))) ->> 'status' = 'applied',
   'the Admin assigns the telephony and lead.read roles through staff_role_assignments_save');
 
-CREATE TEMP TABLE t292_claims(n INTEGER PRIMARY KEY, claims TEXT NOT NULL);
-INSERT INTO t292_claims
-  SELECT n, (platform_private.custom_access_token_hook(jsonb_build_object('user_id', pg_temp.t292_id(100 + n),
-    'claims', jsonb_build_object('sub', pg_temp.t292_id(100 + n), 'role', 'authenticated'))) -> 'claims')::TEXT
+CREATE TEMP TABLE t293_claims(n INTEGER PRIMARY KEY, claims TEXT NOT NULL);
+INSERT INTO t293_claims
+  SELECT n, (platform_private.custom_access_token_hook(jsonb_build_object('user_id', pg_temp.t293_id(100 + n),
+    'claims', jsonb_build_object('sub', pg_temp.t293_id(100 + n), 'role', 'authenticated'))) -> 'claims')::TEXT
   FROM generate_series(1, 9) n;
 -- The statement as authenticated, with the JWT of the given actor.
-CREATE FUNCTION pg_temp.t292_as(p_actor INTEGER, p_sql TEXT) RETURNS JSONB LANGUAGE SQL AS $$
-  SELECT pg_temp.t292_call('authenticated', (SELECT c.claims FROM t292_claims c WHERE c.n = p_actor), p_sql)
+CREATE FUNCTION pg_temp.t293_as(p_actor INTEGER, p_sql TEXT) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.t293_call('authenticated', (SELECT c.claims FROM t293_claims c WHERE c.n = p_actor), p_sql)
 $$;
 -- The feed read for a lead (fixture number), with optional extra named arguments.
-CREATE FUNCTION pg_temp.t292_feed(p_actor INTEGER, p_lead INTEGER, p_extra TEXT DEFAULT '', p_org INTEGER DEFAULT 1)
+CREATE FUNCTION pg_temp.t293_feed(p_actor INTEGER, p_lead INTEGER, p_extra TEXT DEFAULT '', p_org INTEGER DEFAULT 1)
 RETURNS JSONB LANGUAGE SQL AS $$
-  SELECT pg_temp.t292_as(p_actor, format('SELECT platform.telephony_lead_calls_v1(%L::UUID, %L::UUID%s)',
-    pg_temp.t292_id(p_org), pg_temp.t292_id(5000 + p_lead), p_extra))
+  SELECT pg_temp.t293_as(p_actor, format('SELECT platform.telephony_lead_calls_v1(%L::UUID, %L::UUID%s)',
+    pg_temp.t293_id(p_org), pg_temp.t293_id(5000 + p_lead), p_extra))
 $$;
 -- The result command for a call (fixture number).
-CREATE FUNCTION pg_temp.t292_result(p_actor INTEGER, p_call INTEGER, p_code TEXT, p_on TEXT DEFAULT NULL,
+CREATE FUNCTION pg_temp.t293_result(p_actor INTEGER, p_call INTEGER, p_code TEXT, p_on TEXT DEFAULT NULL,
   p_org INTEGER DEFAULT 1) RETURNS JSONB LANGUAGE SQL AS $$
-  SELECT pg_temp.t292_as(p_actor, format('SELECT platform.telephony_set_result_v1(%L::UUID, %L::UUID, %L, %L::DATE)',
-    pg_temp.t292_id(p_org), pg_temp.t292_id(7000 + p_call), p_code, p_on))
+  SELECT pg_temp.t293_as(p_actor, format('SELECT platform.telephony_set_result_v1(%L::UUID, %L::UUID, %L, %L::DATE)',
+    pg_temp.t293_id(p_org), pg_temp.t293_id(7000 + p_call), p_code, p_on))
 $$;
 -- The row of a call in a feed answer, by call number.
-CREATE FUNCTION pg_temp.t292_row(p_feed JSONB, p_call INTEGER) RETURNS JSONB LANGUAGE SQL IMMUTABLE AS $$
-  SELECT c FROM jsonb_array_elements(p_feed -> 'calls') c WHERE c ->> 'callId' = pg_temp.t292_id(7000 + p_call)::TEXT
+CREATE FUNCTION pg_temp.t293_row(p_feed JSONB, p_call INTEGER) RETURNS JSONB LANGUAGE SQL IMMUTABLE AS $$
+  SELECT c FROM jsonb_array_elements(p_feed -> 'calls') c WHERE c ->> 'callId' = pg_temp.t293_id(7000 + p_call)::TEXT
 $$;
 -- The call numbers of a feed answer, in the order the answer gives them.
-CREATE FUNCTION pg_temp.t292_order(p_feed JSONB) RETURNS INTEGER[] LANGUAGE SQL IMMUTABLE AS $$
+CREATE FUNCTION pg_temp.t293_order(p_feed JSONB) RETURNS INTEGER[] LANGUAGE SQL IMMUTABLE AS $$
   SELECT COALESCE(array_agg((substr(c ->> 'callId', 25)::INTEGER - 7000) ORDER BY ord), ARRAY[]::INTEGER[])
   FROM jsonb_array_elements(p_feed -> 'calls') WITH ORDINALITY AS t(c, ord)
 $$;
 -- The call numbers whose row says «result can be set or changed».
-CREATE FUNCTION pg_temp.t292_editable(p_feed JSONB) RETURNS INTEGER[] LANGUAGE SQL IMMUTABLE AS $$
+CREATE FUNCTION pg_temp.t293_editable(p_feed JSONB) RETURNS INTEGER[] LANGUAGE SQL IMMUTABLE AS $$
   SELECT COALESCE(array_agg((substr(c ->> 'callId', 25)::INTEGER - 7000) ORDER BY substr(c ->> 'callId', 25)::INTEGER), ARRAY[]::INTEGER[])
   FROM jsonb_array_elements(p_feed -> 'calls') c WHERE (c ->> 'resultEditable')::BOOLEAN
 $$;
@@ -252,22 +252,22 @@ $$;
 -- Phones are synthetic; the full number must never reach an answer.
 -- ---------------------------------------------------------------------------
 INSERT INTO platform.clients(id, organization_id, display_name, normalized_name, phone, normalized_phone, lifecycle_state) VALUES
-  (pg_temp.t292_id(4001), pg_temp.t292_id(1), 'T292 Client One', platform_private.normalize_person_name('T292 Client One'),
+  (pg_temp.t293_id(4001), pg_temp.t293_id(1), 'T293 Client One', platform_private.normalize_person_name('T293 Client One'),
     '+996700000001', platform_private.normalize_person_phone('+996700000001'), 'active'),
-  (pg_temp.t292_id(4002), pg_temp.t292_id(1), 'T292 Client Two', platform_private.normalize_person_name('T292 Client Two'),
+  (pg_temp.t293_id(4002), pg_temp.t293_id(1), 'T293 Client Two', platform_private.normalize_person_name('T293 Client Two'),
     '+996700000002', platform_private.normalize_person_phone('+996700000002'), 'active'),
-  (pg_temp.t292_id(4003), pg_temp.t292_id(1), 'T292 Client Three', platform_private.normalize_person_name('T292 Client Three'),
+  (pg_temp.t293_id(4003), pg_temp.t293_id(1), 'T293 Client Three', platform_private.normalize_person_name('T293 Client Three'),
     '+996700000003', platform_private.normalize_person_phone('+996700000003'), 'active'),
-  (pg_temp.t292_id(4010), pg_temp.t292_id(2), 'T292 Client Ten', platform_private.normalize_person_name('T292 Client Ten'),
+  (pg_temp.t293_id(4010), pg_temp.t293_id(2), 'T293 Client Ten', platform_private.normalize_person_name('T293 Client Ten'),
     '+996700000010', platform_private.normalize_person_phone('+996700000010'), 'active');
 INSERT INTO platform.leads(id, organization_id, client_id, current_owner_membership_id, stage_key, source_key, lifecycle_state) VALUES
-  (pg_temp.t292_id(5001), pg_temp.t292_id(1), pg_temp.t292_id(4001), pg_temp.t292_id(302), 'new', 'website', 'open'),
-  (pg_temp.t292_id(5002), pg_temp.t292_id(1), pg_temp.t292_id(4002), pg_temp.t292_id(304), 'new', 'website', 'open'),
-  (pg_temp.t292_id(5003), pg_temp.t292_id(1), pg_temp.t292_id(4001), pg_temp.t292_id(303), 'new', 'website', 'open'),
-  (pg_temp.t292_id(5010), pg_temp.t292_id(2), pg_temp.t292_id(4010), pg_temp.t292_id(309), 'new', 'website', 'open');
+  (pg_temp.t293_id(5001), pg_temp.t293_id(1), pg_temp.t293_id(4001), pg_temp.t293_id(302), 'new', 'website', 'open'),
+  (pg_temp.t293_id(5002), pg_temp.t293_id(1), pg_temp.t293_id(4002), pg_temp.t293_id(304), 'new', 'website', 'open'),
+  (pg_temp.t293_id(5003), pg_temp.t293_id(1), pg_temp.t293_id(4001), pg_temp.t293_id(303), 'new', 'website', 'open'),
+  (pg_temp.t293_id(5010), pg_temp.t293_id(2), pg_temp.t293_id(4010), pg_temp.t293_id(309), 'new', 'website', 'open');
 
 -- A call: outcome NULL = ringing (no outcome yet). Ages are before «now» of the fixture.
-CREATE FUNCTION pg_temp.t292_mk(p_k INTEGER, p_dir TEXT, p_outcome TEXT, p_age INTERVAL, p_client INTEGER, p_lead INTEGER,
+CREATE FUNCTION pg_temp.t293_mk(p_k INTEGER, p_dir TEXT, p_outcome TEXT, p_age INTERVAL, p_client INTEGER, p_lead INTEGER,
   p_member INTEGER, p_via TEXT DEFAULT 'webhook', p_talk INTEGER DEFAULT NULL, p_org INTEGER DEFAULT 1,
   p_phone TEXT DEFAULT '+996700000001') RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE v_start TIMESTAMPTZ := clock_timestamp() - p_age;
@@ -275,32 +275,32 @@ BEGIN
   INSERT INTO platform_private.telephony_calls(id, organization_id, pbx_callid, direction, state, outcome, outcome_source,
     started_at, answered_at, ended_at, settled_at, talk_seconds, client_phone, membership_id, client_id, lead_id,
     match_state, created_via)
-  VALUES (pg_temp.t292_id(7000 + p_k), pg_temp.t292_id(p_org), 't292-call-' || p_k, p_dir,
+  VALUES (pg_temp.t293_id(7000 + p_k), pg_temp.t293_id(p_org), 't293-call-' || p_k, p_dir,
     CASE WHEN p_outcome IS NULL THEN 'ringing' ELSE 'ended' END, p_outcome,
     CASE WHEN p_outcome IS NULL THEN NULL ELSE 'webhook' END,
     v_start, CASE WHEN p_outcome = 'answered' THEN v_start + INTERVAL '5 seconds' END,
     CASE WHEN p_outcome IS NULL THEN NULL ELSE v_start + INTERVAL '3 minutes' END,
     CASE WHEN p_outcome IS NULL THEN NULL ELSE v_start + INTERVAL '4 minutes' END,
     p_talk, p_phone,
-    CASE WHEN p_member IS NULL THEN NULL ELSE pg_temp.t292_id(300 + p_member) END,
-    CASE WHEN p_client IS NULL THEN NULL ELSE pg_temp.t292_id(4000 + p_client) END,
-    CASE WHEN p_lead IS NULL THEN NULL ELSE pg_temp.t292_id(5000 + p_lead) END,
+    CASE WHEN p_member IS NULL THEN NULL ELSE pg_temp.t293_id(300 + p_member) END,
+    CASE WHEN p_client IS NULL THEN NULL ELSE pg_temp.t293_id(4000 + p_client) END,
+    CASE WHEN p_lead IS NULL THEN NULL ELSE pg_temp.t293_id(5000 + p_lead) END,
     CASE WHEN p_client IS NULL THEN 'unmatched' ELSE 'matched' END, p_via);
 END
 $$;
 -- A leg of a call (fixture numbers); the member may be NULL (a group leg).
-CREATE FUNCTION pg_temp.t292_leg(p_call INTEGER, p_member INTEGER, p_state TEXT, p_status TEXT DEFAULT NULL,
+CREATE FUNCTION pg_temp.t293_leg(p_call INTEGER, p_member INTEGER, p_state TEXT, p_status TEXT DEFAULT NULL,
   p_accepted BOOLEAN DEFAULT FALSE, p_total INTEGER DEFAULT NULL, p_talk INTEGER DEFAULT NULL,
   p_link TEXT DEFAULT NULL, p_org INTEGER DEFAULT 1) RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE v_at TIMESTAMPTZ;
 BEGIN
   SELECT c.started_at INTO v_at FROM platform_private.telephony_calls c
-    WHERE c.organization_id = pg_temp.t292_id(p_org) AND c.id = pg_temp.t292_id(7000 + p_call);
+    WHERE c.organization_id = pg_temp.t293_id(p_org) AND c.id = pg_temp.t293_id(7000 + p_call);
   INSERT INTO platform_private.telephony_call_legs(organization_id, call_id, pbx_user, membership_id, state, status,
     leg_started_at, leg_start_source, accepted_at, webhook_total_seconds, talk_seconds, recording_link, recording_state)
-  VALUES (pg_temp.t292_id(p_org), pg_temp.t292_id(7000 + p_call),
+  VALUES (pg_temp.t293_id(p_org), pg_temp.t293_id(7000 + p_call),
     CASE WHEN p_member IS NULL THEN '' ELSE 'u70' || p_member END,
-    CASE WHEN p_member IS NULL THEN NULL ELSE pg_temp.t292_id(300 + p_member) END,
+    CASE WHEN p_member IS NULL THEN NULL ELSE pg_temp.t293_id(300 + p_member) END,
     p_state, p_status, v_at, 'history', CASE WHEN p_accepted THEN v_at + INTERVAL '5 seconds' END, p_total, p_talk,
     p_link, CASE WHEN p_link IS NULL THEN 'none' ELSE 'available' END);
 END
@@ -320,66 +320,66 @@ $$;
 --   4   out  answered  mgr A   10 d    outside the 7-day offer window
 -- Elsewhere: 8 and 14 = client 2 / lead 2 (manager B); 15 = client 1 / lead 3 (manager A2);
 -- 13 = client 3, no lead; 20 = organization 2.
-SELECT pg_temp.t292_mk(1, 'out', 'answered', INTERVAL '2 hours', 1, 1, 2, 'webhook', 125);
-SELECT pg_temp.t292_leg(1, 2, 'completed', 'success', TRUE, 130, 125, 'https://example.invalid/t292-secret-recording-1.mp3');
-UPDATE platform_private.telephony_calls SET recording_state = 'available' WHERE id = pg_temp.t292_id(7001);
-SELECT pg_temp.t292_mk(2, 'in', 'missed', INTERVAL '3 hours', 1, 1, NULL);
-SELECT pg_temp.t292_leg(2, 2, 'missed', 'missed');
-SELECT pg_temp.t292_leg(2, 3, 'missed', 'missed');
-SELECT pg_temp.t292_mk(3, 'in', 'answered', INTERVAL '1 day', 1, 1, 3, 'webhook', 40);
-SELECT pg_temp.t292_leg(3, 3, 'completed', 'success', TRUE, 45, 40);
-SELECT pg_temp.t292_mk(4, 'out', 'answered', INTERVAL '10 days', 1, 1, 2, 'webhook', 60);
-SELECT pg_temp.t292_leg(4, 2, 'completed', 'success', TRUE, 65, 60);
-SELECT pg_temp.t292_mk(5, 'in', 'answered', INTERVAL '49 hours', 1, 1, 2, 'backfill', 30);
-SELECT pg_temp.t292_leg(5, 2, 'completed', 'success', TRUE, 35, 30);
-SELECT pg_temp.t292_mk(6, 'out', 'busy', INTERVAL '4 hours', 1, 1, NULL);
-SELECT pg_temp.t292_leg(6, 2, 'completed', 'busy');
-SELECT pg_temp.t292_mk(7, 'in', 'answered', INTERVAL '5 hours', 1, NULL, 2, 'webhook', 20);
-SELECT pg_temp.t292_leg(7, 2, 'completed', 'success', TRUE, 25, 20);
-SELECT pg_temp.t292_mk(9, 'in', NULL, INTERVAL '30 seconds', 1, 1, NULL);
-SELECT pg_temp.t292_leg(9, 2, 'ringing');
-SELECT pg_temp.t292_mk(10, 'out', 'answered', INTERVAL '6 hours', 1, 1, 2, 'webhook', 90);
-SELECT pg_temp.t292_leg(10, 2, 'completed', 'success', TRUE, 95, 90);
-UPDATE platform_private.telephony_calls SET result_code = 'reached', result_by = pg_temp.t292_id(302),
-  result_at = clock_timestamp() - INTERVAL '2 hours' WHERE id = pg_temp.t292_id(7010);
-SELECT pg_temp.t292_mk(11, 'out', 'answered', INTERVAL '2 days', 1, 1, 2, 'webhook', 90);
-SELECT pg_temp.t292_leg(11, 2, 'completed', 'success', TRUE, 95, 90);
-UPDATE platform_private.telephony_calls SET result_code = 'reached', result_by = pg_temp.t292_id(302),
-  result_at = clock_timestamp() - INTERVAL '30 hours' WHERE id = pg_temp.t292_id(7011);
-SELECT pg_temp.t292_mk(12, 'out', 'answered', INTERVAL '3 days', 1, 1, 3, 'webhook', 15);
-SELECT pg_temp.t292_leg(12, 2, 'cancelled', 'cancel');
-SELECT pg_temp.t292_leg(12, 3, 'completed', 'success', TRUE, 20, 15);
-SELECT pg_temp.t292_mk(8, 'in', 'answered', INTERVAL '1 hour', 2, 2, 4, 'webhook', 50, 1, '+996700000002');
-SELECT pg_temp.t292_leg(8, 4, 'completed', 'success', TRUE, 55, 50);
-SELECT pg_temp.t292_mk(13, 'in', 'missed', INTERVAL '1 hour', 3, NULL, NULL, 'webhook', NULL, 1, '+996700000003');
-SELECT pg_temp.t292_mk(20, 'in', 'answered', INTERVAL '1 hour', 10, 10, 9, 'webhook', 33, 2, '+996700000010');
-SELECT pg_temp.t292_leg(20, 9, 'completed', 'success', TRUE, 38, 33, NULL, 2);
+SELECT pg_temp.t293_mk(1, 'out', 'answered', INTERVAL '2 hours', 1, 1, 2, 'webhook', 125);
+SELECT pg_temp.t293_leg(1, 2, 'completed', 'success', TRUE, 130, 125, 'https://example.invalid/t293-secret-recording-1.mp3');
+UPDATE platform_private.telephony_calls SET recording_state = 'available' WHERE id = pg_temp.t293_id(7001);
+SELECT pg_temp.t293_mk(2, 'in', 'missed', INTERVAL '3 hours', 1, 1, NULL);
+SELECT pg_temp.t293_leg(2, 2, 'missed', 'missed');
+SELECT pg_temp.t293_leg(2, 3, 'missed', 'missed');
+SELECT pg_temp.t293_mk(3, 'in', 'answered', INTERVAL '1 day', 1, 1, 3, 'webhook', 40);
+SELECT pg_temp.t293_leg(3, 3, 'completed', 'success', TRUE, 45, 40);
+SELECT pg_temp.t293_mk(4, 'out', 'answered', INTERVAL '10 days', 1, 1, 2, 'webhook', 60);
+SELECT pg_temp.t293_leg(4, 2, 'completed', 'success', TRUE, 65, 60);
+SELECT pg_temp.t293_mk(5, 'in', 'answered', INTERVAL '49 hours', 1, 1, 2, 'backfill', 30);
+SELECT pg_temp.t293_leg(5, 2, 'completed', 'success', TRUE, 35, 30);
+SELECT pg_temp.t293_mk(6, 'out', 'busy', INTERVAL '4 hours', 1, 1, NULL);
+SELECT pg_temp.t293_leg(6, 2, 'completed', 'busy');
+SELECT pg_temp.t293_mk(7, 'in', 'answered', INTERVAL '5 hours', 1, NULL, 2, 'webhook', 20);
+SELECT pg_temp.t293_leg(7, 2, 'completed', 'success', TRUE, 25, 20);
+SELECT pg_temp.t293_mk(9, 'in', NULL, INTERVAL '30 seconds', 1, 1, NULL);
+SELECT pg_temp.t293_leg(9, 2, 'ringing');
+SELECT pg_temp.t293_mk(10, 'out', 'answered', INTERVAL '6 hours', 1, 1, 2, 'webhook', 90);
+SELECT pg_temp.t293_leg(10, 2, 'completed', 'success', TRUE, 95, 90);
+UPDATE platform_private.telephony_calls SET result_code = 'reached', result_by = pg_temp.t293_id(302),
+  result_at = clock_timestamp() - INTERVAL '2 hours' WHERE id = pg_temp.t293_id(7010);
+SELECT pg_temp.t293_mk(11, 'out', 'answered', INTERVAL '2 days', 1, 1, 2, 'webhook', 90);
+SELECT pg_temp.t293_leg(11, 2, 'completed', 'success', TRUE, 95, 90);
+UPDATE platform_private.telephony_calls SET result_code = 'reached', result_by = pg_temp.t293_id(302),
+  result_at = clock_timestamp() - INTERVAL '30 hours' WHERE id = pg_temp.t293_id(7011);
+SELECT pg_temp.t293_mk(12, 'out', 'answered', INTERVAL '3 days', 1, 1, 3, 'webhook', 15);
+SELECT pg_temp.t293_leg(12, 2, 'cancelled', 'cancel');
+SELECT pg_temp.t293_leg(12, 3, 'completed', 'success', TRUE, 20, 15);
+SELECT pg_temp.t293_mk(8, 'in', 'answered', INTERVAL '1 hour', 2, 2, 4, 'webhook', 50, 1, '+996700000002');
+SELECT pg_temp.t293_leg(8, 4, 'completed', 'success', TRUE, 55, 50);
+SELECT pg_temp.t293_mk(13, 'in', 'missed', INTERVAL '1 hour', 3, NULL, NULL, 'webhook', NULL, 1, '+996700000003');
+SELECT pg_temp.t293_mk(20, 'in', 'answered', INTERVAL '1 hour', 10, 10, 9, 'webhook', 33, 2, '+996700000010');
+SELECT pg_temp.t293_leg(20, 9, 'completed', 'success', TRUE, 38, 33, NULL, 2);
 -- Call 15: the same client, the other lead (lead 3): it is lead 3's, not lead 1's.
-SELECT pg_temp.t292_mk(15, 'out', 'answered', INTERVAL '20 minutes', 1, 3, 3, 'webhook', 33);
-SELECT pg_temp.t292_leg(15, 3, 'completed', 'success', TRUE, 38, 33);
+SELECT pg_temp.t293_mk(15, 'out', 'answered', INTERVAL '20 minutes', 1, 3, 3, 'webhook', 33);
+SELECT pg_temp.t293_leg(15, 3, 'completed', 'success', TRUE, 38, 33);
 -- Call 14 (lead 2): one leg per kind, for the «talked» rule of the helper.
-SELECT pg_temp.t292_mk(14, 'in', 'answered', INTERVAL '90 minutes', 2, 2, NULL, 'webhook', NULL, 1, '+996700000002');
-SELECT pg_temp.t292_leg(14, 2, 'ringing');
-SELECT pg_temp.t292_leg(14, 3, 'completed', 'busy');
-SELECT pg_temp.t292_leg(14, 4, 'completed', 'success', FALSE, 0);
-SELECT pg_temp.t292_leg(14, 5, 'completed', 'success', FALSE, 12);
-SELECT pg_temp.t292_leg(14, 6, 'transferred');
-SELECT pg_temp.t292_leg(14, 8, 'accepted', NULL, TRUE);
-SELECT pg_temp.t292_assert((SELECT count(*) FROM platform_private.telephony_calls) = 16, 'sanity: the fixture holds 16 calls');
+SELECT pg_temp.t293_mk(14, 'in', 'answered', INTERVAL '90 minutes', 2, 2, NULL, 'webhook', NULL, 1, '+996700000002');
+SELECT pg_temp.t293_leg(14, 2, 'ringing');
+SELECT pg_temp.t293_leg(14, 3, 'completed', 'busy');
+SELECT pg_temp.t293_leg(14, 4, 'completed', 'success', FALSE, 0);
+SELECT pg_temp.t293_leg(14, 5, 'completed', 'success', FALSE, 12);
+SELECT pg_temp.t293_leg(14, 6, 'transferred');
+SELECT pg_temp.t293_leg(14, 8, 'accepted', NULL, TRUE);
+SELECT pg_temp.t293_assert((SELECT count(*) FROM platform_private.telephony_calls) = 16, 'sanity: the fixture holds 16 calls');
 
 -- ---------------------------------------------------------------------------
 -- 1. Catalog and grants.
 -- ---------------------------------------------------------------------------
-SELECT pg_temp.t292_assert((SELECT count(*) = 2 AND bool_and(p.prosecdef AND p.proconfig = ARRAY['search_path=""']::TEXT[]
+SELECT pg_temp.t293_assert((SELECT count(*) = 2 AND bool_and(p.prosecdef AND p.proconfig = ARRAY['search_path=""']::TEXT[]
       AND pg_get_userbyid(p.proowner) = 'postgres')
     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'platform' AND p.proname IN ('telephony_lead_calls_v1', 'telephony_set_result_v1')),
   'the two public functions are owner-owned SECURITY DEFINER with an empty search_path');
-SELECT pg_temp.t292_assert(
+SELECT pg_temp.t293_assert(
   (SELECT p.provolatile FROM pg_proc p WHERE p.oid = 'platform.telephony_lead_calls_v1(uuid,uuid,integer,timestamptz,timestamptz)'::regprocedure) = 's'
   AND (SELECT p.provolatile FROM pg_proc p WHERE p.oid = 'platform.telephony_set_result_v1(uuid,uuid,text,date)'::regprocedure) = 'v',
   'the read is STABLE and the command VOLATILE');
-SELECT pg_temp.t292_assert(
+SELECT pg_temp.t293_assert(
   has_function_privilege('authenticated', 'platform.telephony_lead_calls_v1(uuid,uuid,integer,timestamptz,timestamptz)', 'EXECUTE')
   AND has_function_privilege('authenticated', 'platform.telephony_set_result_v1(uuid,uuid,text,date)', 'EXECUTE')
   AND NOT has_function_privilege('public', 'platform.telephony_lead_calls_v1(uuid,uuid,integer,timestamptz,timestamptz)', 'EXECUTE')
@@ -388,423 +388,423 @@ SELECT pg_temp.t292_assert(
     WHERE has_function_privilege(r.role_name, 'platform.telephony_lead_calls_v1(uuid,uuid,integer,timestamptz,timestamptz)', 'EXECUTE')
       OR has_function_privilege(r.role_name, 'platform.telephony_set_result_v1(uuid,uuid,text,date)', 'EXECUTE')) = 0,
   'both public functions are executable by authenticated only');
-SELECT pg_temp.t292_assert(
+SELECT pg_temp.t293_assert(
   (SELECT count(*) FROM (VALUES ('anon'), ('authenticated'), ('service_role'), ('supabase_auth_admin'), ('evo_ai_agent')) r(role_name)
     WHERE has_function_privilege(r.role_name, 'platform_private.telephony_result_window_open(text,text,timestamptz,text,timestamptz,timestamptz)', 'EXECUTE')
       OR has_function_privilege(r.role_name, 'platform_private.telephony_call_taken_by(uuid,uuid,uuid)', 'EXECUTE')) = 0
   AND NOT has_function_privilege('public', 'platform_private.telephony_result_window_open(text,text,timestamptz,text,timestamptz,timestamptz)', 'EXECUTE')
   AND NOT has_function_privilege('public', 'platform_private.telephony_call_taken_by(uuid,uuid,uuid)', 'EXECUTE'),
   'the two helpers are closed to PUBLIC and every client role');
-SELECT pg_temp.t292_assert((SELECT array_agg(p.proname::TEXT ORDER BY p.proname) FROM pg_proc p
+SELECT pg_temp.t293_assert((SELECT array_agg(p.proname::TEXT ORDER BY p.proname) FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'platform' AND p.proname LIKE 'telephony\_%')
   = ARRAY['telephony_claim_work_v1', 'telephony_lead_calls_v1', 'telephony_project_work_v1', 'telephony_receive_v1',
     'telephony_set_result_v1', 'telephony_settle_calls_v1'],
   'platform holds the four ingest functions and exactly these two new ones');
-SELECT pg_temp.t292_assert('telephony.result.set' = ANY (platform_private.p7a_safe_audit_actions())
+SELECT pg_temp.t293_assert('telephony.result.set' = ANY (platform_private.p7a_safe_audit_actions())
   AND 'telephony_call' = ANY (platform_private.p7a_safe_audit_resource_types()),
   'the journal allowlist (T2) already knows telephony.result.set and telephony_call');
 
 -- ---------------------------------------------------------------------------
 -- 2. The callback day: present exactly when the result is «callback».
 -- ---------------------------------------------------------------------------
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_try($$UPDATE platform_private.telephony_calls SET result_code = 'callback', result_by = '29200000-0000-4000-8000-000000000302',
-    result_at = clock_timestamp() WHERE id = '29200000-0000-4000-8000-000000007013'$$) = '23514'
-  AND pg_temp.t292_try($$UPDATE platform_private.telephony_calls SET result_callback_on = DATE '2031-01-01'
-    WHERE id = '29200000-0000-4000-8000-000000007013'$$) = '23514'
-  AND pg_temp.t292_try($$UPDATE platform_private.telephony_calls SET result_code = 'reached', result_by = '29200000-0000-4000-8000-000000000302',
-    result_at = clock_timestamp(), result_callback_on = DATE '2031-01-01' WHERE id = '29200000-0000-4000-8000-000000007013'$$) = '23514'
-  AND pg_temp.t292_try($$UPDATE platform_private.telephony_calls SET result_code = 'callback', result_by = '29200000-0000-4000-8000-000000000302',
-    result_at = clock_timestamp(), result_callback_on = DATE '1999-12-31' WHERE id = '29200000-0000-4000-8000-000000007013'$$) = '23514'
-  AND pg_temp.t292_try($$UPDATE platform_private.telephony_calls SET result_code = 'callback', result_by = '29200000-0000-4000-8000-000000000302',
-    result_at = clock_timestamp(), result_callback_on = DATE '2200-01-02' WHERE id = '29200000-0000-4000-8000-000000007013'$$) = '23514'
-  AND pg_temp.t292_try($$UPDATE platform_private.telephony_calls SET result_code = 'callback', result_by = '29200000-0000-4000-8000-000000000302',
-    result_at = clock_timestamp(), result_callback_on = DATE '2031-01-01' WHERE id = '29200000-0000-4000-8000-000000007013'$$) = 'ok'
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_try($$UPDATE platform_private.telephony_calls SET result_code = 'callback', result_by = '29300000-0000-4000-8000-000000000302',
+    result_at = clock_timestamp() WHERE id = '29300000-0000-4000-8000-000000007013'$$) = '23514'
+  AND pg_temp.t293_try($$UPDATE platform_private.telephony_calls SET result_callback_on = DATE '2031-01-01'
+    WHERE id = '29300000-0000-4000-8000-000000007013'$$) = '23514'
+  AND pg_temp.t293_try($$UPDATE platform_private.telephony_calls SET result_code = 'reached', result_by = '29300000-0000-4000-8000-000000000302',
+    result_at = clock_timestamp(), result_callback_on = DATE '2031-01-01' WHERE id = '29300000-0000-4000-8000-000000007013'$$) = '23514'
+  AND pg_temp.t293_try($$UPDATE platform_private.telephony_calls SET result_code = 'callback', result_by = '29300000-0000-4000-8000-000000000302',
+    result_at = clock_timestamp(), result_callback_on = DATE '1999-12-31' WHERE id = '29300000-0000-4000-8000-000000007013'$$) = '23514'
+  AND pg_temp.t293_try($$UPDATE platform_private.telephony_calls SET result_code = 'callback', result_by = '29300000-0000-4000-8000-000000000302',
+    result_at = clock_timestamp(), result_callback_on = DATE '2200-01-02' WHERE id = '29300000-0000-4000-8000-000000007013'$$) = '23514'
+  AND pg_temp.t293_try($$UPDATE platform_private.telephony_calls SET result_code = 'callback', result_by = '29300000-0000-4000-8000-000000000302',
+    result_at = clock_timestamp(), result_callback_on = DATE '2031-01-01' WHERE id = '29300000-0000-4000-8000-000000007013'$$) = 'ok'
   AND (SELECT result_code IS NULL AND result_callback_on IS NULL FROM platform_private.telephony_calls
-    WHERE id = pg_temp.t292_id(7013)),
+    WHERE id = pg_temp.t293_id(7013)),
   'a callback day exists exactly with result «callback» and stays in 2020..2200 (the valid write is rolled back)');
-SELECT pg_temp.t292_assert((SELECT bool_and(result_callback_on IS NULL) FROM platform_private.telephony_calls),
+SELECT pg_temp.t293_assert((SELECT bool_and(result_callback_on IS NULL) FROM platform_private.telephony_calls),
   'no existing row carries a callback day');
 
 -- ---------------------------------------------------------------------------
 -- 3. The switch: no settings row, then ui_enabled = false.
 -- ---------------------------------------------------------------------------
-SELECT pg_temp.t292_assert(NOT EXISTS (SELECT 1 FROM platform_private.telephony_settings), 'sanity: no settings row exists');
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_feed(1, 1) = '{"enabled": false, "canSetResult": false, "hasMore": false, "calls": []}'::JSONB
-  AND pg_temp.t292_feed(2, 1) = '{"enabled": false, "canSetResult": false, "hasMore": false, "calls": []}'::JSONB
-  AND pg_temp.t292_feed(5, 1) = '{"enabled": false, "canSetResult": false, "hasMore": false, "calls": []}'::JSONB,
+SELECT pg_temp.t293_assert(NOT EXISTS (SELECT 1 FROM platform_private.telephony_settings), 'sanity: no settings row exists');
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_feed(1, 1) = '{"enabled": false, "canSetResult": false, "hasMore": false, "calls": []}'::JSONB
+  AND pg_temp.t293_feed(2, 1) = '{"enabled": false, "canSetResult": false, "hasMore": false, "calls": []}'::JSONB
+  AND pg_temp.t293_feed(5, 1) = '{"enabled": false, "canSetResult": false, "hasMore": false, "calls": []}'::JSONB,
   'without a settings row the read shows nothing even though calls exist (Admin, manager, supervisor)');
-INSERT INTO platform_private.telephony_settings(organization_id) VALUES (pg_temp.t292_id(1));
-SELECT pg_temp.t292_assert(
-  (SELECT NOT ui_enabled AND NOT dial_enabled FROM platform_private.telephony_settings WHERE organization_id = pg_temp.t292_id(1))
-  AND pg_temp.t292_feed(1, 1) = '{"enabled": false, "canSetResult": false, "hasMore": false, "calls": []}'::JSONB
-  AND pg_temp.t292_feed(2, 1) = '{"enabled": false, "canSetResult": false, "hasMore": false, "calls": []}'::JSONB,
+INSERT INTO platform_private.telephony_settings(organization_id) VALUES (pg_temp.t293_id(1));
+SELECT pg_temp.t293_assert(
+  (SELECT NOT ui_enabled AND NOT dial_enabled FROM platform_private.telephony_settings WHERE organization_id = pg_temp.t293_id(1))
+  AND pg_temp.t293_feed(1, 1) = '{"enabled": false, "canSetResult": false, "hasMore": false, "calls": []}'::JSONB
+  AND pg_temp.t293_feed(2, 1) = '{"enabled": false, "canSetResult": false, "hasMore": false, "calls": []}'::JSONB,
   'with ui_enabled = false (the default row) the read shows nothing');
 -- Authority comes before the switch: the answer does not tell the unauthorised anything.
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_code(pg_temp.t292_feed(4, 1)) = '42501'
-  AND pg_temp.t292_code(pg_temp.t292_feed(7, 1)) = '42501'
-  AND pg_temp.t292_code(pg_temp.t292_feed(8, 1)) = '42501'
-  AND pg_temp.t292_code(pg_temp.t292_feed(9, 1)) = '42501',
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_code(pg_temp.t293_feed(4, 1)) = '42501'
+  AND pg_temp.t293_code(pg_temp.t293_feed(7, 1)) = '42501'
+  AND pg_temp.t293_code(pg_temp.t293_feed(8, 1)) = '42501'
+  AND pg_temp.t293_code(pg_temp.t293_feed(9, 1)) = '42501',
   'switch off: manager B (other department), a Student, a member without roles and another organization are refused with 42501');
 -- The command refuses by the switch only for a permitted caller; the rest see 42501.
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_code(pg_temp.t292_result(2, 1, 'reached')) = '55000'
-  AND pg_temp.t292_code(pg_temp.t292_result(1, 1, 'reached')) = '55000'
-  AND pg_temp.t292_code(pg_temp.t292_result(6, 1, 'reached')) = '42501'
-  AND pg_temp.t292_code(pg_temp.t292_result(7, 1, 'reached')) = '42501',
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_code(pg_temp.t293_result(2, 1, 'reached')) = '55000'
+  AND pg_temp.t293_code(pg_temp.t293_result(1, 1, 'reached')) = '55000'
+  AND pg_temp.t293_code(pg_temp.t293_result(6, 1, 'reached')) = '42501'
+  AND pg_temp.t293_code(pg_temp.t293_result(7, 1, 'reached')) = '42501',
   'switch off: the command answers 55000 to a permitted caller and 42501 to a reader without the right and a Student');
 
 -- ---------------------------------------------------------------------------
 -- 4. ui_enabled = true, dial_enabled = false: rows are shown, nothing can be set.
 -- ---------------------------------------------------------------------------
-UPDATE platform_private.telephony_settings SET ui_enabled = TRUE WHERE organization_id = pg_temp.t292_id(1);
-CREATE TEMP TABLE t292_feed_a AS SELECT pg_temp.t292_feed(2, 1) AS f;
-SELECT pg_temp.t292_assert((SELECT f ->> 'enabled' = 'true' AND f ->> 'canSetResult' = 'false' AND f ->> 'hasMore' = 'false'
-      AND jsonb_array_length(f -> 'calls') = 11 FROM t292_feed_a),
+UPDATE platform_private.telephony_settings SET ui_enabled = TRUE WHERE organization_id = pg_temp.t293_id(1);
+CREATE TEMP TABLE t293_feed_a AS SELECT pg_temp.t293_feed(2, 1) AS f;
+SELECT pg_temp.t293_assert((SELECT f ->> 'enabled' = 'true' AND f ->> 'canSetResult' = 'false' AND f ->> 'hasMore' = 'false'
+      AND jsonb_array_length(f -> 'calls') = 11 FROM t293_feed_a),
   'ui on, dial off: manager A reads 11 calls of lead 1, hasMore false, nothing can be set');
-SELECT pg_temp.t292_assert(pg_temp.t292_order((SELECT f FROM t292_feed_a)) = ARRAY[9, 1, 2, 6, 7, 10, 3, 11, 5, 12, 4],
-  'the calls come newest first: ' || pg_temp.t292_order((SELECT f FROM t292_feed_a))::TEXT);
-SELECT pg_temp.t292_assert(cardinality(pg_temp.t292_editable((SELECT f FROM t292_feed_a))) = 0,
+SELECT pg_temp.t293_assert(pg_temp.t293_order((SELECT f FROM t293_feed_a)) = ARRAY[9, 1, 2, 6, 7, 10, 3, 11, 5, 12, 4],
+  'the calls come newest first: ' || pg_temp.t293_order((SELECT f FROM t293_feed_a))::TEXT);
+SELECT pg_temp.t293_assert(cardinality(pg_temp.t293_editable((SELECT f FROM t293_feed_a))) = 0,
   'ui on, dial off: no row is editable');
-SELECT pg_temp.t292_assert(
-  NOT (pg_temp.t292_order((SELECT f FROM t292_feed_a)) && ARRAY[8, 13, 14, 15, 20]),
+SELECT pg_temp.t293_assert(
+  NOT (pg_temp.t293_order((SELECT f FROM t293_feed_a)) && ARRAY[8, 13, 14, 15, 20]),
   'nothing of another client, of the same client''s other lead, of a client without a lead or of another organization leaks in');
-SELECT pg_temp.t292_assert(pg_temp.t292_order(pg_temp.t292_feed(3, 3)) = ARRAY[15, 7],
+SELECT pg_temp.t293_assert(pg_temp.t293_order(pg_temp.t293_feed(3, 3)) = ARRAY[15, 7],
   'lead 3 shows its own call and the client''s call from before any lead existed, not lead 1''s calls: '
-    || pg_temp.t292_order(pg_temp.t292_feed(3, 3))::TEXT);
-SELECT pg_temp.t292_assert((SELECT bool_and((SELECT array_agg(k ORDER BY k COLLATE "C") FROM jsonb_object_keys(c) k) = (
+    || pg_temp.t293_order(pg_temp.t293_feed(3, 3))::TEXT);
+SELECT pg_temp.t293_assert((SELECT bool_and((SELECT array_agg(k ORDER BY k COLLATE "C") FROM jsonb_object_keys(c) k) = (
       SELECT array_agg(x ORDER BY x COLLATE "C") FROM unnest(ARRAY[
       'answeredAt', 'callId', 'callbackOn', 'direction', 'endedAt', 'managerName', 'outcome', 'outcomeSource', 'participants',
       'phone', 'recording', 'resultAt', 'resultByName', 'resultCode', 'resultEditable', 'startedAt', 'state', 'talkSeconds']::TEXT[]) x))
-    FROM jsonb_array_elements((SELECT f FROM t292_feed_a) -> 'calls') c),
+    FROM jsonb_array_elements((SELECT f FROM t293_feed_a) -> 'calls') c),
   'every row carries exactly the documented 18 keys');
-SELECT pg_temp.t292_assert(
+SELECT pg_temp.t293_assert(
   (SELECT f::TEXT NOT LIKE '%https%' AND f::TEXT NOT LIKE '%secret-recording%' AND f::TEXT NOT LIKE '%recording_link%'
       AND f::TEXT NOT LIKE '%client_phone%' AND f::TEXT NOT LIKE '%700000001%' AND f::TEXT NOT LIKE '%example.invalid%'
       AND f::TEXT NOT LIKE '%@%'
-    FROM t292_feed_a),
+    FROM t293_feed_a),
   'no recording link, no https text, no e-mail and no full phone number anywhere in the answer');
-SELECT pg_temp.t292_assert(
-  (pg_temp.t292_row((SELECT f FROM t292_feed_a), 1) ->> 'phone') = '+996 ••• 00 00 01'
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 1) ->> 'direction') = 'out'
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 1) ->> 'outcome') = 'answered'
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 1) ->> 'outcomeSource') = 'webhook'
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 1) ->> 'talkSeconds') = '125'
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 1) ->> 'managerName') = 'T292 Actor 2'
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 1) ->> 'recording') = 'available'
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 2) ->> 'recording') = 'none'
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 2) ->> 'managerName') IS NULL
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 2) ->> 'outcome') = 'missed'
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 2) ->> 'direction') = 'in'
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 9) ->> 'outcome') IS NULL
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 9) ->> 'state') = 'ringing',
+SELECT pg_temp.t293_assert(
+  (pg_temp.t293_row((SELECT f FROM t293_feed_a), 1) ->> 'phone') = '+996 ••• 00 00 01'
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 1) ->> 'direction') = 'out'
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 1) ->> 'outcome') = 'answered'
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 1) ->> 'outcomeSource') = 'webhook'
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 1) ->> 'talkSeconds') = '125'
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 1) ->> 'managerName') = 'T293 Actor 2'
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 1) ->> 'recording') = 'available'
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 2) ->> 'recording') = 'none'
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 2) ->> 'managerName') IS NULL
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 2) ->> 'outcome') = 'missed'
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 2) ->> 'direction') = 'in'
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 9) ->> 'outcome') IS NULL
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 9) ->> 'state') = 'ringing',
   'the row carries the masked phone, direction, outcome, talk time, manager and the recording state, and a ringing call has no outcome');
-SELECT pg_temp.t292_assert(
-  (pg_temp.t292_row((SELECT f FROM t292_feed_a), 2) -> 'participants')
-    = '[{"name": "T292 Actor 2", "state": "missed"}, {"name": "T292 Actor 3", "state": "missed"}]'::JSONB
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 7) -> 'participants') = '[{"name": "T292 Actor 2", "state": "completed"}]'::JSONB,
+SELECT pg_temp.t293_assert(
+  (pg_temp.t293_row((SELECT f FROM t293_feed_a), 2) -> 'participants')
+    = '[{"name": "T293 Actor 2", "state": "missed"}, {"name": "T293 Actor 3", "state": "missed"}]'::JSONB
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 7) -> 'participants') = '[{"name": "T293 Actor 2", "state": "completed"}]'::JSONB,
   'the participants are the legs with an employee, in leg order, name and state only');
-SELECT pg_temp.t292_assert(
-  (pg_temp.t292_row((SELECT f FROM t292_feed_a), 7) ->> 'startedAt') IS NOT NULL
-  AND pg_temp.t292_row((SELECT f FROM t292_feed_a), 7) IS NOT NULL
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 7) ->> 'direction') = 'in',
+SELECT pg_temp.t293_assert(
+  (pg_temp.t293_row((SELECT f FROM t293_feed_a), 7) ->> 'startedAt') IS NOT NULL
+  AND pg_temp.t293_row((SELECT f FROM t293_feed_a), 7) IS NOT NULL
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 7) ->> 'direction') = 'in',
   'the call from before the lead existed (no lead, same client) is in the feed');
-SELECT pg_temp.t292_assert(
-  (pg_temp.t292_row((SELECT f FROM t292_feed_a), 10) ->> 'resultCode') = 'reached'
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 10) ->> 'resultByName') = 'T292 Actor 2'
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 10) ->> 'resultAt') IS NOT NULL
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 10) ->> 'callbackOn') IS NULL
-  AND (pg_temp.t292_row((SELECT f FROM t292_feed_a), 1) ->> 'resultCode') IS NULL,
+SELECT pg_temp.t293_assert(
+  (pg_temp.t293_row((SELECT f FROM t293_feed_a), 10) ->> 'resultCode') = 'reached'
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 10) ->> 'resultByName') = 'T293 Actor 2'
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 10) ->> 'resultAt') IS NOT NULL
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 10) ->> 'callbackOn') IS NULL
+  AND (pg_temp.t293_row((SELECT f FROM t293_feed_a), 1) ->> 'resultCode') IS NULL,
   'a set result shows its code, author and time; an unset one shows nothing');
 -- A second read of the same lead is the same answer (STABLE, no side effect).
-SELECT pg_temp.t292_assert(pg_temp.t292_feed(2, 1) = (SELECT f FROM t292_feed_a), 'the read is repeatable');
+SELECT pg_temp.t293_assert(pg_temp.t293_feed(2, 1) = (SELECT f FROM t293_feed_a), 'the read is repeatable');
 
 -- ---------------------------------------------------------------------------
 -- 5. Visibility follows lead.read by lead.
 -- ---------------------------------------------------------------------------
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_code(pg_temp.t292_feed(4, 1)) = '42501'
-  AND pg_temp.t292_code(pg_temp.t292_feed(2, 2)) = '42501'
-  AND pg_temp.t292_code(pg_temp.t292_feed(7, 1)) = '42501'
-  AND pg_temp.t292_code(pg_temp.t292_feed(8, 1)) = '42501'
-  AND pg_temp.t292_code(pg_temp.t292_feed(9, 1)) = '42501'
-  AND pg_temp.t292_code(pg_temp.t292_feed(9, 10, '', 2)) = 'ok'
-  AND pg_temp.t292_code(pg_temp.t292_feed(1, 10)) = '42501',
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_code(pg_temp.t293_feed(4, 1)) = '42501'
+  AND pg_temp.t293_code(pg_temp.t293_feed(2, 2)) = '42501'
+  AND pg_temp.t293_code(pg_temp.t293_feed(7, 1)) = '42501'
+  AND pg_temp.t293_code(pg_temp.t293_feed(8, 1)) = '42501'
+  AND pg_temp.t293_code(pg_temp.t293_feed(9, 1)) = '42501'
+  AND pg_temp.t293_code(pg_temp.t293_feed(9, 10, '', 2)) = 'ok'
+  AND pg_temp.t293_code(pg_temp.t293_feed(1, 10)) = '42501',
   'manager B cannot read lead 1, manager A cannot read lead 2, a Student, a member without roles and another organization are refused, a lead of another organization asked in this one is refused');
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_order(pg_temp.t292_feed(1, 1)) = ARRAY[9, 1, 2, 6, 7, 10, 3, 11, 5, 12, 4]
-  AND pg_temp.t292_order(pg_temp.t292_feed(3, 1)) = ARRAY[9, 1, 2, 6, 7, 10, 3, 11, 5, 12, 4]
-  AND pg_temp.t292_order(pg_temp.t292_feed(5, 1)) = ARRAY[9, 1, 2, 6, 7, 10, 3, 11, 5, 12, 4]
-  AND pg_temp.t292_order(pg_temp.t292_feed(6, 1)) = ARRAY[9, 1, 2, 6, 7, 10, 3, 11, 5, 12, 4]
-  AND pg_temp.t292_order(pg_temp.t292_feed(4, 2)) = ARRAY[8, 14]
-  AND pg_temp.t292_order(pg_temp.t292_feed(5, 2)) = ARRAY[8, 14],
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_order(pg_temp.t293_feed(1, 1)) = ARRAY[9, 1, 2, 6, 7, 10, 3, 11, 5, 12, 4]
+  AND pg_temp.t293_order(pg_temp.t293_feed(3, 1)) = ARRAY[9, 1, 2, 6, 7, 10, 3, 11, 5, 12, 4]
+  AND pg_temp.t293_order(pg_temp.t293_feed(5, 1)) = ARRAY[9, 1, 2, 6, 7, 10, 3, 11, 5, 12, 4]
+  AND pg_temp.t293_order(pg_temp.t293_feed(6, 1)) = ARRAY[9, 1, 2, 6, 7, 10, 3, 11, 5, 12, 4]
+  AND pg_temp.t293_order(pg_temp.t293_feed(4, 2)) = ARRAY[8, 14]
+  AND pg_temp.t293_order(pg_temp.t293_feed(5, 2)) = ARRAY[8, 14],
   'the Admin, both department-A managers, the supervisor and the plain reader read lead 1; manager B and the supervisor read lead 2');
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_code(pg_temp.t292_as(1, format('SELECT platform.telephony_lead_calls_v1(%L::UUID, %L::UUID)',
-    pg_temp.t292_id(1), gen_random_uuid()))) = '42501',
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_code(pg_temp.t293_as(1, format('SELECT platform.telephony_lead_calls_v1(%L::UUID, %L::UUID)',
+    pg_temp.t293_id(1), gen_random_uuid()))) = '42501',
   'an unknown lead is refused like an unreadable one');
 -- Arguments.
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_code(pg_temp.t292_feed(2, 1, ', p_limit => 0')) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_feed(2, 1, ', p_limit => 101')) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_feed(2, 1, ', p_limit => NULL')) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_feed(2, 1, ', p_limit => 100')) = 'ok'
-  AND pg_temp.t292_code(pg_temp.t292_as(2, format('SELECT platform.telephony_lead_calls_v1(NULL::UUID, %L::UUID)', pg_temp.t292_id(5001)))) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_as(2, format('SELECT platform.telephony_lead_calls_v1(%L::UUID, NULL::UUID)', pg_temp.t292_id(1)))) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_feed(2, 1, format(', p_since => %L::TIMESTAMPTZ, p_until => %L::TIMESTAMPTZ',
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_code(pg_temp.t293_feed(2, 1, ', p_limit => 0')) = '22023'
+  AND pg_temp.t293_code(pg_temp.t293_feed(2, 1, ', p_limit => 101')) = '22023'
+  AND pg_temp.t293_code(pg_temp.t293_feed(2, 1, ', p_limit => NULL')) = '22023'
+  AND pg_temp.t293_code(pg_temp.t293_feed(2, 1, ', p_limit => 100')) = 'ok'
+  AND pg_temp.t293_code(pg_temp.t293_as(2, format('SELECT platform.telephony_lead_calls_v1(NULL::UUID, %L::UUID)', pg_temp.t293_id(5001)))) = '22023'
+  AND pg_temp.t293_code(pg_temp.t293_as(2, format('SELECT platform.telephony_lead_calls_v1(%L::UUID, NULL::UUID)', pg_temp.t293_id(1)))) = '22023'
+  AND pg_temp.t293_code(pg_temp.t293_feed(2, 1, format(', p_since => %L::TIMESTAMPTZ, p_until => %L::TIMESTAMPTZ',
     clock_timestamp(), clock_timestamp() - INTERVAL '1 hour'))) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_feed(2, 1, format(', p_since => %L::TIMESTAMPTZ, p_until => %L::TIMESTAMPTZ',
+  AND pg_temp.t293_code(pg_temp.t293_feed(2, 1, format(', p_since => %L::TIMESTAMPTZ, p_until => %L::TIMESTAMPTZ',
     DATE '2031-01-01', DATE '2031-01-01'))) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_feed(2, 1, ', p_since => ''infinity''::TIMESTAMPTZ')) = '22023',
+  AND pg_temp.t293_code(pg_temp.t293_feed(2, 1, ', p_since => ''infinity''::TIMESTAMPTZ')) = '22023',
   'a limit outside 1..100, NULL ids, an empty or inverted window and an infinite bound are refused with 22023');
 -- Limit and the window.
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_order(pg_temp.t292_feed(2, 1, ', p_limit => 3')) = ARRAY[9, 1, 2]
-  AND pg_temp.t292_feed(2, 1, ', p_limit => 3') ->> 'hasMore' = 'true'
-  AND pg_temp.t292_feed(2, 1, ', p_limit => 11') ->> 'hasMore' = 'false'
-  AND jsonb_array_length(pg_temp.t292_feed(2, 1, ', p_limit => 11') -> 'calls') = 11
-  AND pg_temp.t292_feed(2, 1, ', p_limit => 10') ->> 'hasMore' = 'true'
-  AND jsonb_array_length(pg_temp.t292_feed(2, 1, ', p_limit => 10') -> 'calls') = 10,
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_order(pg_temp.t293_feed(2, 1, ', p_limit => 3')) = ARRAY[9, 1, 2]
+  AND pg_temp.t293_feed(2, 1, ', p_limit => 3') ->> 'hasMore' = 'true'
+  AND pg_temp.t293_feed(2, 1, ', p_limit => 11') ->> 'hasMore' = 'false'
+  AND jsonb_array_length(pg_temp.t293_feed(2, 1, ', p_limit => 11') -> 'calls') = 11
+  AND pg_temp.t293_feed(2, 1, ', p_limit => 10') ->> 'hasMore' = 'true'
+  AND jsonb_array_length(pg_temp.t293_feed(2, 1, ', p_limit => 10') -> 'calls') = 10,
   'the limit cuts the newest first and hasMore is true exactly when more rows exist');
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_order(pg_temp.t292_feed(2, 1, format(', p_since => %L::TIMESTAMPTZ, p_until => %L::TIMESTAMPTZ',
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_order(pg_temp.t293_feed(2, 1, format(', p_since => %L::TIMESTAMPTZ, p_until => %L::TIMESTAMPTZ',
     clock_timestamp() - INTERVAL '270 minutes', clock_timestamp() - INTERVAL '60 minutes'))) = ARRAY[1, 2, 6]
-  AND pg_temp.t292_order(pg_temp.t292_feed(2, 1, format(', p_until => %L::TIMESTAMPTZ',
+  AND pg_temp.t293_order(pg_temp.t293_feed(2, 1, format(', p_until => %L::TIMESTAMPTZ',
     clock_timestamp() - INTERVAL '36 hours'))) = ARRAY[11, 5, 12, 4]
-  AND pg_temp.t292_order(pg_temp.t292_feed(2, 1, format(', p_since => %L::TIMESTAMPTZ',
+  AND pg_temp.t293_order(pg_temp.t293_feed(2, 1, format(', p_since => %L::TIMESTAMPTZ',
     clock_timestamp() - INTERVAL '270 minutes'))) = ARRAY[9, 1, 2, 6],
   'the window is «from» inclusive and «until» exclusive and combines with the rest');
 -- The exact boundary: a call started exactly at «until» is in the next window, exactly at «since» in this one.
-SELECT started_at AS t292_edge FROM platform_private.telephony_calls WHERE id = pg_temp.t292_id(7006) \gset
-SELECT pg_temp.t292_assert(
-  6 = ANY (pg_temp.t292_order(pg_temp.t292_feed(2, 1, format(', p_since => %L::TIMESTAMPTZ', :'t292_edge'))))
-  AND NOT 6 = ANY (pg_temp.t292_order(pg_temp.t292_feed(2, 1, format(', p_until => %L::TIMESTAMPTZ', :'t292_edge'))))
-  AND 6 = ANY (pg_temp.t292_order(pg_temp.t292_feed(2, 1, format(', p_until => %L::TIMESTAMPTZ',
-    :'t292_edge'::TIMESTAMPTZ + INTERVAL '1 microsecond')))),
+SELECT started_at AS t293_edge FROM platform_private.telephony_calls WHERE id = pg_temp.t293_id(7006) \gset
+SELECT pg_temp.t293_assert(
+  6 = ANY (pg_temp.t293_order(pg_temp.t293_feed(2, 1, format(', p_since => %L::TIMESTAMPTZ', :'t293_edge'))))
+  AND NOT 6 = ANY (pg_temp.t293_order(pg_temp.t293_feed(2, 1, format(', p_until => %L::TIMESTAMPTZ', :'t293_edge'))))
+  AND 6 = ANY (pg_temp.t293_order(pg_temp.t293_feed(2, 1, format(', p_until => %L::TIMESTAMPTZ',
+    :'t293_edge'::TIMESTAMPTZ + INTERVAL '1 microsecond')))),
   'a call at the exact «until» belongs to the older window and a call at the exact «since» to this one');
 
 -- ---------------------------------------------------------------------------
 -- 6. Who may set a result.
 -- ---------------------------------------------------------------------------
-UPDATE platform_private.telephony_settings SET dial_enabled = TRUE WHERE organization_id = pg_temp.t292_id(1);
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_feed(2, 1) ->> 'canSetResult' = 'true'
-  AND pg_temp.t292_feed(3, 1) ->> 'canSetResult' = 'true'
-  AND pg_temp.t292_feed(5, 1) ->> 'canSetResult' = 'true'
-  AND pg_temp.t292_feed(1, 1) ->> 'canSetResult' = 'true'
-  AND pg_temp.t292_feed(6, 1) ->> 'canSetResult' = 'false',
+UPDATE platform_private.telephony_settings SET dial_enabled = TRUE WHERE organization_id = pg_temp.t293_id(1);
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_feed(2, 1) ->> 'canSetResult' = 'true'
+  AND pg_temp.t293_feed(3, 1) ->> 'canSetResult' = 'true'
+  AND pg_temp.t293_feed(5, 1) ->> 'canSetResult' = 'true'
+  AND pg_temp.t293_feed(1, 1) ->> 'canSetResult' = 'true'
+  AND pg_temp.t293_feed(6, 1) ->> 'canSetResult' = 'false',
   'canSetResult is true for the manager, the supervisor and the Admin and false for a reader without the dial right');
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_editable(pg_temp.t292_feed(2, 1)) = ARRAY[1, 7, 10],
-  'manager A may set a result on his answered calls inside the windows: ' || pg_temp.t292_editable(pg_temp.t292_feed(2, 1))::TEXT);
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_editable(pg_temp.t292_feed(3, 1)) = ARRAY[3, 12],
-  'manager A2 may set a result on the two calls he answered: ' || pg_temp.t292_editable(pg_temp.t292_feed(3, 1))::TEXT);
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_editable(pg_temp.t292_feed(5, 1)) = ARRAY[1, 3, 7, 10, 12]
-  AND pg_temp.t292_editable(pg_temp.t292_feed(1, 1)) = ARRAY[1, 3, 7, 10, 12],
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_editable(pg_temp.t293_feed(2, 1)) = ARRAY[1, 7, 10],
+  'manager A may set a result on his answered calls inside the windows: ' || pg_temp.t293_editable(pg_temp.t293_feed(2, 1))::TEXT);
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_editable(pg_temp.t293_feed(3, 1)) = ARRAY[3, 12],
+  'manager A2 may set a result on the two calls he answered: ' || pg_temp.t293_editable(pg_temp.t293_feed(3, 1))::TEXT);
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_editable(pg_temp.t293_feed(5, 1)) = ARRAY[1, 3, 7, 10, 12]
+  AND pg_temp.t293_editable(pg_temp.t293_feed(1, 1)) = ARRAY[1, 3, 7, 10, 12],
   'the supervisor and the Admin may set a result on every visible answered call inside the windows: '
-    || pg_temp.t292_editable(pg_temp.t292_feed(5, 1))::TEXT);
-SELECT pg_temp.t292_assert(
-  cardinality(pg_temp.t292_editable(pg_temp.t292_feed(6, 1))) = 0
-  AND pg_temp.t292_editable(pg_temp.t292_feed(4, 2)) = ARRAY[8],
+    || pg_temp.t293_editable(pg_temp.t293_feed(5, 1))::TEXT);
+SELECT pg_temp.t293_assert(
+  cardinality(pg_temp.t293_editable(pg_temp.t293_feed(6, 1))) = 0
+  AND pg_temp.t293_editable(pg_temp.t293_feed(4, 2)) = ARRAY[8],
   'a plain reader may set nothing; manager B may set the result of the call he answered on his lead');
 -- The windows are closed by age: call 4 (10 d), call 5 (backfill), call 11 (result 30 h ago), unanswered 2, 6, 9.
-SELECT pg_temp.t292_assert(
-  NOT (ARRAY[2, 4, 5, 6, 9, 11] && pg_temp.t292_editable(pg_temp.t292_feed(5, 1))),
+SELECT pg_temp.t293_assert(
+  NOT (ARRAY[2, 4, 5, 6, 9, 11] && pg_temp.t293_editable(pg_temp.t293_feed(5, 1))),
   'unanswered, backfill, over-age and over-changed calls are never editable, not even for the supervisor');
 
 -- ---------------------------------------------------------------------------
 -- 7. The command: errors first (nothing is written by any of them).
 -- ---------------------------------------------------------------------------
-CREATE TEMP TABLE t292_before AS
+CREATE TEMP TABLE t293_before AS
   SELECT c.id, to_jsonb(c) AS row_state FROM platform_private.telephony_calls c;
-SELECT count(*) AS t292_audit_before FROM platform.audit_events WHERE action = 'telephony.result.set' \gset
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_code(pg_temp.t292_result(2, 1, 'no_answer')) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_result(2, 1, 'busy')) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_result(2, 1, NULL)) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_result(2, 1, 'callback')) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_result(2, 1, 'reached', '2099-01-01')) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_result(2, 1, 'not_interested', '2099-01-01')) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_as(2, format('SELECT platform.telephony_set_result_v1(NULL::UUID, %L::UUID, ''reached'', NULL)',
-    pg_temp.t292_id(7001)))) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_as(2, format('SELECT platform.telephony_set_result_v1(%L::UUID, NULL::UUID, ''reached'', NULL)',
-    pg_temp.t292_id(1)))) = '22023',
+SELECT count(*) AS t293_audit_before FROM platform.audit_events WHERE action = 'telephony.result.set' \gset
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_code(pg_temp.t293_result(2, 1, 'no_answer')) = '22023'
+  AND pg_temp.t293_code(pg_temp.t293_result(2, 1, 'busy')) = '22023'
+  AND pg_temp.t293_code(pg_temp.t293_result(2, 1, NULL)) = '22023'
+  AND pg_temp.t293_code(pg_temp.t293_result(2, 1, 'callback')) = '22023'
+  AND pg_temp.t293_code(pg_temp.t293_result(2, 1, 'reached', '2099-01-01')) = '22023'
+  AND pg_temp.t293_code(pg_temp.t293_result(2, 1, 'not_interested', '2099-01-01')) = '22023'
+  AND pg_temp.t293_code(pg_temp.t293_as(2, format('SELECT platform.telephony_set_result_v1(NULL::UUID, %L::UUID, ''reached'', NULL)',
+    pg_temp.t293_id(7001)))) = '22023'
+  AND pg_temp.t293_code(pg_temp.t293_as(2, format('SELECT platform.telephony_set_result_v1(%L::UUID, NULL::UUID, ''reached'', NULL)',
+    pg_temp.t293_id(1)))) = '22023',
   'a code outside the three presses (no_answer is the system''s), a missing code, a callback without a day and a day without a callback are refused with 22023');
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_code(pg_temp.t292_result(6, 1, 'reached')) = '42501'
-  AND pg_temp.t292_code(pg_temp.t292_result(7, 1, 'reached')) = '42501'
-  AND pg_temp.t292_code(pg_temp.t292_result(8, 1, 'reached')) = '42501'
-  AND pg_temp.t292_code(pg_temp.t292_result(9, 1, 'reached')) = '42501',
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_code(pg_temp.t293_result(6, 1, 'reached')) = '42501'
+  AND pg_temp.t293_code(pg_temp.t293_result(7, 1, 'reached')) = '42501'
+  AND pg_temp.t293_code(pg_temp.t293_result(8, 1, 'reached')) = '42501'
+  AND pg_temp.t293_code(pg_temp.t293_result(9, 1, 'reached')) = '42501',
   'a reader without the dial right, a Student, a member without roles and another organization''s Admin are refused with 42501');
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_code(pg_temp.t292_result(4, 1, 'reached')) = 'P0002'
-  AND pg_temp.t292_code(pg_temp.t292_result(4, 7, 'reached')) = 'P0002'
-  AND pg_temp.t292_code(pg_temp.t292_result(2, 8, 'reached')) = 'P0002'
-  AND pg_temp.t292_code(pg_temp.t292_result(1, 13, 'reached')) = 'P0002'
-  AND pg_temp.t292_code(pg_temp.t292_result(1, 20, 'reached')) = 'P0002'
-  AND pg_temp.t292_code(pg_temp.t292_result(1, 999, 'reached')) = 'P0002'
-  AND pg_temp.t292_result(4, 1, 'reached') ->> 'error' = (pg_temp.t292_result(1, 999, 'reached') ->> 'error'),
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_code(pg_temp.t293_result(4, 1, 'reached')) = 'P0002'
+  AND pg_temp.t293_code(pg_temp.t293_result(4, 7, 'reached')) = 'P0002'
+  AND pg_temp.t293_code(pg_temp.t293_result(2, 8, 'reached')) = 'P0002'
+  AND pg_temp.t293_code(pg_temp.t293_result(1, 13, 'reached')) = 'P0002'
+  AND pg_temp.t293_code(pg_temp.t293_result(1, 20, 'reached')) = 'P0002'
+  AND pg_temp.t293_code(pg_temp.t293_result(1, 999, 'reached')) = 'P0002'
+  AND pg_temp.t293_result(4, 1, 'reached') ->> 'error' = (pg_temp.t293_result(1, 999, 'reached') ->> 'error'),
   'a call on a lead the caller cannot read, a call with no lead of a client with none, a call of another organization and an unknown call all answer P0002 with the same text');
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_code(pg_temp.t292_result(2, 3, 'reached')) = '42501'
-  AND pg_temp.t292_code(pg_temp.t292_result(3, 1, 'reached')) = '42501'
-  AND pg_temp.t292_code(pg_temp.t292_result(2, 12, 'reached')) = '42501',
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_code(pg_temp.t293_result(2, 3, 'reached')) = '42501'
+  AND pg_temp.t293_code(pg_temp.t293_result(3, 1, 'reached')) = '42501'
+  AND pg_temp.t293_code(pg_temp.t293_result(2, 12, 'reached')) = '42501',
   'a manager cannot set the result of a call another manager answered, nor of one where his own leg was only cancelled');
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_result(5, 6, 'reached') ->> 'error' = 'PT409:telephony_result_not_answered'
-  AND pg_temp.t292_result(5, 2, 'reached') ->> 'error' = 'PT409:telephony_result_not_answered'
-  AND pg_temp.t292_result(5, 9, 'reached') ->> 'error' = 'PT409:telephony_result_not_answered'
-  AND pg_temp.t292_result(1, 6, 'reached') ->> 'error' = 'PT409:telephony_result_not_answered',
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_result(5, 6, 'reached') ->> 'error' = 'PT409:telephony_result_not_answered'
+  AND pg_temp.t293_result(5, 2, 'reached') ->> 'error' = 'PT409:telephony_result_not_answered'
+  AND pg_temp.t293_result(5, 9, 'reached') ->> 'error' = 'PT409:telephony_result_not_answered'
+  AND pg_temp.t293_result(1, 6, 'reached') ->> 'error' = 'PT409:telephony_result_not_answered',
   'an unanswered call (busy, missed, ringing) takes no result: PT409 «not_answered», even from the supervisor and the Admin');
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_result(5, 4, 'reached') ->> 'error' = 'PT409:telephony_result_closed'
-  AND pg_temp.t292_result(5, 5, 'reached') ->> 'error' = 'PT409:telephony_result_closed'
-  AND pg_temp.t292_result(5, 11, 'not_interested') ->> 'error' = 'PT409:telephony_result_closed'
-  AND pg_temp.t292_result(2, 4, 'reached') ->> 'error' = 'PT409:telephony_result_closed',
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_result(5, 4, 'reached') ->> 'error' = 'PT409:telephony_result_closed'
+  AND pg_temp.t293_result(5, 5, 'reached') ->> 'error' = 'PT409:telephony_result_closed'
+  AND pg_temp.t293_result(5, 11, 'not_interested') ->> 'error' = 'PT409:telephony_result_closed'
+  AND pg_temp.t293_result(2, 4, 'reached') ->> 'error' = 'PT409:telephony_result_closed',
   'a call older than 7 days, a primary-import call and a result older than 24 hours are closed: PT409 «closed»');
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_code(pg_temp.t292_result(2, 1, 'callback', ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE - 1)::TEXT)) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_result(2, 1, 'callback', ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 366)::TEXT)) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_result(2, 1, 'callback', 'infinity')) = '22023'
-  AND pg_temp.t292_code(pg_temp.t292_result(2, 1, 'callback', '-infinity')) = '22023',
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_code(pg_temp.t293_result(2, 1, 'callback', ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE - 1)::TEXT)) = '22023'
+  AND pg_temp.t293_code(pg_temp.t293_result(2, 1, 'callback', ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 366)::TEXT)) = '22023'
+  AND pg_temp.t293_code(pg_temp.t293_result(2, 1, 'callback', 'infinity')) = '22023'
+  AND pg_temp.t293_code(pg_temp.t293_result(2, 1, 'callback', '-infinity')) = '22023',
   'a callback day in the past (Bishkek), more than a year ahead or infinite is refused with 22023');
-SELECT pg_temp.t292_assert(
-  (SELECT count(*) FROM platform_private.telephony_calls c JOIN t292_before b ON b.id = c.id WHERE to_jsonb(c) = b.row_state)
+SELECT pg_temp.t293_assert(
+  (SELECT count(*) FROM platform_private.telephony_calls c JOIN t293_before b ON b.id = c.id WHERE to_jsonb(c) = b.row_state)
     = (SELECT count(*) FROM platform_private.telephony_calls)
-  AND (SELECT count(*) FROM platform.audit_events WHERE action = 'telephony.result.set') = :t292_audit_before,
+  AND (SELECT count(*) FROM platform.audit_events WHERE action = 'telephony.result.set') = :t293_audit_before,
   'none of the refusals changed a call or wrote a journal row');
 
 -- ---------------------------------------------------------------------------
 -- 7b. The command: saved, unchanged, changed.
 -- ---------------------------------------------------------------------------
-SELECT pg_temp.t292_result(2, 1, 'reached') AS t292_saved1 \gset
-SELECT pg_temp.t292_assert(:'t292_saved1'::JSONB ->> 'status' = 'saved' AND :'t292_saved1'::JSONB ->> 'resultCode' = 'reached'
-  AND :'t292_saved1'::JSONB ->> 'callbackOn' IS NULL AND :'t292_saved1'::JSONB ->> 'callId' = pg_temp.t292_id(7001)::TEXT,
+SELECT pg_temp.t293_result(2, 1, 'reached') AS t293_saved1 \gset
+SELECT pg_temp.t293_assert(:'t293_saved1'::JSONB ->> 'status' = 'saved' AND :'t293_saved1'::JSONB ->> 'resultCode' = 'reached'
+  AND :'t293_saved1'::JSONB ->> 'callbackOn' IS NULL AND :'t293_saved1'::JSONB ->> 'callId' = pg_temp.t293_id(7001)::TEXT,
   'manager A presses «Дозвонился»: saved');
-SELECT pg_temp.t292_assert(
-  (SELECT c.result_code = 'reached' AND c.result_by = pg_temp.t292_id(302) AND c.result_callback_on IS NULL
+SELECT pg_temp.t293_assert(
+  (SELECT c.result_code = 'reached' AND c.result_by = pg_temp.t293_id(302) AND c.result_callback_on IS NULL
       AND c.result_at > clock_timestamp() - INTERVAL '1 minute' AND c.updated_at >= c.result_at
-    FROM platform_private.telephony_calls c WHERE c.id = pg_temp.t292_id(7001)),
+    FROM platform_private.telephony_calls c WHERE c.id = pg_temp.t293_id(7001)),
   'the call row carries the code, the author, the time and no day');
-SELECT pg_temp.t292_assert(
+SELECT pg_temp.t293_assert(
   (SELECT to_jsonb(c) - 'result_code' - 'result_by' - 'result_at' - 'result_callback_on' - 'updated_at'
       = b.row_state - 'result_code' - 'result_by' - 'result_at' - 'result_callback_on' - 'updated_at'
-    FROM platform_private.telephony_calls c JOIN t292_before b ON b.id = c.id WHERE c.id = pg_temp.t292_id(7001)),
+    FROM platform_private.telephony_calls c JOIN t293_before b ON b.id = c.id WHERE c.id = pg_temp.t293_id(7001)),
   'nothing but the result columns and updated_at changed in the call row');
-SELECT result_at AS t292_result_at FROM platform_private.telephony_calls WHERE id = pg_temp.t292_id(7001) \gset
-SELECT count(*) AS t292_audit_1 FROM platform.audit_events WHERE action = 'telephony.result.set' \gset
-SELECT pg_temp.t292_assert(:t292_audit_1 = :t292_audit_before + 1, 'one journal row for the first press');
+SELECT result_at AS t293_result_at FROM platform_private.telephony_calls WHERE id = pg_temp.t293_id(7001) \gset
+SELECT count(*) AS t293_audit_1 FROM platform.audit_events WHERE action = 'telephony.result.set' \gset
+SELECT pg_temp.t293_assert(:t293_audit_1 = :t293_audit_before + 1, 'one journal row for the first press');
 -- The same press again changes nothing and writes nothing.
-SELECT pg_temp.t292_result(2, 1, 'reached') AS t292_again \gset
-SELECT pg_temp.t292_assert(:'t292_again'::JSONB ->> 'status' = 'unchanged'
-  AND (SELECT result_at = :'t292_result_at'::TIMESTAMPTZ FROM platform_private.telephony_calls WHERE id = pg_temp.t292_id(7001))
-  AND (SELECT count(*) FROM platform.audit_events WHERE action = 'telephony.result.set') = :t292_audit_1,
+SELECT pg_temp.t293_result(2, 1, 'reached') AS t293_again \gset
+SELECT pg_temp.t293_assert(:'t293_again'::JSONB ->> 'status' = 'unchanged'
+  AND (SELECT result_at = :'t293_result_at'::TIMESTAMPTZ FROM platform_private.telephony_calls WHERE id = pg_temp.t293_id(7001))
+  AND (SELECT count(*) FROM platform.audit_events WHERE action = 'telephony.result.set') = :t293_audit_1,
   'pressing the same result again answers «unchanged», keeps the time and writes no journal row');
 -- Change it to «Перезвонить» with a day (tomorrow, Bishkek).
-SELECT ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 1)::TEXT AS t292_tomorrow \gset
-SELECT pg_temp.t292_result(2, 1, 'callback', :'t292_tomorrow') AS t292_cb \gset
-SELECT pg_temp.t292_assert(:'t292_cb'::JSONB ->> 'status' = 'saved' AND :'t292_cb'::JSONB ->> 'callbackOn' = :'t292_tomorrow'
-  AND (SELECT c.result_code = 'callback' AND c.result_callback_on = :'t292_tomorrow'::DATE
-    FROM platform_private.telephony_calls c WHERE c.id = pg_temp.t292_id(7001)),
+SELECT ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 1)::TEXT AS t293_tomorrow \gset
+SELECT pg_temp.t293_result(2, 1, 'callback', :'t293_tomorrow') AS t293_cb \gset
+SELECT pg_temp.t293_assert(:'t293_cb'::JSONB ->> 'status' = 'saved' AND :'t293_cb'::JSONB ->> 'callbackOn' = :'t293_tomorrow'
+  AND (SELECT c.result_code = 'callback' AND c.result_callback_on = :'t293_tomorrow'::DATE
+    FROM platform_private.telephony_calls c WHERE c.id = pg_temp.t293_id(7001)),
   '«Перезвонить» with a day is saved and the day is stored');
-SELECT pg_temp.t292_assert(pg_temp.t292_result(2, 1, 'callback', :'t292_tomorrow') ->> 'status' = 'unchanged',
+SELECT pg_temp.t293_assert(pg_temp.t293_result(2, 1, 'callback', :'t293_tomorrow') ->> 'status' = 'unchanged',
   'the same callback day again is «unchanged»');
-SELECT ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 3)::TEXT AS t292_later \gset
-SELECT pg_temp.t292_result(2, 1, 'callback', :'t292_later') AS t292_cb2 \gset
-SELECT pg_temp.t292_assert(:'t292_cb2'::JSONB ->> 'status' = 'saved'
-  AND (SELECT c.result_callback_on = :'t292_later'::DATE FROM platform_private.telephony_calls c WHERE c.id = pg_temp.t292_id(7001)),
+SELECT ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 3)::TEXT AS t293_later \gset
+SELECT pg_temp.t293_result(2, 1, 'callback', :'t293_later') AS t293_cb2 \gset
+SELECT pg_temp.t293_assert(:'t293_cb2'::JSONB ->> 'status' = 'saved'
+  AND (SELECT c.result_callback_on = :'t293_later'::DATE FROM platform_private.telephony_calls c WHERE c.id = pg_temp.t293_id(7001)),
   'another day for «Перезвонить» is a change');
-SELECT pg_temp.t292_result(2, 1, 'not_interested') AS t292_ni \gset
-SELECT pg_temp.t292_assert(:'t292_ni'::JSONB ->> 'status' = 'saved'
+SELECT pg_temp.t293_result(2, 1, 'not_interested') AS t293_ni \gset
+SELECT pg_temp.t293_assert(:'t293_ni'::JSONB ->> 'status' = 'saved'
   AND (SELECT c.result_code = 'not_interested' AND c.result_callback_on IS NULL
-    FROM platform_private.telephony_calls c WHERE c.id = pg_temp.t292_id(7001)),
+    FROM platform_private.telephony_calls c WHERE c.id = pg_temp.t293_id(7001)),
   '«Не интересно» replaces the callback and clears its day');
 -- Today (Bishkek) is allowed; the last allowed day is today + 365.
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_result(2, 7, 'callback', ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE)::TEXT) ->> 'status' = 'saved'
-  AND pg_temp.t292_result(2, 7, 'callback', ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 365)::TEXT) ->> 'status' = 'saved',
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_result(2, 7, 'callback', ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE)::TEXT) ->> 'status' = 'saved'
+  AND pg_temp.t293_result(2, 7, 'callback', ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 365)::TEXT) ->> 'status' = 'saved',
   'today and today + 365 are valid callback days');
 -- The call before the lead existed takes a result for a reader of the client''s lead.
-SELECT pg_temp.t292_assert(
-  (SELECT c.lead_id IS NULL AND c.result_code = 'callback' FROM platform_private.telephony_calls c WHERE c.id = pg_temp.t292_id(7007)),
+SELECT pg_temp.t293_assert(
+  (SELECT c.lead_id IS NULL AND c.result_code = 'callback' FROM platform_private.telephony_calls c WHERE c.id = pg_temp.t293_id(7007)),
   'the result of the call without a lead is stored on that call');
 -- The supervisor and the Admin set results on other managers'' calls; manager A2 on his own.
-SELECT pg_temp.t292_result(5, 3, 'reached') AS t292_sup \gset
-SELECT pg_temp.t292_assert(:'t292_sup'::JSONB ->> 'status' = 'saved'
-  AND (SELECT c.result_by = pg_temp.t292_id(305) FROM platform_private.telephony_calls c WHERE c.id = pg_temp.t292_id(7003)),
+SELECT pg_temp.t293_result(5, 3, 'reached') AS t293_sup \gset
+SELECT pg_temp.t293_assert(:'t293_sup'::JSONB ->> 'status' = 'saved'
+  AND (SELECT c.result_by = pg_temp.t293_id(305) FROM platform_private.telephony_calls c WHERE c.id = pg_temp.t293_id(7003)),
   'the supervisor sets the result of a manager''s call and is its author');
-SELECT pg_temp.t292_result(1, 12, 'callback', ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE)::TEXT) AS t292_adm \gset
-SELECT pg_temp.t292_assert(:'t292_adm'::JSONB ->> 'status' = 'saved'
-  AND (SELECT c.result_by = pg_temp.t292_id(301) AND c.result_code = 'callback'
-    FROM platform_private.telephony_calls c WHERE c.id = pg_temp.t292_id(7012)),
+SELECT pg_temp.t293_result(1, 12, 'callback', ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE)::TEXT) AS t293_adm \gset
+SELECT pg_temp.t293_assert(:'t293_adm'::JSONB ->> 'status' = 'saved'
+  AND (SELECT c.result_by = pg_temp.t293_id(301) AND c.result_code = 'callback'
+    FROM platform_private.telephony_calls c WHERE c.id = pg_temp.t293_id(7012)),
   'the Admin sets a callback on a manager''s call');
-SELECT pg_temp.t292_result(3, 12, 'reached') AS t292_a2 \gset
-SELECT pg_temp.t292_assert(:'t292_a2'::JSONB ->> 'status' = 'saved'
-  AND (SELECT c.result_by = pg_temp.t292_id(303) AND c.result_callback_on IS NULL
-    FROM platform_private.telephony_calls c WHERE c.id = pg_temp.t292_id(7012)),
+SELECT pg_temp.t293_result(3, 12, 'reached') AS t293_a2 \gset
+SELECT pg_temp.t293_assert(:'t293_a2'::JSONB ->> 'status' = 'saved'
+  AND (SELECT c.result_by = pg_temp.t293_id(303) AND c.result_callback_on IS NULL
+    FROM platform_private.telephony_calls c WHERE c.id = pg_temp.t293_id(7012)),
   'the manager of the call changes the Admin''s press');
 -- Manager B sets the result of the call he answered on his own lead; manager A cannot touch it.
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_result(4, 8, 'not_interested') ->> 'status' = 'saved'
-  AND pg_temp.t292_code(pg_temp.t292_result(2, 8, 'reached')) = 'P0002',
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_result(4, 8, 'not_interested') ->> 'status' = 'saved'
+  AND pg_temp.t293_code(pg_temp.t293_result(2, 8, 'reached')) = 'P0002',
   'manager B sets his own call; manager A, who cannot read that lead, sees P0002');
 -- The feed reflects the presses.
-SELECT pg_temp.t292_assert(
-  (pg_temp.t292_row(pg_temp.t292_feed(2, 1), 1) ->> 'resultCode') = 'not_interested'
-  AND (pg_temp.t292_row(pg_temp.t292_feed(2, 1), 1) ->> 'resultByName') = 'T292 Actor 2'
-  AND (pg_temp.t292_row(pg_temp.t292_feed(2, 1), 7) ->> 'resultCode') = 'callback'
-  AND (pg_temp.t292_row(pg_temp.t292_feed(2, 1), 7) ->> 'callbackOn') = ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 365)::TEXT
-  AND (pg_temp.t292_row(pg_temp.t292_feed(2, 1), 3) ->> 'resultByName') = 'T292 Actor 5',
+SELECT pg_temp.t293_assert(
+  (pg_temp.t293_row(pg_temp.t293_feed(2, 1), 1) ->> 'resultCode') = 'not_interested'
+  AND (pg_temp.t293_row(pg_temp.t293_feed(2, 1), 1) ->> 'resultByName') = 'T293 Actor 2'
+  AND (pg_temp.t293_row(pg_temp.t293_feed(2, 1), 7) ->> 'resultCode') = 'callback'
+  AND (pg_temp.t293_row(pg_temp.t293_feed(2, 1), 7) ->> 'callbackOn') = ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 365)::TEXT
+  AND (pg_temp.t293_row(pg_temp.t293_feed(2, 1), 3) ->> 'resultByName') = 'T293 Actor 5',
   'the feed shows the stored results, authors and callback day');
 -- The audit rows: kind, resource, actor, and no phone number or name in the text.
-SELECT pg_temp.t292_assert(
-  (SELECT count(*) FROM platform.audit_events e WHERE e.action = 'telephony.result.set') = :t292_audit_before + 10
+SELECT pg_temp.t293_assert(
+  (SELECT count(*) FROM platform.audit_events e WHERE e.action = 'telephony.result.set') = :t293_audit_before + 10
   AND NOT EXISTS (SELECT 1 FROM platform.audit_events e WHERE e.action = 'telephony.result.set'
     AND NOT (e.resource_type = 'telephony_call' AND e.actor_kind = 'user' AND e.actor_principal LIKE 'auth:%'
       AND e.actor_membership_id IS NOT NULL AND e.actor_profile_id IS NOT NULL AND btrim(e.reason) <> ''
-      AND e.organization_id = pg_temp.t292_id(1)))
+      AND e.organization_id = pg_temp.t293_id(1)))
   AND NOT EXISTS (SELECT 1 FROM platform.audit_events e WHERE e.action = 'telephony.result.set'
-    AND (to_jsonb(e)::TEXT LIKE '%70000000%' OR to_jsonb(e)::TEXT LIKE '%T292 Actor%' OR to_jsonb(e)::TEXT LIKE '%T292 Client%'
+    AND (to_jsonb(e)::TEXT LIKE '%70000000%' OR to_jsonb(e)::TEXT LIKE '%T293 Actor%' OR to_jsonb(e)::TEXT LIKE '%T293 Client%'
       OR to_jsonb(e)::TEXT LIKE '%https%')),
   'ten journal rows (one per real change), all telephony_call, by a user principal, no number, no name, no link');
-SELECT pg_temp.t292_assert(
+SELECT pg_temp.t293_assert(
   (SELECT e.before_state ->> 'resultCode' = 'reached' AND e.after_state ->> 'resultCode' = 'callback'
-      AND e.after_state ->> 'callbackOn' = :'t292_tomorrow' AND e.after_state ->> 'direction' = 'out'
-      AND e.after_state ->> 'leadId' = pg_temp.t292_id(5001)::TEXT
-      AND e.actor_membership_id = pg_temp.t292_id(302) AND e.resource_id = pg_temp.t292_id(7001)
-    FROM platform.audit_events e WHERE e.action = 'telephony.result.set' AND e.after_state ->> 'callbackOn' = :'t292_tomorrow'),
+      AND e.after_state ->> 'callbackOn' = :'t293_tomorrow' AND e.after_state ->> 'direction' = 'out'
+      AND e.after_state ->> 'leadId' = pg_temp.t293_id(5001)::TEXT
+      AND e.actor_membership_id = pg_temp.t293_id(302) AND e.resource_id = pg_temp.t293_id(7001)
+    FROM platform.audit_events e WHERE e.action = 'telephony.result.set' AND e.after_state ->> 'callbackOn' = :'t293_tomorrow'),
   'a change journals the old and the new code, the day, the direction and the lead id');
 -- The change window of 24 hours: aged past it, the press is refused and the row is no longer editable.
-UPDATE platform_private.telephony_calls SET result_at = clock_timestamp() - INTERVAL '25 hours' WHERE id = pg_temp.t292_id(7001);
-SELECT pg_temp.t292_assert(
-  pg_temp.t292_result(2, 1, 'reached') ->> 'error' = 'PT409:telephony_result_closed'
-  AND NOT 1 = ANY (pg_temp.t292_editable(pg_temp.t292_feed(2, 1)))
-  AND pg_temp.t292_result(5, 1, 'reached') ->> 'error' = 'PT409:telephony_result_closed',
+UPDATE platform_private.telephony_calls SET result_at = clock_timestamp() - INTERVAL '25 hours' WHERE id = pg_temp.t293_id(7001);
+SELECT pg_temp.t293_assert(
+  pg_temp.t293_result(2, 1, 'reached') ->> 'error' = 'PT409:telephony_result_closed'
+  AND NOT 1 = ANY (pg_temp.t293_editable(pg_temp.t293_feed(2, 1)))
+  AND pg_temp.t293_result(5, 1, 'reached') ->> 'error' = 'PT409:telephony_result_closed',
   'a result older than 24 hours cannot be changed by the manager or the supervisor');
-UPDATE platform_private.telephony_calls SET result_at = clock_timestamp() - INTERVAL '23 hours' WHERE id = pg_temp.t292_id(7001);
-SELECT pg_temp.t292_assert(1 = ANY (pg_temp.t292_editable(pg_temp.t292_feed(2, 1)))
-  AND pg_temp.t292_result(2, 1, 'reached') ->> 'status' = 'saved',
+UPDATE platform_private.telephony_calls SET result_at = clock_timestamp() - INTERVAL '23 hours' WHERE id = pg_temp.t293_id(7001);
+SELECT pg_temp.t293_assert(1 = ANY (pg_temp.t293_editable(pg_temp.t293_feed(2, 1)))
+  AND pg_temp.t293_result(2, 1, 'reached') ->> 'status' = 'saved',
   'a result 23 hours old can still be changed');
 -- A press after the switch is turned off is refused again.
-UPDATE platform_private.telephony_settings SET dial_enabled = FALSE WHERE organization_id = pg_temp.t292_id(1);
-SELECT pg_temp.t292_assert(pg_temp.t292_code(pg_temp.t292_result(2, 10, 'not_interested')) = '55000'
-  AND pg_temp.t292_code(pg_temp.t292_result(1, 10, 'not_interested')) = '55000'
-  AND cardinality(pg_temp.t292_editable(pg_temp.t292_feed(2, 1))) = 0
-  AND pg_temp.t292_feed(2, 1) ->> 'canSetResult' = 'false',
+UPDATE platform_private.telephony_settings SET dial_enabled = FALSE WHERE organization_id = pg_temp.t293_id(1);
+SELECT pg_temp.t293_assert(pg_temp.t293_code(pg_temp.t293_result(2, 10, 'not_interested')) = '55000'
+  AND pg_temp.t293_code(pg_temp.t293_result(1, 10, 'not_interested')) = '55000'
+  AND cardinality(pg_temp.t293_editable(pg_temp.t293_feed(2, 1))) = 0
+  AND pg_temp.t293_feed(2, 1) ->> 'canSetResult' = 'false',
   'turning dial_enabled off closes the command (55000) and the editable rows at once');
-UPDATE platform_private.telephony_settings SET ui_enabled = FALSE WHERE organization_id = pg_temp.t292_id(1);
-SELECT pg_temp.t292_assert(pg_temp.t292_feed(2, 1) = '{"enabled": false, "canSetResult": false, "hasMore": false, "calls": []}'::JSONB,
+UPDATE platform_private.telephony_settings SET ui_enabled = FALSE WHERE organization_id = pg_temp.t293_id(1);
+SELECT pg_temp.t293_assert(pg_temp.t293_feed(2, 1) = '{"enabled": false, "canSetResult": false, "hasMore": false, "calls": []}'::JSONB,
   'turning ui_enabled off hides the calls again');
-UPDATE platform_private.telephony_settings SET ui_enabled = TRUE, dial_enabled = TRUE WHERE organization_id = pg_temp.t292_id(1);
+UPDATE platform_private.telephony_settings SET ui_enabled = TRUE, dial_enabled = TRUE WHERE organization_id = pg_temp.t293_id(1);
 
 -- ---------------------------------------------------------------------------
 -- 8. The helpers as pure rules.
 -- ---------------------------------------------------------------------------
-SELECT pg_temp.t292_assert(
+SELECT pg_temp.t293_assert(
   platform_private.telephony_result_window_open('answered', 'webhook', clock_timestamp() - INTERVAL '6 days 23 hours', NULL, NULL, clock_timestamp())
   AND NOT platform_private.telephony_result_window_open('answered', 'webhook', clock_timestamp() - INTERVAL '7 days 1 hour', NULL, NULL, clock_timestamp())
   AND platform_private.telephony_result_window_open('answered', 'webhook', clock_timestamp() - INTERVAL '30 days', 'reached',
@@ -820,34 +820,34 @@ SELECT pg_temp.t292_assert(
   AND NOT platform_private.telephony_result_window_open('answered', 'webhook', clock_timestamp() - INTERVAL '1 hour', 'no_answer',
     clock_timestamp() - INTERVAL '2 days', clock_timestamp()),
   'the window helper: 7 days to offer, 24 hours to change, answered and not primary-import only');
-SELECT pg_temp.t292_assert(
-  platform_private.telephony_call_taken_by(pg_temp.t292_id(1), pg_temp.t292_id(7001), pg_temp.t292_id(302))
-  AND NOT platform_private.telephony_call_taken_by(pg_temp.t292_id(1), pg_temp.t292_id(7001), pg_temp.t292_id(303))
-  AND platform_private.telephony_call_taken_by(pg_temp.t292_id(1), pg_temp.t292_id(7012), pg_temp.t292_id(303))
-  AND NOT platform_private.telephony_call_taken_by(pg_temp.t292_id(1), pg_temp.t292_id(7012), pg_temp.t292_id(302))
-  AND NOT platform_private.telephony_call_taken_by(pg_temp.t292_id(1), pg_temp.t292_id(7002), pg_temp.t292_id(302))
-  AND NOT platform_private.telephony_call_taken_by(pg_temp.t292_id(1), pg_temp.t292_id(7001), NULL)
-  AND NOT platform_private.telephony_call_taken_by(pg_temp.t292_id(2), pg_temp.t292_id(7001), pg_temp.t292_id(302))
-  AND NOT platform_private.telephony_call_taken_by(pg_temp.t292_id(1), pg_temp.t292_id(999), pg_temp.t292_id(302)),
+SELECT pg_temp.t293_assert(
+  platform_private.telephony_call_taken_by(pg_temp.t293_id(1), pg_temp.t293_id(7001), pg_temp.t293_id(302))
+  AND NOT platform_private.telephony_call_taken_by(pg_temp.t293_id(1), pg_temp.t293_id(7001), pg_temp.t293_id(303))
+  AND platform_private.telephony_call_taken_by(pg_temp.t293_id(1), pg_temp.t293_id(7012), pg_temp.t293_id(303))
+  AND NOT platform_private.telephony_call_taken_by(pg_temp.t293_id(1), pg_temp.t293_id(7012), pg_temp.t293_id(302))
+  AND NOT platform_private.telephony_call_taken_by(pg_temp.t293_id(1), pg_temp.t293_id(7002), pg_temp.t293_id(302))
+  AND NOT platform_private.telephony_call_taken_by(pg_temp.t293_id(1), pg_temp.t293_id(7001), NULL)
+  AND NOT platform_private.telephony_call_taken_by(pg_temp.t293_id(2), pg_temp.t293_id(7001), pg_temp.t293_id(302))
+  AND NOT platform_private.telephony_call_taken_by(pg_temp.t293_id(1), pg_temp.t293_id(999), pg_temp.t293_id(302)),
   'taken-by: the first answerer counts; a cancelled or merely rung leg, a missing member, another organization and an unknown call do not');
-SELECT pg_temp.t292_assert(
-  NOT platform_private.telephony_call_taken_by(pg_temp.t292_id(1), pg_temp.t292_id(7014), pg_temp.t292_id(302))
-  AND NOT platform_private.telephony_call_taken_by(pg_temp.t292_id(1), pg_temp.t292_id(7014), pg_temp.t292_id(303))
-  AND NOT platform_private.telephony_call_taken_by(pg_temp.t292_id(1), pg_temp.t292_id(7014), pg_temp.t292_id(304))
-  AND platform_private.telephony_call_taken_by(pg_temp.t292_id(1), pg_temp.t292_id(7014), pg_temp.t292_id(305))
-  AND platform_private.telephony_call_taken_by(pg_temp.t292_id(1), pg_temp.t292_id(7014), pg_temp.t292_id(306))
-  AND platform_private.telephony_call_taken_by(pg_temp.t292_id(1), pg_temp.t292_id(7014), pg_temp.t292_id(308)),
+SELECT pg_temp.t293_assert(
+  NOT platform_private.telephony_call_taken_by(pg_temp.t293_id(1), pg_temp.t293_id(7014), pg_temp.t293_id(302))
+  AND NOT platform_private.telephony_call_taken_by(pg_temp.t293_id(1), pg_temp.t293_id(7014), pg_temp.t293_id(303))
+  AND NOT platform_private.telephony_call_taken_by(pg_temp.t293_id(1), pg_temp.t293_id(7014), pg_temp.t293_id(304))
+  AND platform_private.telephony_call_taken_by(pg_temp.t293_id(1), pg_temp.t293_id(7014), pg_temp.t293_id(305))
+  AND platform_private.telephony_call_taken_by(pg_temp.t293_id(1), pg_temp.t293_id(7014), pg_temp.t293_id(306))
+  AND platform_private.telephony_call_taken_by(pg_temp.t293_id(1), pg_temp.t293_id(7014), pg_temp.t293_id(308)),
   'taken-by by leg: ringing, busy and a Success leg with zero seconds do not count; Success with seconds, a transfer and an accepted leg do');
 
 -- ---------------------------------------------------------------------------
 -- 9. The migration did not touch what it must not: the ingest functions keep their ACL.
 -- ---------------------------------------------------------------------------
-SELECT pg_temp.t292_assert(
+SELECT pg_temp.t293_assert(
   (SELECT count(*) FROM (VALUES ('anon'), ('authenticated'), ('supabase_auth_admin'), ('evo_ai_agent')) r(role_name)
     WHERE has_function_privilege(r.role_name, 'platform.telephony_receive_v1(uuid,uuid,text,text,text,jsonb,text,jsonb)', 'EXECUTE')) = 0
   AND has_function_privilege('service_role', 'platform.telephony_receive_v1(uuid,uuid,text,text,text,jsonb,text,jsonb)', 'EXECUTE'),
   'the service-only ingest function is still executable by service_role only');
 
-\echo T292_TELEPHONY_LEAD_FEED_SUITE_END
-SELECT 'T292_TELEPHONY_LEAD_FEED_SUITE_PASSED' AS t292_suite_marker;
+\echo T293_TELEPHONY_LEAD_FEED_SUITE_END
+SELECT 'T293_TELEPHONY_LEAD_FEED_SUITE_PASSED' AS t293_suite_marker;
 ROLLBACK;

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import type { AdmissionsDirection } from "@/lib/platform-admissions-playbook-contract";
 import type { HandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 import type { StudentCaseChecklistCounts } from "@/lib/platform-student-case-queue-contract";
 import { applicationStatus, caseChatAwaitState, caseDocumentsWords } from "@/lib/v3/wording";
@@ -16,6 +17,7 @@ import { StatusChip } from "../blocks/StatusChip";
 import type { TaskRowPermissions } from "../tasks/TaskQueueRow";
 import { CaseHandoffBlock } from "./CaseHandoffBlock";
 import { CaseTaskList } from "./CaseTaskList";
+import { CaseDirection } from "./CaseDirection";
 import { LeadEditGroups } from "./LeadEditGroups";
 import { HandoffResponseSummary } from "./ProfileSalesTransition";
 import { FeedMore } from "./FeedMore";
@@ -57,6 +59,11 @@ export type CaseOverviewInput = Readonly<{
   contacts: CaseContacts;
   /** Направление словом (`caseDirectionLabel`); null - «Не выбрано». */
   direction: string | null;
+  /**
+   * «Задать направление» / «Сменить» (миграция 292) у строки «Направление»; null - строка без действия
+   * (нет права назначать кураторов, просмотр роли, закрытое дело или нет версии для записи).
+   */
+  directionAction: Readonly<{ current: AdmissionsDirection | null; expectedVersion: string; requestId: string }> | null;
   /** Куратор дела: имя из дела, id — из строки очереди (для «Нагрузки кураторов»). */
   curator: Readonly<{ name: string | null; membershipId: string | null; coverage: boolean }>;
   /** Кто и когда передал дело (контекст передачи); null — дело не из продаж. */
@@ -278,7 +285,12 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
     <aside id={CASE_FACTS_ID} aria-labelledby="case-facts-title" className="min-w-0 scroll-mt-4" data-testid="v3-case-facts">
       <h2 id="case-facts-title" className="t-section text-fg">Сведения</h2>
       <dl className="mt-1">
-        <Fact term="Направление">{input.direction ?? "Не выбрано"}</Fact>
+        <Fact term="Направление">
+          {input.directionAction ? (
+            <CaseDirection studentCaseId={input.studentCaseId} current={input.directionAction.current}
+              expectedVersion={input.directionAction.expectedVersion} requestId={input.directionAction.requestId} />
+          ) : (input.direction ?? "Не выбрано")}
+        </Fact>
         <Fact term="Куратор">
           {(curator.name ? (
             <span className="inline-flex items-center gap-2"><Initials name={curator.name} decorative />{curator.name}</span>

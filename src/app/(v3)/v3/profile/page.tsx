@@ -430,6 +430,7 @@ export default async function ProfilePart({
         ...requestIds,
         step: randomUUID(),
         assignCurator: randomUUID(),
+        direction: randomUUID(),
         portal: studentPortalProvisioningRequestId(actor.organizationId, caseTarget.studentCaseId),
         note: randomUUID(),
       },

@@ -472,6 +472,10 @@ const SCENARIOS = {
   "closed": { actor: CURATOR, profile: profile({ state: "closed" }), draft: draft({ state: "closed" }), sales: null,
     work: work({ row: queueRow({ state: "closed", flags: [] }), tasks: { kind: "ready", tasks: [], assignees: [] }, chat: { kind: "ready", awaitState: "none", last: null },
       activity: CLOSED_ACTIVITY }) },
+  // Закрытое дело у Admin: право назначать кураторов есть, но направление закрытого дела не меняется (292) - строка без действия.
+  "closed-admin": { actor: ADMIN, profile: profile({ state: "closed" }), draft: draft({ state: "closed" }), sales: null,
+    work: work({ row: queueRow({ state: "closed", flags: [] }), tasks: { kind: "ready", tasks: [], assignees: [] }, chat: { kind: "ready", awaitState: "none", last: null },
+      activity: CLOSED_ACTIVITY }) },
   // Дело завершено с исходом (246): в строке фактов «Закрыто · Поступил · дата · Вернуть в работу».
   "closed-outcome": { actor: CURATOR, profile: profile({ state: "closed" }), draft: draft({ state: "closed" }), sales: null,
     work: work({ row: queueRow({ state: "closed", flags: [] }), tasks: { kind: "ready", tasks: [], assignees: [] }, chat: { kind: "ready", awaitState: "none", last: null },
@@ -494,6 +498,7 @@ function buildParts(name) {
       platformAccess: uuid("12121212", 5), saleConditions: uuid("12121212", 6), prepareLeadCabinet: uuid("12121212", 7),
       wishesCard: uuid("12121212", 8), educationCard: uuid("12121212", 9), conditionsCard: uuid("12121212", 10),
       step: uuid("12121212", 11), assignCurator: uuid("12121212", 12), portal: uuid("12121212", 13), note: uuid("12121212", 14),
+      direction: uuid("12121212", 17),
     },
     notes: item.notes ?? NOTES, notesOlderHref: null, notesLatestHref: item.notesLatestHref ?? null, curators: [], curatorsAvailable: true, hrefFor,
     salesDataOpen: false, help: null, closure: item.closure ?? null,

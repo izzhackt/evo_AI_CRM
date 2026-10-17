@@ -1146,11 +1146,11 @@ async function f1() {
 }
 
 // --- «Телефония Beeline KG», T5: строки звонков в «Ленте» лида ------------------------------
-// Синтетические строки той же формы, что отдаёт platform.telephony_lead_calls_v1 (миграция 292):
+// Синтетические строки той же формы, что отдаёт platform.telephony_lead_calls_v1 (миграция 293):
 // маска номера, без ссылки на запись, результат и признак «можно нажать» решила база.
 const CALL_PHONE = "+996 ••• 00 00 01";
 const callRow = (n, fields) => ({
-  callId: uuid("92929292", n), direction: "out", state: "ended", outcome: "answered", outcomeSource: "webhook",
+  callId: uuid("92939293", n), direction: "out", state: "ended", outcome: "answered", outcomeSource: "webhook",
   startedAt: "2026-09-26T08:00:00.000Z", answeredAt: "2026-09-26T08:00:05.000Z", endedAt: "2026-09-26T08:03:00.000Z",
   talkSeconds: 125, phone: CALL_PHONE, managerName: "Санжар Эскизов",
   participants: [{ name: "Санжар Эскизов", state: "completed" }], recording: "none",

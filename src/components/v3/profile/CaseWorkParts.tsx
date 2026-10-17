@@ -47,7 +47,7 @@ export type CaseWorkPartsInput = Readonly<{
   sales: ProfileSalesSnapshot | null;
   work: CaseWorkRead;
   stepAccess: NextStepAccess;
-  requestIds: ProfileSalesRequestIds & Readonly<{ step: string; assignCurator: string; portal: string; note: string }>;
+  requestIds: ProfileSalesRequestIds & Readonly<{ step: string; assignCurator: string; portal: string; note: string; direction?: string }>;
   notes: ProfileNotesSnapshot;
   notesOlderHref: string | null;
   notesLatestHref: string | null;
@@ -130,6 +130,15 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
   const closable = input.closure?.state === "active" && input.closure.canChange;
   // Направление дела словом - из снимка дела (290: он отдаёт `admissions_direction`); не выбрано - null.
   const direction = admissions.direction ? DIRECTION_LABELS[admissions.direction] : null;
+  // «Задать направление» / «Сменить» (292): тому, кто назначает кураторов (Admin и руководитель поступления,
+  // `case.curator.assign`), у дела не закрытого и с версией из строки очереди (без неё записать нечем -
+  // версия не выдумывается); просмотр роли ничего не пишет. Читатель «Ждут куратора» (`assignOnly`, 248/281)
+  // дело читает ради назначения куратора, права `case.read.full` на само дело у него нет, а команда начинается с
+  // этого права: ему действие не показывается (сервер ответил бы отказом). Регламент, право и версию проверяет сервер.
+  const directionAction = !preview && !assignOnly && staffHasPermission(actor, "case.curator.assign") && input.requestIds.direction
+    && work.row !== null && admissions.caseState !== "closed"
+    ? { current: admissions.direction ?? null, expectedVersion: work.row.admissionsVersion, requestId: input.requestIds.direction }
+    : null;
   // Контекст панели «Принять дело» — из уже прочитанного (передача, направление, шаг, продажа).
   const acceptContext = {
     handedOffBy: draft.handedOffBy ? { ...draft.handedOffBy, label: caseMomentLabel(draft.handedOffBy.at, work.today) } : null,
@@ -237,6 +246,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       // Клиент лида, если лид прочитан; дело прямого студента лида для чтения не имеет — тогда поля анкеты.
       contacts={caseContacts({ phone: profile.phone, email: profile.email }, draft.profileFields)}
       direction={direction}
+      directionAction={directionAction}
       curator={{
         name: draft.responsible,
         membershipId: work.row?.currentCuratorMembershipId ?? null,

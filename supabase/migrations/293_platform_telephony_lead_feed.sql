@@ -1,4 +1,4 @@
--- 292_platform_telephony_lead_feed — «Телефония Beeline KG» срез T5: строки звонков
+-- 293_platform_telephony_lead_feed — «Телефония Beeline KG» срез T5: строки звонков
 -- в «Ленте» карточки лида и результат звонка одним нажатием.
 -- Контракт: docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.1, §9.1, §9.4, §11, §12, §16
 -- (срез T5), ADR 0033; docs/PLAN_CHANGES.md (запись «Телефония T5»). Только чтение
@@ -348,7 +348,7 @@ COMMENT ON FUNCTION platform_private.telephony_call_taken_by(UUID, UUID, UUID) I
   'Telephony T5: the employee talked on this call (first to answer, or an accepted/completed/transferred leg).';
 
 -- Проверка в конце: права ровно такие, как задумано.
-DO $tel292_verify$
+DO $tel293_verify$
 DECLARE
   r TEXT;
 BEGIN
@@ -371,6 +371,6 @@ BEGIN
     END IF;
   END LOOP;
 END
-$tel292_verify$;
+$tel293_verify$;
 
 COMMIT;

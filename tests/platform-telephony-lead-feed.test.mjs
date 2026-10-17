@@ -1,5 +1,5 @@
 // «Телефония Beeline KG», срез T5 (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §9.4, §12;
-// миграция 292): строки звонков в «Ленте» лида и результат звонка одним нажатием.
+// миграция 293): строки звонков в «Ленте» лида и результат звонка одним нажатием.
 // Чистый контракт, слова, лента, маршрут результата с поддельной базой и настоящая
 // страница лида статическим рендером (tests/e2e/numbers-static-render.cjs
 // --json-telephony). Данные синтетические: ни одного настоящего номера, имени или
@@ -419,7 +419,7 @@ test("route: the database's refusals become the documented statuses, with codes 
   assert.deepEqual(await response.json(), { error: { code: "unavailable" } }, "an exception text never reaches the browser");
 });
 
-test("route: SQLSTATEs of migration 292 map to outcomes; the receipt must be the documented shape", () => {
+test("route: SQLSTATEs of migration 293 map to outcomes; the receipt must be the documented shape", () => {
   assert.deepEqual(telephonyResultRefusal({ code: "42501", message: "telephony_result_forbidden" }), { status: "forbidden" });
   assert.deepEqual(telephonyResultRefusal({ code: "P0002", message: "telephony_call_unavailable" }), { status: "not_found" });
   assert.deepEqual(telephonyResultRefusal({ code: "55000", message: "telephony_result_disabled" }), { status: "off" });
@@ -430,7 +430,7 @@ test("route: SQLSTATEs of migration 292 map to outcomes; the receipt must be the
   assert.deepEqual(telephonyResultRefusal({ code: "XX000", message: "boom" }), { status: "unavailable" });
   assert.deepEqual(telephonyResultRefusal({}), { status: "unavailable" });
   // The messages the route keys on exist in the migration, once each.
-  const migration = read("supabase/migrations/292_platform_telephony_lead_feed.sql");
+  const migration = read("supabase/migrations/293_platform_telephony_lead_feed.sql");
   for (const message of ["telephony_result_forbidden", "telephony_call_unavailable", "telephony_result_disabled",
     "telephony_result_not_answered", "telephony_result_closed", "telephony_result_date_invalid", "telephony_result_invalid"]) {
     assert.match(migration, new RegExp(`RAISE EXCEPTION '${message}'`, "u"), message);
@@ -462,7 +462,7 @@ test("route contract: exactly the strict POST path is connected; its near misses
 // ------------------------------------------------------------ files and wiring
 
 test("wiring: the route file, the source, the page and the migration agree", () => {
-  const migration = read("supabase/migrations/292_platform_telephony_lead_feed.sql");
+  const migration = read("supabase/migrations/293_platform_telephony_lead_feed.sql");
   const source = read("src/lib/v3/telephony-lead-calls-source.ts");
   const handlers = read("src/lib/server/telephony-result-route-handlers.ts");
   const route = read("src/app/api/v3/telephony/calls/[callId]/result/route.ts");

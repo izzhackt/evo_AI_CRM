@@ -24,14 +24,16 @@ export async function readLeadSaleConditions(actor: ActivePlatformActor, leadId:
  * (`case.read.full`), его проверяет сервер; деньги он отдаёт пустыми, если у
  * читателя нет финансового раздела дела. null - у дела нет условий для показа:
  * не дело прямого студента (лид продаж читает карточка лида) или у читателя нет
- * права на дело целиком (читатель «Ждут куратора»). Сбой чтения - исключение:
+ * права на дело целиком (читатель «Ждут куратора»: отказ функции `case_sale_conditions_forbidden`). Сбой чтения - исключение:
  * страница называет его, а не рисует пустое место.
  */
 export async function readCaseSaleConditions(actor: ActivePlatformActor, studentCaseId: string): Promise<LeadSaleConditions | null> {
   const { data, error } = await (await createSupabaseServerClient()).schema("platform").rpc("staff_student_case_sale_conditions_v1", {
     p_organization_id: actor.organizationId, p_student_case_id: studentCaseId,
   });
-  if (error?.code === "42501") return null;
+  // Отказ самой функции (нет права на дело целиком) - условий нет; любой другой сбой, в том числе «нет права на
+  // функцию» из-за неприменённой миграции, - исключение, а не молчание.
+  if (error?.code === "42501" && error.message === "case_sale_conditions_forbidden") return null;
   if (error) throw new Error("Sale conditions unavailable.");
   return data === null ? null : parseLeadSaleConditions(data, actor.organizationId);
 }

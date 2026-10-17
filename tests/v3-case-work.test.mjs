@@ -428,7 +428,7 @@ test("the case-only branch of readCaseProfile keeps the client e-mail/phone null
   assert.match(source, /\n {4}saleConditions: null,\n {4}\/\/ Same scoping as saleConditions above/u);
   const read290 = read("src/lib/v3/lead-sale-conditions-source.ts");
   assert.match(read290, /rpc\("staff_student_case_sale_conditions_v1", \{\n {4}p_organization_id: actor\.organizationId, p_student_case_id: studentCaseId,\n {2}\}\)/u);
-  assert.match(read290, /if \(error\?\.code === "42501"\) return null;\n {2}if \(error\) throw new Error\("Sale conditions unavailable\."\);/u);
+  assert.match(read290, /if \(error\?\.code === "42501" && error\.message === "case_sale_conditions_forbidden"\) return null;\n {2}if \(error\) throw new Error\("Sale conditions unavailable\."\);/u);
   assert.match(read290, /data === null \? null : parseLeadSaleConditions\(data, actor\.organizationId\)/u);
 });
 

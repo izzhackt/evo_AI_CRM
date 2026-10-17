@@ -797,7 +797,8 @@
   justify-self: end;
   font-size: var(--pt-size-caption);
   line-height: 1.35;
-  text-align: end;
+  /* Перенесённый статус начинается сразу после точки (review R2). */
+  text-align: start;
   white-space: normal;
 }
 

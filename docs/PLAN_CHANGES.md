@@ -55040,7 +55040,10 @@ Validation impact: по AGENTS «Fast Execution And Validation»: только �
   `production-release-workflow`, `runtime-hardening`, `platform-knowledge-import-packaging`,
   `release-metadata`, `platform-telephony-ingress`, `platform-telephony-ingress-body`): 255, 254
   прошли, 1 пропущен, 0 упали. `npm run typecheck`, eslint по изменённым файлам и
-  `git diff --check` чисто. Пакет `.next/telephony-maintenance.mjs` собран (около 870 КиБ) и
+  `git diff --check origin/main...HEAD` чисто; задачи CI локально: `npm run test:fast-release`
+  (260 тестов, 259 прошли, 1 пропущен, 0 упали), `npm run lint` (0 ошибок; 3 прежних
+  предупреждения в `tests/team-chat-v2.test.mjs`), `npm run build` (чисто, включая новый пакет).
+  Пакет `.next/telephony-maintenance.mjs` собран (около 870 КиБ) и
   запущен: выключатель не задан или 0 — одна строка `disabled` и код 0; 1 без бэкенда —
   `failed/backend_not_configured` и код 1.
 Не проверено: ни одного запроса к настоящей ВАТС (ключа нет): вид настоящего ответа

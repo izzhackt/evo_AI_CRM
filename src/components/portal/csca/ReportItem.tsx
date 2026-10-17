@@ -102,7 +102,7 @@ export function ReportItem({ itemKey, strings }: { itemKey: string; strings: Str
         }}
       />
       <p id={hintId} className="cs-report-hint">
-        {strings.reportHint} <span className="pt-data">{message.trim().length}/500</span>
+        {strings.reportHint} <span className="cs-num">{message.trim().length}/500</span>
       </p>
       {error ? <p role="alert" className="cs-report-error">{error}</p> : null}
       <div className="cs-report-actions">

@@ -127,10 +127,10 @@
   border-color: var(--pt-text);
 }
 
-.cs-chip-accent {
-  border-color: color-mix(in srgb, var(--pt-accent) 45%, var(--pt-line));
-  background: var(--cs-accent-tint);
-  font-weight: 600;
+/* Счётчики Golos с табличными цифрами; моно только у часов теста, дат и
+   сумм (critique F10, дизайн-контракт портала). */
+.cs-num {
+  font-variant-numeric: tabular-nums;
 }
 
 .cs-page .pt-page-lead {
@@ -276,51 +276,811 @@
 
 /* ---------- Главная «CSCA» ---------- */
 
-.cs-home-header {
-  max-width: 820px;
+/* ---------- Обзор экзамена (решение владельца 17.10.2026) ----------
+ * Один белый лист «об экзамене» на бумаге, как лист урока: сверху
+ * название и ответ «что это», справа фото кампуса до края листа; ниже
+ * полосы на волосяных линиях: кому нужен, предметы, стоимость и вопросы.
+ * Свёрнутый лист: строка с миниатюрой, названием, сводкой и той же кнопкой
+ * на том же месте. Красного здесь нет: единственное красное действие
+ * страницы остаётся у «Следующего шага».
+ */
+
+.cs-ov {
+  --cs-ov-pad: 40px;
+  container: cs-ov / inline-size;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
 }
 
-.cs-subjects {
+.cs-ov-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.cs-ov-hero-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 36px var(--cs-ov-pad) 40px;
+}
+
+/* Строка заголовка: сетка, чтобы название, расшифровка, сводка и кнопка
+   вставали по-разному в открытом и свёрнутом листе без второй разметки
+   (обёртка заголовка display: contents, у неё нет своей роли). */
+.cs-ov-titlebar {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.cs-ov-title-block {
+  display: contents;
+}
+
+.cs-ov-title {
+  grid-area: title;
+  order: 1;
+  margin: 0;
+  font-size: 44px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+/* Открытый лист: кнопка справа от названия, а если места мало (телефон,
+   длинная подпись KY), уходит под него, не наезжая на заголовок. */
+.cs-ov-name {
+  grid-area: name;
+  order: 3;
+  flex-basis: 100%;
+  margin: -4px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-body);
+  line-height: 1.35;
+}
+
+.cs-ov-toggle {
+  grid-area: toggle;
+  order: 2;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-self: end;
+  margin-inline-start: auto;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 12px 0 14px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-control);
+  background: var(--pt-surface);
+  color: var(--pt-text);
+  font: inherit;
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--pt-motion-fast) var(--pt-ease);
+}
+
+.cs-ov-toggle:hover {
+  background: var(--pt-bg);
+}
+
+.cs-ov-toggle svg {
+  transition: transform var(--pt-motion-fast) var(--pt-ease-out);
+}
+
+.cs-ov-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.cs-ov-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 54ch;
+  margin-top: 28px;
+}
+
+.cs-ov-skip {
+  align-self: flex-start;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.cs-ov-intro p {
+  margin: 0;
+  font-size: var(--cs-reading);
+  line-height: 1.62;
+}
+
+.cs-ov-intro .cs-ov-lead {
+  font-size: var(--pt-size-heading);
+  font-weight: 500;
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+
+/* Фото: кадр по точке из манифеста, «©» в углу как у фото вузов. */
+.cs-ov-photo {
+  position: relative;
+  margin: 0;
+  min-height: 0;
+  background: var(--pt-skeleton);
+}
+
+.cs-ov-photo picture {
+  display: block;
+  height: 100%;
+}
+
+.cs-ov-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cs-ov-photo-hero {
+  order: -1;
+  aspect-ratio: 16 / 10;
+}
+
+/* Свёрнутый лист: строка «миниатюра · CSCA · сводка · Об экзамене». */
+.cs-ov:not([data-open]) .cs-ov-hero-text {
+  padding: 18px 20px;
+}
+
+.cs-ov:not([data-open]) .cs-ov-titlebar {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "thumb title name toggle"
+    "thumb summary summary toggle";
+  column-gap: 0;
+}
+
+.cs-ov:not([data-open]) .cs-ov-title {
+  align-self: last baseline;
+  font-size: 28px;
+}
+
+.cs-ov:not([data-open]) .cs-ov-name {
+  align-self: last baseline;
+  flex-basis: auto;
+  margin: 0 0 0 10px;
+  font-size: var(--pt-size-secondary);
+}
+
+.cs-ov:not([data-open]) .cs-ov-toggle {
+  margin-inline-start: 20px;
+}
+
+.cs-ov-summary {
+  grid-area: summary;
+  max-width: 64ch;
+  margin: 6px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  line-height: 1.5;
+}
+
+.cs-ov-thumb {
+  grid-area: thumb;
+  display: block;
+  width: 72px;
+  height: 72px;
+  margin-inline-end: 18px;
+  overflow: hidden;
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-skeleton);
+}
+
+.cs-ov-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Полосы листа. */
+.cs-ov-body {
+  border-top: 1px solid var(--pt-line);
+}
+
+.cs-ov-band {
+  padding: 36px var(--cs-ov-pad);
+}
+
+.cs-ov-band + .cs-ov-band {
+  border-top: 1px solid var(--pt-line);
+}
+
+.cs-ov-h2 {
+  margin: 0 0 18px;
+  font-size: var(--pt-size-title);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+/* Кому нужен: фото стадиона кампуса и два ответа словами. */
+.cs-ov-audience {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+}
+
+/* Скругление у самого фото, а не обрезкой рамки: панель «©» не режется. */
+.cs-ov-photo-audience {
+  border-radius: var(--pt-radius-item);
+  aspect-ratio: 16 / 9;
+}
+
+.cs-ov-photo-audience img {
+  border-radius: var(--pt-radius-item);
+}
+
+.cs-ov-verdicts {
+  margin: 0;
+}
+
+.cs-ov-verdict {
+  padding: 16px 0;
+  border-top: 1px solid var(--pt-line);
+}
+
+.cs-ov-verdict:first-child {
+  border-top: 0;
+  padding-top: 4px;
+}
+
+.cs-ov-verdict dt {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+}
+
+.cs-ov-verdict-icon {
+  flex-shrink: 0;
+  color: var(--pt-text);
+}
+
+.cs-ov-verdict dd {
+  max-width: 52ch;
+  margin: 4px 0 0 42px;
+  font-size: var(--pt-size-secondary);
+  line-height: 1.55;
+}
+
+.cs-ov-verdict[data-verdict="notNeeded"] .cs-ov-verdict-icon {
+  color: var(--pt-text-2);
+}
+
+/* Предметы: таблица в широком контейнере, карточки в узком. */
+.cs-ov-subjects-frame {
+  container: cs-ov-subjects / inline-size;
+}
+
+.cs-ov-table-wide {
+  display: none;
+}
+
+.cs-ov-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--pt-size-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.cs-ov-table th,
+.cs-ov-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--pt-line);
+  text-align: start;
+  vertical-align: top;
+}
+
+.cs-ov-table thead th {
+  padding-block: 0 10px;
+  border-bottom-color: var(--pt-control-edge);
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  line-height: 1.35;
+  vertical-align: bottom;
+}
+
+.cs-ov-table th:first-child,
+.cs-ov-table td:first-child {
+  padding-inline-start: 0;
+}
+
+.cs-ov-table th:last-child,
+.cs-ov-table td:last-child {
+  padding-inline-end: 0;
+}
+
+.cs-ov-table .cs-ov-num {
+  text-align: end;
+  white-space: nowrap;
+}
+
+.cs-ov-table thead th.cs-ov-num {
+  max-width: 13ch;
+  white-space: normal;
+}
+
+.cs-ov-group-row th {
+  padding-block: 18px 8px;
+  border-bottom-color: var(--pt-line);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+}
+
+.cs-ov-group-local {
+  margin-inline-start: 8px;
+  color: var(--pt-text-2);
+  font-weight: 400;
+}
+
+.cs-ov-table tbody th[scope="row"] {
+  font-weight: 600;
+}
+
+.cs-ov-subject-en {
+  display: block;
+}
+
+.cs-ov-subject-local {
+  display: block;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-weight: 400;
+}
+
+/* Шкала одной строкой (в KY «0дөн 100гө чейин» рвалась на три), а статус
+   «В EVO» может перенестись: у него столбец шире всего (review, F5). */
+.cs-ov-table .cs-ov-score {
+  white-space: nowrap;
+}
+
+.cs-ov-table .cs-ov-evo {
+  align-items: flex-start;
+  white-space: normal;
+}
+
+.cs-ov-table .cs-ov-evo::before {
+  margin-top: calc((1lh - 8px) / 2);
+}
+
+.cs-ov-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.cs-ov-table tbody + tbody tr:first-child > * {
+  border-top: 0;
+}
+
+/* Что есть в EVO: слово и точка, цвет только подкрепляет слово. */
+.cs-ov-evo {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-  margin: 20px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  white-space: nowrap;
+}
+
+.cs-ov-evo::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--pt-control-edge);
+  border-radius: 50%;
+}
+
+.cs-ov-evo[data-status="available"] {
+  color: var(--pt-text);
+  font-weight: 600;
+}
+
+.cs-ov-evo[data-status="available"]::before {
+  border-color: var(--pt-ok);
+  background: var(--pt-ok);
+}
+
+.cs-ov-evo[data-status="none"]::before {
+  border-color: var(--pt-line);
+}
+
+.cs-ov-card-group + .cs-ov-card-group {
+  margin-top: 26px;
+}
+
+.cs-ov-card-group-title {
+  margin: 0 0 10px;
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+}
+
+/* Общие факты группы один раз (review раунда 1, F3): подпись над значением,
+   сеткой, на утопленной подложке, чтобы читались как «у всех предметов ниже». */
+.cs-ov-group-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 12px 20px;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-bg);
+}
+
+.cs-ov-group-facts > div,
+.cs-ov-card-facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cs-ov-group-facts dt,
+.cs-ov-card-facts dt {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  line-height: 1.35;
+}
+
+/* Подписи сверху, значения по нижнему краю: если подпись в две строки
+   («Вопросов с выбором ответа»), значения всё равно на одной линии. */
+.cs-ov-group-facts dd,
+.cs-ov-card-facts dd {
+  margin: auto 0 0;
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+
+/* Предметы группы строками на волосяных линиях: название слева, что есть
+   в EVO справа в каждой строке. Столбец названия не уже самого длинного
+   слова («Mathematics»), поэтому название никогда не рисуется поверх
+   статуса (review раунда 2, R1); в контейнере уже 340 px статус встаёт
+   под название. */
+.cs-ov-cards {
+  margin: 4px 0 0;
   padding: 0;
   list-style: none;
 }
 
-.cs-subjects li {
-  display: inline-flex;
+.cs-ov-card {
+  display: grid;
+  grid-template-columns: minmax(min-content, 1fr) minmax(0, max-content);
   align-items: baseline;
-  gap: 10px;
-  min-height: 44px;
-  padding: 10px 16px;
-  border: 1px solid var(--pt-line);
-  border-radius: var(--pt-radius-item);
-  color: var(--pt-text-2);
+  gap: 4px 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--pt-line);
 }
 
-.cs-subjects li[data-current] {
-  border-color: var(--pt-control-edge);
-  background: var(--pt-surface);
-  box-shadow: var(--pt-shadow-card);
-  color: var(--pt-text);
+.cs-ov-card:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
 }
 
-.cs-subject-name {
+.cs-ov-card-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+  margin: 0;
   font-weight: 600;
 }
 
-.cs-subject-note {
+.cs-ov-card-name .cs-ov-subject-en {
+  display: inline;
+  font-size: var(--pt-size-body);
+}
+
+.cs-ov-card-name .cs-ov-subject-local {
+  display: inline;
+}
+
+.cs-ov-card > .cs-ov-evo {
+  align-items: flex-start;
+  justify-self: end;
   font-size: var(--pt-size-caption);
+  line-height: 1.35;
+  /* Перенесённый статус начинается сразу после точки (review R2). */
+  text-align: start;
+  white-space: normal;
+}
+
+.cs-ov-card > .cs-ov-evo::before {
+  margin-top: calc((1lh - 8px) / 2);
+}
+
+/* Факты, которые у предметов группы различаются, остаются у предмета. */
+.cs-ov-card-facts {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 10px 20px;
+  margin: 6px 0 0;
+}
+
+/* Телефоны до 390 px (контейнер до 318 px): название и статус в один
+   столбец, статус под названием и по началу строки. */
+@container cs-ov-subjects (width < 340px) {
+  .cs-ov-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cs-ov-card > .cs-ov-evo {
+    justify-self: start;
+    text-align: start;
+  }
+}
+
+@container cs-ov-subjects (min-width: 700px) {
+  .cs-ov-table-wide {
+    display: block;
+  }
+
+  .cs-ov-table-narrow {
+    display: none;
+  }
+}
+
+/* Стоимость и вопросы. */
+.cs-ov-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 36px;
+}
+
+.cs-ov-fees-table {
+  max-width: 380px;
+}
+
+.cs-ov-fees-table tbody th {
+  font-weight: 500;
+}
+
+.cs-ov-amount {
+  font-family: var(--pt-font-mono);
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+}
+
+.cs-ov-faq-list {
+  border-top: 1px solid var(--pt-line);
+}
+
+.cs-ov-faq-item {
+  border-bottom: 1px solid var(--pt-line);
+}
+
+.cs-ov-faq-item > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 56px;
+  padding: 12px 0;
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+  line-height: 1.35;
+  list-style: none;
+  cursor: pointer;
+  border-radius: var(--pt-radius-control);
+}
+
+.cs-ov-faq-item > summary::-webkit-details-marker {
+  display: none;
+}
+
+.cs-ov-faq-item > summary::marker {
+  content: "";
+}
+
+.cs-ov-faq-item > summary:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.cs-ov-faq-item > summary svg {
+  flex-shrink: 0;
   color: var(--pt-text-2);
+  transition: transform var(--pt-motion-fast) var(--pt-ease-out);
+}
+
+.cs-ov-faq-item[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.cs-ov-faq-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 62ch;
+  padding: 0 0 18px;
+}
+
+.cs-ov-faq-answer p {
+  margin: 0;
+  font-size: var(--pt-size-secondary);
+  line-height: 1.6;
+}
+
+.cs-ov-faq-answer .cs-inline-link {
+  min-height: 44px;
+  margin-block: -10px;
+}
+
+.cs-ov-checked {
+  max-width: 80ch;
+  margin: 0;
+  padding: 16px var(--cs-ov-pad) 22px;
+  border-top: 1px solid var(--pt-line);
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+/* Широкий лист: текст и фото рядом, фото до края листа. */
+@container cs-ov (min-width: 760px) {
+  /* Только открытый лист делится на текст и фото; свёрнутый остаётся строкой. */
+  .cs-ov[data-open] .cs-ov-hero {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  }
+
+  .cs-ov-photo-hero {
+    order: 0;
+    aspect-ratio: auto;
+    min-height: 100%;
+  }
+
+  .cs-ov-audience {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 40px;
+    align-items: center;
+  }
+
+  .cs-ov-photo-audience {
+    aspect-ratio: 4 / 3;
+  }
+
+  .cs-ov-split {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 48px;
+  }
+}
+
+/* Средний лист (планшет с рейлом): фото сверху ниже, чтобы ответ «что такое
+   CSCA» попадал на первый экран (review раунда 1, F2). */
+/* Высота задана прямо, без aspect-ratio: иначе max-height через пропорцию
+   сужал бы фото и у края листа оставалась белая полоса. */
+@container cs-ov (560px < width < 760px) {
+  .cs-ov-photo-hero {
+    aspect-ratio: auto;
+    height: 280px;
+  }
+
+  .cs-ov-photo-audience {
+    aspect-ratio: auto;
+    height: 240px;
+  }
+}
+
+@container cs-ov (max-width: 560px) {
+  /* Переменная на потомках: контейнерный запрос не меняет сам контейнер. */
+  .cs-ov-hero,
+  .cs-ov-body {
+    --cs-ov-pad: 20px;
+  }
+
+  .cs-ov-hero-text {
+    padding: 22px var(--cs-ov-pad) 26px;
+  }
+
+  .cs-ov-title {
+    font-size: 36px;
+  }
+
+  .cs-ov-intro {
+    margin-top: 20px;
+  }
+
+  .cs-ov-intro .cs-ov-lead {
+    font-size: 18px;
+  }
+
+  .cs-ov-band {
+    padding-block: 26px;
+  }
+
+  .cs-ov-h2 {
+    font-size: var(--pt-size-heading);
+  }
+
+  .cs-ov:not([data-open]) .cs-ov-hero-text {
+    padding: 14px 14px 16px;
+  }
+
+  .cs-ov:not([data-open]) .cs-ov-titlebar {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "thumb title"
+      "thumb name"
+      "summary summary"
+      "toggle toggle";
+  }
+
+  .cs-ov:not([data-open]) .cs-ov-title {
+    align-self: end;
+    font-size: 24px;
+  }
+
+  .cs-ov:not([data-open]) .cs-ov-name {
+    align-self: start;
+    margin: 2px 0 0;
+    font-size: var(--pt-size-caption);
+  }
+
+  .cs-ov-thumb {
+    width: 56px;
+    height: 56px;
+    margin-inline-end: 14px;
+  }
+
+  .cs-ov:not([data-open]) .cs-ov-summary {
+    margin-top: 12px;
+  }
+
+  .cs-ov:not([data-open]) .cs-ov-toggle {
+    justify-self: stretch;
+    justify-content: center;
+    margin: 12px 0 0;
+  }
+}
+
+/* «Занятия в EVO»: заголовок раздела под обзором экзамена. */
+
+.cs-module {
+  margin-top: 44px;
+}
+
+.cs-module-head {
+  max-width: 820px;
+}
+
+.cs-module-title {
+  margin: 0;
+  font-size: var(--pt-size-title);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.cs-module-lead {
+  max-width: 64ch;
+  margin: 8px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  line-height: 1.55;
 }
 
 .cs-home {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 24px;
-  margin-top: 28px;
+  margin-top: 20px;
 }
 
 @media (min-width: 1100px) {
@@ -347,14 +1107,24 @@
   box-shadow: var(--pt-shadow-card);
 }
 
+.cs-next {
+  scroll-margin-top: calc(var(--pt-topbar-height) + 16px);
+}
+
 .cs-next-title {
   margin: 0;
-  max-width: 28ch;
-  font-size: 28px;
+  max-width: 34ch;
+  font-size: var(--pt-size-title);
   font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
   text-wrap: balance;
+}
+
+/* «Следующий шаг:» входит в заголовок тише, название шага главнее. */
+.cs-next-lead {
+  color: var(--pt-text-2);
+  font-weight: 500;
 }
 
 .cs-next-en {
@@ -516,9 +1286,9 @@
 
 .cs-section-n {
   color: var(--pt-text-2);
-  font-family: var(--pt-font-mono);
   font-size: var(--pt-size-caption);
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 .cs-section-en,
@@ -764,7 +1534,22 @@
 }
 
 .cs-session-choose {
-  min-height: 40px;
+  min-height: 44px;
+}
+
+.cs-sessions-panel {
+  scroll-margin-top: calc(var(--pt-topbar-height) + 16px);
+}
+
+/* Открытое окно регистрации: срок словом и ссылка на csca.cn, без нового красного. */
+.cs-session-soon {
+  color: var(--pt-text);
+  font-weight: 600;
+}
+
+.cs-session-register {
+  align-self: flex-start;
+  font-size: var(--pt-size-caption);
 }
 
 .cs-sessions-more {
@@ -944,9 +1729,45 @@
   margin: 0;
 }
 
-.cs-figure-frame {
+/* Рамка с прокруткой (critique F8): затухание у правого края, пока рисунок
+   не докручен, и подсказка под ним; рамка в фокусе с клавиатуры. */
+.cs-figure-scroller {
+  position: relative;
   width: 100%;
   max-width: 560px;
+}
+
+.cs-figure[data-size="item"] .cs-figure-scroller {
+  max-width: 440px;
+}
+
+.cs-figure-scroller[data-scrolls]:not([data-end])::after {
+  content: "";
+  position: absolute;
+  inset-block: 1px;
+  inset-inline-end: 1px;
+  width: 48px;
+  border-start-end-radius: var(--pt-radius-item);
+  border-end-end-radius: var(--pt-radius-item);
+  background: linear-gradient(to left, var(--pt-surface) 10%, transparent);
+  pointer-events: none;
+}
+
+.cs-figure-frame:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.cs-figure-hint {
+  width: 100%;
+  max-width: 560px;
+  margin: -4px 0 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.cs-figure-frame {
+  width: 100%;
   /* Уже --cs-figure-min рисунок не сжимается (подписи не мельче 12 px, §15),
      а прокручивается здесь, страница вбок не едет. */
   overflow-x: auto;
@@ -955,10 +1776,6 @@
   border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius-item);
   background: var(--pt-surface);
-}
-
-.cs-figure[data-size="item"] .cs-figure-frame {
-  max-width: 440px;
 }
 
 .cs-figure-frame img {
@@ -1792,7 +2609,7 @@ label.cs-option:active {
   font-weight: 600;
 }
 
-.cs-facts dd.pt-data {
+.cs-facts dd.cs-num {
   font-size: var(--pt-size-secondary);
 }
 
@@ -2312,27 +3129,14 @@ label.cs-option:active {
     --cs-reading: 16px;
   }
 
-  .cs-subjects {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .cs-subjects li {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0;
-    padding: 8px 12px;
-  }
-
-  .cs-subject-name {
-    font-size: var(--pt-size-secondary);
-  }
-
   .cs-next {
     padding: 22px 20px 24px;
   }
 
-  .cs-next-title,
+  .cs-next-title {
+    font-size: 21px;
+  }
+
   .cs-summary-title {
     font-size: 24px;
   }
@@ -2354,14 +3158,23 @@ label.cs-option:active {
     margin-inline: calc(-1 * var(--cs-card-inline, 0px));
   }
 
-  .cs-figure-frame,
-  .cs-figure[data-size="item"] .cs-figure-frame {
+  .cs-figure-scroller,
+  .cs-figure[data-size="item"] .cs-figure-scroller {
     max-width: none;
+  }
+
+  .cs-figure-frame {
     border-inline: 0;
     border-radius: 0;
   }
 
-  .cs-figure-caption {
+  .cs-figure-scroller[data-scrolls]:not([data-end])::after {
+    inset-inline-end: 0;
+    border-radius: 0;
+  }
+
+  .cs-figure-caption,
+  .cs-figure-hint {
     padding-inline: var(--cs-card-inline, 0px);
   }
 

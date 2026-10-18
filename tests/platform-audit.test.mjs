@@ -591,7 +591,8 @@ test("the direction row carries the change: a change, a first set, and nothing f
 
 test("the extra key belongs to the direction event alone, and that event always has it", () => {
   // The direction event without the key, a neighbour with the key, a non-object value.
-  const { case_direction: _omitted, ...withoutKey } = DIRECTION_ROW;
+  const withoutKey = { ...DIRECTION_ROW };
+  delete withoutKey.case_direction;
   assertContractError(() => directionRows(withoutKey));
   assertContractError(() => directionRows({ ...SAFE_ROW, case_direction: { from: "CN", to: "MY" } }));
   assertContractError(() => directionRows({ ...SAFE_ROW, case_direction: null }));

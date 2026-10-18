@@ -176,7 +176,8 @@ test("published and draft DTOs reject raw registry/provenance extras and malform
   const draft = { id, institutionId: null, baseVersion: 0, createdAt: "2026-09-10T00:00:00Z", status: "draft", content: clone(), reason: "Review source", reviewKind: "content" };
   assert.deepEqual(parseUniversityDrafts([draft]), [draft]);
   assert.equal(parseUniversityDrafts([{ ...draft, email: "private@example.invalid" }]), null);
-  const { reviewKind: _omitted, ...withoutKind } = draft;
+  const withoutKind = { ...draft };
+  delete withoutKind.reviewKind;
   assert.equal(parseUniversityDrafts([withoutKind]), null, "a draft without reviewKind is a foreign shape");
   assert.equal(parseUniversityDrafts([{ ...draft, reviewKind: "other" }]), null, "an unknown reviewKind is a foreign shape");
   assert.equal(parseUniversityDrafts([{ ...draft, reviewKind: "intake_ids" }]), null, "intake_ids needs a published institution and base version");

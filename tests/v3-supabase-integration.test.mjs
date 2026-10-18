@@ -426,6 +426,9 @@ test("V3 style proof checks served and applied current-page CSS in dev and produ
   assert.match(styles, /applied\.world\.accent, "#d70217"/u);
   assert.match(styles, /document\.fonts\.check\('16px "Golos Text Variable"'\)/u);
   assert.match(styles, /image\.complete && image\.naturalWidth > 0/u);
+  // Рейка досок (64 px, DESIGN.md) без логотипа по контракту: гейт требует логотип везде, кроме неё, и в ней требует его отсутствия.
+  assert.match(styles, /\(width >= 48rem\) and \(width < 96rem\)/u);
+  assert.match(styles, /toHaveCount\(0\)/u);
   assert.doesNotMatch(styles, /bytes\s*[<>]|100_000|full sheet|base\}\/login/u);
   assert.match(gate, /await assertStyled\(page, base, \{ v3: true, surface: "staff" \}\)/u);
 });

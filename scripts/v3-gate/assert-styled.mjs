@@ -66,8 +66,18 @@ export async function assertStyled(page, base, { v3 = false, surface = "base" } 
     assert.ok(applied.world.font.includes("Golos Text Variable"), "V3 font did not apply");
   }
   const logo = page.getByRole("img", { name: "EVO Admissions", exact: true });
-  await expect(logo).toBeVisible();
-  await expect.poll(() => logo.evaluate((image) => image.complete && image.naturalWidth > 0),
-    { message: "original EVO logo did not load" }).toBe(true);
+  // The board rail (DESIGN.md «Воронка поступления»: windows 768-1535 px, a 64 px menu) has no logo by contract - the full
+  // lockup does not read at that width. Everywhere else the original logo must be on the page and loaded.
+  const rail = await page.evaluate(() => {
+    const menu = document.querySelector("[data-shell-menu]");
+    return Boolean(menu) && matchMedia("(width >= 48rem) and (width < 96rem)").matches && menu.getBoundingClientRect().width < 100;
+  });
+  if (rail) {
+    await expect(logo, "the board rail carries no logo").toHaveCount(0);
+  } else {
+    await expect(logo).toBeVisible();
+    await expect.poll(() => logo.evaluate((image) => image.complete && image.naturalWidth > 0),
+      { message: "original EVO logo did not load" }).toBe(true);
+  }
   return { bytes, sheets: new Set(links).size };
 }

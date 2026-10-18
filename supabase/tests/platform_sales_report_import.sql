@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for the «Отчёт продаж» row import (platform.import_sales_report_row_v1,
--- migration 304, written under 299). WRITTEN, NOT RUN: the owner decided on 17.10.2026 to build every task
--- first and to test, review, merge and release them in one pass afterwards.
+-- migration 304, written under 299). Written first and run in the 18.10.2026 integration pass (the owner's
+-- decision of 17.10.2026: build every task, then test, review, merge and release them in one pass).
 -- Members are modelled like the 287 suite: invited staff have coarse role NULL, the Admin
 -- is a system Admin of its organization. Proves:
 --  1. the service-only boundary: authenticated and anon cannot execute it, a service role

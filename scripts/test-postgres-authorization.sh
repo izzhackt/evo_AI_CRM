@@ -3938,8 +3938,7 @@ SQL
   # receipt, outside the marketing cohort; lead_exists / case_exists create
   # nothing; a phone-spelling duplicate candidate); a journal without personal
   # data; isolation of organizations; the posture of the new objects. Written on
-  # 18.10.2026 and NOT yet run (the owner's decision: one pass of testing at the
-  # end of the batch).
+  # 18.10.2026 (as migration 299) and run in the integration pass as 304.
   if [[ "$(basename "$migration")" == *_platform_sales_report_import.sql ]]; then
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \

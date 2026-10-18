@@ -169,12 +169,12 @@ SELECT pg_temp.cms_assert((SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON
 
 -- ---------------------------------------------------------------------------
 -- Fixture. Organization 1: 1 Admin (system), 2 second Admin (system), 3 coarse Admin who is not a system Admin,
--- 4 coarse Sales, 5 / 7 / 8 Students (cabinets), 6 system Admin whose membership is suspended. Organization 2:
+-- 4 coarse Sales, 5 / 7 / 8 / 9 Students (cabinets), 6 system Admin whose membership is suspended. Organization 2:
 -- Admin 20.
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE cms_actors(n INTEGER, coarse platform.business_role, claims TEXT);
 INSERT INTO cms_actors(n, coarse) VALUES (1, 'admin'), (2, 'admin'), (3, 'admin'), (4, 'sales'), (5, 'student'), (6, 'admin'),
-  (7, 'student'), (8, 'student');
+  (7, 'student'), (8, 'student'), (9, 'student');
 GRANT SELECT ON cms_actors TO authenticated, anon, service_role;
 
 INSERT INTO platform.organizations(id, name) VALUES (pg_temp.cms_id(1), 'CMS Fictional organization'),
@@ -300,6 +300,9 @@ SELECT pg_temp.cms_mk_client('KG', 'CMS Keep Golf', NULL, NULL), pg_temp.cms_mk_
   pg_temp.cms_mk_client('KI', 'CMS Keep India', NULL, NULL), pg_temp.cms_mk_client('MI', 'CMS Merge India', NULL, NULL),
   pg_temp.cms_mk_client('KJ', 'CMS Keep Juliet', NULL, NULL), pg_temp.cms_mk_client('MJ', 'CMS Merge Juliet', NULL, NULL);
 SELECT pg_temp.cms_mk_lead('LKG', 'KG'), pg_temp.cms_mk_lead('LMG', 'MG'), pg_temp.cms_mk_lead('LKI', 'KI'), pg_temp.cms_mk_lead('LMI', 'MI');
+-- Pair K: the merged client's case carries a student cabinet (the case, and the cabinet with it, moves).
+SELECT pg_temp.cms_mk_client('KK', 'CMS Keep Kilo', NULL, NULL), pg_temp.cms_mk_client('MK', 'CMS Merge Kilo', NULL, NULL);
+SELECT pg_temp.cms_mk_lead('LKK', 'KK'), pg_temp.cms_mk_lead('LMK', 'MK');
 -- The public function's pair (R) and a bystander of it.
 SELECT pg_temp.cms_mk_client('KR', 'CMS Keep Romeo', NULL, NULL), pg_temp.cms_mk_client('MR', 'CMS Merge Romeo', NULL, NULL);
 SELECT pg_temp.cms_mk_lead('LKR', 'KR'), pg_temp.cms_mk_lead('LMR', 'MR');
@@ -350,7 +353,7 @@ SELECT pg_temp.cms_mk_case(1, 'KA', 'LKA', 'active', 5), pg_temp.cms_mk_case(2, 
   pg_temp.cms_mk_case(9, 'KP', 'LP', 'pending'), pg_temp.cms_mk_case(10, 'KE', 'LE', 'active'),
   pg_temp.cms_mk_case(11, 'KDC', 'LDC', 'active'), pg_temp.cms_mk_case(12, 'KR', 'LKR', 'active'),
   pg_temp.cms_mk_case(13, 'MR', 'LMR', 'active'), pg_temp.cms_mk_case(14, 'KZ', 'LZ', 'active'),
-  pg_temp.cms_mk_case(16, 'KI', 'LKI', 'active');
+  pg_temp.cms_mk_case(16, 'KI', 'LKI', 'active'), pg_temp.cms_mk_case(17, 'MK', 'LMK', 'active', 9);
 -- Conversations: MA's (moves with the merge) and MR's. Each rests on a stored provider event (the foreign key is
 -- checked again when a row laid down in this transaction is updated).
 INSERT INTO platform_private.provider_webhook_events (id, organization_id, provider, provider_account_ref,
@@ -763,6 +766,14 @@ SELECT pg_temp.cms_assert(:'cms_merge_i'::JSONB -> 'moved' = '{"leads": 1, "stud
   AND (SELECT client_id = pg_temp.cms_cl('MI') FROM platform.leads WHERE id = pg_temp.cms_ld('LKI'))
   AND (SELECT client_id = pg_temp.cms_cl('MI') FROM platform.leads WHERE id = pg_temp.cms_ld('LMI')),
   'merge I: with the pinned lead on the kept side the merge goes through');
+-- Pair K: the merged client's case has the student cabinet; it moves, the cabinet stays as it was.
+SELECT pg_temp.cms_svc_json(pg_temp.cms_merge('k1', pg_temp.cms_cl('KK'), pg_temp.cms_cl('MK')))::TEXT AS cms_merge_k \gset
+SELECT pg_temp.cms_assert(:'cms_merge_k'::JSONB -> 'moved' = '{"leads": 1, "student_cases": 1, "conversations": 0, "candidates_staled": 0}'::JSONB
+  AND (SELECT canonical_client_id = pg_temp.cms_cl('KK') AND student_membership_id = pg_temp.cms_id(309) AND portal_activated_at IS NOT NULL
+      AND state = 'active' FROM platform.student_cases WHERE id = pg_temp.cms_id(7517))
+  AND (SELECT status = 'active' FROM platform.organization_memberships WHERE id = pg_temp.cms_id(309))
+  AND platform_private.client_has_student_cabinet(pg_temp.cms_id(1), pg_temp.cms_cl('KK')),
+  'merge K: the case with a student cabinet moves to the kept client and the cabinet is untouched (the student keeps the login)');
 -- One cabinet is fine: pair A already merged a client with a cabinet (KA) and one without (MA).
 SELECT pg_temp.cms_assert(platform_private.client_has_student_cabinet(pg_temp.cms_id(1), pg_temp.cms_cl('KA'))
   AND NOT platform_private.client_has_student_cabinet(pg_temp.cms_id(1), pg_temp.cms_cl('MB'))
@@ -779,7 +790,7 @@ SELECT pg_temp.cms_assert(pg_temp.cms_error($q$UPDATE platform_private.client_me
     = '55000:platform.client_merge_service_receipts is append-only; DELETE is forbidden'
   AND (SELECT count(*) = 2 FROM pg_trigger WHERE tgrelid = 'platform_private.client_merge_service_receipts'::regclass AND NOT tgisinternal
       AND tgname IN ('client_merge_service_receipts_append_only', 'client_merge_service_receipts_no_truncate'))
-  AND (SELECT count(*) = 9 FROM platform_private.client_merge_service_receipts WHERE operation = 'merge'),
+  AND (SELECT count(*) = 10 FROM platform_private.client_merge_service_receipts WHERE operation = 'merge'),
   'the receipts cannot be updated or deleted, and truncate is guarded');
 SELECT pg_temp.cms_assert(pg_temp.cms_error(format($q$INSERT INTO platform_private.client_merge_service_receipts(organization_id, operation,
     import_source, external_ref, actor_membership_id, payload_md5, keep_client_id, merge_client_id, lead_id, result, before_state)
@@ -951,11 +962,11 @@ SELECT pg_temp.cms_assert(NOT EXISTS (SELECT 1 FROM platform.audit_events e
       AND (coalesce(e.before_state::TEXT, '') || e.after_state::TEXT || e.reason || e.action || e.resource_type)
         ~* '\+996|0555|example\.invalid|CMS (Keep|Merge|Client|Twin|Third)|private note|Втор'),
   'the journal rows of both calls hold no name, phone, e-mail or note text');
-SELECT pg_temp.cms_assert((SELECT count(*) = 9 FROM platform.audit_events WHERE organization_id = pg_temp.cms_id(1) AND action = 'client.duplicate.merge')
+SELECT pg_temp.cms_assert((SELECT count(*) = 10 FROM platform.audit_events WHERE organization_id = pg_temp.cms_id(1) AND action = 'client.duplicate.merge')
   AND (SELECT count(*) = 5 FROM platform.audit_events WHERE organization_id = pg_temp.cms_id(1) AND action = 'note.create' AND actor_principal = 'service:client-merge')
   AND (SELECT count(*) = 6 FROM platform.audit_events WHERE organization_id = pg_temp.cms_id(1) AND action = 'lead.lifecycle.change' AND actor_principal = 'service:lead-already-student')
   AND (SELECT count(DISTINCT request_id) = count(*) FROM platform.audit_events WHERE actor_principal IN ('service:client-merge', 'service:lead-already-student')),
-  'the journal: nine merges, five notes, six closures; every row has its own request id');
+  'the journal: ten merges, five notes, six closures; every row has its own request id');
 SELECT pg_temp.cms_assert((SELECT count(*) = 1 FROM platform_private.client_merge_service_receipts r
       WHERE r.operation = 'merge' AND r.before_state::TEXT LIKE '%+996555000202%')
   AND NOT EXISTS (SELECT 1 FROM platform.audit_events WHERE (coalesce(before_state::TEXT, '') || after_state::TEXT) LIKE '%+996555000202%'),

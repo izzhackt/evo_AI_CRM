@@ -2,6 +2,7 @@
 
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
+import { caseDocumentsAwaitCurator } from "@/lib/v3/case-access-contract";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -772,6 +773,7 @@ export function ProfileAdmissionsWorkspacePanel({
                   canRead={canReadRequirements}
                   canReview={canReviewDocuments}
                   canInitialize={canInitializeRequirements && row.preparation.applicationStatus === "preparation"}
+                  documentsAwaitCurator={caseDocumentsAwaitCurator(workspace.caseState)}
                 />
               ) : null}
             />

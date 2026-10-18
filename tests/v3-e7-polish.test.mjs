@@ -641,7 +641,8 @@ test("one create button per calendar screen: the shell opens the composer with t
   // Кнопка оболочки — у того же права, что и рабочая задача календаря.
   const shell = read("src/components/v3/AppShell.tsx");
   assert.match(shell, /const canCreateTask = !previewing && staffHasPermission\(actor, "staff\.task\.create"\);/u);
-  assert.match(shell, /\{canCreateTask \? \(\s*<Link\s*href="\/v3\/tasks\?create=staff"/u);
+  // План A скорости (#1201): та же ссылка стала IntentPrefetchLink (подгрузка по намерению), адрес и условие прежние.
+  assert.match(shell, /\{canCreateTask \? \(\s*<IntentPrefetchLink\s*href="\/v3\/tasks\?create=staff"/u);
 });
 
 const NOUN = { one: "дело", few: "дела", many: "дел" };

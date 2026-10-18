@@ -41,6 +41,9 @@ function loader(overrides) {
     new Function("require", "module", "exports", code)((id) => {
       if (id in overrides) return overrides[id];
       if (id === "server-only") return {};
+      // JSON-источник (например src/lib/study-countries.json, единый список стран 282): читается как данные, как require.
+      if (id.endsWith(".json") && id.startsWith("@/")) return JSON.parse(read(join("src", id.slice(2))));
+      if (id.endsWith(".json") && id.startsWith(".")) return JSON.parse(read(join(dirname(path), id)));
       if (id.startsWith("@/")) return load(resolveFile(join("src", id.slice(2))) ?? assert.fail(id));
       if (id.startsWith(".")) return load(resolveFile(join(dirname(path), id)) ?? assert.fail(`${path}: ${id}`));
       return require(id);

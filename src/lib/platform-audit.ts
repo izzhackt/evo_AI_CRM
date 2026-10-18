@@ -1,4 +1,8 @@
 import type { PlatformAuditCsvRow } from "./platform-audit-csv.ts";
+import {
+  parseCaseDirectionChange,
+  type CaseDirectionChange,
+} from "./platform-case-direction-change.ts";
 
 export const PLATFORM_AUDIT_MAX_PAGE_SIZE = 100;
 export const PLATFORM_AUDIT_DEFAULT_PAGE_SIZE = 50;
@@ -55,6 +59,16 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // `p7a_changed_field_codes` `document.%` LIKE branch, itself unchanged by
 // 255) and the remaining 62 fall through to the existing `["record_status"]`
 // default, exactly matching the server's own `ELSE` branch.
+// Migration «аудит направления» (migration 302, docs/PLAN_CHANGES.md
+// «2026-10-17 · «Журнал действий» и «История» дела показывают смену
+// направления») adds one action, `case.direction.set` (written by 292's
+// `set_student_case_direction_v1`), by the same rename-and-union wrapper
+// (`..._pre_case_direction_audit`). It falls through to the `["record_status"]`
+// default of `expectedChangedFieldCodes`, exactly like the server's `ELSE`. It is
+// also the only action whose safe row carries one extra key, `case_direction`
+// (`{from, to}` with codes of the five staff directions, or null); every other
+// row keeps exactly the ten keys of `SAFE_ROW_KEYS`, so `parseSafeRow` accepts the
+// extra key on this action and nowhere else.
 export const PLATFORM_AUDIT_ACTIONS = [
   "ai.control.set",
   "ai.draft.generate",
@@ -82,6 +96,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "case.coverage.start",
   "case.create",
   "case.curator.set",
+  "case.direction.set",
   "case.handoff.acknowledge",
   "case.handoff.clarification",
   "case.handoff.create",
@@ -447,6 +462,12 @@ type PlatformAuditSafeRowEnvelope = Readonly<{
   actorDisplayLabel: PlatformAuditActorDisplayLabel;
   requestId: string;
   reasonCode: PlatformAuditReasonCode;
+  /**
+   * Только у `case.direction.set`: что было и что стало (коды пяти направлений
+   * сотрудников). Нет поля - у строки другого действия либо код направления
+   * неизвестен: показывать нечего.
+   */
+  caseDirection?: CaseDirectionChange;
 }>;
 
 /**
@@ -573,6 +594,10 @@ const SAFE_ROW_KEYS = [
   "reason_code",
   "changed_field_codes",
 ] as const;
+// The one action whose safe row has an extra key (see the note above
+// PLATFORM_AUDIT_ACTIONS).
+const CASE_DIRECTION_ACTION = "case.direction.set";
+const CASE_DIRECTION_KEY = "case_direction";
 
 export class PlatformAuditContractError extends Error {
   constructor() {
@@ -1040,7 +1065,19 @@ const ACTOR_DISPLAY_LABELS_BY_KIND: Readonly<
 };
 
 function parseSafeRow(value: unknown): PlatformAuditSafeRow {
-  if (!isRecord(value) || !hasExactKeys(value, SAFE_ROW_KEYS)) invalid();
+  if (!isRecord(value)) invalid();
+  const carriesCaseDirection = Object.prototype.hasOwnProperty.call(
+    value,
+    CASE_DIRECTION_KEY,
+  );
+  if (
+    !hasExactKeys(
+      value,
+      carriesCaseDirection ? [...SAFE_ROW_KEYS, CASE_DIRECTION_KEY] : SAFE_ROW_KEYS,
+    )
+  ) {
+    invalid();
+  }
   const actorKind = parseEnum(value.actor_kind, ["user", "service", "system"]);
   const actorDisplayLabel = parseEnum(
     value.actor_display_label,
@@ -1056,6 +1093,15 @@ function parseSafeRow(value: unknown): PlatformAuditSafeRow {
     RESOURCE_TYPE_PATTERN,
     64,
   );
+  // The extra key belongs to the direction event and to nothing else, and that
+  // event always has it (null when its codes are not the five known ones).
+  if (carriesCaseDirection !== (action === CASE_DIRECTION_ACTION)) invalid();
+  let caseDirection: CaseDirectionChange | null = null;
+  if (carriesCaseDirection) {
+    const raw = value[CASE_DIRECTION_KEY];
+    if (raw !== null && !isRecord(raw)) invalid();
+    caseDirection = parseCaseDirectionChange(raw);
+  }
   const expectedReasonCode: PlatformAuditReasonCode =
     action === "audit.export" ? "audit_export_requested" : "restricted";
   if (value.reason_code !== expectedReasonCode) invalid();
@@ -1070,6 +1116,7 @@ function parseSafeRow(value: unknown): PlatformAuditSafeRow {
     actorDisplayLabel,
     requestId: parseUuid(value.request_id)!,
     reasonCode,
+    ...(caseDirection ? { caseDirection } : {}),
   };
 
   if (

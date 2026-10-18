@@ -8,7 +8,7 @@ import { Pill } from "@/components/v3/Pill";
 import type { IntegrationTone } from "@/lib/v3/settings-health";
 
 import type { GateFacts, IntegrationRow, JournalEntry } from "./types";
-import { journalActor, journalEvent, journalObject } from "@/lib/v3/wording";
+import { journalActor, journalEvent, journalEventText, journalObject } from "@/lib/v3/wording";
 import { journalNotice, type JournalStatus } from "@/lib/v3/settings-journal-contract";
 import { QUEUE_QUIET_LINK } from "@/components/v3/queue/QueueStates";
 
@@ -312,7 +312,7 @@ export function JournalSection({
                   className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5 last:border-b-0"
                 >
                   <span className="min-w-0 flex-1 text-sm text-fg">
-                    {journalEvent(entry.transition)}
+                    {journalEventText(entry.transition, entry.directionChange)}
                   </span>
                   {actorWord !== null ? <Pill>{actorWord}</Pill> : null}
                   <span className="t-meta shrink-0 font-mono text-fg-3">{entry.at}</span>

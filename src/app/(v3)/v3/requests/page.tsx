@@ -39,16 +39,17 @@ export default async function RequestsPage({ searchParams }: {
   const readOnly = isStaffPreview(actor);
   // Та же граница, что у «Добавить лида» на доске: форма и список ответственных.
   const canCreateLead = !readOnly && staffHasPermission(actor, "lead.sales.workflow.manage");
-  const [read, owners] = await Promise.all([
+  const [read, owners, dial] = await Promise.all([
     loadScopedRequestsQueue(actor, selection).then(
       (queue): RequestsQueueRead => ({ status: "ready", queue }),
       (error): RequestsQueueRead => ({ status: error instanceof RequestsQueueSourceError ? error.code : "unavailable" }),
     ),
     // Сбой чтения ответственных — null: форма скажет, что список не загрузился.
     canCreateLead ? readPipelineOwnerOptions(actor).catch(() => null) : null,
+    // «Звонки» (T9): исход звонка в строке и «Позвонить» — только когда телефония в интерфейсе включена и набор открыт.
+    // Читается вместе с очередью, а не после неё: отдельного ожидания на каждый заход нет (сбой чтения — «выключено»).
+    readDialOptions(actor),
   ]);
-  // «Звонки» (T9): исход звонка в строке и «Позвонить» — только когда телефония в интерфейсе включена и набор открыт.
-  const dial = await readDialOptions(actor);
   const callLines = read.status === "ready" && read.queue.phoneCalls ? await readRequestCallLines(actor, read.queue.rows) : {};
   const takeRequestIds = read.status === "ready"
     ? Object.fromEntries(read.queue.rows.flatMap((row) => row.kind === "lead" && row.take ? [[row.leadId, randomUUID()]] : []))

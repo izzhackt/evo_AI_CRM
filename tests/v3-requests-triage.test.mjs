@@ -331,6 +331,14 @@ test("«Звонки»: the tab, its number and its rows exist only when the rea
   // The database names a lead made by an unknown number «Звонок …»; the column already says «Звонок», so the row says «Номер …» (short: the digits that tell leads apart must stay on a 390 px line).
   assert.match(waiting, /Номер ••••4521/u);
   assert.doesNotMatch(waiting, />Звонок ••••/u);
+  // «Взять себе» speaks the same name (its accessible name, and the receipt line after taking, come from one prop).
+  assert.match(waiting, /aria-label="Взять себе: Номер ••••4521"/u);
+  assert.doesNotMatch(waiting, /aria-label="Взять себе: Звонок/u);
+  assert.equal([...read("src/components/v3/requests/RequestsQueueView.tsx").matchAll(/personName=\{requestDisplayName\(row\)\}/gu)].length, 2, "the row button and the panel button");
+  assert.doesNotMatch(read("src/components/v3/requests/RequestsQueueView.tsx"), /personName=\{row\.personName\}/u);
+  // The page reads the dial options together with the queue, not as a second wait on every visit.
+  assert.match(read("src/app/(v3)/v3/requests/page.tsx"), /const \[read, owners, dial\] = await Promise\.all\(\[[\s\S]*?readDialOptions\(actor\),\s*\]\);/u);
+  assert.doesNotMatch(read("src/app/(v3)/v3/requests/page.tsx"), /const dial = await readDialOptions/u);
   assert.match(waiting, /href="\/v3\/requests\?source=phone_call&amp;open=lead%3A[0-9a-f-]+"/u, "«Открыть» keeps the tab in the address");
   assert.equal(count(waiting, />Звонок</gu) >= 2, true, "the source column says «Звонок»");
   const all = main(surfaces.get("calls"));

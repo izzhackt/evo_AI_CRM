@@ -34,6 +34,7 @@ import {
   DIAL_FAILURE_REASONS,
   DIAL_OFF,
   DIAL_REFUSAL_CODES,
+  dialAccessibleName,
   dialErrorCopy,
   dialFailureCopy,
   dialOptionsState,
@@ -43,6 +44,7 @@ import {
   isCallbackTaskTitle,
   todayDialLeadId,
 } from "../src/lib/v3/telephony-dial.ts";
+import { callerDisplayName, leadDisplayName } from "../src/lib/v3/wording.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
@@ -871,8 +873,17 @@ test("rendered lead: an unmapped employee gets an explained button (aria-disable
 
 test("the dial button names the client for the screen reader at every width, so an icon-only button still says whom it calls", () => {
   const source = read("src/components/v3/telephony/DialButton.tsx");
-  assert.match(source, /const accessibleName = subject \? `\$\{name\}: \$\{subject\}` : variant === "row" \? name : undefined;/u);
+  assert.match(source, /const accessibleName = dialAccessibleName\(variant, pending, subject\);/u);
   assert.match(source, /aria-label=\{accessibleName\}/u);
+  // The name is built by one function: the word and whom, and while the call is being placed «Звоним: Имя», not «Звоним…: Имя».
+  assert.equal(dialAccessibleName("action", false, "Номер +996 ••• 12 46 64"), "Позвонить: Номер +996 ••• 12 46 64");
+  assert.equal(dialAccessibleName("action", true, "Айгерим"), "Звоним: Айгерим", "no ellipsis before the colon");
+  assert.doesNotMatch(dialAccessibleName("action", true, "Айгерим"), /…/u);
+  assert.equal(dialAccessibleName("row", false, "Айгерим"), "Позвонить: Айгерим");
+  assert.equal(dialAccessibleName("row", true, "Айгерим"), "Позвонить: Айгерим", "an icon-only row button keeps its action word");
+  assert.equal(dialAccessibleName("row", false, null), "Позвонить", "a row button without a name still says what it does");
+  assert.equal(dialAccessibleName("action", false, null), undefined, "a button with a visible word and no subject needs no label");
+  assert.equal(dialAccessibleName("action", true, null), undefined);
   // Where the button has no subject (the lead header) the visible word is the name: no label at all.
   assert.doesNotMatch(button(pages.get("lead-dial")), /aria-label=/u);
 });
@@ -900,6 +911,35 @@ test("rendered «Сегодня»: a lead row and a request row get a 44 px phon
     assert.equal(dialButtons(pages.get(name)).length, 0, name);
     assert.doesNotMatch(pages.get(name), /grid-cols-\[2\.75rem_minmax\(0,1fr\)_5\.5rem\]/u, name);
   }
+});
+
+// ------------------------------------------------------------ one name for a lead made by an unknown number
+
+test("a lead made by an unknown number is «Номер …» on the lead card, the lead's tasks, the pipeline board and the take button", () => {
+  // The rule: only the name the database wrote («Звонок» + the mask) of a phone-call lead is renamed.
+  assert.equal(callerDisplayName("Звонок +996 ••• 12 46 64"), "Номер +996 ••• 12 46 64");
+  assert.equal(callerDisplayName("Звонок ••••4521"), "Номер ••••4521");
+  assert.equal(callerDisplayName("Звонок родителей"), "Звонок родителей");
+  assert.equal(callerDisplayName("Асель Демова"), "Асель Демова");
+  assert.equal(leadDisplayName("phone_call", "Звонок +996 ••• 12 46 64"), "Номер +996 ••• 12 46 64");
+  assert.equal(leadDisplayName("website", "Звонок +996 ••• 12 46 64"), "Звонок +996 ••• 12 46 64", "a lead of another source keeps its name");
+  assert.equal(leadDisplayName(null, "Звонок ••••4521"), "Звонок ••••4521");
+  // The lead card: the page title, and the heading of the plain profile header, from the lead's own source. The name that profile
+  // data carries is not touched: the portal-access forms send it as the student's display name.
+  const profilePage = read("src/app/(v3)/v3/profile/page.tsx");
+  assert.match(profilePage, /\? leadDisplayName\(view\.profile\.source, view\.profile\.person\) : docsMode/u);
+  assert.match(read("src/components/v3/profile/Profile.tsx"), /\{leadDisplayName\(profile\.source, profile\.person\)\}/u);
+  assert.doesNotMatch(read("src/lib/v3/profile-source.ts"), /leadDisplayName|callerDisplayName/u, "the data keeps the database name");
+  // The lead's tasks heading; the pipeline search link keeps the name as the database wrote it.
+  const tasks = read("src/app/(v3)/v3/tasks/page.tsx");
+  assert.match(tasks, /<h2 className="t-section">\{callerDisplayName\(sourceLead\.clientDisplayName \?\? "Имя клиента не указано"\)\}<\/h2>/u);
+  assert.match(tasks, /\/v3\/pipeline\?q=\$\{encodeURIComponent\(sourceLead\.clientDisplayName\)\}/u);
+  // The board: the card (text and title), the side panel (title and the close menu) and the «closed» line.
+  const board = read("src/components/v3/Pipeline.tsx");
+  assert.match(board, /function leadLabel\(lead: Pick<PipelineLead, "source" \| "name">\): string \{\s*return leadDisplayName\(lead\.source, lead\.name\);/u);
+  assert.equal((board.match(/leadLabel\(lead\)/gu) ?? []).length, 4, "card title and text, panel title, close-menu subject");
+  assert.match(board, /leadClosed\(leadLabel\(selected\), receipt\)/u);
+  assert.doesNotMatch(board, /\{lead\.name\}|title=\{lead\.name\}|subjectName=\{lead\.name\}/u, "no raw name left on the board");
 });
 
 // ------------------------------------------------------------ the task of a missed call names the client

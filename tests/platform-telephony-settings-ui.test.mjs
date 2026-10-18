@@ -140,6 +140,32 @@ test("switched off: the section says «Выключено» and shows the four b
   assert.doesNotMatch(flat(markup), /работает/u);
 });
 
+test("the verdict counts the line of an issue: intake open and the PBX key missing is not «Замечаний нет»", () => {
+  const { TelephonySection } = sectionModule();
+  const noUnmapped = { directory: { active: 3, inactive: 1, unmapped: 0, last_seen_at: null } };
+  const view = (server, input = {}) => render(React.createElement(TelephonySection, {
+    read: { status: "ready", overview: overview({ health: noUnmapped, ...input }), server, inboundUrl: INBOUND }, readOnly: false, now: NOW,
+  }));
+  const noPbxKey = view({ ...SERVER_ON, pbx: "not_configured" });
+  assert.deepEqual(telephonyHealth.telephonyIssues({ ...SERVER_ON, pbx: "not_configured" }, overview({ health: noUnmapped }), NOW).map((issue) => issue.id), ["pbx_key"],
+    "the same state is an issue in «Интеграции»");
+  assert.match(flat(noPbxKey), /Состояние Требует внимания: 1 из 12/u);
+  assert.doesNotMatch(flat(noPbxKey), /Замечаний нет/u);
+  assert.match(noPbxKey, /data-line="pbx_key" data-tone="warn"/u);
+  // The line and its hand-off stand above the fold, not in the folded list.
+  assert.ok(noPbxKey.indexOf('data-line="pbx_key"') < noPbxKey.indexOf('data-testid="v3-telephony-status-rest"'));
+  assert.match(flat(noPbxKey), /Сверка с историей ВАТС, список пользователей и звонок из CRM выключены\./u);
+  assert.match(noPbxKey, /data-testid="v3-telephony-handoff">Передать техническому специалисту: внести ключ ВАТС на сервер</u);
+  // A state with nothing to look at still says so.
+  const quiet = view(SERVER_ON);
+  assert.match(flat(quiet), /Состояние Замечаний нет/u);
+  assert.doesNotMatch(quiet, /v3-telephony-handoff/u);
+  // Intake off: no such issue, the key line is quiet (the intake line is the one to look at only if a switch is on).
+  const off = view({ ...SERVER_OFF });
+  assert.match(flat(off), /Состояние Замечаний нет/u);
+  assert.match(off, /data-line="pbx_key" data-tone="off"/u);
+});
+
 test("when something is on the «Выключено» line disappears, and a preview passes read-only down", () => {
   const { TelephonySection } = sectionModule();
   const markup = render(React.createElement(TelephonySection, {

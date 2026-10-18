@@ -97,6 +97,17 @@ export const DIAL_COPY = Object.freeze({
   network: "Не удалось связаться с CRM. Проверьте, пошёл ли звонок, прежде чем нажимать снова.",
 });
 
+/**
+ * Имя кнопки для читалки: слово и кому («Позвонить: Айгерим»). У строки очереди кнопка без слов, и имя нужно всегда;
+ * у кнопки со словом — когда известно, кого набираем. Пока звонок набирается, кнопка пишет «Звоним…»: многоточие перед
+ * двоеточием читалка произнесла бы «Звоним…: Айгерим», поэтому в имени слово стоит без него («Звоним: Айгерим»).
+ */
+export function dialAccessibleName(variant: "action" | "row", pending: boolean, subject: string | null): string | undefined {
+  const word = variant === "action" && pending ? DIAL_COPY.busy.replace(/…$/u, "") : DIAL_COPY.button;
+  if (subject) return `${word}: ${subject}`;
+  return variant === "row" ? word : undefined;
+}
+
 const REFUSAL_COPY: Readonly<Record<DialRefusalCode, string>> = Object.freeze({
   lead_no_phone: "У клиента не записан номер телефона. Добавьте его в карточке.",
   number_invalid: "Номер клиента записан без кода страны или с ошибкой. Исправьте его в карточке, например +996…",

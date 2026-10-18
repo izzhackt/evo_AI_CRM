@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 
 import { Icon } from "@/components/icons";
-import { DIAL_ABOUT, DIAL_COPY, dialRouteAnswer } from "@/lib/v3/telephony-dial";
+import { DIAL_ABOUT, DIAL_COPY, dialAccessibleName, dialRouteAnswer } from "@/lib/v3/telephony-dial";
 
 /** Как у соседних вторичных действий заголовка карточки лида и чата: 44 px, рамка контрола, без красного. */
 const ACTION_CLASS = "inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:text-fg-3 aria-disabled:text-fg-3 aria-disabled:hover:bg-surface aria-disabled:hover:text-fg-3";
@@ -136,8 +136,7 @@ export function DialButton({
   const busy = pending || cooling;
   const label = pending ? DIAL_COPY.busy : DIAL_COPY.button;
   // Имя для читалки: слово «Позвонить» и кому. Узкая кнопка (только значок) без имени клиента не говорит, куда звонит.
-  const name = variant === "row" ? DIAL_COPY.button : label;
-  const accessibleName = subject ? `${name}: ${subject}` : variant === "row" ? name : undefined;
+  const accessibleName = dialAccessibleName(variant, pending, subject);
   return (
     <>
       <button

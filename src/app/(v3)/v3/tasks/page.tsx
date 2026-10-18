@@ -14,7 +14,7 @@ import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { readStaffTaskWorkspace, taskQueueAccess } from "@/lib/v3/staff-task-source";
 import { buildTaskQueue, parseTaskQueueFilters, taskQueueParams } from "@/lib/v3/task-queue";
 import { readCalendarTaskTarget } from "@/lib/v3/calendar-source";
-import { taskStatus } from "@/lib/v3/wording";
+import { callerDisplayName, taskStatus } from "@/lib/v3/wording";
 import { isTeamChatChannel, staffCanAccessChatChannel, type TeamChatMessage } from "@/lib/platform-team-chat";
 import { readTeamChatPage, TeamChatReadError } from "@/lib/server/platform-team-chat-repository";
 import { readStaffTaskChatSource, readStaffTaskContext, readStaffTaskLeadContext, readLeadTaskLinks, type StaffTaskContext } from "@/lib/server/platform-staff-task-repository";
@@ -153,7 +153,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   return <>
     <PartShell title="Задачи" count={canReadTaskQueue && queue.complete && !sourceLead ? queue.rows.length : null}>
     {sourceLead ? <section className="mb-5 space-y-3 border-y border-border py-4" aria-label="Задачи по лиду">
-      <h2 className="t-section">{sourceLead.clientDisplayName ?? "Имя клиента не указано"}</h2>
+      <h2 className="t-section">{callerDisplayName(sourceLead.clientDisplayName ?? "Имя клиента не указано")}</h2>
       <p className="t-body-compact text-fg-2">Следующее действие воронки: {sourceLead.nextActionText ?? "Не назначено"}{sourceLead.nextActionDueDate ? ` · ${sourceLead.nextActionDueDate}` : ""}</p>
       {sourceLead.canOpenPipeline ? <Link href={sourceLead.clientDisplayName === "Имя клиента не указано" ? "/v3/pipeline" : `/v3/pipeline?q=${encodeURIComponent(sourceLead.clientDisplayName)}`} className="inline-flex min-h-11 items-center t-label underline">Открыть в воронке</Link> : null}
       <TaskComposerDialog key={sourceLead.leadId} {...composerProps}

@@ -83,7 +83,7 @@ function TriageCell({ row, triage, props, listHref }: Readonly<{
     case "take":
       return row.kind === "lead" && row.take ? (
         <TakeLeadButton leadId={row.leadId} take={row.take} actorMembershipId={props.actorMembershipId}
-          requestId={props.takeRequestIds[row.leadId]} personName={row.personName} leadHref={leadCardHref(row.leadId, listHref)} />
+          requestId={props.takeRequestIds[row.leadId]} personName={requestDisplayName(row)} leadHref={leadCardHref(row.leadId, listHref)} />
       ) : null;
     case "owner":
       return (
@@ -243,7 +243,7 @@ function RequestDetail({ row, props, listHref, now }: Readonly<{
           </dl>
           {row.kind === "lead" && triage.kind === "take" && row.take ? (
             <TakeLeadButton leadId={row.leadId} take={row.take} actorMembershipId={props.actorMembershipId}
-              requestId={props.takeRequestIds[row.leadId]} personName={row.personName} leadHref={leadCardHref(row.leadId, listHref)} inPanel />
+              requestId={props.takeRequestIds[row.leadId]} personName={requestDisplayName(row)} leadHref={leadCardHref(row.leadId, listHref)} inPanel />
           ) : null}
           {row.kind === "lead" && row.source === "phone_call" && props.dial?.status === "ready" && !props.readOnly ? (
             <DialButton leadId={row.leadId} mapped={props.dial.mapped} subject={requestDisplayName(row)} />

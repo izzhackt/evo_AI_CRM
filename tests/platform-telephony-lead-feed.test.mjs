@@ -549,6 +549,9 @@ test("wiring: the route file, the source, the page and the migration agree", () 
   // The button repeats in every row: its name starts with the visible word and says which call it belongs to.
   assert.match(control, /aria-label=\{`\$\{marked \? "изменить итог" : "Отметить итог"\}: \$\{callName\}`\}/u);
   assert.match(read("src/components/v3/profile/LeadWorkParts.tsx"), /callName=\{`\$\{row\.title\}, \$\{moment\.exact\}`\}/u);
+  // The chip group and «Свернуть» repeat in every row too: both names start with the visible words and say which call.
+  assert.match(control, /role="group" aria-label=\{`Итог звонка: \$\{callName\}`\}/u);
+  assert.match(control, /aria-label=\{`Свернуть итог: \$\{callName\}`\}/u);
   assert.match(control, /День перезвона/u, "the day field names the day to call back, not the day of the past call");
   assert.doesNotMatch(control, /День звонка/u);
   assert.match(migration, /Задачу «Перезвонить» из этой даты создаёт срез T8/u);
@@ -596,7 +599,7 @@ test("rendered lead: call rows stand in the feed by time with the words, the mas
   assert.deepEqual([...open.matchAll(/<button[^>]*>([^<]+)<\/button>/gu)].map((match) => match[1]), ["Дозвонился", "Перезвонить позже", "Не интересно"]);
   assert.match(open, /min-h-11/u, "targets are 44 px");
   assert.match(open, />Итог звонка<\/p>/u, "the group has a visible label");
-  assert.match(open, /role="group" aria-labelledby="[^"]+" class="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap"/u, "three equal columns on a phone");
+  assert.match(open, /role="group" aria-label="Итог звонка: [^"]+" class="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap"/u, "three equal columns on a phone; the group is named by the visible label and the call it belongs to");
   assert.doesNotMatch(open, />Свернуть</u, "a fresh call has no reason to collapse its buttons");
   assert.match(marked, /Итог: <span class="text-fg">Перезвонить 30\.09<\/span>/u, "the saved day shows in the line");
   assert.match(marked, /<button type="button"[^>]*aria-expanded="false"[^>]*>изменить<\/button>/u);

@@ -83,7 +83,6 @@ export function LeadCallResult({
 }>) {
   const router = useRouter();
   const dayId = useId();
-  const labelId = useId();
   const [expanded, setExpanded] = useState(defaultOpen);
   const [picking, setPicking] = useState(false);
   const [day, setDay] = useState(callbackOn ?? bounds.fallback);
@@ -164,12 +163,15 @@ export function LeadCallResult({
       ) : (
         <>
           <div className="flex min-h-6 items-center justify-between gap-x-3">
-            <p id={labelId} className="t-meta text-fg-2">Итог звонка</p>
+            <p className="t-meta text-fg-2">Итог звонка</p>
             {canCollapse ? (
-              <button type="button" className={QUIET} aria-expanded onClick={() => { refocus.current = "summary"; setExpanded(false); setPicking(false); }}>Свернуть</button>
+              // Кнопка повторяется в каждой строке ленты: имя начинается с видимого слова и говорит, чей это звонок.
+              <button type="button" className={QUIET} aria-expanded aria-label={`Свернуть итог: ${callName}`}
+                onClick={() => { refocus.current = "summary"; setExpanded(false); setPicking(false); }}>Свернуть</button>
             ) : null}
           </div>
-          <div ref={group} role="group" aria-labelledby={labelId} className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+          {/* Видимая подпись «Итог звонка» повторяется у каждого звонка ленты: имя группы начинается с неё и говорит, чей звонок. */}
+          <div ref={group} role="group" aria-label={`Итог звонка: ${callName}`} className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
             <button type="button" className={CHIP} disabled={pending} aria-pressed={code === "reached"}
               onClick={(event) => void press("reached", null, event.currentTarget)}>{pressWords.reached}</button>
             <button type="button" className={CHIP} disabled={pending} aria-pressed={code === "callback"} aria-expanded={picking}

@@ -1243,6 +1243,60 @@
         }
       }
     },
+    "csca_home_card_action" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Даярдыкка"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "К подготовке"
+          }
+        }
+      }
+    },
+    "csca_home_card_registration" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Каттоо %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Регистрация %@"
+          }
+        }
+      }
+    },
+    "csca_home_card_session" : {
+      "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Жакынкы сессия: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ближайшая сессия: %@"
+          }
+        }
+      }
+    },
     "csca_item_counter" : {
       "comment" : "KY: черновой перевод, нужна вычитка носителем языка.",
       "extractionState" : "manual",

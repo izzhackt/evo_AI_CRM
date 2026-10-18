@@ -6,6 +6,7 @@ import test from "node:test";
 
 import { COUNTRY_TIMELINES, COUNTRY_TIMELINE_FILE_KEYS, parseCountryTimelineFile } from "../src/lib/portal/country-timeline.ts";
 import { parseStudentCountryChoice } from "../src/lib/portal/country-choice.ts";
+import { TIMELINE_MODULE_ROUTES } from "../src/lib/portal/timeline-module-routes.ts";
 import { PARITY_DATES, PARITY_FIXTURE, parityFixtureText } from "../scripts/portal/write-country-timeline-ios-parity.mjs";
 
 // «Путь поступления» читают два парсера: веб (`JSON.parse`) и iPhone
@@ -61,7 +62,13 @@ test("the parity fixture pins the validUntil boundary: dates stay on that day an
     next.setUTCDate(next.getUTCDate() + 1);
     assert.ok(PARITY_DATES.includes(next.toISOString().slice(0, 10)), `${key}: the fixture has no case after validUntil`);
   }
-  assert.equal(fixture.cases.length, 7 * 2 * PARITY_DATES.length + 2);
+  // Китай с модулем CSCA на RU и KY: условный маршрут и настоящая карта веба.
+  assert.equal(fixture.cases.length, 7 * 2 * PARITY_DATES.length + 4);
+  assert.deepEqual(
+    fixture.cases.filter((entry) => entry.modules && entry.modules.csca === TIMELINE_MODULE_ROUTES.csca).map((entry) => entry.locale),
+    ["ru", "ky"],
+    "the fixture carries the web module map",
+  );
   for (const entry of fixture.cases) {
     const validUntil = fixture.files[entry.file].validUntil;
     assert.equal(entry.datesHidden, entry.today > validUntil, `${entry.choice} ${entry.locale} ${entry.today}`);
@@ -121,4 +128,30 @@ test("the web parser takes exactly the two no-break spaces between digit groups,
   assert.equal(parsed("Сбор 2\u0085500\u00a0долларов."), true, "U+0085 is not JavaScript whitespace");
   assert.equal(parsed("Сбор 2500 долларов, 2 фото, 1 2345."), true);
   assert.equal(parsed("Сбор 2\u202f500\u202fдолларов."), true);
+});
+
+// Контракт §3 п. 6: модуль добавляется на вебе и на iPhone одним шагом.
+// Веб отдаёт ключ `appModule` с путём кабинета, iPhone с ключом экрана; набор
+// ключей обязан совпадать, иначе ссылка шага ведёт на csca.cn только на одной
+// из платформ.
+test("the iPhone opens the same app modules as the web and routes them from Home", () => {
+  const swift = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  const service = swift("ios/EVOAdmissions/Services/CountryTimeline.swift");
+  const routes = service.match(/enum CountryTimelineModules \{[\s\S]*?static let routes: \[String: String\] = \[([^\]]*)\]/u);
+  assert.ok(routes, "CountryTimelineModules.routes is declared");
+  const keys = [...routes[1].matchAll(/"([a-z]+)"\s*:/gu)].map((match) => match[1]).sort();
+  assert.deepEqual(keys, Object.keys(TIMELINE_MODULE_ROUTES).sort(), "the web and the iPhone name the same modules");
+  const rules = service.match(/static let appModules = \[([^\]]*)\]/u);
+  assert.deepEqual([...rules[1].matchAll(/"([a-z]+)"/gu)].map((match) => match[1]).sort(), keys, "every appModule of the content is openable");
+  // «Главная» отдаёт выбору карту приложения и открывает тот же экран CSCA, что вкладка «Английский».
+  const section = swift("ios/EVOAdmissions/Views/CountryTimelineSection.swift");
+  assert.match(section, /modules: CountryTimelineModules\.routes/u);
+  assert.doesNotMatch(section, /filter\(\\\.external\)/u, "internal links are no longer dropped");
+  const home = swift("ios/EVOAdmissions/Views/HomeView.swift");
+  assert.match(home, /NavigationStack\(path: \$path\)/u);
+  assert.match(home, /path\.append\(CSCARoute\.home\)/u);
+  assert.match(home, /navigationDestination\(for: CSCARoute\.self\)/u);
+  // Не `navigationDestination(isPresented:)`: при нём переходы внутри CSCA не открывались.
+  assert.doesNotMatch(home, /navigationDestination\(isPresented:/u);
+  assert.match(swift("ios/EVOAdmissions/Views/EnglishView.swift"), /NavigationLink\(value: CSCARoute\.home\)/u);
 });

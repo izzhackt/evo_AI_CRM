@@ -119,8 +119,10 @@ final class CountryTimelineTests: XCTestCase {
             XCTAssertEqual(Self.library.files[key]?.contentVersion, file.contentVersion, key)
             XCTAssertEqual(Self.library.files[key]?.validUntil, file.validUntil, key)
         }
-        // 7 выборов × RU/KY × (до validUntil, сам validUntil, день после) + Китай с модулем CSCA.
-        XCTAssertEqual(fixture.cases.count, 44)
+        // 7 выборов × RU/KY × (до validUntil, сам validUntil, день после) + Китай с модулем CSCA
+        // (условный маршрут и настоящая карта веба) на RU и KY.
+        XCTAssertEqual(fixture.cases.count, 46)
+        XCTAssertTrue(fixture.cases.contains { $0.modules?["csca"] == "/portal/csca" }, "the web module map is in the fixture")
         XCTAssertTrue(fixture.cases.contains { $0.today == "2027-10-31" && $0.file == "cn" && !$0.datesHidden })
         for entry in fixture.cases {
             let label = "\(entry.choice) \(entry.locale) \(entry.today) \(entry.modules ?? [:])"
@@ -259,6 +261,40 @@ final class CountryTimelineTests: XCTestCase {
         let module = try XCTUnwrap(internalView.steps.first { $0.id == "cn-2-exams" }?.links.first)
         XCTAssertEqual(module.href, "evo-app://csca")
         XCTAssertFalse(module.external)
+    }
+
+    /// Карта приложения (`CountryTimelineModules.routes`) делает ссылку шага
+    /// экзаменов Китая внутренней: ключ экрана вместо csca.cn, без внешнего
+    /// флага, на обоих языках. Остальные ссылки контента не затрагиваются.
+    func testTheAppModuleMapMakesTheCSCALinkInternal() throws {
+        XCTAssertEqual(CountryTimelineModules.routes.keys.sorted(), CountryTimelineRules.appModules.sorted(),
+                       "the app opens every appModule the content can name")
+        for kyrgyz in [false, true] {
+            let view = try XCTUnwrap(Self.library.select(choice: "CN", kyrgyz: kyrgyz, today: Self.before,
+                                                         modules: CountryTimelineModules.routes))
+            let exams = try XCTUnwrap(view.steps.first { $0.id == "cn-2-exams" })
+            XCTAssertEqual(exams.links.map(\.id), ["csca"])
+            let link = try XCTUnwrap(exams.links.first)
+            XCTAssertEqual(link.href, CountryTimelineModules.csca)
+            XCTAssertFalse(link.external)
+            XCTAssertTrue(CountryTimelineModules.canOpen(link.href))
+            XCTAssertFalse(link.label.isEmpty)
+            // Ссылки только у шага экзаменов, и все они внутренние и открываемые.
+            let others = view.steps.filter { $0.id != "cn-2-exams" }.flatMap(\.links)
+            XCTAssertTrue(others.isEmpty, "only the exams step has a link")
+        }
+        // Без карты прежнее поведение: внешний csca.cn, как на вебе без модуля.
+        let plain = try XCTUnwrap(Self.library.select(choice: "CN", kyrgyz: false, today: Self.before))
+        XCTAssertEqual(plain.steps.first { $0.id == "cn-2-exams" }?.links.first?.external, true)
+    }
+
+    /// Внутренняя ссылка на экран, которого приложение не знает, не должна
+    /// стать мёртвой кнопкой: лист её не показывает (`canOpen`).
+    func testOnlyKnownAppScreensCanBeOpened() {
+        XCTAssertTrue(CountryTimelineModules.canOpen("csca"))
+        XCTAssertFalse(CountryTimelineModules.canOpen("/portal/csca"), "the web path is not an app screen key")
+        XCTAssertFalse(CountryTimelineModules.canOpen("evo-app://csca"))
+        XCTAssertFalse(CountryTimelineModules.canOpen(""))
     }
 
     func testWhoLabelsFollowTheLanguage() throws {

@@ -73,20 +73,26 @@ struct HomeView: View {
     @StateObject private var countryTimeline = CountryTimelineModel()
     @StateObject private var cscaCard = CSCAHomeCardModel()
     @State private var runContext: AssessmentRunContext?
+    /// Путь стека «Главной»: ссылка шага «Пути поступления» добавляет в него
+    /// `CSCARoute.home` (контракт docs/portal/country-timeline-contract.md §3,
+    /// п. 6). Переход по значению, а не показ назначения по флагу: при показе
+    /// по флагу переходы внутри CSCA (`NavigationLink(value:)`) не открывались
+    /// (проверено на симуляторе).
+    @State private var path = NavigationPath()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
                 Section {
                     Text(session.authority.displayName).font(.title2.bold())
                         .motionStagger(index: 0, key: "home.greeting")
                 }
                 // «Путь поступления» (S4): у самостоятельного студента первым, у клиента после дела.
-                if session.accessTier == .approved { CountryTimelineSection(model: countryTimeline) }
+                if session.accessTier == .approved { timelineSection }
                 if session.accessTier == .assisted && admissionNeedsAttention {
                     admissionSection
-                    CountryTimelineSection(model: countryTimeline)
+                    timelineSection
                 }
                 // Карточка CSCA (Q16) открывает «Продолжить»; только для студента с Китаем.
                 CSCAHomeCardSection(model: cscaCard)
@@ -99,7 +105,7 @@ struct HomeView: View {
                 }
                 if session.accessTier == .assisted && !admissionNeedsAttention {
                     admissionSection
-                    CountryTimelineSection(model: countryTimeline)
+                    timelineSection
                 }
                 if session.accessTier == .approved { applicationSection }
                 favoritesSection
@@ -113,8 +119,10 @@ struct HomeView: View {
             }
             .navigationTitle("tab_home")
             .portalRouteDestinations()
-            // «К подготовке» открывает экран CSCA в стеке «Главной».
-            .navigationDestination(for: CSCARoute.self) { CSCARouteView(route: $0) }
+            // Тот же экран, что открывает строка «CSCA» во вкладке «Английский»;
+            // переходы внутри CSCA идут по `CSCARoute` в этом же стеке. Сюда же
+            // ведут карточка CSCA («К подготовке») и ссылка шага «Пути поступления».
+            .navigationDestination(for: CSCARoute.self) { route in CSCARouteView(route: route) }
             .refreshable { await refresh() }
             .task { await refresh() }
             .onChange(of: scenePhase) { _, phase in
@@ -129,6 +137,12 @@ struct HomeView: View {
             }) { context in
                 AssessmentRunnerView(context: context)
             }
+        }
+    }
+
+    private var timelineSection: some View {
+        CountryTimelineSection(model: countryTimeline) { route in
+            if route == CountryTimelineModules.csca { path.append(CSCARoute.home) }
         }
     }
 

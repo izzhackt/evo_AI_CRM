@@ -150,6 +150,10 @@ final class CSCAHomeCardTests: XCTestCase {
         XCTAssertLessThan(section.lowerBound, draftSplit.lowerBound, "CSCA opens the learning and tests group")
         XCTAssertEqual(home.components(separatedBy: "CSCAHomeCardSection(model: cscaCard)").count, 2, "one place for both tiers")
         XCTAssertTrue(home.contains(".navigationDestination(for: CSCARoute.self)"), "the Home stack can open the CSCA screen")
+        // Карточка (значение `CSCARoute.home`) и ссылка шага «Пути поступления»
+        // (`path.append(CSCARoute.home)`) идут в один путь стека «Главной» и на одно назначение.
+        XCTAssertTrue(home.contains("NavigationStack(path: $path)"), "the card and the step link push onto the same Home path")
+        XCTAssertTrue(home.contains("path.append(CSCARoute.home)"), "the step link uses the same route as the card")
         // Выбор читается один раз, главная CSCA сразу за ним: без второй волны на экране.
         XCTAssertTrue(home.contains("await countryTimeline.load()\n        await cscaCard.update(choice: countryTimeline.loadedChoice)"))
     }

@@ -308,8 +308,9 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
           blockedReason={sales.handoff.handedOffAt ? closureWords.lead.handedOff : null}
         />
       ) : null}
-      {/* На сенсорном экране у кнопки нет подсказки при наведении: что набор сначала звонит сотруднику, сказано строкой. */}
-      {input.dial?.status === "ready" && !preview ? (
+      {/* На сенсорном экране у кнопки нет подсказки при наведении: что набор сначала звонит сотруднику, сказано строкой.
+          Несопоставленному сотруднику она не нужна: нажатие скажет, что его логин ВАТС не связан. */}
+      {input.dial?.status === "ready" && input.dial.mapped && !preview ? (
         <p className="hidden basis-full t-meta text-fg-2 max-sm:block pointer-coarse:block" data-testid="v3-dial-hint">{DIAL_TOUCH_HINT}</p>
       ) : null}
     </div>

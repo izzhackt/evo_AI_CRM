@@ -39,12 +39,6 @@ import {
 const fieldCls = "h-11 min-w-0 rounded-ctl border border-control-edge bg-surface px-3 t-body text-fg placeholder:text-fg-3 hover:bg-surface-2 focus-visible:border-accent disabled:bg-surface-2 disabled:text-fg-3";
 /** Числа в строках одной ширины: подписи разной длины не сбивают сетку. */
 const NUMBER_GRID = "mt-3 grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] items-start gap-x-4 gap-y-3";
-
-/** «9:00» → «09:00»: время набирают в 24-часовом виде одинаково на любом устройстве (`type=time` рисует «10:00 AM» по языку системы). */
-function normalizeClock(value: string): string {
-  const match = /^(\d{1,2}):(\d{2})$/u.exec(value.trim());
-  return match ? `${match[1].padStart(2, "0")}:${match[2]}` : value;
-}
 const SAVE_IDLE = "aria-disabled:cursor-not-allowed aria-disabled:border-border aria-disabled:bg-surface-2 aria-disabled:text-fg-3 aria-disabled:shadow-none aria-disabled:hover:border-border aria-disabled:hover:bg-surface-2 aria-disabled:active:scale-100";
 
 function Row({ title, hint, children, testId }: Readonly<{ title: string; hint?: ReactNode; children: ReactNode; testId?: string }>) {
@@ -253,21 +247,18 @@ export function TelephonySettingsForm({
           <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
             <div>
               <label htmlFor="tel-work-from" className="flex min-h-6 items-end t-label text-fg-2">С</label>
-              <input id="tel-work-from" type="text" inputMode="numeric" autoComplete="off" maxLength={5} placeholder="10:00" required value={draft.workFrom}
-                className={`${fieldCls} mt-1 block w-24 tabular-nums`} aria-describedby="tel-work-clock"
-                aria-invalid={issuesFor(shown, "workFrom").length > 0 || undefined}
-                onChange={(event) => update({ workFrom: event.target.value })} onBlur={(event) => update({ workFrom: normalizeClock(event.target.value) })} />
+              {/* Системное поле времени: на телефоне — колесо выбора, на компьютере — по сегментам. Вид («18:00» или «06:00 PM»)
+                  задаёт язык устройства, а значение всегда «ЧЧ:ММ», как ждёт база; поле с цифровой клавиатурой без «:» на телефоне не годится. */}
+              <input id="tel-work-from" type="time" required value={draft.workFrom} className={`${fieldCls} mt-1 block w-[8.75rem] tabular-nums`}
+                aria-invalid={issuesFor(shown, "workFrom").length > 0 || undefined} onChange={(event) => update({ workFrom: event.target.value })} />
             </div>
             <div>
               <label htmlFor="tel-work-to" className="flex min-h-6 items-end t-label text-fg-2">До</label>
-              <input id="tel-work-to" type="text" inputMode="numeric" autoComplete="off" maxLength={5} placeholder="18:00" required value={draft.workTo}
-                className={`${fieldCls} mt-1 block w-24 tabular-nums`} aria-describedby="tel-work-clock"
-                aria-invalid={issuesFor(shown, "workTo").length > 0 || undefined}
-                onChange={(event) => update({ workTo: event.target.value })} onBlur={(event) => update({ workTo: normalizeClock(event.target.value) })} />
+              <input id="tel-work-to" type="time" required value={draft.workTo} className={`${fieldCls} mt-1 block w-[8.75rem] tabular-nums`}
+                aria-invalid={issuesFor(shown, "workTo").length > 0 || undefined} onChange={(event) => update({ workTo: event.target.value })} />
             </div>
             {numberField("callbackWorkMinutes", "рабочих минут")}
           </div>
-          <span id="tel-work-clock" className="mt-1 block t-meta text-fg-3">Время в 24-часовом виде, например 09:00 и 18:00.</span>
           <FieldIssues messages={issuesFor(shown, "workFrom", "workTo")} />
         </Row>
 

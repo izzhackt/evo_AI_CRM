@@ -135,6 +135,9 @@ export function DialButton({
 
   const busy = pending || cooling;
   const label = pending ? DIAL_COPY.busy : DIAL_COPY.button;
+  // Имя для читалки: слово «Позвонить» и кому. Узкая кнопка (только значок) без имени клиента не говорит, куда звонит.
+  const name = variant === "row" ? DIAL_COPY.button : label;
+  const accessibleName = subject ? `${name}: ${subject}` : variant === "row" ? name : undefined;
   return (
     <>
       <button
@@ -145,7 +148,7 @@ export function DialButton({
         disabled={busy}
         aria-disabled={!mapped ? true : undefined}
         aria-describedby={hintId}
-        aria-label={variant === "row" ? `${DIAL_COPY.button}${subject ? `: ${subject}` : ""}` : undefined}
+        aria-label={accessibleName}
         title={DIAL_ABOUT}
         data-testid="v3-dial-button"
         onClick={() => void press()}

@@ -531,6 +531,14 @@ test("wiring: the route file, the source, the page and the migration agree", () 
   }
   // «Перезвонить» promises no reminder: the task comes with slice T8.
   assert.doesNotMatch(control, /напомн/u);
+  // Keyboard: the pressed control disappears when the view changes, and focus must not fall to <body>. One «изменить» /
+  // «Отметить итог» button serves both states (it survives the page refresh after a save); a failed press returns to the chip.
+  assert.match(control, /type FocusIntent = "summary" \| "chips" \| HTMLElement;/u);
+  assert.match(control, /refocus\.current = "summary";\s*setExpanded\(false\);\s*router\.refresh\(\);/u, "a save returns to the summary button");
+  assert.match(control, /refocus\.current = trigger;/u, "a failed press returns to the pressed chip");
+  assert.equal((control.match(/ref=\{summaryAction\}/gu) ?? []).length, 1, "one summary button for «изменить» and «Отметить итог»");
+  assert.match(control, /День перезвона/u, "the day field names the day to call back, not the day of the past call");
+  assert.doesNotMatch(control, /День звонка/u);
   assert.match(migration, /Задачу «Перезвонить» из этой даты создаёт срез T8/u);
 });
 

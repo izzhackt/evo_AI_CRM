@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import {
   isCalendarDay,
@@ -35,6 +35,9 @@ const FALLBACK_FAILURE = "Не удалось сохранить. Повтори
 
 type Note = Readonly<{ tone: "ok" | "danger"; text: string }>;
 
+/** Куда вернуть фокус, когда нажатый элемент исчез: к строке итога, к кнопке итога или к самому нажатому элементу. */
+type FocusIntent = "summary" | "chips" | HTMLElement;
+
 /**
  * Результат звонка одним нажатием («Телефония Beeline KG», срез T5; план §9.4)
  * прямо под строкой звонка, без модального окна: «Дозвонился» (у входящего — «Поговорили») /
@@ -46,6 +49,11 @@ type Note = Readonly<{ tone: "ok" | "danger"; text: string }>;
  * «Перезвонить» только запоминает выбранный день, задачу по нему создаёт срез T8, поэтому слов о
  * напоминании здесь нет. Решает база (право, флаги, «свои»/«все», окна): интерфейс лишь показывает её
  * признак `resultEditable` и слова отказа.
+ *
+ * Клавиатура: элемент, который нажали («изменить», «Свернуть», чип, «Сохранить»), при смене вида исчезает,
+ * и фокус не должен упасть на `<body>`. «изменить» переносит его на нажатый чип (или первый), «Свернуть»
+ * и сохранение — на кнопку строки итога (одна и та же кнопка до и после ответа страницы), а при сбое
+ * запроса фокус возвращается на нажатый чип: на время запроса он отключён.
  */
 export function LeadCallResult({
   callId,
@@ -78,9 +86,28 @@ export function LeadCallResult({
   const [day, setDay] = useState(callbackOn ?? bounds.fallback);
   const [pending, setPending] = useState(false);
   const [note, setNote] = useState<Note | null>(null);
+  const summaryAction = useRef<HTMLButtonElement>(null);
+  const group = useRef<HTMLDivElement>(null);
+  const refocus = useRef<FocusIntent | null>(null);
 
-  async function press(result: LeadCallPress, chosenDay: string | null) {
+  // Фокус переносим после отрисовки нового вида и только когда запрос закончен (чипы на его время отключены).
+  useEffect(() => {
+    const intent = refocus.current;
+    if (intent === null || pending) return;
+    refocus.current = null;
+    if (intent === "summary") summaryAction.current?.focus();
+    else if (intent === "chips") (group.current?.querySelector<HTMLElement>('button[aria-pressed="true"]') ?? group.current?.querySelector<HTMLElement>("button"))?.focus();
+    else if (intent.isConnected) intent.focus();
+  }, [expanded, pending]);
+
+  function expand() {
+    refocus.current = "chips";
+    setExpanded(true);
+  }
+
+  async function press(result: LeadCallPress, chosenDay: string | null, trigger: HTMLElement) {
     if (pending) return;
+    refocus.current = trigger;
     setPending(true);
     setNote(null);
     try {
@@ -95,6 +122,7 @@ export function LeadCallResult({
         const body = await response.json().then((value: { status?: unknown }) => value, () => ({} as { status?: unknown }));
         setNote({ tone: "ok", text: body.status === "unchanged" ? "Без изменений." : "Сохранено." });
         setPicking(false);
+        refocus.current = "summary";
         setExpanded(false);
         router.refresh();
       } else {
@@ -113,43 +141,47 @@ export function LeadCallResult({
   // Чипы свёрнуты по умолчанию у отмеченного и у старого звонка; сворачивать открытые вручную можно всегда,
   // а у свежего звонка без итога чипы и есть задача строки.
   const canCollapse = code !== null || !defaultOpen;
+  const marked = code !== null && resultLabel !== null && resultLabel !== "";
   return (
     <div className="mt-1" data-testid="v3-call-result">
       {!expanded ? (
-        code !== null && resultLabel ? (
-          <p className="flex min-h-11 flex-wrap items-center gap-x-1.5 t-meta text-fg-2" data-testid="v3-call-result-line">
-            <span>Итог: <span className="text-fg">{resultLabel}</span></span>
-            <span aria-hidden="true">·</span>
-            <button type="button" className={QUIET} aria-expanded={false} onClick={() => setExpanded(true)}>изменить</button>
-          </p>
-        ) : (
-          <button type="button" className={QUIET} aria-expanded={false} onClick={() => setExpanded(true)}>Отметить итог</button>
-        )
+        <p className="flex min-h-11 flex-wrap items-center gap-x-1.5 t-meta text-fg-2" data-testid={marked ? "v3-call-result-line" : undefined}>
+          {marked ? (
+            <>
+              <span>Итог: <span className="text-fg">{resultLabel}</span></span>
+              <span aria-hidden="true">·</span>
+            </>
+          ) : null}
+          {/* Одна и та же кнопка у звонка без итога и с итогом: страница обновляется после сохранения, а фокус остаётся на ней. */}
+          <button ref={summaryAction} type="button" className={QUIET} aria-expanded={false} onClick={expand}>
+            {marked ? "изменить" : "Отметить итог"}
+          </button>
+        </p>
       ) : (
         <>
           <div className="flex min-h-6 items-center justify-between gap-x-3">
             <p id={labelId} className="t-meta text-fg-2">Итог звонка</p>
             {canCollapse ? (
-              <button type="button" className={QUIET} aria-expanded onClick={() => { setExpanded(false); setPicking(false); }}>Свернуть</button>
+              <button type="button" className={QUIET} aria-expanded onClick={() => { refocus.current = "summary"; setExpanded(false); setPicking(false); }}>Свернуть</button>
             ) : null}
           </div>
-          <div role="group" aria-labelledby={labelId} className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+          <div ref={group} role="group" aria-labelledby={labelId} className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
             <button type="button" className={CHIP} disabled={pending} aria-pressed={code === "reached"}
-              onClick={() => void press("reached", null)}>{pressWords.reached}</button>
+              onClick={(event) => void press("reached", null, event.currentTarget)}>{pressWords.reached}</button>
             <button type="button" className={CHIP} disabled={pending} aria-pressed={code === "callback"} aria-expanded={picking}
               onClick={() => setPicking((open) => !open)}>{callbackLabel ?? pressWords.callback}</button>
             <button type="button" className={CHIP} disabled={pending} aria-pressed={code === "not_interested"}
-              onClick={() => void press("not_interested", null)}>{pressWords.not_interested}</button>
+              onClick={(event) => void press("not_interested", null, event.currentTarget)}>{pressWords.not_interested}</button>
           </div>
           {picking ? (
             <div className="mt-2 flex flex-wrap items-end gap-2">
               <label htmlFor={dayId} className="t-label text-fg-2">
-                День звонка
+                День перезвона
                 <input id={dayId} type="date" value={day} min={bounds.min} max={bounds.max} required disabled={pending}
                   onChange={(event) => setDay(event.target.value)} className={`${QUEUE_FIELD} w-auto`} />
               </label>
               <button type="button" className={QUEUE_CONFIRM} disabled={pending || !dayValid}
-                onClick={() => void press("callback", day)}>
+                onClick={(event) => void press("callback", day, event.currentTarget)}>
                 {pending ? "Сохраняем…" : "Сохранить"}
               </button>
             </div>

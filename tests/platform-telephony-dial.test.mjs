@@ -827,6 +827,7 @@ const pages = new Map(JSON.parse(execFileSync(process.execPath,
   [fileURLToPath(new URL("./e2e/numbers-static-render.cjs", import.meta.url)), "--json-telephony"],
   { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })).map((page) => [page.name, page.html]));
 const dialButtons = (html) => html.match(/<button [^>]*data-testid="v3-dial-button"[\s\S]*?<\/button>/gu) ?? [];
+const button = (html) => dialButtons(html)[0] ?? "";
 
 test("rendered lead: the button sits in the header actions beside «Написать», 44 px, with the hint that the phone rings first", () => {
   const html = pages.get("lead-dial");
@@ -857,6 +858,7 @@ test("rendered lead: an unmapped employee gets an explained button (aria-disable
   const [unmapped] = dialButtons(pages.get("lead-dial-unmapped"));
   assert.match(unmapped, /aria-disabled="true"/u);
   assert.doesNotMatch(unmapped, /\sdisabled=""/u, "it must stay pressable to be able to explain itself");
+  assert.doesNotMatch(pages.get("lead-dial-unmapped"), /data-testid="v3-dial-hint"/u, "«сначала звонит вам» is not said to someone whose number cannot ring: the press explains");
   assert.equal(dialButtons(pages.get("lead-dial-off")).length, 0);
   assert.equal(dialButtons(pages.get("lead-none")).length, 0, "a page that never read the options shows no button");
   assert.equal(dialButtons(pages.get("lead-ready")).length, 0);
@@ -864,6 +866,14 @@ test("rendered lead: an unmapped employee gets an explained button (aria-disable
   // The other header actions are untouched by the button.
   const withButton = text(pages.get("lead-dial").slice(pages.get("lead-dial").indexOf('data-testid="v3-lead-actions"')));
   assert.match(withButton, /Позвонить/u);
+});
+
+test("the dial button names the client for the screen reader at every width, so an icon-only button still says whom it calls", () => {
+  const source = read("src/components/v3/telephony/DialButton.tsx");
+  assert.match(source, /const accessibleName = subject \? `\$\{name\}: \$\{subject\}` : variant === "row" \? name : undefined;/u);
+  assert.match(source, /aria-label=\{accessibleName\}/u);
+  // Where the button has no subject (the lead header) the visible word is the name: no label at all.
+  assert.doesNotMatch(button(pages.get("lead-dial")), /aria-label=/u);
 });
 
 test("rendered «Сегодня»: a lead row and a request row get a 44 px phone button over the row link; tasks and students do not", () => {

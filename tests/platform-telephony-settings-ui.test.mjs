@@ -232,6 +232,13 @@ test("the mapping client confirms against what the person saw and sends only ids
   assert.match(code, /confirming \|\| !changed \? null/u, "the request button is there only for a changed choice");
   assert.match(code, /Результат неизвестен: повтор уйдёт с тем же id/u);
   assert.match(code, /router\.refresh\(\)/u);
+  // Keyboard: «Изменить», «Сопоставить…», «Отмена» and the save each remove the pressed control; focus goes to a named target, never <body>.
+  assert.match(code, /type Refocus = "select" \| "confirm" \| "settle" \| HTMLElement;/u);
+  assert.match(code, /want\("select"\); setEditing\(true\);/u, "«Изменить» -> the list");
+  assert.match(code, /want\("confirm"\); setConfirming\(true\);/u, "«Сопоставить…» -> the confirmation");
+  assert.equal((code.match(/want\("settle"\)/gu) ?? []).length, 4, "both «Отмена» buttons and both outcomes of a save settle on «Изменить» or the list");
+  assert.match(code, /expected\.current = choice \|\| null;/u, "after a save the page refreshes later: focus is set again once the mapping arrives");
+  assert.match(code, /ref=\{confirmRef\} tabIndex=\{-1\}/u);
 });
 
 /* ---------------------------------------------------------- настройки */
@@ -263,10 +270,11 @@ test("the settings form: seven switches with their words, hours, days, dial, cei
   assert.equal(days.length, 7);
   assert.equal(days.filter((day) => day.includes('checked=""')).length, 6, "Monday to Saturday are the default working days");
   assert.ok(!days.find((day) => day.includes('aria-label="воскресенье"')).includes('checked=""'));
-  // 24-hour text fields: `type="time"` shows «10:00 AM» by the system language.
-  for (const piece of ['type="text"', 'inputMode="numeric"', 'maxLength="5"', 'value="10:00"']) assert.ok(tag("tel-work-from").includes(piece), piece);
-  for (const piece of ['type="text"', 'inputMode="numeric"', 'maxLength="5"', 'value="20:00"']) assert.ok(tag("tel-work-to").includes(piece), piece);
-  assert.match(text, /Время в 24-часовом виде, например 09:00 и 18:00\./u);
+  // Native time fields: a phone's numeric keypad has no «:» and a text field would lock touch users out; the value is always HH:MM.
+  for (const piece of ['type="time"', 'value="10:00"']) assert.ok(tag("tel-work-from").includes(piece), piece);
+  for (const piece of ['type="time"', 'value="20:00"']) assert.ok(tag("tel-work-to").includes(piece), piece);
+  for (const id of ["tel-work-from", "tel-work-to"]) assert.doesNotMatch(tag(id), /inputMode|maxLength|type="text"/u, `${id} is not a text field`);
+  assert.doesNotMatch(text, /24-часовом виде/u, "no claim about the 24-hour display: the device language decides it");
   // Numbers carry the table's bounds.
   for (const [id, min, max, value] of [["callbackWorkMinutes", 1, 480, 15], ["limitUserDay", 1, 1000, 150], ["limitUserGapSeconds", 1, 3600, 5],
     ["limitOrgHour", 1, 1000, 60], ["limitOrgDay", 1, 5000, 400], ["ceilingLeadsHour", 1, 100, 10], ["ceilingLeadsDay", 1, 400, 40],

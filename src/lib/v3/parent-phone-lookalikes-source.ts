@@ -10,7 +10,7 @@ import { parseSalesUuid } from "../platform-sales-register-contract.ts";
 import { createSupabaseServerClient } from "../supabase/server.ts";
 
 /**
- * «Похоже на» лида или дела (`read_parent_phone_lookalikes_v1`, миграция 302): дела, в анкете
+ * «Похоже на» лида или дела (`read_parent_phone_lookalikes_v1`, миграция 306): дела, в анкете
  * которых номер субъекта записан как телефон матери или отца. Решает база (читает ли сотрудник
  * субъект, дело и его анкету); здесь только подсказка интерфейса, чтобы не звать базу тем, кому она
  * ничего не покажет: просмотр роли (для базы он неотличим от admin) и сотрудник без `case.read.full`

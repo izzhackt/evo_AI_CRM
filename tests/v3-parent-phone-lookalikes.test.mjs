@@ -1,4 +1,4 @@
-// Подсказка «Похоже на» (#1198, пункт 2; решение владельца 18.10.2026; миграция 302). Проверки без сети и без
+// Подсказка «Похоже на» (#1198, пункт 2; решение владельца 18.10.2026; миграция 306). Проверки без сети и без
 // базы: строгий разбор ответа `platform.read_parent_phone_lookalikes_v1` (лишний ключ, номер в ответе, больше
 // пяти дел, повтор дела, чужая форма: ошибка, а не совпадение наугад), чтение страницы с поддельной базой (просмотр
 // роли и сотрудник без прав базу не зовут, отказ базы 42501 ничего не показывает, сбой и чужая форма говорят
@@ -43,7 +43,7 @@ const render = () => new Map(JSON.parse(execFileSync(
   { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
 )).map((surface) => [surface.name, surface.html]));
 
-const ID = (n) => `30200000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const ID = (n) => `30600000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const ORG = "eeeeeeee-4444-4444-8444-000000000000";
 const row = (n, fields = {}) => ({ studentCaseId: ID(n), studentName: `Студент ${n}`, relation: "mother", ...fields });
 const actor = (fields = {}) => ({
@@ -176,7 +176,7 @@ test("component: calm look, big targets, no number, no dash in the words", () =>
   assert.match(pages.get("one"), /bg-info-weak/u, "info tone, a state of the record");
   assert.match(pages.get("both"), /break-words/u, "a long name wraps by words");
   for (const path of ["src/lib/parent-phone-lookalikes-contract.ts", "src/lib/v3/parent-phone-lookalikes-source.ts",
-    "src/components/v3/profile/ParentPhoneLookalikes.tsx", "supabase/migrations/302_platform_parent_phone_lookalikes.sql",
+    "src/components/v3/profile/ParentPhoneLookalikes.tsx", "supabase/migrations/306_platform_parent_phone_lookalikes.sql",
     "supabase/tests/platform_parent_phone_lookalikes.sql"]) {
     assert.doesNotMatch(read(path), /[\u2013\u2014]/u, `${path}: no em or en dash`);
   }
@@ -186,7 +186,7 @@ test("source: the hint merges nothing and writes nothing", () => {
   const source = read("src/lib/v3/parent-phone-lookalikes-source.ts");
   assert.doesNotMatch(source, /\.insert\(|\.update\(|\.delete\(|\.upsert\(/u);
   assert.equal(source.match(/\.rpc\(/gu).length, 1, "one read");
-  const migration = read("supabase/migrations/302_platform_parent_phone_lookalikes.sql");
+  const migration = read("supabase/migrations/306_platform_parent_phone_lookalikes.sql");
   const body = migration.slice(migration.indexOf("AS $$"), migration.indexOf("\n$$;")).replace(/--[^\n]*/gu, "");
   assert.ok(body.length > 1000, "the routine body was found");
   assert.doesNotMatch(body, /\b(INSERT|UPDATE|DELETE|PERFORM)\b|create_or_link|merge|RAISE (NOTICE|LOG|WARNING)/iu, "the routine writes, links and logs nothing");

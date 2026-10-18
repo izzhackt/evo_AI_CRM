@@ -6,7 +6,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * Статический рендер подсказки «Похоже на» (#1198, пункт 2; миграция 302):
+ * Статический рендер подсказки «Похоже на» (#1198, пункт 2; миграция 306):
  * НАСТОЯЩИЙ компонент `ParentPhoneLookalikesView` с СИНТЕТИЧЕСКИМИ данными (имена выдуманы,
  * номеров в ответе нет). Чтение и права решает база: supabase/tests/platform_parent_phone_lookalikes.sql.
  *
@@ -53,7 +53,7 @@ const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const { ParentPhoneLookalikesView } = require(join(ROOT, "src/components/v3/profile/ParentPhoneLookalikes.tsx"));
 
-const ID = (n) => `30200000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const ID = (n) => `30600000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const AIDAI = { studentCaseId: ID(1), studentName: "Айдай Условная", relation: "mother" };
 const TILEK = { studentCaseId: ID(2), studentName: "Тилек Условный", relation: "father" };
 const BOTH = { studentCaseId: ID(3), studentName: "Очень Длинное Условное Имя Студента Которое Должно Переноситься По Словам", relation: "both" };

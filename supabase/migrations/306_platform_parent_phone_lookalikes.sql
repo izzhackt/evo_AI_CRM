@@ -1,4 +1,4 @@
--- 302_platform_parent_phone_lookalikes: подсказка «Похоже на». Номер лида или дела
+-- 306_platform_parent_phone_lookalikes: подсказка «Похоже на». Номер лида или дела
 -- записан как телефон родителя в анкете другого студента (#1198, пункт 2).
 -- Номер миграции предварительный: окончательный берётся при слиянии по свежему
 -- `origin/main` (последняя на момент работы 301); имя файла к номеру не привязано,
@@ -136,7 +136,7 @@ COMMENT ON FUNCTION platform.read_parent_phone_lookalikes_v1(UUID, UUID, UUID) I
   'Parent-phone hint (#1198, point 2): the cases whose анкета records the phone of a lead or case as the phone of a father or mother. Read only, never merges. Subject: lead.read on the lead or case read on the case; each match only if the actor reads the case and its анкета (profile.read.full); up to 5 {studentCaseId, studentName, relation}; no phone or parent name is returned.';
 
 -- Проверка в конце: права ровно такие, как задумано, и функция не пишет.
-DO $a302_verify$
+DO $a306_verify$
 DECLARE
   r TEXT;
   signature CONSTANT REGPROCEDURE := 'platform.read_parent_phone_lookalikes_v1(uuid,uuid,uuid)'::REGPROCEDURE;
@@ -155,7 +155,7 @@ BEGIN
     RAISE EXCEPTION 'parent_phone_lookalikes_definer_drift' USING ERRCODE = '55000';
   END IF;
 END
-$a302_verify$;
+$a306_verify$;
 
 NOTIFY pgrst, 'reload schema';
 COMMIT;

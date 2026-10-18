@@ -10,9 +10,11 @@ import {
   type RequestsQueue,
 } from "@/lib/requests-queue-contract";
 import { formatStudentApplicationAnswers } from "@/lib/student-application-presentation";
+import type { DialOptions } from "@/lib/v3/telephony-dial";
 import {
   REQUEST_SOURCE_WORDS,
   REQUEST_STATUS_LABELS,
+  requestDisplayName,
   requestCallsOff,
   requestClosedKinds,
   requestClosedLine,
@@ -34,6 +36,8 @@ import { SidePanel } from "../panel/SidePanel";
 import { QueueKeyboard } from "../queue/QueueKeyboard";
 import { QUEUE_QUIET_LINK, QueueError } from "../queue/QueueStates";
 import { QueueViewTabs } from "../queue/QueueViewTabs";
+import { QUEUE_META_PIECE } from "../queue/meta-piece";
+import { DialButton } from "../telephony/DialButton";
 import { PortalConsultationDetails } from "./PortalConsultations";
 import { TakeFeedback, TakeLeadButton, TakeStatus } from "./TakeLead";
 
@@ -57,6 +61,10 @@ type ViewProps = Readonly<{
   takeRequestIds: Readonly<Record<string, string>>;
   /** request_id решения по анкете в панели. */
   decisionRequestId: string;
+  /** «Позвонить» (Телефония, T7): у строк «Звонков», когда база открыла набор этому сотруднику. */
+  dial?: DialOptions | null;
+  /** Исход последнего звонка по лиду («Пропущен», «Ответил Менеджер Первый · 1 мин 35 с») у строк «Звонков»; нет — просто «Звонок». */
+  callLines?: Readonly<Record<string, string>>;
 }>;
 
 function leadCardHref(leadId: string, listHref: string): string {
@@ -75,7 +83,7 @@ function TriageCell({ row, triage, props, listHref }: Readonly<{
     case "take":
       return row.kind === "lead" && row.take ? (
         <TakeLeadButton leadId={row.leadId} take={row.take} actorMembershipId={props.actorMembershipId}
-          requestId={props.takeRequestIds[row.leadId]} personName={row.personName} leadHref={leadCardHref(row.leadId, listHref)} />
+          requestId={props.takeRequestIds[row.leadId]} personName={requestDisplayName(row)} leadHref={leadCardHref(row.leadId, listHref)} />
       ) : null;
     case "owner":
       return (
@@ -117,6 +125,9 @@ function RequestRowView({ row, props, listHref, now }: Readonly<{
   const triage = requestTriage(row, { actorMembershipId: props.actorMembershipId, canAct: !props.readOnly });
   const leadId = rowLeadId(row);
   const source = REQUEST_SOURCE_WORDS[row.source];
+  const name = requestDisplayName(row);
+  const callLine = leadId && row.source === "phone_call" ? props.callLines?.[leadId] ?? null : null;
+  const dialLeadId = leadId && row.source === "phone_call" && props.dial?.status === "ready" && !props.readOnly ? leadId : null;
   return (
     <li
       data-queue-row={key}
@@ -125,29 +136,41 @@ function RequestRowView({ row, props, listHref, now }: Readonly<{
     >
       <p className="col-start-1 row-start-1 min-w-0 py-0.5">
         {leadId ? <>
-          <Link href={leadCardHref(leadId, listHref)} title={row.personName}
+          <Link href={leadCardHref(leadId, listHref)} title={name}
             className="relative z-10 hidden h-6 max-w-full items-center rounded-nav t-item text-fg underline-offset-2 hover:underline focus-visible:outline-offset-[-2px] md:pointer-fine:inline-flex">
-            <span className="truncate">{row.personName}</span>
+            <span className="truncate">{name}</span>
           </Link>
-          <span className="block truncate t-item text-fg md:pointer-fine:hidden" title={row.personName}>{row.personName}</span>
-        </> : <span className="block truncate t-item text-fg" title={row.personName}>{row.personName}</span>}
+          <span className="block truncate t-item text-fg md:pointer-fine:hidden" title={name}>{name}</span>
+        </> : <span className="block truncate t-item text-fg" title={name}>{name}</span>}
       </p>
 
-      {/* Источник и когда — второй строкой, пока нет своих колонок. */}
-      <p className="col-start-1 row-start-2 flex min-w-0 flex-wrap items-center gap-x-1.5 pb-0.5 t-meta text-fg-2 @min-[56rem]:hidden">
-        <span>{source}</span>
-        <span aria-hidden="true">·</span>
-        <time dateTime={received.dateTime} className="font-mono tabular-nums text-fg-2">{received.text}</time>
-        <span className="text-fg-3">{received.word}</span>
+      {/* Источник, исход звонка и когда — второй строкой, пока нет своих колонок. Каждое — часть (`QUEUE_META_PIECE`): разделитель
+          «·» не остаётся висеть в конце строки, когда исход звонка переносит «когда» на следующую. */}
+      <div className="col-start-1 row-start-2 min-w-0 overflow-hidden pb-0.5 @min-[56rem]:hidden">
+        <p className="-ms-3 flex flex-wrap t-meta text-fg-2">
+          <span className={QUEUE_META_PIECE}>{source}</span>
+          {callLine ? <span className={`${QUEUE_META_PIECE} min-w-0 max-w-full text-fg`} data-testid="requests-call-outcome">{callLine}</span> : null}
+          <span className={`${QUEUE_META_PIECE} whitespace-nowrap`}>
+            <time dateTime={received.dateTime} className="font-mono tabular-nums text-fg-2">{received.text}</time>
+            <span className="text-fg-3">{received.word}</span>
+          </span>
+        </p>
+      </div>
+      <p className="hidden t-body-compact text-fg-2 @min-[56rem]:col-start-2 @min-[56rem]:row-start-1 @min-[56rem]:block">
+        {source}
+        {callLine ? <span className="block t-meta text-fg">{callLine}</span> : null}
       </p>
-      <p className="hidden t-body-compact text-fg-2 @min-[56rem]:col-start-2 @min-[56rem]:row-start-1 @min-[56rem]:block">{source}</p>
       <p className="hidden whitespace-nowrap t-body-compact @min-[56rem]:col-start-3 @min-[56rem]:row-start-1 @min-[56rem]:flex @min-[56rem]:items-baseline @min-[56rem]:gap-2">
         <time dateTime={received.dateTime} className="font-mono tabular-nums text-fg">{received.text}</time>
         <span className="t-meta text-fg-3">{received.word}</span>
       </p>
 
-      <div className="col-span-2 row-start-3 min-w-0 pb-1 @min-[36rem]:col-span-1 @min-[36rem]:col-start-2 @min-[36rem]:row-span-2 @min-[36rem]:row-start-1 @min-[36rem]:pb-0 @min-[56rem]:col-start-4 @min-[56rem]:row-span-1">
+      <div className="col-span-2 row-start-3 flex min-w-0 flex-wrap items-center gap-x-2 pb-1 @min-[36rem]:col-span-1 @min-[36rem]:col-start-2 @min-[36rem]:row-span-2 @min-[36rem]:row-start-1 @min-[36rem]:pb-0 @min-[56rem]:col-start-4 @min-[56rem]:row-span-1">
         <TriageCell row={row} triage={triage} props={props} listHref={listHref} />
+        {/* Над ссылкой, покрывающей строку (`z-10`): перезвонить можно, не открывая заявку. */}
+        {dialLeadId && props.dial?.status === "ready" ? (
+          <span className="relative z-10"><DialButton leadId={dialLeadId} mapped={props.dial.mapped} subject={name} iconOnly /></span>
+        ) : null}
       </div>
 
       <div className="col-start-2 row-span-2 row-start-1 flex justify-end @min-[36rem]:col-start-3 @min-[56rem]:col-start-5 @min-[56rem]:row-span-1">
@@ -156,7 +179,7 @@ function RequestRowView({ row, props, listHref, now }: Readonly<{
           scroll={false}
           data-queue-open=""
           aria-current={selected ? "true" : undefined}
-          aria-label={`Открыть: ${source} — ${row.personName}`}
+          aria-label={`Открыть: ${source} — ${name}`}
           className="grid min-h-11 min-w-11 place-items-center rounded-nav t-label text-fg-2 before:absolute before:inset-0 before:content-[''] hover:text-fg @min-[36rem]:px-3 @min-[36rem]:underline @min-[36rem]:underline-offset-4"
         >
           <span aria-hidden="true" className="hidden @min-[36rem]:inline">Открыть</span>
@@ -168,7 +191,7 @@ function RequestRowView({ row, props, listHref, now }: Readonly<{
 }
 
 /** Колонки широкой строки и её заголовка: «Заявка · Источник · Пришла · Разбор · Открыть». */
-const WIDE_COLUMNS = "@min-[56rem]:grid-cols-[minmax(0,1fr)_7rem_11.5rem_minmax(0,13rem)_6rem]";
+const WIDE_COLUMNS = "@min-[56rem]:grid-cols-[minmax(0,1fr)_9rem_11.5rem_minmax(0,13rem)_6rem]";
 const FACT_TERM = "t-caption text-fg-3";
 const FACT_VALUE = "min-w-0 break-words t-body-compact text-fg";
 const SECTION = "space-y-2 border-t border-border pt-4";
@@ -186,7 +209,7 @@ function RequestDetail({ row, props, listHref, now }: Readonly<{
       closeHref={listHref}
       backLabel="К заявкам"
       headingId={headingId}
-      title={row.personName}
+      title={requestDisplayName(row)}
       context={<>
         {REQUEST_SOURCE_WORDS[row.source]} · пришла{" "}
         <time dateTime={received.dateTime} className="font-mono tabular-nums text-fg">{received.text}</time>, {received.word}
@@ -198,6 +221,7 @@ function RequestDetail({ row, props, listHref, now }: Readonly<{
         <div className="space-y-2">
           <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-4 gap-y-1">
             {row.kind === "lead" ? <>
+              {row.source === "phone_call" && props.callLines?.[row.leadId] ? <><dt className={FACT_TERM}>Звонок</dt><dd className={FACT_VALUE}>{props.callLines[row.leadId]}</dd></> : null}
               {row.phone ? <><dt className={FACT_TERM}>Телефон</dt><dd className={FACT_VALUE}>{row.phone}</dd></> : null}
               {row.email ? <><dt className={FACT_TERM}>Почта</dt><dd className={FACT_VALUE}>{row.email}</dd></> : null}
               {!row.phone && !row.email ? <><dt className={FACT_TERM}>Контакт</dt><dd className="t-body-compact text-fg-2">не указан</dd></> : null}
@@ -219,7 +243,10 @@ function RequestDetail({ row, props, listHref, now }: Readonly<{
           </dl>
           {row.kind === "lead" && triage.kind === "take" && row.take ? (
             <TakeLeadButton leadId={row.leadId} take={row.take} actorMembershipId={props.actorMembershipId}
-              requestId={props.takeRequestIds[row.leadId]} personName={row.personName} leadHref={leadCardHref(row.leadId, listHref)} inPanel />
+              requestId={props.takeRequestIds[row.leadId]} personName={requestDisplayName(row)} leadHref={leadCardHref(row.leadId, listHref)} inPanel />
+          ) : null}
+          {row.kind === "lead" && row.source === "phone_call" && props.dial?.status === "ready" && !props.readOnly ? (
+            <DialButton leadId={row.leadId} mapped={props.dial.mapped} subject={requestDisplayName(row)} />
           ) : null}
         </div>
 

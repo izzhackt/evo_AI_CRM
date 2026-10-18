@@ -240,6 +240,8 @@ const SCENARIOS = {
   // Телефония включена: вкладка «Звонки» с числом, лиды `phone_call` среди остальных.
   calls: { actor: "admin", search: "status=all", rows: [...ALL_ROWS, ...CALL_ROWS], states: { lead: "ready", application: "ready", consultation: "ready" }, calls: true },
   "calls-waiting": { actor: "admin", search: "source=phone_call", rows: [...ALL_ROWS, ...CALL_ROWS], states: { lead: "ready", application: "ready", consultation: "ready" }, calls: true },
+  // То же при открытом наборе: у строк звонков — исход последнего звонка и «Позвонить» (чтения подменены ниже).
+  "calls-dial": { actor: "admin", search: "source=phone_call", rows: [...ALL_ROWS, ...CALL_ROWS], states: { lead: "ready", application: "ready", consultation: "ready" }, calls: true, dial: true },
   // Звонки есть в базе, но телефония для сотрудников выключена: ни вкладки, ни строк, ни числа.
   "calls-hidden": { actor: "admin", search: "status=all", rows: [...ALL_ROWS, ...CALL_ROWS], states: { lead: "ready", application: "ready", consultation: "ready" }, calls: false },
   // Устаревшая ссылка на вкладку «Звонки» при выключенной телефонии.
@@ -273,6 +275,16 @@ const STUBS = {
       const raw = queueResponse(current.rows, current.states, selection.source, selection.status, selection.limit, current.calls === true);
       return parseRequestsQueue(raw, actor.organizationId, selection, decodeStudentApplication, parsePortalConsultationRow);
     },
+  },
+  // Набор и исход звонка — отдельные чтения под сессией; здесь они отвечают синтетикой, когда поверхность просит `dial`.
+  "@/lib/v3/telephony-dial-source": {
+    readDialOptions: async () => current.dial ? { status: "ready", mapped: true } : { status: "off" },
+  },
+  "@/lib/v3/telephony-request-calls-source": {
+    readRequestCallLines: async (_actor, rows) => current.dial
+      ? Object.fromEntries(rows.filter((row) => row.kind === "lead" && row.source === "phone_call")
+        .map((row, index) => [row.leadId, ["Пропущен", "Ответил Нурлан Демо\u00A0·\u00A01\u00A0мин 35\u00A0с", "Дозвонились"][index % 3]]))
+      : {},
   },
   "@/lib/platform-sales-actions": { updatePlatformSalesWorkflowAction: async (previous) => previous },
   "@/lib/platform-manual-lead-actions": { createManualLeadAction: async (previous) => previous },

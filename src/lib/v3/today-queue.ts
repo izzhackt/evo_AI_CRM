@@ -27,7 +27,7 @@ import type { StaffTask } from "../platform-staff-task-contract.ts";
 import type { StudentCaseQueueRow } from "../platform-student-case-queue-contract.ts";
 import { dayInOrganizationTimezone, platformTaskDeadlineSortTime, projectPlatformTaskDeadline } from "../platform-task-deadline.ts";
 import { queueTaskFromCase, queueTaskFromStaff, taskIsOpen, type QueueTask } from "./task-queue.ts";
-import { source as sourceWord } from "./wording.ts";
+import { leadDisplayName, source as sourceWord } from "./wording.ts";
 
 /** Группы очереди в порядке показа: от срочного к ближайшему. */
 export const TODAY_BANDS = ["overdue", "today", "waiting", "no_step", "upcoming"] as const;
@@ -400,7 +400,7 @@ export function todayLeadItems(leads: readonly PipelineLead[], today: string): r
       source: "leads",
       band,
       title: lead.nextAction ?? "Назначить следующее действие",
-      who: { name: lead.name, href: queueHref("/v3/profile", { id: lead.id }) },
+      who: { name: leadDisplayName(lead.source, lead.name), href: queueHref("/v3/profile", { id: lead.id }) },
       reason: band === "overdue" ? "действие просрочено"
         : band === "today" ? "действие на сегодня"
         : band === "no_step" ? lead.nextAction ? "срок не назначен" : "действие не назначено"
@@ -429,13 +429,16 @@ export function todayRequestItems(leads: readonly PipelineLead[]): readonly Toda
   const items: TodayItem[] = [];
   for (const lead of leads) {
     if (lead.stageKey === "handed_off" || lead.workflow.currentOwnerMembershipId !== null) continue;
+    // Лид, которого завёл звонок с неизвестного номера, называется так же, как в «Заявках»: «Номер +996 …», а не «Звонок +996 …» —
+    // слово «звонок» уже стоит в причине как источник, и вторым именем его строка не повторяет.
+    const name = leadDisplayName(lead.source, lead.name);
     const from = sourceWord(lead.source);
     items.push(Object.freeze({
       key: `lead:${lead.id}`,
       source: "requests",
       band: "waiting",
       title: lead.stageKey === "new" ? "Новая заявка" : "Лид без ответственного",
-      who: { name: lead.name, href: queueHref("/v3/profile", { id: lead.id }) },
+      who: { name, href: queueHref("/v3/profile", { id: lead.id }) },
       reason: from ? `нет ответственного · ${from}` : "нет ответственного",
       due: null,
       since: null,

@@ -102,7 +102,9 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "telephony-lead-calls.ts", // звонки в «Ленте» лида T5 (17.10.2026): pure contract and words, no Supabase
     "telephony-report-source.ts", // блок «Звонки» в «Отчёте продаж» T10 (301, 17.10.2026): platform.telephony_report_v1, session
     "telephony-report.ts", // блок «Звонки» в «Отчёте продаж» T10 (17.10.2026): pure contract, no Supabase
+    "telephony-request-calls-source.ts", // «Заявки → Звонки» (18.10.2026): исход последнего звонка лида, platform.telephony_lead_calls_v1, session
     "telephony-settings.ts", // «Настройки → Телефония» T4b (17.10.2026): pure screen contract, no Supabase
+    "telephony-task-leads-source.ts", // задача «Перезвонить клиенту» называет клиента (18.10.2026): тот же лид, что читает страница «Задач», session
     "today-queue.ts", // #1067 (26.09.2026)
     "today-source.ts", // #1067 (26.09.2026)
     "university-form-source.ts",
@@ -171,6 +173,8 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "telephony-dial-source.ts", // «Позвонить» T7 (17.10.2026)
     "telephony-lead-calls-source.ts", // звонки в «Ленте» лида T5 (17.10.2026)
     "telephony-report-source.ts", // блок «Звонки» T10 (17.10.2026)
+    "telephony-request-calls-source.ts", // «Заявки → Звонки» (18.10.2026)
+    "telephony-task-leads-source.ts", // задача «Перезвонить клиенту» (18.10.2026)
     "today-source.ts", // #1067 (26.09.2026)
     "university-form-source.ts",
     "university-source.ts",

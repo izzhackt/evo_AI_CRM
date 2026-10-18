@@ -34,14 +34,17 @@ import {
   DIAL_FAILURE_REASONS,
   DIAL_OFF,
   DIAL_REFUSAL_CODES,
+  dialAccessibleName,
   dialErrorCopy,
   dialFailureCopy,
   dialOptionsState,
   dialRefusalCopy,
   dialRouteAnswer,
   dialSuccessCopy,
+  isCallbackTaskTitle,
   todayDialLeadId,
 } from "../src/lib/v3/telephony-dial.ts";
+import { callerDisplayName, leadDisplayName } from "../src/lib/v3/wording.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
@@ -791,7 +794,12 @@ test("wiring: the client holds a lead id and a request id, posts to one route an
   assert.match(button, /fetch\("\/api\/v3\/telephony\/dial"/u);
   assert.match(button, /body: JSON\.stringify\(\{ leadId, requestId: id \}\)/u);
   assert.doesNotMatch(button, /\bphone[:=]|\+996|tel:/u, "the button knows no number and makes no tel: link");
-  assert.match(button, /popover="manual"[^>]*className="v3-toasts" data-edge="top"/u, "the message is a top-layer line at the top edge, clear of the chat field");
+  assert.match(button, /popover="manual"[^>]*className="v3-toasts" data-edge="anchor"/u, "the message is a top-layer line anchored under its own button, clear of the header actions and the chat field");
+  assert.match(button, /style=\{\{ anchorName \} as CSSProperties\}/u, "the button is the anchor of its message");
+  assert.match(button, /CSS\.supports\("anchor-name: --dial-probe"\)/u, "no anchor positioning in an old browser: the button places the message itself");
+  const css = read("src/app/(v3)/v3.css");
+  assert.match(css, /\.v3-toasts\[data-edge="anchor"\] \{[^}]*position-area: block-end span-all;/u, "on a phone the message runs under the action row");
+  assert.match(css, /@media \(min-width: 40rem\) \{\s*\.v3-world\[data-surface="staff"\] \.v3-toasts\[data-edge="anchor"\] \{[^}]*position-area: block-end span-inline-start;/u, "from 40rem it hangs from the right edge of the button");
   assert.match(button, /const answer = dialRouteAnswer\(response\.ok, body\);\s+\/\/[^\n]*\n\s+\/\/[^\n]*\n\s+if \(answer\.answered\) requestId\.current = null;/u,
     "only an answer of our own route ends the attempt; a gateway page keeps the id");
   assert.doesNotMatch(button.slice(button.indexOf("const response = await fetch")), /requestId\.current = null;\s+const body/u, "the id is not dropped before the answer is read");
@@ -822,6 +830,7 @@ const pages = new Map(JSON.parse(execFileSync(process.execPath,
   [fileURLToPath(new URL("./e2e/numbers-static-render.cjs", import.meta.url)), "--json-telephony"],
   { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })).map((page) => [page.name, page.html]));
 const dialButtons = (html) => html.match(/<button [^>]*data-testid="v3-dial-button"[\s\S]*?<\/button>/gu) ?? [];
+const button = (html) => dialButtons(html)[0] ?? "";
 
 test("rendered lead: the button sits in the header actions beside «Написать», 44 px, with the hint that the phone rings first", () => {
   const html = pages.get("lead-dial");
@@ -831,9 +840,12 @@ test("rendered lead: the button sits in the header actions beside «Написа
   assert.match(button, /min-h-11 min-w-11/u, "a 44 px target");
   assert.match(button, /title="Сначала зазвонит ваш телефон или приложение ВАТС\. Возьмите трубку — после этого мы наберём клиента\."/u);
   assert.match(button, /aria-describedby="[^"]+"/u);
-  assert.doesNotMatch(button, /aria-disabled|disabled=""/u, "a mapped employee gets a plain button");
+  assert.doesNotMatch(button, /aria-disabled="|disabled=""/u, "a mapped employee gets a plain button");
+  assert.match(button, /aria-disabled:text-fg-3/u, "the unmapped state has a style of its own");
   assert.equal(text(button), "Позвонить", "the word for the screen reader, visible from sm");
   assert.match(button, /<span class="sr-only sm:not-sr-only">Позвонить<\/span>/u);
+  assert.match(html, /<p class="hidden basis-full t-meta text-fg-2 max-sm:block pointer-coarse:block" data-testid="v3-dial-hint">«Позвонить» сначала звонит вам: возьмите трубку, и мы наберём клиента\.<\/p>/u,
+    "a touch screen has no hover: the same fact stands as a quiet line under the actions");
   const actionsAt = html.indexOf('data-testid="v3-lead-actions"');
   assert.ok(actionsAt > 0 && html.indexOf('data-testid="v3-dial-button"') > actionsAt, "inside the header actions");
   if (html.includes('title="Написать"')) assert.ok(html.indexOf('data-testid="v3-dial-button"') > html.indexOf('title="Написать"'), "after «Написать»");
@@ -849,6 +861,7 @@ test("rendered lead: an unmapped employee gets an explained button (aria-disable
   const [unmapped] = dialButtons(pages.get("lead-dial-unmapped"));
   assert.match(unmapped, /aria-disabled="true"/u);
   assert.doesNotMatch(unmapped, /\sdisabled=""/u, "it must stay pressable to be able to explain itself");
+  assert.doesNotMatch(pages.get("lead-dial-unmapped"), /data-testid="v3-dial-hint"/u, "«сначала звонит вам» is not said to someone whose number cannot ring: the press explains");
   assert.equal(dialButtons(pages.get("lead-dial-off")).length, 0);
   assert.equal(dialButtons(pages.get("lead-none")).length, 0, "a page that never read the options shows no button");
   assert.equal(dialButtons(pages.get("lead-ready")).length, 0);
@@ -856,6 +869,23 @@ test("rendered lead: an unmapped employee gets an explained button (aria-disable
   // The other header actions are untouched by the button.
   const withButton = text(pages.get("lead-dial").slice(pages.get("lead-dial").indexOf('data-testid="v3-lead-actions"')));
   assert.match(withButton, /Позвонить/u);
+});
+
+test("the dial button names the client for the screen reader at every width, so an icon-only button still says whom it calls", () => {
+  const source = read("src/components/v3/telephony/DialButton.tsx");
+  assert.match(source, /const accessibleName = dialAccessibleName\(variant, pending, subject\);/u);
+  assert.match(source, /aria-label=\{accessibleName\}/u);
+  // The name is built by one function: the word and whom, and while the call is being placed «Звоним: Имя», not «Звоним…: Имя».
+  assert.equal(dialAccessibleName("action", false, "Номер +996 ••• 12 46 64"), "Позвонить: Номер +996 ••• 12 46 64");
+  assert.equal(dialAccessibleName("action", true, "Айгерим"), "Звоним: Айгерим", "no ellipsis before the colon");
+  assert.doesNotMatch(dialAccessibleName("action", true, "Айгерим"), /…/u);
+  assert.equal(dialAccessibleName("row", false, "Айгерим"), "Позвонить: Айгерим");
+  assert.equal(dialAccessibleName("row", true, "Айгерим"), "Позвонить: Айгерим", "an icon-only row button keeps its action word");
+  assert.equal(dialAccessibleName("row", false, null), "Позвонить", "a row button without a name still says what it does");
+  assert.equal(dialAccessibleName("action", false, null), undefined, "a button with a visible word and no subject needs no label");
+  assert.equal(dialAccessibleName("action", true, null), undefined);
+  // Where the button has no subject (the lead header) the visible word is the name: no label at all.
+  assert.doesNotMatch(button(pages.get("lead-dial")), /aria-label=/u);
 });
 
 test("rendered «Сегодня»: a lead row and a request row get a 44 px phone button over the row link; tasks and students do not", () => {
@@ -881,4 +911,82 @@ test("rendered «Сегодня»: a lead row and a request row get a 44 px phon
     assert.equal(dialButtons(pages.get(name)).length, 0, name);
     assert.doesNotMatch(pages.get(name), /grid-cols-\[2\.75rem_minmax\(0,1fr\)_5\.5rem\]/u, name);
   }
+});
+
+// ------------------------------------------------------------ one name for a lead made by an unknown number
+
+test("a lead made by an unknown number is «Номер …» on the lead card, the lead's tasks, the pipeline board and the take button", () => {
+  // The rule: only the name the database wrote («Звонок» + the mask) of a phone-call lead is renamed.
+  assert.equal(callerDisplayName("Звонок +996 ••• 12 46 64"), "Номер +996 ••• 12 46 64");
+  assert.equal(callerDisplayName("Звонок ••••4521"), "Номер ••••4521");
+  assert.equal(callerDisplayName("Звонок родителей"), "Звонок родителей");
+  assert.equal(callerDisplayName("Асель Демова"), "Асель Демова");
+  assert.equal(leadDisplayName("phone_call", "Звонок +996 ••• 12 46 64"), "Номер +996 ••• 12 46 64");
+  assert.equal(leadDisplayName("website", "Звонок +996 ••• 12 46 64"), "Звонок +996 ••• 12 46 64", "a lead of another source keeps its name");
+  assert.equal(leadDisplayName(null, "Звонок ••••4521"), "Звонок ••••4521");
+  // The lead card: the page title, and the heading of the plain profile header, from the lead's own source. The name that profile
+  // data carries is not touched: the portal-access forms send it as the student's display name.
+  const profilePage = read("src/app/(v3)/v3/profile/page.tsx");
+  assert.match(profilePage, /\? leadDisplayName\(view\.profile\.source, view\.profile\.person\) : docsMode/u);
+  assert.match(read("src/components/v3/profile/Profile.tsx"), /\{leadDisplayName\(profile\.source, profile\.person\)\}/u);
+  assert.doesNotMatch(read("src/lib/v3/profile-source.ts"), /leadDisplayName|callerDisplayName/u, "the data keeps the database name");
+  // The lead's tasks heading; the pipeline search link keeps the name as the database wrote it.
+  const tasks = read("src/app/(v3)/v3/tasks/page.tsx");
+  assert.match(tasks, /<h2 className="t-section">\{callerDisplayName\(sourceLead\.clientDisplayName \?\? "Имя клиента не указано"\)\}<\/h2>/u);
+  assert.match(tasks, /\/v3\/pipeline\?q=\$\{encodeURIComponent\(sourceLead\.clientDisplayName\)\}/u);
+  // The board: the card (text and title), the side panel (title and the close menu) and the «closed» line.
+  const board = read("src/components/v3/Pipeline.tsx");
+  assert.match(board, /function leadLabel\(lead: Pick<PipelineLead, "source" \| "name">\): string \{\s*return leadDisplayName\(lead\.source, lead\.name\);/u);
+  assert.equal((board.match(/leadLabel\(lead\)/gu) ?? []).length, 4, "card title and text, panel title, close-menu subject");
+  assert.match(board, /leadClosed\(leadLabel\(selected\), receipt\)/u);
+  assert.doesNotMatch(board, /\{lead\.name\}|title=\{lead\.name\}|subjectName=\{lead\.name\}/u, "no raw name left on the board");
+});
+
+// ------------------------------------------------------------ the task of a missed call names the client
+
+test("callback task: the Today row and the task panel name the client, and only for an employee whose dial is open", () => {
+  const source = read("src/lib/v3/telephony-task-leads-source.ts");
+  assert.match(source, /^import "server-only";/u);
+  assert.match(source, /readStaffTaskContext\(actor, taskId\)/u, "the lead of a task comes from the read the «Задачи» page already uses");
+  assert.match(source, /readStaffTaskLeadContext\(actor, leadId\)/u, "and its name from the lead read under the same session");
+  assert.match(source, /const TASK_LEAD_LIMIT = 12;/u);
+  // Only the call-back tasks telephony itself creates (migration 298) are read; every other work task costs «Сегодня» no database read.
+  assert.match(source, /item\.task\?\.kind === "staff" && item\.task\.key === item\.key && isCallbackTaskTitle\(item\.task\.title\)/u);
+  for (const title of ["Перезвонить клиенту", "Перезвонить клиенту: недозвон"]) {
+    assert.ok(read("supabase/migrations/298_platform_telephony_missed_tasks.sql").includes(`'${title}'`), `migration 298 writes «${title}»`);
+    assert.equal(isCallbackTaskTitle(title), true, title);
+  }
+  for (const title of ["Перезвонить родителям", "Перезвонить клиенту завтра", "Подготовить документы", "перезвонить клиенту", ""]) {
+    assert.equal(isCallbackTaskTitle(title), false, `«${title}» is not a telephony call-back task`);
+  }
+  assert.match(source, /name: callerDisplayName\(lead\.clientDisplayName\)/u, "a lead made from an unknown number is named as in «Заявки» and «Сегодня»");
+  assert.match(source, /catch \{\s*return null;/u, "a failed read leaves the row as it was");
+  const main = read("src/app/(v3)/v3/main/page.tsx");
+  assert.match(main, /const taskLeads = dial\.status === "ready" \? await readTodayTaskLeads\(actor, queue\) : null;/u, "no extra reads while dial is closed to this employee");
+  assert.match(main, /taskLeads=\{taskLeads\}/u);
+  const row = read("src/components/v3/tasks/TaskQueueRow.tsx");
+  assert.match(row, /leadRef \? <>/u);
+  assert.match(row, /<span className="min-w-0 truncate">Рабочая<\/span>/u, "a task without a lead still says «Рабочая»");
+  const tasks = read("src/app/(v3)/v3/tasks/page.tsx");
+  assert.match(tasks, /if \(selected && taskContext\?\.leadId\) \{\s*const dial = await readDialOptions\(actor\);\s*if \(dial\.status === "ready"\)/u);
+  const panel = read("src/components/v3/tasks/TaskDetailPanel.tsx");
+  assert.match(panel, /Клиент: <span className="break-words">\{data\.extra\.lead\.name\}<\/span>/u);
+  assert.match(panel, /<DialButton leadId=\{data\.extra\.lead\.leadId\} mapped=\{data\.extra\.lead\.mapped\}/u);
+  assert.match(panel, /data\.extra\?\.lead && !readOnly/u, "a role preview gets no button");
+  assert.match(panel, /"Все задачи по лиду" : "Открыть связанного лида"/u, "the two links to a lead say different things");
+  // A phone has no hover title: the panel says in a visible line, for a mapped employee only, that the PBX rings his phone first.
+  assert.match(panel, /!isDone && data\.extra\.lead\.mapped \? \(\s*<p className="hidden basis-full t-meta text-fg-2 max-sm:block pointer-coarse:block" data-testid="v3-dial-hint">\{DIAL_TOUCH_HINT\}<\/p>/u);
+});
+
+test("«Заявки → Звонки»: the outcome and «Позвонить» are read for the phone rows only, after the queue, and never break it", () => {
+  const page = read("src/app/(v3)/v3/requests/page.tsx");
+  assert.match(page, /read\.status === "ready" && read\.queue\.phoneCalls \? await readRequestCallLines\(actor, read\.queue\.rows\) : \{\}/u);
+  assert.match(page, /dial=\{dial\}/u);
+  const source = read("src/lib/v3/telephony-request-calls-source.ts");
+  assert.match(source, /row\.kind === "lead" && row\.source === "phone_call"/u, "only a lead made by a call");
+  assert.match(source, /const REQUEST_CALLS_LIMIT = 20;/u);
+  assert.match(source, /p_limit: 1,/u, "the newest call of the lead is enough");
+  const view = read("src/components/v3/requests/RequestsQueueView.tsx");
+  assert.match(view, /<DialButton leadId=\{dialLeadId\} mapped=\{props\.dial\.mapped\} subject=\{name\} iconOnly \/>/u);
+  assert.match(view, /!props\.readOnly \? leadId : null/u, "a role preview has no button");
 });

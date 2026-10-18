@@ -8,8 +8,8 @@ import type { LeadSaleConditions } from "../../../lib/lead-sale-conditions-contr
 import type { PlatformSalesStage } from "../../../lib/platform-sales-contract.ts";
 import { dayInOrganizationTimezone } from "../../../lib/platform-task-deadline.ts";
 import {
-  callContact, callOutcomeText, callPeopleText, callRecordingText, callResultText, callTalkText, callTitle, type LeadCall,
-  type LeadCallRecordings,
+  callContact, callOutcomeText, callPeopleText, callPressWords, callRecordingText, callResultText, callTalkText, callTitle,
+  type LeadCall, type LeadCallPress, type LeadCallRecordings,
 } from "../../../lib/v3/telephony-lead-calls.ts";
 
 /** id панели «Что дальше»: её открывают главное действие и «Изменить» в шапке (`popoverTarget`). */
@@ -217,30 +217,59 @@ export type LeadCallRowView = Readonly<{
   details: string | null;
   /** «Результат: Дозвонился · Имя · 17.10 14:20»; null — результата нет. */
   result: string | null;
+  /** Результат без приставки («Дозвонился», «Перезвонить 18.10»): строка «Итог: …» у отмеченного звонка; null — не отмечен. */
+  resultLabel: string | null;
   /** «Перезвонить 18.10» у нажатого «Перезвонить» для подписи кнопки; null — не нажато. */
   callbackLabel: string | null;
+  /** Слова трёх нажатий для этого направления: у входящего «Поговорили», у исходящего «Дозвонился». */
+  pressWords: Readonly<Record<LeadCallPress, string>>;
+  /** Кто говорил и сколько — подпись «Слушать · Менеджер Первый, 2 мин 20 с»; пустое — нечего сказать. */
+  recordingContext: Readonly<{ who: string | null; talk: string | null }>;
 }>;
 
 /**
- * Слова одной строки звонка в «Ленте» лида из того, что отдала база: ничего не
- * выдумывается (нет разговора из сверки — «—», нет записи — ничего), полного
- * номера и ссылки на запись в данных нет.
+ * Момент звонка: за последний час — «38 мин назад», за сутки — «3 ч назад», дальше — как у остальной
+ * ленты («ДД.ММ ЧЧ:ММ»). Точное время остаётся в `title` и `dateTime`.
  */
-export function leadCallRow(call: LeadCall, now: Date, recordings: LeadCallRecordings | null = null): LeadCallRowView {
+export function leadCallMoment(value: string, now: Date): Readonly<{ label: string; exact: string }> {
+  const exact = leadMoment(value, now);
+  const age = now.getTime() - Date.parse(value);
+  if (!Number.isFinite(age) || age < 0 || age >= 24 * 3_600_000) return { label: exact, exact };
+  if (age < 60_000) return { label: "только что", exact };
+  if (age < 3_600_000) return { label: `${Math.floor(age / 60_000)}\u00A0мин назад`, exact };
+  return { label: `${Math.floor(age / 3_600_000)}\u00A0ч назад`, exact };
+}
+
+/**
+ * Слова одной строки звонка в «Ленте» лида из того, что отдала база: ничего не
+ * выдумывается (нет разговора из сверки — «время уточняется», нет записи — ничего), полного
+ * номера и ссылки на запись в данных нет. Маска номера повторяется в каждой строке, только когда
+ * в ленте больше одного номера (`showPhone`): иначе она одна и та же и есть в «Контактах».
+ */
+export function leadCallRow(
+  call: LeadCall,
+  now: Date,
+  recordings: LeadCallRecordings | null = null,
+  options: Readonly<{ showPhone?: boolean }> = {},
+): LeadCallRowView {
   const today = dayInOrganizationTimezone(now);
   const resultText = callResultText(call, (day) => leadDay(day, today));
   // Записи прочитаны (срез T6): состояние записи говорит блок записи под строкой («Слушать», «Запись
   // удалена по сроку хранения»), а не мелкая строка; не прочитаны — слова состояния, как в T5.
-  const details = [call.phone, callPeopleText(call), recordings === null ? callRecordingText(call.recording) : null]
+  const details = [options.showPhone === false ? null : call.phone, callPeopleText(call), recordings === null ? callRecordingText(call.recording) : null]
     .filter((part): part is string => Boolean(part));
   const resultParts = [call.resultByName, call.resultAt ? leadMoment(call.resultAt, now) : null].filter((part): part is string => Boolean(part));
   const talk = callTalkText(call);
+  const base = callOutcomeText(call);
   return {
     title: callTitle(call),
-    // «разговор 2 мин 05 с»; пока сверка не принесла время — «разговор —», не ноль и не длительность вебхука.
-    outcome: talk ? `${callOutcomeText(call)} ${talk}` : callOutcomeText(call),
+    // «разговор 2 мин 05 с»; пока сверка не принесла время — «разговор, время уточняется», не ноль и не длительность вебхука.
+    outcome: talk ? (call.talkSeconds === null ? `${base}, ${talk}` : `${base} ${talk}`) : base,
     details: details.length > 0 ? details.join(" · ") : null,
     result: resultText ? `Результат: ${[resultText, ...resultParts].join(" · ")}` : null,
+    resultLabel: resultText,
     callbackLabel: call.resultCode === "callback" ? resultText : null,
+    pressWords: callPressWords(call.direction),
+    recordingContext: { who: call.managerName, talk: call.talkSeconds === null ? null : talk },
   };
 }

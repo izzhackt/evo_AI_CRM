@@ -11,6 +11,7 @@ import { isConnectedPlatformApi, isConnectedPlatformPage, isConnectedPlatformPri
 import { settingsIntegrations } from "../src/lib/v3/settings-health.ts";
 import {
   formatTelephonyTime,
+  lowerFirstWord,
   telephonyIntegrationRow,
   telephonyIssues,
   telephonyStatusLines,
@@ -411,6 +412,60 @@ test("the integrations row names the heaviest issue first, keeps the rest in the
   assert.equal(unreadable.checkedAt, null);
 });
 
+test("«Состояние» and «Интеграции» agree: every issue sits on a line that needs a look, and the server hand-off stands on that line", () => {
+  const attentionOf = (server, input) => telephonyStatusLines(server, overview(input), NOW).filter((line) => line.tone === "warn" || line.tone === "blocked");
+  // The state from the review: intake open, the CRM keys set, the PBX key missing, nothing else wrong. The «Интеграции» row says so,
+  // and so does the line: it needs a look, it says what is lost and whom to hand it to (it used to be a quiet «off» line under «Замечаний нет»).
+  const noPbxKey = { ...SERVER_ON, pbx: "not_configured" };
+  assert.deepEqual(telephonyIssues(noPbxKey, overview(), NOW).map((issue) => issue.id), ["pbx_key"]);
+  const row = telephonyIntegrationRow({ server: noPbxKey, overview: overview() }, NOW);
+  assert.equal(row.state, "ключ ВАТС не задан");
+  assert.equal(row.tone, "warn");
+  assert.equal(row.action.handoff, "Передать техническому специалисту: внести ключ ВАТС на сервер");
+  const attention = attentionOf(noPbxKey, {});
+  assert.deepEqual(attention.map((line) => [line.id, line.tone, line.value]), [["pbx_key", "warn", "не задан"]]);
+  assert.equal(attention[0].handoff, "Передать техническому специалисту: внести ключ ВАТС на сервер");
+  assert.match(attention[0].without, /Сверка с историей ВАТС, список пользователей и звонок из CRM выключены/u);
+  assert.equal(attention[0].note, null, "the note would repeat what the line says is lost");
+  // With intake off there is no such issue, and the line stays quiet with its own note.
+  const off = telephonyStatusLines(SERVER_OFF, overview(), NOW).find((line) => line.id === "pbx_key");
+  assert.deepEqual([off.tone, off.handoff, off.without], ["off", null, null]);
+  assert.match(off.note, /Без него выключены сверка/u);
+  assert.deepEqual(telephonyIssues(SERVER_OFF, overview(), NOW), []);
+
+  // The rule over a spread of states: whenever the issues list (the «Интеграции» row) is not empty, the block has a line that needs
+  // a look, and every issue that hands work to the technical specialist has that sentence on a line of the block.
+  const servers = [
+    SERVER_ON, SERVER_OFF, noPbxKey, { ...SERVER_ON, pbx: "invalid" }, { ...SERVER_ON, crmKey: "missing" },
+    { ...SERVER_ON, crmKey: "missing", pbx: "not_configured" }, { ...SERVER_OFF, ingestEnabled: true }, { ...SERVER_ON, crmKeyRotating: true },
+  ];
+  const err = (code) => ({ health: healthSample({ pbx: { last_ok_at: "2026-10-17T08:00:00.000Z", last_error_at: "2026-10-17T09:00:00.000Z", last_error_code: code, facts: null } }) });
+  const inputs = [
+    {}, { settings: { flags: FLAGS_ON } }, { settings: { flags: { ...FLAGS_ON, outboundPaused: true } } },
+    err("pbx_unauthorized"), err("pbx_timeout"), { health: healthSample({ last_event_at: "2026-10-12T10:00:00.000Z" }) },
+    { health: healthSample({ directory: { active: 3, inactive: 0, unmapped: 2, last_seen_at: null } }) },
+    { health: healthSample({ divergence: { window_hours: 24, reconciled_calls: 4, calls: 30 } }) },
+    { health: healthSample({ evidence: { window_hours: 24, received: 9, rejected: 3, incomplete: 0 } }) },
+    { health: healthSample({ pbx: { last_ok_at: null, last_error_at: null, last_error_code: null, facts: { record_service: false } } }) },
+    { health: healthSample({ automation_stop: { stopped_at: "2026-10-17T08:00:00.000Z", code: "leads_day" } }) },
+  ];
+  let seen = 0;
+  for (const server of servers) {
+    for (const input of inputs) {
+      const issues = telephonyIssues(server, overview(input), NOW);
+      const lines = telephonyStatusLines(server, overview(input), NOW);
+      const needLook = lines.filter((line) => line.tone === "warn" || line.tone === "blocked");
+      const where = JSON.stringify({ server, input });
+      if (issues.length > 0) assert.ok(needLook.length > 0, `an issue with no line that needs a look: ${where}`);
+      for (const issue of issues.filter((candidate) => candidate.handoff !== null)) {
+        assert.ok(needLook.some((line) => line.handoff === issue.handoff), `the hand-off «${issue.handoff}» is not on a line: ${where}`);
+      }
+      seen += issues.length;
+    }
+  }
+  assert.ok(seen > 20, "the spread really produced issues");
+});
+
 test("the integrations table gets a fourth row only when telephony facts are passed", () => {
   const facts = {
     waha: { display: "not_configured", sessionStatus: undefined, observedAt: null },
@@ -469,6 +524,35 @@ test("status lines say the facts of the screen: keys are 'set' or 'not set', nev
   const noKey = Object.fromEntries(telephonyStatusLines({ ...SERVER_ON, crmKey: "missing", pbx: "invalid" }, overview(), NOW).map((line) => [line.id, line]));
   assert.equal(noKey.crm_key.tone, "blocked");
   assert.equal(noKey.pbx_key.value, "задан неверно");
+});
+
+test("health words: an abbreviation keeps its capitals, automation says «включена» with the ok mark, a line that needs a look carries what is lost and who fixes it", () => {
+  assert.equal(lowerFirstWord("ВАТС отклонила ключ"), "ВАТС отклонила ключ", "not «вАТС отклонила ключ»");
+  assert.equal(lowerFirstWord("Приём выключен на сервере"), "приём выключен на сервере");
+  assert.equal(lowerFirstWord("У ключа ВАТС нет прав на метод"), "у ключа ВАТС нет прав на метод", "a one-letter word is not an abbreviation");
+  assert.equal(lowerFirstWord("Подключение выключено в кабинете"), "подключение выключено в кабинете");
+  const rejected = overview({
+    settings: { flags: FLAGS_ON },
+    health: healthSample({ pbx: { last_ok_at: null, last_error_at: "2026-10-17T09:59:00.000Z", last_error_code: "pbx_unauthorized", facts: null } }),
+  });
+  const row = telephonyIntegrationRow({ server: SERVER_ON, overview: rejected }, NOW);
+  assert.equal(row.state, "ВАТС отклонила ключ", "the integrations table does not lowercase the abbreviation either");
+  const lines = Object.fromEntries(telephonyStatusLines(SERVER_ON, rejected, NOW).map((line) => [line.id, line]));
+  assert.equal(lines.pbx_link.value, "ВАТС отклонила ключ");
+  assert.equal(lines.pbx_link.tone, "blocked");
+  assert.match(lines.pbx_link.without, /Запросы CRM к ВАТС не проходят/u, "what stops stands on the line itself");
+  // A line that is fine or off carries nothing extra.
+  assert.equal(lines.intake.without, null);
+  assert.equal(lines.intake.handoff, null);
+  // Server work is handed over by name on the line it concerns.
+  const off = Object.fromEntries(telephonyStatusLines(SERVER_OFF, overview({ settings: { flags: FLAGS_ON } }), NOW).map((line) => [line.id, line]));
+  assert.equal(off.intake.tone, "warn");
+  assert.match(off.intake.handoff, /^Передать техническому специалисту: включить приём телефонии на сервере$/u);
+  // Automation: a switch on is an ok mark with the word «включена» (an empty circle beside «включена» read as a contradiction); off stays off.
+  const on = Object.fromEntries(telephonyStatusLines(SERVER_ON, overview({ settings: { flags: { ...FLAGS_ON, missedTaskEnabled: true } } }), NOW).map((line) => [line.id, line]));
+  assert.deepEqual([on.automation.value, on.automation.tone], ["включена", "ok"]);
+  const none = Object.fromEntries(telephonyStatusLines(SERVER_ON, overview(), NOW).map((line) => [line.id, line]));
+  assert.deepEqual([none.automation.value, none.automation.tone], ["выключена", "off"]);
 });
 
 /* -------------------------------------------------------------- сервер */

@@ -69,6 +69,18 @@ export function todayDialLeadId(item: Readonly<{ source: string; key: string }>)
 export const DIAL_ABOUT =
   "Сначала зазвонит ваш телефон или приложение ВАТС. Возьмите трубку — после этого мы наберём клиента.";
 
+/**
+ * Название задач, которые телефония создаёт сама (миграция 298): «Перезвонить клиенту» после пропущенного и после
+ * «Перезвонить позже», «Перезвонить клиенту: недозвон» после исходящего без ответа. Только у них «Сегодня» читает лид:
+ * у остальных рабочих задач имени клиента не бывает, и по чтению на каждую строку очереди тратить нечего.
+ */
+export function isCallbackTaskTitle(title: string): boolean {
+  return /^Перезвонить клиенту(?::|$)/u.test(title);
+}
+
+/** Та же подсказка видимой строкой для сенсорного экрана, где нет `title` при наведении: короче, под рядом действий лида. */
+export const DIAL_TOUCH_HINT = "«Позвонить» сначала звонит вам: возьмите трубку, и мы наберём клиента.";
+
 export const DIAL_COPY = Object.freeze({
   button: "Позвонить",
   busy: "Звоним…",
@@ -84,6 +96,17 @@ export const DIAL_COPY = Object.freeze({
   fallback: "Не удалось позвонить. Клиенту не звонили. Повторите.",
   network: "Не удалось связаться с CRM. Проверьте, пошёл ли звонок, прежде чем нажимать снова.",
 });
+
+/**
+ * Имя кнопки для читалки: слово и кому («Позвонить: Айгерим»). У строки очереди кнопка без слов, и имя нужно всегда;
+ * у кнопки со словом — когда известно, кого набираем. Пока звонок набирается, кнопка пишет «Звоним…»: многоточие перед
+ * двоеточием читалка произнесла бы «Звоним…: Айгерим», поэтому в имени слово стоит без него («Звоним: Айгерим»).
+ */
+export function dialAccessibleName(variant: "action" | "row", pending: boolean, subject: string | null): string | undefined {
+  const word = variant === "action" && pending ? DIAL_COPY.busy.replace(/…$/u, "") : DIAL_COPY.button;
+  if (subject) return `${word}: ${subject}`;
+  return variant === "row" ? word : undefined;
+}
 
 const REFUSAL_COPY: Readonly<Record<DialRefusalCode, string>> = Object.freeze({
   lead_no_phone: "У клиента не записан номер телефона. Добавьте его в карточке.",

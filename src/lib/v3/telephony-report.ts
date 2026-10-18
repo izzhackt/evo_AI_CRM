@@ -346,10 +346,14 @@ export function reportPlural(n: number, one: string, few: string, many: string):
 export type ReportCell = Readonly<{
   /** Подпись ячейки («Звонки»). */
   label: string;
-  /** Главное число или слово; «—», когда сказать нечего. */
+  /** Главное число или слово («ждём», «нет звонков»), когда числа нет. */
   figure: string;
+  /** Нет числа: `figure` — слово, и рисуется оно спокойным обычным шрифтом, а не крупной цифрой. */
+  quiet: boolean;
   /** Пояснения мелкими строками; пусто — нет. */
   notes: readonly string[];
+  /** Что считает ячейка, одной фразой (подсказка при наведении). */
+  hint: string;
 }>;
 
 /** Слова ячейки «Звонки»: всего и разбивка по направлению. */
@@ -358,7 +362,9 @@ export function callsCell(metrics: Pick<ReportMetrics, "calls">): ReportCell {
   return {
     label: "Звонки",
     figure: total.toLocaleString("ru-RU"),
+    quiet: false,
     notes: total === 0 ? [] : [`${metrics.calls.in.toLocaleString("ru-RU")} входящих · ${metrics.calls.out.toLocaleString("ru-RU")} исходящих`],
+    hint: "Все звонки сотрудника за период: входящие и исходящие.",
   };
 }
 
@@ -369,17 +375,31 @@ export function answeredCell(metrics: Pick<ReportMetrics, "calls" | "answered">)
   const notes: string[] = [];
   if (metrics.calls.in > 0) notes.push(`входящие ${metrics.answered.in} из ${metrics.calls.in}`);
   if (metrics.calls.out > 0) notes.push(`исходящие ${metrics.answered.out} из ${metrics.calls.out}`);
-  return { label: "Отвечено", figure: reportPercent(done, total) ?? "—", notes };
+  const percent = reportPercent(done, total);
+  return {
+    label: "Отвечено",
+    figure: percent ?? "нет звонков",
+    quiet: percent === null,
+    notes,
+    hint: "Доля звонков, на которые ответили или дозвонились.",
+  };
 }
 
-/** Слова ячейки «Время разговора»: сумма, среднее и сколько отвеченных ещё без времени из сверки. */
+/** Слова ячейки «Время разговора»: сумма и среднее; пока сверка не принесла времени — словами, а не нулём. */
 export function talkCell(metrics: Pick<ReportMetrics, "answered" | "talk">): ReportCell {
   const done = metrics.answered.in + metrics.answered.out;
   const notes: string[] = [];
-  if (metrics.talk.calls > 0) notes.push(`в среднем ${reportDuration(Math.round(metrics.talk.seconds / metrics.talk.calls))} на звонок`);
+  if (metrics.talk.calls > 0) notes.push(`в среднем ${reportDuration(Math.round(metrics.talk.seconds / metrics.talk.calls))}`);
   const unknown = done - metrics.talk.calls;
   if (unknown > 0) notes.push(`время ещё не пришло: ${unknown.toLocaleString("ru-RU")} ${reportPlural(unknown, "звонок", "звонка", "звонков")}`);
-  return { label: "Время разговора", figure: metrics.talk.calls > 0 ? reportDuration(metrics.talk.seconds) : "—", notes };
+  const known = metrics.talk.calls > 0;
+  return {
+    label: "Время разговора",
+    figure: known ? reportDuration(metrics.talk.seconds) : done > 0 ? "уточняется" : "нет разговоров",
+    quiet: !known,
+    notes,
+    hint: "Сумма времени разговоров. Время приходит из сверки с ВАТС, поэтому у свежих звонков его ещё нет.",
+  };
 }
 
 /** Слова ячейки «До первого звонка»: медиана рабочего времени и сколько новых лидов уложились в срок. */
@@ -392,31 +412,50 @@ export function firstCallCell(first: ReportFirstCall, slaMinutes: number): Repor
     if (first.pending > 0) notes.push(`срок ещё не вышел: ${first.pending}`);
     if (first.medianReachSeconds !== null) notes.push(`до разговора ${reportDuration(first.medianReachSeconds)}`);
   }
+  const figure = first.medianCallSeconds !== null ? reportDuration(first.medianCallSeconds)
+    : first.leads === 0 ? "нет новых лидов"
+      : first.pending > 0 && first.pending === first.leads ? "ждём"
+        : "не звонили";
   return {
     label: "До первого звонка",
-    figure: first.medianCallSeconds === null ? "—" : reportDuration(first.medianCallSeconds),
+    figure,
+    quiet: first.medianCallSeconds === null,
     notes,
+    hint: `Медиана рабочего времени от создания лида до первого звонка. Срок — ${slaMinutes} мин рабочего времени; «ждём» — срок у лидов ещё не вышел.`,
   };
 }
 
-/** Слова ячейки «Пропущенные без перезвона»: число и как закончились остальные. */
+/**
+ * Слова ячейки «Пропущенные без перезвона»: число и из скольких пропущенных оно получилось. Ноль без
+ * пояснения рядом с «пропущено входящих: 5» читался как противоречие: «из 5 пропущенных» говорит, что
+ * остальные перезвонили или ещё ждут.
+ */
 export function missedCell(missedBlock: ReportMissed): ReportCell {
   const notes: string[] = [];
   if (missedBlock.total > 0) {
-    notes.push(`пропущено входящих: ${missedBlock.total.toLocaleString("ru-RU")}`);
+    notes.push(`из ${missedBlock.total.toLocaleString("ru-RU")} пропущенных входящих`);
     if (missedBlock.inTime > 0) notes.push(`перезвонили в срок: ${missedBlock.inTime}`);
     if (missedBlock.late > 0) notes.push(`перезвонили позже срока: ${missedBlock.late}`);
     if (missedBlock.pending > 0) notes.push(`срок ещё не вышел: ${missedBlock.pending}`);
   }
-  return { label: "Пропущенные без перезвона", figure: missedBlock.without.toLocaleString("ru-RU"), notes };
+  return {
+    label: "Пропущенные без перезвона",
+    figure: missedBlock.without.toLocaleString("ru-RU"),
+    quiet: false,
+    notes,
+    hint: "Входящие без ответа, на которые до конца срока никто не перезвонил по этому номеру.",
+  };
 }
 
 /** Слова ячейки «Результат проставлен»: доля отвеченных звонков, у которых нажат результат. */
 export function resultCell(result: ReportMetrics["result"]): ReportCell {
+  const percent = reportPercent(result.set, result.eligible);
   return {
     label: "Результат проставлен",
-    figure: reportPercent(result.set, result.eligible) ?? "—",
+    figure: percent ?? "нет отвеченных",
+    quiet: percent === null,
     notes: result.eligible > 0 ? [`${result.set} из ${result.eligible} отвеченных`] : [],
+    hint: "Доля отвеченных звонков, у которых сотрудник отметил итог.",
   };
 }
 
@@ -432,9 +471,33 @@ export function reportCells(metrics: ReportMetrics, slaMinutes: number): readonl
   ];
 }
 
+/** Ячейки, которые телефон показывает сразу (индексы `reportCells`): «Звонки», «Отвечено», «Пропущенные без перезвона». Остальные — за «Все показатели». */
+export const REPORT_PHONE_CELLS = [0, 1, 4] as const;
+
 /** Две ячейки строки «Без ответственного»: у неё нет звонков сотрудника, только лиды и пропущенные. */
 export function unassignedCells(row: ReportUnassigned, slaMinutes: number): readonly ReportCell[] {
   return [firstCallCell(row.firstCall, slaMinutes), missedCell(row.missed)];
+}
+
+/** Сотрудник без единого звонка, нового лида и пропущенного за период: его строка из нулей сворачивается в «Без звонков: …». */
+export function reportRowIsIdle(row: ReportMetrics): boolean {
+  return row.calls.in + row.calls.out === 0 && row.firstCall.leads === 0 && row.missed.total === 0;
+}
+
+/**
+ * Итог блока одной строкой для свёрнутого заголовка: «16 звонков · отвечено 63 % · без перезвона: 0». Команда
+ * у руководителя, свои цифры у менеджера. Нечего сказать — «звонков за период нет».
+ */
+export function reportSummary(report: TelephonyReport): string {
+  const row = report.team ?? report.managers[0] ?? null;
+  if (row === null) return "звонков за период нет";
+  const total = row.calls.in + row.calls.out;
+  if (total === 0 && row.missed.total === 0) return "звонков за период нет";
+  const parts = [`${total.toLocaleString("ru-RU")} ${reportPlural(total, "звонок", "звонка", "звонков")}`];
+  const percent = reportPercent(row.answered.in + row.answered.out, total);
+  if (percent !== null) parts.push(`отвечено ${percent}`);
+  parts.push(`без перезвона: ${row.missed.without.toLocaleString("ru-RU")}`);
+  return parts.join(" · ");
 }
 
 /** Отчёт по звонкам без единого звонка, лида и пропущенного за период: честная пустота вместо таблицы нулей. */

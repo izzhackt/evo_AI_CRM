@@ -25,7 +25,7 @@ import { ClosedLine, CloseRecordMenu } from "@/components/v3/closure/Closure";
 import { attributeReturn } from "@/components/v3/panel/side-panel";
 import { SidePanel } from "@/components/v3/panel/SidePanel";
 import type { LeadClosureReceipt } from "@/lib/platform-closure-contract";
-import { closureWords } from "@/lib/v3/wording";
+import { closureWords, leadDisplayName } from "@/lib/v3/wording";
 import type {
   PlatformSalesOwnerOption,
   PlatformSalesStage,
@@ -42,6 +42,14 @@ export type PipelineStage = Readonly<{
   gate: boolean;
   terminal: boolean;
 }>;
+
+/**
+ * Имя лида на доске: лид, которого завёл звонок с неизвестного номера, база называет «Звонок +996 ••• …», а экраны
+ * пишут «Номер +996 ••• …» (как «Заявки» и «Сегодня»). Только показ: данные лида и поиск остаются как в базе.
+ */
+function leadLabel(lead: Pick<PipelineLead, "source" | "name">): string {
+  return leadDisplayName(lead.source, lead.name);
+}
 
 export type PipelineLead = Readonly<{
   id: string;
@@ -169,11 +177,11 @@ function LeadCard({
           prefetch={false}
           scroll={false}
           onClick={onOpen}
-          title={lead.name}
+          title={leadLabel(lead)}
           data-lead-link={lead.id}
           className="t-item min-w-0 flex-1 truncate text-fg after:absolute after:inset-0 after:rounded-ctl"
         >
-          {lead.name}
+          {leadLabel(lead)}
         </Link>
         {/* Переданный лид без действия: инициалы у имени, а не одни в строке. */}
         {actionLine ? null : initials ? <span className="t-meta text-fg-3">{initials}</span> : null}
@@ -254,7 +262,7 @@ function LeadPanel({
       closeHref={closeHref}
       onClose={onClose}
       backLabel="К воронке"
-      title={lead.name}
+      title={leadLabel(lead)}
       context={(
         <>
           <StageTrack kind="sales" current={lead.stageKey} caption={false} className="mb-1.5 pt-1" />
@@ -268,7 +276,7 @@ function LeadPanel({
         <CloseRecordMenu
           kind="lead"
           subjectId={lead.workflow.leadId}
-          subjectName={lead.name}
+          subjectName={leadLabel(lead)}
           expectedVersion={lead.workflow.workflowVersion}
           blockedReason={terminal ? closureWords.lead.handedOff : null}
           onClosed={onLeadClosed}
@@ -699,7 +707,7 @@ export function Pipeline({
           saved={saved?.leadId === selected.id && saved.version !== selected.workflow.workflowVersion}
           onClose={closePanel}
           onSaved={() => setSaved({ leadId: selected.id, version: selected.workflow.workflowVersion })}
-          onLeadClosed={(receipt) => leadClosed(selected.name, receipt)}
+          onLeadClosed={(receipt) => leadClosed(leadLabel(selected), receipt)}
         />
       ) : null}
     </div>

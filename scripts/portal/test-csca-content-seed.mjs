@@ -116,8 +116,8 @@ test("the mock follows DESIGN 8.2: modules 7, 19, 14, 8, difficulty 14, 24, 10, 
   const byTopic = {};
   mock.item_keys.forEach((key) => {
     const row = bank.get(key);
-    const module = Number(row.topic_key[1]);
-    byModule[module] = (byModule[module] ?? 0) + 1;
+    const moduleNo = Number(row.topic_key[1]);
+    byModule[moduleNo] = (byModule[moduleNo] ?? 0) + 1;
     byDifficulty[row.difficulty] = (byDifficulty[row.difficulty] ?? 0) + 1;
     byTopic[row.topic_key] = (byTopic[row.topic_key] ?? 0) + 1;
   });
@@ -127,10 +127,10 @@ test("the mock follows DESIGN 8.2: modules 7, 19, 14, 8, difficulty 14, 24, 10, 
   // Order: by module, inside a module from simpler to harder.
   const modules = mock.item_keys.map((key) => Number(bank.get(key).topic_key[1]));
   assert.deepEqual(modules, [...modules].sort((left, right) => left - right));
-  for (const module of [1, 2, 3, 4]) {
-    const levels = mock.item_keys.map((key) => bank.get(key)).filter((row) => Number(row.topic_key[1]) === module)
+  for (const moduleNo of [1, 2, 3, 4]) {
+    const levels = mock.item_keys.map((key) => bank.get(key)).filter((row) => Number(row.topic_key[1]) === moduleNo)
       .map((row) => row.difficulty);
-    assert.deepEqual(levels, [...levels].sort((left, right) => left - right), `module ${module}`);
+    assert.deepEqual(levels, [...levels].sort((left, right) => left - right), `module ${moduleNo}`);
   }
   // Time budget: the estimates fit the hour with a margin.
   const seconds = mock.item_keys.reduce((sum, key) => sum + bank.get(key).body.est_seconds, 0);

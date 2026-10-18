@@ -13,7 +13,8 @@ import { PARITY_DATES, PARITY_FIXTURE, parityFixtureText } from "../scripts/port
 // (`JSONDecoder`, ios/EVOAdmissions/Services/CountryTimeline.swift). При
 // повторе ключа в объекте `JSON.parse` берёт последнее значение, а
 // `JSONDecoder` первое; review #1208 M1 показал, что так iPhone мог бы
-// показать Италию её собственным таймлайном `owner_review`. Поэтому файлы
+// увидеть у страны другой статус, чем веб (тогда Италия была `owner_review`
+// и могла бы получить свой таймлайн). Поэтому файлы
 // контента хранятся только в каноническом виде, а фикстура паритета iPhone
 // обязана быть свежей (review #1208 m4).
 const SCRIPT = fileURLToPath(new URL("../scripts/portal/write-country-timeline-ios-parity.mjs", import.meta.url));
@@ -30,13 +31,15 @@ test("every timeline file is canonical JSON: no repeated key, no byte order mark
 });
 
 test("the canonical check catches the repeated status key of review #1208 M1", () => {
+  // Italy was owner_review when review #1208 found the hazard; since 18.10.2026 it is approved,
+  // so the repeated key is the stale value that the web would not see but the iPhone would.
   const text = rawFile("it");
-  const marker = '  "status": "owner_review",\n';
-  assert.ok(text.includes(marker), "it.json is owner_review");
-  const repeated = text.replace(marker, `  "status": "approved",\n${marker}`);
-  // JSON.parse keeps the last value, so the web still sees owner_review …
-  assert.equal(JSON.parse(repeated).status, "owner_review");
-  // … and only the canonical check notices the second reader's hazard.
+  const marker = '  "status": "approved",\n';
+  assert.ok(text.includes(marker), "it.json is approved");
+  const repeated = text.replace(marker, `  "status": "owner_review",\n${marker}`);
+  // JSON.parse keeps the last value, so the web still sees approved …
+  assert.equal(JSON.parse(repeated).status, "approved");
+  // … while JSONDecoder keeps the first, owner_review: only the canonical check notices the second reader's hazard.
   assert.notEqual(repeated, canonical(repeated));
 });
 

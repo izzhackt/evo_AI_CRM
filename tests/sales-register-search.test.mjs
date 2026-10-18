@@ -18,13 +18,13 @@ test("search preserves literal punctuation and Unicode while bounding original i
 });
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
-// read_sales_register_v4 (253): the query echo, the manager key and its options are part of one exact-key DTO.
+// read_sales_register_v5 (307, v4 of 253 + `withdrawn`): the query echo, the manager key and its options are part of one exact-key DTO.
 const without = (value, key) => Object.fromEntries(Object.entries(value).filter(([name]) => name !== key));
 const workspace = () => ({ query: null, manager_key: null, organization_id: organizationId, year: 2026, month: null,
   total_count: 0, rows: [], selected: null, offset: 0, has_more: false, totals: [],
-  unresolved_cost_count: 0, unresolved_paid_count: 0, targets: [], manager_options: [], owner_options: [] });
+  unresolved_cost_count: 0, unresolved_paid_count: 0, targets: [], manager_options: [], owner_options: [], withdrawn: { count: 0, paid: [] } });
 
-test("v4 decoder echoes exactly one normalized query and one manager key", () => {
+test("v5 decoder echoes exactly one normalized query and one manager key", () => {
   assert.deepEqual(parseSalesRegisterWorkspace(workspace(), organizationId).query, null);
   assert.deepEqual(parseSalesRegisterWorkspace({ ...workspace(), query: "Асан%_" }, organizationId).query, "Асан%_");
   const chosen = parseSalesRegisterWorkspace({ ...workspace(), manager_key: "санжар эскизов",
@@ -33,7 +33,7 @@ test("v4 decoder echoes exactly one normalized query and one manager key", () =>
   assert.deepEqual(chosen.managerOptions, [{ key: "санжар эскизов", name: "Санжар Эскизов", count: 3 }]);
 });
 
-test("v4 decoder rejects missing, malformed and noncanonical echoes and the retired v1–v3 keys", () => {
+test("v5 decoder rejects missing, malformed and noncanonical echoes and the retired v1–v3 keys", () => {
   assert.throws(() => parseSalesRegisterWorkspace(without(workspace(), "query"), organizationId), /unavailable/);
   for (const query of [undefined, "", " padded ", "a\nb", "x".repeat(201), 1, [], {}]) {
     assert.throws(() => parseSalesRegisterWorkspace({ ...workspace(), query }, organizationId), /unavailable/);
@@ -49,14 +49,14 @@ test("v4 decoder rejects missing, malformed and noncanonical echoes and the reti
   }
 });
 
-test("v4 decoder retains tenant, row and currency validation", () => {
+test("v5 decoder retains tenant, row and currency validation", () => {
   for (const mutation of [{ organization_id: "22222222-2222-4222-8222-222222222222" },
     { rows: [{}] }, { totals: [{ currency: "USD", cost_minor: "unknown", paid_minor: "0" }] }]) {
     assert.throws(() => parseSalesRegisterWorkspace({ ...workspace(), query: "x", ...mutation }, organizationId), /unavailable/);
   }
 });
 
-// sales_register_row_v2 (253): the v1 row plus exactly four keys; flags are strings only, never the source snapshot.
+// sales_register_row_v3 (307): the v1 row plus the four keys of 253 and `withdrawal`; flags are strings only, never the source snapshot.
 const rowV2 = (fields = {}) => ({
   id: "33333333-3333-4333-8333-333333333333", version: "2", report_month: "2026-09-01", signing_date: "2026-09-03",
   applicant_name: "Синтетический студент", phone: "", country: "", university: "", program: "", direction: "", intake: "",
@@ -65,10 +65,10 @@ const rowV2 = (fields = {}) => ({
   needs_review: true, notes: "", archived: false, source_kind: "import", lead_id: null, client_id: null, source_key: "synthetic:1",
   source_sha256: "ab".repeat(32), source_sheet: "Лист", source_row: 3, updated_at: "2026-09-28T05:00:00.000Z",
   paid_contract: null, review_reasons: ["contract_amount_missing", "import:status_unspecified"],
-  import_flags: ["cost_paid_currency_mismatch", "status_unspecified"], manager_key: "санжар эскизов", ...fields,
+  import_flags: ["cost_paid_currency_mismatch", "status_unspecified"], manager_key: "санжар эскизов", withdrawal: null, ...fields,
 });
 
-test("row v2 decoder: contract amount, reasons, import flag strings and the manager key", () => {
+test("row v3 decoder: contract amount, reasons, import flag strings and the manager key", () => {
   const row = parseSalesRegisterRow(rowV2());
   assert.deepEqual([row.paidContractMinor, row.paidContractCurrency, row.reviewReasons, row.importFlags, row.managerKey],
     [null, null, ["contract_amount_missing", "import:status_unspecified"], ["cost_paid_currency_mismatch", "status_unspecified"], "санжар эскизов"]);

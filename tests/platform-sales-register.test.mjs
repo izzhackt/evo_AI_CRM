@@ -44,9 +44,9 @@ test("source and actions use cookie authority with no provider or elevated clien
   const source = readFileSync(new URL("../src/lib/v3/sales-register-source.ts", import.meta.url), "utf8");
   const actions = readFileSync(new URL("../src/lib/platform-sales-register-actions.ts", import.meta.url), "utf8");
   assert.match(source, /createSupabaseServerClient\(\)/);
-  // Э8.6 (253): отчёт читает v4, правка — manage v2; v1–v3 и manage v1 остаются на сервере для отката.
-  assert.match(source, /rpc\("read_sales_register_v4"/);
-  assert.doesNotMatch(source, /rpc\("read_sales_register_v[123]"/);
+  // 307: отчёт читает v5 (строка v3 с отметкой отказа), правка — manage v2; v1–v4 и manage v1 остаются на сервере для отката.
+  assert.match(source, /rpc\("read_sales_register_v5"/);
+  assert.doesNotMatch(source, /rpc\("read_sales_register_v[1234]"/);
   assert.match(source, /rpc\("read_sales_manager_labels_v1"/);
   assert.match(actions, /rpc\("manage_sales_register_v2"/);
   assert.match(actions, /rpc\("save_sales_manager_label_v1"/);
@@ -57,8 +57,8 @@ test("source and actions use cookie authority with no provider or elevated clien
   assert.match(actions, /data\.request_id !== requestId/);
   assert.doesNotMatch(source + actions, /createSupabaseAdmin|SERVICE_ROLE|SECRET_KEY|\.from\(/);
   assert.match(actions, /inserted \+ skipped \+ mismatches !== input\.sales\.length/);
-  // 254 adds linkSalesRecordLeadAction's own revalidation (report panel + Lead 360).
-  assert.equal((actions.match(/revalidatePath\("\/v3\/main"\)/g) ?? []).length, 5);
+  // 254 adds linkSalesRecordLeadAction's own revalidation (report panel + Lead 360); 307 adds «Убрать» / «Вернуть».
+  assert.equal((actions.match(/revalidatePath\("\/v3\/main"\)/g) ?? []).length, 6);
   assert.match(actions, /rpc\("link_sales_record_lead_v1"/);
 });
 

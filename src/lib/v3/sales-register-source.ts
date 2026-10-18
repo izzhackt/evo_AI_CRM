@@ -76,8 +76,9 @@ export async function readSalesRegisterWorkspace(actor: PlatformActor, selection
     || (selection.recordId !== undefined && !recordId) || (manager !== null && (manager.length > 300 || /[\u0000-\u001f\u007f]/.test(manager)))
     || direction === null || (slice !== null && selection.archived)) throw unavailable();
   const client = await createSupabaseServerClient();
-  // Э8.6: одно чтение v4 (253) — строка v2, ключ менеджера и его варианты; v1–v3 на сервере — для отката.
-  const { data, error } = await client.schema("platform").rpc("read_sales_register_v4", {
+  // Одно чтение v5 (307): строка v3 с отметкой отказа поверх v4 (253: строка v2, ключ менеджера и его варианты);
+  // v1–v4 остаются на сервере для отката.
+  const { data, error } = await client.schema("platform").rpc("read_sales_register_v5", {
     p_organization_id: actor.organizationId, p_year: year, p_month: month, p_offset: offset,
     p_record_id: recordId, p_archived: selection.archived ?? false,
     p_manager_key: manager, p_direction: direction || null, p_needs_review: selection.needsReview ?? null,
@@ -95,6 +96,8 @@ export async function readSalesRegisterWorkspace(actor: PlatformActor, selection
     || result.rows.some(row => row.archived !== (selection.archived ?? false)
       // Срез «из другого месяца отчёта» — продажи периода, записанные вне его месяцев.
       || (slice === "filed_elsewhere" ? filedInPeriod(row.reportMonth) || !inPeriod(row.signingDate) : !filedInPeriod(row.reportMonth))
+      // Срезы объясняют число «Продажи», а в нём нет отказных записей (307).
+      || (slice !== null && row.withdrawal !== null)
       || (slice === "undated" && row.signingDate !== null)
       || (slice === "other_sale_date" && (row.signingDate === null || inPeriod(row.signingDate)))
       || (result.managerKey !== null && row.managerKey !== result.managerKey) || (direction !== "" && row.direction !== direction)

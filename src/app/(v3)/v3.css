@@ -659,6 +659,12 @@
   color: var(--text-2);
   white-space: nowrap;
 }
+/* Слово в узкой ячейке таблицы переносится: чип перестаёт быть пилюлей, но остаётся целым словом. */
+.v3-world[data-surface="staff"] .v3-chip[data-wrap] {
+  border-radius: 10px;
+  white-space: normal;
+  text-wrap: balance;
+}
 .v3-world[data-surface="staff"] .v3-chip[data-size="sm"] {
   min-height: 18px;
   margin-block: -1px;

@@ -12,6 +12,7 @@ import { readLeadSaleConditions } from "./v3/lead-sale-conditions-source";
 import type { LeadSaleConditions } from "./lead-sale-conditions-contract";
 import { refreshConfirmedSelfHandoffSession } from "./server/self-handoff-session";
 import { parseSalesRecordLeadLinkReceipt, type SalesRecordLeadLinkActionState, type SalesRecordLeadOption } from "./sales-record-lead-contract";
+import { parseSalesWithdrawalNote, parseSalesWithdrawalReceipt, type SalesWithdrawalActionState } from "./sales-withdrawal-contract";
 
 export type SalesRegisterActionState = Readonly<{
   status: "idle" | "saved" | "invalid" | "forbidden" | "stale" | "request_conflict" | "unavailable" | "already_transferred" | "conditions_missing";
@@ -223,6 +224,52 @@ export async function linkSalesRecordLeadAction(_previous: SalesRecordLeadLinkAc
     revalidatePath("/v3/main");
     revalidatePath("/v3/profile");
     return outcome("saved", recordId);
+  } catch { return outcome("unavailable"); }
+}
+
+/**
+ * «Убрать» / «Вернуть» (307, слова владельца 18.10): отметка отказа у записи отчёта.
+ * `kind` — `partial` | `unpaid`, пусто — «Вернуть». Ворота те же, что у «Исправить запись»:
+ * Sales Manager и `sales.register.manage` на записи — проверяет сервер; браузер лишь прячет кнопку.
+ */
+export async function setSalesRegisterWithdrawalAction(_previous: SalesWithdrawalActionState, form: FormData): Promise<SalesWithdrawalActionState> {
+  const actor = await requirePlatformStaffActor();
+  const outcome = (status: SalesWithdrawalActionState["status"], recordId?: string, operation: SalesWithdrawalActionState["operation"] = null): SalesWithdrawalActionState => ({
+    status, requestId: status === "saved" || status === "request_conflict" ? randomUUID() : parseSalesUuid(candidate(form, "request_id")) ?? randomUUID(),
+    recordId: recordId ?? parseSalesUuid(candidate(form, "record_id")), operation,
+  });
+  if (!staffHasPermission(actor, "sales.register.manage") || isStaffPreview(actor)) return outcome("forbidden");
+  const fields = exactActionStringFields(form, ["request_id", "record_id", "expected_version", "kind", "note"]);
+  if (!fields) return outcome("invalid");
+  const requestId = parseSalesUuid(fields.get("request_id"));
+  const recordId = parseSalesUuid(fields.get("record_id"));
+  const version = parseSalesInteger(fields.get("expected_version"));
+  const kindRaw = fields.get("kind") ?? "";
+  const kind = kindRaw === "partial" || kindRaw === "unpaid" ? kindRaw : null;
+  const note = parseSalesWithdrawalNote(fields.get("note"));
+  if (!requestId || !recordId || version === null || version < 1 || (kindRaw !== "" && kind === null)
+    || note === null || (kind === null && note !== "")) return outcome("invalid");
+  const access = await readSalesRegisterWriteAccess(actor);
+  if (access !== "allowed") return outcome(access === "denied" ? "forbidden" : "unavailable");
+  try {
+    const { data, error } = await (await createSupabaseServerClient()).schema("platform").rpc("set_sales_register_withdrawal_v1", {
+      p_organization_id: actor.organizationId, p_record_id: recordId, p_expected_version: version,
+      p_kind: kind, p_note: note || null, p_request_id: requestId,
+    });
+    if (error) {
+      if (error.code === "42501") return outcome("forbidden");
+      if (error.code === "PT409") return outcome("stale");
+      if (error.code === "22023" && /request_id/.test(error.message)) return outcome("request_conflict");
+      if (error.code === "22023" && error.message.includes("sales_register_archived")) return outcome("archived");
+      return outcome(error.code === "22023" ? "invalid" : "unavailable");
+    }
+    const saved = parseSalesWithdrawalReceipt(data, {
+      organizationId: actor.organizationId, recordId, requestId, expectedVersion: version, operation: kind === null ? "withdraw_undo" : "withdraw",
+    });
+    if (saved === null) return outcome("unavailable");
+    revalidatePath("/v3/main");
+    revalidatePath("/v3/profile");
+    return outcome("saved", recordId, kind === null ? "withdraw_undo" : "withdraw");
   } catch { return outcome("unavailable"); }
 }
 

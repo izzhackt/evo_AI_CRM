@@ -17,11 +17,15 @@ import { financeMoney, type MonthlyPaymentSummaryRead } from "@/lib/platform-fin
 import { ORG_TIMEZONE } from "@/lib/v3/period";
 import { SalesRegisterForm, SalesTargetForm } from "./SalesRegisterForms";
 import { SalesRecordPreview, salesRecordPanelHeader } from "./SalesRecordPreview";
+import { SalesWithdrawalControl } from "./SalesWithdrawal";
+import { StatusChip } from "./blocks/StatusChip";
+import { salesWithdrawalWord } from "@/lib/v3/wording";
 import { salesDirectionControl } from "@/lib/sales-register-directions";
 import type { SalesRegisterManagementRead } from "@/lib/sales-register-management";
 import {
   SALES_PAGE_SIZE, SALES_SUMMARY_MAX_PAGES, groupSalesLabels, recordsDative, recordsWord, salesLabelGroupOf, salesMoneySummary, salesPeriodSteps,
   SALES_NO_REMAINDER_TEXT, salesDay, salesDayParts, salesReportMonth, salesRowContractPaid, salesRowNoRemainder, salesRowRemainder, salesRowReview, salesSummaryBasis,
+  salesWithdrawalTone,
   type SalesLabelGroup, type SalesMoneySummary,
 } from "@/lib/sales-register-view";
 
@@ -53,6 +57,21 @@ const RECORD_COLUMNS = [
   "w-[17%] @min-[70rem]/sales-records:w-[16%]", "w-[17%] @min-[70rem]/sales-records:w-[19%]", "w-[13%]", "w-[6%] @min-[70rem]/sales-records:w-[5.5%]",
   "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[11%] @min-[70rem]/sales-records:w-[9.5%]",
   "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[14%] @min-[70rem]/sales-records:w-[18%]",
+];
+/**
+ * Те же столбцы с узким столбцом действия «Убрать» / «Вернуть» (307; только у тех, кто может
+ * менять записи, и не в «Архиве»). Столбцы сумм не уже 9,5 %: «120 000 KGS» по-прежнему целиком.
+ */
+const RECORD_COLUMNS_ACTION = [
+  "w-[15%] @min-[70rem]/sales-records:w-[19%]", "w-[14%] @min-[70rem]/sales-records:w-[12.5%]", "w-[11%] @min-[70rem]/sales-records:w-[12%]", "w-[6%] @min-[70rem]/sales-records:w-[5.5%]",
+  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[11%] @min-[70rem]/sales-records:w-[9.5%]",
+  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[11%] @min-[70rem]/sales-records:w-[14%]", "w-[10%] @min-[70rem]/sales-records:w-[8.5%]",
+];
+const RECORD_COLUMNS_WITH_REPORT_MONTH_ACTION = [
+  "w-[14%]", "w-[11%] @min-[70rem]/sales-records:w-[14%]", "w-[10%] @min-[70rem]/sales-records:w-[13%]", "w-[6%] @min-[70rem]/sales-records:w-[5.5%]",
+  "w-[8%] @min-[70rem]/sales-records:w-[7%]",
+  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[11%] @min-[70rem]/sales-records:w-[9.5%]",
+  "w-[11%] @min-[70rem]/sales-records:w-[9.5%]", "w-[10%] @min-[70rem]/sales-records:w-[9.5%]", "w-[8%] @min-[70rem]/sales-records:w-[8.5%]",
 ];
 const RECORD_COLUMNS_WITH_REPORT_MONTH = [
   "w-[17%] @min-[70rem]/sales-records:w-[15%]", "w-[13%] @min-[70rem]/sales-records:w-[16%]", "w-[11%] @min-[70rem]/sales-records:w-[13%]", "w-[6%] @min-[70rem]/sales-records:w-[5.5%]",
@@ -105,6 +124,11 @@ const ROW_LAYOUT = {
     review: "hidden min-w-0 px-3 align-middle @min-[60rem]/sales-records:table-cell",
     reviewHead: "",
     reviewMark: "",
+    // Отказ (307): ребро — левая граница первой ячейки на таблице и самой строки в стопке; слово — чип под именем.
+    edgeRow: "shadow-[inset_3px_0_0_0_var(--sale-edge)] @min-[60rem]/sales-records:shadow-none",
+    edgeName: "@min-[60rem]/sales-records:shadow-[inset_3px_0_0_0_var(--sale-edge)]",
+    // «Убрать» / «Вернуть»: в стопке — третья клетка первой строки (имя | остаток | действие), в таблице — свой столбец (одна ячейка на оба вида).
+    action: "min-w-0 self-center @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:pe-2 @min-[60rem]/sales-records:text-right @min-[60rem]/sales-records:align-middle",
   },
   compact: {
     table: "block w-full text-left @min-[32rem]/sales-records:table @min-[32rem]/sales-records:table-fixed",
@@ -123,9 +147,15 @@ const ROW_LAYOUT = {
     reviewHead: "hidden @min-[42rem]/sales-records:table-cell",
     // Таблица без столбца «Уточнить» (32–42rem): помеченная строка говорит о себе под именем.
     reviewMark: "hidden @min-[32rem]/sales-records:block @min-[42rem]/sales-records:hidden",
+    edgeRow: "shadow-[inset_3px_0_0_0_var(--sale-edge)] @min-[32rem]/sales-records:shadow-none",
+    edgeName: "@min-[32rem]/sales-records:shadow-[inset_3px_0_0_0_var(--sale-edge)]",
+    // Рядом с открытой записью (таблица от 32rem) то же действие стоит в её панели; в стопке (телефон) оно есть и в строке.
+    action: "self-center @min-[32rem]/sales-records:hidden",
   },
 } as const;
 type RowLayout = keyof typeof ROW_LAYOUT;
+/** Цвет ребра отказной строки — токен тона, ребро рисует `edgeRow` / `edgeName` (только у отказа). */
+const EDGE_TONE = { warn: "[--sale-edge:var(--warn)]", danger: "[--sale-edge:var(--danger)]" } as const;
 /** Что показывает таблица при срезе из заголовка «Продажи» (Э2). */
 const SALE_SLICE_TITLE: Record<SalesSaleSlice, string> = {
   undated: "Записи без даты продажи: в продажи не входят",
@@ -233,7 +263,24 @@ function MoneySummary({ workspace, summary, basis, reason, filtered, yearOnly, f
   filedElsewhere: boolean;
 }>) {
   if (workspace.totalCount === 0) return null;
-  const total = basis?.total ?? workspace.totalCount;
+  // Отказные записи (307) стоят в таблице, но не в суммах: их число и оплаченное по ним названы отдельной строкой.
+  const refused = workspace.withdrawn;
+  const total = basis?.total ?? workspace.totalCount - refused.count;
+  const refusalLine = refused.count > 0 ? (
+    <p className="mt-1.5 t-meta text-fg-2" data-testid="sales-withdrawn-summary" data-withdrawn-count={refused.count}>
+      Отказ — {refused.count.toLocaleString("ru-RU")} {recordsWord(refused.count)}
+      {refused.paid.length > 0 ? `; по ним оплачено ${refused.paid.map((line) => money(line.paidMinor, line.currency)).join(" и ")}` : ""}.
+      {" "}В продажи и суммы ниже они не входят.
+    </p>
+  ) : null;
+  if (total === 0 && refusalLine) {
+    return (
+      <section aria-labelledby="sales-money-title" className="border-y border-border py-3" data-testid="sales-money-summary">
+        <h2 id="sales-money-title" className="sr-only">Суммы по записям</h2>
+        {refusalLine}
+      </section>
+    );
+  }
   const within = [
     basis && basis.undated > 0 ? `${basis.undated} без даты продажи` : null,
     basis && basis.otherSaleDate > 0 ? `${basis.otherSaleDate} с датой продажи в другом ${yearOnly ? "году" : "месяце"}` : null,
@@ -269,6 +316,7 @@ function MoneySummary({ workspace, summary, basis, reason, filtered, yearOnly, f
     <section aria-labelledby="sales-money-title" className="border-y border-border py-3" data-testid="sales-money-summary">
       <h2 id="sales-money-title" className="sr-only">Суммы по записям</h2>
       <p className="t-meta text-fg-2" data-money-basis={total}>{caption}</p>
+      {refusalLine}
       {lines.length > 0 || (summary?.cross.length ?? 0) > 0 ? (
         <table className="mt-1.5 w-full sm:w-auto" data-testid="sales-money-table">
           <caption className="sr-only">Стоимость, оплачено и остаток по валютам</caption>
@@ -324,8 +372,12 @@ function ArchiveBasis({ count, yearOnly, filtered }: Readonly<{ count: number; y
  * Строка записи: одна линия на широком контейнере, две–три строки на узком.
  * `layout` — полный набор столбцов или короткий рядом с открытой записью (Э8.6).
  */
-function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, manager, layout }: Readonly<{
+function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, manager, layout, action, actionColumn }: Readonly<{
   row: SalesRegisterRow; year: number; href: string; selected: boolean; showReportMonth: boolean;
+  /** «Убрать» / «Вернуть» этой записи (307); null — действия нет (роль без права, «Архив», запись в архиве). */
+  action: ReactNode | null;
+  /** В таблице есть столбец действия: у каждой строки он занят или пуст. */
+  actionColumn: boolean;
   /** В «Архиве» столбца «Остаток» нет: архивные записи в рабочие итоги не входят. */
   showRemainder: boolean;
   /** Имя менеджера по ключу (таблица владельца или написание), 253. */
@@ -350,16 +402,25 @@ function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, ma
   const reviewTone = review.state === "review" ? "text-fg-2" : "text-fg-3";
   const reviewMark = compact && review.state === "review";
   const name = row.applicantName || "Имя не указано";
+  // Отказ (307): слово чипом под именем и ребро цвета тона; заливки строки нет.
+  const refusal = row.withdrawal;
+  const refusalWord = refusal ? salesWithdrawalWord(refusal.kind) : null;
+  const refusalTone = refusal ? salesWithdrawalTone(refusal.kind) : null;
+  const edge = refusalWord && refusalTone ? EDGE_TONE[refusalTone] : "";
   const mono = "font-mono tabular-nums";
   // Оплата в другой валюте с суммой в валюте договора: остаток — от неё, и это сказано подсказкой.
   const remainderTitle = remainderWhy ?? (remainder && contract ? `${remainder}: стоимость ${cost} − оплачено в валюте договора ${contract}` : remainder);
   return (
     <tr role="row" id={`sale-${row.id}`} data-selected={selected ? "" : undefined}
-      className={`relative grid scroll-mt-24 grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-4 py-1.5 ${at.row} ${selected ? "bg-surface-2" : "bg-surface hover:bg-surface-2"}`}>
-      <th role="rowheader" scope="row" className={`min-w-0 font-normal ${at.name}`}>
+      data-withdrawn={refusal ? refusal.kind : undefined}
+      className={`relative grid scroll-mt-24 ${action ? "grid-cols-[minmax(0,1fr)_auto_auto]" : "grid-cols-[minmax(0,1fr)_auto]"} gap-x-3 px-4 py-1.5 ${at.row} ${refusalWord ? `${edge} ${at.edgeRow}` : ""} ${selected ? "bg-surface-2" : "bg-surface hover:bg-surface-2"}`}>
+      <th role="rowheader" scope="row" className={`min-w-0 font-normal ${at.name} ${refusalWord ? at.edgeName : ""}`}>
         <Link href={href} scroll={false} aria-current={selected ? "true" : undefined} title={name}
-          className={`flex min-h-11 min-w-0 ${reviewMark ? "flex-col justify-center" : "items-center"} t-item text-fg underline-offset-4 after:absolute after:inset-0 after:content-[''] hover:underline`}>
-          <span className="truncate">{name}</span>
+          className={`flex min-h-11 min-w-0 ${reviewMark || refusalWord ? "flex-col justify-center" : "items-center"} t-item text-fg underline-offset-4 after:absolute after:inset-0 after:content-[''] hover:underline`}>
+          <span className="max-w-full truncate">{name}</span>
+          {refusalWord && refusalTone ? <span className="mt-0.5 flex max-w-full" data-row-withdrawal={refusalTone}>
+            <StatusChip label={refusalWord} tone={refusalTone} size="sm" wrap />
+          </span> : null}
           {/* Рядом с записью уже 42rem столбца «Уточнить» нет: помеченная строка — строкой под именем. */}
           {reviewMark ? <span className={`truncate t-meta text-fg-2 ${at.reviewMark}`} title={`Уточнить: ${reviewText}`} data-row-review-mark="">
             Уточнить: {reviewText}
@@ -397,9 +458,11 @@ function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, ma
         </span>
       </td> : null}
       <td role="cell" className={`${at.review} pe-4`}><span className={`block truncate t-body-compact ${reviewTone}`} title={reviewText}>{reviewText}</span></td>
+      {/* «Убрать» / «Вернуть»: справа от имени в стопке (телефон) и своим столбцом в полной таблице. */}
+      {action || actionColumn ? <td role="cell" className={at.action}>{action}</td> : null}
       {/* Узкий контейнер: сведения строки под именем (широкий их не показывает); дата — JetBrains Mono,
           «Уточнить» — своей строкой целиком: причина не прячется за многоточием. */}
-      <td role="cell" className={`col-span-2 min-w-0 pb-1 ${at.narrow}`}>
+      <td role="cell" className={`col-span-full min-w-0 pb-1 ${at.narrow}`}>
         <p className="truncate t-meta text-fg-2">
           {row.signingDate ? <time dateTime={row.signingDate} className="font-mono tabular-nums">{rowDate(row.signingDate, year)}</time> : "без даты"}
           {[manager, place].filter(Boolean).map((part) => ` · ${part}`).join("")}
@@ -423,7 +486,9 @@ function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, ma
  * валютам с остатком только внутри одной валюты, одна строка инструментов
  * (применяется сразу) и строки в одну линию; клик по строке открывает правую
  * панель с прежней формой записи, список остаётся. «Добавить продажу» —
- * единственный сплошной красный. `dynamics` — раздел «Динамика по дням»
+ * единственный сплошной красный. Убранная продажа (307) остаётся строкой с чипом «Отказ …» и
+ * ребром цвета тона, в «Продажи» и суммы не входит; «Убрать» / «Вернуть» стоит в строке и в
+ * панели открытой записи. `dynamics` — раздел «Динамика по дням»
  * (графики и воронка, Э3) для ролей, читающих продажи; стоит под записями и
  * не показывается рядом с формой новой продажи.
  */
@@ -499,9 +564,14 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
   // Рядом с открытой записью — короткий набор столбцов (Э8.6), иначе полный.
   const layout: RowLayout = panelOpen ? "compact" : "full";
   // В «Архиве» нет столбца «Остаток» (предпоследний): его место делят остальные.
+  // «Убрать» / «Вернуть» (307): у тех, кто может менять записи, не в «Архиве». Рядом с открытой записью то же действие стоит в её панели.
+  const showAction = canManage && !archiveView && !creatingForm;
+  const actionColumn = showAction && !panelOpen;
   const recordColumns = (panelOpen
     ? showReportMonth ? COMPACT_COLUMNS_WITH_REPORT_MONTH : COMPACT_COLUMNS
-    : showReportMonth ? RECORD_COLUMNS_WITH_REPORT_MONTH : RECORD_COLUMNS)
+    : showReportMonth
+      ? actionColumn ? RECORD_COLUMNS_WITH_REPORT_MONTH_ACTION : RECORD_COLUMNS_WITH_REPORT_MONTH
+      : actionColumn ? RECORD_COLUMNS_ACTION : RECORD_COLUMNS)
     .filter((_, index, all) => !archiveView || index !== all.length - 2);
   const editing = editingRecord && canManage;
   // Шапка общей боковой панели (Э7): имя, строка контекста и «Открыть …» — прежние тексты записи.
@@ -694,11 +764,15 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
                     <th role="columnheader" scope="col" className={`${panelOpen ? "px-1.5" : "px-2"} py-2 text-right font-medium`}>Оплачено</th>
                     {archiveView ? null : <th role="columnheader" scope="col" className={`${panelOpen ? "px-1.5" : "px-2"} py-2 text-right font-medium`}>Остаток</th>}
                     <th role="columnheader" scope="col" className={`py-2 pe-4 ps-3 font-medium ${ROW_LAYOUT[layout].reviewHead}`}>Уточнить</th>
+                    {actionColumn ? <th role="columnheader" scope="col" className="py-2 pe-2 font-medium"><span className="sr-only">Действие</span></th> : null}
                   </tr>
                 </thead>
                 <tbody role="rowgroup" className={ROW_LAYOUT[layout].tbody}>
                   {workspace.rows.map((row) => <SaleRow key={row.id} row={row} year={year} href={rowHref(row)} layout={layout} manager={managerName(row)}
-                    selected={row.id === (panelOpen ? query.record : saved?.id)} showReportMonth={showReportMonth} showRemainder={!archiveView} />)}
+                    selected={row.id === (panelOpen ? query.record : saved?.id)} showReportMonth={showReportMonth} showRemainder={!archiveView}
+                    actionColumn={actionColumn}
+                    action={showAction && !row.archived ? <SalesWithdrawalControl record={{ id: row.id, version: row.version }} name={row.applicantName}
+                      withdrawn={row.withdrawal !== null} requestId={randomUUID()} /> : null} />)}
                 </tbody>
               </table>
             </div>
@@ -726,6 +800,10 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
               <SalesRecordPreview record={workspace.selected ?? null} backHref={backHref} panelHeadingId={PANEL_HEADING}
                 managerName={workspace.selected ? managerName(workspace.selected) : null} year={year}
                 editHref={canManage && workspace.selected ? href({ record: workspace.selected.id, edit: "true" }) : null}
+                withdrawalAction={canManage && workspace.selected && !workspace.selected.archived ? (
+                  <SalesWithdrawalControl record={{ id: workspace.selected.id, version: workspace.selected.version }} name={workspace.selected.applicantName}
+                    withdrawn={workspace.selected.withdrawal !== null} requestId={randomUUID()} align="start" />
+                ) : null}
                 leadRow={showLeadRow && linkedRecord ? (
                   <SalesRecordLeadFact link={leadLink} canManage={canManage} record={{ id: linkedRecord.id, version: linkedRecord.version }} requestId={randomUUID()} />
                 ) : null} />

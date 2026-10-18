@@ -4,7 +4,13 @@ import { btnGhostCls } from "@/components/ui";
 import type { SalesRegisterRow } from "@/lib/platform-sales-register-contract";
 import {
   SALES_NO_REMAINDER_TEXT, salesDay, salesReportMonth, salesRowContractPaid, salesRowNoRemainder, salesRowRemainder, salesRowReview,
+  salesWithdrawalTone,
 } from "@/lib/sales-register-view";
+import { ORG_TIMEZONE } from "@/lib/v3/period";
+import { salesWithdrawalWord } from "@/lib/v3/wording";
+import { StatusChip } from "./blocks/StatusChip";
+
+const withdrawnOn = new Intl.DateTimeFormat("ru-RU", { timeZone: ORG_TIMEZONE, day: "2-digit", month: "2-digit" });
 
 const number = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
 const money = (minor: number, currency: string) => `${number.format(minor / 100)} ${currency}`;
@@ -63,7 +69,7 @@ function Amount({ minor, currency, raw }: { minor: number | null; currency: stri
  * клиента» — шапка общей боковой панели (`SidePanel`, `salesRecordPanelHeader`);
  * раздел называет её заголовок `panelHeadingId`.
  */
-export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId, managerName, year, leadRow }: {
+export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId, managerName, year, leadRow, withdrawalAction }: {
   record: SalesRegisterRow | null; backHref: string; editHref: string | null; panelHeadingId: string;
   /** Имя менеджера по ключу написания (таблица владельца или написание). */
   managerName: string | null;
@@ -76,6 +82,8 @@ export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId,
    * null — строки нет вовсе.
    */
   leadRow?: ReactNode | null;
+  /** «Убрать» / «Вернуть» (307) — рядом с «Исправить запись»; null — права или записи нет (архив). */
+  withdrawalAction?: ReactNode | null;
 }) {
   if (!record) return <section className="space-y-4" aria-labelledby={panelHeadingId}>
     <p role="alert" className="t-body-compact text-fg-2">Не удалось открыть запись. Возможно, доступ изменился или соединение прервалось.</p>
@@ -83,6 +91,8 @@ export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId,
   </section>;
 
   const review = salesRowReview(record);
+  const refusalWord = record.withdrawal ? salesWithdrawalWord(record.withdrawal.kind) : null;
+  const refusalTone = record.withdrawal ? salesWithdrawalTone(record.withdrawal.kind) : null;
   const crossCurrency = record.serviceCostCurrency !== null && record.paidCurrency !== null && record.paidCurrency !== record.serviceCostCurrency;
   const contractMinor = salesRowContractPaid(record);
   const remainderMinor = salesRowRemainder(record);
@@ -118,9 +128,19 @@ export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId,
       {review.state === "review" ? <p className="t-body-compact text-fg" data-record-review="">
         <span className="font-semibold">Требует проверки:</span> {review.reasons.join(", ")}
       </p> : null}
-      {editHref ? <Link href={editHref} className={`${btnGhostCls} min-h-11`} data-testid="sales-record-edit">
-        {record.archived ? "Восстановление и исправление" : "Исправить запись"}
-      </Link> : null}
+      {record.withdrawal && refusalWord && refusalTone ? <div className="space-y-1" data-testid="sales-record-withdrawal" data-withdrawal-tone={refusalTone}>
+        <StatusChip label={refusalWord} tone={refusalTone} />
+        <p className="t-body-compact text-fg-2">
+          Убрано из продаж {withdrawnOn.format(new Date(record.withdrawal.at))}{record.withdrawal.by ? ` · ${record.withdrawal.by}` : ""}.
+        </p>
+        {record.withdrawal.note ? <p className="break-words t-body-compact text-fg">{record.withdrawal.note}</p> : null}
+      </div> : null}
+      {editHref || withdrawalAction ? <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {editHref ? <Link href={editHref} className={`${btnGhostCls} min-h-11`} data-testid="sales-record-edit">
+          {record.archived ? "Восстановление и исправление" : "Исправить запись"}
+        </Link> : null}
+        {withdrawalAction}
+      </div> : null}
     </div>
     <dl className="divide-y divide-border border-y border-border t-body-compact" data-testid="sales-record-money">
       <div className={moneyRow}><dt className="text-fg-2">Стоимость</dt>
@@ -135,7 +155,8 @@ export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId,
         <dd className="text-right font-semibold text-fg">
           {remainderMinor !== null ? <span className="tabular-nums">{money(remainderMinor, record.serviceCostCurrency!)}</span> : "—"}
         </dd>
-        {remainderMinor === null && noRemainder ? <p className="col-span-2 t-meta text-fg-2">Остатка нет: {SALES_NO_REMAINDER_TEXT[noRemainder]}.</p> : null}
+        {/* Причина — своей строкой строки списка: <p> внутри <div> списка определений читалка не признаёт (axe `definition-list`). */}
+        {remainderMinor === null && noRemainder ? <dd className="col-span-2 text-left font-normal t-meta text-fg-2">Остатка нет: {SALES_NO_REMAINDER_TEXT[noRemainder]}.</dd> : null}
       </div>
     </dl>
     <p className="t-meta text-fg-2">Суммы записи — часть отчёта продажи, а не подтверждение поступления денег. Валюты не пересчитываются: сумму в валюте договора вводит менеджер.</p>

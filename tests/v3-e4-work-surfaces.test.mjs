@@ -120,7 +120,7 @@ function row(fields = {}) {
   return {
     id: "r", signingDate: "2026-09-10", serviceCostRaw: "1500", serviceCostMinor: 150000, serviceCostCurrency: "USD",
     paidRaw: "600", paidMinor: 60000, paidCurrency: "USD", managerLabel: "Менеджер", needsReview: false, archived: false,
-    paidContractMinor: null, paidContractCurrency: null, reviewReasons: [], importFlags: [], ...fields,
+    paidContractMinor: null, paidContractCurrency: null, reviewReasons: [], importFlags: [], withdrawal: null, ...fields,
   };
 }
 
@@ -444,7 +444,9 @@ test("rendered «Отчёт продаж»: stepper, plan headline, sums by curr
   assert.match(report, /<p class="break-words t-meta text-fg-3" data-row-review="">Сверено<\/p>/u);
   // Ширины столбцов: суммы — не шире нужного, место — тексту (от 70rem).
   assert.match(report, /<col class="w-\[11%\] @min-\[70rem\]\/sales-records:w-\[9\.5%\]"\/>/u);
-  assert.match(report, /<col class="w-\[14%\] @min-\[70rem\]\/sales-records:w-\[18%\]"\/>/u);
+  // 307: у того, кто меняет записи, есть узкий столбец «Убрать» / «Вернуть»; суммы остаются в тех же ширинах.
+  assert.match(report, /<col class="w-\[11%\] @min-\[70rem\]\/sales-records:w-\[14%\]"\/>/u);
+  assert.match(report, /<col class="w-\[10%\] @min-\[70rem\]\/sales-records:w-\[8\.5%\]"\/>/u);
   // «Изменить план месяца» — тем же шевроном, что группы правки, без знака браузера.
   assert.match(report, /<details class="group"><summary class="flex min-h-12 w-fit cursor-pointer list-none [^"]*\[&amp;::-webkit-details-marker\]:hidden">Изменить план месяца<svg/u);
   // Клик по строке открывает запись в панели рядом со списком — просмотром (Э8.6), и у того, кто исправляет.
@@ -467,7 +469,8 @@ test("rendered «Отчёт продаж»: the record opens in the right panel 
   assert.match(page, /data-testid="sales-record-preview"/u);
   assert.doesNotMatch(page, /data-testid="sales-register-form"/u);
   const panel = text(page.slice(page.indexOf("<dialog"), page.indexOf("</dialog>")));
-  assert.match(panel, /Требует проверки: при переносе: статус оплаты не указан Исправить запись Стоимость 1 500 USD Оплачено 600 USD Остаток 900 USD/u);
+  // 307: рядом с «Исправить запись» стоит «Убрать» (его маленькое окно закрыто, но есть в разметке).
+  assert.match(panel, /Требует проверки: при переносе: статус оплаты не указан Исправить запись Убрать Убрать из продаж Оплатил частично Не оплатил Заметка Убрать Отмена Стоимость 1 500 USD Оплачено 600 USD Остаток 900 USD/u);
   // Написание в записи — опрятно (без пробелов по краям и двойных), без опечатки внутри кавычек.
   assert.match(panel, /Менеджер Санжар Эскизов в записи: «санжар эскизов»/u);
   assert.match(page, /<a class="[^"]*" data-testid="sales-record-edit" href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000002&amp;edit=true">Исправить запись<\/a>/u);
@@ -508,7 +511,7 @@ test("rendered «Отчёт продаж»: the record opens in the right panel 
 
   // Оплата в другой валюте без суммы в валюте договора: пометка словами, остатка нет — и почему.
   const cross = text(pages.get("report-panel-cross").slice(pages.get("report-panel-cross").indexOf("<dialog")));
-  assert.match(cross, /Требует проверки: нет суммы в валюте договора Исправить запись Стоимость 1 800 USD Оплачено 45 000 KGS Оплачено в валюте договора не указано Остаток — Остатка нет: оплата в другой валюте без суммы в валюте договора\./u);
+  assert.match(cross, /Требует проверки: нет суммы в валюте договора Исправить запись Убрать Убрать из продаж Оплатил частично Не оплатил Заметка Убрать Отмена Стоимость 1 800 USD Оплачено 45 000 KGS Оплачено в валюте договора не указано Остаток — Остатка нет: оплата в другой валюте без суммы в валюте договора\./u);
   // Форма: «Оплачено в валюте договора» — под «Оплачено», в валюте стоимости.
   const crossEdit = pages.get("report-panel-cross-edit");
   const field = crossEdit.indexOf('data-testid="sales-contract-amount"');
@@ -517,7 +520,7 @@ test("rendered «Отчёт продаж»: the record opens in the right panel 
   assert.match(crossEdit, /<input inputMode="decimal" pattern="\[0-9\]\+\(\[\.,\]\[0-9\]\{1,2\}\)\?" aria-describedby="sales-contract-amount-hint" class="[^"]*min-h-11[^"]*" value=""\/>/u);
   // С суммой в валюте договора: остаток от неё, пометки нет; в списке — строка валюты стоимости, пары валют нет.
   const contract = text(pages.get("report-panel-contract").slice(pages.get("report-panel-contract").indexOf("<dialog")));
-  assert.match(contract, /Руслан Прототипов Сведения из записи отчёта\. Исправить запись Стоимость 1 800 USD Оплачено 45 000 KGS Оплачено в валюте договора 520 USD Остаток 1 280 USD/u);
+  assert.match(contract, /Руслан Прототипов Сведения из записи отчёта\. Исправить запись Убрать Убрать из продаж Оплатил частично Не оплатил Заметка Убрать Отмена Стоимость 1 800 USD Оплачено 45 000 KGS Оплачено в валюте договора 520 USD Остаток 1 280 USD/u);
   assert.doesNotMatch(contract, /Требует проверки/u);
   const list = pages.get("report-panel-contract-list");
   assert.match(text(list), /Руслан Прототипов Малайзия · Бакалавриат Айдана Макетова 03\.09 1 800 USD 45 000 KGS остаток 1 280 USD Сверено/u);
@@ -538,7 +541,7 @@ test("rendered «Отчёт продаж»: the report month stays visible where
   // строкой под датой, Э8.6) и строка «Месяц отчёта: …» (узкий: телефон) у каждой записи — видимым
   // текстом, не подсказкой.
   for (const [name, head, columns] of [
-    ["report-year", "Студент Страна · программа Менеджер Дата Месяц отчёта Стоимость Оплачено Остаток Уточнить", 9],
+    ["report-year", "Студент Страна · программа Менеджер Дата Месяц отчёта Стоимость Оплачено Остаток Уточнить", 10],
     ["report-year-panel", "Студент Дата Месяц отчёта Стоимость Оплачено Остаток Уточнить", 6],
   ]) {
     const year = pages.get(name);

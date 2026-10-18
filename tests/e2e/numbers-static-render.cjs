@@ -261,6 +261,7 @@ function saleRow(n, fields) {
     sourceKind: fields.pipeline ? "pipeline" : "manual", leadId: fields.pipeline ? LEAD_ID : null, clientId: null,
     sourceSha256: null, sourceSheet: null, sourceRow: null, updatedAt: "2026-09-24T05:00:00.000Z",
     paidContractMinor: null, paidContractCurrency: null, reviewReasons: [], importFlags: [], managerKey: managerKey("Санжар Эскизов"),
+    withdrawal: null,
   };
 }
 const REPORT_ROWS = [
@@ -318,7 +319,8 @@ const E4_EARLIER_ROWS = [
 // «Продажи» периода теми же тремя множествами, что staff_sales_count_v1 (247), — из записей набора.
 function countFor(period) {
   const inPeriod = (date) => date !== null && date >= period.from && date <= period.to;
-  const rows = REPORT.rows.filter((row) => !row.archived);
+  // 307: отказная запись — не продажа (staff_sales_count_v1 исключает её).
+  const rows = REPORT.rows.filter((row) => !row.archived && row.withdrawal === null);
   const filed = (row) => inPeriod(row.reportMonth);
   return { status: "available", count: { from: period.from, to: period.to,
     sales: rows.filter((row) => inPeriod(row.signingDate)).length,
@@ -414,7 +416,13 @@ function readReport(selection) {
   if (selectedKey) rows = rows.filter((row) => row.managerKey === selectedKey);
   const offset = selection.offset ?? 0;
   const totals = new Map();
-  for (const row of rows) {
+  // 307 (read_sales_register_v5): отказные записи в таблице, но не в суммах и не в неуточнённых значениях.
+  const counted = rows.filter((row) => row.withdrawal === null);
+  const refusedPaid = new Map();
+  for (const row of rows.filter((item) => item.withdrawal !== null && item.paidMinor !== null)) {
+    refusedPaid.set(row.paidCurrency, (refusedPaid.get(row.paidCurrency) ?? 0) + row.paidMinor);
+  }
+  for (const row of counted) {
     if (row.serviceCostMinor !== null) {
       const total = totals.get(row.serviceCostCurrency) ?? { currency: row.serviceCostCurrency, costMinor: 0, paidMinor: 0 };
       total.costMinor += row.serviceCostMinor;
@@ -433,9 +441,11 @@ function readReport(selection) {
     year: selection.year, month: selection.month ?? null, totalCount: rows.length, rows: rows.slice(offset, offset + 50), offset, hasMore: offset + 50 < rows.length,
     selected: selection.recordId ? REPORT.rows.find((row) => row.id === selection.recordId) ?? null : null,
     totals: archived ? [] : [...totals.values()],
-    unresolvedCostCount: archived ? 0 : rows.filter((row) => row.serviceCostMinor === null).length,
-    unresolvedPaidCount: archived ? 0 : rows.filter((row) => row.paidMinor === null).length,
+    unresolvedCostCount: archived ? 0 : counted.filter((row) => row.serviceCostMinor === null).length,
+    unresolvedPaidCount: archived ? 0 : counted.filter((row) => row.paidMinor === null).length,
     targets: [], managerOptions, ownerOptions: [], query: selection.query || null, managerKey: selectedKey,
+    withdrawn: archived ? { count: 0, paid: [] } : { count: rows.length - counted.length,
+      paid: [...refusedPaid.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([currency, paidMinor]) => ({ currency, paidMinor })) },
   };
 }
 
@@ -736,6 +746,81 @@ async function screenshots() {
 }
 
 // --- Э4: Lead 360 и «Отчёт продаж» -------------------------------------------------
+// 307: «Данияр Макетов» оплатил часть (5 000 000 из 12 000 000 KGS) и ушёл; «Эльвира Шаблонова» не платила и ушла.
+function withRefusals() {
+  const rows = REPORT.rows;
+  REPORT.rows = rows.map((row) => row.id === E4_ROWS[4].id
+    ? { ...row, withdrawal: { kind: "partial", at: "2026-09-26T05:00:00.000Z", by: "Санжар Эскизов", note: "Передумал после первого платежа" } }
+    : row.id === E4_ROWS[6].id ? { ...row, withdrawal: { kind: "unpaid", at: "2026-09-27T05:00:00.000Z", by: "Айдана Макетова", note: null } } : row);
+  return () => { REPORT.rows = rows; };
+}
+async function pages307() {
+  useE4Report();
+  const restore = withRefusals();
+  try {
+    const out = [
+      { name: "report", html: await reportPage({}) },
+      { name: "report-panel-partial", html: await reportPage({ record: E4_ROWS[4].id }) },
+      { name: "report-panel-unpaid", html: await reportPage({ record: E4_ROWS[6].id }) },
+      { name: "report-panel-active", html: await reportPage({ record: E4_ROWS[1].id }) },
+      { name: "report-year", html: await reportPage({ month: "all" }) },
+      { name: "report-archive", html: await reportPage({ archived: "true" }) },
+    ];
+    // Роль без права менять записи: ни «Убрать», ни столбца действия, но чипы и ребро видны.
+    const stubs = STUBS["@/lib/v3/sales-register-source"];
+    const access = stubs.readSalesRegisterWriteAccess;
+    stubs.readSalesRegisterWriteAccess = async () => "denied";
+    try { out.push({ name: "report-readonly", html: await reportPage({}) }); } finally { stubs.readSalesRegisterWriteAccess = access; }
+    return out;
+  } finally { restore(); }
+}
+
+// 307: снимки «Отчёта продаж» с отказными записями — 1440 и 393 px; метрики: переполнение,
+// число чипов и рёбер, цели ниже 44 px у кнопок действия. Синтетические данные.
+async function screenshots307() {
+  const outIndex = process.argv.indexOf("--screenshots-307") + 1;
+  const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
+  mkdirSync(outDir, { recursive: true });
+  const css = await compileCss();
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const SIZES = {
+    1440: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
+    393: { viewport: { width: 393, height: 852 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  };
+  try {
+    for (const { name, html } of await pages307()) {
+      const htmlPath = join(outDir, `w307-${name}.html`);
+      writeFileSync(htmlPath, `<!DOCTYPE html><html lang="ru" data-theme="light" class="h-full antialiased"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>307 — ${name} (синтетические данные)</title><style>${css}</style></head><body class="min-h-full">${html}</body></html>`);
+      for (const width of ["1440", "393"]) {
+        const context = await browser.newContext(SIZES[width]);
+        const page = await context.newPage();
+        const errors = [];
+        page.on("pageerror", (error) => errors.push(error.message));
+        await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
+        await page.evaluate(async () => {
+          await document.fonts.ready;
+          await Promise.all([...document.images].filter((image) => image.checkVisibility()).map((image) => image.decode().catch(() => null)));
+        });
+        if (errors.length) throw new Error(`${name}: browser errors:\n${errors.join("\n")}`);
+        const metrics = await page.evaluate(() => ({
+          overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          chips: [...document.querySelectorAll("[data-row-withdrawal]")].filter((element) => element.checkVisibility()).length,
+          edges: [...document.querySelectorAll("tr[data-withdrawn]")].length,
+          smallTargets: [...document.querySelectorAll('[data-testid="sales-withdrawal-remove"] > button, [data-testid="sales-withdrawal-return"] button')]
+            .filter((element) => element.checkVisibility() && element.getBoundingClientRect().height < 44).length,
+        }));
+        const file = `w307-${name}-${width}.png`;
+        await page.screenshot({ path: join(outDir, file), fullPage: true });
+        process.stdout.write(`${file}: ${Object.entries(metrics).map(([key, value]) => `${key}=${value}`).join(" ")}\n`);
+        await context.close();
+      }
+    }
+  } finally {
+    await browser.close();
+  }
+}
+
 async function e4Pages() {
   useE4Report();
   return [
@@ -1347,6 +1432,19 @@ if (process.argv.includes("--json-telephony-report")) {
     });
 } else if (process.argv.includes("--f1")) {
   f1().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+} else if (process.argv.includes("--json-307")) {
+  // 307 «Убрать» (для tests/sales-withdrawal.test.mjs).
+  pages307()
+    .then((pages) => process.stdout.write(JSON.stringify(pages)))
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+} else if (process.argv.includes("--screenshots-307")) {
+  screenshots307().catch((error) => {
     console.error(error);
     process.exit(1);
   });

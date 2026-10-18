@@ -359,6 +359,7 @@ const SALE = (n, fields) => ({
   // Строка v2 (253): сумма в валюте договора, причины пометки ключами сервера, пометки переноса, ключ менеджера.
   paidContractMinor: null, paidContractCurrency: null, reviewReasons: [], importFlags: [],
   managerKey: fields.manager.trim().replace(/\s+/gu, " ").replace(/[.\s]+$/u, "").toLowerCase(),
+  withdrawal: null,
 });
 const SALES_ROWS = [
   SALE(1, { name: "Айдана Примерова", country: "Китай", program: "Бакалавриат, экономика", manager: "Менеджер А", signed: "2026-09-22", cost: 250000, paid: 125000 }),
@@ -376,7 +377,7 @@ function stubSalesRegister() {
       return {
         year: 2026, month: 9, totalCount: SALES_ROWS.length, rows: SALES_ROWS, selected: null, offset: 0, hasMore: false,
         totals: [{ currency: "USD", costMinor: 730000, paidMinor: 305000 }], unresolvedCostCount: 0, unresolvedPaidCount: 0,
-        targets: [], ownerOptions: [], query: null, managerKey: null,
+        targets: [], ownerOptions: [], query: null, managerKey: null, withdrawn: { count: 0, paid: [] },
         managerOptions: [{ key: "менеджер а", name: "Менеджер А", count: 2 }, { key: "менеджер б", name: "Менеджер Б", count: 1 }],
       };
     },

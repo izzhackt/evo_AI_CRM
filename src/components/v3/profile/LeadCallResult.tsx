@@ -57,6 +57,7 @@ type FocusIntent = "summary" | "chips" | HTMLElement;
  */
 export function LeadCallResult({
   callId,
+  callName,
   code,
   callbackOn,
   resultLabel,
@@ -66,6 +67,8 @@ export function LeadCallResult({
   bounds,
 }: Readonly<{
   callId: string;
+  /** Какой это звонок («Входящий звонок, 25.09 16:00»): в ленте кнопка «изменить» повторяется, читалке нужно знать, чья она. */
+  callName: string;
   code: LeadCallResultCode | null;
   callbackOn: string | null;
   /** Результат словами («Дозвонился», «Перезвонить 18.10») для строки «Итог: …»; null — не отмечен. */
@@ -153,7 +156,8 @@ export function LeadCallResult({
             </>
           ) : null}
           {/* Одна и та же кнопка у звонка без итога и с итогом: страница обновляется после сохранения, а фокус остаётся на ней. */}
-          <button ref={summaryAction} type="button" className={QUIET} aria-expanded={false} onClick={expand}>
+          {/* Имя начинается с видимого слова («изменить итог: …»): кнопка называется так, как написана, и говорит, чья она. */}
+          <button ref={summaryAction} type="button" className={QUIET} aria-expanded={false} aria-label={`${marked ? "изменить итог" : "Отметить итог"}: ${callName}`} onClick={expand}>
             {marked ? "изменить" : "Отметить итог"}
           </button>
         </p>

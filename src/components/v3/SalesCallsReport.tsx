@@ -22,28 +22,47 @@ import { QUEUE_QUIET_LINK } from "./queue/QueueStates";
  * Ячейки строки: подпись, главное число и мелкие пояснения. Пары «подпись — значение» в `dl`:
  * от `sm` три колонки, от `lg` — шесть в ряд. Таблицы нет — ни горизонтальной прокрутки, ни повторной
  * разметки для узкого экрана. На телефоне строка менеджера — три главные ячейки в ряд («Звонки»,
- * «Отвечено», «Пропущенные без перезвона»), остальные три раскрываются по «Все показатели»: пять
- * менеджеров не занимают две тысячи пикселей.
+ * «Отвечено», «Пропущенные без перезвона»), остальные три и вторые строки пояснений главных ячеек («исходящие
+ * 1 из 2», «перезвонили в срок…») раскрываются по «Все показатели»: пять менеджеров не занимают две тысячи
+ * пикселей, а ни одно пояснение на телефоне не теряется.
  */
 const FULL_GRID = "grid grid-cols-3 gap-x-3 gap-y-4 sm:gap-x-4 lg:grid-cols-6";
 /** Строка «Без ответственного» несёт две ячейки: они стоят слева двумя колонками, а не растянуты на шесть. */
 const SHORT_GRID = "grid max-w-xl grid-cols-2 gap-x-4 gap-y-4";
 const QUIET_SUMMARY = "inline-flex min-h-11 cursor-pointer list-none items-center t-meta text-fg-2 underline underline-offset-4 hover:text-fg [&::-webkit-details-marker]:hidden";
 
-/** Одна ячейка: крупная цифра, а когда числа нет — спокойное слово («ждём»), не прочерк и не крупный шрифт. */
+/**
+ * Одна ячейка: крупная цифра, а когда числа нет — спокойное слово («ждём»), не прочерк и не крупный шрифт.
+ * `firstNoteOnly` — главная ячейка телефона: рядом с цифрой одна короткая строка, остальные пояснения не
+ * потеряны, а стоят в «Все показатели» (`NotesOnly`). `Cell` без `firstNoteOnly` — полная ячейка.
+ */
 function Cell({ cell, className = "", firstNoteOnly = false }: Readonly<{ cell: ReportCell; className?: string; firstNoteOnly?: boolean }>) {
   return (
     <div className={`min-w-0 ${className}`} title={cell.hint}>
       <dt className="t-caption text-fg-2">{cell.label}</dt>
       <dd className={cell.quiet ? "t-body-compact text-fg-2" : "t-figure tabular-nums text-fg"}>{cell.figure}</dd>
-      {/* На телефоне три главные ячейки идут в ряд: у каждой одна короткая строка, остальное — за «Все показатели». */}
       {cell.notes.map((note, index) => <dd key={note} className={`t-meta text-fg-3${firstNoteOnly && index > 0 ? " max-sm:hidden" : ""}`}>{note}</dd>)}
+    </div>
+  );
+}
+
+/**
+ * Пояснения главной ячейки целиком, без повторной цифры — для «Все показатели» на телефоне: разбивка «исходящие 1 из 2»,
+ * «перезвонили в срок / позже срока / срок ещё не вышел» не пропадает вместе со строками, скрытыми в ряду главных ячеек.
+ */
+function NotesOnly({ cell }: Readonly<{ cell: ReportCell }>) {
+  return (
+    <div className="min-w-0" title={cell.hint} data-calls-notes="">
+      <dt className="t-caption text-fg-2">{cell.label}</dt>
+      {cell.notes.map((note) => <dd key={note} className="t-meta text-fg-3">{note}</dd>)}
     </div>
   );
 }
 
 function Cells({ cells, grid = FULL_GRID, phoneSplit = false }: Readonly<{ cells: readonly ReportCell[]; grid?: string; phoneSplit?: boolean }>) {
   const isPrimary = (index: number) => !phoneSplit || (REPORT_PHONE_CELLS as readonly number[]).includes(index);
+  // Что телефон спрятал из главных ячеек (вторая и следующие строки) — за «Все показатели», вместе с остальными тремя ячейками.
+  const hasMoreNotes = (cell: ReportCell) => cell.notes.length > 1;
   return (
     <>
       <dl className={`mt-3 ${grid}`}>
@@ -53,7 +72,7 @@ function Cells({ cells, grid = FULL_GRID, phoneSplit = false }: Readonly<{ cells
         <details className="mt-1 sm:hidden" data-calls-all="">
           <summary className={QUIET_SUMMARY}>Все показатели</summary>
           <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-4">
-            {cells.map((cell, index) => isPrimary(index) ? null : <Cell key={cell.label} cell={cell} />)}
+            {cells.map((cell, index) => !isPrimary(index) ? <Cell key={cell.label} cell={cell} /> : hasMoreNotes(cell) ? <NotesOnly key={cell.label} cell={cell} /> : null)}
           </dl>
         </details>
       ) : null}

@@ -26,6 +26,7 @@ import { handoffFootnote, handoffStripView, stripCaseMoney, type StripCaseMoney,
 import { LeadConditionsCard, LeadEducationCard, LeadWishesCard, SaleConditionsRevisionProvider } from "./LeadCardFieldsForm";
 import { LeadEditGroups, LeadMoreMenu } from "./LeadEditGroups";
 import { LeadCallRecording } from "./LeadCallRecording";
+import { LeadCallsRetry } from "./LeadCallsRetry";
 import { LeadCallResult } from "./LeadCallResult";
 import { LeadNoteComposer } from "./LeadNoteComposer";
 import { LeadSaleConditions } from "./LeadSaleConditions";
@@ -493,14 +494,17 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   }
   const feedPart = (
     <section className="min-w-0" aria-labelledby="lead-feed-title" data-testid="v3-lead-feed">
-      <h2 id="lead-feed-title" className="t-section text-fg">Лента</h2>
+      <h2 id="lead-feed-title" tabIndex={-1} className="t-section text-fg">Лента</h2>
       {/* Частичный сбой не прячется под списком: лента без звонков выглядела бы полной. */}
       {input.calls?.status === "unavailable" ? (
-        <p role="status" className="mt-2 flex min-h-11 flex-wrap items-center gap-x-2 t-body-compact text-fg" data-testid="v3-calls-unavailable">
-          <Icon name="alert" size={16} className="shrink-0 text-warn" />
-          <span>Звонки не загрузились. Заметки и события ниже на месте.</span>
-          <Link href={input.hrefFor("overview")} prefetch={false} className={QUIET_LINK} data-testid="v3-calls-retry">Повторить</Link>
-        </p>
+        <div role="status" className="mt-2 flex flex-wrap items-center gap-x-3 t-body-compact text-fg" data-testid="v3-calls-unavailable">
+          {/* Значок и слова — один блок: на узком экране значок не остаётся один в строке, слова рядом с ним переносятся внутри блока. */}
+          <p className="flex min-w-0 flex-1 basis-64 items-start gap-x-2 py-2">
+            <Icon name="alert" size={16} className="mt-[3px] shrink-0 text-warn" />
+            <span>Звонки не загрузились. Заметки и события ниже на месте.</span>
+          </p>
+          <LeadCallsRetry className={`${QUIET_LINK} max-sm:ms-6`} />
+        </div>
       ) : null}
       <div className="mt-2 space-y-3">
         {notesWritable ? (
@@ -534,7 +538,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
                 at={item.at} label={moment.label} exact={moment.exact}>
                 {recordingItems.length > 0 ? <LeadCallRecording items={recordingItems} /> : null}
                 {pressable ? (
-                  <LeadCallResult callId={item.call.callId} code={item.call.resultCode} callbackOn={item.call.callbackOn}
+                  <LeadCallResult callId={item.call.callId} callName={`${row.title}, ${moment.exact}`} code={item.call.resultCode} callbackOn={item.call.callbackOn}
                     resultLabel={row.resultLabel} callbackLabel={row.callbackLabel} pressWords={row.pressWords}
                     defaultOpen={freshCalls.has(item.call.callId)} bounds={callResultBounds} />
                 ) : row.result ? <p className="mt-0.5 break-words t-meta text-fg-2" data-testid="v3-call-result-text">{row.result}</p> : null}

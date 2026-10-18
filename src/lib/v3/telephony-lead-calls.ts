@@ -351,13 +351,16 @@ export function callTitle(call: Pick<LeadCall, "direction">): string {
 }
 
 /**
- * Исход звонка одной строкой для очереди «Заявки → Звонки»: «Пропущен», «Без ответа», «Ответил Менеджер Первый · 1 мин 35 с».
- * Тот же словарь, что у строки ленты; время разговора — только когда сверка его принесла.
+ * Исход звонка одной строкой для очереди «Заявки → Звонки»: у входящего «Пропущен», «Без ответа»,
+ * «Ответил Менеджер Первый · 1 мин 35 с»; у исходящего — со стороны сотрудника: «Дозвонились · 1 мин 35 с»,
+ * «Не ответили», «Занято». Тот же словарь, что у строки ленты (`callOutcomeText`); время разговора —
+ * только когда сверка его принесла. Исходящий отвеченный не «ответил менеджер»: менеджер сам звонил.
  */
 export function callRequestOutcome(call: LeadCall): string {
   if (call.outcome === "answered") {
-    const who = call.managerName ? `Ответил ${call.managerName}` : "Разговор";
-    return call.talkSeconds === null ? who : `${who} · ${callDuration(call.talkSeconds)}`;
+    const who = call.direction === "out" ? "Дозвонились" : call.managerName ? `Ответил ${call.managerName}` : "Разговор";
+    // «·» с неразрывными пробелами по обе стороны: на узкой строке он не остаётся висеть в конце или в начале строки.
+    return call.talkSeconds === null ? who : `${who}\u00A0·\u00A0${callDuration(call.talkSeconds)}`;
   }
   const word = callOutcomeText(call);
   return `${word.charAt(0).toUpperCase()}${word.slice(1)}`;

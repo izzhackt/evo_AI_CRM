@@ -40,6 +40,7 @@ import {
   dialRefusalCopy,
   dialRouteAnswer,
   dialSuccessCopy,
+  isCallbackTaskTitle,
   todayDialLeadId,
 } from "../src/lib/v3/telephony-dial.ts";
 
@@ -909,6 +910,16 @@ test("callback task: the Today row and the task panel name the client, and only 
   assert.match(source, /readStaffTaskContext\(actor, taskId\)/u, "the lead of a task comes from the read the «Задачи» page already uses");
   assert.match(source, /readStaffTaskLeadContext\(actor, leadId\)/u, "and its name from the lead read under the same session");
   assert.match(source, /const TASK_LEAD_LIMIT = 12;/u);
+  // Only the call-back tasks telephony itself creates (migration 298) are read; every other work task costs «Сегодня» no database read.
+  assert.match(source, /item\.task\?\.kind === "staff" && item\.task\.key === item\.key && isCallbackTaskTitle\(item\.task\.title\)/u);
+  for (const title of ["Перезвонить клиенту", "Перезвонить клиенту: недозвон"]) {
+    assert.ok(read("supabase/migrations/298_platform_telephony_missed_tasks.sql").includes(`'${title}'`), `migration 298 writes «${title}»`);
+    assert.equal(isCallbackTaskTitle(title), true, title);
+  }
+  for (const title of ["Перезвонить родителям", "Перезвонить клиенту завтра", "Подготовить документы", "перезвонить клиенту", ""]) {
+    assert.equal(isCallbackTaskTitle(title), false, `«${title}» is not a telephony call-back task`);
+  }
+  assert.match(source, /name: callerDisplayName\(lead\.clientDisplayName\)/u, "a lead made from an unknown number is named as in «Заявки» and «Сегодня»");
   assert.match(source, /catch \{\s*return null;/u, "a failed read leaves the row as it was");
   const main = read("src/app/(v3)/v3/main/page.tsx");
   assert.match(main, /const taskLeads = dial\.status === "ready" \? await readTodayTaskLeads\(actor, queue\) : null;/u, "no extra reads while dial is closed to this employee");
@@ -923,6 +934,8 @@ test("callback task: the Today row and the task panel name the client, and only 
   assert.match(panel, /<DialButton leadId=\{data\.extra\.lead\.leadId\} mapped=\{data\.extra\.lead\.mapped\}/u);
   assert.match(panel, /data\.extra\?\.lead && !readOnly/u, "a role preview gets no button");
   assert.match(panel, /"Все задачи по лиду" : "Открыть связанного лида"/u, "the two links to a lead say different things");
+  // A phone has no hover title: the panel says in a visible line, for a mapped employee only, that the PBX rings his phone first.
+  assert.match(panel, /!isDone && data\.extra\.lead\.mapped \? \(\s*<p className="hidden basis-full t-meta text-fg-2 max-sm:block pointer-coarse:block" data-testid="v3-dial-hint">\{DIAL_TOUCH_HINT\}<\/p>/u);
 });
 
 test("«Заявки → Звонки»: the outcome and «Позвонить» are read for the phone rows only, after the queue, and never break it", () => {

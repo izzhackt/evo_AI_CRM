@@ -36,6 +36,7 @@ import { SidePanel } from "../panel/SidePanel";
 import { QueueKeyboard } from "../queue/QueueKeyboard";
 import { QUEUE_QUIET_LINK, QueueError } from "../queue/QueueStates";
 import { QueueViewTabs } from "../queue/QueueViewTabs";
+import { QUEUE_META_PIECE } from "../queue/meta-piece";
 import { DialButton } from "../telephony/DialButton";
 import { PortalConsultationDetails } from "./PortalConsultations";
 import { TakeFeedback, TakeLeadButton, TakeStatus } from "./TakeLead";
@@ -143,14 +144,18 @@ function RequestRowView({ row, props, listHref, now }: Readonly<{
         </> : <span className="block truncate t-item text-fg" title={name}>{name}</span>}
       </p>
 
-      {/* Источник и когда — второй строкой, пока нет своих колонок. */}
-      <p className="col-start-1 row-start-2 flex min-w-0 flex-wrap items-center gap-x-1.5 pb-0.5 t-meta text-fg-2 @min-[56rem]:hidden">
-        <span>{source}</span>
-        {callLine ? <><span aria-hidden="true">·</span><span className="text-fg" data-testid="requests-call-outcome">{callLine}</span></> : null}
-        <span aria-hidden="true">·</span>
-        <time dateTime={received.dateTime} className="font-mono tabular-nums text-fg-2">{received.text}</time>
-        <span className="text-fg-3">{received.word}</span>
-      </p>
+      {/* Источник, исход звонка и когда — второй строкой, пока нет своих колонок. Каждое — часть (`QUEUE_META_PIECE`): разделитель
+          «·» не остаётся висеть в конце строки, когда исход звонка переносит «когда» на следующую. */}
+      <div className="col-start-1 row-start-2 min-w-0 overflow-hidden pb-0.5 @min-[56rem]:hidden">
+        <p className="-ms-3 flex flex-wrap t-meta text-fg-2">
+          <span className={QUEUE_META_PIECE}>{source}</span>
+          {callLine ? <span className={`${QUEUE_META_PIECE} min-w-0 max-w-full text-fg`} data-testid="requests-call-outcome">{callLine}</span> : null}
+          <span className={`${QUEUE_META_PIECE} whitespace-nowrap`}>
+            <time dateTime={received.dateTime} className="font-mono tabular-nums text-fg-2">{received.text}</time>
+            <span className="text-fg-3">{received.word}</span>
+          </span>
+        </p>
+      </div>
       <p className="hidden t-body-compact text-fg-2 @min-[56rem]:col-start-2 @min-[56rem]:row-start-1 @min-[56rem]:block">
         {source}
         {callLine ? <span className="block t-meta text-fg">{callLine}</span> : null}

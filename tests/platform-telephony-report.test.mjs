@@ -439,6 +439,13 @@ test("rendered: the supervisor's block — the team, every manager, the unassign
   // On a phone a row is three cells and «Все показатели»: the rest sits behind it, not in a wall of figures.
   assert.equal((html.match(/data-calls-all=""/gu) ?? []).length, 4, "the team and the three rows each fold their other three cells");
   assert.match(rows[0], /<div class="min-w-0 max-sm:hidden"[^>]*><dt class="t-caption text-fg-2">Время разговора<\/dt>/u, "the other three cells leave the phone row");
+  // Nothing is lost on a phone: the main cells show one note, and the second and later ones (the outgoing split, the call-back
+  // breakdown) stand in «Все показатели» next to the other three cells — the hidden lines of the row are not hidden everywhere.
+  const folded = (row) => text(row.match(/<details class="mt-1 sm:hidden" data-calls-all="">[\s\S]*?<\/details>/u)?.[0] ?? "");
+  assert.match(folded(html.match(/<section[^>]*data-calls-team=""[\s\S]*?<\/section>/u)?.[0] ?? ""),
+    /^Все показатели Отвечено входящие 2 из 8 исходящие 4 из 7 Время разговора .* Пропущенные без перезвона из 4 пропущенных входящих перезвонили в срок: 1 перезвонили позже срока: 1 Результат проставлен/u);
+  assert.match(folded(rows[0]), /Отвечено входящие \d+ из \d+ исходящие \d+ из \d+/u, "a manager's row folds the same breakdown");
+  assert.doesNotMatch(folded(rows[0]), /Звонки \d/u, "the first cell has one note only: nothing of it is hidden, so it is not repeated");
   const unassigned = html.match(/<li [^>]*data-calls-unassigned=""[\s\S]*?<\/li>/u)?.[0] ?? "";
   assert.match(text(unassigned), /^Без ответственного Лиды и пропущенные звонки, у которых нет владельца\. До первого звонка не звонили новых лидов: 1 в срок 15\sмин: 0 из 1 Пропущенные без перезвона 1 из 1 пропущенных входящих$/u, "the deadline passed with nobody calling: «не звонили», not a dash");
   const list = html.match(/<section[^>]*data-calls-missed-list=""[\s\S]*?<\/section>/u)?.[0] ?? "";

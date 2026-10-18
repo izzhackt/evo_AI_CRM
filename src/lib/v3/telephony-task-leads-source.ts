@@ -2,6 +2,8 @@ import "server-only";
 
 import type { ActivePlatformActor } from "../platform-auth.ts";
 import { readStaffTaskContext, readStaffTaskLeadContext } from "../server/platform-staff-task-repository.ts";
+import { isCallbackTaskTitle } from "./telephony-dial.ts";
+import { callerDisplayName } from "./wording.ts";
 import type { TodayQueue } from "./today-queue.ts";
 
 /**
@@ -23,7 +25,8 @@ export function leadCardHref(leadId: string): string {
 export async function readLeadRef(actor: ActivePlatformActor, leadId: string): Promise<TaskLeadRef | null> {
   try {
     const lead = await readStaffTaskLeadContext(actor, leadId);
-    return Object.freeze({ leadId: lead.leadId, name: lead.clientDisplayName, href: leadCardHref(lead.leadId) });
+    // Лид, которого завёл звонок с неизвестного номера, называется здесь так же, как в «Заявках» и в «Сегодня».
+    return Object.freeze({ leadId: lead.leadId, name: callerDisplayName(lead.clientDisplayName), href: leadCardHref(lead.leadId) });
   } catch {
     return null;
   }
@@ -39,11 +42,14 @@ export async function readTaskLeadRef(actor: ActivePlatformActor, taskId: string
   }
 }
 
-/** Лиды рабочих задач «Сегодня» по ключу строки (`staff:<id>`): только у задач, которые несут лид. */
+/**
+ * Лиды рабочих задач «Сегодня» по ключу строки (`staff:<id>`): только у задач-перезвонов самой телефонии
+ * (`isCallbackTaskTitle`) — остальные рабочие задачи не читаются вовсе, на «Сегодня» это не лишние чтения базы.
+ */
 export async function readTodayTaskLeads(actor: ActivePlatformActor, queue: TodayQueue): Promise<Readonly<Record<string, TaskLeadRef>>> {
   const tasks = queue.bands
     .flatMap((band) => band.items)
-    .filter((item) => item.task?.kind === "staff" && item.task.key === item.key)
+    .filter((item) => item.task?.kind === "staff" && item.task.key === item.key && isCallbackTaskTitle(item.task.title))
     .slice(0, TASK_LEAD_LIMIT);
   const refs = await Promise.all(tasks.map(async (item) => [item.key, await readTaskLeadRef(actor, item.task!.id)] as const));
   return Object.freeze(Object.fromEntries(refs.filter((entry): entry is readonly [string, TaskLeadRef] => entry[1] !== null)));

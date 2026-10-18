@@ -81,6 +81,10 @@ function ExtensionRow({
   const label = extension.name ?? extension.login;
   const target = staff.find((option) => option.membershipId === choice) ?? null;
   const changed = choice !== (extension.membershipId ?? "");
+  // Строка «Сотрудник: … · Изменить» нужна, только если в ней есть что сказать или нажать: у сопоставленного в просмотре
+  // (только чтение) с тем же именем, что у пользователя ВАТС, в ней не было бы ничего, а 44 px пустоты остались бы.
+  const showStaffName = extension.membershipName !== label;
+  const canEdit = !readOnly && !editing;
   const chip = !extension.active
     ? <StatusChip label="Выключен в ВАТС" tone="neutral" />
     : extension.membershipId
@@ -143,14 +147,16 @@ function ExtensionRow({
         </div>
         {chip}
       </div>
-      {extension.membershipId && !confirming ? (
+      {extension.membershipId && !confirming && (showStaffName || canEdit) ? (
         <p className="mt-1 flex min-h-11 flex-wrap items-center gap-x-2 t-body-compact text-fg-2">
           {/* Имя сотрудника, только если оно не то же, что у пользователя ВАТС выше: иначе одно и то же стояло бы дважды. */}
-          {extension.membershipName !== label ? <span>Сотрудник: <span className="text-fg">{extension.membershipName ?? "не найден"}</span></span> : null}
-          {!readOnly && !editing ? (
+          {showStaffName ? <span>Сотрудник: <span className="text-fg">{extension.membershipName ?? "не найден"}</span></span> : null}
+          {canEdit ? (
+            // Кнопка повторяется в каждой строке списка: имя начинается с видимых слов и называет пользователя ВАТС.
             <button ref={editButton} type="button" className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg"
+              aria-label={`Изменить сопоставление: ${label}`}
               data-testid="v3-telephony-extension-edit" onClick={() => { want("select"); setEditing(true); }}>
-              {extension.membershipName !== label ? "Изменить" : "Изменить сопоставление"}
+              {showStaffName ? "Изменить" : "Изменить сопоставление"}
             </button>
           ) : null}
         </p>

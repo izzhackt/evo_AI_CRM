@@ -12,6 +12,7 @@ import {
   type RequestsQueue,
   type RequestStatusFilter,
 } from "../requests-queue-contract.ts";
+import { leadDisplayName } from "./wording.ts";
 
 /**
  * Представление «Заявок» (Э3, 27.09.2026): слова вкладок, источников и
@@ -23,12 +24,11 @@ export const REQUEST_TAB_LABELS: Readonly<Record<RequestSourceFilter, string>> =
 };
 /**
  * Имя строки: лид, созданный звонком с неизвестного номера, база называет «Звонок +996 ••• 00 02 01» —
- * здесь это «Неизвестный номер …», потому что слово «Звонок» уже стоит в колонке источника. Имя, которое
- * сотрудник уже поменял, остаётся как есть.
+ * здесь это «Номер …», потому что слово «Звонок» уже стоит в колонке источника. Правило одно с
+ * «Сегодня» (`leadDisplayName`); имя, которое сотрудник уже поменял, остаётся как есть.
  */
 export function requestDisplayName(row: Pick<RequestRow, "source" | "personName">): string {
-  return row.source === "phone_call" && row.personName.startsWith("Звонок ")
-    ? `Неизвестный номер ${row.personName.slice("Звонок ".length)}` : row.personName;
+  return leadDisplayName(row.source, row.personName);
 }
 export const REQUEST_STATUS_LABELS: Readonly<Record<RequestStatusFilter, string>> = { waiting: "Ждут разбора", all: "Все" };
 export const REQUEST_SOURCE_WORDS: Readonly<Record<RequestRow["source"], string>> = {

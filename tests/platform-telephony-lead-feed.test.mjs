@@ -227,10 +227,19 @@ test("words: direction, outcome, talk time, people, recording and result are pla
 test("words: the outcome of a call in «Заявки → Звонки» is one line: missed, or who answered and for how long", () => {
   const base = { direction: "in", state: "ended", outcomeSource: "webhook", managerName: "Менеджер Первый", talkSeconds: 95 };
   assert.equal(callRequestOutcome({ ...base, outcome: "missed", managerName: null, talkSeconds: null }), "Пропущен");
-  assert.equal(callRequestOutcome({ ...base, outcome: "answered" }), "Ответил Менеджер Первый · 1\u00A0мин 35\u00A0с");
+  assert.equal(callRequestOutcome({ ...base, outcome: "answered" }), "Ответил Менеджер Первый\u00A0·\u00A01\u00A0мин 35\u00A0с");
   assert.equal(callRequestOutcome({ ...base, outcome: "answered", talkSeconds: null }), "Ответил Менеджер Первый", "no talk time is not invented");
   assert.equal(callRequestOutcome({ ...base, outcome: "answered", managerName: null, talkSeconds: null }), "Разговор");
   assert.equal(callRequestOutcome({ ...base, outcome: "missed", outcomeSource: "pull", managerName: null }), "Без ответа");
+  // An outgoing call is seen from the employee's side: «Ответил <менеджер>» would say the manager picked up a call he made himself.
+  const out = { ...base, direction: "out" };
+  assert.equal(callRequestOutcome({ ...out, outcome: "answered" }), "Дозвонились\u00A0·\u00A01\u00A0мин 35\u00A0с");
+  assert.equal(callRequestOutcome({ ...out, outcome: "answered", talkSeconds: null }), "Дозвонились", "no talk time is not invented for an outgoing call either");
+  assert.equal(callRequestOutcome({ ...out, outcome: "answered", managerName: null, talkSeconds: null }), "Дозвонились");
+  assert.equal(callRequestOutcome({ ...out, outcome: "missed", managerName: null, talkSeconds: null }), "Не ответили");
+  assert.equal(callRequestOutcome({ ...out, outcome: "busy", managerName: null, talkSeconds: null }), "Занято");
+  assert.equal(callRequestOutcome({ ...out, outcome: "missed", outcomeSource: "pull", managerName: null, talkSeconds: null }), "Без ответа");
+  assert.doesNotMatch(callRequestOutcome({ ...out, outcome: "answered" }), /Ответил/u, "the outgoing answered line never reads «Ответил»");
 });
 
 test("words: a call of the last day reads «38 мин назад», older ones keep the date; the exact time stays", () => {
@@ -537,6 +546,9 @@ test("wiring: the route file, the source, the page and the migration agree", () 
   assert.match(control, /refocus\.current = "summary";\s*setExpanded\(false\);\s*router\.refresh\(\);/u, "a save returns to the summary button");
   assert.match(control, /refocus\.current = trigger;/u, "a failed press returns to the pressed chip");
   assert.equal((control.match(/ref=\{summaryAction\}/gu) ?? []).length, 1, "one summary button for «изменить» and «Отметить итог»");
+  // The button repeats in every row: its name starts with the visible word and says which call it belongs to.
+  assert.match(control, /aria-label=\{`\$\{marked \? "изменить итог" : "Отметить итог"\}: \$\{callName\}`\}/u);
+  assert.match(read("src/components/v3/profile/LeadWorkParts.tsx"), /callName=\{`\$\{row\.title\}, \$\{moment\.exact\}`\}/u);
   assert.match(control, /День перезвона/u, "the day field names the day to call back, not the day of the past call");
   assert.doesNotMatch(control, /День звонка/u);
   assert.match(migration, /Задачу «Перезвонить» из этой даты создаёт срез T8/u);
@@ -609,6 +621,17 @@ test("rendered lead: an unreadable answer says so and leaves the notes alone; a 
   assert.match(unavailable, /data-testid="v3-calls-unavailable"/u);
   assert.match(text(unavailable), /Звонки не загрузились\. Заметки и события ниже на месте\. Повторить/u);
   assert.match(unavailable, /data-testid="v3-calls-retry"/u, "«Повторить» stands beside the failure, not under the list");
+  // «Повторить» re-reads the page itself (a button that refreshes, not a link to the address already open), and the icon shares a block with
+  // the words, so on a phone it never stands alone on a line of its own.
+  assert.match(unavailable, /<button [^>]*data-testid="v3-calls-retry"[^>]*>Повторить<\/button>/u);
+  assert.doesNotMatch(unavailable, /<a [^>]*data-testid="v3-calls-retry"/u);
+  assert.match(unavailable, /<p class="flex min-w-0 flex-1 basis-64 items-start gap-x-2 py-2"><svg[^>]*>[\s\S]*?<\/svg><span>Звонки не загрузились\. Заметки и события ниже на месте\.<\/span><\/p>/u);
+  const retry = read("src/components/v3/profile/LeadCallsRetry.tsx");
+  assert.match(retry, /^"use client";/u);
+  assert.match(retry, /onClick=\{\(\) => \{ if \(!pending\) start\(\(\) => router\.refresh\(\)\); \}\}/u, "the page is re-read, once at a time");
+  assert.match(retry, /aria-disabled=\{pending \|\| undefined\}/u, "focusable while reading: a disabled button would drop its focus");
+  assert.match(retry, /document\.getElementById\("lead-feed-title"\)\?\.focus\(\)/u, "when the row goes away, focus goes to the feed heading, not <body>");
+  assert.match(unavailable, /<h2 id="lead-feed-title" tabindex="-1"/u);
   assert.ok(unavailable.indexOf('data-testid="v3-calls-unavailable"') < unavailable.indexOf('data-testid="v3-lead-feed-items"'), "the failure is above the list");
   assert.match(text(unavailable), /Созвонились: интересует Малайзия/u, "the notes are still there");
   const more = pages.get("lead-more");

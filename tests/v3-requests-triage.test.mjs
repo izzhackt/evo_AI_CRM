@@ -328,22 +328,33 @@ test("«Звонки»: the tab, its number and its rows exist only when the rea
   const waiting = main(surfaces.get("calls-waiting"));
   assert.equal(count(waiting, /data-queue-row=/gu), 2, "only the two unowned calls wait");
   assert.equal(count(waiting, />Взять себе</gu), 2);
-  // The database names a lead made by an unknown number «Звонок …»; the column already says «Звонок», so the row says «Неизвестный номер …».
-  assert.match(waiting, /Неизвестный номер ••••4521/u);
+  // The database names a lead made by an unknown number «Звонок …»; the column already says «Звонок», so the row says «Номер …» (short: the digits that tell leads apart must stay on a 390 px line).
+  assert.match(waiting, /Номер ••••4521/u);
   assert.doesNotMatch(waiting, />Звонок ••••/u);
   assert.match(waiting, /href="\/v3\/requests\?source=phone_call&amp;open=lead%3A[0-9a-f-]+"/u, "«Открыть» keeps the tab in the address");
   assert.equal(count(waiting, />Звонок</gu) >= 2, true, "the source column says «Звонок»");
   const all = main(surfaces.get("calls"));
   assert.equal(count(all, /data-queue-row=/gu), 12);
-  assert.match(all, /Неизвестный номер ••••7788/u);
+  assert.match(all, /Номер ••••7788/u);
   // A name staff already changed stays as it is, and only phone calls are renamed.
-  assert.equal(requestDisplayName({ source: "phone_call", personName: "Звонок +996 ••• 00 02 01" }), "Неизвестный номер +996 ••• 00 02 01");
+  assert.equal(requestDisplayName({ source: "phone_call", personName: "Звонок +996 ••• 00 02 01" }), "Номер +996 ••• 00 02 01");
+  assert.equal(requestDisplayName({ source: "phone_call", personName: "Звонок ••••4521" }), "Номер ••••4521", "the number without a country code has the shorter mask");
   assert.equal(requestDisplayName({ source: "phone_call", personName: "Новый Клиент" }), "Новый Клиент");
+  assert.equal(requestDisplayName({ source: "phone_call", personName: "Звонок родителей" }), "Звонок родителей", "only the name the database wrote («Звонок» + the mask) is renamed, not any name that begins with the word");
+  assert.equal(requestDisplayName({ source: "phone_call", personName: "Звонок +996 ••• 00 02 01 Айгерим" }), "Звонок +996 ••• 00 02 01 Айгерим");
   assert.equal(requestDisplayName({ source: "website", personName: "Звонок консультанту" }), "Звонок консультанту");
+  // The small line of a call row is made of pieces («Звонок», the outcome, «когда»): a separator never hangs at the end of a wrapped line.
+  const dialled = main(surfaces.get("calls-dial"));
+  assert.equal(count(dialled, /data-testid="requests-call-outcome"/gu), 2, "two of the three rows are unowned and wait; each carries the outcome of its newest call");
+  assert.match(dialled, /<span class="[^"]*before:content-\[&#x27;·&#x27;\][^"]*">Звонок<\/span><span class="[^"]*before:content-\[&#x27;·&#x27;\][^"]*" data-testid="requests-call-outcome">Пропущен<\/span><span class="[^"]*before:content-\[&#x27;·&#x27;\][^"]*"><time /u);
+  assert.doesNotMatch(dialled, /<span aria-hidden="true">·<\/span>/u, "no loose «·» spans between the pieces");
+  assert.match(dialled, /<div class="col-start-1 row-start-2 min-w-0 overflow-hidden pb-0\.5 @min-\[56rem\]:hidden"><p class="-ms-3 flex flex-wrap t-meta text-fg-2">/u,
+    "the line is shifted by one separator gutter inside a clipping block, so the first piece of every line hides its separator");
+  assert.equal(count(dialled, /data-testid="v3-dial-button"/gu) >= 2, true, "«Позвонить» sits by the pieces' row");
   // Телефония выключена: звонки есть в базе, но ни вкладки, ни строк, ни числа; «Все» — как раньше.
   assert.deepEqual(tabs(surfaces.get("calls-hidden")), ["Все 9", "Сайт 4", "WhatsApp 1", "Анкеты 2", "Консультации 2"]);
   assert.equal(count(main(surfaces.get("calls-hidden")), /data-queue-row=/gu), 9);
-  assert.doesNotMatch(main(surfaces.get("calls-hidden")), /Звонок ••••|Неизвестный номер/u);
+  assert.doesNotMatch(main(surfaces.get("calls-hidden")), /Звонок ••••|Номер ••••/u);
   // Устаревшая ссылка на «Звонки»: вкладка остаётся (выбранная), числа нет, слова вместо «пусто».
   const link = main(surfaces.get("calls-off-link"));
   assert.deepEqual(tabs(surfaces.get("calls-off-link")), ["Все 4", "Сайт 2", "WhatsApp 0", "Звонки", "Анкеты 1", "Консультации 1"]);

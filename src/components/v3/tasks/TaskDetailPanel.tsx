@@ -8,6 +8,7 @@ import { mutateStaffTaskAction } from "@/lib/platform-staff-task-actions";
 import { changePlatformAdmissionsTaskAction } from "@/lib/platform-admissions-task-actions";
 import type { StaffParticipant, StaffTask } from "@/lib/platform-staff-task-contract";
 import { projectPlatformTaskDeadline } from "@/lib/platform-task-deadline";
+import { DIAL_TOUCH_HINT } from "@/lib/v3/telephony-dial";
 import { taskStatus } from "@/lib/v3/wording";
 import { DeadlineFields } from "../calendar/TaskControls";
 import type { CalendarCaseTask, CalendarTaskCapabilities, Day } from "../calendar/types";
@@ -184,6 +185,11 @@ export function TaskDetailPanel({
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               {!isDone ? <DialButton leadId={data.extra.lead.leadId} mapped={data.extra.lead.mapped} subject={data.extra.lead.name} /> : null}
               <Link href={data.extra.lead.href} className={LINK}>Открыть карточку лида</Link>
+              {/* На телефоне и сенсорном экране у кнопки нет подсказки при наведении: что набор сначала звонит сотруднику, сказано строкой
+                  (та же, что под рядом действий карточки лида). Несопоставленному она не нужна: нажатие скажет, что его логин ВАТС не связан. */}
+              {!isDone && data.extra.lead.mapped ? (
+                <p className="hidden basis-full t-meta text-fg-2 max-sm:block pointer-coarse:block" data-testid="v3-dial-hint">{DIAL_TOUCH_HINT}</p>
+              ) : null}
             </div>
           </section>
         ) : null}

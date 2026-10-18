@@ -198,6 +198,13 @@ test("the mapping list: one row per PBX user, the state in words, a choice of st
   assert.match(rows[1], /<option value="20000000-0000-4000-8000-000000000002" disabled="">Staff A · уже сопоставлен<\/option>/u);
   assert.doesNotMatch(rows[0], /<select/u, "a mapped row has no list until «Изменить» is pressed");
   assert.match(rows[0], /data-testid="v3-telephony-extension-edit">Изменить<\/button>/u);
+  // The button repeats in every row: its name starts with the visible word and says whose mapping it is (label in name).
+  assert.match(rows[0], /<button [^>]*aria-label="Изменить сопоставление: PBX user 1"[^>]*>Изменить<\/button>/u);
+  // The same name on both sides is not repeated, and the button then reads in full — still containing its own aria-label start.
+  const same = overview({ extensions: [{ ...extensions[0], name: "Staff A" }] });
+  const sameRow = render(React.createElement(TelephonyExtensions, { extensions: same.extensions, staff, readOnly: false }));
+  assert.doesNotMatch(flat(sameRow), /Сотрудник: Staff A/u);
+  assert.match(sameRow, /<button [^>]*aria-label="Изменить сопоставление: Staff A"[^>]*>Изменить сопоставление<\/button>/u);
   // The switched-off, unmapped PBX user has nothing to map: no controls, one sentence; the others have a choice.
   assert.doesNotMatch(rows[2], /<select|<button/u);
   assert.match(flat(rows[2]), /Пользователь выключен в ВАТС: сопоставлять нечего\./u);
@@ -216,6 +223,11 @@ test("the mapping list: empty directory and a preview", () => {
   const { extensions, staff } = overview();
   const preview = render(React.createElement(TelephonyExtensions, { extensions, staff, readOnly: true }));
   assert.doesNotMatch(preview, /<select|<button/u, "a preview shows the list and changes nothing");
+  // A read-only mapped row whose employee has the same name as the PBX user has nothing to say or press: no empty 44 px line.
+  const quiet = overview({ extensions: [{ ...extensions[0], name: "Staff A" }] });
+  const quietRow = render(React.createElement(TelephonyExtensions, { extensions: quiet.extensions, staff, readOnly: true }));
+  assert.doesNotMatch(quietRow, /<p class="mt-1 flex min-h-11/u, "no empty line under a read-only mapped row");
+  assert.match(preview, /<p class="mt-1 flex min-h-11[^"]*">[^]*?Сотрудник: <span class="text-fg">Staff A<\/span>/u, "a read-only row with a different name still says who");
 });
 
 test("the mapping client confirms against what the person saw and sends only ids", () => {

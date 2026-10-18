@@ -1,11 +1,15 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for migration 306 (подсказка «Похоже на»: номер лида или дела
 -- записан как телефон родителя в анкете другого студента, #1198 пункт 2; решение
--- владельца 18.10.2026). Members are modelled like production after 155 (as in
--- 281's suite): invited staff have coarse role NULL and get permissions only from
--- scoped role assignments with the production keys. Cases come through the real
--- «Добавить студента» command (the parent phone is stored exactly as that path
--- stores it), leads through the real manual command and the website receiver.
+-- владельца 18.10.2026 и его дополнение после review: два уровня). Members are
+-- modelled like production after 155 (as in 281's suite): invited staff have coarse
+-- role NULL and get permissions only from scoped role assignments with the production
+-- keys. Cases come through the real «Добавить студента» command (the parent phone is
+-- stored exactly as that path stores it), leads through the real manual command and
+-- the website receiver.
+-- The answer is {matches, restricted, more}: matches are the cases the caller reads in
+-- full AND whose анкета it reads; restricted says that some other match exists (no name,
+-- id, link or count); more says that more than five readable matches exist.
 -- Proves:
 --  H1 the match: a lead typed in another spelling finds the case whose анкета has
 --     the number as mother or father (+996 and national «0…», digits-only as a
@@ -14,20 +18,31 @@
 --  H2 nothing merges: the hint adds no client, lead, case, анкета row, candidate
 --     or journal entry; the lead and the case keep their own clients;
 --  H3 the same person is no lookalike: a case whose parent phone is its own
---     student's number, and its own converted lead, return nothing;
+--     student's number, and its own converted lead, return nothing and are not even
+--     a hidden match;
 --  H4 the authorization matrix. Subject: a lead is read by who reads the lead
 --     (Admin, its Sales owner), a case by who reads the case (Admin, the
 --     Admissions Manager of its department, its curator); anyone else, an
 --     unknown id, the Student, no membership, anon, service_role and another
---     organization get 42501. Matches: only the cases the same member reads in
---     full AND whose анкета it reads (profile.read.full): the Sales Manager sees
---     nothing, a curator only its own cases, the Manager of one department not
---     the other department's, and a waiting (curator-less) case that the Manager
---     reads but whose анкета it does not is left out;
---  H5 tenancy: another organization's case with the same number is never listed;
---  H6 the contract: exactly one subject (22023), constant error messages, no
---     phone or name in the answer keys, no RAISE of NOTICE|LOG, a read-only
---     SECURITY DEFINER with an empty search_path, EXECUTE for authenticated only.
+--     organization get 42501. Matches, level one: only the cases the same member
+--     reads in full AND whose анкета it reads (profile.read.full). Level two: for
+--     every other match the answer says only restricted = true: the Sales Manager
+--     (reads the lead, no case, no анкета) gets an empty matches list and the same
+--     bytes whether one or seven cases match, a curator sees its own case and the
+--     fact that others exist, the Manager of one department not the other
+--     department's, and a waiting (curator-less) case that the Manager reads but
+--     whose анкета it does not is hidden too;
+--  H5 tenancy: another organization's case with the same number is never listed
+--     and never counted as hidden;
+--  H6 the contract: exactly one subject (22023), constant error messages, three
+--     answer keys, no phone or parent name in the answer, no RAISE of NOTICE|LOG, a
+--     read-only SECURITY DEFINER with an empty search_path, EXECUTE for
+--     authenticated only;
+--  H7 the cap: the answer lists at most five cases whoever asks (a family of five
+--     answers more = false, a family of seven more = true with the five newest in
+--     work), the cap counts readable cases only (a Manager who reads six of seven
+--     and an Admin who reads all seven both get five and more = true; the Sales
+--     Manager never learns more = true).
 -- Isolated synthetic SQL fixtures only.
 BEGIN;
 
@@ -60,13 +75,29 @@ RETURNS JSONB LANGUAGE SQL IMMUTABLE AS $$
     'route', jsonb_build_object('country', 'MY'),
     'curatorMembershipId', CASE WHEN p_curator IS NULL THEN NULL ELSE pg_temp.n306_id(p_curator)::TEXT END))
 $$;
--- The answer as «relation:name» in answer order joined by «|» ('' for none), or «ERR sqlstate:message».
+-- The matches of the answer as «relation:name» in answer order joined by «|» ('' for none), or «ERR sqlstate:message».
 CREATE FUNCTION pg_temp.n306_hint(p_org UUID, p_lead UUID, p_case UUID) RETURNS TEXT LANGUAGE plpgsql AS $$
 DECLARE answer JSONB;
 BEGIN
   answer := platform.read_parent_phone_lookalikes_v1(p_org, p_lead, p_case);
   RETURN COALESCE((SELECT string_agg((e ->> 'relation') || ':' || (e ->> 'studentName'), '|' ORDER BY o)
-    FROM jsonb_array_elements(answer) WITH ORDINALITY AS t(e, o)), '');
+    FROM jsonb_array_elements(answer -> 'matches') WITH ORDINALITY AS t(e, o)), '');
+EXCEPTION WHEN OTHERS THEN RETURN 'ERR ' || SQLSTATE || ':' || SQLERRM;
+END
+$$;
+-- The two flags of the answer as «restricted=<bool> more=<bool>», or «ERR sqlstate:message».
+CREATE FUNCTION pg_temp.n306_flags(p_org UUID, p_lead UUID, p_case UUID) RETURNS TEXT LANGUAGE plpgsql AS $$
+DECLARE answer JSONB;
+BEGIN
+  answer := platform.read_parent_phone_lookalikes_v1(p_org, p_lead, p_case);
+  RETURN 'restricted=' || (answer ->> 'restricted') || ' more=' || (answer ->> 'more');
+EXCEPTION WHEN OTHERS THEN RETURN 'ERR ' || SQLSTATE || ':' || SQLERRM;
+END
+$$;
+-- The number of listed matches, or «ERR sqlstate:message».
+CREATE FUNCTION pg_temp.n306_count(p_org UUID, p_lead UUID, p_case UUID) RETURNS TEXT LANGUAGE plpgsql AS $$
+BEGIN
+  RETURN jsonb_array_length(platform.read_parent_phone_lookalikes_v1(p_org, p_lead, p_case) -> 'matches')::TEXT;
 EXCEPTION WHEN OTHERS THEN RETURN 'ERR ' || SQLSTATE || ':' || SQLERRM;
 END
 $$;
@@ -75,6 +106,7 @@ CREATE FUNCTION pg_temp.n306_raw(p_org UUID, p_lead UUID, p_case UUID) RETURNS J
 $$;
 GRANT EXECUTE ON FUNCTION pg_temp.n306_id(INTEGER), pg_temp.n306_assert(BOOLEAN, TEXT),
   pg_temp.n306_student(TEXT, TEXT, TEXT, TEXT, INTEGER), pg_temp.n306_hint(UUID, UUID, UUID),
+  pg_temp.n306_flags(UUID, UUID, UUID), pg_temp.n306_count(UUID, UUID, UUID),
   pg_temp.n306_raw(UUID, UUID, UUID) TO authenticated, anon, service_role;
 
 SELECT 'N306_PARENT_PHONE_LOOKALIKES_SUITE_START' AS n306_suite_marker;
@@ -204,12 +236,15 @@ SELECT pg_temp.n306_assert((SELECT array_agg(claims::JSONB ->> 'platform_role' O
 
 
 -- One call as another session: sets the claims and the database role for the call only.
-CREATE FUNCTION pg_temp.n306_as(p_role TEXT, p_claims TEXT, p_org UUID, p_lead UUID, p_case UUID) RETURNS TEXT LANGUAGE plpgsql AS $$
+-- p_what: 'hint' (the matches as text), 'flags' (restricted and more) or 'count' (listed matches).
+CREATE FUNCTION pg_temp.n306_as(p_role TEXT, p_claims TEXT, p_org UUID, p_lead UUID, p_case UUID, p_what TEXT DEFAULT 'hint')
+RETURNS TEXT LANGUAGE plpgsql AS $$
 DECLARE answer TEXT;
 BEGIN
   PERFORM set_config('request.jwt.claims', p_claims, TRUE);
   EXECUTE format('SET LOCAL ROLE %I', p_role);
-  answer := pg_temp.n306_hint(p_org, p_lead, p_case);
+  answer := CASE p_what WHEN 'flags' THEN pg_temp.n306_flags(p_org, p_lead, p_case)
+    WHEN 'count' THEN pg_temp.n306_count(p_org, p_lead, p_case) ELSE pg_temp.n306_hint(p_org, p_lead, p_case) END;
   EXECUTE 'RESET ROLE';
   RETURN answer;
 END
@@ -244,7 +279,12 @@ SELECT (platform_private.custom_access_token_hook(jsonb_build_object('user_id', 
 -- mother of Eleven (curator A), mother of the waiting case Waiting Too; the
 -- applicant has that number as its OWN phone (a student who gave a parent's
 -- number: the issue's case, created, not merged). Family C (+996 705 302 300):
--- father of Thirteen. Self Parent gave its own number as its mother's.
+-- father of Thirteen. Self Parent gave its own number as its mother's. For the cap
+-- (H7): family D is seven students, six under curators A and B (the Admissions
+-- department) and the newest under curator C (the other department); the mother's phone
+-- is +996 770 306 400 (the applicant's own number, a case subject) and the father's
+-- +996 770 306 450 (a lead subject, written by the owner below), so the lead and the
+-- case do not share a client. Family E (+996 770 306 500) is the mother of exactly five.
 -- ---------------------------------------------------------------------------
 SET LOCAL request.jwt.claims TO :'n306_admin';
 SET LOCAL ROLE authenticated;
@@ -284,6 +324,45 @@ SELECT r ->> 'student_case_id' AS n306_s13
 SELECT r ->> 'student_case_id' AS n306_s4, r ->> 'lead_id' AS n306_s4_lead
   FROM (SELECT platform.create_admissions_student_case_v1(pg_temp.n306_id(1), pg_temp.n306_id(7012),
     pg_temp.n306_student('N306 Self Parent', '+996 555 302 004', 'mother', '+996 555 302 004', 304)) AS r) q \gset
+SELECT r ->> 'student_case_id' AS n306_d1
+  FROM (SELECT platform.create_admissions_student_case_v1(pg_temp.n306_id(1), pg_temp.n306_id(7013),
+    pg_temp.n306_student('N306 Family D 1', '+996 555 306 401', 'mother', '+996 770 306 400', 304)) AS r) q \gset
+SELECT r ->> 'student_case_id' AS n306_d2
+  FROM (SELECT platform.create_admissions_student_case_v1(pg_temp.n306_id(1), pg_temp.n306_id(7014),
+    pg_temp.n306_student('N306 Family D 2', '+996 555 306 402', 'mother', '+996 770 306 400', 306)) AS r) q \gset
+SELECT r ->> 'student_case_id' AS n306_d3
+  FROM (SELECT platform.create_admissions_student_case_v1(pg_temp.n306_id(1), pg_temp.n306_id(7015),
+    pg_temp.n306_student('N306 Family D 3', '+996 555 306 403', 'mother', '+996 770 306 400', 304)) AS r) q \gset
+SELECT r ->> 'student_case_id' AS n306_d4
+  FROM (SELECT platform.create_admissions_student_case_v1(pg_temp.n306_id(1), pg_temp.n306_id(7016),
+    pg_temp.n306_student('N306 Family D 4', '+996 555 306 404', 'mother', '+996 770 306 400', 306)) AS r) q \gset
+SELECT r ->> 'student_case_id' AS n306_d5
+  FROM (SELECT platform.create_admissions_student_case_v1(pg_temp.n306_id(1), pg_temp.n306_id(7017),
+    pg_temp.n306_student('N306 Family D 5', '+996 555 306 405', 'mother', '+996 770 306 400', 304)) AS r) q \gset
+SELECT r ->> 'student_case_id' AS n306_d6
+  FROM (SELECT platform.create_admissions_student_case_v1(pg_temp.n306_id(1), pg_temp.n306_id(7018),
+    pg_temp.n306_student('N306 Family D 6', '+996 555 306 406', 'mother', '+996 770 306 400', 306)) AS r) q \gset
+SELECT r ->> 'student_case_id' AS n306_d7
+  FROM (SELECT platform.create_admissions_student_case_v1(pg_temp.n306_id(1), pg_temp.n306_id(7019),
+    pg_temp.n306_student('N306 Family D 7', '+996 555 306 407', 'mother', '+996 770 306 400', 307)) AS r) q \gset
+SELECT r ->> 'student_case_id' AS n306_e1
+  FROM (SELECT platform.create_admissions_student_case_v1(pg_temp.n306_id(1), pg_temp.n306_id(7020),
+    pg_temp.n306_student('N306 Family E 1', '+996 555 306 501', 'mother', '+996 770 306 500', 304)) AS r) q \gset
+SELECT r ->> 'student_case_id' AS n306_e2
+  FROM (SELECT platform.create_admissions_student_case_v1(pg_temp.n306_id(1), pg_temp.n306_id(7021),
+    pg_temp.n306_student('N306 Family E 2', '+996 555 306 502', 'mother', '+996 770 306 500', 304)) AS r) q \gset
+SELECT r ->> 'student_case_id' AS n306_e3
+  FROM (SELECT platform.create_admissions_student_case_v1(pg_temp.n306_id(1), pg_temp.n306_id(7022),
+    pg_temp.n306_student('N306 Family E 3', '+996 555 306 503', 'mother', '+996 770 306 500', 304)) AS r) q \gset
+SELECT r ->> 'student_case_id' AS n306_e4
+  FROM (SELECT platform.create_admissions_student_case_v1(pg_temp.n306_id(1), pg_temp.n306_id(7023),
+    pg_temp.n306_student('N306 Family E 4', '+996 555 306 504', 'mother', '+996 770 306 500', 304)) AS r) q \gset
+SELECT r ->> 'student_case_id' AS n306_e5
+  FROM (SELECT platform.create_admissions_student_case_v1(pg_temp.n306_id(1), pg_temp.n306_id(7024),
+    pg_temp.n306_student('N306 Family E 5', '+996 555 306 505', 'mother', '+996 770 306 500', 304)) AS r) q \gset
+SELECT r ->> 'student_case_id' AS n306_dapp, r ->> 'client_id' AS n306_dapp_client
+  FROM (SELECT platform.create_admissions_student_case_v1(pg_temp.n306_id(1), pg_temp.n306_id(7025),
+    pg_temp.n306_student('N306 Applicant D', '+996 770 306 400', NULL, NULL, 304)) AS r) q \gset
 RESET ROLE;
 
 -- The other organization has the same family number on its own case, and its
@@ -321,6 +400,15 @@ INSERT INTO platform.student_profile_fields(organization_id, student_case_id, st
   SELECT f.organization_id, f.student_case_id, f.student_profile_id, 'father_mobile_phone',
     platform_private.normalize_student_profile_field_value('father_mobile_phone', '996 777 302 100'), f.review_state, f.profile_revision
   FROM platform.student_profile_fields f WHERE f.student_case_id = :'n306_s1'::UUID AND f.field_key = 'mother_mobile_phone';
+-- Family D: every one of the seven also records the father's phone, so a lead on that number matches the same seven
+-- cases as the applicant D's own number does, without sharing a client with it.
+INSERT INTO platform.student_profile_fields(organization_id, student_case_id, student_profile_id, field_key, value,
+  review_state, profile_revision)
+  SELECT f.organization_id, f.student_case_id, f.student_profile_id, 'father_mobile_phone',
+    platform_private.normalize_student_profile_field_value('father_mobile_phone', '+996 770 306 450'), f.review_state, f.profile_revision
+  FROM platform.student_profile_fields f
+  WHERE f.student_case_id IN (:'n306_d1'::UUID, :'n306_d2'::UUID, :'n306_d3'::UUID, :'n306_d4'::UUID, :'n306_d5'::UUID,
+    :'n306_d6'::UUID, :'n306_d7'::UUID) AND f.field_key = 'mother_mobile_phone';
 SELECT pg_temp.n306_assert((SELECT array_agg(f.value ORDER BY f.student_case_id = :'n306_s3'::UUID, f.field_key)
     FROM platform.student_profile_fields f
     WHERE f.student_case_id IN (:'n306_s1'::UUID, :'n306_s3'::UUID) AND f.field_key IN ('father_mobile_phone', 'mother_mobile_phone'))
@@ -340,6 +428,10 @@ SELECT platform.create_manual_sales_lead(pg_temp.n306_id(1), pg_temp.n306_id(720
   'office', pg_temp.n306_id(302)) ->> 'lead_id' AS n306_l3 \gset
 SELECT platform.create_manual_sales_lead(pg_temp.n306_id(1), pg_temp.n306_id(7204), 'N306 Email Lead', NULL, 'n306-email@example.invalid',
   'office', pg_temp.n306_id(302)) ->> 'lead_id' AS n306_l4 \gset
+SELECT platform.create_manual_sales_lead(pg_temp.n306_id(1), pg_temp.n306_id(7206), 'N306 Family D Lead', '0770 306 450', NULL,
+  'office', pg_temp.n306_id(302)) ->> 'lead_id' AS n306_ld \gset
+SELECT platform.create_manual_sales_lead(pg_temp.n306_id(1), pg_temp.n306_id(7207), 'N306 Family E Lead', '0770 306 500', NULL,
+  'office', pg_temp.n306_id(302)) ->> 'lead_id' AS n306_le \gset
 RESET ROLE;
 SET LOCAL request.jwt.claims TO '{"role":"service_role"}';
 SET LOCAL ROLE service_role;
@@ -371,48 +463,73 @@ SELECT pg_temp.n306_hint(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL) AS n306_adm
 SELECT pg_temp.n306_assert(:'n306_admin_l1'
   = 'mother:N306 Waiting|father:N306 Student Six|mother:N306 Student Three|both:N306 Student One',
   'H1: the lead typed 0777 302 100 finds the +996, digits-only and 996 spellings; relations mother, father, both; waiting case first (newest), then by age: ' || :'n306_admin_l1');
+SELECT pg_temp.n306_assert(pg_temp.n306_flags(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL) = 'restricted=false more=false',
+  'H4: the Admin reads all four cases of family A: nothing restricted, nothing cut');
 -- A lead on the neighbouring number finds only its own family; the website lead the father number of family C.
 SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), :'n306_l6'::UUID, NULL) = 'mother:N306 Student Seven',
   'H1: a number one digit away matches only its own case');
 SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), :'n306_l2'::UUID, NULL) = 'father:N306 Student Thirteen',
   'H1: a website lead typed 0705302300 finds the father number stored as +996705302300');
-SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), :'n306_l3'::UUID, NULL) = '',
+SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), :'n306_l3'::UUID, NULL) = ''
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), :'n306_l3'::UUID, NULL) = 'restricted=false more=false',
   'H1: an unrelated number has no hint');
-SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), :'n306_l4'::UUID, NULL) = '',
+SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), :'n306_l4'::UUID, NULL) = ''
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), :'n306_l4'::UUID, NULL) = 'restricted=false more=false',
   'H1: a lead without a phone has no hint');
 -- The case page of the applicant who gave the mother's number as its own phone.
 SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_s5'::UUID)
-  = 'mother:N306 Waiting Too|mother:N306 Student Eleven|father:N306 Student Ten|father:N306 Student Two',
+  = 'mother:N306 Waiting Too|mother:N306 Student Eleven|father:N306 Student Ten|father:N306 Student Two'
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), NULL, :'n306_s5'::UUID) = 'restricted=false more=false',
   'H1: a case whose own phone is a parent number of family B lists the four cases of that family');
--- A case with a normal phone has no hint; the answer carries ids, names and a relation only.
-SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_s1'::UUID) = '',
+-- A case with a normal phone has no hint; the answer is three keys and the elements carry ids, names and a relation only.
+SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_s1'::UUID) = ''
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), NULL, :'n306_s1'::UUID) = 'restricted=false more=false',
   'H1: a case whose phone is nobody''s parent phone has no hint');
 SELECT pg_temp.n306_assert((SELECT bool_and(ARRAY(SELECT jsonb_object_keys(e) ORDER BY 1) = ARRAY['relation', 'studentCaseId', 'studentName'])
-    FROM jsonb_array_elements(pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL)) e)
-  AND jsonb_array_length(pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL)) = 4
+    FROM jsonb_array_elements(pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL) -> 'matches') e)
+  AND ARRAY(SELECT jsonb_object_keys(pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL)) ORDER BY 1) = ARRAY['matches', 'more', 'restricted']
+  AND jsonb_typeof(pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL) -> 'restricted') = 'boolean'
+  AND jsonb_typeof(pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL) -> 'more') = 'boolean'
+  AND jsonb_array_length(pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL) -> 'matches') = 4
   AND pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL)::TEXT !~ '(777|700|555)[ ]?302[ ]?[0-9]{3}',
-  'H1/H6: three keys per element and no phone number in the answer');
--- H3: the same person is no lookalike.
+  'H1/H6: three answer keys, three keys per element and no phone number in the answer');
+-- H3: the same person is no lookalike, and is not a hidden match either.
 SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_s4'::UUID) = ''
-  AND pg_temp.n306_hint(pg_temp.n306_id(1), :'n306_s4_lead'::UUID, NULL) = '',
+  AND pg_temp.n306_hint(pg_temp.n306_id(1), :'n306_s4_lead'::UUID, NULL) = ''
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), NULL, :'n306_s4'::UUID) = 'restricted=false more=false'
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), :'n306_s4_lead'::UUID, NULL) = 'restricted=false more=false',
   'H3: a parent phone equal to the student''s own number, from its case and from its own lead, returns nothing');
 RESET ROLE;
 
--- Sales Manager: reads the lead (it owns it), reads no case in full: nothing, and no error.
+-- Sales Manager: reads the lead (it owns it), reads no case in full and no анкета: level two only, the fact and nothing else.
 SET LOCAL request.jwt.claims TO :'n306_sales_manager';
 SELECT pg_temp.n306_assert(private.platform_can_read_canonical_lead(pg_temp.n306_id(1), :'n306_l1'::UUID)
     AND NOT private.platform_can_read_student_case(pg_temp.n306_id(1), :'n306_s1'::UUID)
     AND NOT platform_private.staff_can_access_for_actor(pg_temp.n306_id(1), 'profile.read.full', 'student_case', :'n306_s1'::UUID),
   'fixture: Sales reads its lead, not the case and not its анкета');
 SET LOCAL ROLE authenticated;
-SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL) = '',
-  'H4: the Sales Manager gets an empty answer for its own lead (no case or анкета right)');
+SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL) = ''
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL) = 'restricted=true more=false',
+  'H4: the Sales Manager gets restricted = true and no match for its own lead (no case or анкета right)');
+-- No name, case id, link or count: the Sales Manager's answer is the same bytes whether four cases (family A), one (the near
+-- miss), one more family (C, the website lead), or seven (family D) or five (family E) match.
+SELECT pg_temp.n306_assert(pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL) = '{"matches": [], "restricted": true, "more": false}'::JSONB
+  AND pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_l6'::UUID, NULL) = pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL)
+  AND pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_l2'::UUID, NULL) = pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL)
+  AND pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_ld'::UUID, NULL) = pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL)
+  AND pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_le'::UUID, NULL) = pg_temp.n306_raw(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL),
+  'H4: the restricted answer of the Sales Manager carries no name, id or count: identical for one, four, five and seven matching cases');
+-- No oracle for a number that matches nothing: the flag is false there.
+SELECT pg_temp.n306_assert(pg_temp.n306_flags(pg_temp.n306_id(1), :'n306_l3'::UUID, NULL) = 'restricted=false more=false'
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), :'n306_l4'::UUID, NULL) = 'restricted=false more=false',
+  'H4: the Sales Manager is told nothing for a lead whose number is nobody''s parent phone, or has no phone');
 SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_s5'::UUID) LIKE 'ERR 42501:%',
   'H4: the Sales Manager cannot ask about a case');
 RESET ROLE;
 
 -- The profile reader holds lead.read and profile.read.full in the whole organization but no case.read.full:
--- it reads the lead and the анкеты, not the cases, so it is shown no match (the case gate is its own, not only the анкета gate).
+-- it reads the lead and the анкеты, not the cases, so it is shown no match, only that one exists (the case gate is its own,
+-- not only the анкета gate).
 SET LOCAL request.jwt.claims TO :'n306_profile_reader';
 SELECT pg_temp.n306_assert(private.platform_can_read_canonical_lead(pg_temp.n306_id(1), :'n306_l1'::UUID)
     AND NOT private.platform_can_read_student_case(pg_temp.n306_id(1), :'n306_s1'::UUID)
@@ -420,8 +537,9 @@ SELECT pg_temp.n306_assert(private.platform_can_read_canonical_lead(pg_temp.n306
   'fixture: the profile reader reads the lead and the анкета of One, not the case');
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL) = ''
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), :'n306_l1'::UUID, NULL) = 'restricted=true more=false'
   AND pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_s5'::UUID) = 'ERR 42501:parent_phone_lookalikes_forbidden',
-  'H4: a member who reads the lead and the анкеты but not the cases gets no match, and cannot ask about a case');
+  'H4: a member who reads the lead and the анкеты but not the cases gets restricted = true and no match, and cannot ask about a case');
 RESET ROLE;
 
 -- Members who cannot read the lead (the lead is owned by the Sales department).
@@ -440,11 +558,19 @@ SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_s5
   = 'mother:N306 Student Eleven|father:N306 Student Two',
   'H4: the Manager of the department sees Eleven and Two, not Ten (department 2) and not the waiting case (анкета unreadable): ' ||
     pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_s5'::UUID));
+SELECT pg_temp.n306_assert(pg_temp.n306_flags(pg_temp.n306_id(1), NULL, :'n306_s5'::UUID) = 'restricted=true more=false',
+  'H4: and learns only that other cases match (Ten and the waiting case), no name, no count');
 RESET ROLE;
 SET LOCAL request.jwt.claims TO :'n306_a';
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_s5'::UUID) = 'mother:N306 Student Eleven',
   'H4: curator A sees only its own case Eleven among the matches: ' || pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_s5'::UUID));
+SELECT pg_temp.n306_assert(pg_temp.n306_flags(pg_temp.n306_id(1), NULL, :'n306_s5'::UUID) = 'restricted=true more=false',
+  'H4: curator A is told that other cases match');
+-- The same person is neither listed nor counted as hidden for a curator either.
+SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_s4'::UUID) = ''
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), NULL, :'n306_s4'::UUID) = 'restricted=false more=false',
+  'H3/H4: curator A on a case whose parent phone is its own student''s number: nothing, not even restricted');
 RESET ROLE;
 SELECT pg_temp.n306_assert((SELECT bool_and(pg_temp.n306_as('authenticated', v.claims, pg_temp.n306_id(1), NULL, :'n306_s5'::UUID)
       = 'ERR 42501:parent_phone_lookalikes_forbidden')
@@ -462,14 +588,16 @@ SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(2), :'n306_l1'::UUI
   'H4/H5: an Admin of organization 1 has no actor in organization 2');
 RESET ROLE;
 SELECT pg_temp.n306_assert(pg_temp.n306_as('anon', '{}', pg_temp.n306_id(1), :'n306_l1'::UUID, NULL) LIKE 'ERR 42501:%'
+  AND pg_temp.n306_as('anon', '{}', pg_temp.n306_id(1), NULL, :'n306_s5'::UUID) LIKE 'ERR 42501:%'
   AND pg_temp.n306_as('service_role', '{"role":"service_role"}', pg_temp.n306_id(1), :'n306_l1'::UUID, NULL) LIKE 'ERR 42501:%',
   'H4: anon and service_role cannot execute');
 
--- H5: the other organization's Admin sees its own matches only, and never organization 1's.
+-- H5: the other organization's Admin sees its own matches only, and never organization 1's, not even as a hidden match.
 SET LOCAL request.jwt.claims TO :'n306_org2_admin';
 SET LOCAL ROLE authenticated;
-SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(2), NULL, :'n306_o2_x'::UUID) = 'mother:N306 Other Org Child',
-  'H5: organization 2 lists its own child only, not the four of organization 1: ' ||
+SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(2), NULL, :'n306_o2_x'::UUID) = 'mother:N306 Other Org Child'
+  AND pg_temp.n306_flags(pg_temp.n306_id(2), NULL, :'n306_o2_x'::UUID) = 'restricted=false more=false',
+  'H5: organization 2 lists its own child only, not the four of organization 1, and counts none of them as hidden: ' ||
     pg_temp.n306_hint(pg_temp.n306_id(2), NULL, :'n306_o2_x'::UUID));
 SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_s5'::UUID) = 'ERR 42501:parent_phone_lookalikes_forbidden'
   AND pg_temp.n306_hint(pg_temp.n306_id(2), NULL, :'n306_s5'::UUID) = 'ERR 42501:parent_phone_lookalikes_forbidden',
@@ -477,6 +605,59 @@ SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_s5
 RESET ROLE;
 -- And organization 1's answer for the family number never names organization 2's child (checked for L1 above: four names).
 SELECT pg_temp.n306_assert(:'n306_admin_l1' NOT LIKE '%Other Org%', 'H5: organization 1''s answer has no organization 2 name');
+
+-- ---------------------------------------------------------------------------
+-- H7. The cap of five. Family D: seven cases (the father's number is the lead LD, the mother's number is the applicant D's
+-- own phone), the newest of them (D 7) under curator C of the other department. Family E: exactly five cases (the lead LE).
+-- ---------------------------------------------------------------------------
+SET LOCAL request.jwt.claims TO :'n306_admin';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n306_assert(pg_temp.n306_count(pg_temp.n306_id(1), :'n306_ld'::UUID, NULL) = '5'
+  AND pg_temp.n306_hint(pg_temp.n306_id(1), :'n306_ld'::UUID, NULL)
+    = 'father:N306 Family D 7|father:N306 Family D 6|father:N306 Family D 5|father:N306 Family D 4|father:N306 Family D 3'
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), :'n306_ld'::UUID, NULL) = 'restricted=false more=true',
+  'H7: seven cases match, the Admin reads all: exactly the five newest are listed and more = true: ' ||
+    pg_temp.n306_hint(pg_temp.n306_id(1), :'n306_ld'::UUID, NULL));
+SELECT pg_temp.n306_assert(pg_temp.n306_count(pg_temp.n306_id(1), NULL, :'n306_dapp'::UUID) = '5'
+  AND pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_dapp'::UUID)
+    = 'mother:N306 Family D 7|mother:N306 Family D 6|mother:N306 Family D 5|mother:N306 Family D 4|mother:N306 Family D 3'
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), NULL, :'n306_dapp'::UUID) = 'restricted=false more=true',
+  'H7: the same cap on the case page of the applicant whose own phone is the mother''s number');
+SELECT pg_temp.n306_assert(pg_temp.n306_count(pg_temp.n306_id(1), :'n306_le'::UUID, NULL) = '5'
+  AND pg_temp.n306_hint(pg_temp.n306_id(1), :'n306_le'::UUID, NULL)
+    = 'mother:N306 Family E 5|mother:N306 Family E 4|mother:N306 Family E 3|mother:N306 Family E 2|mother:N306 Family E 1'
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), :'n306_le'::UUID, NULL) = 'restricted=false more=false',
+  'H7: exactly five cases match: all five are listed and more = false (the cap is five, not four)');
+RESET ROLE;
+-- The Sales Manager reads none of them, so it is told neither names nor "more": the cap counts readable cases only.
+SET LOCAL request.jwt.claims TO :'n306_sales_manager';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n306_assert(pg_temp.n306_count(pg_temp.n306_id(1), :'n306_ld'::UUID, NULL) = '0'
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), :'n306_ld'::UUID, NULL) = 'restricted=true more=false'
+  AND pg_temp.n306_count(pg_temp.n306_id(1), :'n306_le'::UUID, NULL) = '0'
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), :'n306_le'::UUID, NULL) = 'restricted=true more=false',
+  'H7: the Sales Manager gets no match and more = false for seven and for five cases');
+RESET ROLE;
+-- The Manager of the Admissions department reads six of the seven (D 7 is the other department's): five listed, more = true,
+-- and restricted = true for the one it does not read.
+SET LOCAL request.jwt.claims TO :'n306_manager';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n306_assert(pg_temp.n306_count(pg_temp.n306_id(1), NULL, :'n306_dapp'::UUID) = '5'
+  AND pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_dapp'::UUID)
+    = 'mother:N306 Family D 6|mother:N306 Family D 5|mother:N306 Family D 4|mother:N306 Family D 3|mother:N306 Family D 2'
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), NULL, :'n306_dapp'::UUID) = 'restricted=true more=true',
+  'H7: the Manager reads six of seven: the five newest it reads, more = true, restricted = true for the seventh: ' ||
+    pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_dapp'::UUID));
+RESET ROLE;
+-- Curator A reads its own three (D 1, D 3, D 5): all listed, nothing cut, the rest is only "restricted".
+SET LOCAL request.jwt.claims TO :'n306_a';
+SET LOCAL ROLE authenticated;
+SELECT pg_temp.n306_assert(pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_dapp'::UUID)
+    = 'mother:N306 Family D 5|mother:N306 Family D 3|mother:N306 Family D 1'
+  AND pg_temp.n306_flags(pg_temp.n306_id(1), NULL, :'n306_dapp'::UUID) = 'restricted=true more=false',
+  'H7: curator A reads three of seven: they are listed, more = false, restricted = true: ' ||
+    pg_temp.n306_hint(pg_temp.n306_id(1), NULL, :'n306_dapp'::UUID));
+RESET ROLE;
 
 -- H6: exactly one subject; constant messages.
 SET LOCAL request.jwt.claims TO :'n306_admin';
@@ -500,8 +681,9 @@ SELECT pg_temp.n306_assert((SELECT b.clients = (SELECT count(*) FROM platform.cl
 SELECT pg_temp.n306_assert((SELECT l.client_id <> (SELECT c.canonical_client_id FROM platform.student_cases c WHERE c.id = :'n306_s1'::UUID)
     AND l.lifecycle_state = 'open' FROM platform.leads l WHERE l.id = :'n306_l1'::UUID)
   AND (SELECT count(*) = 1 FROM platform.clients WHERE organization_id = pg_temp.n306_id(1) AND normalized_phone = '0777302100')
-  AND (SELECT count(*) = 1 FROM platform.clients WHERE organization_id = pg_temp.n306_id(1) AND normalized_phone = '+996700302200'),
-  'H2: the mother''s lead keeps its own client (family A is on no client), the applicant is the one client on family B''s number');
+  AND (SELECT count(*) = 1 FROM platform.clients WHERE organization_id = pg_temp.n306_id(1) AND normalized_phone = '+996700302200')
+  AND (SELECT count(*) = 1 FROM platform.clients WHERE organization_id = pg_temp.n306_id(1) AND normalized_phone = '+996770306400'),
+  'H2: the mother''s lead keeps its own client (family A is on no client), the applicants are the one client on family B''s and family D''s numbers');
 
 -- H6: the contract of the routine.
 SELECT pg_temp.n306_assert((SELECT p.prosecdef AND p.provolatile = 's' AND p.proconfig = ARRAY['search_path=""']

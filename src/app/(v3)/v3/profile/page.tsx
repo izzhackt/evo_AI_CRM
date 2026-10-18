@@ -495,7 +495,8 @@ export default async function ProfilePart({
     now: new Date(),
   }) : null;
   // «Похоже на» (#1198, пункт 2): номер лида или дела записан как телефон родителя в анкете другого студента.
-  // Только подсказка со ссылкой, ничего не объединяется; читает и решает показать база (миграция 306).
+  // Только подсказка, ничего не объединяется; что показать именно этому сотруднику, решает база (миграция 306):
+  // читаемые дела со ссылкой, а для дела, которого он не читает (менеджер продаж), только факт совпадения.
   const lookalikeSubject: ParentPhoneSubject | null = caseParts && caseTarget ? { studentCaseId: caseTarget.studentCaseId }
     : leadParts && view?.details.routeTarget.leadId ? { leadId: view.details.routeTarget.leadId } : null;
   // Закрытый лид детальное чтение 093 не отдаёт: Lead 360 читает его из

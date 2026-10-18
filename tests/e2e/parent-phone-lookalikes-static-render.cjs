@@ -57,14 +57,25 @@ const ID = (n) => `30600000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const AIDAI = { studentCaseId: ID(1), studentName: "Айдай Условная", relation: "mother" };
 const TILEK = { studentCaseId: ID(2), studentName: "Тилек Условный", relation: "father" };
 const BOTH = { studentCaseId: ID(3), studentName: "Очень Длинное Условное Имя Студента Которое Должно Переноситься По Словам", relation: "both" };
+const FIVE = [AIDAI, TILEK, BOTH,
+  { studentCaseId: ID(4), studentName: "Бермет Условная", relation: "mother" },
+  { studentCaseId: ID(5), studentName: "Нурлан Условный", relation: "father" }];
+const available = (matches, restricted = false, more = false) => ({ status: "available", matches, restricted, more });
 
 const CASES = {
-  one: { status: "available", matches: [AIDAI] },
-  father: { status: "available", matches: [TILEK] },
-  three: { status: "available", matches: [AIDAI, TILEK, BOTH] },
-  both: { status: "available", matches: [BOTH] },
-  empty: { status: "available", matches: [] },
+  one: available([AIDAI]),
+  father: available([TILEK]),
+  three: available([AIDAI, TILEK, BOTH]),
+  both: available([BOTH]),
+  empty: available([]),
   unavailable: { status: "unavailable" },
+  // Уровень два: сотрудник читает лид или дело, но не найденное дело.
+  restrictedOnly: available([], true),
+  restrictedBeside: available([AIDAI], true),
+  // Читаемых дел больше пяти.
+  more: available(FIVE, false, true),
+  moreAndRestricted: available(FIVE, true, true),
+  exactlyFive: available(FIVE),
 };
 
 const view = (state) => createElement(ParentPhoneLookalikesView, { state });

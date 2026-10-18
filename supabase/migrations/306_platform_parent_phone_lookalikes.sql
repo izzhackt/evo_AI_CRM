@@ -1,12 +1,13 @@
 -- 306_platform_parent_phone_lookalikes: подсказка «Похоже на». Номер лида или дела
 -- записан как телефон родителя в анкете другого студента (#1198, пункт 2).
--- Номер миграции предварительный: окончательный берётся при слиянии по свежему
--- `origin/main` (последняя на момент работы 301); имя файла к номеру не привязано,
--- хук набора в `scripts/test-postgres-authorization.sh` ищет по имени.
+-- Номер 306: 302, 303 и 304 заняты открытым PR #1248, 305 занят PR #1251; номер
+-- сверяется ещё раз по свежему `origin/main` при слиянии. Хук набора в
+-- `scripts/test-postgres-authorization.sh` ищет файл по имени, а не по номеру.
 -- Контракт: docs/PLAN_CHANGES.md, запись 2026-10-18 «Телефоны: подсказка «Похоже на»»;
 -- решение владельца 18.10.2026 (вопрос 22): при совпадении с телефоном родителя
--- карточки НЕ объединять, показать сотруднику «Похоже на: …» со ссылкой для ручной
--- проверки.
+-- карточки НЕ объединять, показать сотруднику подсказку для ручной проверки.
+-- Дополнение владельца 18.10.2026 (после review): подсказку видят все, кто ведёт лид,
+-- но в два уровня и без чужих данных (см. «Ответ»).
 --
 -- Что делает: только чтение, без таблиц, колонок, журнала и триггеров.
 --  * platform.read_parent_phone_lookalikes_v1(организация, лид | дело) для
@@ -17,21 +18,33 @@
 --    ключей сопоставления (platform_private.person_phone_match_keys, тот же разбор
 --    написаний, что у «Добавить студента», импорта и приёма лидов). Ничего не
 --    объединяет, не создаёт и не меняет.
---  * Кого не показывает: само дело субъекта и дела того же клиента (это тот же
---    человек, а не «похожий»).
---  * Права. Субъект: лид читает тот, кто читает его карточку
+--  * Кого не считает совпадением: само дело субъекта и дела того же клиента (это тот
+--    же человек, а не «похожий»): они не показываются и не дают «скрытого» совпадения.
+--  * Права субъекта. Лид читает тот, кто читает его карточку
 --    (private.platform_can_read_canonical_lead), дело тот, кто читает дело
 --    (private.platform_can_read_student_case); иначе 42501 (и для чужого, и для
---    несуществующего id, без различия). Каждое найденное дело показывается, только
---    если тот же сотрудник читает его целиком (private.platform_can_read_student_case)
---    И читает его анкету (`profile.read.full` на это дело): родитель записан в анкете,
---    а право Sales («только сводка после передачи») её не включает. Дело без этих
---    прав просто не попадает в ответ, ответ не отличается от «совпадений нет».
---    Student, сессия без членства, anon и service_role получают 42501.
---  * Ответ: JSONB-массив до 5 элементов {studentCaseId, studentName, relation}, relation
---    это father | mother | both. Телефон родителя, имя родителя и сам номер в ответ не
---    попадают. Сначала дела в работе, потом по давности. Пустой массив значит, что
---    совпадений или номера нет.
+--    несуществующего id, без различия). Student, сессия без членства, anon и
+--    service_role получают 42501.
+--  * Права на найденное дело: сотрудник «читает» найденное дело, если читает его
+--    целиком (private.platform_can_read_student_case) И читает его анкету
+--    (`profile.read.full` на это дело): родитель записан в анкете.
+--  * Ответ решает база для каждого вызывающего, клиент скрытых полей не получает.
+--    JSONB-объект ровно из трёх ключей:
+--      matches    до 5 элементов {studentCaseId, studentName, relation} (relation это
+--                 father | mother | both), только найденные дела, которые сотрудник
+--                 читает; сначала дела в работе, потом по давности;
+--      restricted true, если есть хотя бы одно найденное дело, которое сотрудник НЕ
+--                 читает. Без имени, номера дела, ссылки и количества: только факт,
+--                 что совпадение есть («Номер совпадает с телефоном родителя в другом
+--                 деле»). Менеджер продаж, читающий лид, но не дело и не анкету, видит
+--                 так подсказку, не узнавая ничего о чужом студенте;
+--      more       true, если читаемых найденных дел больше пяти (показаны первые пять).
+--                 Считает только читаемые дела: скрытые на него не влияют.
+--    Телефон родителя, имя родителя и сам номер в ответ не попадают. Пустые matches и
+--    restricted = false значат, что совпадений или номера нет.
+--  * Цена: совпавшие дела перебираются в порядке ответа, права оцениваются на каждое;
+--    перебор кончается, когда найдены и скрытое дело, и шестое читаемое, либо когда
+--    совпадения кончились.
 --  * В журнал и сообщения об ошибках номера и имена не попадают: сообщения постоянные.
 --
 -- Что НЕ меняет (границы #1198): сопоставление «тот же человек» при приёме лидов,
@@ -47,11 +60,15 @@ CREATE FUNCTION platform.read_parent_phone_lookalikes_v1(
 ) RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
   actor RECORD;
+  candidate RECORD;
   subject_client UUID;
   subject_phone TEXT;
   subject_keys TEXT[];
   subject_tail TEXT;
-  result JSONB;
+  shown JSONB := '[]'::JSONB;
+  shown_count INTEGER := 0;
+  has_hidden BOOLEAN := FALSE;
+  has_more BOOLEAN := FALSE;
 BEGIN
   IF p_organization_id IS NULL OR (p_lead_id IS NULL) = (p_student_case_id IS NULL) THEN
     RAISE EXCEPTION 'parent_phone_lookalikes_invalid' USING ERRCODE = '22023';
@@ -90,18 +107,18 @@ BEGIN
     WHERE cl.organization_id = p_organization_id AND cl.id = subject_client;
   subject_keys := platform_private.person_phone_match_keys(subject_phone);
   IF cardinality(subject_keys) = 0 THEN
-    RETURN '[]'::JSONB;
+    RETURN jsonb_build_object('matches', '[]'::JSONB, 'restricted', FALSE, 'more', FALSE);
   END IF;
   -- Every spelling of one number ends in the same digits, so the last seven are a cheap necessary
   -- condition: the key expansion (about 80 microseconds a value) runs only for the few that pass it.
   subject_tail := right(regexp_replace(subject_phone, '[^0-9]', '', 'g'), 7);
 
-  SELECT COALESCE(jsonb_agg(jsonb_build_object(
-      'studentCaseId', top.case_id, 'studentName', top.student_name, 'relation', top.relation)
-      ORDER BY top.rank, top.created_at DESC, top.case_id), '[]'::JSONB)
-    INTO result
-  FROM (
-    SELECT m.* FROM (
+  -- Every case that records the number as a parent phone, in the order the answer shows it. The
+  -- caller's rights are decided per case below, so one pass yields the readable matches (first five),
+  -- the fact that some match is hidden, and the fact that more than five are readable.
+  FOR candidate IN
+    SELECT m.case_id, m.student_name, m.relation
+    FROM (
       SELECT c.id AS case_id, c.student_display_name AS student_name, c.created_at,
         CASE WHEN c.state IN ('pending', 'active') THEN 0 ELSE 1 END AS rank,
         CASE WHEN bool_or(f.field_key = 'father_mobile_phone') AND bool_or(f.field_key = 'mother_mobile_phone') THEN 'both'
@@ -119,12 +136,23 @@ BEGIN
       GROUP BY c.id, c.student_display_name, c.created_at, c.state, c.organization_id, c.canonical_client_id, c.canonical_lead_id
     ) m
     WHERE m.case_client IS DISTINCT FROM subject_client
-      AND private.platform_can_read_student_case(p_organization_id, m.case_id)
-      AND platform_private.staff_can_access_for_actor(p_organization_id, 'profile.read.full', 'student_case', m.case_id)
     ORDER BY m.rank, m.created_at DESC, m.case_id
-    LIMIT 5
-  ) top;
-  RETURN result;
+  LOOP
+    IF private.platform_can_read_student_case(p_organization_id, candidate.case_id)
+      AND platform_private.staff_can_access_for_actor(p_organization_id, 'profile.read.full', 'student_case', candidate.case_id) THEN
+      IF shown_count < 5 THEN
+        shown := shown || jsonb_build_array(jsonb_build_object(
+          'studentCaseId', candidate.case_id, 'studentName', candidate.student_name, 'relation', candidate.relation));
+        shown_count := shown_count + 1;
+      ELSE
+        has_more := TRUE;
+      END IF;
+    ELSE
+      has_hidden := TRUE;
+    END IF;
+    EXIT WHEN has_hidden AND has_more;
+  END LOOP;
+  RETURN jsonb_build_object('matches', shown, 'restricted', has_hidden, 'more', has_more);
 END
 $$;
 
@@ -133,7 +161,7 @@ REVOKE ALL ON FUNCTION platform.read_parent_phone_lookalikes_v1(UUID, UUID, UUID
 GRANT EXECUTE ON FUNCTION platform.read_parent_phone_lookalikes_v1(UUID, UUID, UUID) TO authenticated;
 
 COMMENT ON FUNCTION platform.read_parent_phone_lookalikes_v1(UUID, UUID, UUID) IS
-  'Parent-phone hint (#1198, point 2): the cases whose анкета records the phone of a lead or case as the phone of a father or mother. Read only, never merges. Subject: lead.read on the lead or case read on the case; each match only if the actor reads the case and its анкета (profile.read.full); up to 5 {studentCaseId, studentName, relation}; no phone or parent name is returned.';
+  'Parent-phone hint (#1198, point 2): the cases whose анкета records the phone of a lead or case as the phone of a father or mother. Read only, never merges. Subject: lead.read on the lead or case read on the case. Answer {matches, restricted, more}: matches are up to 5 {studentCaseId, studentName, relation} of the cases the actor reads in full with their анкета (profile.read.full); restricted is true when a match exists that the actor does not read (no name, id or count is returned for it); more is true when more than 5 readable matches exist. No phone or parent name is returned.';
 
 -- Проверка в конце: права ровно такие, как задумано, и функция не пишет.
 DO $a306_verify$

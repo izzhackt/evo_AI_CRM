@@ -12,14 +12,25 @@ import { readParentPhoneLookalikes } from "@/lib/v3/parent-phone-lookalikes-sour
 
 /**
  * Вид подсказки по уже прочитанному состоянию (без чтения: его делает страница, а статический
- * рендер и тесты подают синтетику). Пусто и «нет права» ничего не рисуют; сбой чтения говорит словами.
+ * рендер и тесты подают синтетику). Два уровня. Читаемые дела: «Похоже на: <имя>» со ссылкой. Совпадение
+ * в деле, которого сотрудник не читает: одна фраза без имени, ссылки и числа («Номер совпадает с
+ * телефоном родителя в другом деле. Уточните у руководителя поступления.»), одна и та же для одного
+ * скрытого дела и для десяти. Пусто и «нет права» ничего не рисуют; сбой чтения говорит словами.
+ * Больше пяти читаемых дел: показаны первые пять и сказано, что их больше.
  * Цвет подложки `info` означает состояние записи («похоже, это семья другого студента»), а не тревогу.
  */
 export function ParentPhoneLookalikesView({ state }: Readonly<{ state: ParentPhoneLookalikesState }>) {
   if (state.status === "unavailable") {
     return <p role="status" className="t-body-compact text-fg-2" data-testid="v3-parent-phone-lookalikes-unavailable">{WORDS.unavailable}</p>;
   }
-  if (state.matches.length === 0) return null;
+  if (state.matches.length === 0) {
+    if (!state.restricted) return null;
+    return (
+      <section aria-label={WORDS.label} data-testid="v3-parent-phone-restricted" className="rounded-xl bg-info-weak px-4 py-3">
+        <p className="t-body-compact text-fg">{WORDS.restricted}</p>
+      </section>
+    );
+  }
   return (
     <section aria-label={WORDS.label} data-testid="v3-parent-phone-lookalikes" className="rounded-xl bg-info-weak px-4 py-3">
       <div className="flex min-w-0 flex-col sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-2">
@@ -37,6 +48,8 @@ export function ParentPhoneLookalikesView({ state }: Readonly<{ state: ParentPho
           ))}
         </ul>
       </div>
+      {state.more ? <p className="mt-2 t-caption text-fg-2" data-testid="v3-parent-phone-more">{WORDS.more}</p> : null}
+      {state.restricted ? <p className="mt-2 t-body-compact text-fg" data-testid="v3-parent-phone-restricted-beside">{WORDS.restrictedBeside}</p> : null}
       <p className="mt-2 t-caption text-fg-2">{WORDS.note}</p>
     </section>
   );

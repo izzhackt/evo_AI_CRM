@@ -3885,18 +3885,22 @@ SQL
       -f /workspace/supabase/tests/platform_telephony_report.sql </dev/null
   fi
 
-  # Подсказка «Похоже на» (#1198, пункт 2; решение владельца 18.10.2026).
-  # Matched by name, not number, so a renumbering at merge keeps the hook. The
-  # suite creates cases through the real «Добавить студента» command and leads
-  # through the manual command and the website receiver, then proves the match
-  # across spellings (+996, national 0…, digits-only), the relation mother |
-  # father | both, the ordering, that the same person is no lookalike, that
-  # nothing is written or merged, the authorization matrix (the lead by who
-  # reads the lead, the case by who reads the case, each match only when the
-  # member reads the case AND its анкета; the Sales Manager, a profile-only
-  # reader, a curator of another case, the Student, no membership, anon,
-  # service_role and another organization are refused or shown nothing) and the
-  # routine's contract (one subject, constant messages, definer, read only).
+  # Подсказка «Похоже на» (#1198, пункт 2; решение владельца 18.10.2026 и его
+  # дополнение после review). Matched by name, not number (the migration is 306),
+  # so a renumbering at merge keeps the hook. The suite creates cases through the
+  # real «Добавить студента» command and leads through the manual command and the
+  # website receiver, then proves the match across spellings (+996, national 0…,
+  # digits-only), the relation mother | father | both, the ordering, that the same
+  # person is no lookalike (and not a hidden match), that nothing is written or
+  # merged, the two levels of the answer {matches, restricted, more} (the cases the
+  # caller reads in full with their анкета are listed; for every other match the
+  # answer says only restricted = true, the same bytes for one and for seven
+  # cases), the cap of five (five answers more = false, seven more = true, the cap
+  # counts readable cases only), the authorization matrix (the lead by who reads the
+  # lead, the case by who reads the case; the Sales Manager, a profile-only reader,
+  # a curator of another case, the Student, no membership, anon, service_role and
+  # another organization are refused or shown only the fact) and the routine's
+  # contract (one subject, constant messages, definer, read only).
   if [[ "$(basename "$migration")" == *_platform_parent_phone_lookalikes.sql ]]; then
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \

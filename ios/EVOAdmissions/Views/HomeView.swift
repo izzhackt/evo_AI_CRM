@@ -71,6 +71,7 @@ struct HomeView: View {
     @StateObject private var model = HomeViewModel()
     @StateObject private var admission = AdmissionHubModel()
     @StateObject private var countryTimeline = CountryTimelineModel()
+    @StateObject private var cscaCard = CSCAHomeCardModel()
     @State private var runContext: AssessmentRunContext?
     /// Путь стека «Главной»: ссылка шага «Пути поступления» добавляет в него
     /// `CSCARoute.home` (контракт docs/portal/country-timeline-contract.md §3,
@@ -93,6 +94,8 @@ struct HomeView: View {
                     admissionSection
                     timelineSection
                 }
+                // Карточка CSCA (Q16) открывает «Продолжить»; только для студента с Китаем.
+                CSCAHomeCardSection(model: cscaCard)
                 if hasTestDraft {
                     testsSection
                     learningSection
@@ -117,12 +120,17 @@ struct HomeView: View {
             .navigationTitle("tab_home")
             .portalRouteDestinations()
             // Тот же экран, что открывает строка «CSCA» во вкладке «Английский»;
-            // переходы внутри CSCA идут по `CSCARoute` в этом же стеке.
+            // переходы внутри CSCA идут по `CSCARoute` в этом же стеке. Сюда же
+            // ведут карточка CSCA («К подготовке») и ссылка шага «Пути поступления».
             .navigationDestination(for: CSCARoute.self) { route in CSCARouteView(route: route) }
             .refreshable { await refresh() }
             .task { await refresh() }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { Task { await refresh() } }
+            }
+            // Страну сменили здесь: карточка CSCA появляется или исчезает сразу.
+            .onChange(of: countryTimeline.loadedChoice) { _, choice in
+                Task { await cscaCard.update(choice: choice) }
             }
             .fullScreenCover(item: $runContext, onDismiss: {
                 Task { await model.loadTests() }
@@ -139,9 +147,16 @@ struct HomeView: View {
     }
 
     private func refresh() async {
-        async let path: () = countryTimeline.load()
+        async let path: () = loadPathAndCSCACard()
         await model.refresh(tier: session.accessTier, admission: admission)
         await path
+    }
+
+    /// Выбор страны, затем (только для Китая) главная CSCA: цепочка из двух
+    /// чтений внутри одного обновления, как у веба.
+    private func loadPathAndCSCACard() async {
+        await countryTimeline.load()
+        await cscaCard.update(choice: countryTimeline.loadedChoice)
     }
 
     // Never move an unknown/failed admission state below optional learning.

@@ -27,6 +27,13 @@ final class CountryTimelineModel: ObservableObject {
     private var failedAttempt: CountryChoiceAttempt?
     private var loading = false
 
+    /// Прочитанный выбор страны; nil, пока он не прочитан или чтение не
+    /// удалось. По нему карточка CSCA решает, показываться ли (Q16).
+    var loadedChoice: StudentCountryChoice? {
+        if case .loaded(let choice) = read { return choice }
+        return nil
+    }
+
     func load() async {
         guard !loading else { return }
         loading = true

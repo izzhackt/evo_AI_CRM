@@ -12,7 +12,13 @@ import {
   normalizePlatformAuditSearchInput,
   normalizePlatformAuditSearchResult,
 } from "../src/lib/platform-audit.ts";
-import { journalEvent, journalObject } from "../src/lib/v3/wording.ts";
+import {
+  caseDirectionChangeLine,
+  journalEvent,
+  journalEventText,
+  journalObject,
+} from "../src/lib/v3/wording.ts";
+import { parseCaseDirectionChange } from "../src/lib/platform-case-direction-change.ts";
 import {
   createPlatformAuditRepository,
   PlatformAuditRepositoryError,
@@ -75,6 +81,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["255_platform_audit_journal_allowlist_widen.sql", "journal_widen"],
   // Telephony T2: six telephony.* actions and three resource types.
   ["291_platform_telephony_rights.sql", "telephony_rights"],
+  // Смена направления дела: одно действие case.direction.set.
+  ["302_platform_case_direction_audit.sql", "case_direction_audit"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -198,6 +206,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "case.chat.post",
     "case.coverage.return",
     "case.coverage.start",
+    "case.direction.set",
     "case.handoff.acknowledge",
     "case.handoff.clarification",
     "case.handoff.decline",
@@ -514,6 +523,164 @@ test("telephony journal actions and resource types are allowlisted and worded in
   for (const action of ["telephony.receive", "telephony.project", "telephony.settle", "telephony.claim"]) {
     assert.equal(PLATFORM_AUDIT_ACTIONS.includes(action), false, `${action} must stay out of the journal`);
   }
+});
+
+// Смена направления дела (миграция «аудит направления», номер 302):
+// действие case.direction.set, которое пишет 292, видно в «Журнале действий».
+// Строка этого действия несёт одно лишнее поле case_direction ({from, to} с
+// кодами пяти направлений или null); у других действий этого поля нет.
+const DIRECTION_MIGRATION_SOURCE = readFileSync(
+  new URL("../supabase/migrations/302_platform_case_direction_audit.sql", import.meta.url),
+  "utf8",
+);
+const DIRECTION_PAGE_BASE = {
+  filters: { start_at: null, end_at: null, actions: null, resource_types: null, resource_id: null },
+  snapshot_created_at: "2026-10-17T09:00:00Z",
+  snapshot_id: SNAPSHOT_ID,
+  next_cursor_created_at: null,
+  next_cursor_id: null,
+  has_more: false,
+};
+const DIRECTION_ROW = {
+  ...SAFE_ROW,
+  action: "case.direction.set",
+  resource_type: "student_case",
+  changed_field_codes: ["record_status"],
+  case_direction: { from: "CN", to: "MY" },
+};
+const directionRows = (...rows) =>
+  normalizePlatformAuditSearchResult({ ...DIRECTION_PAGE_BASE, rows }).rows;
+const RAW_DIRECTION_CODE = /\b(?:CN|MY|EUROPE|AE|TR|IT|CZ)\b/u;
+
+test("case.direction.set is allowlisted by the server wrapper and worded in Russian", () => {
+  assert.equal(PLATFORM_AUDIT_ACTIONS.includes("case.direction.set"), true);
+  assert.equal(journalEvent("case.direction.set"), "Направление дела изменено");
+  // The field codes keep the default branch: no new code, no second dictionary.
+  const [row] = directionRows(DIRECTION_ROW);
+  assert.equal(row.recognized, true);
+  assert.deepEqual(row.changedFieldCodes, ["record_status"]);
+});
+
+test("the direction row carries the change: a change, a first set, and nothing for a code outside the five", () => {
+  const [changed, firstSet, europe] = directionRows(
+    DIRECTION_ROW,
+    { ...DIRECTION_ROW, audit_event_id: CURSOR_ID, case_direction: { from: null, to: "AE" } },
+    { ...DIRECTION_ROW, audit_event_id: SNAPSHOT_ID, case_direction: { from: "MY", to: "EUROPE" } },
+  );
+  assert.deepEqual(changed.caseDirection, { from: "CN", to: "MY" });
+  assert.deepEqual(firstSet.caseDirection, { from: null, to: "AE" });
+  assert.deepEqual(europe.caseDirection, { from: "MY", to: "EUROPE" });
+  assert.equal(changed.recognized, true);
+
+  // Unknown or malformed values do not fail the page and are not carried: the row stays, without values.
+  const unknownCases = [
+    null,
+    { from: "CN", to: "IT" },
+    { from: "CZ", to: "CN" },
+    { from: "cn", to: "MY" },
+    { from: "CN", to: "CN" },
+    { from: "CN", to: "MY", version: "1" },
+    {},
+  ];
+  for (const case_direction of unknownCases) {
+    const [row] = directionRows({ ...DIRECTION_ROW, case_direction });
+    assert.equal(row.recognized, true, JSON.stringify(case_direction));
+    assert.equal("caseDirection" in row, false, JSON.stringify(case_direction));
+  }
+});
+
+test("the extra key belongs to the direction event alone, and that event always has it", () => {
+  // The direction event without the key, a neighbour with the key, a non-object value.
+  const withoutKey = { ...DIRECTION_ROW };
+  delete withoutKey.case_direction;
+  assertContractError(() => directionRows(withoutKey));
+  assertContractError(() => directionRows({ ...SAFE_ROW, case_direction: { from: "CN", to: "MY" } }));
+  assertContractError(() => directionRows({ ...SAFE_ROW, case_direction: null }));
+  for (const case_direction of ["MY", 1, true, ["CN", "MY"]]) {
+    assertContractError(() => directionRows({ ...DIRECTION_ROW, case_direction }));
+  }
+  // Any other extra key stays a contract error, with or without case_direction.
+  assertContractError(() => directionRows({ ...DIRECTION_ROW, extra: 1 }));
+  assertContractError(() => directionRows({ ...SAFE_ROW, extra: 1 }));
+  // Rows of other actions are exactly as before: no caseDirection property.
+  const [other] = directionRows(SAFE_ROW);
+  assert.equal("caseDirection" in other, false);
+});
+
+test("the direction change reads as words from the one direction dictionary, and an unknown code is never shown", () => {
+  assert.equal(caseDirectionChangeLine({ from: "CN", to: "MY" }), "Направление: Китай → Малайзия");
+  assert.equal(caseDirectionChangeLine({ from: null, to: "MY" }), "Направление: Малайзия");
+  assert.equal(caseDirectionChangeLine({ from: "EUROPE", to: "AE" }), "Направление: Европа → ОАЭ");
+  assert.equal(caseDirectionChangeLine({ from: "TR", to: "CN" }), "Направление: Турция → Китай");
+  for (const change of [
+    undefined,
+    null,
+    "MY",
+    {},
+    { from: "CN" },
+    { from: "CN", to: "IT" },
+    { from: "CZ", to: "CN" },
+    { from: "IT", to: "IT" },
+    { from: "CN", to: "CN" },
+    { from: null, to: "unknown" },
+    { from: "CN", to: "MY", version: "1" },
+  ]) {
+    assert.equal(caseDirectionChangeLine(change), null, JSON.stringify(change));
+  }
+  // The event text: values when known, the plain action word otherwise, null for an unknown action.
+  assert.equal(journalEventText("case.direction.set", { from: "CN", to: "MY" }), "Направление: Китай → Малайзия");
+  assert.equal(journalEventText("case.direction.set", { from: "CN", to: "IT" }), "Направление дела изменено");
+  assert.equal(journalEventText("case.direction.set"), "Направление дела изменено");
+  assert.equal(journalEventText("case.curator.set", { from: "CN", to: "MY" }), journalEvent("case.curator.set"));
+  assert.equal(journalEventText("case.direction.unset", { from: "CN", to: "MY" }), null);
+  assert.equal(journalEventText(null), null);
+  for (const text of [
+    journalEventText("case.direction.set", { from: "CN", to: "IT" }),
+    journalEventText("case.direction.set", { from: "CZ", to: "IT" }),
+    journalEventText("case.direction.set", null),
+    caseDirectionChangeLine({ from: "CN", to: "MY" }),
+  ]) {
+    assert.doesNotMatch(String(text), RAW_DIRECTION_CODE);
+  }
+  assert.deepEqual(parseCaseDirectionChange({ from: null, to: "TR" }), { from: null, to: "TR" });
+  assert.equal(parseCaseDirectionChange({ from: "TR", to: "TR" }), null);
+});
+
+test("migration 302 widens only the projections: the allowlist, one key on the direction row, the history stream", () => {
+  const sql = DIRECTION_MIGRATION_SOURCE;
+  assert.match(sql, /^BEGIN;$/mu);
+  assert.match(sql, /COMMIT;\s*$/u);
+  assert.doesNotMatch(sql, /\bDROP\b|ALTER TABLE|CREATE TABLE|session_replication_role|DISABLE\s+(?:ROW LEVEL SECURITY|TRIGGER)/iu);
+  // The allowlist: rename-and-union, exactly one action.
+  assert.match(sql, /ALTER FUNCTION platform_private\.p7a_safe_audit_actions\(\)\s+RENAME TO p7a_safe_audit_actions_pre_case_direction_audit;/u);
+  assert.deepEqual(
+    wrapperSqlExtension(sql, "p7a_safe_audit_actions", "case_direction_audit"),
+    ["case.direction.set"],
+  );
+  assert.deepEqual(wrapperSqlExtension(sql, "p7a_safe_audit_resource_types", "case_direction_audit"), []);
+  // The row: wrapped, the key only for the one action, the others untouched.
+  assert.match(sql, /ALTER FUNCTION platform_private\.p7a_safe_audit_row\(platform\.audit_events\)\s+RENAME TO p7a_safe_audit_row_pre_case_direction_audit;/u);
+  assert.match(sql, /WHEN p_event\.action = 'case\.direction\.set' THEN\s+jsonb_build_object\('case_direction',/u);
+  assert.match(sql, /ELSE '\{\}'::JSONB END;/u);
+  assert.doesNotMatch(sql, /p7a_changed_field_codes_pre_case_direction/u, "the field codes are not wrapped");
+  // The helper reads only the direction key and only the five codes.
+  const helper = sql.slice(sql.indexOf("CREATE FUNCTION platform_private.case_direction_change"), sql.indexOf("$$;", sql.indexOf("CREATE FUNCTION platform_private.case_direction_change")));
+  assert.deepEqual([...new Set([...helper.matchAll(/->> '([a-z_]+)'/gu)].map((match) => match[1]))], ["admissions_direction"]);
+  assert.equal([...helper.matchAll(/'CN', 'MY', 'EUROPE', 'AE', 'TR'/gu)].length, 2);
+  // Owner-only: every new or renamed function is revoked from every API role.
+  for (const signature of [
+    "platform_private\\.case_direction_change\\(JSONB, JSONB\\)",
+    "platform_private\\.p7a_safe_audit_actions_pre_case_direction_audit\\(\\),\\s+platform_private\\.p7a_safe_audit_actions\\(\\)",
+    "platform_private\\.p7a_safe_audit_row_pre_case_direction_audit\\(platform\\.audit_events\\),\\s+platform_private\\.p7a_safe_audit_row\\(platform\\.audit_events\\)",
+  ]) {
+    assert.match(sql, new RegExp(`REVOKE ALL ON FUNCTION\\s+${signature}\\s+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;`, "u"), signature);
+  }
+  assert.doesNotMatch(sql, /GRANT /u, "no grant: the projections stay owner-only");
+  // The history: a self-verifying replacement of two pieces of the stream.
+  assert.match(sql, /\$new\$'case\.next\.action\.change','case\.direction\.set'\]::TEXT\[\]\)\$new\$/u);
+  assert.match(sql, /WHEN action = 'case\.direction\.set' THEN jsonb_build_object\('direction_change'/u);
+  assert.match(sql, /staff_student_case_activity_source_anchor_drift/u);
+  assert.match(sql, /a302_activity_anchor_drift/u);
 });
 
 test("search input canonicalizes exact allowlisted filters and stable cursor pairs", () => {

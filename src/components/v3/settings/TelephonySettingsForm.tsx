@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
 import { btnCls } from "@/components/ui";
@@ -38,7 +38,7 @@ import {
 
 const fieldCls = "h-11 min-w-0 rounded-ctl border border-control-edge bg-surface px-3 t-body text-fg placeholder:text-fg-3 hover:bg-surface-2 focus-visible:border-accent disabled:bg-surface-2 disabled:text-fg-3";
 /** Числа в строках одной ширины: подписи разной длины не сбивают сетку. */
-const NUMBER_GRID = "grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-x-4 gap-y-3";
+const NUMBER_GRID = "mt-3 grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] items-start gap-x-4 gap-y-3";
 const SAVE_IDLE = "aria-disabled:cursor-not-allowed aria-disabled:border-border aria-disabled:bg-surface-2 aria-disabled:text-fg-3 aria-disabled:shadow-none aria-disabled:hover:border-border aria-disabled:hover:bg-surface-2 aria-disabled:active:scale-100";
 
 function Row({ title, hint, children, testId }: Readonly<{ title: string; hint?: ReactNode; children: ReactNode; testId?: string }>) {
@@ -172,16 +172,20 @@ export function TelephonySettingsForm({
     }
   }
 
-  const numberField = (key: TelephonyNumberKey, extra?: string) => {
+  const numberField = (key: TelephonyNumberKey, extra?: string, tall = false) => {
     const bounds = TELEPHONY_BOUNDS[key];
     const id = `tel-${key}`;
     return (
       <div key={key}>
-        <label htmlFor={id} className="t-label text-fg-2">{TELEPHONY_NUMBER_LABEL[key]}</label>
-        <input id={id} type="number" inputMode="numeric" min={bounds.min} max={bounds.max} step={1} value={draft.numbers[key]}
-          aria-invalid={issuesFor(shown, key).length > 0 || undefined}
-          className={`${fieldCls} mt-1 block w-32 tabular-nums`} onChange={(event) => setNumber(key, event.target.value)} />
-        {extra ? <span className="mt-0.5 block t-meta text-fg-3">{extra}</span> : null}
+        {/* Подпись держит высоту двух строк и стоит у нижнего края: поля соседних ячеек начинаются на одной линии,
+            а единица («секунд», «рабочих минут») — справа от поля, а не под ним. */}
+        <label htmlFor={id} className={`flex ${tall ? "min-h-10" : "min-h-6"} items-end t-label text-fg-2`}>{TELEPHONY_NUMBER_LABEL[key]}</label>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2">
+          <input id={id} type="number" inputMode="numeric" min={bounds.min} max={bounds.max} step={1} value={draft.numbers[key]}
+            aria-invalid={issuesFor(shown, key).length > 0 || undefined}
+            className={`${fieldCls} block w-28 tabular-nums`} onChange={(event) => setNumber(key, event.target.value)} />
+          {extra ? <span className="t-meta text-fg-3">{extra}</span> : null}
+        </div>
         <FieldIssues messages={issuesFor(shown, key)} />
       </div>
     );
@@ -197,19 +201,28 @@ export function TelephonySettingsForm({
       data-dirty={dirty || undefined}
     >
       <fieldset disabled={readOnly || pending} className="@container min-w-0">
-        <Row title="Включатели" hint="Слияние кода ничего не включает: каждый включатель включается здесь, по факту проверки" testId="v3-telephony-flags">
-          <ul className="space-y-3">
+        <Row title="Включатели" hint="Пока включатель не включён здесь, сотрудникам ничего не показывается" testId="v3-telephony-flags">
+          {/* Светлая подложка формы: ручка включённого переключателя — цвета листа, иначе она сливается с тёмной дорожкой. */}
+          <ul className="space-y-3" style={{ "--switch-thumb-on": "var(--surface)" } as CSSProperties}>
             {TELEPHONY_FLAG_KEYS.map((key) => {
               const copy = TELEPHONY_FLAG_COPY[key];
               const note = flagServerNote(key, server);
               const id = `tel-flag-${key}`;
+              const on = draft.flags[key];
               return (
-                <li key={key} data-flag={key} data-on={draft.flags[key] || undefined}>
-                  <label htmlFor={id} className="flex min-h-11 items-start gap-3">
-                    <input id={id} type="checkbox" role="switch" checked={draft.flags[key]} onChange={(event) => setFlag(key, event.target.checked)}
-                      aria-describedby={`${id}-hint`} className="mt-1 size-5 shrink-0 accent-[var(--text)]" />
+                <li key={key} data-flag={key} data-on={on || undefined}>
+                  {/* Настоящий переключатель (тот же `v3-switch`, что у автоответчика): дорожка и слово «Включено»/«Выключено»,
+                      а не квадратик флажка. Нажатие на слова тоже переключает. */}
+                  <label htmlFor={id} className="flex min-h-11 cursor-pointer items-start gap-3">
+                    <button id={id} type="button" role="switch" aria-checked={on} onClick={() => setFlag(key, !on)}
+                      aria-labelledby={`${id}-title`} aria-describedby={`${id}-hint`} className="v3-switch -mt-1.5">
+                      <span className="v3-switch-track" aria-hidden="true" />
+                    </button>
                     <span className="min-w-0">
-                      <span className="block t-body text-fg">{copy.title}</span>
+                      <span className="flex flex-wrap items-baseline gap-x-2">
+                        <span id={`${id}-title`} className="t-body text-fg">{copy.title}</span>
+                        <span className={`t-meta font-medium ${on ? "text-fg" : "text-fg-3"}`} data-testid="v3-telephony-flag-state">{on ? "Включено" : "Выключено"}</span>
+                      </span>
                       <span id={`${id}-hint`} className="block t-meta text-fg-3">{copy.hint}</span>
                       {note ? <span className="mt-0.5 block t-meta text-fg-2">{note}</span> : null}
                     </span>
@@ -233,12 +246,14 @@ export function TelephonySettingsForm({
           <FieldIssues messages={issuesFor(shown, "workingDays")} />
           <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
             <div>
-              <label htmlFor="tel-work-from" className="t-label text-fg-2">С</label>
+              <label htmlFor="tel-work-from" className="flex min-h-6 items-end t-label text-fg-2">С</label>
+              {/* Системное поле времени: на телефоне — колесо выбора, на компьютере — по сегментам. Вид («18:00» или «06:00 PM»)
+                  задаёт язык устройства, а значение всегда «ЧЧ:ММ», как ждёт база; поле с цифровой клавиатурой без «:» на телефоне не годится. */}
               <input id="tel-work-from" type="time" required value={draft.workFrom} className={`${fieldCls} mt-1 block w-[8.75rem] tabular-nums`}
                 aria-invalid={issuesFor(shown, "workFrom").length > 0 || undefined} onChange={(event) => update({ workFrom: event.target.value })} />
             </div>
             <div>
-              <label htmlFor="tel-work-to" className="t-label text-fg-2">До</label>
+              <label htmlFor="tel-work-to" className="flex min-h-6 items-end t-label text-fg-2">До</label>
               <input id="tel-work-to" type="time" required value={draft.workTo} className={`${fieldCls} mt-1 block w-[8.75rem] tabular-nums`}
                 aria-invalid={issuesFor(shown, "workTo").length > 0 || undefined} onChange={(event) => update({ workTo: event.target.value })} />
             </div>
@@ -257,10 +272,10 @@ export function TelephonySettingsForm({
           </span>
           <FieldIssues messages={issuesFor(shown, "dialPrefixes")} />
           <div className={NUMBER_GRID}>
-            {numberField("limitUserDay")}
-            {numberField("limitUserGapSeconds", "секунд")}
-            {numberField("limitOrgHour")}
-            {numberField("limitOrgDay")}
+            {numberField("limitUserDay", undefined, true)}
+            {numberField("limitUserGapSeconds", "секунд", true)}
+            {numberField("limitOrgHour", undefined, true)}
+            {numberField("limitOrgDay", undefined, true)}
           </div>
         </Row>
 

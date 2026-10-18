@@ -101,7 +101,9 @@ test("V3 profile preserves strict searchable paginated Student Case discovery", 
   assert.match(directoryLinks, /case_before_id/u);
   assert.match(fallback, /admissionsDirectoryHref\(params, directory\.nextCursor, docsMode\)/u);
   // A handed-off summary opens the lead card; a full case opens its overview.
-  assert.match(fallback, /if \(row\.access === "full"\) return withDocsSection\(`\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=\$\{docsMode \? "documents" : "overview"\}`, docsMode\);/u);
+  // «EVO Docs» ведёт на вкладку «Документы» дела, кроме дела без куратора: у него вкладки нет (`caseDocumentsAwaitCurator`,
+  // срез «ссылки у pending», 17.10.2026), имя ведёт в «Обзор». В обычном списке студентов вкладка по-прежнему «Обзор».
+  assert.match(fallback, /if \(row\.access === "full"\) \{\s*const tab = docsMode && !caseDocumentsAwaitCurator\(row\.state\) \? "documents" : "overview";\s*return withDocsSection\(`\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=\$\{tab\}`, docsMode\);\s*\}/u);
   assert.match(fallback, /return row\.leadId \? `\/v3\/profile\?id=\$\{row\.leadId\}` : null;/u);
   assert.match(fallback, /data-access=\{row\.access\}/u);
   assert.match(fallback, /<caption className="sr-only">Дела студентов: \{rows\.length\} на этой странице<\/caption>/u);

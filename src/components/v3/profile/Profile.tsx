@@ -7,7 +7,7 @@ import { Pill } from "@/components/v3/Pill";
 import { TaskComposerDialog } from "@/components/v3/tasks/TaskComposerDialog";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { studentPortalProvisioningRequestId } from "@/lib/server/student-portal-command-ids";
-import { personState } from "@/lib/v3/wording";
+import { leadDisplayName, personState } from "@/lib/v3/wording";
 
 import { Documents } from "./Documents";
 import type { DocumentStateFilter } from "./documents-view";
@@ -154,7 +154,7 @@ export function Profile({
       {caseHeader ?? (
         <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h2 className="t-record-title min-w-0 text-fg">
-            {profile.person}
+            {leadDisplayName(profile.source, profile.person)}
           </h2>
           <p className="text-sm text-fg-3">{state}</p>
           {profile.financeStop ? (

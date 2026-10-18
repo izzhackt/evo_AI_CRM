@@ -4,6 +4,7 @@ import { Icon, type IconName } from "@/components/icons";
 import { todayDialLeadId, type DialOptions } from "@/lib/v3/telephony-dial";
 import { todayWhen, type TodayItem, type TodaySource } from "@/lib/v3/today-queue";
 
+import { QUEUE_META_PIECE } from "../queue/meta-piece";
 import { DialButton } from "../telephony/DialButton";
 
 /** Знак источника в колонке, где у задачи круг завершения: строка без действия на месте. */
@@ -15,12 +16,8 @@ const SOURCE_ICON: Readonly<Record<Exclude<TodaySource, "tasks">, IconName>> = {
   chats: "message-square",
 };
 
-/**
- * Часть второй строки. Разделитель «·» стоит в собственном отступе части;
- * строка сдвинута влево на этот отступ и обрезана, поэтому у части, которая
- * начинает строку (первой или перенесённой), разделитель уходит за край.
- */
-const PIECE = "relative flex min-h-6 items-center gap-x-1 ps-3 before:absolute before:start-1 before:top-0 before:flex before:h-6 before:items-center before:text-fg-2 before:content-['·']";
+/** Часть второй строки (разделитель в её отступе, перенос целиком): общая с «Заявками», `queue/meta-piece.ts`. */
+const PIECE = QUEUE_META_PIECE;
 
 /**
  * Строка «Сегодня» без действия на месте: студент, лид, заявка, переписка или

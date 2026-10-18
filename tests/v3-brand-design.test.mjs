@@ -86,10 +86,16 @@ test("directory filters reset native form state when applied URL filters change"
 
 test("sales table scroll regions contain absolutely positioned screen-reader labels", () => {
   const sales = read("src/components/v3/SalesRegisterView.tsx");
-  for (const label of ["Денежные итоги по валютам", "Записи продаж"]) {
-    const region = sales.match(new RegExp(`<div role="region" aria-label="${label}"[^>]*className="([^"]+)"`, "u"));
-    assert.ok(region, `named scroll region: ${label}`);
-    const classes = region[1].split(/\s+/u);
+  // Э4 (27.09.2026, «Отчёт продаж» без коробок): денежные итоги больше не лежат в прокручиваемой области -
+  // это выровненная таблица с подписью и заголовками столбцов, она переносится вместе со страницей.
+  // Правило прежнее для каждой оставшейся прокручиваемой области: имя, горизонтальная прокрутка и
+  // положение (`relative`), иначе абсолютно позиционированные подписи для скринридера уходят за её край.
+  assert.doesNotMatch(sales, /aria-label="Денежные итоги по валютам"/u, "the totals are no longer a scroll region");
+  assert.match(sales, /<table className="[^"]*" data-testid="sales-money-table">\s*<caption className="sr-only">Стоимость, оплачено и остаток по валютам<\/caption>/u);
+  const regions = [...sales.matchAll(/<div role="region" aria-label="([^"]+)"[^>]*className="([^"]+)"/gu)];
+  assert.ok(regions.some(([, label]) => label === "Записи продаж"), "the records table is a named scroll region");
+  for (const [, label, className] of regions) {
+    const classes = className.split(/\s+/u);
     assert.ok(classes.includes("overflow-x-auto"), `horizontal scrolling: ${label}`);
     assert.ok(classes.includes("relative"), `positioned containing block: ${label}`);
   }

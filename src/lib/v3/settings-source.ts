@@ -4,6 +4,7 @@ import { cache } from "react";
 
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import type { PlatformAuditSafeRow } from "@/lib/platform-audit";
+import type { CaseDirectionChange } from "@/lib/platform-case-direction-change";
 import { isPlatformP7AAuditEnabled } from "@/lib/platform-audit-config";
 import {
   PlatformAuditActionError,
@@ -154,6 +155,12 @@ export type JournalEventEntry = Readonly<{
    * Человекочитаемого имени объекта аудит не отдаёт вовсе.
    */
   profileHref: string | null;
+  /**
+   * Только у смены направления дела: что было и что стало (коды пяти
+   * направлений). Подпись со словами строит `journalEventText`; нет поля -
+   * действие другое либо код неизвестен.
+   */
+  directionChange?: CaseDirectionChange;
 }>;
 
 /**
@@ -336,6 +343,7 @@ export async function readJournal(
         row.resourceType === "student_case"
           ? `/v3/profile?case=${row.resourceId}`
           : null,
+      ...(row.caseDirection ? { directionChange: row.caseDirection } : {}),
     }));
   if (
     page.hasMore &&

@@ -105,8 +105,15 @@ test("monthly cash validates the period before invoking readers and accepts true
 
 test("sales record totals and plan remain independent of monthly cash availability", () => {
   const view = readFileSync(new URL("../src/components/v3/SalesRegisterView.tsx", import.meta.url), "utf8");
-  assert.match(view, /checkFinanceAccess && month && query\.archived !== "true"/);
-  assert.match(view, /workspace\.totals\.length > 0/);
+  // Э4 (27.09.2026, «Отчёт продаж» без коробок): сводка поступлений - факт месяца, а не архива записей; её не читает только
+  // страница формы «Новая продажа» (`creatingForm`). Условие по-прежнему требует право на финансы и выбранный месяц.
+  assert.match(view, /checkFinanceAccess && month && !creatingForm/);
+  // Э4: суммы записей рисует `MoneySummary` только из чтения отчёта (`summary` по всем строкам или `workspace.totals` сервера);
+  // сводка поступлений в её свойствах и теле не участвует, поэтому недоступность кассы не меняет ни суммы, ни план.
+  assert.match(view, /: workspace\.totals\.map\(\(line\) => \(\{ currency: line\.currency, cost: line\.costMinor, paid: line\.paidMinor, rest: null \}\)\)/);
+  const moneySummary = view.slice(view.indexOf("function MoneySummary("), view.indexOf("function ", view.indexOf("function MoneySummary(") + 10));
+  assert.ok(moneySummary.length > 500, "MoneySummary body found");
+  assert.doesNotMatch(moneySummary, /\bcash\b/, "the record totals never read the monthly cash summary");
   assert.match(view, /cash && cash\.status !== "not_allowed" && month/);
   assert.match(view, /cash\.status === "unavailable"/);
   assert.doesNotMatch(view, /canReadFinance = cash/);

@@ -124,13 +124,46 @@ test("switched off: the section says «Выключено» and shows the four b
   assert.match(markup, /data-testid="v3-telephony-off"/u);
   assert.match(flat(markup), /Выключено: ни один включатель не включён, сотрудникам телефония ничего не показывает/u);
   const lineIds = [...markup.matchAll(/data-line="([a-z_]+)"/gu)].map((match) => match[1]);
-  assert.deepEqual(lineIds, ["intake", "crm_key", "pbx_key", "pbx_link", "last_event", "reconcile", "directory", "evidence", "divergence", "record", "backfill", "automation"]);
+  // The line that needs attention comes first, the rest follow in their usual order (and are folded away).
+  assert.deepEqual(lineIds, ["directory", "intake", "crm_key", "pbx_key", "pbx_link", "last_event", "reconcile", "evidence", "divergence", "record", "backfill", "automation"]);
+  assert.match(flat(markup), /Состояние Требует внимания: 1 из 12/u, "one sentence says how many lines need a look");
+  assert.match(markup, /<details class="group mt-2" data-testid="v3-telephony-status-rest"/u, "the lines that are fine or off are folded");
+  assert.match(flat(markup), /Остальные строки: 11/u);
+  assert.ok(markup.indexOf('data-line="directory"') < markup.indexOf('data-testid="v3-telephony-status-rest"'), "the attention line stands above the fold");
+  assert.ok(markup.indexOf('data-line="intake"') > markup.indexOf('data-testid="v3-telephony-status-rest"'), "the quiet lines are inside it");
+  assert.match(flat(markup), /Звонки этих пользователей ВАТС сохраняются без сотрудника\./u, "what does not work because of the line stands under it");
   assert.match(markup, /data-line="intake" data-tone="off"/u);
   assert.match(flat(markup), /Приём событий на сервере.{0,40}выключен/u);
   assert.match(flat(markup), /Меняет технический специалист на сервере; в CRM это не переключается/u);
   assert.match(markup, /data-extensions="3" data-readonly="false"/u);
   assert.match(markup, /data-form-version="3" data-readonly="false"/u);
   assert.doesNotMatch(flat(markup), /работает/u);
+});
+
+test("the verdict counts the line of an issue: intake open and the PBX key missing is not «Замечаний нет»", () => {
+  const { TelephonySection } = sectionModule();
+  const noUnmapped = { directory: { active: 3, inactive: 1, unmapped: 0, last_seen_at: null } };
+  const view = (server, input = {}) => render(React.createElement(TelephonySection, {
+    read: { status: "ready", overview: overview({ health: noUnmapped, ...input }), server, inboundUrl: INBOUND }, readOnly: false, now: NOW,
+  }));
+  const noPbxKey = view({ ...SERVER_ON, pbx: "not_configured" });
+  assert.deepEqual(telephonyHealth.telephonyIssues({ ...SERVER_ON, pbx: "not_configured" }, overview({ health: noUnmapped }), NOW).map((issue) => issue.id), ["pbx_key"],
+    "the same state is an issue in «Интеграции»");
+  assert.match(flat(noPbxKey), /Состояние Требует внимания: 1 из 12/u);
+  assert.doesNotMatch(flat(noPbxKey), /Замечаний нет/u);
+  assert.match(noPbxKey, /data-line="pbx_key" data-tone="warn"/u);
+  // The line and its hand-off stand above the fold, not in the folded list.
+  assert.ok(noPbxKey.indexOf('data-line="pbx_key"') < noPbxKey.indexOf('data-testid="v3-telephony-status-rest"'));
+  assert.match(flat(noPbxKey), /Сверка с историей ВАТС, список пользователей и звонок из CRM выключены\./u);
+  assert.match(noPbxKey, /data-testid="v3-telephony-handoff">Передать техническому специалисту: внести ключ ВАТС на сервер</u);
+  // A state with nothing to look at still says so.
+  const quiet = view(SERVER_ON);
+  assert.match(flat(quiet), /Состояние Замечаний нет/u);
+  assert.doesNotMatch(quiet, /v3-telephony-handoff/u);
+  // Intake off: no such issue, the key line is quiet (the intake line is the one to look at only if a switch is on).
+  const off = view({ ...SERVER_OFF });
+  assert.match(flat(off), /Состояние Замечаний нет/u);
+  assert.match(off, /data-line="pbx_key" data-tone="off"/u);
 });
 
 test("when something is on the «Выключено» line disappears, and a preview passes read-only down", () => {
@@ -184,19 +217,27 @@ test("the mapping list: one row per PBX user, the state in words, a choice of st
   assert.match(markup, /<span data-chip="warn">Не сопоставлен<\/span>/u);
   assert.match(markup, /<span data-chip="neutral">Выключен в ВАТС<\/span>/u);
   assert.match(text, /внутр\. 901 · логин u901/u);
-  assert.match(text, /Сотрудник: Staff A/u);
+  assert.match(text, /Сотрудник: Staff A Изменить/u, "a mapped row says who and offers «Изменить» instead of a list");
   assert.match(text, /Звонков без сотрудника: 3\. Они сотруднику не переносятся/u);
   // Staff A is taken by u901: the other rows list them as taken and disabled; the owner row does not.
   const rows = markup.split('data-testid="v3-telephony-extension"').slice(1);
   assert.match(rows[1], /<option value="20000000-0000-4000-8000-000000000002" disabled="">Staff A · уже сопоставлен<\/option>/u);
-  assert.match(rows[0], /<option value="20000000-0000-4000-8000-000000000002" selected="">Staff A<\/option>/u);
+  assert.doesNotMatch(rows[0], /<select/u, "a mapped row has no list until «Изменить» is pressed");
+  assert.match(rows[0], /data-testid="v3-telephony-extension-edit">Изменить<\/button>/u);
+  // The button repeats in every row: its name starts with the visible word and says whose mapping it is (label in name).
+  assert.match(rows[0], /<button [^>]*aria-label="Изменить сопоставление: PBX user 1"[^>]*>Изменить<\/button>/u);
+  // The same name on both sides is not repeated, and the button then reads in full — still containing its own aria-label start.
+  const same = overview({ extensions: [{ ...extensions[0], name: "Staff A" }] });
+  const sameRow = render(React.createElement(TelephonyExtensions, { extensions: same.extensions, staff, readOnly: false }));
+  assert.doesNotMatch(flat(sameRow), /Сотрудник: Staff A/u);
+  assert.match(sameRow, /<button [^>]*aria-label="Изменить сопоставление: Staff A"[^>]*>Изменить сопоставление<\/button>/u);
   // The switched-off, unmapped PBX user has nothing to map: no controls, one sentence; the others have a choice.
   assert.doesNotMatch(rows[2], /<select|<button/u);
   assert.match(flat(rows[2]), /Пользователь выключен в ВАТС: сопоставлять нечего\./u);
   assert.match(rows[1], /<select/u);
   assert.doesNotMatch(rows[1], /<select[^>]* disabled=""/u);
-  // The change is a request, not a save: the button is disabled until the choice differs.
-  assert.match(rows[1], /<button type="button" class="queue-secondary" disabled="">Сопоставить…<\/button>/u);
+  // The change is a request, not a save: «Сопоставить…» appears only when the choice differs — not as a grey dead button on every row.
+  assert.doesNotMatch(rows[1], /Сопоставить…/u);
   assert.doesNotMatch(markup, /data-testid="v3-telephony-extension-confirm"/u);
 });
 
@@ -208,6 +249,11 @@ test("the mapping list: empty directory and a preview", () => {
   const { extensions, staff } = overview();
   const preview = render(React.createElement(TelephonyExtensions, { extensions, staff, readOnly: true }));
   assert.doesNotMatch(preview, /<select|<button/u, "a preview shows the list and changes nothing");
+  // A read-only mapped row whose employee has the same name as the PBX user has nothing to say or press: no empty 44 px line.
+  const quiet = overview({ extensions: [{ ...extensions[0], name: "Staff A" }] });
+  const quietRow = render(React.createElement(TelephonyExtensions, { extensions: quiet.extensions, staff, readOnly: true }));
+  assert.doesNotMatch(quietRow, /<p class="mt-1 flex min-h-11/u, "no empty line under a read-only mapped row");
+  assert.match(preview, /<p class="mt-1 flex min-h-11[^"]*">[^]*?Сотрудник: <span class="text-fg">Staff A<\/span>/u, "a read-only row with a different name still says who");
 });
 
 test("the mapping client confirms against what the person saw and sends only ids", () => {
@@ -220,9 +266,17 @@ test("the mapping client confirms against what the person saw and sends only ids
   assert.match(code, /QUEUE_CONFIRM/u, "the confirm button is the dark neutral one, not the page's red");
   assert.match(code, /Уже сохранённые звонки не меняются/u);
   // An unknown outcome keeps the request id so a retry is the same request; a definite refusal draws a new one.
-  assert.match(code, /setRequestId\(null\);\s*setConfirming\(false\);\s*setMessage\(\{ tone: "ok"/u);
+  assert.match(code, /setRequestId\(null\);\s*setConfirming\(false\);\s*setEditing\(false\);\s*setMessage\(\{ tone: "ok"/u);
+  assert.match(code, /confirming \|\| !changed \? null/u, "the request button is there only for a changed choice");
   assert.match(code, /Результат неизвестен: повтор уйдёт с тем же id/u);
   assert.match(code, /router\.refresh\(\)/u);
+  // Keyboard: «Изменить», «Сопоставить…», «Отмена» and the save each remove the pressed control; focus goes to a named target, never <body>.
+  assert.match(code, /type Refocus = "select" \| "confirm" \| "settle" \| HTMLElement;/u);
+  assert.match(code, /want\("select"\); setEditing\(true\);/u, "«Изменить» -> the list");
+  assert.match(code, /want\("confirm"\); setConfirming\(true\);/u, "«Сопоставить…» -> the confirmation");
+  assert.equal((code.match(/want\("settle"\)/gu) ?? []).length, 4, "both «Отмена» buttons and both outcomes of a save settle on «Изменить» or the list");
+  assert.match(code, /expected\.current = choice \|\| null;/u, "after a save the page refreshes later: focus is set again once the mapping arrives");
+  assert.match(code, /ref=\{confirmRef\} tabIndex=\{-1\}/u);
 });
 
 /* ---------------------------------------------------------- настройки */
@@ -236,12 +290,17 @@ test("the settings form: seven switches with their words, hours, days, dial, cei
     assert.match(markup, new RegExp(`id="tel-flag-${key}"[^>]*role="switch"`, "u"), key);
   }
   for (const key of ["projectionEnabled", "uiEnabled", "dialEnabled", "missedTaskEnabled", "unknownLeadEnabled", "backfillEnabled", "outboundPaused"]) {
-    assert.ok(!markup.match(new RegExp(`<input id="tel-flag-${key}"[^>]*>`, "u"))[0].includes('checked=""'), `${key} ships off`);
+    const toggle = markup.match(new RegExp(`<button id="tel-flag-${key}"[^>]*>`, "u"))[0];
+    assert.match(toggle, /aria-checked="false"/u, `${key} ships off`);
+    assert.match(toggle, /class="v3-switch/u, `${key} is a real switch (track and thumb), not a checkbox`);
   }
+  assert.doesNotMatch(markup, /<input id="tel-flag-/u, "no checkbox look for a switch");
+  assert.equal([...markup.matchAll(/data-testid="v3-telephony-flag-state">Выключено</gu)].length, 7, "each switch says its state in a word");
   for (const phrase of ["Разбор звонков", "Звонки видны сотрудникам", "Кнопка «Позвонить» и результат звонка", "Задачи «Перезвонить» и «Недозвон»", "Лиды «Звонок» по неизвестным номерам", "Первичный импорт за год", "Пауза исходящих запросов к ВАТС"]) {
     assert.ok(text.includes(phrase), phrase);
   }
-  assert.match(text, /Слияние кода ничего не включает/u);
+  assert.match(text, /Пока включатель не включён здесь, сотрудникам ничего не показывается/u);
+  assert.doesNotMatch(text, /Слияние кода/u, "no build-process talk in the screen");
   // Days and times.
   const tag = (id) => markup.match(new RegExp(`<input id="${id}"[^>]*>`, "u"))?.[0] ?? "";
   for (const day of ["понедельник", "суббота", "воскресенье"]) assert.match(markup, new RegExp(`aria-label="${day}"`, "u"));
@@ -249,8 +308,11 @@ test("the settings form: seven switches with their words, hours, days, dial, cei
   assert.equal(days.length, 7);
   assert.equal(days.filter((day) => day.includes('checked=""')).length, 6, "Monday to Saturday are the default working days");
   assert.ok(!days.find((day) => day.includes('aria-label="воскресенье"')).includes('checked=""'));
+  // Native time fields: a phone's numeric keypad has no «:» and a text field would lock touch users out; the value is always HH:MM.
   for (const piece of ['type="time"', 'value="10:00"']) assert.ok(tag("tel-work-from").includes(piece), piece);
   for (const piece of ['type="time"', 'value="20:00"']) assert.ok(tag("tel-work-to").includes(piece), piece);
+  for (const id of ["tel-work-from", "tel-work-to"]) assert.doesNotMatch(tag(id), /inputMode|maxLength|type="text"/u, `${id} is not a text field`);
+  assert.doesNotMatch(text, /24-часовом виде/u, "no claim about the 24-hour display: the device language decides it");
   // Numbers carry the table's bounds.
   for (const [id, min, max, value] of [["callbackWorkMinutes", 1, 480, 15], ["limitUserDay", 1, 1000, 150], ["limitUserGapSeconds", 1, 3600, 5],
     ["limitOrgHour", 1, 1000, 60], ["limitOrgDay", 1, 5000, 400], ["ceilingLeadsHour", 1, 100, 10], ["ceilingLeadsDay", 1, 400, 40],

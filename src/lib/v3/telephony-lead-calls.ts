@@ -316,17 +316,27 @@ export type CallRecordingItem =
 
 /**
  * Записи одного звонка словами: у доступной записи, которую сотрудник вправе слушать, — «Слушать»
- * (у звонка из нескольких ног с записями — «Слушать запись 1», «Слушать запись 2»); у доступной,
- * которую он слушать не вправе, — «Запись доступна руководителю»; у «временно недоступной» и
- * «удалённой по сроку» — слова состояния. Ничего не выдумывается: нет записи — нет строки.
+ * с контекстом звонка («Слушать · Менеджер Первый, 2 мин 20 с»: кто говорил и сколько); у звонка из нескольких
+ * ног с записями — «Слушать запись 1 из 2», «Слушать запись 2 из 2» (какая нога чья, база не говорит,
+ * поэтому имени в подписи нет); у доступной, которую он слушать не вправе, — «Запись доступна
+ * руководителю»; у «временно недоступной» и «удалённой по сроку» — слова состояния. Ничего не
+ * выдумывается: нет записи — нет строки.
  */
-export function callRecordingItems(recordings: LeadCallRecordings): readonly CallRecordingItem[] {
+export function callRecordingItems(
+  recordings: LeadCallRecordings,
+  context: Readonly<{ who?: string | null; talk?: string | null }> = {},
+): readonly CallRecordingItem[] {
   const many = recordings.legs.length > 1;
+  const about = [context.who, context.talk].filter((part): part is string => Boolean(part)).join(", ");
   return recordings.legs.map((leg, index): CallRecordingItem => {
     const name = many ? `Запись ${index + 1}` : "Запись";
     if (leg.state === "available") {
       return recordings.canListen
-        ? { kind: "player", legId: leg.legId, label: many ? `Слушать запись ${index + 1}` : "Слушать" }
+        ? {
+            kind: "player",
+            legId: leg.legId,
+            label: many ? `Слушать запись ${index + 1} из ${recordings.legs.length}` : about ? `Слушать · ${about}` : "Слушать",
+          }
         : { kind: "text", text: `${name} доступна руководителю` };
     }
     return { kind: "text", text: leg.state === "unavailable" ? `${name} временно недоступна` : `${name} удалена по сроку хранения` };
@@ -338,6 +348,22 @@ export function callRecordingItems(recordings: LeadCallRecordings): readonly Cal
 /** «Входящий звонок» / «Исходящий звонок». */
 export function callTitle(call: Pick<LeadCall, "direction">): string {
   return call.direction === "in" ? "Входящий звонок" : "Исходящий звонок";
+}
+
+/**
+ * Исход звонка одной строкой для очереди «Заявки → Звонки»: у входящего «Пропущен», «Без ответа»,
+ * «Ответил Менеджер Первый · 1 мин 35 с»; у исходящего — со стороны сотрудника: «Дозвонились · 1 мин 35 с»,
+ * «Не ответили», «Занято». Тот же словарь, что у строки ленты (`callOutcomeText`); время разговора —
+ * только когда сверка его принесла. Исходящий отвеченный не «ответил менеджер»: менеджер сам звонил.
+ */
+export function callRequestOutcome(call: LeadCall): string {
+  if (call.outcome === "answered") {
+    const who = call.direction === "out" ? "Дозвонились" : call.managerName ? `Ответил ${call.managerName}` : "Разговор";
+    // «·» с неразрывными пробелами по обе стороны: на узкой строке он не остаётся висеть в конце или в начале строки.
+    return call.talkSeconds === null ? who : `${who}\u00A0·\u00A0${callDuration(call.talkSeconds)}`;
+  }
+  const word = callOutcomeText(call);
+  return `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
 }
 
 /**
@@ -378,13 +404,16 @@ export function callOutcomeText(call: Pick<LeadCall, "direction" | "state" | "ou
   }
 }
 
+/** Слова, пока сверка не принесла время разговора: не ноль и не длительность вебхука с ожиданием. */
+export const CALL_TALK_PENDING = "время уточняется";
+
 /**
  * Время разговора у отвеченного звонка: «2 мин 05 с», а пока сверка его не
- * принесла, — «—» (не ноль и не длительность вебхука с ожиданием). У неотвеченного — null.
+ * принесла, — «время уточняется». У неотвеченного — null.
  */
 export function callTalkText(call: Pick<LeadCall, "outcome" | "talkSeconds">): string | null {
   if (call.outcome !== "answered") return null;
-  return call.talkSeconds === null ? "—" : callDuration(call.talkSeconds);
+  return call.talkSeconds === null ? CALL_TALK_PENDING : callDuration(call.talkSeconds);
 }
 
 /** Запись — только состояние словами (так лента выглядит, пока записи не прочитаны; плеер — `callRecordingItems`). */
@@ -405,22 +434,35 @@ export function callPeopleText(call: Pick<LeadCall, "managerName" | "participant
   return names.length > 0 ? `вызывали: ${names.join(", ")}` : null;
 }
 
+/**
+ * Три нажатия. «Дозвонился» верно только для звонка, который набрали мы; клиент, позвонивший
+ * сам, — «Поговорили». «Перезвонить» без дня — «Перезвонить позже», с днём — «Перезвонить 19.10».
+ */
 export const CALL_PRESS_WORDS: Readonly<Record<LeadCallPress, string>> = Object.freeze({
   reached: "Дозвонился",
-  callback: "Перезвонить",
+  callback: "Перезвонить позже",
   not_interested: "Не интересно",
 });
 
+/** Слова трёх нажатий для звонка этого направления (без направления — как у исходящего). */
+export function callPressWords(direction: LeadCallDirection | null = null): Readonly<Record<LeadCallPress, string>> {
+  return direction === "in" ? Object.freeze({ ...CALL_PRESS_WORDS, reached: "Поговорили" }) : CALL_PRESS_WORDS;
+}
+
 /**
- * Результат словами: «Дозвонился», «Перезвонить 18.10», «Не интересно», «Недозвон».
+ * Результат словами: «Дозвонился» / «Поговорили», «Перезвонить 18.10», «Не интересно», «Недозвон».
  * День формирует вызывающий (`leadDay` ленты); null — результата нет.
  */
-export function callResultText(call: Pick<LeadCall, "resultCode" | "callbackOn">, formatDay: (day: string) => string): string | null {
+export function callResultText(
+  call: Pick<LeadCall, "resultCode" | "callbackOn"> & Partial<Pick<LeadCall, "direction">>,
+  formatDay: (day: string) => string,
+): string | null {
+  const words = callPressWords(call.direction ?? null);
   switch (call.resultCode) {
     case null: return null;
-    case "reached": return CALL_PRESS_WORDS.reached;
-    case "callback": return call.callbackOn ? `${CALL_PRESS_WORDS.callback} ${formatDay(call.callbackOn)}` : CALL_PRESS_WORDS.callback;
-    case "not_interested": return CALL_PRESS_WORDS.not_interested;
+    case "reached": return words.reached;
+    case "callback": return call.callbackOn ? `Перезвонить ${formatDay(call.callbackOn)}` : words.callback;
+    case "not_interested": return words.not_interested;
     case "no_answer": return "Недозвон";
   }
 }

@@ -196,6 +196,24 @@ test("leads and requests: working stages only, the board's due words, unowned re
   assert.equal(todayRequestItems([lead(13, { stage: "new", owner: null, age: null })])[0].waitingDays, null);
 });
 
+test("an unknown-number lead is «Номер …» in Today as in «Заявки»: the word «звонок» is the source in the reason, not a second name", () => {
+  const caller = (n, fields) => lead(n, { stage: "new", owner: null, name: "Звонок +996 ••• 00 02 03", ...fields });
+  const requests = todayRequestItems([
+    caller(14, { source: "phone_call" }),
+    caller(15, { source: "phone_call", name: "Звонок ••••4521" }),
+    caller(16, { source: "phone_call", name: "Звонок родителей Айгерим" }),
+    caller(17, { source: "website" }),
+  ]);
+  assert.deepEqual(requests.map((item) => [item.who.name, item.reason]), [
+    ["Номер +996 ••• 00 02 03", "нет ответственного · звонок"],
+    ["Номер ••••4521", "нет ответственного · звонок"],
+    ["Звонок родителей Айгерим", "нет ответственного · звонок"],
+    ["Звонок +996 ••• 00 02 03", "нет ответственного · сайт"],
+  ]);
+  const mine = todayLeadItems([lead(18, { source: "phone_call", name: "Звонок +996 ••• 00 02 04", action: "Перезвонить", due: "today", dueDate: TODAY })], TODAY);
+  assert.equal(mine[0].who.name, "Номер +996 ••• 00 02 04");
+});
+
 test("chats: the «Нужен ответ» state of the read, waiting since the last message", () => {
   const items = todayChatItems([thread(1, { at: "2026-09-22T08:30:00.000Z" }), thread(2, { state: "awaiting_student" })]);
   assert.equal(items.length, 1);

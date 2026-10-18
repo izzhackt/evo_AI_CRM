@@ -702,9 +702,12 @@ test("application countries are restricted to the exact six-country allowlist", 
     "IT",
     "CZ",
   ]);
+  // «diploma» - самостоятельная степень (решение #946, 21.09.2026: «Keep diploma as its own level»;
+  // каталог 151/283 тоже различает её). Список степеней - все семь, в порядке PLATFORM_APPLICATION_DEGREES.
   assert.deepEqual(platformApplicationDegreeEditOptions("doctorate"), [
     "foundation",
     "language",
+    "diploma",
     "bachelor",
     "master",
     "phd",

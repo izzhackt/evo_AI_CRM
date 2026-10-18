@@ -364,7 +364,7 @@ export function Inbox({
           data-testid="v3-inbox-thread"
           data-conversation-id={open.id}
         >
-          <header className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2.5 @2xl:px-4">
+          <header className="flex shrink-0 items-start gap-2 border-b border-border px-3 py-2.5 @2xl:px-4">
             <Link
               href={view.queueCurrentHref}
               aria-label="Назад к списку диалогов"
@@ -372,7 +372,9 @@ export function Inbox({
             >
               <Icon name="arrow-left" size={20} />
             </Link>
-            <div className="min-w-0 flex-1">
+            {/* Шапка выровнена по верху: первая строка имени стоит на одной линии с центром кнопок 44 px (`pt-2.5`),
+                а не разъезжается по высоте, когда под именем чипы, номер и слова о канале. */}
+            <div className="min-w-0 flex-1 pt-2.5">
               {/* Имя не сжимается первым: при нехватке ширины чипы
                   переносятся на свою строку, а имя остаётся целым. */}
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

@@ -33,8 +33,12 @@
 --       platform.create_sales_report_student_case_v1 - дело студента на проданном лиде отчёта
 --                                                       (281: та же нагрузка и те же проверки
 --                                                       содержания, но клиент и лид - данные).
---  g) «Продажа» без отказа: staff_sales_count_v1 (247), marketing_cohort и marketing_overview_v1
---     (265) получают условие «и без отметки отказа» самопроверяемой заменой куска.
+--  g) «Продажа» без отказа: staff_sales_count_v1 (247), current_sales_funnel (247, число «Продажи»
+--     воронки), marketing_cohort и marketing_overview_v1 (265) получают условие «и без отметки
+--     отказа» самопроверяемой заменой куска. Не меняются сознательно: полоса «Передача» Lead 360
+--     (staff_lead_handoff_strip_v2 показывает запись как есть, без ключа отказа), «Оплатили» в
+--     marketing_cohort (деньги, полученные от ушедшего человека, остались полученными) и
+--     refresh переноса 304 (отметка вручную закрывает строку для refresh, как и любая правка).
 BEGIN;
 
 -- ---------------------------------------------------------------------------
@@ -51,7 +55,8 @@ BEGIN
     ('platform.link_sales_record_lead_v1(uuid,uuid,bigint,uuid,uuid)', '65d87280f3f7f9c3c2ea7d5f96be5305'),
     ('platform.staff_sales_count_v1(uuid,date,date)', '337764b28cf8ed13103c04847726f827'),
     ('platform_private.marketing_cohort(uuid,date,date)', '2d1ffe23dc5f15ffc2563fef6ea1c192'),
-    ('platform.marketing_overview_v1(date,date)', '3c83f3ebb1020d086424f44d298fa817')
+    ('platform.marketing_overview_v1(date,date)', '3c83f3ebb1020d086424f44d298fa817'),
+    ('platform.current_sales_funnel(uuid)', 'a6bccb0ed01aa7df78c3e73883a15d14')
   ) AS a(signature, expected)
   LOOP
     IF (SELECT md5(p.prosrc) FROM pg_catalog.pg_proc p WHERE p.oid = anchor.signature::regprocedure)
@@ -727,7 +732,8 @@ BEGIN
   END IF;
   client_id_value := client_row.id;
   lead_id_value := lead_row.id;
-  -- A case of this lead, or an open case of the same person: nothing is created, the report says where it is.
+  -- A case of this lead, or an open case of the same person: nothing is created, the report says where it
+  -- is (below, once the payload has been read: a malformed payload is refused even then).
   SELECT sc.id INTO existing_case_id
   FROM platform.student_cases sc
   WHERE sc.organization_id = p_organization_id
@@ -737,11 +743,6 @@ BEGIN
           OR sc.canonical_lead_id IN (SELECT l.id FROM platform.leads l
             WHERE l.organization_id = p_organization_id AND l.client_id = client_id_value))))
   ORDER BY (sc.canonical_lead_id = lead_id_value) DESC, sc.created_at, sc.id LIMIT 1;
-  IF existing_case_id IS NOT NULL THEN
-    RETURN jsonb_build_object('organization_id', p_organization_id, 'status', 'case_exists',
-      'student_case_id', existing_case_id, 'lead_id', lead_id_value, 'client_id', client_id_value,
-      'import_source', p_import_source, 'external_ref', p_external_ref, 'replayed', FALSE);
-  END IF;
   -- The client is shared when it has other leads: 287 then leaves its contacts alone.
   client_reused := EXISTS (SELECT 1 FROM platform.leads l
     WHERE l.organization_id = p_organization_id AND l.client_id = client_id_value AND l.id <> lead_id_value);
@@ -901,6 +902,12 @@ BEGIN
   END LOOP;
   IF birth_date IS NOT NULL THEN
     profile_values := profile_values || jsonb_build_array(jsonb_build_object('key', 'date_of_birth', 'value', NULL));
+  END IF;
+
+  IF existing_case_id IS NOT NULL THEN
+    RETURN jsonb_build_object('organization_id', p_organization_id, 'status', 'case_exists',
+      'student_case_id', existing_case_id, 'lead_id', lead_id_value, 'client_id', client_id_value,
+      'import_source', p_import_source, 'external_ref', p_external_ref, 'replayed', FALSE);
   END IF;
 
   -- ---- scoped authority ------------------------------------------------------------
@@ -1095,6 +1102,10 @@ SELECT pg_temp.a307_replace('platform_private.marketing_cohort(uuid,date,date)',
 SELECT pg_temp.a307_replace('platform_private.marketing_cohort(uuid,date,date)',
   $old$AND NOT r.archived AND r.linked_lead_id IN (SELECT cc.id FROM cohort cc)$old$,
   $new$AND NOT r.archived AND r.withdrawal_kind IS NULL AND r.linked_lead_id IN (SELECT cc.id FROM cohort cc)$new$, 1);
+-- current_sales_funnel: the number «Продажи» of the funnel counts the same records (247 d), not refused.
+SELECT pg_temp.a307_replace('platform.current_sales_funnel(uuid)',
+  $old$r.source_kind = 'pipeline' AND NOT r.archived$old$,
+  $new$r.source_kind = 'pipeline' AND NOT r.archived AND r.withdrawal_kind IS NULL$new$, 1);
 -- marketing_overview_v1: the sales of the period it reconciles with staff_sales_count_v1.
 SELECT pg_temp.a307_replace('platform.marketing_overview_v1(date,date)',
   $old$WHERE r.organization_id=actor.organization_id AND NOT r.archived$old$,
@@ -1194,7 +1205,9 @@ BEGIN
     OR (SELECT prosrc FROM pg_catalog.pg_proc WHERE oid = 'platform_private.marketing_cohort(uuid,date,date)'::regprocedure)
       NOT LIKE '%NOT r.archived AND r.withdrawal_kind IS NULL AND r.linked_lead_id IN%'
     OR (SELECT prosrc FROM pg_catalog.pg_proc WHERE oid = 'platform.marketing_overview_v1(date,date)'::regprocedure)
-      NOT LIKE '%NOT r.archived AND r.withdrawal_kind IS NULL%' THEN
+      NOT LIKE '%NOT r.archived AND r.withdrawal_kind IS NULL%'
+    OR (SELECT prosrc FROM pg_catalog.pg_proc WHERE oid = 'platform.current_sales_funnel(uuid)'::regprocedure)
+      NOT LIKE '%r.source_kind = ''pipeline'' AND NOT r.archived AND r.withdrawal_kind IS NULL%' THEN
     RAISE EXCEPTION 'a307_verification_failed: sale definition';
   END IF;
 END

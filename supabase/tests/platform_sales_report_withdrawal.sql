@@ -1060,6 +1060,12 @@ SELECT pg_temp.swt_assert((:'swt_mk0'::JSONB #>> '{sales,total}') = '3'
   AND (:'swt_mk0'::JSONB #>> '{cohort,totals,contract}') = '2' AND (:'swt_mk0'::JSONB #>> '{cohort,totals,contract_linked}') = '1'
   AND pg_temp.swt_count(1, DATE '2026-08-01', DATE '2026-08-31') ->> 'sales' = '3',
   'baseline of August: 3 sales, the reconciliation matches, 2 cohort contracts (1 only linked): ' || (:'swt_mk0'::JSONB #> '{sales,reconciliation}')::TEXT);
+-- The funnel's number «Продажи» (247 d): pipeline records of the working leads, here L1's only.
+CREATE FUNCTION pg_temp.swt_funnel_sales() RETURNS TEXT LANGUAGE SQL AS $$
+  SELECT pg_temp.swt_user_json(1, format('SELECT platform.current_sales_funnel(%L::UUID)', pg_temp.swt_id(1))) #>> '{sales,count}'
+$$;
+SELECT pg_temp.swt_funnel_sales() AS swt_fn0 \gset
+SELECT pg_temp.swt_assert(:'swt_fn0' = '1', 'baseline of the funnel: one pipeline sale of a working lead: ' || :'swt_fn0');
 -- Sales Manager A refuses the pipeline record of L1: one sale less on both sides, the contract of L1 leaves the cohort.
 SELECT pg_temp.swt_user_json(2, pg_temp.swt_set(pg_temp.swt_id(6101), 1, 'partial', NULL, pg_temp.swt_id(8101)))::TEXT AS swt_mk_r1 \gset
 SELECT pg_temp.swt_overview()::TEXT AS swt_mk1 \gset
@@ -1072,6 +1078,8 @@ SELECT pg_temp.swt_assert((:'swt_mk1'::JSONB #>> '{sales,total}') = '2'
   AND EXISTS (SELECT 1 FROM platform_private.marketing_cohort(pg_temp.swt_id(1), DATE '2026-08-01', DATE '2026-08-31') c
     WHERE c.lead_id = pg_temp.swt_id(802) AND c.contract_signed_on = DATE '2026-08-12' AND c.contract_linked),
   'L1''s pipeline record refused: 2 sales on both sides of the reconciliation, the cohort keeps 1 contract (L2''s, linked), L1 has none');
+SELECT pg_temp.swt_funnel_sales() AS swt_fn1 \gset
+SELECT pg_temp.swt_assert(:'swt_fn1' = '0', 'the refused pipeline record is no sale in the funnel either: ' || :'swt_fn1');
 -- And the linked import record of L2.
 SELECT pg_temp.swt_user_json(2, pg_temp.swt_set(pg_temp.swt_id(6102), 1, 'unpaid', NULL, pg_temp.swt_id(8102)))::TEXT AS swt_mk_r2 \gset
 SELECT pg_temp.swt_overview()::TEXT AS swt_mk2 \gset
@@ -1086,6 +1094,7 @@ SELECT pg_temp.swt_assert(pg_temp.swt_overview() #> '{sales,reconciliation}' = '
   AND (pg_temp.swt_overview() #>> '{sales,total}') = '0',
   'all three refused: no sale in the period and the reconciliation still matches (0 = 0)');
 SELECT pg_temp.swt_unmark(6101, 8111)::TEXT AS swt_mk_u1 \gset
+SELECT pg_temp.swt_assert(pg_temp.swt_funnel_sales() = '1', '«Вернуть» puts the pipeline sale back into the funnel');
 SELECT pg_temp.swt_unmark(6102, 8112)::TEXT AS swt_mk_u2 \gset
 SELECT pg_temp.swt_unmark(6103, 8113)::TEXT AS swt_mk_u3 \gset
 SELECT pg_temp.swt_assert(pg_temp.swt_overview() -> 'sales' = :'swt_mk0'::JSONB -> 'sales'
@@ -1638,6 +1647,13 @@ SELECT pg_temp.swt_assert(:'swt_k1b'::JSONB = jsonb_build_object('organization_i
   AND :'swt_k1c'::JSONB ->> 'status' = 'case_exists' AND :'swt_k1c'::JSONB ->> 'student_case_id' = :'swt_case1'
   AND pg_temp.swt_state() = :'swt_state_k1',
   'a lead that has its case: case_exists with the case, nothing created, no receipt');
+-- A malformed payload is refused even for a lead that already has its case (the payload is read first).
+SELECT pg_temp.swt_assert(pg_temp.swt_svc(pg_temp.swt_case('k1d', :'swt_lead1'::UUID, '{"bogus":1}'::JSONB))
+    = '22023:admissions_direct_invalid:payload'
+  AND pg_temp.swt_svc(pg_temp.swt_case('k1e', :'swt_lead1'::UUID, '{"route":{"country":"Narnia"}}'::JSONB))
+    = '22023:admissions_direct_invalid:country'
+  AND pg_temp.swt_state() = :'swt_state_k1',
+  'a malformed payload on a lead with a case is refused by name, not answered with case_exists; nothing written');
 
 -- 6.5 Lead 2: a curator and a board stage, no student block (the name is the client's), no money.
 SELECT pg_temp.swt_row_md5('platform.clients', :'swt_client2'::UUID) AS swt_client2_md5 \gset

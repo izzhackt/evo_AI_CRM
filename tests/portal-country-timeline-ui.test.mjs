@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-import { FORBIDDEN_PROMISES, TIMELINE_APP_MODULES } from "../src/lib/portal/country-timeline.ts";
+import { FORBIDDEN_PROMISES, TIMELINE_APP_MODULES, selectCountryTimeline } from "../src/lib/portal/country-timeline.ts";
 import { PORTAL_DICTIONARIES } from "../src/lib/portal/i18n.ts";
 import { TIMELINE_MODULE_ROUTES } from "../src/lib/portal/timeline-module-routes.ts";
 
@@ -70,6 +70,18 @@ test("steps are read-only disclosures with remembered state and accessible names
   // Внешняя ссылка открывается отдельно и говорит об этом читалке.
   assert.match(block, /target="_blank" rel="noopener noreferrer"/u);
   assert.match(block, /strings\.external/u);
+});
+
+test("a module link stays in the app: same tab, no external icon, named by its label", () => {
+  // Внутренняя ветка: next/link без target, значка и подписи «внешняя ссылка».
+  assert.match(block, /<IntentPrefetchLink className="pt-link pt-step-link" href=\{link\.href\}>\s*\{link\.label\}\s*<\/IntentPrefetchLink>/u);
+  // Шаг экзаменов Китая ведёт в раздел CSCA, csca.cn остаётся запасным адресом без модуля.
+  const link = (modules) => selectCountryTimeline("CN", { locale: "ru", today: "2026-10-16", modules })
+    .steps.find((step) => step.id === "cn-2-exams").links;
+  assert.deepEqual(link(TIMELINE_MODULE_ROUTES).map(({ id, href, external }) => ({ id, href, external })), [
+    { id: "csca", href: "/portal/csca", external: false },
+  ]);
+  assert.deepEqual(link(undefined).map(({ href, external }) => ({ href, external })), [{ href: "https://csca.cn", external: true }]);
 });
 
 test("country choice uses the 284 RPC with an idempotent request id", () => {

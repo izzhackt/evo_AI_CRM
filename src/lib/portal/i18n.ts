@@ -2234,6 +2234,9 @@ const homeRu = {
   recentPublished: "Добавлен",
   recentEmpty: "За последние 30 дней новых университетов не было. Все доступные — в каталоге.",
   recentUnavailable: "Не удалось загрузить новые университеты. Обновите страницу.",
+  cscaSession: "Ближайшая сессия: {dates}",
+  cscaRegistration: "Регистрация {closes}",
+  cscaAction: "К подготовке",
 } as const;
 
 type HomeKey = keyof typeof homeRu;
@@ -2264,6 +2267,9 @@ const homeKy: Readonly<Record<HomeKey, string>> = {
   recentPublished: "Кошулган күнү",
   recentEmpty: "Акыркы 30 күндө жаңы университеттер кошулган жок. Бардык жеткиликтүү университеттер каталогдо.",
   recentUnavailable: "Жаңы университеттер жүктөлгөн жок. Баракты жаңыртыңыз.",
+  cscaSession: "Жакынкы сессия: {dates}",
+  cscaRegistration: "Каттоо {closes}",
+  cscaAction: "Даярдыкка",
 };
 
 /**

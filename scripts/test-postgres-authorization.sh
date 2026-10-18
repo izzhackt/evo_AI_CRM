@@ -4006,6 +4006,31 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_parent_phone_lookalikes.sql </dev/null
   fi
+
+  # Склейка подтверждённых дублей клиентов и закрытие лида «уже студент» служебными
+  # функциями (владелец, 18.10.2026; PLAN_CHANGES 18.10.2026, migration 308). Matched by
+  # name, not number, so a renumbering at merge keeps the hook. The suite proves: the
+  # catalog and posture of both service calls, the helpers and the closed receipts; the
+  # public resolve_client_duplicate as before (the old answer, replay, 23505, a non-Admin,
+  # a foreign pair, a closed candidate) now over the shared merge; the merge call's boundary
+  # (a `sub`, authenticated, anon), actor (only an active system Admin of the organization),
+  # strict parameters, clients of another organization, a missing client, a client that is
+  # not live, a closed candidate, two student cabinets, a lead a pipeline sale pins; its
+  # effect (leads, case, conversation, a call on a moved lead; the merged client `merged`
+  # and an alias; the bystander candidate stale; the candidate made `owner_confirmed` or the
+  # open one used) and its contacts (an empty phone / e-mail filled with the unique index of
+  # active clients untroubled, a differing one noted on the active case and kept in the
+  # receipt, the same number written differently no conflict, two merges into one kept
+  # client, a pair another active client holds not copied); replay, PT409 for another body,
+  # actor or operation, a dry-run by ROLLBACK that leaves nothing; the lead closure (boundary,
+  # actor, parameters, a case in work / pending / finished as «Поступил», every refusal,
+  # 246's own reads and command over the closed lead, replay and conflicts); and a journal
+  # without names, phones, e-mails or note text.
+  if [[ "$(basename "$migration")" == *_platform_client_merge_service.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_client_merge_service.sql </dev/null
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

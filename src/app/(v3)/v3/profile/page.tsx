@@ -15,6 +15,8 @@ import { caseWorkParts } from "@/components/v3/profile/CaseWorkParts";
 import { leadWorkParts } from "@/components/v3/profile/LeadWorkParts";
 import { LeadChannelFact } from "@/components/v3/profile/LeadChannelFact";
 import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmissions";
+import { ParentPhoneLookalikes } from "@/components/v3/profile/ParentPhoneLookalikes";
+import type { ParentPhoneSubject } from "@/lib/parent-phone-lookalikes-contract";
 import { ClosedLeadView } from "@/components/v3/closure/ClosedLeadView";
 import { withDocsSection } from "@/components/v3/profile/admissions-view";
 import { buildStudentsQueueScreen } from "@/components/v3/students/StudentsQueueScreen";
@@ -492,6 +494,11 @@ export default async function ProfilePart({
     hrefFor,
     now: new Date(),
   }) : null;
+  // «Похоже на» (#1198, пункт 2): номер лида или дела записан как телефон родителя в анкете другого студента.
+  // Только подсказка, ничего не объединяется; что показать именно этому сотруднику, решает база (миграция 306):
+  // читаемые дела со ссылкой, а для дела, которого он не читает (менеджер продаж), только факт совпадения.
+  const lookalikeSubject: ParentPhoneSubject | null = caseParts && caseTarget ? { studentCaseId: caseTarget.studentCaseId }
+    : leadParts && view?.details.routeTarget.leadId ? { leadId: view.details.routeTarget.leadId } : null;
   // Закрытый лид детальное чтение 093 не отдаёт: Lead 360 читает его из
   // «Закрытых» (246) и показывает строку «Закрыт · причина · дата».
   const closedLead: ClosedLeadRow | null = missing && explicitTarget?.leadId && staffPresentationCan(actor, "sales.read")
@@ -543,6 +550,9 @@ export default async function ProfilePart({
             </Link>}
             {!leadParts && view.details.routeTarget.leadId && !isStaffPreview(actor) ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем заявки с сайта…</p>}>
               <WebsiteLeadSubmissions actor={actor} leadId={view.details.routeTarget.leadId} />
+            </Suspense> : null}
+            {lookalikeSubject && !isStaffPreview(actor) ? <Suspense fallback={null}>
+              <ParentPhoneLookalikes actor={actor} subject={lookalikeSubject} />
             </Suspense> : null}
             <Profile
               key={[actor.organizationId, actor.authUserId, actor.systemRole, actor.presentationRole,

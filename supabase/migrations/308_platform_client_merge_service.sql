@@ -527,14 +527,12 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
 $$;
 
 -- The student accounts (memberships) a client's cases are opened with: a case of the client (or of one of its
--- leads) whose student membership is bound and active.
+-- leads) with a student membership bound, in any status (a suspended or invited account is still a person's).
 CREATE FUNCTION platform_private.client_student_cabinets(p_organization_id UUID, p_client_id UUID)
 RETURNS UUID[]
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT COALESCE(array_agg(DISTINCT sc.student_membership_id ORDER BY sc.student_membership_id), ARRAY[]::UUID[])
   FROM platform.student_cases sc
-  JOIN platform.organization_memberships m
-    ON m.organization_id = sc.organization_id AND m.id = sc.student_membership_id AND m.status = 'active'
   WHERE sc.organization_id = p_organization_id
     AND sc.student_membership_id IS NOT NULL
     AND (sc.canonical_client_id = p_client_id
@@ -765,9 +763,11 @@ BEGIN
       END IF;
       FOREACH v_field IN ARRAY ARRAY['phone', 'email'] LOOP
         IF (v_field = 'phone' AND v_phone_status = 'conflict') OR (v_field = 'email' AND v_email_status = 'conflict') THEN
+          -- The note's body check trims exactly these characters (the set of 246's notes).
           v_note_body := btrim(CASE WHEN v_field = 'phone'
-            THEN 'Второй телефон (из склеенного клиента): ' || btrim(v_merge.phone)
-            ELSE 'Вторая почта (из склеенного клиента): ' || btrim(v_merge.email) END);
+            THEN 'Второй телефон (из склеенного клиента): ' || v_merge.phone
+            ELSE 'Вторая почта (из склеенного клиента): ' || v_merge.email END,
+            U&'\0009\000A\000B\000C\000D\0020\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000\FEFF');
           v_note_id := gen_random_uuid();
           INSERT INTO platform.case_notes (id, organization_id, student_case_id, body, created_by_membership_id)
           VALUES (v_note_id, p_organization_id, v_note_case, v_note_body, v_actor.membership_id);
@@ -988,7 +988,7 @@ REVOKE ALL ON FUNCTION platform.merge_clients_owner_confirmed_v1(UUID, UUID, TEX
 GRANT EXECUTE ON FUNCTION platform.merge_clients_owner_confirmed_v1(UUID, UUID, TEXT, TEXT, UUID, UUID, TEXT) TO service_role;
 GRANT EXECUTE ON FUNCTION platform.close_sales_lead_already_student_v1(UUID, UUID, TEXT, TEXT, UUID, TEXT, TEXT) TO service_role;
 COMMENT ON FUNCTION platform.merge_clients_owner_confirmed_v1(UUID, UUID, TEXT, TEXT, UUID, UUID, TEXT) IS
-  'Migration 308: service-only merge of two duplicate clients the owner confirmed (service_role without a user JWT; actor: an active Admin membership holding client.duplicate.resolve). Uses the open candidate of the pair or makes one with the basis owner_confirmed, then the same merge as resolve_client_duplicate (leads, cases and conversations move to the kept client; the merged client becomes immutable; irreversible); fills the kept client''s empty phone / e-mail from the merged one, a differing one goes to a note on the kept client''s active case and to the receipt. Refuses a client of another organization, the same client, a client that is not live, a closed candidate, student accounts of more than one person, an archived lead of the merged client and a lead pinned by a handoff or a report link. Idempotent by (organization, import source, external reference). Dry-run = call inside a transaction and ROLLBACK (a call through PostgREST commits at once). The reason is journaled as written: no names or phones in it.';
+  'Migration 308: service-only merge of two duplicate clients the owner confirmed (service_role without a user JWT; actor: an active Admin membership holding client.duplicate.resolve). Uses the open candidate of the pair or makes one with the basis owner_confirmed, then the same merge as resolve_client_duplicate (leads, cases and conversations move to the kept client; the merged client becomes immutable; irreversible); fills the kept client''s empty phone / e-mail from the merged one, a differing one goes to a note on the kept client''s active case and to the receipt. Refuses a client of another organization, the same client, a client that is not live, a closed candidate, student accounts (of any status) of more than one person, an archived lead of the merged client and a lead pinned by a handoff or a report link. Idempotent by (organization, import source, external reference). Dry-run = call inside a transaction and ROLLBACK (a call through PostgREST commits at once). The reason is journaled as written: no names or phones in it.';
 COMMENT ON FUNCTION platform.close_sales_lead_already_student_v1(UUID, UUID, TEXT, TEXT, UUID, TEXT, TEXT) IS
   'Migration 308: service-only closure of an open sales lead whose client already has a student case (service_role without a user JWT; actor: an active Admin membership). The lifecycle change of 246 (disqualified, reason duplicate, event lead.lifecycle.change); refuses a lead that is not open, a handed-off lead, the lead a case was opened on, and a client without a case in work or finished as enrolled. Idempotent by (organization, import source, external reference).';
 

@@ -145,6 +145,12 @@ FROM (
     ('platform_private.client_student_cabinets(uuid,uuid)'::REGPROCEDURE, ARRAY[]::TEXT[])
   ) AS x(fn, grantees) JOIN pg_proc p ON p.oid = x.fn
 ) AS f;
+-- One lock key for both calls (a merge and a closure under one reference cannot both pass the lookup).
+SELECT pg_temp.cms_assert((SELECT count(*) = 2 FROM pg_proc WHERE oid IN (
+      'platform.merge_clients_owner_confirmed_v1(uuid,uuid,text,text,uuid,uuid,text)'::regprocedure,
+      'platform.close_sales_lead_already_student_v1(uuid,uuid,text,text,uuid,text,text)'::regprocedure)
+    AND strpos(prosrc, 'evo:client-merge-service:') > 0 AND strpos(prosrc, 'lock_p2d_request(v_key)') > 0),
+  'both service calls lock the one key of their receipt');
 -- The receipts table is closed.
 SELECT pg_temp.cms_assert(c.relrowsecurity AND c.relforcerowsecurity
     AND NOT has_table_privilege('authenticated', c.oid, 'SELECT') AND NOT has_table_privilege('anon', c.oid, 'SELECT')
@@ -169,12 +175,12 @@ SELECT pg_temp.cms_assert((SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON
 
 -- ---------------------------------------------------------------------------
 -- Fixture. Organization 1: 1 Admin (system), 2 second Admin (system), 3 coarse Admin who is not a system Admin,
--- 4 coarse Sales, 5 / 7 / 8 / 9 Students (cabinets), 6 system Admin whose membership is suspended. Organization 2:
+-- 4 coarse Sales, 5 / 7 / 8 / 9 Students (cabinets), 10 a Student whose account is suspended, 6 system Admin whose membership is suspended. Organization 2:
 -- Admin 20.
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE cms_actors(n INTEGER, coarse platform.business_role, claims TEXT);
 INSERT INTO cms_actors(n, coarse) VALUES (1, 'admin'), (2, 'admin'), (3, 'admin'), (4, 'sales'), (5, 'student'), (6, 'admin'),
-  (7, 'student'), (8, 'student'), (9, 'student');
+  (7, 'student'), (8, 'student'), (9, 'student'), (10, 'student');
 GRANT SELECT ON cms_actors TO authenticated, anon, service_role;
 
 INSERT INTO platform.organizations(id, name) VALUES (pg_temp.cms_id(1), 'CMS Fictional organization'),
@@ -189,7 +195,7 @@ INSERT INTO platform.profiles(id, auth_user_id, display_name, status, access_ver
   VALUES (pg_temp.cms_id(220), pg_temp.cms_id(120), 'CMS Org2 Admin', 'active', 1);
 INSERT INTO platform.organization_memberships(id, organization_id, profile_id, status, "current_role", current_bundle_id)
   SELECT pg_temp.cms_id(300 + n), pg_temp.cms_id(1), pg_temp.cms_id(200 + n),
-    CASE WHEN a.n = 6 THEN 'suspended'::platform.membership_status ELSE 'active'::platform.membership_status END, a.coarse,
+    CASE WHEN a.n IN (6, 10) THEN 'suspended'::platform.membership_status ELSE 'active'::platform.membership_status END, a.coarse,
     (SELECT id FROM platform.role_bundle_versions WHERE role = a.coarse AND status = 'published' ORDER BY version DESC LIMIT 1)
   FROM cms_actors a;
 INSERT INTO platform.organization_memberships(id, organization_id, profile_id, status, "current_role", current_bundle_id)
@@ -309,6 +315,12 @@ SELECT pg_temp.cms_mk_client('KL', 'CMS Keep Lima', NULL, NULL), pg_temp.cms_mk_
   pg_temp.cms_mk_client('KM', 'CMS Keep Mike', NULL, NULL), pg_temp.cms_mk_client('MM', 'CMS Merge Mike', NULL, NULL);
 SELECT pg_temp.cms_mk_lead('LKL', 'KL'), pg_temp.cms_mk_lead('LML', 'ML'), pg_temp.cms_mk_lead('LKM', 'KM'), pg_temp.cms_mk_lead('LMM', 'MM');
 UPDATE platform.leads SET lifecycle_state = 'archived' WHERE id = pg_temp.cms_ld('LMM');
+-- Pair N: the merged client's phone carries a tab at its end (the number is the same, the stored text is not tidy): the note
+-- body must still be one the note table accepts. Pair O: a pair of cases with a suspended and an active student account.
+SELECT pg_temp.cms_mk_client('KN3', 'CMS Keep November Three', NULL, '+996555000601'), pg_temp.cms_mk_client('MN3', 'CMS Merge November Three', NULL, '+996555000602'),
+  pg_temp.cms_mk_client('KO', 'CMS Keep Oscar', NULL, NULL), pg_temp.cms_mk_client('MO', 'CMS Merge Oscar', NULL, NULL);
+SELECT pg_temp.cms_mk_lead('LKN3', 'KN3'), pg_temp.cms_mk_lead('LMN3', 'MN3'), pg_temp.cms_mk_lead('LKO', 'KO'), pg_temp.cms_mk_lead('LMO', 'MO');
+UPDATE platform.clients SET phone = phone || E'\t' WHERE id = pg_temp.cms_cl('MN3');
 -- The public function's pair (R) and a bystander of it.
 SELECT pg_temp.cms_mk_client('KR', 'CMS Keep Romeo', NULL, NULL), pg_temp.cms_mk_client('MR', 'CMS Merge Romeo', NULL, NULL);
 SELECT pg_temp.cms_mk_lead('LKR', 'KR'), pg_temp.cms_mk_lead('LMR', 'MR');
@@ -360,7 +372,8 @@ SELECT pg_temp.cms_mk_case(1, 'KA', 'LKA', 'active', 5), pg_temp.cms_mk_case(2, 
   pg_temp.cms_mk_case(11, 'KDC', 'LDC', 'active'), pg_temp.cms_mk_case(12, 'KR', 'LKR', 'active'),
   pg_temp.cms_mk_case(13, 'MR', 'LMR', 'active'), pg_temp.cms_mk_case(14, 'KZ', 'LZ', 'active'),
   pg_temp.cms_mk_case(16, 'KI', 'LKI', 'active'), pg_temp.cms_mk_case(17, 'MK', 'LMK', 'active', 9),
-  pg_temp.cms_mk_case(18, 'KL', 'LKL', 'active', 9), pg_temp.cms_mk_case(19, 'ML', 'LML', 'active', 9);
+  pg_temp.cms_mk_case(18, 'KL', 'LKL', 'active', 9), pg_temp.cms_mk_case(19, 'ML', 'LML', 'active', 9),
+  pg_temp.cms_mk_case(20, 'KN3', 'LKN3', 'active'), pg_temp.cms_mk_case(21, 'KO', 'LKO', 'active', 10), pg_temp.cms_mk_case(22, 'MO', 'LMO', 'active', 8);
 -- Conversations: MA's (moves with the merge) and MR's. Each rests on a stored provider event (the foreign key is
 -- checked again when a row laid down in this transaction is updated).
 INSERT INTO platform_private.provider_webhook_events (id, organization_id, provider, provider_account_ref,
@@ -560,6 +573,7 @@ FROM (VALUES
   ('a candidate that is already closed', pg_temp.cms_merge('r1', pg_temp.cms_cl('KH'), pg_temp.cms_cl('MH')), '55000:client_merge_not_allowed:candidate_closed'),
   ('the pair is the same in the other direction', pg_temp.cms_merge('r1', pg_temp.cms_cl('MH'), pg_temp.cms_cl('KH')), '55000:client_merge_not_allowed:candidate_closed'),
   ('two student cabinets', pg_temp.cms_merge('r1', pg_temp.cms_cl('KG'), pg_temp.cms_cl('MG')), '55000:client_merge_not_allowed:student_cabinets'),
+  ('a suspended student account counts too (the kept client''s account is suspended, the merged client''s is active)', pg_temp.cms_merge('r1', pg_temp.cms_cl('KO'), pg_temp.cms_cl('MO')), '55000:client_merge_not_allowed:student_cabinets'),
   ('two student cabinets in the other direction', pg_temp.cms_merge('r1', pg_temp.cms_cl('MG'), pg_temp.cms_cl('KG')), '55000:client_merge_not_allowed:student_cabinets'),
   ('a lead of the merged client that a pipeline sale pins', pg_temp.cms_merge('r1', pg_temp.cms_cl('KI'), pg_temp.cms_cl('MI')), '55000:client_merge_not_allowed:linked_records')
 ) AS r(what, sql, expected);
@@ -770,6 +784,12 @@ SELECT pg_temp.cms_assert(:'cms_merge_d'::JSONB -> 'contacts' = jsonb_build_obje
   AND (SELECT body = 'Второй телефон (из склеенного клиента): +996555000501' FROM platform.case_notes WHERE student_case_id = pg_temp.cms_id(7506))
   AND (SELECT lifecycle_state = 'merged' FROM platform.clients WHERE id = pg_temp.cms_cl('MD')),
   'merge D: a pair another active client holds is not copied (the unique index is kept); the phone goes to the note, the merge itself is done');
+-- Pair N: a tab at the end of the merged client's phone does not break the note.
+SELECT pg_temp.cms_svc_json(pg_temp.cms_merge('n1', pg_temp.cms_cl('KN3'), pg_temp.cms_cl('MN3')))::TEXT AS cms_merge_n \gset
+SELECT pg_temp.cms_assert(:'cms_merge_n'::JSONB -> 'contacts' = jsonb_build_object('phone', 'conflict', 'email', 'none',
+    'blocked_by_other_client', FALSE, 'notes_written', 1, 'note_case_id', pg_temp.cms_id(7520))
+  AND (SELECT body = 'Второй телефон (из склеенного клиента): +996555000602' FROM platform.case_notes WHERE student_case_id = pg_temp.cms_id(7520)),
+  'merge N: the note of a phone stored with a tab at its end is tidy (the body is trimmed by the set the note table checks)');
 -- Pair I the other way round: the pinned lead stays with the kept client, the other client's lead and case move.
 SELECT pg_temp.cms_svc_json(pg_temp.cms_merge('i1', pg_temp.cms_cl('MI'), pg_temp.cms_cl('KI')))::TEXT AS cms_merge_i \gset
 SELECT pg_temp.cms_assert(:'cms_merge_i'::JSONB -> 'moved' = '{"leads": 1, "student_cases": 1, "conversations": 0, "candidates_staled": 0}'::JSONB
@@ -812,7 +832,7 @@ SELECT pg_temp.cms_assert(pg_temp.cms_error($q$UPDATE platform_private.client_me
     = '55000:platform.client_merge_service_receipts is append-only; DELETE is forbidden'
   AND (SELECT count(*) = 2 FROM pg_trigger WHERE tgrelid = 'platform_private.client_merge_service_receipts'::regclass AND NOT tgisinternal
       AND tgname IN ('client_merge_service_receipts_append_only', 'client_merge_service_receipts_no_truncate'))
-  AND (SELECT count(*) = 12 FROM platform_private.client_merge_service_receipts WHERE operation = 'merge'),
+  AND (SELECT count(*) = 13 FROM platform_private.client_merge_service_receipts WHERE operation = 'merge'),
   'the receipts cannot be updated or deleted, and truncate is guarded');
 SELECT pg_temp.cms_assert(pg_temp.cms_error(format($q$INSERT INTO platform_private.client_merge_service_receipts(organization_id, operation,
     import_source, external_ref, actor_membership_id, payload_md5, keep_client_id, merge_client_id, lead_id, result, before_state)
@@ -986,11 +1006,11 @@ SELECT pg_temp.cms_assert(NOT EXISTS (SELECT 1 FROM platform.audit_events e
       AND (coalesce(e.before_state::TEXT, '') || e.after_state::TEXT || e.reason || e.action || e.resource_type)
         ~* '\+996|0555|example\.invalid|CMS (Keep|Merge|Client|Twin|Third)|private note|Втор'),
   'the journal rows of both calls hold no name, phone, e-mail or note text');
-SELECT pg_temp.cms_assert((SELECT count(*) = 12 FROM platform.audit_events WHERE organization_id = pg_temp.cms_id(1) AND action = 'client.duplicate.merge')
-  AND (SELECT count(*) = 5 FROM platform.audit_events WHERE organization_id = pg_temp.cms_id(1) AND action = 'note.create' AND actor_principal = 'service:client-merge')
+SELECT pg_temp.cms_assert((SELECT count(*) = 13 FROM platform.audit_events WHERE organization_id = pg_temp.cms_id(1) AND action = 'client.duplicate.merge')
+  AND (SELECT count(*) = 6 FROM platform.audit_events WHERE organization_id = pg_temp.cms_id(1) AND action = 'note.create' AND actor_principal = 'service:client-merge')
   AND (SELECT count(*) = 6 FROM platform.audit_events WHERE organization_id = pg_temp.cms_id(1) AND action = 'lead.lifecycle.change' AND actor_principal = 'service:lead-already-student')
   AND (SELECT count(DISTINCT request_id) = count(*) FROM platform.audit_events WHERE actor_principal IN ('service:client-merge', 'service:lead-already-student')),
-  'the journal: twelve merges, five notes, six closures; every row has its own request id');
+  'the journal: thirteen merges, six notes, six closures; every row has its own request id');
 SELECT pg_temp.cms_assert((SELECT count(*) = 1 FROM platform_private.client_merge_service_receipts r
       WHERE r.operation = 'merge' AND r.before_state::TEXT LIKE '%+996555000202%')
   AND NOT EXISTS (SELECT 1 FROM platform.audit_events WHERE (coalesce(before_state::TEXT, '') || after_state::TEXT) LIKE '%+996555000202%'),

@@ -9,6 +9,8 @@ import { requireV3PageActor } from "@/lib/platform-guards";
 import { parseRequestOpen, parseRequestSelection, type RequestSelection } from "@/lib/requests-queue-contract";
 import { readPipelineOwnerOptions } from "@/lib/v3/pipeline-source";
 import { loadScopedRequestsQueue, RequestsQueueSourceError } from "@/lib/v3/requests-queue-source";
+import { readDialOptions } from "@/lib/v3/telephony-dial-source";
+import { readRequestCallLines } from "@/lib/v3/telephony-request-calls-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Заявки" };
@@ -45,6 +47,9 @@ export default async function RequestsPage({ searchParams }: {
     // Сбой чтения ответственных — null: форма скажет, что список не загрузился.
     canCreateLead ? readPipelineOwnerOptions(actor).catch(() => null) : null,
   ]);
+  // «Звонки» (T9): исход звонка в строке и «Позвонить» — только когда телефония в интерфейсе включена и набор открыт.
+  const dial = await readDialOptions(actor);
+  const callLines = read.status === "ready" && read.queue.phoneCalls ? await readRequestCallLines(actor, read.queue.rows) : {};
   const takeRequestIds = read.status === "ready"
     ? Object.fromEntries(read.queue.rows.flatMap((row) => row.kind === "lead" && row.take ? [[row.leadId, randomUUID()]] : []))
     : {};
@@ -63,6 +68,8 @@ export default async function RequestsPage({ searchParams }: {
           canCreateLead={canCreateLead}
           nowIso={new Date().toISOString()}
           takeRequestIds={takeRequestIds}
+          dial={dial}
+          callLines={callLines}
           decisionRequestId={randomUUID()}
         />
       </PartShell>

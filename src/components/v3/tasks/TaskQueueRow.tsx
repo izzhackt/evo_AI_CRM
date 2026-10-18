@@ -94,6 +94,7 @@ export function TaskQueueRow({
   onCompleted,
   announce,
   select = null,
+  leadRef = null,
 }: Readonly<{
   task: QueueTask;
   href: string;
@@ -115,6 +116,8 @@ export function TaskQueueRow({
   announce: (text: string) => void;
   /** Колонка выбора для массовых действий; null — у списка их нет. */
   select?: TaskRowSelect | null;
+  /** Лид рабочей задачи («Перезвонить клиенту»): имя клиента вместо слова «Рабочая»; null — у задачи лида нет. */
+  leadRef?: Readonly<{ name: string; href: string }> | null;
 }>) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -286,6 +289,14 @@ export function TaskQueueRow({
                 <span className="truncate">{task.studentDisplayName}</span>
               </Link>
               <span className="min-w-0 truncate md:pointer-fine:hidden">{task.studentDisplayName}</span>
+            </> : leadRef ? <>
+              {/* Имя клиента — как имя студента выше: ссылка на карточку только при мыши на широком экране. */}
+              <Link href={leadRef.href} title={leadRef.name}
+                className="relative z-10 hidden h-6 min-w-0 items-center underline-offset-2 hover:text-fg hover:underline md:pointer-fine:flex">
+                <span className="truncate">{leadRef.name}</span>
+              </Link>
+              <span className="min-w-0 truncate md:pointer-fine:hidden">{leadRef.name}</span>
+              {task.fromChat ? <span className="min-w-0 shrink-[2] truncate">· из чата</span> : null}
             </> : <>
               <span className="min-w-0 truncate">Рабочая</span>
               {task.fromChat ? <span className="min-w-0 shrink-[2] truncate">· из чата</span> : null}

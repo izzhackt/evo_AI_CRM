@@ -26,6 +26,8 @@ import {
   reportMoment,
   reportPercent,
   reportPlural,
+  reportRowIsIdle,
+  reportSummary,
   resultCell,
   talkCell,
   telephonyReportState,
@@ -263,47 +265,64 @@ test("words: percent, duration, plural and moment", () => {
   assert.match(reportMoment("2026-09-25T20:30:00Z"), /^26\.09, 02:30$/u, "a moment after midnight in Bishkek is the next day");
 });
 
+// A cell is its words: the label, the figure (or a quiet word where there is no number), the notes. The hint is a sentence shown on hover.
+const plain = ({ label, figure, quiet, notes }) => ({ label, figure, quiet, notes });
+
 test("words: the six cells of a row", () => {
   const cells = reportCells(TEAM, 15);
   assert.deepEqual(cells.map((cell) => cell.label), ["Звонки", "Отвечено", "Время разговора", "До первого звонка", "Пропущенные без перезвона", "Результат проставлен"]);
-  assert.deepEqual(callsCell(TEAM), { label: "Звонки", figure: "15", notes: ["8 входящих · 7 исходящих"] });
-  assert.deepEqual(answeredCell(TEAM), { label: "Отвечено", figure: "40 %", notes: ["входящие 2 из 8", "исходящие 4 из 7"] });
-  assert.deepEqual(talkCell(TEAM), { label: "Время разговора", figure: "7 мин 10 с", notes: ["в среднем 1 мин 12 с на звонок"] });
-  assert.deepEqual(firstCallCell(TEAM.firstCall, 15), {
-    label: "До первого звонка", figure: "1 ч 12 мин",
+  assert.ok(cells.every((cell) => cell.hint.length > 20 && !cell.quiet), "every cell explains itself on hover; a cell with a number is not quiet");
+  assert.deepEqual(plain(callsCell(TEAM)), { label: "Звонки", figure: "15", quiet: false, notes: ["8 входящих · 7 исходящих"] });
+  assert.deepEqual(plain(answeredCell(TEAM)), { label: "Отвечено", figure: "40 %", quiet: false, notes: ["входящие 2 из 8", "исходящие 4 из 7"] });
+  assert.deepEqual(plain(talkCell(TEAM)), { label: "Время разговора", figure: "7 мин 10 с", quiet: false, notes: ["в среднем 1 мин 12 с"] });
+  assert.deepEqual(plain(firstCallCell(TEAM.firstCall, 15)), {
+    label: "До первого звонка", figure: "1 ч 12 мин", quiet: false,
     notes: ["новых лидов: 6", "в срок 15 мин: 1 из 6", "до разговора 3 ч 05 мин"],
   });
-  assert.deepEqual(missedCell(TEAM.missed), {
-    label: "Пропущенные без перезвона", figure: "2",
-    notes: ["пропущено входящих: 4", "перезвонили в срок: 1", "перезвонили позже срока: 1"],
+  // A zero beside «пропущено входящих» read as a contradiction: «из 4 пропущенных» says what the zero is out of.
+  assert.deepEqual(plain(missedCell(TEAM.missed)), {
+    label: "Пропущенные без перезвона", figure: "2", quiet: false,
+    notes: ["из 4 пропущенных входящих", "перезвонили в срок: 1", "перезвонили позже срока: 1"],
   });
-  assert.deepEqual(resultCell(TEAM.result), { label: "Результат проставлен", figure: "50 %", notes: ["2 из 4 отвеченных"] });
+  assert.deepEqual(plain(resultCell(TEAM.result)), { label: "Результат проставлен", figure: "50 %", quiet: false, notes: ["2 из 4 отвеченных"] });
 });
 
-test("words: nothing is invented where there is nothing to say", () => {
+test("words: nothing is invented where there is nothing to say — a quiet word, not a dash and not a zero", () => {
   const empty = zero();
-  assert.deepEqual(callsCell(empty), { label: "Звонки", figure: "0", notes: [] });
-  assert.deepEqual(answeredCell(empty), { label: "Отвечено", figure: "—", notes: [] }, "no calls is no percent");
-  assert.deepEqual(talkCell(empty), { label: "Время разговора", figure: "—", notes: [] });
-  assert.deepEqual(firstCallCell(empty.firstCall, 15), { label: "До первого звонка", figure: "—", notes: [] });
-  assert.deepEqual(missedCell(empty.missed), { label: "Пропущенные без перезвона", figure: "0", notes: [] });
-  assert.deepEqual(resultCell(empty.result), { label: "Результат проставлен", figure: "—", notes: [] });
+  assert.deepEqual(plain(callsCell(empty)), { label: "Звонки", figure: "0", quiet: false, notes: [] });
+  assert.deepEqual(plain(answeredCell(empty)), { label: "Отвечено", figure: "нет звонков", quiet: true, notes: [] }, "no calls is no percent");
+  assert.deepEqual(plain(talkCell(empty)), { label: "Время разговора", figure: "нет разговоров", quiet: true, notes: [] });
+  assert.deepEqual(plain(firstCallCell(empty.firstCall, 15)), { label: "До первого звонка", figure: "нет новых лидов", quiet: true, notes: [] });
+  assert.deepEqual(plain(missedCell(empty.missed)), { label: "Пропущенные без перезвона", figure: "0", quiet: false, notes: [] });
+  assert.deepEqual(plain(resultCell(empty.result)), { label: "Результат проставлен", figure: "нет отвеченных", quiet: true, notes: [] });
   // Отвечено, но время из сверки ещё не пришло: не ноль минут, а честное «ещё не пришло».
   const young = { ...zero(), calls: { in: 0, out: 3 }, answered: { in: 0, out: 3 }, talk: { seconds: 60, calls: 1 } };
-  assert.deepEqual(talkCell(young), {
-    label: "Время разговора", figure: "1 мин", notes: ["в среднем 1 мин на звонок", "время ещё не пришло: 2 звонка"],
+  assert.deepEqual(plain(talkCell(young)), {
+    label: "Время разговора", figure: "1 мин", quiet: false, notes: ["в среднем 1 мин", "время ещё не пришло: 2 звонка"],
   });
   const none = { ...zero(), calls: { in: 0, out: 2 }, answered: { in: 0, out: 2 } };
-  assert.deepEqual(talkCell(none), { label: "Время разговора", figure: "—", notes: ["время ещё не пришло: 2 звонка"] });
-  assert.deepEqual(firstCallCell({ ...ZERO_FIRST, leads: 2, pending: 2 }, 30), {
-    label: "До первого звонка", figure: "—", notes: ["новых лидов: 2", "срок ещё не вышел: 2"],
+  assert.deepEqual(plain(talkCell(none)), { label: "Время разговора", figure: "уточняется", quiet: true, notes: ["время ещё не пришло: 2 звонка"] });
+  // The deadline has not come yet: «ждём», not a dash.
+  assert.deepEqual(plain(firstCallCell({ ...ZERO_FIRST, leads: 2, pending: 2 }, 30)), {
+    label: "До первого звонка", figure: "ждём", quiet: true, notes: ["новых лидов: 2", "срок ещё не вышел: 2"],
   });
-  assert.deepEqual(missedCell({ total: 3, inTime: 0, late: 0, pending: 3, without: 0 }).notes, ["пропущено входящих: 3", "срок ещё не вышел: 3"]);
+  assert.equal(firstCallCell({ ...ZERO_FIRST, leads: 3, late: 3 }, 30).figure, "не звонили", "the deadline passed and nobody called");
+  assert.deepEqual(missedCell({ total: 3, inTime: 0, late: 0, pending: 3, without: 0 }).notes, ["из 3 пропущенных входящих", "срок ещё не вышел: 3"]);
   assert.deepEqual(unassignedCells(UNASSIGNED, 15).map((cell) => cell.label), ["До первого звонка", "Пропущенные без перезвона"]);
   assert.equal(reportIsEmpty(normalizeTelephonyReport(all({ team: zero(), managers: [manager(2)], unassigned: { firstCall: ZERO_FIRST, missed: ZERO_MISSED }, missedList: [] }), PERIOD)), true);
   assert.equal(reportIsEmpty(normalizeTelephonyReport(all(), PERIOD)), false);
   assert.equal(reportIsEmpty(normalizeTelephonyReport(own({ managers: [manager(2)] }), PERIOD)), true);
   assert.equal(reportIsEmpty(normalizeTelephonyReport(own(), PERIOD)), false);
+});
+
+test("words: the collapsed block says the main thing itself; an employee of zeros is one line, not a row", () => {
+  const report = normalizeTelephonyReport(all(), PERIOD);
+  assert.equal(reportSummary(report), "15 звонков · отвечено 40 % · без перезвона: 2");
+  assert.equal(reportSummary(normalizeTelephonyReport(own(), PERIOD)), "10 звонков · отвечено 40 % · без перезвона: 0");
+  assert.equal(reportSummary(normalizeTelephonyReport(all({ team: zero(), managers: [manager(2)], unassigned: { firstCall: ZERO_FIRST, missed: ZERO_MISSED }, missedList: [] }), PERIOD)), "звонков за период нет");
+  assert.equal(reportRowIsIdle(zero()), true);
+  assert.equal(reportRowIsIdle({ ...zero(), firstCall: { ...ZERO_FIRST, leads: 1, pending: 1 } }), false, "a new lead waiting for a call is not idle");
+  assert.equal(reportRowIsIdle({ ...zero(), calls: { in: 1, out: 0 } }), false);
 });
 
 // ------------------------------------------------------------ the page's read
@@ -385,9 +404,16 @@ test("wiring: the block sits under «Динамика по дням», shares it
 const pages = new Map(JSON.parse(execFileSync(process.execPath,
   [fileURLToPath(new URL("./e2e/numbers-static-render.cjs", import.meta.url)), "--json-telephony-report"],
   { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })).map((page) => [page.name, page.html]));
+// The block is a <details>, and a row folds its other cells into a nested <details>: the end is where the depth returns to zero.
 const block = (html) => {
   const start = html.indexOf('<details id="sales-calls"');
-  return start === -1 ? "" : html.slice(start, html.indexOf("</details>", start) + "</details>".length);
+  if (start === -1) return "";
+  let depth = 0;
+  for (const match of html.slice(start).matchAll(/<details[\s>]|<\/details>/gu)) {
+    depth += match[0] === "</details>" ? -1 : 1;
+    if (depth === 0) return html.slice(start, start + match.index + "</details>".length);
+  }
+  return html.slice(start);
 };
 
 test("rendered: switched off or no right — the report is byte-for-byte the one without telephony", () => {
@@ -400,17 +426,21 @@ test("rendered: the supervisor's block — the team, every manager, the unassign
   const html = block(pages.get("report-all"));
   assert.match(html, /^<details id="sales-calls" open="" class="group mt-8 scroll-mt-4 border-t border-border pt-2" data-testid="v3-sales-calls">/u);
   const words = text(html);
-  assert.match(words, /^Звонки Звонки за период 1 сен — 26 сен · первый звонок и перезвон — в течение 15 мин рабочего времени Сегодня Вчера Неделя Месяц Период/u);
-  assert.match(words, /Вся команда Звонки 15 8 входящих · 7 исходящих Отвечено 40 % входящие 2 из 8 исходящие 4 из 7 Время разговора 7 мин 10 с в среднем 1 мин 12 с на звонок/u);
-  assert.match(words, /До первого звонка 1 ч 12 мин новых лидов: 6 в срок 15 мин: 1 из 6 до разговора 3 ч 05 мин Пропущенные без перезвона 2 пропущено входящих: 4 перезвонили в срок: 1 перезвонили позже срока: 1 Результат проставлен 50 % 2 из 4 отвеченных/u);
+  // Collapsed, the block already says the main thing, with its own period (it is not the month of the report above).
+  assert.match(words, /^Звонки 1 сен — 26 сен · 15 звонков · отвечено 40 % · без перезвона: 2 Звонки за период 1 сен — 26 сен · первый звонок и перезвон — в течение 15 мин рабочего времени Сегодня Вчера Неделя Месяц Период/u);
+  assert.match(words, /Вся команда Звонки 15 8 входящих · 7 исходящих Отвечено 40 % входящие 2 из 8 исходящие 4 из 7 Время разговора 7 мин 10 с в среднем 1 мин 12 с/u);
+  assert.match(words, /До первого звонка 1 ч 12 мин новых лидов: 6 в срок 15 мин: 1 из 6 до разговора 3 ч 05 мин Пропущенные без перезвона 2 из 4 пропущенных входящих перезвонили в срок: 1 перезвонили позже срока: 1 Результат проставлен 50 % 2 из 4 отвеченных/u);
   const rows = html.match(/<li [^>]*data-calls-manager="[^"]+"[\s\S]*?<\/li>/gu) ?? [];
-  assert.equal(rows.length, 4, "four manager rows, the idle one included");
+  assert.equal(rows.length, 3, "three manager rows; the employee of zeros is one line, not a row");
   assert.match(text(rows[0]), /^Санжар Эскизов Звонки 10 5 входящих · 5 исходящих Отвечено 40 %/u);
-  assert.match(text(rows[3]), /^Нурия Тестова Звонки 0 Отвечено — Время разговора — До первого звонка — Пропущенные без перезвона 0 Результат проставлен —$/u,
-    "an idle employee's row says «—» and 0, never an invented percentage");
-  assert.match(text(rows[2]), /Бакыт Пробный Звонки 2 2 входящих · 0 исходящих Отвечено 0 % входящие 0 из 2 Время разговора — До первого звонка 29 ч 45 мин/u);
+  assert.match(text(rows[2]), /Бакыт Пробный Звонки 2 2 входящих · 0 исходящих Отвечено 0 % входящие 0 из 2 Время разговора нет разговоров До первого звонка 29 ч 45 мин/u);
+  assert.match(text(html.match(/<li [^>]*data-calls-idle=""[\s\S]*?<\/li>/u)?.[0] ?? ""), /^Без звонков за период: Нурия Тестова$/u,
+    "an idle employee is named in one line, never drawn as a row of zeros or an invented percentage");
+  // On a phone a row is three cells and «Все показатели»: the rest sits behind it, not in a wall of figures.
+  assert.equal((html.match(/data-calls-all=""/gu) ?? []).length, 4, "the team and the three rows each fold their other three cells");
+  assert.match(rows[0], /<div class="min-w-0 max-sm:hidden"[^>]*><dt class="t-caption text-fg-2">Время разговора<\/dt>/u, "the other three cells leave the phone row");
   const unassigned = html.match(/<li [^>]*data-calls-unassigned=""[\s\S]*?<\/li>/u)?.[0] ?? "";
-  assert.match(text(unassigned), /^Без ответственного Лиды и пропущенные звонки, у которых нет владельца\. До первого звонка — новых лидов: 1 в срок 15 мин: 0 из 1 Пропущенные без перезвона 1 пропущено входящих: 1$/u);
+  assert.match(text(unassigned), /^Без ответственного Лиды и пропущенные звонки, у которых нет владельца\. До первого звонка не звонили новых лидов: 1 в срок 15\sмин: 0 из 1 Пропущенные без перезвона 1 из 1 пропущенных входящих$/u, "the deadline passed with nobody calling: «не звонили», not a dash");
   const list = html.match(/<section[^>]*data-calls-missed-list=""[\s\S]*?<\/section>/u)?.[0] ?? "";
   const items = list.match(/<li [^>]*data-missed-call="[^"]+"[\s\S]*?<\/li>/gu) ?? [];
   assert.equal(items.length, 2);
@@ -426,6 +456,7 @@ test("rendered: the manager's block is one row with no team and no unassigned ro
   const words = text(html);
   assert.match(words, /Ваши звонки за период 1 сен — 26 сен/u);
   assert.match(words, /Ваши цифры Звонки 10 5 входящих · 5 исходящих Отвечено 40 %/u);
+  assert.match(words, /^Звонки 1 сен — 26 сен · 10 звонков · отвечено 40 % · без перезвона: 0 /u, "the summary is the manager's own row");
   assert.doesNotMatch(words, /Вся команда|Менеджеры|Без ответственного|Санжар/u, "the manager's own name is not repeated as a stranger's row");
   assert.doesNotMatch(html, /data-calls-team|data-calls-managers|data-calls-unassigned|data-calls-missed-list/u);
   assert.match(html, /data-calls-own=""/u);
@@ -442,7 +473,7 @@ test("rendered: an empty period, a long list, calls still within their time, a f
   assert.match(text(more), /Показаны последние 50\./u);
   assert.match(text(more), /Менеджеры Нет сотрудников со звонками за период\./u);
   const pending = text(block(pages.get("report-pending")));
-  assert.match(pending, /До первого звонка — новых лидов: 1 срок ещё не вышел: 1 Пропущенные без перезвона 0 пропущено входящих: 1 срок ещё не вышел: 1/u,
+  assert.match(pending, /До первого звонка ждём новых лидов: 1 срок ещё не вышел: 1 Пропущенные без перезвона 0 из 1 пропущенных входящих срок ещё не вышел: 1/u,
     "a call still within its time is not counted as a failure");
   const failed = block(pages.get("report-unavailable"));
   assert.match(failed, /role="alert"/u);

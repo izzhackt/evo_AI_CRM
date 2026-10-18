@@ -886,9 +886,16 @@ test("recordings words: «Слушать» only where the database allowed; othe
   const items = (canListen, ...states) => callRecordingItems({ canListen, legs: states.map((state, index) => ({ legId: ID(8000 + index + 1), state })) });
   assert.deepEqual(items(true, "available"), [{ kind: "player", legId: ID(8001), label: "Слушать" }]);
   assert.deepEqual(items(true, "available", "available"), [
-    { kind: "player", legId: ID(8001), label: "Слушать запись 1" },
-    { kind: "player", legId: ID(8002), label: "Слушать запись 2" },
+    { kind: "player", legId: ID(8001), label: "Слушать запись 1 из 2" },
+    { kind: "player", legId: ID(8002), label: "Слушать запись 2 из 2" },
   ]);
+  // One recording says whose and how long (the call's own people and talk time); several legs cannot be told apart by name, so they are numbered.
+  const about = (legs, context) => callRecordingItems({ canListen: true, legs: legs.map((state, index) => ({ legId: ID(8000 + index + 1), state })) }, context)[0];
+  assert.equal(about(["available"], { who: "Менеджер Первый", talk: "2 мин 20 с" }).label, "Слушать · Менеджер Первый, 2 мин 20 с");
+  assert.equal(about(["available"], { who: "Менеджер Первый", talk: null }).label, "Слушать · Менеджер Первый");
+  assert.equal(about(["available"], { who: null, talk: "2 мин 20 с" }).label, "Слушать · 2 мин 20 с");
+  assert.equal(about(["available"], { who: null, talk: null }).label, "Слушать");
+  assert.equal(about(["available", "available"], { who: "Менеджер Первый", talk: "2 мин 20 с" }).label, "Слушать запись 1 из 2");
   assert.deepEqual(items(false, "available"), [{ kind: "text", text: "Запись доступна руководителю" }]);
   assert.deepEqual(items(false, "available", "available"), [
     { kind: "text", text: "Запись 1 доступна руководителю" }, { kind: "text", text: "Запись 2 доступна руководителю" }]);
@@ -896,9 +903,9 @@ test("recordings words: «Слушать» only where the database allowed; othe
   assert.deepEqual(items(true, "expired"), [{ kind: "text", text: "Запись удалена по сроку хранения" }]);
   assert.deepEqual(items(false, "expired"), [{ kind: "text", text: "Запись удалена по сроку хранения" }], "the state is told to everyone");
   assert.deepEqual(items(true, "available", "expired"), [
-    { kind: "player", legId: ID(8001), label: "Слушать запись 1" }, { kind: "text", text: "Запись 2 удалена по сроку хранения" }]);
+    { kind: "player", legId: ID(8001), label: "Слушать запись 1 из 2" }, { kind: "text", text: "Запись 2 удалена по сроку хранения" }]);
   assert.deepEqual(items(true, "unavailable", "available"), [
-    { kind: "text", text: "Запись 1 временно недоступна" }, { kind: "player", legId: ID(8002), label: "Слушать запись 2" }]);
+    { kind: "text", text: "Запись 1 временно недоступна" }, { kind: "player", legId: ID(8002), label: "Слушать запись 2 из 2" }]);
   assert.deepEqual(callRecordingItems({ canListen: true, legs: [] }), []);
 });
 
@@ -930,13 +937,14 @@ test("rendered lead: recordings read by the database show «Слушать» and
   const html = pages.get("lead-recordings");
   const rows = callRows(html).map(text);
   assert.equal(rows.length, 7);
-  assert.match(rows[0], /^Исходящий звонок · разговор 2 мин 05 с 26\.09 14:00 \+996 ••• 00 00 01 · Санжар Эскизов Слушать$/u, "one recording: «Слушать», and no «Есть запись»");
-  assert.match(rows[1], /^Входящий звонок · разговор 2 мин 05 с 26\.09 13:30 \+996 ••• 00 00 01 · Санжар Эскизов Слушать запись 1 Слушать запись 2$/u);
+  // The mask is the same in all seven rows, so it is not repeated; the player says whose recording and how long.
+  assert.match(rows[0], /^Исходящий звонок · разговор 2 мин 05 с 22 ч назад Санжар Эскизов Слушать · Санжар Эскизов, 2 мин 05 с$/u, "one recording: «Слушать» with the call's people and time, and no «Есть запись»");
+  assert.match(rows[1], /^Входящий звонок · разговор 2 мин 05 с 22 ч назад Санжар Эскизов Слушать запись 1 из 2 Слушать запись 2 из 2$/u);
   assert.match(rows[2], /Санжар Эскизов Запись временно недоступна$/u);
   assert.match(rows[3], /Санжар Эскизов Запись удалена по сроку хранения$/u);
   assert.match(rows[4], /Санжар Эскизов Запись доступна руководителю$/u, "a recording the reader may not play is told, not offered");
   assert.match(rows[5], /Санжар Эскизов · Есть запись$/u, "a call the recordings read did not answer for keeps the old words");
-  assert.match(rows[6], /^Исходящий звонок · занято 26\.09 11:00 \+996 ••• 00 00 01$/u, "no recording, nothing said");
+  assert.match(rows[6], /^Исходящий звонок · занято 26\.09 11:00$/u, "no recording, nothing said");
   const blocks = html.match(/<div class="mt-1" data-testid="v3-call-recording">[\s\S]*?<p role="status"[^>]*><\/p><\/div>/gu) ?? [];
   assert.equal(blocks.length, 5, "a block for each call the database spoke about");
   const buttons = [...html.matchAll(/<button type="button" class="([^"]*)" aria-expanded="(true|false)">([\s\S]*?)<\/button>/gu)]
@@ -945,7 +953,7 @@ test("rendered lead: recordings read by the database show «Слушать» and
   for (const [, classes, expanded, content] of buttons) {
     assert.match(classes, /min-h-11/u, "targets are 44 px");
     assert.equal(expanded, "false", "nothing plays until pressed");
-    assert.match(content, /^<svg [^>]*aria-hidden="true"[^>]*><polygon points="6 3 20 12 6 21 6 3"\/><\/svg>Слушать( запись [12])?$/u);
+    assert.match(content, /^<svg [^>]*aria-hidden="true"[^>]*><polygon points="6 3 20 12 6 21 6 3"\/><\/svg>Слушать( · Санжар Эскизов, 2\sмин 05\sс| запись [12] из 2)?$/u);
   }
   assert.equal((html.match(/role="group" aria-label="Запись разговора"/gu) ?? []).length, 2);
 });

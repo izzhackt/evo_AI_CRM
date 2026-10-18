@@ -45,6 +45,8 @@ function ExtensionRow({
     setChoice(extension.membershipId ?? "");
   }
   const [confirming, setConfirming] = useState(false);
+  // Сопоставленному выбор не нужен, пока не нажали «Изменить»: имя и «Изменить» — вместо списка, который только повторял бы имя.
+  const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
   const [message, setMessage] = useState<Readonly<{ tone: "ok" | "error"; text: string }> | null>(null);
@@ -80,6 +82,7 @@ function ExtensionRow({
       if (response.ok && normalizeTelephonyMapReceipt(body?.receipt)) {
         setRequestId(null);
         setConfirming(false);
+        setEditing(false);
         setMessage({ tone: "ok", text: "Сохранено." });
         router.refresh();
       } else if (response.status >= 400 && response.status < 500) {
@@ -110,7 +113,16 @@ function ExtensionRow({
         {chip}
       </div>
       {extension.membershipId && !confirming ? (
-        <p className="mt-1 t-body-compact text-fg-2">Сотрудник: <span className="text-fg">{extension.membershipName ?? "не найден"}</span></p>
+        <p className="mt-1 flex min-h-11 flex-wrap items-center gap-x-2 t-body-compact text-fg-2">
+          {/* Имя сотрудника, только если оно не то же, что у пользователя ВАТС выше: иначе одно и то же стояло бы дважды. */}
+          {extension.membershipName !== label ? <span>Сотрудник: <span className="text-fg">{extension.membershipName ?? "не найден"}</span></span> : null}
+          {!readOnly && !editing ? (
+            <button type="button" className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg"
+              data-testid="v3-telephony-extension-edit" onClick={() => setEditing(true)}>
+              {extension.membershipName !== label ? "Изменить" : "Изменить сопоставление"}
+            </button>
+          ) : null}
+        </p>
       ) : null}
       {extension.legsWithoutStaff > 0 ? (
         <p className="mt-1 t-meta text-fg-3" data-testid="v3-telephony-extension-legs">
@@ -120,7 +132,7 @@ function ExtensionRow({
       {!extension.active && !extension.membershipId ? (
         <p className="mt-1 t-meta text-fg-3">Пользователь выключен в ВАТС: сопоставлять нечего.</p>
       ) : null}
-      {readOnly || (!extension.active && !extension.membershipId) ? null : (
+      {readOnly || (!extension.active && !extension.membershipId) || (extension.membershipId && !editing && !confirming) ? null : (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <label className="sr-only" htmlFor={`tel-ext-${extension.id}`}>Сотрудник EVO для пользователя ВАТС {label}</label>
           <select
@@ -138,11 +150,18 @@ function ExtensionRow({
               </option>
             ))}
           </select>
-          {confirming ? null : (
-            <button type="button" className={QUEUE_SECONDARY} disabled={!changed || pending} onClick={() => { setConfirming(true); setMessage(null); }}>
+          {/* «Сопоставить…» есть, только когда выбор изменён: серая кнопка, которую нельзя нажать, у каждой строки списка была шумом. */}
+          {confirming || !changed ? null : (
+            <button type="button" className={QUEUE_SECONDARY} disabled={pending} onClick={() => { setConfirming(true); setMessage(null); }}>
               {choice || !extension.membershipId ? "Сопоставить…" : "Снять сопоставление…"}
             </button>
           )}
+          {editing && !confirming ? (
+            <button type="button" className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg"
+              onClick={() => { setEditing(false); setChoice(extension.membershipId ?? ""); setMessage(null); }}>
+              Отмена
+            </button>
+          ) : null}
         </div>
       )}
       {confirming ? (
@@ -158,7 +177,7 @@ function ExtensionRow({
               {pending ? "Сохраняю…" : "Подтвердить"}
             </button>
             <button type="button" className={QUEUE_SECONDARY} disabled={pending}
-              onClick={() => { setConfirming(false); setChoice(extension.membershipId ?? ""); setMessage(null); }}>
+              onClick={() => { setConfirming(false); setEditing(false); setChoice(extension.membershipId ?? ""); setMessage(null); }}>
               Отмена
             </button>
           </div>
@@ -185,7 +204,7 @@ export function TelephonyExtensions({
   return (
     <section aria-labelledby="tel-extensions-title" data-testid="v3-telephony-extensions">
       <h3 id="tel-extensions-title" className="t-section mb-1 text-fg">Пользователи ВАТС и сотрудники</h3>
-      <p className="mb-2 t-body-compact text-fg-2">
+      <p className="mb-2 max-w-prose t-body-compact text-fg-2">
         Список приходит из ВАТС сам. Сотрудника выбираете и подтверждаете вы: пока пользователь не сопоставлен, его звонки
         сохраняются без сотрудника. Сопоставьте до включения разбора звонков.
         {unmapped > 0 ? ` Не сопоставлено: ${unmapped}.` : ""}

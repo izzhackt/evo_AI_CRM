@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { leadCallRow, leadFeed, leadLastContact } from "../src/components/v3/profile/lead-work-view.ts";
+import { leadCallMoment, leadCallRow, leadFeed, leadLastContact } from "../src/components/v3/profile/lead-work-view.ts";
 import { isConnectedPlatformApi } from "../src/lib/platform-route-contract.ts";
 import {
   createTelephonyResultHandler,
@@ -26,7 +26,9 @@ import {
   callDuration,
   callOutcomeText,
   callPeopleText,
+  callPressWords,
   callRecordingText,
+  callRequestOutcome,
   callResultText,
   callTalkText,
   callTitle,
@@ -193,9 +195,9 @@ test("words: direction, outcome, talk time, people, recording and result are pla
   assert.equal(callOutcomeText({ direction: "in", state: "ended", outcome: "answered", outcomeSource: "pull" }), "разговор");
   assert.equal(callOutcomeText({ direction: "in", state: "ringing", outcome: null, outcomeSource: null }), "идёт вызов");
   assert.equal(callOutcomeText({ direction: "in", state: "answered", outcome: null, outcomeSource: null }), "идёт разговор");
-  // Talk time: only an answered call has it, and an unknown one is «—», never zero.
+  // Talk time: only an answered call has it, and an unknown one is worded («время уточняется»), never zero or a dash.
   assert.equal(callTalkText({ outcome: "answered", talkSeconds: 125 }), "2\u00A0мин 05\u00A0с");
-  assert.equal(callTalkText({ outcome: "answered", talkSeconds: null }), "—");
+  assert.equal(callTalkText({ outcome: "answered", talkSeconds: null }), "время уточняется");
   assert.equal(callTalkText({ outcome: "answered", talkSeconds: 0 }), "0\u00A0с");
   assert.equal(callTalkText({ outcome: "missed", talkSeconds: null }), null);
   assert.equal(callTalkText({ outcome: null, talkSeconds: null }), null);
@@ -214,6 +216,31 @@ test("words: direction, outcome, talk time, people, recording and result are pla
     callResultText({ resultCode: "not_interested", callbackOn: null }, day),
     callResultText({ resultCode: "no_answer", callbackOn: null }, day),
   ], [null, "Дозвонился", "Перезвонить 09.01", "Не интересно", "Недозвон"]);
+  // A client who rang us was «talked to», not «reached»; «Перезвонить» without a day is «позже».
+  assert.equal(callResultText({ resultCode: "reached", callbackOn: null, direction: "in" }, day), "Поговорили");
+  assert.equal(callResultText({ resultCode: "reached", callbackOn: null, direction: "out" }, day), "Дозвонился");
+  assert.deepEqual(callPressWords("in"), { reached: "Поговорили", callback: "Перезвонить позже", not_interested: "Не интересно" });
+  assert.deepEqual(callPressWords("out"), { reached: "Дозвонился", callback: "Перезвонить позже", not_interested: "Не интересно" });
+  assert.equal(callResultText({ resultCode: "callback", callbackOn: null, direction: "in" }, day), "Перезвонить позже");
+});
+
+test("words: the outcome of a call in «Заявки → Звонки» is one line: missed, or who answered and for how long", () => {
+  const base = { direction: "in", state: "ended", outcomeSource: "webhook", managerName: "Менеджер Первый", talkSeconds: 95 };
+  assert.equal(callRequestOutcome({ ...base, outcome: "missed", managerName: null, talkSeconds: null }), "Пропущен");
+  assert.equal(callRequestOutcome({ ...base, outcome: "answered" }), "Ответил Менеджер Первый · 1\u00A0мин 35\u00A0с");
+  assert.equal(callRequestOutcome({ ...base, outcome: "answered", talkSeconds: null }), "Ответил Менеджер Первый", "no talk time is not invented");
+  assert.equal(callRequestOutcome({ ...base, outcome: "answered", managerName: null, talkSeconds: null }), "Разговор");
+  assert.equal(callRequestOutcome({ ...base, outcome: "missed", outcomeSource: "pull", managerName: null }), "Без ответа");
+});
+
+test("words: a call of the last day reads «38 мин назад», older ones keep the date; the exact time stays", () => {
+  const now = new Date("2031-01-06T06:00:00.000Z");
+  const at = (minutes) => new Date(now.getTime() - minutes * 60_000).toISOString();
+  assert.deepEqual(leadCallMoment(at(0), now).label, "только что");
+  assert.equal(leadCallMoment(at(38), now).label, "38\u00A0мин назад");
+  assert.equal(leadCallMoment(at(185), now).label, "3\u00A0ч назад");
+  assert.equal(leadCallMoment(at(24 * 60 + 1), now).label, leadCallMoment(at(24 * 60 + 1), now).exact, "past a day it is the date");
+  assert.match(leadCallMoment(at(38), now).exact, /^\d\d\.\d\d \d\d:\d\d$/u);
 });
 
 test("words: «Последний контакт» counts a talk and a client's missed call, not our unanswered attempts", () => {
@@ -281,10 +308,14 @@ test("row: the words of one call row come from what the database gave, nothing i
   const talked = leadCallRow(call(1, "2031-01-05T08:00:00+00:00", { recording: "available" }), now);
   assert.deepEqual(talked, {
     title: "Исходящий звонок", outcome: "разговор 2\u00A0мин 05\u00A0с", details: `${PHONE} · Менеджер Первый · Есть запись`,
-    result: null, callbackLabel: null,
+    result: null, resultLabel: null, callbackLabel: null,
+    pressWords: { reached: "Дозвонился", callback: "Перезвонить позже", not_interested: "Не интересно" },
+    recordingContext: { who: "Менеджер Первый", talk: "2\u00A0мин 05\u00A0с" },
   });
   const unknownTalk = leadCallRow(call(2, "2031-01-05T08:00:00+00:00", { direction: "in", talkSeconds: null, recording: "expired" }), now);
-  assert.equal(unknownTalk.outcome, "разговор —", "talk time is «—» until reconciliation brings it, not zero");
+  assert.equal(unknownTalk.outcome, "разговор, время уточняется", "talk time is worded until reconciliation brings it, not zero or a dash");
+  assert.deepEqual(unknownTalk.recordingContext, { who: "Менеджер Первый", talk: null }, "the player label never claims a duration it does not have");
+  assert.equal(unknownTalk.pressWords.reached, "Поговорили", "an incoming call was a talk, not a reach");
   assert.equal(unknownTalk.details, `${PHONE} · Менеджер Первый · Запись удалена по сроку хранения`);
   const missed = leadCallRow(call(3, "2031-01-05T08:00:00+00:00", {
     direction: "in", outcome: "missed", answeredAt: null, talkSeconds: null, managerName: null,
@@ -298,6 +329,9 @@ test("row: the words of one call row come from what the database gave, nothing i
   }), now);
   assert.equal(withResult.result, "Результат: Перезвонить 09.01 · Менеджер Первый · 05.01 15:10");
   assert.equal(withResult.callbackLabel, "Перезвонить 09.01");
+  assert.equal(withResult.resultLabel, "Перезвонить 09.01", "the line «Итог: …» of a marked call");
+  // The number repeats in every row only when the feed has more than one: otherwise it is the one in «Контакты».
+  assert.equal(leadCallRow(call(7, "2031-01-05T08:00:00+00:00"), now, null, { showPhone: false }).details, "Менеджер Первый");
   const auto = leadCallRow(call(6, "2031-01-05T08:00:00+00:00", { resultCode: "no_answer", resultAt: "2031-01-05T09:10:00+00:00" }), now);
   assert.equal(auto.result, "Результат: Недозвон · 05.01 15:10", "the system's press has no author");
   assert.equal(auto.callbackLabel, null);
@@ -524,20 +558,30 @@ test("rendered lead: call rows stand in the feed by time with the words, the mas
   const order = [...feed.matchAll(/data-feed="(call|note|event)"/gu)].map((match) => match[1]);
   assert.deepEqual(order, ["call", "call", "call", "note", "call", "note", "call", "event"], "calls and notes interleave by time, the lead's creation last");
   const [first, missed, unknownTalk, , , ] = rows.map(text);
-  assert.match(first, /^Исходящий звонок · разговор 2 мин 05 с 26\.09 14:00 \+996 ••• 00 00 01 · Санжар Эскизов · Есть запись/u);
-  assert.match(missed, /^Входящий звонок · пропущен 26\.09 13:00 \+996 ••• 00 00 01 · вызывали: Санжар Эскизов, Алия Учебная$/u);
-  assert.match(unknownTalk, /^Входящий звонок · разговор — 25\.09 16:00 .*Запись удалена по сроку хранения Результат: Дозвонился · Санжар Эскизов · 25\.09 16:05$/u);
-  assert.match(text(feed), /Исходящий звонок · занято 24\.09 15:00 \+996 ••• 00 00 01 Лид создан/u, "an unanswered attempt with no people and no recording");
+  // The mask is the same in every row here, so it is not repeated: it stands once in «Контакты». The last day reads «22 ч назад».
+  assert.match(first, /^Исходящий звонок · разговор 2 мин 05 с 22 ч назад Санжар Эскизов · Есть запись/u);
+  assert.match(missed, /^Входящий звонок · пропущен 23 ч назад вызывали: Санжар Эскизов, Алия Учебная$/u);
+  assert.match(unknownTalk, /^Входящий звонок · разговор, время уточняется 25\.09 16:00 .*Запись удалена по сроку хранения Результат: Поговорили · Санжар Эскизов · 25\.09 16:05$/u,
+    "an incoming call was a talk, and an unknown talk time is worded, not a dash");
+  assert.match(text(feed), /Исходящий звонок · занято 24\.09 15:00 Лид создан/u, "an unanswered attempt with no people and no recording");
+  assert.doesNotMatch(feed, /\+996 ••• 00 00 01/u, "one number in the whole feed is not repeated in every row");
+  assert.match(rows[0], /<time [^>]*title="26\.09 14:00"/u, "the exact time of a relative label stays as a hint");
   assert.match(text(html), /Последний контакт 26\.09 14:00 · звонок/u, "the newest call is the last contact");
-  // The one-tap strip only where the database allowed it: rows 1 and 4, three buttons each, no player, no link.
+  // The one-tap strip only where the database allowed it: rows 1 and 4. A call without a result shows the three buttons under a
+  // visible label (row 1); a marked one is one line «Итог: … · изменить» and the buttons wait behind «изменить» (row 4).
   assert.equal((html.match(/data-testid="v3-call-result"/gu) ?? []).length, 2);
-  for (const control of html.match(/<div class="mt-1" data-testid="v3-call-result">[\s\S]*?<\/div>\s*<\/div>/gu) ?? []) {
-    assert.deepEqual([...control.matchAll(/<button[^>]*>([^<]+)<\/button>/gu)].map((match) => match[1]).length, 3);
-    assert.match(control, /min-h-11/u, "targets are 44 px");
-    assert.match(control, /role="group" aria-label="Результат звонка"/u);
-  }
-  assert.equal((html.match(/aria-pressed="true"/gu) ?? []).length, 1, "only the pressed result is pressed");
-  assert.match(html, /aria-pressed="true" aria-expanded="false">Перезвонить 30\.09<\/button>/u, "the saved day shows on the pressed button");
+  const controls = html.match(/data-testid="v3-call-result">[\s\S]*?<p role="status"[^>]*><\/p>/gu) ?? [];
+  assert.equal(controls.length, 2);
+  const [open, marked] = controls;
+  assert.deepEqual([...open.matchAll(/<button[^>]*>([^<]+)<\/button>/gu)].map((match) => match[1]), ["Дозвонился", "Перезвонить позже", "Не интересно"]);
+  assert.match(open, /min-h-11/u, "targets are 44 px");
+  assert.match(open, />Итог звонка<\/p>/u, "the group has a visible label");
+  assert.match(open, /role="group" aria-labelledby="[^"]+" class="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap"/u, "three equal columns on a phone");
+  assert.doesNotMatch(open, />Свернуть</u, "a fresh call has no reason to collapse its buttons");
+  assert.match(marked, /Итог: <span class="text-fg">Перезвонить 30\.09<\/span>/u, "the saved day shows in the line");
+  assert.match(marked, /<button type="button"[^>]*aria-expanded="false"[^>]*>изменить<\/button>/u);
+  assert.doesNotMatch(marked, /aria-pressed|<input/u, "a marked call is one line, not three buttons with one pressed");
+  assert.equal((html.match(/aria-pressed="true"/gu) ?? []).length, 0);
   assert.doesNotMatch(html, /<audio|Слушать|recording_link|700000001/u, "no player, no listen button, no link field, no full number anywhere on the page");
   assert.doesNotMatch(feed, /https?:|\.mp3|<input/u, "no link and no field in the feed: the callback day stays closed until «Перезвонить» is pressed");
   assert.equal(solidRed(html), solidRed(pages.get("lead-none")), "the strip adds no solid red");
@@ -547,7 +591,7 @@ test("rendered lead: the read-only database answer shows results as words and no
   const html = pages.get("lead-readonly");
   assert.equal(callRows(html).length, 5);
   assert.doesNotMatch(html, /data-testid="v3-call-result"/u);
-  assert.match(text(html), /Результат: Дозвонился · Санжар Эскизов · 25\.09 16:05/u);
+  assert.match(text(html), /Результат: Поговорили · Санжар Эскизов · 25\.09 16:05/u);
   assert.match(text(html), /Результат: Перезвонить 30\.09 · Санжар Эскизов · 25\.09 15:10/u);
 });
 
@@ -555,7 +599,9 @@ test("rendered lead: an unreadable answer says so and leaves the notes alone; a 
   const unavailable = pages.get("lead-unavailable");
   assert.equal(callRows(unavailable).length, 0);
   assert.match(unavailable, /data-testid="v3-calls-unavailable"/u);
-  assert.match(text(unavailable), /Звонки не загрузились\. Обновите страницу\./u);
+  assert.match(text(unavailable), /Звонки не загрузились\. Заметки и события ниже на месте\. Повторить/u);
+  assert.match(unavailable, /data-testid="v3-calls-retry"/u, "«Повторить» stands beside the failure, not under the list");
+  assert.ok(unavailable.indexOf('data-testid="v3-calls-unavailable"') < unavailable.indexOf('data-testid="v3-lead-feed-items"'), "the failure is above the list");
   assert.match(text(unavailable), /Созвонились: интересует Малайзия/u, "the notes are still there");
   const more = pages.get("lead-more");
   assert.match(text(more), /Показаны последние 5 звонков\./u);

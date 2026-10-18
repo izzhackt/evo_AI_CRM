@@ -36,28 +36,57 @@ function Notice({ children }: Readonly<{ children: React.ReactNode }>) {
   );
 }
 
-function StatusBlock({ lines }: Readonly<{ lines: ReturnType<typeof telephonyStatusLines> }>) {
+type StatusLines = ReturnType<typeof telephonyStatusLines>;
+
+function StatusRow({ line }: Readonly<{ line: StatusLines[number] }>) {
+  const icon = TONE_ICON[line.tone];
+  const attention = line.tone === "warn" || line.tone === "blocked";
+  return (
+    <li data-line={line.id} data-tone={line.tone}
+      className="grid gap-x-4 gap-y-0.5 px-4 py-2.5 @min-[40rem]/telephony:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
+      <span className="t-body-compact text-fg-2">{line.label}</span>
+      <span className="min-w-0">
+        <span className="inline-flex items-start gap-1.5 t-body-compact text-fg">
+          <Icon name={icon.name} size={16} className={`mt-0.5 shrink-0 ${icon.className}`} />
+          <span className={line.tone === "blocked" ? "font-medium text-danger" : undefined}>{line.value}</span>
+        </span>
+        {line.note ? <span className="t-meta block text-fg-2">{line.note}</span> : null}
+        {/* Что не работает из-за строки и кто это чинит — рядом с ней, а не в другом месте страницы. */}
+        {attention && line.without ? <span className="t-meta block text-fg-2" data-testid="v3-telephony-without">{line.without}.</span> : null}
+        {attention && line.handoff ? (
+          <span className={`t-meta mt-0.5 block font-medium ${line.tone === "blocked" ? "text-danger" : "text-fg"}`} data-testid="v3-telephony-handoff">{line.handoff}</span>
+        ) : null}
+      </span>
+    </li>
+  );
+}
+
+const STATUS_LIST = "divide-y divide-border rounded-card border border-border bg-surface";
+
+/**
+ * «Состояние»: сверху одно предложение — сколько строк требуют внимания; сами эти строки идут первыми,
+ * каждая с тем, что из-за неё не работает, и кому это передать. Остальные (в порядке и выключено) свёрнуты:
+ * двенадцать равных строк заставляли читать всё, чтобы найти одну красную.
+ */
+function StatusBlock({ lines }: Readonly<{ lines: StatusLines }>) {
+  const attention = lines.filter((line) => line.tone === "warn" || line.tone === "blocked");
+  const rest = lines.filter((line) => line.tone === "ok" || line.tone === "off");
   return (
     <section aria-labelledby="tel-status-title" className="@container/telephony" data-testid="v3-telephony-status">
-      <h3 id="tel-status-title" className="t-section mb-2 text-fg">Состояние</h3>
-      <ul className="divide-y divide-border rounded-card border border-border bg-surface">
-        {lines.map((line) => {
-          const icon = TONE_ICON[line.tone];
-          return (
-            <li key={line.id} data-line={line.id} data-tone={line.tone}
-              className="grid gap-x-4 gap-y-0.5 px-4 py-2.5 @min-[40rem]/telephony:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
-              <span className="t-body-compact text-fg-2">{line.label}</span>
-              <span className="min-w-0">
-                <span className="inline-flex items-start gap-1.5 t-body-compact text-fg">
-                  <Icon name={icon.name} size={16} className={`mt-0.5 shrink-0 ${icon.className}`} />
-                  <span className={line.tone === "blocked" ? "font-medium text-danger" : undefined}>{line.value}</span>
-                </span>
-                {line.note ? <span className="t-meta block text-fg-2">{line.note}</span> : null}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+      <h3 id="tel-status-title" className="t-section mb-1 text-fg">Состояние</h3>
+      <p className="mb-2 t-body-compact text-fg" data-testid="v3-telephony-verdict">
+        {attention.length > 0 ? `Требует внимания: ${attention.length} из ${lines.length}` : "Замечаний нет"}
+      </p>
+      {attention.length > 0 ? <ul className={STATUS_LIST}>{attention.map((line) => <StatusRow key={line.id} line={line} />)}</ul> : null}
+      {rest.length > 0 ? (
+        <details className="group mt-2" data-testid="v3-telephony-status-rest">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 t-label text-fg-2 hover:text-fg [&::-webkit-details-marker]:hidden">
+            <Icon name="chevron-right" size={16} className="shrink-0 text-fg-3 group-open:rotate-90" />
+            {attention.length > 0 ? `Остальные строки: ${rest.length}` : `Показать все ${lines.length}`}
+          </summary>
+          <ul className={`mt-1 ${STATUS_LIST}`}>{rest.map((line) => <StatusRow key={line.id} line={line} />)}</ul>
+        </details>
+      ) : null}
     </section>
   );
 }
@@ -80,7 +109,7 @@ function ConnectionGuide({ server, inboundUrl }: Readonly<{ server: TelephonySer
   return (
     <section aria-labelledby="tel-connection-title" className="@container/telephony" data-testid="v3-telephony-connection">
       <h3 id="tel-connection-title" className="t-section mb-1 text-fg">Подключение «Ваша CRM» в кабинете ВАТС</h3>
-      <p className="mb-2 t-body-compact text-fg-2">
+      <p className="mb-2 max-w-prose t-body-compact text-fg-2">
         Эти значения вносят в форму «Интеграция с вашей CRM» в кабинете ВАТС. Подключение создают в тихое время, когда
         владелец рядом: пока оно живо, каждый входящий звонок обращается к CRM.
       </p>
@@ -108,7 +137,7 @@ function ConnectionGuide({ server, inboundUrl }: Readonly<{ server: TelephonySer
             <span>{server.pbx === "ready" ? "заданы на сервере" : server.pbx === "invalid" ? "заданы на сервере неверно" : "не заданы на сервере"}</span>
           </span>
           <span className="mt-1 block t-meta text-fg-3">
-            Их показывает сам кабинет после сохранения подключения. Технический специалист переносит их на сервер; в чат и Git они не попадают.
+            Их показывает сам кабинет после сохранения подключения. Технический специалист переносит их на сервер; они нигде не публикуются.
           </span>
         </Field>
         <Field label="Права доступа к управлению ВАТС">

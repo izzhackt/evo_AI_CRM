@@ -35,7 +35,20 @@ export type TelephonyStatusLine = Readonly<{
   tone: TelephonyTone;
   /** Что за этим стоит или кто это меняет; `null` — добавить нечего. */
   note: string | null;
+  /** Что не работает из-за этой строки (только у «стоит проверить» и «не работает»); `null` — нечего добавить. */
+  without: string | null;
+  /** Работа на сервере и кто её делает («Передать техническому специалисту: …»); `null` — делается на этой странице. */
+  handoff: string | null;
 }>;
+
+/**
+ * Первая буква строчная — для слов внутри строки («Связь с ВАТС — ВАТС отклонила ключ»), но не у аббревиатуры:
+ * «ВАТС отклонила ключ» остаётся «ВАТС…», а не «вАТС…».
+ */
+export function lowerFirstWord(text: string): string {
+  const [first = ""] = text.split(" ");
+  return /^[А-ЯЁA-Z]{2,}[.,;:]?$/u.test(first) ? text : `${text.charAt(0).toLocaleLowerCase("ru")}${text.slice(1)}`;
+}
 
 const MS_DAY = 86_400_000;
 /** Тишина дольше двух суток при открытом приёме — повод посмотреть (в воскресенье звонков мало). */
@@ -178,8 +191,25 @@ export function telephonyIssues(server: TelephonyServerFacts, overview: Telephon
 const genitive = (count: number, one: string, many: string) => (count % 10 === 1 && count % 100 !== 11 ? one : many);
 
 function line(id: string, label: string, value: string, tone: TelephonyTone, note: string | null = null): TelephonyStatusLine {
-  return { id, label, value, tone, note };
+  return { id, label, value, tone, note, without: null, handoff: null };
 }
+
+/** Какую строку «Состояния» объясняет замечание: у замечания свой id, у строки свой. */
+const ISSUE_LINE: Readonly<Record<string, string>> = Object.freeze({
+  automation_stop: "automation",
+  pbx_error: "pbx_link",
+  pbx_slow: "pbx_link",
+  ingest_off: "intake",
+  crm_key: "crm_key",
+  pbx_key: "pbx_key",
+  pbx_invalid: "pbx_key",
+  quiet: "last_event",
+  unmapped: "directory",
+  divergence: "divergence",
+  rejected: "evidence",
+  record_off: "record",
+  record_exceptions: "record",
+});
 
 /** Строки блока «Состояние» страницы «Телефония». */
 export function telephonyStatusLines(server: TelephonyServerFacts, overview: TelephonyOverview, now: Date): readonly TelephonyStatusLine[] {
@@ -209,7 +239,7 @@ export function telephonyStatusLines(server: TelephonyServerFacts, overview: Tel
   } else if (settings.flags.outboundPaused) {
     lines.push(line("pbx_link", "Связь с ВАТС", "исходящие запросы на паузе", "warn", "Пауза включена в этих настройках."));
   } else if (link.kind === "error") {
-    lines.push(line("pbx_link", "Связь с ВАТС", `${link.word.charAt(0).toLocaleLowerCase("ru")}${link.word.slice(1)}`, link.tone, at(link.at) ? `Последняя ошибка ${at(link.at)}.` : null));
+    lines.push(line("pbx_link", "Связь с ВАТС", lowerFirstWord(link.word), link.tone, at(link.at) ? `Последняя ошибка ${at(link.at)}.` : null));
   } else if (link.kind === "ok") {
     lines.push(line("pbx_link", "Связь с ВАТС", "на связи", "ok", at(link.at) ? `Последний ответ ${at(link.at)}.` : null));
   } else {
@@ -276,11 +306,25 @@ export function telephonyStatusLines(server: TelephonyServerFacts, overview: Tel
 
   lines.push(health.automationStop
     ? line("automation", "Автоматика", `остановлена по потолку (${TELEPHONY_STOP_COPY[health.automationStop.code]})`, "blocked", at(health.automationStop.stoppedAt))
-    : line("automation", "Автоматика", settings.flags.missedTaskEnabled || settings.flags.unknownLeadEnabled ? "включена" : "выключена", "off"));
-  return Object.freeze(lines);
+    : settings.flags.missedTaskEnabled || settings.flags.unknownLeadEnabled
+      ? line("automation", "Автоматика", "включена", "ok")
+      : line("automation", "Автоматика", "выключена", "off"));
+  // Что не работает и кто это делает — прямо в строке, у которой замечание: красная строка без «что делать» заставляла читать
+  // весь список. Замечание садится на свою строку один раз (первое, самое тяжёлое), остальные идут в её пояснение не повторяясь.
+  const byLine = new Map<string, TelephonyIssue>();
+  for (const issue of telephonyIssues(server, overview, now)) {
+    const target = ISSUE_LINE[issue.id];
+    if (target !== undefined && !byLine.has(target)) byLine.set(target, issue);
+  }
+  return Object.freeze(lines.map((item) => {
+    const issue = item.tone === "warn" || item.tone === "blocked" ? byLine.get(item.id) : undefined;
+    // «Исходящие запросы на паузе» — слово самой строки, а не причина замечания о связи: чужое «что не работает» к ней не липнет.
+    if (!issue || (item.id === "pbx_link" && item.value !== lowerFirstWord(issue.text))) return item;
+    return { ...item, without: issue.without, handoff: issue.handoff };
+  }));
 }
 
-const lowerFirst = (word: string) => `${word.charAt(0).toLocaleLowerCase("ru")}${word.slice(1)}`;
+const lowerFirst = lowerFirstWord;
 
 export type TelephonyIntegrationFacts = Readonly<{
   server: TelephonyServerFacts;

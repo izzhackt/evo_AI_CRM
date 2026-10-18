@@ -25,6 +25,7 @@ export function TodayQueueList({
   nowIso,
   permissions,
   dial = null,
+  taskLeads = null,
 }: Readonly<{
   bands: readonly TodayBandView[];
   /** Момент чтения сервера: одинаковые сроки при рендере и гидрации. */
@@ -32,6 +33,8 @@ export function TodayQueueList({
   permissions: TaskRowPermissions;
   /** «Позвонить» (Телефония, T7): у строк лидов и заявок, когда база открыла набор. */
   dial?: DialOptions | null;
+  /** Лид рабочей задачи по ключу строки (телефония): имя клиента вместо «Рабочая». */
+  taskLeads?: Readonly<Record<string, Readonly<{ name: string; href: string }>>> | null;
 }>) {
   // Одна ссылка на группы, пока сервер не прислал новые: иначе завершения сбрасывались бы каждый рендер.
   const completionBands = useMemo<readonly CompletionBand<TodayItem>[]>(() => bands.map((band) => ({
@@ -65,6 +68,7 @@ export function TodayQueueList({
               nowIso={nowIso}
               permissions={permissions}
               recent={recent[item.key] ?? null}
+              leadRef={taskLeads?.[item.key] ?? null}
               announce={announce}
               onCompleted={(completion) => completed(item, band, index, completion)}
             />

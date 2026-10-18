@@ -759,16 +759,19 @@
 }
 .v3-world .v3-switch[aria-checked="true"] .v3-switch-track::after {
   translate: 16px 0;
-  background: #202020;
+  background: var(--switch-thumb-on, #202020);
 }
-.v3-world .v3-switch[aria-disabled="true"] {
+.v3-world .v3-switch[aria-disabled="true"],
+.v3-world .v3-switch:disabled {
   cursor: not-allowed;
 }
-.v3-world .v3-switch[aria-disabled="true"] .v3-switch-track {
+.v3-world .v3-switch[aria-disabled="true"] .v3-switch-track,
+.v3-world .v3-switch:disabled .v3-switch-track {
   border-color: var(--border);
   background: var(--surface-2);
 }
-.v3-world .v3-switch[aria-disabled="true"][aria-checked="true"] .v3-switch-track {
+.v3-world .v3-switch[aria-disabled="true"][aria-checked="true"] .v3-switch-track,
+.v3-world .v3-switch:disabled[aria-checked="true"] .v3-switch-track {
   background: var(--text-3);
 }
 

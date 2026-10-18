@@ -5,7 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { parseRequestSelection, requestsHref } from "../src/lib/requests-queue-contract.ts";
-import { requestClosedLine, requestEmptyWhat, requestLatestLine, requestReceived, requestTabs, requestTriage } from "../src/lib/v3/requests-view.ts";
+import { requestClosedLine, requestDisplayName, requestEmptyWhat, requestLatestLine, requestReceived, requestTabs, requestTriage } from "../src/lib/v3/requests-view.ts";
 import { buildTodayQueue, todayRequestItems } from "../src/lib/v3/today-queue.ts";
 
 /**
@@ -328,16 +328,22 @@ test("«Звонки»: the tab, its number and its rows exist only when the rea
   const waiting = main(surfaces.get("calls-waiting"));
   assert.equal(count(waiting, /data-queue-row=/gu), 2, "only the two unowned calls wait");
   assert.equal(count(waiting, />Взять себе</gu), 2);
-  assert.match(waiting, /Звонок ••••4521/u);
+  // The database names a lead made by an unknown number «Звонок …»; the column already says «Звонок», so the row says «Неизвестный номер …».
+  assert.match(waiting, /Неизвестный номер ••••4521/u);
+  assert.doesNotMatch(waiting, />Звонок ••••/u);
   assert.match(waiting, /href="\/v3\/requests\?source=phone_call&amp;open=lead%3A[0-9a-f-]+"/u, "«Открыть» keeps the tab in the address");
   assert.equal(count(waiting, />Звонок</gu) >= 2, true, "the source column says «Звонок»");
   const all = main(surfaces.get("calls"));
   assert.equal(count(all, /data-queue-row=/gu), 12);
-  assert.match(all, /Звонок ••••7788/u);
+  assert.match(all, /Неизвестный номер ••••7788/u);
+  // A name staff already changed stays as it is, and only phone calls are renamed.
+  assert.equal(requestDisplayName({ source: "phone_call", personName: "Звонок +996 ••• 00 02 01" }), "Неизвестный номер +996 ••• 00 02 01");
+  assert.equal(requestDisplayName({ source: "phone_call", personName: "Новый Клиент" }), "Новый Клиент");
+  assert.equal(requestDisplayName({ source: "website", personName: "Звонок консультанту" }), "Звонок консультанту");
   // Телефония выключена: звонки есть в базе, но ни вкладки, ни строк, ни числа; «Все» — как раньше.
   assert.deepEqual(tabs(surfaces.get("calls-hidden")), ["Все 9", "Сайт 4", "WhatsApp 1", "Анкеты 2", "Консультации 2"]);
   assert.equal(count(main(surfaces.get("calls-hidden")), /data-queue-row=/gu), 9);
-  assert.doesNotMatch(main(surfaces.get("calls-hidden")), /Звонок ••••/u);
+  assert.doesNotMatch(main(surfaces.get("calls-hidden")), /Звонок ••••|Неизвестный номер/u);
   // Устаревшая ссылка на «Звонки»: вкладка остаётся (выбранная), числа нет, слова вместо «пусто».
   const link = main(surfaces.get("calls-off-link"));
   assert.deepEqual(tabs(surfaces.get("calls-off-link")), ["Все 4", "Сайт 2", "WhatsApp 0", "Звонки", "Анкеты 1", "Консультации 1"]);

@@ -64,6 +64,7 @@ export function TodayScreen({
   permissions,
   mainAction,
   dial = null,
+  taskLeads = null,
 }: Readonly<{
   queue: TodayQueue;
   nowIso: string;
@@ -72,6 +73,8 @@ export function TodayScreen({
   mainAction: TodayLink | null;
   /** «Позвонить» (Телефония, T7): решение базы для этого сотрудника; нет — кнопок нет. */
   dial?: DialOptions | null;
+  /** Лид задачи по ключу строки: «Перезвонить клиенту» называет клиента вместо слова «Рабочая». */
+  taskLeads?: Readonly<Record<string, Readonly<{ name: string; href: string }>>> | null;
 }>) {
   const link = mainAction ? <IntentPrefetchLink href={mainAction.href} className={QUEUE_QUIET_LINK}>{mainAction.label}</IntentPrefetchLink> : null;
   const note = queue.emptyNote ? <p className="t-body-compact text-fg-2" data-today-empty-note="">{queue.emptyNote}</p> : null;
@@ -92,7 +95,7 @@ export function TodayScreen({
       ) : null}
       {queue.bands.length ? (
         <div className="@container min-w-0" data-today-queue="">
-          <TodayQueueList bands={queue.bands} nowIso={nowIso} permissions={permissions} dial={dial} />
+          <TodayQueueList bands={queue.bands} nowIso={nowIso} permissions={permissions} dial={dial} taskLeads={taskLeads} />
         </div>
       ) : null}
     </div>

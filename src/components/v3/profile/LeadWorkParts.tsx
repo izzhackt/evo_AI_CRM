@@ -9,7 +9,7 @@ import type { PlatformSalesOwnerOption, PlatformSalesStage } from "@/lib/platfor
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { buildV3InboxHref } from "@/lib/v3/inbox-href";
 import { callRecordingItems, callbackDayBounds, type LeadCallsState } from "@/lib/v3/telephony-lead-calls";
-import type { DialOptions } from "@/lib/v3/telephony-dial";
+import { DIAL_TOUCH_HINT, type DialOptions } from "@/lib/v3/telephony-dial";
 import { stageTrack } from "@/lib/v3/stages";
 import type { CaseAgreementReadResult } from "@/lib/v3/case-agreement-source";
 import { closureWords, source as sourceWord, sourceUnderLabel } from "@/lib/v3/wording";
@@ -43,6 +43,7 @@ import {
   leadDay,
   leadFeed,
   leadGroupSummaries,
+  leadCallMoment,
   leadLastContact,
   leadMoment,
   leadPrimaryAction,
@@ -257,12 +258,12 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   const actions = (
     <div className="flex flex-wrap items-center gap-2" data-testid="v3-lead-actions">
       {primary?.kind === "step" ? (
-        <button type="button" popoverTarget={LEAD_STEP_DRAWER_ID} aria-haspopup="dialog" className={btnCls} data-testid="v3-lead-primary">
+        <button type="button" popoverTarget={LEAD_STEP_DRAWER_ID} aria-haspopup="dialog" className={`${btnCls} max-sm:w-full`} data-testid="v3-lead-primary">
           Записать следующий шаг
         </button>
       ) : primary?.kind === "sale" ? (
-        <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Link href={primary.href} className={btnCls} data-testid="v3-lead-primary">Оформить продажу</Link>
+        <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 max-sm:w-full">
+          <Link href={primary.href} className={`${btnCls} max-sm:w-full`} data-testid="v3-lead-primary">Оформить продажу</Link>
           {/* «Связать с лидом» (Э8.7): рядом с «Оформить продажу» — запись отчёта не
               заменяет продажу, только называет, что уже есть связанная запись. */}
           {strip?.linkedRecord ? (
@@ -273,7 +274,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
           ) : null}
         </span>
       ) : primary?.kind === "case" ? (
-        <Link href={primary.href} className={ACTION_LINK} data-testid="v3-lead-primary">Открыть дело</Link>
+        <Link href={primary.href} className={`${ACTION_LINK} max-sm:w-full max-sm:justify-center`} data-testid="v3-lead-primary">Открыть дело</Link>
       ) : null}
       {writeHref ? (
         <Link href={writeHref} className={ICON_ACTION} title="Написать">
@@ -306,6 +307,10 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
           expectedVersion={sales.lead.workflowVersion}
           blockedReason={sales.handoff.handedOffAt ? closureWords.lead.handedOff : null}
         />
+      ) : null}
+      {/* На сенсорном экране у кнопки нет подсказки при наведении: что набор сначала звонит сотруднику, сказано строкой. */}
+      {input.dial?.status === "ready" && !preview ? (
+        <p className="hidden basis-full t-meta text-fg-2 max-sm:block pointer-coarse:block" data-testid="v3-dial-hint">{DIAL_TOUCH_HINT}</p>
       ) : null}
     </div>
   );
@@ -477,9 +482,25 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   const notesWritable = !preview;
   // Результат звонка нажимает тот, кому его дала база (`resultEditable`); просмотр роли ничего не пишет.
   const callResultBounds = callbackDayBounds(today);
+  // Маска номера в каждой строке только когда номеров в ленте больше одного: иначе она одна и та же и есть в «Контактах».
+  const maskNeeded = new Set(feed.flatMap((item) => (item.kind === "call" && item.call.phone ? [item.call.phone] : []))).size > 1;
+  // Три чипа итога сразу видны у двух последних звонков без итога; у остальных — «Отметить итог» или «Итог: … · изменить».
+  const freshCalls = new Set<string>();
+  for (const item of feed) {
+    if (freshCalls.size >= 2) break;
+    if (item.kind === "call" && !preview && item.call.resultEditable && item.call.resultCode === null) freshCalls.add(item.call.callId);
+  }
   const feedPart = (
     <section className="min-w-0" aria-labelledby="lead-feed-title" data-testid="v3-lead-feed">
       <h2 id="lead-feed-title" className="t-section text-fg">Лента</h2>
+      {/* Частичный сбой не прячется под списком: лента без звонков выглядела бы полной. */}
+      {input.calls?.status === "unavailable" ? (
+        <p role="status" className="mt-2 flex min-h-11 flex-wrap items-center gap-x-2 t-body-compact text-fg" data-testid="v3-calls-unavailable">
+          <Icon name="alert" size={16} className="shrink-0 text-warn" />
+          <span>Звонки не загрузились. Заметки и события ниже на месте.</span>
+          <Link href={input.hrefFor("overview")} prefetch={false} className={QUIET_LINK} data-testid="v3-calls-retry">Повторить</Link>
+        </p>
+      ) : null}
       <div className="mt-2 space-y-3">
         {notesWritable ? (
           <LeadNoteComposer key={`${input.notes.subject.leadId ?? ""}:${input.notes.subject.studentCaseId ?? ""}`}
@@ -503,16 +524,18 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
             // Записи (T6): прочитала база — блок записи под строкой («Слушать» или слова состояния); не прочитала —
             // слова состояния в мелкой строке, как в T5. Просмотр роли записей не воспроизводит (выдача пишет в журнал).
             const recordings = preview ? null : callRecordings?.[item.call.callId] ?? null;
-            const row = leadCallRow(item.call, input.now, recordings);
+            const row = leadCallRow(item.call, input.now, recordings, { showPhone: maskNeeded || callRows.length < 2 });
             const pressable = !preview && item.call.resultEditable;
-            const recordingItems = recordings === null ? [] : callRecordingItems(recordings);
+            const recordingItems = recordings === null ? [] : callRecordingItems(recordings, row.recordingContext);
+            const moment = leadCallMoment(item.at, input.now);
             return (
               <FeedCall key={`call:${item.call.callId}`} title={row.title} outcome={row.outcome} details={row.details}
-                at={item.at} label={leadMoment(item.at, input.now)}>
+                at={item.at} label={moment.label} exact={moment.exact}>
                 {recordingItems.length > 0 ? <LeadCallRecording items={recordingItems} /> : null}
                 {pressable ? (
                   <LeadCallResult callId={item.call.callId} code={item.call.resultCode} callbackOn={item.call.callbackOn}
-                    callbackLabel={row.callbackLabel} bounds={callResultBounds} />
+                    resultLabel={row.resultLabel} callbackLabel={row.callbackLabel} pressWords={row.pressWords}
+                    defaultOpen={freshCalls.has(item.call.callId)} bounds={callResultBounds} />
                 ) : row.result ? <p className="mt-0.5 break-words t-meta text-fg-2" data-testid="v3-call-result-text">{row.result}</p> : null}
               </FeedCall>
             );
@@ -521,11 +544,6 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
       ) : (
         <p className="mt-3 border-t border-border pt-3 t-body-compact text-fg-2">Заметок пока нет.</p>
       )}
-      {input.calls?.status === "unavailable" ? (
-        <p role="status" className="border-t border-border pt-3 t-body-compact text-fg-2" data-testid="v3-calls-unavailable">
-          Звонки не загрузились. Обновите страницу.
-        </p>
-      ) : null}
       {input.calls?.status === "ready" && input.calls.hasMore ? (
         <p className="border-t border-border pt-3 t-meta text-fg-2" data-testid="v3-calls-more">
           Показаны последние {input.calls.calls.length} звонков.

@@ -569,6 +569,34 @@
       "steps": 8,
       "items": 54,
       "sha256": "7592a96ef967c42a5c2b6d0390a2cda19ebdadaec7d360925cf8bf30ca2357ec"
+    },
+    {
+      "choice": "CN",
+      "locale": "ru",
+      "today": "2026-10-16",
+      "modules": {
+        "csca": "/portal/csca"
+      },
+      "kind": "country",
+      "file": "cn",
+      "datesHidden": false,
+      "steps": 8,
+      "items": 54,
+      "sha256": "3983abd13f5e417ad0529831eb90318d635f6f5a6394854ffd4ae3c3d03a56d1"
+    },
+    {
+      "choice": "CN",
+      "locale": "ky",
+      "today": "2026-10-16",
+      "modules": {
+        "csca": "/portal/csca"
+      },
+      "kind": "country",
+      "file": "cn",
+      "datesHidden": false,
+      "steps": 8,
+      "items": 54,
+      "sha256": "9c4efdcc5742d23171bbca9df42b13b87371cb64488b8728d54b2ca54681919c"
     }
   ]
 }

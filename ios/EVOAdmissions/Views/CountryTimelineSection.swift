@@ -116,6 +116,10 @@ private extension View {
 
 struct CountryTimelineSection: View {
     @ObservedObject var model: CountryTimelineModel
+    /// Открывает экран приложения для внутренней ссылки шага: получает ключ
+    /// из `CountryTimelineModules` после того, как лист шага закрылся. Стек
+    /// «Главной» принадлежит `HomeView`, поэтому переход делает он.
+    let openModule: (String) -> Void
 
     private var kyrgyz: Bool { AppLocale.isKyrgyz }
 
@@ -134,7 +138,8 @@ struct CountryTimelineSection: View {
 
     private var view: CountryTimelineView? {
         guard let country = choice?.country else { return nil }
-        return model.library?.select(choice: country, kyrgyz: kyrgyz, today: CountryTimelineLibrary.today())
+        return model.library?.select(choice: country, kyrgyz: kyrgyz, today: CountryTimelineLibrary.today(),
+                                     modules: CountryTimelineModules.routes)
     }
 
     private func phaseKey(_ view: CountryTimelineView?) -> String {
@@ -192,7 +197,7 @@ struct CountryTimelineSection: View {
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
         ForEach(view.steps) { step in
-            CountryTimelineStepRow(step: step, total: view.steps.count, disclaimers: view.disclaimers)
+            CountryTimelineStepRow(step: step, total: view.steps.count, disclaimers: view.disclaimers, openModule: openModule)
         }
         VStack(alignment: .leading, spacing: 2) {
             CountryChoiceButton(model: model, current: choice)
@@ -216,7 +221,10 @@ private struct CountryTimelineStepRow: View {
     let step: CountryTimelineView.Step
     let total: Int
     let disclaimers: [String]
+    let openModule: (String) -> Void
     @State private var isPresented = false
+    /// Экран, выбранный ссылкой в листе: открывается, когда лист закрылся.
+    @State private var pendingModule: String?
     @ScaledMetric(relativeTo: .subheadline) private var badge: CGFloat = 30
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private let rowPadding: CGFloat = 12
@@ -266,8 +274,18 @@ private struct CountryTimelineStepRow: View {
         .accessibilityLabel(Text(verbatim: stepOf + ". " + step.title))
         .accessibilityValue(Text(verbatim: [step.timing, step.summary].compactMap { $0 }.joined(separator: ". ")))
         .accessibilityHint(Text("home_timeline_step_hint"))
-        .sheet(isPresented: $isPresented) {
-            CountryTimelineStepSheet(step: step, total: total, disclaimers: disclaimers)
+        .sheet(isPresented: $isPresented, onDismiss: {
+            // Лист и переход по стеку не идут одновременно: сначала лист
+            // закрывается, потом «Главная» открывает экран.
+            if let route = pendingModule {
+                pendingModule = nil
+                openModule(route)
+            }
+        }) {
+            CountryTimelineStepSheet(step: step, total: total, disclaimers: disclaimers) { route in
+                pendingModule = route
+                isPresented = false
+            }
         }
     }
 
@@ -300,7 +318,15 @@ private struct CountryTimelineStepSheet: View {
     let step: CountryTimelineView.Step
     let total: Int
     let disclaimers: [String]
+    /// Выбрана внутренняя ссылка: ключ экрана из `CountryTimelineModules`.
+    let onOpenModule: (String) -> Void
     @Environment(\.dismiss) private var dismiss
+
+    /// Внешние ссылки и внутренние, которые приложение умеет открыть. Секция
+    /// «Ссылки» не рисуется пустой, если показывать нечего.
+    private var links: [CountryTimelineView.Link] {
+        step.links.filter { $0.external || CountryTimelineModules.canOpen($0.href) }
+    }
 
     var body: some View {
         NavigationStack {
@@ -332,17 +358,17 @@ private struct CountryTimelineStepSheet: View {
                 } header: {
                     Text("home_timeline_done_when_heading").foregroundStyle(TimelinePalette.secondary)
                 } footer: {
-                    if step.links.isEmpty { CountryTimelineDisclaimers(texts: disclaimers) }
+                    if links.isEmpty { CountryTimelineDisclaimers(texts: disclaimers) }
                 }
-                if !step.links.isEmpty {
+                if !links.isEmpty {
                     Section {
-                        // Экран CSCA на iPhone есть, но `select` получает
-                        // пустые `modules`, как веб (`TIMELINE_MODULE_ROUTES`
-                        // пуст): ссылки ведут на внешний адрес (контракт §3,
-                        // п. 6). Внутреннюю ссылку добавлять на вебе и здесь
-                        // одним шагом, иначе пропадёт паритет.
-                        ForEach(step.links.filter(\.external)) { link in
-                            if let url = URL(string: link.href) {
+                        // Как у веба (контракт §3, п. 6): ссылка модуля ведёт
+                        // внутрь приложения (`external == false`, веб:
+                        // `/portal/csca` в той же вкладке), остальные на сайт.
+                        ForEach(links) { link in
+                            if !link.external {
+                                moduleLink(link)
+                            } else if let url = URL(string: link.href) {
                                 Link(destination: url) {
                                     Label(link.label, systemImage: "arrow.up.right.square")
                                 }
@@ -366,6 +392,27 @@ private struct CountryTimelineStepSheet: View {
             }
         }
         .presentationDragIndicator(.visible)
+    }
+
+    /// Внутренняя ссылка: строка с шевроном, как переход по стеку. Лист
+    /// закрывается, «Главная» открывает экран (см. `CountryTimelineStepRow`).
+    private func moduleLink(_ link: CountryTimelineView.Link) -> some View {
+        Button {
+            onOpenModule(link.href)
+        } label: {
+            HStack(spacing: 8) {
+                Text(link.label).multilineTextAlignment(.leading)
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color(uiColor: .tertiaryLabel))
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .timelineLinkTint()
+        .accessibilityHint(Text("home_timeline_module_hint"))
     }
 }
 

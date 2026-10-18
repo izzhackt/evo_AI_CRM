@@ -3635,6 +3635,24 @@
         }
       }
     },
+    "home_timeline_module_hint" : {
+      "comment" : "«Путь поступления»: внутренняя ссылка шага ведёт в раздел приложения (CSCA). KY: needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Колдонмодогу бөлүм ачылат."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Откроется раздел в приложении."
+          }
+        }
+      }
+    },
     "adm_stage_label" : {
       "localizations" : {
         "ru" : {

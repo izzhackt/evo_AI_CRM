@@ -234,9 +234,9 @@ export async function linkSalesRecordLeadAction(_previous: SalesRecordLeadLinkAc
  */
 export async function setSalesRegisterWithdrawalAction(_previous: SalesWithdrawalActionState, form: FormData): Promise<SalesWithdrawalActionState> {
   const actor = await requirePlatformStaffActor();
-  const outcome = (status: SalesWithdrawalActionState["status"], recordId?: string): SalesWithdrawalActionState => ({
+  const outcome = (status: SalesWithdrawalActionState["status"], recordId?: string, operation: SalesWithdrawalActionState["operation"] = null): SalesWithdrawalActionState => ({
     status, requestId: status === "saved" || status === "request_conflict" ? randomUUID() : parseSalesUuid(candidate(form, "request_id")) ?? randomUUID(),
-    recordId: recordId ?? parseSalesUuid(candidate(form, "record_id")),
+    recordId: recordId ?? parseSalesUuid(candidate(form, "record_id")), operation,
   });
   if (!staffHasPermission(actor, "sales.register.manage") || isStaffPreview(actor)) return outcome("forbidden");
   const fields = exactActionStringFields(form, ["request_id", "record_id", "expected_version", "kind", "note"]);
@@ -269,7 +269,7 @@ export async function setSalesRegisterWithdrawalAction(_previous: SalesWithdrawa
     if (saved === null) return outcome("unavailable");
     revalidatePath("/v3/main");
     revalidatePath("/v3/profile");
-    return outcome("saved", recordId);
+    return outcome("saved", recordId, kind === null ? "withdraw_undo" : "withdraw");
   } catch { return outcome("unavailable"); }
 }
 

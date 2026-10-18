@@ -506,6 +506,13 @@ const SALES_WITHDRAWAL_MESSAGE: Record<string, string> = {
   unavailable: "Не удалось сохранить. Проверьте подключение и повторите.",
 };
 export const salesWithdrawalMessage = (v: string | null | undefined) => lookup(SALES_WITHDRAWAL_MESSAGE, v);
+
+/** Что сказать читалке после сохранения: запись убрана или возвращена. */
+const SALES_WITHDRAWAL_SAVED: Record<string, string> = {
+  withdraw: "Запись убрана из продаж.",
+  withdraw_undo: "Запись возвращена в продажи.",
+};
+export const salesWithdrawalSaved = (v: string | null | undefined) => lookup(SALES_WITHDRAWAL_SAVED, v);
 export const applicationStatus = (v: string | null | undefined) => lookup(APPLICATION_STATUS, v);
 
 /**

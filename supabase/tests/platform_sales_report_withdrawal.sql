@@ -13,13 +13,15 @@
 --     private workers are SECURITY DEFINER (row v3 is not, like row v2), exactly the grants intended
 --     (authenticated: v5 and set; service_role: the three service calls; nobody: the helpers); the
 --     receipts table is closed (forced RLS, no policy, no client privilege, append-only); the new
---     columns; the released reads and commands are byte-identical and the three edited bodies differ
---     from their released text only by the added refusal condition;
+--     columns; the released reads and commands are byte-identical and the four edited bodies
+--     (staff_sales_count_v1, current_sales_funnel, marketing_cohort, marketing_overview_v1) differ from
+--     their released text only by the added refusal condition;
 --  1. baseline before any mark: v5 equals v4 plus `withdrawal: null` on every row and `withdrawn`;
 --  2. set_sales_register_withdrawal_v1: «Убрать» partial and unpaid, the change of kind and note,
 --     «Вернуть», the version at every step, the stored columns, every refusal (the system Admin without
---     the Sales Manager role, another department, no scope over the record, a register reader, the
---     Student, no membership, anon, a foreign organization), the optimistic version, the request-id
+--     the Sales Manager role, another department, no scope over the record, a register reader, a Sales
+--     Manager whose read role is wider than his manage scope, the Student, no membership, anon, a
+--     foreign organization), the optimistic version, the request-id
 --     replay and conflict (and the replay after the ownership changed), an archived record, a missing
 --     or unchanged mark, invalid kind / note, a journal without free text, the money untouched, an
 --     ordinary edit that keeps the mark, archive and restore that keep it;
@@ -27,9 +29,9 @@
 --     but out of the totals and the unresolved counts, `withdrawn` (count and paid per currency, a
 --     cross-currency «оплачено в валюте договора» record included), the sale slices, the archive view,
 --     visibility as in v4, and v1-v4 untouched (the old shape, refused rows still in their totals);
---  4. counting: staff_sales_count_v1 and its slices drop a refused record and take it back after
---     «Вернуть»; marketing_overview_v1 keeps `sales.reconciliation.matches` and the cohort drops the
---     refused lead's contract;
+--  4. counting: staff_sales_count_v1 and its slices and the funnel's «Продажи» (current_sales_funnel)
+--     drop a refused record and take it back after «Вернуть»; marketing_overview_v1 keeps
+--     `sales.reconciliation.matches` and the cohort drops the refused lead's contract;
 --  5. mark_sales_report_row_withdrawn_v1 and archive_sales_report_row_v1: the service-only boundary
 --     and the actor, the strict parameters (every refusal names its key), set / change / clear /
 --     unchanged, an archived row, a missing row, replay and conflicts, the receipts (the previous mark
@@ -37,8 +39,10 @@
 --  6. create_sales_report_student_case_v1: a case on a lead the report sold (made by 304's import),
 --     with and without a curator, no new client or lead and the client row untouched, the профиль
 --     fields, the money, the receipt with its import source and client_reused, case_exists, every
---     refusal; and that 287's update accepts and closes such a case while the lead stays a converted
---     report lead;
+--     refusal (a lead that is not from the report or whose client is not active, the fingerprint that
+--     holds the lead, the receipt key shared with 281's imports); the contact and client advisory
+--     locks, the locked lead row and the organization limit of the existing-case search; and that
+--     287's update accepts and closes such a case while the lead stays a converted report lead;
 --  7. the whole journal (existing actions, request ids per receipt, no names, phones, notes or keys),
 --     the receipts (append-only, their constraints) and the register's constraints on the mark.
 -- Isolated synthetic SQL fixtures only.
@@ -260,39 +264,43 @@ FROM (VALUES
   ('platform_private.sales_register_row_v2(platform_private.sales_register)'::REGPROCEDURE, 'be1745aa63531ddad26480ba8c2b2361'),
   ('platform_private.sales_register_fields(jsonb,boolean)'::REGPROCEDURE, '3afe9eec0198bd830ef7b6ca9af2878b')
 ) AS r(fn, expected) JOIN pg_proc p ON p.oid = r.fn;
--- The three edited bodies: taking the added condition out gives back the released text, byte for byte.
+-- The four edited bodies: taking the added condition out gives back the released text, byte for byte
+-- (and the condition stands exactly where expected: once in each body, twice in the cohort).
+CREATE FUNCTION pg_temp.swt_condition_count(p_fn REGPROCEDURE) RETURNS INTEGER LANGUAGE SQL STABLE AS $$
+  SELECT (length(prosrc) - length(replace(prosrc, 'r.withdrawal_kind IS NULL', ''))) / length('r.withdrawal_kind IS NULL')
+  FROM pg_proc WHERE oid = p_fn
+$$;
 SELECT pg_temp.swt_assert(
-  md5(replace((SELECT prosrc FROM pg_proc WHERE oid = 'platform.staff_sales_count_v1(uuid,date,date)'::REGPROCEDURE),
-    ' AND r.withdrawal_kind IS NULL', '')) = '337764b28cf8ed13103c04847726f827'
-  AND md5(replace((SELECT prosrc FROM pg_proc WHERE oid = 'platform_private.marketing_cohort(uuid,date,date)'::REGPROCEDURE),
-    ' AND r.withdrawal_kind IS NULL', '')) = '2d1ffe23dc5f15ffc2563fef6ea1c192'
-  AND md5(replace((SELECT prosrc FROM pg_proc WHERE oid = 'platform.marketing_overview_v1(date,date)'::REGPROCEDURE),
-    ' AND r.withdrawal_kind IS NULL', '')) = '3c83f3ebb1020d086424f44d298fa817'
-  AND (SELECT md5(prosrc) <> '337764b28cf8ed13103c04847726f827' FROM pg_proc WHERE oid = 'platform.staff_sales_count_v1(uuid,date,date)'::REGPROCEDURE)
-  AND (SELECT (length(prosrc) - length(replace(prosrc, 'r.withdrawal_kind IS NULL', ''))) / length('r.withdrawal_kind IS NULL')
-      FROM pg_proc WHERE oid = 'platform_private.marketing_cohort(uuid,date,date)'::REGPROCEDURE) = 2,
-  'staff_sales_count_v1, marketing_cohort and marketing_overview_v1 differ from the released text only by the added refusal condition');
+  md5(replace(p.prosrc, ' AND r.withdrawal_kind IS NULL', '')) = e.released AND md5(p.prosrc) <> e.released
+    AND pg_temp.swt_condition_count(e.fn) = e.occurrences,
+  e.fn::TEXT || ' differs from the released text only by the added refusal condition (' || e.occurrences || 'x)')
+FROM (VALUES
+  ('platform.staff_sales_count_v1(uuid,date,date)'::REGPROCEDURE, '337764b28cf8ed13103c04847726f827', 1),
+  ('platform.current_sales_funnel(uuid)'::REGPROCEDURE, 'a6bccb0ed01aa7df78c3e73883a15d14', 1),
+  ('platform_private.marketing_cohort(uuid,date,date)'::REGPROCEDURE, '2d1ffe23dc5f15ffc2563fef6ea1c192', 2),
+  ('platform.marketing_overview_v1(date,date)'::REGPROCEDURE, '3c83f3ebb1020d086424f44d298fa817', 1)
+) AS e(fn, released, occurrences) JOIN pg_proc p ON p.oid = e.fn;
 -- Their posture is unchanged by the in-place replacement.
-SELECT pg_temp.swt_assert((SELECT p.prosecdef AND p.proconfig = ARRAY['search_path=""'] FROM pg_proc p
-      WHERE p.oid = 'platform.staff_sales_count_v1(uuid,date,date)'::REGPROCEDURE)
-  AND pg_temp.swt_grantees('platform.staff_sales_count_v1(uuid,date,date)'::REGPROCEDURE) = ARRAY['authenticated']
-  AND (SELECT p.prosecdef AND p.proconfig = ARRAY['search_path=""'] FROM pg_proc p
-      WHERE p.oid = 'platform.marketing_overview_v1(date,date)'::REGPROCEDURE)
-  AND pg_temp.swt_grantees('platform.marketing_overview_v1(date,date)'::REGPROCEDURE) = ARRAY['authenticated']
-  AND (SELECT p.prosecdef AND p.proconfig = ARRAY['search_path=""'] FROM pg_proc p
-      WHERE p.oid = 'platform_private.marketing_cohort(uuid,date,date)'::REGPROCEDURE)
-  AND NOT has_function_privilege('authenticated', 'platform_private.marketing_cohort(uuid,date,date)', 'EXECUTE'),
-  'the edited functions keep their definer, search_path and grants');
+SELECT pg_temp.swt_assert(p.prosecdef AND p.proconfig = ARRAY['search_path=""'] AND pg_temp.swt_grantees(e.fn) = e.grantees,
+  e.fn::TEXT || ' keeps its definer, search_path and grants')
+FROM (VALUES
+  ('platform.staff_sales_count_v1(uuid,date,date)'::REGPROCEDURE, ARRAY['authenticated']),
+  ('platform.current_sales_funnel(uuid)'::REGPROCEDURE, ARRAY['authenticated']),
+  ('platform.marketing_overview_v1(date,date)'::REGPROCEDURE, ARRAY['authenticated']),
+  ('platform_private.marketing_cohort(uuid,date,date)'::REGPROCEDURE, ARRAY[]::TEXT[])
+) AS e(fn, grantees) JOIN pg_proc p ON p.oid = e.fn;
 
 -- ---------------------------------------------------------------------------
 -- Fixture. Organization 1: 1 Admin (system); invited staff with coarse role NULL: 2 Sales Manager A
 -- (department A), 3 Sales Manager B (department B), 4 Sales Manager with own scope (department C),
 -- 6 register reader (sales.register.read only), 8 curator (Admissions, own scope), 9 staff without
--- any role; 5 Student, 7 coarse Sales member, 10 a second Admin. Organization 2: Admin 20.
+-- any role, 11 Sales Manager of department A who ALSO reads the whole register (a read role at
+-- organization scope next to the department manage scope); 5 Student, 7 coarse Sales member,
+-- 10 a second Admin. Organization 2: Admin 20.
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE swt_actors(n INTEGER, coarse platform.business_role, claims TEXT);
 INSERT INTO swt_actors(n, coarse) VALUES (1, 'admin'), (2, NULL), (3, NULL), (4, NULL), (5, 'student'), (6, NULL), (7, 'sales'),
-  (8, NULL), (9, NULL), (10, 'admin');
+  (8, NULL), (9, NULL), (10, 'admin'), (11, NULL);
 GRANT SELECT ON swt_actors TO authenticated, anon, service_role;
 
 INSERT INTO platform.organizations(id, name) VALUES (pg_temp.swt_id(1), 'SWT Fictional organization'),
@@ -330,6 +338,7 @@ INSERT INTO platform.staff_departments(id, organization_id, name) VALUES
   (pg_temp.swt_id(904), pg_temp.swt_id(1), 'SWT Sales C');
 INSERT INTO platform.staff_organizational_details(organization_id, membership_id, department_id) VALUES
   (pg_temp.swt_id(1), pg_temp.swt_id(302), pg_temp.swt_id(901)),
+  (pg_temp.swt_id(1), pg_temp.swt_id(311), pg_temp.swt_id(901)),
   (pg_temp.swt_id(1), pg_temp.swt_id(303), pg_temp.swt_id(903)),
   (pg_temp.swt_id(1), pg_temp.swt_id(304), pg_temp.swt_id(904)),
   (pg_temp.swt_id(1), pg_temp.swt_id(308), pg_temp.swt_id(902));
@@ -347,6 +356,8 @@ INSERT INTO swt_grants VALUES
  (303, pg_temp.swt_id(1103), jsonb_build_object('kind', 'department', 'key', pg_temp.swt_id(903), 'resourceKind', NULL)),
  (304, pg_temp.swt_id(1103), jsonb_build_object('kind', 'own', 'key', NULL, 'resourceKind', NULL)),
  (306, pg_temp.swt_id(1107), jsonb_build_object('kind', 'organization', 'key', pg_temp.swt_id(1), 'resourceKind', NULL)),
+ (311, pg_temp.swt_id(1103), jsonb_build_object('kind', 'department', 'key', pg_temp.swt_id(901), 'resourceKind', NULL)),
+ (311, pg_temp.swt_id(1107), jsonb_build_object('kind', 'organization', 'key', pg_temp.swt_id(1), 'resourceKind', NULL)),
  (308, pg_temp.swt_id(1101), jsonb_build_object('kind', 'own', 'key', NULL, 'resourceKind', NULL));
 CREATE TEMP TABLE swt_versions AS SELECT m.id AS membership_id, p.access_version
   FROM platform.organization_memberships m JOIN platform.profiles p ON p.id = m.profile_id
@@ -430,6 +441,11 @@ SELECT pg_temp.swt_assert(platform_private.staff_has_permission(pg_temp.swt_id(1
   AND (SELECT system_role FROM platform_private.staff_membership_identity(pg_temp.swt_id(1), pg_temp.swt_id(310))) = 'admin'
   AND (SELECT system_role FROM platform_private.staff_membership_identity(pg_temp.swt_id(1), pg_temp.swt_id(302))) = 'staff',
   'fixture: both Admins hold sales.register.manage and case.create.direct, the reader only reads, the Sales Manager is staff');
+-- Actor 11 reads the whole register but manages only department A: the record gate must tell read from manage.
+SELECT pg_temp.swt_assert(platform_private.staff_is_sales_manager(pg_temp.swt_id(1), pg_temp.swt_id(311))
+  AND platform_private.staff_has_permission(pg_temp.swt_id(1), pg_temp.swt_id(311), 'sales.register.manage')
+  AND platform_private.staff_has_permission(pg_temp.swt_id(1), pg_temp.swt_id(311), 'sales.register.read'),
+  'fixture: member 311 is a Sales Manager of department A with a second, organization-wide read role');
 
 -- Records. July 2026 is the reading period (R1-R12, owner 302 unless said otherwise); September holds the
 -- service rows (S1-S6), August the marketing leads. Money in minor units. A row is import unless said.
@@ -565,6 +581,17 @@ SELECT pg_temp.swt_assert(pg_temp.swt_anon(pg_temp.swt_set(pg_temp.swt_id(6012),
   AND pg_temp.swt_svc(pg_temp.swt_set(pg_temp.swt_id(6012), 1, 'partial', NULL, pg_temp.swt_id(7118))) LIKE '42501:permission denied%',
   'anon and the service role cannot execute the interface command at all');
 SELECT pg_temp.swt_assert(pg_temp.swt_state() = :'swt_state_s2', 'refused marks change nothing (records, requests, journal)');
+-- The record gate asks for sales.register.MANAGE on the record, not for read: member 311 reads department B''s
+-- record R7 (v5 shows it) and is still refused; on his own department''s record the same call passes the gate
+-- (it is judged stale, with a version that is not the record''s, so nothing is written).
+SELECT pg_temp.swt_user_json(11, pg_temp.swt_read(5, 7))::TEXT AS swt_w_v5 \gset
+SELECT pg_temp.swt_assert(pg_temp.swt_row(:'swt_w_v5'::JSONB, pg_temp.swt_id(6007)) IS NOT NULL
+  AND (:'swt_w_v5'::JSONB ->> 'total_count') = '10'
+  AND pg_temp.swt_user(11, pg_temp.swt_set(pg_temp.swt_id(6007), 1, 'partial', NULL, pg_temp.swt_id(7120))) = '42501:sales_register_forbidden'
+  AND pg_temp.swt_user(11, pg_temp.swt_set(pg_temp.swt_id(6007), 1, NULL, NULL, pg_temp.swt_id(7121))) = '42501:sales_register_forbidden'
+  AND pg_temp.swt_user(11, pg_temp.swt_set(pg_temp.swt_id(6012), 9, 'partial', NULL, pg_temp.swt_id(7122))) = 'PT409:sales_register_stale'
+  AND pg_temp.swt_state() = :'swt_state_s2',
+  'a Sales Manager who reads the whole register is refused on a record he may not manage (read is not manage), and passes the gate on his own');
 
 -- Invalid commands, from a real Sales Manager: every one is 22023 and writes nothing.
 SELECT pg_temp.swt_assert(r.answer = '22023:sales_register_invalid_command', r.what || ' is refused: ' || r.answer)
@@ -1066,9 +1093,17 @@ CREATE FUNCTION pg_temp.swt_funnel_sales() RETURNS TEXT LANGUAGE SQL AS $$
 $$;
 SELECT pg_temp.swt_funnel_sales() AS swt_fn0 \gset
 SELECT pg_temp.swt_assert(:'swt_fn0' = '1', 'baseline of the funnel: one pipeline sale of a working lead: ' || :'swt_fn0');
+-- The funnel's number «Продажи» (current_sales_funnel) counts the pipeline records of the funnel's leads: L1's.
+CREATE FUNCTION pg_temp.swt_funnel() RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.swt_user_json(2, format('SELECT platform.current_sales_funnel(%L::UUID)', pg_temp.swt_id(1))) -> 'sales'
+$$;
+SELECT pg_temp.swt_assert(pg_temp.swt_funnel() = '{"count":"1","status":"available"}'::JSONB,
+  'funnel baseline: one pipeline sale (the record of L1): ' || pg_temp.swt_funnel()::TEXT);
 -- Sales Manager A refuses the pipeline record of L1: one sale less on both sides, the contract of L1 leaves the cohort.
 SELECT pg_temp.swt_user_json(2, pg_temp.swt_set(pg_temp.swt_id(6101), 1, 'partial', NULL, pg_temp.swt_id(8101)))::TEXT AS swt_mk_r1 \gset
 SELECT pg_temp.swt_overview()::TEXT AS swt_mk1 \gset
+SELECT pg_temp.swt_assert(pg_temp.swt_funnel() = '{"count":"0","status":"available"}'::JSONB,
+  'the funnel''s «Продажи» does not count the refused pipeline record of L1: ' || pg_temp.swt_funnel()::TEXT);
 SELECT pg_temp.swt_assert((:'swt_mk1'::JSONB #>> '{sales,total}') = '2'
   AND :'swt_mk1'::JSONB #> '{sales,reconciliation}' = '{"matches":true,"difference":0,"report_sales":2,"by_channel_plus_without_lead":2}'::JSONB
   AND (:'swt_mk1'::JSONB #>> '{cohort,totals,contract}') = '1' AND (:'swt_mk1'::JSONB #>> '{cohort,totals,contract_linked}') = '1'
@@ -1101,6 +1136,8 @@ SELECT pg_temp.swt_assert(pg_temp.swt_overview() -> 'sales' = :'swt_mk0'::JSONB 
   AND pg_temp.swt_overview() #> '{cohort,totals}' = :'swt_mk0'::JSONB #> '{cohort,totals}'
   AND pg_temp.swt_overview() #> '{cohort,channels}' = :'swt_mk0'::JSONB #> '{cohort,channels}',
   '«Вернуть» on the three: the marketing answer (sales, cohort totals and channels) is the baseline again');
+SELECT pg_temp.swt_assert(pg_temp.swt_funnel() = '{"count":"1","status":"available"}'::JSONB,
+  '«Вернуть» on the record of L1: the funnel counts it again');
 -- The marketing answer is the Admin's; a Sales Manager still cannot read it.
 SELECT pg_temp.swt_assert(pg_temp.swt_user(2, 'SELECT platform.marketing_overview_v1(DATE ''2026-08-01'', DATE ''2026-08-31'')') = '42501:marketing_forbidden',
   'marketing_overview_v1 is still the Admin''s alone');
@@ -1393,6 +1430,21 @@ SELECT pg_temp.swt_assert((SELECT count(*) = 7 AND bool_and(l.source_key = 'sale
         :'swt_lead5'::UUID, :'swt_lead6'::UUID, :'swt_lead9'::UUID))
   AND NOT EXISTS (SELECT 1 FROM platform.student_cases WHERE organization_id = pg_temp.swt_id(1)),
   'fixture: seven report leads made by 304''s import (converted, ownerless, source sales_report), and no case exists yet');
+-- Two report leads that are no longer what the call serves: lead 7 has left the report (source office, still
+-- converted, its client active); lead 8 keeps its source and state but its client is no longer active.
+SELECT pg_temp.swt_svc_json(pg_temp.swt_import('c7', 'SWT Case Seven', '+996 700 000 107'))::TEXT AS swt_imp7 \gset
+SELECT pg_temp.swt_svc_json(pg_temp.swt_import('c8', 'SWT Case Eight', '+996 700 000 108'))::TEXT AS swt_imp8 \gset
+SELECT :'swt_imp7'::JSONB ->> 'lead_id' AS swt_lead7, :'swt_imp7'::JSONB ->> 'client_id' AS swt_client7 \gset
+SELECT :'swt_imp8'::JSONB ->> 'lead_id' AS swt_lead8, :'swt_imp8'::JSONB ->> 'client_id' AS swt_client8 \gset
+SET LOCAL session_replication_role = replica;
+UPDATE platform.leads SET source_key = 'office' WHERE id = :'swt_lead7'::UUID;
+UPDATE platform.clients SET lifecycle_state = 'inactive' WHERE id = :'swt_client8'::UUID;
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.swt_assert((SELECT l.source_key = 'office' AND l.lifecycle_state = 'converted' AND c.lifecycle_state = 'active'
+    FROM platform.leads l JOIN platform.clients c ON c.id = l.client_id WHERE l.id = :'swt_lead7'::UUID)
+  AND (SELECT l.source_key = 'sales_report' AND l.lifecycle_state = 'converted' AND c.lifecycle_state = 'inactive'
+    FROM platform.leads l JOIN platform.clients c ON c.id = l.client_id WHERE l.id = :'swt_lead8'::UUID),
+  'fixture: lead 7 is converted with an active client but its source is not sales_report; lead 8 is a converted report lead of an inactive client');
 -- Other leads: an ordinary office lead, a report lead that is still open, a lead of the other organization,
 -- a second report lead on the client of lead 3, a client with a direct-import (281) case.
 SELECT platform_private.create_or_link_client(pg_temp.swt_id(1), 'SWT Office Person', NULL, '+996 700 000 120',
@@ -1526,6 +1578,19 @@ SELECT pg_temp.swt_assert(pg_temp.swt_svc(pg_temp.swt_case('l4', :'swt_office_le
   AND pg_temp.swt_svc(pg_temp.swt_case('l5', :'swt_open_lead'::UUID, '{}'::JSONB)) = '22023:sales_report_case_invalid_lead',
   'an ordinary office lead, and a report lead that is not converted, are 22023 sales_report_case_invalid_lead');
 SELECT pg_temp.swt_assert(pg_temp.swt_state() = :'swt_state_h0', 'the lead refusals wrote nothing');
+-- Converted and active is not enough: the lead must come from the report (source) and its client must be active.
+SELECT pg_temp.swt_assert(pg_temp.swt_svc(pg_temp.swt_case('l6', :'swt_lead7'::UUID, '{}'::JSONB)) = '22023:sales_report_case_invalid_lead'
+  AND pg_temp.swt_state() = :'swt_state_h0',
+  'a converted lead of an active client whose source is not sales_report is 22023 sales_report_case_invalid_lead; nothing is written');
+SELECT pg_temp.swt_assert(pg_temp.swt_svc(pg_temp.swt_case('l7', :'swt_lead8'::UUID, '{}'::JSONB)) = '22023:sales_report_case_invalid_lead'
+  AND pg_temp.swt_state() = :'swt_state_h0',
+  'a converted report lead whose client is not active is 22023 sales_report_case_invalid_lead; nothing is written');
+-- The receipt key is shared with 281's imports: a pair 281 already used is a conflict, not a raw unique violation.
+SELECT pg_temp.swt_assert(pg_temp.swt_svc(pg_temp.swt_case('d5', :'swt_lead6'::UUID, '{}'::JSONB, 301, 1, 'swt-direct')) = 'PT409:sales_report_case_conflict'
+  AND pg_temp.swt_state() = :'swt_state_h0'
+  AND (SELECT count(*) = 1 FROM platform_private.admissions_direct_case_receipts
+    WHERE organization_id = pg_temp.swt_id(1) AND import_source = 'swt-direct' AND external_ref = 'd5'),
+  'the import source and reference 281 used (swt-direct / d5) are PT409 sales_report_case_conflict for this call; nothing is written');
 
 -- 6.4 The success: lead 1, no curator, everything in the payload (the case waits for a curator).
 CREATE FUNCTION pg_temp.swt_case_req(p_ref TEXT, p_source TEXT DEFAULT 'swt-case') RETURNS UUID LANGUAGE SQL IMMUTABLE AS $$
@@ -1637,6 +1702,11 @@ FROM (VALUES
   ('another reason', pg_temp.swt_svc(pg_temp.swt_case('k1', :'swt_lead1'::UUID, '{"note":"SWT case note"}'::JSONB, 301, 1, 'swt-case', 'SWT другая причина')))
 ) AS r(what, answer);
 SELECT pg_temp.swt_assert(pg_temp.swt_state() = :'swt_state_k1', 'the conflicts wrote nothing');
+-- Only the lead differs (same source, reference, payload, reason and actor): the fingerprint holds the lead.
+SELECT pg_temp.swt_assert(pg_temp.swt_svc(pg_temp.swt_case('k1', :'swt_lead2'::UUID, :'swt_k1_payload'::JSONB)) = 'PT409:sales_report_case_conflict'
+  AND pg_temp.swt_svc(pg_temp.swt_case('k1', :'swt_lead6'::UUID, :'swt_k1_payload'::JSONB)) = 'PT409:sales_report_case_conflict'
+  AND pg_temp.swt_state() = :'swt_state_k1',
+  'k1 sent for another lead with the very same source, reference, payload and reason is PT409 sales_report_case_conflict, not a replay of lead 1''s receipt');
 -- The lead has its case now: a new reference, or another import source, only reports it.
 SELECT pg_temp.swt_svc_json(pg_temp.swt_case('k1b', :'swt_lead1'::UUID, '{"note":"SWT again"}'::JSONB))::TEXT AS swt_k1b \gset
 SELECT pg_temp.swt_svc_json(pg_temp.swt_case('k1', :'swt_lead1'::UUID, '{"note":"SWT again"}'::JSONB, 301, 1, 'swt-other'))::TEXT AS swt_k1c \gset
@@ -1782,6 +1852,73 @@ SELECT pg_temp.swt_assert((SELECT count(*) = 7 AND bool_and(l.source_key = 'sale
 SELECT pg_temp.swt_assert(pg_temp.swt_svc(pg_temp.swt_update(:'swt_case3'::UUID, 'u3x', '{"note":"SWT x"}'::JSONB, 308)) = '42501:admissions_direct_forbidden'
   AND pg_temp.swt_svc(pg_temp.swt_update(pg_temp.swt_id(777), 'u3y', '{"note":"SWT x"}'::JSONB)) = '42501:admissions_direct_update_not_imported_case',
   '287 keeps its own gates: a non-Admin actor and a case without an import receipt are refused');
+
+-- 6.10 The locks the call takes, the lead row it locks, and the organization it searches in.
+-- Advisory locks of a transaction live until it ends, so a call's locks can be read from pg_locks right after it
+-- (the key of a bigint advisory lock is split into classid = high 32 bits and objid = low 32 bits).
+CREATE FUNCTION pg_temp.swt_holds(p_key TEXT) RETURNS BOOLEAN LANGUAGE SQL AS $$
+  SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_locks l
+    WHERE l.locktype = 'advisory' AND l.pid = pg_catalog.pg_backend_pid() AND l.granted AND l.objsubid = 1
+      AND l.classid::BIGINT = ((hashtextextended(p_key, 0) >> 32) & 4294967295)
+      AND l.objid::BIGINT = (hashtextextended(p_key, 0) & 4294967295))
+$$;
+-- A person nobody has locked in this transaction (made by direct insert, so no import took the contact locks).
+SET LOCAL session_replication_role = replica;
+INSERT INTO platform.clients(id, organization_id, display_name, normalized_name, email, normalized_email, phone, normalized_phone)
+  VALUES (pg_temp.swt_id(8301), pg_temp.swt_id(1), 'SWT Lock Person', platform_private.normalize_person_name('SWT Lock Person'),
+    'swt-lock@example.invalid', platform_private.normalize_person_email('swt-lock@example.invalid'),
+    '+996 700 000 140', platform_private.normalize_person_phone('+996 700 000 140'));
+INSERT INTO platform.leads(id, organization_id, client_id, current_owner_membership_id, stage_key, source_key, lifecycle_state)
+  VALUES (pg_temp.swt_id(8302), pg_temp.swt_id(1), pg_temp.swt_id(8301), NULL, 'new', 'sales_report', 'converted');
+SET LOCAL session_replication_role = origin;
+SELECT (SELECT array_agg(DISTINCT v ORDER BY v) FROM unnest(platform_private.person_phone_match_keys(c.normalized_phone) || ARRAY[c.normalized_email]) v
+    WHERE v IS NOT NULL) AS swt_lock_keys
+  FROM platform.clients c WHERE c.id = pg_temp.swt_id(8301) \gset
+SELECT pg_temp.swt_assert(cardinality(:'swt_lock_keys'::TEXT[]) >= 3 AND :'swt_lock_keys'::TEXT[] @> ARRAY['swt-lock@example.invalid']
+  AND NOT EXISTS (SELECT 1 FROM unnest(:'swt_lock_keys'::TEXT[]) k
+    WHERE pg_temp.swt_holds('manual-lead-contact:' || pg_temp.swt_id(1)::TEXT || ':' || k))
+  AND NOT pg_temp.swt_holds('sales-report-case-client:' || pg_temp.swt_id(1)::TEXT || ':' || pg_temp.swt_id(8301)::TEXT),
+  'before the call: the person''s contact keys (every spelling of the number and the e-mail) and the client lock are not held: ' || :'swt_lock_keys');
+SELECT pg_temp.swt_svc_json(pg_temp.swt_case('lk1', pg_temp.swt_id(8302), '{}'::JSONB))::TEXT AS swt_lk1 \gset
+SELECT pg_temp.swt_assert(:'swt_lk1'::JSONB ->> 'status' = 'created'
+  AND (SELECT bool_and(pg_temp.swt_holds('manual-lead-contact:' || pg_temp.swt_id(1)::TEXT || ':' || k)) FROM unnest(:'swt_lock_keys'::TEXT[]) k),
+  'after the call: it holds the contact locks of 143 / 281 / 287 / 304 for every key of the client''s number and e-mail');
+SELECT pg_temp.swt_assert(pg_temp.swt_holds('sales-report-case-client:' || pg_temp.swt_id(1)::TEXT || ':' || pg_temp.swt_id(8301)::TEXT),
+  'after the call: it holds its own client lock (it covers a client without any contact)');
+-- The lead row is locked (FOR UPDATE) before anything is judged: lead 8202 is a second report lead of client 3, whose case is
+-- open, so the call answers case_exists and writes nothing; the row''s xmax is nobody''s before and this transaction''s after
+-- (no insert of the call takes a lock on it on the way).
+SET LOCAL session_replication_role = replica;
+INSERT INTO platform.leads(id, organization_id, client_id, current_owner_membership_id, stage_key, source_key, lifecycle_state)
+  VALUES (pg_temp.swt_id(8202), pg_temp.swt_id(1), :'swt_client3'::UUID, NULL, 'new', 'sales_report', 'converted');
+SET LOCAL session_replication_role = origin;
+SELECT (SELECT l.xmax::TEXT::BIGINT FROM platform.leads l WHERE l.id = pg_temp.swt_id(8202)) AS swt_xmax_before \gset
+SELECT pg_temp.swt_svc_json(pg_temp.swt_case('lk2', pg_temp.swt_id(8202), '{}'::JSONB))::TEXT AS swt_lk2 \gset
+SELECT pg_temp.swt_assert(:swt_xmax_before = 0
+  AND :'swt_lk2'::JSONB ->> 'status' = 'case_exists' AND :'swt_lk2'::JSONB ->> 'student_case_id' = :'swt_case3'
+  AND (SELECT l.xmax::TEXT::BIGINT = (txid_current() & 4294967295) FROM platform.leads l WHERE l.id = pg_temp.swt_id(8202)),
+  'the lead row is locked by the call even when it only reports case_exists (xmax was 0, is this transaction''s now)');
+-- The existing-case search is limited to the organization: a case of ANOTHER organization that points at this lead and client
+-- (written with the foreign keys switched off, as no command can) is not this person''s open case.
+SET LOCAL session_replication_role = replica;
+INSERT INTO platform.clients(id, organization_id, display_name, normalized_name, phone, normalized_phone)
+  VALUES (pg_temp.swt_id(8311), pg_temp.swt_id(1), 'SWT Org Filter Person', platform_private.normalize_person_name('SWT Org Filter Person'),
+    '+996 700 000 141', platform_private.normalize_person_phone('+996 700 000 141'));
+INSERT INTO platform.leads(id, organization_id, client_id, current_owner_membership_id, stage_key, source_key, lifecycle_state)
+  VALUES (pg_temp.swt_id(8312), pg_temp.swt_id(1), pg_temp.swt_id(8311), NULL, 'new', 'sales_report', 'converted');
+INSERT INTO platform.record_scopes(id, organization_id, scope_kind, scope_key, scope_version)
+  VALUES (pg_temp.swt_id(8321), pg_temp.swt_id(2), 'student_case', pg_temp.swt_id(8320), 1);
+INSERT INTO platform.student_cases(id, organization_id, responsible_sales_membership_id, source_key, student_display_name,
+  target_country, target_degree, operational_stage, state, current_scope_id, current_scope_version, canonical_client_id, canonical_lead_id)
+  VALUES (pg_temp.swt_id(8320), pg_temp.swt_id(2), pg_temp.swt_id(320), 'synthetic:swt:foreign', 'SWT Foreign Case', 'CN', 'Bachelor',
+    'intake', 'pending', pg_temp.swt_id(8321), 1, pg_temp.swt_id(8311), pg_temp.swt_id(8312));
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.swt_svc_json(pg_temp.swt_case('of1', pg_temp.swt_id(8312), '{}'::JSONB))::TEXT AS swt_of1 \gset
+SELECT pg_temp.swt_assert(:'swt_of1'::JSONB ->> 'status' = 'created' AND :'swt_of1'::JSONB ->> 'student_case_id' <> pg_temp.swt_id(8320)::TEXT
+  AND (SELECT c.organization_id = pg_temp.swt_id(1) AND c.canonical_lead_id = pg_temp.swt_id(8312)
+    FROM platform.student_cases c WHERE c.id = (:'swt_of1'::JSONB ->> 'student_case_id')::UUID)
+  AND (SELECT c.organization_id = pg_temp.swt_id(2) AND c.state = 'pending' FROM platform.student_cases c WHERE c.id = pg_temp.swt_id(8320)),
+  'a pending case of another organization that names this lead and client does not make it case_exists: the case is created in this organization');
 
 -- ---------------------------------------------------------------------------
 -- 7. The whole journal and the receipts after all the calls.

@@ -16,7 +16,7 @@ import {
   salesWithdrawalTone,
 } from "../src/lib/sales-register-view.ts";
 import { parseSalesWithdrawalNote, parseSalesWithdrawalReceipt } from "../src/lib/sales-withdrawal-contract.ts";
-import { salesWithdrawalChoice, salesWithdrawalMessage, salesWithdrawalWord } from "../src/lib/v3/wording.ts";
+import { salesWithdrawalChoice, salesWithdrawalMessage, salesWithdrawalSaved, salesWithdrawalWord } from "../src/lib/v3/wording.ts";
 
 /**
  * «Убрать» продажу с отметкой отказа (слова владельца 18.10, миграция 307). Чистая логика и
@@ -122,6 +122,10 @@ test("kinds: partial is the amber tone, unpaid the red one; the words come only 
   }
   assert.equal(salesWithdrawalMessage("saved"), null);
   assert.equal(salesWithdrawalMessage("idle"), null);
+  // Итог читалке: что сохранено, словами; ключа операции на экране нет.
+  assert.equal(salesWithdrawalSaved("withdraw"), "Запись убрана из продаж.");
+  assert.equal(salesWithdrawalSaved("withdraw_undo"), "Запись возвращена в продажи.");
+  for (const value of ["", "saved", "constructor", null, undefined]) assert.equal(salesWithdrawalSaved(value), null);
 });
 
 test("the command receipt and the note are read strictly", () => {
@@ -171,6 +175,11 @@ test("the control is a form with a real action: radios, a note up to 500, the re
   assert.match(control, /popover="auto"/u, "a small popover, not a modal dialog");
   assert.doesNotMatch(control, /<dialog|showModal/u);
   assert.match(control, /router\.refresh\(\)/u);
+  // Второй успех той же строки тоже закрывает окно и обновляет страницу: эффект стоит на объекте итога, не на слове статуса.
+  assert.match(control, /\}, \[state, menu\.popoverId, router\]\);/u);
+  // Кнопка меняется на другую и фокус теряется: итог — живой областью, которая остаётся на месте; окно выровнено влево.
+  assert.match(control, /<span role="status" className="sr-only">\{saved\}<\/span>/u);
+  assert.match(control, /bg-surface p-3 text-left text-fg/u);
   assert.match(control, /Вернуть/u);
   // Слова — из wording.ts, не по месту: ни слов видов, ни текстов ошибок в коде компонента (комментарии не в счёт).
   assert.doesNotMatch(control.replace(/\/\*[\s\S]*?\*\//gu, ""), /Оплатил частично|Не оплатил|Нет доступа|Запись изменил/u);
@@ -285,9 +294,12 @@ test("rendered panel: the refusal is told once with the word, the date, who remo
   const alivePanel = alive.slice(alive.indexOf("<dialog"), alive.indexOf("</dialog>"));
   assert.doesNotMatch(alivePanel, /data-testid="sales-record-withdrawal"/u);
   assert.match(text(alivePanel), /Исправить запись Убрать Убрать из продаж Оплатил частично Не оплатил Заметка Убрать Отмена/u);
-  // Рядом с открытой записью в строках таблицы кнопки действия нет (она в панели): в стопке (телефон) она остаётся.
+  // Рядом с открытой записью (таблица от 32rem) кнопки действия в строках нет (она в панели); в стопке (телефон) она остаётся
+  // третьей клеткой первой строки: имя, остаток и действие на одной линии, как до 307 были имя и остаток.
   const compactRow = rowOf(partial, "Данияр Макетов");
-  assert.match(compactRow, /class="col-start-2 row-start-1 self-center @min-\[32rem\]\/sales-records:hidden"/u);
+  assert.match(compactRow, /<td role="cell" class="self-center @min-\[32rem\]\/sales-records:hidden">/u);
+  assert.match(compactRow, /grid-cols-\[minmax\(0,1fr\)_auto_auto\]/u);
+  assert.match(compactRow, /class="col-span-full min-w-0 pb-1 /u);
 });
 
 test("rendered report without the right to write: the chip and the edge are shown, no action and no action column", () => {

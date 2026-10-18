@@ -9,6 +9,8 @@ import { parseSalesInteger } from "./platform-sales-register-contract.ts";
 export type SalesWithdrawalActionState = Readonly<{
   status: "idle" | "saved" | "invalid" | "forbidden" | "stale" | "request_conflict" | "archived" | "unavailable";
   requestId: string; recordId: string | null;
+  /** Что именно сохранено (только при `saved`): по нему читалка получает «убрана» или «возвращена». */
+  operation: "withdraw" | "withdraw_undo" | null;
 }>;
 
 export function parseSalesWithdrawalReceipt(raw: unknown, expected: Readonly<{

@@ -127,8 +127,8 @@ const ROW_LAYOUT = {
     // Отказ (307): ребро — левая граница первой ячейки на таблице и самой строки в стопке; слово — чип под именем.
     edgeRow: "shadow-[inset_3px_0_0_0_var(--sale-edge)] @min-[60rem]/sales-records:shadow-none",
     edgeName: "@min-[60rem]/sales-records:shadow-[inset_3px_0_0_0_var(--sale-edge)]",
-    // «Убрать» / «Вернуть»: в стопке справа от имени, в таблице — своим столбцом (одна ячейка на оба вида).
-    action: "col-start-2 row-start-1 min-w-0 self-center @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:pe-2 @min-[60rem]/sales-records:text-right @min-[60rem]/sales-records:align-middle",
+    // «Убрать» / «Вернуть»: в стопке — третья клетка первой строки (имя | остаток | действие), в таблице — свой столбец (одна ячейка на оба вида).
+    action: "min-w-0 self-center @min-[60rem]/sales-records:table-cell @min-[60rem]/sales-records:pe-2 @min-[60rem]/sales-records:text-right @min-[60rem]/sales-records:align-middle",
   },
   compact: {
     table: "block w-full text-left @min-[32rem]/sales-records:table @min-[32rem]/sales-records:table-fixed",
@@ -149,8 +149,8 @@ const ROW_LAYOUT = {
     reviewMark: "hidden @min-[32rem]/sales-records:block @min-[42rem]/sales-records:hidden",
     edgeRow: "shadow-[inset_3px_0_0_0_var(--sale-edge)] @min-[32rem]/sales-records:shadow-none",
     edgeName: "@min-[32rem]/sales-records:shadow-[inset_3px_0_0_0_var(--sale-edge)]",
-    // Рядом с открытой записью то же действие стоит в её панели: в таблице его нет, в стопке оно справа от имени.
-    action: "col-start-2 row-start-1 self-center @min-[32rem]/sales-records:hidden",
+    // Рядом с открытой записью (таблица от 32rem) то же действие стоит в её панели; в стопке (телефон) оно есть и в строке.
+    action: "self-center @min-[32rem]/sales-records:hidden",
   },
 } as const;
 type RowLayout = keyof typeof ROW_LAYOUT;
@@ -413,7 +413,7 @@ function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, ma
   return (
     <tr role="row" id={`sale-${row.id}`} data-selected={selected ? "" : undefined}
       data-withdrawn={refusal ? refusal.kind : undefined}
-      className={`relative grid scroll-mt-24 grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-4 py-1.5 ${at.row} ${refusalWord ? `${edge} ${at.edgeRow}` : ""} ${selected ? "bg-surface-2" : "bg-surface hover:bg-surface-2"}`}>
+      className={`relative grid scroll-mt-24 ${action ? "grid-cols-[minmax(0,1fr)_auto_auto]" : "grid-cols-[minmax(0,1fr)_auto]"} gap-x-3 px-4 py-1.5 ${at.row} ${refusalWord ? `${edge} ${at.edgeRow}` : ""} ${selected ? "bg-surface-2" : "bg-surface hover:bg-surface-2"}`}>
       <th role="rowheader" scope="row" className={`min-w-0 font-normal ${at.name} ${refusalWord ? at.edgeName : ""}`}>
         <Link href={href} scroll={false} aria-current={selected ? "true" : undefined} title={name}
           className={`flex min-h-11 min-w-0 ${reviewMark || refusalWord ? "flex-col justify-center" : "items-center"} t-item text-fg underline-offset-4 after:absolute after:inset-0 after:content-[''] hover:underline`}>
@@ -462,7 +462,7 @@ function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, ma
       {action || actionColumn ? <td role="cell" className={at.action}>{action}</td> : null}
       {/* Узкий контейнер: сведения строки под именем (широкий их не показывает); дата — JetBrains Mono,
           «Уточнить» — своей строкой целиком: причина не прячется за многоточием. */}
-      <td role="cell" className={`col-span-2 min-w-0 pb-1 ${at.narrow}`}>
+      <td role="cell" className={`col-span-full min-w-0 pb-1 ${at.narrow}`}>
         <p className="truncate t-meta text-fg-2">
           {row.signingDate ? <time dateTime={row.signingDate} className="font-mono tabular-nums">{rowDate(row.signingDate, year)}</time> : "без даты"}
           {[manager, place].filter(Boolean).map((part) => ` · ${part}`).join("")}

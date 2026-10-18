@@ -3952,27 +3952,31 @@ SQL
   # service calls are made as the service path makes them. The suite proves: the
   # catalog and posture of every new function and of the closed receipts table
   # (append-only, forced RLS, no client privilege), the released reads and commands
-  # byte-identical and the three edited bodies (staff_sales_count_v1, marketing_cohort,
-  # marketing_overview_v1) different only by the refusal condition; the interface
+  # byte-identical and the four edited bodies (staff_sales_count_v1, current_sales_funnel,
+  # marketing_cohort, marketing_overview_v1) different only by the refusal condition; the interface
   # command set_sales_register_withdrawal_v1 (partial / unpaid, the change of kind,
   # «Вернуть», the version at every step, the stored columns, the gates of
   # manage_sales_register_v2: the system Admin without the Sales Manager role, another
-  # department, another scope, a reader, the Student, anon, another organization;
+  # department, another scope, a reader, a Sales Manager whose read role is wider than his
+  # manage scope, the Student, anon, another organization;
   # stale, replay, conflict, an archived record, a missing or unchanged mark, invalid
   # kind or note, a journal without free text, the money untouched, an ordinary edit
   # and archive / restore that keep the mark); read_sales_register_v5 (exact key sets,
   # the `withdrawal` object, refused rows listed but out of the totals, the unresolved
   # counts and the sale slices, the `withdrawn` block with the paid amount per currency,
   # visibility as in v4, v1-v4 untouched); «Продажи» and the marketing reconciliation
-  # (a refused record leaves staff_sales_count_v1 and its slices and the cohort's
-  # contract, comes back after «Вернуть», the reconciliation keeps matching); the
+  # (a refused record leaves staff_sales_count_v1 and its slices, the funnel's count and
+  # the cohort's contract, comes back after «Вернуть», the reconciliation keeps matching); the
   # service calls mark_sales_report_row_withdrawn_v1 and archive_sales_report_row_v1
   # (the service-only boundary and the Admin actor, strict parameters, set / change /
   # clear / unchanged, an archived or missing row, replay and conflicts, the receipts
   # with the state before, a journal without personal data, isolation of organizations)
   # and create_sales_report_student_case_v1 (a case on a lead the report sold: no new
   # client or lead, the client row untouched, the профиль fields, the money, the receipt
-  # with its import source and client_reused, case_exists, every refusal) with migration
+  # with its import source and client_reused, case_exists, every refusal: a lead that is
+  # not from the report or whose client is not active, a fingerprint that holds the lead,
+  # the receipt key shared with 281's imports; the contact and client advisory locks, the
+  # locked lead row and the organization limit of the existing-case search) with migration
   # 287's update completing and closing such a case while the lead stays a converted
   # report lead.
   if [[ "$(basename "$migration")" == *_platform_sales_report_withdrawal.sql ]]; then

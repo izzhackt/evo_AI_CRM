@@ -6,7 +6,7 @@ import { btnGhostCls, inputCls } from "@/components/ui";
 import { setSalesRegisterWithdrawalAction } from "@/lib/platform-sales-register-actions";
 import { SALES_WITHDRAWAL_KINDS } from "@/lib/platform-sales-register-contract";
 import type { SalesWithdrawalActionState } from "@/lib/sales-withdrawal-contract";
-import { salesWithdrawalChoice, salesWithdrawalMessage } from "@/lib/v3/wording";
+import { salesWithdrawalChoice, salesWithdrawalMessage, salesWithdrawalSaved } from "@/lib/v3/wording";
 import { useAnchoredPopover } from "./queue/useAnchoredPopover";
 
 /**
@@ -14,8 +14,9 @@ import { useAnchoredPopover } from "./queue/useAnchoredPopover";
  * «Убрать» открывает маленькое окно (popover, не модальное): «Оплатил частично» / «Не оплатил»,
  * заметка до 500 символов и «Убрать»; без выбора записать нельзя. Убранная запись остаётся в
  * отчёте с чипом, а «Вернуть» — настоящая обратная команда, одно нажатие без вопросов.
- * Стоит в строке таблицы (полная ширина и телефон) и в правой панели открытой записи; в каждый
- * момент у записи одно такое место. Права проверяет сервер: кнопку получает тот, у кого они есть.
+ * Стоит в строке таблицы и в правой панели открытой записи: рядом с открытой записью (таблица от
+ * 32rem) — только в панели, на телефоне — и в строке, и в панели. Права проверяет сервер: кнопку
+ * получает тот, у кого они есть.
  */
 
 const ACTION = "inline-flex min-h-11 items-center rounded-nav px-2 t-label text-fg-2 underline underline-offset-4 hover:text-fg disabled:cursor-not-allowed disabled:opacity-50";
@@ -33,14 +34,18 @@ export function SalesWithdrawalControl({ record, name, withdrawn, requestId, ali
   const router = useRouter();
   const menu = useAnchoredPopover(align);
   const [state, dispatch, pending] = useActionState<SalesWithdrawalActionState, FormData>(setSalesRegisterWithdrawalAction, {
-    status: "idle", requestId, recordId: record.id,
+    status: "idle", requestId, recordId: record.id, operation: null,
   });
+  // Каждый новый итог — новый объект: и второй успех той же смонтированной строки закрывает окно и обновляет страницу.
   useEffect(() => {
     if (state.status !== "saved") return;
     document.getElementById(menu.popoverId)?.hidePopover?.();
     router.refresh();
-  }, [state.status, menu.popoverId, router]);
+  }, [state, menu.popoverId, router]);
   const message = state.status !== "idle" && state.status !== "saved" ? salesWithdrawalMessage(state.status) : null;
+  // Кнопка меняется на другую, фокус теряется: итог читалке — живой областью, которая остаётся на месте.
+  const saved = state.status === "saved" ? salesWithdrawalSaved(state.operation) : null;
+  const announce = <span role="status" className="sr-only">{saved}</span>;
   const identity = (restore: boolean) => <>
     <input type="hidden" name="request_id" value={state.requestId} />
     <input type="hidden" name="record_id" value={record.id} />
@@ -49,25 +54,22 @@ export function SalesWithdrawalControl({ record, name, withdrawn, requestId, ali
   </>;
   const label = name.trim() || "запись без имени";
 
-  if (withdrawn) {
-    return (
-      <form action={dispatch} className="relative z-10 flex flex-col items-end" data-testid="sales-withdrawal-return">
-        {identity(true)}
-        <button type="submit" disabled={pending} aria-label={`Вернуть в продажи: ${label}`} className={ACTION}>
-          {pending ? "Возвращаем…" : "Вернуть"}
-        </button>
-        {message ? <p role="alert" className="max-w-56 text-end t-meta text-fg-2">{message}</p> : null}
-      </form>
-    );
-  }
-  return (
+  const control = withdrawn ? (
+    <form action={dispatch} className="relative z-10 flex flex-col items-end" data-testid="sales-withdrawal-return">
+      {identity(true)}
+      <button type="submit" disabled={pending} aria-label={`Вернуть в продажи: ${label}`} className={ACTION}>
+        {pending ? "Возвращаем…" : "Вернуть"}
+      </button>
+      {message ? <p role="alert" className="max-w-56 text-end t-meta text-fg-2">{message}</p> : null}
+    </form>
+  ) : (
     <div className="relative z-10" data-testid="sales-withdrawal-remove">
       <button id={menu.triggerId} type="button" popoverTarget={menu.popoverId} style={menu.triggerStyle}
         aria-label={`Убрать из продаж: ${label}`} className={ACTION}>
         Убрать
       </button>
       <div id={menu.popoverId} popover="auto" style={menu.popoverStyle} role="dialog" aria-label={`Убрать из продаж: ${label}`}
-        className={`v3-anchored ${align === "end" ? "v3-anchored-end " : ""}w-72 max-w-[calc(100vw-1rem)] rounded-ctl border border-border bg-surface p-3 text-fg shadow-evo-lg`}>
+        className={`v3-anchored ${align === "end" ? "v3-anchored-end " : ""}w-72 max-w-[calc(100vw-1rem)] rounded-ctl border border-border bg-surface p-3 text-left text-fg shadow-evo-lg`}>
         <form action={dispatch} className="space-y-3">
           {identity(false)}
           <fieldset className="space-y-0.5">
@@ -92,4 +94,5 @@ export function SalesWithdrawalControl({ record, name, withdrawn, requestId, ali
       </div>
     </div>
   );
+  return <>{control}{announce}</>;
 }

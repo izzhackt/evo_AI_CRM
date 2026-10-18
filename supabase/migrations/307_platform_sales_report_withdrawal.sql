@@ -2,11 +2,11 @@
 -- правки данных (слова владельца 18.10.2026, docs/design/v3/product.md «18.10 — Отчёт продаж:
 -- «Убрать» продажу»). docs/PLAN_CHANGES.md «2026-10-18 · Отчёт продаж: «Убрать» продажу с
 -- отметкой отказа и служебные правки данных (миграция 307, запись до кода)». Номер 307 -
--- следующий за 306 на origin/main d787cd40e; сверяется ещё раз перед слиянием.
+-- следующий за 306 на origin/main 75a51b5ee; сверяется ещё раз перед слиянием.
 --
 -- Forward-only. v1-v4 чтения, строки v1/v2, manage v1/v2, link 254 и все остальные
 -- выпущенные функции остаются побайтово прежними (откат приложения продолжает работать);
--- исключение - три тела, где «Продажа» считается по определению 247 (g). SECURITY DEFINER с
+-- исключение - четыре тела, где «Продажа» считается по определению 247 (g). SECURITY DEFINER с
 -- пустым search_path; клиентские функции только в `platform`.
 --
 --  a) Отметка отказа - ОТДЕЛЬНЫЕ колонки platform_private.sales_register, не `fields`:
@@ -674,7 +674,7 @@ DECLARE
   lead_row platform.leads%ROWTYPE; client_row platform.clients%ROWTYPE;
   client_id_value UUID; client_reused BOOLEAN := FALSE;
   lead_id_value UUID;
-  existing_case_id UUID;
+  existing_case_id UUID; lock_value TEXT;
   field_value TEXT; profile_values JSONB := '[]'::JSONB;
   case_id UUID := gen_random_uuid();
   scope_id UUID := gen_random_uuid();
@@ -715,10 +715,35 @@ BEGIN
     END IF;
     RETURN prior.receipt || jsonb_build_object('replayed', TRUE);
   END IF;
+  -- The receipt key (organization, import source, external reference) is shared with 281's imports:
+  -- a pair that 281 already used is a conflict (use a source of its own), not a raw unique violation.
+  IF EXISTS (SELECT 1 FROM platform_private.admissions_direct_case_receipts r
+      WHERE r.organization_id = p_organization_id AND r.import_source = p_import_source AND r.external_ref = p_external_ref) THEN
+    RAISE EXCEPTION 'sales_report_case_conflict' USING ERRCODE = 'PT409';
+  END IF;
 
   -- ---- the sold lead: this organization, from the sales report, already a client ----------
-  -- The lead row is locked: two calls for one lead serialize, and 088's one-open-case-per-lead
-  -- index and the case source key are the database's last word.
+  -- Locks, in one order for every caller: first the contact locks of 143 / 281 / 287 / 304 (every
+  -- spelling of the client's number and e-mail, sorted) and one lock of the client itself, then the
+  -- row of the lead. The contact locks make this call, a direct case and a report import for the
+  -- same person serialize; the client lock covers a client without any contact (two report leads
+  -- of one client). 088's one-open-case-per-lead index and the case source key stay the database's
+  -- last word. The lead is read twice: once to know the person, once under its lock.
+  SELECT l.client_id INTO client_id_value FROM platform.leads l
+  WHERE l.organization_id = p_organization_id AND l.id = p_lead_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'sales_report_case_lead_missing' USING ERRCODE = 'PT404';
+  END IF;
+  SELECT * INTO client_row FROM platform.clients cl
+  WHERE cl.organization_id = p_organization_id AND cl.id = client_id_value;
+  IF FOUND THEN
+    FOR lock_value IN SELECT DISTINCT v FROM unnest(
+        platform_private.person_phone_match_keys(client_row.normalized_phone) || ARRAY[client_row.normalized_email]) v
+      WHERE v IS NOT NULL ORDER BY v LOOP
+      PERFORM pg_advisory_xact_lock(hashtextextended('manual-lead-contact:' || p_organization_id::TEXT || ':' || lock_value, 0));
+    END LOOP;
+    PERFORM pg_advisory_xact_lock(hashtextextended('sales-report-case-client:' || p_organization_id::TEXT || ':' || client_id_value::TEXT, 0));
+  END IF;
   SELECT * INTO lead_row FROM platform.leads l
   WHERE l.organization_id = p_organization_id AND l.id = p_lead_id FOR UPDATE;
   IF NOT FOUND THEN
@@ -726,7 +751,7 @@ BEGIN
   END IF;
   SELECT * INTO client_row FROM platform.clients cl
   WHERE cl.organization_id = p_organization_id AND cl.id = lead_row.client_id;
-  IF NOT FOUND OR lead_row.source_key IS DISTINCT FROM 'sales_report' OR lead_row.lifecycle_state::TEXT <> 'converted'
+  IF NOT FOUND OR client_id_value IS DISTINCT FROM lead_row.client_id OR lead_row.source_key IS DISTINCT FROM 'sales_report' OR lead_row.lifecycle_state::TEXT <> 'converted'
     OR client_row.lifecycle_state::TEXT <> 'active' THEN
     RAISE EXCEPTION 'sales_report_case_invalid_lead' USING ERRCODE = '22023';
   END IF;
@@ -1197,7 +1222,7 @@ BEGIN
     OR (SELECT count(*) FROM a307_released) <> 17 THEN
     RAISE EXCEPTION 'a307_verification_failed: a released read or command changed';
   END IF;
-  -- The three edited bodies carry the condition exactly where the replacements put it.
+  -- The four edited bodies carry the condition exactly where the replacements put it.
   IF (SELECT prosrc FROM pg_catalog.pg_proc WHERE oid = 'platform.staff_sales_count_v1(uuid,date,date)'::regprocedure)
       NOT LIKE '%NOT r.archived AND r.withdrawal_kind IS NULL%'
     OR (SELECT prosrc FROM pg_catalog.pg_proc WHERE oid = 'platform_private.marketing_cohort(uuid,date,date)'::regprocedure)

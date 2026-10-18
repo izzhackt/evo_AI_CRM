@@ -1,6 +1,11 @@
 /** The sales report is a reporting snapshot, never payment evidence. */
 export const SALES_CURRENCIES = ["USD", "EUR", "KGS"] as const;
 export type SalesCurrency = (typeof SALES_CURRENCIES)[number];
+/** Вид отказа (307): оплатил часть и ушёл / совсем не платил и ушёл. */
+export const SALES_WITHDRAWAL_KINDS = ["partial", "unpaid"] as const;
+export type SalesWithdrawalKind = (typeof SALES_WITHDRAWAL_KINDS)[number];
+/** Отметка «Убрано из продаж»: запись остаётся в отчёте, в «Продажи» и суммы не входит. */
+export type SalesWithdrawal = Readonly<{ kind: SalesWithdrawalKind; at: string; by: string; note: string | null }>;
 export type SalesRegisterRow = Readonly<{
   id: string; version: number; reportMonth: string; signingDate: string | null;
   applicantName: string; phone: string; country: string; university: string;
@@ -19,6 +24,8 @@ export type SalesRegisterRow = Readonly<{
   importFlags: readonly string[];
   /** Ключ написания менеджера: регистр, пробелы, точки в конце. */
   managerKey: string;
+  /** Отметка отказа (307, `sales_register_row_v3`); null — продажа в силе. */
+  withdrawal: SalesWithdrawal | null;
 }>;
 export type SalesRegisterTarget = Readonly<{
   id: string; version: number; reportMonth: string; managerLabel: string | null; targetCount: number;
@@ -34,6 +41,11 @@ export type SalesRegisterWorkspace = Readonly<{
   ownerOptions: readonly Readonly<{ id: string; label: string }>[];
   /** Нормализованный поиск и ключ менеджера, которые применил сервер. */
   query: string | null; managerKey: string | null;
+  /**
+   * Отказные записи выборки (307): их число и сколько по ним оплачено по валютам. Они в таблице,
+   * но не в `totals` и не в числах неуточнённых значений; деньги по ним не теряются.
+   */
+  withdrawn: Readonly<{ count: number; paid: readonly Readonly<{ currency: SalesCurrency; paidMinor: number }>[] }>;
 }>;
 export type SalesRegisterIntakeOptions = Readonly<{
   curators: readonly Readonly<{ id: string; label: string }>[];
@@ -93,7 +105,7 @@ function currency(value: unknown): SalesCurrency {
 }
 function array(value: unknown, max: number): unknown[] { return Array.isArray(value) && value.length <= max ? value : fail(); }
 
-/** Ключи строки v1 (134) — строка v2 (253) добавляет к ним ровно четыре. */
+/** Ключи строки v1 (134) — строка v2 (253) добавляет к ним ровно четыре, строка v3 (307) — ещё `withdrawal`. */
 const ROW_V1_KEYS = ["id", "version", "report_month", "signing_date", "applicant_name", "phone", "country", "university", "program", "direction", "intake",
   "contract_number", "manager_label", "status_raw", "owner_membership_id", "service_cost_raw", "service_cost_minor", "service_cost_currency", "paid_raw", "paid_minor",
   "paid_currency", "needs_review", "notes", "archived", "source_kind", "lead_id", "client_id", "source_key", "source_sha256", "source_sheet", "source_row", "updated_at"] as const;
@@ -104,9 +116,20 @@ function textList(value: unknown, pattern: RegExp): readonly string[] {
   return new Set(list).size === list.length ? list : fail();
 }
 
-/** Строка `sales_register_row_v2` (253): строка v1 + «Оплачено в валюте договора», причины пометки, пометки переноса и ключ менеджера. */
+/** Отметка отказа строки v3 (307): вид, когда, кто убрал, заметка; пустая заметка — null. */
+function parseWithdrawal(raw: unknown): SalesWithdrawal | null {
+  if (raw === null) return null;
+  const w = exact(raw, ["kind", "at", "by", "note"]);
+  const kind = SALES_WITHDRAWAL_KINDS.includes(w.kind as SalesWithdrawalKind) ? w.kind as SalesWithdrawalKind : fail();
+  const at = str(w.at, 64); if (!Number.isFinite(Date.parse(at))) fail();
+  const note = w.note === null ? null : str(w.note, 500);
+  if (note !== null && (!note.trim() || /[\u0000-\u001f\u007f]/.test(note))) fail();
+  return { kind, at, by: str(w.by, 300), note };
+}
+
+/** Строка `sales_register_row_v3` (307): строка v2 (253: «Оплачено в валюте договора», причины пометки, пометки переноса, ключ менеджера) + отметка отказа. */
 export function parseSalesRegisterRow(raw: unknown): SalesRegisterRow {
-  const r = exact(raw, [...ROW_V1_KEYS, "paid_contract", "review_reasons", "import_flags", "manager_key"]);
+  const r = exact(raw, [...ROW_V1_KEYS, "paid_contract", "review_reasons", "import_flags", "manager_key", "withdrawal"]);
   const serviceCostMinor = r.service_cost_minor === null ? null : num(r.service_cost_minor, 1_000_000_000_000);
   const serviceCostCurrency = r.service_cost_currency === null ? null : currency(r.service_cost_currency);
   const paidMinor = r.paid_minor === null ? null : num(r.paid_minor, 1_000_000_000_000);
@@ -131,6 +154,7 @@ export function parseSalesRegisterRow(raw: unknown): SalesRegisterRow {
   const reviewReasons = textList(r.review_reasons, REVIEW_REASON);
   if (reviewReasons.length && !r.needs_review) fail();
   const managerKey = str(r.manager_key, 300);
+  const withdrawal = parseWithdrawal(r.withdrawal);
   return {
     id: uuid(r.id), version, reportMonth: monthDate(r.report_month), signingDate: r.signing_date === null ? null : date(r.signing_date),
     applicantName: str(r.applicant_name, 300), phone: str(r.phone, 100), country: str(r.country, 200), university: str(r.university, 500),
@@ -140,13 +164,13 @@ export function parseSalesRegisterRow(raw: unknown): SalesRegisterRow {
     paidRaw: str(r.paid_raw), paidMinor, paidCurrency, needsReview: bool(r.needs_review), notes: str(r.notes),
     archived: bool(r.archived), sourceKind, leadId, clientId, sourceKey, sourceSha256, sourceSheet, sourceRow, updatedAt,
     paidContractMinor: contract ? num(contract.minor, 1_000_000_000_000) : null, paidContractCurrency: contract ? currency(contract.currency) : null,
-    reviewReasons, importFlags, managerKey,
+    reviewReasons, importFlags, managerKey, withdrawal,
   };
 }
-/** Ответ `read_sales_register_v4` (253) — точные ключи; v1–v3 остаются на сервере для отката. */
+/** Ответ `read_sales_register_v5` (307) — точные ключи; v1–v4 остаются на сервере для отката. */
 export function parseSalesRegisterWorkspace(raw: unknown, organizationId: string): SalesRegisterWorkspace {
   const r = exact(raw, ["query", "manager_key", "organization_id", "year", "month", "total_count", "rows", "selected", "offset", "has_more", "totals",
-    "unresolved_cost_count", "unresolved_paid_count", "targets", "manager_options", "owner_options"]);
+    "unresolved_cost_count", "unresolved_paid_count", "targets", "manager_options", "owner_options", "withdrawn"]);
   if (r.organization_id !== organizationId) fail();
   const query = r.query === null ? null : str(r.query, 200);
   if (query !== null && (query === "" || query !== query.trim() || /[\u0000-\u001f\u007f]/.test(query))) fail();
@@ -164,6 +188,13 @@ export function parseSalesRegisterWorkspace(raw: unknown, organizationId: string
   if (new Set(rows.map(row => row.id)).size !== rows.length) fail();
   const totals = array(r.totals, 3).map(value => { const t = exact(value, ["currency", "cost_minor", "paid_minor"]); return { currency: currency(t.currency), costMinor: num(t.cost_minor), paidMinor: num(t.paid_minor) }; });
   if (new Set(totals.map(t => t.currency)).size !== totals.length) fail();
+  const refused = exact(r.withdrawn, ["count", "paid"]);
+  const withdrawnPaid = array(refused.paid, 3).map(value => { const w = exact(value, ["currency", "paid_minor"]); return { currency: currency(w.currency), paidMinor: num(w.paid_minor) }; });
+  if (new Set(withdrawnPaid.map(w => w.currency)).size !== withdrawnPaid.length) fail();
+  const withdrawnCount = num(refused.count);
+  // Отказные записи страницы — часть выборки, а в сумме отказов их не больше, чем записей всей выборки.
+  // В «Архиве» итогов нет (сервер отдаёт 0), хотя архивная запись может нести прежнюю отметку.
+  if (withdrawnCount > num(r.total_count) || rows.filter(row => row.withdrawal !== null && !row.archived).length > withdrawnCount) fail();
   return { year, month, totalCount: num(r.total_count), rows, selected: r.selected === null ? null : parseSalesRegisterRow(r.selected),
     offset: num(r.offset, 1000000), hasMore: bool(r.has_more), totals,
     unresolvedCostCount: num(r.unresolved_cost_count), unresolvedPaidCount: num(r.unresolved_paid_count),
@@ -171,6 +202,6 @@ export function parseSalesRegisterWorkspace(raw: unknown, organizationId: string
       return { id: uuid(t.id), version, reportMonth: monthDate(t.report_month), managerLabel: t.manager_label === null ? null : str(t.manager_label, 300), targetCount: num(t.target_count, 1000000) }; }),
     managerOptions,
     ownerOptions: array(r.owner_options, 1000).map(value => { const owner = exact(value, ["id", "label"]); return { id: uuid(owner.id), label: str(owner.label, 300) }; }),
-    query, managerKey,
+    query, managerKey, withdrawn: { count: withdrawnCount, paid: withdrawnPaid },
   };
 }

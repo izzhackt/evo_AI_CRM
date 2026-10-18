@@ -5,7 +5,16 @@
  * месяца. Данные не меняются: всё считается из уже прочитанных строк; нет
  * чтения — нет числа.
  */
-import type { SalesRegisterRow } from "./platform-sales-register-contract.ts";
+import type { SalesRegisterRow, SalesWithdrawalKind } from "./platform-sales-register-contract.ts";
+
+/**
+ * Тон чипа и ребра отказной строки (307): оплатил часть и ушёл — янтарный (`warn`),
+ * совсем не платил и ушёл — красный (`danger`). Цвет не заменяет слово: рядом всегда
+ * чип со словом (`salesWithdrawalWord`).
+ */
+export function salesWithdrawalTone(kind: SalesWithdrawalKind): "warn" | "danger" {
+  return kind === "partial" ? "warn" : "danger";
+}
 
 /**
  * Вариант фильтра «Направление» в меню: одно имя на написания, которые
@@ -134,10 +143,15 @@ export function salesRowContractPaid(row: SalesRegisterRow): number | null {
  * валюту пустыми»; сервер считает её неуточнённой), а не ноль. Запись в
  * архиве в рабочие итоги не входит — и остатка у неё нет.
  */
-export type SalesNoRemainderReason = "archived" | "no_cost" | "paid_unclear" | "paid_missing" | "other_currency";
+export type SalesNoRemainderReason = "archived" | "withdrawn" | "no_cost" | "paid_unclear" | "paid_missing" | "other_currency";
 
+/**
+ * Запись с отказом (307) остаётся в отчёте, но ждать с неё остаток нечего: долг человека,
+ * который ушёл, в «Остаток» не входит, а то, что он успел оплатить, названо отдельно.
+ */
 export function salesRowNoRemainder(row: SalesRegisterRow): SalesNoRemainderReason | null {
   if (row.archived) return "archived";
+  if (row.withdrawal !== null) return "withdrawn";
   if (row.serviceCostMinor === null || row.serviceCostCurrency === null) return "no_cost";
   if (row.paidMinor === null) return row.paidRaw.trim() ? "paid_unclear" : "paid_missing";
   if (row.paidCurrency !== row.serviceCostCurrency && salesRowContractPaid(row) === null) return "other_currency";
@@ -146,6 +160,7 @@ export function salesRowNoRemainder(row: SalesRegisterRow): SalesNoRemainderReas
 
 export const SALES_NO_REMAINDER_TEXT: Readonly<Record<SalesNoRemainderReason, string>> = {
   archived: "в архиве",
+  withdrawn: "отказ",
   no_cost: "нет стоимости",
   paid_unclear: "оплата не разобрана",
   paid_missing: "оплата не указана",
@@ -180,7 +195,7 @@ export type SalesMoneySummary = Readonly<{
 }>;
 
 /**
- * Суммы по валютам — только из записей рабочего отчёта (не архива): строка
+ * Суммы по валютам — только из записей рабочего отчёта (не архива и не отказа, 307): строка
  * валюты — записи с указанными стоимостью и оплатой в одной валюте, поэтому
  * «Стоимость − Оплачено = Остаток»; оплата в другой валюте — парой без
  * остатка; без стоимости, с неразобранной или неуказанной оплатой — не
@@ -194,7 +209,7 @@ export function salesMoneySummary(rows: readonly SalesRegisterRow[]): SalesMoney
   let paidMissing = 0;
   for (const row of rows) {
     const why = salesRowNoRemainder(row);
-    if (why === "archived") continue;
+    if (why === "archived" || why === "withdrawn") continue;
     if (why === "no_cost") { noCost += 1; continue; }
     if (why === "paid_unclear") { paidUnclear += 1; continue; }
     if (why === "paid_missing") { paidMissing += 1; continue; }
@@ -236,17 +251,21 @@ export function salesMoneySummary(rows: readonly SalesRegisterRow[]): SalesMoney
  * и сколько с датой продажи вне периода — чтобы два числа рядом не спорили.
  */
 export function salesSummaryBasis(
-  rows: readonly Pick<SalesRegisterRow, "signingDate">[],
+  rows: readonly Pick<SalesRegisterRow, "signingDate" | "withdrawal">[],
   period: Readonly<{ year: number; month: number | undefined }>,
 ): Readonly<{ total: number; undated: number; otherSaleDate: number }> {
   const prefix = period.month === undefined ? `${period.year}-` : `${period.year}-${String(period.month).padStart(2, "0")}-`;
   let undated = 0;
   let otherSaleDate = 0;
+  let total = 0;
   for (const row of rows) {
+    // Суммы стоят на записях без отказа: отказные названы отдельно (307).
+    if (row.withdrawal !== null) continue;
+    total += 1;
     if (row.signingDate === null) undated += 1;
     else if (!row.signingDate.startsWith(prefix)) otherSaleDate += 1;
   }
-  return { total: rows.length, undated, otherSaleDate };
+  return { total, undated, otherSaleDate };
 }
 
 /** «по 1 записи», «по 9 записям», «по 21 записи». */

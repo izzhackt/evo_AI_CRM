@@ -478,6 +478,34 @@ const lookup = (table: Record<string, string>, value: string | null | undefined)
 export const leadStage = (v: string | null | undefined) => lookup(LEAD_STAGE, v);
 /** Название этапа продаж, как у колонки доски; `null` — не этап продаж. */
 export const salesStage = (v: string | null | undefined) => lookup(SALES_STAGE_TITLE, v);
+
+/**
+ * «Отказ» в «Отчёте продаж» (307, слова владельца 18.10): вид отметки словом чипа.
+ * Ключ (`partial`, `unpaid`) на экран не выходит; неизвестный вид - `null`, чипа нет.
+ */
+const SALES_WITHDRAWAL_WORD: Record<string, string> = {
+  partial: "Отказ, оплачено частично",
+  unpaid: "Отказ, без оплаты",
+};
+export const salesWithdrawalWord = (v: string | null | undefined) => lookup(SALES_WITHDRAWAL_WORD, v);
+
+/** Выбор в окне «Убрать»: что человек успел до ухода. */
+const SALES_WITHDRAWAL_CHOICE: Record<string, string> = {
+  partial: "Оплатил частично",
+  unpaid: "Не оплатил",
+};
+export const salesWithdrawalChoice = (v: string | null | undefined) => lookup(SALES_WITHDRAWAL_CHOICE, v);
+
+/** Итог команды «Убрать» / «Вернуть» словами; `saved` и `idle` сообщения не имеют. */
+const SALES_WITHDRAWAL_MESSAGE: Record<string, string> = {
+  invalid: "Проверьте выбор и заметку: до 500 символов в одной строке.",
+  forbidden: "Нет доступа к этому действию.",
+  stale: "Запись изменил другой сотрудник. Обновите страницу и повторите.",
+  request_conflict: "Этот запрос уже использован. Обновите страницу перед повтором.",
+  archived: "Запись в архиве. Сначала верните её из архива.",
+  unavailable: "Не удалось сохранить. Проверьте подключение и повторите.",
+};
+export const salesWithdrawalMessage = (v: string | null | undefined) => lookup(SALES_WITHDRAWAL_MESSAGE, v);
 export const applicationStatus = (v: string | null | undefined) => lookup(APPLICATION_STATUS, v);
 
 /**

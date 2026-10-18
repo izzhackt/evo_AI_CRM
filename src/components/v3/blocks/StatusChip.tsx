@@ -19,17 +19,20 @@ export function StatusChip({
   tone = "neutral",
   title,
   size,
+  wrap = false,
 }: Readonly<{
   label: string;
   tone?: StatusChipTone;
   title?: string;
+  /** Слово не помещается в узкую ячейку таблицы: переносится на вторую строку, а не выходит за столбец. */
+  wrap?: boolean;
   /** `sm` — строка карточки доски: чип 18 px не раздвигает строку 16 px (карточка — до 72 px). */
   size?: "sm";
 }>) {
   const word = label.trim();
   if (!word) return null;
   return (
-    <span className="v3-chip t-caption" data-tone={tone} data-size={size} title={title}>
+    <span className="v3-chip t-caption" data-tone={tone} data-size={size} data-wrap={wrap ? "" : undefined} title={title}>
       {word}
     </span>
   );

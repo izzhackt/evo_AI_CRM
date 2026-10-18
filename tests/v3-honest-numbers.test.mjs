@@ -492,10 +492,10 @@ test("«Продажи» headline: one number by sale date, discrepancies named,
   assert.match(view, /readSalesCount\(actor, headlinePeriod\)/u);
   assert.match(view, /filtered=\{hasFilters\} sliceHref=\{saleSliceHref\}/u);
   assert.match(read("src/lib/v3/sales-numbers-source.ts"), /rpc\("staff_sales_count_v1"/u);
-  // Э8.6 (253): one read, v4, carries the slice as v3 did; v2/v3 stay on the server for rollback.
+  // 307: one read, v5 (v4 of 253 + the refusal mark), carries the slice as v3 did; v2-v4 stay on the server for rollback.
   const source = read("src/lib/v3/sales-register-source.ts");
-  assert.match(source, /rpc\("read_sales_register_v4", \{[^}]*p_query: query \|\| null, p_sale_slice: slice,\s*\}\)/u);
-  assert.doesNotMatch(source, /read_sales_register_v[23]"/u);
+  assert.match(source, /rpc\("read_sales_register_v5", \{[^}]*p_query: query \|\| null, p_sale_slice: slice,\s*\}\)/u);
+  assert.doesNotMatch(source, /read_sales_register_v[234]"/u);
 });
 
 test("report navigation: «sale=<slice>» is one of the three sets, never over the archive, and survives paging", () => {

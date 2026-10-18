@@ -526,26 +526,25 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   WHERE c.organization_id = p_organization_id AND c.id = p_client_id
 $$;
 
--- Whether a client has a student cabinet: a case of the client (or of one of its leads) whose student
--- account (membership) is bound and active.
-CREATE FUNCTION platform_private.client_has_student_cabinet(p_organization_id UUID, p_client_id UUID)
-RETURNS BOOLEAN
+-- The student accounts (memberships) a client's cases are opened with: a case of the client (or of one of its
+-- leads) whose student membership is bound and active.
+CREATE FUNCTION platform_private.client_student_cabinets(p_organization_id UUID, p_client_id UUID)
+RETURNS UUID[]
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM platform.student_cases sc
-    JOIN platform.organization_memberships m
-      ON m.organization_id = sc.organization_id AND m.id = sc.student_membership_id AND m.status = 'active'
-    WHERE sc.organization_id = p_organization_id
-      AND sc.student_membership_id IS NOT NULL
-      AND (sc.canonical_client_id = p_client_id
-        OR sc.canonical_lead_id IN (SELECT l.id FROM platform.leads l
-          WHERE l.organization_id = p_organization_id AND l.client_id = p_client_id)))
+  SELECT COALESCE(array_agg(DISTINCT sc.student_membership_id ORDER BY sc.student_membership_id), ARRAY[]::UUID[])
+  FROM platform.student_cases sc
+  JOIN platform.organization_memberships m
+    ON m.organization_id = sc.organization_id AND m.id = sc.student_membership_id AND m.status = 'active'
+  WHERE sc.organization_id = p_organization_id
+    AND sc.student_membership_id IS NOT NULL
+    AND (sc.canonical_client_id = p_client_id
+      OR sc.canonical_lead_id IN (SELECT l.id FROM platform.leads l
+        WHERE l.organization_id = p_organization_id AND l.client_id = p_client_id))
 $$;
 
 REVOKE ALL ON FUNCTION platform_private.client_merge_service_actor(UUID, UUID, TEXT[]),
   platform_private.client_merge_snapshot(UUID, UUID),
-  platform_private.client_has_student_cabinet(UUID, UUID)
+  platform_private.client_student_cabinets(UUID, UUID)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 
 -- ---------------------------------------------------------------------------
@@ -562,6 +561,7 @@ DECLARE
   v_reason TEXT := btrim(p_reason);
   v_actor RECORD;
   v_base UUID;
+  v_key UUID;
   v_hash TEXT;
   v_prior platform_private.client_merge_service_receipts%ROWTYPE;
   v_locked INTEGER;
@@ -571,6 +571,9 @@ DECLARE
   v_right UUID;
   v_candidate platform_private.client_duplicate_candidates%ROWTYPE;
   v_candidate_created BOOLEAN := FALSE;
+  v_candidate_found BOOLEAN;
+  v_keep_cabinets UUID[];
+  v_merge_cabinets UUID[];
   v_before JSONB;
   v_applied JSONB;
   v_constraint TEXT;
@@ -581,8 +584,6 @@ DECLARE
   v_new_phone_norm TEXT;
   v_new_email TEXT;
   v_new_email_norm TEXT;
-  v_result_phone TEXT;
-  v_result_email TEXT;
   v_blocked BOOLEAN := FALSE;
   v_note_case UUID;
   v_notes INTEGER := 0;
@@ -616,10 +617,14 @@ BEGIN
   -- (the order of 287), then the request lock.
   v_base := public.uuid_generate_v5(c_namespace,
     'evo:client-merge:' || p_organization_id::TEXT || ':' || p_import_source || ':' || v_ref);
+  -- The key of the receipt is shared by both service calls: one lock for it, so a merge and a closure under the
+  -- same (source, reference) cannot both pass the lookup below.
+  v_key := public.uuid_generate_v5(c_namespace,
+    'evo:client-merge-service:' || p_organization_id::TEXT || ':' || p_import_source || ':' || v_ref);
   v_hash := md5(jsonb_build_object('operation', 'merge', 'actor', p_actor_membership_id,
     'keep', p_keep_client_id, 'merge', p_merge_client_id, 'reason', v_reason)::TEXT);
   PERFORM platform_private.lock_student_case_note_assignment_domain(p_organization_id);
-  PERFORM platform_private.lock_p2d_request(v_base);
+  PERFORM platform_private.lock_p2d_request(v_key);
   SELECT * INTO v_prior FROM platform_private.client_merge_service_receipts r
   WHERE r.organization_id = p_organization_id AND r.import_source = p_import_source AND r.external_ref = v_ref;
   IF FOUND THEN
@@ -629,7 +634,13 @@ BEGIN
     RETURN v_prior.result || jsonb_build_object('replayed', TRUE);
   END IF;
 
-  -- Both clients, locked in one order (two merges of the same clients cannot cross).
+  -- The candidate of the pair first, then both clients, each in one order: resolve_client_duplicate takes the
+  -- candidate before it touches the clients, so the two cannot wait on each other.
+  v_left := LEAST(p_keep_client_id, p_merge_client_id);
+  v_right := GREATEST(p_keep_client_id, p_merge_client_id);
+  SELECT * INTO v_candidate FROM platform_private.client_duplicate_candidates d
+  WHERE d.organization_id = p_organization_id AND d.left_client_id = v_left AND d.right_client_id = v_right FOR UPDATE;
+  v_candidate_found := FOUND;
   SELECT count(*) INTO v_locked FROM (
     SELECT c.id FROM platform.clients c WHERE c.id IN (p_keep_client_id, p_merge_client_id) ORDER BY c.id FOR UPDATE) l;
   IF v_locked <> 2 THEN
@@ -650,10 +661,18 @@ BEGIN
   IF NOT platform_private.client_duplicate_pair_is_live(p_organization_id, p_keep_client_id, p_merge_client_id) THEN
     RAISE EXCEPTION 'client_merge_not_allowed:not_live' USING ERRCODE = '55000';
   END IF;
-  -- A service-only caution (resolve_client_duplicate has no such rule): two student accounts are not
-  -- tied to one person silently.
-  IF platform_private.client_has_student_cabinet(p_organization_id, p_keep_client_id)
-    AND platform_private.client_has_student_cabinet(p_organization_id, p_merge_client_id) THEN
+  -- An archived lead is immutable (084), so it cannot change its client: it has to stay with the kept client.
+  IF EXISTS (SELECT 1 FROM platform.leads l WHERE l.organization_id = p_organization_id
+      AND l.client_id = p_merge_client_id AND l.lifecycle_state = 'archived') THEN
+    RAISE EXCEPTION 'client_merge_not_allowed:archived_lead' USING ERRCODE = '55000';
+  END IF;
+  -- A service-only caution (resolve_client_duplicate has no such rule): student accounts of two people are not
+  -- tied to one person silently. Both clients have cases with an active student account and these are more than
+  -- one account: refused. The same single account on both is fine.
+  v_keep_cabinets := platform_private.client_student_cabinets(p_organization_id, p_keep_client_id);
+  v_merge_cabinets := platform_private.client_student_cabinets(p_organization_id, p_merge_client_id);
+  IF cardinality(v_keep_cabinets) > 0 AND cardinality(v_merge_cabinets) > 0
+    AND (SELECT count(DISTINCT a) FROM unnest(v_keep_cabinets || v_merge_cabinets) a) > 1 THEN
     RAISE EXCEPTION 'client_merge_not_allowed:student_cabinets' USING ERRCODE = '55000';
   END IF;
 
@@ -662,11 +681,7 @@ BEGIN
 
   -- The candidate: an open row of the pair is used; a closed one refuses; none is made with the basis
   -- `owner_confirmed` (the pair order of 084: left < right).
-  v_left := LEAST(p_keep_client_id, p_merge_client_id);
-  v_right := GREATEST(p_keep_client_id, p_merge_client_id);
-  SELECT * INTO v_candidate FROM platform_private.client_duplicate_candidates d
-  WHERE d.organization_id = p_organization_id AND d.left_client_id = v_left AND d.right_client_id = v_right FOR UPDATE;
-  IF NOT FOUND THEN
+  IF NOT v_candidate_found THEN
     INSERT INTO platform_private.client_duplicate_candidates (organization_id, left_client_id, right_client_id, match_basis)
     VALUES (p_organization_id, v_left, v_right, 'owner_confirmed')
     RETURNING * INTO v_candidate;
@@ -688,8 +703,6 @@ BEGIN
 
   -- Contacts of the merged client, now that it is no longer `active` (the unique index of active clients
   -- by email and phone does not see it).
-  v_result_phone := v_keep.phone;
-  v_result_email := v_keep.email;
   v_new_phone_norm := v_keep.normalized_phone;
   v_new_email_norm := v_keep.normalized_email;
   IF v_merge.phone IS NOT NULL THEN
@@ -752,9 +765,9 @@ BEGIN
       END IF;
       FOREACH v_field IN ARRAY ARRAY['phone', 'email'] LOOP
         IF (v_field = 'phone' AND v_phone_status = 'conflict') OR (v_field = 'email' AND v_email_status = 'conflict') THEN
-          v_note_body := CASE WHEN v_field = 'phone'
-            THEN 'Второй телефон (из склеенного клиента): ' || v_merge.phone
-            ELSE 'Вторая почта (из склеенного клиента): ' || v_merge.email END;
+          v_note_body := btrim(CASE WHEN v_field = 'phone'
+            THEN 'Второй телефон (из склеенного клиента): ' || btrim(v_merge.phone)
+            ELSE 'Вторая почта (из склеенного клиента): ' || btrim(v_merge.email) END);
           v_note_id := gen_random_uuid();
           INSERT INTO platform.case_notes (id, organization_id, student_case_id, body, created_by_membership_id)
           VALUES (v_note_id, p_organization_id, v_note_case, v_note_body, v_actor.membership_id);
@@ -829,6 +842,7 @@ DECLARE
   v_note TEXT := NULLIF(btrim(p_note, E' \t\r\n'), '');
   v_actor RECORD;
   v_base UUID;
+  v_key UUID;
   v_hash TEXT;
   v_prior platform_private.client_merge_service_receipts%ROWTYPE;
   v_lead platform.leads%ROWTYPE;
@@ -858,9 +872,11 @@ BEGIN
 
   v_base := public.uuid_generate_v5(c_namespace,
     'evo:lead-already-student:' || p_organization_id::TEXT || ':' || p_import_source || ':' || v_ref);
+  v_key := public.uuid_generate_v5(c_namespace,
+    'evo:client-merge-service:' || p_organization_id::TEXT || ':' || p_import_source || ':' || v_ref);
   v_hash := md5(jsonb_build_object('operation', 'close_lead', 'actor', p_actor_membership_id,
     'lead', p_lead_id, 'note', v_note, 'reason', v_reason)::TEXT);
-  PERFORM platform_private.lock_p2d_request(v_base);
+  PERFORM platform_private.lock_p2d_request(v_key);
   SELECT * INTO v_prior FROM platform_private.client_merge_service_receipts r
   WHERE r.organization_id = p_organization_id AND r.import_source = p_import_source AND r.external_ref = v_ref;
   IF FOUND THEN
@@ -880,7 +896,7 @@ BEGIN
   END IF;
   IF NOT platform_private.staff_can_access(p_organization_id, v_actor.membership_id, 'lead.sales.workflow.manage', 'lead', v_lead.id)
     OR NOT platform_private.staff_can_access(p_organization_id, v_actor.membership_id, 'lead.read', 'lead', v_lead.id) THEN
-    RAISE EXCEPTION 'client_merge_forbidden' USING ERRCODE = '42501';
+    RAISE EXCEPTION 'lead_close_forbidden' USING ERRCODE = '42501';
   END IF;
   IF v_lead.lifecycle_state <> 'open' THEN
     RAISE EXCEPTION 'lead_close_state_conflict' USING ERRCODE = 'PT409';
@@ -972,7 +988,7 @@ REVOKE ALL ON FUNCTION platform.merge_clients_owner_confirmed_v1(UUID, UUID, TEX
 GRANT EXECUTE ON FUNCTION platform.merge_clients_owner_confirmed_v1(UUID, UUID, TEXT, TEXT, UUID, UUID, TEXT) TO service_role;
 GRANT EXECUTE ON FUNCTION platform.close_sales_lead_already_student_v1(UUID, UUID, TEXT, TEXT, UUID, TEXT, TEXT) TO service_role;
 COMMENT ON FUNCTION platform.merge_clients_owner_confirmed_v1(UUID, UUID, TEXT, TEXT, UUID, UUID, TEXT) IS
-  'Migration 308: service-only merge of two duplicate clients the owner confirmed (service_role without a user JWT; actor: an active Admin membership holding client.duplicate.resolve). Uses the open candidate of the pair or makes one with the basis owner_confirmed, then the same merge as resolve_client_duplicate (leads, cases and conversations move to the kept client; the merged client becomes immutable; irreversible); fills the kept client''s empty phone / e-mail from the merged one, a differing one goes to a note on the kept client''s active case and to the receipt. Refuses a client of another organization, the same client, a client that is not live, a closed candidate, two student cabinets and a lead pinned by a handoff or a report link. Idempotent by (organization, import source, external reference); dry-run = call inside a transaction and ROLLBACK.';
+  'Migration 308: service-only merge of two duplicate clients the owner confirmed (service_role without a user JWT; actor: an active Admin membership holding client.duplicate.resolve). Uses the open candidate of the pair or makes one with the basis owner_confirmed, then the same merge as resolve_client_duplicate (leads, cases and conversations move to the kept client; the merged client becomes immutable; irreversible); fills the kept client''s empty phone / e-mail from the merged one, a differing one goes to a note on the kept client''s active case and to the receipt. Refuses a client of another organization, the same client, a client that is not live, a closed candidate, student accounts of more than one person, an archived lead of the merged client and a lead pinned by a handoff or a report link. Idempotent by (organization, import source, external reference). Dry-run = call inside a transaction and ROLLBACK (a call through PostgREST commits at once). The reason is journaled as written: no names or phones in it.';
 COMMENT ON FUNCTION platform.close_sales_lead_already_student_v1(UUID, UUID, TEXT, TEXT, UUID, TEXT, TEXT) IS
   'Migration 308: service-only closure of an open sales lead whose client already has a student case (service_role without a user JWT; actor: an active Admin membership). The lifecycle change of 246 (disqualified, reason duplicate, event lead.lifecycle.change); refuses a lead that is not open, a handed-off lead, the lead a case was opened on, and a client without a case in work or finished as enrolled. Idempotent by (organization, import source, external reference).';
 
@@ -997,6 +1013,7 @@ BEGIN
   IF has_function_privilege('service_role', 'platform_private.client_duplicate_apply_resolution(uuid,uuid,uuid,text,uuid,uuid,uuid)', 'EXECUTE')
     OR has_function_privilege('authenticated', 'platform_private.client_duplicate_open_candidate(uuid,uuid,uuid)', 'EXECUTE')
     OR has_function_privilege('service_role', 'platform_private.client_merge_service_actor(uuid,uuid,text[])', 'EXECUTE')
+    OR has_function_privilege('service_role', 'platform_private.client_student_cabinets(uuid,uuid)', 'EXECUTE')
     OR NOT has_function_privilege('authenticated', 'platform.resolve_client_duplicate(uuid,uuid,uuid,text,uuid)', 'EXECUTE')
     OR has_function_privilege('service_role', 'platform.resolve_client_duplicate(uuid,uuid,uuid,text,uuid)', 'EXECUTE')
     OR has_table_privilege('service_role', 'platform_private.client_merge_service_receipts', 'SELECT')

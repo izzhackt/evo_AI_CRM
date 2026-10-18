@@ -7,6 +7,7 @@ import type { CatalogPreparation } from "@/lib/portal/catalog-preparations";
 import type { ApplicationPackageReadiness } from "@/lib/portal/application-packages";
 import { readStaffApplicationPackageReadinessAction } from "@/lib/portal/application-packages-actions";
 import { getPortalStrings } from "@/lib/portal/i18n";
+import { caseDocumentsWords } from "@/lib/v3/wording";
 import { ProgramDocumentItem } from "@/components/portal/admissionPreparations/ProgramDocumentItem";
 import { ProgramDocumentHistory } from "@/components/portal/admissionPreparations/ProgramDocumentHistory";
 import { ProgramDocumentRecovery } from "@/components/portal/admissionPreparations/ProgramDocumentRecovery";
@@ -39,12 +40,14 @@ async function readProgramDocuments(scope: StaffPreparationScope, applicationId:
     : { status: result.reason === "forbidden" ? "forbidden" : "unavailable" };
 }
 
-export function StaffPreparationPanel({ preparation, scope, canRead, canInitialize, canReview = false }: {
+export function StaffPreparationPanel({ preparation, scope, canRead, canInitialize, canReview = false, documentsAwaitCurator = false }: {
   preparation: CatalogPreparation;
   scope: StaffPreparationScope;
   canRead: boolean;
   canInitialize: boolean;
   canReview?: boolean;
+  /** Дело ждёт куратора (`caseDocumentsAwaitCurator`): вкладки «Документы» у него нет, ссылки на неё нет. */
+  documentsAwaitCurator?: boolean;
 }) {
   const [explicitOpen, setOpened] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -158,7 +161,9 @@ export function StaffPreparationPanel({ preparation, scope, canRead, canInitiali
           requirementItemId={null} audience="staff" strings={documentStrings} canReview={canReview} onSaved={() => void load()} />
         {storageBlocked ? <p role="alert" className="text-sm text-danger">Не удалось прочитать сохранённый запрос. Новое действие не отправляется.</p> : null}
         {canInitialize && (retained || requirements?.state === "uninitialized") ? <button type="button" disabled={pending || loading || storageBlocked} className={QUEUE_CONFIRM} onClick={() => void initialize()}>{pending ? "Подготавливаем…" : retained ? "Повторить сохранённый запрос" : "Продолжить подготовку"}</button> : null}
-        <div className="flex flex-wrap gap-2"><button type="button" className={btnGhostCls} disabled={loading || pending} onClick={() => void load()}>Обновить документы</button><a href={docsHref} className={btnGhostCls}>Все документы дела</a></div>
+        <div className="flex flex-wrap gap-2"><button type="button" className={btnGhostCls} disabled={loading || pending} onClick={() => void load()}>Обновить документы</button>{documentsAwaitCurator
+          ? <p className="self-center text-sm text-fg-2" data-testid="staff-preparation-documents-await">Документы {caseDocumentsWords.awaitCurator}.</p>
+          : <a href={docsHref} className={btnGhostCls}>Все документы дела</a>}</div>
         {canInitialize || hasEditorPending ? <button ref={editorButton} type="button" className={`${btnGhostCls} h-auto min-h-11 whitespace-normal py-2`} disabled={pending || !!retained || storageBlocked} onClick={() => setEditorOpen(true)}>{hasEditorPending ? "Проверить сохранение списка" : "Настроить список документов"}</button> : null}
         <p className="text-sm text-fg-3">{documentStrings.saveHint}</p>
       </>}

@@ -7,6 +7,7 @@ import { build } from "esbuild";
 import { parseUniversityContent, parseUniversityDrafts, parseUniversityFilters, parseUniversityPage, universityPublicUrl, universityIntakeLabel, UNIVERSITY_PHOTOS } from "../src/lib/platform-university-catalog.ts";
 import { universityBatchRequestId, universityContentHash, universityBatchRows } from "../src/lib/server/university-catalog-batch.ts";
 import { universityIntakeStatusKey } from "../src/lib/portal/universities.ts";
+import { universityPhotoUrl } from "../src/lib/university-photo-url.ts";
 const acceptedIdentities = JSON.parse(readFileSync(new URL("fixtures/university-catalog-accepted-identities.json", import.meta.url), "utf8"));
 const clone = () => structuredClone(current.find((entry) => entry.key === "apu").content);
 const id = "59948000-0000-4000-8000-000000000001";
@@ -171,9 +172,16 @@ test("published and draft DTOs reject raw registry/provenance extras and malform
   assert.equal(parseUniversityPage({ items: [{ ...item, source_registry_id: id }], nextOffset: null }), null);
   assert.equal(parseUniversityPage({ items: [item, item], nextOffset: null }), null);
   assert.equal(parseUniversityPage({ items: [{ ...item, version: "1" }], nextOffset: null }), null);
-  const draft = { id, institutionId: null, baseVersion: 0, createdAt: "2026-09-10T00:00:00Z", status: "draft", content: clone(), reason: "Review source" };
+  // `reviewKind` is part of the draft DTO since the intake-id review (content | intake_ids); `intake_ids` needs a published base.
+  const draft = { id, institutionId: null, baseVersion: 0, createdAt: "2026-09-10T00:00:00Z", status: "draft", content: clone(), reason: "Review source", reviewKind: "content" };
   assert.deepEqual(parseUniversityDrafts([draft]), [draft]);
   assert.equal(parseUniversityDrafts([{ ...draft, email: "private@example.invalid" }]), null);
+  const withoutKind = { ...draft };
+  delete withoutKind.reviewKind;
+  assert.equal(parseUniversityDrafts([withoutKind]), null, "a draft without reviewKind is a foreign shape");
+  assert.equal(parseUniversityDrafts([{ ...draft, reviewKind: "other" }]), null, "an unknown reviewKind is a foreign shape");
+  assert.equal(parseUniversityDrafts([{ ...draft, reviewKind: "intake_ids" }]), null, "intake_ids needs a published institution and base version");
+  assert.deepEqual(parseUniversityDrafts([{ ...draft, reviewKind: "intake_ids", institutionId: id, baseVersion: 1 }]), [{ ...draft, reviewKind: "intake_ids", institutionId: id, baseVersion: 1 }]);
 });
 test("real catalogue content renders known facts without missing-field or uncertain-intake UI", async () => {
   const root = fileURLToPath(new URL("../", import.meta.url));
@@ -206,6 +214,15 @@ test("real catalogue content renders known facts without missing-field or uncert
     packages: "external",
     jsx: "automatic",
     logLevel: "silent",
+    // The reader renders on the server (UniversityPhoto reads the server-only photo resolver, #939). Next resolves
+    // `server-only` to an empty module for server components; this plain-node child does the same and nothing else.
+    plugins: [{
+      name: "server-only-as-server-component",
+      setup(b) {
+        b.onResolve({ filter: /^server-only$/ }, () => ({ path: "server-only", namespace: "server-only-empty" }));
+        b.onLoad({ filter: /.*/, namespace: "server-only-empty" }, () => ({ contents: "export {};", loader: "js" }));
+      },
+    }],
   });
   const execution = spawnSync(process.execPath, ["--input-type=commonjs"], {
     cwd: root,
@@ -229,7 +246,8 @@ test("real catalogue content renders known facts without missing-field or uncert
     assert.ok(html.includes(escape(content.overview)), `${key}: authored overview retained`);
     assert.ok(html.includes(`href="${escape(content.websiteUrl)}"`), `${key}: official website`);
     assert.ok(html.includes(`href="${escape(content.sourceUrl)}"`), `${key}: institutional source`);
-    assert.ok(html.includes(`src="${escape(UNIVERSITY_PHOTOS[content.photoKey].path)}"`), `${key}: real photo markup`);
+    // PORT-9d: the photo comes from our managed bucket once the manifest says migrated, otherwise from the library's hotlink.
+    assert.ok(html.includes(`src="${escape(universityPhotoUrl(content.photoKey) ?? UNIVERSITY_PHOTOS[content.photoKey].path)}"`), `${key}: real photo markup`);
     assert.ok(html.includes(`href="${escape(UNIVERSITY_PHOTOS[content.photoKey].licenseUrl)}"`), `${key}: photo attribution`);
     // Э6: one short Russian credit line — author, licence, «кадрировано»; no English licence notes.
     assert.match(html, /data-photo-credit="">Фото: <a\b[^>]*>[^<]+<span class="sr-only">[^<]*<\/span><\/a> · <a\b[^>]*>[^<]+<span class="sr-only">[^<]*<\/span><\/a> · кадрировано</u, `${key}: credit line`);

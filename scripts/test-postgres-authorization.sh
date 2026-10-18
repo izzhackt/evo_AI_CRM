@@ -3884,6 +3884,66 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_telephony_report.sql </dev/null
   fi
+
+  # Смена направления в «Журнале действий» и «Истории» дела (миграция «аудит
+  # направления», migration 302, PLAN_CHANGES 17.10.2026). Matched by name, not
+  # number. Real 292 command as the Admin on cases made by 281's command, plus
+  # owner-written rows no command produces. The suite proves: the journal row of
+  # case.direction.set has exactly one extra key, case_direction {from, to} (the
+  # first set has from null), null for a code outside CN/MY/EUROPE/AE/TR; no other
+  # action's row has it; the case history has direction_change on the same events
+  # only; neither leaks a version, raw before/after or an unknown code; the helper
+  # and the wrapped functions are owner-only; the allowlist gained the action once.
+  if [[ "$(basename "$migration")" == *_platform_case_direction_audit.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_direction_audit.sql
+  fi
+
+  # «Телефоны: остаточные случаи сопоставления после 281» (issue #1198,
+  # PLAN_CHANGES 17.10.2026). Matched by name, not number (a renumbering at
+  # merge keeps the hook; the migration is 303). Members are
+  # modelled like production (coarse role NULL, the 244 bundles); cases come
+  # through 281's own command and import. Right after the migration the suite
+  # proves: a number of another country typed without «+» (10-15 digits) has the
+  # keys the direct path searches (+N, N, 00N) while the Kyrgyz spellings,
+  # numbers with «+», short numbers and national prefixes (8 701 ..., 0532 ...)
+  # keep what they had; a manual sales lead in any spelling of a stored +7 / +90
+  # number is a duplicate and creates nothing, the website lands on that client;
+  # a website enquiry on a client whose direct case is waiting for a curator or
+  # active joins the lead of that case (receipt, repeat touch, journal row with
+  # the case) and opens no sales lead, client or case, keeps the direction of
+  # the lead, replays and conflicts as before; an open lead still wins; a closed
+  # case opens a new lead as before; posture and refusals unchanged.
+  if [[ "$(basename "$migration")" == *_platform_phone_match_followup.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_phone_match_followup.sql
+  fi
+
+  # «Отчёт продаж»: служебный перенос строк с созданием и связыванием карточек
+  # лидов (import_sales_report_row_v1; PLAN_CHANGES 18.10.2026). Matched by name,
+  # not number, so a renumbering at merge keeps the hook. The suite proves: the
+  # service-only boundary (authenticated, anon, a service role carrying a user
+  # identity, every actor who is not the Admin of the organization); the strict
+  # payload (every refusal names its key, nothing is written by a refused call);
+  # insert (the row, the answer, the journal, the receipt; a replay writes
+  # nothing; PT409 for another body, another actor, another source); refresh
+  # (an untouched import row brought up to a new source with its previous values
+  # in the receipt, again and again while only the import wrote it; an archived,
+  # owned or hand-edited row, or a missing one, refused); link_lead and link_only
+  # by 254's rules (one lead one row, a pipeline sale, a foreign lead, an
+  # archived row; every refusal rolls the whole call back); create_lead (client
+  # and lead, E.164 phone, converted and ownerless, provenance, the note in the
+  # receipt, outside the marketing cohort; lead_exists / case_exists create
+  # nothing; a phone-spelling duplicate candidate); a journal without personal
+  # data; isolation of organizations; the posture of the new objects. Written on
+  # 18.10.2026 (as migration 299) and run in the integration pass as 304.
+  if [[ "$(basename "$migration")" == *_platform_sales_report_import.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_sales_report_import.sql </dev/null
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

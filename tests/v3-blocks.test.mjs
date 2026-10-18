@@ -375,11 +375,16 @@ test("block styles live only under the staff CRM root, set no font sizes and kee
 
 test("motion is short and only when the system allows it", () => {
   const blockCss = css.slice(css.indexOf("Общие блоки staff CRM"));
-  const motion = blockCss.match(/@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n\}/u);
-  assert.ok(motion, "block motion sits behind prefers-reduced-motion: no-preference");
-  const outside = blockCss.replace(motion[0], "");
-  assert.doesNotMatch(outside, /\b(?:transition|animation)(?:-[a-z]+)?:/u, "no motion outside that media query");
-  for (const [, ms] of motion[1].matchAll(/(\d+)ms/gu)) assert.ok(Number(ms) <= 200, `${ms}ms ≤ 200ms`);
+  // Движение блоков живёт в нескольких запросах (полоса и сегменты, «Отменить», ширина полосы прогресса);
+  // проверяется каждый из них, а не только первый: всё остальное в разделе - без transition/animation.
+  const motions = [...blockCss.matchAll(/@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n\}/gu)];
+  assert.ok(motions.length > 0, "block motion sits behind prefers-reduced-motion: no-preference");
+  let outside = blockCss;
+  for (const motion of motions) outside = outside.replace(motion[0], "");
+  assert.doesNotMatch(outside, /\b(?:transition|animation)(?:-[a-z]+)?:/u, "no motion outside those media queries");
+  for (const motion of motions) {
+    for (const [, ms] of motion[1].matchAll(/(\d+)ms/gu)) assert.ok(Number(ms) <= 200, `${ms}ms ≤ 200ms`);
+  }
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.v3-world \*, \.v3-world \*::before, \.v3-world \*::after \{\s*animation: none !important;\s*transition: none !important;/u);
 });
 

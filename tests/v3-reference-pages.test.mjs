@@ -275,7 +275,8 @@ test("«Настройки»: open on «Сотрудники», one section list
   const staff = page("settings-staff");
   const nav = staff.match(/<nav aria-label="Разделы настроек"[\s\S]*?<\/nav>/u)[0];
   assert.deepEqual([...nav.matchAll(/<a\b[^>]*>([^<]+)<\/a>/gu)].map((match) => match[1]),
-    ["Сотрудники", "Роли и доступ", "Отделы", "Интеграции", "Журнал действий", "Запросы на удаление", "Документы и передача", "Платформа"]);
+    ["Сотрудники", "Роли и доступ", "Отделы", "Интеграции", "Телефония", "Журнал действий", "Запросы на удаление", "Документы и передача", "Платформа"]);
+  // «Телефония» (T4b, 17.10.2026): раздел «Настройки → Телефония» стоит сразу после «Интеграций».
   assert.match(nav, /<a aria-current="page"[^>]*href="\/v3\/settings\?section=staff&amp;view=people">Сотрудники<\/a>/u);
   assert.doesNotMatch(staff, /aria-label="Управление командой"|виден только администратору|>админ</u, "no second tab row, no admin marks");
   assert.match(staff, /<h2 class="t-section">Сотрудники · 5<\/h2>/u);
@@ -322,11 +323,13 @@ test("menu: «Заявки» lead «Продажи»; WhatsApp stands in «Пр�
     assert.equal([...menu.matchAll(/href="\/v3\/requests"/gu)].length, 1, `${role}: «Заявки» stand once`);
     // Отдел пункта — по порядку меню: WhatsApp — между «Воронкой продаж» и
     // «Отчётом продаж», «Переписка» — сразу после «Воронки поступления».
+    // WhatsApp виден и роли поступления (решение владельца 06.10.2026 «нет, все могут»,
+    // миграция 261; src/lib/v3/navigation.ts): без работы продаж скрыта только доска.
     const order = [...menu.matchAll(/href="(\/v3\/[^"]*)"/gu)].map((match) => match[1]);
     const after = (href, previous) => order.indexOf(href) === order.indexOf(previous) + 1;
-    if (role === "admissions") assert.ok(after("/v3/main?view=sales", "/v3/requests"), `${role}: D leaves «Заявки» and «Отчёт продаж» (${order})`);
+    if (role === "admissions") assert.ok(after("/v3/inbox", "/v3/requests") && after("/v3/main?view=sales", "/v3/inbox"), `${role}: D leaves «Заявки», WhatsApp and «Отчёт продаж» (${order})`);
     else assert.ok(after("/v3/pipeline", "/v3/requests"), `${role}: the board follows «Заявки» (${order})`);
-    if (role === "admissions") assert.equal(order.includes("/v3/inbox"), false, `${role}: the sales WhatsApp is not an admissions item`);
+    if (role === "admissions") assert.equal(order.includes("/v3/pipeline"), false, `${role}: the sales board is hidden without sales work (D)`);
     else assert.ok(after("/v3/inbox", "/v3/pipeline") && after("/v3/main?view=sales", "/v3/inbox"), `${role}: WhatsApp in «Продажи» (${order})`);
     if (role === "sales") assert.equal(order.includes("/v3/messages"), false, `${role}: no student chat for sales`);
     else assert.ok(after("/v3/messages", "/v3/admissions-pipeline"), `${role}: «Переписка» in «Поступление» (${order})`);

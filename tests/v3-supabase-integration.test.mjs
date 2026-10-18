@@ -31,6 +31,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "case-chat-source.ts",
     "case-operations-source.ts",
     "case-work-source.ts",
+    "catalog-geography-source.ts", // «Университеты» v2: город и стоимость в CRM (283, S3.5, 16.10.2026)
     "command-palette-actions.ts", // #1085 (27.09.2026)
     "command-palette.ts", // #1085 (27.09.2026)
     "current-sales-funnel-source.ts",
@@ -97,6 +98,10 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "telephony-dial-source.ts", // «Позвонить» T7 (17.10.2026): whether the button is shown (platform.telephony_dial_options_v1, session)
     "telephony-dial.ts", // «Позвонить» T7 (17.10.2026): pure contract and words of the button, no Supabase
     "telephony-health.ts", // «Настройки → Телефония» T4b (17.10.2026): pure state words, no Supabase
+    "telephony-lead-calls-source.ts", // звонки в «Ленте» лида T5 (295, 17.10.2026): platform.telephony_lead_calls_v1, session
+    "telephony-lead-calls.ts", // звонки в «Ленте» лида T5 (17.10.2026): pure contract and words, no Supabase
+    "telephony-report-source.ts", // блок «Звонки» в «Отчёте продаж» T10 (301, 17.10.2026): platform.telephony_report_v1, session
+    "telephony-report.ts", // блок «Звонки» в «Отчёте продаж» T10 (17.10.2026): pure contract, no Supabase
     "telephony-settings.ts", // «Настройки → Телефония» T4b (17.10.2026): pure screen contract, no Supabase
     "today-queue.ts", // #1067 (26.09.2026)
     "today-source.ts", // #1067 (26.09.2026)
@@ -124,6 +129,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "case-chat-source.ts",
     "case-operations-source.ts",
     "case-work-source.ts",
+    "catalog-geography-source.ts", // «Университеты» v2 (283, S3.5, 16.10.2026)
     "current-sales-funnel-source.ts",
     "finance-entry-source.ts",
     "funnel-source.ts",
@@ -163,6 +169,8 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "students-queue-source.ts",
     "team-chat-source.ts",
     "telephony-dial-source.ts", // «Позвонить» T7 (17.10.2026)
+    "telephony-lead-calls-source.ts", // звонки в «Ленте» лида T5 (17.10.2026)
+    "telephony-report-source.ts", // блок «Звонки» T10 (17.10.2026)
     "today-source.ts", // #1067 (26.09.2026)
     "university-form-source.ts",
     "university-source.ts",
@@ -411,11 +419,16 @@ test("V3 style proof checks served and applied current-page CSS in dev and produ
   assert.match(styles, /assert\.ok\(size > 0/u);
   assert.match(styles, /link\.sheet\.cssRules\.length > 0/u);
   assert.match(styles, /assert\.equal\(applied\.margin, "0px"/u);
-  assert.match(styles, /"rgb\(243, 243, 243\)"/u);
+  // Земля - по поверхности: staff CRM на тёплом сером столе #f3f1ec (v3.css, CLAUDE.md), базовый мир - #f3f3f3.
+  assert.match(styles, /staff: "rgb\(243, 241, 236\)", base: "rgb\(243, 243, 243\)"/u);
+  assert.match(styles, /applied\.world\.background, WORLD_BACKGROUND\[surface\]/u);
   assert.match(styles, /applied\.world\.colorScheme, "light"/u);
   assert.match(styles, /applied\.world\.accent, "#d70217"/u);
   assert.match(styles, /document\.fonts\.check\('16px "Golos Text Variable"'\)/u);
   assert.match(styles, /image\.complete && image\.naturalWidth > 0/u);
+  // Рейка досок (64 px, DESIGN.md) без логотипа по контракту: гейт требует логотип везде, кроме неё, и в ней требует его отсутствия.
+  assert.match(styles, /\(width >= 48rem\) and \(width < 96rem\)/u);
+  assert.match(styles, /toHaveCount\(0\)/u);
   assert.doesNotMatch(styles, /bytes\s*[<>]|100_000|full sheet|base\}\/login/u);
-  assert.match(gate, /await assertStyled\(page, base, \{ v3: true \}\)/u);
+  assert.match(gate, /await assertStyled\(page, base, \{ v3: true, surface: "staff" \}\)/u);
 });

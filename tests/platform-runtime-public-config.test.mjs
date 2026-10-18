@@ -16,10 +16,37 @@ function loadSource(path, imports = {}, globals = {}) {
   const exports = {};
   runInNewContext(compiled, { exports, URL, Buffer, atob, ...globals, require(name) {
     if (name === "./platform-access.ts" || name === "@/lib/platform-access") return access;
+    // The «new version» flag of an open tab (#1187): client-safe state with no environment, secret or network
+    // access. The real module is loaded (its only import, next/navigation, is stubbed); the hook is its read.
+    if (name === "@/lib/stale-deployment") return staleDeployment();
+    if (name === "@/lib/use-stale-deployment") return { useStaleDeployment: () => staleDeployment().isStaleDeployment() };
     assert.ok(Object.hasOwn(imports, name), `Unexpected module at public config boundary: ${name}`);
     return imports[name];
   } });
   return exports;
+}
+
+let staleDeploymentModule;
+function staleDeployment() {
+  staleDeploymentModule ??= loadSource("src/lib/stale-deployment.ts", { "next/navigation": { unstable_isUnrecognizedActionError: () => false } });
+  return staleDeploymentModule;
+}
+
+// The pure helpers TeamChat grew since this test was written (read errors, message grouping, channel previews and
+// time labels). Each is the real module; its own imports still go through the allowlist above.
+function chatLibs() {
+  const orgTime = loadSource("src/lib/platform-organization-time.ts");
+  const previewTime = loadSource("src/lib/team-chat-channel-preview-time.ts");
+  return {
+    "@/lib/team-chat-read-errors": loadSource("src/lib/team-chat-read-errors.ts"),
+    "@/lib/team-chat-message-grouping": loadSource("src/lib/team-chat-message-grouping.ts", { "./platform-organization-time.ts": orgTime }),
+    "@/lib/team-chat-channel-previews": loadSource("src/lib/team-chat-channel-previews.ts", {
+      "./platform-team-chat.ts": loadSource("src/lib/platform-team-chat.ts"), "./team-chat-channel-preview-time.ts": previewTime,
+    }),
+    "@/lib/team-chat-channel-time-label": loadSource("src/lib/team-chat-channel-time-label.ts", {
+      "./platform-organization-time.ts": orgTime, "./team-chat-channel-preview-time.ts": previewTime,
+    }),
+  };
 }
 
 function chatPage(runtimeEnv, authorize = async () => ({
@@ -89,6 +116,7 @@ test("chat connects with supplied public config in an env-free browser and keeps
     "@/lib/platform-team-chat-seen": chatSeen, "@/lib/team-chat-feed": chatFeed,
   });
   const { TeamChat } = loadSource("src/components/v3/team-chat/TeamChat.tsx", {
+    ...chatLibs(),
     "@/components/icons": loadSource("src/components/icons.tsx", { "react/jsx-runtime": jsxRuntime }),
     "@/lib/platform-organization-time": loadSource("src/lib/platform-organization-time.ts"),
     "react/jsx-runtime": { jsx, jsxs: jsx }, "next/link": { default: "Link" },
@@ -140,6 +168,7 @@ test("revocation remains terminal when an earlier context request rejects afterw
     "@/lib/platform-team-chat-seen": chatSeen, "@/lib/team-chat-feed": chatFeed,
   });
   const { TeamChat } = loadSource("src/components/v3/team-chat/TeamChat.tsx", {
+    ...chatLibs(),
     react: hooks, "react/jsx-runtime": { jsx, jsxs: jsx }, "next/link": { default: "Link" },
     "@supabase/ssr": { createBrowserClient() { connections++; throw new Error("must not reconnect after revocation"); } },
     "@/lib/platform-team-chat-actions": {},

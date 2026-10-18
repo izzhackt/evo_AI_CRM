@@ -152,7 +152,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 2,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m1-sets-l1"
     },
     {
       "topic_key": "m1-ineq-basics",
@@ -166,7 +166,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 1,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m1-ineq-basics-l1"
     },
     {
       "topic_key": "m1-ineq-quadratic",
@@ -180,7 +180,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 2,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m1-ineq-quadratic-l1"
     },
     {
       "topic_key": "m1-ineq-rational",
@@ -194,7 +194,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 1,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m1-ineq-rational-l1"
     },
     {
       "topic_key": "m1-ineq-amgm",
@@ -208,7 +208,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 1,
       "likely_gap_kg_kz": true,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m1-ineq-amgm-l1"
     },
     {
       "topic_key": "m2-func-basics",
@@ -222,7 +222,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 2,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m2-func-basics-l1"
     },
     {
       "topic_key": "m2-func-properties",
@@ -236,7 +236,7 @@
       "lessons_planned": 2,
       "mock_items_estimate": 2,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m2-func-properties-l1"
     },
     {
       "topic_key": "m2-func-graphs",
@@ -250,7 +250,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 1,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m2-func-graphs-l1"
     },
     {
       "topic_key": "m2-quadratic-power",
@@ -264,7 +264,7 @@
       "lessons_planned": 2,
       "mock_items_estimate": 2,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m2-quadratic-power-l1"
     },
     {
       "topic_key": "m2-exp-log",
@@ -292,7 +292,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 2,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m2-trig-basics-l1"
     },
     {
       "topic_key": "m2-trig-identities",
@@ -306,7 +306,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 2,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m2-trig-identities-l1"
     },
     {
       "topic_key": "m2-trig-graphs",
@@ -320,7 +320,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 1,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m2-trig-graphs-l1"
     },
     {
       "topic_key": "m2-seq-arithmetic",
@@ -334,7 +334,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 1,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m2-seq-arithmetic-l1"
     },
     {
       "topic_key": "m2-seq-geometric",
@@ -348,7 +348,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 1,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m2-seq-geometric-l1"
     },
     {
       "topic_key": "m2-derivative",
@@ -390,7 +390,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 2,
       "likely_gap_kg_kz": true,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m3-ellipse-l1"
     },
     {
       "topic_key": "m3-hyperbola",
@@ -404,7 +404,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 1,
       "likely_gap_kg_kz": true,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m3-hyperbola-l1"
     },
     {
       "topic_key": "m3-parabola",
@@ -418,7 +418,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 1,
       "likely_gap_kg_kz": true,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m3-parabola-l1"
     },
     {
       "topic_key": "m3-vectors",
@@ -432,7 +432,7 @@
       "lessons_planned": 2,
       "mock_items_estimate": 2,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m3-vectors-l1"
     },
     {
       "topic_key": "m3-complex",
@@ -446,7 +446,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 2,
       "likely_gap_kg_kz": true,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m3-complex-l1"
     },
     {
       "topic_key": "m3-space-coords",
@@ -460,7 +460,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 1,
       "likely_gap_kg_kz": true,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m3-space-coords-l1"
     },
     {
       "topic_key": "m3-solids",
@@ -474,7 +474,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 2,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m3-solids-l1"
     },
     {
       "topic_key": "m4-classical-probability",
@@ -488,7 +488,7 @@
       "lessons_planned": 2,
       "mock_items_estimate": 3,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m4-classical-probability-l1"
     },
     {
       "topic_key": "m4-events",
@@ -502,7 +502,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 1,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m4-events-l1"
     },
     {
       "topic_key": "m4-statistics",
@@ -516,7 +516,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 2,
       "likely_gap_kg_kz": false,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m4-statistics-l1"
     },
     {
       "topic_key": "m4-normal",
@@ -530,7 +530,7 @@
       "lessons_planned": 1,
       "mock_items_estimate": 2,
       "likely_gap_kg_kz": true,
-      "pilot_lesson": null
+      "pilot_lesson": "csca-math-m4-normal-l1"
     }
   ],
   "not_included": [

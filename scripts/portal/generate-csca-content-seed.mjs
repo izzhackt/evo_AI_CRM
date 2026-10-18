@@ -1,15 +1,27 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import katex from "katex";
 
-// S5.1: versioned CSCA content -> immutable migration 286 (engine 285).
+// S5.1 / part 2: versioned CSCA content -> immutable content migrations.
 // Fork of scripts/generate-portal-learning-seed.mjs: deterministic SQL,
 // sha256-stamped sources, --check byte-for-byte drift mode, --write to
-// regenerate the UNAPPLIED migration. Once 286 is applied, new content means
-// a new version and a new forward migration, never an edit here.
+// regenerate the UNAPPLIED part 2 migration.
+//
+// Releases. A release is one module row (module_key + version) that owns a
+// complete copy of the content (topics, figures, items, lessons, forms); keys
+// are stable between releases and progress goes by key (contract section 16).
+//   1.0.0  part 1, migration *_platform_csca_math_part1.sql (286). APPLIED and
+//          frozen: this script only pins its sha256 and never rewrites it.
+//   1.1.0  part 2 (current sources), migration *_platform_csca_math_part2.sql,
+//          the output of this script. All 28 topics have a lesson and a
+//          practice set, the diagnostic has 24 items and the mock 48.
+// The files are found by name, not by number, so a renumbering at merge keeps
+// the hooks (scripts/test-csca-learning-postgres.sh does the same). Once part 2
+// is applied, new content means a new version and a new forward migration,
+// never an edit here.
 //
 // Content checks (DESIGN §6.9, plan §9.5): schema and references, disjoint
 // pools, balanced answer letters, exactly 4 options with one correct and a
@@ -27,12 +39,42 @@ export const TOPICS_FILE = `${MATH_DIR}/topics.json`;
 export const ITEMS_FILE = `${MATH_DIR}/items.json`;
 export const FORMS_FILE = `${MATH_DIR}/forms.json`;
 export const FIGURES_INDEX_FILE = `${MATH_DIR}/figures/index.json`;
+// One file per topic, in syllabus order. The three pilot lessons keep their
+// part 1 names (l01..l03, by writing order); the rest are t<order>-<topic>.
 export const LESSON_FILES = [
-  `${MATH_DIR}/lessons/l01-exp-log.json`,
-  `${MATH_DIR}/lessons/l02-derivative.json`,
-  `${MATH_DIR}/lessons/l03-line-circle.json`,
-];
-export const SEED_PATH = resolve(root, "supabase/migrations/286_platform_csca_math_part1.sql");
+  "t01-sets", "t02-ineq-basics", "t03-ineq-quadratic", "t04-ineq-rational", "t05-ineq-amgm",
+  "t06-func-basics", "t07-func-properties", "t08-func-graphs", "t09-quadratic-power", "l01-exp-log",
+  "t11-trig-basics", "t12-trig-identities", "t13-trig-graphs", "t14-seq-arithmetic", "t15-seq-geometric",
+  "l02-derivative", "l03-line-circle", "t18-ellipse", "t19-hyperbola", "t20-parabola", "t21-vectors",
+  "t22-complex", "t23-space-coords", "t24-solids", "t25-classical-probability", "t26-events",
+  "t27-statistics", "t28-normal",
+].map((name) => `${MATH_DIR}/lessons/${name}.json`);
+export const MIGRATIONS_DIR = "supabase/migrations";
+export const PART1_SUFFIX = "_platform_csca_math_part1.sql";
+export const PART2_SUFFIX = "_platform_csca_math_part2.sql";
+// Release 1.0.0 as applied (migration 286 as merged in #1207): immutable.
+export const PART1_FROZEN = {
+  sha256: "0dd78e6dc5ba39534273cbeb653b6cff5d432eb0144a2f9e99936379a515e033",
+  bytes: 219763,
+};
+
+export function migrationFiles() {
+  return readdirSync(resolve(root, MIGRATIONS_DIR)).filter((name) => /^\d{3}_.+\.sql$/u.test(name)).sort();
+}
+
+// The migration that ends with the given name, whatever its number. A missing
+// file is allowed (--write creates it with the next free number).
+export function migrationPath(suffix) {
+  const found = migrationFiles().filter((name) => name.endsWith(suffix));
+  assert.ok(found.length <= 1, `more than one migration ends with ${suffix}: ${found.join(", ")}`);
+  return found.length ? resolve(root, MIGRATIONS_DIR, found[0]) : null;
+}
+
+export function nextMigrationName() {
+  const last = migrationFiles().at(-1);
+  return `${String(Number(last.slice(0, 3)) + 1).padStart(3, "0")}${PART2_SUFFIX}`;
+}
+
 export const EXAM_SECONDS_PER_ITEM = 75;
 
 // TeX whitelist (DESIGN §7.7 plus the set and approximation symbols the
@@ -164,6 +206,14 @@ export function checkText(text, path, options = {}) {
   for (const [index, fragment] of texFragments(text, path).entries()) checkTex(fragment, `${path} $${index}$`);
 }
 
+// Fields the web and iPhone print as plain text (term translations, example
+// titles, lesson titles, table captions, which also feed aria-label, figure
+// alt): no TeX there, a «$» would reach the student literally.
+export function checkPlain(text, path, options = {}) {
+  checkProse(text, path, options);
+  assert.ok(!/[$\\]/u.test(text), `${path}: plain-text field must not contain TeX ($ or \\)`);
+}
+
 // Без калькулятора: decimals with at most 2 digits, integers up to 4 digits.
 export function checkNoCalculator(text, path) {
   for (const match of text.matchAll(/\d+(?:\.\d+)?/gu)) {
@@ -242,6 +292,8 @@ export function validateRelease(release) {
   assert.equal(release.track, "csca-math");
   assert.equal(release.module_key, "csca-math");
   assert.match(release.version, /^\d+\.\d+\.\d+$/u, "release.version");
+  const [major, minor, patch] = release.version.split(".").map(Number);
+  assert.ok(major > 1 || minor > 0 || patch > 0, "release.version must be newer than the applied release 1.0.0");
   assertPair(release, "title", "release");
   assertPair(release, "level_note", "release");
   assert.match(release.syllabus_edition, /^\d{4}$/u);
@@ -324,8 +376,8 @@ export function validateFigures(index, readSvg) {
     checkSvg(svg, figure.view_box, path);
     assertPair(figure, "alt", path);
     assertNonEmptyString(figure.alt_en, `${path}.alt_en`);
-    for (const key of ["alt_ru", "alt_ky"]) checkProse(figure[key], `${path}.${key}`);
-    checkProse(figure.alt_en, `${path}.alt_en`, { english: true });
+    for (const key of ["alt_ru", "alt_ky"]) checkPlain(figure[key], `${path}.${key}`);
+    checkPlain(figure.alt_en, `${path}.alt_en`, { english: true });
     assert.ok(!figures.has(figure.figure_key), `duplicate figure ${figure.figure_key}`);
     figures.set(figure.figure_key, { ...figure, svg });
   }
@@ -340,9 +392,12 @@ function checkTerms(terms, min, max, path) {
   terms.forEach((term, index) => {
     const termPath = `${path}[${index}]`;
     assertExactKeys(term, ["en", "ru", "ky"], termPath);
-    checkText(term.en, `${termPath}.en`, { english: true });
-    checkText(term.ru, `${termPath}.ru`);
-    checkText(term.ky, `${termPath}.ky`);
+    assertNonEmptyString(term.en, `${termPath}.en`);
+    assertNonEmptyString(term.ru, `${termPath}.ru`);
+    assertNonEmptyString(term.ky, `${termPath}.ky`);
+    checkPlain(term.en, `${termPath}.en`, { english: true });
+    checkPlain(term.ru, `${termPath}.ru`);
+    checkPlain(term.ky, `${termPath}.ky`);
   });
 }
 
@@ -471,8 +526,10 @@ export function validateBlock(block, figures, itemStems, path) {
       }
       break;
     case "table":
-      checkText(block.caption_ru, `${path}.caption_ru`);
-      checkText(block.caption_ky, `${path}.caption_ky`);
+      assertNonEmptyString(block.caption_ru, `${path}.caption_ru`);
+      assertNonEmptyString(block.caption_ky, `${path}.caption_ky`);
+      checkPlain(block.caption_ru, `${path}.caption_ru`);
+      checkPlain(block.caption_ky, `${path}.caption_ky`);
       assert.ok(Array.isArray(block.header) && block.header.length >= 2 && block.header.length <= 6, `${path}.header`);
       block.header.forEach((cell, index) => checkCell(cell, `${path}.header[${index}]`));
       assert.ok(Array.isArray(block.rows) && block.rows.length >= 1 && block.rows.length <= 20, `${path}.rows`);
@@ -482,8 +539,10 @@ export function validateBlock(block, figures, itemStems, path) {
       });
       break;
     case "example":
-      checkText(block.title_ru, `${path}.title_ru`);
-      checkText(block.title_ky, `${path}.title_ky`);
+      assertNonEmptyString(block.title_ru, `${path}.title_ru`);
+      assertNonEmptyString(block.title_ky, `${path}.title_ky`);
+      checkPlain(block.title_ru, `${path}.title_ru`);
+      checkPlain(block.title_ky, `${path}.title_ky`);
       checkText(block.stem_en, `${path}.stem_en`, { english: true });
       checkNoCalculator(block.stem_en, `${path}.stem_en`);
       assert.ok(!itemStems.has(block.stem_en), `${path}: a worked example must not repeat a bank item`);
@@ -529,8 +588,9 @@ export function validateLesson(lesson, topics, items, figures) {
   assert.equal(lesson.kind, "lesson", `${path}.kind`);
   assertIntBetween(lesson.order_in_topic, 1, 9, `${path}.order_in_topic`);
   assertIntBetween(lesson.est_minutes, 1, 60, `${path}.est_minutes`);
-  for (const key of ["title_ru", "title_ky", "goal_ru", "goal_ky"]) checkText(lesson[key], `${path}.${key}`);
-  checkText(lesson.title_en, `${path}.title_en`, { english: true });
+  for (const key of ["goal_ru", "goal_ky"]) checkText(lesson[key], `${path}.${key}`);
+  for (const key of ["title_ru", "title_ky"]) checkPlain(lesson[key], `${path}.${key}`);
+  checkPlain(lesson.title_en, `${path}.title_en`, { english: true });
   for (const prerequisite of lesson.prerequisites) {
     const required = topics.get(prerequisite);
     assert.ok(required && required.order < topic.order, `${path}: prerequisite ${prerequisite} must be an earlier topic`);
@@ -693,7 +753,7 @@ export const PRACTICE_GOAL_RU = "Задания по теме без тайме�
 export const PRACTICE_GOAL_KY = "Тема боюнча убакыт чектелбеген тапшырмалар. Ар бир жооптон кийин талдоо дароо көрүнөт.";
 
 export function buildRows(content) {
-  const { release, topicsDoc, topics, figures, items, lessons, forms, sessions, sessionsDoc } = content;
+  const { release, topicsDoc, topics, figures, items, lessons, forms } = content;
   const version = release.version;
   const moduleId = contentUuid("module", `${release.module_key}@${version}`);
   const sections = topicsDoc.modules.map((module) => ({
@@ -786,21 +846,13 @@ export function buildRows(content) {
     metadata: { title_ru: form.title_ru, title_ky: form.title_ky, intro_ru: form.intro_ru, intro_ky: form.intro_ky },
     duration_seconds: form.duration_seconds, allow_early_finish: form.allow_early_finish, item_keys: form.item_keys,
   }));
-  const sessionRows = sessions.map((session) => ({
-    id: contentUuid("session", `${session.session_key}@${sessionsDoc.verified_on}`), ...session,
-    source_url: sessionsDoc.source_url, verified_on: sessionsDoc.verified_on,
-  }));
-  return { moduleRow, topicRows, figureRows, itemRows, lessonRows, exerciseRows, formRows, sessionRows };
-}
-
-function nullableTimestamp(value) {
-  return value === null ? "NULL" : `${sqlString(value)}::TIMESTAMPTZ`;
+  return { moduleRow, topicRows, figureRows, itemRows, lessonRows, exerciseRows, formRows };
 }
 
 export function generateSeed() {
   const content = loadCscaContent();
   const rows = buildRows(content);
-  const { moduleRow, topicRows, figureRows, itemRows, lessonRows, exerciseRows, formRows, sessionRows } = rows;
+  const { moduleRow, topicRows, figureRows, itemRows, lessonRows, exerciseRows, formRows } = rows;
   const moduleId = sqlString(moduleRow.id);
   const statements = [
     insert("platform_private.learning_modules", ["id", "module_key", "version", "track", "metadata"], [[
@@ -831,17 +883,13 @@ export function generateSeed() {
     formRows.map((row) => [sqlString(row.id), moduleId, sqlString(row.form_key), sqlString(row.kind),
       jsonbLiteral(row.metadata), String(row.duration_seconds), row.allow_early_finish ? "TRUE" : "FALSE",
       jsonbLiteral(row.item_keys)])),
-    insert("platform_private.csca_exam_sessions", ["id", "session_key", "exam_from", "exam_to", "registration_opens_at",
-      "registration_closes_at", "source_url", "verified_on"],
-    sessionRows.map((row) => [sqlString(row.id), sqlString(row.session_key), `${sqlString(row.exam_from)}::DATE`,
-      `${sqlString(row.exam_to)}::DATE`, nullableTimestamp(row.registration_opens_at),
-      nullableTimestamp(row.registration_closes_at), sqlString(row.source_url), `${sqlString(row.verified_on)}::DATE`])),
   ];
   const counts = {
     topics: topicRows.length, figures: figureRows.length, items: itemRows.length, lessons: lessonRows.length,
-    exercises: exerciseRows.length, forms: formRows.length, sessions: sessionRows.length,
+    exercises: exerciseRows.length, forms: formRows.length,
   };
-  const assertions = `DO $p286$
+  const failure = (what) => `RAISE EXCEPTION 'CSCA math part 2 seed assertion failed: ${what}'`;
+  const assertions = `DO $csca_math2$
 DECLARE
   seeded_module_id UUID;
   n INTEGER;
@@ -850,25 +898,23 @@ BEGIN
     WHERE module.module_key = ${sqlString(moduleRow.module_key)} AND module.version = ${sqlString(moduleRow.version)}
       AND module.track = ${sqlString(moduleRow.track)};
   IF seeded_module_id IS NULL THEN
-    RAISE EXCEPTION 'P286 seed assertion failed: module row is missing';
+    ${failure("module row is missing")};
   END IF;
   SELECT count(*) INTO n FROM platform_private.learning_topics WHERE module_id = seeded_module_id;
-  IF n <> ${counts.topics} THEN RAISE EXCEPTION 'P286 seed assertion failed: expected ${counts.topics} topics, found %', n; END IF;
+  IF n <> ${counts.topics} THEN ${failure(`expected ${counts.topics} topics, found %`)}, n; END IF;
   SELECT count(*) INTO n FROM platform_private.learning_figures WHERE module_id = seeded_module_id;
-  IF n <> ${counts.figures} THEN RAISE EXCEPTION 'P286 seed assertion failed: expected ${counts.figures} figures, found %', n; END IF;
+  IF n <> ${counts.figures} THEN ${failure(`expected ${counts.figures} figures, found %`)}, n; END IF;
   SELECT count(*) INTO n FROM platform_private.learning_items
     WHERE module_id = seeded_module_id AND provenance = 'evo_authored';
-  IF n <> ${counts.items} THEN RAISE EXCEPTION 'P286 seed assertion failed: expected ${counts.items} EVO items, found %', n; END IF;
+  IF n <> ${counts.items} THEN ${failure(`expected ${counts.items} EVO items, found %`)}, n; END IF;
   SELECT count(*) INTO n FROM platform_private.learning_lessons WHERE module_id = seeded_module_id;
-  IF n <> ${counts.lessons} THEN RAISE EXCEPTION 'P286 seed assertion failed: expected ${counts.lessons} lessons, found %', n; END IF;
+  IF n <> ${counts.lessons} THEN ${failure(`expected ${counts.lessons} lessons, found %`)}, n; END IF;
   SELECT count(*) INTO n FROM platform_private.learning_exercises exercise
     JOIN platform_private.learning_lessons lesson ON lesson.id = exercise.lesson_id
     WHERE lesson.module_id = seeded_module_id AND exercise.exercise_type = 'item';
-  IF n <> ${counts.exercises} THEN RAISE EXCEPTION 'P286 seed assertion failed: expected ${counts.exercises} item exercises, found %', n; END IF;
+  IF n <> ${counts.exercises} THEN ${failure(`expected ${counts.exercises} item exercises, found %`)}, n; END IF;
   SELECT count(*) INTO n FROM platform_private.learning_test_forms WHERE module_id = seeded_module_id;
-  IF n <> ${counts.forms} THEN RAISE EXCEPTION 'P286 seed assertion failed: expected ${counts.forms} forms, found %', n; END IF;
-  SELECT count(DISTINCT session_key) INTO n FROM platform_private.csca_exam_sessions;
-  IF n < ${counts.sessions} THEN RAISE EXCEPTION 'P286 seed assertion failed: expected ${counts.sessions} exam sessions, found %', n; END IF;
+  IF n <> ${counts.forms} THEN ${failure(`expected ${counts.forms} forms, found %`)}, n; END IF;
   -- Pools stay disjoint: every item is used once (lesson, practice or one form).
   SELECT count(*) INTO n FROM platform_private.learning_items item
     WHERE item.module_id = seeded_module_id
@@ -877,12 +923,20 @@ BEGIN
           WHERE lesson.module_id = seeded_module_id AND exercise.exercise_key = item.item_key)
         + (SELECT count(*) FROM platform_private.learning_test_forms form
           WHERE form.module_id = seeded_module_id AND form.item_keys ? item.item_key) <> 1;
-  IF n <> 0 THEN RAISE EXCEPTION 'P286 seed assertion failed: % items are not used exactly once', n; END IF;
-END $p286$;`;
+  IF n <> 0 THEN ${failure("% items are not used exactly once")}, n; END IF;
+  -- The release is the newest of its module key: the app reads it from now on.
+  IF (SELECT module.id FROM platform_private.learning_track_modules(${sqlString(moduleRow.track)}) module
+      WHERE module.module_key = ${sqlString(moduleRow.module_key)}) IS DISTINCT FROM seeded_module_id THEN
+    ${failure("the release is not the current one of its module key")};
+  END IF;
+END $csca_math2$;`;
   const header = [
-    "-- 286 «Подготовка к CSCA: математика, часть 1» (S5.1): immutable content for",
-    "-- the engine of migration 285. Generated by scripts/portal/generate-csca-content-seed.mjs",
+    "-- «Подготовка к CSCA: математика, часть 2» (выпуск 1.1.0 модуля csca-math): immutable content",
+    "-- for the engine of migration 285, the full copy of release 1.0.0 (migration 286, frozen)",
+    "-- plus the 25 remaining topics. Generated by scripts/portal/generate-csca-content-seed.mjs",
     "-- from docs/design/portal/content/csca; do not edit SQL content by hand.",
+    "-- Keys of topics, items, lessons and forms are stable between releases, so progress,",
+    "-- the answer log and the review bank carry over; a started attempt keeps its own rows.",
     "-- Changes after application require a new content version and a new forward migration.",
     "-- Only EVO's own items (provenance = evo_authored); answer keys and разборы live only in",
     "-- platform_private, behind the 285 RPC surface. KY text awaits native proofreading.",
@@ -892,26 +946,40 @@ END $p286$;`;
   return [
     header.join("\n"),
     "BEGIN;",
-    "SELECT 'P286_CSCA_MATH_CONTENT_SEED_START' AS p286_marker;",
+    "SELECT 'CSCA_MATH_PART2_CONTENT_SEED_START' AS csca_math2_marker;",
     ...statements,
     assertions,
-    "SELECT 'P286_CSCA_MATH_CONTENT_SEED_ASSERTED' AS p286_marker;",
+    "SELECT 'CSCA_MATH_PART2_CONTENT_SEED_ASSERTED' AS csca_math2_marker;",
     "NOTIFY pgrst, 'reload schema';",
     "COMMIT;",
   ].join("\n\n") + "\n";
+}
+
+// Migration 286 is applied and frozen: pin it instead of regenerating it.
+export function checkPart1Frozen() {
+  const path = migrationPath(PART1_SUFFIX);
+  assert.ok(path, `the applied part 1 migration (*${PART1_SUFFIX}) is missing`);
+  const bytes = readFileSync(path);
+  assert.equal(bytes.length, PART1_FROZEN.bytes, "the applied part 1 migration changed (bytes)");
+  assert.equal(createHash("sha256").update(bytes).digest("hex"), PART1_FROZEN.sha256,
+    "the applied part 1 migration changed (sha256); published content is immutable, add a new release instead");
 }
 
 function main() {
   const args = process.argv.slice(2);
   assert.ok(args.length <= 1 && (!args.length || ["--check", "--write"].includes(args[0])),
     "Usage: node scripts/portal/generate-csca-content-seed.mjs [--check|--write]");
+  checkPart1Frozen();
   const sql = generateSeed();
+  const existing = migrationPath(PART2_SUFFIX);
   if (args[0] === "--check") {
-    assert.equal(readFileSync(SEED_PATH, "utf8"), sql, "Migration 286 differs from the versioned CSCA sources");
-    process.stdout.write("CSCA content seed: exact match\n");
+    assert.ok(existing, `the part 2 migration (*${PART2_SUFFIX}) is missing`);
+    assert.equal(readFileSync(existing, "utf8"), sql, "The part 2 migration differs from the versioned CSCA sources");
+    process.stdout.write("CSCA content seed: part 1 frozen, part 2 exact match\n");
   } else if (args[0] === "--write") {
-    writeFileSync(SEED_PATH, sql, "utf8");
-    process.stdout.write("Generated migration 286 from checked CSCA content\n");
+    const target = existing ?? resolve(root, MIGRATIONS_DIR, nextMigrationName());
+    writeFileSync(target, sql, "utf8");
+    process.stdout.write(`Generated ${target.slice(root.length + 1)} from checked CSCA content\n`);
   } else {
     process.stdout.write(sql);
   }

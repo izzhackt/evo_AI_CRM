@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
-# CSCA engine (285) and math content (286) on a disposable Supabase Postgres:
-# the whole migration chain, a snapshot of the released v1 learning RPCs right
-# before 285 (supabase/tests/platform_csca_learning_pre.sql), then the suite
-# supabase/tests/platform_csca_learning.sql after 286, which requires the v1
-# JSON to be byte-identical and proves the CSCA boundary. Matched by name, not
-# number, so a renumbering at merge keeps the hooks. No network, nothing
-# shared: the container is removed on exit.
+# CSCA engine (285) and math content (286, 1.0.0; part 2, 1.1.0) on a
+# disposable Supabase Postgres:
+#   1. the whole migration chain except part 2, with a snapshot of the released
+#      v1 learning RPCs right before 285
+#      (supabase/tests/platform_csca_learning_pre.sql), then the suite
+#      supabase/tests/platform_csca_learning.sql, which requires the v1 JSON to
+#      be byte-identical and proves the CSCA boundary on release 1.0.0;
+#   2. the forward upgrade: a Student with committed progress on 1.0.0
+#      (supabase/tests/platform_csca_math_part2_pre.sql), the part 2 content
+#      migration (release 1.1.0, applied by the unchanged engine), then
+#      supabase/tests/platform_csca_math_part2.sql: the release carries 1.0.0
+#      unchanged, progress goes by key, the 24 item diagnostic and the 48 item
+#      mock run end to end.
+# Matched by name, not number, so a renumbering at merge keeps the hooks. No
+# network, nothing shared: the container is removed on exit.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -45,8 +53,14 @@ psql_run -f /workspace/supabase/tests/bootstrap_supabase.sql >/dev/null
 
 engine_seen=false
 content_seen=false
+part2_migration=""
 while IFS= read -r migration; do
   name="$(basename "$migration")"
+  if [[ "$name" == *_platform_csca_math_part2.sql ]]; then
+    # Applied later, on top of release 1.0.0 with a Student's progress.
+    part2_migration="$migration"
+    continue
+  fi
   if [[ "$name" == *_platform_csca_learning_engine.sql ]]; then
     psql_run -At -f /workspace/supabase/tests/platform_csca_learning_pre.sql | grep -F 'P285_V1_SNAPSHOT_RECORDED'
     engine_seen=true
@@ -59,10 +73,23 @@ done < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | LC_ALL=C s
 [[ "$engine_seen" == true && "$content_seen" == true ]] || {
   echo 'CSCA engine or content migration not found' >&2; exit 1;
 }
+[[ -n "$part2_migration" ]] || { echo 'CSCA math part 2 migration not found' >&2; exit 1; }
 
 suite_log="$(psql_run -At -f /workspace/supabase/tests/platform_csca_learning.sql 2>&1)" || {
   printf '%s\n' "$suite_log" | grep -v '^$' | tail -20 >&2; exit 1;
 }
 printf '%s\n' "$suite_log" | grep -F 'P285_V1_SNAPSHOT_MATCHED'
 printf '%s\n' "$suite_log" | grep -F 'P285_CSCA_LEARNING_SUITE_PASSED'
+
+# Forward upgrade: progress on 1.0.0, then release 1.1.0, then the part 2 suite.
+psql_run -At -f /workspace/supabase/tests/platform_csca_math_part2_pre.sql | grep -F 'CSCA_MATH_PART2_FIXTURE_RECORDED'
+seed_log="$(psql_run -At -f "/workspace/$part2_migration" 2>&1)" || {
+  printf '%s\n' "$seed_log" | grep -v '^$' | tail -20 >&2; exit 1;
+}
+printf '%s\n' "$seed_log" | grep -F 'CSCA_MATH_PART2_CONTENT_SEED_START'
+printf '%s\n' "$seed_log" | grep -F 'CSCA_MATH_PART2_CONTENT_SEED_ASSERTED'
+part2_log="$(psql_run -At -f /workspace/supabase/tests/platform_csca_math_part2.sql 2>&1)" || {
+  printf '%s\n' "$part2_log" | grep -v '^$' | tail -20 >&2; exit 1;
+}
+printf '%s\n' "$part2_log" | grep -F 'CSCA_MATH_PART2_SUITE_PASSED'
 echo 'CSCA_LEARNING_POSTGRES_VERIFIED'

@@ -133,6 +133,604 @@
       "used_by": [
         "csca-math-line-circle-006"
       ]
+    },
+    {
+      "figure_key": "sets-operations",
+      "file": "figures/sets-operations.svg",
+      "view_box": "0 0 400 176",
+      "bytes": 3423,
+      "sha256": "8c174aed9472290f1efe98330ef4ea76207f7d0508158e3bae24c28f7250a69c",
+      "alt_ru": "Три диаграммы Венна внутри прямоугольника U. На первой закрашена общая часть кругов A и B, это A ∩ B. На второй закрашены оба круга целиком, это A ∪ B. На третьей закрашена вся область U вне круга A, это дополнение A′.",
+      "alt_ky": "U тик бурчтугунун ичинде үч Венн диаграммасы. Биринчисинде A жана B тегеректеринин жалпы бөлүгү боёлгон, бул A ∩ B. Экинчисинде эки тегерек толугу менен боёлгон, бул A ∪ B. Үчүнчүсүндө U аймагынын A тегерегинен тышкаркы бөлүгү боёлгон, бул A көптүгүнүн толуктоочусу A′.",
+      "alt_en": "Three Venn diagrams inside a rectangle U: the overlap of circles A and B shaded for A intersect B, both circles shaded for A union B, and everything in U outside circle A shaded for the complement of A.",
+      "used_by": [
+        "csca-math-m1-sets-l1"
+      ]
+    },
+    {
+      "figure_key": "abs-interval",
+      "file": "figures/abs-interval.svg",
+      "view_box": "0 0 400 240",
+      "bytes": 5518,
+      "sha256": "28b73d4da6e711f26bc805625464e14bd12288b9f0a31d618dca4b2bd83d8863",
+      "alt_ru": "Две числовые прямые с отметками от −3 до 5. На верхней отрезок от −1 до 3 выделен красным с пустыми концами: это решение |x − 1| < 2, центр 1, радиус 2. На нижней выделены два луча, левее −1 и правее 3, концы закрашены: это решение |x − 1| ≥ 2.",
+      "alt_ky": "−3төн 5ке чейинки белгилери бар эки сан түз сызыгы. Жогорку сызыкта −1ден 3кө чейинки кесинди кызыл менен белгиленген, учтары бош: бул |x − 1| < 2 чыгарылышы, борбору 1, радиусу 2. Төмөнкү сызыкта эки нур белгиленген, −1ден солго жана 3төн оңго, учтары боёлгон: бул |x − 1| ≥ 2 чыгарылышы.",
+      "alt_en": "Two number lines marked from -3 to 5. On the top one the segment from -1 to 3 is highlighted with open ends for |x - 1| < 2 (center 1, radius 2). On the bottom one the two rays left of -1 and right of 3 are highlighted with closed ends for |x - 1| >= 2.",
+      "used_by": [
+        "csca-math-m1-ineq-basics-l1"
+      ]
+    },
+    {
+      "figure_key": "item-parabola-roots",
+      "file": "figures/item-parabola-roots.svg",
+      "view_box": "0 0 360 300",
+      "bytes": 3732,
+      "sha256": "f82dcdebfb4046be2929136c109e601b149f0ec14c24d1dcdcf009a62c1fdfae",
+      "alt_ru": "Парабола с ветвями вверх пересекает ось x в точках −3 и 1.",
+      "alt_ky": "Тармактары өйдө караган парабола x огун −3 жана 1 чекиттеринде кесет.",
+      "alt_en": "A parabola opening upward crosses the x-axis at -3 and 1.",
+      "used_by": [
+        "csca-math-ineq-quadratic-002"
+      ]
+    },
+    {
+      "figure_key": "quad-ineq-parabola",
+      "file": "figures/quad-ineq-parabola.svg",
+      "view_box": "0 0 400 300",
+      "bytes": 5175,
+      "sha256": "ff4b9258a61f79adfa905c898f6383a796aeeb5f3c424cd0f09395df8e26664b",
+      "alt_ru": "Парабола y = x² − x − 6 с ветвями вверх пересекает ось x в точках −2 и 3. Отрезок оси между корнями красный: там парабола под осью, y < 0. Участки оси вне корней зелёные: там парабола над осью, y > 0.",
+      "alt_ky": "y = x² − x − 6 параболасы, тармактары өйдө карайт, x огун −2 жана 3 чекиттеринде кесет. Тамырлардын ортосундагы x огундагы кесинди кызыл: ал жерде парабола огунан төмөн, y < 0. Тамырлардан тышкаркы бөлүктөр жашыл: ал жерде парабола огунан жогору, y > 0.",
+      "alt_en": "Parabola y = x^2 - x - 6 opening upward crosses the x-axis at -2 and 3. The axis segment between the roots is red (parabola below the axis, y < 0) and the parts outside the roots are green (parabola above the axis, y > 0).",
+      "used_by": [
+        "csca-math-m1-ineq-quadratic-l1"
+      ]
+    },
+    {
+      "figure_key": "interval-method",
+      "file": "figures/interval-method.svg",
+      "view_box": "0 0 400 190",
+      "bytes": 1496,
+      "sha256": "14e400093f47747e8b3fbe37decdc2b59570d81e417487fd881e511888a81df8",
+      "alt_ru": "Числовая прямая с точками −1 и 2 для неравенства (x + 1)/(x − 2) ≤ 0. Знаки дроби слева направо: плюс, минус, плюс. Красный отрезок от −1 до 2: точка −1 закрашена (входит), точка 2 пустая (не входит). Решение: [−1, 2).",
+      "alt_ky": "(x + 1)/(x − 2) ≤ 0 барабарсыздыгы үчүн −1 жана 2 чекиттери бар сан түз сызыгы. Бөлчөктүн белгилери солдон оңго: плюс, минус, плюс. −1ден 2ге чейинки кызыл кесинди: −1 чекити боёлгон (кирет), 2 чекити бош (кирбейт). Чыгарылыш: [−1, 2).",
+      "alt_en": "Number line with points -1 and 2 for the inequality (x + 1)/(x - 2) <= 0. The signs of the fraction from left to right are plus, minus, plus. The red segment from -1 to 2 has a filled point at -1 (included) and an open point at 2 (excluded). Solution: [-1, 2).",
+      "used_by": [
+        "csca-math-m1-ineq-rational-l1"
+      ]
+    },
+    {
+      "figure_key": "amgm-graph",
+      "file": "figures/amgm-graph.svg",
+      "view_box": "0 0 400 330",
+      "bytes": 6653,
+      "sha256": "07d77c4215cef82f5c6fac47099e2c2a4ac53ac41cf5b180a552726376ce1e91",
+      "alt_ru": "График y = x + 4/x. Правая ветвь в первой четверти имеет самую низкую точку (2, 4). Левая ветвь в третьей четверти имеет самую высокую точку (−2, −4). Между горизонтальными пунктирными линиями y = −4 и y = 4 графика нет.",
+      "alt_ky": "y = x + 4/x графиги. Биринчи чейректеги оң тармактын эң төмөнкү чекити (2, 4). Үчүнчү чейректеги сол тармактын эң жогорку чекити (−2, −4). y = −4 жана y = 4 горизонталдык пунктир сызыктардын ортосунда график жок.",
+      "alt_en": "Graph of y = x + 4/x. The right branch in the first quadrant has its lowest point at (2, 4); the left branch in the third quadrant has its highest point at (-2, -4). There is no graph between the dashed horizontal lines y = -4 and y = 4.",
+      "used_by": [
+        "csca-math-m1-ineq-amgm-l1"
+      ]
+    },
+    {
+      "figure_key": "domain-range-graph",
+      "file": "figures/domain-range-graph.svg",
+      "view_box": "0 0 400 270",
+      "bytes": 3735,
+      "sha256": "6bb7bf811e60bd3c9cde2b2ee9683211fb384e7224c3fbcc2cd3bdd305f61643",
+      "alt_ru": "График y = √(4 − x²): верхняя половина окружности радиуса 2 с центром в начале координат. Красный отрезок на оси x от −2 до 2 показывает область определения. Зелёный отрезок на оси y от 0 до 2 показывает множество значений. Пунктиры от точки (1.2, 1.6) идут к обеим осям.",
+      "alt_ky": "y = √(4 − x²) графиги: координаталар башталышында борбору бар, радиусу 2 болгон айлананын жогорку жарымы. x огундагы −2ден 2ге чейинки кызыл кесинди аныкталуу областын көрсөтөт. y огундагы 0дөн 2ге чейинки жашыл кесинди маанилер областын көрсөтөт. (1.2, 1.6) чекитинен эки окко пунктир сызыктар түшүрүлгөн.",
+      "alt_en": "Graph of y = sqrt(4 - x^2), the upper half of the circle of radius 2 centered at the origin. A red segment on the x-axis from -2 to 2 marks the domain; a green segment on the y-axis from 0 to 2 marks the range. Dashed lines run from the point (1.2, 1.6) to both axes.",
+      "used_by": [
+        "csca-math-m2-func-basics-l1"
+      ]
+    },
+    {
+      "figure_key": "item-func-graph",
+      "file": "figures/item-func-graph.svg",
+      "view_box": "0 0 360 300",
+      "bytes": 3145,
+      "sha256": "e3a3d88f152c0bb26bb0babf8a073cf62ad8d61a9e98b89f8d3af24b6de9c044",
+      "alt_ru": "Дуга параболы с самой низкой точкой (1, −1). Левый конец (−1, 3) отмечен закрашенной точкой, правый конец (3, 3) отмечен пустым кружком.",
+      "alt_ky": "Параболанын бир бөлүгү, эң төмөнкү чекити (1, −1). Сол учу (−1, 3) боёлгон чекит менен, оң учу (3, 3) бош тегерекче менен белгиленген.",
+      "alt_en": "Part of a parabola whose lowest point is (1, -1). The left end (-1, 3) is a closed (filled) circle and the right end (3, 3) is an open circle.",
+      "used_by": [
+        "csca-math-func-basics-004"
+      ]
+    },
+    {
+      "figure_key": "even-odd-symmetry",
+      "file": "figures/even-odd-symmetry.svg",
+      "view_box": "0 0 400 250",
+      "bytes": 4599,
+      "sha256": "25ce7cdf19cf3405a2271b277c9381907de5b50c41d1177e17ae79b7145825f2",
+      "alt_ru": "Два графика. Слева y = x²: точки с абсциссами −a и a лежат на одной высоте, график симметричен относительно оси y, f(−x) = f(x). Справа y = x³: точки с абсциссами −a и a лежат на одной прямой через начало координат, график симметричен относительно начала координат, f(−x) = −f(x).",
+      "alt_ky": "Эки график. Сол жакта y = x²: абсциссалары −a жана a болгон чекиттер бир бийиктикте жатат, график y огуна карата симметриялуу, f(−x) = f(x). Оң жакта y = x³: абсциссалары −a жана a болгон чекиттер координаталар башталышы аркылуу өткөн бир түз сызыкта жатат, график координаталар башталышына карата симметриялуу, f(−x) = −f(x).",
+      "alt_en": "Two graphs. On the left y = x^2: the points with x-coordinates -a and a are at the same height, the graph is symmetric about the y-axis, f(-x) = f(x). On the right y = x^3: the points with x-coordinates -a and a lie on one line through the origin, the graph is symmetric about the origin, f(-x) = -f(x).",
+      "used_by": [
+        "csca-math-m2-func-properties-l1"
+      ]
+    },
+    {
+      "figure_key": "func-graphs-reflect",
+      "file": "figures/func-graphs-reflect.svg",
+      "view_box": "0 0 400 300",
+      "bytes": 18264,
+      "sha256": "8599dde19392e9f9d6b5d757a938434191c472fd8e05d396a3d32ffcf098b5af",
+      "alt_ru": "Три кривые, выходящие из начала координат. Чёрная y = √x идёт вправо и вверх до точки (4, 2). Красная y = −√x идёт вправо и вниз до точки (4, −2), это отражение относительно оси x. Зелёная y = √(−x) идёт влево и вверх до точки (−4, 2), это отражение относительно оси y.",
+      "alt_ky": "Координаталар башталышынан чыккан үч ийри сызык. Кара y = √x оңго жана өйдө (4, 2) чекитине чейин барат. Кызыл y = −√x оңго жана төмөн (4, −2) чекитине чейин барат, бул x огуна карата чагылдыруу. Жашыл y = √(−x) солго жана өйдө (−4, 2) чекитине чейин барат, бул y огуна карата чагылдыруу.",
+      "alt_en": "Three curves from the origin: black y = sqrt(x) up to (4, 2), red y = -sqrt(x) down to (4, -2) reflected in the x-axis, and green y = sqrt(-x) up to (-4, 2) reflected in the y-axis.",
+      "used_by": [
+        "csca-math-m2-func-graphs-l1"
+      ]
+    },
+    {
+      "figure_key": "func-graphs-shift",
+      "file": "figures/func-graphs-shift.svg",
+      "view_box": "0 0 400 330",
+      "bytes": 11235,
+      "sha256": "de396f9ff218880893257b1d02a8420641e166c2d487e30553088027956a19ac",
+      "alt_ru": "Парабола y = x² (чёрная) и парабола y = (x − 2)² − 1 (красная) той же формы. Вершина переходит из точки (0, 0) в точку (2, −1): вправо на 2 и вниз на 1. Пунктирная стрелка показывает этот сдвиг.",
+      "alt_ky": "y = x² параболасы (кара) жана ошол эле формадагы y = (x − 2)² − 1 параболасы (кызыл). Чоку (0, 0) чекитинен (2, −1) чекитине өтөт: оңго 2 жана төмөн 1 бирдикке. Пунктир жебе ушул жылышты көрсөтөт.",
+      "alt_en": "Black parabola y = x^2 and red parabola y = (x - 2)^2 - 1 of the same shape; the vertex moves from (0, 0) to (2, -1), shown by a dashed arrow.",
+      "used_by": [
+        "csca-math-m2-func-graphs-l1"
+      ]
+    },
+    {
+      "figure_key": "item-func-graphs-v-shape",
+      "file": "figures/item-func-graphs-v-shape.svg",
+      "view_box": "0 0 360 300",
+      "bytes": 8208,
+      "sha256": "a4640c79560cc4977bde0763252822abf747b986b46660290c355bda7a6e897e",
+      "alt_ru": "Перевёрнутая буква V из двух прямолинейных лучей. Вершина в точке (1, 3), левая ветвь проходит через точку (−2, 0), правая через точку (4, 0). Обе ветви идут вниз от вершины с наклоном 1 по модулю.",
+      "alt_ky": "Эки түз сызыктуу нурдан турган оодарылган V тамгасы. Чоку (1, 3) чекитинде, сол тармак (−2, 0) чекити аркылуу, оң тармак (4, 0) чекити аркылуу өтөт. Эки тармак тең чокудан төмөн карай модулу боюнча 1ге барабар жантаюу менен барат.",
+      "alt_en": "An inverted V made of two straight rays with the vertex at (1, 3); the left ray passes through (-2, 0) and the right ray through (4, 0), both going down with slope of absolute value 1.",
+      "used_by": [
+        "csca-math-func-graphs-003"
+      ]
+    },
+    {
+      "figure_key": "item-quad-power-signs",
+      "file": "figures/item-quad-power-signs.svg",
+      "view_box": "0 0 360 300",
+      "bytes": 6875,
+      "sha256": "72d090ef18a971bfb842b49ddbaebf8281a6ebfca31ca889261bab0c644801cb",
+      "alt_ru": "Парабола с ветвями вниз без числовых отметок на осях. Вершина лежит выше оси x и правее оси y, от неё вниз идёт пунктирная вертикаль. Парабола пересекает ось x в двух точках, одна левее оси y, другая правее. С осью y парабола пересекается в красной точке выше начала координат.",
+      "alt_ky": "Октордо сандык белгилери жок, тармактары төмөн караган парабола. Чоку x огунан жогору жана y огунан оңдо жатат, андан төмөн карай пунктир вертикаль түшөт. Парабола x огун эки чекитте кесет, бири y огунан солдо, экинчиси оңдо. y огу менен парабола кызыл чекитте, координаталар башталышынан жогору кесилишет.",
+      "alt_en": "A downward parabola without numbers on the axes: the vertex is above the x-axis and to the right of the y-axis, the curve crosses the x-axis twice and meets the y-axis at a red point above the origin.",
+      "used_by": [
+        "csca-math-quadratic-power-003"
+      ]
+    },
+    {
+      "figure_key": "quad-power-parabolas",
+      "file": "figures/quad-power-parabolas.svg",
+      "view_box": "0 0 450 200",
+      "bytes": 3572,
+      "sha256": "3767525ef5e3107d2121397709b6ebb09a572c9db59b47dfcdfe06f84f7a84f2",
+      "alt_ru": "Три параболы с ветвями вверх и ось x. Слева D > 0: вершина ниже оси, две красные точки пересечения. В центре D = 0: вершина лежит на оси, одна красная точка. Справа D < 0: парабола целиком выше оси, точек пересечения нет.",
+      "alt_ky": "Тармактары өйдө караган үч парабола жана x огу. Солдо D > 0: чоку октун астында, кызыл кесилиш чекити экөө. Ортодо D = 0: чоку окто жатат, кызыл чекит бирөө. Оңдо D < 0: парабола толугу менен октон жогору, кесилиш чекити жок.",
+      "alt_en": "Three upward parabolas with the x-axis: D > 0 with two intersection points, D = 0 with the vertex on the axis, and D < 0 entirely above the axis.",
+      "used_by": [
+        "csca-math-m2-quadratic-power-l1"
+      ]
+    },
+    {
+      "figure_key": "quad-power-powers",
+      "file": "figures/quad-power-powers.svg",
+      "view_box": "0 0 400 340",
+      "bytes": 13488,
+      "sha256": "0719db75ad7f9af48a2f77d72d1e0276bdc4d2ee37378d4046d796d1dee0c291",
+      "alt_ru": "Четыре маленьких графика в сетке два на два. Вверху слева парабола y = x² с вершиной в начале координат. Вверху справа кубическая парабола y = x³: возрастает, проходит через начало координат. Внизу слева y = √x: ветвь только правее начала координат, возрастает. Внизу справа гипербола y = 1/x: две ветви, в первой и третьей четвертях.",
+      "alt_ky": "Эки-экиден торчодо жайгашкан төрт кичине график. Жогорку сол жакта координаталар башталышында чокусу бар y = x² параболасы. Жогорку оң жакта y = x³ кубдук параболасы: өсөт, координаталар башталышы аркылуу өтөт. Төмөнкү сол жакта y = √x: бутагы координаталар башталышынан оңдо гана, өсөт. Төмөнкү оң жакта y = 1/x гиперболасы: эки тармак, биринчи жана үчүнчү чейректе.",
+      "alt_en": "Four small graphs in a two by two grid: the parabola y = x^2, the cubic y = x^3, the square root y = sqrt(x) to the right of the origin, and the hyperbola y = 1/x with two branches.",
+      "used_by": [
+        "csca-math-m2-quadratic-power-l1"
+      ]
+    },
+    {
+      "figure_key": "trig-reference-angle",
+      "file": "figures/trig-reference-angle.svg",
+      "view_box": "0 0 400 330",
+      "bytes": 3674,
+      "sha256": "c12f1113a567339fccb223551161cb9574debf769fafdcd54fe41494570f5318",
+      "alt_ru": "Единичная окружность. Красный луч из центра идёт во вторую четверть под углом 2π/3 к положительной оси x, его конец в точке (−1/2, √3/2). Зелёная дуга между этим лучом и отрицательной осью x обозначена π/3 (острый угол). Серый луч под углом π/3 заканчивается в точке (1/2, √3/2). Зелёная пунктирная горизонталь соединяет две точки: их высота одинакова.",
+      "alt_ky": "Бирдик айлана. Борбордон чыккан кызыл нур экинчи чейрекке оң x огуна карата 2π/3 бурчу менен барат, анын учу (−1/2, √3/2) чекитинде. Ушул нур менен терс x огунун ортосундагы жашыл жаа π/3 (курч бурч) деп белгиленген. π/3 бурчундагы боз нур (1/2, √3/2) чекитинде аяктайт. Жашыл пунктир горизонталь эки чекитти туташтырат: алардын бийиктиги бирдей.",
+      "alt_en": "Unit circle with a red ray at the angle 2 pi/3 ending at (-1/2, sqrt(3)/2), the green reference angle pi/3 to the negative x-axis, and a grey ray at pi/3 ending at (1/2, sqrt(3)/2); a dashed horizontal line joins the two points at equal height.",
+      "used_by": [
+        "csca-math-m2-trig-basics-l1"
+      ]
+    },
+    {
+      "figure_key": "trig-unit-circle",
+      "file": "figures/trig-unit-circle.svg",
+      "view_box": "0 0 400 360",
+      "bytes": 3740,
+      "sha256": "58320d99c689d60482e35ad74d221811b528ec8fa7e9ef343fa7dde076f91ea2",
+      "alt_ru": "Первая четверть единичной окружности с осями x и y и отметкой 1 на каждой оси. Три пунктирных луча из начала координат кончаются красными точками на дуге. Угол 30° = π/6: точка (√3/2, 1/2). Угол 45° = π/4: точка (√2/2, √2/2). Угол 60° = π/3: точка (1/2, √3/2).",
+      "alt_ky": "Бирдик айлананын биринчи чейреги, x жана y октору жана ар бир октогу 1 белгиси менен. Координаталар башталышынан чыккан үч пунктир нур жаадагы кызыл чекиттерде аяктайт. 30° = π/6 бурчу: (√3/2, 1/2) чекити. 45° = π/4 бурчу: (√2/2, √2/2) чекити. 60° = π/3 бурчу: (1/2, √3/2) чекити.",
+      "alt_en": "First quadrant of the unit circle with three dashed rays ending in red points: 30 degrees = pi/6 at (sqrt(3)/2, 1/2), 45 degrees = pi/4 at (sqrt(2)/2, sqrt(2)/2), and 60 degrees = pi/3 at (1/2, sqrt(3)/2).",
+      "used_by": [
+        "csca-math-m2-trig-basics-l1"
+      ]
+    },
+    {
+      "figure_key": "trig-identities-triangle",
+      "file": "figures/trig-identities-triangle.svg",
+      "view_box": "0 0 400 350",
+      "bytes": 2581,
+      "sha256": "5355e8ff0de576e8b7c70a83c4c475abeb86e3477fd8edbc22c8e37370733599",
+      "alt_ru": "Единичная окружность с осями. Красный отрезок длины 1 идёт из начала координат в точку P(−4/5, 3/5) во второй четверти; угол α отложен от положительной оси x до этого отрезка. Из точки P опущена зелёная вертикаль длиной 3/5 на ось x, серый отрезок на оси x имеет длину 4/5. В основании вертикали стоит знак прямого угла.",
+      "alt_ky": "Октору бар бирдик айлана. Узундугу 1 болгон кызыл кесинди координаталар башталышынан экинчи чейректеги P(−4/5, 3/5) чекитине барат; α бурчу оң x огунан ушул кесиндиге чейин коюлган. P чекитинен x огуна узундугу 3/5 болгон жашыл вертикаль түшүрүлгөн, x огундагы боз кесиндинин узундугу 4/5. Вертикалдын түбүндө тик бурчтун белгиси турат.",
+      "alt_en": "Unit circle with a red segment of length 1 from the origin to P(-4/5, 3/5) in the second quadrant, the angle alpha from the positive x-axis, a green vertical leg of length 3/5 and a grey leg of length 4/5 on the x-axis with a right angle mark.",
+      "used_by": [
+        "csca-math-m2-trig-identities-l1"
+      ]
+    },
+    {
+      "figure_key": "item-trig-graphs-sinusoid",
+      "file": "figures/item-trig-graphs-sinusoid.svg",
+      "view_box": "0 0 400 300",
+      "bytes": 5619,
+      "sha256": "8726dca8881a0d340e3c852bd9a167230dece010dbe3f0c628d1144054ee220d",
+      "alt_ru": "Один период синусоиды. Кривая начинается в точке (0, 1), поднимается до максимума в точке (π/6, 3), опускается до минимума в точке (π/2, −1) и возвращается в точку (2π/3, 1), где период заканчивается. На оси x отмечены π/6, π/3, π/2 и 2π/3.",
+      "alt_ky": "Синусоиданын бир мезгили. Ийри сызык (0, 1) чекитинен башталат, (π/6, 3) чекитинде максимумга чейин көтөрүлөт, (π/2, −1) чекитинде минимумга чейин түшөт жана мезгил аяктаган (2π/3, 1) чекитине кайтып келет. x огунда π/6, π/3, π/2 жана 2π/3 белгиленген.",
+      "alt_en": "One period of a sinusoid starting at (0, 1), with the maximum point (pi/6, 3), the minimum point (pi/2, -1) and the end of the period at (2 pi/3, 1); the x-axis is marked pi/6, pi/3, pi/2 and 2 pi/3.",
+      "used_by": [
+        "csca-math-trig-graphs-003"
+      ]
+    },
+    {
+      "figure_key": "trig-graphs-anatomy",
+      "file": "figures/trig-graphs-anatomy.svg",
+      "view_box": "0 0 400 300",
+      "bytes": 8536,
+      "sha256": "f4a50af866fd46362620ae5a784f80c2f9710c274b7c79db4987edbabcc80414",
+      "alt_ru": "График y = 2 sin(2x + π/2) на отрезке от −π/2 до π. Кривая начинается в точке (−π/2, −2), поднимается через полую точку x₀ = −π/4 на оси x, достигает максимума 2 в точке x = 0, пересекает ось в π/4, достигает минимума −2 в π/2, снова пересекает ось в 3π/4 и приходит в максимум в точке (π, 2). Горизонтальная двусторонняя стрелка от 0 до π подписана T = π.",
+      "alt_ky": "y = 2 sin(2x + π/2) графиги, −π/2 ден π ге чейинки кесиндиде. Ийри сызык (−π/2, −2) чекитинен башталат, x огундагы бош чекит x₀ = −π/4 аркылуу көтөрүлөт, x = 0 болгондо 2 максимумуна жетет, π/4 тө окту кесет, π/2 де −2 минимумуна жетет, 3π/4 те кайра окту кесет жана (π, 2) чекитинде максимумга келет. 0 дөн π ге чейинки горизонталдык эки жактуу жебе T = π деп белгиленген.",
+      "alt_en": "Graph of y = 2 sin(2x + pi/2) from -pi/2 to pi: it rises through the hollow point x0 = -pi/4, has a maximum 2 at x = 0, a minimum -2 at pi/2 and a maximum again at pi; a double arrow from 0 to pi is labelled T = pi.",
+      "used_by": [
+        "csca-math-m2-trig-graphs-l1"
+      ]
+    },
+    {
+      "figure_key": "seq-arithmetic-staircase",
+      "file": "figures/seq-arithmetic-staircase.svg",
+      "view_box": "0 0 400 330",
+      "bytes": 2752,
+      "sha256": "6f0ded7fdb6823bcd38d609c0a7c0ceecfac17e8e0658070836e12d939a8c349",
+      "alt_ru": "Пять столбиков растущей высоты, подписанные a₁, a₂, a₃, a₄, a₅ со значениями 2, 5, 8, 11, 14. Рядом надпись d = 3. Красная пунктирная горизонтальная линия на высоте 8 подписана (2 + 14)/2 = 8. Внизу надпись S₅ = 5 · 8 = 40.",
+      "alt_ky": "Бийиктиги өсүп бараткан беш мамыча, a₁, a₂, a₃, a₄, a₅ деп белгиленген, маанилери 2, 5, 8, 11, 14. Жанында d = 3 жазуусу. 8 бийиктиктеги кызыл пунктир горизонталдык сызык (2 + 14)/2 = 8 деп белгиленген. Төмөндө S₅ = 5 · 8 = 40 жазуусу.",
+      "alt_en": "Five bars of increasing height labelled a1 to a5 with values 2, 5, 8, 11, 14, the note d = 3, a red dashed horizontal line at height 8 labelled (2 + 14)/2 = 8, and below the bars S5 = 5 times 8 = 40.",
+      "used_by": [
+        "csca-math-m2-seq-arithmetic-l1"
+      ]
+    },
+    {
+      "figure_key": "geo-seq-ratio",
+      "file": "figures/geo-seq-ratio.svg",
+      "view_box": "0 0 400 372",
+      "bytes": 3744,
+      "sha256": "8cd8c2cab99ef041071b3740048b0776c03720ccfeba8ef636e48486b8824d8e",
+      "alt_ru": "Три ряда столбиков для первых пяти членов. При q = 2 члены 1, 2, 4, 8, 16 растут. При q = 1/2 члены 16, 8, 4, 2, 1 убывают. При q = −2 члены 1, −2, 4, −8, 16 чередуют знаки, а их модули растут.",
+      "alt_ky": "Алгачкы беш мүчөнүн үч катар тилкеси. q = 2 болгондо 1, 2, 4, 8, 16 мүчөлөрү өсөт. q = 1/2 болгондо 16, 8, 4, 2, 1 мүчөлөрү кемийт. q = −2 болгондо 1, −2, 4, −8, 16 мүчөлөрүнүн белгилери алмашат, модулдары өсөт.",
+      "alt_en": "Three rows of bars for the first five terms. For q = 2 the terms 1, 2, 4, 8, 16 grow; for q = 1/2 the terms 16, 8, 4, 2, 1 shrink; for q = -2 the terms 1, -2, 4, -8, 16 alternate in sign while their absolute values grow.",
+      "used_by": [
+        "csca-math-m2-seq-geometric-l1"
+      ]
+    },
+    {
+      "figure_key": "ellipse-foci",
+      "file": "figures/ellipse-foci.svg",
+      "view_box": "0 0 400 300",
+      "bytes": 6886,
+      "sha256": "3aca28040a99821d58054231fec64ea8facf6b06fa7fc339c609f805f7fd6b43",
+      "alt_ru": "Эллипс y²/9 + x²/25 = 1 на координатной плоскости. Фокусы F₁(−4, 0) и F₂(4, 0), вершины (±5, 0) и (0, ±3). Точка P(0, 3) лежит на эллипсе. Прямоугольный треугольник с вершинами в начале координат, F₂ и P имеет катеты 3 и 4 и гипотенузу 5. Расстояния от P до обоих фокусов равны 5, их сумма 10.",
+      "alt_ky": "y²/9 + x²/25 = 1 эллипси координаталык тегиздикте. F₁(−4, 0) жана F₂(4, 0) фокустары, (±5, 0) жана (0, ±3) чокулары. P(0, 3) чекити эллипсте жатат. Координаталар башталышы, F₂ жана P чокулуу тик бурчтуу үч бурчтуктун катеттери 3 жана 4, гипотенузасы 5. P чекитинен эки фокуска чейинки аралыктар 5ке барабар, суммасы 10.",
+      "alt_en": "Ellipse y^2/9 + x^2/25 = 1 with foci F1(-4, 0) and F2(4, 0) and vertices (±5, 0), (0, ±3). The point P(0, 3) is on the ellipse. The right triangle O F2 P has legs 3 and 4 and hypotenuse 5, so P is at distance 5 from each focus and the distances add up to 10.",
+      "used_by": [
+        "csca-math-m3-ellipse-l1"
+      ]
+    },
+    {
+      "figure_key": "item-ellipse-vertex-focus",
+      "file": "figures/item-ellipse-vertex-focus.svg",
+      "view_box": "0 0 400 340",
+      "bytes": 3468,
+      "sha256": "97376402d55f5d178399b15b1ce61b2bbab7bfcd2ec3d2197498ef48e8d439c9",
+      "alt_ru": "Эллипс с центром в начале координат, вытянутый вдоль оси x. На оси x отмечены фокус F(2, 0) и вершина A(4, 0). Симметричные им точки (−2, 0) и (−4, 0) показаны серым.",
+      "alt_ky": "Борбору координаталар башталышында жайгашкан, x огу боюнча созулган эллипс. x огунда F(2, 0) фокусу жана A(4, 0) чокусу белгиленген. Аларга симметриялуу (−2, 0) жана (−4, 0) чекиттери боз түстө көрсөтүлгөн.",
+      "alt_en": "An ellipse centered at the origin and stretched along the x-axis. The focus F(2, 0) and the vertex A(4, 0) are marked on the x-axis; their mirror points (-2, 0) and (-4, 0) are grey.",
+      "used_by": [
+        "csca-math-ellipse-005"
+      ]
+    },
+    {
+      "figure_key": "hyperbola-asymptotes",
+      "file": "figures/hyperbola-asymptotes.svg",
+      "view_box": "0 0 400 330",
+      "bytes": 5556,
+      "sha256": "c73d3656c61ea0b6490cea77d14927c9a2fdc616a6809c9b3f9cf73946b3a85b",
+      "alt_ru": "Гипербола x²/9 − y²/16 = 1: две ветви, вершины (±3, 0), фокусы F₁(−5, 0) и F₂(5, 0). Пунктирный прямоугольник со сторонами 2a = 6 и 2b = 8 построен вокруг центра. Его диагонали продолжены до асимптот y = ±4x/3. Отрезок от центра до угла (3, 4) равен c = 5 и по длине совпадает с расстоянием от центра до фокуса.",
+      "alt_ky": "x²/9 − y²/16 = 1 гиперболасы: эки бутак, (±3, 0) чокулары, F₁(−5, 0) жана F₂(5, 0) фокустары. Борбордун тегерегине 2a = 6 жана 2b = 8 жактуу пунктир тик бурчтук тургузулган. Анын диагоналдары y = ±4x/3 асимптоталарына чейин уланган. Борбордон (3, 4) бурчуна чейинки кесинди c = 5 ке барабар жана борбордон фокуска чейинки аралыкка тең.",
+      "alt_en": "Hyperbola x^2/9 - y^2/16 = 1 with two branches, vertices (±3, 0) and foci F1(-5, 0), F2(5, 0). A dashed rectangle with sides 2a = 6 and 2b = 8 surrounds the center and its diagonals extend to the asymptotes y = ±4x/3. The segment from the center to the corner (3, 4) has length c = 5, the same as the distance from the center to a focus.",
+      "used_by": [
+        "csca-math-m3-hyperbola-l1"
+      ]
+    },
+    {
+      "figure_key": "item-hyperbola-asymptote",
+      "file": "figures/item-hyperbola-asymptote.svg",
+      "view_box": "0 0 400 330",
+      "bytes": 4849,
+      "sha256": "0599e896c19037e65ed61e462f2a8af801d657cbf8005705ef59a02c60bec88a",
+      "alt_ru": "Гипербола с центром в начале координат: две ветви, вершины (−2, 0) и (2, 0). Две пунктирные асимптоты проходят через начало координат. Одна из них проходит через отмеченную точку Q(2, 3).",
+      "alt_ky": "Борбору координаталар башталышында жайгашкан гипербола: эки бутак, (−2, 0) жана (2, 0) чокулары. Эки пунктир асимптота координаталар башталышы аркылуу өтөт. Алардын бири белгиленген Q(2, 3) чекити аркылуу өтөт.",
+      "alt_en": "A hyperbola centered at the origin with two branches and vertices (-2, 0) and (2, 0). Two dashed asymptotes pass through the origin; one of them passes through the marked point Q(2, 3).",
+      "used_by": [
+        "csca-math-hyperbola-005"
+      ]
+    },
+    {
+      "figure_key": "item-parabola-triangle",
+      "file": "figures/item-parabola-triangle.svg",
+      "view_box": "0 0 400 330",
+      "bytes": 3685,
+      "sha256": "a6958ca1b2f7cbe8588ea76bf61aef9fffcb2045c55997489e392e2ee35a23e3",
+      "alt_ru": "Парабола y² = 4x, открытая вправо, с фокусом F на оси x и пунктирной директрисой l слева от вершины. Точка P на параболе выше оси x. Из P опущен перпендикуляр PD на директрису, длина PD равна 5. Треугольник PDF закрашен светло.",
+      "alt_ky": "Оңго ачык y² = 4x параболасы: x огунда F фокусу жана чокунун сол жагында пунктир l директрисасы бар. Параболадагы P чекити x огунан жогору жатат. P чекитинен директрисага PD перпендикуляры түшүрүлгөн, PD узундугу 5ке барабар. PDF үч бурчтугу ачык түс менен боёлгон.",
+      "alt_en": "Parabola y^2 = 4x opening to the right, with focus F on the x-axis and a dashed directrix l to the left of the vertex. The point P lies on the parabola above the x-axis, PD is perpendicular to l with |PD| = 5, and triangle PDF is lightly shaded.",
+      "used_by": [
+        "csca-math-parabola-005"
+      ]
+    },
+    {
+      "figure_key": "parabola-focus-directrix",
+      "file": "figures/parabola-focus-directrix.svg",
+      "view_box": "0 0 400 300",
+      "bytes": 3953,
+      "sha256": "5acb14d3403b1e54543cf5b74756005539621f5a933d88146c32353fef089824",
+      "alt_ru": "Парабола y² = 8x с вершиной в начале координат, открытая вправо. Фокус F(2, 0), директриса x = −2 (пунктир). Точка P(2, 4) лежит на параболе. Перпендикуляр PD к директрисе имеет длину 4, отрезок PF тоже имеет длину 4.",
+      "alt_ky": "Чокусу координаталар башталышында жайгашкан, оңго ачык y² = 8x параболасы. F(2, 0) фокусу, x = −2 директрисасы (пунктир). P(2, 4) чекити параболада жатат. PD перпендикуляры 4кө барабар, PF кесиндиси да 4кө барабар.",
+      "alt_en": "Parabola y^2 = 8x opening to the right with vertex at the origin, focus F(2, 0) and dashed directrix x = -2. The point P(2, 4) is on the parabola; the perpendicular PD to the directrix has length 4 and so does the segment PF.",
+      "used_by": [
+        "csca-math-m3-parabola-l1"
+      ]
+    },
+    {
+      "figure_key": "parabola-orientations",
+      "file": "figures/parabola-orientations.svg",
+      "view_box": "0 0 400 340",
+      "bytes": 6833,
+      "sha256": "4eba37631088dc7f7f28c78f04f4df78fc118c90d13da54e34209f0b6b2d5ba1",
+      "alt_ru": "Четыре параболы с вершиной в начале координат, у каждой отмечены фокус F и пунктирная директриса l. Парабола y² = 2px открыта вправо, y² = −2px открыта влево, x² = 2py открыта вверх, x² = −2py открыта вниз. Фокус всегда внутри параболы, директриса по другую сторону от вершины.",
+      "alt_ky": "Чокусу координаталар башталышында болгон төрт парабола, ар биринде F фокусу жана пунктир l директрисасы белгиленген. y² = 2px параболасы оңго ачык, y² = −2px солго ачык, x² = 2py жогору ачык, x² = −2py төмөн ачык. Фокус дайыма параболанын ичинде, директриса чокунун карама-каршы тарабында.",
+      "alt_en": "Four parabolas with the vertex at the origin, each with its focus F and a dashed directrix l. y^2 = 2px opens right, y^2 = -2px opens left, x^2 = 2py opens up and x^2 = -2py opens down. The focus is always inside the curve and the directrix is on the other side of the vertex.",
+      "used_by": [
+        "csca-math-m3-parabola-l1"
+      ]
+    },
+    {
+      "figure_key": "item-vectors-rectangle",
+      "file": "figures/item-vectors-rectangle.svg",
+      "view_box": "0 0 400 284",
+      "bytes": 1547,
+      "sha256": "8ccf36ce761df11ba441adf18e74a3a951bf9eff9a1451c689b1d927b45b231b",
+      "alt_ru": "Прямоугольник ABCD: A внизу слева, B внизу справа, C вверху справа, D вверху слева. Сторона AB равна 4, сторона BC равна 3. Диагонали нарисованы стрелками: красная от A к C, чёрная от B к D.",
+      "alt_ky": "ABCD тик бурчтугу: A төмөндө сол жакта, B төмөндө оң жакта, C жогоруда оң жакта, D жогоруда сол жакта. AB жагы 4кө, BC жагы 3кө барабар. Диагоналдар жебе менен тартылган: кызылы A дан C га, карасы B дан D га.",
+      "alt_en": "Rectangle ABCD with A at the bottom left, B bottom right, C top right and D top left. AB = 4 and BC = 3. The diagonals are drawn as arrows: red from A to C and black from B to D.",
+      "used_by": [
+        "csca-math-vectors-006"
+      ]
+    },
+    {
+      "figure_key": "vectors-add",
+      "file": "figures/vectors-add.svg",
+      "view_box": "0 0 400 290",
+      "bytes": 5058,
+      "sha256": "13e610d6723a2b3a0e2717e650a2180ae182f62aecccbeaa358ddfa21869a1fa",
+      "alt_ru": "Координатная сетка. Вектор a = (3, 1) идёт из начала координат. От его конца отложен вектор b = (1, 2), вместе они приводят в точку (4, 3). Красная стрелка из начала в эту точку это сумма a + b = (4, 3). Пунктир достраивает параллелограмм: вектор b от начала и вектор a от точки (1, 2).",
+      "alt_ky": "Координаталык тор. a = (3, 1) вектору координаталар башталышынан чыгат. Анын учунан b = (1, 2) вектору коюлган, экөө бирге (4, 3) чекитине алып барат. Башталыштан ошол чекитке барган кызыл жебе a + b = (4, 3) суммасы. Пунктир параллелограммды толуктайт: башталыштан b вектору жана (1, 2) чекитинен a вектору.",
+      "alt_en": "A coordinate grid. Vector a = (3, 1) starts at the origin and vector b = (1, 2) is placed at its tip, arriving at (4, 3). The red arrow from the origin to (4, 3) is the sum a + b = (4, 3). Dashed sides complete the parallelogram.",
+      "used_by": [
+        "csca-math-m3-vectors-l1"
+      ]
+    },
+    {
+      "figure_key": "vectors-angle-sign",
+      "file": "figures/vectors-angle-sign.svg",
+      "view_box": "0 0 400 190",
+      "bytes": 3691,
+      "sha256": "eb3cf99118f76342cd892e56b1462e1aa8fa296d7310eabb562e1e67693aef1e",
+      "alt_ru": "Три пары векторов a и b из одной точки. Угол θ меньше 90°, скалярное произведение a · b больше 0. Угол θ равен 90°, отмечен прямой угол, a · b равно 0. Угол θ больше 90°, a · b меньше 0.",
+      "alt_ky": "Бир чекиттен чыккан a жана b векторлорунун үч жуптугу. θ бурчу 90°тан кичине, a · b скалярдык көбөйтүндүсү 0дөн чоң. θ бурчу 90°ка барабар, тик бурч белгиленген, a · b нөлгө барабар. θ бурчу 90°тан чоң, a · b 0дөн кичине.",
+      "alt_en": "Three pairs of vectors a and b from one point. For an angle below 90 degrees the dot product a · b is positive; for a right angle it is zero; for an angle above 90 degrees it is negative.",
+      "used_by": [
+        "csca-math-m3-vectors-l1"
+      ]
+    },
+    {
+      "figure_key": "complex-plane",
+      "file": "figures/complex-plane.svg",
+      "view_box": "0 0 400 340",
+      "bytes": 3868,
+      "sha256": "f60c6fd5635599bbde1a99fca262559caf024172bc70dce602c7926f81b4bc1f",
+      "alt_ru": "Комплексная плоскость: горизонтальная ось Re, вертикальная ось Im. Число z = 3 + 4i изображено точкой (3, 4) и стрелкой из начала координат длиной |z| = 5. Число 3 − 4i изображено точкой (3, −4): она симметрична точке (3, 4) относительно действительной оси.",
+      "alt_ky": "Комплекстик тегиздик: горизонталдык Re огу, вертикалдык Im огу. z = 3 + 4i саны (3, 4) чекити жана координаталар башталышынан чыккан |z| = 5 узундуктагы жебе менен көрсөтүлгөн. 3 − 4i саны (3, −4) чекити менен көрсөтүлгөн: ал (3, 4) чекитине чыныгы окко карата симметриялуу.",
+      "alt_en": "The complex plane with the real axis Re and the imaginary axis Im. The number z = 3 + 4i is the point (3, 4) with an arrow from the origin of length |z| = 5. The number 3 - 4i is the point (3, -4), the mirror image of (3, 4) across the real axis.",
+      "used_by": [
+        "csca-math-m3-complex-l1"
+      ]
+    },
+    {
+      "figure_key": "item-space-coords-box",
+      "file": "figures/item-space-coords-box.svg",
+      "view_box": "0 0 360 312",
+      "bytes": 2676,
+      "sha256": "7bd591278769b7152f123030e1f4625d10b15deb3e461c07f9854a10ba2a0181",
+      "alt_ru": "Прямоугольный параллелепипед с вершиной в начале координат O, рёбра идут вдоль осей. Длины рёбер: 4 вдоль оси x, 6 вдоль оси y, 6 вдоль оси z, верхняя грань лежит на высоте 6. Две красные штриховые диагонали верхней грани пересекаются в точке M, центре верхней грани.",
+      "alt_ky": "Чокусу O координаталар башталышында жаткан тик бурчтуу параллелепипед, кырлары октор боюнча багытталган. Кырлардын узундуктары: x огу боюнча 4, y огу боюнча 6, z огу боюнча 6, үстүңкү жак 6 бийиктикте жатат. Үстүңкү жактын эки кызыл штрих диагоналы үстүңкү жактын борбору M чекитинде кесилишет.",
+      "alt_en": "A rectangular box with a vertex at the origin O and edges along the axes. The edge lengths are 4 along x, 6 along y and 6 along z, so the top face is at height 6. The two red dashed diagonals of the top face meet at M, the center of the top face.",
+      "used_by": [
+        "csca-math-space-coords-005"
+      ]
+    },
+    {
+      "figure_key": "space-coords-box",
+      "file": "figures/space-coords-box.svg",
+      "view_box": "0 0 360 262",
+      "bytes": 2400,
+      "sha256": "3ca37f59b6fcb3d29cb0eb9f437d09f9bbd8376a82405114673e79f8a47f79d2",
+      "alt_ru": "Прямоугольный параллелепипед в системе координат: одна вершина в начале координат O, рёбра вдоль осей x, y, z имеют длины 3, 4 и 2. Противоположная вершина A(3, 4, 2) отмечена красной точкой. Красный путь идёт от O на 3 вдоль оси x, затем на 4 вдоль оси y, затем на 2 вверх вдоль оси z. Точка (3, 4, 0) под A лежит в плоскости xOy.",
+      "alt_ky": "Координаталар системасындагы тик бурчтуу параллелепипед: бир чокусу O координаталар башталышында, x, y, z октору боюнча кырларынын узундуктары 3, 4 жана 2. Карама-каршы A(3, 4, 2) чокусу кызыл чекит менен белгиленген. Кызыл жол O дон x огу боюнча 3, анан y огу боюнча 4, анан z огу боюнча 2 жогору барат. A нын астындагы (3, 4, 0) чекити xOy тегиздигинде жатат.",
+      "alt_en": "A rectangular box in a coordinate system: one vertex at the origin O and edges of length 3, 4 and 2 along the x, y and z axes. The opposite vertex A(3, 4, 2) is a red dot. A red path goes 3 along x, then 4 along y, then 2 up along z. The point (3, 4, 0) below A lies in the xOy plane.",
+      "used_by": [
+        "csca-math-m3-space-coords-l1"
+      ]
+    },
+    {
+      "figure_key": "item-solids-triangle",
+      "file": "figures/item-solids-triangle.svg",
+      "view_box": "0 0 360 262",
+      "bytes": 1263,
+      "sha256": "45fd01bb7cdadd3ff51b88a1f0a0099d3ad4586d779c89264c70d6a67d22a4b7",
+      "alt_ru": "Прямоугольный треугольник: вертикальный катет длины 3, горизонтальный катет длины 4, прямой угол внизу у вертикального катета. Вертикальный катет лежит на штриховой вертикальной оси вращения. Слева от оси штриховой линией показан зеркальный образ треугольника.",
+      "alt_ky": "Тик бурчтуу үч бурчтук: вертикалдык катеттин узундугу 3, горизонталдык катеттин узундугу 4, тик бурч вертикалдык катеттин астында. Вертикалдык катет штрих вертикалдык айлануу огунда жатат. Огдун сол жагында үч бурчтуктун күзгүдөгү элеси штрих сызык менен көрсөтүлгөн.",
+      "alt_en": "A right triangle with a vertical leg of length 3 and a horizontal leg of length 4, the right angle at the bottom of the vertical leg. The vertical leg lies on a dashed vertical axis. Left of the axis a dashed line shows the mirror image of the triangle.",
+      "used_by": [
+        "csca-math-solids-005"
+      ]
+    },
+    {
+      "figure_key": "solids-cylinder-cone",
+      "file": "figures/solids-cylinder-cone.svg",
+      "view_box": "0 0 360 244",
+      "bytes": 5155,
+      "sha256": "29f135dd12c12e35c9eddaf0264857458ac7409407894a31badcd100d5f1b37e",
+      "alt_ru": "Слева цилиндр: радиус основания r показан зелёным отрезком от центра верхнего основания до края, высота h показана штриховой осью. Справа конус: радиус основания r зелёный, высота h штриховая ось, образующая l красная, от вершины до края основания.",
+      "alt_ky": "Сол жакта цилиндр: негиздин радиусу r үстүңкү негиздин борборунан четине чейинки жашыл кесинди менен, бийиктиги h штрих ок менен көрсөтүлгөн. Оң жакта конус: негиздин радиусу r жашыл, бийиктиги h штрих ок, жасоочусу l кызыл, чокудан негиздин четине чейин.",
+      "alt_en": "On the left, a cylinder with base radius r (green segment from the center of the top base to its edge) and height h (dashed axis). On the right, a cone with base radius r (green), height h (dashed axis) and slant height l (red, from the apex to the edge of the base).",
+      "used_by": [
+        "csca-math-m3-solids-l1"
+      ]
+    },
+    {
+      "figure_key": "item-prob-lattice",
+      "file": "figures/item-prob-lattice.svg",
+      "view_box": "0 0 360 246",
+      "bytes": 2067,
+      "sha256": "2c038aee76fb1cf6f873ceb5498fe22139d45fe415552b665c32191d440ac14a",
+      "alt_ru": "Сетка из 3 клеток по горизонтали и 2 клеток по вертикали. Точка A в левом нижнем углу, точка B в правом верхнем углу. Красная точка M стоит в узле на один шаг правее и на один шаг выше A. Двигаться по линиям сетки можно только вправо и вверх.",
+      "alt_ky": "Туурасынан 3 уяча жана бийиктигинен 2 уяча болгон тор. A чекити сол төмөнкү бурчта, B чекити оң жогорку бурчта. Кызыл M чекити A дан бир кадам оңдо жана бир кадам жогору турган түйүндө жайгашкан. Тордун сызыктары боюнча оңго жана жогору гана жылууга болот.",
+      "alt_en": "A grid 3 squares wide and 2 squares tall. Point A is at the lower left corner and point B at the upper right corner. The red point M is at the node one step right and one step up from A. Along the grid lines one may move only to the right or up.",
+      "used_by": [
+        "csca-math-classical-probability-005"
+      ]
+    },
+    {
+      "figure_key": "prob-dice-sums",
+      "file": "figures/prob-dice-sums.svg",
+      "view_box": "0 0 360 326",
+      "bytes": 7897,
+      "sha256": "32da464296b3e83efe25655662466b8ec68f24443736303bd361f97fcf895b51",
+      "alt_ru": "Таблица 6 на 6 сумм очков двух кубиков. Столбцы и строки подписаны числами от 1 до 6, в клетке стоит сумма. Шесть клеток с суммой 7 образуют диагональ и выделены красным: пары 1 и 6, 2 и 5, 3 и 4, 4 и 3, 5 и 2, 6 и 1.",
+      "alt_ky": "Эки оюн сөөгүнүн упайларынын суммаларынын 6 га 6 таблицасы. Мамычалар менен саптар 1 ден 6 га чейинки сандар менен белгиленген, уячада сумма турат. Суммасы 7 болгон алты уяча диагональ түзөт жана кызыл менен бөлүнгөн: 1 жана 6, 2 жана 5, 3 жана 4, 4 жана 3, 5 жана 2, 6 жана 1 жуптары.",
+      "alt_en": "A 6 by 6 table of the sums of two dice. Columns and rows are labeled 1 to 6 and each cell shows the sum. The six cells with sum 7 form a diagonal and are highlighted in red: the pairs 1 and 6, 2 and 5, 3 and 4, 4 and 3, 5 and 2, 6 and 1.",
+      "used_by": [
+        "csca-math-m4-classical-probability-l1"
+      ]
+    },
+    {
+      "figure_key": "events-venn",
+      "file": "figures/events-venn.svg",
+      "view_box": "0 0 360 244",
+      "bytes": 1137,
+      "sha256": "56926bdf6dbed478008db05dcc79563a604b359de93c65bfd98f3b42fdd465e6",
+      "alt_ru": "Диаграмма Венна в прямоугольнике из 20 исходов: два пересекающихся круга A и B. Только в A: 7, в пересечении A и B: 5, только в B: 4, вне обоих кругов: 4.",
+      "alt_ky": "20 натыйжалуу тик бурчтуктагы Венн диаграммасы: A жана B эки кесилишкен тегерек. Тек A да: 7, A менен B нын кесилишинде: 5, тек B де: 4, эки тегеректен тышкары: 4.",
+      "alt_en": "A Venn diagram in a rectangle of 20 outcomes: two overlapping circles A and B. Only in A: 7, in both A and B: 5, only in B: 4, outside both circles: 4.",
+      "used_by": [
+        "csca-math-m4-events-l1"
+      ]
+    },
+    {
+      "figure_key": "item-events-venn",
+      "file": "figures/item-events-venn.svg",
+      "view_box": "0 0 360 244",
+      "bytes": 1146,
+      "sha256": "6afa674da1ea7d1fa6d3f8b40d18259c4838f0085f897f2941025b8cd2a8a9d8",
+      "alt_ru": "Диаграмма Венна в прямоугольнике: два пересекающихся круга A и B. Число исходов в областях: только в A: 8, в пересечении A и B: 4, только в B: 2, вне обоих кругов: 6. Всего 20 равновозможных исходов.",
+      "alt_ky": "Тик бурчтуктагы Венн диаграммасы: A жана B эки кесилишкен тегерек. Аймактардагы натыйжалардын саны: тек A да: 8, A менен B нын кесилишинде: 4, тек B де: 2, эки тегеректен тышкары: 6. Бардыгы 20 тең мүмкүн натыйжа.",
+      "alt_en": "A Venn diagram in a rectangle: two overlapping circles A and B. Outcomes per region: only in A: 8, in both A and B: 4, only in B: 2, outside both circles: 6. There are 20 equally likely outcomes in all.",
+      "used_by": [
+        "csca-math-events-005"
+      ]
+    },
+    {
+      "figure_key": "item-stats-bars",
+      "file": "figures/item-stats-bars.svg",
+      "view_box": "0 0 360 272",
+      "bytes": 2278,
+      "sha256": "8ced4956d371997fcb3ae5569b821ca0c95473440930698449d5bd41167f0cd9",
+      "alt_ru": "Столбчатая диаграмма: по горизонтали число прочитанных книг от 0 до 4, по вертикали число учеников. Высоты столбцов: 4 ученика прочитали 0 книг, 3 ученика прочитали 1 книгу, 2 ученика прочитали 2 книги, 1 ученик прочитал 3 книги, 1 ученик прочитал 4 книги. Всего 11 учеников.",
+      "alt_ky": "Мамычалуу диаграмма: туурасынан окулган китептердин саны 0 дөн 4 кө чейин, бийиктигинен окуучулардын саны. Мамычалардын бийиктиги: 4 окуучу 0 китеп, 3 окуучу 1 китеп, 2 окуучу 2 китеп, 1 окуучу 3 китеп, 1 окуучу 4 китеп окуган. Бардыгы 11 окуучу.",
+      "alt_en": "A bar chart: the horizontal axis shows the number of books read, 0 to 4, and the vertical axis the number of students. Bar heights: 4 students read 0 books, 3 students read 1 book, 2 students read 2 books, 1 student read 3 books, 1 student read 4 books. There are 11 students in all.",
+      "used_by": [
+        "csca-math-statistics-005"
+      ]
+    },
+    {
+      "figure_key": "stats-same-mean",
+      "file": "figures/stats-same-mean.svg",
+      "view_box": "0 0 360 262",
+      "bytes": 3503,
+      "sha256": "c3d49954129a9b927b6424d3355c861e7715e431015a40b63224805e8e21fd42",
+      "alt_ru": "Две числовые прямые от 0 до 10. На верхней отмечены значения набора P: 4, 5, 5, 6 (две точки друг над другом у 5). На нижней значения набора Q: 1, 3, 7, 9. Красная штриховая вертикаль проходит через общее среднее 5. Точки P собраны возле среднего, точки Q разбросаны далеко от него.",
+      "alt_ky": "0 дөн 10 го чейинки эки сан түз сызыгы. Үстүңкүсүндө P жыйындысынын маанилери белгиленген: 4, 5, 5, 6 (5 тин жанында эки чекит бири-биринин үстүндө). Астыңкысында Q жыйындысынын маанилери: 1, 3, 7, 9. Кызыл штрих тик сызык жалпы орточо 5 аркылуу өтөт. P чекиттери орточонун жанына топтолгон, Q чекиттери андан алыс чачырап жатат.",
+      "alt_en": "Two number lines from 0 to 10. The top one marks the values of set P: 4, 5, 5, 6 (two dots stacked at 5). The bottom one marks set Q: 1, 3, 7, 9. A red dashed vertical line passes through the common mean 5. The dots of P are close to the mean, the dots of Q are spread far from it.",
+      "used_by": [
+        "csca-math-m4-statistics-l1"
+      ]
+    },
+    {
+      "figure_key": "item-normal-curves",
+      "file": "figures/item-normal-curves.svg",
+      "view_box": "0 0 360 250",
+      "bytes": 3432,
+      "sha256": "b03dcb486196458675790827b65ceda8480cf22bdfb3e5d2b97ee3dc98aa8c02",
+      "alt_ru": "Графики плотности двух нормальных величин на общей оси с отметками 10, 20, 30, 40. Красная кривая X узкая и высокая, её вершина стоит над 20. Чёрная кривая Y шире и ниже, её вершина стоит над 30. Вершины отмечены штриховыми вертикалями.",
+      "alt_ky": "Эки нормалдуу чоңдуктун тыгыздык графиктери 10, 20, 30, 40 белгилери бар жалпы окто. Кызыл X ийри сызыгы тар жана бийик, анын чокусу 20 нын үстүндө турат. Кара Y ийри сызыгы кененирээк жана ылдыйыраак, анын чокусу 30 дун үстүндө турат. Чокулар штрих тик сызыктар менен белгиленген.",
+      "alt_en": "Density curves of two normal random variables on a common axis marked 10, 20, 30 and 40. The red curve X is narrow and tall with its peak above 20. The black curve Y is wider and lower with its peak above 30. The peaks are marked with dashed vertical lines.",
+      "used_by": [
+        "csca-math-normal-005"
+      ]
+    },
+    {
+      "figure_key": "normal-bell-68",
+      "file": "figures/normal-bell-68.svg",
+      "view_box": "0 0 360 288",
+      "bytes": 3918,
+      "sha256": "4624439752b8039667cddb3ac7af2010b6289fdd6bd78063a7c714844c018189",
+      "alt_ru": "Колоколообразная кривая нормального распределения, вершина над средним μ. На оси отмечены μ минус 2σ, μ минус σ, μ, μ плюс σ, μ плюс 2σ. Область между μ минус σ и μ плюс σ закрашена темнее и подписана 68 процентов, область между μ минус 2σ и μ плюс 2σ закрашена светлее и подписана 95 процентов.",
+      "alt_ky": "Нормалдуу бөлүштүрүүнүн коңгуроо сымал ийри сызыгы, чокусу орточо μ нүн үстүндө. Окто μ минус 2σ, μ минус σ, μ, μ плюс σ, μ плюс 2σ белгиленген. μ минус σ менен μ плюс σ нын ортосундагы аймак тагыраак боёлгон жана 68 пайыз деп жазылган, μ минус 2σ менен μ плюс 2σ нын ортосундагы аймак ачыгыраак боёлгон жана 95 пайыз деп жазылган.",
+      "alt_en": "A bell-shaped normal curve with its peak above the mean μ. The axis marks μ minus 2σ, μ minus σ, μ, μ plus σ and μ plus 2σ. The region between μ minus σ and μ plus σ is shaded darker and labeled 68 percent, the region between μ minus 2σ and μ plus 2σ is shaded lighter and labeled 95 percent.",
+      "used_by": [
+        "csca-math-m4-normal-l1"
+      ]
+    },
+    {
+      "figure_key": "normal-mu-sigma",
+      "file": "figures/normal-mu-sigma.svg",
+      "view_box": "0 0 360 340",
+      "bytes": 5367,
+      "sha256": "956e87a62c4dfa556506f0bbfa1f857ccc1dcde81ed876789c56b6db77ac7f70",
+      "alt_ru": "Две части. Сверху две колоколообразные кривые одинаковой формы с разными средними: красная с μ1 левее, чёрная с μ2 правее. Снизу две кривые с одним средним μ: красная узкая и высокая (σ small), чёрная широкая и низкая (σ large).",
+      "alt_ky": "Эки бөлүк. Жогоруда формасы бирдей, орточолору ар башка эки коңгуроо сымал ийри сызык: μ1 менен кызылы солдо, μ2 менен кара оңдо. Төмөндө орточосу бирдей μ болгон эки ийри сызык: кызылы тар жана бийик (σ small), карасы кенен жана ылдый (σ large).",
+      "alt_en": "Two parts. Top: two bell curves of the same shape with different means, the red one with μ1 on the left and the black one with μ2 on the right. Bottom: two curves with the same mean μ, a narrow tall red one (σ small) and a wide low black one (σ large).",
+      "used_by": [
+        "csca-math-m4-normal-l1"
+      ]
     }
   ],
   "ky_review": "pending"

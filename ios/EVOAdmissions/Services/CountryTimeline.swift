@@ -137,6 +137,25 @@ struct TimelineContentError: Error, Equatable, CustomStringConvertible {
     var description: String { "timeline \(file): \(path): \(reason)" }
 }
 
+// MARK: - Модули приложения для ссылок шагов
+
+/// Экраны приложения, куда ведут ссылки шагов с `appModule` (контракт
+/// docs/portal/country-timeline-contract.md §3, п. 6). Ключи те же, что у
+/// веба (`TIMELINE_MODULE_ROUTES` в src/lib/portal/timeline-module-routes.ts),
+/// значения свои: у веба это путь кабинета (`/portal/csca`), здесь ключ
+/// экрана. Модуль добавляется на вебе и здесь одним шагом, иначе пропадёт
+/// паритет ссылок.
+enum CountryTimelineModules {
+    /// Экран CSCA: тот же, что открывает строка «CSCA» во вкладке «Английский».
+    static let csca = "csca"
+    /// `appModule` из контента → ключ экрана; передаётся в `select(modules:)`.
+    static let routes: [String: String] = ["csca": csca]
+
+    /// Умеет ли приложение открыть экран с таким ключом. Внутренняя ссылка
+    /// на неизвестный экран не показывается: мёртвой кнопки не будет.
+    static func canOpen(_ route: String) -> Bool { routes.values.contains(route) }
+}
+
 // MARK: - Правила (те же, что у веба)
 
 enum CountryTimelineRules {

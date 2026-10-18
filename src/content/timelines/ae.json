@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "contentVersion": 1,
+  "contentVersion": 2,
   "country": "AE",
   "name": {
     "ru": "ОАЭ",
     "ky": "БАЭ"
   },
-  "status": "owner_review",
-  "updatedOn": "2026-10-16",
+  "status": "approved",
+  "updatedOn": "2026-10-18",
   "validUntil": "2027-10-31",
   "kyStatus": "needs_native_proofreading",
   "intake": {
@@ -65,7 +65,7 @@
           "ru": "Примерно за полгода до старта",
           "ky": "Окуу башталганга болжол менен жарым жыл калганда"
         },
-        "basis": "estimate"
+        "basis": "evo_internal"
       },
       "checklist": [
         {
@@ -142,7 +142,7 @@
           "ru": "За 3 месяца до старта или раньше",
           "ky": "Окуу башталганга 3 ай калганда же андан эрте"
         },
-        "basis": "estimate"
+        "basis": "evo_internal"
       },
       "checklist": [
         {
@@ -226,7 +226,7 @@
           "ru": "Не позже чем за 2 месяца до старта",
           "ky": "Окуу башталганга 2 ай калгандан кечиктирбей"
         },
-        "basis": "estimate"
+        "basis": "evo_internal"
       },
       "checklist": [
         {
@@ -301,7 +301,7 @@
           "ru": "За месяц или два до старта",
           "ky": "Окуу башталганга бир же эки ай калганда"
         },
-        "basis": "estimate"
+        "basis": "evo_internal"
       },
       "checklist": [
         {

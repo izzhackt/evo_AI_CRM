@@ -30,8 +30,8 @@ final class CountryTimelineTests: XCTestCase {
         XCTAssertEqual(CountryTimelineKeys.countries, ["cn", "my", "ae", "tr", "it", "cz"])
         XCTAssertEqual(Set(Self.library.files.keys), Set(CountryTimelineKeys.all))
         let expected: [String: (TimelineStatus, Int)] = [
-            "cn": (.approved, 8), "my": (.approved, 7), "ae": (.ownerReview, 6), "tr": (.ownerReview, 6),
-            "it": (.ownerReview, 8), "cz": (.ownerReview, 6), "undecided": (.approved, 7),
+            "cn": (.approved, 8), "my": (.approved, 7), "ae": (.approved, 6), "tr": (.approved, 6),
+            "it": (.approved, 8), "cz": (.approved, 6), "undecided": (.approved, 7),
         ]
         for (key, (status, steps)) in expected {
             let file = try XCTUnwrap(Self.library.files[key], key)
@@ -163,7 +163,7 @@ final class CountryTimelineTests: XCTestCase {
         XCTAssertNil(Self.library.select(choice: "CN", kyrgyz: false, today: "16.10.2026"))
     }
 
-    func testOnlyApprovedCountriesShowTheirOwnTimeline() throws {
+    func testEverySixCountriesShowTheirOwnTimeline() throws {
         let china = try XCTUnwrap(Self.library.select(choice: "CN", kyrgyz: false, today: Self.before))
         XCTAssertEqual(china.kind, .country)
         XCTAssertEqual(china.file, "cn")
@@ -171,13 +171,17 @@ final class CountryTimelineTests: XCTestCase {
         let malaysia = try XCTUnwrap(Self.library.select(choice: "MY", kyrgyz: true, today: Self.before))
         XCTAssertEqual(malaysia.kind, .country)
         XCTAssertEqual(malaysia.countryName, "Малайзия")
-        for code in ["AE", "TR", "IT", "CZ"] {
-            let view = try XCTUnwrap(Self.library.select(choice: code, kyrgyz: false, today: Self.before))
-            XCTAssertEqual(view.kind, .general, code)
-            XCTAssertEqual(view.file, "undecided", code)
-            XCTAssertEqual(view.countryCode, code)
-            XCTAssertEqual(view.countryName, StudyCountries.name(for: code, kyrgyz: false))
-            XCTAssertTrue(view.steps.allSatisfy { $0.timing == nil }, "\(code): the general route has no dates")
+        // 18.10.2026: the owner approved Italy, Turkey, UAE and Czechia (decisions Q10).
+        for (code, steps) in [("AE", 6), ("TR", 6), ("IT", 8), ("CZ", 6)] {
+            for kyrgyz in [false, true] {
+                let view = try XCTUnwrap(Self.library.select(choice: code, kyrgyz: kyrgyz, today: Self.before))
+                XCTAssertEqual(view.kind, .country, code)
+                XCTAssertEqual(view.file, code.lowercased(), code)
+                XCTAssertEqual(view.countryCode, code)
+                XCTAssertEqual(view.countryName, StudyCountries.name(for: code, kyrgyz: kyrgyz))
+                XCTAssertEqual(view.steps.count, steps, code)
+                XCTAssertTrue(view.steps.allSatisfy { $0.timing != nil }, "\(code): a country path has dates")
+            }
         }
         XCTAssertEqual(Self.library.select(choice: "IT", kyrgyz: false, today: Self.before)?.countryName, "Италия")
         let undecided = try XCTUnwrap(Self.library.select(choice: "UNDECIDED", kyrgyz: false, today: Self.before))
@@ -276,7 +280,12 @@ final class CountryTimelineTests: XCTestCase {
         XCTAssertEqual(view.kind, .general)
         XCTAssertEqual(view.countryName, "Китай")
         files["undecided"] = nil
-        XCTAssertNil(CountryTimelineLibrary(files: files, failures: [:]).select(choice: "IT", kyrgyz: false, today: Self.before))
+        // Both the broken country file and the general route are gone: nothing to show for CN.
+        // Italy is approved since 18.10.2026 and keeps its own file, so it no longer proves the fallback.
+        let missing = CountryTimelineLibrary(files: files, failures: [:])
+        XCTAssertNil(missing.select(choice: "CN", kyrgyz: false, today: Self.before))
+        XCTAssertNil(missing.select(choice: "UNDECIDED", kyrgyz: false, today: Self.before))
+        XCTAssertEqual(missing.select(choice: "IT", kyrgyz: false, today: Self.before)?.kind, .country)
     }
 
     private typealias Mutation = (inout [String: Any]) -> Void
@@ -367,15 +376,15 @@ final class CountryTimelineTests: XCTestCase {
     }
 
     /// Повтор ключа: `JSONDecoder` взял бы первое значение, `JSON.parse` веба
-    /// последнее. iPhone отклоняет файл, поэтому страна `owner_review` не
-    /// показывается своим таймлайном ни при каком порядке повтора.
-    func testARepeatedKeyRejectsTheFileAndOwnerReviewStaysOnTheGeneralRoute() throws {
+    /// последнее. iPhone отклоняет файл, поэтому страна не показывается своим
+    /// таймлайном (а общим маршрутом) ни при каком порядке повтора.
+    func testARepeatedKeyRejectsTheFileAndTheCountryStaysOnTheGeneralRoute() throws {
         for key in ["it", "cz"] {
-            let marker = "  \"status\": \"owner_review\",\n"
+            let marker = "  \"status\": \"approved\",\n"
             let original = try text(key)
             XCTAssertTrue(original.contains(marker), key)
-            for repeated in [original.replacingOccurrences(of: marker, with: "  \"status\": \"approved\",\n" + marker),
-                             original.replacingOccurrences(of: marker, with: marker + "  \"status\": \"approved\",\n")] {
+            for repeated in [original.replacingOccurrences(of: marker, with: "  \"status\": \"owner_review\",\n" + marker),
+                             original.replacingOccurrences(of: marker, with: marker + "  \"status\": \"owner_review\",\n")] {
                 let library = CountryTimelineLibrary.load { name in
                     name == key ? Data(repeated.utf8) : try? self.rawFile(name)
                 }

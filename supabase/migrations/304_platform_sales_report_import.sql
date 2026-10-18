@@ -40,7 +40,8 @@
 --     `converted`, no sales owner (as 281), source `sales_report`. Marketing reads
 --     leads by their creation day, so `marketing_cohort` leaves them out exactly
 --     as it leaves out 281's `admissions_direct` (body edit, number of
---     replacements checked).
+--     replacements checked); the same exclusion goes into 301's telephony
+--     report (`telephony_report_v1` counts the leads created in the period).
 --  e) Journal: every change writes platform.audit_events with the principal
 --     `service:sales-report-import`, the Admin actor's profile and membership and
 --     request ids derived from the receipt key (uuid v5 by event name). Only
@@ -72,6 +73,7 @@ BEGIN
     OR to_regprocedure('platform_private.create_or_link_lead(uuid,uuid,uuid,text,text,text,text,text,text,timestamptz,timestamptz,text)') IS NULL
     OR to_regprocedure('public.uuid_generate_v5(uuid,text)') IS NULL
     OR to_regprocedure('platform_private.marketing_cohort(uuid,date,date)') IS NULL
+    OR to_regprocedure('platform.telephony_report_v1(uuid,date,date)') IS NULL
     -- 254: the context link and its one-lead-one-row index.
     OR NOT EXISTS (SELECT 1 FROM information_schema.columns c
       WHERE c.table_schema = 'platform_private' AND c.table_name = 'sales_register' AND c.column_name = 'linked_lead_id')
@@ -256,6 +258,7 @@ DECLARE
   v_reg_found BOOLEAN;
   v_row_status TEXT := 'none';
   v_last_version BIGINT;
+  v_link_own BOOLEAN := FALSE;
   v_changed TEXT[] := ARRAY[]::TEXT[];
   v_before_version BIGINT;
   -- the person
@@ -627,6 +630,20 @@ BEGIN
 
   IF v_do_link THEN
     v_before_version := v_reg.version;
+    -- The link is this import's own write. It may stand as «the version the import left» (the receipt's
+    -- register_version, which `refresh` trusts) only if the row carried nothing but the import's writes
+    -- before it: inserted or refreshed in this very call, or at version 1 / at exactly the version the
+    -- last receipt left. Otherwise a person's earlier edit would be hidden behind the link and a later
+    -- `refresh` would overwrite it; the receipt then records no version and the previous one stays.
+    IF v_row_status IN ('inserted', 'refreshed') THEN
+      v_link_own := TRUE;
+    ELSE
+      SELECT r.register_version INTO v_last_version
+      FROM platform_private.sales_report_import_receipts r
+      WHERE r.organization_id = p_organization_id AND r.register_id = v_reg.id AND r.register_version IS NOT NULL
+      ORDER BY r.receipt_seq DESC LIMIT 1;
+      v_link_own := v_reg.version = 1 OR v_reg.version IS NOT DISTINCT FROM v_last_version;
+    END IF;
     UPDATE platform_private.sales_register r
     SET linked_lead_id = v_lead, version = r.version + 1, updated_at = now()
     WHERE r.organization_id = p_organization_id AND r.id = v_reg.id
@@ -671,7 +688,7 @@ BEGIN
   INSERT INTO platform_private.sales_report_import_receipts (organization_id, import_source, external_ref,
     actor_membership_id, payload_md5, register_id, register_version, lead_note, result, before_state)
   VALUES (p_organization_id, p_import_source, v_ref, v_actor.membership_id, v_hash, v_reg.id,
-    CASE WHEN v_row_status IN ('inserted', 'refreshed') OR v_person_status IN ('linked', 'lead_created')
+    CASE WHEN v_row_status IN ('inserted', 'refreshed') OR (v_person_status IN ('linked', 'lead_created') AND v_link_own)
       THEN v_reg.version END,
     v_note, v_result - 'replayed', v_before);
   RETURN v_result;
@@ -692,6 +709,11 @@ COMMENT ON FUNCTION platform.import_sales_report_row_v1(UUID, UUID, TEXT, TEXT, 
 SELECT pg_temp.a304_replace('platform_private.marketing_cohort(uuid,date,date)',
   $old$l.source_key<>'admissions_direct'$old$,
   $new$l.source_key NOT IN ('admissions_direct','sales_report')$new$, 1);
+-- The «Звонки» block of the sales report (301) counts the leads created in the period; the people carried over
+-- from the report are not enquiries of the period either (it already leaves out `admissions_direct` and `phone_call`).
+SELECT pg_temp.a304_replace('platform.telephony_report_v1(uuid,date,date)',
+  $old$l.source_key NOT IN ('admissions_direct', 'phone_call')$old$,
+  $new$l.source_key NOT IN ('admissions_direct', 'phone_call', 'sales_report')$new$, 1);
 
 -- ---------------------------------------------------------------------------
 -- Self-check: definer, empty search_path, service_role-only EXECUTE, receipts private.
@@ -719,6 +741,10 @@ BEGIN
   IF (SELECT prosrc FROM pg_catalog.pg_proc WHERE oid = 'platform_private.marketing_cohort(uuid,date,date)'::regprocedure)
       NOT LIKE '%l.source_key NOT IN (''admissions_direct'',''sales_report'')%' THEN
     RAISE EXCEPTION 'a304_verification_failed: marketing_cohort';
+  END IF;
+  IF (SELECT prosrc FROM pg_catalog.pg_proc WHERE oid = 'platform.telephony_report_v1(uuid,date,date)'::regprocedure)
+      NOT LIKE '%l.source_key NOT IN (''admissions_direct'', ''phone_call'', ''sales_report'')%' THEN
+    RAISE EXCEPTION 'a304_verification_failed: telephony_report_v1';
   END IF;
 END
 $a304_verify$;

@@ -1001,7 +1001,8 @@ SELECT pg_temp.t293_assert((pg_temp.t293_get('h1')->'divergence'->>'window_hours
   AND (pg_temp.t293_get('h1')->'divergence'->>'reconciled_calls')::INT > 0
   AND (pg_temp.t293_get('h1')->'divergence'->>'calls')::INT > (pg_temp.t293_get('h1')->'divergence'->>'reconciled_calls')::INT,
   'the divergence counts calls that only the reconciliation brought, against all calls of the last 24 hours (imports excluded)');
--- Leak checks below look for a whole phone number (996 and nine more digits, every number of this suite), not for the
+-- Leak checks below look for a whole phone number (996 and nine more digits, every number of this suite, written with or
+-- without spaces, brackets, plus and hyphens), not for the
 -- bare substring '996': the health answer carries a dozen timestamps with random microseconds, so '996' appeared in them
 -- by chance in a few runs out of a hundred and failed the required Migration boundary check at random (18.10.2026).
 -- Evidence of the last 24 hours: all, rejected after the key check, incomplete; and the automation stop.
@@ -1024,12 +1025,12 @@ SELECT pg_temp.t293_assert(pg_temp.t293_get('h_ev1')->>'validation_state' = 'inc
   AND (pg_temp.t293_get('h2')->'evidence'->>'incomplete')::INT = 1 AND (pg_temp.t293_get('h2')->'evidence'->>'rejected')::INT = 1
   AND (pg_temp.t293_get('h2')->'evidence'->>'received')::INT = (pg_temp.t293_get('h1')->'evidence'->>'received')::INT + 2
   AND pg_temp.t293_get('h2')->'automation_stop'->>'code' = 'leads_hour' AND pg_temp.t293_get('h2')->'automation_stop'->>'stopped_at' IS NOT NULL
-  AND position('x.example.invalid' IN pg_temp.t293_get('h2')::TEXT) = 0 AND pg_temp.t293_get('h2')::TEXT !~ '996[0-9]{9}',
+  AND position('x.example.invalid' IN pg_temp.t293_get('h2')::TEXT) = 0 AND regexp_replace(pg_temp.t293_get('h2')::TEXT, '[ ()+-]', '', 'g') !~ '996[0-9]{9}',
   'rejected and incomplete messages and the automation stop show up as counts and a code, never as values');
 SELECT pg_temp.t293_assert(pg_temp.t293_get('h2')->'work' = (SELECT COALESCE(jsonb_object_agg(w.state, w.n), '{}'::JSONB)
     FROM (SELECT state, count(*) AS n FROM platform_private.telephony_event_work WHERE organization_id = pg_temp.t293_id(1) GROUP BY state) w),
   'the queue is reported as counts by state');
-SELECT pg_temp.t293_assert(pg_temp.t293_get('h2')::TEXT !~ '996[0-9]{9}' AND position('https' IN pg_temp.t293_get('h2')::TEXT) = 0
+SELECT pg_temp.t293_assert(regexp_replace(pg_temp.t293_get('h2')::TEXT, '[ ()+-]', '', 'g') !~ '996[0-9]{9}' AND position('https' IN pg_temp.t293_get('h2')::TEXT) = 0
   AND position('u701' IN pg_temp.t293_get('h2')::TEXT) = 0 AND position('t293' IN pg_temp.t293_get('h2')::TEXT) = 0
   AND position('@' IN pg_temp.t293_get('h2')::TEXT) = 0,
   'the health answer holds no phone, login, link, name or e-mail');

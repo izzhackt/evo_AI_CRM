@@ -578,6 +578,31 @@ SELECT pg_temp.sri_assert(:'sri_l11'::JSONB ->> 'status' = 'refreshed' AND :'sri
   AND (SELECT r.linked_lead_id = :'sri_lead2'::UUID AND r.fields ->> 'paid_minor' = '120000'
     FROM platform_private.sales_register r WHERE r.id = :'sri_reg13'::UUID),
   'link: a refresh after a link made by this import is accepted and keeps the link');
+-- A person's edit BEFORE the import's link must not be hidden behind it: insert (v1), a hand edit (v2), the import ties the
+-- row to a lead (v3, no version in the receipt), then a refresh is refused and the edit stays.
+SELECT platform_private.create_or_link_client(pg_temp.sri_id(1), 'SRI Existing Four', NULL,
+  '+996 555 299 704', 'sri-fixture', 'client', 'client-4', 'staff_recorded', statement_timestamp()) AS sri_client4 \gset
+SELECT platform_private.create_or_link_lead(pg_temp.sri_id(1), :'sri_client4'::UUID, NULL, 'new', 'office',
+  'sri-fixture', 'lead', 'lead-4', 'staff_recorded', statement_timestamp()) AS sri_lead4 \gset
+SET LOCAL ROLE service_role;
+SELECT pg_temp.sri_call('he1', pg_temp.sri_pay(pg_temp.sri_row('SRI:Sheet:HE', 'a', 'insert', 'SRI Marker HandEdit', 100000))) AS sri_he1 \gset
+RESET ROLE;
+SELECT (:'sri_he1'::JSONB ->> 'register_id')::UUID AS sri_reg_he \gset
+UPDATE platform_private.sales_register SET fields = jsonb_set(fields, '{paid_minor}', '999'::JSONB), version = version + 1 WHERE id = :'sri_reg_he'::UUID;
+SET LOCAL ROLE service_role;
+SELECT pg_temp.sri_call('he2', pg_temp.sri_pay(pg_temp.sri_row('SRI:Sheet:HE', 'a', 'link_only'), pg_temp.sri_link(:'sri_lead4'::UUID))) AS sri_he2 \gset
+RESET ROLE;
+SELECT pg_temp.sri_assert(:'sri_he2'::JSONB ->> 'status' = 'linked' AND :'sri_he2'::JSONB ->> 'register_version' = '3'
+  AND (SELECT x.register_version IS NULL FROM platform_private.sales_report_import_receipts x
+      WHERE x.external_ref = 'he2' AND x.organization_id = pg_temp.sri_id(1)),
+  'link: a link over a hand edit leaves no version in the receipt (the edit is not the import''s write)');
+SET LOCAL ROLE service_role;
+SELECT pg_temp.sri_assert(pg_temp.sri_try('he3', pg_temp.sri_pay(pg_temp.sri_row('SRI:Sheet:HE', 'b', 'refresh', 'SRI Marker HandEdit', 150000)))
+  = 'PT409:sales_report_row_edited', 'refresh: a hand edit that came before the import''s own link still closes the row');
+RESET ROLE;
+SELECT pg_temp.sri_assert((SELECT r.version = 3 AND r.fields ->> 'paid_minor' = '999' AND r.linked_lead_id = :'sri_lead4'::UUID
+    FROM platform_private.sales_register r WHERE r.id = :'sri_reg_he'::UUID),
+  'refresh: the row after the refused refresh keeps the edit and the link');
 
 -- ---------------------------------------------------------------------------
 -- 6. create_lead.
@@ -771,6 +796,11 @@ SELECT pg_temp.sri_assert(:'sri_o1'::JSONB ->> 'status' = 'inserted' AND :'sri_o
 -- ---------------------------------------------------------------------------
 -- 9. Posture of the new objects.
 -- ---------------------------------------------------------------------------
+SELECT pg_temp.sri_assert((SELECT p.prosrc LIKE '%l.source_key NOT IN (''admissions_direct'', ''phone_call'', ''sales_report'')%'
+      AND p.prosecdef AND p.proconfig = ARRAY['search_path=""'] AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
+      AND NOT has_function_privilege('anon', p.oid, 'EXECUTE')
+    FROM pg_catalog.pg_proc p WHERE p.oid = 'platform.telephony_report_v1(uuid,date,date)'::regprocedure),
+  'posture: the telephony report leaves the carried-over (sales_report) leads out and keeps its definer, search_path and grants');
 SELECT pg_temp.sri_assert(
   has_function_privilege('service_role', 'platform.import_sales_report_row_v1(uuid,uuid,text,text,jsonb,text)', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'platform.import_sales_report_row_v1(uuid,uuid,text,text,jsonb,text)', 'EXECUTE')

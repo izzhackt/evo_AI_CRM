@@ -8,6 +8,7 @@ import { mutateStaffTaskAction } from "@/lib/platform-staff-task-actions";
 import { changePlatformAdmissionsTaskAction } from "@/lib/platform-admissions-task-actions";
 import type { StaffParticipant, StaffTask } from "@/lib/platform-staff-task-contract";
 import { projectPlatformTaskDeadline } from "@/lib/platform-task-deadline";
+import { DIAL_TOUCH_HINT } from "@/lib/v3/telephony-dial";
 import { taskStatus } from "@/lib/v3/wording";
 import { DeadlineFields } from "../calendar/TaskControls";
 import type { CalendarCaseTask, CalendarTaskCapabilities, Day } from "../calendar/types";
@@ -15,10 +16,13 @@ import { queueDue } from "../queue/due-bucket";
 import { QUEUE_CONFIRM, QUEUE_FIELD, QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { queueRowReturn } from "../panel/side-panel";
 import { SidePanel } from "../panel/SidePanel";
+import { DialButton } from "../telephony/DialButton";
 import { CASE_ERROR_COPY, STAFF_ERROR_COPY, caseChangeForm, staffEditForm, staffStatusForm, type DeadlineFieldValues } from "./task-commands";
 
 type StaffTaskExtra = Readonly<{
   leadHref: string | null;
+  /** Клиент задачи, когда набор открыт сотруднику (телефония): имя, «Позвонить» и карточка лида; иначе null. */
+  lead?: Readonly<{ leadId: string; name: string; href: string; mapped: boolean }> | null;
   sourceHref: string | null;
   sourceUnavailable: boolean;
   outcomes: readonly Readonly<{ requestId: string; note: string; author: string; createdAt: string }>[];
@@ -175,6 +179,21 @@ export function TaskDetailPanel({
           </> : null}
         </dl>
 
+        {data.kind === "staff" && data.extra?.lead && !readOnly ? (
+          <section className={SECTION} aria-label="Клиент" data-testid="v3-task-lead">
+            <h3 className={SECTION_TITLE}>Клиент: <span className="break-words">{data.extra.lead.name}</span></h3>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {!isDone ? <DialButton leadId={data.extra.lead.leadId} mapped={data.extra.lead.mapped} subject={data.extra.lead.name} /> : null}
+              <Link href={data.extra.lead.href} className={LINK}>Открыть карточку лида</Link>
+              {/* На телефоне и сенсорном экране у кнопки нет подсказки при наведении: что набор сначала звонит сотруднику, сказано строкой
+                  (та же, что под рядом действий карточки лида). Несопоставленному она не нужна: нажатие скажет, что его логин ВАТС не связан. */}
+              {!isDone && data.extra.lead.mapped ? (
+                <p className="hidden basis-full t-meta text-fg-2 max-sm:block pointer-coarse:block" data-testid="v3-dial-hint">{DIAL_TOUCH_HINT}</p>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
         {!isDone && !readOnly ? (
           <form onSubmit={complete} className="space-y-3 border-t border-border pt-4">
             {data.kind === "staff"
@@ -214,7 +233,7 @@ export function TaskDetailPanel({
               Обсудить
             </Link>
           ) : null}
-          {data.kind === "staff" && data.extra?.leadHref ? <Link href={data.extra.leadHref} className={LINK}>Открыть связанного лида</Link> : null}
+          {data.kind === "staff" && data.extra?.leadHref ? <Link href={data.extra.leadHref} className={LINK}>{data.extra.lead ? "Все задачи по лиду" : "Открыть связанного лида"}</Link> : null}
           {data.kind === "staff" && data.extra?.sourceHref ? <Link href={data.extra.sourceHref} className={LINK}>Открыть исходное обсуждение</Link> : null}
         </div>
         {data.kind === "staff" && data.extra && !data.extra.sourceHref && data.extra.sourceUnavailable

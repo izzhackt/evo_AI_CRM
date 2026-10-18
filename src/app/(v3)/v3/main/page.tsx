@@ -20,6 +20,7 @@ import type { TelephonyReportState } from "@/lib/v3/telephony-report";
 import { canReadTelephonyReport, readTelephonyReport } from "@/lib/v3/telephony-report-source";
 import { buildTodayQueue, todayDateLabel } from "@/lib/v3/today-queue";
 import { readDialOptions } from "@/lib/v3/telephony-dial-source";
+import { readTodayTaskLeads } from "@/lib/v3/telephony-task-leads-source";
 import { readTodayQueue, todayLinks } from "@/lib/v3/today-source";
 
 export const dynamic = "force-dynamic";
@@ -128,6 +129,8 @@ export default async function MainPart({
   // «Позвонить» (Телефония, T7) читается рядом с очередью: сбой или выключенный набор — просто без кнопок.
   const [{ access, reads }, dial] = await Promise.all([readTodayQueue(actor, { now }), readDialOptions(actor)]);
   const queue = buildTodayQueue(reads, now);
+  // Задача «Перезвонить клиенту» несёт лид: строка называет клиента, пока набор открыт этому сотруднику (иначе — как раньше).
+  const taskLeads = dial.status === "ready" ? await readTodayTaskLeads(actor, queue) : null;
   const preview = isStaffPreview(actor);
   const { boards, mainAction } = todayLinks(actor, access, { canReadReport });
 
@@ -143,6 +146,7 @@ export default async function MainPart({
         nowIso={now.toISOString()}
         mainAction={mainAction}
         dial={dial}
+        taskLeads={taskLeads}
         permissions={{
           actorMembershipId: actor.membershipId,
           admin: actor.systemRole === "admin" && !preview,

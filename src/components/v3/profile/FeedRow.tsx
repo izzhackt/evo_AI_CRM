@@ -23,9 +23,9 @@ function Mark({ type, link = false }: Readonly<{ type: "t-body" | "t-body-compac
   );
 }
 
-/** Момент строки: дата и время моноширинными цифрами. */
-function Moment({ at, label }: Readonly<{ at: string; label: string }>) {
-  return <time dateTime={at} className="font-mono tabular-nums">{label}</time>;
+/** Момент строки: дата и время моноширинными цифрами; `exact` — точное время подсказкой, когда метка словами («38 мин назад»). */
+function Moment({ at, label, exact }: Readonly<{ at: string; label: string; exact?: string }>) {
+  return <time dateTime={at} title={exact} className="font-mono tabular-nums">{label}</time>;
 }
 
 type Focus = Readonly<{
@@ -87,8 +87,8 @@ export function FeedChat({ author, text, at, label, href, focusTarget }: Readonl
  * Номер и имена приходят готовыми строками: полного номера и ссылки на запись
  * у строки нет.
  */
-export function FeedCall({ title, outcome, details, at, label, children, focusTarget }: Readonly<{
-  title: string; outcome: string; details: string | null; at: string; label: string; children?: ReactNode;
+export function FeedCall({ title, outcome, details, at, label, exact, children, focusTarget }: Readonly<{
+  title: string; outcome: string; details: string | null; at: string; label: string; exact?: string; children?: ReactNode;
 }> & Focus) {
   return (
     <li className="flex gap-x-2 py-2.5" data-feed="call" tabIndex={focusTarget ? -1 : undefined}>
@@ -96,7 +96,7 @@ export function FeedCall({ title, outcome, details, at, label, children, focusTa
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-baseline gap-x-2 t-body-compact text-fg-2">
           <span className="min-w-0 flex-1 break-words"><span className="text-fg">{title}</span> · {outcome}</span>
-          <span className="t-meta"><Moment at={at} label={label} /></span>
+          <span className="t-meta"><Moment at={at} label={label} exact={exact} /></span>
         </p>
         {details ? <p className="mt-0.5 break-words t-meta text-fg-2">{details}</p> : null}
         {children}

@@ -67,7 +67,7 @@ import { readCaseAgreement } from "@/lib/v3/case-agreement-source";
 import { readCaseWork } from "@/lib/v3/case-work-source";
 import { readPipelineOwnerOptions, readPipelineStages } from "@/lib/v3/pipeline-source";
 import { readCaseClosure, readClosedLeads, type CaseClosure, type ClosedLeadRow } from "@/lib/platform-closure";
-import { closureWords } from "@/lib/v3/wording";
+import { closureWords, leadDisplayName } from "@/lib/v3/wording";
 import { studentPortalProvisioningRequestId } from "@/lib/server/student-portal-command-ids";
 import { loadStudentsCoverage } from "@/lib/v3/students-coverage-source";
 import { readDocsPackages, readDocsProgramDocuments, readStudentsHandoff, readStudentsOpenTasks, readStudentsQueue } from "@/lib/v3/students-queue-source";
@@ -524,7 +524,7 @@ export default async function ProfilePart({
   ) : undefined;
 
   return (
-    <PartShell title={(caseParts || leadParts) && view ? view.profile.person : docsMode ? "EVO Docs" : view ? "Профиль"
+    <PartShell title={(caseParts || leadParts) && view ? leadDisplayName(view.profile.source, view.profile.person) : docsMode ? "EVO Docs" : view ? "Профиль"
       : closedLead ? closedLead.name ?? "Лид без имени" : "Студенты"}
       count={queuePage?.count ?? null} action={docsAction ?? caseParts?.actions ?? leadParts?.actions} dense={queuePage !== null || caseParts !== null || leadParts !== null}
       back={caseBack ?? leadBack ?? closedLeadBack}>

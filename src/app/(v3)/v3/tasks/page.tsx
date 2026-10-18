@@ -14,10 +14,12 @@ import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { readStaffTaskWorkspace, taskQueueAccess } from "@/lib/v3/staff-task-source";
 import { buildTaskQueue, parseTaskQueueFilters, taskQueueParams } from "@/lib/v3/task-queue";
 import { readCalendarTaskTarget } from "@/lib/v3/calendar-source";
-import { taskStatus } from "@/lib/v3/wording";
+import { callerDisplayName, taskStatus } from "@/lib/v3/wording";
 import { isTeamChatChannel, staffCanAccessChatChannel, type TeamChatMessage } from "@/lib/platform-team-chat";
 import { readTeamChatPage, TeamChatReadError } from "@/lib/server/platform-team-chat-repository";
 import { readStaffTaskChatSource, readStaffTaskContext, readStaffTaskLeadContext, readLeadTaskLinks, type StaffTaskContext } from "@/lib/server/platform-staff-task-repository";
+import { readDialOptions } from "@/lib/v3/telephony-dial-source";
+import { readLeadRef, type TaskLeadRef } from "@/lib/v3/telephony-task-leads-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Задачи" };
@@ -93,6 +95,15 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     try { taskContext = await readStaffTaskContext(actor, selected.id); }
     catch { contextUnavailable = true; }
   }
+  // Задача «Перезвонить клиенту» несёт лид: пока набор открыт этому сотруднику, панель называет клиента и звонит.
+  let taskLead: (TaskLeadRef & { mapped: boolean }) | null = null;
+  if (selected && taskContext?.leadId) {
+    const dial = await readDialOptions(actor);
+    if (dial.status === "ready") {
+      const ref = await readLeadRef(actor, taskContext.leadId);
+      if (ref) taskLead = { ...ref, mapped: dial.mapped };
+    }
+  }
   let selectedSourceHref: string | null = null;
   let sourceUnavailable = false;
   if (selected?.sourceMessageId) {
@@ -130,6 +141,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     kind: "staff", task: selected, participants: workspace.assignees,
     extra: {
       leadHref: taskContext?.leadId ? `/v3/tasks?lead=${taskContext.leadId}` : null,
+      lead: taskLead,
       sourceHref: selectedSourceHref, sourceUnavailable: Boolean(selected.sourceMessageId) && !selectedSourceHref && sourceUnavailable,
       outcomes: taskContext?.outcomes ?? [], outcomesUnavailable: contextUnavailable,
     },
@@ -141,7 +153,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   return <>
     <PartShell title="Задачи" count={canReadTaskQueue && queue.complete && !sourceLead ? queue.rows.length : null}>
     {sourceLead ? <section className="mb-5 space-y-3 border-y border-border py-4" aria-label="Задачи по лиду">
-      <h2 className="t-section">{sourceLead.clientDisplayName ?? "Имя клиента не указано"}</h2>
+      <h2 className="t-section">{callerDisplayName(sourceLead.clientDisplayName ?? "Имя клиента не указано")}</h2>
       <p className="t-body-compact text-fg-2">Следующее действие воронки: {sourceLead.nextActionText ?? "Не назначено"}{sourceLead.nextActionDueDate ? ` · ${sourceLead.nextActionDueDate}` : ""}</p>
       {sourceLead.canOpenPipeline ? <Link href={sourceLead.clientDisplayName === "Имя клиента не указано" ? "/v3/pipeline" : `/v3/pipeline?q=${encodeURIComponent(sourceLead.clientDisplayName)}`} className="inline-flex min-h-11 items-center t-label underline">Открыть в воронке</Link> : null}
       <TaskComposerDialog key={sourceLead.leadId} {...composerProps}

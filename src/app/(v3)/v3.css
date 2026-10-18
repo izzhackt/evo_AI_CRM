@@ -342,6 +342,18 @@
 }
 
 /*
+ * «Перезвонить» в строке итога звонка раскрывает поле дня, но выбранным не является: раскрытая кнопка рядом с
+ * отмеченным итогом выглядела бы вторым выбранным. Раскрытие — только тёмная рамка; плашка и жирность остаются
+ * у `aria-pressed="true"`.
+ */
+.v3-world [data-testid="v3-call-result"] .v3-choice[aria-expanded="true"]:not([aria-pressed="true"]) {
+  border-color: var(--text);
+  background-color: var(--surface);
+  color: var(--text);
+  font-weight: inherit;
+}
+
+/*
  * Всплывающее меню и окно у своей кнопки (рабочая очередь, 25.09.2026):
  * popover API держит его в верхнем слое — контейнер с прокруткой его не
  * обрежет, — а CSS anchor positioning ставит под кнопкой и переворачивает у
@@ -955,6 +967,26 @@
 .v3-world[data-surface="staff"] .v3-toasts[data-edge="top"] {
   inset: calc(16px + var(--shell-top, 0px)) 0 auto 0;
 }
+/*
+ * Ответ кнопки «Позвонить» (Телефония T7) стоит под самой кнопкой, а не у края окна: сверху он закрывал красное
+ * главное действие заголовка и только что нажатую кнопку, снизу — поле ответа чата. Якорь задаёт кнопка
+ * (`anchor-name`), окно прижато правым краем к её правому краю и переворачивается у края экрана; на телефоне
+ * оно идёт во всю ширину под строкой действий. Где anchor positioning нет, место считает сама кнопка.
+ */
+.v3-world[data-surface="staff"] .v3-toasts[data-edge="anchor"] {
+  inset: auto;
+  margin: 4px 0;
+  position-area: block-end span-all;
+  justify-self: center;
+  position-try-fallbacks: flip-block;
+}
+@media (min-width: 40rem) {
+  .v3-world[data-surface="staff"] .v3-toasts[data-edge="anchor"] {
+    justify-self: auto;
+    position-area: block-end span-inline-start;
+    position-try-fallbacks: flip-block, flip-inline;
+  }
+}
 .v3-world[data-surface="staff"] .v3-toast {
   display: flex;
   flex-wrap: wrap;
@@ -992,7 +1024,8 @@
   .v3-world[data-surface="staff"] .v3-toast {
     animation: v3-toast-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .v3-world[data-surface="staff"] .v3-toasts[data-edge="top"] .v3-toast {
+  .v3-world[data-surface="staff"] .v3-toasts[data-edge="top"] .v3-toast,
+  .v3-world[data-surface="staff"] .v3-toasts[data-edge="anchor"] .v3-toast {
     animation-name: v3-toast-in-top;
   }
   .v3-world[data-surface="staff"] .v3-progress-fill {

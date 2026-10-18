@@ -3,9 +3,12 @@ import Link from "next/link";
 import { Icon } from "@/components/icons";
 import {
   REPORT_MISSED_LIST_LIMIT,
+  REPORT_PHONE_CELLS,
   reportCells,
   reportIsEmpty,
   reportMoment,
+  reportRowIsIdle,
+  reportSummary,
   unassignedCells,
   type ReportCell,
   type TelephonyReport,
@@ -17,24 +20,63 @@ import { QUEUE_QUIET_LINK } from "./queue/QueueStates";
 
 /**
  * Ячейки строки: подпись, главное число и мелкие пояснения. Пары «подпись — значение» в `dl`:
- * на телефоне две колонки, шире — три, от `lg` — шесть в ряд. Таблицы нет — ни горизонтальной
- * прокрутки, ни повторной разметки для узкого экрана.
+ * от `sm` три колонки, от `lg` — шесть в ряд. Таблицы нет — ни горизонтальной прокрутки, ни повторной
+ * разметки для узкого экрана. На телефоне строка менеджера — три главные ячейки в ряд («Звонки»,
+ * «Отвечено», «Пропущенные без перезвона»), остальные три и вторые строки пояснений главных ячеек («исходящие
+ * 1 из 2», «перезвонили в срок…») раскрываются по «Все показатели»: пять менеджеров не занимают две тысячи
+ * пикселей, а ни одно пояснение на телефоне не теряется.
  */
-const FULL_GRID = "grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3 lg:grid-cols-6";
+const FULL_GRID = "grid grid-cols-3 gap-x-3 gap-y-4 sm:gap-x-4 lg:grid-cols-6";
 /** Строка «Без ответственного» несёт две ячейки: они стоят слева двумя колонками, а не растянуты на шесть. */
 const SHORT_GRID = "grid max-w-xl grid-cols-2 gap-x-4 gap-y-4";
+const QUIET_SUMMARY = "inline-flex min-h-11 cursor-pointer list-none items-center t-meta text-fg-2 underline underline-offset-4 hover:text-fg [&::-webkit-details-marker]:hidden";
 
-function Cells({ cells, grid = FULL_GRID }: Readonly<{ cells: readonly ReportCell[]; grid?: string }>) {
+/**
+ * Одна ячейка: крупная цифра, а когда числа нет — спокойное слово («ждём»), не прочерк и не крупный шрифт.
+ * `firstNoteOnly` — главная ячейка телефона: рядом с цифрой одна короткая строка, остальные пояснения не
+ * потеряны, а стоят в «Все показатели» (`NotesOnly`). `Cell` без `firstNoteOnly` — полная ячейка.
+ */
+function Cell({ cell, className = "", firstNoteOnly = false }: Readonly<{ cell: ReportCell; className?: string; firstNoteOnly?: boolean }>) {
   return (
-    <dl className={`mt-3 ${grid}`}>
-      {cells.map((cell) => (
-        <div key={cell.label} className="min-w-0">
-          <dt className="t-caption text-fg-2">{cell.label}</dt>
-          <dd className="t-figure tabular-nums text-fg">{cell.figure}</dd>
-          {cell.notes.map((note) => <dd key={note} className="t-meta text-fg-3">{note}</dd>)}
-        </div>
-      ))}
-    </dl>
+    <div className={`min-w-0 ${className}`} title={cell.hint}>
+      <dt className="t-caption text-fg-2">{cell.label}</dt>
+      <dd className={cell.quiet ? "t-body-compact text-fg-2" : "t-figure tabular-nums text-fg"}>{cell.figure}</dd>
+      {cell.notes.map((note, index) => <dd key={note} className={`t-meta text-fg-3${firstNoteOnly && index > 0 ? " max-sm:hidden" : ""}`}>{note}</dd>)}
+    </div>
+  );
+}
+
+/**
+ * Пояснения главной ячейки целиком, без повторной цифры — для «Все показатели» на телефоне: разбивка «исходящие 1 из 2»,
+ * «перезвонили в срок / позже срока / срок ещё не вышел» не пропадает вместе со строками, скрытыми в ряду главных ячеек.
+ */
+function NotesOnly({ cell }: Readonly<{ cell: ReportCell }>) {
+  return (
+    <div className="min-w-0" title={cell.hint} data-calls-notes="">
+      <dt className="t-caption text-fg-2">{cell.label}</dt>
+      {cell.notes.map((note) => <dd key={note} className="t-meta text-fg-3">{note}</dd>)}
+    </div>
+  );
+}
+
+function Cells({ cells, grid = FULL_GRID, phoneSplit = false }: Readonly<{ cells: readonly ReportCell[]; grid?: string; phoneSplit?: boolean }>) {
+  const isPrimary = (index: number) => !phoneSplit || (REPORT_PHONE_CELLS as readonly number[]).includes(index);
+  // Что телефон спрятал из главных ячеек (вторая и следующие строки) — за «Все показатели», вместе с остальными тремя ячейками.
+  const hasMoreNotes = (cell: ReportCell) => cell.notes.length > 1;
+  return (
+    <>
+      <dl className={`mt-3 ${grid}`}>
+        {cells.map((cell, index) => <Cell key={cell.label} cell={cell} className={isPrimary(index) ? "" : "max-sm:hidden"} firstNoteOnly={phoneSplit} />)}
+      </dl>
+      {phoneSplit ? (
+        <details className="mt-1 sm:hidden" data-calls-all="">
+          <summary className={QUIET_SUMMARY}>Все показатели</summary>
+          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-4">
+            {cells.map((cell, index) => !isPrimary(index) ? <Cell key={cell.label} cell={cell} /> : hasMoreNotes(cell) ? <NotesOnly key={cell.label} cell={cell} /> : null)}
+          </dl>
+        </details>
+      ) : null}
+    </>
   );
 }
 
@@ -45,7 +87,7 @@ function Everyone({ report, id }: Readonly<{ report: TelephonyReport; id: string
       {team ? (
         <section aria-labelledby={`${id}-team`} className="min-w-0" data-calls-team="">
           <h3 id={`${id}-team`} className="t-item text-fg">Вся команда</h3>
-          <Cells cells={reportCells(team, slaMinutes)} />
+          <Cells cells={reportCells(team, slaMinutes)} phoneSplit />
         </section>
       ) : null}
       <section aria-labelledby={`${id}-managers`} className="min-w-0" data-calls-managers="">
@@ -54,12 +96,18 @@ function Everyone({ report, id }: Readonly<{ report: TelephonyReport; id: string
           <p className="mt-3 border-y border-border py-6 text-center t-body-compact text-fg-3">Нет сотрудников со звонками за период.</p>
         ) : (
           <ul className="mt-2 divide-y divide-border border-y border-border">
-            {managers.map((row) => (
+            {managers.filter((row) => !reportRowIsIdle(row)).map((row) => (
               <li key={row.membershipId} className="py-3" data-calls-manager={row.membershipId}>
                 <h4 className="t-label text-fg">{row.name}</h4>
-                <Cells cells={reportCells(row, slaMinutes)} />
+                <Cells cells={reportCells(row, slaMinutes)} phoneSplit />
               </li>
             ))}
+            {/* Строки из одних нулей не нужны: сотрудники без звонков, лидов и пропущенных — одной строкой. */}
+            {managers.some(reportRowIsIdle) ? (
+              <li className="py-3 t-meta text-fg-2" data-calls-idle="">
+                Без звонков за период: {managers.filter(reportRowIsIdle).map((row) => row.name).join(", ")}
+              </li>
+            ) : null}
             {unassigned ? (
               <li className="py-3" data-calls-unassigned="">
                 <h4 className="t-label text-fg">Без ответственного</h4>
@@ -79,7 +127,7 @@ function Own({ report, id }: Readonly<{ report: TelephonyReport; id: string }>) 
   return (
     <section aria-labelledby={`${id}-own`} className="min-w-0" data-calls-own="">
       <h3 id={`${id}-own`} className="t-item text-fg">Ваши цифры</h3>
-      <Cells cells={reportCells(row, report.slaMinutes)} />
+      <Cells cells={reportCells(row, report.slaMinutes)} phoneSplit />
     </section>
   );
 }
@@ -148,9 +196,11 @@ export function SalesCallsReport({
   const report = state.status === "ready" ? state.report : null;
   return (
     <details id={id} open={open} className="group mt-8 scroll-mt-4 border-t border-border pt-2" data-testid="v3-sales-calls">
-      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-nav text-fg [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-3 rounded-nav text-fg [&::-webkit-details-marker]:hidden">
         <Icon name="chevron-right" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none" />
         <h2 className="t-section">Звонки</h2>
+        {/* Свёрнутый блок говорит главное сам, с периодом: он не месяц отчёта выше, а период «Динамики по дням». */}
+        {report ? <span className="min-w-0 t-meta text-fg-2 group-open:hidden" data-testid="v3-sales-calls-summary">{periodText} · {reportSummary(report)}</span> : null}
       </summary>
 
       <div className="mt-4 space-y-8">

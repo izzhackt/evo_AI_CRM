@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 
 import { Icon } from "@/components/icons";
-import { DIAL_ABOUT, DIAL_COPY, dialRouteAnswer } from "@/lib/v3/telephony-dial";
+import { DIAL_ABOUT, DIAL_COPY, dialAccessibleName, dialRouteAnswer } from "@/lib/v3/telephony-dial";
 
 /** Как у соседних вторичных действий заголовка карточки лида и чата: 44 px, рамка контрола, без красного. */
-const ACTION_CLASS = "inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:text-fg-3";
+const ACTION_CLASS = "inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:text-fg-3 aria-disabled:text-fg-3 aria-disabled:hover:bg-surface aria-disabled:hover:text-fg-3";
 /** Строка «Сегодня»: значок 44 px над ссылкой, покрывающей строку (`z-10`), без рамки. */
-const ROW_CLASS = "relative z-10 grid min-h-11 min-w-11 place-items-center rounded-nav text-fg-2 hover:text-fg disabled:cursor-not-allowed disabled:text-fg-3";
+const ROW_CLASS = "relative z-10 grid min-h-11 min-w-11 place-items-center rounded-nav text-fg-2 hover:text-fg disabled:cursor-not-allowed disabled:text-fg-3 aria-disabled:text-fg-3 aria-disabled:hover:text-fg-3";
 /** Сколько кнопка стоит после принятого звонка: столько же, сколько ВАТС держит паузу между наборами у сотрудника. */
 const COOLDOWN_MS = 6_000;
 /** Сколько сообщение остаётся на экране, пока его не закрыли: фраза длинная, её нужно успеть прочесть. */
@@ -36,8 +36,9 @@ function newRequestId(): string {
  * если звонок уже был набран, маршрут отвечает, что он был, а не «Звоним». Ответ маршрута
  * завершает попытку, следующее нажатие — новый звонок. После принятого звонка кнопка ненадолго замирает,
  * чтобы не упереться в паузу между наборами. Сообщение — строка в верхнем слое у верхнего края
- * (как «Вышла новая версия»): нижний край занят «Отменить» и полями ответа чата. Решает база и
- * сервер; кнопка показывает их слова. Не сопоставленному сотруднику кнопка отвечает, что делать,
+ * под самой кнопкой (якорь `anchor-name`/`position-area`, без якоря — считает место эффект ниже): ни действия
+ * заголовка, ни только что нажатая кнопка не закрыты; нижний край занят «Отменить» и полями ответа чата.
+ * Решает база и сервер; кнопка показывает их слова. Не сопоставленному сотруднику кнопка отвечает, что делать,
  * и ничего не отправляет.
  */
 export function DialButton({
@@ -45,6 +46,7 @@ export function DialButton({
   mapped,
   variant = "action",
   subject = null,
+  iconOnly = false,
 }: Readonly<{
   leadId: string;
   /** Сотрудник сопоставлен с пользователем ВАТС (иначе набор всё равно откажет). */
@@ -52,9 +54,13 @@ export function DialButton({
   variant?: "action" | "row";
   /** Кого набираем — имя для читалки у кнопки без слов (строка «Сегодня»). */
   subject?: string | null;
+  /** Только значок и при ширине (строка очереди: рядом уже есть своя кнопка); имя для читалки остаётся. */
+  iconOnly?: boolean;
 }>) {
   const hintId = useId();
+  const anchorName = `--dial-anchor-${hintId.replace(/[^a-zA-Z0-9_-]/gu, "")}`;
   const requestId = useRef<string | null>(null);
+  const button = useRef<HTMLButtonElement>(null);
   const toast = useRef<HTMLDivElement>(null);
   const [pending, setPending] = useState(false);
   const [cooling, setCooling] = useState(false);
@@ -71,6 +77,19 @@ export function DialButton({
     if (note === null || !element) return;
     // Как у «Вышла новая версия»: без верхнего слоя (старый браузер) строка остаётся в потоке.
     if (typeof element.showPopover === "function" && !element.matches(":popover-open")) element.showPopover();
+    // Без CSS anchor positioning (старые Safari и Firefox) окно ставим под кнопку здесь, с переворотом вверх у края экрана.
+    const trigger = button.current;
+    if (trigger && !(typeof CSS !== "undefined" && CSS.supports("anchor-name: --dial-probe"))) {
+      const rect = trigger.getBoundingClientRect();
+      const width = element.offsetWidth;
+      const height = element.offsetHeight;
+      const left = Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8);
+      const below = rect.bottom + 4;
+      element.style.inset = "auto";
+      element.style.margin = "0";
+      element.style.left = `${left}px`;
+      element.style.top = `${below + height > window.innerHeight - 8 ? Math.max(8, rect.top - height - 4) : below}px`;
+    }
     const timer = setTimeout(() => setNote(null), TOAST_MS);
     return () => clearTimeout(timer);
   }, [note]);
@@ -116,26 +135,31 @@ export function DialButton({
 
   const busy = pending || cooling;
   const label = pending ? DIAL_COPY.busy : DIAL_COPY.button;
+  // Имя для читалки: слово «Позвонить» и кому. Узкая кнопка (только значок) без имени клиента не говорит, куда звонит.
+  const accessibleName = dialAccessibleName(variant, pending, subject);
   return (
     <>
       <button
+        ref={button}
         type="button"
+        style={{ anchorName } as CSSProperties}
         className={variant === "row" ? ROW_CLASS : ACTION_CLASS}
         disabled={busy}
         aria-disabled={!mapped ? true : undefined}
         aria-describedby={hintId}
-        aria-label={variant === "row" ? `${DIAL_COPY.button}${subject ? `: ${subject}` : ""}` : undefined}
+        aria-label={accessibleName}
         title={DIAL_ABOUT}
         data-testid="v3-dial-button"
         onClick={() => void press()}
       >
         <Icon name="phone" size={variant === "row" ? 20 : 18} className="shrink-0" />
-        {variant === "action" ? <span className="sr-only sm:not-sr-only">{label}</span> : null}
+        {variant === "action" ? <span className={iconOnly ? "sr-only" : "sr-only sm:not-sr-only"}>{label}</span> : null}
       </button>
       <span id={hintId} className="sr-only">{DIAL_ABOUT}</span>
       <span role="status" aria-live="polite" className="sr-only">{note}</span>
       {note !== null ? (
-        <div ref={toast} popover="manual" className="v3-toasts" data-edge="top" data-testid="v3-dial-toast">
+        <div ref={toast} popover="manual" className="v3-toasts" data-edge="anchor" data-testid="v3-dial-toast"
+          style={{ positionAnchor: anchorName } as CSSProperties}>
           <div className="v3-toast">
             <p className="min-w-0 flex-1 break-words py-2 t-body-compact">{note}</p>
             <button type="button" className="v3-toast-action t-label" onClick={() => setNote(null)}>Закрыть</button>

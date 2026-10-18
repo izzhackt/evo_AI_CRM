@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { CountryTimeline } from "@/components/portal/home/CountryTimeline";
+import { CscaHomeCard } from "@/components/portal/home/CscaHomeCard";
 import { HomeView } from "@/components/portal/home/HomeView";
 import { getLocale } from "@/lib/i18n";
 import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
@@ -9,6 +10,8 @@ import {
   selectCountryTimeline,
   todayForTimeline,
 } from "@/lib/portal/country-timeline";
+import { cscaHomeCardVisible, selectCscaHomeCard } from "@/lib/portal/csca-home-card";
+import { readCscaHome } from "@/lib/portal/csca-source";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { readLearningModules } from "@/lib/portal/learning-source";
 import { readStudentRecentUniversities } from "@/lib/portal/recent-universities-source";
@@ -51,7 +54,10 @@ export default async function StudentPortalHomePage() {
 
   // Выбор страны «Пути поступления» (284) читается в той же волне, что и
   // остальные чтения «Главной» (план A): лишней последовательной волны нет.
-  const [overviewResult, modules, assessments, favoritesResult, recentUniversities, choice] = await Promise.all([
+  // Карточка CSCA (Q16) только для Китая: главная трека читается тут же, за
+  // выбором, внутри той же волны (цепочка из двух чтений, как у избранного),
+  // а студенту с другой страной лишнего чтения нет.
+  const [overviewResult, modules, assessments, favoritesResult, recentUniversities, choiceRead] = await Promise.all([
     tier === "assisted"
       ? readStudentPortalOverview()
         .then((value): { ok: true; value: StudentPortalOverview | null } => ({ ok: true, value }))
@@ -69,8 +75,12 @@ export default async function StudentPortalHomePage() {
       }))
       .catch(() => ({ ok: false as const })),
     readStudentRecentUniversities().catch((): null => null),
-    readStudentCountryChoice().catch((): null => null),
+    readStudentCountryChoice().catch((): null => null).then(async (choice) => ({
+      choice,
+      cscaHome: cscaHomeCardVisible(choice) ? await readCscaHome().catch((): null => null) : null,
+    })),
   ]);
+  const { choice, cscaHome } = choiceRead;
   const now = new Date();
   const timelineView = choice?.country
     ? selectCountryTimeline(choice.country, {
@@ -79,6 +89,13 @@ export default async function StudentPortalHomePage() {
       modules: TIMELINE_MODULE_ROUTES,
     })
     : null;
+  const cscaCard = selectCscaHomeCard({
+    choice,
+    home: cscaHome,
+    locale,
+    cscaStrings: getPortalStrings("csca", locale),
+    homeStrings: strings,
+  });
   const countryOptions = studyCountryOptions(locale, { undecided: true }).map((option) => ({
     code: option.code === STUDY_COUNTRY_UNDECIDED ? TIMELINE_UNDECIDED : option.code,
     label: option.label,
@@ -111,6 +128,7 @@ export default async function StudentPortalHomePage() {
             strings={getPortalStrings("timeline", locale)}
           />
         )}
+        csca={cscaCard ? <CscaHomeCard view={cscaCard} /> : null}
         locale={locale}
         now={now}
       />

@@ -32,7 +32,8 @@ import { formatPortalMoney, studentActionDueLabel } from "../admission/presentat
  * ближайшие действия дела первым блоком (та же модель E2, что у
  * OverviewView «Моего поступления»). «Путь поступления» (S4, план §8.4)
  * приходит готовым блоком `journey`: у клиента он стоит после ближайших
- * действий дела, у самостоятельного студента первым. Серверные read model приходят пропсами,
+ * действий дела, у самостоятельного студента первым. Карточка CSCA (`csca`,
+ * только при выбранном Китае) открывает «Продолжить» (план v2 §9.1). Серверные read model приходят пропсами,
  * каждый источник несёт свой честный сбой (null) и честную пустоту.
  * Новое в каталоге использует firstPublishedAt из неизменяемой истории
  * публикаций (207); reviewed_at текущей версии не является признаком новизны.
@@ -103,6 +104,7 @@ export function HomeView({
   favoritesTotal,
   recentUniversities,
   journey = null,
+  csca = null,
   locale,
   now,
 }: {
@@ -118,6 +120,8 @@ export function HomeView({
   recentUniversities: readonly RecentUniversity[] | null;
   /** «Путь поступления» (CountryTimeline); null, если блока нет. */
   journey?: ReactNode;
+  /** Карточка CSCA (CscaHomeCard) для студента, выбравшего Китай; иначе null. */
+  csca?: ReactNode;
   locale: Locale;
   now: Date;
 }) {
@@ -220,6 +224,7 @@ export function HomeView({
       <section aria-labelledby="home-continue" className="pt-home-section">
         <h2 id="home-continue" className="pt-section-title">{strings.continueHeading}</h2>
         <div className="pt-home-grid">
+          {csca}
           <article className="pt-home-card">
             <p className="pt-home-card-kicker">{shell["nav.english"]}</p>
             {modules === null ? (

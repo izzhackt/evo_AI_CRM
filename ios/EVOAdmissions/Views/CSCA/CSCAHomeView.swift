@@ -19,9 +19,10 @@ enum CSCARoute: Hashable {
 /// again.
 @MainActor
 final class CSCAHomeModel: ObservableObject {
-    /// One model for the CSCA screens of the English stack. Every entry
-    /// through `CSCAHomeView` resets it first, so a new sign-in never sees
-    /// the previous account's data.
+    /// One model for the CSCA screens of the English stack and of the push
+    /// from a «Путь поступления» step on «Главная». Every entry through
+    /// `CSCAHomeView` resets it first, so a new sign-in never sees the
+    /// previous account's data.
     static let shared = CSCAHomeModel()
 
     @Published private(set) var home: CSCAHome?
@@ -114,8 +115,9 @@ struct CSCAEntryRow: View {
     }
 }
 
-/// Destination of every CSCA route, declared once at the root of the
-/// English stack (`EnglishView`).
+/// Destination of every CSCA route, declared at the root of the English
+/// stack (`EnglishView`) and of the Home stack (`HomeView`, for the link of
+/// the «Путь поступления» step).
 struct CSCARouteView: View {
     let route: CSCARoute
 

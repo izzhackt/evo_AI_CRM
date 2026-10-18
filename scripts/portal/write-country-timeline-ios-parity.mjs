@@ -4,7 +4,8 @@
  *
  * Считает выдачу `selectCountryTimeline` веба для каждого выбора (шесть
  * стран и UNDECIDED), обоих языков и трёх дат (до `validUntil`, сам день
- * `validUntil` и день после), плюс Китай с маршрутом модуля CSCA, и пишет
+ * `validUntil` и день после), плюс Китай с маршрутом модуля CSCA (условный
+ * `evo-app://csca` и настоящая карта веба `TIMELINE_MODULE_ROUTES`), и пишет
  * отпечатки SHA-256 в ios/EVOAdmissionsTests/Fixtures/country-timeline-parity.json.
  * Туда же пишутся SHA-256 сырых файлов контента: так фикстура привязана к
  * байтам файлов, а не только к `contentVersion`.
@@ -29,6 +30,7 @@ import {
   TIMELINE_UNDECIDED,
   selectCountryTimeline,
 } from "../../src/lib/portal/country-timeline.ts";
+import { TIMELINE_MODULE_ROUTES } from "../../src/lib/portal/timeline-module-routes.ts";
 import { STUDY_COUNTRY_CODES } from "../../src/lib/study-countries.ts";
 
 export const PARITY_FIXTURE = new URL("../../ios/EVOAdmissionsTests/Fixtures/country-timeline-parity.json", import.meta.url);
@@ -75,6 +77,8 @@ function parityFixture() {
     for (const locale of ["ru", "ky"]) for (const today of PARITY_DATES) add(choice, locale, today);
   }
   for (const locale of ["ru", "ky"]) add("CN", locale, PARITY_DATES[0], CSCA_MODULE);
+  // Настоящая карта веба: пока модулей нет или ключи другие, фикстура устаревает.
+  for (const locale of ["ru", "ky"]) add("CN", locale, PARITY_DATES[0], TIMELINE_MODULE_ROUTES);
   const files = Object.fromEntries(COUNTRY_TIMELINE_FILE_KEYS.map((key) => [key, {
     contentVersion: COUNTRY_TIMELINES[key].contentVersion,
     validUntil: COUNTRY_TIMELINES[key].validUntil,

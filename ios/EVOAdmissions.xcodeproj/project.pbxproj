@@ -166,6 +166,7 @@
 		82EBC440DD3B5DCF86BAF910 /* CityAtlasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50D315315992BA5F4EFE660 /* CityAtlasView.swift */; };
 		83075B5BAB356ABEF37C317C /* csca_test_save.json in Resources */ = {isa = PBXBuildFile; fileRef = 35D976167B8C6CE630F9D7F6 /* csca_test_save.json */; };
 		86605828CAEEC8B517FACD5D /* CSCAPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB08BBD02138C5A700EA3FF1 /* CSCAPolicy.swift */; };
+		CAD8BE0048D5F2A5B7CA5B13 /* CSCAHomeCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58479C223E9D5765FBD0A90B /* CSCAHomeCard.swift */; };
 		86DD52E6FBD3A11C20C027FD /* CatalogText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DF42FD75A96E0962163A8DD /* CatalogText.swift */; };
 		87D401E3F9E35AAB1F6CE55F /* CSCAItemViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ABA148D4271E063F0B75832 /* CSCAItemViews.swift */; };
 		88FEA7728AB95C7AE1033219 /* study-countries.json in Resources */ = {isa = PBXBuildFile; fileRef = 795359512277AD8D44EA05B7 /* study-countries.json */; };
@@ -195,6 +196,7 @@
 		9910C85E1A5DCA8195E93B24 /* CSCAStringsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A82A5B6B567853EF6BAE71D2 /* CSCAStringsTests.swift */; };
 		9945743E23B29F6006D1A083 /* UniversityDetailDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA5E4D045AB34A11EF0787E9 /* UniversityDetailDecodingTests.swift */; };
 		99EFA395C7838D9C820D3F3A /* CSCAPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0593E2386A3586D7864CFC5 /* CSCAPolicyTests.swift */; };
+		3F110E297DA4071DC7ABD5ED /* CSCAHomeCardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38A1FAA0F0829C8A695126DF /* CSCAHomeCardTests.swift */; };
 		9B0C3520647B12E41D964D89 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 37EF51A92383C1C31BB2AD16 /* PrivacyInfo.xcprivacy */; };
 		9B76E8056B073CE7F2D0EAE6 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = 26C12B2B075AB5C7EC3E0AE2 /* SwiftMath */; };
 		9D781D24548F7DCAAFA1B444 /* my.json in Resources */ = {isa = PBXBuildFile; fileRef = 48DE588DC93C44C0ADB3CCEC /* my.json */; };
@@ -224,6 +226,7 @@
 		AEA41C8F0F0212ABBA198F0F /* ProgramDocumentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66387B3540950F6BDA473E97 /* ProgramDocumentView.swift */; };
 		AF234FDE29868AEC7808392B /* ConsultationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A437F63DD1A066A64F901E16 /* ConsultationModels.swift */; };
 		AF8B897F748ABE1FAF8EBA3C /* CSCAPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB08BBD02138C5A700EA3FF1 /* CSCAPolicy.swift */; };
+		0D9A635D011222F921F5D8FE /* CSCAHomeCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58479C223E9D5765FBD0A90B /* CSCAHomeCard.swift */; };
 		AFF2C53779C5484AF5B694E5 /* CSCAResultViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300EE9413D76EAB5CF3BAEB4 /* CSCAResultViews.swift */; };
 		B02A781031130DCDBE0A08A3 /* campus-sichuan-720.webp in Resources */ = {isa = PBXBuildFile; fileRef = 4435509F2CD19EA5CE1F2C95 /* campus-sichuan-720.webp */; };
 		B15EAF7230531E1A6751767C /* AdmissionNotificationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA3BFC92CF9E0C2AB6E27D16 /* AdmissionNotificationsView.swift */; };
@@ -287,6 +290,7 @@
 		E31E01BF9B40C3F8AF153CC6 /* CSCATeXTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 644A3EC97B8B2DB9F0CA95E5 /* CSCATeXTests.swift */; };
 		E456438FF92CE6483BA44668 /* csca_error_mock_early_finish.error.json in Resources */ = {isa = PBXBuildFile; fileRef = 87E08D8D51E21EB00AD9FDDB /* csca_error_mock_early_finish.error.json */; };
 		E52E8755AA4AAF9F29FB5EA5 /* CSCAOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B1E35ECF030943085C50133 /* CSCAOverviewView.swift */; };
+		4CA89E9BDF5D9772EBC42DB4 /* CSCAHomeCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 012F30533158721C265F0FCF /* CSCAHomeCardView.swift */; };
 		E5BCBC100B63E4CFEF94B967 /* undecided.json in Resources */ = {isa = PBXBuildFile; fileRef = 0AE8DF1572C6876B6037CDE5 /* undecided.json */; };
 		E6FC4D65E9B15CEC529ED540 /* atlas-index-not-modified-demo.json in Resources */ = {isa = PBXBuildFile; fileRef = E010158E9DCA88472F3D7F05 /* atlas-index-not-modified-demo.json */; };
 		E71B49417A8D9AA4C630F3F8 /* csca_lesson_start.json in Resources */ = {isa = PBXBuildFile; fileRef = 3B2EF853C221E036EADDF131 /* csca_lesson_start.json */; };
@@ -419,6 +423,7 @@
 		48DE588DC93C44C0ADB3CCEC /* my.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = my.json; sourceTree = "<group>"; };
 		4935D43BF69981FE66F37743 /* CSCAMathText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSCAMathText.swift; sourceTree = "<group>"; };
 		4B1E35ECF030943085C50133 /* CSCAOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSCAOverviewView.swift; sourceTree = "<group>"; };
+		012F30533158721C265F0FCF /* CSCAHomeCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSCAHomeCardView.swift; sourceTree = "<group>"; };
 		4C5A1C824750576F24C4DADF /* ApplicationDocumentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationDocumentModels.swift; sourceTree = "<group>"; };
 		4D66D111BD4BE6F0AFF76ADC /* MyAdmissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyAdmissionView.swift; sourceTree = "<group>"; };
 		4DF42FD75A96E0962163A8DD /* CatalogText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogText.swift; sourceTree = "<group>"; };
@@ -487,6 +492,7 @@
 		9CE464FD3836ABCB7B4654FC /* CSCASVG.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSCASVG.swift; sourceTree = "<group>"; };
 		9FE80DDC1385B9F4AC7CD43E /* UniversityAtlasPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityAtlasPolicyTests.swift; sourceTree = "<group>"; };
 		A0593E2386A3586D7864CFC5 /* CSCAPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSCAPolicyTests.swift; sourceTree = "<group>"; };
+		38A1FAA0F0829C8A695126DF /* CSCAHomeCardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSCAHomeCardTests.swift; sourceTree = "<group>"; };
 		A18DBA9591D9DAF70F220CB5 /* UniversitiesMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversitiesMapView.swift; sourceTree = "<group>"; };
 		A28D3BB36E87FA36DD792D36 /* ApplicationPackageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationPackageModels.swift; sourceTree = "<group>"; };
 		A33583B4A63163BC921202D4 /* UniversityMapPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityMapPolicyTests.swift; sourceTree = "<group>"; };
@@ -506,6 +512,7 @@
 		AA54E705EB2033A3F8884C64 /* cz.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = cz.json; sourceTree = "<group>"; };
 		AA5E4D045AB34A11EF0787E9 /* UniversityDetailDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityDetailDecodingTests.swift; sourceTree = "<group>"; };
 		AB08BBD02138C5A700EA3FF1 /* CSCAPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSCAPolicy.swift; sourceTree = "<group>"; };
+		58479C223E9D5765FBD0A90B /* CSCAHomeCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSCAHomeCard.swift; sourceTree = "<group>"; };
 		AB6D7856A90A3B9BC5915936 /* csca_lesson_m2-exp-log-p1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "csca_lesson_m2-exp-log-p1.json"; sourceTree = "<group>"; };
 		AB720D91D659189A39BB2098 /* UniversityPhotoLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniversityPhotoLibrary.swift; sourceTree = "<group>"; };
 		AC82F0848479B32AD1513C81 /* csca_review_v2_not_due.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = csca_review_v2_not_due.json; sourceTree = "<group>"; };
@@ -754,6 +761,7 @@
 				DE8CAC4F74EE440C1F03950D /* CSCAModels.swift */,
 				E08E0B35DE5E44323327E032 /* CSCAOverview.swift */,
 				AB08BBD02138C5A700EA3FF1 /* CSCAPolicy.swift */,
+				58479C223E9D5765FBD0A90B /* CSCAHomeCard.swift */,
 				9CE464FD3836ABCB7B4654FC /* CSCASVG.swift */,
 				10F6DCE3418297B5747AD8CC /* CSCATeX.swift */,
 			);
@@ -865,6 +873,7 @@
 				CE4D404ED69245AEB84B6FDE /* CSCADecodingTests.swift */,
 				200817684989D70A6CDA32C6 /* CSCAOverviewTests.swift */,
 				A0593E2386A3586D7864CFC5 /* CSCAPolicyTests.swift */,
+				38A1FAA0F0829C8A695126DF /* CSCAHomeCardTests.swift */,
 				A82A5B6B567853EF6BAE71D2 /* CSCAStringsTests.swift */,
 				94924209B8C1BC96A4583AF8 /* CSCASVGTests.swift */,
 				644A3EC97B8B2DB9F0CA95E5 /* CSCATeXTests.swift */,
@@ -1036,6 +1045,7 @@
 				6486DEE80246E210E6846903 /* CSCALessonView.swift */,
 				4935D43BF69981FE66F37743 /* CSCAMathText.swift */,
 				4B1E35ECF030943085C50133 /* CSCAOverviewView.swift */,
+				012F30533158721C265F0FCF /* CSCAHomeCardView.swift */,
 				300EE9413D76EAB5CF3BAEB4 /* CSCAResultViews.swift */,
 				5494EFF411A5673347417E0C /* CSCAStyle.swift */,
 				81E4B1D54ED71585124DC816 /* CSCATestRunnerView.swift */,
@@ -1338,7 +1348,9 @@
 				71C8FB1ABCA055AD528704D2 /* CSCAOverview.swift in Sources */,
 				21DE3EFA67C3AC84DFB7A2A6 /* CSCAOverviewTests.swift in Sources */,
 				86605828CAEEC8B517FACD5D /* CSCAPolicy.swift in Sources */,
+				CAD8BE0048D5F2A5B7CA5B13 /* CSCAHomeCard.swift in Sources */,
 				99EFA395C7838D9C820D3F3A /* CSCAPolicyTests.swift in Sources */,
+				3F110E297DA4071DC7ABD5ED /* CSCAHomeCardTests.swift in Sources */,
 				6B716C55631B08BC7DA1D816 /* CSCASVG.swift in Sources */,
 				5CB68D16F05DF64775362580 /* CSCASVGTests.swift in Sources */,
 				9910C85E1A5DCA8195E93B24 /* CSCAStringsTests.swift in Sources */,
@@ -1449,7 +1461,9 @@
 				72E817EACD2DFFA619FADA95 /* CSCAModels.swift in Sources */,
 				F9E1470A43897541BF132834 /* CSCAOverview.swift in Sources */,
 				E52E8755AA4AAF9F29FB5EA5 /* CSCAOverviewView.swift in Sources */,
+				4CA89E9BDF5D9772EBC42DB4 /* CSCAHomeCardView.swift in Sources */,
 				AF8B897F748ABE1FAF8EBA3C /* CSCAPolicy.swift in Sources */,
+				0D9A635D011222F921F5D8FE /* CSCAHomeCard.swift in Sources */,
 				AFF2C53779C5484AF5B694E5 /* CSCAResultViews.swift in Sources */,
 				70FF6A8024FC4335CBA5CF85 /* CSCASVG.swift in Sources */,
 				51E5641851A4304D6E5025AA /* CSCAService.swift in Sources */,

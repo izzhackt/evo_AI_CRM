@@ -9,7 +9,7 @@ import type { ProfileEvent } from "@/components/v3/profile/types";
 import { Icon } from "@/components/icons";
 import { SkeletonBlock } from "@/components/ui";
 import { caseDocumentsAwaitCurator } from "@/lib/v3/case-access-contract";
-import { caseDocumentsWords, journalEvent } from "@/lib/v3/wording";
+import { caseDocumentsWords, journalEventText } from "@/lib/v3/wording";
 import { QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { knowledgeFetch, command } from "./client";
 import { KnowledgeCaseDocuments } from "./KnowledgeCaseDocuments";
@@ -76,6 +76,8 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Не удалось открыть папку."); }
     finally { setBusy(false); }
   }
+  // Одно правило на экраны дела: у дела без куратора вкладки «Документы» нет, и ссылки на неё тоже.
+  const documentsAwait = record !== null && caseDocumentsAwaitCurator(record.state);
   return <section className="space-y-3 pb-4" aria-busy={busy} data-testid="knowledge-dossiers">
     {error && <p className={KB_ERROR} role="alert">{error}<button type="button" className={QUEUE_SECONDARY} onClick={() => void load()}>Повторить</button></p>}
     {!caseId ? <>
@@ -109,14 +111,16 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
           return <li key={message.id} className="space-y-1 py-3">
             <p className="flex flex-wrap items-baseline gap-x-2"><span className="t-item text-fg">{message.authorName}</span>{at ? <time dateTime={message.createdAt} className="t-meta text-fg-3"><span className="font-mono">{at}</span></time> : null}</p>
             <p className="max-w-[70ch] whitespace-pre-wrap t-body text-fg">{message.body}</p>
-            {message.attachmentId && <Link href={`/v3/profile?case=${caseId}&tab=${message.attachmentKind === "document" ? "documents" : "overview"}`} className={KB_QUIET}>{message.attachmentLabel ?? "Вложение"}</Link>}
+            {message.attachmentId && (message.attachmentKind === "document" && documentsAwait
+              ? <p className="flex flex-wrap items-baseline gap-x-2 t-meta" data-testid="knowledge-chat-attachment-await"><span className="text-fg-2 [overflow-wrap:anywhere]">{message.attachmentLabel ?? "Вложение"}</span><span className="text-fg-3">Документы {caseDocumentsWords.awaitCurator}.</span></p>
+              : <Link href={`/v3/profile?case=${caseId}&tab=${message.attachmentKind === "document" ? "documents" : "overview"}`} className={KB_QUIET}>{message.attachmentLabel ?? "Вложение"}</Link>)}
           </li>;
         })}</ol>
       </>}
       {tab === "history" && history && <>
         {!history.events.length && <p className="t-body-compact text-fg-2">История пока пуста.</p>}
         <ul className="divide-y divide-border border-y border-border">{history.events.map((event) => <li key={event.id} className="flex flex-wrap items-center gap-x-3 py-1 t-body-compact">
-          <Link href={event.href ?? `/v3/profile?case=${caseId}`} className="inline-flex min-h-11 items-center text-fg underline-offset-4 hover:underline">{journalEvent(event.transition) ?? event.transition}</Link>
+          <Link href={event.href ?? `/v3/profile?case=${caseId}`} className="inline-flex min-h-11 items-center text-fg underline-offset-4 hover:underline">{journalEventText(event.transition, event.directionChange) ?? event.transition}</Link>
           {event.at ? <span className="font-mono text-fg-3">{event.at}</span> : null}
         </li>)}</ul>
         {history.nextCursor && <button type="button" className={KB_QUIET} disabled={busy} onClick={() => void more()}>Показать ещё события</button>}

@@ -23,7 +23,7 @@ import {
   type CaseChatPage, type CaseChatPendingAttachment, type CaseChatQueue, type CaseChatThreadRow, type CaseChatThreadsList,
 } from "@/lib/platform-case-chat-contract";
 import { stagePhase } from "@/lib/v3/stages";
-import { admissionsPipelineStage, caseChatAwaitChoice, caseChatAwaitState } from "@/lib/v3/wording";
+import { admissionsPipelineStage, caseChatAwaitChoice, caseChatAwaitState, caseDocumentsWords } from "@/lib/v3/wording";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "@/lib/platform-organization-time";
 import type { SupabasePublicConfig } from "@/lib/supabase/config";
 import { isStaleDeployment, noteStaleDeployment } from "@/lib/stale-deployment";
@@ -410,8 +410,20 @@ function ThreadHeader({
   );
 }
 
-function AttachmentCard({ message, caseId }: Readonly<{ message: CaseChatMessage; caseId: string }>) {
+function AttachmentCard({ message, caseId, documentsAwaitCurator }: Readonly<{ message: CaseChatMessage; caseId: string; documentsAwaitCurator: boolean }>) {
   if (!message.attachmentKind || !message.attachmentId) return null;
+  // У дела без куратора вкладки «Документы» нет (`caseDocumentsAwaitCurator`, считает страница): метка и причина вместо ссылки.
+  if (message.attachmentKind === "document" && documentsAwaitCurator) {
+    return (
+      <div className="mt-1.5 flex min-h-11 items-center gap-2 rounded-ctl border border-border bg-surface px-3 py-2 text-sm text-fg" data-testid="case-chat-attachment-await">
+        <Icon name="folder" size={16} className="shrink-0" />
+        <span className="min-w-0">
+          <span className="block truncate">{message.attachmentLabel ?? "Документ дела"}</span>
+          <span className="block text-xs text-fg-3">Документы {caseDocumentsWords.awaitCurator}.</span>
+        </span>
+      </div>
+    );
+  }
   const href = message.attachmentKind === "document"
     ? `/v3/profile?case=${caseId}&tab=documents`
     : `/v3/tasks?task=${message.attachmentId}&kind=case&case=${caseId}`;
@@ -430,8 +442,8 @@ function AttachmentCard({ message, caseId }: Readonly<{ message: CaseChatMessage
  * (popover), прокрутка ленты его не обрежет.
  */
 function MessageRow({
-  message, own, caseId, onReply,
-}: Readonly<{ message: CaseChatMessage; own: boolean; caseId: string; onReply: (message: CaseChatMessage) => void }>) {
+  message, own, caseId, documentsAwaitCurator, onReply,
+}: Readonly<{ message: CaseChatMessage; own: boolean; caseId: string; documentsAwaitCurator: boolean; onReply: (message: CaseChatMessage) => void }>) {
   const menu = useAnchoredPopover(own ? "end" : "start");
   return (
     <div className={`flex flex-col py-2 ${own ? "items-end" : "items-start"}`} id={`case-message-${message.id}`}>
@@ -456,7 +468,7 @@ function MessageRow({
           </p>
         ) : null}
         {message.body ? <p className="mt-1 whitespace-pre-wrap break-words text-sm text-fg">{message.body}</p> : null}
-        <AttachmentCard message={message} caseId={caseId} />
+        <AttachmentCard message={message} caseId={caseId} documentsAwaitCurator={documentsAwaitCurator} />
       </div>
       <div id={menu.popoverId} popover="auto" role="group" aria-label="Действия с сообщением" style={menu.popoverStyle}
         className={`v3-anchored ${own ? "v3-anchored-end" : ""} w-52 rounded-ctl border border-border bg-surface p-1 text-fg shadow-evo-lg`}>
@@ -471,13 +483,13 @@ function MessageRow({
 
 function CaseChatThreadView({
   caseId, initialPage, initialFailure, storageScope, membershipId, pendingAttachment, onAttachmentConsumed,
-  organizationId, realtimeConfig, studentDisplayName, listHref, onListChanged, facts, snippets,
+  organizationId, realtimeConfig, studentDisplayName, listHref, onListChanged, facts, snippets, documentsAwaitCurator,
 }: Readonly<{
   caseId: string; initialPage: CaseChatPage | null; initialFailure: CaseChatFailure | null;
   storageScope: string; membershipId: string; pendingAttachment: CaseChatPendingAttachment | null;
   onAttachmentConsumed: () => void; organizationId: string; realtimeConfig: SupabasePublicConfig;
   studentDisplayName: string | null; listHref: string; onListChanged: () => void;
-  facts: CaseChatCaseFacts | null; snippets: CaseChatSnippets;
+  facts: CaseChatCaseFacts | null; snippets: CaseChatSnippets; documentsAwaitCurator: boolean;
 }>) {
   const [page, setPage] = useState<CaseChatPage | null>(initialPage);
   const [error, setError] = useState<CaseChatFailure | null>(initialFailure);
@@ -639,7 +651,7 @@ function CaseChatThreadView({
         </button> : null}
         {messages.length ? messages.map((message) => (
           <MessageRow key={message.id} message={message} own={message.authorMembershipId === membershipId} caseId={caseId}
-            onReply={(target) => setReplyTo(target)} />
+            documentsAwaitCurator={documentsAwaitCurator} onReply={(target) => setReplyTo(target)} />
         )) : <p className="py-10 text-center text-sm text-fg-3">Сообщений пока нет. Куратор может начать разговор.</p>}
       </div>
       <CaseChatComposer caseId={caseId} storageScope={storageScope} pendingAttachment={pendingAttachment}
@@ -781,7 +793,7 @@ function NextThreadPane({ read, membershipId, query, queue, loading, failure }: 
 
 export function CaseChatWorkspace({
   organizationId, membershipId, realtimeConfig, initialQueue, initialStudentDisplayName, selectedCaseId, initialPage,
-  initialPageFailure, caseFacts = null, snippets = null,
+  initialPageFailure, caseFacts = null, snippets = null, documentsAwaitCurator = false,
 }: Readonly<{
   organizationId: string; membershipId: string; realtimeConfig: SupabasePublicConfig;
   initialQueue: CaseChatQueueRead; selectedCaseId: string | null;
@@ -790,6 +802,8 @@ export function CaseChatWorkspace({
   /** Направление и этап открытого дела (строка очереди 241); null — нет строки. */
   caseFacts?: CaseChatCaseFacts | null;
   snippets?: CaseChatSnippets;
+  /** Дело ждёт куратора (`caseDocumentsAwaitCurator`, считает страница): вложение-документ без ссылки на вкладку, которой нет. */
+  documentsAwaitCurator?: boolean;
 }>) {
   const [queueRead, setQueueRead] = useState(initialQueue);
   const threads = queueRead.list;
@@ -902,7 +916,7 @@ export function CaseChatWorkspace({
           storageScope={`${organizationId}:${membershipId}`} membershipId={membershipId} pendingAttachment={attachment}
           onAttachmentConsumed={consumeAttachment} organizationId={organizationId} realtimeConfig={realtimeConfig}
           studentDisplayName={row?.studentDisplayName ?? initialStudentDisplayName} onListChanged={refreshList}
-          listHref={caseChatHref(query, queue)} facts={caseFacts} snippets={snippets} />
+          listHref={caseChatHref(query, queue)} facts={caseFacts} snippets={snippets} documentsAwaitCurator={documentsAwaitCurator} />
       ) : (
         <NextThreadPane read={queueRead} membershipId={membershipId} query={query} queue={queue} loading={loading} failure={failure} />
       )}

@@ -20,6 +20,8 @@ function compile(relativePath) {
   const resolve = (specifier) => {
     if (!specifier.startsWith("@/") && !specifier.startsWith(".")) return require(specifier);
     let target = specifier.startsWith("@/") ? new URL(`../src/${specifier.slice(2)}`, import.meta.url) : new URL(specifier, url);
+    // JSON source (src/lib/study-countries.json, the one country list of 282): data, as a default import.
+    if (/\.json$/u.test(target.pathname)) return { __esModule: true, default: JSON.parse(readFileSync(target, "utf8")) };
     if (!/\.tsx?$/u.test(target.pathname)) target = new URL(`${target.href}${existsSync(new URL(`${target.href}.ts`)) ? ".ts" : ".tsx"}`);
     return compile(target);
   };

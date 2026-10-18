@@ -823,6 +823,23 @@ test("the quick view asks the one case-state rule and does not spell it again", 
   assert.match(read("src/components/v3/students/StudentsQueueBody.tsx"), /documents: studentsCaseHref\(openRow\.studentCaseId, \{ tab: "documents"/u);
 });
 
+// «EVO Docs» для ролей без очереди (17.10.2026, хвост ссылок после #1228): имя дела ведёт на вкладку «Документы» только у дела,
+// у которого она есть. У `pending` имя ведёт в «Обзор», строка остаётся в списке, а причина названа теми же словами.
+test("«EVO Docs» of a role without the queue leads a «Ждёт куратора» case to the overview, not to the missing Documents tab", () => {
+  const fallback = read("src/components/v3/students/StudentsDirectoryFallback.tsx");
+  assert.match(fallback, /import \{ caseDocumentsAwaitCurator \} from "@\/lib\/v3\/case-access-contract";/u);
+  assert.match(fallback, /import \{ caseDocumentsWords \} from "@\/lib\/v3\/wording";/u);
+  // Вкладка выбирается одним правилом, а не сравнением с `pending`; для дела в работе и закрытого — «documents», как раньше.
+  assert.match(fallback, /const tab = docsMode && !caseDocumentsAwaitCurator\(row\.state\) \? "documents" : "overview";/u);
+  assert.match(fallback, /withDocsSection\(`\/v3\/profile\?case=\$\{row\.studentCaseId\}&tab=\$\{tab\}`, docsMode\)/u);
+  assert.doesNotMatch(fallback, /tab=\$\{docsMode \? "documents" : "overview"\}/u, "the old unconditional documents tab is gone");
+  assert.doesNotMatch(fallback, /state === "pending"/u);
+  // Дело не пропадает из списка и из счёта: под строкой та же строка слов, что в «Сведениях», панели и досье.
+  assert.match(fallback, /\{docsMode && caseDocumentsAwaitCurator\(row\.state\)\s*\? <span [^>]*data-testid="v3-student-case-documents-await">Документы \{caseDocumentsWords\.awaitCurator\}\.<\/span> : null\}/u);
+  assert.match(fallback, /const rows = docsMode \? directory\.rows\.filter\(\(row\) => row\.access === "full"\) : directory\.rows;/u, "no other filtering of the list");
+  assert.equal(caseDocumentsWords.awaitCurator, "появятся, когда у дела будет куратор");
+});
+
 test("«Принять дело» in the panel reuses the case card, only for the curator who can answer", () => {
   const accept = surfaces.get("panel-accept");
   const block = accept.match(/<div class="mb-4" data-testid="v3-students-panel-handoff">[\s\S]*$/u)?.[0] ?? "";

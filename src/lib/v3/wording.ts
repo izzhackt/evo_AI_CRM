@@ -27,6 +27,9 @@ import type {
   PlatformDocumentSlotStatus,
 } from "../platform-private-documents.ts";
 import { PROFILE_FIELDS } from "../student-profile-fields.ts";
+// Смена направления в «Журнале» и «Истории» (блок рядом с `journalActor`): названия направлений - тот же словарь, что у очереди, доски и дела.
+import { DIRECTION_LABELS } from "../../components/v3/profile/admissions-view.ts";
+import { parseCaseDirectionChange } from "../platform-case-direction-change.ts";
 import { studyCountryOptions } from "../study-countries.ts";
 
 export function studentProfileFieldState(value: string): string | null {
@@ -687,6 +690,9 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "case.route.change": "Маршрут дела изменён",
   "case.sales.owner.sync": "Ответственный по делу в продажах обновлён",
   "case.next.action.change": "Следующий шаг изменён",
+  // Смена направления дела (миграция «аудит направления»; 292 пишет действие).
+  // Подпись со значениями - `caseDirectionChangeLine` / `journalEventText` ниже.
+  "case.direction.set": "Направление дела изменено",
   "lead.admissions.handoff.completed": "Дело передано в сопровождение",
   "case.update.append": "Запись добавлена в дело",
   "catalog.import.batch.create": "Партия импорта каталога создана",
@@ -996,6 +1002,41 @@ export const journalObject = (v: string | null | undefined) =>
   lookup(JOURNAL_OBJECT_WORD, v);
 export const journalActor = (v: string | null | undefined) =>
   lookup(JOURNAL_ACTOR_WORD, v);
+
+// --- Смена направления дела в «Журнале действий» и «Истории» дела ----------
+// (миграция «аудит направления»). Значения приходят из `before_state` /
+// `after_state` записи 292 уже сведёнными сервером до кодов пяти направлений
+// сотрудников; здесь они только превращаются в слова.
+
+/**
+ * «Направление: Китай → Малайзия»; при первой установке «Направление: Малайзия».
+ * `null`, если показывать нечего: поля нет, `to` или `from` вне пяти кодов
+ * (IT, CZ и всё неизвестное), значения равны. Сырой код не возвращается никогда.
+ */
+export function caseDirectionChangeLine(change: unknown): string | null {
+  const parsed = parseCaseDirectionChange(change);
+  if (parsed === null) return null;
+  const to = DIRECTION_LABELS[parsed.to];
+  return parsed.from === null
+    ? `Направление: ${to}`
+    : `Направление: ${DIRECTION_LABELS[parsed.from]} → ${to}`;
+}
+
+/**
+ * Подпись события для «Журнала», «Истории» дела, ленты и досье: слова действия
+ * (`journalEvent`), а для смены направления - строка со значениями, если они
+ * известны. Неизвестное действие - `null`, как у `journalEvent`.
+ */
+export function journalEventText(
+  action: string | null | undefined,
+  directionChange?: unknown,
+): string | null {
+  const base = journalEvent(action);
+  if (base === null) return null;
+  return action === "case.direction.set"
+    ? (caseDirectionChangeLine(directionChange) ?? base)
+    : base;
+}
 /** Separate curator response, never the completed Sales handoff lifecycle. */
 export function handoffAcknowledgementLabel(value: string): string | null {
   const labels: Record<string, string> = {

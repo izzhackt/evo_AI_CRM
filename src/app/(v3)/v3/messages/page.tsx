@@ -7,6 +7,7 @@ import { staffCan } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { CASE_CHAT_FAILURE_COPY, caseChatHref, caseChatUuid, parseCaseChatAttachParam, parseCaseChatQueue } from "@/lib/platform-case-chat-contract";
 import { getPlatformStudentCaseView } from "@/lib/platform-admissions";
+import { caseDocumentsAwaitCurator } from "@/lib/v3/case-access-contract";
 import { CaseChatReadError, readCaseChatPage, readStaffCaseChatQueue } from "@/lib/v3/case-chat-source";
 import { readCaseQueueRow } from "@/lib/v3/case-work-source";
 import { readV3ReplySnippets } from "@/lib/v3/reply-snippets-source";
@@ -109,6 +110,7 @@ export default async function MessagesPage({ searchParams }: {
         initialPageFailure={pageFailure}
         caseFacts={caseFacts}
         snippets={snippets}
+        documentsAwaitCurator={caseDocumentsAwaitCurator(caseState)}
       />
     </ConversationsMain>
   );

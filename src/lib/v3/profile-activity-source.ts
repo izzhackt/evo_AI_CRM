@@ -3,6 +3,7 @@ import { staffPresentationCan } from "../platform-access.ts";
 
 import type { ProfileEvent } from "@/components/v3/profile/types";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
+import { parseCaseDirectionChange } from "@/lib/platform-case-direction-change";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { journalEvent } from "@/lib/v3/wording";
 
@@ -14,6 +15,10 @@ const DATE = new Intl.DateTimeFormat("ru-RU", {
   timeZone: "Asia/Bishkek",
 });
 const FIELDS = new Set(["status", "priority", "due_at", "due_on", "assignee_membership_id"]);
+// Смена направления несёт одно лишнее поле потока, и только она: сервер сводит его
+// до кодов пяти направлений, неизвестный код приходит пустым и не показывается.
+const DIRECTION_ACTION = "case.direction.set";
+const DIRECTION_KEY = "direction_change";
 
 export function parseProfileActivityCursor(at: string, id: string): ProfileActivityCursor | null {
   return TIMESTAMP.test(at) && Number.isFinite(Date.parse(at)) && UUID.test(id)
@@ -24,6 +29,9 @@ function fail(): never { throw new Error("История дела сейчас �
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return fail();
   return value as Record<string, unknown>;
+}
+function isPlainObject(value: unknown): boolean {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function uuid(value: unknown): string {
   if (typeof value !== "string" || !UUID.test(value)) return fail();
@@ -58,6 +66,10 @@ export async function readProfileActivity(
     const kind = row.target_kind;
     if (!["overview", "documents", "money", "task", "conversation"].includes(String(kind))) return fail();
     if ((kind === "documents") !== (row.occurred_at === null)) return fail();
+    const carriesDirection = Object.prototype.hasOwnProperty.call(row, DIRECTION_KEY);
+    if (carriesDirection !== (row.action === DIRECTION_ACTION)) return fail();
+    if (carriesDirection && row[DIRECTION_KEY] !== null && !isPlainObject(row[DIRECTION_KEY])) return fail();
+    const directionChange = carriesDirection ? parseCaseDirectionChange(row[DIRECTION_KEY]) : null;
     const timestamp = row.occurred_at;
     if (timestamp !== null && (typeof timestamp !== "string"
       || !parseProfileActivityCursor(timestamp, id))) return fail();
@@ -73,6 +85,7 @@ export async function readProfileActivity(
       targetKind: kind as NonNullable<ProfileEvent["targetKind"]>,
       occurredAt: timestamp as string | null,
       targetId,
+      ...(directionChange ? { directionChange } : {}),
     });
   });
   let nextCursor: ProfileActivityCursor | null = null;

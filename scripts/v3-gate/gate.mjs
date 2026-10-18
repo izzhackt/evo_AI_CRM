@@ -59,7 +59,7 @@ try {
         if (route === "/v3/main") {
           await page.getByRole("heading", { level: 1, name: "Сегодня" }).waitFor();
         }
-        await assertStyled(page, base, { v3: true });
+        await assertStyled(page, base, { v3: true, surface: "staff" });
         const axe = await new AxeBuilder({ page })
           .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
           .analyze();
@@ -78,12 +78,20 @@ try {
           const small = [];
           for (const element of document.querySelectorAll("main a, main button")) {
             let rect = element.getBoundingClientRect();
-            const card = element.closest("li > div.relative");
-            if (card) {
-              card.scrollIntoView({ block: "center" });
-              const cardRect = card.getBoundingClientRect();
-              if (document.elementFromPoint(cardRect.left + 3, cardRect.top + 3) === element) {
-                rect = cardRect;
+            // A stretched link (the name link of a board card or a queue row: a ::before/::after with `absolute inset-0`)
+            // is a target as big as the nearest positioned container - but only when hit-testing proves it: both the top-left
+            // corner and the centre of that container land on the link itself. (The earlier probe knew only `li > div.relative`;
+            // cards are `li > article.relative` since the redesign, rows are positioned table cells.)
+            if (rect.width && rect.height && (rect.width < 24 || rect.height < 24)) {
+              for (let holder = element.parentElement; holder && holder !== document.body; holder = holder.parentElement) {
+                if (getComputedStyle(holder).position === "static") continue;
+                holder.scrollIntoView({ block: "center" });
+                const box = holder.getBoundingClientRect();
+                if (document.elementFromPoint(box.left + 3, box.top + 3) === element
+                  && document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2) === element) {
+                  rect = box;
+                }
+                break;
               }
             }
             if (rect.width && rect.height && (rect.width < 24 || rect.height < 24)) {

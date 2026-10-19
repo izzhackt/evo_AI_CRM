@@ -480,6 +480,17 @@ Caddyfile, не равен репозиторному файлу своего к
 `app.soodacloser.com`). Остальное расхождение остаётся открытым пунктом
 владельца; п. 2 процедуры по-прежнему остановится на нём.
 
+**Обновление 2026-10-19 (решение владельца: `codex…` и `invite-bishkek-site…`
+«не нужны»).** Расхождение закрыто: репозиторный `Caddyfile.evo-edge` приведён к
+живому файлу, оба блока убраны из репозитория, блоки `soodacloser.com`,
+`app.soodacloser.com` и `www.soodacloser.com` взяты из живого файла как есть.
+sha256 репозиторного файла равен sha256 живого
+(`11272c602e2e78e22050511f309374cc63ab26ae49adc4c9811a6d5b99e47d5d`). На
+production ничего не менялось и не перезагружалось. Перечень «хосты
+`soodacloser.com`, `olympiadai…`, `invite-bishkek…`, `codex…`» в абзаце
+«Общий edge» ниже — историческая запись 06.10; актуальный список блоков в
+[`infrastructure-map.md`](infrastructure-map.md).
+
 Зачем. Маршрут приёма `/api/v2/whatsapp/inbound` (#1137) без этого шага достижим
 из интернета по `crm.evoadmissions.com`: Caddy пропускает для хоста тело до
 105 MB (`request_body max_size 105MB`), `proxyClientMaxBodySize: "105mb"` в

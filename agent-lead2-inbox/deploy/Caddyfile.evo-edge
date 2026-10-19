@@ -101,14 +101,6 @@ evo-crm.72.62.119.112.sslip.io {
 
 # Existing VPS routes are intentionally part of the EVO edge source of truth.
 # Keep them when reconciling the live, locally edited Caddyfile.
-codex.72.62.119.112.sslip.io {
-	encode zstd gzip
-	reverse_proxy 172.19.0.1:8787
-	header {
-		-Server
-	}
-}
-
 # OlympiadAI LMS: maintained in /opt/olympiadai-lms
 olympiadai.72.62.119.112.sslip.io {
   encode zstd gzip
@@ -120,50 +112,6 @@ olympiadai.72.62.119.112.sslip.io {
     Strict-Transport-Security "max-age=31536000"
     -Server
   }
-}
-
-# Sales assistant: a separate product maintained in /opt/sales-assistant, not EVO.
-# Production host is soodacloser.com; the earlier assistant.* sslip.io route is no
-# longer served on the live edge. Its api container joins evo_public_web as
-# sales-assistant-api and trusts proxy headers only from that network. The app sets
-# its own CSP, X-Frame-Options, Referrer-Policy and Permissions-Policy; the edge adds
-# HSTS and hides Server. No access log: guest chat URLs (/chat/<token>) are
-# capability links.
-soodacloser.com {
-	# App limit: 26 MiB per request (25 MB document + multipart overhead).
-	request_body {
-		max_size 26MiB
-	}
-	header {
-		-Server
-		Strict-Transport-Security "max-age=31536000"
-	}
-
-	# SSE (answer preparation): no compression, every event passed through immediately.
-	@advice_stream path_regexp advice_stream ^/api/rooms/[^/]+/advice/stream$
-	handle @advice_stream {
-		reverse_proxy sales-assistant-api:8781 {
-			flush_interval -1
-			transport http {
-				read_timeout 5m
-			}
-		}
-	}
-
-	handle {
-		encode zstd gzip
-		reverse_proxy sales-assistant-api:8781 {
-			flush_interval -1
-			transport http {
-				read_timeout 5m
-			}
-		}
-	}
-}
-
-# www is only a redirect to the apex; it never reaches the app.
-www.soodacloser.com {
-	redir https://soodacloser.com{uri} permanent
 }
 
 (evo_website) {
@@ -245,11 +193,69 @@ supabase.evoadmissions.com {
 	}
 }
 
-# Existing unrelated route observed on the live edge before this cutover.
-invite-bishkek-site.72.62.119.112.sslip.io {
-	encode zstd gzip
-	reverse_proxy invite-bishkek-site-caddy:80
+# Sales assistant (Messi_InSales): maintained in /opt/sales-assistant
+# Site block for the shared edge proxy on hermes (container evo-edge-caddy). Not imported
+# automatically: the owner appends it to the edge Caddyfile (README, "Deploy on hermes").
+# The api container joins evo_public_web as sales-assistant-api and trusts proxy headers
+# only from that network. The app sets its own CSP, X-Frame-Options, Referrer-Policy and
+# Permissions-Policy; the edge adds HSTS and hides its Server header. No access log:
+# guest chat URLs (/chat/<token>) are capability links.
+# SoodaCloser (maintained by the soodacloser repo; landing in /opt/soodacloser-landing, app in /opt/sales-assistant).
+# soodacloser.com serves the landing for its own paths; every other path (the app, /chat/<token>
+# client links, /api/*, /static/*) moves to app.soodacloser.com with a 308, which keeps the method.
+soodacloser.com {
 	header {
 		-Server
+		Strict-Transport-Security "max-age=31536000"
 	}
+
+	@landing path / /en /en/ /404.html /_astro/* /favicon.svg /favicon-32.png /apple-touch-icon.png /og.png /api/demo-request
+	handle @landing {
+		request_body {
+			max_size 64KiB
+		}
+		reverse_proxy soodacloser-landing:8790
+	}
+
+	handle {
+		redir https://app.soodacloser.com{uri} 308
+	}
+}
+
+# The app (was soodacloser.com until the landing took the apex).
+app.soodacloser.com {
+	# App limit: 26 MiB per request (25 MB document + multipart overhead).
+	request_body {
+		max_size 26MiB
+	}
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+	}
+
+	# SSE (answer preparation): no compression, every event passed through immediately.
+	@advice_stream path_regexp advice_stream ^/api/rooms/[^/]+/advice/stream$
+	handle @advice_stream {
+		reverse_proxy sales-assistant-api:8781 {
+			flush_interval -1
+			transport http {
+				read_timeout 5m
+			}
+		}
+	}
+
+	handle {
+		encode zstd gzip
+		reverse_proxy sales-assistant-api:8781 {
+			flush_interval -1
+			transport http {
+				read_timeout 5m
+			}
+		}
+	}
+}
+
+# www is only a redirect to the apex.
+www.soodacloser.com {
+	redir https://soodacloser.com{uri} permanent
 }

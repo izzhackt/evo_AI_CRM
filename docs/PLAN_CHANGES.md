@@ -59757,7 +59757,7 @@ Decision:
      проверяет сам RPC: итого 1 RPC на опрос. Те же параметры, что у остальных API кабинета:
      только GET, строгий разбор `s`, `Cache-Control: no-store`, 401 без сессии, 403 не
      студенту, 503 при сбое.
-  8. Миграция 309 (только добавление, прежнее приложение не затронуто): 
+  8. Миграция 309 (только добавление, прежнее приложение не затронуто):
      `platform.student_portal_poll_v1(p_section TEXT) RETURNS JSONB` (STABLE, SECURITY
      DEFINER, `search_path=''`, EXECUTE только `authenticated`). Доступ — тот же, что у
      студенческого proxy: ровно одна строка `student_portal_cases()` (она сама проверяет

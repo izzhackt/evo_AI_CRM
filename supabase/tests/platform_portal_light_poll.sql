@@ -581,6 +581,69 @@ SELECT pg_temp.p309_assert(
   'authenticated may call both');
 
 -- ===========================================================================
+-- S5d. Only 42501 is caught. For the length of this block a section reader
+-- (student_portal_documents) is replaced by a probe that raises: an ordinary error must
+-- come out of the poll, 42501 must become version = null with access and unread intact.
+-- The real definition is put back at the end of the block (and the transaction ends in
+-- ROLLBACK anyway); nothing after the block depends on the probe.
+-- ===========================================================================
+SELECT pg_get_functiondef('platform.student_portal_documents()'::REGPROCEDURE) AS p309_documents_definition \gset
+SELECT pg_temp.p309_take('a_before_probe', 4);
+CREATE FUNCTION pg_temp.p309_probe(p_errcode TEXT) RETURNS VOID LANGUAGE plpgsql AS $$
+BEGIN
+  EXECUTE format($probe$
+    CREATE OR REPLACE FUNCTION platform.student_portal_documents() RETURNS %s
+    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = ''
+    AS $body$
+    BEGIN
+      RAISE EXCEPTION 'P309 probe' USING ERRCODE = %L;
+    END
+    $body$
+  $probe$, pg_get_function_result('platform.student_portal_documents()'::REGPROCEDURE), p_errcode);
+END
+$$;
+
+-- (a) An ordinary error (and others a WHEN OTHERS would swallow) comes out of the poll as it is.
+SELECT pg_temp.p309_probe('P0001');
+SELECT pg_temp.p309_assert(
+  pg_temp.p309_try_msg(4, 'SELECT platform.student_portal_poll_v1(''documents'')') = 'P0001:P309 probe',
+  'an ordinary error (P0001) raised by the section reader comes out of the poll, it is not turned into version = null');
+CREATE FUNCTION pg_temp.p309_probe_try(p_errcode TEXT) RETURNS TEXT LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM pg_temp.p309_probe(p_errcode);
+  RETURN pg_temp.p309_try(4, 'SELECT platform.student_portal_poll_v1(''documents'')');
+END
+$$;
+SELECT pg_temp.p309_assert(
+  (SELECT bool_and(pg_temp.p309_probe_try(code) = code) FROM unnest(ARRAY['22023', '40001', 'XX000', 'P0001']) AS code),
+  'invalid parameter, serialization failure, internal error and a plain RAISE all come out with their own SQLSTATE');
+-- The sections that do not read that reader are not touched by the probe.
+SELECT pg_temp.p309_assert(
+  (SELECT bool_and((pg_temp.p309_poll(4, s) ->> 'access')::BOOLEAN AND pg_temp.p309_poll(4, s) ->> 'version' ~ '^[0-9a-f]{32}$')
+    FROM unnest(ARRAY[NULL, 'home', 'admission', 'payments', 'notifications', 'messages']) AS s),
+  'the sections that do not read the probed reader still answer');
+
+-- (b) The positive control: the same probe with 42501 gives an answer with version = null.
+SELECT pg_temp.p309_probe('42501');
+SELECT pg_temp.p309_poll(4, 'documents') AS p309_probed_answer \gset
+SELECT pg_temp.p309_assert(
+  (:'p309_probed_answer'::JSONB ->> 'access')::BOOLEAN
+    AND jsonb_typeof(:'p309_probed_answer'::JSONB -> 'unread') = 'number'
+    AND (:'p309_probed_answer'::JSONB ->> 'unread')::INTEGER = pg_temp.p309_source_unread(4)
+    AND jsonb_typeof(:'p309_probed_answer'::JSONB -> 'version') = 'null'
+    AND (SELECT array_agg(k ORDER BY k) FROM jsonb_object_keys(:'p309_probed_answer'::JSONB) AS k) = ARRAY['access', 'unread', 'version'],
+  'a 42501 from the section reader gives access = true, the unread number and version = null');
+
+-- The real reader is put back, byte for byte.
+:p309_documents_definition ;
+SELECT pg_temp.p309_assert(
+  pg_get_functiondef('platform.student_portal_documents()'::REGPROCEDURE) = :'p309_documents_definition',
+  'the probe is gone: student_portal_documents has its own definition again');
+SELECT pg_temp.p309_take('a_after_probe', 4);
+SELECT pg_temp.p309_assert(pg_temp.p309_moved('a_before_probe', 'a_after_probe', 4) = '',
+  'after the probe is removed every version is what it was before it');
+
+-- ===========================================================================
 -- S6. Nothing but the three keys: no name, amount, message, answer or label is in any answer.
 -- ===========================================================================
 SELECT pg_temp.p309_take('a_final', 4);

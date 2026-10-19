@@ -246,6 +246,9 @@ test("source contract: the light-poll branch sits after the public pages and bef
   const mark = proxy.indexOf("markProxied();");
   assert.ok(mark > proxy.indexOf('if (path === "/api/health" || path === "/api/version")'), "health and version are not measured");
   assert.ok(mark < proxy.indexOf("if (isConnectedPlatformPrivateApi(path))"), "everything else is");
+  // The CRM page remembers the release it was rendered by (stale-build detection of the bell).
+  const staffLayout = readFileSync(new URL("../src/app/(v3)/layout.tsx", import.meta.url), "utf8");
+  assert.match(staffLayout, /<ServerReleaseMark release=\{release\.status === "available" \? release\.revision : null\} \/>/u);
   // The routes themselves repeat nothing of the proxy and stay thin.
   assert.match(readFileSync(new URL("../src/app/api/portal/updates/route.ts", import.meta.url), "utf8"), /export const GET = createStudentPortalUpdatesHandler\(\);/u);
   assert.match(readFileSync(new URL("../src/app/api/v3/notifications/state/route.ts", import.meta.url), "utf8"), /export const GET = createStaffNotificationsStateHandler\(\);/u);

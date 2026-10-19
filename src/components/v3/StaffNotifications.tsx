@@ -156,11 +156,13 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
         const first = !polled.current;
         polled.current = true;
         if (current === null || (first && String(state.unread) !== current.unreadCount)) reload();
+        else setError(null);
       },
       onChange: reload,
+      // Сбой лёгкого опроса не стирает уже прочитанную страницу: она исправна,
+      // сказать нужно только о том, что свежих данных нет.
       onFailure: (kind) => {
         setError(kind === "denied" ? "Не удалось загрузить уведомления. Повторите или войдите снова." : "Нет связи. Повторите загрузку уведомлений.");
-        setPage(null);
       },
     });
     const resume = () => poller.resume();

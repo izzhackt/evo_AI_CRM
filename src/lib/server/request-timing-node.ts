@@ -76,7 +76,10 @@ function instrumentResponse(
   const writeHead = typed.writeHead;
   typed.writeHead = function patchedWriteHead(this: http.ServerResponse, ...args: unknown[]) {
     try {
-      if (timing.ttfbMs === null) timing.ttfbMs = performance.now() - timing.startedAt;
+      if (timing.ttfbMs === null) {
+        timing.ttfbMs = performance.now() - timing.startedAt;
+        timing.depthAtHead = timing.depth;
+      }
       if (!response.headersSent) {
         const value = serverTimingHeader(timing, options.environment);
         if (value !== null) response.setHeader("Server-Timing", value);

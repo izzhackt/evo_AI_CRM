@@ -10,11 +10,13 @@
 // В строках журнала нет данных пользователей, поэтому и в отчёте их нет.
 //
 // Флаги: --json (машинный вывод), --by-release (отдельно по меткам выпуска),
-// --kind=page,nav,prefetch,action,route (фильтр), --min-n=N (скрыть редкие).
+// --kind=page,nav,prefetch,action,route,other (фильтр), --min-n=N (скрыть редкие).
+// Оборванные клиентом ответы (`aborted`) в проценты и средние не входят: они
+// считаются отдельным столбцом. `other` — ответы proxy без маршрута и файлы.
 
 import { pathToFileURL } from "node:url";
 
-const KINDS = new Set(["page", "nav", "prefetch", "action", "route"]);
+const KINDS = new Set(["page", "nav", "prefetch", "action", "route", "other"]);
 
 export function parseTimingLines(text) {
   const records = [];
@@ -53,19 +55,22 @@ function numbers(records, field) {
   return records.map((record) => record[field]).filter(Number.isFinite);
 }
 
-function summarizeGroup(records) {
+function summarizeGroup(all) {
+  const records = all.filter((record) => record.aborted !== true);
   const ms = numbers(records, "ms").sort((a, b) => a - b);
   const ttfb = numbers(records, "ttfb_ms").sort((a, b) => a - b);
   return {
     n: records.length,
+    aborted: all.length - records.length,
     p50: percentile(ms, 50),
     p90: percentile(ms, 90),
     p99: percentile(ms, 99),
     ttfb_p50: percentile(ttfb, 50),
     depth_avg: mean(numbers(records, "depth")),
+    depth_ttfb_avg: numbers(records, "depth_ttfb").length === 0 ? null : mean(numbers(records, "depth_ttfb")),
     rpc_avg: mean(numbers(records, "rpc")),
     rpc_ms_avg: mean(numbers(records, "rpc_ms")),
-    rpc_total: numbers(records, "rpc").reduce((sum, value) => sum + value, 0),
+    rpc_total: numbers(all, "rpc").reduce((sum, value) => sum + value, 0),
     errors: records.filter((record) => record.status >= 500).length,
   };
 }
@@ -83,7 +88,7 @@ export function summarize(records, { byRelease = false, kinds = null, minN = 1 }
       const [rel, routeClass, kind] = JSON.parse(key);
       return { ...(byRelease ? { rel } : {}), class: routeClass, kind, ...summarizeGroup(group) };
     })
-    .filter((row) => row.n >= minN)
+    .filter((row) => row.n + row.aborted >= minN)
     .sort((a, b) => b.n - a.n || a.class.localeCompare(b.class) || a.kind.localeCompare(b.kind) || (a.rel ?? "").localeCompare(b.rel ?? ""));
 
   const times = selected.map((record) => Date.parse(record.ts)).filter(Number.isFinite);
@@ -120,15 +125,15 @@ export function formatReport(summary, ignored = 0) {
   lines.push("");
   const header = [
     ...(summary.rows[0] && "rel" in summary.rows[0] ? ["выпуск"] : []),
-    "класс", "вид", "n", "p50 мс", "p90 мс", "p99 мс", "p50 до байта", "глубина", "RPC", "RPC мс", "5xx",
+    "класс", "вид", "n", "обрыв", "p50 мс", "p90 мс", "p99 мс", "p50 до байта", "глубина", "глуб. до байта", "RPC", "RPC мс", "5xx",
   ];
   const body = summary.rows.map((row) => [
     ...("rel" in row ? [row.rel] : []),
-    row.class, row.kind, String(row.n), fmt(row.p50), fmt(row.p90), fmt(row.p99), fmt(row.ttfb_p50),
-    fmt(row.depth_avg, 1), fmt(row.rpc_avg, 1), fmt(row.rpc_ms_avg), String(row.errors),
+    row.class, row.kind, String(row.n), String(row.aborted), fmt(row.p50), fmt(row.p90), fmt(row.p99), fmt(row.ttfb_p50),
+    fmt(row.depth_avg, 1), fmt(row.depth_ttfb_avg, 1), fmt(row.rpc_avg, 1), fmt(row.rpc_ms_avg), String(row.errors),
   ]);
   const widths = header.map((title, column) => Math.max(title.length, ...body.map((row) => row[column].length)));
-  const render = (cells) => cells.map((cell, column) => (column < header.length - 9 ? cell.padEnd(widths[column]) : cell.padStart(widths[column]))).join("  ");
+  const render = (cells) => cells.map((cell, column) => (column < header.length - 11 ? cell.padEnd(widths[column]) : cell.padStart(widths[column]))).join("  ");
   lines.push(render(header));
   lines.push(widths.map((width) => "-".repeat(width)).join("  "));
   for (const row of body) lines.push(render(row));

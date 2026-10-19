@@ -9,7 +9,7 @@ import { formatReport, parseTimingLines, percentile, summarize } from "../script
 function line(overrides = {}) {
   return JSON.stringify({
     event: "evo_timing", v: 1, ts: "2026-10-19T08:00:00Z", rel: "r199+01234567", class: "portal/home", kind: "page",
-    status: 200, ms: 100, ttfb_ms: 50, rpc: 3, depth: 2, rpc_ms: 60, rpc_wall_ms: 40, other: 0, ...overrides,
+    status: 200, ms: 100, ttfb_ms: 50, rpc: 3, depth: 2, depth_ttfb: 1, rpc_ms: 60, rpc_wall_ms: 40, other: 0, ...overrides,
   });
 }
 
@@ -58,6 +58,22 @@ test("groups by class and kind, with p50/p90/p99, mean depth and RPC, coverage a
   assert.equal(summary.rows[0].class, "portal/home", "the most frequent class is first");
 });
 
+test("aborted responses are counted apart and do not enter the percentiles or averages; depth until the first byte is averaged", () => {
+  const records = [
+    JSON.parse(line({ ms: 100, depth: 2, depth_ttfb: 1 })),
+    JSON.parse(line({ ms: 300, depth: 4, depth_ttfb: 2 })),
+    JSON.parse(line({ ms: 5, depth: 9, depth_ttfb: null, status: 0, rpc: 7, aborted: true, ttfb_ms: null })),
+    JSON.parse(line({ class: "unmatched", kind: "other", status: 307, ms: 3, depth: 0, depth_ttfb: null, rpc: 0 })),
+  ];
+  const summary = summarize(records);
+  const home = summary.rows.find((row) => row.class === "portal/home");
+  assert.deepEqual([home.n, home.aborted, home.p50, home.depth_avg, home.depth_ttfb_avg, home.rpc_avg, home.rpc_total], [2, 1, 100, 3, 1.5, 3, 13]);
+  const other = summary.rows.find((row) => row.kind === "other");
+  assert.deepEqual([other.class, other.n, other.depth_ttfb_avg], ["unmatched", 1, null]);
+  assert.equal(summarize(records, { kinds: new Set(["other"]) }).requests, 1);
+  assert.match(formatReport(summary), /unmatched\s+other\s+1\s+0\s+3\s/);
+});
+
 test("filters by kind and minimum count, and splits by release on request", () => {
   const records = [
     JSON.parse(line({ kind: "prefetch" })),
@@ -77,7 +93,7 @@ test("the text report names the coverage, the table has one row per group, and n
   const text = formatReport(summarize(records));
   assert.match(text, /Запросов: 2/);
   assert.match(text, /Охват: 2026-10-19T08:00:00.000Z \.\. 2026-10-19T10:00:00.000Z \(2.00 ч\)/);
-  assert.match(text, /portal\/home\s+page\s+1\s+100/);
+  assert.match(text, /portal\/home\s+page\s+1\s+0\s+100/);
   assert.match(text, /v3\/profile\/\[caseId\]\s+nav/);
 });
 

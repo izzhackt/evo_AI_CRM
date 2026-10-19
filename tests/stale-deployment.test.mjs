@@ -403,27 +403,34 @@ test("StaffNotifications stops polling at the first unrecognized action and offe
   }
 });
 
-test("StaffNotifications keeps polling, with a longer delay, and keeps «Нет связи» for an ordinary network failure", async () => {
+test("StaffNotifications keeps polling, with a longer delay, keeps the page it already has and says «Нет связи» until the next good poll", async () => {
   const browser = fakeBrowser();
   const restore = browser.install();
-  const poll = stubPollFetch([new TypeError("Failed to fetch")]);
+  const poll = stubPollFetch([new TypeError("Failed to fetch"), new TypeError("Failed to fetch"), pollAnswer(V1)]);
   const runtime = createRuntime();
   try {
     const { store, shared } = await staleModules(runtime);
-    const { StaffNotifications } = staffNotifications(runtime, shared, async () => { throw new TypeError("Failed to fetch"); });
+    const { StaffNotifications } = staffNotifications(runtime, shared, async () => ({ ok: true, page: PAGE }));
     const view = runtime.render(StaffNotifications, { initialPage: PAGE, onCountChange() {}, triggerProps: {} });
+    const panelOf = () => findAll(view(), (node) => node.props?.["aria-label"] === "Уведомления сотрудников")[0];
     await runtime.flush();
     assert.equal(store.isStaleDeployment(), false);
     assert.deepEqual([...browser.timeouts.values()].map(({ ms }) => ms), [120000], "polling continues, twice as far apart after a failure");
-    assert.match(textOf(findAll(view(), (node) => node.props?.["aria-label"] === "Уведомления")), /^$/u, "no badge from a page that failed to load");
-    browser.runTimeouts();
+    assert.match(findAll(view(), (node) => node.props?.["aria-controls"] === ":stale:")[0].props["aria-label"], /1 непрочитанных/u, "a failed poll does not hide the unread count the page already gave");
+
+    findAll(view(), (node) => node.props?.["aria-controls"] === ":stale:")[0].props.onClick(); // opens the panel: the page is read by the action
     await runtime.flush();
-    assert.equal(poll.requests.length, 2, "the next tick tries again");
+    assert.doesNotMatch(textOf(panelOf()), /Нет связи/u, "the action read succeeded");
+    browser.runTimeouts(); // second poll fails too
+    await runtime.flush();
+    assert.equal(poll.requests.length, 2);
+    assert.match(textOf(panelOf()), /Нет связи\. Повторите загрузку уведомлений\./u);
+    assert.match(textOf(panelOf()), /Не прочитано/u, "and the rows are still there");
     assert.deepEqual([...browser.timeouts.values()].map(({ ms }) => ms), [240000]);
-    findAll(view(), (node) => node.props?.["aria-controls"] === ":stale:")[0].props.onClick();
+    browser.runTimeouts(); // the third poll is good: the message goes away, nothing is re-read
     await runtime.flush();
-    const panel = findAll(view(), (node) => node.props?.["aria-label"] === "Уведомления сотрудников")[0];
-    assert.match(textOf(panel), /Нет связи\. Повторите загрузку уведомлений\./u);
+    assert.doesNotMatch(textOf(panelOf()), /Нет связи/u);
+    assert.match(textOf(panelOf()), /Не прочитано/u);
   } finally {
     runtime.unmount();
     poll.restore();
@@ -683,6 +690,49 @@ test("the portal case chat stops polling on a stale action and keeps the student
     runtime.unmount();
     restore();
   }
+});
+
+test("a version event that arrives while the thread reads its page is not lost: one more read follows", async () => {
+  const browser = fakeBrowser();
+  const restore = browser.install();
+  const runtime = createRuntime();
+  try {
+    const { shared } = await staleModules(runtime);
+    const pending = [];
+    const { MessagesThread } = messagesThread(runtime, shared, {
+      loadPortalCaseMessagesAction: () => new Promise((resolve) => { pending.push(() => resolve({ ok: true, page: THREAD })); }),
+      sendPortalCaseMessageAction: async () => ({ ok: true }),
+    });
+    runtime.render(MessagesThread, { initialPage: THREAD, strings: portalI18n.getPortalStrings("messages", "ru"), locale: "ru" });
+    browser.window.dispatchEvent({ type: "evo:portal-messages-changed" });
+    browser.window.dispatchEvent({ type: "evo:portal-messages-changed" });
+    browser.window.dispatchEvent({ type: "evo:portal-messages-changed" });
+    assert.equal(pending.length, 1, "one read at a time");
+    pending[0]();
+    await runtime.flush();
+    assert.equal(pending.length, 2, "the events that came during the read are served by exactly one more read");
+    pending[1]();
+    await runtime.flush();
+    assert.equal(pending.length, 2, "and no more");
+  } finally {
+    runtime.unmount();
+    restore();
+  }
+});
+
+test("the CRM release mark remembers the release of the first render once and marks a different one", async () => {
+  const runtime = createRuntime();
+  const { store, shared } = await staleModules(runtime);
+  const { ServerReleaseMark } = compile("src/components/ServerReleaseMark.tsx", (id) => shared(id));
+  runtime.render(ServerReleaseMark, { release: POLL_REVISION });
+  assert.equal(store.isStaleDeployment(), false);
+  runtime.render(ServerReleaseMark, { release: POLL_REVISION });
+  assert.equal(store.isStaleDeployment(), false, "the same release again: nothing");
+  assert.equal(store.noteServerRelease("c".repeat(40)), true, "an answer from another release marks the page");
+  assert.equal(store.isStaleDeployment(), true);
+  const local = await staleModules(createRuntime());
+  assert.equal(local.store.noteServerRelease(null), false, "a local run without a release label never marks");
+  runtime.unmount();
 });
 
 test("the portal case chat refresh stops at the first stale refresh without showing a refresh error", async () => {

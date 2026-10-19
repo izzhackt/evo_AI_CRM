@@ -111,6 +111,7 @@ test("a record has a closed set of fields and no user data", () => {
   const call = timing.beginRpc(request, 10);
   timing.endRpc(request, call, 40);
   request.ttfbMs = 12.34;
+  request.depthAtHead = 1;
   const record = timing.buildTimingRecord(
     request,
     { status: 200, aborted: false, route: { kind: "APP_PAGE", template: "/portal/home" } },
@@ -118,19 +119,21 @@ test("a record has a closed set of fields and no user data", () => {
     55.55,
   );
   assert.deepEqual(Object.keys(record).sort(), [
-    "class", "depth", "event", "kind", "ms", "other", "rel", "rpc", "rpc_ms", "rpc_wall_ms", "status", "ts", "ttfb_ms", "v",
+    "class", "depth", "depth_ttfb", "event", "kind", "ms", "other", "rel", "rpc", "rpc_ms", "rpc_wall_ms", "status", "ts", "ttfb_ms", "v",
   ]);
   assert.deepEqual(
     { ...record },
     {
       event: "evo_timing", v: 1, ts: "2026-10-19T08:30:15Z", rel: "r199+01234567", class: "portal/home", kind: "action",
-      status: 200, ms: 55.6, ttfb_ms: 12.3, rpc: 1, depth: 1, rpc_ms: 30, rpc_wall_ms: 30, other: 0,
+      status: 200, ms: 55.6, ttfb_ms: 12.3, rpc: 1, depth: 1, depth_ttfb: 1, rpc_ms: 30, rpc_wall_ms: 30, other: 0,
     },
   );
   const aborted = timing.buildTimingRecord(fresh(), { status: 200, aborted: true, route: null }, "bad label", 1);
   assert.equal(aborted.aborted, true);
   assert.equal(aborted.class, "unmatched");
-  assert.equal(aborted.kind, "page");
+  assert.equal(aborted.kind, "other", "no route and no header kind: not a page");
+  assert.equal(aborted.status, 0, "cut before any header was sent: there was no response");
+  assert.equal(aborted.depth_ttfb, null);
   assert.equal(aborted.rel, "dev", "a label that is not a release label is replaced");
   assert.equal(aborted.ttfb_ms, null);
   const route = timing.buildTimingRecord(fresh(), { status: 503, aborted: false, route: { kind: "APP_ROUTE", template: "/api/portal/updates" } }, "dev", 1);
@@ -295,6 +298,60 @@ test("an aborted response is logged as aborted; a failed RPC still ends its wave
     uninstall();
     globalThis.fetch = realFetch;
   }
+});
+
+test("a request cut while an RPC is in flight counts the time the RPC already took, status 0", async () => {
+  const realFetch = globalThis.fetch;
+  const log = [];
+  globalThis.fetch = async () => { await wait(300); return new Response("{}"); };
+  const uninstall = installRequestTiming({ sink: (record) => log.push(record), environment: { NODE_ENV: "production" } });
+  try {
+    const server = http.createServer(async (request, response) => {
+      timing.markProxied();
+      await fetch("https://supabase.test/rest/v1/rpc/slow").catch(() => undefined);
+      response.end("late");
+    });
+    const port = await listen(server);
+    try {
+      await new Promise((resolve) => {
+        const request = http.request({ host: "127.0.0.1", port, path: "/" }, () => undefined);
+        request.on("error", () => resolve(undefined));
+        request.end();
+        setTimeout(() => request.destroy(), 120);
+      });
+      await wait(450);
+      assert.equal(log.length, 1);
+      const [record] = log;
+      assert.deepEqual([record.aborted, record.status, record.rpc, record.ttfb_ms, record.depth_ttfb], [true, 0, 1, null, null]);
+      assert.ok(record.rpc_ms >= 80 && record.rpc_wall_ms >= 80, `partial RPC time is counted: ${JSON.stringify(record)}`);
+    } finally {
+      server.close();
+    }
+  } finally {
+    uninstall();
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("depth_ttfb is the depth when the headers left, depth the whole response", async () => {
+  await withInstalledTiming({ NODE_ENV: "production" }, async (log) => {
+    const server = http.createServer(async (request, response) => {
+      timing.markProxied();
+      await fetch("https://supabase.test/rest/v1/rpc/first");
+      response.write("shell");
+      await fetch("https://supabase.test/rest/v1/rpc/second");
+      await fetch("https://supabase.test/rest/v1/rpc/third");
+      response.end("rest");
+    });
+    const port = await listen(server);
+    try {
+      await send(port, { path: "/" });
+      await wait(30);
+      assert.deepEqual([log[0].depth_ttfb, log[0].depth, log[0].rpc], [1, 3, 3]);
+    } finally {
+      server.close();
+    }
+  });
 });
 
 test("a request the client cancelled before any route or RPC is not logged at all", async () => {

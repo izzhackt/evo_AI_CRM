@@ -112,9 +112,14 @@ export function MessagesThread({
     if (stale) return;
     let disposed = false;
     let running = false;
+    // Версия переписки сменилась, пока тред читал свою страницу: опрос её уже
+    // запомнил и второго события не пришлёт, поэтому после чтения — ещё одно.
+    let again = false;
     async function refresh() {
-      if (disposed || running || isStaleDeployment()) return;
+      if (disposed || isStaleDeployment()) return;
+      if (running) { again = true; return; }
       running = true;
+      again = false;
       try {
         const result = await loadPortalCaseMessagesAction(null);
         if (disposed) return;
@@ -145,6 +150,7 @@ export function MessagesThread({
         if (!disposed) setRefreshFailed(true);
       } finally {
         running = false;
+        if (again && !disposed) void refresh();
       }
     }
     refreshRef.current = () => { void refresh(); };

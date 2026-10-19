@@ -17,7 +17,12 @@ import { readReleaseMetadata } from "./release-metadata.ts";
  * id пользователя, дела, лида или клиента.
  */
 
-export type TimingKind = "page" | "nav" | "prefetch" | "action" | "route";
+/**
+ * `other` — запрос без совпавшего маршрута и без заголовков вида: ответ proxy
+ * (редирект, 401/403), файл из `public/`. Он не должен попадать в строки
+ * страниц.
+ */
+export type TimingKind = "page" | "nav" | "prefetch" | "action" | "route" | "other";
 
 type RpcCall = { level: number; startedAt: number };
 
@@ -28,11 +33,13 @@ export type RequestTiming = {
   /** Unix-время входа, мс (только для `ts`). */
   readonly startedAtEpochMs: number;
   /** Вид по сырым заголовкам запроса; `route`/`page` уточняется по маршруту. */
-  readonly headerKind: Exclude<TimingKind, "route" | "page"> | null;
+  readonly headerKind: Exclude<TimingKind, "route" | "page" | "other"> | null;
   /** Запрос прошёл через `src/proxy.ts` (статика и файлы в журнал не идут). */
   proxied: boolean;
   /** Время отправки заголовков ответа, мс от входа. */
   ttfbMs: number | null;
+  /** Глубина RPC к моменту отправки заголовков (приёмка S1: «до первого байта»). */
+  depthAtHead: number | null;
   rpcCount: number;
   otherCount: number;
   rpcMs: number;
@@ -42,6 +49,8 @@ export type RequestTiming = {
   lastFinishedLevel: number;
   inflight: number;
   busySince: number;
+  /** Вызовы в полёте: ответ могут оборвать раньше, чем они закончатся. */
+  readonly open: Set<RpcCall>;
   finished: boolean;
 };
 
@@ -106,6 +115,7 @@ export function startRequestTiming(
     headerKind: kindFromHeaders(headers),
     proxied: false,
     ttfbMs: null,
+    depthAtHead: null,
     rpcCount: 0,
     otherCount: 0,
     rpcMs: 0,
@@ -114,6 +124,7 @@ export function startRequestTiming(
     lastFinishedLevel: 0,
     inflight: 0,
     busySince: 0,
+    open: new Set(),
     finished: false,
   };
 }
@@ -131,11 +142,14 @@ export function beginRpc(timing: RequestTiming, now: number = performance.now())
   if (level > timing.depth) timing.depth = level;
   if (timing.inflight === 0) timing.busySince = now;
   timing.inflight += 1;
-  return { level, startedAt: now };
+  const call = { level, startedAt: now };
+  timing.open.add(call);
+  return call;
 }
 
 export function endRpc(timing: RequestTiming, call: RpcCall, now: number = performance.now()): void {
   if (timing.finished) return;
+  timing.open.delete(call);
   timing.rpcMs += now - call.startedAt;
   timing.lastFinishedLevel = call.level;
   timing.inflight -= 1;
@@ -201,7 +215,10 @@ export type TimingRecord = Readonly<{
   ms: number;
   ttfb_ms: number | null;
   rpc: number;
+  /** Наибольшая последовательная глубина RPC за весь ответ. */
   depth: number;
+  /** Она же к моменту отправки заголовков ответа; null — заголовки не отправлены. */
+  depth_ttfb: number | null;
   rpc_ms: number;
   rpc_wall_ms: number;
   other: number;
@@ -226,9 +243,17 @@ export function buildTimingRecord(
 ): TimingRecord {
   const route = outcome.route;
   const kind: TimingKind =
-    timing.headerKind ?? (route?.kind === "APP_ROUTE" ? "route" : "page");
+    timing.headerKind ?? (route === null ? "other" : route.kind === "APP_ROUTE" ? "route" : "page");
   const routeClass = route ? routeClassFromTemplate(route.template) : null;
-  const status = Number.isInteger(outcome.status) && outcome.status >= 100 && outcome.status <= 599 ? outcome.status : 0;
+  // Клиент ушёл до отправки заголовков: у Node остаётся статус по умолчанию (200),
+  // и это было бы ложью. 0 — ответа не было.
+  const noResponse = outcome.aborted && timing.ttfbMs === null;
+  const status = !noResponse && Number.isInteger(outcome.status) && outcome.status >= 100 && outcome.status <= 599 ? outcome.status : 0;
+  // Ответ оборван, а вызовы ещё в полёте: считаем время, которое они уже заняли.
+  let rpcMs = timing.rpcMs;
+  let rpcWallMs = timing.rpcWallMs;
+  for (const call of timing.open) rpcMs += now - call.startedAt;
+  if (timing.inflight > 0) rpcWallMs += now - timing.busySince;
   return {
     event: "evo_timing",
     v: 1,
@@ -241,8 +266,9 @@ export function buildTimingRecord(
     ttfb_ms: timing.ttfbMs === null ? null : round1(timing.ttfbMs),
     rpc: timing.rpcCount,
     depth: timing.depth,
-    rpc_ms: round1(timing.rpcMs),
-    rpc_wall_ms: round1(timing.rpcWallMs),
+    depth_ttfb: timing.depthAtHead,
+    rpc_ms: round1(rpcMs),
+    rpc_wall_ms: round1(rpcWallMs),
     other: timing.otherCount,
     ...(outcome.aborted ? { aborted: true as const } : {}),
   };

@@ -59951,3 +59951,107 @@ Reviewer notes: независимое review на точном head: нет П�
 - Способ оплаты для домена: решение и действие владельца до 2027-01-24.
 - Блоки `soodacloser.com` ведёт репозиторий soodacloser; здесь они лишь повторяют живой файл. Если их схема изменится, зеркало нужно обновить так же, как сейчас.
 - Остальные пункты до переключения Supabase перечислены в разделе 7 карты.
+
+## 2026-10-19 · SQL: права актора один раз на запрос — WhatsApp, воронка, отчёт продаж, карточка дела (миграция 310, запись до кода)
+
+```text
+Date: 2026-10-19, workspace timezone.
+Author: Claude Code (по поручению ведущего агента), по решению владельца EVO 19.10.2026
+  («Делай оптимизацию SQL: права один раз на запрос для WhatsApp, воронки, отчёта продаж
+  и карточки дела, проверь на копии, потом выпуск»).
+Change type: architecture (путь проверки прав в тяжёлых чтениях), scope, validation.
+Affected plan section: docs/EVO_STUDENT_APP_V2_PLAN_2026-10-16.md §5.1 (план скорости A);
+  записи этого файла от 16.10.2026 «Скорость CRM и кабинета: план A» и от 19.10.2026
+  «Скорость A0 + A4» (там замер evo_timing показал, что остаток времени сидит в SQL).
+Reason: на self-hosted копии с данными production (19.10) `/v3/inbox` («WhatsApp») падает в
+  3 из 10 открытий: `platform.staff_communication_page` ~8,0 с при `statement_timeout`
+  authenticated 8 с (в облаке тот же лимит). Те же причины у `staff_sales_lead_page` (~4,0 с),
+  `staff_student_case_sales_links` (~3,8 с), `read_sales_register_v5` (0,8 с),
+  `staff_sales_count_v1` (0,6 с), `staff_sales_stage_entry_cohort` (0,4 с),
+  `staff_student_case_read_snapshot` (1,0 с), `staff_student_case_activity` (0,5 с),
+  `staff_student_case_queue_v1` (1,0 с).
+Diagnosis (копия, роль authenticated с клеймами, EXPLAIN ANALYZE и подмена проверок на TRUE):
+  1. Узкое место — не данные, а проверка прав на каждую строку: цепочка
+     `staff_can_access_for_actor` → `current_actor_authority` → `staff_access_evaluate` →
+     `staff_resource_context` → `staff_context_can_access` → `staff_membership_identity` /
+     `staff_has_permission`. Одна проверка стоит ~5,9 мс.
+  2. Почти всё это время — планирование: вложенные функции на языке SQL планируются заново
+     при каждом вызове внешней функции (один `staff_context_can_access` на копии: Planning
+     2,4 мс из 4,5 мс). Разбор самой логики прав не нужен — её надо вызывать не на строку, а
+     один раз на запрос.
+  3. Нижняя граница тех же функций без построчной проверки (замер на копии, Admin): страница
+     WhatsApp 20 мс, страница лидов 21 мс, счёт продаж 4 мс, реестр v5 37 мс, когорта 6 мс,
+     страница дела под read_snapshot 10 мс, activity 58 мс, очередь 143 мс.
+  4. Политики RLS на `communication_conversations`, `leads`, `student_cases` вызывают те же
+     функции построчно, но страничные функции — SECURITY DEFINER от postgres (BYPASSRLS),
+     политики внутри них не работают. Приложение читает эти таблицы напрямую только точечно
+     (`platform-media-attach-actions.ts`, `manual-lead-source.ts`).
+Decision:
+  1. Новые закрытые функции (EXECUTE только у владельца; клиентским ролям не выданы):
+     `platform_private.staff_visible_ids_v1(org, membership, permission, kind, only_ids)`
+     — множество id ресурсов, которые данная принадлежность читает; полномочия считаются
+     один раз (личность, право, роли с назначениями, область «все / отдел / свои /
+     направление / запись»), затем фильтр множественный. Поддержаны ровно четыре пары:
+     (lead.read, lead), (communication.read.full, conversation), (case.read.full,
+     student_case), (sales.register.read, sales_register); любая другая — 22023.
+     `staff_visible_ids_for_actor_v1` — то же для актёра из `current_actor_authority()`
+     (как `staff_can_access_for_actor`); `staff_readable_case_ids_v1` и `…_for_actor_v1` —
+     зеркало `private.platform_can_read_student_case` (case.read.full плюс ветка «дело ждёт
+     куратора» только для дел pending без куратора; обе ветки помощника возвращают FALSE для
+     остальных дел, это закрепляется тестом и якорем md5 помощников). `only_ids` сужает
+     перебор до заданных id (карточка дела, связи с продажами): цена пропорциональна запросу.
+  2. Девять тел заменяются на месте (`CREATE OR REPLACE`, подписи, владельцы, права, STABLE /
+     SECURITY DEFINER и search_path прежние; каждое прежнее тело закреплено md5 `prosrc`,
+     расхождение останавливает миграцию, шаблон 253/281/303):
+     `private.staff_communication_page`, `private.staff_sales_lead_page`,
+     `platform.staff_sales_count_v1`, `platform.read_sales_register_v5`,
+     `platform.staff_sales_stage_entry_cohort`, `platform.staff_student_case_sales_links`
+     (без `visible_canonical_leads()`: считаются только лиды запрошенных дел),
+     `platform.staff_student_case_page` (основа `read_snapshot`: фильтр по делу переносится
+     внутрь CTE, видимость — множеством), `private.staff_student_case_activity` (проверки
+     `platform_has_permission` и чтения переписки берутся один раз, не на событие),
+     `platform.staff_student_case_queue_v1`. Результат, порядок, курсоры, ошибки и тексты
+     ошибок прежние.
+  3. Политики RLS и функции `private.platform_can_read_*` не меняются ни на байт: они остаются
+     эталоном, с которым сверяется новое множество. Это самый узкий вариант и он не нужен
+     для цели: нагруженные пути идут через SECURITY DEFINER-функции. Правка политик
+     отложена как отдельное решение, если появится прямое чтение таблиц в горячем месте.
+  4. Кэшей между запросами нет: множество строится заново при каждом вызове, из тех же
+     таблиц, под тем же снимком (STABLE), поэтому отзыв роли, приостановка членства и
+     блокировка профиля действуют на следующем же вызове. Никаких GUC, временных таблиц и
+     IMMUTABLE.
+  5. Приложение не меняется (подписи те же), выпуск приложения не нужен: ledger check →
+     apply 310.
+Доказательство равенства доступа (граница безопасности):
+  a. SQL-набор `supabase/tests/platform_permission_once.sql`: прежние тела девяти функций
+     лежат в тесте под именами `platform_private.pw310_old_*` (md5 каждого сверяется с
+     якорем миграции); синтетические данные покрывают переписку без лида, лид без дела,
+     закрытое дело, архив, handoff, `waha_history_binding`; по каждой роли — Admin, Sales
+     Manager (отдел), Sales (свои), Admissions Manager (отдел), Admissions (свои),
+     сотрудник с направлением, запись-область, организационная область, студент, чужая
+     организация, приостановленное членство, заблокированный профиль, отозванное
+     назначение, аноним — сравниваются множества строк и все поля (md5 и счёт) старой и
+     новой версии; множество `staff_visible_ids_v1` равно множеству id, для которых старая
+     построчная `staff_can_access` / `platform_can_read_*` даёт TRUE. Отзыв и приостановка
+     проверяются в той же транзакции.
+  b. Полный прогон `DOCKER_CONTEXT=orbstack bash scripts/test-postgres-authorization.sh`
+     (EXIT=0, все существующие наборы зелёные).
+  c. Дифференциальная проверка на копии с данными production: в одной транзакции с
+     ROLLBACK снимается выдача старых функций, применяется 310, снимается выдача новых;
+     по каждому из ~6 реальных членств сравниваются счёт и хэш строк. Расхождений должно
+     быть 0.
+Measurement plan: `EXPLAIN ANALYZE` каждой функции до и после на копии; 10 открытий
+  `/v3/inbox`, `/v3/pipeline`, `/v3/main?view=sales`, `/v3/profile?case=…`, `/v3/main` в
+  headless Chromium через SSH-туннель с `evo_timing` и `scripts/timing-report.mjs`. Цели:
+  `staff_communication_page` < 0,5 с, «WhatsApp» открывается 10 из 10, остальные — кратное
+  ускорение. Копия — не production; рабочая CRM на ней не работает.
+Risks: (1) расхождение множества с построчным предикатом — закрывается дифференциальными
+  проверками (a) и (c) и тем, что сверка идёт с неизменными функциями; (2) будущее
+  изменение `staff_resource_context` / `staff_context_can_access` не попадёт в множество —
+  тест (a) падает на сравнении, а в комментарии к функции названы оба источника; (3) новая
+  принадлежность `student_case` в помощниках «ждёт куратора» — закреплена якорем md5.
+Out of scope: правка политик RLS, `visible_canonical_leads()` для прочих вызывающих,
+  `inbox/pulse`, чат команды, выпуск приложения.
+Rollback: прямая миграция 311 с прежними телами (их текст лежит в тесте как
+  `pw310_old_*`); новые функции безвредны без вызывающих.
+```

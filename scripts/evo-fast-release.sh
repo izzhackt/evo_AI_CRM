@@ -12,7 +12,9 @@ readonly SAFE_NAME_RE='^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$'
 readonly REPOSITORY_RE='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
 readonly POSITIVE_INT_RE='^[1-9][0-9]*$'
 readonly PROJECT_NAME_RE='^[a-z0-9][a-z0-9_-]{0,99}$'
-readonly SUPABASE_PROJECT_REF_RE='^[a-z0-9]{20}$'
+# A 20-character cloud project ref, or the word `selfhosted` for https://supabase.evoadmissions.com
+# (docs/runbooks/selfhosted-cutover.md). The cloud alternative is removed after the cutover (#1271).
+readonly SUPABASE_PROJECT_REF_RE='^([a-z0-9]{20}|selfhosted)$'
 readonly ABSOLUTE_PATH_RE='^/[A-Za-z0-9._/-]+$'
 readonly HEALTH_URL_RE='^(https://crm\.evoadmissions\.com|http://127\.0\.0\.1:[0-9]{1,5})/api/health$'
 readonly CLAMAV_IMAGE='clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9'

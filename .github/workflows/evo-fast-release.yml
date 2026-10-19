@@ -25,6 +25,12 @@ jobs:
       vars.EVO_PRODUCTION_RELEASE_ARMED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # Какая база у рабочей CRM (docs/runbooks/selfhosted-cutover.md): `cloud` без переменной.
+      # Identity уходит в манифест образа и в контроллер как «project ref»: 20 символов у облака,
+      # слово selfhosted у self-hosted. Облачная ветка удаляется после переключения (#1271).
+      EVO_SUPABASE_TARGET: ${{ vars.EVO_SUPABASE_TARGET || 'cloud' }}
+      EVO_SUPABASE_IDENTITY: ${{ (vars.EVO_SUPABASE_TARGET || 'cloud') == 'selfhosted' && 'selfhosted' || vars.EVO_SUPABASE_PROJECT_REF }}
     permissions:
       contents: read
     outputs:
@@ -132,6 +138,16 @@ jobs:
           main().catch(fail);
           NODE
 
+      - name: Validate Supabase target for build
+        run: |
+          set -Eeuo pipefail
+          [[ "$EVO_SUPABASE_TARGET" == cloud || "$EVO_SUPABASE_TARGET" == selfhosted ]]
+          if [[ "$EVO_SUPABASE_TARGET" == selfhosted ]]; then
+            [[ "$EVO_SUPABASE_IDENTITY" == selfhosted ]]
+          else
+            [[ "$EVO_SUPABASE_IDENTITY" =~ ^[a-z0-9]{20}$ ]]
+          fi
+
       - name: Match production Docker image store for build
         uses: docker/setup-docker-action@77e84dbf09b47d1e29270283c22f16145aa85ca1 # v5.4.0
         with:
@@ -182,7 +198,7 @@ jobs:
           EVO_RELEASE_VERSION: ${{ steps.release_identity.outputs.release_version }}
           EVO_ARTIFACT_NAME: ${{ steps.release_identity.outputs.artifact_name }}
           EVO_IMAGE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
-          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
+          EVO_SUPABASE_PROJECT_REF: ${{ env.EVO_SUPABASE_IDENTITY }}
           EVO_UPSTREAM_WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
           EVO_UPSTREAM_WORKFLOW_PATH: ${{ github.event.workflow_run.path }}
           EVO_UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
@@ -191,7 +207,7 @@ jobs:
           set -Eeuo pipefail
           umask 077
           [[ "$EVO_RELEASE_WORKFLOW_REVISION" == "$EVO_RELEASE_REVISION" ]]
-          [[ "$EVO_SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]
+          [[ "$EVO_SUPABASE_PROJECT_REF" =~ ^([a-z0-9]{20}|selfhosted)$ ]]
           [[ "$EVO_UPSTREAM_RUN_ID" =~ ^[1-9][0-9]*$ ]]
           [[ "$EVO_UPSTREAM_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
           candidate_dir=/tmp/evo-production-candidate
@@ -299,6 +315,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      EVO_SUPABASE_TARGET: ${{ vars.EVO_SUPABASE_TARGET || 'cloud' }}
+      EVO_SUPABASE_IDENTITY: ${{ (vars.EVO_SUPABASE_TARGET || 'cloud') == 'selfhosted' && 'selfhosted' || vars.EVO_SUPABASE_PROJECT_REF }}
     permissions:
       actions: read
       contents: read
@@ -406,6 +425,16 @@ jobs:
           main().catch(fail);
           NODE
 
+      - name: Validate Supabase target for deploy
+        run: |
+          set -Eeuo pipefail
+          [[ "$EVO_SUPABASE_TARGET" == cloud || "$EVO_SUPABASE_TARGET" == selfhosted ]]
+          if [[ "$EVO_SUPABASE_TARGET" == selfhosted ]]; then
+            [[ "$EVO_SUPABASE_IDENTITY" == selfhosted ]]
+          else
+            [[ "$EVO_SUPABASE_IDENTITY" =~ ^[a-z0-9]{20}$ ]]
+          fi
+
       - name: Match production Docker image store for deploy
         uses: docker/setup-docker-action@77e84dbf09b47d1e29270283c22f16145aa85ca1 # v5.4.0
         with:
@@ -509,7 +538,7 @@ jobs:
           EVO_UPSTREAM_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           EVO_ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
           EVO_ARTIFACT_DIGEST: ${{ needs.build.outputs.artifact_digest }}
-          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
+          EVO_SUPABASE_PROJECT_REF: ${{ env.EVO_SUPABASE_IDENTITY }}
         run: |
           set -Eeuo pipefail
           umask 077
@@ -547,7 +576,7 @@ jobs:
             (.controllerSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
             (.validatorSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
             (.envExampleSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
-            (.supabaseProjectRef | type == "string" and test("^[a-z0-9]{20}$")) and
+            (.supabaseProjectRef | type == "string" and test("^([a-z0-9]{20}|selfhosted)$")) and
             .os == "linux" and .architecture == "amd64"
           ' "$manifest" >/dev/null
           [[ "$(jq -r '.artifactName' "$manifest")" == "$EVO_ARTIFACT_NAME" ]]
@@ -598,16 +627,6 @@ jobs:
           [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$expected_image_id")" == "$EVO_RELEASE_REVISION" ]]
           [[ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' "$expected_image_id")" == "$(jq -r '.imageVersion' "$manifest")" ]]
 
-      - name: Read exact Supabase migration ledger
-        env:
-          EVO_RELEASE_REPO: ${{ github.workspace }}
-          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          set -Eeuo pipefail
-          node scripts/fast-release-ledger-gate.mjs > /tmp/evo-production-ledger-initial.json
-          jq -e '.ok == true' /tmp/evo-production-ledger-initial.json >/dev/null
-
       - name: Validate non-secret production contract
         env:
           EVO_DEPLOY_HOST: ${{ vars.EVO_DEPLOY_HOST }}
@@ -621,7 +640,7 @@ jobs:
           EVO_RELEASE_EXTERNAL_HEALTH_URL: ${{ vars.EVO_RELEASE_EXTERNAL_HEALTH_URL }}
           EVO_RELEASE_MIN_FREE_KB: ${{ vars.EVO_RELEASE_MIN_FREE_KB }}
           EVO_WAHA_IMAGE_DIGEST: ${{ vars.EVO_WAHA_IMAGE_DIGEST }}
-          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
+          EVO_SUPABASE_PROJECT_REF: ${{ env.EVO_SUPABASE_IDENTITY }}
           EVO_AI_AGENT_ENABLED: ${{ vars.EVO_AI_AGENT_ENABLED }}
           EVO_AI_AGENT_IMAGE_DIGEST: ${{ vars.EVO_AI_AGENT_IMAGE_DIGEST }}
         run: |
@@ -642,7 +661,7 @@ jobs:
           [[ "$EVO_RELEASE_MIN_FREE_KB" =~ ^[0-9]+$ ]]
           (( EVO_RELEASE_MIN_FREE_KB >= 1048576 ))
           [[ "$EVO_WAHA_IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
-          [[ "$EVO_SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]
+          [[ "$EVO_SUPABASE_PROJECT_REF" =~ ^([a-z0-9]{20}|selfhosted)$ ]]
           # «ИИ-агент» stays off unless the variable is exactly "true"; then its digest is required.
           [[ -z "$EVO_AI_AGENT_ENABLED" || "$EVO_AI_AGENT_ENABLED" == false || "$EVO_AI_AGENT_ENABLED" == true ]]
           if [[ "$EVO_AI_AGENT_ENABLED" == true ]]; then
@@ -678,6 +697,16 @@ jobs:
             printf '  BatchMode yes\n'
           } > "$HOME/.ssh/config"
           chmod 600 "$HOME/.ssh/config"
+
+      - name: Read exact Supabase migration ledger
+        env:
+          EVO_RELEASE_REPO: ${{ github.workspace }}
+          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          node scripts/fast-release-ledger-gate.mjs > /tmp/evo-production-ledger-initial.json
+          jq -e '.ok == true' /tmp/evo-production-ledger-initial.json >/dev/null
 
       - name: Final live GitHub mutation guard
         env:
@@ -863,7 +892,7 @@ jobs:
           EVO_RELEASE_EXTERNAL_HEALTH_URL: ${{ vars.EVO_RELEASE_EXTERNAL_HEALTH_URL }}
           EVO_RELEASE_MIN_FREE_KB: ${{ vars.EVO_RELEASE_MIN_FREE_KB }}
           EVO_WAHA_IMAGE_DIGEST: ${{ vars.EVO_WAHA_IMAGE_DIGEST }}
-          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
+          EVO_SUPABASE_PROJECT_REF: ${{ env.EVO_SUPABASE_IDENTITY }}
           EVO_RELEASE_ID: ${{ needs.build.outputs.release_id }}
           EVO_RELEASE_VERSION: ${{ needs.build.outputs.release_version }}
           EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}
@@ -1211,7 +1240,7 @@ jobs:
           EVO_RELEASE_EXTERNAL_HEALTH_URL: ${{ vars.EVO_RELEASE_EXTERNAL_HEALTH_URL }}
           EVO_RELEASE_MIN_FREE_KB: ${{ vars.EVO_RELEASE_MIN_FREE_KB }}
           EVO_WAHA_IMAGE_DIGEST: ${{ vars.EVO_WAHA_IMAGE_DIGEST }}
-          EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
+          EVO_SUPABASE_PROJECT_REF: ${{ env.EVO_SUPABASE_IDENTITY }}
           EVO_RELEASE_ID: ${{ needs.build.outputs.release_id }}
           EVO_RELEASE_VERSION: ${{ needs.build.outputs.release_version }}
           EVO_RELEASE_REVISION: ${{ github.event.workflow_run.head_sha }}

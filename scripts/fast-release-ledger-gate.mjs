@@ -3,6 +3,7 @@
 import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readSelfHostedLedgerRows } from "./lib/selfhosted-database.mjs";
 
 const PROJECT_REF = /^[a-z0-9]{20}$/u;
 
@@ -50,6 +51,17 @@ export function normalizeRemoteMigrationVersions(payload) {
   return versions;
 }
 
+function compareLedger(expected, actual) {
+  if (actual.join("\0") !== expected.join("\0")) {
+    throw new Error("production migration ledger does not match the release tree");
+  }
+  return {
+    ok: true,
+    count: actual.length,
+    range: `${actual[0]}-${actual.at(-1)}`,
+  };
+}
+
 export async function verifyProductionMigrationLedger({
   projectRef,
   accessToken,
@@ -70,22 +82,39 @@ export async function verifyProductionMigrationLedger({
   );
   if (!response.ok) throw new Error("production migration ledger lookup failed");
   const actual = normalizeRemoteMigrationVersions(await response.json());
-  if (actual.join("\0") !== expected.join("\0")) {
-    throw new Error("production migration ledger does not match the release tree");
+  return compareLedger(expected, actual);
+}
+
+// Режим selfhosted (docs/runbooks/selfhosted-cutover.md): леджер читается из базы
+// self-hosted Supabase по SSH, без Management API. Сравнение то же самое.
+export async function verifySelfHostedMigrationLedger({
+  migrationDirectory,
+  readRemoteRows = readSelfHostedLedgerRows,
+}) {
+  const expected = expectedMigrationVersions(migrationDirectory);
+  const actual = normalizeRemoteMigrationVersions(await readRemoteRows());
+  return compareLedger(expected, actual);
+}
+
+// Не задана или пуста = cloud (как раньше). Любое иное значение, кроме двух, — отказ.
+export function resolveSupabaseTarget(value) {
+  const target = value === undefined || value === "" ? "cloud" : value;
+  if (target !== "cloud" && target !== "selfhosted") {
+    throw new Error("invalid migration gate configuration");
   }
-  return {
-    ok: true,
-    count: actual.length,
-    range: `${actual[0]}-${actual.at(-1)}`,
-  };
+  return target;
 }
 
 async function main() {
-  const result = await verifyProductionMigrationLedger({
-    projectRef: process.env.EVO_SUPABASE_PROJECT_REF ?? "",
-    accessToken: process.env.SUPABASE_ACCESS_TOKEN ?? "",
-    migrationDirectory: resolve(process.env.EVO_RELEASE_REPO ?? ".", "supabase/migrations"),
-  });
+  const migrationDirectory = resolve(process.env.EVO_RELEASE_REPO ?? ".", "supabase/migrations");
+  const target = resolveSupabaseTarget(process.env.EVO_SUPABASE_TARGET);
+  const result = target === "selfhosted"
+    ? await verifySelfHostedMigrationLedger({ migrationDirectory })
+    : await verifyProductionMigrationLedger({
+      projectRef: process.env.EVO_SUPABASE_PROJECT_REF ?? "",
+      accessToken: process.env.SUPABASE_ACCESS_TOKEN ?? "",
+      migrationDirectory,
+    });
   process.stdout.write(JSON.stringify(result) + "\n");
 }
 

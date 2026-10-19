@@ -8,6 +8,7 @@ import * as handoff from "../src/lib/supabase/access-handoff.ts";
 import * as routes from "../src/lib/platform-route-contract.ts";
 import * as origins from "../src/lib/platform-public-origin.ts";
 import * as requestIds from "../src/lib/request-id.ts";
+import * as requestTiming from "../src/lib/request-timing.ts";
 import * as accountDeletion from "../src/lib/account-deletion-contract.ts";
 import * as callback from "../src/lib/student-invite-callback-contract.ts";
 import * as signupContract from "../src/lib/student-signup-confirmation-contract.ts";
@@ -104,6 +105,7 @@ function proxyHarness({ role }) {
     "@/lib/platform-route-contract": routes,
     "@/lib/platform-public-origin": origins,
     "@/lib/request-id": requestIds,
+    "@/lib/request-timing": requestTiming,
     "@/lib/account-deletion-contract": accountDeletion,
     "@/lib/student-invite-callback-contract": callback,
     "@/lib/student-signup-confirmation-contract": signupContract,

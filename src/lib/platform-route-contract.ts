@@ -1,5 +1,6 @@
 import { staffHomeRoute } from "./platform-access.ts";
 import type { ActivePlatformActor } from "./platform-auth.ts";
+import { STUDENT_PORTAL_UPDATES_PATH } from "./portal-poll-section.ts";
 
 const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/",
@@ -240,6 +241,18 @@ export function isConnectedStudentPortalPage(path: string): boolean {
 /** Auth-only invite surfaces; none grants Student or staff product authority. */
 export function isConnectedStudentAuthPage(path: string): boolean {
   return STUDENT_AUTH_PAGE_ALLOWLIST.has(path);
+}
+
+const STAFF_NOTIFICATIONS_STATE_PATH = "/api/v3/notifications/state";
+
+/**
+ * Лёгкий опрос (A4, docs/PLAN_CHANGES.md 19.10.2026): кабинет студента и
+ * колокольчик CRM. Только GET и точный путь. Proxy обновляет сессию, но
+ * RPC доступа не делает (бюджет опроса — один RPC): роль и права проверяет
+ * сам RPC обработчика, а не-студент или не-сотрудник получает 403.
+ */
+export function isLightPollApi(path: string, method: string): boolean {
+  return method === "GET" && (path === STUDENT_PORTAL_UPDATES_PATH || path === STAFF_NOTIFICATIONS_STATE_PATH);
 }
 
 /** Student-only document APIs are connected only for their one exact method. */

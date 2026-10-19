@@ -118,7 +118,7 @@ test("the portal uses the Student guard and never mounts the staff shell", () =>
 
   assert.match(layout, /requireStudentPortalActor\(\)/u);
   // 02.10: Shell получает тему запроса для кнопки «солнце/луна».
-  assert.match(layout, /<Shell displayName=\{actor\.displayName\} accessTier=\{actor\.accessTier\} locale=\{locale\} theme=\{theme\}>/u);
+  assert.match(layout, /<Shell\s+displayName=\{actor\.displayName\}\s+accessTier=\{actor\.accessTier\}\s+locale=\{locale\}\s+theme=\{theme\}\s+release=\{[^}]*\}\s*>/u);
   assert.match(authority, /accessTier: portalCase\.case_state === "pending" \? "approved" : "assisted"/u);
   assert.match(shell, /logoutStudentPortalAction/u);
   assert.doesNotMatch(
@@ -138,29 +138,25 @@ test("Student render guard deduplicates only through React request-local cache",
   assert.doesNotMatch(source("src/lib/student-portal-auth.ts"), /\bcache\(/u);
 });
 
-test("route entry reads the badge and the section signature; the page re-renders only when its data changed", () => {
-  // План A (16.10.2026): раньше вкладка каждые 30 с перерисовывала раздел
-  // целиком; теперь — раз в минуту и только при изменении подписи данных.
+test("the shell polls one light GET a minute and the page re-renders only when the section version changed", () => {
+  // A4 (docs/PLAN_CHANGES.md 19.10.2026): раньше server action на 7-8 RPC раз в
+  // минуту (план A); теперь GET с одним RPC. Расписание проверяет
+  // tests/light-poll.test.mjs, здесь — что оболочка подключена именно так.
   const updates = source("src/components/portal/PortalNotificationUpdates.tsx");
-  assert.match(updates, /const POLL_MS = 60_000;/u);
-  assert.match(updates, /const RESUME_MIN_MS = 30_000;/u);
-  assert.match(updates, /const result = await loadStudentPortalNotificationState\(section\);\s*if \(disposed\) return;/u);
-  assert.match(updates, /if \(!result\.ok\) \{ setFailed\(true\); setUnread\(null\); return; \}/u);
-  assert.match(updates, /const changed = known !== null && result\.signature !== known;/u);
-  assert.match(updates, /if \(changed && section !== null\) \{\s*startTransition\(\(\) => router\.refresh\(\)\)/u);
-  assert.match(updates, /void update\(\);\s*return \(\) => \{\s*disposed = true;/u);
-  assert.match(updates, /retry\.current = \(\) => \{ void update\(\); \}/u);
-  assert.match(updates, /setInterval\(\(\) => \{ void update\(\); \}, POLL_MS\)/u);
-  assert.match(updates, /const resume = \(\) => \{ if \(Date\.now\(\) - lastUpdate >= RESUME_MIN_MS\) void update\(\); \}/u);
-  for (const [event, handler] of [["visibilitychange", "resume"], ["focus", "resume"], ["online", "online"]]) {
-    assert.ok(updates.includes(`addEventListener("${event}", ${handler})`), event);
-    assert.ok(updates.includes(`removeEventListener("${event}", ${handler})`), event);
+  assert.match(updates, /createLightPoller\(/u);
+  assert.match(updates, /fetchLightPoll\(url, signal\)/u);
+  assert.match(updates, /portalPollUrl\(section\)/u);
+  assert.match(updates, /else if \(section !== null\) startTransition\(\(\) => router\.refresh\(\)\)/u, "router.refresh only from onChange");
+  assert.equal(updates.match(/startTransition\(\(\) => router\.refresh\(\)\)/gu)?.length, 1, "the page is re-rendered in exactly one place");
+  assert.match(updates, /dispatchEvent\(new Event\(PORTAL_MESSAGES_CHANGED_EVENT\)\)/u);
+  assert.match(updates, /noteServerRelease\(serverRelease\)/u, "a new release is recognised from the answer");
+  assert.doesNotMatch(updates, /setInterval|loadStudentPortalNotificationState|student-portal-notification-updates/u);
+  for (const event of ["visibilitychange", "focus", "online"]) {
+    assert.ok(updates.includes(`addEventListener("${event}"`), event);
+    assert.ok(updates.includes(`removeEventListener("${event}"`), event);
   }
-  const action = source("src/lib/student-portal-notification-updates.ts");
-  assert.match(action, /const actorRead = requireStudentPortalActor\(\);/u);
-  assert.match(action, /createHash\("sha256"\)/u);
-  assert.match(action, /SECTIONS\.find\(\(value\) => value === section\) \?\? null/u, "the client names a section, never a data scope");
-  assert.doesNotMatch(action, /redirect\(|revalidatePath|studentCaseId: section/u);
+  // The superseded server action (7-8 RPC per poll) is gone: replace, do not layer.
+  assert.equal(existsSync(new URL("../src/lib/student-portal-notification-updates.ts", import.meta.url)), false);
 });
 
 test("Student preview implementation and staff entry are retired without removing the real portal", () => {
@@ -638,8 +634,8 @@ test("existing case portal views stay presentation-only and never render raw sta
   assert.match(readForm, /useEffect\(\(\) => \{\s*if \(!failed \|\| pending \|\| !restoreFocusRef\.current\) return;[\s\S]*?\?\.focus\(\);\s*\}\s*\}, \[/u);
   assert.doesNotMatch(readForm, /@\/lib\/|fetch\(|setInterval|router\.refresh/u);
   const updates = source("src/components/portal/PortalNotificationUpdates.tsx");
-  assert.match(updates, /loadStudentPortalNotificationState/u);
-  assert.match(source("src/lib/student-portal-notification-updates.ts"), /requireStudentPortalActor/u);
+  assert.match(updates, /createLightPoller/u);
+  assert.match(source("src/lib/server/light-poll-route-handlers.ts"), /student_portal_poll_v1/u);
   assert.match(components, /<PortalStatus[\s\S]*label=/u);
   // PORT-6a: подпись «Что нужно исправить» — ключ admission.reworkTitle,
   // RU-значение прежнее байт-в-байт.

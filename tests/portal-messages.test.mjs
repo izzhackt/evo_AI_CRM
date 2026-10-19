@@ -154,15 +154,16 @@ test("the messages screen is a connected assisted-only portal route", () => {
   assert.doesNotMatch(page, /createClient|supabase|fixture|demo/iu);
 });
 
-test("the thread polls moderately and keeps the request id stable per attempt", () => {
+test("the thread no longer polls itself, refreshes on the shell's version event, and keeps the request id stable per attempt", () => {
   const thread = source("src/components/portal/messages/MessagesThread.tsx");
-  // The PortalNotificationUpdates polling pattern: 30s, visible tab only,
-  // resume on visibility/focus/online, full cleanup.
-  assert.match(thread, /setInterval\(\(\) => \{ void refresh\(\); \}, 30_000\)/u);
-  assert.match(thread, /document\.visibilityState !== "visible"/u);
+  // A4 (docs/PLAN_CHANGES.md 19.10.2026): the shell's light poll (one RPC a
+  // minute) tells the thread when the conversation version changed; the thread
+  // then reads its page once with the existing action. No own timer or listener.
+  assert.doesNotMatch(thread, /setInterval|setTimeout\(\(\) => \{ void refresh/u);
+  assert.match(thread, /window\.addEventListener\(PORTAL_MESSAGES_CHANGED_EVENT, changed\)/u);
+  assert.match(thread, /window\.removeEventListener\(PORTAL_MESSAGES_CHANGED_EVENT, changed\)/u);
   for (const event of ["visibilitychange", "focus", "online"]) {
-    assert.ok(thread.includes(`addEventListener("${event}", resume)`), event);
-    assert.ok(thread.includes(`removeEventListener("${event}", resume)`), event);
+    assert.equal(thread.includes(`addEventListener("${event}"`), false, event);
   }
   // Honest send states: the same request id is retried for the same text and
   // regenerated when the text changes after a failure.

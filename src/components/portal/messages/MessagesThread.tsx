@@ -15,6 +15,7 @@ import {
   sendPortalCaseMessageAction,
 } from "@/lib/portal/messages-actions";
 import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
+import { PORTAL_MESSAGES_CHANGED_EVENT } from "@/lib/portal-poll-section";
 import { isStaleDeployment, noteStaleDeployment } from "@/lib/stale-deployment";
 import { useStaleDeployment } from "@/lib/use-stale-deployment";
 
@@ -32,8 +33,9 @@ function readStaleDraft(key: string): string | null {
  * Тред «Сообщений по делу» (PORT-5c, план §6 «Общение»): старые выше, догрузка
  * более ранних по before-курсору, отправка с честными состояниями
  * (отправляем/ошибка+повтор с тем же request_id — идемпотентность в RPC 200),
- * автообновление умеренным поллингом 30s по паттерну PortalNotificationUpdates
- * (visibility/focus/online, только видимая вкладка).
+ * автообновление: общий лёгкий опрос оболочки (PortalNotificationUpdates, раз в
+ * минуту, один RPC) сообщает о смене версии переписки событием, и тред читает
+ * страницу один раз (A4, docs/PLAN_CHANGES.md 19.10.2026).
  *
  * Вкладка пережила выпуск (action прошлой сборки сервер не знает): опрос
  * стоит, черновик остаётся на экране, а обновить страницу просит оболочка
@@ -111,7 +113,7 @@ export function MessagesThread({
     let disposed = false;
     let running = false;
     async function refresh() {
-      if (disposed || running || isStaleDeployment() || document.visibilityState !== "visible") return;
+      if (disposed || running || isStaleDeployment()) return;
       running = true;
       try {
         const result = await loadPortalCaseMessagesAction(null);
@@ -122,7 +124,7 @@ export function MessagesThread({
         }
         setRefreshFailed(false);
         setAwaitState(result.page.awaitState);
-        // A11y (PORT-6a, WCAG 4.1.3): поллинг добавляет сообщения молча —
+        // A11y (PORT-6a, WCAG 4.1.3): обновление добавляет сообщения молча —
         // объявляем новое входящее (не своё) короткой sr-only live-областью,
         // не заставляя скринридер перечитывать весь тред.
         const existing = messagesRef.current;
@@ -146,18 +148,15 @@ export function MessagesThread({
       }
     }
     refreshRef.current = () => { void refresh(); };
-    const timer = window.setInterval(() => { void refresh(); }, 30_000);
-    const resume = () => { void refresh(); };
-    document.addEventListener("visibilitychange", resume);
-    window.addEventListener("focus", resume);
-    window.addEventListener("online", resume);
+    // A4: тред сам больше не опрашивает. Лёгкий опрос оболочки раз в минуту
+    // сверяет версию переписки и сообщает событием, когда она изменилась;
+    // страницу тред читает прежним action только тогда.
+    const changed = () => { void refresh(); };
+    window.addEventListener(PORTAL_MESSAGES_CHANGED_EVENT, changed);
     return () => {
       disposed = true;
       refreshRef.current = () => {};
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", resume);
-      window.removeEventListener("focus", resume);
-      window.removeEventListener("online", resume);
+      window.removeEventListener(PORTAL_MESSAGES_CHANGED_EVENT, changed);
     };
     // Внешние зависимости эффекта — строка объявления о новом сообщении
     // (a11y, PORT-6a; меняется только со сменой локали) и новая версия.

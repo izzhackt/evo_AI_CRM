@@ -5,90 +5,72 @@ import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import { usePathname, useRouter } from "next/navigation";
 import { startTransition, useEffect, useRef, useState } from "react";
-import { loadStudentPortalNotificationState, type StudentPortalUpdateSection } from "@/lib/student-portal-notification-updates";
-import { isStaleDeployment, noteStaleDeployment } from "@/lib/stale-deployment";
+import { POLL_BASE_MS, createLightPoller, fetchLightPoll } from "@/lib/light-poll";
+import { PORTAL_MESSAGES_CHANGED_EVENT, portalPollSectionForPath, portalPollUrl } from "@/lib/portal-poll-section";
+import { isStaleDeployment, noteServerRelease } from "@/lib/stale-deployment";
 import { useStaleDeployment } from "@/lib/use-stale-deployment";
 
-/** Опрос раз в минуту; возврат на вкладку — не чаще раза в 30 с (план A). */
-const POLL_MS = 60_000;
-const RESUME_MIN_MS = 30_000;
-
-/** Раздел, чьи данные опрос сверяет подписью; null — только колокольчик. */
-function updateSection(pathname: string): StudentPortalUpdateSection | null {
-  if (pathname === "/portal/home") return "home";
-  if (pathname === "/portal") return "admission";
-  if (pathname === "/portal/documents") return "documents";
-  if (pathname === "/portal/payments") return "payments";
-  if (pathname === "/portal/notifications" || pathname.startsWith("/portal/notifications/")) return "notifications";
-  return null;
-}
-
-export function PortalNotificationUpdates({ locale }: { locale: Locale }) {
+/**
+ * Опрос кабинета (A4, docs/PLAN_CHANGES.md 19.10.2026): один GET раз в минуту
+ * с одним RPC. Он отдаёт число непрочитанных и версию данных раздела;
+ * страница перечитывается (`router.refresh()`) только при смене версии, а
+ * переписка читает свою страницу сама, когда меняется её версия. Расписание,
+ * задержка после сбоев, скрытая вкладка и фокус — в `light-poll.ts`.
+ * Устаревшую сборку узнаёт `noteServerRelease`: сервер в ответе называет
+ * свою ревизию, и она сравнивается с ревизией страницы.
+ */
+export function PortalNotificationUpdates({ locale, release }: { locale: Locale; release?: string | null }) {
   const strings = getPortalStrings("shell", locale);
   const router = useRouter();
   const pathname = usePathname();
   const [unread, setUnread] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
   const retry = useRef<() => void>(() => {});
+  const unreadKnown = useRef(false);
+  const lastPoll = useRef(0);
   // Вкладка пережила выпуск: опрос стоит до перезагрузки, подсказку
   // показывает оболочка (PortalStaleDeploymentNotice), а не «Не удалось».
   const stale = useStaleDeployment();
 
+  // Ревизия страницы запоминается один раз за загрузку (модуль), не от обновлений.
+  useEffect(() => { noteServerRelease(release ?? null); }, [release]);
+
   useEffect(() => {
     if (stale) return;
-    let disposed = false;
-    let running = false;
-    let lastUpdate = 0;
-    // Подпись данных раздела на момент последнего чтения. Первое чтение на
-    // входе в раздел только запоминает её: содержимое уже пришло с маршрутом.
-    let known: string | null = null;
-    const section = updateSection(pathname);
-    async function update() {
-      if (disposed || running || isStaleDeployment() || document.visibilityState !== "visible") return;
-      running = true;
-      lastUpdate = Date.now();
-      try {
-        const result = await loadStudentPortalNotificationState(section);
-        if (disposed) return;
-        if (!result.ok) { setFailed(true); setUnread(null); return; }
-        setFailed(false);
-        setUnread(result.unread);
-        // Раздел перечитывается, только если его данные изменились (в том
-        // числе без уведомления, например одобрение). Тренажёры тестов
-        // живут своим циклом сохранения.
-        if (result.signature === null) return;
-        const changed = known !== null && result.signature !== known;
-        known = result.signature;
-        if (changed && section !== null) {
-          startTransition(() => router.refresh());
-        }
-      } catch (cause) {
-        if (noteStaleDeployment(cause)) { if (!disposed) setFailed(false); return; }
-        if (!disposed) { setFailed(true); setUnread(null); }
-      } finally {
-        running = false;
-      }
-    }
-    retry.current = () => { void update(); };
-    const timer = window.setInterval(() => { void update(); }, POLL_MS);
-    const resume = () => { if (Date.now() - lastUpdate >= RESUME_MIN_MS) void update(); };
-    const online = () => { void update(); };
+    const section = portalPollSectionForPath(pathname);
+    const url = portalPollUrl(section);
+    const poller = createLightPoller({
+      now: () => Date.now(),
+      setTimer: (callback, delay) => window.setTimeout(callback, delay),
+      clearTimer: (handle) => window.clearTimeout(handle as number),
+      isVisible: () => document.visibilityState === "visible",
+      isStale: isStaleDeployment,
+      fetchState: (signal) => fetchLightPoll(url, signal),
+      onRelease: (serverRelease) => { noteServerRelease(serverRelease); },
+      onState: (state) => { lastPoll.current = Date.now(); unreadKnown.current = true; setFailed(false); setUnread(state.unread); },
+      onFailure: () => { lastPoll.current = Date.now(); setFailed(true); setUnread(null); unreadKnown.current = false; },
+      onChange: () => {
+        if (section === "messages") window.dispatchEvent(new Event(PORTAL_MESSAGES_CHANGED_EVENT));
+        else if (section !== null) startTransition(() => router.refresh());
+      },
+    });
+    retry.current = poller.retry;
+    const resume = () => poller.resume();
+    const online = () => poller.online();
     document.addEventListener("visibilitychange", resume);
     window.addEventListener("focus", resume);
     window.addEventListener("online", online);
-    // Route entry already fetched its content: this read sets the badge and
-    // the section signature.
-    void update();
+    // Раздел с версией сверяется сразу, чтобы запомнить её; остальным страницам
+    // хватает числа, которое опрос получил в последнюю минуту.
+    poller.start({ immediate: section !== null || !unreadKnown.current || Date.now() - lastPoll.current >= POLL_BASE_MS });
     return () => {
-      disposed = true;
+      poller.stop();
       retry.current = () => {};
-      window.clearInterval(timer);
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("focus", resume);
       window.removeEventListener("online", online);
     };
   }, [pathname, router, stale]);
-
 
   const label = unread === null ? strings.notifications
     : unread > 0 ? formatPortalString(strings.notificationsUnread, { count: String(unread) })

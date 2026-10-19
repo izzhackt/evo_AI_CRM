@@ -187,6 +187,7 @@ function fakeBrowser() {
     clearInterval(id) { intervals.delete(id); },
     setTimeout(handler, ms) { const id = nextId++; timeouts.set(id, { handler, ms }); return id; },
     clearTimeout(id) { timeouts.delete(id); },
+    dispatchEvent(event) { for (const handler of [...(listeners.window.get(event.type) ?? [])]) handler(event); return true; },
     location: { reload: () => reloads.push("reload") },
     matchMedia: () => ({ matches: false }),
     innerWidth: 1280,
@@ -283,16 +284,43 @@ async function staleModules(runtime) {
   return { store, shared: sharedFor(runtime, store) };
 }
 
-function staffNotifications(runtime, shared, action) {
+/** The real light-poll engine and portal section module (no imports of their own). */
+function lightPollBoundary() {
+  return {
+    "@/lib/light-poll": compile("src/lib/light-poll.ts", () => undefined),
+    "@/lib/portal-poll-section": compile("src/lib/portal-poll-section.ts", () => undefined),
+  };
+}
+
+const POLL_REVISION = "a".repeat(40);
+const V1 = "1".repeat(32);
+const V2 = "2".repeat(32);
+
+/** `globalThis.fetch` for the light polls: answers in order, records every URL; an Error rejects. */
+function stubPollFetch(answers) {
+  const requests = [];
+  const previous = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    requests.push(String(url));
+    const next = answers.length > 1 ? answers.shift() : answers[0];
+    if (next instanceof Error) throw next;
+    return new Response(JSON.stringify(next), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  return { requests, restore: () => { globalThis.fetch = previous; } };
+}
+
+const pollAnswer = (version, unread = 1, release = POLL_REVISION) => ({ release, unread, version });
+
+function staffNotifications(runtime, shared, action, mark = async () => ({ ok: true })) {
   const notice = compile("src/components/v3/StaleDeploymentNotice.tsx", shared);
-  const component = compile("src/components/v3/StaffNotifications.tsx", (id) => shared(id) ?? ({
+  const component = compile("src/components/v3/StaffNotifications.tsx", (id) => shared(id) ?? lightPollBoundary()[id] ?? ({
     "next/navigation": { useRouter: () => ({ push() {} }) },
     "@/components/icons": { Icon: () => null },
     "@/components/v3/board/menu-position": { placeMenu: () => ({ top: 0, left: 0, maxHeight: 400 }) },
     "@/lib/v3/staff-notification-actions": {
       loadStaffNotificationsAction: action,
       markAllStaffNotificationsReadAction: async () => ({ ok: true }),
-      markStaffNotificationReadAction: async () => ({ ok: true }),
+      markStaffNotificationReadAction: mark,
     },
     "@/lib/platform-task-deadline": { dayInOrganizationTimezone: () => "2026-10-10", projectPlatformTaskDeadline: () => ({ day: null, overdue: false }) },
     "@/components/v3/staff-notification-copy": { caseMessageNotificationCopy: () => "Сообщение по делу" },
@@ -310,6 +338,7 @@ const PAGE = {
 test("StaffNotifications stops polling at the first unrecognized action and offers a reload instead of «Нет связи»", async () => {
   const browser = fakeBrowser();
   const restore = browser.install();
+  const poll = stubPollFetch([pollAnswer(V1), pollAnswer(V2, 2)]);
   const runtime = createRuntime();
   const noticeRuntime = createRuntime();
   try {
@@ -323,21 +352,26 @@ test("StaffNotifications stops polling at the first unrecognized action and offe
     const view = runtime.render(StaffNotifications, { initialPage: PAGE, onCountChange() {}, triggerProps: {} });
     const shell = noticeRuntime.render(notice.StaleDeploymentNotice, {});
 
-    assert.deepEqual([...browser.intervals.values()].map(({ ms }) => ms), [60000], "the 60 s poller is running");
-    assert.equal(browser.listenerCount(), 2, "focus + visibilitychange");
+    await runtime.flush();
+    assert.deepEqual(poll.requests, ["/api/v3/notifications/state"], "the entry read is one light GET, not the action");
+    assert.equal(calls, 0, "the heavy page read waits for a change");
+    assert.deepEqual([...browser.timeouts.values()].map(({ ms }) => ms), [60000], "one 60 s timer");
+    assert.equal(browser.intervals.size, 0);
+    assert.equal(browser.listenerCount(), 3, "focus + visibilitychange + online");
     assert.equal(findAll(shell(), (node) => node.props?.["data-testid"] === "v3-stale-deployment").length, 0, "no prompt before a release");
 
-    browser.wakeAll();
+    browser.runTimeouts(); // the version changed: the page is read by the action, which the new build does not know
     await runtime.flush();
     noticeRuntime.commitIfDirty();
     assert.equal(calls, 1, "exactly one request reached the new build");
     assert.equal(store.isStaleDeployment(), true);
-    assert.equal(browser.intervals.size, 0, "the interval is cleared");
-    assert.equal(browser.listenerCount(), 0, "focus/visibility listeners are removed");
+    assert.equal(browser.timeouts.size, 0, "the timer is cleared");
+    assert.equal(browser.listenerCount(), 0, "focus/visibility/online listeners are removed");
 
     for (let i = 0; i < 5; i += 1) browser.wakeAll();
     await runtime.flush();
     assert.equal(calls, 1, "no more requests after detection");
+    assert.equal(poll.requests.length, 2);
 
     // The shell prompt is visible and reloads the page.
     const toast = findAll(shell(), (node) => node.props?.["data-testid"] === "v3-stale-deployment");
@@ -364,98 +398,108 @@ test("StaffNotifications stops polling at the first unrecognized action and offe
   } finally {
     runtime.unmount();
     noticeRuntime.unmount();
+    poll.restore();
     restore();
   }
 });
 
-test("StaffNotifications keeps polling and keeps «Нет связи» for an ordinary network failure", async () => {
+test("StaffNotifications keeps polling, with a longer delay, and keeps «Нет связи» for an ordinary network failure", async () => {
   const browser = fakeBrowser();
   const restore = browser.install();
+  const poll = stubPollFetch([new TypeError("Failed to fetch")]);
   const runtime = createRuntime();
   try {
     const { store, shared } = await staleModules(runtime);
-    let calls = 0;
-    const { StaffNotifications } = staffNotifications(runtime, shared, async () => { calls += 1; throw new TypeError("Failed to fetch"); });
+    const { StaffNotifications } = staffNotifications(runtime, shared, async () => { throw new TypeError("Failed to fetch"); });
     const view = runtime.render(StaffNotifications, { initialPage: PAGE, onCountChange() {}, triggerProps: {} });
-    browser.wakeAll();
     await runtime.flush();
     assert.equal(store.isStaleDeployment(), false);
-    assert.equal(browser.intervals.size, 1, "polling continues");
-    browser.wakeAll();
+    assert.deepEqual([...browser.timeouts.values()].map(({ ms }) => ms), [120000], "polling continues, twice as far apart after a failure");
+    assert.match(textOf(findAll(view(), (node) => node.props?.["aria-label"] === "Уведомления")), /^$/u, "no badge from a page that failed to load");
+    browser.runTimeouts();
     await runtime.flush();
-    assert.ok(calls >= 2, "the next wake-up tries again");
+    assert.equal(poll.requests.length, 2, "the next tick tries again");
+    assert.deepEqual([...browser.timeouts.values()].map(({ ms }) => ms), [240000]);
     findAll(view(), (node) => node.props?.["aria-controls"] === ":stale:")[0].props.onClick();
     await runtime.flush();
     const panel = findAll(view(), (node) => node.props?.["aria-label"] === "Уведомления сотрудников")[0];
     assert.match(textOf(panel), /Нет связи\. Повторите загрузку уведомлений\./u);
   } finally {
     runtime.unmount();
+    poll.restore();
     restore();
   }
 });
 
-test("the bell's one-read-at-a-time hold lapses after one poll interval, so a stalled fetch cannot stop polling", async () => {
+test("a version change in the middle of a mark-read command waits for its end, then the page is read once", async () => {
   const browser = fakeBrowser();
   const restore = browser.install();
+  const poll = stubPollFetch([pollAnswer(V1), pollAnswer(V2, 2)]);
   const runtime = createRuntime();
   try {
     const { store, shared } = await staleModules(runtime);
-    const pending = [];
-    const action = () => new Promise((resolve) => { pending.push(() => resolve({ ok: true, page: PAGE })); });
-    const { StaffNotifications } = staffNotifications(runtime, shared, action);
-    runtime.render(StaffNotifications, { initialPage: PAGE, onCountChange() {}, triggerProps: {} });
-
-    browser.wakeAll();
-    browser.wakeAll();
-    assert.equal(pending.length, 1, "interval, focus and visibilitychange share one background read");
-    assert.deepEqual([...browser.timeouts.values()].map(({ ms }) => ms), [60000], "the hold lapses after one poll interval");
-
-    browser.runTimeouts(); // the first read stalls past the interval (sleep, dead socket)
-    browser.wakeAll();
-    assert.equal(pending.length, 2, "polling resumes after the hold lapsed");
-    pending[0](); // the stalled read settles late
+    let loads = 0;
+    let finishMark;
+    const { StaffNotifications } = staffNotifications(
+      runtime, shared,
+      async () => { loads += 1; return { ok: true, page: PAGE }; },
+      () => new Promise((resolve) => { finishMark = () => resolve({ ok: true }); }),
+    );
+    const view = runtime.render(StaffNotifications, { initialPage: PAGE, onCountChange() {}, triggerProps: {} });
     await runtime.flush();
-    browser.wakeAll();
-    assert.equal(pending.length, 2, "a late settle does not free the newer read's hold");
-    pending[1]();
+    findAll(view(), (node) => node.props?.["aria-controls"] === ":stale:")[0].props.onClick();
     await runtime.flush();
-    assert.equal(browser.timeouts.size, 0, "a settled read clears its hold");
-    browser.wakeAll();
-    assert.equal(pending.length, 3);
-    runtime.unmount();
-    assert.equal(browser.timeouts.size, 0, "unmount clears the pending hold");
+    assert.equal(loads, 1, "opening the panel reads the page");
+    const row = findAll(findAll(view(), (node) => node.props?.["aria-label"] === "Уведомления сотрудников"), (node) => node.type === "button" && /Не прочитано/u.test(textOf(node)))[0];
+    row.props.onClick(); // the mark-read command is in flight
+    await runtime.flush();
+    browser.runTimeouts(); // the poll sees a new version meanwhile
+    await runtime.flush();
+    assert.equal(loads, 1, "the background read does not overwrite the command's own result");
+    finishMark();
+    await runtime.flush();
+    assert.equal(loads, 2, "after the command: exactly one read");
     assert.equal(store.isStaleDeployment(), false);
   } finally {
     runtime.unmount();
+    poll.restore();
     restore();
   }
 });
 
-test("the student portal notification poller stops on a stale action and the shell asks to reload in RU and KY", async () => {
+function portalUpdates(runtime, shared, { pathname, router }) {
+  return compile("src/components/portal/PortalNotificationUpdates.tsx", (id) => shared(id) ?? lightPollBoundary()[id] ?? ({
+    "next/link": { default: () => null },
+    "next/navigation": { usePathname: () => pathname, useRouter: () => router },
+    "@/lib/portal/i18n": portalI18n,
+  })[id]).PortalNotificationUpdates;
+}
+
+test("the student portal poller stops when the server is a newer release and the shell asks to reload in RU and KY", async () => {
   const browser = fakeBrowser();
   const restore = browser.install();
+  const newer = "b".repeat(40);
+  const poll = stubPollFetch([pollAnswer(V1, 1, POLL_REVISION), pollAnswer(V2, 4, newer)]);
   const runtime = createRuntime();
   const noticeRuntime = createRuntime();
   try {
     const { store, shared } = await staleModules(runtime);
-    let calls = 0;
     const refreshes = [];
-    const { PortalNotificationUpdates } = compile("src/components/portal/PortalNotificationUpdates.tsx", (id) => shared(id) ?? ({
-      "next/link": { default: () => null },
-      "next/navigation": { usePathname: () => "/portal/documents", useRouter: () => ({ refresh: () => refreshes.push("refresh") }) },
-      "@/lib/portal/i18n": portalI18n,
-      "@/lib/student-portal-notification-updates": { loadStudentPortalNotificationState: async () => { calls += 1; throw staleActionError(); } },
-    })[id]);
-    const view = runtime.render(PortalNotificationUpdates, { locale: "ru" });
+    const PortalNotificationUpdates = portalUpdates(runtime, shared, { pathname: "/portal/documents", router: { refresh: () => refreshes.push("refresh") } });
+    const view = runtime.render(PortalNotificationUpdates, { locale: "ru", release: POLL_REVISION });
     await runtime.flush();
-    assert.equal(calls, 1, "the entry read hit the new build once");
-    assert.equal(store.isStaleDeployment(), true);
-    assert.equal(browser.intervals.size, 0, "the 30 s poller is cleared");
+    assert.deepEqual(poll.requests, ["/api/portal/updates?s=documents"], "the entry read asks one light GET for the open section");
+    assert.equal(store.isStaleDeployment(), false);
+    browser.runTimeouts();
+    await runtime.flush();
+    assert.equal(poll.requests.length, 2);
+    assert.equal(store.isStaleDeployment(), true, "the answer names another release: the page is on an old build");
+    assert.equal(browser.timeouts.size, 0, "the timer is cleared");
     assert.equal(browser.listenerCount(), 0, "visibility/focus/online listeners are removed");
     for (let i = 0; i < 5; i += 1) browser.wakeAll();
     await runtime.flush();
-    assert.equal(calls, 1, "no more requests after detection");
-    assert.deepEqual(refreshes, []);
+    assert.equal(poll.requests.length, 2, "no more requests after detection");
+    assert.deepEqual(refreshes, [], "and the page is not re-rendered by the new build's answer");
     assert.equal(textOf(view()).includes(portalI18n.getPortalStrings("shell", "ru").notificationsFailed), false);
 
     const noticeShared = sharedFor(noticeRuntime, store);
@@ -470,56 +514,126 @@ test("the student portal notification poller stops on a stale action and the she
   } finally {
     runtime.unmount();
     noticeRuntime.unmount();
+    poll.restore();
     restore();
   }
 });
 
-test("the student portal poller re-reads its section only when the data signature changes (план A)", async () => {
+test("the page's release is the one of its first render: a refresh onto a newer build marks the page stale at once", async () => {
   const browser = fakeBrowser();
   const restore = browser.install();
+  const newer = "b".repeat(40);
+  const poll = stubPollFetch([pollAnswer(V1, 1, POLL_REVISION), pollAnswer(V1, 1, newer)]);
+  const runtime = createRuntime();
+  try {
+    const { store, shared } = await staleModules(runtime);
+    const PortalNotificationUpdates = portalUpdates(runtime, shared, { pathname: "/portal/documents", router: { refresh() {} } });
+    runtime.render(PortalNotificationUpdates, { locale: "ru", release: POLL_REVISION });
+    await runtime.flush();
+    // router.refresh() brought the shell's props from the new build, the JS is still the old one.
+    runtime.render(PortalNotificationUpdates, { locale: "ru", release: newer });
+    await runtime.flush();
+    browser.runTimeouts();
+    await runtime.flush();
+    assert.equal(store.isStaleDeployment(), true);
+  } finally {
+    runtime.unmount();
+    poll.restore();
+    restore();
+  }
+});
+
+test("the student portal poller re-reads its section only when the section version changes", async () => {
+  const browser = fakeBrowser();
+  const restore = browser.install();
+  const poll = stubPollFetch([pollAnswer(V1, 1), pollAnswer(V1, 1), pollAnswer(V2, 2)]);
   const runtime = createRuntime();
   try {
     const { shared } = await staleModules(runtime);
-    const answers = [
-      { ok: true, unread: 1, signature: "a" },
-      { ok: true, unread: 1, signature: "a" },
-      { ok: true, unread: 2, signature: "b" },
-    ];
-    const sections = [];
     const refreshes = [];
     // Next keeps one router object per page; a new one per render would re-run the effect.
     const router = { refresh: () => refreshes.push("refresh") };
-    const { PortalNotificationUpdates } = compile("src/components/portal/PortalNotificationUpdates.tsx", (id) => shared(id) ?? ({
-      "next/link": { default: () => null },
-      "next/navigation": { usePathname: () => "/portal/documents", useRouter: () => router },
-      "@/lib/portal/i18n": portalI18n,
-      "@/lib/student-portal-notification-updates": {
-        loadStudentPortalNotificationState: async (section) => { sections.push(section); return answers.shift(); },
-      },
-    })[id]);
-    runtime.render(PortalNotificationUpdates, { locale: "ru" });
+    const PortalNotificationUpdates = portalUpdates(runtime, shared, { pathname: "/portal/documents", router });
+    runtime.render(PortalNotificationUpdates, { locale: "ru", release: POLL_REVISION });
     await runtime.flush();
-    assert.deepEqual(sections, ["documents"], "the entry read asks for the open section");
-    assert.deepEqual(refreshes, [], "the entry read only remembers the signature");
-    assert.deepEqual([...browser.intervals.values()].map(({ ms }) => ms), [60000], "one 60 s poller");
+    assert.deepEqual(poll.requests, ["/api/portal/updates?s=documents"], "the entry read asks for the open section");
+    assert.deepEqual(refreshes, [], "the entry read only remembers the version");
+    assert.deepEqual([...browser.timeouts.values()].map(({ ms }) => ms), [60000], "one 60 s timer");
     browser.dispatch("window", "focus");
     await runtime.flush();
-    assert.equal(sections.length, 1, "a focus right after a read is throttled");
-    for (const { handler } of [...browser.intervals.values()]) handler();
+    assert.equal(poll.requests.length, 1, "a focus right after a read is throttled");
+    browser.runTimeouts();
     await runtime.flush();
-    assert.deepEqual(refreshes, [], "unchanged data: no page re-render");
-    for (const { handler } of [...browser.intervals.values()]) handler();
+    assert.deepEqual(refreshes, [], "unchanged version: no page re-render");
+    assert.equal(poll.requests.length, 2);
+    browser.runTimeouts();
     await runtime.flush();
-    assert.deepEqual(refreshes, ["refresh"], "changed data: exactly one re-render");
-    assert.equal(sections.length, 3);
+    assert.deepEqual(refreshes, ["refresh"], "changed version: exactly one re-render");
+    assert.equal(poll.requests.length, 3);
   } finally {
     runtime.unmount();
+    poll.restore();
+    restore();
+  }
+});
+
+test("on the messages page a version change tells the thread instead of re-rendering the page", async () => {
+  const browser = fakeBrowser();
+  const restore = browser.install();
+  const poll = stubPollFetch([pollAnswer(V1, 0), pollAnswer(V2, 1)]);
+  const runtime = createRuntime();
+  try {
+    const { shared } = await staleModules(runtime);
+    const refreshes = [];
+    const events = [];
+    browser.window.addEventListener("evo:portal-messages-changed", () => events.push("changed"));
+    const PortalNotificationUpdates = portalUpdates(runtime, shared, { pathname: "/portal/messages", router: { refresh: () => refreshes.push("refresh") } });
+    runtime.render(PortalNotificationUpdates, { locale: "ru", release: POLL_REVISION });
+    await runtime.flush();
+    assert.deepEqual(poll.requests, ["/api/portal/updates?s=messages"]);
+    browser.runTimeouts();
+    await runtime.flush();
+    assert.deepEqual(events, ["changed"]);
+    assert.deepEqual(refreshes, [], "the page itself is not re-rendered");
+  } finally {
+    runtime.unmount();
+    poll.restore();
+    restore();
+  }
+});
+
+test("pages without a compared section ask only for the bell, and moving between them does not poll again within a minute", async () => {
+  const browser = fakeBrowser();
+  const restore = browser.install();
+  const poll = stubPollFetch([pollAnswer(null, 3)]);
+  const runtime = createRuntime();
+  try {
+    const { shared } = await staleModules(runtime);
+    let pathname = "/portal/universities";
+    const router = { refresh() { assert.fail("a bell-only page never re-renders"); } };
+    const PortalNotificationUpdates = compile("src/components/portal/PortalNotificationUpdates.tsx", (id) => shared(id) ?? lightPollBoundary()[id] ?? ({
+      "next/link": { default: () => null },
+      "next/navigation": { usePathname: () => pathname, useRouter: () => router },
+      "@/lib/portal/i18n": portalI18n,
+    })[id]).PortalNotificationUpdates;
+    const view = runtime.render(PortalNotificationUpdates, { locale: "ru", release: POLL_REVISION });
+    await runtime.flush();
+    assert.deepEqual(poll.requests, ["/api/portal/updates"]);
+    assert.match(textOf(findAll(view(), (node) => node.props?.className === "pt-notification-count")), /^3$/u);
+    pathname = "/portal/profile";
+    runtime.render(PortalNotificationUpdates, { locale: "ru", release: POLL_REVISION });
+    await runtime.flush();
+    assert.equal(poll.requests.length, 1, "a navigation between bell-only pages within a minute asks nothing");
+    assert.deepEqual([...browser.timeouts.values()].map(({ ms }) => ms), [60000]);
+  } finally {
+    runtime.unmount();
+    poll.restore();
     restore();
   }
 });
 
 function messagesThread(runtime, shared, actions) {
-  return compile("src/components/portal/messages/MessagesThread.tsx", (id) => shared(id) ?? ({
+  return compile("src/components/portal/messages/MessagesThread.tsx", (id) => shared(id) ?? lightPollBoundary()[id] ?? ({
     "@/lib/portal/messages": {
       PORTAL_CASE_MESSAGE_BODY_LIMIT: 2000,
       mergePortalCaseMessages: (existing, incoming) => [...existing, ...incoming],
@@ -544,7 +658,8 @@ test("the portal case chat stops polling on a stale action and keeps the student
     });
     const strings = portalI18n.getPortalStrings("messages", "ru");
     const view = runtime.render(MessagesThread, { initialPage: THREAD, strings, locale: "ru" });
-    assert.equal(browser.intervals.size, 1, "the 30 s poller is running");
+    assert.equal(browser.intervals.size, 0, "the thread has no timer of its own");
+    assert.equal(browser.listenerCount(), 1, "it only listens for the shell's version event");
 
     findAll(view(), (node) => node.type === "textarea")[0].props.onChange({ target: { value: "Документы отправил" } });
     runtime.commitIfDirty();
@@ -561,7 +676,7 @@ test("the portal case chat stops polling on a stale action and keeps the student
     assert.equal(browser.intervals.size, 0, "polling stopped");
     assert.equal(browser.listenerCount(), 0);
     const before = calls.load;
-    for (let i = 0; i < 5; i += 1) browser.wakeAll();
+    for (let i = 0; i < 5; i += 1) { browser.wakeAll(); browser.window.dispatchEvent({ type: "evo:portal-messages-changed" }); }
     await runtime.flush();
     assert.equal(calls.load, before, "no more refresh requests");
   } finally {
@@ -570,7 +685,7 @@ test("the portal case chat stops polling on a stale action and keeps the student
   }
 });
 
-test("the portal case chat refresh poller stops at the first stale refresh without showing a refresh error", async () => {
+test("the portal case chat refresh stops at the first stale refresh without showing a refresh error", async () => {
   const browser = fakeBrowser();
   const restore = browser.install();
   const runtime = createRuntime();
@@ -583,12 +698,13 @@ test("the portal case chat refresh poller stops at the first stale refresh witho
     });
     const strings = portalI18n.getPortalStrings("messages", "ru");
     const view = runtime.render(MessagesThread, { initialPage: THREAD, strings, locale: "ru" });
-    browser.wakeAll();
+    browser.window.dispatchEvent({ type: "evo:portal-messages-changed" });
     await runtime.flush();
-    for (let i = 0; i < 5; i += 1) browser.wakeAll();
+    for (let i = 0; i < 5; i += 1) browser.window.dispatchEvent({ type: "evo:portal-messages-changed" });
     await runtime.flush();
     assert.equal(calls, 1);
     assert.equal(browser.intervals.size, 0);
+    assert.equal(browser.listenerCount(), 0, "the thread stopped listening");
     assert.equal(textOf(view()).includes(strings.refreshError), false);
   } finally {
     runtime.unmount();
@@ -614,7 +730,7 @@ test("the student's draft survives «Обновить страницу» on a st
   const key = "evo:portal-messages:stale-draft:m1:c1";
   const textarea = (view) => findAll(view(), (node) => node.type === "textarea")[0];
   const type = (runtime, view, value) => { textarea(view).props.onChange({ target: { value } }); runtime.commitIfDirty(); };
-  const thread = (runtime, shared, send) => compile("src/components/portal/messages/MessagesThread.tsx", (id) => shared(id) ?? ({
+  const thread = (runtime, shared, send) => compile("src/components/portal/messages/MessagesThread.tsx", (id) => shared(id) ?? lightPollBoundary()[id] ?? ({
     "@/lib/portal/messages": { PORTAL_CASE_MESSAGE_BODY_LIMIT: 2000, mergePortalCaseMessages: (existing, incoming) => [...existing, ...incoming] },
     "@/lib/portal/messages-actions": { loadPortalCaseMessagesAction: async () => ({ ok: true, page: THREAD }), sendPortalCaseMessageAction: send },
     "@/lib/portal/i18n": portalI18n,

@@ -20,7 +20,8 @@
  * знаков после запятой, чем у валюты) или amountMinMinor / amountMaxMinor.
  *
  * Доступ только из окружения, ключи не печатаются (--apply):
- *   NEXT_PUBLIC_SUPABASE_URL              https://<ref>.supabase.co или http://127.0.0.1:<порт>;
+ *   NEXT_PUBLIC_SUPABASE_URL              https://<ref>.supabase.co, ровно https://supabase.evoadmissions.com
+ *                                         (self-hosted) или http://127.0.0.1:<порт>;
  *   EVO_PLATFORM_ORGANIZATION_ID          организация (если нет в файле);
  *   --auth staff:   EVO_CATALOG_STAFF_ACCESS_TOKEN (сессия сотрудника с правом
  *                   публикации каталога; подтверждения агентств только Admin)
@@ -34,6 +35,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { catalogAgencyUrl, catalogText } from "../../src/lib/catalog-text.ts";
 import { publicUrlOk } from "./geography-seed-lib.mjs";
+import { SELFHOSTED_SUPABASE_ORIGIN } from "../lib/evo-supabase-target.mjs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const KINDS = ["tuition", "accommodation", "application_fee", "insurance", "other"];
@@ -262,14 +264,16 @@ export function fromContentSeed(costs, fx) {
   return { problems, file: { schemaVersion: 1, rows, fxRates } };
 }
 
-function readAccess(environment, auth) {
+export function readAccess(environment, auth) {
   const raw = environment.NEXT_PUBLIC_SUPABASE_URL;
   let url;
   try { url = new URL(raw); } catch { fail("invalid_supabase_url"); }
   const project = /^([a-z0-9]{20})\.supabase\.co$/u.exec(url.hostname);
   const local = url.protocol === "http:" && ["127.0.0.1", "localhost"].includes(url.hostname) && url.port;
-  if (url.pathname !== "/" || url.search || !((url.protocol === "https:" && project) || local)) fail("unsupported_supabase_url");
-  const target = project ? `supabase-project ${project[1]}` : "local-stack";
+  // Exactly the self-hosted stack (docs/runbooks/selfhosted-cutover.md); the cloud branch goes after the cutover (#1271).
+  const selfhosted = url.origin === SELFHOSTED_SUPABASE_ORIGIN && !url.username && !url.password && !url.hash;
+  if (url.pathname !== "/" || url.search || !((url.protocol === "https:" && project) || selfhosted || local)) fail("unsupported_supabase_url");
+  const target = project ? `supabase-project ${project[1]}` : selfhosted ? "supabase-selfhosted" : "local-stack";
   if (auth === "staff") {
     const token = environment.EVO_CATALOG_STAFF_ACCESS_TOKEN, key = environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     if (!token || !key || /\s/u.test(token + key)) fail("missing_staff_session");

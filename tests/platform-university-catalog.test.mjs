@@ -8,6 +8,8 @@ import { parseUniversityContent, parseUniversityDrafts, parseUniversityFilters, 
 import { universityBatchRequestId, universityContentHash, universityBatchRows } from "../src/lib/server/university-catalog-batch.ts";
 import { universityIntakeStatusKey } from "../src/lib/portal/universities.ts";
 import { universityPhotoUrl } from "../src/lib/university-photo-url.ts";
+// The reader resolves managed photo addresses from NEXT_PUBLIC_SUPABASE_URL (docs/runbooks/selfhosted-cutover.md).
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://iosckaqtovbbnssqcpde.supabase.co";
 const acceptedIdentities = JSON.parse(readFileSync(new URL("fixtures/university-catalog-accepted-identities.json", import.meta.url), "utf8"));
 const clone = () => structuredClone(current.find((entry) => entry.key === "apu").content);
 const id = "59948000-0000-4000-8000-000000000001";

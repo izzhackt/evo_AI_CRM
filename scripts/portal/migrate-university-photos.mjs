@@ -22,6 +22,8 @@
  *
  * Креды — ТОЛЬКО из окружения и только для --apply:
  *   NEXT_PUBLIC_SUPABASE_URL            ровно https://iosckaqtovbbnssqcpde.supabase.co
+ *                                       или ровно https://supabase.evoadmissions.com
+ *                                       (self-hosted, docs/runbooks/selfhosted-cutover.md)
  *   EVO_PLATFORM_SUPABASE_SECRET_KEY    sb_secret_* или service-role JWT
  * (контракт getPlatformSupabaseBackendConfig). Отсутствие/чужой проект —
  * отказ до какой-либо сети; plan и check работают без кредов вовсе.
@@ -31,6 +33,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPlatformSupabaseBackendConfig } from "../../src/lib/server/platform-supabase-backend-config.ts";
+import { jwtRefAcceptable, matchSupabaseTarget } from "../lib/evo-supabase-target.mjs";
 import {
   isOfficialMediaLicense,
   onOfficialSite,
@@ -235,10 +238,10 @@ function settingsMatch(value) {
     && Array.isArray(value.allowed_mime_types) && value.allowed_mime_types.length === UNIVERSITY_PHOTO_BUCKET.allowed_mime_types.length
     && [...value.allowed_mime_types].sort().every((mime, index) => mime === UNIVERSITY_PHOTO_BUCKET.allowed_mime_types[index]);
 }
-async function bucketRequest(method, path, headers, fetchImpl) {
+async function bucketRequest(origin, method, path, headers, fetchImpl) {
   const stop = new AbortController(), timer = setTimeout(() => stop.abort(), 10_000);
   try {
-    const response = await fetchImpl(`${ORIGIN}/storage/v1/bucket${path}`, { method, headers, redirect: "error", cache: "no-store", signal: stop.signal,
+    const response = await fetchImpl(`${origin}/storage/v1/bucket${path}`, { method, headers, redirect: "error", cache: "no-store", signal: stop.signal,
       ...(method === "POST" ? { body: JSON.stringify(UNIVERSITY_PHOTO_BUCKET) } : {}) });
     if (response.status === 401 || response.status === 403) { void response.body?.cancel().catch(() => {}); fail("credentials_rejected"); }
     if (!/^application\/json(?:\s*;|$)/iu.test(response.headers.get("content-type") ?? "")) { void response.body?.cancel().catch(() => {}); fail("response_invalid"); }
@@ -248,8 +251,8 @@ async function bucketRequest(method, path, headers, fetchImpl) {
 }
 /** Создание строго по идиоме configure-university-template-storage.mjs:
  * существующий bucket с иными настройками — конфликт, никогда не перезапись. */
-async function ensureBucket(headers, fetchImpl, report) {
-  const read = () => bucketRequest("GET", `/${UNIVERSITY_PHOTO_BUCKET.id}`, headers, fetchImpl);
+async function ensureBucket(origin, headers, fetchImpl, report) {
+  const read = () => bucketRequest(origin, "GET", `/${UNIVERSITY_PHOTO_BUCKET.id}`, headers, fetchImpl);
   const current = await read();
   if (current.status === 200) { if (!settingsMatch(current.body)) fail("bucket_settings_conflict"); report.bucketStatus = "ready"; return; }
   const legacyMissing = current.status === 400 && current.body?.statusCode === "404"
@@ -257,27 +260,27 @@ async function ensureBucket(headers, fetchImpl, report) {
     && current.body.message === "Bucket not found" && Object.keys(current.body).length === 4;
   if (!legacyMissing && (current.status !== 404 || current.body?.code !== "NoSuchBucket")) fail("bucket_read_failed");
   report.mutationAttempted = true;
-  const created = await bucketRequest("POST", "", headers, fetchImpl);
+  const created = await bucketRequest(origin, "POST", "", headers, fetchImpl);
   if (created.status === 409) fail("bucket_create_conflict");
   if (![200, 201].includes(created.status) || created.body?.name !== UNIVERSITY_PHOTO_BUCKET.name) fail("bucket_create_outcome_unknown");
   const after = await read();
   if (after.status !== 200 || !settingsMatch(after.body)) fail("bucket_readback_failed");
   report.bucketStatus = "created_and_verified";
 }
-export const universityPhotoPublicUrl = objectPath =>
-  `${ORIGIN}/storage/v1/object/public/${UNIVERSITY_PHOTO_BUCKET.id}/${objectPath.split("/").map(encodeURIComponent).join("/")}`;
+export const universityPhotoPublicUrl = (objectPath, origin = ORIGIN) =>
+  `${origin}/storage/v1/object/public/${UNIVERSITY_PHOTO_BUCKET.id}/${objectPath.split("/").map(encodeURIComponent).join("/")}`;
 
-async function uploadVerifiedEntry(key, entry, headers, fetchImpl) {
+async function uploadVerifiedEntry(origin, key, entry, headers, fetchImpl) {
   const source = await downloadPhoto(entry.sourceUrl, fetchImpl);
   if (source.failure) return `redownload_failed:${source.failure}`;
   if (sha256(source.bytes) !== entry.sha256) return "content_drifted";
   const readback = async () => {
-    const result = await downloadPhoto(universityPhotoPublicUrl(entry.objectPath), fetchImpl);
+    const result = await downloadPhoto(universityPhotoPublicUrl(entry.objectPath, origin), fetchImpl);
     return !result.failure && sha256(result.bytes) === entry.sha256 ? null : "readback_mismatch";
   };
   const stop = new AbortController(), timer = setTimeout(() => stop.abort(), DOWNLOAD_TIMEOUT_MS);
   try {
-    const response = await fetchImpl(`${ORIGIN}/storage/v1/object/${UNIVERSITY_PHOTO_BUCKET.id}/${entry.objectPath}`, {
+    const response = await fetchImpl(`${origin}/storage/v1/object/${UNIVERSITY_PHOTO_BUCKET.id}/${entry.objectPath}`, {
       method: "POST", redirect: "error", cache: "no-store", signal: stop.signal, body: source.bytes,
       headers: { ...headers, "content-type": entry.contentType, "x-upsert": "false", "cache-control": "max-age=604800" } });
     void response.body?.cancel().catch(() => {});
@@ -303,19 +306,22 @@ export async function applyUniversityPhotoMigration({ environment = process.env,
   }
   try {
     let config; try { config = getPlatformSupabaseBackendConfig(environment); } catch { fail("configuration_invalid"); }
-    if (config.supabaseUrl !== ORIGIN) fail("project_mismatch");
+    // The cloud project or exactly the self-hosted stack (docs/runbooks/selfhosted-cutover.md).
+    const target = matchSupabaseTarget(config.supabaseUrl, UNIVERSITY_PHOTO_PROJECT);
+    if (target === null) fail("project_mismatch");
     const key = config.supabaseSecretKey, headers = { apikey: key, accept: "application/json" };
     if (!key.startsWith("sb_secret_")) {
-      try { if (JSON.parse(Buffer.from(key.split(".")[1], "base64url").toString("utf8")).ref !== UNIVERSITY_PHOTO_PROJECT) fail("credential_invalid"); }
+      // Self-hosted keys carry no `ref` claim: the check is skipped there (see jwtRefAcceptable).
+      try { if (!jwtRefAcceptable(JSON.parse(Buffer.from(key.split(".")[1], "base64url").toString("utf8")).ref, target, UNIVERSITY_PHOTO_PROJECT)) fail("credential_invalid"); }
       catch (error) { fail(error instanceof MigrationError ? error.code : "credential_invalid"); }
       headers.Authorization = `Bearer ${key}`;
     }
-    await ensureBucket({ ...headers, "content-type": "application/json" }, fetchImpl, report);
+    await ensureBucket(target.origin, { ...headers, "content-type": "application/json" }, fetchImpl, report);
     const entries = { ...manifest.entries };
     for (const [photoKey, entry] of Object.entries(entries)) {
       if (entry.status !== "verified") continue;
       if (entry.migrated === true) { report.alreadyMigrated.push(photoKey); continue; }
-      const failure = await uploadVerifiedEntry(photoKey, entry, headers, fetchImpl);
+      const failure = await uploadVerifiedEntry(target.origin, photoKey, entry, headers, fetchImpl);
       if (failure === null) { entries[photoKey] = { ...entry, migrated: true, reason: null }; report.uploaded.push(photoKey); }
       else { entries[photoKey] = { ...entry, status: "failed", migrated: false, reason: failure }; report.failures.push({ key: photoKey, reason: failure }); }
     }

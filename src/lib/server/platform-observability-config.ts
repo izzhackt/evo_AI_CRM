@@ -7,8 +7,11 @@ const MAX_OBSERVABILITY_SECRET_BYTES = 128;
 const MAX_SUPABASE_SECRET_BYTES = 4_096;
 const ASCII_CONTROL_PATTERN = /[\u0000-\u001f\u007f]/;
 const SUPABASE_SECRET_KEY_PATTERN = /^sb_secret_[A-Za-z0-9_-]{16,}$/;
+// The cloud project origin, or exactly the self-hosted one
+// (docs/runbooks/selfhosted-cutover.md); the cloud alternative is removed
+// after the cutover (#1271).
 const PRODUCTION_SUPABASE_ORIGIN_PATTERN =
-  /^https:\/\/[a-z0-9]{20}\.supabase\.co\/?$/;
+  /^https:\/\/(?:[a-z0-9]{20}\.supabase\.co|supabase\.evoadmissions\.com)\/?$/;
 const LOOPBACK_SUPABASE_ORIGIN_PATTERN =
   /^http:\/\/(?:(localhost)|(127(?:\.\d{1,3}){3})|(\[::1\])):(\d{1,5})\/?$/;
 

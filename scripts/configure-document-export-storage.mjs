@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { jwtRefAcceptable, matchSupabaseTarget } from "./lib/evo-supabase-target.mjs";
 
 export const DOCUMENT_EXPORT_STORAGE_PROJECT = "iosckaqtovbbnssqcpde";
 export const DOCUMENT_EXPORT_STORAGE_ORIGIN = `https://${DOCUMENT_EXPORT_STORAGE_PROJECT}.supabase.co`;
@@ -45,20 +46,23 @@ export function parseDocumentExportStorageArgs(argv) {
 
 function configuration(environment) {
   const rawUrl = environment.NEXT_PUBLIC_SUPABASE_URL;
-  // No configurable host/path/bucket, redirects or credential-valued arguments.
-  if (rawUrl !== DOCUMENT_EXPORT_STORAGE_ORIGIN && rawUrl !== `${DOCUMENT_EXPORT_STORAGE_ORIGIN}/`) fail("project_mismatch");
+  // No configurable host/path/bucket, redirects or credential-valued arguments: the cloud project
+  // or exactly the self-hosted stack (docs/runbooks/selfhosted-cutover.md).
+  const target = matchSupabaseTarget(rawUrl, DOCUMENT_EXPORT_STORAGE_PROJECT);
+  if (target === null) fail("project_mismatch");
   const key = environment.EVO_PLATFORM_SUPABASE_SECRET_KEY;
   if (typeof key !== "string" || key.length > 4096) fail("credential_invalid");
   const headers = { apikey: key, "content-type": "application/json", accept: "application/json" };
-  if (/^sb_secret_[A-Za-z0-9_-]{16,}$/u.test(key)) return headers;
+  if (/^sb_secret_[A-Za-z0-9_-]{16,}$/u.test(key)) return { headers, origin: target.origin, kind: target.kind };
   try {
     if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u.test(key)) fail("credential_invalid");
     const payload = JSON.parse(Buffer.from(key.split(".")[1], "base64url").toString("utf8"));
-    if (payload?.role !== "service_role" || payload.ref !== DOCUMENT_EXPORT_STORAGE_PROJECT) fail("credential_invalid");
+    // Self-hosted keys carry no `ref` claim: the check is skipped there (see jwtRefAcceptable).
+    if (payload?.role !== "service_role" || !jwtRefAcceptable(payload.ref, target, DOCUMENT_EXPORT_STORAGE_PROJECT)) fail("credential_invalid");
   } catch { fail("credential_invalid"); }
   // Shape/project checks are not JWT signature verification; the server verifies it.
   headers.Authorization = `Bearer ${key}`;
-  return headers;
+  return { headers, origin: target.origin, kind: target.kind };
 }
 
 function bucketSettings(value) {
@@ -80,12 +84,12 @@ function settingsMatch(value, expected = DOCUMENT_EXPORT_BUCKET) {
     && value.type === "STANDARD" && JSON.stringify(value.allowed_mime_types) === JSON.stringify([...expected.allowed_mime_types].sort());
 }
 
-async function request(path, method, headers, fetchImpl, payload = DOCUMENT_EXPORT_BUCKET) {
+async function request(origin, path, method, headers, fetchImpl, payload = DOCUMENT_EXPORT_BUCKET) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   let reader;
   try {
-    const response = await fetchImpl(`${DOCUMENT_EXPORT_STORAGE_ORIGIN}${path}`, {
+    const response = await fetchImpl(`${origin}${path}`, {
       method, headers, redirect: "error", cache: "no-store", signal: controller.signal,
       ...(["POST", "PUT"].includes(method) ? { body: JSON.stringify(payload) } : {}),
     });
@@ -115,8 +119,8 @@ async function request(path, method, headers, fetchImpl, payload = DOCUMENT_EXPO
   }
 }
 
-async function readBucket(headers, fetchImpl) {
-  const { status, body } = await request(BUCKET_PATH, "GET", headers, fetchImpl);
+async function readBucket(origin, headers, fetchImpl) {
+  const { status, body } = await request(origin, BUCKET_PATH, "GET", headers, fetchImpl);
   if (status === 404 && body?.code === "NoSuchBucket") return null;
   // Managed Storage still emits this legacy envelope (observed 2026-09-15).
   // https://supabase.com/docs/guides/storage/debugging/error-codes
@@ -139,9 +143,10 @@ export async function configureDocumentExportStorage({ apply = false, university
     if (typeof apply !== "boolean" || typeof universityForms !== "boolean" || typeof packages !== "boolean"
       || (universityForms && packages) || !isRecord(environment) || typeof fetchImpl !== "function") fail("arguments_invalid");
     const expected = packages ? DOCUMENT_PACKAGE_EXPORT_BUCKET : universityForms ? UNIVERSITY_FORM_EXPORT_BUCKET : DOCUMENT_EXPORT_BUCKET;
-    const headers = configuration(environment);
+    const { headers, origin, kind } = configuration(environment);
+    if (kind === "selfhosted") report.projectRef = "selfhosted";
     stage = "before_read";
-    report.before = await readBucket(headers, fetchImpl);
+    report.before = await readBucket(origin, headers, fetchImpl);
     if (report.before !== null) {
       report.after = report.before;
       if (!settingsMatch(report.before, expected)) {
@@ -152,9 +157,9 @@ export async function configureDocumentExportStorage({ apply = false, university
         if (!apply) fail(packages ? "packages_upgrade_required" : "university_forms_upgrade_required");
         // Only a known private predecessor. No downgrade, object, policy or public-access change.
         stage = "update"; report.mutationAttempted = true;
-        const updated = await request(BUCKET_PATH, "PUT", headers, fetchImpl, expected);
+        const updated = await request(origin, BUCKET_PATH, "PUT", headers, fetchImpl, expected);
         if (updated.status !== 200) fail("update_outcome_unknown");
-        stage = "after_read"; report.after = await readBucket(headers, fetchImpl);
+        stage = "after_read"; report.after = await readBucket(origin, headers, fetchImpl);
         if (!settingsMatch(report.after, expected)) fail("readback_failed");
         report.readbackVerified = true; report.status = "updated_and_verified";
         return { exitCode: 0, report };
@@ -165,11 +170,11 @@ export async function configureDocumentExportStorage({ apply = false, university
     if (!apply) fail("bucket_missing");
     // A single create only. No retry, policy changes or object access.
     stage = "create"; report.mutationAttempted = true;
-    const created = await request("/storage/v1/bucket", "POST", headers, fetchImpl, expected);
+    const created = await request(origin, "/storage/v1/bucket", "POST", headers, fetchImpl, expected);
     if (created.status === 409) fail("create_conflict");
     if (![200, 201].includes(created.status) || created.body?.name !== DOCUMENT_EXPORT_BUCKET.name) fail("create_outcome_unknown");
     stage = "after_read";
-    report.after = await readBucket(headers, fetchImpl);
+    report.after = await readBucket(origin, headers, fetchImpl);
     if (!settingsMatch(report.after, expected)) fail("readback_failed");
     report.readbackVerified = true; report.status = "created_and_verified";
     return { exitCode: 0, report };

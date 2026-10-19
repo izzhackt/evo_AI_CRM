@@ -162,12 +162,20 @@ function validateSupabaseUrl(rawValue: string | undefined): string {
 }
 
 /**
+ * The validated public Supabase origin alone, for URLs built from the same
+ * project (public Storage objects) that do not need the publishable key.
+ */
+export function getSupabasePublicUrl(): string {
+  return validateSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
+}
+
+/**
  * Reads and validates public Supabase configuration only when a client is
  * requested. Server-only credentials are deliberately not accepted here.
  */
 export function getSupabasePublicConfig(): SupabasePublicConfig {
   return Object.freeze({
-    url: validateSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL),
+    url: getSupabasePublicUrl(),
     publishableKey: validatePublishableKey(
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     ),

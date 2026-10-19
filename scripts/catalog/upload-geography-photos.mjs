@@ -26,6 +26,7 @@ import { resolve } from "node:path";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PHOTO_BUCKET, REPO_ROOT, SeedError, loadGeographySeed, sha256 } from "./geography-seed-lib.mjs";
+import { SELFHOSTED_SUPABASE_ORIGIN } from "../lib/evo-supabase-target.mjs";
 
 const TIMEOUT_MS = 60_000;
 
@@ -41,6 +42,8 @@ export function readTarget(environment) {
   if (url.pathname !== "/" || url.search || url.hash || url.username || url.password) fail("invalid_supabase_url");
   const project = /^([a-z0-9]{20})\.supabase\.co$/u.exec(url.hostname);
   if (url.protocol === "https:" && project && !url.port) return { origin: url.origin, kind: `supabase-project ${project[1]}` };
+  // Exactly the self-hosted stack (docs/runbooks/selfhosted-cutover.md); the cloud branch above goes after the cutover (#1271).
+  if (url.origin === SELFHOSTED_SUPABASE_ORIGIN) return { origin: url.origin, kind: "supabase-selfhosted" };
   if (url.protocol === "http:" && ["127.0.0.1", "localhost"].includes(url.hostname) && url.port) return { origin: url.origin, kind: "local-stack" };
   fail("unsupported_supabase_url");
 }

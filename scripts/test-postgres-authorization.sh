@@ -4098,6 +4098,16 @@ docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
   -f /workspace/supabase/tests/platform_today_university_deadlines.sql
 
+# «Права актора один раз на запрос» (migration 310, PLAN_CHANGES 19.10.2026), second run: on the
+# LATEST chain, after every migration. The set primitives re-express the per-row rule of the access
+# chain; this run (pw_sets_only: no released bodies, no page comparisons) pins the md5 of every function
+# they mirror and proves, for every actor of its fixture and in a seeded fuzz, that the sets still equal
+# the live per-row answers. A later migration that changes the access chain fails here until the
+# primitives and the anchors in the suite are updated together.
+docker exec "$container_name" \
+  psql -X -v ON_ERROR_STOP=1 -v pw_sets_only=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+  -f /workspace/supabase/tests/platform_permission_once.sql </dev/null
+
 # P7A journal contract (fix for PLAN_CHANGES 29.09.2026 — «Журнал действий»:
 # контракт аудита отстал от сервера): proves src/lib/platform-audit.ts's
 # allowlists against the LIVE platform_private.p7a_safe_audit_actions/

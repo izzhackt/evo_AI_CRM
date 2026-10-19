@@ -96,6 +96,34 @@ GRANT EXECUTE ON FUNCTION pg_temp.pw_id(BIGINT), pg_temp.pw_assert(BOOLEAN, TEXT
 SELECT 'PW310_PERMISSION_ONCE_SUITE_START' AS pw_suite_marker;
 
 -- ---------------------------------------------------------------------------
+-- Mirror guard. platform_private.staff_visible_ids_v1 / staff_readable_case_ids_v1 re-express, as a
+-- set, what the functions below decide row by row. Their bodies are pinned here (md5 of prosrc, the
+-- same values migration 310 pins at application time). If a LATER migration changes any of them, this
+-- suite fails on the latest chain until the primitives, the anchors in 310's successor and these values
+-- are updated together: the nine hot reads would otherwise keep deciding by the old rule.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.pw_assert(md5(p.prosrc) = e.expected,
+  'permission_once_mirror_drift: ' || e.fn || ' changed after migration 310; update platform_private.staff_visible_ids_v1 / staff_readable_case_ids_v1 and the anchors in supabase/tests/platform_permission_once.sql together')
+FROM (VALUES
+  ('platform_private.staff_context_can_access(uuid,uuid,text,text,uuid,uuid,uuid,text)', 'f354be0f66ddcc6953bc89dabe286315'),
+  ('platform_private.staff_resource_context(uuid,text,text,uuid)', '1567b2501a0762432a80d93c49be5c01'),
+  ('platform_private.staff_has_permission(uuid,uuid,text)', '2184ba936ea0fa1489cb4b182fcbd96e'),
+  ('platform_private.staff_membership_identity(uuid,uuid)', '50bcf36620d2806d48387c5896513ff1'),
+  ('platform_private.staff_access_evaluate(uuid,uuid,text,text,uuid,boolean)', '89536bd904e1631fda1b264dc053c505'),
+  ('platform_private.staff_can_access(uuid,uuid,text,text,uuid)', 'a4a97f1fc1bbc1979dd22ee287768fc7'),
+  ('platform_private.staff_can_access_for_actor(uuid,text,text,uuid)', 'b938af689a78e6e5f9fff08c0b98db65'),
+  ('platform.current_actor_authority()', 'cf589e34b195b1a9d7bc47c8f838a773'),
+  ('platform_private.student_actor_pre_scoped_roles()', '4b30f3ef64fe79ac7e5cac2b0769fe7c'),
+  ('platform_private.staff_can_take_needs_curator_case(uuid,uuid,uuid)', '8fb42c2c60235befcb8d75a18d444e49'),
+  ('platform_private.needs_curator_case_last_curator(uuid,uuid)', '4a100c80480fba92f7648ed3e922a145'),
+  ('platform_private.staff_can_take_direct_needs_curator_case(uuid,uuid,uuid)', 'd7811c9ff41583d2137b10bb4570ed16'),
+  ('platform_private.direct_needs_curator_case_author(uuid,uuid)', 'd7c0965e6db13d062b7fd379a09d7858'),
+  ('private.platform_can_read_student_case(uuid,uuid)', 'a567284eb05c0865152d913062775292'),
+  ('private.platform_can_read_communication_full(uuid,uuid)', '67d85fbcd6a07266a957f1b3bdc310a9'),
+  ('private.platform_can_read_canonical_lead(uuid,uuid)', '720b525f1c565ea8399d87b64d82efb7')
+) AS e(fn, expected) JOIN pg_proc p ON p.oid = e.fn::REGPROCEDURE;
+
+-- ---------------------------------------------------------------------------
 -- Fixture, part 1. Organization 1: 1 Admin (system); invited staff with coarse role NULL:
 -- 2 Sales Manager (department A), 3 Sales Manager (department B), 4 Sales (own scope, in
 -- department A), 5 Admissions Manager (department «Admissions»), 6 Admissions (own scope),
@@ -105,14 +133,18 @@ SELECT 'PW310_PERMISSION_ONCE_SUITE_START' AS pw_suite_marker;
 -- 15 mixed (Admissions own + Sales Manager department A + register reader organization),
 -- 16 Admissions Manager department + Sales own (two roles), 17 a lead reader whose only assignment is a
 -- record scope on a CASE (an assignment the command refuses to make but the evaluator still reads);
--- 10 Student. Organization 2:
+-- 18 a register reader by RECORD scope who also holds two broad assignments that must not count (a role
+-- whose current bundle is no longer the bundle of the assignment, and a role whose bundle is retired),
+-- 19 a member with the coarse role «admin» who is not a system Admin (Sales Manager, own scope),
+-- 22 a member with the coarse role «sales» (Sales, own scope); 10 Student. Organization 2:
 -- 20 Admin, 21 Sales Manager (own). 99 is an Auth user with no membership.
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE pw_actors(n INTEGER, org INTEGER, coarse platform.business_role, claims TEXT);
 INSERT INTO pw_actors(n, org, coarse) VALUES
   (1, 1, 'admin'), (2, 1, NULL), (3, 1, NULL), (4, 1, NULL), (5, 1, NULL), (6, 1, NULL), (7, 1, NULL),
   (8, 1, NULL), (9, 1, NULL), (10, 1, 'student'), (11, 1, NULL), (12, 1, NULL), (13, 1, NULL),
-  (14, 1, NULL), (15, 1, NULL), (16, 1, NULL), (17, 1, NULL), (20, 2, 'admin'), (21, 2, NULL);
+  (14, 1, NULL), (15, 1, NULL), (16, 1, NULL), (17, 1, NULL), (18, 1, NULL), (19, 1, 'admin'), (22, 1, 'sales'),
+  (20, 2, 'admin'), (21, 2, NULL);
 GRANT SELECT ON pw_actors TO authenticated, anon, service_role;
 
 INSERT INTO platform.organizations(id, name) VALUES (pg_temp.pw_id(1), 'PW Fictional organization'),
@@ -167,8 +199,13 @@ INSERT INTO pw_roles VALUES
  (pg_temp.pw_id(1111), 'Conversation only', '["communication.read.full"]', 1210),
  (pg_temp.pw_id(1113), 'Lead only', '["lead.read"]', 1230),
  (pg_temp.pw_id(1115), 'Register own', '["sales.register.read"]', 1250),
+ (pg_temp.pw_id(1121), 'Stale wide', '["case.read.full","communication.read.full","lead.read","sales.register.read"]', 1310),
+ (pg_temp.pw_id(1123), 'Retired wide', '["case.read.full","communication.read.full","lead.read","sales.register.read"]', 1330),
  (pg_temp.pw_id(1117), 'Case only', '["case.read.full"]', 1270),
- (pg_temp.pw_id(1119), 'Direction reader', '["case.read.full","communication.read.full","lead.read"]', 1290);
+ (pg_temp.pw_id(1119), 'Direction reader', '["case.read.full","communication.read.full","lead.read"]', 1290),
+ (pg_temp.pw_id(1301), 'Fuzz case and conversation', '["case.read.full","communication.read.full"]', 1350),
+ (pg_temp.pw_id(1303), 'Fuzz lead and register', '["lead.read","sales.register.read"]', 1370),
+ (pg_temp.pw_id(1305), 'Fuzz all', '["lead.read","communication.read.full","case.read.full","sales.register.read","case.curator.assign"]', 1390);
 CREATE TEMP TABLE pw_grants(membership INTEGER, role_id UUID, scope JSONB);
 GRANT SELECT ON pw_roles, pw_grants TO authenticated;
 
@@ -339,6 +376,17 @@ SELECT pg_temp.pw_id(5300 + k), pg_temp.pw_id(1), (ARRAY[pg_temp.pw_id(302), pg_
   1, 9800 + k, 9900 + k, TIMESTAMPTZ '2026-09-22 00:00:00+00' + make_interval(hours => k),
   TIMESTAMPTZ '2026-09-22 00:00:00+00' + make_interval(hours => k)
 FROM generate_series(1, 4) AS k;
+-- Chats in unusual places: the SALES queue on an active case (2), the CURATOR queue on a pending case (1).
+INSERT INTO platform.communication_conversations(id, organization_id, responsible_sales_membership_id,
+  current_curator_membership_id, queue, status, subject, waha_session_name, current_scope_id, current_scope_version,
+  created_from_webhook_event_id, sales_authority_source, student_case_id, amocrm_account_id, amocrm_lead_id, amocrm_contact_id,
+  created_at, updated_at)
+SELECT pg_temp.pw_id(5400 + x.j), pg_temp.pw_id(1), c.responsible_sales_membership_id,
+  CASE x.q WHEN 'curator' THEN pg_temp.pw_id(306) END, x.q::platform.communication_queue, 'open', 'PW odd chat ' || x.j,
+  'pw-session', pg_temp.pw_id(401), 1, pg_temp.pw_id(8000), 'provider_linked', c.id, 1, 9700 + x.j, 9750 + x.j,
+  TIMESTAMPTZ '2026-09-23 00:00:00+00' + make_interval(hours => x.j), TIMESTAMPTZ '2026-09-23 00:00:00+00' + make_interval(hours => x.j)
+FROM (VALUES (2, 'sales'), (1, 'curator')) AS x(j, q) JOIN platform.student_cases c ON c.id = pg_temp.pw_id(4000 + x.j);
+
 -- Organization 2 has its own event and conversation (isolation).
 INSERT INTO platform_private.provider_webhook_events(id, organization_id, provider, provider_account_ref, provider_request_id,
   payload_id, event_type, provider_occurred_at, verification_status, raw_payload, verification_headers,
@@ -351,6 +399,17 @@ INSERT INTO platform.communication_conversations(id, organization_id, responsibl
   created_from_webhook_event_id, sales_authority_source, amocrm_account_id, amocrm_lead_id, amocrm_contact_id)
 VALUES (pg_temp.pw_id(5900), pg_temp.pw_id(2), pg_temp.pw_id(321), 'sales', 'open', 'PW foreign chat', 'pw-session',
   pg_temp.pw_id(402), 1, pg_temp.pw_id(8900), 'provider_linked', 7, 7001, 7002);
+-- ... and its own case with the case chat of its curator.
+INSERT INTO platform.student_cases(id, organization_id, responsible_sales_membership_id, current_curator_membership_id,
+  source_key, student_display_name, target_country, target_degree, state, handoff_at, admissions_direction,
+  current_scope_id, current_scope_version)
+VALUES (pg_temp.pw_id(4900), pg_temp.pw_id(2), pg_temp.pw_id(321), pg_temp.pw_id(320), 'pw:foreign-case', 'PW Foreign Student',
+  'China', 'Bachelor', 'active', TIMESTAMPTZ '2026-09-16 00:00:00+00', 'CN', pg_temp.pw_id(402), 1);
+INSERT INTO platform.communication_conversations(id, organization_id, responsible_sales_membership_id,
+  current_curator_membership_id, queue, status, subject, waha_session_name, current_scope_id, current_scope_version,
+  created_from_webhook_event_id, sales_authority_source, student_case_id, amocrm_account_id, amocrm_lead_id, amocrm_contact_id)
+VALUES (pg_temp.pw_id(5901), pg_temp.pw_id(2), pg_temp.pw_id(321), pg_temp.pw_id(320), 'curator', 'open', 'PW foreign case chat',
+  'pw-session', pg_temp.pw_id(402), 1, pg_temp.pw_id(8900), 'provider_linked', pg_temp.pw_id(4900), 7, 7011, 7012);
 
 -- Participants and messages. Conversation number rn gets (rn % 5) messages, alternating inbound /
 -- outbound from the inbound side, so some chats wait for an answer (the last message is inbound)
@@ -445,6 +504,10 @@ INSERT INTO pw_grants VALUES
  (308, pg_temp.pw_id(1117), jsonb_build_object('kind', 'record', 'key', pg_temp.pw_id(4003), 'resourceKind', 'student_case')),
  (308, pg_temp.pw_id(1113), jsonb_build_object('kind', 'record', 'key', pg_temp.pw_id(3005), 'resourceKind', 'lead')),
  (308, pg_temp.pw_id(1111), jsonb_build_object('kind', 'record', 'key', pg_temp.pw_id(5107), 'resourceKind', 'conversation')),
+ (308, pg_temp.pw_id(1111), jsonb_build_object('kind', 'record', 'key', pg_temp.pw_id(4010), 'resourceKind', 'student_case')),
+ (318, pg_temp.pw_id(1115), jsonb_build_object('kind', 'record', 'key', pg_temp.pw_id(9003), 'resourceKind', 'sales_register')),
+ (319, pg_temp.pw_id(1103), jsonb_build_object('kind', 'own', 'key', NULL, 'resourceKind', NULL)),
+ (322, pg_temp.pw_id(1105), jsonb_build_object('kind', 'own', 'key', NULL, 'resourceKind', NULL)),
  (309, pg_temp.pw_id(1109), jsonb_build_object('kind', 'organization', 'key', pg_temp.pw_id(1), 'resourceKind', NULL)),
  (311, pg_temp.pw_id(1103), jsonb_build_object('kind', 'department', 'key', pg_temp.pw_id(901), 'resourceKind', NULL)),
  (312, pg_temp.pw_id(1101), jsonb_build_object('kind', 'own', 'key', NULL, 'resourceKind', NULL)),
@@ -497,6 +560,20 @@ INSERT INTO platform.staff_role_assignments(organization_id, membership_id, role
 SELECT pg_temp.pw_id(1), pg_temp.pw_id(317), pg_temp.pw_id(1113), b.bundle_id, 'record', pg_temp.pw_id(4005)::TEXT, 'student_case'
 FROM pw_bundles b WHERE b.role_id = pg_temp.pw_id(1113);
 
+-- Actor 18: two BROAD (organization) assignments that must count for nothing: one on a role whose
+-- current bundle is no longer the bundle of the assignment (the role was republished), one on a role whose
+-- bundle is retired. Both stay live rows, as stale rows do in production; the narrow record assignment of
+-- 18 is what grants the register permission, so only the aggregate (not the gate) can let them in.
+SET LOCAL session_replication_role = replica;
+INSERT INTO platform.staff_role_assignments(organization_id, membership_id, role_id, bundle_id, scope_kind, scope_key)
+SELECT pg_temp.pw_id(1), pg_temp.pw_id(318), b.role_id, b.bundle_id, 'organization', pg_temp.pw_id(1)::TEXT
+FROM pw_bundles b WHERE b.role_id IN (pg_temp.pw_id(1121), pg_temp.pw_id(1123));
+UPDATE platform.staff_role_definitions SET current_bundle_id = (SELECT bundle_id FROM pw_bundles WHERE role_id = pg_temp.pw_id(1113))
+  WHERE id = pg_temp.pw_id(1121);
+UPDATE platform.role_bundle_versions SET status = 'retired'
+  WHERE id = (SELECT bundle_id FROM pw_bundles WHERE role_id = pg_temp.pw_id(1123));
+SET LOCAL session_replication_role = origin;
+
 UPDATE pw_actors a SET claims = (platform_private.custom_access_token_hook(jsonb_build_object(
   'user_id', pg_temp.pw_id(100 + a.n),
   'claims', jsonb_build_object('sub', pg_temp.pw_id(100 + a.n), 'role', 'authenticated'))) -> 'claims')::TEXT;
@@ -546,11 +623,11 @@ END $$;
 -- The fixture is what the suite says it is.
 SELECT pg_temp.pw_assert((SELECT count(*) FROM platform.leads WHERE organization_id = pg_temp.pw_id(1)) = 36
   AND (SELECT count(*) FROM platform.student_cases WHERE organization_id = pg_temp.pw_id(1)) = 30
-  AND (SELECT count(*) FROM platform.communication_conversations WHERE organization_id = pg_temp.pw_id(1)) = 49
+  AND (SELECT count(*) FROM platform.communication_conversations WHERE organization_id = pg_temp.pw_id(1)) = 51
   AND (SELECT count(*) FROM platform_private.sales_register WHERE organization_id = pg_temp.pw_id(1)) = 25
-  AND (SELECT count(*) FROM platform.staff_role_assignments WHERE organization_id = pg_temp.pw_id(1) AND revoked_at IS NULL) = 19
+  AND (SELECT count(*) FROM platform.staff_role_assignments WHERE organization_id = pg_temp.pw_id(1) AND revoked_at IS NULL) = 25
   AND (SELECT count(*) FROM platform.staff_role_assignments WHERE organization_id = pg_temp.pw_id(1) AND revoked_at IS NOT NULL) = 4,
-  'fixture: 36 leads, 30 cases, 49 conversations, 25 register records, 19 live and 4 revoked assignments');
+  'fixture: 36 leads, 30 cases, 51 conversations, 25 register records, 25 live and 4 revoked assignments');
 SELECT pg_temp.pw_assert(platform_private.staff_has_permission(pg_temp.pw_id(1), pg_temp.pw_id(302), 'lead.read')
   AND NOT platform_private.staff_has_permission(pg_temp.pw_id(1), pg_temp.pw_id(314), 'lead.read')
   AND (SELECT system_role FROM platform_private.staff_membership_identity(pg_temp.pw_id(1), pg_temp.pw_id(301))) = 'admin'
@@ -558,6 +635,10 @@ SELECT pg_temp.pw_assert(platform_private.staff_has_permission(pg_temp.pw_id(1),
   AND NOT EXISTS (SELECT 1 FROM platform_private.staff_membership_identity(pg_temp.pw_id(1), pg_temp.pw_id(310))),
   'fixture: the Admin is an admin, invited staff are staff, the Student is no staff, the role-less member has no permission');
 
+-- pw_sets_only (the run at the end of the chain, see the runner) skips everything that needs the
+-- released bodies: the sets and the mirror guard are compared with the LIVE per-row functions.
+\if :{?pw_sets_only}
+\else
 -- ---------------------------------------------------------------------------
 -- The previous bodies (released before 310) under temporary names, and their anchors.
 -- ---------------------------------------------------------------------------
@@ -587,6 +668,8 @@ FROM (VALUES
   ('private.staff_student_case_activity(uuid,integer,timestamp with time zone,uuid)'::REGPROCEDURE, '417aad6afe19aa0cb63f9ac139437ef4'),
   ('platform.staff_student_case_queue_v1(text,integer,text,text,text,uuid,text,text)'::REGPROCEDURE, '0e1e79c26d1fb129917fa94f823c71e6')
 ) AS e(fn, released) JOIN pg_proc p ON p.oid = e.fn;
+
+\endif
 
 -- ---------------------------------------------------------------------------
 -- 0. Posture of the new functions and of the replaced ones.
@@ -670,9 +753,13 @@ SELECT pg_temp.pw_assert((SELECT count(*) FROM platform_private.sales_lead_workf
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE pw_universe AS
   SELECT 'lead'::TEXT AS kind, 'lead.read'::TEXT AS perm, id, organization_id FROM platform.leads
+    WHERE organization_id IN (pg_temp.pw_id(1), pg_temp.pw_id(2))
   UNION ALL SELECT 'conversation', 'communication.read.full', id, organization_id FROM platform.communication_conversations
+    WHERE organization_id IN (pg_temp.pw_id(1), pg_temp.pw_id(2))
   UNION ALL SELECT 'student_case', 'case.read.full', id, organization_id FROM platform.student_cases
+    WHERE organization_id IN (pg_temp.pw_id(1), pg_temp.pw_id(2))
   UNION ALL SELECT 'sales_register', 'sales.register.read', id, organization_id FROM platform_private.sales_register
+    WHERE organization_id IN (pg_temp.pw_id(1), pg_temp.pw_id(2))
   -- ids that exist nowhere (and the organization ids themselves) are never visible
   UNION ALL SELECT k.kind, k.perm, pg_temp.pw_id(70000 + g), pg_temp.pw_id(1)
     FROM (VALUES ('lead', 'lead.read'), ('conversation', 'communication.read.full'),
@@ -737,11 +824,11 @@ END $$;
 -- Not a vacuous proof: who sees how many (organization 1) is exactly what the roles say.
 SELECT pg_temp.pw_assert(
   (SELECT size FROM pw_set_sizes WHERE n = 1 AND org = 1 AND kind = 'lead') = 36
-  AND (SELECT size FROM pw_set_sizes WHERE n = 1 AND org = 1 AND kind = 'conversation') = 49
+  AND (SELECT size FROM pw_set_sizes WHERE n = 1 AND org = 1 AND kind = 'conversation') = 51
   AND (SELECT size FROM pw_set_sizes WHERE n = 1 AND org = 1 AND kind = 'student_case') = 30
   AND (SELECT size FROM pw_set_sizes WHERE n = 1 AND org = 1 AND kind = 'sales_register') = 25
   AND (SELECT size FROM pw_set_sizes WHERE n = 9 AND org = 1 AND kind = 'lead') = 36
-  AND (SELECT size FROM pw_set_sizes WHERE n = 9 AND org = 1 AND kind = 'conversation') = 49
+  AND (SELECT size FROM pw_set_sizes WHERE n = 9 AND org = 1 AND kind = 'conversation') = 51
   AND (SELECT size FROM pw_set_sizes WHERE n = 14 AND org = 1 AND kind = 'lead') = 0
   AND (SELECT size FROM pw_set_sizes WHERE n = 10 AND org = 1 AND kind = 'lead') = 0
   AND (SELECT size FROM pw_set_sizes WHERE n = 20 AND org = 1 AND kind = 'lead') = 0
@@ -818,6 +905,8 @@ SELECT pg_temp.pw_assert(
   AND NOT pg_temp.pw_id(4004) = ANY (ARRAY(SELECT v.id FROM platform_private.staff_readable_case_ids_v1(pg_temp.pw_id(1), pg_temp.pw_id(316)) AS v(id))),
   'the needs-curator branches: case 1 and case 7 are readable through them, case 4 is not');
 
+\if :{?pw_sets_only}
+\else
 -- ---------------------------------------------------------------------------
 -- 2. The ANSWER of every replaced function equals the answer of its released body, for every
 --    actor and several parameter sets (rows, order, every field, and the errors with their
@@ -1116,6 +1205,8 @@ SELECT pg_temp.pw_assert(
   AND COALESCE((SELECT bool_and(answer LIKE 'ERR 42501:%') FROM pw_results WHERE label = 'communication page / all' AND n = 20), TRUE),
   'the Student, the member with no role and the user without a membership get an error or nothing; the Admin of another organization is refused the first one');
 
+\endif
+
 -- ---------------------------------------------------------------------------
 -- 3. Revocation and suspension act on the very NEXT call: there is no cache between calls and no
 --    value that outlives the statement. One transaction, every change a plain UPDATE as the owner;
@@ -1145,6 +1236,8 @@ $$;
 CREATE FUNCTION pg_temp.pw_battery(p_n INTEGER, p_label TEXT) RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE o1 TEXT := quote_literal(pg_temp.pw_id(1)::TEXT) || '::UUID';
 BEGIN
+  -- without the released bodies (the sets-only run) the sets themselves are what is proven
+  IF to_regproc('private.pw310_old_queue_v1') IS NULL THEN RETURN; END IF;
   PERFORM pg_temp.pw_same(p_n, p_label || ' / communication page', format('SELECT * FROM platform.staff_communication_page(%s, 101)', o1),
     format('SELECT * FROM private.pw310_old_communication_page(%s, 101)', o1));
   PERFORM pg_temp.pw_same(p_n, p_label || ' / sales lead page', 'SELECT * FROM platform.staff_sales_lead_page(101)',
@@ -1232,6 +1325,188 @@ SELECT pg_temp.pw_assert(
   'the Admin and the organization reader see the same sets after all the changes of others');
 SELECT pg_temp.pw_check_sets();
 SELECT pg_temp.pw_lap('pw_revocation');
+
+-- ---------------------------------------------------------------------------
+-- 4. Seeded differential fuzz (the shape of this section follows the independent security review of
+--    PR 1269). Random assignments of every role to every member in every scope (also the ones the
+--    command refuses: a record scope of a foreign kind, a missing department, a role republished or
+--    retired under its assignments), random topology (departments, archived department / role,
+--    suspended member, blocked profile) and random data (owners, curators, directions), then for many
+--    members the new sets against the released per-row answer, the readable-case set against the released
+--    predicate and, when the released bodies are loaded, two pages against their released bodies. The seed
+--    is fixed, so a failure repeats. Runs last: it rewrites the fixture state.
+-- ---------------------------------------------------------------------------
+\if :{?pw_quick}
+\set pw_fz_rounds 2
+\else
+\set pw_fz_rounds 24
+\endif
+SELECT set_config('pw.fz_rounds', :'pw_fz_rounds', TRUE);
+CREATE TEMP TABLE fz_stats(label TEXT, n BIGINT);
+-- One member, one organization: every (permission, kind) set and the readable case set, new vs released per row.
+CREATE FUNCTION pg_temp.fz_compare(p_n INTEGER, p_org INTEGER, p_it INTEGER) RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE k RECORD; old_set UUID[]; new_set UUID[]; mem UUID := pg_temp.pw_id(300 + p_n);
+BEGIN
+  FOR k IN SELECT DISTINCT kind, perm FROM pw_universe LOOP
+    old_set := pg_temp.pw_old_set(p_org, mem, k.kind, k.perm, NULL);
+    new_set := pg_temp.pw_new_set(p_org, mem, k.kind, k.perm, NULL);
+    IF old_set IS DISTINCT FROM new_set THEN
+      RAISE EXCEPTION 'PW310 fuzz: round % member % org % %/%: only released [%] only new [%]; live assignments: %', p_it, p_n, p_org, k.kind, k.perm,
+        (SELECT string_agg(right(x::TEXT, 5), ',') FROM (SELECT unnest(old_set) EXCEPT SELECT unnest(new_set)) t(x)),
+        (SELECT string_agg(right(x::TEXT, 5), ',') FROM (SELECT unnest(new_set) EXCEPT SELECT unnest(old_set)) t(x)),
+        (SELECT string_agg(format('%s/%s/%s/%s', right(a.role_id::TEXT, 4), a.scope_kind, right(COALESCE(a.scope_key, '-'), 5), COALESCE(a.resource_kind, '-')), '; ')
+           FROM platform.staff_role_assignments a WHERE a.membership_id = mem AND a.revoked_at IS NULL);
+    END IF;
+    INSERT INTO fz_stats VALUES ('set ' || k.kind, cardinality(new_set));
+  END LOOP;
+  new_set := ARRAY(SELECT v.id FROM platform_private.staff_readable_case_ids_v1(pg_temp.pw_id(p_org), mem) AS v(id) ORDER BY v.id);
+  old_set := ARRAY(SELECT u.id FROM pw_universe u WHERE u.kind = 'student_case'
+    AND (platform_private.staff_can_access(pg_temp.pw_id(p_org), mem, 'case.read.full', 'student_case', u.id)
+      OR platform_private.staff_can_take_needs_curator_case(pg_temp.pw_id(p_org), mem, u.id)) ORDER BY u.id);
+  IF old_set IS DISTINCT FROM new_set THEN
+    RAISE EXCEPTION 'PW310 fuzz: round % member % org % readable cases: released % new %', p_it, p_n, p_org, cardinality(old_set), cardinality(new_set);
+  END IF;
+  INSERT INTO fz_stats VALUES ('readable', cardinality(new_set));
+END $$;
+-- Two replaced pages against the released bodies (only when the released bodies are loaded).
+CREATE FUNCTION pg_temp.fz_pages(p_n INTEGER) RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE o1 TEXT := quote_literal(pg_temp.pw_id(1)::TEXT) || '::UUID';
+BEGIN
+  IF to_regproc('private.pw310_old_queue_v1') IS NULL THEN RETURN; END IF;
+  PERFORM pg_temp.pw_same(p_n, 'fuzz communication page', format('SELECT * FROM platform.staff_communication_page(%s, 101)', o1),
+    format('SELECT * FROM private.pw310_old_communication_page(%s, 101)', o1));
+  PERFORM pg_temp.pw_same(p_n, 'fuzz sales lead page', 'SELECT * FROM platform.staff_sales_lead_page(101)', 'SELECT * FROM private.pw310_old_sales_lead_page_note(101)');
+  PERFORM pg_temp.pw_same(p_n, 'fuzz register', format('SELECT platform.read_sales_register_v5(%s, 2026) AS r', o1), format('SELECT private.pw310_old_register_v5(%s, 2026) AS r', o1));
+  PERFORM pg_temp.pw_same(p_n, 'fuzz queue', 'SELECT platform.staff_student_case_queue_v1(''needs_curator'', 25) AS r', 'SELECT private.pw310_old_queue_v1(''needs_curator'', 25) AS r');
+  PERFORM pg_temp.pw_same(p_n, 'fuzz snapshot', format('SELECT * FROM platform.staff_student_case_read_snapshot(%L::UUID)', pg_temp.pw_id(4001)),
+    format('SELECT * FROM private.pw310_old_read_snapshot(%L::UUID)', pg_temp.pw_id(4001)));
+END $$;
+
+SET LOCAL session_replication_role = replica;
+DO $fz$
+DECLARE
+  it INTEGER; m INTEGER; j INTEGER; n_assign INTEGER; r UUID; sk TEXT; skey TEXT; rkind TEXT; roles UUID[]; tmp UUID; pick_n INTEGER; undo TEXT[];
+  depts UUID[] := ARRAY[pg_temp.pw_id(901), pg_temp.pw_id(902), pg_temp.pw_id(903)];
+  dirs TEXT[] := ARRAY['CN', 'MY', 'EUROPE', 'AE', 'TR'];
+  kinds TEXT[] := ARRAY['lead', 'student_case', 'conversation', 'sales_register', 'client'];
+  fuzz_members INTEGER[] := ARRAY[2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22];
+  org1 UUID := pg_temp.pw_id(1);
+  rounds INTEGER := current_setting('pw.fz_rounds')::INTEGER;
+  page_actors INTEGER[] := ARRAY[2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 11, 12, 13];
+BEGIN
+  PERFORM setseed(0.271828);
+  SELECT array_agg(role_id) INTO roles FROM pw_roles;
+  FOR it IN 1..rounds LOOP
+    undo := ARRAY[]::TEXT[];
+    -- 1. fresh random assignments for the fuzz members (the old ones are revoked, as a real replacement does)
+    UPDATE platform.staff_role_assignments SET revoked_at = clock_timestamp()
+      WHERE organization_id = org1 AND revoked_at IS NULL
+        AND membership_id IN (SELECT pg_temp.pw_id(300 + x) FROM unnest(fuzz_members) AS x);
+    FOREACH m IN ARRAY fuzz_members LOOP
+      n_assign := 1 + floor(random() * 4)::INTEGER;
+      FOR j IN 1..n_assign LOOP
+        r := roles[1 + floor(random() * cardinality(roles))::INTEGER];
+        sk := (ARRAY['own', 'organization', 'department', 'direction', 'record', 'record', 'department'])[1 + floor(random() * 7)::INTEGER];
+        skey := NULL; rkind := NULL;
+        IF sk = 'organization' THEN skey := org1::TEXT;
+        ELSIF sk = 'department' THEN skey := (depts || pg_temp.pw_id(999))[1 + floor(random() * 4)::INTEGER]::TEXT;
+        ELSIF sk = 'direction' THEN skey := dirs[1 + floor(random() * 5)::INTEGER];
+        ELSIF sk = 'record' THEN
+          rkind := kinds[1 + floor(random() * 5)::INTEGER];
+          SELECT u.id INTO tmp FROM pw_universe u
+            WHERE u.kind = CASE WHEN random() < 0.8 AND rkind <> 'client' THEN rkind ELSE kinds[1 + floor(random() * 4)::INTEGER] END
+              AND u.organization_id = org1 ORDER BY random() LIMIT 1;
+          skey := COALESCE(tmp, pg_temp.pw_id(3001))::TEXT;
+        END IF;
+        INSERT INTO platform.staff_role_assignments(organization_id, membership_id, role_id, bundle_id, scope_kind, scope_key, resource_kind)
+        SELECT org1, pg_temp.pw_id(300 + m), r, b.bundle_id, sk, skey, rkind FROM pw_bundles b WHERE b.role_id = r;
+      END LOOP;
+    END LOOP;
+    -- 2. topology, transient for this round: members move between departments, an archived department,
+    --    a suspended member, a blocked profile, an archived role, a republished role, a retired bundle
+    FOREACH m IN ARRAY fuzz_members LOOP
+      IF random() < 0.3 THEN
+        UPDATE platform.staff_organizational_details SET department_id = (depts || NULL::UUID)[1 + floor(random() * 4)::INTEGER]
+          WHERE organization_id = org1 AND membership_id = pg_temp.pw_id(300 + m);
+        IF NOT FOUND AND random() < 0.5 THEN
+          INSERT INTO platform.staff_organizational_details(organization_id, membership_id, department_id)
+          VALUES (org1, pg_temp.pw_id(300 + m), depts[1 + floor(random() * 3)::INTEGER]);
+        END IF;
+      END IF;
+    END LOOP;
+    IF random() < 0.25 THEN
+      tmp := depts[1 + floor(random() * 3)::INTEGER];
+      UPDATE platform.staff_departments SET status = 'archived' WHERE id = tmp;
+      undo := undo || format('UPDATE platform.staff_departments SET status = ''active'' WHERE id = %L', tmp);
+    END IF;
+    IF random() < 0.2 THEN
+      pick_n := fuzz_members[1 + floor(random() * cardinality(fuzz_members))::INTEGER];
+      UPDATE platform.organization_memberships SET status = 'suspended' WHERE id = pg_temp.pw_id(300 + pick_n);
+      undo := undo || format('UPDATE platform.organization_memberships SET status = ''active'' WHERE id = %L', pg_temp.pw_id(300 + pick_n));
+    END IF;
+    IF random() < 0.2 THEN
+      pick_n := fuzz_members[1 + floor(random() * cardinality(fuzz_members))::INTEGER];
+      UPDATE platform.profiles SET status = 'blocked' WHERE id = pg_temp.pw_id(200 + pick_n);
+      undo := undo || format('UPDATE platform.profiles SET status = ''active'' WHERE id = %L', pg_temp.pw_id(200 + pick_n));
+    END IF;
+    IF random() < 0.2 THEN
+      tmp := roles[1 + floor(random() * cardinality(roles))::INTEGER];
+      UPDATE platform.staff_role_definitions SET status = 'archived' WHERE id = tmp;
+      undo := undo || format('UPDATE platform.staff_role_definitions SET status = ''active'' WHERE id = %L', tmp);
+    END IF;
+    IF random() < 0.3 THEN
+      tmp := roles[1 + floor(random() * cardinality(roles))::INTEGER];
+      UPDATE platform.staff_role_definitions SET current_bundle_id = (SELECT b.bundle_id FROM pw_bundles b WHERE b.role_id <> tmp ORDER BY random() LIMIT 1) WHERE id = tmp;
+      undo := undo || format('UPDATE platform.staff_role_definitions SET current_bundle_id = %L WHERE id = %L',
+        (SELECT b.bundle_id FROM pw_bundles b WHERE b.role_id = tmp), tmp);
+    END IF;
+    IF random() < 0.25 THEN
+      tmp := (SELECT b.bundle_id FROM pw_bundles b ORDER BY random() LIMIT 1);
+      UPDATE platform.role_bundle_versions SET status = 'retired' WHERE id = tmp;
+      undo := undo || format('UPDATE platform.role_bundle_versions SET status = ''published'' WHERE id = %L', tmp);
+    END IF;
+    -- 3. data (cumulative): owners, responsible sales, curators, directions; pending cases keep no curator,
+    --    so the needs-curator rule stays in play
+    UPDATE platform.leads SET current_owner_membership_id = CASE WHEN random() < 0.15 THEN NULL
+      ELSE pg_temp.pw_id(300 + (fuzz_members || 1)[1 + floor(random() * 19)::INTEGER]) END
+      WHERE organization_id = org1 AND random() < 0.3;
+    UPDATE platform.student_cases SET responsible_sales_membership_id = pg_temp.pw_id(300 + (ARRAY[2, 3, 4, 15, 1, 11])[1 + floor(random() * 6)::INTEGER])
+      WHERE organization_id = org1 AND random() < 0.3;
+    UPDATE platform.student_cases SET current_curator_membership_id = pg_temp.pw_id(300 + fuzz_members[1 + floor(random() * 18)::INTEGER])
+      WHERE organization_id = org1 AND state <> 'pending' AND random() < 0.3;
+    UPDATE platform.student_cases SET admissions_direction = (ARRAY['CN', 'MY', 'EUROPE', 'AE', 'TR', NULL])[1 + floor(random() * 6)::INTEGER]
+      WHERE organization_id = org1 AND random() < 0.3;
+    UPDATE platform.communication_conversations SET responsible_sales_membership_id = pg_temp.pw_id(300 + (ARRAY[2, 4, 15, 3, 1, 11])[1 + floor(random() * 6)::INTEGER])
+      WHERE organization_id = org1 AND queue = 'sales' AND random() < 0.3;
+    UPDATE platform.communication_conversations SET current_curator_membership_id = pg_temp.pw_id(300 + fuzz_members[1 + floor(random() * 18)::INTEGER])
+      WHERE organization_id = org1 AND queue = 'curator' AND random() < 0.3;
+    UPDATE platform_private.sales_register SET owner_membership_id = CASE WHEN random() < 0.15 THEN NULL
+      ELSE pg_temp.pw_id(300 + (fuzz_members || 1)[1 + floor(random() * 19)::INTEGER]) END
+      WHERE organization_id = org1 AND random() < 0.3;
+    -- 4. compare eight random members (and always the Admin, the Student and the other organization's Admin)
+    FOR m IN SELECT x FROM unnest(fuzz_members) AS x ORDER BY random() LIMIT 8 LOOP
+      PERFORM pg_temp.fz_compare(m, 1, it);
+    END LOOP;
+    PERFORM pg_temp.fz_compare(1, 1, it);
+    PERFORM pg_temp.fz_compare(10, 1, it);
+    PERFORM pg_temp.fz_compare(20, 2, it);
+    PERFORM pg_temp.fz_compare(2, 2, it);
+    -- 5. two pages against the released bodies
+    PERFORM pg_temp.fz_pages(page_actors[1 + floor(random() * cardinality(page_actors))::INTEGER]);
+    -- 6. undo the transient state
+    FOR j IN 1..COALESCE(cardinality(undo), 0) LOOP EXECUTE undo[j]; END LOOP;
+  END LOOP;
+END
+$fz$;
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.pw_assert((SELECT count(*) FROM fz_stats WHERE label = 'set conversation') >= 8 * (current_setting('pw.fz_rounds')::INTEGER)
+  AND (SELECT count(DISTINCT n) FROM fz_stats WHERE label = 'set conversation') >= LEAST(5, 1 + current_setting('pw.fz_rounds')::INTEGER)
+  AND (SELECT count(DISTINCT n) FROM fz_stats WHERE label = 'set lead') >= LEAST(5, 1 + current_setting('pw.fz_rounds')::INTEGER)
+  AND (SELECT count(*) FROM fz_stats WHERE label = 'readable' AND n > 0) > 0,
+  'the fuzz really compared many different sets: ' || (SELECT string_agg(label || ' runs=' || c || ' distinct=' || d, ', ' ORDER BY label)
+    FROM (SELECT label, count(*) c, count(DISTINCT n) d FROM fz_stats GROUP BY label) x));
+SELECT pg_temp.pw_lap('pw_fuzz');
+SELECT label, count(*) AS runs, min(n) AS min_size, max(n) AS max_size, count(DISTINCT n) AS distinct_sizes FROM fz_stats GROUP BY label ORDER BY label;
 
 SELECT pg_temp.pw_assert((SELECT count(*) FROM pw_checks) > 40, 'the suite made its assertions');
 SELECT 'PW310_PERMISSION_ONCE_SUITE_PASSED' AS pw_suite_result, (SELECT count(*) FROM pw_checks) AS assertions,

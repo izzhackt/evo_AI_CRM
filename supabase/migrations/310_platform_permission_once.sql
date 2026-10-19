@@ -62,10 +62,17 @@
 --     9. platform.staff_student_case_queue_v1: чтение дела множеством.
 --     Результат, порядок, курсоры, ошибки и их тексты прежние.
 --
+-- Защита от дрейфа. Эталонные функции (цепочка прав и помощники «ждёт куратора») получают
+-- комментарий «зеркалится множеством, менять вместе»; их md5 закреплён здесь при применении 310, а набор
+-- supabase/tests/platform_permission_once.sql закрепляет те же значения и сверяет множества с
+-- неизменной построчной проверкой ещё и НА ПОСЛЕДНЕЙ цепочке (раннер запускает его второй раз после
+-- последней миграции). Миграция, меняющая эталон, обязана в том же PR обновить примитивы и якоря.
+--
 -- Политики RLS не менялись (страничные функции SECURITY DEFINER от postgres с BYPASSRLS,
 -- политики внутри них не работают; напрямую таблицы читаются точечно).
 --
--- Повторный запуск целой миграции отказывает (CREATE FUNCTION), ничего не меняя.
+-- Повторный запуск целой миграции отказывает на якорях (a310_anchor_drift: тела уже заменены), ничего
+-- не меняя.
 BEGIN;
 
 -- ---------------------------------------------------------------------------
@@ -694,5 +701,33 @@ COMMENT ON FUNCTION platform_private.staff_readable_case_ids_v1(UUID, UUID, UUID
   IS '310: дела, которые читает принадлежность (зеркало private.platform_can_read_student_case). Закрыта для клиентов.';
 COMMENT ON FUNCTION platform_private.staff_readable_case_ids_for_actor_v1(UUID, UUID[])
   IS '310: то же для актёра запроса. Закрыта для клиентов.';
+
+-- Комментарий на эталонных функциях (метаданные, тело и prosrc не меняются; md5 якорей не сдвигается).
+DO $a310_comments$
+DECLARE f TEXT;
+  note CONSTANT TEXT := '310: решение этой функции зеркалится множествами platform_private.staff_visible_ids_v1 и staff_readable_case_ids_v1; менять только вместе с ними и с якорями в supabase/tests/platform_permission_once.sql.';
+BEGIN
+  FOREACH f IN ARRAY ARRAY[
+    'platform_private.staff_context_can_access(uuid,uuid,text,text,uuid,uuid,uuid,text)',
+    'platform_private.staff_resource_context(uuid,text,text,uuid)',
+    'platform_private.staff_has_permission(uuid,uuid,text)',
+    'platform_private.staff_membership_identity(uuid,uuid)',
+    'platform_private.staff_access_evaluate(uuid,uuid,text,text,uuid,boolean)',
+    'platform_private.staff_can_access(uuid,uuid,text,text,uuid)',
+    'platform_private.staff_can_access_for_actor(uuid,text,text,uuid)',
+    'platform.current_actor_authority()',
+    'platform_private.staff_can_take_needs_curator_case(uuid,uuid,uuid)',
+    'platform_private.needs_curator_case_last_curator(uuid,uuid)',
+    'platform_private.staff_can_take_direct_needs_curator_case(uuid,uuid,uuid)',
+    'platform_private.direct_needs_curator_case_author(uuid,uuid)',
+    'private.platform_can_read_student_case(uuid,uuid)',
+    'private.platform_can_read_communication_full(uuid,uuid)',
+    'private.platform_can_read_canonical_lead(uuid,uuid)']
+  LOOP
+    EXECUTE format('COMMENT ON FUNCTION %s IS %L', f::regprocedure,
+      COALESCE(obj_description(f::regprocedure, 'pg_proc') || E'\n', '') || note);
+  END LOOP;
+END
+$a310_comments$;
 
 COMMIT;

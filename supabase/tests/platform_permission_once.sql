@@ -1335,7 +1335,9 @@ BEGIN
   FOR n IN SELECT a.n FROM pw_actors a WHERE a.org = 1 AND a.n <> 10 ORDER BY a.n LOOP
     PERFORM pg_temp.pw_oracle(n);
   END LOOP;
-  -- the Student and the Admin of the other organization read nothing at all
+  -- the Student (10) reads nothing at all; the Admin of the other organization (20), the member of the other
+  -- organization (21) and the user without a membership (99) are covered by the sets of sections 1 and 1b and
+  -- by the page comparisons of section 2, which run with their tokens
   PERFORM pg_temp.pw_oracle(10);
 END
 $pw_oracle_run$;
@@ -1447,6 +1449,20 @@ SELECT pg_temp.pw_check_member(4, 'archived only role');
 SELECT pg_temp.pw_check_member(16, 'archived one of two roles');
 SELECT pg_temp.pw_check_member(15, 'archived roles (mixed member)');
 UPDATE platform.staff_role_definitions SET status = 'active' WHERE id = pg_temp.pw_id(1105);
+-- ... and the other roles one by one, with the members who hold them next to other roles: an archived role
+-- must never reach the aggregate of the scopes (deterministic; the fuzz below would find it only by chance).
+UPDATE platform.staff_role_definitions SET status = 'archived' WHERE id = pg_temp.pw_id(1103);
+SELECT pg_temp.pw_check_member(n, 'Sales Manager role archived') FROM unnest(ARRAY[2, 3, 11, 15, 19]) AS n;
+UPDATE platform.staff_role_definitions SET status = 'active' WHERE id = pg_temp.pw_id(1103);
+UPDATE platform.staff_role_definitions SET status = 'archived' WHERE id = pg_temp.pw_id(1107);
+SELECT pg_temp.pw_check_member(n, 'register reader role archived') FROM unnest(ARRAY[9, 15]) AS n;
+UPDATE platform.staff_role_definitions SET status = 'active' WHERE id = pg_temp.pw_id(1107);
+UPDATE platform.staff_role_definitions SET status = 'archived' WHERE id = pg_temp.pw_id(1102);
+SELECT pg_temp.pw_check_member(n, 'Admissions Manager role archived') FROM unnest(ARRAY[5, 16]) AS n;
+UPDATE platform.staff_role_definitions SET status = 'active' WHERE id = pg_temp.pw_id(1102);
+UPDATE platform.staff_role_definitions SET status = 'archived' WHERE id = pg_temp.pw_id(1101);
+SELECT pg_temp.pw_check_member(n, 'Admissions role archived') FROM unnest(ARRAY[6, 12, 13, 15]) AS n;
+UPDATE platform.staff_role_definitions SET status = 'active' WHERE id = pg_temp.pw_id(1101);
 
 -- 3.5 A department changed: the manager of department A loses the records of the member who moved,
 --     the manager of department B gets them, at once.

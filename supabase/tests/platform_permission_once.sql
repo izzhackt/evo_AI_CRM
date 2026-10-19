@@ -33,6 +33,13 @@
 --     приостановки членства, блокировки профиля, отзыва назначения и архивации роли множество
 --     и выдача сразу пусты или отказ, как у прежней версии.
 -- Изолированные синтетические данные; транзакция заканчивается ROLLBACK.
+-- Если набор падает на ПОСЛЕДНЕЙ цепочке (второй запуск раннера, pw_sets_only) из-за поздней миграции:
+--  * permission_once_mirror_drift: эталонная функция изменилась, обновите примитивы (миграция 310 и её
+--    наследник), якоря ниже и добавьте сценарий в фикстуру;
+--  * падение фикстуры («function ... does not exist», «System Admin is required»): починить ФИКСТУРУ под
+--    новую команду, не ослаблять проверки;
+--  * pw oracle: чтение, которое набор проверял, перестало совпадать с построчной правдой, это дефект
+--    чтения, а не набора.
 BEGIN;
 
 SET LOCAL TIME ZONE 'UTC';
@@ -122,6 +129,24 @@ FROM (VALUES
   ('private.platform_can_read_communication_full(uuid,uuid)', '67d85fbcd6a07266a957f1b3bdc310a9'),
   ('private.platform_can_read_canonical_lead(uuid,uuid)', '720b525f1c565ea8399d87b64d82efb7')
 ) AS e(fn, expected) JOIN pg_proc p ON p.oid = e.fn::REGPROCEDURE;
+SELECT pg_temp.pw_assert(p.prosecdef AND p.proconfig = ARRAY['search_path=""'] AND p.provolatile = 's',
+  'permission_once_mirror_drift: ' || p.oid::REGPROCEDURE::TEXT || ' lost SECURITY DEFINER, the empty search_path or STABLE')
+FROM pg_proc p WHERE p.oid = ANY (ARRAY[
+  'platform_private.staff_context_can_access(uuid,uuid,text,text,uuid,uuid,uuid,text)'::REGPROCEDURE,
+  'platform_private.staff_resource_context(uuid,text,text,uuid)'::REGPROCEDURE,
+  'platform_private.staff_has_permission(uuid,uuid,text)'::REGPROCEDURE,
+  'platform_private.staff_membership_identity(uuid,uuid)'::REGPROCEDURE,
+  'platform_private.staff_access_evaluate(uuid,uuid,text,text,uuid,boolean)'::REGPROCEDURE,
+  'platform_private.staff_can_access(uuid,uuid,text,text,uuid)'::REGPROCEDURE,
+  'platform_private.staff_can_access_for_actor(uuid,text,text,uuid)'::REGPROCEDURE,
+  'platform.current_actor_authority()'::REGPROCEDURE,
+  'platform_private.staff_can_take_needs_curator_case(uuid,uuid,uuid)'::REGPROCEDURE,
+  'platform_private.needs_curator_case_last_curator(uuid,uuid)'::REGPROCEDURE,
+  'platform_private.staff_can_take_direct_needs_curator_case(uuid,uuid,uuid)'::REGPROCEDURE,
+  'platform_private.direct_needs_curator_case_author(uuid,uuid)'::REGPROCEDURE,
+  'private.platform_can_read_student_case(uuid,uuid)'::REGPROCEDURE,
+  'private.platform_can_read_communication_full(uuid,uuid)'::REGPROCEDURE,
+  'private.platform_can_read_canonical_lead(uuid,uuid)'::REGPROCEDURE]);
 
 -- ---------------------------------------------------------------------------
 -- Fixture, part 1. Organization 1: 1 Admin (system); invited staff with coarse role NULL:
@@ -273,7 +298,7 @@ INSERT INTO platform.student_cases(id, organization_id, canonical_lead_id, canon
 SELECT pg_temp.pw_id(4000 + j), pg_temp.pw_id(1),
   CASE WHEN j <= 26 THEN pg_temp.pw_id(3000 + j) END, CASE WHEN j <= 26 THEN pg_temp.pw_id(2000 + j) END,
   (ARRAY[pg_temp.pw_id(302), pg_temp.pw_id(303), pg_temp.pw_id(304), pg_temp.pw_id(315)])[j % 4 + 1],
-  CASE WHEN j % 3 = 1 THEN NULL ELSE
+  CASE WHEN j % 3 = 1 THEN NULL WHEN j = 3 THEN pg_temp.pw_id(315) ELSE
     (ARRAY[pg_temp.pw_id(305), pg_temp.pw_id(306), pg_temp.pw_id(307), pg_temp.pw_id(316), pg_temp.pw_id(301),
       pg_temp.pw_id(312), pg_temp.pw_id(313), pg_temp.pw_id(308)])[j % 8 + 1] END,
   CASE WHEN j = 7 THEN 'admissions-direct:' || pg_temp.pw_id(3000 + j)::TEXT ELSE 'pw:case:' || j END,
@@ -1208,6 +1233,115 @@ SELECT pg_temp.pw_assert(
 \endif
 
 -- ---------------------------------------------------------------------------
+-- 2b. The replaced reads against the per-row TRUTH. No released body is needed, so this section also runs
+--     at the end of the chain (pw_sets_only): what a page returns must be exactly (or, for views that
+--     filter further, a subset of) what the live per-row functions say the actor may read. A later edit
+--     that takes one of the nine bodies back to a version that lost its filter fails here. An error of a
+--     read counts as «nothing returned» (a Student, a member without the permission).
+-- ---------------------------------------------------------------------------
+CREATE FUNCTION pg_temp.pw_truth(p_n INTEGER, p_kind TEXT, p_perm TEXT) RETURNS UUID[] LANGUAGE SQL STABLE AS $$
+  SELECT pg_temp.pw_old_set(1, pg_temp.pw_id(300 + p_n), p_kind, p_perm, NULL)
+$$;
+-- The released predicate of the case reader (full read, or the needs-curator rule), per case.
+CREATE FUNCTION pg_temp.pw_truth_readable(p_n INTEGER) RETURNS UUID[] LANGUAGE SQL STABLE AS $$
+  SELECT COALESCE(array_agg(u.id ORDER BY u.id), ARRAY[]::UUID[]) FROM pw_universe u
+  WHERE u.kind = 'student_case' AND u.organization_id = pg_temp.pw_id(1)
+    AND (platform_private.staff_can_access(pg_temp.pw_id(1), pg_temp.pw_id(300 + p_n), 'case.read.full', 'student_case', u.id)
+      OR platform_private.staff_can_take_needs_curator_case(pg_temp.pw_id(1), pg_temp.pw_id(300 + p_n), u.id))
+$$;
+-- The ids a query returns for an actor, as a sorted array (an error is an empty answer).
+CREATE FUNCTION pg_temp.pw_ids(p_n INTEGER, p_query TEXT) RETURNS UUID[] LANGUAGE plpgsql AS $$
+DECLARE answer TEXT;
+BEGIN
+  answer := pg_temp.pw_user(p_n, format($q$SELECT COALESCE(string_agg(x::TEXT, ',' ORDER BY x), '') FROM (%s) AS q(x)$q$, p_query));
+  IF answer IS NULL OR answer LIKE 'ERR %' OR answer = '' THEN RETURN ARRAY[]::UUID[]; END IF;
+  RETURN string_to_array(answer, ',')::UUID[];
+END $$;
+CREATE FUNCTION pg_temp.pw_same_ids(p_label TEXT, p_n INTEGER, p_got UUID[], p_truth UUID[], p_exact BOOLEAN) RETURNS VOID LANGUAGE plpgsql AS $$
+BEGIN
+  IF (p_exact AND p_got IS DISTINCT FROM p_truth) OR (NOT p_exact AND NOT (p_got <@ p_truth)) THEN
+    RAISE EXCEPTION 'PW310 oracle: % for actor %: the read returned % ids, the per-row truth allows % (%)', p_label, p_n,
+      cardinality(p_got), cardinality(p_truth), CASE WHEN p_exact THEN 'exact' ELSE 'subset' END;
+  END IF;
+  INSERT INTO pw_checks VALUES (1);
+END $$;
+CREATE FUNCTION pg_temp.pw_oracle(p_n INTEGER) RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE
+  o1 TEXT := quote_literal(pg_temp.pw_id(1)::TEXT) || '::UUID';
+  t_conv UUID[] := pg_temp.pw_truth(p_n, 'conversation', 'communication.read.full');
+  t_lead UUID[] := pg_temp.pw_truth(p_n, 'lead', 'lead.read');
+  t_case_full UUID[] := pg_temp.pw_truth(p_n, 'student_case', 'case.read.full');
+  t_read UUID[] := pg_temp.pw_truth_readable(p_n);
+  t_reg UUID[] := pg_temp.pw_truth(p_n, 'sales_register', 'sales.register.read');
+  all_cases TEXT := (SELECT quote_literal(array_agg(id)::TEXT) || '::UUID[]' FROM pw_universe WHERE kind = 'student_case' AND organization_id = pg_temp.pw_id(1));
+  v TEXT; c UUID; got TEXT; truth_count BIGINT;
+BEGIN
+  -- the WhatsApp page: exactly the conversations the actor may read
+  PERFORM pg_temp.pw_same_ids('communication page', p_n,
+    pg_temp.pw_ids(p_n, format('SELECT conversation_id FROM platform.staff_communication_page(%s, 101)', o1)), t_conv, TRUE);
+  -- the funnel page: exactly the open leads the actor may read
+  PERFORM pg_temp.pw_same_ids('sales lead page', p_n,
+    pg_temp.pw_ids(p_n, 'SELECT lead_id FROM platform.staff_sales_lead_page(101)'),
+    COALESCE((SELECT array_agg(l.id ORDER BY l.id) FROM platform.leads l WHERE l.id = ANY (t_lead) AND l.lifecycle_state = 'open'), ARRAY[]::UUID[]), TRUE);
+  -- the case page (and the card): exactly the cases the actor may read in full
+  PERFORM pg_temp.pw_same_ids('case page', p_n,
+    pg_temp.pw_ids(p_n, $q$SELECT student_case_id FROM platform.staff_student_case_page(101) WHERE access_mode = 'full'$q$), t_read, TRUE);
+  IF pg_temp.pw_ids(p_n, $q$SELECT student_case_id FROM platform.staff_student_case_page(101) WHERE access_mode = 'sales_summary'$q$) && t_read THEN
+    RAISE EXCEPTION 'PW310 oracle: the case page of actor % shows a summary row beside a case the actor reads in full', p_n;
+  END IF;
+  PERFORM pg_temp.pw_same_ids('case snapshot', p_n,
+    pg_temp.pw_ids(p_n, format($q$SELECT s.student_case_id FROM unnest(%s) AS u(id), LATERAL platform.staff_student_case_read_snapshot(u.id) AS s WHERE s.access_mode = 'full'$q$, all_cases)),
+    t_read, TRUE);
+  -- the register: exactly the visible, not archived records of the year
+  PERFORM pg_temp.pw_same_ids('register v5', p_n,
+    pg_temp.pw_ids(p_n, format($q$SELECT (r ->> 'id')::UUID FROM jsonb_array_elements(platform.read_sales_register_v5(%s, 2026) -> 'rows') AS r$q$, o1)),
+    COALESCE((SELECT array_agg(r.id ORDER BY r.id) FROM platform_private.sales_register r
+      WHERE r.id = ANY (t_reg) AND NOT r.archived AND r.report_month BETWEEN DATE '2026-01-01' AND DATE '2026-12-01'), ARRAY[]::UUID[]), TRUE);
+  -- «Продажи»: the count equals the visible, not archived, not refused records dated in the year
+  got := pg_temp.pw_user(p_n, format($q$SELECT platform.staff_sales_count_v1(%s, DATE '2026-01-01', DATE '2026-12-31') ->> 'sales'$q$, o1));
+  SELECT count(*) INTO truth_count FROM platform_private.sales_register r
+    WHERE r.id = ANY (t_reg) AND NOT r.archived AND r.withdrawal_kind IS NULL
+      AND NULLIF(r.fields ->> 'signing_date', '')::DATE BETWEEN DATE '2026-01-01' AND DATE '2026-12-31';
+  IF COALESCE(CASE WHEN got LIKE 'ERR %' THEN '0' ELSE got END, '0')::BIGINT IS DISTINCT FROM truth_count THEN
+    RAISE EXCEPTION 'PW310 oracle: sales count for actor %: the read says %, the per-row truth %', p_n, got, truth_count;
+  END IF;
+  INSERT INTO pw_checks VALUES (1);
+  -- the queue: every case of every view is a case the actor may read
+  FOREACH v IN ARRAY ARRAY['mine', 'needs_action', 'active', 'needs_curator', 'closed', 'pending'] LOOP
+    PERFORM pg_temp.pw_same_ids('case queue ' || v, p_n,
+      pg_temp.pw_ids(p_n, format($q$SELECT (r ->> 'student_case_id')::UUID FROM jsonb_array_elements(platform.staff_student_case_queue_v1(%L, 100) -> 'rows') AS r$q$, v)),
+      t_read, FALSE);
+  END LOOP;
+  -- links with sales: a case the actor may read and a lead the actor may read
+  PERFORM pg_temp.pw_same_ids('case sales links (cases)', p_n,
+    pg_temp.pw_ids(p_n, format('SELECT student_case_id FROM platform.staff_student_case_sales_links(%s, %s)', o1, all_cases)), t_read, FALSE);
+  PERFORM pg_temp.pw_same_ids('case sales links (leads)', p_n,
+    pg_temp.pw_ids(p_n, format('SELECT lead_id FROM platform.staff_student_case_sales_links(%s, %s)', o1, all_cases)), t_lead, FALSE);
+  -- the stage-entry cohort: leads the actor may read
+  PERFORM pg_temp.pw_same_ids('stage entry cohort', p_n,
+    pg_temp.pw_ids(p_n, $q$SELECT lead_id FROM platform.staff_sales_stage_entry_cohort(DATE '2026-09-01', DATE '2026-10-31', 101)$q$), t_lead, FALSE);
+  -- the history of a case opens exactly for the cases the actor may read in full
+  FOREACH c IN ARRAY (SELECT array_agg(id ORDER BY id) FROM pw_universe WHERE kind = 'student_case' AND organization_id = pg_temp.pw_id(1)) LOOP
+    IF (pg_temp.pw_user_error(p_n, format('SELECT platform.staff_student_case_activity(%L::UUID)', c)) = 'ok') IS DISTINCT FROM (c = ANY (t_case_full)) THEN
+      RAISE EXCEPTION 'PW310 oracle: case history for actor %, case %: opens %, the per-row truth says %', p_n, right(c::TEXT, 5),
+        pg_temp.pw_user_error(p_n, format('SELECT platform.staff_student_case_activity(%L::UUID)', c)), c = ANY (t_case_full);
+    END IF;
+  END LOOP;
+  INSERT INTO pw_checks VALUES (1);
+END $$;
+DO $pw_oracle_run$
+DECLARE n INTEGER;
+BEGIN
+  FOR n IN SELECT a.n FROM pw_actors a WHERE a.org = 1 AND a.n <> 10 ORDER BY a.n LOOP
+    PERFORM pg_temp.pw_oracle(n);
+  END LOOP;
+  -- the Student and the Admin of the other organization read nothing at all
+  PERFORM pg_temp.pw_oracle(10);
+END
+$pw_oracle_run$;
+SELECT pg_temp.pw_lap('pw_oracle');
+
+-- ---------------------------------------------------------------------------
 -- 3. Revocation and suspension act on the very NEXT call: there is no cache between calls and no
 --    value that outlives the statement. One transaction, every change a plain UPDATE as the owner;
 --    after each change the view of the changed actor moves exactly as the released bodies say
@@ -1256,6 +1390,22 @@ BEGIN
     format('SELECT * FROM platform.staff_student_case_sales_links(%s, ARRAY(SELECT id FROM platform.student_cases WHERE organization_id = %s))', o1, o1),
     format('SELECT * FROM private.pw310_old_sales_links(%s, ARRAY(SELECT id FROM platform.student_cases WHERE organization_id = %s))', o1, o1));
 END $$;
+-- One member against the per-row truth after a change: the four sets (both organizations) and the readable cases.
+CREATE FUNCTION pg_temp.pw_check_member(p_n INTEGER, p_step TEXT) RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE k RECORD; org INTEGER; mem UUID := pg_temp.pw_id(300 + p_n);
+BEGIN
+  FOR org IN 1..2 LOOP
+    FOR k IN SELECT DISTINCT kind, perm FROM pw_universe LOOP
+      IF pg_temp.pw_old_set(org, mem, k.kind, k.perm, NULL) IS DISTINCT FROM pg_temp.pw_new_set(org, mem, k.kind, k.perm, NULL) THEN
+        RAISE EXCEPTION 'PW310: after "%" the set of actor % differs from the per-row truth (org %, %)', p_step, p_n, org, k.kind;
+      END IF;
+    END LOOP;
+  END LOOP;
+  IF pg_temp.pw_truth_readable(p_n) IS DISTINCT FROM ARRAY(SELECT v.id FROM platform_private.staff_readable_case_ids_v1(pg_temp.pw_id(1), mem) AS v(id) ORDER BY v.id) THEN
+    RAISE EXCEPTION 'PW310: after "%" the readable cases of actor % differ from the per-row truth', p_step, p_n;
+  END IF;
+  INSERT INTO pw_checks VALUES (1);
+END $$;
 CREATE TEMP TABLE pw_views(step TEXT, n INTEGER, view TEXT);
 -- Views of two bystanders before any change: the Admin and the organization reader.
 INSERT INTO pw_views SELECT 'start', n, pg_temp.pw_view(n) FROM unnest(ARRAY[1, 9, 2, 3, 4, 6, 11, 12, 13, 16]) AS n;
@@ -1266,13 +1416,16 @@ SELECT pg_temp.pw_assert((SELECT bool_and(NOT pg_temp.pw_view_is_empty(view)) FR
 UPDATE platform.organization_memberships SET status = 'suspended' WHERE id = pg_temp.pw_id(311);
 SELECT pg_temp.pw_assert(pg_temp.pw_view_is_empty(pg_temp.pw_view(11)), 'a suspended membership sees nothing on the next call');
 SELECT pg_temp.pw_battery(11, 'suspended membership');
+SELECT pg_temp.pw_check_member(11, 'suspended membership');
 UPDATE platform.organization_memberships SET status = 'active' WHERE id = pg_temp.pw_id(311);
+SELECT pg_temp.pw_check_member(11, 'reactivated membership');
 SELECT pg_temp.pw_assert(pg_temp.pw_view(11) = (SELECT view FROM pw_views WHERE step = 'start' AND n = 11), 'a reactivated membership is back at once');
 
 -- 3.2 A blocked profile.
 UPDATE platform.profiles SET status = 'blocked' WHERE id = pg_temp.pw_id(212);
 SELECT pg_temp.pw_assert(pg_temp.pw_view_is_empty(pg_temp.pw_view(12)), 'a blocked profile sees nothing on the next call');
 SELECT pg_temp.pw_battery(12, 'blocked profile');
+SELECT pg_temp.pw_check_member(12, 'blocked profile');
 UPDATE platform.profiles SET status = 'active' WHERE id = pg_temp.pw_id(212);
 
 -- 3.3 A revoked assignment.
@@ -1280,6 +1433,7 @@ UPDATE platform.staff_role_assignments SET revoked_at = clock_timestamp()
   WHERE membership_id = pg_temp.pw_id(313) AND revoked_at IS NULL;
 SELECT pg_temp.pw_assert(pg_temp.pw_view_is_empty(pg_temp.pw_view(13)), 'a revoked assignment leaves nothing on the next call');
 SELECT pg_temp.pw_battery(13, 'revoked assignment');
+SELECT pg_temp.pw_check_member(13, 'revoked assignment');
 
 -- 3.4 An archived role: the member who has only that role loses everything, the member with a
 --     second role keeps what the second role gives.
@@ -1289,6 +1443,9 @@ SELECT pg_temp.pw_assert(NOT pg_temp.pw_view_is_empty(pg_temp.pw_view(16)) AND p
   'one of two roles archived: the view shrinks to what the other role gives');
 SELECT pg_temp.pw_battery(4, 'archived only role');
 SELECT pg_temp.pw_battery(16, 'archived one of two roles');
+SELECT pg_temp.pw_check_member(4, 'archived only role');
+SELECT pg_temp.pw_check_member(16, 'archived one of two roles');
+SELECT pg_temp.pw_check_member(15, 'archived roles (mixed member)');
 UPDATE platform.staff_role_definitions SET status = 'active' WHERE id = pg_temp.pw_id(1105);
 
 -- 3.5 A department changed: the manager of department A loses the records of the member who moved,
@@ -1299,6 +1456,9 @@ SELECT pg_temp.pw_assert(pg_temp.pw_view(2) <> (SELECT view FROM pw_views WHERE 
   'a member moved to another department moves his records between the two department managers on the next call');
 SELECT pg_temp.pw_battery(2, 'department A after the move');
 SELECT pg_temp.pw_battery(3, 'department B after the move');
+SELECT pg_temp.pw_check_member(2, 'member moved to department B');
+SELECT pg_temp.pw_check_member(3, 'member moved to department B');
+SELECT pg_temp.pw_check_member(4, 'member moved to department B');
 UPDATE platform.staff_organizational_details SET department_id = pg_temp.pw_id(901) WHERE membership_id = pg_temp.pw_id(304);
 
 -- 3.5b An archived department: its manager keeps the role, but the department no longer counts.
@@ -1307,6 +1467,9 @@ SELECT pg_temp.pw_assert((string_to_array(pg_temp.pw_view(2), '|'))[1:4] = ARRAY
   'an archived department: its manager sees none of the four sets on the next call');
 SELECT pg_temp.pw_battery(2, 'archived department A');
 SELECT pg_temp.pw_battery(15, 'archived department A (mixed member)');
+SELECT pg_temp.pw_check_member(2, 'archived department A');
+SELECT pg_temp.pw_check_member(15, 'archived department A');
+SELECT pg_temp.pw_check_member(4, 'archived department A');
 UPDATE platform.staff_departments SET status = 'active' WHERE id = pg_temp.pw_id(901);
 
 -- 3.6 A new owner: a lead given to another member appears for him at once and leaves the previous owner.
@@ -1315,6 +1478,8 @@ SELECT pg_temp.pw_assert(pg_temp.pw_view(6) <> (SELECT view FROM pw_views WHERE 
   'a lead given to a member is in his view on the next call');
 SELECT pg_temp.pw_battery(6, 'lead given to the Admissions member');
 SELECT pg_temp.pw_battery(3, 'lead taken from department B');
+SELECT pg_temp.pw_check_member(6, 'lead given to the Admissions member');
+SELECT pg_temp.pw_check_member(3, 'lead taken from department B');
 
 -- 3.7 Nobody else moved: the bystanders' views are the ones they started with, and the sets still
 --     equal the released per-row answer for every actor after all these changes.

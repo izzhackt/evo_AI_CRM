@@ -724,8 +724,13 @@ BEGIN
     'private.platform_can_read_communication_full(uuid,uuid)',
     'private.platform_can_read_canonical_lead(uuid,uuid)']
   LOOP
-    EXECUTE format('COMMENT ON FUNCTION %s IS %L', f::regprocedure,
-      COALESCE(obj_description(f::regprocedure, 'pg_proc') || E'\n', '') || note);
+    -- метаданные: если владелец функции не роль миграций, комментарий пропускается, а не останавливает выпуск
+    BEGIN
+      EXECUTE format('COMMENT ON FUNCTION %s IS %L', f::regprocedure,
+        COALESCE(obj_description(f::regprocedure, 'pg_proc') || E'\n', '') || note);
+    EXCEPTION WHEN insufficient_privilege THEN
+      RAISE NOTICE 'a310: комментарий на % пропущен (нет владения)', f;
+    END;
   END LOOP;
 END
 $a310_comments$;

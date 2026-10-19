@@ -123,6 +123,21 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Runs supabase/tests/platform_permission_once.sql (migration 310) and insists on its marker: the exit
+# code of psql alone would pass a file that stopped early (a stray \q) without proving anything.
+# $1 is extra psql arguments ("" for the full suite, "-v pw_sets_only=1" for the end-of-chain run).
+run_permission_once_suite() {
+  local suite_log
+  suite_log="$(docker exec "$container_name" \
+    psql -X -v ON_ERROR_STOP=1 $1 -h 127.0.0.1 -U postgres -d "$test_database" \
+    -f /workspace/supabase/tests/platform_permission_once.sql </dev/null)"
+  printf '%s\n' "$suite_log"
+  if ! grep -q 'PW310_PERMISSION_ONCE_SUITE_PASSED' <<<"$suite_log"; then
+    echo "platform_permission_once.sql did not reach its PASSED marker ($1)" >&2
+    return 1
+  fi
+}
+
 if [[ ! "$health_timeout_seconds" =~ ^[0-9]+$ ]] \
   || (( health_timeout_seconds < 60 || health_timeout_seconds > 600 )); then
   echo "EVO_POSTGRES_HEALTH_TIMEOUT_SECONDS must be an integer from 60 to 600" >&2
@@ -4076,9 +4091,7 @@ SQL
   # body, and that a suspension, a blocked profile, a revoked assignment, an archived role and a
   # changed department take effect on the very next call inside one transaction.
   if [[ "$(basename "$migration")" == *_platform_permission_once.sql ]]; then
-    docker exec "$container_name" \
-      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
-      -f /workspace/supabase/tests/platform_permission_once.sql </dev/null
+    run_permission_once_suite ""
   fi
 done < <(
   cd "$repo_root"
@@ -4102,11 +4115,10 @@ docker exec "$container_name" \
 # LATEST chain, after every migration. The set primitives re-express the per-row rule of the access
 # chain; this run (pw_sets_only: no released bodies, no page comparisons) pins the md5 of every function
 # they mirror and proves, for every actor of its fixture and in a seeded fuzz, that the sets still equal
-# the live per-row answers. A later migration that changes the access chain fails here until the
-# primitives and the anchors in the suite are updated together.
-docker exec "$container_name" \
-  psql -X -v ON_ERROR_STOP=1 -v pw_sets_only=1 -h 127.0.0.1 -U postgres -d "$test_database" \
-  -f /workspace/supabase/tests/platform_permission_once.sql </dev/null
+# the live per-row answers, and that every replaced read returns what the per-row rule allows. A later
+# migration that changes the access chain fails here until the primitives and the anchors in the suite
+# are updated together; if the FIXTURE breaks, fix the fixture, do not weaken the checks.
+run_permission_once_suite "-v pw_sets_only=1"
 
 # P7A journal contract (fix for PLAN_CHANGES 29.09.2026 — «Журнал действий»:
 # контракт аудита отстал от сервера): proves src/lib/platform-audit.ts's

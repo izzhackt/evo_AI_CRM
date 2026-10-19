@@ -38,7 +38,7 @@ env.
 | Узел | `cloud` (по умолчанию) | `selfhosted` |
 |---|---|---|
 | `evo-fast-release.yml`: проверка ledger (три шага) | Management API (`SUPABASE_ACCESS_TOKEN`) | SSH тем же доступом, что выпуск (`EVO_DEPLOY_*`): `docker exec evo-supabase-db psql … select version from supabase_migrations.schema_migrations` |
-| `evo-schema-ledger.yml`, `check` и `apply` | Management API, `supabase db push --linked` | `scripts/selfhosted-schema-ledger.mjs`: SSH, сухой прогон, затем каждый недостающий файл в одной транзакции вместе со строкой в ledger |
+| `evo-schema-ledger.yml`, `check` и `apply` | Management API, `supabase db push --linked` | `scripts/selfhosted-schema-ledger.mjs`: SSH (только с ветки `main`), сухой прогон, затем недостающие файлы по порядку; файл без собственных `begin/commit` и его строка ledger — одна транзакция, у файла со своими `begin/commit` (252 из 310) его транзакция заканчивается его `commit`, строка ledger вставляется сразу следом — как `supabase db push` |
 | Проверка env (`scripts/evo-app-env-contract.mjs`) | `NEXT_PUBLIC_SUPABASE_URL` ровно `https://<ref>.supabase.co` | ровно `https://supabase.evoadmissions.com`, без шаблонов |
 | Проверка ключей перед выпуском | `GET <origin>/auth/v1/settings` и `/auth/v1/admin/users?page=1&per_page=1` | те же запросы на `https://supabase.evoadmissions.com` |
 | Манифест образа и контроллер | `supabaseProjectRef` = 20 символов | `supabaseProjectRef` = слово `selfhosted` |
@@ -47,7 +47,10 @@ env.
 любых действий. Недоступный self-hosted в режиме `selfhosted` останавливает
 выпуск; запасного перехода на облако нет. Порт базы наружу не открывается и не
 пробрасывается: ssh выполняет фиксированную команду внутри контейнера
-`evo-supabase-db` [repo].
+`evo-supabase-db` [repo]. Ключ выпуска в `/root/.ssh/authorized_keys` помечен
+`restrict` (без проброса портов, агента и pty) [live 20.10]; команды `docker exec -i`
+без `-t` этому не мешают. Живым прогоном этим ключом `docker exec` в
+`evo-supabase-db` ещё не выполнялся — [не проверено].
 
 ## 2. Предусловия (до окна)
 
@@ -64,7 +67,10 @@ env.
    на `GET /auth/v1/settings` → 200; secret на `GET /auth/v1/admin/users?page=1&per_page=1`
    → 200; secret на RPC PostgREST → 200. Для JWT-формы первые два запроса прошли
    20.10 [live]; для `sb_secret_` и для RPC — [не проверено]. Выбрать форму,
-   которая проходит все три.
+   которая проходит все три. Контрольные запросы на шлюзе (20.10 [live]): заведомо
+   неверный ключ и запрос без ключа к `/auth/v1/settings` → 401, anon-ключ на
+   `/auth/v1/admin/users` → 403: проверка ключей выпуска что-то доказывает, потому
+   что чужой ключ шлюз не пропускает. Повторить их для выбранной формы ключей.
 4. Текущий `/opt/evo-crm/.env.production` скопирован как
    `/opt/evo-crm/.env.production.pre-selfhosted` (0600) — это точка отката env.
 5. Проверено, что сервер видит публичный адрес: `curl -s -o /dev/null -w
@@ -247,7 +253,8 @@ gh workflow run "EVO schema ledger" -f mode=apply -R izzhackt/evo_AI_CRM
 ```
 
 `apply` печатает «dry-run», список к применению, каждую применённую миграцию и
-итоговый ряд. Текст ошибок psql в журнал Actions не попадает (журнал публичный):
+итоговый ряд. Доступ к серверу в режиме `selfhosted` workflow даёт только при
+запуске с ветки `main`. Текст ошибок psql в журнал Actions не попадает (журнал публичный):
 только код SQLSTATE и номер строки. Если миграция не применилась, остановиться,
 повторить файл на сервере вручную с полным сообщением:
 

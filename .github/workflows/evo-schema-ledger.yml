@@ -123,6 +123,12 @@ jobs:
           });
           NODE
 
+      - name: Require main for self-hosted database access
+        if: ${{ env.EVO_SUPABASE_TARGET == 'selfhosted' && github.ref != 'refs/heads/main' }}
+        run: |
+          echo "::error::the self-hosted database is reached only from main: this run would put the release SSH key and an unreviewed script on one runner"
+          exit 1
+
       - name: Configure pinned SSH trust (self-hosted)
         if: ${{ env.EVO_SUPABASE_TARGET == 'selfhosted' }}
         env:

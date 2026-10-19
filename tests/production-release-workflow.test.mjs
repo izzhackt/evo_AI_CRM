@@ -791,7 +791,8 @@ test("the schema-ledger workflow selects the database by the same variable and n
   const names = [...schemaWorkflow.matchAll(/^      - name: (.+)$/gmu)].map((match) => match[1]);
   assert.deepEqual(names, [
     "Check out repository", "Set up Node", "Validate Supabase target", "Refuse the Storage capacity check outside cloud mode",
-    "Check project Storage capacity (read-only)", "Configure pinned SSH trust (self-hosted)", "Read remote migration ledger (read-only)",
+    "Check project Storage capacity (read-only)", "Require main for self-hosted database access",
+    "Configure pinned SSH trust (self-hosted)", "Read remote migration ledger (read-only)",
     "Read self-hosted migration ledger (read-only)", "Install pinned Supabase CLI",
     "Apply missing migrations (linked flow, dry-run first)", "Apply missing migrations to self-hosted (dry-run first)",
   ]);
@@ -827,6 +828,13 @@ test("the schema-ledger workflow selects the database by the same variable and n
   assert.match(trust, /StrictHostKeyChecking yes/u);
   assert.match(trust, /BatchMode yes/u);
   assert.match(trust, /Host evo-production/u);
+  // the release SSH key never meets a script from another branch
+  const mainOnly = schemaStep("Require main for self-hosted database access");
+  assert.match(mainOnly, /if: \$\{\{ env\.EVO_SUPABASE_TARGET == 'selfhosted' && github\.ref != 'refs\/heads\/main' \}\}/u);
+  assert.match(mainOnly, /exit 1/u);
+  assert.ok(schemaWorkflow.indexOf("      - name: Require main for self-hosted database access") <
+    schemaWorkflow.indexOf("      - name: Configure pinned SSH trust (self-hosted)"));
+  assert.doesNotMatch(mainOnly, /secrets\./u);
   // a Storage capacity request outside the cloud mode is refused loudly, not skipped
   const refusal = schemaStep("Refuse the Storage capacity check outside cloud mode");
   assert.match(refusal, /if: \$\{\{ inputs\.check_storage_capacity == true && env\.EVO_SUPABASE_TARGET != 'cloud' \}\}/u);

@@ -123,6 +123,21 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Runs supabase/tests/platform_permission_once.sql (migration 310) and insists on its marker: the exit
+# code of psql alone would pass a file that stopped early (a stray \q) without proving anything.
+# $1 is extra psql arguments ("" for the full suite, "-v pw_sets_only=1" for the end-of-chain run).
+run_permission_once_suite() {
+  local suite_log
+  suite_log="$(docker exec "$container_name" \
+    psql -X -v ON_ERROR_STOP=1 $1 -h 127.0.0.1 -U postgres -d "$test_database" \
+    -f /workspace/supabase/tests/platform_permission_once.sql </dev/null)"
+  printf '%s\n' "$suite_log"
+  if ! grep -q 'PW310_PERMISSION_ONCE_SUITE_PASSED' <<<"$suite_log"; then
+    echo "platform_permission_once.sql did not reach its PASSED marker ($1)" >&2
+    return 1
+  fi
+}
+
 if [[ ! "$health_timeout_seconds" =~ ^[0-9]+$ ]] \
   || (( health_timeout_seconds < 60 || health_timeout_seconds > 600 )); then
   echo "EVO_POSTGRES_HEALTH_TIMEOUT_SECONDS must be an integer from 60 to 600" >&2
@@ -4062,6 +4077,22 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_portal_light_poll.sql </dev/null
   fi
+  # «Права актора один раз на запрос» (SQL-оптимизация 19.10.2026, решение владельца;
+  # PLAN_CHANGES 19.10.2026, migration 310). Matched by name, not number, so a renumbering at
+  # merge keeps the hook. Run right after the migration, on the chain exactly as it was
+  # released. The suite keeps the released bodies of the nine replaced functions under
+  # private.pw310_old_* (their md5 is the migration's anchor) and proves, for every role and
+  # scope (Admin, Sales Manager of a department, Sales «own», Admissions Manager of a
+  # department, Admissions «own», a direction, record scopes, an organization reader, mixed
+  # scopes, a Student, another organization, a member with no role, no membership), that the new
+  # set of visible ids equals the per-row answer of the released staff_can_access /
+  # platform_can_read_* functions on every lead, conversation, case and register record, that
+  # every replaced function returns the same rows, order, fields and errors as its released
+  # body, and that a suspension, a blocked profile, a revoked assignment, an archived role and a
+  # changed department take effect on the very next call inside one transaction.
+  if [[ "$(basename "$migration")" == *_platform_permission_once.sql ]]; then
+    run_permission_once_suite ""
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort
@@ -4079,6 +4110,15 @@ done < <(
 docker exec "$container_name" \
   psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
   -f /workspace/supabase/tests/platform_today_university_deadlines.sql
+
+# «Права актора один раз на запрос» (migration 310, PLAN_CHANGES 19.10.2026), second run: on the
+# LATEST chain, after every migration. The set primitives re-express the per-row rule of the access
+# chain; this run (pw_sets_only: no released bodies, no page comparisons) pins the md5 of every function
+# they mirror and proves, for every actor of its fixture and in a seeded fuzz, that the sets still equal
+# the live per-row answers, and that every replaced read returns what the per-row rule allows. A later
+# migration that changes the access chain fails here until the primitives and the anchors in the suite
+# are updated together; if the FIXTURE breaks, fix the fixture, do not weaken the checks.
+run_permission_once_suite "-v pw_sets_only=1"
 
 # P7A journal contract (fix for PLAN_CHANGES 29.09.2026 — «Журнал действий»:
 # контракт аудита отстал от сервера): proves src/lib/platform-audit.ts's

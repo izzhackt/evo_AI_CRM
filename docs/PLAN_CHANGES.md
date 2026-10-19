@@ -60389,3 +60389,100 @@ Rollback: смена `EVO_SUPABASE_TARGET` обратно на `cloud` (или �
   env рабочей CRM на облачные значения — пока в self-hosted не накопились новые данные
   (подробно в runbook). Откат кода — revert PR.
 ```
+
+## 2026-10-20 — Подготовка к переключению на self-hosted Supabase слита и выпущена в режиме cloud (#1272)
+
+```text
+Date: 2026-10-20, workspace timezone.
+Author: Claude Code (по поручению ведущего агента), по решению владельца EVO 20.10.2026.
+Change type: receipt (итог реализации записи «Подготовка к переключению на self-hosted Supabase
+  (запись до кода)» от 20.10.2026 и выпуск), validation.
+```
+
+**Что слито.** PR #1272 (squash `0d633845ec0b1f5558b18cd6725b7e7e13a5c3a2`, head ветки
+`df2d8f2afee10bf8f510f2e7887f4746d6d8e0b7`, слияние с `--match-head-commit`). Независимое ревью —
+отдельный агент (Sonnet, не автор), на точных head, по тому же worktree; три вердикта PASS
+комментариями в PR: [`a3ef6e3e`](https://github.com/izzhackt/evo_AI_CRM/pull/1272#issuecomment-6279218328),
+[`80ab7c9b`](https://github.com/izzhackt/evo_AI_CRM/pull/1272#issuecomment-6279284880),
+[`df2d8f2a`](https://github.com/izzhackt/evo_AI_CRM/pull/1272#issuecomment-6279312233). Блокирующих
+замечаний не было; неблокирующие учтены двумя правками (формулировки и проверка `main` в bash).
+Обязательные пункты ревью: режим `cloud` не изменился, порт базы наружу не открывается, секретов
+и персональных данных нет.
+
+**Как включается self-hosted.** Переменная GitHub `EVO_SUPABASE_TARGET=selfhosted` (не задана или
+пуста — `cloud`; любое иное значение останавливает выпуск и ledger). Остальное — настройки:
+`/opt/evo-crm/.env.production` (адрес и ключи), Vault, Auth self-hosted. Порядок, откат и список
+непроверенного — `docs/runbooks/selfhosted-cutover.md`. Переменная в репозитории **не выставлена**,
+production на облаке.
+
+**Отличия от записи до кода.**
+- Применение миграций: ошибки psql в публичный журнал Actions не попадают (`VERBOSITY=sqlstate`,
+  только код SQLSTATE и номер строки). Точная семантика транзакции: файл без собственных
+  `begin/commit` и строка ledger — одна транзакция; у файла со своими `begin/commit` (252 из 310)
+  строка ledger вставляется сразу после его `commit`, как под `supabase db push`.
+- В `evo-schema-ledger.yml` режим `selfhosted` получает доступ к серверу только при запуске с ветки
+  `main` (шаг-отказ, сравнение в bash). Это защита от ошибочного запуска, не от правки самого workflow
+  на ветке; настоящая граница — защищённая среда GitHub Environment (не заведена).
+- Новый `getSupabasePublicUrl()` в `src/lib/supabase/config.ts` (адрес без ключа). Старые экспорты
+  `UNIVERSITY_PHOTO_PUBLIC_BASE_URL` и `UNIVERSITY_PHOTO_RENDER_BASE_URL` заменены функциями
+  `universityPhotoPublicBaseUrl(url)` и `universityPhotoRenderBaseUrl(url)`; боевые вызовы берут
+  `NEXT_PUBLIC_SUPABASE_URL`. Тесты и статический рендер `tests/e2e/reference-static-render.cjs`
+  задают адрес облака по умолчанию, иначе читатель университетов падает без окружения.
+- Новый общий помощник `scripts/lib/evo-supabase-target.mjs` для операторских скриптов; в
+  `import-catalog-costs.mjs` экспортирован `readAccess` ради теста; в его self-hosted ветке
+  отвергаются адреса с логином, паролем и фрагментом.
+- Чтение ledger перенесено после настройки доверия SSH в обоих режимах (соединение с сервером до
+  него не открывается). В `deploy/fast-app-release.md` оговорено: первая удалённая операция —
+  запрос ledger.
+
+**Проверено.**
+- `npm run test:ci:node`: 3119 тестов, 3115 прошли, 3 красных. Два красных (`tests/v3-case-work.test.mjs`,
+  `tests/v3-supabase-integration.test.mjs`) красны и на чистом `origin/main` `24547096a`, известны из
+  записи 19.10 «Скорость A0 + A4». Третий, `tests/v3-reference-pages.test.mjs`, ломал этот PR; исправлен,
+  файл 13/13. Полный манифест после исправления целиком не повторялся: перезапускались затронутые файлы
+  и наборы ревьюера (199/199 в 11 файлах, 64/64 в двух workflow-наборах).
+- `npm run typecheck` 0, `npm run lint` 0, `npm run build` 0; `actionlint` по двум workflow — новых
+  замечаний нет; PR-проверки на head `df2d8f2a`: Build, Lint, Release contracts, Fast checks, Changed
+  range — pass.
+- Применение миграций проверено на временной базе Postgres 17 (OrbStack) и независимо ревьюером на
+  Postgres 16: файл с `begin/commit`, без транзакции, без завершающей строки, падение посреди файла
+  (таблица не создана, строки ledger нет), повторный запуск. На живой `evo-supabase-db` не запускалось.
+- Read-only на сервере 20.10: запрос ledger работает (309 строк, `001–309`); через публичный адрес
+  `/auth/v1/settings` с anon и `/auth/v1/admin/users` с service-ключом — 200; неверный ключ и запрос
+  без ключа — 401; anon на админском пути — 403; JWT self-hosted без `ref`; ключ выпуска в
+  `authorized_keys` с опцией `restrict` (без проброса портов). Ключи читались внутри процесса, не
+  печатались.
+
+**Выпуск.** Образ менялся (фото вузов, наблюдаемость, помощник адреса), выпуск по контракту, режим
+`cloud`: флаг `EVO_PRODUCTION_RELEASE_ARMED` был `false`, идущих прогонов не было → arm → `EVO platform CI`
+с `proof_revision=0d633845ec0b1f5558b18cd6725b7e7e13a5c3a2` (прогон `39339876782`, success) → `EVO fast app
+release` (прогон `39339919330`, success, build и deploy; 403 на допуске не было, `gh run rerun` не
+понадобился) → disarm (`false`). Выпуск `v3-r39339919330-a1-0d633845`, указатель
+`current-v3-accepted.json` на `0d633845`, прежний выпуск `e2b29c0c`. `evo-crm-app-1` — образ
+`evo-crm:0d633845…`, healthy; `https://crm.evoadmissions.com/api/health` и
+`https://app.evoadmissions.com/login` — 200. В прогоне прошли «Validate Supabase target for build/deploy»,
+«Read exact Supabase migration ledger» (по Management API), обе проверки ledger, приёмка. Схема не менялась,
+миграций нет.
+
+**Найдено при подготовке.** В Auth self-hosted не включён хук входа: функция
+`platform_private.custom_access_token_hook` в базе есть, а `GOTRUE_HOOK_*` в `/opt/evo-supabase/.env` нет
+(по `supabase/config.toml` он включён). Без него в токене нет claims `platform_role` и
+`platform_access_version`. Включить при переключении (runbook, шаг 6).
+
+**Не проверено.** Применение миграций по SSH ключом выпуска на живой `evo-supabase-db`; живой выпуск и
+запуск `EVO schema ledger` в режиме `selfhosted`; ключи формы `sb_secret_` через шлюз self-hosted для RPC
+PostgREST; Realtime до подписки, вход пользователя, письма Auth и OAuth через публичный адрес; загрузка
+документа больше 6 МиБ (TUS) через публичный адрес; подключение контейнеров ИИ-агента к Supavisor
+self-hosted; поведение вебхуков WAHA и заявок сайта, пока приложение остановлено; точные команды дампа
+19.10 и источник чистого тома `pgdata.clean` (в `/opt/evo-supabase/restore` его нет).
+
+**Открытое до переключения (только по команде владельца).**
+- Репетиция шагов runbook на копии (`/opt/evo-crm-selfhost`), запись фактических команд дампа в runbook.
+- Auth self-hosted: хук входа, SMTP Resend и три шаблона, `SITE_URL`, список редиректов; Vault (ключ WAHA);
+  строка подключения ИИ-агента к Supavisor self-hosted.
+- Фильтр `apikey` в журнале edge-Caddy (не сделан, запись 19.10).
+- Новый ADR вместо ADR 0024 (следующий номер 0034) и правка `AGENTS.md` в день переключения; удаление
+  облачного пути — #1271 (срок: 14 дней после приёмки); новая сборка iPhone с адресом self-hosted.
+- Неблокирующие пункты ревью: токен `SUPABASE_ACCESS_TOKEN` по-прежнему передаётся трём шагам ledger в
+  режиме `selfhosted` (уйдёт вместе с облачной веткой); ручная сверка схемы с ledger после обрыва SSH на
+  середине `apply` в runbook не описана.

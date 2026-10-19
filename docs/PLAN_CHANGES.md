@@ -60405,8 +60405,11 @@ Change type: receipt (итог реализации записи «Подгот�
 комментариями в PR: [`a3ef6e3e`](https://github.com/izzhackt/evo_AI_CRM/pull/1272#issuecomment-6279218328),
 [`80ab7c9b`](https://github.com/izzhackt/evo_AI_CRM/pull/1272#issuecomment-6279284880),
 [`df2d8f2a`](https://github.com/izzhackt/evo_AI_CRM/pull/1272#issuecomment-6279312233). Блокирующих
-замечаний не было; из неблокирующих исправлены два пункта (формулировки о защите и о порядке шагов,
-проверка `main` в bash); остальные мелочи ревью исправлены не были и перечислены в «Открытом» ниже.
+замечаний не было. Из неблокирующих в #1272 закрыты: формулировка о том, что чтение ledger идёт «до
+любого SSH» (теперь «первая удалённая операция»), слова о границах транзакции, шаг-отказ для
+`selfhosted` вне `main` (сравнение в bash и честные слова о том, от чего он защищает), контрольные
+запросы шлюза и сведения о ключе выпуска в runbook. Остальные мелочи ревью исправлены не были и
+перечислены в «Открытом» ниже.
 Обязательные пункты ревью: режим `cloud` не изменился, порт базы наружу не открывается, секретов
 и персональных данных нет.
 
@@ -60437,14 +60440,18 @@ production на облаке.
   запрос ledger.
 
 **Проверено.** Запуски автора шли на промежуточных головах ветки, итоговая голова — `df2d8f2a`.
-- На head `a3ef6e3e` (за ним два коммита: `80ab7c9b` — слова про транзакцию и порядок шагов, новый
-  шаг-отказ в `evo-schema-ledger.yml`; `df2d8f2a` — сравнение `main` в bash и слова): `npm run
-  test:ci:node` — 3119 тестов, 3115 прошли, 3 красных, 1 пропущен (`actual OrbStack container transports
-  and verifies sealed runtime image identity`, пропуск и до этого PR); `npm run typecheck` 0, `npm run
-  lint` 0, `npm run build` 0; `actionlint` по `evo-fast-release.yml` и `evo-schema-ledger.yml` — новых
-  замечаний нет. Два красных (`tests/v3-case-work.test.mjs`, `tests/v3-supabase-integration.test.mjs`)
-  красны и на чистом `origin/main` `24547096a`, известны из записи 19.10 «Скорость A0 + A4». Третий,
-  `tests/v3-reference-pages.test.mjs`, ломал этот PR; исправлен до `a3ef6e3e`, файл 13/13.
+- Полный `npm run test:ci:node` шёл на дереве перед коммитом `a3ef6e3e` (его родитель `9fbdea6f`), до
+  исправления `tests/v3-reference-pages.test.mjs`: 3119 тестов, 3115 прошли, 3 красных, 1 пропущен
+  (`actual OrbStack container transports and verifies sealed runtime image identity`, пропуск и до этого
+  PR). Два красных (`tests/v3-case-work.test.mjs`, `tests/v3-supabase-integration.test.mjs`) красны и на
+  чистом `origin/main` `24547096a`, известны из записи 19.10 «Скорость A0 + A4». Третий,
+  `tests/v3-reference-pages.test.mjs`, ломал этот PR; исправлен коммитом `a3ef6e3e` (адрес проекта по
+  умолчанию в `tests/e2e/reference-static-render.cjs`), файл 13/13. После исправления полный манифест не
+  повторялся.
+- `npm run typecheck` 0 и `npm run lint` 0 — на `6ffc6bb9`, `npm run build` 0 — на `a3ef6e3e`,
+  `actionlint` по `evo-fast-release.yml` и `evo-schema-ledger.yml` (новых замечаний нет) — на `6ffc6bb9`.
+  С тех пор `src/` и `scripts/` не менялись, `evo-fast-release.yml` не менялся; `80ab7c9b` и `df2d8f2a`
+  меняли `evo-schema-ledger.yml`, документы и тест.
 - На итоговой голове `df2d8f2a` автор повторил только затронутое: `tests/production-release-workflow.test.mjs`
   (53/53), `actionlint` по `evo-schema-ledger.yml` (одно прежнее замечание shellcheck SC2012 в старом шаге),
   YAML-разбор. `evo-fast-release.yml` после `a3ef6e3e` не менялся. Полный манифест, `typecheck`, `lint` и
@@ -60503,4 +60510,5 @@ self-hosted; поведение вебхуков WAHA и заявок сайта
   (адрес сервера и порт) может попасть в публичный журнал Actions при сбое подключения; в
   `scripts/lib/selfhosted-database.mjs` нет `ServerAliveInterval`; список `node --check` в
   `evo-platform-ci.yml` не включает новые скрипты; адреса фото вузов при локальной разработке теперь
-  указывают на локальный стек из `NEXT_PUBLIC_SUPABASE_URL`, а не на облако.
+  указывают на локальный стек из `NEXT_PUBLIC_SUPABASE_URL`, а не на облако; тест
+  `tests/portal-university-photos.test.mjs` считает ожидаемую базу адреса той же функцией, что проверяет.

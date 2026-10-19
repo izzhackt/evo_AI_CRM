@@ -223,8 +223,10 @@ evoadmissions.com {
 # Self-hosted Supabase (EVO). Only the four public API families reach the
 # gateway; Studio, /pg (meta), analytics, functions and everything else is 404.
 # evo-supabase-gw is the alias the gateway container carries on evo_public_web.
-# No access log: apikey/Authorization and the websocket apikey query string
-# must not be written to disk. WebSocket (realtime) is proxied by reverse_proxy.
+# No access log, so apikey/Authorization and the websocket apikey query string
+# are not logged per request. Caddy's default error log can still record them
+# when the gateway is unreachable (see PLAN_CHANGES 2026-10-19). WebSocket
+# (realtime) is proxied by reverse_proxy.
 supabase.evoadmissions.com {
 	encode zstd gzip
 	header {

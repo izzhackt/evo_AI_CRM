@@ -151,9 +151,16 @@ Storage (`storage.buckets`, `storage.objects`) идут в `data.clean.sql` — 
 проверить, откуда брать чистое состояние (новая инициализация стека или
 повторный снимок), и записать это здесь.
 
-После восстановления: `select count(*), min(version), max(version) from
+После восстановления перезапустить службы стека, чтобы они перечитали базу
+(PostgREST — схему, Supavisor — пул): `cd /opt/evo-supabase && docker compose
+restart` (не `down`; [не проверено], что 19.10 это делалось именно так).
+Проверка ledger: `select count(*), min(version), max(version) from
 supabase_migrations.schema_migrations;` должно дать полный ряд `001…N` по
 текущему `main` (на 19.10: 309 строк `001–309`; в облаке к тому дню уже была `310`).
+
+Файлы дампа с данными (`data.clean.sql`, `history_data.sql`) содержат
+персональные данные клиентов: хранить только в `/opt/evo-supabase/restore`
+(root, 0600) и удалить после приёмки переключения, когда откат уже не нужен.
 
 ### Шаг 4. Ручные шаги после восстановления
 

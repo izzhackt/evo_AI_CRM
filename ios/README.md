@@ -99,6 +99,14 @@ source of truth for structural changes.
    ```
    `PORTAL_WEB_BASE_URL` необязателен, по умолчанию
    `https://app.evoadmissions.com`.
+
+   Переключение на self-hosted Supabase (`docs/runbooks/selfhosted-cutover.md`) —
+   одна замена в этой команде: `SUPABASE_URL=https://supabase.evoadmissions.com`
+   и publishable-ключ того стека. Скрипты принимают любой `https://` адрес,
+   код приложения от адреса не зависит. Сборка с новым адресом выпускается
+   только после переключения рабочей CRM; сессии прежнего проекта в приложении
+   станут недействительными (вход заново). До переключения адрес остаётся
+   облачным.
 4. `git status` чистый для `ios/Generated/Info.plist` (без исключения ATS). Если
    менялся `project.yml`: `cd ios && xcodegen generate`, затем проверить, что
    в `Generated/Info.plist` нет `NSAppTransportSecurity`.

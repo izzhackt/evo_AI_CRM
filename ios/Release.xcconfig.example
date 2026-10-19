@@ -8,6 +8,8 @@
 // sb_secret_, пароли, ключ App Store Connect API) здесь быть не может.
 // xcconfig считает `//` началом комментария в любом месте строки, поэтому
 // адреса записаны как `https:/$()/host`.
+// После переключения рабочей CRM на self-hosted Supabase меняется только этот адрес
+// (https:/$()/supabase.evoadmissions.com) и ключ ниже; см. docs/runbooks/selfhosted-cutover.md.
 SUPABASE_URL = https:/$()/iosckaqtovbbnssqcpde.supabase.co
 // Supabase Dashboard, Project Settings, API Keys: publishable key.
 SUPABASE_PUBLISHABLE_KEY = REPLACE_WITH_PUBLISHABLE_KEY

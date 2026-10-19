@@ -60405,7 +60405,8 @@ Change type: receipt (итог реализации записи «Подгот�
 комментариями в PR: [`a3ef6e3e`](https://github.com/izzhackt/evo_AI_CRM/pull/1272#issuecomment-6279218328),
 [`80ab7c9b`](https://github.com/izzhackt/evo_AI_CRM/pull/1272#issuecomment-6279284880),
 [`df2d8f2a`](https://github.com/izzhackt/evo_AI_CRM/pull/1272#issuecomment-6279312233). Блокирующих
-замечаний не было; неблокирующие учтены двумя правками (формулировки и проверка `main` в bash).
+замечаний не было; из неблокирующих исправлены два пункта (формулировки о защите и о порядке шагов,
+проверка `main` в bash); остальные мелочи ревью исправлены не были и перечислены в «Открытом» ниже.
 Обязательные пункты ревью: режим `cloud` не изменился, порт базы наружу не открывается, секретов
 и персональных данных нет.
 
@@ -60415,7 +60416,7 @@ Change type: receipt (итог реализации записи «Подгот�
 непроверенного — `docs/runbooks/selfhosted-cutover.md`. Переменная в репозитории **не выставлена**,
 production на облаке.
 
-**Отличия от записи до кода.**
+**Уточнено при реализации и ревью (относительно записи до кода).**
 - Применение миграций: ошибки psql в публичный журнал Actions не попадают (`VERBOSITY=sqlstate`,
   только код SQLSTATE и номер строки). Точная семантика транзакции: файл без собственных
   `begin/commit` и строка ledger — одна транзакция; у файла со своими `begin/commit` (252 из 310)
@@ -60435,18 +60436,29 @@ production на облаке.
   него не открывается). В `deploy/fast-app-release.md` оговорено: первая удалённая операция —
   запрос ledger.
 
-**Проверено.**
-- `npm run test:ci:node`: 3119 тестов, 3115 прошли, 3 красных. Два красных (`tests/v3-case-work.test.mjs`,
-  `tests/v3-supabase-integration.test.mjs`) красны и на чистом `origin/main` `24547096a`, известны из
-  записи 19.10 «Скорость A0 + A4». Третий, `tests/v3-reference-pages.test.mjs`, ломал этот PR; исправлен,
-  файл 13/13. Полный манифест после исправления целиком не повторялся: перезапускались затронутые файлы
-  и наборы ревьюера (199/199 в 11 файлах, 64/64 в двух workflow-наборах).
-- `npm run typecheck` 0, `npm run lint` 0, `npm run build` 0; `actionlint` по двум workflow — новых
-  замечаний нет; PR-проверки на head `df2d8f2a`: Build, Lint, Release contracts, Fast checks, Changed
-  range — pass.
-- Применение миграций проверено на временной базе Postgres 17 (OrbStack) и независимо ревьюером на
-  Postgres 16: файл с `begin/commit`, без транзакции, без завершающей строки, падение посреди файла
-  (таблица не создана, строки ledger нет), повторный запуск. На живой `evo-supabase-db` не запускалось.
+**Проверено.** Запуски автора шли на промежуточных головах ветки, итоговая голова — `df2d8f2a`.
+- На head `a3ef6e3e` (за ним два коммита: `80ab7c9b` — слова про транзакцию и порядок шагов, новый
+  шаг-отказ в `evo-schema-ledger.yml`; `df2d8f2a` — сравнение `main` в bash и слова): `npm run
+  test:ci:node` — 3119 тестов, 3115 прошли, 3 красных, 1 пропущен (`actual OrbStack container transports
+  and verifies sealed runtime image identity`, пропуск и до этого PR); `npm run typecheck` 0, `npm run
+  lint` 0, `npm run build` 0; `actionlint` по `evo-fast-release.yml` и `evo-schema-ledger.yml` — новых
+  замечаний нет. Два красных (`tests/v3-case-work.test.mjs`, `tests/v3-supabase-integration.test.mjs`)
+  красны и на чистом `origin/main` `24547096a`, известны из записи 19.10 «Скорость A0 + A4». Третий,
+  `tests/v3-reference-pages.test.mjs`, ломал этот PR; исправлен до `a3ef6e3e`, файл 13/13.
+- На итоговой голове `df2d8f2a` автор повторил только затронутое: `tests/production-release-workflow.test.mjs`
+  (53/53), `actionlint` по `evo-schema-ledger.yml` (одно прежнее замечание shellcheck SC2012 в старом шаге),
+  YAML-разбор. `evo-fast-release.yml` после `a3ef6e3e` не менялся. Полный манифест, `typecheck`, `lint` и
+  `build` на итоговой голове не повторялись. С итоговой головой подтверждены PR-проверки (Build, Lint,
+  Release contracts, Fast checks, Changed range — success) и наборы ревьюера: 64/64 в
+  `production-release-workflow` + `selfhosted-schema-ledger`, 199/199 в одиннадцати файлах, ESLint 0.
+- Применение миграций (`scripts/selfhosted-schema-ledger.mjs`) без реального ssh. Автор: настоящий код
+  против временной базы Postgres 17 в OrbStack (контейнер под именем `evo-supabase-db`, ssh заменён
+  локальным запуском той же команды): файл с `begin/commit`, без транзакции, без завершающей строки,
+  падение посреди файла (таблица не создана, строки ledger нет), повторный запуск. Ревьюер: настоящий код
+  против Postgres 16 через поддельный ssh: файл со своими `begin/commit`, файл без транзакции, падение
+  посреди файла с откатом и без строки ledger, остановка на первом упавшем файле, маскировка текста
+  ошибок и `RAISE NOTICE` через `VERBOSITY=sqlstate`. На живой `evo-supabase-db` ключом выпуска не
+  запускалось.
 - Read-only на сервере 20.10: запрос ledger работает (309 строк, `001–309`); через публичный адрес
   `/auth/v1/settings` с anon и `/auth/v1/admin/users` с service-ключом — 200; неверный ключ и запрос
   без ключа — 401; anon на админском пути — 403; JWT self-hosted без `ref`; ключ выпуска в
@@ -60483,6 +60495,12 @@ self-hosted; поведение вебхуков WAHA и заявок сайта
 - Фильтр `apikey` в журнале edge-Caddy (не сделан, запись 19.10).
 - Новый ADR вместо ADR 0024 (следующий номер 0034) и правка `AGENTS.md` в день переключения; удаление
   облачного пути — #1271 (срок: 14 дней после приёмки); новая сборка iPhone с адресом self-hosted.
-- Неблокирующие пункты ревью: токен `SUPABASE_ACCESS_TOKEN` по-прежнему передаётся трём шагам ledger в
-  режиме `selfhosted` (уйдёт вместе с облачной веткой); ручная сверка схемы с ledger после обрыва SSH на
-  середине `apply` в runbook не описана.
+- Неблокирующие пункты ревью #1272, не исправленные (формулировки в комментариях к PR): токен
+  `SUPABASE_ACCESS_TOKEN` по-прежнему передаётся трём шагам ledger в режиме `selfhosted` (уйдёт вместе с
+  облачной веткой); ручная сверка схемы с ledger после обрыва SSH на середине `apply` в runbook не
+  описана; `projectRef` в отчёте `scripts/portal/migrate-university-photos.mjs` остаётся облачным для
+  self-hosted; `check` при непоследовательном ledger печатает общий код `unexpected`; stderr ssh и docker
+  (адрес сервера и порт) может попасть в публичный журнал Actions при сбое подключения; в
+  `scripts/lib/selfhosted-database.mjs` нет `ServerAliveInterval`; список `node --check` в
+  `evo-platform-ci.yml` не включает новые скрипты; адреса фото вузов при локальной разработке теперь
+  указывают на локальный стек из `NEXT_PUBLIC_SUPABASE_URL`, а не на облако.

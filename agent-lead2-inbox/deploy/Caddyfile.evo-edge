@@ -220,6 +220,29 @@ evoadmissions.com {
 	import evo_website
 }
 
+# Self-hosted Supabase (EVO). Only the four public API families reach the
+# gateway; Studio, /pg (meta), analytics, functions and everything else is 404.
+# evo-supabase-gw is the alias the gateway container carries on evo_public_web.
+# No access log: apikey/Authorization and the websocket apikey query string
+# must not be written to disk. WebSocket (realtime) is proxied by reverse_proxy.
+supabase.evoadmissions.com {
+	encode zstd gzip
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+	}
+
+	@api path /auth/v1/* /rest/v1/* /storage/v1/* /realtime/v1/*
+	handle @api {
+		reverse_proxy evo-supabase-gw:8000
+	}
+
+	handle {
+		respond 404
+	}
+}
+
 # Existing unrelated route observed on the live edge before this cutover.
 invite-bishkek-site.72.62.119.112.sslip.io {
 	encode zstd gzip

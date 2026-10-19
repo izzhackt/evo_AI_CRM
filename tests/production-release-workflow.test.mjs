@@ -828,10 +828,16 @@ test("the schema-ledger workflow selects the database by the same variable and n
   assert.match(trust, /StrictHostKeyChecking yes/u);
   assert.match(trust, /BatchMode yes/u);
   assert.match(trust, /Host evo-production/u);
-  // the release SSH key never meets a script from another branch
+  // a mistaken dispatch from another branch stops before the release SSH key is written. The guard is
+  // not a barrier against someone who can edit the workflow itself; the comparison is made in bash
+  // because GitHub expression string comparison ignores case.
   const mainOnly = schemaStep("Require main for self-hosted database access");
-  assert.match(mainOnly, /if: \$\{\{ env\.EVO_SUPABASE_TARGET == 'selfhosted' && github\.ref != 'refs\/heads\/main' \}\}/u);
-  assert.match(mainOnly, /exit 1/u);
+  assert.match(mainOnly, /if: \$\{\{ env\.EVO_SUPABASE_TARGET == 'selfhosted' \}\}/u);
+  assert.match(mainOnly, /EVO_REF: \$\{\{ github\.ref \}\}/u);
+  for (const [ref, accepted] of [["refs/heads/main", true], ["refs/heads/Main", false], ["refs/heads/MAIN", false],
+    ["refs/heads/main2", false], ["refs/heads/claude/cutover-prep", false], ["refs/tags/main", false], ["", false]]) {
+    assert.equal(runStep(mainOnly, { EVO_REF: ref }).status === 0, accepted, ref);
+  }
   assert.ok(schemaWorkflow.indexOf("      - name: Require main for self-hosted database access") <
     schemaWorkflow.indexOf("      - name: Configure pinned SSH trust (self-hosted)"));
   assert.doesNotMatch(mainOnly, /secrets\./u);

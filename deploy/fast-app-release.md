@@ -128,10 +128,10 @@ sealed manifest before transfer.
 
 Only after those secretless checks pass may later deploy steps reference the
 named production secrets, each scoped to the minimum step that uses it.
-The first secret-bearing operation is the least-privilege read-only Supabase
+The first remote operation is the least-privilege read-only Supabase
 migration-ledger query; it occurs before any SSH connection (the pinned-trust
-step before it only writes the local SSH files). No secret is placed in a
-job-level environment, artifact, output or evidence.
+step before it only writes the local SSH files from their secrets). No secret
+is placed in a job-level environment, artifact, output or evidence.
 
 **Supabase target.** The repository variable `EVO_SUPABASE_TARGET` (unset or empty
 means `cloud`, today's behaviour) selects the database behind the release; any

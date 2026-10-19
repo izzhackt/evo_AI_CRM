@@ -123,11 +123,17 @@ jobs:
           });
           NODE
 
+      # Guards against a mistaken dispatch from another branch (the release SSH key next to a
+      # script nobody merged). It is not a barrier against someone who can edit this workflow on
+      # a branch; that needs a protected GitHub Environment.
       - name: Require main for self-hosted database access
-        if: ${{ env.EVO_SUPABASE_TARGET == 'selfhosted' && github.ref != 'refs/heads/main' }}
+        if: ${{ env.EVO_SUPABASE_TARGET == 'selfhosted' }}
+        env:
+          EVO_REF: ${{ github.ref }}
         run: |
-          echo "::error::the self-hosted database is reached only from main: this run would put the release SSH key and an unreviewed script on one runner"
-          exit 1
+          set -Eeuo pipefail
+          [[ "$EVO_REF" == refs/heads/main ]] \
+            || { echo "::error::the self-hosted database is reached only from main"; exit 1; }
 
       - name: Configure pinned SSH trust (self-hosted)
         if: ${{ env.EVO_SUPABASE_TARGET == 'selfhosted' }}

@@ -4062,6 +4062,24 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_portal_light_poll.sql </dev/null
   fi
+  # «Права актора один раз на запрос» (SQL-оптимизация 19.10.2026, решение владельца;
+  # PLAN_CHANGES 19.10.2026, migration 310). Matched by name, not number, so a renumbering at
+  # merge keeps the hook. Run right after the migration, on the chain exactly as it was
+  # released. The suite keeps the released bodies of the nine replaced functions under
+  # private.pw310_old_* (their md5 is the migration's anchor) and proves, for every role and
+  # scope (Admin, Sales Manager of a department, Sales «own», Admissions Manager of a
+  # department, Admissions «own», a direction, record scopes, an organization reader, mixed
+  # scopes, a Student, another organization, a member with no role, no membership), that the new
+  # set of visible ids equals the per-row answer of the released staff_can_access /
+  # platform_can_read_* functions on every lead, conversation, case and register record, that
+  # every replaced function returns the same rows, order, fields and errors as its released
+  # body, and that a suspension, a blocked profile, a revoked assignment, an archived role and a
+  # changed department take effect on the very next call inside one transaction.
+  if [[ "$(basename "$migration")" == *_platform_permission_once.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_permission_once.sql </dev/null
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

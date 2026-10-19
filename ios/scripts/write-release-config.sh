@@ -7,6 +7,10 @@
 #   DEVELOPMENT_TEAM=... \
 #   ios/scripts/write-release-config.sh
 #
+# После переключения на self-hosted Supabase (docs/runbooks/selfhosted-cutover.md)
+# меняются только SUPABASE_URL=https://supabase.evoadmissions.com и ключ; скрипт
+# принимает любой https:// адрес.
+#
 # SUPABASE_URL              обязательно, только https://, без пути.
 # SUPABASE_PUBLISHABLE_KEY  обязательно, публичный клиентский ключ (publishable
 #                           или anon), не service_role.

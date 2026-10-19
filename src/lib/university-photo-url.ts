@@ -13,18 +13,25 @@ import "server-only";
 
 import manifest from "../../scripts/portal/university-photos-manifest.json" with { type: "json" };
 import { UNIVERSITY_PHOTOS } from "./platform-university-catalog.ts";
-import { getSupabasePublicConfig } from "./supabase/config.ts";
+import { getSupabasePublicConfig, getSupabasePublicUrl } from "./supabase/config.ts";
 
-export const UNIVERSITY_PHOTO_PUBLIC_BASE_URL =
-  "https://iosckaqtovbbnssqcpde.supabase.co/storage/v1/object/public/portal-university-photos";
+/**
+ * Адрес проекта берётся из NEXT_PUBLIC_SUPABASE_URL (облако или self-hosted,
+ * docs/runbooks/selfhosted-cutover.md), а не зашит: смена базы не требует
+ * правки кода, как у фото стран и городов ниже.
+ */
+export function universityPhotoPublicBaseUrl(supabaseUrl: string): string {
+  return `${supabaseUrl.replace(/\/+$/u, "")}/storage/v1/object/public/${UNIVERSITY_PHOTO_BUCKET_NAME}`;
+}
 /**
  * Уменьшенные копии того же объекта (Supabase Image Transformations,
  * https://supabase.com/docs/guides/storage/serving/image-transformations).
  * `resize=contain` с большой высотой сохраняет пропорции: ширина ровно
  * заданная. Только для managed-фото: hotlink сайтов вузов не уменьшаются.
  */
-export const UNIVERSITY_PHOTO_RENDER_BASE_URL =
-  "https://iosckaqtovbbnssqcpde.supabase.co/storage/v1/render/image/public/portal-university-photos";
+export function universityPhotoRenderBaseUrl(supabaseUrl: string): string {
+  return `${supabaseUrl.replace(/\/+$/u, "")}/storage/v1/render/image/public/${UNIVERSITY_PHOTO_BUCKET_NAME}`;
+}
 
 export type UniversityPhotoManifestEntry = Readonly<{
   status: string;
@@ -100,17 +107,17 @@ export function resolveUniversityPhotoSrcSet(
 
 /** Боевая обвязка: библиотека репозитория + закоммиченный манифест. */
 export function universityPhotoUrl(photoKey: string | null): string | null {
-  return resolveUniversityPhotoUrl(photoKey, LIBRARY, MANIFEST_ENTRIES, UNIVERSITY_PHOTO_PUBLIC_BASE_URL);
+  return resolveUniversityPhotoUrl(photoKey, LIBRARY, MANIFEST_ENTRIES, universityPhotoPublicBaseUrl(getSupabasePublicUrl()));
 }
 
 /** Боевая обвязка для студента: только managed-копия, иначе null. */
 export function managedUniversityPhotoUrl(photoKey: string | null): string | null {
-  return resolveManagedUniversityPhotoUrl(photoKey, LIBRARY, MANIFEST_ENTRIES, UNIVERSITY_PHOTO_PUBLIC_BASE_URL);
+  return resolveManagedUniversityPhotoUrl(photoKey, LIBRARY, MANIFEST_ENTRIES, universityPhotoPublicBaseUrl(getSupabasePublicUrl()));
 }
 
 /** Боевая обвязка `srcset`: те же библиотека и манифест. */
 export function universityPhotoSrcSet(photoKey: string | null, widths: readonly number[]): string | null {
-  return resolveUniversityPhotoSrcSet(photoKey, LIBRARY, MANIFEST_ENTRIES, UNIVERSITY_PHOTO_RENDER_BASE_URL, widths);
+  return resolveUniversityPhotoSrcSet(photoKey, LIBRARY, MANIFEST_ENTRIES, universityPhotoRenderBaseUrl(getSupabasePublicUrl()), widths);
 }
 
 /** Бакет фото вузов, стран и городов (283 кладёт фото стран и городов под `geography/`). */

@@ -25,6 +25,11 @@ const PLACEHOLDER = /(?:replace-with-|change-me|changeme|placeholder)/iu;
 const SUPABASE_PUBLISHABLE_KEY = /^sb_publishable_[A-Za-z0-9_-]+$/u;
 const SUPABASE_SECRET_KEY = /^sb_secret_[A-Za-z0-9_-]{16,}$/u;
 const SUPABASE_PROJECT_REF = /^[a-z0-9]{20}$/u;
+// Self-hosted Supabase (docs/runbooks/selfhosted-cutover.md): the "project" is the word
+// `selfhosted` and the only accepted origin is exactly this one, with no patterns.
+// The cloud branch (`<ref>.supabase.co`) is removed after the cutover (#1271).
+const SELFHOSTED_SUPABASE_IDENTITY = "selfhosted";
+const SELFHOSTED_SUPABASE_ORIGIN = "https://supabase.evoadmissions.com";
 const SUPABASE_KEY_VERIFICATION_TIMEOUT_MS = 10_000;
 const PRODUCTION_CRM_DOMAIN = "crm.evoadmissions.com";
 const REQUIRED_RUNTIME_VALUES = Object.freeze([
@@ -169,14 +174,24 @@ function isSupabaseSecretKey(value) {
   return SUPABASE_SECRET_KEY.test(value) || jwtRole(value) === "service_role";
 }
 
-function validatePublicSupabase(entries, expectedSupabaseProjectRef) {
-  if (!SUPABASE_PROJECT_REF.test(expectedSupabaseProjectRef)) {
+function expectedSupabaseOrigin(expectedSupabaseProjectRef) {
+  if (expectedSupabaseProjectRef === SELFHOSTED_SUPABASE_IDENTITY) {
+    return SELFHOSTED_SUPABASE_ORIGIN;
+  }
+  if (
+    typeof expectedSupabaseProjectRef !== "string" ||
+    !SUPABASE_PROJECT_REF.test(expectedSupabaseProjectRef)
+  ) {
     fail("expected_supabase_project_invalid");
   }
+  return `https://${expectedSupabaseProjectRef}.supabase.co`;
+}
+
+function validatePublicSupabase(entries, expectedSupabaseProjectRef) {
+  const expectedOrigin = expectedSupabaseOrigin(expectedSupabaseProjectRef);
   const urlValue = entries.get("NEXT_PUBLIC_SUPABASE_URL");
   try {
     const url = new URL(urlValue);
-    const expectedOrigin = `https://${expectedSupabaseProjectRef}.supabase.co`;
     if (
       url.protocol !== "https:" ||
       url.username !== "" ||
@@ -241,9 +256,7 @@ export async function verifySupabaseProjectCredentials({
   fetchImpl = globalThis.fetch,
 }) {
   if (typeof fetchImpl !== "function") fail("supabase_key_verification_unavailable");
-  if (!SUPABASE_PROJECT_REF.test(expectedSupabaseProjectRef)) {
-    fail("expected_supabase_project_invalid");
-  }
+  const origin = expectedSupabaseOrigin(expectedSupabaseProjectRef);
   const entries = parseEnvironmentText(actualText);
   const publishableKey = entries.get("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
   const secretKey = entries.get("EVO_PLATFORM_SUPABASE_SECRET_KEY");
@@ -256,7 +269,6 @@ export async function verifySupabaseProjectCredentials({
     fail("required_env_value_invalid");
   }
 
-  const origin = `https://${expectedSupabaseProjectRef}.supabase.co`;
   await verifySupabaseKey({
     endpoint: `${origin}/auth/v1/settings`,
     key: publishableKey,

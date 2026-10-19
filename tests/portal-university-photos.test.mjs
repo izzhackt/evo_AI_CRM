@@ -5,8 +5,12 @@ import test from "node:test";
 import {
   managedUniversityPhotoUrl,
   resolveGeographyPhotoSources,
-  UNIVERSITY_PHOTO_PUBLIC_BASE_URL,
+  universityPhotoPublicBaseUrl,
 } from "../src/lib/university-photo-url.ts";
+
+// The managed address follows NEXT_PUBLIC_SUPABASE_URL (docs/runbooks/selfhosted-cutover.md).
+process.env.NEXT_PUBLIC_SUPABASE_URL = "https://iosckaqtovbbnssqcpde.supabase.co";
+const UNIVERSITY_PHOTO_PUBLIC_BASE_URL = universityPhotoPublicBaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
 
 /**
  * Манифест фото S3 (план 4.4, приёмка 7.6.5): у каждого фото стран, городов и

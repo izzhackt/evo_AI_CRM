@@ -265,6 +265,151 @@ test("rejects unsafe production flags and malformed public Supabase configuratio
   );
 });
 
+// docs/runbooks/selfhosted-cutover.md: the "project" of the self-hosted stack is the word `selfhosted`,
+// and its only accepted origin is exactly https://supabase.evoadmissions.com.
+const SELFHOSTED_IDENTITY = "selfhosted";
+const SELFHOSTED_ORIGIN = "https://supabase.evoadmissions.com";
+
+test("self-hosted: accepts exactly the self-hosted origin and refuses the cloud origin, and the other way round", () => {
+  assert.deepEqual(
+    validateAppEnvironmentContract({
+      exampleText: example,
+      actualText: valid({ NEXT_PUBLIC_SUPABASE_URL: SELFHOSTED_ORIGIN }),
+      expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
+    }),
+    { ok: true, code: "valid" },
+  );
+  const refused = (url, identity, code) => assert.throws(
+    () => validateAppEnvironmentContract({
+      exampleText: example,
+      actualText: valid({ NEXT_PUBLIC_SUPABASE_URL: url }),
+      expectedSupabaseProjectRef: identity,
+    }),
+    (error) => error instanceof AppEnvironmentContractError && error.code === code,
+    `${identity} / ${url}`,
+  );
+  // the mode and the env must agree: a leftover cloud address never passes as self-hosted
+  refused(`https://${TEST_SUPABASE_PROJECT_REF}.supabase.co`, SELFHOSTED_IDENTITY, "public_supabase_project_mismatch");
+  refused(SELFHOSTED_ORIGIN, TEST_SUPABASE_PROJECT_REF, "public_supabase_project_mismatch");
+  // exact origin, no patterns: neighbours of the one allowed host never pass
+  for (const url of [
+    `${SELFHOSTED_ORIGIN}/`, `${SELFHOSTED_ORIGIN}.attacker.invalid`, "https://evoadmissions.com",
+    "https://x.supabase.evoadmissions.com", "https://supabase.evoadmissions.co", "https://SUPABASE.evoadmissions.com",
+    "https://aaaaaaaaaaaaaaaaaaaa.supabase.co",
+  ]) {
+    assert.throws(
+      () => validateAppEnvironmentContract({
+        exampleText: example,
+        actualText: valid({ NEXT_PUBLIC_SUPABASE_URL: url }),
+        expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
+      }),
+      (error) => error instanceof AppEnvironmentContractError && error.code === "public_supabase_project_mismatch",
+      url,
+    );
+  }
+  refused("http://supabase.evoadmissions.com", SELFHOSTED_IDENTITY, "public_supabase_url_invalid");
+  refused("https://supabase.evoadmissions.com/rest/v1", SELFHOSTED_IDENTITY, "public_supabase_url_invalid");
+  refused("https://user:pass@supabase.evoadmissions.com", SELFHOSTED_IDENTITY, "public_supabase_url_invalid");
+  refused("https://supabase.evoadmissions.com?x=1", SELFHOSTED_IDENTITY, "public_supabase_url_invalid");
+  // only the 20-character ref and the single word are identities
+  for (const identity of ["Selfhosted", "self-hosted", "selfhosted ", "", "supabase.evoadmissions.com", undefined, null]) {
+    assert.throws(
+      () => validateAppEnvironmentContract({
+        exampleText: example,
+        actualText: valid({ NEXT_PUBLIC_SUPABASE_URL: SELFHOSTED_ORIGIN }),
+        expectedSupabaseProjectRef: identity,
+      }),
+      (error) => error instanceof AppEnvironmentContractError && error.code === "expected_supabase_project_invalid",
+      String(identity),
+    );
+  }
+});
+
+test("self-hosted: both keys are verified against the self-hosted origin with the same two requests, and a rejection fails closed", async () => {
+  const requests = [];
+  const accepted = await verifySupabaseProjectCredentials({
+    actualText: valid({ NEXT_PUBLIC_SUPABASE_URL: SELFHOSTED_ORIGIN }),
+    expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
+    fetchImpl: async (url, init) => {
+      requests.push({ url: String(url), init });
+      return new Response("private-response-must-not-be-read", { status: 200 });
+    },
+  });
+  assert.deepEqual(accepted, { ok: true, code: "verified" });
+  assert.deepEqual(requests.map(({ url }) => url), [
+    `${SELFHOSTED_ORIGIN}/auth/v1/settings`,
+    `${SELFHOSTED_ORIGIN}/auth/v1/admin/users?page=1&per_page=1`,
+  ]);
+  assert.equal(requests[0].init.headers.apikey, "sb_publishable_runtime_safe");
+  assert.equal(requests[1].init.headers.apikey, TEST_SECRET_KEY);
+  assert.equal(requests.every(({ init }) => init.redirect === "error" && init.method === "GET"), true);
+
+  // legacy JWT keys of the self-hosted stack carry no `ref`: they are accepted by role, the server checks the signature
+  const legacyRequests = [];
+  await verifySupabaseProjectCredentials({
+    actualText: valid({
+      NEXT_PUBLIC_SUPABASE_URL: SELFHOSTED_ORIGIN,
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: jwt("anon"),
+      EVO_PLATFORM_SUPABASE_SECRET_KEY: jwt("service_role"),
+    }),
+    expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
+    fetchImpl: async (url, init) => { legacyRequests.push({ url: String(url), init }); return new Response("", { status: 200 }); },
+  });
+  assert.equal(legacyRequests[1].init.headers.Authorization, `Bearer ${jwt("service_role")}`);
+
+  await assert.rejects(
+    verifySupabaseProjectCredentials({
+      actualText: valid({ NEXT_PUBLIC_SUPABASE_URL: SELFHOSTED_ORIGIN }),
+      expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
+      fetchImpl: async (url) => new Response("", { status: String(url).endsWith("/auth/v1/settings") ? 401 : 200 }),
+    }),
+    (error) => error instanceof AppEnvironmentContractError && error.code === "public_supabase_key_project_mismatch",
+  );
+  await assert.rejects(
+    verifySupabaseProjectCredentials({
+      actualText: valid({ NEXT_PUBLIC_SUPABASE_URL: SELFHOSTED_ORIGIN }),
+      expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
+      fetchImpl: async (url) => new Response("", { status: String(url).includes("/admin/users") ? 403 : 200 }),
+    }),
+    (error) => error instanceof AppEnvironmentContractError && error.code === "secret_supabase_key_project_mismatch",
+  );
+  // an unreachable self-hosted stack stops the release; it never falls back to the cloud project
+  const attempted = [];
+  await assert.rejects(
+    verifySupabaseProjectCredentials({
+      actualText: valid({ NEXT_PUBLIC_SUPABASE_URL: SELFHOSTED_ORIGIN }),
+      expectedSupabaseProjectRef: SELFHOSTED_IDENTITY,
+      fetchImpl: async (url) => { attempted.push(String(url)); throw new Error("network down"); },
+    }),
+    (error) => error instanceof AppEnvironmentContractError && error.code === "supabase_key_verification_unavailable",
+  );
+  assert.ok(attempted.every((url) => url.startsWith(`${SELFHOSTED_ORIGIN}/`)));
+});
+
+test("self-hosted: the closed CLI takes the word as the project argument and checks the same file contract", () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "evo-env-selfhosted-")));
+  try {
+    const examplePath = join(root, "example.env");
+    const envPath = join(root, "app.env");
+    writeFileSync(examplePath, example, { mode: 0o600 });
+    writeFileSync(envPath, valid({ NEXT_PUBLIC_SUPABASE_URL: SELFHOSTED_ORIGIN }), { mode: 0o600 });
+    chmodSync(examplePath, 0o600);
+    chmodSync(envPath, 0o600);
+    const run = (identity) => spawnSync(process.execPath, [
+      "scripts/evo-app-env-contract.mjs", "--example", examplePath, "--env", envPath, "--supabase-project-ref", identity,
+    ], { encoding: "utf8", timeout: 30_000 });
+    const accepted = run(SELFHOSTED_IDENTITY);
+    assert.equal(accepted.status, 0, accepted.stderr);
+    assert.deepEqual(JSON.parse(accepted.stdout), { ok: true, code: "valid" });
+    const mismatched = run(TEST_SUPABASE_PROJECT_REF);
+    assert.equal(mismatched.status, 1);
+    assert.equal(mismatched.stdout, "");
+    assert.equal(mismatched.stderr, '{"ok":false,"code":"app_env_contract_invalid"}\n');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("enabled observability and WAHA ingress require complete server-only configuration", () => {
   expectInvalid(
     valid({ EVO_PLATFORM_P7B_OBSERVABILITY_ENABLED: "1" }),

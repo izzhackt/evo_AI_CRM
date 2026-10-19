@@ -2,8 +2,9 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getPlatformSupabaseBackendConfig } from "../src/lib/server/platform-supabase-backend-config.ts";
 import { awaitUniversityTemplateOperation, readUniversityTemplateStream } from "../src/lib/server/university-template-source-storage.ts";
+import { jwtRefAcceptable, matchSupabaseTarget } from "./lib/evo-supabase-target.mjs";
 
-const PROJECT = "iosckaqtovbbnssqcpde", ORIGIN = `https://${PROJECT}.supabase.co`;
+const PROJECT = "iosckaqtovbbnssqcpde";
 export const UNIVERSITY_TEMPLATE_BUCKET = Object.freeze({ id: "platform-document-templates", name: "platform-document-templates",
   public: false, file_size_limit: 20 * 1024 * 1024,
   allowed_mime_types: Object.freeze(["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]) });
@@ -15,10 +16,10 @@ function settingsMatch(value) {
     && Array.isArray(value.allowed_mime_types) && value.allowed_mime_types.length === 2
     && [...value.allowed_mime_types].sort().every((mime, index) => mime === UNIVERSITY_TEMPLATE_BUCKET.allowed_mime_types[index]);
 }
-async function request(method, path, headers, fetchImpl) {
+async function request(origin, method, path, headers, fetchImpl) {
   const stop = new AbortController(), timer = setTimeout(() => stop.abort(), 10_000);
   try {
-    const response = await awaitUniversityTemplateOperation(() => fetchImpl(`${ORIGIN}/storage/v1/bucket${path}`, {
+    const response = await awaitUniversityTemplateOperation(() => fetchImpl(`${origin}/storage/v1/bucket${path}`, {
       method, headers, redirect: "error", cache: "no-store", signal: stop.signal,
       ...(method === "POST" ? { body: JSON.stringify(UNIVERSITY_TEMPLATE_BUCKET) } : {}),
     }), stop.signal);
@@ -39,14 +40,18 @@ export async function configureUniversityTemplateStorage({ mode = "plan", enviro
     if (!["plan", "check", "apply"].includes(mode)) fail("arguments_invalid");
     if (mode === "plan") return { exitCode: 0, report };
     let config; try { config = getPlatformSupabaseBackendConfig(environment); } catch { fail("configuration_invalid"); }
-    if (config.supabaseUrl !== ORIGIN) fail("project_mismatch");
+    // The cloud project or exactly the self-hosted stack (docs/runbooks/selfhosted-cutover.md).
+    const target = matchSupabaseTarget(config.supabaseUrl, PROJECT);
+    if (target === null) fail("project_mismatch");
+    if (target.kind === "selfhosted") report.projectRef = "selfhosted";
     const key = config.supabaseSecretKey, headers = { apikey: key, "content-type": "application/json", accept: "application/json" };
     if (!key.startsWith("sb_secret_")) {
-      try { if (JSON.parse(Buffer.from(key.split(".")[1], "base64url").toString("utf8")).ref !== PROJECT) fail("credential_invalid"); }
+      // Self-hosted keys carry no `ref` claim: the check is skipped there (see jwtRefAcceptable).
+      try { if (!jwtRefAcceptable(JSON.parse(Buffer.from(key.split(".")[1], "base64url").toString("utf8")).ref, target, PROJECT)) fail("credential_invalid"); }
       catch { fail("credential_invalid"); }
       headers.Authorization = `Bearer ${key}`;
     }
-    const read = () => request("GET", `/${UNIVERSITY_TEMPLATE_BUCKET.id}`, headers, fetchImpl);
+    const read = () => request(target.origin, "GET", `/${UNIVERSITY_TEMPLATE_BUCKET.id}`, headers, fetchImpl);
     stage = "before_read";
     const current = await read();
     if (current.status === 200) {
@@ -62,7 +67,7 @@ export async function configureUniversityTemplateStorage({ mode = "plan", enviro
     if (mode !== "apply") fail("bucket_missing");
     // Explicit apply creates once; never overwrite settings, objects or policies.
     stage = "create"; report.mutationAttempted = true;
-    const created = await request("POST", "", headers, fetchImpl);
+    const created = await request(target.origin, "POST", "", headers, fetchImpl);
     if (created.status === 409) fail("create_conflict");
     if (![200, 201].includes(created.status) || created.body?.name !== UNIVERSITY_TEMPLATE_BUCKET.name) fail("create_outcome_unknown");
     stage = "after_read";

@@ -60248,3 +60248,144 @@ Result: миграция 310 (`310_platform_permission_once.sql`), SQL-набо�
 - Цепочка проверки прав на строку остаётся ядром для прочих чтений (~6 мс на строку из-за повторного планирования вложенных SQL-функций); перевод её на plpgsql возможен отдельным срезом, потребует обновить якоря набора.
 - Оракул набора на последней цепочке сверяет id, не поля внутри страниц (верхние границы для счётчиков связей лида, событий истории дела и меню менеджеров реестра): отдельный срез набора.
 - `staff_student_case_queue_v1` держит ~90–170 мс на оставшихся расчётах; списки дел (`staff_student_case_page` без `p_student_case_id`) считают флаги внимания по строке.
+
+## 2026-10-20 · Подготовка к переключению на self-hosted Supabase (запись до кода)
+
+```text
+Date: 2026-10-20, workspace timezone.
+Author: Claude Code (по поручению ведущего агента), по решению владельца EVO 20.10.2026
+  («мы же должны переключиться… сразу делать»; просит не спрашивать разрешений, а делать).
+Change type: architecture (путь к базе в CI, в проверке env и в операторских скриптах), scope,
+  validation, runbook.
+Affected plan section: docs/runbooks/infrastructure-map.md §7 («Что осталось до переключения»:
+  CI и ledger без Management API; проверка env и выпуск; адреса фото в коде; новая сборка
+  iPhone); запись этого файла от 19.10.2026 «Публичный адрес self-hosted Supabase». ADR 0024 и
+  0027 (managed Supabase) остаются в силе до самого переключения; новый ADR (следующий номер
+  0034) пишется в день переключения вместе с приёмкой.
+Reason: рабочая CRM сегодня работает на облачном Supabase. Выпуск и ledger читают облачный
+  проект через Management API (`api.supabase.com`), контракт env требует адрес ровно
+  `https://<ref>.supabase.co`, адреса фото вузов, регулярное выражение наблюдаемости и
+  операторские скрипты зашиты под `*.supabase.co`. Self-hosted копия (`/opt/evo-supabase`,
+  `https://supabase.evoadmissions.com`, наружу только `/auth/v1`, `/rest/v1`, `/storage/v1`,
+  `/realtime/v1`; Postgres в контейнере `evo-supabase-db`, без порта наружу) готова с 19.10.
+  Нужно, чтобы переключение было сменой настроек (переменная GitHub, `.env.production`, ключи),
+  а не правкой кода в день простоя, и чтобы до переключения всё работало ровно как сейчас.
+Проверено перед записью (read-only, 20.10): (1) `docker exec evo-supabase-db psql -U postgres`
+  читает `supabase_migrations.schema_migrations` self-hosted копии (309 строк, версии 001–309,
+  роль `postgres` не суперпользователь, как в облаке); (2) через публичный адрес
+  `GET /auth/v1/settings` с anon-ключом и `GET /auth/v1/admin/users?page=1&per_page=1` с
+  service-ключом отвечают 200 — то есть существующая проверка ключей контракта env работает
+  против self-hosted по тому же пути, меняется только origin; ключи читались внутри процесса на
+  сервере, не печатались; (3) JWT-ключи self-hosted не несут claim `ref` (только `exp`, `iat`,
+  `iss`, `role`), поэтому проверка `ref` в операторских скриптах для self-hosted неприменима;
+  (4) у self-hosted есть и новые ключи `sb_publishable_` / `sb_secret_`, и старые JWT: оба
+  вида уже принимают валидаторы.
+Decision:
+  1. Переключатель режима — переменная GitHub `EVO_SUPABASE_TARGET`: `cloud` или `selfhosted`.
+     Не задана или пуста = `cloud`. Любое другое значение останавливает выпуск и ledger до
+     каких-либо действий. `EVO_SUPABASE_PROJECT_REF` не удаляется: это адрес облака, он нужен
+     режиму `cloud` и откату. Режим `cloud` без переменной ведёт себя как сейчас: единственное
+     отличие — порядок шагов (пункт «Порядок» в 3), набор проверок и их строгость не меняются.
+  2. Идентичность проекта в выпуске. В режиме `selfhosted` поле `supabaseProjectRef` манифеста
+     образа и позиционный аргумент `EVO_SUPABASE_PROJECT_REF` контроллера несут слово
+     `selfhosted` вместо 20-символьного ref (в облаке — прежний ref). Контроллер
+     `scripts/evo-fast-release.sh` и валидатор `scripts/evo-app-env-contract.mjs` выводят режим
+     из этого значения: для `selfhosted` ожидаемый origin — ровно
+     `https://supabase.evoadmissions.com`, без шаблонов и без `*.supabase.co`; для 20-символьного
+     ref — прежний `https://<ref>.supabase.co`. Несовпадение env и режима (облачный адрес при
+     `selfhosted` или наоборот) падает тем же кодом `public_supabase_project_mismatch`.
+     Проверка ключей (`--verify-supabase-keys`) идёт тем же запросом на выбранный origin.
+  3. Ledger и миграции без Management API. В режиме `selfhosted`:
+     - сверка (`scripts/fast-release-ledger-gate.mjs`, три шага release-workflow и шаг чтения в
+       `evo-schema-ledger.yml`) идёт по SSH тем же доступом, что и выпуск (секреты
+       `EVO_DEPLOY_SSH_PRIVATE_KEY`, `EVO_DEPLOY_KNOWN_HOSTS`, переменные `EVO_DEPLOY_*`):
+       `docker exec evo-supabase-db psql -U postgres … select version from
+       supabase_migrations.schema_migrations order by version`; ответ проходит ту же
+       нормализацию («001…N подряд, без лишних») и то же сравнение с деревом выпуска;
+     - применение (режим `apply` в `evo-schema-ledger.yml`) — тоже по SSH, без нового секрета и
+       без порта базы наружу: сначала сухой прогон (список недостающих файлов и проверка, что
+       они идут подряд после последней применённой версии), затем каждый файл по порядку в одном
+       вызове `psql -v ON_ERROR_STOP=1`, обёрнутый в `begin … commit` вместе со вставкой строки в
+       `supabase_migrations.schema_migrations` (version, name) — как `supabase db push`.
+       Миграция без собственных `begin/commit` и её строка ledger — одна транзакция; у
+       миграции со своими `begin/commit` (таких 252 из 310) своя транзакция заканчивается её
+       `commit`, а строка ledger вставляется сразу следом отдельной записью — ровно как под
+       CLI; после этого повторное чтение ledger. Ошибки psql в журнал Actions не попадают
+       (`VERBOSITY=sqlstate`: только код SQLSTATE и номер строки);
+     - порт Postgres наружу не открывается и не пробрасывается: ssh выполняет фиксированную
+       команду `docker exec -i evo-supabase-db psql …` на сервере, пользовательский ввод в
+       командную строку не попадает (тело миграции идёт через stdin);
+     - проверка лимита Storage (`check_storage_capacity`) использует Management API и в
+       `selfhosted` отказывает явным шагом (лимит self-hosted — переменная контейнера Storage,
+       проверяется на сервере по runbook).
+     Порядок: в release-workflow чтение ledger переносится после «Configure pinned SSH trust»
+     (в обоих режимах; только чтение, соединение с сервером до него не открывается),
+     остальной порядок шагов не меняется. В `evo-schema-ledger.yml` доступ к серверу в режиме
+     `selfhosted` разрешён только с ветки `main` (отдельный шаг-отказ, сравнение в bash): это
+     защита от ошибочного запуска с другой ветки, а не преграда для того, кто может править
+     сам workflow на ветке (для этого нужна защищённая среда GitHub Environment).
+  4. Код приложения. `UNIVERSITY_PHOTO_PUBLIC_BASE_URL` и `UNIVERSITY_PHOTO_RENDER_BASE_URL`
+     (зашитый ref) заменяются функциями от `NEXT_PUBLIC_SUPABASE_URL` — так уже работают фото
+     стран и городов; в облаке адреса те же. Регулярное выражение
+     `platform-observability-config.ts` принимает дополнительно ровно
+     `https://supabase.evoadmissions.com`. `platform-storage-resumable-upload.ts` менять не
+     нужно: для не-`*.supabase.co` адреса он уже идёт на `/storage/v1/upload/resumable` того же
+     origin (добавляется тест). Прочие зашитые места после `rg`: облачные инструменты
+     резервного копирования и восстановления (`export-v3-managed-supabase-backup.mjs`,
+     `managed-supabase-readonly-lease.mjs`, `test-v3-managed-supabase-recovery-orbstack.mjs`)
+     и стенды `test-p6d-*` / `test-v3-release-rollback-*` остаются облачными и не меняются —
+     они в списке удаления #1271.
+  5. Операторские скрипты принимают ровно один дополнительный origin — self-hosted — и в этом
+     режиме явно пропускают проверку claim `ref` в JWT (у ключей self-hosted его нет; подпись
+     проверяет сервер); ключ с чужим `ref` в режиме self-hosted отклоняется.
+     `configure-document-export-storage.mjs`, `configure-university-template-storage.mjs`,
+     `portal/migrate-university-photos.mjs`, `waha-runtime-binding.mjs`; по тому же образцу
+     `waha-history-import.mjs`, `catalog/upload-geography-photos.mjs`,
+     `catalog/import-catalog-costs.mjs`, чтобы после переключения не править их заново.
+  6. iPhone. Сборка уже не привязана к облаку: `ios/scripts/write-release-config.sh` и
+     `check-release-config.sh` принимают любой `https://` адрес. Переключение = при записи
+     `Release.xcconfig` задать `SUPABASE_URL=https://supabase.evoadmissions.com` и publishable
+     ключ self-hosted. Текущий конфиг, образец ключей и схема не меняются; в `ios/README.md`
+     и runbook добавляется описание одной правки.
+  7. Runbook `docs/runbooks/selfhosted-cutover.md`: заморозка записи, свежий дамп облака и
+     восстановление, дельта файлов Storage, ручные шаги после восстановления, Vault, env,
+     `EVO_SUPABASE_TARGET`, выпуск, проверки, откат. Без секретов.
+Временное сосуществование (AGENTS.md, «Production Successor Replacement Discipline»):
+  облачный и self-hosted пути живут рядом ТОЛЬКО до переключения. Причина — до команды
+  владельца рабочая CRM остаётся на облаке, а выпуск и миграции обязаны продолжать работать.
+  Файлы: `.github/workflows/evo-schema-ledger.yml`, `.github/workflows/evo-fast-release.yml`,
+  `scripts/fast-release-ledger-gate.mjs`, `scripts/evo-app-env-contract.mjs`,
+  `scripts/evo-fast-release.sh`, `src/lib/server/platform-observability-config.ts`,
+  `scripts/configure-document-export-storage.mjs`, `scripts/configure-university-template-storage.mjs`,
+  `scripts/portal/migrate-university-photos.mjs`, `scripts/waha-runtime-binding.mjs`,
+  `scripts/waha-history-import.mjs`, `scripts/catalog/upload-geography-photos.mjs`,
+  `scripts/catalog/import-catalog-costs.mjs`. Условие удаления: переключение выполнено по
+  runbook, рабочая CRM на self-hosted принята владельцем, окно отката закрыто. Срок: не позже
+  14 дней после приёмки; затем облачная ветка удаляется (остаётся один путь без переключателя).
+  Задача на удаление: #1271 (перечислены все файлы, секрет `SUPABASE_ACCESS_TOKEN`,
+  переменные `EVO_SUPABASE_TARGET` и `EVO_SUPABASE_PROJECT_REF`, облачные инструменты).
+  Недоступный self-hosted в режиме `selfhosted` останавливает выпуск и ledger — запасного
+  перехода на облако нет.
+Out of scope: само переключение (переменная `EVO_SUPABASE_TARGET`, `.env.production`,
+  дамп, восстановление, DNS) — только по команде владельца; production не меняется;
+  резервные копии self-hosted; SMTP Resend и шаблоны писем; фильтр `apikey` в журнале edge;
+  перевод ИИ-агента на Supavisor; новый ADR; новая сборка iPhone; отключение старых JWT облака.
+Validation plan: полный Node-манифест (`test:ci:node`), `typecheck`, `lint`, `build`; тесты
+  workflow/контроллера/контракта env в обоих режимах (режим `cloud` — те же ожидания, что
+  были); проверка сгенерированного SQL применения на временной базе Postgres (OrbStack), если
+  она доступна; независимое ревью точного head отдельным агентом. Выпуск образа нужен, потому
+  что меняются файлы, входящие в образ (фото вузов, наблюдаемость): по контракту выпуска, в
+  режиме `cloud`, поведение не меняется.
+Risks: (1) ошибка в режиме `cloud` — закрывается тем, что без переменной выражения дают прежние
+  значения, а тесты `cloud` сохраняют прежние ожидания; (2) собственная логика применения
+  миграций по SSH расходится с `supabase db push` — закрыта сухим прогоном, транзакцией на
+  файл и записью в ledger в той же транзакции, отказом при непоследовательном хвосте; до первого
+  применения на self-hosted она не использовалась на живой базе — первый запуск после
+  переключения идёт в режиме `check`, затем `apply`; (3) SSH-ключ выпуска получает ещё одно
+  применение (чтение/запись ledger) — права ключа не растут, он уже запускает контроллер с
+  Docker; (4) TUS-загрузка документов больше 6 МБ через публичный адрес Supabase не проверялась
+  на живой копии — пункт проверок runbook до переключения.
+Rollback: смена `EVO_SUPABASE_TARGET` обратно на `cloud` (или удаление переменной), возврат
+  env рабочей CRM на облачные значения — пока в self-hosted не накопились новые данные
+  (подробно в runbook). Откат кода — revert PR.
+```

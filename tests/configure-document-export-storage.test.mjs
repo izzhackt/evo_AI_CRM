@@ -166,6 +166,51 @@ test("publishable or wrong-project credentials stop locally; legacy service JWT 
   assert.equal(fake.calls[0].headers.apikey, key);
 });
 
+test("the self-hosted stack is accepted by its exact origin only: every request goes there and a missing ref claim is not an error (cutover)", async () => {
+  const selfhosted = "https://supabase.evoadmissions.com";
+  const jwt = (payload) => [Buffer.from('{"alg":"HS256"}').toString("base64url"),
+    Buffer.from(JSON.stringify(payload)).toString("base64url"), "syntheticSignature"].join(".");
+  const selfEnvironment = { ...environment, NEXT_PUBLIC_SUPABASE_URL: selfhosted };
+
+  const check = fakeHttp([json(bucket())]);
+  const checked = await configureDocumentExportStorage({ environment: selfEnvironment, fetchImpl: check.fetchImpl });
+  assert.equal(checked.exitCode, 0); assert.equal(checked.report.status, "ready"); assert.equal(checked.report.projectRef, "selfhosted");
+  assert.equal(check.calls[0].url, `${selfhosted}/storage/v1/bucket/platform-document-exports`);
+  const trailing = fakeHttp([json(bucket())]);
+  assert.equal((await configureDocumentExportStorage({ environment: { ...selfEnvironment, NEXT_PUBLIC_SUPABASE_URL: `${selfhosted}/` }, fetchImpl: trailing.fetchImpl })).exitCode, 0);
+
+  const create = fakeHttp([missing(), json({ name: DOCUMENT_EXPORT_BUCKET.name }), json(bucket())]);
+  const created = await configureDocumentExportStorage({ apply: true, environment: selfEnvironment, fetchImpl: create.fetchImpl });
+  assert.equal(created.report.status, "created_and_verified");
+  assert.deepEqual(create.calls.map(call => `${call.method} ${call.url}`), [
+    `GET ${selfhosted}/storage/v1/bucket/platform-document-exports`,
+    `POST ${selfhosted}/storage/v1/bucket`,
+    `GET ${selfhosted}/storage/v1/bucket/platform-document-exports`,
+  ]);
+
+  // self-hosted keys have no `ref`: legacy service JWT is accepted without it, with both headers
+  const key = jwt({ role: "service_role", iss: "supabase" });
+  const legacy = fakeHttp([json(bucket())]);
+  assert.equal((await configureDocumentExportStorage({ environment: { ...selfEnvironment, EVO_PLATFORM_SUPABASE_SECRET_KEY: key }, fetchImpl: legacy.fetchImpl })).exitCode, 0);
+  assert.equal(legacy.calls[0].headers.Authorization, `Bearer ${key}`);
+  // a key from the cloud project, a non-service role and a malformed key never reach the self-hosted stack
+  for (const rejected of [jwt({ role: "service_role", ref: DOCUMENT_EXPORT_STORAGE_PROJECT }), jwt({ role: "anon" }), "not-a-key"]) {
+    const fake = fakeHttp([]);
+    const result = await configureDocumentExportStorage({ environment: { ...selfEnvironment, EVO_PLATFORM_SUPABASE_SECRET_KEY: rejected }, fetchImpl: fake.fetchImpl });
+    assert.equal(result.report.status, "credential_invalid"); assert.equal(fake.calls.length, 0);
+  }
+  // the cloud project still requires its own ref in a JWT
+  const cloudMissingRef = fakeHttp([]);
+  assert.equal((await configureDocumentExportStorage({ environment: { ...environment, EVO_PLATFORM_SUPABASE_SECRET_KEY: jwt({ role: "service_role" }) }, fetchImpl: cloudMissingRef.fetchImpl })).report.status, "credential_invalid");
+  // neighbours of the exact origin never match
+  for (const url of [`${selfhosted}.attacker.invalid`, "http://supabase.evoadmissions.com", "https://supabase.evoadmissions.com:8443",
+    "https://evoadmissions.com", "https://supabase.evoadmissions.com/storage/v1", "https://x.supabase.evoadmissions.com", "https://other.supabase.co"]) {
+    const fake = fakeHttp([]);
+    const result = await configureDocumentExportStorage({ environment: { ...selfEnvironment, NEXT_PUBLIC_SUPABASE_URL: url }, fetchImpl: fake.fetchImpl });
+    assert.equal(result.report.status, "project_mismatch", url); assert.equal(fake.calls.length, 0);
+  }
+});
+
 test("absent bucket is reported without mutation in the default mode", async () => {
   const fake = fakeHttp([missing()]);
   const result = await configureDocumentExportStorage({ environment, fetchImpl: fake.fetchImpl });

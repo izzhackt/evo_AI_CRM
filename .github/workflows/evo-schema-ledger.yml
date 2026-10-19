@@ -1,11 +1,19 @@
 name: EVO schema ledger
 
-# Ручное действие оператора над managed Supabase: read-only сверка леджера
-# миграций и, отдельным явным запуском, применение недостающего хвоста через
-# официальный linked-flow (короткоживущая login-role, без пароля БД).
+# Ручное действие оператора над Supabase: read-only сверка леджера
+# миграций и, отдельным явным запуском, применение недостающего хвоста.
 # Это и есть «миграции руками» из product.md 04.09 — ручной диспатч, никакой
 # автоматики. Релизный конвейер (evo-fast-release.yml) миграции по-прежнему
 # только сверяет и останавливается при расхождении.
+#
+# Цель выбирает переменная репозитория EVO_SUPABASE_TARGET (docs/runbooks/
+# selfhosted-cutover.md); не задана или пуста = cloud, как раньше.
+#   cloud      managed Supabase: Management API и официальный linked-flow
+#              (короткоживущая login-role, без пароля БД).
+#   selfhosted база на сервере выпуска: сверка и применение по SSH тем же доступом,
+#              что у выпуска (EVO_DEPLOY_*), через `docker exec` в контейнере базы.
+#              Порт Postgres наружу не открывается и не пробрасывается.
+# Облачные шаги и условия удаляются после переключения (#1271).
 
 on:
   workflow_dispatch:
@@ -35,6 +43,8 @@ jobs:
     name: Schema ledger (${{ inputs.mode }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      EVO_SUPABASE_TARGET: ${{ vars.EVO_SUPABASE_TARGET || 'cloud' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -45,6 +55,19 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .nvmrc
+
+      - name: Validate Supabase target
+        run: |
+          set -Eeuo pipefail
+          [[ "$EVO_SUPABASE_TARGET" == cloud || "$EVO_SUPABASE_TARGET" == selfhosted ]] \
+            || { echo "::error::EVO_SUPABASE_TARGET must be cloud or selfhosted"; exit 1; }
+          echo "== цель: $EVO_SUPABASE_TARGET"
+
+      - name: Refuse the Storage capacity check outside cloud mode
+        if: ${{ inputs.check_storage_capacity == true && env.EVO_SUPABASE_TARGET != 'cloud' }}
+        run: |
+          echo "::error::check_storage_capacity reads the Management API and exists only in cloud mode; the self-hosted limit is the Storage container setting (docs/runbooks/selfhosted-cutover.md)"
+          exit 1
 
       - name: Check project Storage capacity (read-only)
         if: ${{ inputs.check_storage_capacity == true }}
@@ -100,7 +123,54 @@ jobs:
           });
           NODE
 
+      # Guards against a mistaken dispatch from another branch (the release SSH key next to a
+      # script nobody merged). It is not a barrier against someone who can edit this workflow on
+      # a branch; that needs a protected GitHub Environment.
+      - name: Require main for self-hosted database access
+        if: ${{ env.EVO_SUPABASE_TARGET == 'selfhosted' }}
+        env:
+          EVO_REF: ${{ github.ref }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$EVO_REF" == refs/heads/main ]] \
+            || { echo "::error::the self-hosted database is reached only from main"; exit 1; }
+
+      - name: Configure pinned SSH trust (self-hosted)
+        if: ${{ env.EVO_SUPABASE_TARGET == 'selfhosted' }}
+        env:
+          EVO_DEPLOY_HOST: ${{ vars.EVO_DEPLOY_HOST }}
+          EVO_DEPLOY_PORT: ${{ vars.EVO_DEPLOY_PORT }}
+          EVO_DEPLOY_USER: ${{ vars.EVO_DEPLOY_USER }}
+          DEPLOY_PRIVATE_KEY: ${{ secrets.EVO_DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.EVO_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          [[ "$EVO_DEPLOY_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
+          [[ "$EVO_DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]]
+          (( EVO_DEPLOY_PORT >= 1 && EVO_DEPLOY_PORT <= 65535 ))
+          [[ "$EVO_DEPLOY_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]{0,31}$ ]]
+          [[ -n "$DEPLOY_PRIVATE_KEY" && -n "$DEPLOY_KNOWN_HOSTS" ]]
+          install -d -m 700 "$HOME/.ssh"
+          install -m 600 /dev/null "$HOME/.ssh/evo_deploy"
+          install -m 600 /dev/null "$HOME/.ssh/evo_known_hosts"
+          printf '%s\n' "$DEPLOY_PRIVATE_KEY" > "$HOME/.ssh/evo_deploy"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$HOME/.ssh/evo_known_hosts"
+          {
+            printf 'Host evo-production\n'
+            printf '  HostName %s\n' "$EVO_DEPLOY_HOST"
+            printf '  Port %s\n' "$EVO_DEPLOY_PORT"
+            printf '  User %s\n' "$EVO_DEPLOY_USER"
+            printf '  IdentityFile %s/.ssh/evo_deploy\n' "$HOME"
+            printf '  UserKnownHostsFile %s/.ssh/evo_known_hosts\n' "$HOME"
+            printf '  IdentitiesOnly yes\n'
+            printf '  StrictHostKeyChecking yes\n'
+            printf '  BatchMode yes\n'
+          } > "$HOME/.ssh/config"
+          chmod 600 "$HOME/.ssh/config"
+
       - name: Read remote migration ledger (read-only)
+        if: ${{ env.EVO_SUPABASE_TARGET == 'cloud' }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
@@ -128,15 +198,21 @@ jobs:
           comm -13 <(echo "$local_versions") <(echo "$remote_versions") | tr '\n' ' '
           echo
 
+      - name: Read self-hosted migration ledger (read-only)
+        if: ${{ env.EVO_SUPABASE_TARGET == 'selfhosted' }}
+        run: |
+          set -Eeuo pipefail
+          node scripts/selfhosted-schema-ledger.mjs check
+
       - name: Install pinned Supabase CLI
-        if: ${{ inputs.mode == 'apply' }}
+        if: ${{ inputs.mode == 'apply' && env.EVO_SUPABASE_TARGET == 'cloud' }}
         run: |
           set -Eeuo pipefail
           npm install --no-save --ignore-scripts=false supabase@2.116.0
           npx --no-install supabase --version
 
       - name: Apply missing migrations (linked flow, dry-run first)
-        if: ${{ inputs.mode == 'apply' }}
+        if: ${{ inputs.mode == 'apply' && env.EVO_SUPABASE_TARGET == 'cloud' }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           EVO_SUPABASE_PROJECT_REF: ${{ vars.EVO_SUPABASE_PROJECT_REF }}
@@ -154,3 +230,9 @@ jobs:
             | node -e '
               const rows = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
               console.log(rows.map((row) => row.version).join(" "));'
+
+      - name: Apply missing migrations to self-hosted (dry-run first)
+        if: ${{ inputs.mode == 'apply' && env.EVO_SUPABASE_TARGET == 'selfhosted' }}
+        run: |
+          set -Eeuo pipefail
+          node scripts/selfhosted-schema-ledger.mjs apply

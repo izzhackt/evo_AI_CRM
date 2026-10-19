@@ -2,6 +2,28 @@
 	servers {
 		max_header_size 32KB
 	}
+
+	# Default logger = everything that has no site-level `log` block, in particular
+	# the http.log.error entries ("dial tcp ... no such host" when an upstream is
+	# unreachable), which carry the full request: headers and the query string.
+	# Strip the Supabase keys there (apikey header, ?apikey= / ?token= /
+	# ?access_token= of the realtime websocket) so no key reaches `docker logs`
+	# of evo-edge-caddy. Authorization is deleted although Caddy already masks it.
+	log {
+		format filter {
+			wrap json
+			fields {
+				request>headers>Apikey delete
+				request>headers>Authorization delete
+				request>headers>Cookie delete
+				request>uri query {
+					replace apikey REDACTED
+					replace access_token REDACTED
+					replace token REDACTED
+				}
+			}
+		}
+	}
 }
 
 (evo_app) {
@@ -172,8 +194,9 @@ evoadmissions.com {
 # gateway; Studio, /pg (meta), analytics, functions and everything else is 404.
 # evo-supabase-gw is the alias the gateway container carries on evo_public_web.
 # No access log, so apikey/Authorization and the websocket apikey query string
-# are not logged per request. Caddy's default error log can still record them
-# when the gateway is unreachable (see PLAN_CHANGES 2026-10-19). WebSocket
+# are not logged per request. The error log (gateway unreachable) goes through
+# the default logger, whose filter in the global block above strips the apikey
+# header and the apikey/token/access_token query parameters. WebSocket
 # (realtime) is proxied by reverse_proxy.
 supabase.evoadmissions.com {
 	encode zstd gzip

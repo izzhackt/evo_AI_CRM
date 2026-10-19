@@ -13,6 +13,7 @@ import * as recoveryContract from "../src/lib/student-password-recovery-contract
 import * as routes from "../src/lib/platform-route-contract.ts";
 import * as origins from "../src/lib/platform-public-origin.ts";
 import * as requestIds from "../src/lib/request-id.ts";
+import * as requestTiming from "../src/lib/request-timing.ts";
 import * as accountDeletion from "../src/lib/account-deletion-contract.ts";
 
 const REQUEST = "10000000-0000-4000-8000-000000000001";
@@ -303,6 +304,7 @@ function proxyHarness({ claimsError = null } = {}) {
     "@/lib/platform-route-contract": routes,
     "@/lib/platform-public-origin": origins,
     "@/lib/request-id": requestIds,
+    "@/lib/request-timing": requestTiming,
     "@/lib/account-deletion-contract": accountDeletion,
     "@/lib/student-invite-callback-contract": callback,
     "@/lib/student-signup-confirmation-contract": signupContract,

@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 import {
+  isLightPollApi,
   isConnectedPlatformApi,
   isPublicStudentApplicationPage,
   isConnectedPlatformPrivateApi,
@@ -13,6 +14,7 @@ import {
   isRetiredPlatformRoute,
 } from "@/lib/platform-route-contract";
 import { requestId } from "@/lib/request-id";
+import { markProxied } from "@/lib/request-timing";
 import { ACCOUNT_DELETED_PATH, isDeletedAuthUserError } from "@/lib/account-deletion-contract";
 import {
   canonicalPlatformPageOrigin,
@@ -311,6 +313,9 @@ export async function proxy(request: NextRequest) {
   if (path === "/api/health" || path === "/api/version") {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
+  // Замер A0: с этого места запрос — рабочий, и его строка `evo_timing` нужна.
+  // Проверка живости (раз в 30 с), готовности и метрики в журнал замера не идут.
+  markProxied();
   if (isConnectedPlatformPrivateApi(path)) {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
@@ -434,6 +439,20 @@ export async function proxy(request: NextRequest) {
     return setResponseHeaders(nextResponse(requestHeaders), id);
   }
 
+
+  // Лёгкий опрос (A4): бюджет — один RPC на опрос, и тратит его сам обработчик.
+  // Здесь только проверка и обновление сессии (`getClaims`), без RPC доступа;
+  // роль и права проверяет RPC обработчика. Без сессии — 401 JSON.
+  if (isLightPollApi(path, request.method)) {
+    const poll = await liveSessionState(request, requestHeaders, true);
+    if (poll.state === "authenticated_without_product") return setResponseHeaders(poll.response, id);
+    return accessDeniedResponse(
+      request,
+      poll.response,
+      id,
+      poll.state === "unavailable" ? "auth_unavailable" : poll.state === "invalid" ? "session_invalid" : null,
+    );
+  }
 
   if (!isConnectedPlatformPage(path) && !isConnectedPlatformApi(path)) {
     if (!studentPortalApi) return blockedPlatformRoute(request, id);

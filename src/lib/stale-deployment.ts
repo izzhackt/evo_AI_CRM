@@ -89,6 +89,24 @@ export function holdInlineStalePrompt(): () => void {
   };
 }
 
+let bundleRelease: string | null = null;
+
+/**
+ * Ревизия сервера, увиденная страницей. Лёгкий опрос (A4) — не server action,
+ * поэтому прошлую сборку по `x-nextjs-action-not-found` он не узнаёт: вместо
+ * этого ответ несёт ревизию сервера. Первая увиденная страницей ревизия (ею
+ * же отрисована страница, оболочка передаёт её при первом показе) — ревизия
+ * этой сборки, и она не меняется от `router.refresh()`. Другая ревизия в
+ * ответе — вышел новый выпуск: страница отмечается, как после отказа action.
+ * Возвращает true, если страница теперь на прошлой сборке.
+ */
+export function noteServerRelease(release: string | null): boolean {
+  if (typeof release !== "string" || release.length === 0) return stale;
+  if (bundleRelease === null) { bundleRelease = release; return stale; }
+  if (release !== bundleRelease) markStaleDeployment();
+  return stale;
+}
+
 export function reloadForNewDeployment(): void {
   window.location.reload();
 }

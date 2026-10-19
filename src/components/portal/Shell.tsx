@@ -241,12 +241,15 @@ export function Shell({
   accessTier,
   locale,
   theme,
+  release = null,
 }: {
   children: React.ReactNode;
   displayName: string;
   accessTier: PortalAccessTier;
   locale: Locale;
   theme: Theme;
+  /** Ревизия сервера при отрисовке: по ней опрос узнаёт устаревшую сборку. */
+  release?: string | null;
 }) {
   const pathname = usePathname();
   const strings = getPortalStrings("shell", locale);
@@ -331,7 +334,7 @@ export function Shell({
           <EvoLogo width={104} />
         </IntentPrefetchLink>
         <div className="pt-topbar-actions">
-          {accessTier === "assisted" ? <PortalNotificationUpdates locale={locale} /> : null}
+          {accessTier === "assisted" ? <PortalNotificationUpdates locale={locale} release={release} /> : null}
           {/* Тема — одна кнопка на виду и на телефоне (решение владельца 02.10). */}
           <ThemeToggle locale={locale} initialTheme={theme} />
           <details className="pt-user-menu">

@@ -4031,6 +4031,37 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_client_merge_service.sql </dev/null
   fi
+
+  # Лёгкий опрос кабинета студента и колокольчика CRM (срез A4 плана скорости; решение
+  # владельца 19.10.2026, PLAN_CHANGES 19.10.2026, migration 309). Matched by name, not
+  # number, so a renumbering at merge keeps the hook. Members are modelled like production
+  # (coarse role NULL, the Admissions and Sales Manager roles with the production keys),
+  # the Student cabinets are activated-case snapshots, and every change goes through the
+  # real command. The suite proves: the catalog and posture of both functions (STABLE /
+  # VOLATILE, definer, empty search_path, EXECUTE for authenticated only); the answer of
+  # student_portal_poll_v1 {access, unread, version} (exactly three keys, unread = the
+  # unread rows of the bell's source, a 32-hex version that repeats on a second call and
+  # does not depend on the session time zone); what moves the version of which section
+  # (a notification and a mark-as-read move every section, a stage change moves every
+  # section, a payment obligation moves payments / home / admission, a document slot and a
+  # review move documents / home / admission, a cabinet chat message moves «messages»
+  # alone, the unrelated sections stay put); the pending Student (a version for every
+  # section but «messages», where the chat's 42501 becomes version = null); everyone else
+  # (staff, another organization, no membership, a suspended membership, a blocked profile,
+  # a fresh and an old token) gets {"access": false}; neighbours and another organization
+  # neither see nor move each other's versions; the 22023 for an invalid section, anon /
+  # service_role / supabase_auth_admin / evo_ai_agent refused, the call inside a READ ONLY
+  # transaction, and no data value in any answer. For staff_notifications_state_v1: access
+  # for Admin, Sales Manager and Curator with unread = the page's unread_count and version
+  # = md5 of the page; a new notification and a mark-as-read move the version; the poll
+  # itself creates the due-tomorrow and the timed reminders once and neutralizes them when
+  # the task is done (the side effect of staff_notifications_page_v2 it calls); a Student
+  # and a session without membership get {"access": false}; it cannot run READ ONLY.
+  if [[ "$(basename "$migration")" == *_platform_portal_light_poll.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_portal_light_poll.sql </dev/null
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

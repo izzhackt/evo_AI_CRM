@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { isStaffPreview } from "@/lib/platform-access";
 
+import { ServerReleaseMark } from "@/components/ServerReleaseMark";
 import { AppShell } from "@/components/v3/AppShell";
 import { requirePlatformStaffActor } from "@/lib/platform-guards";
+import { readReleaseMetadata } from "@/lib/release-metadata";
 import { readStaffNotificationsForActor } from "@/lib/v3/staff-notification-source";
 
 import "./v3.css";
@@ -35,6 +37,7 @@ export const metadata: Metadata = {
  */
 export default async function V3Layout({ children }: { children: ReactNode }) {
   const actor = await requirePlatformStaffActor();
+  const release = readReleaseMetadata();
   const notifications = !isStaffPreview(actor) ? await readStaffNotificationsForActor(actor).catch(() => null) : null;
 
   return (
@@ -42,6 +45,7 @@ export default async function V3Layout({ children }: { children: ReactNode }) {
       <AppShell actor={actor} initialNotifications={notifications}>
         {children}
       </AppShell>
+      <ServerReleaseMark release={release.status === "available" ? release.revision : null} />
     </div>
   );
 }

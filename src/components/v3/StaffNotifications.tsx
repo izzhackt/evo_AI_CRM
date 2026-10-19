@@ -8,12 +8,13 @@ import type { StaffNotification, StaffNotificationCursor, StaffNotificationPage 
 import { dayInOrganizationTimezone, projectPlatformTaskDeadline } from "@/lib/platform-task-deadline";
 import { caseMessageNotificationCopy } from "@/components/v3/staff-notification-copy";
 import { STALE_DEPLOYMENT_TEXT } from "@/components/v3/StaleDeploymentNotice";
-import { isStaleDeployment, noteStaleDeployment, reloadForNewDeployment } from "@/lib/stale-deployment";
+import { createLightPoller, fetchLightPoll } from "@/lib/light-poll";
+import { isStaleDeployment, noteServerRelease, noteStaleDeployment, reloadForNewDeployment } from "@/lib/stale-deployment";
 import { useInlineStalePrompt, useStaleDeployment } from "@/lib/use-stale-deployment";
 
 const TIME = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bishkek" });
 const EXACT_TIME = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bishkek" });
-const STAFF_NOTIFICATIONS_POLL_MS = 60000;
+const STAFF_NOTIFICATIONS_STATE_URL = "/api/v3/notifications/state";
 const DATE_ONLY = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "Asia/Bishkek" });
 const CONTROL = "min-h-11 rounded-ctl border border-control-edge px-3 text-sm text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
 /**
@@ -122,27 +123,59 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
     } finally { if (serial.current === request) setBusy(false); }
   }, []);
 
+  // Лёгкий опрос (A4, docs/PLAN_CHANGES.md 19.10.2026): раз в минуту один RPC
+  // отдаёт число непрочитанных и версию страницы уведомлений. Саму страницу
+  // (до 51 строки с обогащением) читает прежний action, но только когда
+  // версия изменилась, при открытии панели и по «Повторить». Тот RPC
+  // сохраняет побочный эффект миграции 188 (напоминания о сроках).
+  // Изменение, пришедшее посреди команды «прочитано», откладывается до её конца,
+  // чтобы фоновое чтение не перебило её локальный результат.
+  const pageRef = useRef<StaffNotificationPage | null>(initialPage);
+  useEffect(() => { pageRef.current = page; }, [page]);
+  const owedReload = useRef(false);
+  const polled = useRef(false);
   useEffect(() => {
     if (stale) return;
-    // Live also while open, but never mid-flight of a mark-read/mark-all
-    // command: a background refresh landing between click and navigation
-    // must not clobber that command's own local state change. One background
-    // read at a time: focus and visibilitychange arrive together on return.
-    // The hold lapses after one poll interval, so a fetch stalled after sleep
-    // cannot suspend polling; a late settle never frees a newer read's hold.
-    let inFlight: number | null = null;
-    const refresh = () => {
-      if (inFlight !== null || isStaleDeployment() || document.visibilityState !== "visible" || mutationsInFlight.current !== 0) return;
-      const hold = window.setTimeout(() => { if (inFlight === hold) inFlight = null; }, STAFF_NOTIFICATIONS_POLL_MS);
-      inFlight = hold;
-      void load().finally(() => { window.clearTimeout(hold); if (inFlight === hold) inFlight = null; });
+    const reload = () => {
+      if (mutationsInFlight.current !== 0) { owedReload.current = true; return; }
+      owedReload.current = false;
+      void load();
     };
-    const timer = window.setInterval(refresh, STAFF_NOTIFICATIONS_POLL_MS);
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", refresh);
+    const poller = createLightPoller({
+      now: () => Date.now(),
+      setTimer: (callback, delay) => window.setTimeout(callback, delay),
+      clearTimer: (handle) => window.clearTimeout(handle as number),
+      isVisible: () => document.visibilityState === "visible",
+      isStale: isStaleDeployment,
+      fetchState: (signal) => fetchLightPoll(STAFF_NOTIFICATIONS_STATE_URL, signal),
+      onRelease: (release) => { noteServerRelease(release); },
+      onState: (state) => {
+        // Первый ответ: страница могла измениться между отрисовкой и опросом;
+        // страницы нет вовсе (сбой чтения) — пробуем прочитать снова.
+        const current = pageRef.current;
+        const first = !polled.current;
+        polled.current = true;
+        if (current === null || (first && String(state.unread) !== current.unreadCount)) reload();
+        else setError(null);
+      },
+      onChange: reload,
+      // Сбой лёгкого опроса не стирает уже прочитанную страницу: она исправна,
+      // сказать нужно только о том, что свежих данных нет.
+      onFailure: (kind) => {
+        setError(kind === "denied" ? "Не удалось загрузить уведомления. Повторите или войдите снова." : "Нет связи. Повторите загрузку уведомлений.");
+      },
+    });
+    const resume = () => poller.resume();
+    const online = () => poller.online();
+    window.addEventListener("focus", resume);
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("online", online);
+    poller.start({ immediate: true });
     return () => {
-      window.clearInterval(timer); if (inFlight !== null) window.clearTimeout(inFlight);
-      window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh);
+      poller.stop();
+      window.removeEventListener("focus", resume);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("online", online);
     };
   }, [load, stale]);
   useEffect(() => () => invalidate(), [invalidate]);
@@ -153,6 +186,12 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
     return () => document.removeEventListener("pointerdown", outside);
   }, [open]);
 
+  /** Конец команды: чтение, отложенное опросом посреди неё, выполняется теперь. */
+  function endMutation() {
+    mutationsInFlight.current--;
+    setBusy(false);
+    if (owedReload.current && mutationsInFlight.current === 0) { owedReload.current = false; void load(); }
+  }
   async function openItem(item: StaffNotification) {
     setBusy(true); mutationsInFlight.current++;
     try {
@@ -163,7 +202,7 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
       } : previous);
       setOpen(false); router.push(item.href);
     } catch (cause) { if (!noteStaleDeployment(cause)) setError("Не удалось открыть уведомление. Повторите."); }
-    finally { mutationsInFlight.current--; setBusy(false); }
+    finally { endMutation(); }
   }
   async function markAll() {
     setMenuOpen(false); mutationsInFlight.current++; setBusy(true);
@@ -172,7 +211,7 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
       if (!result.ok) { setError(result.message ?? "Не удалось отметить уведомления прочитанными."); return; }
       await load();
     } catch (cause) { if (!noteStaleDeployment(cause)) setError("Не удалось отметить уведомления прочитанными. Повторите."); }
-    finally { mutationsInFlight.current--; setBusy(false); }
+    finally { endMutation(); }
   }
   const count = page?.unreadCount;
   const failed = error !== null && !stale;

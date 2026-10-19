@@ -132,6 +132,18 @@ The first secret-bearing operation is the least-privilege read-only Supabase
 migration-ledger query; it occurs before any SSH. No secret is placed in a
 job-level environment, artifact, output or evidence.
 
+**Supabase target.** The repository variable `EVO_SUPABASE_TARGET` (unset or empty
+means `cloud`, today's behaviour) selects the database behind the release; any
+other value except `selfhosted` stops both jobs before a secret or Docker is
+used. In `selfhosted` mode (`docs/runbooks/selfhosted-cutover.md`) the three
+migration-ledger reads go over the release's own pinned SSH access, inside the
+database container, with no Management API and no database port; the first read
+therefore follows the pinned-trust step (no connection is opened before it), and
+the manifest, the controller and the environment contract carry the word
+`selfhosted` in place of a 20-character project ref, with the exact origin
+`https://supabase.evoadmissions.com`. An unreachable self-hosted database stops
+the release; there is no fallback to the cloud project.
+
 On the host and still before image load or application mutation, the controller
 uses the candidate-sealed project ref and one protected application-environment
 snapshot for bounded read-only credential probes. The publishable key must reach
@@ -222,7 +234,8 @@ Required secrets when #552 configures the lane:
 
 - `EVO_DEPLOY_SSH_PRIVATE_KEY` — dedicated restricted deploy key;
 - `EVO_DEPLOY_KNOWN_HOSTS` — pre-verified Hermes host-key line;
-- `SUPABASE_ACCESS_TOKEN` — least-privilege read-only migration-ledger lookup;
+- `SUPABASE_ACCESS_TOKEN` — least-privilege read-only migration-ledger lookup
+  (`cloud` mode only);
 - `EVO_GITHUB_VARIABLES_READ_TOKEN` — one-repository control-plane credential
   limited to `Variables: read`, exposed only to the two fresh guards; and
 - `EVO_PRODUCTION_SMOKE_ADMIN_EMAIL` and
@@ -249,7 +262,10 @@ Required non-secret variables:
   `https://crm.evoadmissions.com/api/health` for the accepted domain contract;
 - `EVO_RELEASE_MIN_FREE_KB` — at least `1048576`;
 - `EVO_WAHA_IMAGE_DIGEST` — the reviewed immutable digest; and
-- `EVO_SUPABASE_PROJECT_REF`.
+- `EVO_SUPABASE_PROJECT_REF` (the cloud project; kept in `selfhosted` mode for
+  rollback).
+
+Optional `EVO_SUPABASE_TARGET`: `cloud` (default) or `selfhosted`.
 
 Optional «ИИ-агент» variables: `EVO_AI_AGENT_ENABLED` (unset, empty or `false`
 keeps today's release exactly; `true` adds the `ai-agent` compose profile) and

@@ -554,8 +554,9 @@ test("Kyrgyz account deletion texts: the review list in the runbook matches ever
   assert.ok(lines.size >= 5);
   for (const line of lines) assert.ok(section.includes(`| ${line} |`), `mail line «${line}» is listed`);
   assert.ok(section.includes(`| ${subject.split(" / ")[1]} |`), "the mail subject is listed");
-  // Nothing is marked as checked until a native speaker says so (no invented sign-off).
+  // The last column is «нет» until a native speaker says so (no invented sign-off); the runbook tells
+  // the reviewer to write the date there, so a date (ДД.ММ.ГГГГ or ГГГГ-ММ-ДД) is a valid cell too.
   const rows = section.split("\n").filter((line) => line.startsWith("| ") && !line.startsWith("| Где") && !line.startsWith("|---"));
   assert.ok(rows.length >= 30);
-  for (const row of rows) assert.match(row, /\| нет \|$/u, row);
+  for (const row of rows) assert.match(row, /\| (?:нет|\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2}) \|$/u, row);
 });

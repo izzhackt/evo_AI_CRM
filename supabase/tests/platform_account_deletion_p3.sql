@@ -15,7 +15,8 @@
 --          the final complete step overrides the first one;
 --   SQL-2  an automatic request in «processing» whose login is only soft-deleted (deleted_at)
 --          is closed by complete_account_deletion_v1; an active login still refuses it; an
---          absent one closes it as before;
+--          absent one closes it as before; a soft-deleted login of an account that is no longer
+--          simple is refused by complete itself (account_deletion_not_simple, nothing written);
 --   F3     a request in «processing» whose account stopped being simple (a second анкета with
 --          an intake owner) reads as manual, is refused by process (account_deletion_not_simple),
 --          waits for the login (account_deletion_login_active) and is then closed by
@@ -483,6 +484,19 @@ END
 $p313_shape$;
 -- The technical administrator soft-deletes the login; now the Admin may mark it done.
 UPDATE auth.users SET deleted_at = statement_timestamp() WHERE id = :'p313_fatima';
+-- The database is the guard, not the CRM screen: a direct complete (stale or crafted) for the
+-- soft-deleted login of an account that is no longer simple is refused, writes nothing, and the
+-- lead and the анкета stay.
+SELECT pg_temp.p313_assert(
+  (SELECT r ->> 'message' = 'account_deletion_not_simple' AND r ->> 'detail' = 'lead,client'
+    FROM pg_temp.p313_admin(format('platform.complete_account_deletion_v1(%L::UUID)', :'p313_fatima_req')) r)
+  AND (SELECT d.status = 'processing' AND d.completed_at IS NULL AND d.completion_mode IS NULL
+    FROM platform_private.account_deletion_requests d WHERE d.id = :'p313_fatima_req')
+  AND NOT EXISTS (SELECT 1 FROM platform.audit_events e
+    WHERE e.resource_id = :'p313_fatima_req' AND e.action = 'account.deletion.complete')
+  AND EXISTS (SELECT 1 FROM platform_private.student_applications a WHERE a.id = :'p313_fatima_app2'
+    AND a.canonical_lead_id IS NOT NULL),
+  'Фатима: complete closed an automatic request whose disabled login belongs to a not-simple account');
 SELECT pg_temp.p313_admin(format('platform.mark_account_deletion_done_v1(%L::UUID, %L)',
   :'p313_fatima_req', '  Лид, клиент, файлы и чат удалены; вход отключён  ')) AS p313_fatima_manual \gset
 SELECT pg_temp.p313_assert((:'p313_fatima_manual'::JSONB) #>> '{ok,status}' = 'completed'

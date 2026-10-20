@@ -23,7 +23,10 @@
 --     обезличены, сессии удалены, войти нельзя) закрыть автоматический запрос не давал, а
 --     `mark_account_deletion_done_v1` для `processing` отказывала. Теперь `complete` закрывает
 --     запрос, если вход не активен (`absent` или `disabled`); активный по-прежнему
---     `account_deletion_auth_user_exists`.
+--     `account_deletion_auth_user_exists`. У отключённого входа строка Auth и всё, что на неё
+--     ссылается, остаётся, поэтому `complete` заново проверяет простоту аккаунта и при
+--     появившихся связанных записях отказывает `account_deletion_not_simple` (как `process`):
+--     порог держит база, а не экран CRM.
 --  c) F3. Запрос в `processing`, у которого аккаунт снова стал «не простым» (анкета подана
 --     повторно, одобрена параллельно), не закрывался ничем: `process` отказывает
 --     (`account_deletion_not_simple`), `complete` ждёт удаления входа, `mark` отказывал по статусу.
@@ -353,6 +356,7 @@ DECLARE
   actor RECORD;
   r platform_private.account_deletion_requests%ROWTYPE;
   login TEXT;
+  chk JSONB;
   auth_log JSONB;
 BEGIN
   SELECT * INTO actor FROM platform_private.account_deletion_staff_actor();
@@ -373,9 +377,20 @@ BEGIN
   END IF;
   -- Вход, которым нельзя войти, не мешает: удалён целиком или отключён мягким удалением Auth
   -- (почта и пароль обезличены, сессии сняты). Остаток строки Auth виден в карточке (вход).
+  PERFORM pg_advisory_xact_lock(hashtextextended('evo:account-deletion-subject:' || r.subject_auth_user_id::TEXT, 0));
   login := platform_private.account_deletion_login(r.subject_auth_user_id);
   IF login = 'active' THEN
     RAISE EXCEPTION 'account_deletion_auth_user_exists' USING ERRCODE = '55000';
+  END IF;
+  -- Строка Auth осталась (мягкое удаление): в 280 «строки нет» означало, что всё, что на неё
+  -- ссылается, уже ушло; у отключённого входа это не так. Автоматически закрывается только
+  -- простой аккаунт - база сама держит этот порог, а не экран CRM (отказ тот же, что у process).
+  IF login <> 'absent' THEN
+    chk := platform_private.account_deletion_check(r.organization_id, r.subject_auth_user_id);
+    IF jsonb_array_length(chk -> 'reasons') > 0 THEN
+      RAISE EXCEPTION 'account_deletion_not_simple' USING ERRCODE = '55000',
+        DETAIL = (SELECT string_agg(x, ',') FROM jsonb_array_elements_text(chk -> 'reasons') x);
+    END IF;
   END IF;
   -- deleteUser wrote its own «user_deleted» entry.
   auth_log := platform_private.account_deletion_auth_log_erase(r.subject_auth_user_id);

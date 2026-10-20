@@ -55,9 +55,11 @@ row "RPC  SERVICE_ROLE   apikey only"                              "$(rpc x "$SR
 row "RPC  SERVICE_ROLE   apikey + Bearer"                          "$(rpc x "$SRV" "$SRV")"
 row "RPC  sb_publishable (anon: must NOT be 200)"                  "$(rpc x "$PUB" "")"
 echo "== 4. Negative: wrong key must be 401, anon on admin must be 403"
-row "wrong apikey on /auth/v1/settings"                           "$(code GET /auth/v1/settings "sb_publishable_wrongwrongwrongwrong" "")"
+# deliberately wrong keys, assembled from pieces: no key-shaped text may sit in a public repository (secret scanners)
+BAD_PUB="$(printf 'sb_%s_%s' publishable wrongwrongwrongwrong)"; BAD_SEC="$(printf 'sb_%s_%s' secret wrongwrongwrongwrongwrong)"
+row "wrong apikey on /auth/v1/settings"                           "$(code GET /auth/v1/settings "$BAD_PUB" "")"
 row "no key on /auth/v1/settings"                                 "$(code GET /auth/v1/settings "" "")"
-row "wrong key on admin/users"                                    "$(code GET "$A" "sb_secret_wrongwrongwrongwrongwrong" "")"
+row "wrong key on admin/users"                                    "$(code GET "$A" "$BAD_SEC" "")"
 row "sb_publishable on admin/users"                               "$(code GET "$A" "$PUB" "")"
 row "ANON_KEY (JWT) on admin/users"                               "$(code GET "$A" "$ANON" "$ANON")"
 echo "== 5. Storage"

@@ -53,6 +53,14 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // `telephony_settings` by the same rename-and-union wrapper
 // (`..._pre_telephony_rights`); they fall through to the `["record_status"]`
 // default of `expectedChangedFieldCodes`, exactly like the server's `ELSE`.
+// Migration 311 («Подключение WhatsApp», docs/PLAN_CHANGES.md «2026-10-20 ·
+// «Подключение WhatsApp» пишет в журнал платформы (миграция 311)») adds two
+// actions, `whatsapp.connect.qr` and `whatsapp.connect.code` (written by
+// `platform.record_whatsapp_connect_v1`), by the same rename-and-union wrapper
+// (`..._pre_whatsapp_connect_audit`). Their object is the existing `organization`
+// type, so no resource type is added; they fall through to the
+// `["record_status"]` default of `expectedChangedFieldCodes`, exactly like the
+// server's `ELSE`.
 // `expectedChangedFieldCodes` below needed no new branch for 255's 71
 // actions: 9 `document.export.*` actions already hit the existing
 // `action.startsWith("document.")` branch (mirroring the server's
@@ -272,6 +280,8 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "telephony.settings.change",
   "visa.create",
   "visa.status.change",
+  "whatsapp.connect.code",
+  "whatsapp.connect.qr",
   "work.review.resolve",
   "workflow.contract.create",
   "workflow.source.link",

@@ -4093,6 +4093,23 @@ SQL
   if [[ "$(basename "$migration")" == *_platform_permission_once.sql ]]; then
     run_permission_once_suite ""
   fi
+  # «Подключение WhatsApp» пишет в журнал платформы (migration 311, PLAN_CHANGES 20.10.2026).
+  # Matched by name, not number. Run right after the migration, insisting on the suite's marker
+  # (a psql exit code alone would pass a file that stopped early). The suite proves: the grants
+  # (definer, empty search_path, one parameter, authenticated only), the Admin's one row per call
+  # with the actor, organization, action, object and {kind} only, the refusal of everyone else
+  # (42501) and of a bad kind (22023) with nothing written, the separation of organizations, and
+  # the journal (allowlist plus exactly two, the ten safe keys, the other organization's rows hidden).
+  if [[ "$(basename "$migration")" == *_platform_whatsapp_connect_audit.sql ]]; then
+    whatsapp_connect_audit_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_whatsapp_connect_audit.sql </dev/null)"
+    printf '%s\n' "$whatsapp_connect_audit_log"
+    if ! grep -q 'W311_WHATSAPP_CONNECT_AUDIT_SUITE_PASSED' <<<"$whatsapp_connect_audit_log"; then
+      echo "platform_whatsapp_connect_audit.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

@@ -124,6 +124,19 @@ export async function readIntegrations(
   }, now);
 }
 
+/**
+ * Состояние сессии WhatsApp для блока «Подключение WhatsApp»: то же живое слово
+ * WAHA, что читает таблица «Интеграции» (одно чтение на отрисовку), либо `null`,
+ * если проверить не удалось. Слово переводит `whatsappConnectionState`.
+ */
+export async function readWhatsAppConnection(
+  actor: ActivePlatformActor,
+): Promise<Readonly<{ status: string | null }>> {
+  assertAdminAuthority(actor);
+  const facts = await readProviderFacts(actor);
+  return { status: facts.waha?.status ?? null };
+}
+
 const readOperationsReadiness = cache(loadPlatformOperationsReadiness);
 
 export async function readPlatformFact(): Promise<string> {

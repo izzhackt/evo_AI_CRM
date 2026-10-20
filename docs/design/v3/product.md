@@ -514,3 +514,19 @@ protected short checks.
 amoCRM: сверка, доработки и Китай «Адаптация»» от 17.10, «Студенты и отчёт
 продаж: правки по ответам владельца и данные через 307» и «Склейка подтверждённых
 дублей клиентов через 308 (квитанция)» от 18.10.
+
+<a id="owner-whatsapp-connect-20261020"></a>
+
+## 20.10 — Подключение WhatsApp из самой платформы
+
+Сессия WhatsApp `crm_primary` в состоянии FAILED с 12.10; владелец не может подключить
+её с сервера прямо сейчас и хочет привязывать номер сам, когда ему удобно, кнопкой в CRM.
+Цитата — слова заказчика в чате, дословно; «…» — пропуск при пересказе, не слова заказчика. *20.10*
+> «can't we make it like the qr will be open in the platform, like we can connect at any time we want, by just clicking some button in our platform … i cannot connect now, now im somewhere else, but if it would be with the button and i could connect any time i want, it would be nice».
+
+По смыслу: в «Настройках» нужен блок, где Администратор сам открывает QR и подключает
+номер в любой момент, в том числе с одного телефона (поэтому и «код по номеру
+телефона», а не только QR).
+
+Как это сделано и что сознательно не взято — [решение](references/2026-10-20-whatsapp-connect-block.md)
+и запись «Блок «Подключение WhatsApp»» в [PLAN_CHANGES](../../PLAN_CHANGES.md) от 20.10.

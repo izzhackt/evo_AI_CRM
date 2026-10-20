@@ -241,6 +241,8 @@ function installStubs() {
     async readJournal() { return { entries: journalRead.entries, cursorHonored: true, status: journalRead.status }; },
     async readJournalFacets() { return { objectTypes: journalRead.facets }; },
     async readPlatformFact() { return "не проверялось"; },
+    // «Подключение WhatsApp» (20.10.2026): то же слово WAHA, что у таблицы выше.
+    async readWhatsAppConnection() { return { status: providerScenario === "blocked" ? "SCAN_QR_CODE" : null }; },
   });
   stubModule("src/lib/v3/sales-register-source.ts", { async readSalesRegisterManagement() { return { status: "denied" }; } });
   stubModule("src/lib/v3/staff-workspace-source.ts", { async readStaffWorkspace() { return { members: MEMBERS, requests: [], available: true, departments: DEPARTMENTS }; } });

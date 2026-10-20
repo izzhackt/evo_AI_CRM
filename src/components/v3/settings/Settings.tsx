@@ -3,6 +3,7 @@ import Link from "next/link";
 import { StaffSection } from "./StaffSection";
 import { AccountDeletionSection } from "./AccountDeletionSection";
 import { TelephonySection } from "./TelephonySection";
+import { WhatsAppConnectSection } from "./WhatsAppConnectSection";
 import type { TelephonyAdminRead } from "@/lib/server/platform-telephony-admin";
 import type { AccountDeletionDetailRead, AccountDeletionQueueRead } from "@/lib/v3/account-deletion-source";
 import type { StaffWorkspaceData } from "@/lib/v3/staff-workspace-contract";
@@ -61,6 +62,7 @@ export function Settings({
   deletionHrefFor,
   telephony,
   telephonyReadOnly,
+  whatsappConnect,
 }: {
   section: SectionKey;
   staffView: StaffView;
@@ -93,6 +95,11 @@ export function Settings({
   telephony?: TelephonyAdminRead | null;
   /** Просмотр роли: экран виден, настройки не меняются. */
   telephonyReadOnly?: boolean;
+  /**
+   * «Подключение WhatsApp» (20.10.2026): слово WAHA и право подключать. Блок стоит под
+   * таблицей «Интеграции», только у Администратора; нет данных — блока нет.
+   */
+  whatsappConnect?: Readonly<{ status: string | null; canConnect: boolean }>;
 }) {
   const current = SECTIONS.find((entry) => entry.key === section && (entry.view === null || entry.view === staffView)) ?? SECTIONS[0];
   // Разделы сотрудников ставят свой видимый h2 с числом («Сотрудники · 5»,
@@ -130,6 +137,9 @@ export function Settings({
             view={staffView} selectedMemberId={selectedStaffMemberId} selectedRoleId={selectedStaffRoleId} />
             : <h2 className="t-section mb-3 text-fg">{current.title}</h2>}
           {current.key === "integrations" ? <IntegrationsSection rows={integrations} /> : null}
+          {current.key === "integrations" && whatsappConnect ? (
+            <WhatsAppConnectSection initialStatus={whatsappConnect.status} canConnect={whatsappConnect.canConnect} />
+          ) : null}
           {current.key === "telephony" ? <TelephonySection read={telephony ?? null} readOnly={telephonyReadOnly ?? false} now={new Date()} /> : null}
           {current.key === "journal" ? (
             <JournalSection

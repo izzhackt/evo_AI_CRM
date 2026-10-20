@@ -1705,3 +1705,86 @@ export const caseMoneyWords = {
     listLink: "Шаблоны договора",
   },
 } as const;
+
+/**
+ * «Настройки → Интеграции → Подключение WhatsApp» (решение владельца
+ * 20.10.2026): состояние сессии WhatsApp словом и все тексты блока. Слова
+ * состояния — ровно три; всё, чего в списке нет (`UNREACHABLE`, статусы
+ * ключей доступа, любое новое слово провайдера), слова не получает, и блок
+ * чип не рисует.
+ */
+export type WhatsAppConnectionTone = "ok" | "warn" | "danger";
+
+export function whatsappConnectionState(
+  status: string | null | undefined,
+): Readonly<{ label: string; tone: WhatsAppConnectionTone }> | null {
+  switch (status) {
+    case "WORKING": return { label: "Подключено", tone: "ok" };
+    case "STOPPED":
+    case "STARTING":
+    case "SCAN_QR_CODE": return { label: "Ожидает подключения", tone: "warn" };
+    case "FAILED": return { label: "Ошибка — нужно подключить заново", tone: "danger" };
+    default: return null;
+  }
+}
+
+export const whatsappConnectWords = {
+  title: "Подключение WhatsApp",
+  lead: "Привязка рабочего номера к CRM. Подключайте, когда входящие перестали приходить или номер нужно привязать заново.",
+  stateLabel: "Состояние",
+  stateUnknown: "Состояние сейчас определить не удалось.",
+  working: "WhatsApp подключён, входящие и ответы работают. Отключить номер из CRM нельзя.",
+  previewOnly: "В просмотре роли подключение не меняется. Выйдите из просмотра, чтобы подключить.",
+  connect: {
+    button: "Подключить",
+    busy: "Подключаем…",
+    hint: "Покажем QR-код. Его нужно отсканировать телефоном, где стоит рабочий номер.",
+    starting: "Запускаем подключение, это занимает несколько секунд.",
+    waitingQr: "Ждём QR-код…",
+    scanTitle: "Отсканируйте QR-код",
+    scanSteps: "WhatsApp → Связанные устройства → Привязать устройство → наведите камеру на QR-код. Код обновляется сам.",
+    qrAlt: "QR-код для привязки WhatsApp",
+    connected: "Готово: WhatsApp подключён.",
+    windowEnded: "Время подключения вышло. Нажмите «Подключить» ещё раз.",
+  },
+  code: {
+    title: "Код по номеру телефона",
+    hint: "Если QR отсканировать нечем — например, вы открыли CRM на самом телефоне.",
+    phoneLabel: "Номер телефона с WhatsApp",
+    phoneHint: "С кодом страны. Номер никуда не сохраняется.",
+    phonePlaceholder: "+код страны и номер",
+    button: "Получить код",
+    busy: "Запрашиваем код…",
+    resultTitle: "Ваш код",
+    steps: "В WhatsApp на телефоне: Связанные устройства → Привязать устройство → Связать по номеру телефона → введите этот код.",
+    expired: "Код устарел. Получите новый.",
+  },
+  errors: {
+    authentication_required: "Сессия входа закончилась. Войдите заново.",
+    forbidden: "Подключение WhatsApp доступно только администратору.",
+    preview: "В просмотре роли подключение не меняется.",
+    invalid_request: "Запрос не принят. Обновите страницу и повторите.",
+    invalid_phone: "Проверьте номер: международный формат, от 8 до 15 цифр, например +996 и номер.",
+    rate_limited: "Слишком часто. Подождите немного и повторите.",
+    busy: "Подключение уже запускается. Подождите несколько секунд.",
+    already_connected: "WhatsApp уже подключён, код не нужен.",
+    session_missing: "Сессия WhatsApp на сервере не найдена. Это работа технического специалиста.",
+    session_not_ready: "Сессия ещё запускается. Повторите через несколько секунд.",
+    phone_rejected: "WhatsApp не принял этот номер. Проверьте код страны и цифры, номер должен быть зарегистрирован в WhatsApp.",
+    provider_unreachable: "Сервис WhatsApp не отвечает. Повторите позже или обратитесь к техническому специалисту.",
+    provider_unavailable: "Сервис WhatsApp ответил ошибкой. Повторите позже.",
+    unavailable: "Не удалось выполнить действие. Повторите через минуту.",
+  },
+} as const;
+
+/** «Слишком часто» с числом секунд до следующей попытки (сервер сам знает, сколько осталось). */
+export function whatsappRateLimited(seconds: number): string {
+  return `Слишком часто. Повторите через ${seconds} с.`;
+}
+
+/** Слово об отказе по коду; неизвестный код слова не получает. */
+export function whatsappConnectError(code: string | null | undefined): string | null {
+  return code && Object.hasOwn(whatsappConnectWords.errors, code)
+    ? whatsappConnectWords.errors[code as keyof typeof whatsappConnectWords.errors]
+    : null;
+}

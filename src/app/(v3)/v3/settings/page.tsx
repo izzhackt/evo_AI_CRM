@@ -19,6 +19,7 @@ import {
   readJournal,
   readJournalFacets,
   readPlatformFact,
+  readWhatsAppConnection,
 } from "@/lib/v3/settings-source";
 import { readAccountDeletionDetail, readAccountDeletionQueue } from "@/lib/v3/account-deletion-source";
 
@@ -69,7 +70,7 @@ export default async function SettingsPart({
   const telephonyRead = section === "telephony" || section === "integrations" ? readTelephonyAdmin(actor) : Promise.resolve(null);
 
   const deletionSelected = isAdmin && section === "deletion" && typeof params.request === "string" ? params.request : null;
-  const [integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement, deletionQueue, deletionDetail, telephony] = await Promise.all([
+  const [integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement, deletionQueue, deletionDetail, telephony, whatsappConnection] = await Promise.all([
     telephonyRead.then((read) => readIntegrations(actor, new Date(), telephonyIntegrationFactsFrom(read))),
     isAdmin
       ? readJournal(actor, journalFilters, {
@@ -90,6 +91,8 @@ export default async function SettingsPart({
     section === "deletion" ? readAccountDeletionQueue(actor) : Promise.resolve(undefined),
     deletionSelected ? readAccountDeletionDetail(actor, deletionSelected) : Promise.resolve(null),
     telephonyRead,
+    // «Подключение WhatsApp» (20.10.2026): то же живое слово WAHA, что у таблицы выше (одно чтение).
+    section === "integrations" ? readWhatsAppConnection(actor) : Promise.resolve(undefined),
   ]);
 
   // Протухший курсор из адреса читается первой страницей; адрес при этом
@@ -160,6 +163,8 @@ export default async function SettingsPart({
         telephony={telephony}
         // Просмотр роли виден, но не меняет настройки телефонии.
         telephonyReadOnly={isStaffPreview(actor)}
+        // Просмотр роли блок видит, но подключить не может; сервер проверяет это ещё раз.
+        whatsappConnect={whatsappConnection ? { status: whatsappConnection.status, canConnect: isAdmin } : undefined}
       />
     </PartShell>
   );

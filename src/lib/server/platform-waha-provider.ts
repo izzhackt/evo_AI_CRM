@@ -195,6 +195,9 @@ function requireRuntime(
   return runtime;
 }
 
+/** The same runtime check for the other server-side WAHA callers (the settings connect block). */
+export const requirePlatformWahaRuntime = requireRuntime;
+
 function responseError(statusCode: number): PlatformWahaProviderError {
   if (statusCode === 408) {
     return new PlatformWahaProviderError(

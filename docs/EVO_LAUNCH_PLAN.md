@@ -17179,3 +17179,39 @@ WhatsApp; ссылка WhatsApp в запасном контакте сайта.
 - **Закрыты:** Dependabot #1135, #1148, #1173 (замороженный `agent-lead2-inbox`, не разворачивается).
 - **Черновики #1177 (миграция переименована в 280) и #1170** синхронизированы с main в 11:31 и не слиты (после этого main ушёл вперёд — перед слиянием их снова нужно подтянуть): нужны независимое review содержания #1177 и решения владельца.
 - **Сессия маркетинга** выпустила #1181–#1182 (09.10), #1183 и #1185 (10.10) и сайт `b4dc78ce` (свои квитанции #1188, website#28).
+
+## 2026-10-21 — указатель: поздние квитанции в PLAN_CHANGES.md и устаревшие открытые пункты
+
+Хронологический журнал этого файла кончается записями 10.10.2026; планы 16.10 (телефония,
+приложение студента v2) стоят в его начале. Всё позднее (выпуски и миграции после 10.10,
+ledger на 21.10 — 312; переключение на self-hosted Supabase 20.10, телефония,
+«Подключение WhatsApp») ведётся в
+append-only [`PLAN_CHANGES.md`](PLAN_CHANGES.md), в профильных планах (`docs/EVO_*_PLAN_*.md`)
+и в runbook: например, телефония — [`runbooks/telephony-go-live.md`](runbooks/telephony-go-live.md),
+раздел 7, база и сервер — [`runbooks/infrastructure-map.md`](runbooks/infrastructure-map.md).
+Этот раздел ничего выше не меняет и не удаляет: он только называет пункты `- [ ]`,
+которые можно доказать устаревшими, и даёт доказательство. Сверка 21.10.2026 по тексту
+файла, `git log` и файлам репозитория; в production и в GitHub Actions ничего заново не
+читалось, номера запусков взяты из самих записей.
+
+**Устарели, 12 из 20 открытых пунктов:**
+
+| Раздел и пункты `- [ ]` | Чем заменены |
+|---|---|
+| «Unified workflow S8 — active 2026-09-19» (миграция 185, UI с тремя формами, валидация и выпуск; 3 пункта) | Раздел «Unified workflow S8 — released 2026-09-19; план закрыт»: миграция 185 применена (ledger 001–185), выпуск `35408839637` принят на `9cdea7aa`. Слияние [#854](https://github.com/izzhackt/evo_AI_CRM/pull/854), файл [`185_platform_cabinet_invites.sql`](../supabase/migrations/185_platform_cabinet_invites.sql) в `main` |
+| «Unified workflow — active 2026-09-18» («Финальная проверка слайсов, применение миграций владельцем и один управляемый релиз»; 1 пункт) | Раздел «Unified workflow — released 2026-09-19»: миграции 180–183 применены (ledger 001–183), выпуск [`35390450281`](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35390450281) принят на `f9a233c6` после отката первой попытки и исправления [#850](https://github.com/izzhackt/evo_AI_CRM/pull/850) |
+| «Student Profile response cancellation — active 2026-09-17» («Distinguish client cancellation…», «Independently review and merge the diagnostic change, then run the frozen-current-main full gate once»; 2 пункта) | Только как **условие выпуска**: решение владельца 18.09 заменило тяжёлый полный гейт лёгким ([`AGENTS.md`](../AGENTS.md), «Fast Execution And Validation — 2026-09-18»; раздел «Lightweight production release — completed 2026-09-18»; [квитанция](design/v3/references/2026-09-18-lightweight-production-release.md); выпуск [`35276212272`](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35276212272) принят на `ac04c8e3`). **Причина прерывистой отмены ответа так и не установлена**: пункты устарели как предусловие, а не как решённая ошибка |
+| «Portal latency and Inbox dependency maintenance…» (P3: «independently review exact diffs…, run the production app's existing full gate once»; 1 пункт) | То же: слияние PR #810 и #811 и закрытие PR701/702 записаны в самом разделе, полный гейт снят решением 18.09, выпуск `35276212272` принят. Смоук того выпуска проверил вход админа, маршрут дела, вход студента, обзор и документы; **отказ в доступе сотруднику к чужому делу в нём не повторялся** |
+| «2026-09-21 — website enquiry country and university context» (миграция, `Undecided`, проверка формы университета, узкие проверки, выпуск корневым владельцем; 5 пунктов) | Слито [#996](https://github.com/izzhackt/evo_AI_CRM/pull/996) («preserve university and undecided enquiry country»), файл [`231_platform_website_enquiry_context.sql`](../supabase/migrations/231_platform_website_enquiry_context.sql) (в нём `Undecided`) в `main`, ledger без дыр до 312 (запись «Телефония T7b», миграция 312), запись «website enquiry migration reservation moved to 231» в `PLAN_CHANGES.md` |
+
+**Не доказано, что устарели, остаются открытыми (8 пунктов):**
+- `PORT-7` (веб и iPhone: Apple Developer, подпись, TestFlight, store): внешние шаги владельца.
+- «Auth email — SMTP and templates saved…» (3 пункта: SOPS-архив ключа, отдельный путь `/apply`,
+  доставка приглашения, подтверждения и ответа): письма Auth теперь идут через self-hosted
+  Supabase, ключ Resend там задан, но **доставка письма не доказана**
+  ([`runbooks/infrastructure-map.md`](runbooks/infrastructure-map.md), разделы 5 и 7).
+- «amoCRM connection simplification» (подключение утверждённых учётных данных) и «Lightweight
+  live integration check» (восстановить доступ к amoCRM, привязать WhatsApp): подтверждения
+  нет; WhatsApp владелец отложил.
+- «Website public edge» и «Website lead intake» (по одному пункту): настоящая заявка с сайта,
+  разрешённая владельцем, в журнале платформы не записана.

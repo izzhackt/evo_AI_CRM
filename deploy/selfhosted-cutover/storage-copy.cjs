@@ -13,6 +13,9 @@
 // Secrets come from the environment only and are never logged.
 // The log (/restore/storage-copy.log) contains object names -> mode 600, server only.
 
+// CJS one-off that runs inside the storage-api image and must `require` modules from /app (the repository's lint is for the app code).
+/* eslint-disable @typescript-eslint/no-require-imports, @typescript-eslint/no-unused-vars */
+
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const crypto = require('node:crypto');

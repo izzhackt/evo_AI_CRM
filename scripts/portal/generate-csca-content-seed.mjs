@@ -52,6 +52,13 @@ export const LESSON_FILES = [
 export const MIGRATIONS_DIR = "supabase/migrations";
 export const PART1_SUFFIX = "_platform_csca_math_part1.sql";
 export const PART2_SUFFIX = "_platform_csca_math_part2.sql";
+// The calendar (sessions.json) is not release content: it lives in append-only
+// rows of csca_exam_sessions, seeded by 286 and refreshed by later forward
+// migrations (*_platform_csca_sessions_refresh.sql), and the file always holds
+// the CURRENT calendar. The part 2 migration (305, applied) stamps the file as
+// it was on 16.10.2026, so the stamp is pinned here instead of following the
+// live file; every other source is still stamped from its current bytes.
+export const PART2_SESSIONS_STAMP = "a33ecfbc01a988a4448309f34322598d9ae35dbbf19643101136689da383aad2";
 // Release 1.0.0 as applied (migration 286 as merged in #1207): immutable.
 export const PART1_FROZEN = {
   sha256: "0dd78e6dc5ba39534273cbeb653b6cff5d432eb0144a2f9e99936379a515e033",
@@ -941,7 +948,9 @@ END $csca_math2$;`;
     "-- Only EVO's own items (provenance = evo_authored); answer keys and разборы live only in",
     "-- platform_private, behind the 285 RPC surface. KY text awaits native proofreading.",
     ...Object.keys(content.sources).sort().map((name) =>
-      `-- ${name} sha256: ${createHash("sha256").update(content.sources[name]).digest("hex")}`),
+      `-- ${name} sha256: ${name === SESSIONS_FILE
+        ? PART2_SESSIONS_STAMP
+        : createHash("sha256").update(content.sources[name]).digest("hex")}`),
   ];
   return [
     header.join("\n"),

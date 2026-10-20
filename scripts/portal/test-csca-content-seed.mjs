@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import test from "node:test";
 import {
   EXAM_SECONDS_PER_ITEM,
+  MIGRATIONS_DIR,
   PART1_FROZEN,
   PART1_SUFFIX,
+  PART2_SESSIONS_STAMP,
   PART2_SUFFIX,
   TEX_COMMANDS,
   buildRows,
@@ -473,4 +476,86 @@ test("the pilot forms of release 1.0.0 are replaced by the full ones with new ke
     const now = rows.formRows.find((row) => row.kind === old.kind);
     for (const key of old.item_keys) assert.ok(now.item_keys.includes(key), `${key} in ${now.form_key}`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// The calendar of sessions. sessions.json holds the CURRENT calendar; the rows
+// of csca_exam_sessions are append-only (285), seeded by 286 and refreshed by
+// forward migrations, and the app reads the newest row per session_key.
+// ---------------------------------------------------------------------------
+const SESSIONS_TABLE = "platform_private.csca_exam_sessions";
+const SESSIONS_REFRESH_SUFFIX = "_platform_csca_sessions_refresh.sql";
+const repoRoot = resolve(import.meta.dirname, "../..");
+
+// Every migration that inserts sessions, in migration order; rows in file order.
+function sessionRowsByMigration() {
+  return migrationFiles()
+    .map((name) => ({ name, sql: readFileSync(resolve(repoRoot, MIGRATIONS_DIR, name), "utf8") }))
+    .filter(({ sql }) => sql.includes(`INSERT INTO ${SESSIONS_TABLE} (`))
+    .map(({ name, sql }) => ({ name, sql, rows: readSqlRows(sql, SESSIONS_TABLE) }));
+}
+
+const instant = (value) => (value === "NULL" ? null : Date.parse(value));
+
+test("sessions.json is the calendar the database serves: the newest row of every session equals the file", () => {
+  const migrations = sessionRowsByMigration();
+  assert.ok(migrations.length >= 2, "286 seeds the calendar and a refresh migration re-checks it");
+  const effective = new Map();
+  for (const { rows: migrationRows } of migrations) {
+    for (const row of migrationRows) effective.set(row.session_key, row);
+  }
+  const { sessionsDoc } = content;
+  for (const session of content.sessions) {
+    const row = effective.get(session.session_key);
+    assert.ok(row, `${session.session_key} has a row`);
+    assert.equal(row.exam_from, session.exam_from, `${session.session_key} exam_from`);
+    assert.equal(row.exam_to, session.exam_to, `${session.session_key} exam_to`);
+    assert.equal(instant(row.registration_opens_at), session.registration_opens_at === null ? null : Date.parse(session.registration_opens_at),
+      `${session.session_key} registration opens`);
+    assert.equal(instant(row.registration_closes_at), session.registration_closes_at === null ? null : Date.parse(session.registration_closes_at),
+      `${session.session_key} registration closes`);
+    assert.equal(row.source_url, sessionsDoc.source_url, `${session.session_key} source_url`);
+    assert.equal(row.verified_on, sessionsDoc.verified_on, `${session.session_key} verified_on`);
+  }
+  // No coming session lives only in the database.
+  const inFile = new Set(content.sessions.map((session) => session.session_key));
+  for (const [key, row] of effective) {
+    if (row.exam_to >= sessionsDoc.verified_on) assert.ok(inFile.has(key), `${key} is served but missing from sessions.json`);
+  }
+});
+
+test("the sessions refresh migration is append-only, keeps every published date and window and only moves provenance", () => {
+  const refresh = migrationFiles().filter((name) => name.endsWith(SESSIONS_REFRESH_SUFFIX));
+  assert.equal(refresh.length, 1, "one refresh migration, found by name");
+  const sql = readFileSync(resolve(repoRoot, MIGRATIONS_DIR, refresh[0]), "utf8");
+  const code = sql.replace(/^--.*$/gmu, "");
+  assert.equal((code.match(/INSERT INTO /gu) ?? []).length, 1);
+  assert.doesNotMatch(code, /ON CONFLICT|\bUPDATE\b|DELETE FROM|TRUNCATE|DROP |ALTER |CREATE /u, "data only: no schema or row rewrite");
+  assert.match(sql, /^BEGIN;$/mu);
+  assert.ok(sql.trimEnd().endsWith("COMMIT;"));
+  const seeded = readSqlRows(readFileSync(migrationPath(PART1_SUFFIX), "utf8"), SESSIONS_TABLE);
+  const refreshed = readSqlRows(sql, SESSIONS_TABLE);
+  assert.deepEqual(refreshed.map((row) => row.session_key), seeded.map((row) => row.session_key), "the same six sessions");
+  assert.equal(new Set([...seeded, ...refreshed].map((row) => row.id)).size, seeded.length + refreshed.length, "new ids");
+  for (const row of refreshed) {
+    const old = seeded.find((candidate) => candidate.session_key === row.session_key);
+    for (const column of ["exam_from", "exam_to", "registration_opens_at", "registration_closes_at"]) {
+      assert.equal(row[column], old[column], `${row.session_key} ${column} is as published`);
+    }
+    assert.ok(row.verified_on > old.verified_on, `${row.session_key} is verified later than before`);
+  }
+  // The anchors of the migration name the same facts as its rows.
+  for (const row of refreshed) {
+    assert.ok(sql.includes(`('${row.session_key}', '${row.exam_from}'::DATE, '${row.exam_to}'::DATE, `), `${row.session_key} anchor`);
+  }
+  assert.match(sql, /p313_anchor_drift/u);
+  assert.match(sql, /p313_anchor_rerun/u);
+});
+
+test("the applied part 2 migration keeps its 16.10.2026 stamp of the calendar; the live file moved on", () => {
+  const stamp = createHash("sha256").update(content.sources["docs/design/portal/content/csca/sessions.json"]).digest("hex");
+  const part2 = readFileSync(migrationPath(PART2_SUFFIX), "utf8");
+  assert.ok(part2.includes(`-- docs/design/portal/content/csca/sessions.json sha256: ${PART2_SESSIONS_STAMP}\n`));
+  assert.notEqual(stamp, PART2_SESSIONS_STAMP, "the calendar was refreshed after 305; the stamp is pinned, not followed");
+  assert.doesNotMatch(part2, new RegExp(stamp, "u"));
 });

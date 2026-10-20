@@ -857,7 +857,7 @@ $$;
 CREATE FUNCTION pg_temp.t313_recordings(p_lead UUID, p_calls INTEGER[]) RETURNS JSONB LANGUAGE SQL AS $$
   SELECT pg_temp.t313_call((SELECT claims FROM t313_claims WHERE n = 1),
     format('SELECT platform.telephony_lead_recordings_v1(%L::UUID, %L::UUID, %L::UUID[])', pg_temp.t313_id(1), p_lead,
-      (SELECT array_agg(pg_temp.t313_id(7000 + k)) FROM unnest(p_calls) k))) 
+      (SELECT array_agg(pg_temp.t313_id(7000 + k)) FROM unnest(p_calls) k)))
 $$;
 CREATE FUNCTION pg_temp.t313_result(p_call INTEGER) RETURNS JSONB LANGUAGE SQL AS $$
   SELECT pg_temp.t313_call((SELECT claims FROM t313_claims WHERE n = 1),

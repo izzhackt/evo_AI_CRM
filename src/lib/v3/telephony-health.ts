@@ -302,10 +302,10 @@ export function telephonyStatusLines(server: TelephonyServerFacts, overview: Tel
 
   if (settings.flags.backfillEnabled) {
     lines.push(health.schedule.backfillDoneAt
-      ? line("backfill", "Первичный импорт за год", "завершён", "ok", at(health.schedule.backfillDoneAt))
-      : line("backfill", "Первичный импорт за год", health.schedule.backfillCursorAt ? `идёт, дошёл до ${at(health.schedule.backfillCursorAt)}` : "включён, ещё не начался", "warn"));
+      ? line("backfill", "Первичный импорт за 30 дней", "завершён", "ok", at(health.schedule.backfillDoneAt))
+      : line("backfill", "Первичный импорт за 30 дней", health.schedule.backfillCursorAt ? `идёт, дошёл до ${at(health.schedule.backfillCursorAt)}` : "включён, ещё не начался", "warn"));
   } else {
-    lines.push(line("backfill", "Первичный импорт за год", "выключен", "off"));
+    lines.push(line("backfill", "Первичный импорт за 30 дней", "выключен", "off"));
   }
 
   lines.push(health.automationStop

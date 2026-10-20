@@ -296,7 +296,7 @@ test("the settings form: seven switches with their words, hours, days, dial, cei
   }
   assert.doesNotMatch(markup, /<input id="tel-flag-/u, "no checkbox look for a switch");
   assert.equal([...markup.matchAll(/data-testid="v3-telephony-flag-state">Выключено</gu)].length, 7, "each switch says its state in a word");
-  for (const phrase of ["Разбор звонков", "Звонки видны сотрудникам", "Кнопка «Позвонить» и результат звонка", "Задачи «Перезвонить» и «Недозвон»", "Лиды «Звонок» по неизвестным номерам", "Первичный импорт за год", "Пауза исходящих запросов к ВАТС"]) {
+  for (const phrase of ["Разбор звонков", "Звонки видны сотрудникам", "Кнопка «Позвонить» и результат звонка", "Задачи «Перезвонить» и «Недозвон»", "Лиды «Звонок» по неизвестным номерам", "Первичный импорт за 30 дней", "Пауза исходящих запросов к ВАТС"]) {
     assert.ok(text.includes(phrase), phrase);
   }
   assert.match(text, /Пока включатель не включён здесь, сотрудникам ничего не показывается/u);

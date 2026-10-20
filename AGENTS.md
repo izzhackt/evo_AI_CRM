@@ -136,12 +136,27 @@ instructions to run a full heavy suite for every change or release candidate.
   work without a new backup for now and expose the same server through a local
   SSH tunnel. See the narrow owner waiver in `docs/EVO_LAUNCH_PLAN.md` and the
   latest `docs/PLAN_CHANGES.md`; no backup/restore success may be fabricated, and
-  all other release controls remain. Keep the existing Supabase project
-  `iosckaqtovbbnssqcpde` as the single persistent product source; never reset,
-  replace or delete it without a new explicit owner instruction. No disposable
-  local preview database is requested. Resolve the exact single-account target
+  all other release controls remain. At that time the existing Supabase project
+  `iosckaqtovbbnssqcpde` was the single persistent product source; it is now the
+  historical cloud project and rollback source (see the 2026-10-20 bullet
+  below), and it is still never reset, replaced or deleted without a new
+  explicit owner instruction. No disposable local preview database is
+  requested. Resolve the exact single-account target
   and dependencies before consolidation; no permanent one-user product limit,
   Auth bypass or removal of Student-private authority is authorized.
+- Since 2026-10-20 00:47 UTC the production database is the self-hosted
+  Supabase on hermes-vps (`/opt/evo-supabase`, public address
+  `https://supabase.evoadmissions.com`). The GitHub variable
+  `EVO_SUPABASE_TARGET=selfhosted` selects it for release, schema ledger and
+  the env contract (default `cloud`, kept for rollback). The cloud project
+  `iosckaqtovbbnssqcpde` is kept untouched as the rollback source and treated
+  as read-only: the owner said never to delete it, and no migration, write or
+  reset happens there without an explicit owner instruction. Removing the
+  cloud code path is tracked in #1271. There are no backups of the self-hosted
+  database yet, by owner decision; the owner will say when. ADR 0034
+  supersedes ADR 0024 on where the database lives; order, facts and rollback
+  are in `docs/runbooks/selfhosted-cutover.md` and
+  `docs/runbooks/infrastructure-map.md`.
 - The current September 9 owner-authorized run is
   `docs/design/v3/student-admissions-run-plan.md`: extend the existing Student
   Portal with native English/career-interest tests and implement China/Malaysia
@@ -172,7 +187,8 @@ instructions to run a full heavy suite for every change or release candidate.
   gates. Completed earlier sequences and #687's separate owner-acceptance cleanup
   do not replace the current run or authorize unrelated migrations.
 - For active production-successor work, the owner's 2026-09-04 direction,
-  parent issue #543, ADRs 0024, 0026 and 0027, `docs/EVO_LAUNCH_PLAN.md`, and
+  parent issue #543, ADRs 0024, 0026 and 0027 (ADR 0024 as superseded by ADR 0034
+  on where the database lives), `docs/EVO_LAUNCH_PLAN.md`, and
   the latest merged `docs/PLAN_CHANGES.md` entry define the target. Integration
   sequence #594 through #600 is completed on `main`; the current active ordered
   sequence is #551 through #553. Root `CLAUDE.md` and
@@ -182,12 +198,13 @@ instructions to run a full heavy suite for every change or release candidate.
 - EVO remains one internal product with one access surface, one UI, one role
   model and one workflow. CRM, Inbox, Lead Agent, Admissions, Finance, Tasks,
   Documents and AI are modules, not separate target products.
-- The active product is the V3 surface running on the ready-made managed
-  Supabase foundation retained from V1. One dedicated EVO Supabase project
-  supplies canonical Postgres, Supabase Auth, private Storage, RLS and only
-  the Realtime capabilities the product actually uses. The existing project is
-  preferred when the read-only audit proves its identity, migration history,
-  data and security state.
+- The active product is the V3 surface running on the ready-made Supabase
+  foundation retained from V1 (managed until 2026-10-20, self-hosted since,
+  ADR 0034). One dedicated EVO Supabase instance supplies canonical Postgres,
+  Supabase Auth, private Storage, RLS and only the Realtime capabilities the
+  product actually uses. The cloud project was preferred while the read-only
+  audit proved its identity, migration history, data and security state; it is
+  now the rollback source.
 - `claude/v3-frontend` at `c53c978e251754509948240fc7eef40d3a74da90` is the
   historical pinned integration input for completed #594, not an active target
   or independent runtime authority. Its selected surface and governing V3 docs

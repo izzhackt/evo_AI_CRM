@@ -513,6 +513,55 @@ SQL
     done
   fi
 
+  # «Телефония Beeline KG», срез T7b (звонок из «Позвонить» привязан к своему набору,
+  # «вызов не принят сотрудником» не даёт «Недозвон» и задачу; первичный импорт — только
+  # последние 30 суток; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.4, §6.1, §14 шаг 11).
+  # Matched by name, not number, so a renumbering at merge keeps the hook. IMMEDIATELY BEFORE
+  # the ordinary apply the migration must refuse with a311_anchor_drift, inside a
+  # transaction that the failure rolls back, for each of the four functions it replaces when
+  # that function is edited after its own migration (the md5 pre-image anchors). Right after
+  # the migration the suite proves: five closed private functions and no new exposed one;
+  # the replaced functions keeping their grants and role checks; the 30-day floor on fixed
+  # dates and its old 22.10.2025 lower bound; a full real walk of the import in 30 daily
+  # windows; a cursor left behind by a pause marked done by the plan; a switched-off flag
+  # writing nothing; and, through the REAL intake, settle and minute tick, the binding of the
+  # call to its dial (by the insert trigger, by the dial result, by the fallback key) with
+  # no «Недозвон» and no task when the employee did not pick up and the old rules when the
+  # employee did, plus idempotency and the org / direction / needs_review boundaries.
+  if [[ "$(basename "$migration")" == *_platform_telephony_dial_bind.sql ]]; then
+    for t311_pinned in \
+      'platform.telephony_maintenance_plan_v1(uuid)' \
+      'platform.telephony_runtime_mark_v1(uuid,text,timestamptz,text,jsonb,jsonb)' \
+      'platform_private.telephony_automation_decide(uuid,uuid)' \
+      'platform.telephony_dial_finish_v1(uuid,uuid,uuid,text,text,integer,text,text)'; do
+      t311_tamper_log="$(mktemp -t evo-t311-anchor.XXXXXX)"
+      if docker exec -i "$container_name" \
+        psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+        -v "pinned_function=$t311_pinned" \
+        -v "migration_file=/workspace/$migration" \
+        >"$t311_tamper_log" 2>&1 <<'SQL'
+BEGIN;
+SELECT replace(
+  pg_get_functiondef(:'pinned_function'::regprocedure),
+  'BEGIN',
+  'BEGIN /* tampered after its own migration */'
+) AS tampered_definition \gset
+:tampered_definition ;
+\i :migration_file
+SQL
+      then
+        echo "migration 311 accepted an edited $t311_pinned" >&2
+        exit 1
+      fi
+      if ! grep -Fq "a311_anchor_drift" "$t311_tamper_log"; then
+        echo "migration 311 failed for the wrong pre-image reason ($t311_pinned)" >&2
+        sed -n '1,60p' "$t311_tamper_log" >&2
+        exit 1
+      fi
+      rm -f "$t311_tamper_log"
+    done
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -3849,6 +3898,15 @@ SQL
     docker exec "$container_name" \
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_telephony_dial.sql </dev/null
+  fi
+
+  # «Телефония Beeline KG», срез T7b: набор для звонка из «Позвонить» и окно первичного
+  # импорта в 30 суток (подробности — у проверки якорей перед применением выше). Matched by
+  # name, not number.
+  if [[ "$(basename "$migration")" == *_platform_telephony_dial_bind.sql ]]; then
+    docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_telephony_dial_bind.sql </dev/null
   fi
 
   # «Телефония Beeline KG», срез T9 (неизвестный входящий номер -> клиент и лид

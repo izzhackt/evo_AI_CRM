@@ -937,6 +937,9 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "account.deletion.complete": "Автоматическое удаление аккаунта завершено",
   "account.deletion.manual.complete": "Ручное удаление аккаунта отмечено выполненным",
   "account.deletion.email": "Записан итог письма об удалении аккаунта",
+  // Склейка двух карточек одного человека (миграция 313; пишет 308). В записи только
+  // идентификаторы, имён и телефонов нет; объект - оставленный клиент.
+  "client.duplicate.merge": "Карточки клиента объединены",
 } satisfies Readonly<Record<PlatformAuditAction, string>>;
 
 const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
@@ -952,6 +955,7 @@ const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
   case_task: "Задача по делу",
   catalog_import_batch: "Партия импорта каталога",
   catalog_import_candidate: "Кандидат импорта каталога",
+  client: "Клиент",
   communication_conversation: "Диалог",
   communication_message: "Сообщение",
   contract_template_version: "Версия шаблона договора",

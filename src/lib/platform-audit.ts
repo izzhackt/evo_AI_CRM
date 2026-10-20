@@ -68,6 +68,13 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // `account_deletion_request`, by the same rename-and-union wrappers
 // (`..._pre_account_deletion_journal`). They fall through to the `["record_status"]`
 // default of `expectedChangedFieldCodes`, exactly like the server's `ELSE`.
+// Migration 313 («хвосты переноса отчёта продаж», docs/PLAN_CHANGES.md «2026-10-21 ·
+// Хвосты переноса отчёта продаж…») adds the action `client.duplicate.merge` (written
+// since 308 by `merge_clients_owner_confirmed_v1`) and the resource type `client`
+// by the same rename-and-union wrappers (`..._pre_sales_import_tails`). The row
+// names only identifiers (the kept client is the object); it falls through to the
+// `["record_status"]` default of `expectedChangedFieldCodes`, exactly like the
+// server's `ELSE`.
 // `expectedChangedFieldCodes` below needed no new branch for 255's 71
 // actions: 9 `document.export.*` actions already hit the existing
 // `action.startsWith("document.")` branch (mirroring the server's
@@ -133,6 +140,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "catalog.import.batch.review",
   "catalog.import.batch.validate",
   "catalog.import.candidate.stage",
+  "client.duplicate.merge",
   "communication.conversation.create",
   "communication.conversation.link",
   "communication.manual.authorize",
@@ -318,6 +326,7 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "case_task",
   "catalog_import_batch",
   "catalog_import_candidate",
+  "client",
   "communication_conversation",
   "communication_media",
   "communication_message",

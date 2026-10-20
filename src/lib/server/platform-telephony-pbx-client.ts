@@ -509,7 +509,10 @@ export function createTelephonyPbxClient(
         first_answered: "true",
         processMissed: "true",
       });
-      const list = items(payload);
+      // The PBX answers an empty history window with HTTP 200 and the JSON body `null`
+      // (observed 20.10.2026), not with `[]`: that is "no calls", not a bad answer. Only the
+      // history reads accept it; every other shape still goes through items() and is refused.
+      const list = payload === null ? [] : items(payload);
       const rows: TelephonyPbxHistoryRow[] = [];
       for (const entry of list) {
         if (!isObject(entry)) continue;

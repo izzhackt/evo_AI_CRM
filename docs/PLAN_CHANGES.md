@@ -60681,6 +60681,7 @@ Caddyfile, runbook, записи) проверен на `sb_secret`/`sb_publisha
 в `rehearsal-checks.sh` (негативная проверка) — теперь собираются из частей, чтобы в репозитории не было
 текста в форме ключа. Копия скрипта на сервере не менялась.
 
-**Остаётся.** Упоминания «managed Supabase» как рабочей базы есть и в других файлах (`CONTEXT.md`,
-`README.md`, `PRODUCT.md`, `deploy/*.md`, `docs/DISASTER_RECOVERY.md`); их правка идёт вместе с удалением
-облачного пути, #1271.
+**Остаётся.** Упоминания «managed Supabase» или облачного проекта как рабочей базы есть и в других файлах
+(`CONTEXT.md`, `README.md`, `PRODUCT.md`, `deploy/*.md`, `docs/DISASTER_RECOVERY.md`,
+`docs/runbooks/document-export-storage.md`, `docs/runbooks/team-workspace-activation.md`); их правка идёт
+вместе с удалением облачного пути, #1271.

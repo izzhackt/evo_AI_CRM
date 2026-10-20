@@ -142,7 +142,7 @@ admin API: в них ключ сайта. Подробная процедура 
 |---|---|
 | Каталог и проект | `/opt/evo-crm`, compose-проект `evo-crm` [live] |
 | Контейнеры | `evo-crm-app-1` (образ `evo-crm:<sha выпуска>`), `evo-crm-waha-1` (WhatsApp), `evo-crm-clamav-1`, `evo-crm-ai-agent-api-1`, `evo-crm-ai-agent-worker-1`; на 19.10 все healthy [live]; сессия WhatsApp `crm_primary` [запись] |
-| Текущий выпуск | `v3-r39349222695-a1-c200eef9` (образ `evo-crm:c200eef97c0842f2a942d65bf4433f1c7ec03fcd`): контейнер приложения заменён **20.10 00:47:25 UTC**, ledger миграций 310 из 310 [запись PLAN_CHANGES 20.10]; до этого `e2b29c0c` (19.10, ledger 309) |
+| Текущий выпуск | `v3-r39349222695-a1-c200eef9` (образ `evo-crm:c200eef97c0842f2a942d65bf4433f1c7ec03fcd`): контейнер приложения заменён **20.10 00:47:25 UTC**, ledger миграций 310 из 310 [запись PLAN_CHANGES 20.10]; до этого `0d633845` (20.10, #1272, режим `cloud`), ранее `e2b29c0c` (19.10, ledger 309) |
 | Выпуск | только через CI (`.github/workflows/evo-fast-release.yml`, точный SHA `main`); вручную на сервере не выкатывать |
 | База и файлы | **self-hosted Supabase из раздела 5 — рабочая база с 20.10.2026 00:47 UTC** (`https://supabase.evoadmissions.com`; GitHub-переменная `EVO_SUPABASE_TARGET=selfhosted`, ИИ-агент тоже на Supavisor self-hosted). Облачный проект владельца `iosckaqtovbbnssqcpde` **не удалён и не менялся**: держится только на чтение как источник отката (runbook, шаг 14) и не получает новых записей приложения; блокировки записи в нём нет (сборки iPhone и операторские скрипты с `.env` на облако ещё пишут в него) [запись PLAN_CHANGES 20.10] |
 | Секреты | `/opt/evo-crm/.env.production`, `.env.waha`, `.env.ai-agent` вне Git |

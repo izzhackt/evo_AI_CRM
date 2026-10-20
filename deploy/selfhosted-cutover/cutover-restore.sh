@@ -38,7 +38,7 @@ stage "0 preflight"
 for f in roles.sql schema.sql data.sql history_schema.sql history_data.sql; do
   [ -s "$RUN/$f" ] || fail "missing or empty $RUN/$f"
 done
-[ -f "$SNAP/PG_VERSION" ] || fail "no clean snapshot $SNAP (rebuild it: see runbook, step A6)"
+[ -f "$SNAP/PG_VERSION" ] || fail "no clean snapshot $SNAP (rebuild it: see selfhosted-cutover.md, step 3)"
 FREE_GB=$(df --output=avail -BG "$BASE" | tail -1 | tr -dc 0-9)
 [ "${FREE_GB:-0}" -ge 10 ] || fail "free disk ${FREE_GB}G < 10G"
 docker inspect evo-supabase-db >/dev/null 2>&1 || fail "container evo-supabase-db not found"

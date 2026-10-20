@@ -37,7 +37,7 @@
 | `/opt/evo-crm/.env.ai-agent` | `EVO_AI_AGENT_DATABASE_URL` | Supavisor облака | Supavisor self-hosted (`evo_ai_agent.evo@evo-supabase-pooler:6543`, `sslmode=disable`) |
 | Supabase Vault (self-hosted) | ключ WAHA | пусто | записан `waha-vault-transfer.mjs` |
 | Auth self-hosted (`/opt/evo-supabase/.env`) | хук входа, SMTP, Site URL, редиректы, шаблоны | хук, Site URL, редиректы, шаблоны — 19–20.10; **SMTP — не готов** | как в облаке, кроме `SMTP_PASS` (пусто: нет ключа Resend) |
-| `ios/Release.xcconfig` (локальный, вне Git) | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | облако | **не менялся** (шаг 12) |
+| `ios/Release.xcconfig` (локальный, вне Git) | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | облако | **не менялся** (шаг 13) |
 
 Что делает `EVO_SUPABASE_TARGET` [repo]:
 
@@ -129,6 +129,9 @@ ssh hermes-vps "MAX_MIN=45 nohup /opt/evo-supabase/ops/edge-maint.sh watch $ORIG
 (`caddy validate`) и делает `caddy reload`; оригинал сохранён в `/root/Caddyfile.evo-edge.pre-maintenance`.
 `watch` возвращает оригинал, как только контейнер `evo-crm-app-1` заменён выпуском (или через `MAX_MIN`);
 вручную — `edge-maint.sh off`. Входящие WAHA→приложение идут по сети Docker мимо edge; WAHA не трогать.
+Перед повторным окном: `on` берёт `/root/Caddyfile.evo-edge.pre-maintenance`, если файл уже есть, поэтому после
+любой правки Caddyfile его сначала удаляют или обновляют (иначе вернётся старая копия); путь `LIVE` в
+скрипте прописан жёстко (каталог выпуска) — сверить с живым bind mount (`infrastructure-map.md`, раздел 3).
 Что происходит за время окна:
 
 - `https://crm.evoadmissions.com` и `app.` отвечают 503 (кроме `/api/health`), заявки с сайта
@@ -148,7 +151,7 @@ deploy/selfhosted-cutover/cutover-dump-and-run.sh run <tag> --predump <ptag>
 Сверяет отпечаток схемы облака с предварительным (иначе останавливается — тогда без `--predump`, полный
 дамп добавляет ≈4 мин), снимает данные и ledger (≈1,5 мин), снимок прав облака (`acl-snapshot.sql` через
 Management API), загружает файлы в `restore/runs/<tag>/` (0600), сверяет sha256 и стирает локальные файлы
-с данными (`shred`), затем вызывает на сервере `restore/cutover-restore.sh <tag>` (≈2 мин). Скрипт
+с данными (`shred`, на macOS его нет — тогда `rm -f`), затем вызывает на сервере `restore/cutover-restore.sh <tag>` (≈2 мин). Скрипт
 сервера (этапы пишутся в `restore/logs/<tag>/timing.tsv`):
 
 1. предпроверки (файлы, снимок, место); 2. сброс: остановка служб, `volumes/db/data` ← `restore/pgdata.clean`;
@@ -390,8 +393,10 @@ self-hosted не стираются, их можно перенести в об�
 ## 4. После переключения
 
 - Задача на удаление облачного пути: #1271 (срок — 14 дней после приёмки). Облачный проект не удалять.
-- Новый ADR вместо ADR 0024 (следующий номер на 20.10 — 0034), правка пунктов `AGENTS.md` про проект
-  `iosckaqtovbbnssqcpde`, `deploy/*.md`, `docs/runbooks/infrastructure-map.md` (разделы 4, 5, 7).
+- ADR 0034 вместо ADR 0024, правка пунктов `AGENTS.md` про проект `iosckaqtovbbnssqcpde` и
+  `docs/runbooks/infrastructure-map.md` (разделы 3–8) — **сделано** в PR #1274. Открыто: `deploy/*.md`,
+  `docs/runbooks/document-export-storage.md`, `docs/runbooks/team-workspace-activation.md`,
+  `docs/DISASTER_RECOVERY.md` и прочие файлы, называющие облако рабочей базой (вместе с #1271).
 - Старые JWT-ключи облачного проекта отключить после проверки, что ими никто не пользуется
   (`infrastructure-map.md`, раздел 7).
 - Фильтр `apikey` в журнале edge-Caddy **сделан 20.10** (глобальный журнал по умолчанию, коммит `28ea1c333`).

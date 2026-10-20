@@ -291,10 +291,25 @@ test("«Настройки»: open on «Сотрудники», one section list
   assert.deepEqual([...integrations.matchAll(/data-integration="([a-z]+)"/gu)].map((match) => match[1]), ["whatsapp", "amocrm", "gemini"]);
   assert.doesNotMatch(integrations, /data-testid="v3-settings-blocking"/u, "production facts are not a warning");
   assert.doesNotMatch(integrations, /Требует внимания|v3-edge-|border-s-2/u);
-  assert.match(text(integrations), /WhatsApp не подключён Последняя проверка: нет данных Что не работает: Входящие WhatsApp не приходят в CRM, ответить отсюда нельзя Что сделать: Подключает технический специалист на сервере: вебхук и вход по QR Открыть WhatsApp/u);
-  assert.match(integrations, /<a class="inline-flex min-h-11[^"]*" href="\/v3\/inbox">Открыть WhatsApp<\/a>/u);
+  assert.match(text(integrations), /WhatsApp не подключён Последняя проверка: нет данных Что не работает: Входящие WhatsApp не приходят в CRM, ответить отсюда нельзя Что сделать: Подключить WhatsApp/u);
+  assert.match(integrations, /<a class="inline-flex min-h-11[^"]*" href="\/v3\/settings\?section=integrations#whatsapp-connect">Подключить WhatsApp<\/a>/u);
+
+  // «Подключение WhatsApp» (20.10.2026): блок под таблицей, у Администратора. Состояния WAHA нет — слова состояния нет,
+  // только честное «определить не удалось»; кнопки «Подключить» и «Получить код» есть, «Отключить» и «Выйти» нет.
+  assert.match(integrations, /<section id="whatsapp-connect"[^>]*data-testid="v3-whatsapp-connect"/u);
+  assert.doesNotMatch(integrations, /v3-chip/u, "an unknown WAHA state draws no chip");
+  assert.match(text(integrations), /Подключение WhatsApp Привязка рабочего номера к CRM\./u);
+  assert.match(text(integrations), /Состояние сейчас определить не удалось\./u);
+  assert.match(integrations, /<button type="button"[^>]*>Подключить<\/button>/u);
+  assert.match(integrations, /<button type="submit"[^>]*>Получить код<\/button>/u);
+  assert.match(integrations, /<input id="[^"]+" type="tel" inputMode="tel" autoComplete="off"/u);
+  assert.doesNotMatch(text(integrations), /Отключить|Выйти из аккаунта|Сбросить/u, "no logout, no reset");
+  assert.doesNotMatch(integrations, /data-testid="v3-whatsapp-qr"|data-testid="v3-whatsapp-code"/u, "no QR or code before a request");
 
   const blocked = page("settings-integrations-blocked");
+  assert.match(blocked, /<section id="whatsapp-connect"[^>]*data-status="SCAN_QR_CODE"/u);
+  assert.match(text(blocked), /Подключение WhatsApp Ожидает подключения/u);
+  assert.match(blocked, /<span class="v3-chip t-caption" data-tone="warn"[^>]*>Ожидает подключения<\/span>/u);
   assert.equal([...blocked.matchAll(/data-testid="v3-settings-blocking"/gu)].length, 1, "one warning on top");
   assert.match(text(blocked), /Не работают: WhatsApp — требуется подключение WhatsApp по QR-коду; amoCRM — доступ к аккаунту amoCRM не подтверждён\./u);
   assert.match(blocked, /<time dateTime="2026-09-26T08:15:00.000Z" class="font-mono tabular-nums text-fg">26\.09 14:15<\/time>/u);

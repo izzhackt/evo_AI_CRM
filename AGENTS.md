@@ -256,7 +256,12 @@ instructions to run a full heavy suite for every change or release candidate.
   Update 2026-10-06: that cutover happened on the owner's instruction —
   `crm_primary` (GOWS) was paired and posts to the CRM direct ingress (see
   «WhatsApp And Lead-Agent Boundary»). Re-pairing, QR, logout or restart of
-  the session still need the owner's explicit permission.
+  the session by an agent still need the owner's explicit permission.
+  Update 2026-10-20: the owner asked to connect the session himself from the
+  platform. An Admin now does that with the «Подключение WhatsApp» block in
+  «Настройки → Интеграции» (QR or a pairing code by phone number); the agent
+  never presses it, never calls the same WAHA endpoints directly, and the
+  block has no logout or reset.
 - The 2026-09-04 owner direction authorizes this repository transition,
   V3 integration, isolated recovery/migration rehearsal and scoped cleanup
   without routine approval pauses. It also authorizes #552 to perform the one
@@ -436,8 +441,13 @@ direct ingress into the CRM — no lead-agent, no amoCRM on this path.
   `WAHA_WORKER_RESTART_SESSIONS=true`.
 - Runbooks: `docs/runbooks/whatsapp-go-live.md` (configuration, pairing,
   receipts) and `docs/runbooks/whatsapp-history-import.md`.
-- Never reset, log out or re-pair `crm_primary`, request a QR or pairing
-  code, or send bulk messages without the owner's explicit permission.
+- Agents never reset, log out or re-pair `crm_primary`, request a QR or
+  pairing code, restart the session, or send bulk messages — not on
+  production, not through the WAHA API, not through the settings block —
+  without the owner's explicit permission. Since 2026-10-20 the Admin (the
+  owner) does the linking himself from the «Подключение WhatsApp» block in
+  «Настройки → Интеграции»; an agent only builds and tests that block against a
+  local throwaway WAHA session, never against `crm_primary`.
 
 Below, the lead-agent routing and its amoCRM sync are the earlier design,
 kept as history. The private-WAHA rules there still apply: base URL

@@ -75,10 +75,10 @@ test("settings: unconfigured providers, an unchecked check and a deliberately un
   assert.equal(rows.whatsapp.checkedText, null, "no session read: no check time is claimed");
   assert.equal(rows.whatsapp.checkable, true, "WhatsApp has a check — «нет данных», not «—»");
   assert.match(rows.whatsapp.without, /не приходят в CRM/u);
-  // Review #1079: who connects it, and the WhatsApp page that says the same.
+  // 20.10.2026: the Admin connects it himself — QR or a code by phone number, in the block under the table.
   assert.deepEqual(rows.whatsapp.action, {
-    handoff: "Подключает технический специалист на сервере: вебхук и вход по QR",
-    link: { label: "Открыть WhatsApp", href: "/v3/inbox" },
+    handoff: null,
+    link: { label: "Подключить WhatsApp", href: "/v3/settings?section=integrations#whatsapp-connect" },
   });
   for (const key of ["gemini", "amocrm"]) {
     assert.equal(rows[key].state, "не используется", key);
@@ -108,10 +108,10 @@ test("settings: a configured but broken provider is the one warning, with its re
   assert.equal(rows.amocrm.state, "заблокирована");
   assert.equal(rows.amocrm.detail, "Доступ к аккаунту amoCRM не подтверждён.");
   assert.deepEqual(settingsBlockingIntegrations(Object.values(rows)).map((row) => row.key), ["whatsapp", "amocrm", "gemini"]);
-  // Every server-side step names who does it; none is left as bare «… на сервере».
+  // A session that waits for a scan is linked by the Admin himself (20.10.2026); the other server-side steps name who does them.
   assert.deepEqual(rows.whatsapp.action, {
-    handoff: "Передать техническому специалисту: проверить подключение на сервере",
-    link: { label: "Открыть WhatsApp", href: "/v3/inbox" },
+    handoff: null,
+    link: { label: "Подключить WhatsApp", href: "/v3/settings?section=integrations#whatsapp-connect" },
   });
   for (const key of ["amocrm", "gemini"]) {
     assert.deepEqual(rows[key].action, { handoff: "Передать техническому специалисту: исправить параметры на сервере", link: null }, key);
@@ -157,10 +157,10 @@ test("settings: the warning above the sections exists only when work stops, and 
   const table = IntegrationsSection({ rows: blocked });
   const rows = findElements(table, (node) => node.props?.["data-integration"]);
   assert.deepEqual(rows.map((row) => row.props["data-integration"]), ["whatsapp", "amocrm", "gemini"]);
-  // «Что сделать» never ends at bare «… на сервере»: the owner, and for WhatsApp its page.
+  // «Что сделать» never ends at bare «… на сервере»: the owner; for WhatsApp (20.10.2026) the Admin's own connect block.
   const whatsappCell = findElements(rows[0], (node) => node.type === "td").at(-1);
-  assert.match(textOf(whatsappCell), /Подключает технический специалист на сервере: вебхук и вход по QR/u);
-  assert.equal(findElements(whatsappCell, (node) => node.type?.name === "Link")[0].props.href, "/v3/inbox");
+  assert.match(textOf(whatsappCell), /Подключить WhatsApp/u);
+  assert.equal(findElements(whatsappCell, (node) => node.type?.name === "Link")[0].props.href, "/v3/settings?section=integrations#whatsapp-connect");
   assert.match(textOf(findElements(rows[1], (node) => node.type === "td").at(-1)), /Передать техническому специалисту: исправить параметры на сервере/u);
   const settings = source("src/components/v3/settings/sections.tsx");
   assert.doesNotMatch(settings, /v3-edge-|border-s-2|Требует внимания/u, "no side-stripe cards, no second attention list");

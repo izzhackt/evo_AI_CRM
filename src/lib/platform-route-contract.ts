@@ -165,6 +165,10 @@ const TELEPHONY_ADMIN_API_PATHS: ReadonlySet<string> = new Set([
   "/api/v3/telephony/settings",
   "/api/v3/telephony/extensions",
 ]);
+// «Настройки → Интеграции → Подключение WhatsApp» (решение владельца 20.10.2026):
+// один точный путь, только POST (метод проверяет обработчик). Обработчик сам требует
+// сессию администратора вне просмотра роли; остальное под /api/v3/settings закрыто.
+const WHATSAPP_CONNECT_API_PATH = "/api/v3/settings/whatsapp-connect";
 const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/v2/whatsapp/inbound",
   TELEPHONY_BEELINE_INBOUND_PATH,
@@ -368,6 +372,7 @@ export function isConnectedPlatformApi(path: string): boolean {
     AI_AGENT_CROP_PATH.test(path) ||
     AI_AGENT_LAB_PATH.test(path) ||
     TELEPHONY_ADMIN_API_PATHS.has(path) ||
+    path === WHATSAPP_CONNECT_API_PATH ||
     isConnectedPlatformPrivateApi(path)
   );
 }

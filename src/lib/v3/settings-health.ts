@@ -1,6 +1,7 @@
 import type { PlatformComponentStatus } from "../platform-observability.ts";
 import type { ProviderDisplayStatus } from "../provider-display-status.ts";
 import { telephonyIntegrationRow, type TelephonyIntegrationFacts } from "./telephony-health.ts";
+import { WHATSAPP_CONNECT_ANCHOR } from "./whatsapp-connect-contract.ts";
 import { settingsBlockedWahaDetail, settingsStatusWords } from "./wording.ts";
 
 /**
@@ -104,6 +105,8 @@ const WHATSAPP_WITHOUT = "Входящие WhatsApp не приходят в CRM
 const INTAKE_OFF = "Приём сообщений выключен на сервере.";
 /** Страница WhatsApp: там видно то же состояние, что у сотрудников. */
 const OPEN_WHATSAPP = { label: "Открыть WhatsApp", href: "/v3/inbox" } as const;
+/** Блок «Подключение WhatsApp» под таблицей: QR и код по номеру, только Администратор (20.10.2026). */
+const CONNECT_WHATSAPP = { label: "Подключить WhatsApp", href: `/v3/settings?section=integrations#${WHATSAPP_CONNECT_ANCHOR}` } as const;
 /** Работа на сервере — у технического специалиста. */
 const handoff = (work: string): IntegrationAction => ({ handoff: `Передать техническому специалисту: ${work}`, link: null });
 const FIX_PARAMETERS = handoff("исправить параметры на сервере");
@@ -143,15 +146,20 @@ function whatsappRow(waha: SettingsIntegrationFacts["waha"], now: Date): Integra
       key: "whatsapp", name: "WhatsApp", state: "заблокирован", tone: "blocked",
       detail: intakeOff ? `${settingsBlockedWahaDetail(waha.sessionStatus)} ${INTAKE_OFF}` : settingsBlockedWahaDetail(waha.sessionStatus), ...checked,
       without: WHATSAPP_WITHOUT,
-      action: { ...handoff("проверить подключение на сервере"), link: OPEN_WHATSAPP }, blocksWork: true,
+      // Сессия остановлена, ждёт QR или сломана — Администратор подключает её сам (QR или код по
+      // номеру). Сервис WhatsApp, который не отвечает вовсе, подключением не лечится: это сервер.
+      action: waha.sessionStatus === "UNREACHABLE"
+        ? { ...handoff("проверить подключение на сервере"), link: OPEN_WHATSAPP }
+        : { handoff: null, link: CONNECT_WHATSAPP },
+      blocksWork: true,
     };
   }
   // Строки состояния нет: WhatsApp к CRM не подключали (вебхук снят 26.09
-  // сознательно). Это не просьба подключить, а кто подключает, когда решат.
+  // сознательно). Подключить его можно здесь же — блоком «Подключение WhatsApp».
   return {
     key: "whatsapp", name: "WhatsApp", state: settingsStatusWords.notConnected, tone: "off", detail: intakeOff ? INTAKE_OFF : null, ...checked,
     without: WHATSAPP_WITHOUT,
-    action: { handoff: "Подключает технический специалист на сервере: вебхук и вход по QR", link: OPEN_WHATSAPP }, blocksWork: false,
+    action: { handoff: null, link: CONNECT_WHATSAPP }, blocksWork: false,
   };
 }
 

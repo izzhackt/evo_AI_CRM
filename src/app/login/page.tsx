@@ -6,6 +6,7 @@ import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import { LangSwitcher } from "@/components/LangSwitcher";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { getLocale } from "@/lib/i18n";
+import { getPasswordRecoveryStrings } from "@/lib/portal/password-recovery-i18n";
 import { STUDENT_PASSWORD_FORGOT_PATH } from "@/lib/student-password-recovery-contract";
 import type { Locale } from "@/lib/i18n-data";
 import { buildRouteMetadata } from "@/lib/route-metadata";
@@ -156,7 +157,7 @@ export default async function LoginPage({
               initialError={initialError}
               recovery={audience === "staff" ? undefined : {
                 href: STUDENT_PASSWORD_FORGOT_PATH,
-                label: locale === "en" ? "Forgot password?" : locale === "ky" ? "Сырсөздү унуттуңузбу?" : "Забыли пароль?",
+                label: getPasswordRecoveryStrings(locale).forgotLink,
               }}
             />
           </div>

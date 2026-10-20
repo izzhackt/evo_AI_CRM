@@ -21,14 +21,24 @@ import { readRequestTheme } from "@/lib/theme-server";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Подтвердить аккаунт | EVO Admissions",
-  robots: { index: false, follow: false },
-};
-
 type CallbackSearchParams = Promise<
   Record<string, string | readonly string[] | undefined>
 >;
+
+/**
+ * One callback serves two emails. A recovery link is titled for what the
+ * student does there («Новый пароль»); only the invitation keeps «Подтвердить
+ * аккаунт».
+ */
+export async function generateMetadata({
+  searchParams,
+}: Readonly<{ searchParams: CallbackSearchParams }>): Promise<Metadata> {
+  const isRecovery = (await searchParams).type === "recovery";
+  const title = isRecovery
+    ? { absolute: `${getPasswordRecoveryStrings(await getLocale()).linkTitle} | EVO Admissions` }
+    : "Подтвердить аккаунт | EVO Admissions";
+  return { title, robots: { index: false, follow: false } };
+}
 
 export default async function StudentInviteCallbackPage({
   searchParams,

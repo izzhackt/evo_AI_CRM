@@ -9,11 +9,14 @@ import { readRequestTheme } from "@/lib/theme-server";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Новый пароль | EVO Admissions",
-  robots: { index: false, follow: false },
-  referrer: "no-referrer",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPasswordRecoveryStrings(await getLocale());
+  return {
+    title: { absolute: `${strings.resetTitle} | EVO Admissions` },
+    robots: { index: false, follow: false },
+    referrer: "no-referrer",
+  };
+}
 
 /** Reachable only with the path-scoped recovery session from /auth/callback. */
 export default async function StudentResetPasswordPage() {

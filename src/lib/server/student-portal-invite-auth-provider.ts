@@ -10,8 +10,6 @@ import type {
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const LIST_USERS_PAGE_SIZE = 1_000;
-const LIST_USERS_MAX_PAGES = 100;
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -111,44 +109,34 @@ export type RawAuthUserLookup = Readonly<{
 }>;
 
 /**
- * Exact, case-insensitive address match over the Admin API user list. Two
- * matches or any unclear page is "unavailable", never a guess.
- *
- * @see https://supabase.com/docs/reference/javascript/auth-admin-listusers
+ * Exact, case-insensitive address match by one point lookup in the database
+ * (`platform.auth_user_by_exact_email_v1`, migration 313, callable by the
+ * service role only). It replaced the page-by-page `auth.admin.listUsers`
+ * scan, whose cost grew with every Auth user and which failed closed from
+ * about 9000 users on. The answer carries only the fields read here and the
+ * two staff markers. Two matches, an error, or an answer that is not exactly
+ * the requested address is "unavailable", never a guess.
  */
 export async function findRawAuthUserByExactEmail(
-  client: Pick<SupabaseClient, "auth">,
+  client: Pick<SupabaseClient, "schema">,
   normalizedEmail: string,
 ): Promise<RawAuthUserLookup> {
   try {
-    let match: Record<string, unknown> | null = null;
-    for (let page = 1; page <= LIST_USERS_MAX_PAGES; page += 1) {
-      const { data, error } = await client.auth.admin.listUsers({
-        page,
-        perPage: LIST_USERS_PAGE_SIZE,
-      });
-      if (error || !Array.isArray(data.users)) {
-        return { status: "unavailable", user: null };
-      }
-      for (const candidate of data.users) {
-        if (normalizeEmail(candidate.email) !== normalizedEmail) continue;
-        const raw = record(candidate);
-        if (raw === null || match !== null) {
-          return { status: "unavailable", user: null };
-        }
-        match = raw;
-      }
-      const nextPage = record(data)?.nextPage;
-      if (nextPage === null || data.users.length < LIST_USERS_PAGE_SIZE) {
-        return match !== null
-          ? { status: "found", user: match }
-          : { status: "missing", user: null };
-      }
-      if (nextPage !== page + 1) {
-        return { status: "unavailable", user: null };
-      }
+    const { data, error } = await client
+      .schema("platform")
+      .rpc("auth_user_by_exact_email_v1", { p_email: normalizedEmail });
+    if (error) return { status: "unavailable", user: null };
+    if (data === null) return { status: "missing", user: null };
+    const user = record(data);
+    if (
+      user === null ||
+      typeof user.id !== "string" ||
+      !UUID_PATTERN.test(user.id) ||
+      normalizeEmail(user.email) !== normalizedEmail
+    ) {
+      return { status: "unavailable", user: null };
     }
-    return { status: "unavailable", user: null };
+    return { status: "found", user };
   } catch {
     return { status: "unavailable", user: null };
   }
@@ -161,7 +149,7 @@ export async function findRawAuthUserByExactEmail(
  * @see https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail
  */
 export function createStudentPortalInviteAuthProvider(
-  client: Pick<SupabaseClient, "auth">,
+  client: Pick<SupabaseClient, "auth" | "schema">,
 ): StudentPortalInviteAuthProvider {
   return Object.freeze({
     async inviteUserByEmail(input): Promise<StudentPortalProviderInviteResult> {

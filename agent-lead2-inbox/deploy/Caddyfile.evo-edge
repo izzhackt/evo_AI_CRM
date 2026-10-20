@@ -9,6 +9,9 @@
 	# Strip the Supabase keys there (apikey header, ?apikey= / ?token= /
 	# ?access_token= of the realtime websocket) so no key reaches `docker logs`
 	# of evo-edge-caddy. Authorization is deleted although Caddy already masks it.
+	# ?token_hash= is the one-time token of the student recovery and invitation
+	# links (/auth/callback): anyone who could read it here could use the link
+	# before the student does.
 	log {
 		format filter {
 			wrap json
@@ -20,6 +23,7 @@
 					replace apikey REDACTED
 					replace access_token REDACTED
 					replace token REDACTED
+					replace token_hash REDACTED
 				}
 			}
 		}
@@ -43,8 +47,14 @@
 		X-Frame-Options "DENY"
 	}
 
+	# The access log of the CRM and student hosts. The emailed student links open
+	# /auth/callback?token_hash=...&type=recovery (or invite): the value is a one-time
+	# token that logs must not keep, so the query value is replaced, whatever the path.
 	log {
 		format filter {
+			request>uri query {
+				replace token_hash REDACTED
+			}
 			request>headers>Cookie delete
 			request>headers>Authorization delete
 			request>headers>Proxy-Authorization delete

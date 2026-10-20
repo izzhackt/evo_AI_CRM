@@ -173,6 +173,46 @@ test("the sent text does not promise a send; link validity matches the consume s
   assert.match(source("supabase/templates/recovery.html"), /Ссылкой можно воспользоваться один раз в течение часа\./u);
 });
 
+test("English recovery pages speak English, name the Russian email, and every locale has every key", () => {
+  const ru = getPasswordRecoveryStrings("ru");
+  const ky = getPasswordRecoveryStrings("ky");
+  const en = getPasswordRecoveryStrings("en");
+  assert.notEqual(en, ru, "English no longer falls back to Russian");
+  assert.deepEqual(Object.keys(en).sort(), Object.keys(ru).sort());
+  assert.deepEqual(Object.keys(ky).sort(), Object.keys(ru).sort());
+  for (const [key, value] of Object.entries(en)) {
+    assert.ok(value.length > 0, key);
+    assert.doesNotMatch(value, /[А-Яа-яЁёӨөҮүҢң]/u, `English ${key} must not contain Cyrillic`);
+    // Variables stay in the template exactly as in Russian, so one fill function serves all three.
+    assert.deepEqual(value.match(/\{\w+\}/gu) ?? [], ru[key].match(/\{\w+\}/gu) ?? [], key);
+  }
+  // The email is one shared Russian Auth template: the English page says so instead of promising English.
+  assert.match(en.sent, /written in Russian/u);
+  assert.equal(en.forgotLink, "Forgot password?");
+  assert.equal(en.linkTitle, "New password");
+  assert.equal(ru.linkTitle, "Новый пароль");
+  assert.equal(ky.linkTitle, "Жаңы сырсөз");
+  // The sign-in link is the flow's own string, so the link and the pages cannot drift apart.
+  assert.match(source("src/app/login/page.tsx"), /label: getPasswordRecoveryStrings\(locale\)\.forgotLink/u);
+});
+
+test("a recovery link is titled «Новый пароль», only the invitation keeps «Подтвердить аккаунт»", () => {
+  const callback = source("src/app/auth/callback/page.tsx");
+  assert.match(callback, /export async function generateMetadata\(/u);
+  assert.match(callback, /\(await searchParams\)\.type === "recovery"/u);
+  assert.match(callback, /getPasswordRecoveryStrings\(await getLocale\(\)\)\.linkTitle/u);
+  // The invitation title is the only static one left on this page.
+  assert.equal((callback.match(/Подтвердить аккаунт \| EVO Admissions/gu) ?? []).length, 1);
+  assert.doesNotMatch(callback, /export const metadata/u);
+  // The recovery heading was already the recovery title; the tab title now agrees with it.
+  assert.match(callback, /title=\{strings\.linkTitle\}/u);
+  for (const page of ["forgot-password", "reset-password"]) {
+    const text = source(`src/app/auth/${page}/page.tsx`);
+    assert.match(text, /export async function generateMetadata\(\)/u, page);
+    assert.doesNotMatch(text, /export const metadata/u, page);
+  }
+});
+
 test("form limiter: sliding window per key, bounded keys", () => {
   const limiter = createRecoveryRateLimiter(3);
   const rule = { limit: 2, windowMs: 1_000 };
@@ -266,11 +306,15 @@ test("server flow: fixed redirect, explicit verify, path-scoped recovery session
   assert.ok(actions.indexOf('return { status: "rate_limited" }') < answer);
   assert.doesNotMatch(actions, /await requestStatus\(/u);
   assert.equal((actions.match(/requestStudentPasswordRecovery\(email, redirectTo\)/gu) ?? []).length, 1);
-  const lookup = server.indexOf("const recipient = await classifyRecoveryRecipient(email);");
-  const reset = server.indexOf("resetPasswordForEmail(email");
-  assert.ok(lookup > 0 && reset > lookup, "staff lookup must run before Auth");
-  assert.match(server, /if \(recipient === "staff"\) \{[^}]*return "sent";/u);
-  assert.match(server, /findRawAuthUserByExactEmail\(service, normalizedEmail\)/u);
+  // The staff verdict (point lookup, marker, then the database membership question of migration 313)
+  // is decided before Auth; the behaviour is exercised in tests/student-recovery-request.test.mjs.
+  const request = source("src/lib/server/student-recovery-request.ts");
+  const recipient = request.indexOf("await ports.recipient(email)");
+  const reset = request.indexOf("await ports.sendEmail(email, redirectTo)");
+  assert.ok(recipient > 0 && reset > recipient, "staff lookup must run before Auth");
+  assert.match(request, /if \(recipient\.status === "staff"\) \{[^}]*return "sent";/u);
+  assert.match(server, /classifyStudentRecoveryRecipient\(service, normalizedEmail\)/u);
+  assert.match(server, /resetPasswordForEmail\(address, \{ redirectTo: target \}\)/u);
   assert.match(server, /createHash\("sha256"\)\.update\(normalizedEmail\)/u);
 
   assert.match(server, /verifyOtp\(\{\s*token_hash: tokenHash,\s*type: "recovery",?\s*\}\)/u);

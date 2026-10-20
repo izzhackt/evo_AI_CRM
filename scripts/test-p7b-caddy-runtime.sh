@@ -20,6 +20,7 @@ readonly LOG_FILE="${TEMP_DIR}/caddy.log"
 readonly START_STDERR_FILE="${TEMP_DIR}/caddy-start.stderr"
 readonly AUTH_SENTINEL="p7b-authorization-must-not-enter-edge-logs"
 readonly HMAC_SENTINEL="$(printf 'a%.0s' {1..64})"
+readonly TOKEN_SENTINEL="p7b-recovery-token-hash-must-not-enter-edge-logs"
 
 container_cleanup_armed=false
 
@@ -94,6 +95,11 @@ http://evoadmissions.com:8080, http://www.evoadmissions.com:8080 {
 }
 http://evo-crm.72.62.119.112.sslip.io:8080 {
 	import evo_retired_app
+}
+# An upstream that cannot be resolved makes Caddy write an http.log.error entry through the
+# DEFAULT logger of the global block, with the whole request in it.
+http://token-error.test:8080 {
+	reverse_proxy token-upstream.invalid:3000
 }
 CADDY
 
@@ -257,11 +263,43 @@ status="$(
 [[ "${status}" == "204" ]] \
   || fail "The public edge treated canonical query data as malformed path data."
 
+# The emailed student links carry a one-time token in the query. Open them through the access
+# log (the CRM / student host) and through the error log (an unreachable upstream).
+for token_path in /auth/callback /auth/reset-password; do
+  status="$(
+    curl --silent --show-error \
+      --output "${RESPONSE_FILE}" \
+      --write-out '%{http_code}' \
+      --header "Host: ${CRM_HOST}" \
+      "${edge_origin}${token_path}?token_hash=${TOKEN_SENTINEL}&type=recovery"
+  )" || fail "The disposable Caddy token-link request failed."
+  [[ "${status}" == "204" ]] \
+    || fail "The disposable Caddy did not answer the ${token_path} link request."
+done
+status="$(
+  curl --silent --show-error \
+    --output "${RESPONSE_FILE}" \
+    --write-out '%{http_code}' \
+    --header "Host: token-error.test" \
+    "${edge_origin}/auth/callback?token_hash=${TOKEN_SENTINEL}&type=recovery"
+)" || fail "The disposable Caddy unreachable-upstream request failed."
+[[ "${status}" == "502" ]] \
+  || fail "The unreachable-upstream request did not produce the expected 502."
+
 run_with_deadline 10000 docker logs "${CONTAINER_NAME}" >"${LOG_FILE}" 2>&1 \
   || fail "Unable to inspect bounded disposable Caddy logs."
 if grep -Fq -- "${AUTH_SENTINEL}" "${LOG_FILE}" \
   || grep -Fq -- "${HMAC_SENTINEL}" "${LOG_FILE}"; then
   fail "A private credential-bearing header entered Caddy logs."
+fi
+# Positive controls first (so the absence below proves the filter, not a missing log line):
+# both access-log entries and the error-log entry are there with the value replaced.
+[[ "$(grep -c -- 'token_hash=REDACTED' "${LOG_FILE}")" -ge 3 ]] \
+  || fail "The access and error logs did not record the redacted recovery-link query."
+grep -Fq -- 'token-upstream.invalid' "${LOG_FILE}" \
+  || fail "The default (error) logger did not record the unreachable upstream."
+if grep -Fq -- "${TOKEN_SENTINEL}" "${LOG_FILE}"; then
+  fail "A one-time recovery or invitation token entered Caddy logs."
 fi
 
 log_driver="$(
@@ -287,4 +325,4 @@ pids_limit="$(
 [[ "${memory_limit}" == "134217728" && "${pids_limit}" == "64" ]] \
   || fail "The disposable Caddy resource bounds were not applied."
 
-printf 'Verified the pinned disposable Caddy runtime denies private and noncanonical API routes, redacts credential headers, and enforces bounded resources/logs.\n'
+printf 'Verified the pinned disposable Caddy runtime denies private and noncanonical API routes, redacts credential headers and one-time link tokens, and enforces bounded resources/logs.\n'

@@ -517,7 +517,7 @@ SQL
   # «вызов не принят сотрудником» не даёт «Недозвон» и задачу; первичный импорт — только
   # последние 30 суток; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.4, §6.1, §14 шаг 11).
   # Matched by name, not number, so a renumbering at merge keeps the hook. IMMEDIATELY BEFORE
-  # the ordinary apply the migration must refuse with a311_anchor_drift, inside a
+  # the ordinary apply the migration must refuse with a312_anchor_drift, inside a
   # transaction that the failure rolls back, for each of the four functions it replaces when
   # that function is edited after its own migration (the md5 pre-image anchors). Right after
   # the migration the suite proves: five closed private functions and no new exposed one;
@@ -529,17 +529,17 @@ SQL
   # no «Недозвон» and no task when the employee did not pick up and the old rules when the
   # employee did, plus idempotency and the org / direction / needs_review boundaries.
   if [[ "$(basename "$migration")" == *_platform_telephony_dial_bind.sql ]]; then
-    for t311_pinned in \
+    for t312_pinned in \
       'platform.telephony_maintenance_plan_v1(uuid)' \
       'platform.telephony_runtime_mark_v1(uuid,text,timestamptz,text,jsonb,jsonb)' \
       'platform_private.telephony_automation_decide(uuid,uuid)' \
       'platform.telephony_dial_finish_v1(uuid,uuid,uuid,text,text,integer,text,text)'; do
-      t311_tamper_log="$(mktemp -t evo-t311-anchor.XXXXXX)"
+      t312_tamper_log="$(mktemp -t evo-t312-anchor.XXXXXX)"
       if docker exec -i "$container_name" \
         psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
-        -v "pinned_function=$t311_pinned" \
+        -v "pinned_function=$t312_pinned" \
         -v "migration_file=/workspace/$migration" \
-        >"$t311_tamper_log" 2>&1 <<'SQL'
+        >"$t312_tamper_log" 2>&1 <<'SQL'
 BEGIN;
 SELECT replace(
   pg_get_functiondef(:'pinned_function'::regprocedure),
@@ -550,15 +550,15 @@ SELECT replace(
 \i :migration_file
 SQL
       then
-        echo "migration 311 accepted an edited $t311_pinned" >&2
+        echo "migration 312 accepted an edited $t312_pinned" >&2
         exit 1
       fi
-      if ! grep -Fq "a311_anchor_drift" "$t311_tamper_log"; then
-        echo "migration 311 failed for the wrong pre-image reason ($t311_pinned)" >&2
-        sed -n '1,60p' "$t311_tamper_log" >&2
+      if ! grep -Fq "a312_anchor_drift" "$t312_tamper_log"; then
+        echo "migration 312 failed for the wrong pre-image reason ($t312_pinned)" >&2
+        sed -n '1,60p' "$t312_tamper_log" >&2
         exit 1
       fi
-      rm -f "$t311_tamper_log"
+      rm -f "$t312_tamper_log"
     done
   fi
 
@@ -4150,6 +4150,23 @@ SQL
   # changed department take effect on the very next call inside one transaction.
   if [[ "$(basename "$migration")" == *_platform_permission_once.sql ]]; then
     run_permission_once_suite ""
+  fi
+  # «Подключение WhatsApp» пишет в журнал платформы (migration 311, PLAN_CHANGES 20.10.2026).
+  # Matched by name, not number. Run right after the migration, insisting on the suite's marker
+  # (a psql exit code alone would pass a file that stopped early). The suite proves: the grants
+  # (definer, empty search_path, one parameter, authenticated only), the Admin's one row per call
+  # with the actor, organization, action, object and {kind} only, the refusal of everyone else
+  # (42501) and of a bad kind (22023) with nothing written, the separation of organizations, and
+  # the journal (allowlist plus exactly two, the ten safe keys, the other organization's rows hidden).
+  if [[ "$(basename "$migration")" == *_platform_whatsapp_connect_audit.sql ]]; then
+    whatsapp_connect_audit_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_whatsapp_connect_audit.sql </dev/null)"
+    printf '%s\n' "$whatsapp_connect_audit_log"
+    if ! grep -q 'W311_WHATSAPP_CONNECT_AUDIT_SUITE_PASSED' <<<"$whatsapp_connect_audit_log"; then
+      echo "platform_whatsapp_connect_audit.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
   fi
 done < <(
   cd "$repo_root"

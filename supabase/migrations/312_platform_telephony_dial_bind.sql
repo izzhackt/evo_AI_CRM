@@ -1,4 +1,4 @@
--- 311_platform_telephony_dial_bind — «Телефония Beeline KG» срез T7b: звонок из «Позвонить»
+-- 312_platform_telephony_dial_bind — «Телефония Beeline KG» срез T7b: звонок из «Позвонить»
 -- привязывается к своему набору, а загрузка истории (первичный импорт) идёт только за
 -- последние 30 суток.
 -- Контракт: docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.4 (первичный импорт), §6.1 (правила 5 и 8),
@@ -62,44 +62,44 @@ BEGIN;
 -- ---------------------------------------------------------------------------
 -- Якоря: что заменяется — живые определения 293, 298 и 299; новых имён ещё нет.
 -- ---------------------------------------------------------------------------
-DO $a311_anchor$
+DO $a312_anchor$
 BEGIN
   IF to_regclass('platform_private.telephony_calls') IS NULL
     OR to_regclass('platform_private.telephony_call_legs') IS NULL
     OR to_regclass('platform_private.telephony_dial_requests') IS NULL
     OR to_regclass('platform_private.telephony_runtime_state') IS NULL
     OR to_regclass('platform_private.telephony_settings') IS NULL THEN
-    RAISE EXCEPTION 'a311_anchor_drift: the telephony tables are missing' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a312_anchor_drift: the telephony tables are missing' USING ERRCODE = '55000';
   END IF;
   IF (SELECT md5(p.prosrc) FROM pg_catalog.pg_proc p
       WHERE p.oid = to_regprocedure('platform.telephony_maintenance_plan_v1(uuid)'))
         IS DISTINCT FROM 'a574625e23b938abb3b0044e2cd59add' THEN
-    RAISE EXCEPTION 'a311_anchor_drift: platform.telephony_maintenance_plan_v1(uuid) is not the 293 definition' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a312_anchor_drift: platform.telephony_maintenance_plan_v1(uuid) is not the 293 definition' USING ERRCODE = '55000';
   END IF;
   IF (SELECT md5(p.prosrc) FROM pg_catalog.pg_proc p
       WHERE p.oid = to_regprocedure('platform.telephony_runtime_mark_v1(uuid,text,timestamptz,text,jsonb,jsonb)'))
         IS DISTINCT FROM 'e55c0d546c9236bcec1291c89ef30642' THEN
-    RAISE EXCEPTION 'a311_anchor_drift: platform.telephony_runtime_mark_v1 is not the 293 definition' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a312_anchor_drift: platform.telephony_runtime_mark_v1 is not the 293 definition' USING ERRCODE = '55000';
   END IF;
   IF (SELECT md5(p.prosrc) FROM pg_catalog.pg_proc p
       WHERE p.oid = to_regprocedure('platform_private.telephony_automation_decide(uuid,uuid)'))
         IS DISTINCT FROM 'a9dafed771c962f0d9ef05a984cd7ae1' THEN
-    RAISE EXCEPTION 'a311_anchor_drift: platform_private.telephony_automation_decide(uuid,uuid) is not the 298 definition' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a312_anchor_drift: platform_private.telephony_automation_decide(uuid,uuid) is not the 298 definition' USING ERRCODE = '55000';
   END IF;
   IF (SELECT md5(p.prosrc) FROM pg_catalog.pg_proc p
       WHERE p.oid = to_regprocedure('platform.telephony_dial_finish_v1(uuid,uuid,uuid,text,text,integer,text,text)'))
         IS DISTINCT FROM '5d799297454dde2a94df931336bc39ab' THEN
-    RAISE EXCEPTION 'a311_anchor_drift: platform.telephony_dial_finish_v1 is not the 299 definition' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a312_anchor_drift: platform.telephony_dial_finish_v1 is not the 299 definition' USING ERRCODE = '55000';
   END IF;
   IF to_regprocedure('platform_private.telephony_chain_answered(uuid,uuid)') IS NULL
     OR to_regprocedure('platform_private.telephony_automation_no_answer(uuid,uuid)') IS NULL THEN
-    RAISE EXCEPTION 'a311_anchor_drift: the 289 / 298 helpers are missing' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a312_anchor_drift: the 289 / 298 helpers are missing' USING ERRCODE = '55000';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint c
       WHERE c.conrelid = 'platform_private.telephony_calls'::regclass AND c.conname = 'telephony_calls_automation_check'
         AND pg_get_constraintdef(c.oid) LIKE '%later_answered%'
         AND pg_get_constraintdef(c.oid) NOT LIKE '%skipped_dial_unanswered%') THEN
-    RAISE EXCEPTION 'a311_anchor_drift: telephony_calls_automation_check is not the 298 constraint' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a312_anchor_drift: telephony_calls_automation_check is not the 298 constraint' USING ERRCODE = '55000';
   END IF;
   IF EXISTS (
     SELECT 1 FROM pg_catalog.pg_proc p
@@ -108,10 +108,10 @@ BEGIN
         'telephony_dial_employee_answered', 'telephony_calls_bind_dial_row')
       AND n.nspname IN ('platform', 'platform_private')
   ) THEN
-    RAISE EXCEPTION 'a311_anchor_drift: the T7b functions already exist' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a312_anchor_drift: the T7b functions already exist' USING ERRCODE = '55000';
   END IF;
 END
-$a311_anchor$;
+$a312_anchor$;
 
 -- ---------------------------------------------------------------------------
 -- 1. Метка автоматики «вызов не принят сотрудником».
@@ -637,7 +637,7 @@ COMMENT ON FUNCTION platform.telephony_dial_finish_v1(UUID, UUID, UUID, TEXT, TE
   'Telephony T7 + T7b: service-only. The single transition requested -> sent (call id) | unconfirmed | failed | refused (pbx_offline, pbx_user_not_found), with one telephony.dial journal row; a refused row loses the number and the PBX login (no call was made); a repeat changes nothing. A sent request also binds an already arrived outbound call with that call id.';
 
 -- Проверка в конце: права ровно такие, как задумано.
-DO $tel311_verify$
+DO $tel312_verify$
 DECLARE
   r TEXT;
   f REGPROCEDURE;
@@ -680,6 +680,6 @@ BEGIN
     RAISE EXCEPTION 'telephony_t7b_trigger_missing' USING ERRCODE = '55000';
   END IF;
 END
-$tel311_verify$;
+$tel312_verify$;
 
 COMMIT;

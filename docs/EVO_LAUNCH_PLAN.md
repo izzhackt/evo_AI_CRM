@@ -17194,7 +17194,7 @@ append-only [`PLAN_CHANGES.md`](PLAN_CHANGES.md), в профильных пла
 файла, `git log` и файлам репозитория; в production и в GitHub Actions ничего заново не
 читалось, номера запусков взяты из самих записей.
 
-**Устарели, 12 из 20 открытых пунктов:**
+**Устарели, 13 из 20 открытых пунктов:**
 
 | Раздел и пункты `- [ ]` | Чем заменены |
 |---|---|
@@ -17202,11 +17202,12 @@ append-only [`PLAN_CHANGES.md`](PLAN_CHANGES.md), в профильных пла
 | «Unified workflow — active 2026-09-18» («Финальная проверка слайсов, применение миграций владельцем и один управляемый релиз»; 1 пункт) | Раздел «Unified workflow — released 2026-09-19»: миграции 180–183 применены (ledger 001–183), выпуск [`35390450281`](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35390450281) принят на `f9a233c6` после отката первой попытки и исправления [#850](https://github.com/izzhackt/evo_AI_CRM/pull/850) |
 | «Student Profile response cancellation — active 2026-09-17» («Distinguish client cancellation…», «Independently review and merge the diagnostic change, then run the frozen-current-main full gate once»; 2 пункта) | Только как **условие выпуска**: решение владельца 18.09 заменило тяжёлый полный гейт лёгким ([`AGENTS.md`](../AGENTS.md), «Fast Execution And Validation — 2026-09-18»; раздел «Lightweight production release — completed 2026-09-18»; [квитанция](design/v3/references/2026-09-18-lightweight-production-release.md); выпуск [`35276212272`](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35276212272) принят на `ac04c8e3`). **Причина прерывистой отмены ответа так и не установлена**: пункты устарели как предусловие, а не как решённая ошибка |
 | «Portal latency and Inbox dependency maintenance…» (P3: «independently review exact diffs…, run the production app's existing full gate once»; 1 пункт) | То же: слияние PR #810 и #811 и закрытие PR701/702 записаны в самом разделе, полный гейт снят решением 18.09, выпуск `35276212272` принят. Смоук того выпуска проверил вход админа, маршрут дела, вход студента, обзор и документы; **отказ в доступе сотруднику к чужому делу в нём не повторялся** |
+| «Auth email — SMTP and templates saved…» (строка «Confirm protected SOPS key archival»; 1 пункт) | Решение владельца: архивирование ключа Resend в SOPS «не нужно» ([`EVO_ITEMS_1_36_STATUS_2026-09-21.md`](EVO_ITEMS_1_36_STATUS_2026-09-21.md), «Решения владельца 23.09.2026»). Это снятие пункта решением, а не выполнение; **доставка письма от этого не доказана** (см. ниже) |
 | «2026-09-21 — website enquiry country and university context» (миграция, `Undecided`, проверка формы университета, узкие проверки, выпуск корневым владельцем; 5 пунктов) | Слито [#996](https://github.com/izzhackt/evo_AI_CRM/pull/996) («preserve university and undecided enquiry country»), файл [`231_platform_website_enquiry_context.sql`](../supabase/migrations/231_platform_website_enquiry_context.sql) (в нём `Undecided`) в `main`, ledger без дыр до 312 (запись «Телефония T7b», миграция 312), запись «website enquiry migration reservation moved to 231» в `PLAN_CHANGES.md` |
 
-**Не доказано, что устарели, остаются открытыми (8 пунктов):**
+**Не доказано, что устарели, остаются открытыми (7 пунктов):**
 - `PORT-7` (веб и iPhone: Apple Developer, подпись, TestFlight, store): внешние шаги владельца.
-- «Auth email — SMTP and templates saved…» (3 пункта: SOPS-архив ключа, отдельный путь `/apply`,
+- «Auth email — SMTP and templates saved…» (2 пункта: отдельный путь `/apply`,
   доставка приглашения, подтверждения и ответа): письма Auth теперь идут через self-hosted
   Supabase, ключ Resend там задан, но **доставка письма не доказана**
   ([`runbooks/infrastructure-map.md`](runbooks/infrastructure-map.md), разделы 5 и 7).
@@ -17214,4 +17215,8 @@ append-only [`PLAN_CHANGES.md`](PLAN_CHANGES.md), в профильных пла
   live integration check» (восстановить доступ к amoCRM, привязать WhatsApp): подтверждения
   нет; WhatsApp владелец отложил.
 - «Website public edge» и «Website lead intake» (по одному пункту): настоящая заявка с сайта,
-  разрешённая владельцем, в журнале платформы не записана.
+  разрешённая владельцем, в журнале платформы не записана. Это личная проверка владельца, а
+  не задача агентов: решение владельца 17.09.2026 («личные проверки владельца…», `DECISIONS.md`
+  общего репозитория `izzhackt/EVO`) и «45–50 — исключены» в ведомости пунктов 1–36
+  ([`EVO_ITEMS_1_36_STATUS_2026-09-21.md`](EVO_ITEMS_1_36_STATUS_2026-09-21.md)). Пункты
+  остаются открытыми как приёмка, но агент заявку не отправляет и в свой чеклист не возвращает.

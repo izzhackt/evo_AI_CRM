@@ -926,6 +926,10 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "telephony.settings.change": "Настройки телефонии изменены",
   "telephony.mapping.change": "Сопоставление пользователя телефонии изменено",
   "telephony.automation.stop": "Автоматика телефонии остановлена по потолку",
+  // «Подключение WhatsApp» (миграция 311). Подписи без номера, QR и кода: в записи журнала
+  // их нет, а вид запроса (QR или код по номеру) различает само действие.
+  "whatsapp.connect.qr": "Запрошен QR для подключения WhatsApp",
+  "whatsapp.connect.code": "Запрошен код для подключения WhatsApp",
 } satisfies Readonly<Record<PlatformAuditAction, string>>;
 
 const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {

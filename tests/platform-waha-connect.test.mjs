@@ -19,6 +19,7 @@ import {
 import {
   WHATSAPP_CODE_READY_WAIT_MS,
   performWhatsAppConnect,
+  recordWhatsAppConnectAudit,
   resetWhatsAppConnectLimitsForTests,
 } from "../src/lib/server/platform-waha-connect-service.ts";
 import { settingsIntegrations } from "../src/lib/v3/settings-health.ts";
@@ -77,17 +78,36 @@ function fakeWaha(handler) {
 
 function fixture({ handler, now = { value: 1_000_000 }, audits = [], auditFails = false } = {}) {
   const waha = fakeWaha(handler);
+  const fallbacks = [];
   return {
     waha,
     now,
     audits,
+    fallbacks,
     dependencies: {
       resolveRuntime: async () => RUNTIME,
       clientDependencies: { fetch: waha.fetch, createTimeoutSignal: () => new AbortController().signal },
       recordAudit: (entry) => { if (auditFails) throw new Error("audit down"); audits.push(entry); },
+      logAuditFallback: (entry, errorCode) => { fallbacks.push({ entry, errorCode }); },
       now: () => now.value,
       sleep: async (ms) => { now.value += ms; },
     },
+  };
+}
+
+/** Поддельный клиент базы: записывает каждый `schema(...).rpc(...)`. */
+function fakeAuditClient(reply) {
+  const calls = [];
+  return {
+    calls,
+    createClient: async () => ({
+      schema: (name) => ({
+        rpc: async (fn, args) => {
+          calls.push({ schema: name, fn, args });
+          return reply(fn, args);
+        },
+      }),
+    }),
   };
 }
 
@@ -282,11 +302,105 @@ test("an unreachable WAHA does not let «Подключить» be pressed more 
   assert.equal(waha.calls.length, 1);
 });
 
-test("a request that cannot be audited does not reach WAHA", async () => {
-  const { dependencies, waha } = fixture({ auditFails: true, handler: (url, method) => (method === "GET" ? session("FAILED") : session("STARTING")) });
+test("a trace that cannot be written does not block the connection: the app-log line stands in for it", async () => {
+  const { dependencies, waha, audits, fallbacks } = fixture({ auditFails: true, handler: (url, method) => (method === "GET" ? session("FAILED") : session("STARTING")) });
   const outcome = await performWhatsAppConnect(ADMIN, { action: "connect" }, dependencies);
-  assert.deepEqual([outcome.http, outcome.code], [503, "unavailable"]);
-  assert.equal(waha.calls.filter((call) => call.method === "POST").length, 0);
+  assert.deepEqual(outcome, { status: "ok", session: "STARTING", qr: null, code: null });
+  assert.equal(waha.calls.filter((call) => call.method === "POST").length, 1);
+  assert.equal(audits.length, 0);
+  assert.equal(fallbacks.length, 1);
+  assert.equal(fallbacks[0].errorCode, "unknown");
+  assert.equal(fallbacks[0].entry.kind, "qr");
+  assert.deepEqual(Object.keys(fallbacks[0].entry).sort(), ["actorMembershipId", "actorProfileId", "at", "kind", "organizationId"]);
+});
+
+test("a successful trace leaves no fallback line, and a failed pairing-code trace does not stop the code", async () => {
+  const ok = fixture({ handler: (url, method) => (method === "GET" ? session("FAILED") : session("STARTING")) });
+  await performWhatsAppConnect(ADMIN, { action: "connect" }, ok.dependencies);
+  assert.equal(ok.audits.length, 1);
+  assert.equal(ok.fallbacks.length, 0);
+
+  resetWhatsAppConnectLimitsForTests();
+  const states = ["SCAN_QR_CODE"];
+  const code = fixture({
+    auditFails: true,
+    handler: (url) => (url.endsWith("/auth/request-code") ? json({ code: "KJ4M-9QWX" }, 201) : session(states.shift() ?? "SCAN_QR_CODE")),
+  });
+  const outcome = await performWhatsAppConnect(ADMIN, { action: "code", phone: PHONE }, code.dependencies);
+  assert.deepEqual(outcome, { status: "ok", session: "SCAN_QR_CODE", qr: null, code: "KJ4M-9QWX" });
+  assert.equal(code.fallbacks.length, 1);
+  assert.equal(code.fallbacks[0].entry.kind, "code");
+  const logged = JSON.stringify(code.fallbacks);
+  assert.equal(logged.includes(PHONE), false);
+  assert.equal(logged.includes("KJ4M"), false);
+});
+
+test("a trace that hangs is given up after the timeout and the connection goes on", async () => {
+  const { dependencies, waha, fallbacks } = fixture({ handler: (url, method) => (method === "GET" ? session("FAILED") : session("STARTING")) });
+  const outcome = await performWhatsAppConnect(ADMIN, { action: "connect" }, {
+    ...dependencies,
+    recordAudit: () => new Promise(() => {}),
+    auditTimeoutMs: 20,
+  });
+  assert.equal(outcome.status, "ok");
+  assert.equal(waha.calls.filter((call) => call.method === "POST").length, 1);
+  assert.deepEqual(fallbacks.map((item) => item.errorCode), ["timeout"]);
+});
+
+test("the durable trace is the database function called with the admin's own session and only the kind", async () => {
+  const entry = { kind: "qr", organizationId: ORG, actorProfileId: PROFILE, actorMembershipId: MEMBERSHIP, at: "2026-10-20T10:00:00.000Z" };
+  const qr = fakeAuditClient((fn, args) => ({ data: { kind: args.p_kind, recorded_at: "2026-10-20T10:00:00.1Z" }, error: null }));
+  await recordWhatsAppConnectAudit(entry, qr.createClient);
+  assert.deepEqual(qr.calls, [{ schema: "platform", fn: "record_whatsapp_connect_v1", args: { p_kind: "qr" } }]);
+
+  const code = fakeAuditClient((fn, args) => ({ data: { kind: args.p_kind, recorded_at: "2026-10-20T10:00:00.1Z" }, error: null }));
+  await recordWhatsAppConnectAudit({ ...entry, kind: "code" }, code.createClient);
+  assert.deepEqual(code.calls, [{ schema: "platform", fn: "record_whatsapp_connect_v1", args: { p_kind: "pairing_code" } }]);
+
+  // Ошибка базы — короткий код, без текста; ответ без расписки или с чужим видом записью не считается.
+  const refused = fakeAuditClient(() => ({ data: null, error: { code: "42501", message: "whatsapp_connect_forbidden", details: "secret detail" } }));
+  await assert.rejects(() => recordWhatsAppConnectAudit(entry, refused.createClient), (error) => error.code === "42501" && !String(error.message).includes("secret"));
+  const missing = fakeAuditClient(() => ({ data: null, error: { code: "PGRST202" } }));
+  await assert.rejects(() => recordWhatsAppConnectAudit(entry, missing.createClient), (error) => error.code === "PGRST202");
+  for (const data of [null, {}, { kind: "pairing_code" }, "qr"]) {
+    const bad = fakeAuditClient(() => ({ data, error: null }));
+    await assert.rejects(() => recordWhatsAppConnectAudit(entry, bad.createClient), (error) => error.code === "receipt", JSON.stringify(data));
+  }
+  const noSession = async () => { throw new Error("no session"); };
+  await assert.rejects(() => recordWhatsAppConnectAudit(entry, noSession));
+});
+
+test("the connect service calls the function once per request through the admin's session client and never with the phone", async () => {
+  const database = fakeAuditClient((fn, args) => ({ data: { kind: args.p_kind, recorded_at: "2026-10-20T10:00:00.1Z" }, error: null }));
+  const waha = fixture({ handler: (url, method) => (method === "GET" ? session("FAILED") : session("STARTING")) });
+  const { recordAudit, logAuditFallback, ...rest } = waha.dependencies;
+  void recordAudit; void logAuditFallback;
+  const dependencies = { ...rest, createAuditClient: database.createClient, logAuditFallback: (entry, errorCode) => waha.fallbacks.push({ entry, errorCode }) };
+  assert.equal((await performWhatsAppConnect(ADMIN, { action: "connect" }, dependencies)).status, "ok");
+  assert.deepEqual(database.calls, [{ schema: "platform", fn: "record_whatsapp_connect_v1", args: { p_kind: "qr" } }]);
+  assert.equal(waha.fallbacks.length, 0);
+
+  resetWhatsAppConnectLimitsForTests();
+  const states = ["SCAN_QR_CODE"];
+  const codeWaha = fixture({
+    handler: (url) => (url.endsWith("/auth/request-code") ? json({ code: "KJ4M-9QWX" }, 201) : session(states.shift() ?? "SCAN_QR_CODE")),
+  });
+  const codeDatabase = fakeAuditClient((fn, args) => ({ data: { kind: args.p_kind }, error: null }));
+  const { recordAudit: unused, ...codeRest } = codeWaha.dependencies;
+  void unused;
+  await performWhatsAppConnect(ADMIN, { action: "code", phone: "+1 415 555 0100" }, { ...codeRest, createAuditClient: codeDatabase.createClient });
+  assert.deepEqual(codeDatabase.calls, [{ schema: "platform", fn: "record_whatsapp_connect_v1", args: { p_kind: "pairing_code" } }]);
+  assert.equal(JSON.stringify(codeDatabase.calls).includes(PHONE), false);
+
+  // Нет миграции или база не отвечает: подключение идёт, остаётся строка журнала приложения.
+  resetWhatsAppConnectLimitsForTests();
+  const down = fakeAuditClient(() => ({ data: null, error: { code: "PGRST202" } }));
+  const downWaha = fixture({ handler: (url, method) => (method === "GET" ? session("FAILED") : session("STARTING")) });
+  const { recordAudit: skipped, ...downRest } = downWaha.dependencies;
+  void skipped;
+  const outcome = await performWhatsAppConnect(ADMIN, { action: "connect" }, { ...downRest, createAuditClient: down.createClient });
+  assert.equal(outcome.status, "ok");
+  assert.deepEqual(downWaha.fallbacks.map((item) => item.errorCode), ["PGRST202"]);
 });
 
 test("the QR is served only inside the window opened by «Подключить», and polling is rate limited", async () => {

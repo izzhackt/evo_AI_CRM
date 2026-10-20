@@ -36,17 +36,20 @@ import {
  *    (`recordAudit`) *до* обращения к WAHA. Ни QR, ни кода, ни номера в записи
  *    нет: вид запроса, кто, в какой организации, когда. Опрос состояния и
  *    обновление QR внутри открытого окна записей не пишут — окно открыл нажатый
- *    «Подключить», и QR выдаётся только ему (10 минут).
+ *    «Подключить», и QR выдаётся только ему (10 минут). След постоянный: функция
+ *    базы `platform.record_whatsapp_connect_v1` (миграция 311) вызывается сессией
+ *    самого администратора и пишет `platform.audit_events`; он виден в «Журнале
+ *    действий». Не записалось (база не ответила, миграция ещё не применена, срок
+ *    вышел) — остаётся строка журнала приложения `whatsapp_connect_audit`
+ *    (`logAuditFallback`), а подключение не блокируется: запись следа — не
+ *    условие входа в WhatsApp.
  *  - **Лимиты.** Не чаще одного запуска/перезапуска за 30 с на организацию;
  *    «Подключить» — раз в 10 с, код — раз в 20 с, опрос — раз в 1,5 с на
  *    администратора. Состояние держится в памяти процесса: приложение одно.
  *  - **Нет** выхода из аккаунта, удаления и создания сессии.
  *
- * Запись следа сейчас — строка журнала приложения (`recordAudit`), а не строка
- * `platform.audit_events`: таблица принимает записи только из функций базы, а
- * новое действие журнала — это миграция, которую выпуск приложения не применяет
- * (`deploy/fast-app-release.md`: «never applies … a migration»). Замена одной
- * функции на вызов базы — отдельный срез со своей миграцией; см. запись
+ * Запись `platform.audit_events` идёт только через функцию базы, поэтому след — миграция
+ * 311 и вызов под сессией администратора, а не сервисный ключ; см. запись
  * `docs/PLAN_CHANGES.md` от 20.10.2026.
  */
 
@@ -72,10 +75,38 @@ export type WhatsAppConnectDependencies = Readonly<{
   resolveRuntime?: (organizationId: string) => Promise<PlatformManualSendWahaRuntime>;
   createClient?: (runtime: PlatformManualSendWahaRuntime) => WahaConnectClient;
   clientDependencies?: WahaConnectDependencies;
+  /** Постоянный след: вызов функции базы под сессией администратора. Бросает, если не записалось. */
   recordAudit?: (entry: WhatsAppConnectAuditEntry) => void | Promise<void>;
+  /** Клиент базы с сессией администратора для `recordAudit` по умолчанию. */
+  createAuditClient?: () => Promise<WhatsAppAuditRpcClient>;
+  /** Запасной след, если `recordAudit` не отработал: строка журнала приложения. */
+  logAuditFallback?: (entry: WhatsAppConnectAuditEntry, errorCode: string) => void;
+  /** Сколько ждать запись следа, мс; потом подключение идёт дальше с запасным следом. */
+  auditTimeoutMs?: number;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
 }>;
+
+/** Сколько ждать функцию базы со следом; дольше — идём дальше, запись остаётся строкой журнала приложения. */
+export const WHATSAPP_AUDIT_TIMEOUT_MS = 4_000;
+
+/** Вид запроса в функции базы: `qr` — «Подключить», `pairing_code` — «Получить код». */
+const AUDIT_RPC_KIND = { qr: "qr", code: "pairing_code" } as const satisfies Record<WhatsAppConnectAuditEntry["kind"], string>;
+
+/** Ошибка записи следа: только короткий код (SQLSTATE, `PGRST…`, `timeout`), без текста базы. */
+class WhatsAppAuditError extends Error {
+  readonly code: string;
+  constructor(code: string) {
+    super(code);
+    this.name = "WhatsAppAuditError";
+    this.code = code;
+  }
+}
+
+function auditErrorCode(error: unknown): string {
+  const code = error instanceof WhatsAppAuditError ? error.code : (error as { code?: unknown } | null)?.code;
+  return typeof code === "string" && /^[A-Za-z0-9_]{1,16}$/u.test(code) ? code : "unknown";
+}
 
 /** Сколько ждать, пока сессия после запуска дойдёт до «ждёт сканирования». */
 export const WHATSAPP_CODE_READY_WAIT_MS = 20_000;
@@ -110,10 +141,48 @@ function defaultResolveRuntime(organizationId: string): Promise<PlatformManualSe
   );
 }
 
-/** Строка журнала приложения; поля — ровно перечисленные в `WhatsAppConnectAuditEntry`. */
-function defaultRecordAudit(entry: WhatsAppConnectAuditEntry): void {
+/** Из клиента базы нужен один вызов: `schema("platform").rpc(...)`. */
+export type WhatsAppAuditRpcClient = Readonly<{
+  schema(name: string): {
+    rpc(
+      name: string,
+      args: Record<string, unknown>,
+    ): PromiseLike<{ data: unknown; error: { code?: string } | null }>;
+  };
+}>;
+
+async function sessionAuditClient(): Promise<WhatsAppAuditRpcClient> {
+  const { createSupabaseServerClient } = await import("../supabase/server.ts");
+  return createSupabaseServerClient();
+}
+
+/**
+ * Постоянный след: `platform.record_whatsapp_connect_v1` под сессией самого администратора (не
+ * сервисный ключ). Функция сама берёт личность и организацию из токена и проверяет, что это
+ * действующий администратор; в неё уходит только вид запроса, ни номер, ни QR, ни код. Расписка
+ * должна повторить вид: ответ без неё записью не считается. Бросает, если не записалось.
+ */
+export async function recordWhatsAppConnectAudit(
+  entry: WhatsAppConnectAuditEntry,
+  createClient: () => Promise<WhatsAppAuditRpcClient> = sessionAuditClient,
+): Promise<void> {
+  const client = await createClient();
+  const { data, error } = await client.schema("platform").rpc("record_whatsapp_connect_v1", {
+    p_kind: AUDIT_RPC_KIND[entry.kind],
+  });
+  if (error) throw new WhatsAppAuditError(typeof error.code === "string" ? error.code : "unknown");
+  const receipt = data as { kind?: unknown } | null;
+  if (!receipt || typeof receipt !== "object" || receipt.kind !== AUDIT_RPC_KIND[entry.kind]) {
+    throw new WhatsAppAuditError("receipt");
+  }
+}
+
+/** Запасной след — строка журнала приложения; поля — перечисленные в `WhatsAppConnectAuditEntry` и код отказа записи. */
+function defaultLogAuditFallback(entry: WhatsAppConnectAuditEntry, errorCode: string): void {
   console.info(JSON.stringify({
     event: "whatsapp_connect_audit",
+    durable: false,
+    audit_error: errorCode,
     kind: entry.kind,
     organization_id: entry.organizationId,
     actor_profile_id: entry.actorProfileId,
@@ -236,23 +305,41 @@ async function readStatus(
   return { status: "ok", session, qr, code: null };
 }
 
-/** След по нажатию: пишется до обращения к WAHA; не записался — к WAHA не идём. */
+/**
+ * След по нажатию: пишется до обращения к WAHA. Не записался (база недоступна, миграция не
+ * применена, вышел срок) — строка журнала приложения вместо записи платформы; подключение это
+ * не блокирует. Ничего, кроме короткого кода отказа, из ошибки в журнал не попадает.
+ */
 async function writeAudit(
   actor: ActivePlatformActor,
   kind: WhatsAppConnectAuditEntry["kind"],
   dependencies: WhatsAppConnectDependencies,
-): Promise<boolean> {
+): Promise<void> {
+  const entry: WhatsAppConnectAuditEntry = {
+    kind,
+    organizationId: actor.organizationId,
+    actorProfileId: actor.profileId,
+    actorMembershipId: actor.membershipId,
+    at: new Date((dependencies.now ?? (() => Date.now()))()).toISOString(),
+  };
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await (dependencies.recordAudit ?? defaultRecordAudit)({
-      kind,
-      organizationId: actor.organizationId,
-      actorProfileId: actor.profileId,
-      actorMembershipId: actor.membershipId,
-      at: new Date((dependencies.now ?? (() => Date.now()))()).toISOString(),
+    const write = Promise.resolve().then(() =>
+      dependencies.recordAudit
+        ? dependencies.recordAudit(entry)
+        : recordWhatsAppConnectAudit(entry, dependencies.createAuditClient));
+    const expired = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new WhatsAppAuditError("timeout")), dependencies.auditTimeoutMs ?? WHATSAPP_AUDIT_TIMEOUT_MS);
     });
-    return true;
-  } catch {
-    return false;
+    await Promise.race([write, expired]);
+  } catch (error) {
+    try {
+      (dependencies.logAuditFallback ?? defaultLogAuditFallback)(entry, auditErrorCode(error));
+    } catch {
+      // Запасной след тоже не вышел — на подключение это не влияет.
+    }
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -288,7 +375,7 @@ async function connectSession(
   if (current === "WORKING") return { status: "ok", session: current, qr: null, code: null };
   const limited = restartWait(actor.organizationId, current, now());
   if (limited !== null) return refused(429, "rate_limited", limited);
-  if (!(await writeAudit(actor, "qr", dependencies))) return refused(503, "unavailable");
+  await writeAudit(actor, "qr", dependencies);
   const session = await ensureStarted(actor.organizationId, client, current, now());
   limits.windowUntil.set(`${actor.organizationId}:${actor.profileId}`, now() + WHATSAPP_CONNECT_WINDOW_MS);
   return { status: "ok", session, qr: null, code: null };
@@ -308,7 +395,7 @@ async function pairByCode(
   if (current === "WORKING") return refused(409, "already_connected");
   const limited = restartWait(actor.organizationId, current, now());
   if (limited !== null) return refused(429, "rate_limited", limited);
-  if (!(await writeAudit(actor, "code", dependencies))) return refused(503, "unavailable");
+  await writeAudit(actor, "code", dependencies);
   let session = await ensureStarted(actor.organizationId, client, current, now());
   const deadline = now() + WHATSAPP_CODE_READY_WAIT_MS;
   while (session !== "SCAN_QR_CODE" && session !== "WORKING" && now() < deadline) {

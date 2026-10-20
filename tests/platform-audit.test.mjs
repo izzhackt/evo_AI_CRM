@@ -83,6 +83,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["291_platform_telephony_rights.sql", "telephony_rights"],
   // Смена направления дела: одно действие case.direction.set.
   ["302_platform_case_direction_audit.sql", "case_direction_audit"],
+  // «Подключение WhatsApp»: два действия whatsapp.connect.*, объект organization.
+  ["311_platform_whatsapp_connect_audit.sql", "whatsapp_connect_audit"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -298,6 +300,8 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "telephony.recording.listen",
     "telephony.result.set",
     "telephony.settings.change",
+    "whatsapp.connect.code",
+    "whatsapp.connect.qr",
     "work.review.resolve",
   ]);
   assert.deepEqual([...laterResourceTypes].sort(), [
@@ -523,6 +527,33 @@ test("telephony journal actions and resource types are allowlisted and worded in
   for (const action of ["telephony.receive", "telephony.project", "telephony.settle", "telephony.claim"]) {
     assert.equal(PLATFORM_AUDIT_ACTIONS.includes(action), false, `${action} must stay out of the journal`);
   }
+});
+
+// «Подключение WhatsApp» (миграция 311): два действия, которые пишет
+// platform.record_whatsapp_connect_v1, видны в «Журнале действий» словами; тип объекта
+// organization уже в списке, нового нет; неизвестное значение слова не получает.
+test("whatsapp.connect.* journal actions are allowlisted and worded in Russian", () => {
+  const actions = ["whatsapp.connect.code", "whatsapp.connect.qr"];
+  assert.deepEqual(PLATFORM_AUDIT_ACTIONS.filter((action) => action.startsWith("whatsapp.")), actions);
+  assert.equal(journalEvent("whatsapp.connect.qr"), "Запрошен QR для подключения WhatsApp");
+  assert.equal(journalEvent("whatsapp.connect.code"), "Запрошен код для подключения WhatsApp");
+  for (const action of actions) {
+    const word = journalEvent(action);
+    assert.match(word, /[А-Яа-я]/u);
+    assert.equal(word.includes("whatsapp."), false, `${action} wording shows a raw code`);
+    assert.equal(/\d/u.test(word), false, `${action} wording carries a number`);
+  }
+  assert.equal(journalEvent("whatsapp.connect.pairing_code"), null);
+  assert.equal(journalEvent("whatsapp.connect"), null);
+  assert.equal(PLATFORM_AUDIT_RESOURCE_TYPES.some((type) => type.startsWith("whatsapp")), false);
+  assert.equal(journalObject("organization"), "Организация");
+  // The row is recognized with the default field code and no extra key.
+  const [row] = normalizePlatformAuditSearchResult({
+    ...DIRECTION_PAGE_BASE,
+    rows: [{ ...SAFE_ROW, action: "whatsapp.connect.qr", resource_type: "organization", actor_display_label: "Staff", changed_field_codes: ["record_status"] }],
+  }).rows;
+  assert.equal(row.recognized, true);
+  assert.deepEqual(row.changedFieldCodes, ["record_status"]);
 });
 
 // Смена направления дела (миграция «аудит направления», номер 302):

@@ -395,7 +395,7 @@ test("getHistory accepts a bare array or the list wrapper and nothing else; nume
   const wrapped = harness(() => jsonResponse({ items: [{ uid: 42, type: "out", start: "2026-10-10T08:59:22Z" }], info: { total: 1 } }));
   const result = await wrapped.client.getHistory({ start: new Date("2026-10-10T08:00:00Z"), end: new Date("2026-10-10T10:00:00Z") });
   assert.equal(result.rows[0].uid, 42);
-  for (const shape of [{ rows: [] }, "text", 7, null]) {
+  for (const shape of [{ rows: [] }, { foo: 1 }, "text", "x", 7, true]) {
     const bad = harness(() => jsonResponse(JSON.stringify(shape)));
     await assert.rejects(
       bad.client.getHistory({ start: new Date("2026-10-10T08:00:00Z"), end: new Date("2026-10-10T10:00:00Z") }),
@@ -403,6 +403,36 @@ test("getHistory accepts a bare array or the list wrapper and nothing else; nume
       JSON.stringify(shape),
     );
   }
+});
+
+test("getHistory reads the JSON body `null` the PBX sends for a window without calls as an empty list", async () => {
+  // Observed on the real PBX on 20.10.2026: HTTP 200, application/json, body exactly `null`.
+  const { client, state } = harness(() => jsonResponse("null"));
+  const result = await client.getHistory({ start: new Date("2026-10-10T08:00:00Z"), end: new Date("2026-10-10T10:00:00Z") });
+  assert.deepEqual(result.rows, []);
+  assert.equal(result.full, false);
+  assert.equal(state.calls.length, 1, "an empty window is an answer, not a reason to retry");
+  assert.equal(state.attempts[0].errorCode, null);
+});
+
+test("an empty or non-JSON history body is still a bad answer, only `null` means no calls", async () => {
+  for (const body of ["", "<html>login</html>", "nul"]) {
+    const bad = harness(() => new Response(body, { status: 200, headers: { "content-type": "application/json" } }));
+    await assert.rejects(
+      bad.client.getHistory({ start: new Date("2026-10-10T08:00:00Z"), end: new Date("2026-10-10T10:00:00Z") }),
+      (error) => error.code === "pbx_bad_response",
+      body,
+    );
+  }
+});
+
+test("the `null` answer is accepted for history only: users, groups and the single objects still refuse it", async () => {
+  const nullAnswer = () => jsonResponse("null");
+  await assert.rejects(harness(nullAnswer).client.listUsers(), (error) => error.code === "pbx_bad_response");
+  await assert.rejects(harness(nullAnswer).client.countGroups(), (error) => error.code === "pbx_bad_response");
+  await assert.rejects(harness(nullAnswer).client.getUser("u701"), (error) => error.code === "pbx_bad_response");
+  await assert.rejects(harness(nullAnswer).client.getDomain(), (error) => error.code === "pbx_bad_response");
+  await assert.rejects(harness(nullAnswer).client.getRecordSettings(), (error) => error.code === "pbx_bad_response");
 });
 
 test("getHistory reports a full page and refuses an empty or reversed window before any request", async () => {

@@ -44,6 +44,13 @@ type PostResult =
 const REQUEST_LIMIT_MS = 60_000;
 
 async function post(body: Readonly<Record<string, unknown>>, signal?: AbortSignal): Promise<PostResult> {
+  // Свой таймер и свой контроллер, без `AbortSignal.any`/`timeout`: на телефоне владельца может быть
+  // Safari, где их ещё нет, и тогда блок молча не работал бы вовсе.
+  const controller = new AbortController();
+  const stop = () => controller.abort();
+  const timer = window.setTimeout(stop, REQUEST_LIMIT_MS);
+  if (signal?.aborted) stop();
+  signal?.addEventListener("abort", stop);
   try {
     const response = await fetch(WHATSAPP_CONNECT_PATH, {
       method: "POST",
@@ -51,7 +58,7 @@ async function post(body: Readonly<Record<string, unknown>>, signal?: AbortSigna
       cache: "no-store",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
-      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(REQUEST_LIMIT_MS)]) : AbortSignal.timeout(REQUEST_LIMIT_MS),
+      signal: controller.signal,
     });
     const parsed: unknown = await response.json().catch(() => null);
     if (response.ok) {
@@ -62,6 +69,9 @@ async function post(body: Readonly<Record<string, unknown>>, signal?: AbortSigna
     return { ok: false, http: response.status, ...parseWhatsAppConnectError(parsed) };
   } catch {
     return { ok: false, http: 0, code: "unavailable", retryAfterSeconds: null };
+  } finally {
+    window.clearTimeout(timer);
+    signal?.removeEventListener("abort", stop);
   }
 }
 

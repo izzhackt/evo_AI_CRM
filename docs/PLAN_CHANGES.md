@@ -60747,7 +60747,7 @@ Affected plan section: `docs/design/v3/product.md` («20.10 — Подключе
 - Тесты: `tests/platform-waha-connect.test.mjs` (слова, номер/код/QR, клиент, отказ не-администратору
   и просмотру роли на сервере, лимиты, след без секретов, маршрут, закрытый путь) и
   `tests/platform-waha-connect-live.test.mjs` (нужен явный `EVO_LOCAL_WAHA_DISPOSABLE=1`; отказывается
-  работать, если на WAHA есть привязанная сессия) против настоящего WAHA `gows-2026.9.2` на одноразовой
+  работать, если на WAHA есть хоть одна сессия) против настоящего WAHA `gows-2026.9.2` на одноразовой
   локальной сессии: `STOPPED → STARTING → SCAN_QR_CODE`, QR — настоящая PNG и меняется через 70 с,
   `request-code` отвечает (GOWS: `RequestCode` реализован), вымышленный номер 555-01xx WhatsApp
   отклоняет, CRM говорит «WhatsApp не принял номер». Смежные: `test:unit:core`, `test:frontend`

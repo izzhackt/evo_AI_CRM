@@ -40,8 +40,8 @@ type PostResult =
   | Readonly<{ ok: true; reply: WhatsAppConnectReply }>
   | Readonly<{ ok: false; http: number; code: WhatsAppConnectErrorCode | null; retryAfterSeconds: number | null }>;
 
-/** Дольше всего отвечает «Получить код»: ожидание запуска до 20 с и ответ WAHA до 30 с. */
-const REQUEST_LIMIT_MS = 60_000;
+/** Дольше всего отвечает «Получить код»: ожидание запуска до 20 с (с чтением состояния до 5 с за шаг) и ответ WAHA до 30 с. */
+const REQUEST_LIMIT_MS = 90_000;
 
 async function post(body: Readonly<Record<string, unknown>>, signal?: AbortSignal): Promise<PostResult> {
   // Свой таймер и свой контроллер, без `AbortSignal.any`/`timeout`: на телефоне владельца может быть
@@ -263,6 +263,9 @@ export function WhatsAppConnectSection({
     applyReply(result.reply);
     if (result.reply.code) {
       setCode(result.reply.code);
+      // QR, оставшийся от прежней попытки, больше не нужен и не должен мелькнуть, когда код погаснет.
+      setQr(null);
+      qrAtRef.current = 0;
       if (isWaiting(result.reply.status)) openWindow();
     }
   }
@@ -384,9 +387,10 @@ export function WhatsAppConnectSection({
         ) : null}
         {/* «Готово» при подключении слышит читалка; на экране то же уже сказано абзацем выше и чипом. */}
         {notice && !working ? <p className="t-body-compact text-fg" data-testid="v3-whatsapp-connect-notice">{notice}</p> : null}
-        {/* Одна постоянная область для читалки: текст, появившийся вместе с самой областью, многие читалки не озвучивают. */}
-        <p className="sr-only" role="status" aria-live="polite" aria-atomic="true" data-testid="v3-whatsapp-connect-live">{announcement}</p>
       </div>
+      {/* Одна постоянная область для читалки: текст, появившийся вместе с самой областью, многие читалки не озвучивают.
+          Стоит вне контейнера с `space-y-4`: последний потомок, даже скрытый, дал бы видимому блоку лишние 16 px снизу. */}
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true" data-testid="v3-whatsapp-connect-live">{announcement}</p>
     </section>
   );
 }

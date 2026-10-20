@@ -21,10 +21,11 @@ import {
  *     tests/platform-waha-connect-live.test.mjs
  *
  * Тест создаёт и удаляет сессию `crm_primary`, поэтому запускается только с явным
- * `EVO_LOCAL_WAHA_DISPOSABLE=1` и отказывается работать, если на этом WAHA уже есть
- * привязанная сессия (поле `me`) или любая сессия не из этого теста, — так случайный
- * адрес (например ssh-туннель к рабочему WAHA) ничего не разлогинит. Без этих переменных
- * тест пропускается. Приложение работает как на сервере —
+ * `EVO_LOCAL_WAHA_DISPOSABLE=1` и только на ПУСТОМ WAHA: если на нём уже есть любая сессия
+ * (в том числе остановленная, в том числе с пустым `me`), он отказывается работать и ничего
+ * не удаляет, — так случайный адрес (например ssh-туннель к рабочему WAHA, где `crm_primary`
+ * может стоять в FAILED без `me`) ничего не разлогинит. Свежий контейнер на каждый прогон;
+ * сессию после себя тест удаляет сам. Без этих переменных тест пропускается. Приложение работает как на сервере —
  * клиент и сервис те же; подменяется только адрес (`http://evo-crm-waha:3000`
  * → локальный). Рабочая сессия сервера здесь не участвует. Сессию на локальном
  * WAHA создаёт и удаляет сам тест, прямыми вызовами (приложение этого не умеет и
@@ -68,15 +69,10 @@ async function until(read, done, { timeoutMs = 60_000, stepMs = 1_000 } = {}) {
 }
 
 test("the connect block works against a real WAHA gows-2026.9.2: states, QR, refresh and the pairing code", { skip, timeout: 240_000 }, async (t) => {
-  // Охрана: на этом WAHA нет ничего, что можно потерять. Привязанная сессия или чужое имя — стоп.
+  // Охрана: на этом WAHA нет ни одной сессии, значит нечего потерять и нечего разлогинить.
   const existing = await (await direct("/api/sessions?all=true")).json();
   assert.ok(Array.isArray(existing), "session list");
-  for (const found of existing) {
-    assert.equal(found.name, "crm_primary", `refusing to run: unexpected session on this WAHA`);
-    assert.equal(found.me ?? null, null, "refusing to run: crm_primary on this WAHA is linked to an account");
-  }
-  // Чистая одноразовая сессия на ЛОКАЛЬНОМ WAHA (прежняя несвязанная, если осталась от прошлого прогона).
-  if (existing.length > 0) await direct("/api/sessions/crm_primary", "DELETE");
+  assert.equal(existing.length, 0, "refusing to run: this WAHA already has a session; use a fresh throwaway container");
   const created = await direct("/api/sessions", "POST", { name: "crm_primary", start: false });
   assert.ok(created.ok, `local session create ${created.status}`);
   t.after(async () => { await direct("/api/sessions/crm_primary", "DELETE"); });

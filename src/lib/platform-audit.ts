@@ -61,6 +61,13 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // type, so no resource type is added; they fall through to the
 // `["record_status"]` default of `expectedChangedFieldCodes`, exactly like the
 // server's `ELSE`.
+// Migration 313 («Удаление аккаунта (280): доработки P3», docs/PLAN_CHANGES.md «2026-10-21 ·
+// Удаление аккаунта (280): доработки P3 (миграция 313)») adds five actions,
+// `account.deletion.request|process|complete|manual.complete|email` (written by 280's
+// request/process/complete/mark/record functions), and the resource type
+// `account_deletion_request`, by the same rename-and-union wrappers
+// (`..._pre_account_deletion_journal`). They fall through to the `["record_status"]`
+// default of `expectedChangedFieldCodes`, exactly like the server's `ELSE`.
 // `expectedChangedFieldCodes` below needed no new branch for 255's 71
 // actions: 9 `document.export.*` actions already hit the existing
 // `action.startsWith("document.")` branch (mirroring the server's
@@ -78,6 +85,11 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // row keeps exactly the ten keys of `SAFE_ROW_KEYS`, so `parseSafeRow` accepts the
 // extra key on this action and nowhere else.
 export const PLATFORM_AUDIT_ACTIONS = [
+  "account.deletion.complete",
+  "account.deletion.email",
+  "account.deletion.manual.complete",
+  "account.deletion.process",
+  "account.deletion.request",
   "ai.control.set",
   "ai.draft.generate",
   "ai.draft.language.resolve",
@@ -294,6 +306,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
 ] as const;
 
 export const PLATFORM_AUDIT_RESOURCE_TYPES = [
+  "account_deletion_request",
   "ai_draft",
   "ai_draft_request",
   "ai_draft_request_knowledge_selection",

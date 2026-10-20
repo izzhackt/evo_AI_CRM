@@ -44,7 +44,8 @@
 --      pair must be read back; that page is emitted too, so the checker
 --      script replays it through the real TS normalizer. Migration 291
 --      (telephony T2) adds the 6 telephony pairs to the same list (86 pairs);
---      migration 311 («Подключение WhatsApp») adds its 2 pairs (88 pairs).
+--      migration 311 («Подключение WhatsApp») adds its 2 pairs (88 pairs); migration 313
+--      (удаление аккаунта) adds the 5 account.deletion.* pairs (93 pairs).
 --
 -- Fixture: one organization + one Platform Admin membership, modelled like
 -- production per 155 (platform_private.staff_membership_identity,
@@ -415,7 +416,14 @@ INSERT INTO p7aj_pairs(action, resource_type) VALUES
     -- «Подключение WhatsApp» (migration 311): the pair record_whatsapp_connect_v1 writes, the
     -- session's organization as the object (no new resource type).
     ('whatsapp.connect.qr', 'organization'),
-    ('whatsapp.connect.code', 'organization');
+    ('whatsapp.connect.code', 'organization'),
+    -- Удаление аккаунта (migrations 280 and 313): the five pairs the deletion functions write, all on the
+    -- deletion request row (the new resource type account_deletion_request).
+    ('account.deletion.request', 'account_deletion_request'),
+    ('account.deletion.process', 'account_deletion_request'),
+    ('account.deletion.complete', 'account_deletion_request'),
+    ('account.deletion.manual.complete', 'account_deletion_request'),
+    ('account.deletion.email', 'account_deletion_request');
 
 INSERT INTO platform.audit_events(
   organization_id, actor_kind, actor_principal, action, resource_type, resource_id,
@@ -426,8 +434,10 @@ SELECT pg_temp.p7aj_id(1), 'system', 'P7AJ synthetic real-writer pair fixture ac
 FROM p7aj_pairs;
 
 SELECT pg_temp.p7aj_assert(
-  (SELECT count(DISTINCT action) FROM p7aj_pairs WHERE action NOT LIKE 'telephony.%' AND action NOT LIKE 'whatsapp.%') = 71
-    AND (SELECT count(*) FROM p7aj_pairs WHERE action NOT LIKE 'telephony.%' AND action NOT LIKE 'whatsapp.%') = 80,
+  (SELECT count(DISTINCT action) FROM p7aj_pairs WHERE action NOT LIKE 'telephony.%' AND action NOT LIKE 'whatsapp.%'
+      AND action NOT LIKE 'account.deletion.%') = 71
+    AND (SELECT count(*) FROM p7aj_pairs WHERE action NOT LIKE 'telephony.%' AND action NOT LIKE 'whatsapp.%'
+      AND action NOT LIKE 'account.deletion.%') = 80,
   'the real-writer pair list covers the 71 actions 255 added (80 pairs: 9 document.export.* carry two resource types)');
 SELECT pg_temp.p7aj_assert(
   (SELECT count(DISTINCT action) FROM p7aj_pairs WHERE action LIKE 'telephony.%') = 6
@@ -441,6 +451,12 @@ SELECT pg_temp.p7aj_assert(
     AND (SELECT array_agg(action ORDER BY action) FROM p7aj_pairs WHERE action LIKE 'whatsapp.%')
       = (SELECT array_agg(a ORDER BY a) FROM unnest(platform_private.p7a_safe_audit_actions()) a WHERE a LIKE 'whatsapp.%'),
   'the pair list covers exactly the two WhatsApp connection actions migration 311 added');
+SELECT pg_temp.p7aj_assert(
+  (SELECT count(DISTINCT action) FROM p7aj_pairs WHERE action LIKE 'account.deletion.%') = 5
+    AND (SELECT count(*) FROM p7aj_pairs WHERE action LIKE 'account.deletion.%') = 5
+    AND (SELECT array_agg(action ORDER BY action) FROM p7aj_pairs WHERE action LIKE 'account.deletion.%')
+      = (SELECT array_agg(a ORDER BY a) FROM unnest(platform_private.p7a_safe_audit_actions()) a WHERE a LIKE 'account.deletion.%'),
+  'the pair list covers exactly the five account deletion actions migration 313 added');
 
 SET LOCAL ROLE authenticated;
 CREATE TEMP TABLE p7aj_pair_pages(page JSONB);

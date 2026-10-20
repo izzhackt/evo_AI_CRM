@@ -21,7 +21,7 @@ import {
   readPlatformFact,
   readWhatsAppConnection,
 } from "@/lib/v3/settings-source";
-import { readAccountDeletionDetail, readAccountDeletionQueue } from "@/lib/v3/account-deletion-source";
+import { readAccountDeletionDetail, readAccountDeletionQueue, readOpenAccountDeletionCount } from "@/lib/v3/account-deletion-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Настройки" };
@@ -70,7 +70,7 @@ export default async function SettingsPart({
   const telephonyRead = section === "telephony" || section === "integrations" ? readTelephonyAdmin(actor) : Promise.resolve(null);
 
   const deletionSelected = isAdmin && section === "deletion" && typeof params.request === "string" ? params.request : null;
-  const [integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement, deletionQueue, deletionDetail, telephony, whatsappConnection] = await Promise.all([
+  const [integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement, deletionQueue, deletionDetail, deletionOpen, telephony, whatsappConnection] = await Promise.all([
     telephonyRead.then((read) => readIntegrations(actor, new Date(), telephonyIntegrationFactsFrom(read))),
     isAdmin
       ? readJournal(actor, journalFilters, {
@@ -90,6 +90,8 @@ export default async function SettingsPart({
     isAdmin && section === "platform" ? readSalesRegisterManagement(actor, null) : Promise.resolve(undefined),
     section === "deletion" ? readAccountDeletionQueue(actor) : Promise.resolve(undefined),
     deletionSelected ? readAccountDeletionDetail(actor, deletionSelected) : Promise.resolve(null),
+    // Число у пункта «Запросы на удаление»: дешёвый подсчёт, а не вся очередь.
+    readOpenAccountDeletionCount(actor),
     telephonyRead,
     // «Подключение WhatsApp» (20.10.2026): то же живое слово WAHA, что у таблицы выше (одно чтение).
     section === "integrations" ? readWhatsAppConnection(actor) : Promise.resolve(undefined),
@@ -160,6 +162,7 @@ export default async function SettingsPart({
         deletionQueue={deletionQueue}
         deletionDetail={deletionDetail}
         deletionHrefFor={(requestId: string | null) => query({ section: "deletion", request: requestId ?? undefined })}
+        deletionOpen={deletionOpen}
         telephony={telephony}
         // Просмотр роли виден, но не меняет настройки телефонии.
         telephonyReadOnly={isStaffPreview(actor)}

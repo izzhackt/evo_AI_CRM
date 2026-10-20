@@ -5,6 +5,7 @@ import { AccountDeletionSection } from "./AccountDeletionSection";
 import { TelephonySection } from "./TelephonySection";
 import { WhatsAppConnectSection } from "./WhatsAppConnectSection";
 import type { TelephonyAdminRead } from "@/lib/server/platform-telephony-admin";
+import type { AccountDeletionOpenCount } from "@/lib/account-deletion-contract";
 import type { AccountDeletionDetailRead, AccountDeletionQueueRead } from "@/lib/v3/account-deletion-source";
 import type { StaffWorkspaceData } from "@/lib/v3/staff-workspace-contract";
 import type { StaffRoleWorkspace } from "@/lib/v3/staff-roles-contract";
@@ -60,6 +61,7 @@ export function Settings({
   deletionQueue,
   deletionDetail,
   deletionHrefFor,
+  deletionOpen,
   telephony,
   telephonyReadOnly,
   whatsappConnect,
@@ -91,6 +93,8 @@ export function Settings({
   deletionQueue?: AccountDeletionQueueRead;
   deletionDetail?: AccountDeletionDetailRead | null;
   deletionHrefFor?: (requestId: string | null) => string;
+  /** Число не выполненных запросов у пункта «Запросы на удаление» в любом разделе (ревью 280, UI-F6). */
+  deletionOpen?: AccountDeletionOpenCount | null;
   /** «Телефония» (срез T4b): чтение экрана; `null` — раздел не открыт. */
   telephony?: TelephonyAdminRead | null;
   /** Просмотр роли: экран виден, настройки не меняются. */
@@ -126,6 +130,17 @@ export function Settings({
                   className="v3-choice inline-flex min-h-11 w-full items-center whitespace-nowrap rounded-nav px-3 text-sm text-fg-2 hover:bg-surface-2 hover:text-fg"
                 >
                   {entry.title}
+                  {entry.key === "deletion" && deletionOpen && deletionOpen.open > 0 ? (
+                    <>
+                      <span aria-hidden="true" data-testid="v3-settings-deletion-count"
+                        className="t-caption ms-2 min-w-5 rounded-full bg-fg px-1 text-center tabular-nums text-surface">
+                        {deletionOpen.open > 99 ? "99+" : deletionOpen.open}
+                      </span>
+                      <span className="sr-only">
+                        {`, не выполнено: ${deletionOpen.open}${deletionOpen.overdue > 0 ? `, просрочено: ${deletionOpen.overdue}` : ""}`}
+                      </span>
+                    </>
+                  ) : null}
                 </Link>
               </li>
             ))}

@@ -562,6 +562,49 @@ SQL
     done
   fi
 
+  # «Удаление аккаунта (280): доработки P3» (issue #1192, migration 313, PLAN_CHANGES 21.10.2026).
+  # Matched by name, not number, so a renumbering at merge keeps the hook. IMMEDIATELY BEFORE
+  # the ordinary apply the migration must refuse with a313_anchor_drift, inside a transaction
+  # that the failure rolls back, for each of the seven functions it replaces when that function
+  # is edited after 280 (the md5 pre-image anchors; the one SQL-language function is edited at
+  # its first SELECT, the PL/pgSQL ones at their first BEGIN).
+  if [[ "$(basename "$migration")" == *_platform_account_deletion_p3.sql ]]; then
+    for t313_pinned in \
+      'platform_private.account_deletion_auth_log_erase(uuid)' \
+      'platform.process_account_deletion_v1(uuid)' \
+      'platform.complete_account_deletion_v1(uuid)' \
+      'platform.mark_account_deletion_done_v1(uuid,text)' \
+      'platform_private.account_deletion_plan(platform_private.account_deletion_requests)' \
+      'platform_private.account_deletion_queue_row(platform_private.account_deletion_requests)' \
+      'platform.staff_account_deletion_detail_v1(uuid)'; do
+      t313_tamper_log="$(mktemp -t evo-t313-anchor.XXXXXX)"
+      if docker exec -i "$container_name" \
+        psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+        -v "pinned_function=$t313_pinned" \
+        -v "migration_file=/workspace/$migration" \
+        >"$t313_tamper_log" 2>&1 <<'SQL'
+BEGIN;
+SELECT CASE WHEN :'pinned_function' LIKE '%queue_row%'
+  THEN replace(pg_get_functiondef(:'pinned_function'::regprocedure), 'SELECT jsonb_build_object(',
+    'SELECT /* tampered after its own migration */ jsonb_build_object(')
+  ELSE replace(pg_get_functiondef(:'pinned_function'::regprocedure), 'BEGIN',
+    'BEGIN /* tampered after its own migration */') END AS tampered_definition \gset
+:tampered_definition ;
+\i :migration_file
+SQL
+      then
+        echo "migration 313 accepted an edited $t313_pinned" >&2
+        exit 1
+      fi
+      if ! grep -Fq "a313_anchor_drift" "$t313_tamper_log"; then
+        echo "migration 313 failed for the wrong pre-image reason ($t313_pinned)" >&2
+        sed -n '1,60p' "$t313_tamper_log" >&2
+        exit 1
+      fi
+      rm -f "$t313_tamper_log"
+    done
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -4184,6 +4227,25 @@ SQL
     printf '%s\n' "$password_recovery_staff_check_log"
     if ! grep -q 'PASSWORD_RECOVERY_STAFF_CHECK_SUITE_PASSED' <<<"$password_recovery_staff_check_log"; then
       echo "platform_password_recovery_staff_check.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «Удаление аккаунта (280): доработки P3» (migration 313), after the migration. Matched by name.
+  # The suite proves, through the real анкета path: the result of the Auth journal erasure is kept
+  # (erased / not_erased, in the summary, the journal row and the Admin's detail; also with the
+  # privilege taken away from the function owner), a soft-deleted login closes an automatic
+  # request, a started request that stopped being simple reads as manual and is closed by the
+  # manual path (a simple one is still refused), the queue says whether an applicant had an
+  # анкета, the open count is the Admin's only, and the journal allowlist gets exactly five actions
+  # and one object type. Insisting on the suite's marker (a psql exit code alone would pass a file
+  # that stopped early).
+  if [[ "$(basename "$migration")" == *_platform_account_deletion_p3.sql ]]; then
+    account_deletion_p3_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_account_deletion_p3.sql </dev/null)"
+    printf '%s\n' "$account_deletion_p3_log"
+    if ! grep -q 'P313_ACCOUNT_DELETION_P3_SUITE_PASSED' <<<"$account_deletion_p3_log"; then
+      echo "platform_account_deletion_p3.sql did not reach its PASSED marker" >&2
       exit 1
     fi
   fi

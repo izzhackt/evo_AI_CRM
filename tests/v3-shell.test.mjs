@@ -381,11 +381,12 @@ test("a menu list longer than the window shows a cue at the clipped edge", () =>
 
 test("one shell for every staff member: the layout has no look switch, the old shell and the bar bell are gone", () => {
   const layout = read("src/app/(v3)/layout.tsx");
-  assert.match(layout, /<div className="v3-world" data-surface="staff">\s*<AppShell actor=\{actor\} initialNotifications=\{notifications\}>/u);
+  // Счётчик запросов на удаление аккаунта (миграция 313, UI-F6) приходит от сервера вместе с уведомлениями.
+  assert.match(layout, /<div className="v3-world" data-surface="staff">\s*<AppShell actor=\{actor\} initialNotifications=\{notifications\} deletionRequests=\{deletionRequests\}>/u);
   assert.doesNotMatch(layout, /look/iu, "no look is read or passed");
   assert.equal(existsSync(new URL("../src/components/v3/AppShellNext.tsx", import.meta.url)), false, "one shell file");
   const appShell = read("src/components/v3/AppShell.tsx");
-  assert.match(appShell, /export function AppShell\(\{\s*children,\s*actor,\s*initialNotifications,\s*\}/u);
+  assert.match(appShell, /export function AppShell\(\{\s*children,\s*actor,\s*initialNotifications,\s*deletionRequests = null,\s*\}/u);
   assert.doesNotMatch(appShell, /CurrentAppShell|AppShellNext|look|md:min-h-16|Открыть навигацию/u, "no second shell and no top bar");
   // Колокольчик — один вид: кнопка меню с панелью в верхнем слое.
   const notifications = read("src/components/v3/StaffNotifications.tsx");

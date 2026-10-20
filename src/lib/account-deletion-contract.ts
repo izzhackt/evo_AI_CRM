@@ -42,6 +42,8 @@ export type OwnAccountDeletion = Readonly<{
 }>;
 
 export type AccountDeletionKind = "student" | "applicant";
+/** Итог очистки журнала Supabase Auth (миграция 313): всё стёрто или не хватило права на таблицу. */
+export type AccountDeletionAuthLog = "erased" | "not_erased";
 export type AccountDeletionStatus = "requested" | "processing" | "completed";
 export type ConfirmationEmailStatus = "sent" | "failed" | "not_configured" | "no_address";
 
@@ -81,6 +83,12 @@ export type AccountDeletionQueueRow = Readonly<{
   processingStartedAt: string | null;
   completedAt: string | null;
   confirmationEmailStatus: ConfirmationEmailStatus | null;
+  /**
+   * Подавал ли анкету аккаунт без одобрения (`kind: "applicant"`): `true`, `false`;
+   * `null` у студента и когда неизвестно (ручной запрос без сводки; ответ базы
+   * до миграции 313).
+   */
+  applicationSubmitted: boolean | null;
 }>;
 
 export type AccountDeletionDetail = AccountDeletionQueueRow & Readonly<{
@@ -90,6 +98,8 @@ export type AccountDeletionDetail = AccountDeletionQueueRow & Readonly<{
   /** Сколько собственных строк удаляется (открытый простой) или удалено (выполненный автоматически). */
   counts: AccountDeletionCounts;
   login: AccountDeletionLogin;
+  /** Очищен ли журнал Auth; `null` до первой обработки и в ответе базы до миграции 313. */
+  authLog: AccountDeletionAuthLog | null;
   manualNote: string | null;
   processingStartedBy: string | null;
   completedBy: string | null;
@@ -159,7 +169,9 @@ function queueRow(value: unknown): AccountDeletionQueueRow | null {
     || !nullable(row.studentCaseId, uuid)
     || !timestamp(row.requestedAt) || !timestamp(row.dueAt) || typeof row.overdue !== "boolean"
     || !nullable(row.processingStartedAt, timestamp) || !nullable(row.completedAt, timestamp)
-    || !nullable(row.confirmationEmailStatus, isEmailStatus)) return null;
+    || !nullable(row.confirmationEmailStatus, isEmailStatus)
+    || !(row.applicationSubmitted === undefined || row.applicationSubmitted === null
+      || typeof row.applicationSubmitted === "boolean")) return null;
   return {
     id: row.id, kind: row.kind, status: row.status, mode: row.mode, displayName: row.displayName,
     email: row.email as string | null, studentCaseId: row.studentCaseId as string | null,
@@ -167,6 +179,7 @@ function queueRow(value: unknown): AccountDeletionQueueRow | null {
     processingStartedAt: row.processingStartedAt as string | null,
     completedAt: row.completedAt as string | null,
     confirmationEmailStatus: row.confirmationEmailStatus as ConfirmationEmailStatus | null,
+    applicationSubmitted: typeof row.applicationSubmitted === "boolean" ? row.applicationSubmitted : null,
   };
 }
 
@@ -202,6 +215,7 @@ export function parseAccountDeletionDetail(value: unknown): AccountDeletionDetai
     || !row.otherTables.every((table) => typeof table === "string" && /^[a-z_]+\.[a-z0-9_]+$/u.test(table))
     || !parsedCounts
     || (row.login !== "active" && row.login !== "disabled" && row.login !== "absent")
+    || !(row.authLog === undefined || row.authLog === null || row.authLog === "erased" || row.authLog === "not_erased")
     || !(row.manualNote === null || typeof row.manualNote === "string")
     || !(row.processingStartedBy === null || typeof row.processingStartedBy === "string")
     || !(row.completedBy === null || typeof row.completedBy === "string")) return null;
@@ -211,6 +225,7 @@ export function parseAccountDeletionDetail(value: unknown): AccountDeletionDetai
     otherTables: row.otherTables as string[],
     counts: parsedCounts,
     login: row.login,
+    authLog: row.authLog === "erased" || row.authLog === "not_erased" ? row.authLog : null,
     manualNote: row.manualNote as string | null,
     processingStartedBy: row.processingStartedBy as string | null,
     completedBy: row.completedBy as string | null,
@@ -253,6 +268,71 @@ export function accountDeletionDaysLeft(dueAt: string, now: Date): number {
   return bishkekDay(new Date(dueAt)) - bishkekDay(now);
 }
 
+/** staff_account_deletion_open_count_v1: сколько запросов не выполнено и сколько из них просрочено. */
+export type AccountDeletionOpenCount = Readonly<{ open: number; overdue: number }>;
+
+export function parseAccountDeletionOpenCount(value: unknown): AccountDeletionOpenCount | null {
+  const row = record(value);
+  if (!row || Object.keys(row).sort().join(",") !== "open,overdue" || !count(row.open) || !count(row.overdue)
+    || row.overdue > row.open) return null;
+  return { open: row.open, overdue: row.overdue };
+}
+
+/**
+ * Что человек видит о типе запроса. Студент; аккаунт без одобрения называется по
+ * тому, подавал ли он анкету (ревью 280, UI-F4); если неизвестно, нейтрально.
+ */
+export function accountDeletionKindWord(kind: AccountDeletionKind, applicationSubmitted: boolean | null): string {
+  if (kind === "student") return "Студент";
+  if (applicationSubmitted === true) return "Анкета без одобрения";
+  if (applicationSubmitted === false) return "Аккаунт без анкеты";
+  return "Аккаунт без дела";
+}
+
+export type AccountDeletionDueTone = "neutral" | "warn" | "danger";
+
+/**
+ * Слово о сроке запроса. Дни считаются календарными по Бишкеку. В день срока
+ * через минуты после `due_at` запрос не «просрочен на 1 дн.»: он «срок сегодня,
+ * прошёл» (ревью 280, UI-F3). Вчерашний срок и раньше — «просрочено на N дн.».
+ */
+export function accountDeletionDueText(
+  row: Readonly<{ status: AccountDeletionStatus; dueAt: string; overdue: boolean; completedAt: string | null }>,
+  now: Date,
+): Readonly<{ text: string; tone: AccountDeletionDueTone }> {
+  if (row.status === "completed") {
+    return { text: row.completedAt && Date.parse(row.completedAt) > Date.parse(row.dueAt) ? "выполнено после срока" : "в срок", tone: "neutral" };
+  }
+  const days = accountDeletionDaysLeft(row.dueAt, now);
+  if (days < 0) return { text: `просрочено на ${-days} дн.`, tone: "danger" };
+  if (days === 0) return row.overdue ? { text: "срок сегодня, прошёл", tone: "danger" } : { text: "срок сегодня", tone: "warn" };
+  // База считает срок по часам сервера, страница по своим: расхождение не прячет просрочку.
+  if (row.overdue) return { text: "срок прошёл", tone: "danger" };
+  return { text: `осталось ${days} дн.`, tone: days <= 5 ? "warn" : "neutral" };
+}
+
+export type AccountDeletionNoteCheck = Readonly<{
+  /** Длина заметки после приведения (CRLF к LF, края обрезаны): её считает и база. */
+  length: number;
+  /** Сколько знаков не хватает до минимума (0, если хватает). */
+  missing: number;
+  /** Есть управляющие символы, кроме перевода строки. */
+  control: boolean;
+  ok: boolean;
+}>;
+
+/** Состояние заметки «Отметить выполненным» для подсказки под полем (ревью 280, UI-F1). */
+export function checkAccountDeletionNote(value: string): AccountDeletionNoteCheck {
+  const note = value.replace(/\r\n?/gu, "\n").trim();
+  const control = /[\u0001-\u0009\u000b-\u001f\u007f]/u.test(note);
+  return {
+    length: note.length,
+    missing: Math.max(0, ACCOUNT_DELETION_NOTE_MIN - note.length),
+    control,
+    ok: note.length >= ACCOUNT_DELETION_NOTE_MIN && note.length <= ACCOUNT_DELETION_NOTE_MAX && !control,
+  };
+}
+
 /**
  * Заметка «Отметить выполненным»: перевод строки браузера (CRLF) приводится
  * к LF, края обрезаются; null, если длина вне 10..2000 или есть управляющие
@@ -260,8 +340,5 @@ export function accountDeletionDaysLeft(dueAt: string, now: Date): number {
  */
 export function normalizeAccountDeletionNote(value: string): string | null {
   const note = value.replace(/\r\n?/gu, "\n").trim();
-  if (note.length < ACCOUNT_DELETION_NOTE_MIN || note.length > ACCOUNT_DELETION_NOTE_MAX || /[\u0001-\u0009\u000b-\u001f\u007f]/u.test(note)) {
-    return null;
-  }
-  return note;
+  return checkAccountDeletionNote(value).ok ? note : null;
 }

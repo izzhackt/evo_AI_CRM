@@ -1,16 +1,18 @@
 import Link from "next/link";
 
 import { Icon } from "@/components/icons";
-import { Pill, type PillTone } from "@/components/v3/Pill";
+import { Pill } from "@/components/v3/Pill";
 import {
   accountDeletionDate,
-  accountDeletionDaysLeft,
+  accountDeletionDueText,
+  accountDeletionKindWord,
   type AccountDeletionDetail,
   type AccountDeletionQueueRow,
   type AccountDeletionReason,
 } from "@/lib/account-deletion-contract";
 import type { AccountDeletionDetailRead, AccountDeletionQueueRead } from "@/lib/v3/account-deletion-source";
 
+import { AccountDeletionEmailRetry } from "./AccountDeletionEmailRetry";
 import { AccountDeletionManualDone } from "./AccountDeletionManualDone";
 import { AccountDeletionProcess } from "./AccountDeletionProcess";
 
@@ -24,10 +26,11 @@ import { AccountDeletionProcess } from "./AccountDeletionProcess";
  *    удаляет или обезличивает (docs/runbooks/account-deletion.md), и
  *    «Отметить выполненным» с заметкой и словом «выполнено».
  * Адрес несёт выбор (`?request=`), поэтому запрос можно переслать и
- * вернуться к списку кнопкой браузера.
+ * вернуться к списку кнопкой браузера. Подписи типа и срока считает
+ * `account-deletion-contract` (проверены тестами): аккаунт без одобрения
+ * называется по тому, подавал ли он анкету; в день срока после его часа
+ * запрос «срок сегодня, прошёл», а не «просрочено на 1 дн.».
  */
-
-const KIND = { student: "Студент", applicant: "Анкета без одобрения" } as const;
 
 const COUNT_WORDS: Readonly<Record<keyof AccountDeletionDetail["counts"], string>> = {
   application: "Анкета и её квитанции",
@@ -73,16 +76,6 @@ const EMAIL_WORDS = {
   not_configured: "письмо не отправлено: почта в CRM не настроена",
   no_address: "письмо не отправлено: адреса нет",
 } as const;
-
-function dueText(row: AccountDeletionQueueRow, now: Date): Readonly<{ text: string; tone: PillTone }> {
-  if (row.status === "completed") {
-    return { text: row.completedAt && Date.parse(row.completedAt) > Date.parse(row.dueAt) ? "выполнено после срока" : "в срок", tone: "neutral" };
-  }
-  const days = accountDeletionDaysLeft(row.dueAt, now);
-  if (row.overdue || days < 0) return { text: `просрочено на ${Math.max(1, -days)} дн.`, tone: "danger" };
-  if (days === 0) return { text: "срок сегодня", tone: "warn" };
-  return { text: `осталось ${days} дн.`, tone: days <= 5 ? "warn" : "neutral" };
-}
 
 function statusPill(row: AccountDeletionQueueRow) {
   if (row.status === "completed") return <Pill tone="ok">{row.mode === "manual" ? "выполнено" : "удалено"}</Pill>;
@@ -152,7 +145,7 @@ export function AccountDeletionSection({
           </thead>
           <tbody role="rowgroup" className="block">
             {rows.map((row) => {
-              const due = dueText(row, now);
+              const due = accountDeletionDueText(row, now);
               return (
                 <tr key={row.id} role="row" data-request={row.id} data-status={row.status} data-mode={row.mode}
                   data-overdue={row.overdue || undefined}
@@ -162,7 +155,7 @@ export function AccountDeletionSection({
                       {row.displayName}
                     </Link>
                     <span className="t-meta block break-all text-fg-2">
-                      {KIND[row.kind]}{row.email ? ` · ${row.email}` : ""}
+                      {accountDeletionKindWord(row.kind, row.applicationSubmitted)}{row.email ? ` · ${row.email}` : ""}
                     </span>
                   </th>
                   <td role="cell" className="t-body-compact min-w-0 text-fg">
@@ -285,14 +278,14 @@ function AccountDeletionDetailView({ read, backHref, now }: Readonly<{
     );
   }
   const d: AccountDeletionDetail = read.detail;
-  const due = dueText(d, now);
+  const due = accountDeletionDueText(d, now);
   const open = d.status !== "completed";
   return (
     <div className="flex flex-col gap-4" data-testid="v3-deletion-detail" data-status={d.status} data-mode={d.mode}>
       {back}
       <header className="flex flex-col gap-1">
         <h3 className="t-record-title break-words text-fg">{d.displayName}</h3>
-        <p className="t-body-compact break-all text-fg-2">{KIND[d.kind]}{d.email ? ` · ${d.email}` : ""}</p>
+        <p className="t-body-compact break-all text-fg-2">{accountDeletionKindWord(d.kind, d.applicationSubmitted)}{d.email ? ` · ${d.email}` : ""}</p>
         <dl className="mt-1 flex flex-wrap gap-x-6 gap-y-1 t-body-compact">
           <div className="flex gap-1.5"><dt className="text-fg-2">Запрос</dt><dd className="text-fg"><Day at={d.requestedAt} /></dd></div>
           <div className="flex items-center gap-1.5">
@@ -324,14 +317,33 @@ function AccountDeletionDetailView({ read, backHref, now }: Readonly<{
                 Заметка: {d.manualNote}
               </p>
             ) : null}
+            {d.mode === "automatic" && d.login === "disabled" ? (
+              <p className="t-body-compact mt-1 text-fg-2" data-testid="v3-deletion-login-disabled">
+                Вход в аккаунт отключён мягким удалением Auth: почта и пароль обезличены, но строка пользователя в Auth осталась.
+              </p>
+            ) : null}
           </div>
         </div>
+      ) : null}
+      {d.status === "completed" && d.confirmationEmailStatus === null ? (
+        <AccountDeletionEmailRetry requestRowId={d.id} requestedAt={d.requestedAt} />
       ) : null}
       {d.status === "processing" ? (
         <div role="alert" className="flex items-start gap-2 rounded-card border border-border bg-surface px-4 py-3" data-testid="v3-deletion-incomplete">
           <Icon name="alert" size={18} className="mt-0.5 shrink-0 text-warn" />
           <p className="t-body-compact text-fg">
-            Удаление не завершено: записи в базе удалены{d.login !== "absent" ? ", но вход в аккаунт ещё есть" : ""}. Повторите удаление.
+            {d.mode === "manual"
+              ? "Автоматическое удаление было начато, но у аккаунта появились связанные записи, и его нельзя довести кнопкой. Закончите вручную по списку ниже и отметьте выполненным."
+              : <>Удаление не завершено: записи в базе удалены{d.login !== "absent" ? ", но вход в аккаунт ещё есть" : ""}. Повторите удаление.</>}
+          </p>
+        </div>
+      ) : null}
+      {d.authLog === "not_erased" ? (
+        <div role="status" className="flex items-start gap-2 rounded-card border border-border bg-surface px-4 py-3" data-testid="v3-deletion-authlog">
+          <Icon name="alert" size={18} className="mt-0.5 shrink-0 text-warn" />
+          <p className="t-body-compact text-fg">
+            Журнал входов Supabase Auth не очищен: у базы нет права удалять записи в нём. Остальные данные удалены. Записи этого
+            пользователя в журнале Auth убирает технический администратор (инструкция docs/runbooks/account-deletion.md).
           </p>
         </div>
       ) : null}

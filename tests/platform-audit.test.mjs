@@ -85,6 +85,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["302_platform_case_direction_audit.sql", "case_direction_audit"],
   // «Подключение WhatsApp»: два действия whatsapp.connect.*, объект organization.
   ["311_platform_whatsapp_connect_audit.sql", "whatsapp_connect_audit"],
+  // Удаление аккаунта (доработки P3): пять действий account.deletion.* и тип объекта account_deletion_request.
+  ["313_platform_account_deletion_p3.sql", "account_deletion_journal"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -200,6 +202,11 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     laterResourceTypes.push(...wrapperSqlExtension(source, "p7a_safe_audit_resource_types", slug));
   }
   assert.deepEqual([...laterActions].sort(), [
+    "account.deletion.complete",
+    "account.deletion.email",
+    "account.deletion.manual.complete",
+    "account.deletion.process",
+    "account.deletion.request",
     "ai.proposal.review",
     "application.document.review",
     "application.partner.details.update",
@@ -305,6 +312,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "work.review.resolve",
   ]);
   assert.deepEqual([...laterResourceTypes].sort(), [
+    "account_deletion_request",
     "ai_prompt_artifact_version",
     "communication_media",
     "company_file",
@@ -551,6 +559,38 @@ test("whatsapp.connect.* journal actions are allowlisted and worded in Russian",
   const [row] = normalizePlatformAuditSearchResult({
     ...DIRECTION_PAGE_BASE,
     rows: [{ ...SAFE_ROW, action: "whatsapp.connect.qr", resource_type: "organization", actor_display_label: "Staff", changed_field_codes: ["record_status"] }],
+  }).rows;
+  assert.equal(row.recognized, true);
+  assert.deepEqual(row.changedFieldCodes, ["record_status"]);
+});
+
+// Удаление аккаунта (миграция 313): пять действий, которые пишут функции 280, видны в
+// «Журнале действий» словами; тип объекта account_deletion_request новый; в подписях нет
+// ни имени, ни почты, ни идентификатора Auth; неизвестное значение слова не получает.
+test("account.deletion.* journal actions and the request object type are allowlisted and worded in Russian", () => {
+  const actions = [
+    "account.deletion.complete",
+    "account.deletion.email",
+    "account.deletion.manual.complete",
+    "account.deletion.process",
+    "account.deletion.request",
+  ];
+  assert.deepEqual(PLATFORM_AUDIT_ACTIONS.filter((action) => action.startsWith("account.deletion.")), actions);
+  assert.ok(PLATFORM_AUDIT_RESOURCE_TYPES.includes("account_deletion_request"));
+  for (const action of actions) {
+    const word = journalEvent(action);
+    assert.match(word, /[А-Яа-я]/u, action);
+    assert.equal(word.includes("account."), false, `${action} wording shows a raw code`);
+    assert.equal(/\d|@|auth:/u.test(word), false, `${action} wording carries a number, an address or an Auth id`);
+  }
+  assert.equal(journalEvent("account.deletion.request"), "Принят запрос на удаление аккаунта");
+  assert.equal(journalEvent("account.deletion.manual.complete"), "Ручное удаление аккаунта отмечено выполненным");
+  assert.equal(journalEvent("account.deletion.cancel"), null);
+  assert.equal(journalObject("account_deletion_request"), "Запрос на удаление аккаунта");
+  const [row] = normalizePlatformAuditSearchResult({
+    ...DIRECTION_PAGE_BASE,
+    rows: [{ ...SAFE_ROW, action: "account.deletion.process", resource_type: "account_deletion_request",
+      actor_display_label: "Staff", changed_field_codes: ["record_status"] }],
   }).rows;
   assert.equal(row.recognized, true);
   assert.deepEqual(row.changedFieldCodes, ["record_status"]);

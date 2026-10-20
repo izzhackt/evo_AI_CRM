@@ -18,7 +18,7 @@ import {
   type WhatsAppConnectErrorCode,
   type WhatsAppConnectReply,
 } from "@/lib/v3/whatsapp-connect-contract";
-import { whatsappConnectError, whatsappConnectionState, whatsappConnectWords } from "@/lib/v3/wording";
+import { whatsappConnectError, whatsappConnectionState, whatsappConnectWords, whatsappRateLimited } from "@/lib/v3/wording";
 
 /**
  * «Подключение WhatsApp» (решение владельца 20.10.2026): привязать рабочий номер
@@ -40,6 +40,9 @@ type PostResult =
   | Readonly<{ ok: true; reply: WhatsAppConnectReply }>
   | Readonly<{ ok: false; http: number; code: WhatsAppConnectErrorCode | null; retryAfterSeconds: number | null }>;
 
+/** Дольше всего отвечает «Получить код»: ожидание запуска до 20 с и ответ WAHA до 30 с. */
+const REQUEST_LIMIT_MS = 60_000;
+
 async function post(body: Readonly<Record<string, unknown>>, signal?: AbortSignal): Promise<PostResult> {
   try {
     const response = await fetch(WHATSAPP_CONNECT_PATH, {
@@ -48,7 +51,7 @@ async function post(body: Readonly<Record<string, unknown>>, signal?: AbortSigna
       cache: "no-store",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
-      signal,
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(REQUEST_LIMIT_MS)]) : AbortSignal.timeout(REQUEST_LIMIT_MS),
     });
     const parsed: unknown = await response.json().catch(() => null);
     if (response.ok) {
@@ -61,6 +64,9 @@ async function post(body: Readonly<Record<string, unknown>>, signal?: AbortSigna
     return { ok: false, http: 0, code: "unavailable", retryAfterSeconds: null };
   }
 }
+
+/** Ждём сканирования или запуска: только в этих состояниях имеет смысл держать окно подключения открытым. */
+const isWaiting = (status: string | null | undefined) => whatsappConnectionState(status)?.tone === "warn";
 
 const fieldCls = "h-11 w-full min-w-0 rounded-ctl border border-control-edge bg-surface px-3 t-body text-fg placeholder:text-fg-3 hover:bg-surface-2 focus-visible:border-accent disabled:bg-surface-2 disabled:text-fg-3";
 
@@ -76,6 +82,7 @@ export function WhatsAppConnectSection({
   const headingId = useId();
   const phoneId = useId();
   const phoneHintId = useId();
+  const codeTitleId = useId();
   const [status, setStatus] = useState<string | null>(initialStatus);
   const [qr, setQr] = useState<string | null>(null);
   const [code, setCode] = useState<string | null>(null);
@@ -90,6 +97,7 @@ export function WhatsAppConnectSection({
   const windowEndsRef = useRef(0);
   const delayRef = useRef(WHATSAPP_CONNECT_POLL_MS);
   const failuresRef = useRef(0);
+  const codeShownRef = useRef(false);
 
   const state = whatsappConnectionState(status);
   const working = status === "WORKING";
@@ -122,8 +130,12 @@ export function WhatsAppConnectSection({
     }
   }, []);
 
-  const failWith = useCallback((code: WhatsAppConnectErrorCode | null) => {
-    setError(whatsappConnectError(code) ?? whatsappConnectWords.errors.unavailable);
+  const failWith = useCallback((code: WhatsAppConnectErrorCode | null, retryAfterSeconds: number | null = null) => {
+    setError(
+      code === "rate_limited" && retryAfterSeconds !== null
+        ? whatsappRateLimited(retryAfterSeconds)
+        : whatsappConnectError(code) ?? whatsappConnectWords.errors.unavailable,
+    );
   }, []);
 
   // Опрос состояния, пока открыто окно подключения: одно ожидание за раз, QR — не чаще раза в 10 с.
@@ -140,7 +152,8 @@ export function WhatsAppConnectSection({
         return;
       }
       if (document.visibilityState === "visible") {
-        const withQr = Date.now() - qrAtRef.current >= WHATSAPP_CONNECT_QR_REFRESH_MS;
+        // Пока на экране код по номеру, QR не запрашиваем: лишняя выдача картинки не нужна.
+        const withQr = !codeShownRef.current && Date.now() - qrAtRef.current >= WHATSAPP_CONNECT_QR_REFRESH_MS;
         const result = await post({ action: "status", withQr }, controller.signal);
         if (controller.signal.aborted) return;
         if (result.ok) {
@@ -173,6 +186,11 @@ export function WhatsAppConnectSection({
     };
   }, [polling, applyReply, failWith]);
 
+  // Опросу нужно знать, показан ли код, не перезапускаясь при каждом его появлении.
+  useEffect(() => {
+    codeShownRef.current = code !== null;
+  }, [code]);
+
   // Код живёт на экране недолго: старый WhatsApp всё равно не примет.
   useEffect(() => {
     if (!code) return undefined;
@@ -201,11 +219,11 @@ export function WhatsAppConnectSection({
     const result = await post({ action: "connect" });
     setBusy(null);
     if (!result.ok) {
-      failWith(result.code);
+      failWith(result.code, result.retryAfterSeconds);
       return;
     }
     applyReply(result.reply);
-    if (result.reply.status !== "WORKING") openWindow();
+    if (isWaiting(result.reply.status)) openWindow();
   }
 
   async function requestCode() {
@@ -224,7 +242,10 @@ export function WhatsAppConnectSection({
     setBusy(null);
     if (!result.ok) {
       if (result.code === "invalid_phone" || result.code === "phone_rejected") setPhoneError(whatsappConnectError(result.code));
-      else failWith(result.code);
+      else if (result.code === "already_connected") {
+        // Пока мы просили код, номер уже привязали: показываем настоящее состояние, а не старое.
+        applyReply({ status: "WORKING", qr: null, code: null });
+      } else failWith(result.code, result.retryAfterSeconds);
       return;
     }
     // Номер больше не нужен: поле очищается, в браузере он не остаётся.
@@ -232,7 +253,7 @@ export function WhatsAppConnectSection({
     applyReply(result.reply);
     if (result.reply.code) {
       setCode(result.reply.code);
-      if (result.reply.status !== "WORKING") openWindow();
+      if (isWaiting(result.reply.status)) openWindow();
     }
   }
 
@@ -241,13 +262,14 @@ export function WhatsAppConnectSection({
   const qrFlow = polling && !code;
   const scanning = qrFlow && status === "SCAN_QR_CODE";
   const starting = qrFlow && !scanning;
+  const announcement = notice ?? (scanning ? (qr ? words.connect.scanSteps : words.connect.waitingQr) : starting ? words.connect.starting : codeStale && !code ? words.code.expired : "");
 
   return (
     <section
       id={WHATSAPP_CONNECT_ANCHOR}
       aria-labelledby={headingId}
       data-testid="v3-whatsapp-connect"
-      data-status={status ?? undefined}
+      data-tone={state?.tone}
       className="@container/connect mt-5 scroll-mt-4 overflow-hidden rounded-card border border-border bg-surface"
     >
       <h3 id={headingId} className="t-section flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border px-4 py-2.5 text-fg">
@@ -278,7 +300,7 @@ export function WhatsAppConnectSection({
                   {busy === "connect" ? words.connect.busy : words.connect.button}
                 </button>
               </div>
-              {starting ? <p className="mt-3 t-body-compact text-fg-2" role="status">{qr ? words.connect.scanSteps : words.connect.starting}</p> : null}
+              {starting ? <p className="mt-3 t-body-compact text-fg-2">{qr ? words.connect.scanSteps : words.connect.starting}</p> : null}
               {scanning ? (
                 <div className="mt-3">
                   {qr ? (
@@ -287,10 +309,10 @@ export function WhatsAppConnectSection({
                         {/* eslint-disable-next-line @next/next/no-img-element -- одноразовая картинка data:, оптимизатору нечего делать */}
                         <img src={qr} alt={words.connect.qrAlt} width={292} height={292} className="block h-auto w-full" data-testid="v3-whatsapp-qr" />
                       </div>
-                      <p className="mt-3 t-body-compact text-fg-2" role="status">{words.connect.scanSteps}</p>
+                      <p className="mt-3 t-body-compact text-fg-2">{words.connect.scanSteps}</p>
                     </>
                   ) : (
-                    <p className="t-body-compact text-fg-2" role="status">{words.connect.waitingQr}</p>
+                    <p className="t-body-compact text-fg-2">{words.connect.waitingQr}</p>
                   )}
                 </div>
               ) : null}
@@ -333,13 +355,13 @@ export function WhatsAppConnectSection({
                 </button>
               </div>
               {code ? (
-                <div className="mt-4 rounded-ctl border border-border bg-surface-2 px-4 py-3" data-testid="v3-whatsapp-code-result">
-                  <p className="t-caption text-fg-2">{words.code.resultTitle}</p>
-                  <p className="t-figure mt-1 select-all break-all font-mono text-fg" aria-label={words.code.codeLabel} data-testid="v3-whatsapp-code">{code}</p>
+                <div role="group" aria-labelledby={codeTitleId} className="mt-4 rounded-ctl border border-border bg-surface-2 px-4 py-3" data-testid="v3-whatsapp-code-result">
+                  <p id={codeTitleId} className="t-caption text-fg-2">{words.code.resultTitle}</p>
+                  <p className="t-figure mt-1 select-all break-all font-mono text-fg" data-testid="v3-whatsapp-code">{code}</p>
                   <p className="mt-2 t-body-compact text-fg-2">{words.code.steps}</p>
                 </div>
               ) : null}
-              {codeStale && !code ? <p className="mt-3 t-body-compact text-fg-2" role="status">{words.code.expired}</p> : null}
+              {codeStale && !code ? <p className="mt-3 t-body-compact text-fg-2">{words.code.expired}</p> : null}
             </form>
           </div>
         ) : null}
@@ -351,7 +373,9 @@ export function WhatsAppConnectSection({
           </p>
         ) : null}
         {/* «Готово» при подключении слышит читалка; на экране то же уже сказано абзацем выше и чипом. */}
-        {notice ? <p className={working ? "sr-only" : "t-body-compact text-fg"} role="status" data-testid="v3-whatsapp-connect-notice">{notice}</p> : null}
+        {notice && !working ? <p className="t-body-compact text-fg" data-testid="v3-whatsapp-connect-notice">{notice}</p> : null}
+        {/* Одна постоянная область для читалки: текст, появившийся вместе с самой областью, многие читалки не озвучивают. */}
+        <p className="sr-only" role="status" aria-live="polite" aria-atomic="true" data-testid="v3-whatsapp-connect-live">{announcement}</p>
       </div>
     </section>
   );

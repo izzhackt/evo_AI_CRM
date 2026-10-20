@@ -17,10 +17,14 @@ import {
  *     -p 127.0.0.1:13000:3000 -e WAHA_API_KEY=<одноразовый ключ, 16+ знаков> \
  *     -e WHATSAPP_DEFAULT_ENGINE=GOWS devlikeapro/waha@sha256:1ae3c6a994ee…
  *   EVO_LOCAL_WAHA_URL=http://127.0.0.1:13000 EVO_LOCAL_WAHA_KEY=<тот же ключ> \
- *     node --conditions=react-server --experimental-strip-types --test \
+ *     EVO_LOCAL_WAHA_DISPOSABLE=1 node --conditions=react-server --experimental-strip-types --test \
  *     tests/platform-waha-connect-live.test.mjs
  *
- * Без этих переменных тест пропускается. Приложение работает как на сервере —
+ * Тест создаёт и удаляет сессию `crm_primary`, поэтому запускается только с явным
+ * `EVO_LOCAL_WAHA_DISPOSABLE=1` и отказывается работать, если на этом WAHA уже есть
+ * привязанная сессия (поле `me`) или любая сессия не из этого теста, — так случайный
+ * адрес (например ssh-туннель к рабочему WAHA) ничего не разлогинит. Без этих переменных
+ * тест пропускается. Приложение работает как на сервере —
  * клиент и сервис те же; подменяется только адрес (`http://evo-crm-waha:3000`
  * → локальный). Рабочая сессия сервера здесь не участвует. Сессию на локальном
  * WAHA создаёт и удаляет сам тест, прямыми вызовами (приложение этого не умеет и
@@ -32,7 +36,10 @@ import {
 const URL_BASE = process.env.EVO_LOCAL_WAHA_URL ?? "";
 const KEY = process.env.EVO_LOCAL_WAHA_KEY ?? "";
 const enabled = /^http:\/\/(?:127\.0\.0\.1|localhost):\d+$/u.test(URL_BASE) && KEY.length >= 16;
-const skip = enabled ? false : "set EVO_LOCAL_WAHA_URL (loopback) and EVO_LOCAL_WAHA_KEY to run against a local WAHA container";
+const disposable = process.env.EVO_LOCAL_WAHA_DISPOSABLE === "1";
+const skip = enabled && disposable
+  ? false
+  : "set EVO_LOCAL_WAHA_URL (loopback), EVO_LOCAL_WAHA_KEY and EVO_LOCAL_WAHA_DISPOSABLE=1 to run against a throwaway local WAHA container";
 
 const ORG = "11111111-1111-4111-8111-111111111111";
 const ADMIN = { systemRole: "admin", presentationRole: null, organizationId: ORG, profileId: "22222222-2222-4222-8222-222222222222", membershipId: "33333333-3333-4333-8333-333333333333", permissionKeys: [], platformAccessVersion: 1 };
@@ -61,8 +68,15 @@ async function until(read, done, { timeoutMs = 60_000, stepMs = 1_000 } = {}) {
 }
 
 test("the connect block works against a real WAHA gows-2026.9.2: states, QR, refresh and the pairing code", { skip, timeout: 240_000 }, async (t) => {
-  // Чистая одноразовая сессия на ЛОКАЛЬНОМ WAHA.
-  await direct("/api/sessions/crm_primary", "DELETE");
+  // Охрана: на этом WAHA нет ничего, что можно потерять. Привязанная сессия или чужое имя — стоп.
+  const existing = await (await direct("/api/sessions?all=true")).json();
+  assert.ok(Array.isArray(existing), "session list");
+  for (const found of existing) {
+    assert.equal(found.name, "crm_primary", `refusing to run: unexpected session on this WAHA`);
+    assert.equal(found.me ?? null, null, "refusing to run: crm_primary on this WAHA is linked to an account");
+  }
+  // Чистая одноразовая сессия на ЛОКАЛЬНОМ WAHA (прежняя несвязанная, если осталась от прошлого прогона).
+  if (existing.length > 0) await direct("/api/sessions/crm_primary", "DELETE");
   const created = await direct("/api/sessions", "POST", { name: "crm_primary", start: false });
   assert.ok(created.ok, `local session create ${created.status}`);
   t.after(async () => { await direct("/api/sessions/crm_primary", "DELETE"); });

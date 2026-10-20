@@ -147,8 +147,9 @@ function whatsappRow(waha: SettingsIntegrationFacts["waha"], now: Date): Integra
       detail: intakeOff ? `${settingsBlockedWahaDetail(waha.sessionStatus)} ${INTAKE_OFF}` : settingsBlockedWahaDetail(waha.sessionStatus), ...checked,
       without: WHATSAPP_WITHOUT,
       // Сессия остановлена, ждёт QR или сломана — Администратор подключает её сам (QR или код по
-      // номеру). Сервис WhatsApp, который не отвечает вовсе, подключением не лечится: это сервер.
-      action: waha.sessionStatus === "UNREACHABLE"
+      // номеру). Сервис WhatsApp, который не отвечает вовсе, и вход по ключу доступа (PASSKEY_*),
+      // которого блок не умеет, подключением не лечатся: это работа на сервере.
+      action: waha.sessionStatus === "UNREACHABLE" || waha.sessionStatus?.startsWith("PASSKEY_")
         ? { ...handoff("проверить подключение на сервере"), link: OPEN_WHATSAPP }
         : { handoff: null, link: CONNECT_WHATSAPP },
       blocksWork: true,

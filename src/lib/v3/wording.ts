@@ -1758,7 +1758,6 @@ export const whatsappConnectWords = {
     resultTitle: "Ваш код",
     steps: "В WhatsApp на телефоне: Связанные устройства → Привязать устройство → Связать по номеру телефона → введите этот код.",
     expired: "Код устарел. Получите новый.",
-    codeLabel: "Код для привязки WhatsApp",
   },
   errors: {
     authentication_required: "Сессия входа закончилась. Войдите заново.",
@@ -1777,6 +1776,11 @@ export const whatsappConnectWords = {
     unavailable: "Не удалось выполнить действие. Повторите через минуту.",
   },
 } as const;
+
+/** «Слишком часто» с числом секунд до следующей попытки (сервер сам знает, сколько осталось). */
+export function whatsappRateLimited(seconds: number): string {
+  return `Слишком часто. Повторите через ${seconds} с.`;
+}
 
 /** Слово об отказе по коду; неизвестный код слова не получает. */
 export function whatsappConnectError(code: string | null | undefined): string | null {

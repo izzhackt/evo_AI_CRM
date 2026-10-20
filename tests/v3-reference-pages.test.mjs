@@ -307,7 +307,8 @@ test("«Настройки»: open on «Сотрудники», one section list
   assert.doesNotMatch(integrations, /data-testid="v3-whatsapp-qr"|data-testid="v3-whatsapp-code"/u, "no QR or code before a request");
 
   const blocked = page("settings-integrations-blocked");
-  assert.match(blocked, /<section id="whatsapp-connect"[^>]*data-status="SCAN_QR_CODE"/u);
+  assert.match(blocked, /<section id="whatsapp-connect"[^>]*data-tone="warn"/u);
+  assert.doesNotMatch(blocked, /data-status=|SCAN_QR_CODE/u, "the provider word never reaches the page");
   assert.match(text(blocked), /Подключение WhatsApp Ожидает подключения/u);
   assert.match(blocked, /<span class="v3-chip t-caption" data-tone="warn"[^>]*>Ожидает подключения<\/span>/u);
   assert.equal([...blocked.matchAll(/data-testid="v3-settings-blocking"/gu)].length, 1, "one warning on top");

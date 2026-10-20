@@ -12,7 +12,10 @@ import {
   WahaConnectError,
   createWahaConnectClient,
 } from "../src/lib/server/platform-waha-connect.ts";
-import { createWhatsAppConnectHandler } from "../src/lib/server/platform-waha-connect-route-handlers.ts";
+import {
+  createWhatsAppConnectHandler,
+  whatsappConnectAuthorization,
+} from "../src/lib/server/platform-waha-connect-route-handlers.ts";
 import {
   WHATSAPP_CODE_READY_WAIT_MS,
   performWhatsAppConnect,
@@ -268,6 +271,17 @@ test("at most one restart per 30 seconds and one «Подключить» per 10
   assert.equal(waha.calls.filter((call) => call.method === "POST").length, 2);
 });
 
+test("an unreachable WAHA does not let «Подключить» be pressed more often than every 10 seconds", async () => {
+  const now = { value: 7_000_000 };
+  const { dependencies, waha } = fixture({ now, handler: () => { throw new TypeError("fetch failed"); } });
+  const first = await performWhatsAppConnect(ADMIN, { action: "connect" }, dependencies);
+  assert.deepEqual([first.http, first.code], [503, "provider_unreachable"]);
+  now.value += 3_000;
+  const second = await performWhatsAppConnect(ADMIN, { action: "connect" }, dependencies);
+  assert.deepEqual([second.http, second.code], [429, "rate_limited"]);
+  assert.equal(waha.calls.length, 1);
+});
+
 test("a request that cannot be audited does not reach WAHA", async () => {
   const { dependencies, waha } = fixture({ auditFails: true, handler: (url, method) => (method === "GET" ? session("FAILED") : session("STARTING")) });
   const outcome = await performWhatsAppConnect(ADMIN, { action: "connect" }, dependencies);
@@ -365,7 +379,10 @@ test("code requests are limited to one per 20 seconds and one in flight", async 
   const slow = fixture({ handler: async () => { await gate; return session("SCAN_QR_CODE"); } });
   const first = performWhatsAppConnect(ADMIN, { action: "connect" }, slow.dependencies);
   await new Promise((resolve) => setImmediate(resolve));
-  const second = await performWhatsAppConnect(ADMIN, { action: "connect" }, slow.dependencies);
+  // Второе нажатие «Подключить» упирается в лимит 10 с, «Получить код» — в место «один запрос к WAHA за раз».
+  const repeat = await performWhatsAppConnect(ADMIN, { action: "connect" }, slow.dependencies);
+  assert.deepEqual([repeat.http, repeat.code], [429, "rate_limited"]);
+  const second = await performWhatsAppConnect(ADMIN, { action: "code", phone: PHONE }, slow.dependencies);
   assert.deepEqual([second.http, second.code], [409, "busy"]);
   release();
   assert.equal((await first).status, "ok");
@@ -426,6 +443,18 @@ test("the service refuses a non-admin by itself, even for a holder who opens the
   assert.equal((await performWhatsAppConnect(STAFF, { action: "connect" }, fixture({ handler: () => session("WORKING") }).dependencies)).code, "forbidden");
 });
 
+test("the real authorization rule lets only an admin outside role preview through", () => {
+  const ok = (actor) => ({ status: "authenticated", actor });
+  assert.deepEqual(whatsappConnectAuthorization({ status: "anonymous", actor: null }), { status: "anonymous", actor: null });
+  assert.deepEqual(whatsappConnectAuthorization({ status: "invalid", actor: null, reason: "supabase_session_invalid" }), { status: "unavailable", actor: null });
+  assert.equal(whatsappConnectAuthorization(ok(ADMIN)).status, "authorized");
+  assert.equal(whatsappConnectAuthorization(ok(PREVIEW)).status, "preview");
+  // Держатель telephony.manage и любой другой сотрудник без прав Admin.
+  assert.equal(whatsappConnectAuthorization(ok(STAFF)).status, "forbidden");
+  assert.equal(whatsappConnectAuthorization(ok({ ...STAFF, permissionKeys: [] })).status, "forbidden");
+  assert.equal(whatsappConnectAuthorization(ok({ ...STAFF, permissionKeys: ["admin.preview", "telephony.manage"] })).status, "forbidden");
+});
+
 test("the route checks origin, body shape and query before the service", async () => {
   const { post: handle, calls } = handler({ status: "authorized", actor: ADMIN });
   assert.equal((await handle(post({ action: "connect" }, { origin: "https://evil.example.test" }))).status, 403);
@@ -459,6 +488,8 @@ test("the route returns the reply with no-store and passes the typed request to 
   const refused = await limited(post({ action: "connect" }));
   assert.equal(refused.status, 429);
   assert.deepEqual(await refused.json(), { error: { code: "rate_limited", retryAfterSeconds: 9 } });
+  assert.equal(refused.headers.get("retry-after"), "9");
+  assert.equal(status.headers.get("retry-after"), null);
   const broken = createWhatsAppConnectHandler({ authorize: async () => { throw new Error("boom"); }, perform: async () => ({}) });
   assert.equal((await broken(post({ action: "connect" }))).status, 503);
 });
@@ -492,9 +523,11 @@ test("the WhatsApp row points to the connect block instead of a technician when 
   assert.equal(failed.blocksWork, true);
   assert.deepEqual(row({ display: "blocked", sessionStatus: "SCAN_QR_CODE" }).action.link, { label: "Подключить WhatsApp", href });
   assert.deepEqual(row({ display: "unconfigured", sessionStatus: undefined }).action, { handoff: null, link: { label: "Подключить WhatsApp", href } });
-  // Сервис не отвечает вовсе — подключением это не лечится.
-  const down = row({ display: "blocked", sessionStatus: "UNREACHABLE" });
-  assert.match(down.action.handoff, /техническ/u);
-  assert.equal(down.action.link.href, "/v3/inbox");
+  // Сервис не отвечает вовсе или ждёт вход по ключу доступа — подключением блока это не лечится.
+  for (const sessionStatus of ["UNREACHABLE", "PASSKEY_REQUIRED", "PASSKEY_CONFIRMATION_REQUIRED"]) {
+    const down = row({ display: "blocked", sessionStatus });
+    assert.match(down.action.handoff, /техническ/u, sessionStatus);
+    assert.equal(down.action.link.href, "/v3/inbox", sessionStatus);
+  }
   assert.equal(row({ display: "ready", sessionStatus: "WORKING" }).action.link.href, "/v3/inbox");
 });

@@ -521,9 +521,8 @@ amoCRM: сверка, доработки и Китай «Адаптация»» 
 
 Сессия WhatsApp `crm_primary` в состоянии FAILED с 12.10; владелец не может подключить
 её с сервера прямо сейчас и хочет привязывать номер сам, когда ему удобно, кнопкой в CRM.
-Цитаты — слова заказчика в чате, без правки. *20.10*
+Цитата — слова заказчика в чате, дословно; «…» — пропуск при пересказе, не слова заказчика. *20.10*
 > «can't we make it like the qr will be open in the platform, like we can connect at any time we want, by just clicking some button in our platform … i cannot connect now, now im somewhere else, but if it would be with the button and i could connect any time i want, it would be nice».
-> «Do this task here».
 
 По смыслу: в «Настройках» нужен блок, где Администратор сам открывает QR и подключает
 номер в любой момент, в том числе с одного телефона (поэтому и «код по номеру

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { isStaffPreview, staffCanAccessRoute } from "../platform-access.ts";
-import type { ActivePlatformActor } from "../platform-auth.ts";
+import type { ActivePlatformActor, PlatformActorResult } from "../platform-auth.ts";
 import {
   WHATSAPP_CONNECT_ACTIONS,
   WHATSAPP_CONNECT_BODY_KEYS,
@@ -39,9 +39,12 @@ export type WhatsAppConnectRouteDependencies = Readonly<{
   perform(actor: ActivePlatformActor, request: WhatsAppConnectRequest): Promise<WhatsAppConnectOutcome>;
 }>;
 
-async function defaultAuthorize(): Promise<Authorization> {
-  const { resolvePlatformActor } = await import("../platform-auth.ts");
-  const result = await resolvePlatformActor();
+/**
+ * Кто может подключать WhatsApp: из результата входа — в решение. Отдельная чистая функция, чтобы
+ * правило проверялось тестом, а не только чтением кода: только администратор вне просмотра роли
+ * и с доступом к «Настройкам»; держатель `telephony.manage` страницу открывает, подключить не может.
+ */
+export function whatsappConnectAuthorization(result: PlatformActorResult): Authorization {
   if (result.status === "anonymous") return { status: "anonymous", actor: null };
   if (result.status === "invalid") return { status: "unavailable", actor: null };
   // Просмотр роли — только вид экрана: подключение он не запускает.
@@ -50,6 +53,11 @@ async function defaultAuthorize(): Promise<Authorization> {
     return { status: "forbidden", actor: null };
   }
   return { status: "authorized", actor: result.actor };
+}
+
+async function defaultAuthorize(): Promise<Authorization> {
+  const { resolvePlatformActor } = await import("../platform-auth.ts");
+  return whatsappConnectAuthorization(await resolvePlatformActor());
 }
 
 const defaultDependencies: WhatsAppConnectRouteDependencies = {
@@ -92,7 +100,9 @@ export function createWhatsAppConnectHandler(dependencies: WhatsAppConnectRouteD
       if (!parsed || new URL(request.url).search !== "") return failure(400, "invalid_request");
       const outcome = await dependencies.perform(authorization.actor, parsed);
       if (outcome.status === "ok") return json(200, { status: outcome.session, qr: outcome.qr, code: outcome.code });
-      return failure(outcome.http, outcome.code, outcome.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: outcome.retryAfterSeconds });
+      const refused = failure(outcome.http, outcome.code, outcome.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: outcome.retryAfterSeconds });
+      if (outcome.retryAfterSeconds !== undefined) refused.headers.set("Retry-After", String(outcome.retryAfterSeconds));
+      return refused;
     } catch {
       return failure(503, "unavailable");
     }

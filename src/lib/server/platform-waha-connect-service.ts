@@ -282,11 +282,12 @@ async function connectSession(
   dependencies: WhatsAppConnectDependencies,
 ): Promise<WhatsAppConnectOutcome> {
   const now = dependencies.now ?? (() => Date.now());
+  // Метка ставится до чтения состояния: недоступный WAHA тоже не даёт нажимать чаще раза в 10 с.
+  limits.connectAt.set(actor.organizationId, now());
   const current = await client.getStatus();
   if (current === "WORKING") return { status: "ok", session: current, qr: null, code: null };
   const limited = restartWait(actor.organizationId, current, now());
   if (limited !== null) return refused(429, "rate_limited", limited);
-  limits.connectAt.set(actor.organizationId, now());
   if (!(await writeAudit(actor, "qr", dependencies))) return refused(503, "unavailable");
   const session = await ensureStarted(actor.organizationId, client, current, now());
   limits.windowUntil.set(`${actor.organizationId}:${actor.profileId}`, now() + WHATSAPP_CONNECT_WINDOW_MS);
@@ -302,11 +303,11 @@ async function pairByCode(
 ): Promise<WhatsAppConnectOutcome> {
   const now = dependencies.now ?? (() => Date.now());
   const sleep = dependencies.sleep ?? defaultSleep;
+  limits.codeAt.set(actor.organizationId, now());
   const current = await client.getStatus();
   if (current === "WORKING") return refused(409, "already_connected");
   const limited = restartWait(actor.organizationId, current, now());
   if (limited !== null) return refused(429, "rate_limited", limited);
-  limits.codeAt.set(actor.organizationId, now());
   if (!(await writeAudit(actor, "code", dependencies))) return refused(503, "unavailable");
   let session = await ensureStarted(actor.organizationId, client, current, now());
   const deadline = now() + WHATSAPP_CODE_READY_WAIT_MS;

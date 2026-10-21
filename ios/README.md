@@ -133,10 +133,10 @@ source of truth for structural changes.
    `upload`, номер сборки Xcode не меняет. То же можно сделать в «Organizer» →
    «Distribute App» → «App Store Connect».
 8. Дальше по `docs/app-store/owner-checklist.md`: TestFlight, страница версии
-   `1.1.0`, отправка на проверку. Отправляет и выпускает владелец. Публичная
-   отправка идёт только после перевода членства Individual в Organization
-   (шаг 2.1 чеклиста, решение владельца 07.10.2026); TestFlight на Individual
-   этого не ждёт.
+   `1.1.0`, отправка на проверку. Отправляет и выпускает владелец. Решение
+   владельца 21.10.2026: публичная проверка идёт с аккаунта Individual и
+   письма-разрешения компании (`docs/app-store/authorization-letter.md`,
+   шаг 2.1 чеклиста); перевод в Organization остаётся запасным путём.
 
 Проверено 07.10.2026 на Xcode 26.5 (iOS 26.5 SDK): `xcodegen generate`, Debug и
 171 unit-тест, Release под симулятор с `Release.xcconfig` из скрипта с

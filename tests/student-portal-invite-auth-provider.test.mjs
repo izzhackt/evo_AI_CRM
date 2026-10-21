@@ -5,7 +5,7 @@ import { createStudentPortalInviteAuthProvider } from "../src/lib/server/student
 
 const AUTH_USER_ID = "10000000-0000-4000-8000-000000000001";
 
-// The exact-address lookup is one service-role RPC (migration 313), not an Admin API list scan.
+// The exact-address lookup is one service-role RPC (migration 314), not an Admin API list scan.
 function client({ invite, getUser, lookup = async () => ({ data: null, error: null }), rpcCalls = [] }) {
   return {
     auth: {

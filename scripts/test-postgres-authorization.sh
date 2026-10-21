@@ -4168,7 +4168,7 @@ SQL
       exit 1
     fi
   fi
-  # Восстановление пароля студента спрашивает у базы, не сотрудник ли пользователь Auth (migration 313,
+  # Восстановление пароля студента спрашивает у базы, не сотрудник ли пользователь Auth (migration 314,
   # задача #1195, PLAN_CHANGES 21.10.2026). Matched by name, not number. Run right after the migration,
   # insisting on the suite's marker. The suite proves: the grants of both service-only functions (definer,
   # empty search_path, STABLE, EXECUTE for service_role only; a staff session, anon and supabase_auth_admin

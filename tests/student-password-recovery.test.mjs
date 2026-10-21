@@ -308,7 +308,7 @@ test("server flow: fixed redirect, explicit verify, path-scoped recovery session
   assert.ok(actions.indexOf('return { status: "rate_limited" }') < answer);
   assert.doesNotMatch(actions, /await requestStatus\(/u);
   assert.equal((actions.match(/requestStudentPasswordRecovery\(email, redirectTo\)/gu) ?? []).length, 1);
-  // The staff verdict (point lookup, marker, then the database membership question of migration 313)
+  // The staff verdict (point lookup, marker, then the database membership question of migration 314)
   // is decided before Auth; the behaviour is exercised in tests/student-recovery-request.test.mjs.
   const request = source("src/lib/server/student-recovery-request.ts");
   const recipient = request.indexOf("await ports.recipient(email)");

@@ -230,7 +230,7 @@ export function admitStudentRecoveryRequest(
  * staff recovery token or the timestamp the staff journal reads. The service
  * role finds the exact address by one point lookup, then asks the database
  * whether that Auth user holds a staff membership in any status (migration
- * 313), and also honours the provisioning markers. A staff account without a
+ * 314), and also honours the provisioning markers. A staff account without a
  * marker, such as the first system administrator, is therefore refused before
  * Auth is called. The link step still refuses staff as a second guard.
  */

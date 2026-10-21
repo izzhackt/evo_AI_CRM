@@ -10,8 +10,8 @@ import {
 } from "../src/lib/server/student-recovery-request.ts";
 import { findRawAuthUserByExactEmail } from "../src/lib/server/student-portal-invite-auth-provider.ts";
 
-const STAFF_ID = "31300000-0000-4000-8000-000000000101";
-const STUDENT_ID = "31300000-0000-4000-8000-000000000107";
+const STAFF_ID = "31400000-0000-4000-8000-000000000101";
+const STUDENT_ID = "31400000-0000-4000-8000-000000000107";
 const EMAIL = "someone@example.com";
 const REDIRECT = "https://app.evoadmissions.com/auth/callback";
 
@@ -280,8 +280,8 @@ test("wiring: the server flow uses the point lookup and the membership question 
   assert.doesNotMatch(actions, /await requestStatus\(/u);
 });
 
-test("migration 313 grants both functions to service_role only", () => {
-  const sql = source("supabase/migrations/313_platform_password_recovery_staff_check.sql");
+test("migration 314 grants both functions to service_role only", () => {
+  const sql = source("supabase/migrations/314_platform_password_recovery_staff_check.sql");
   assert.match(sql, /REVOKE ALL ON FUNCTION platform\.auth_user_has_staff_membership_v1\(UUID\),\s*platform\.auth_user_by_exact_email_v1\(TEXT\)\s*FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent;/u);
   assert.match(sql, /GRANT EXECUTE ON FUNCTION platform\.auth_user_has_staff_membership_v1\(UUID\) TO service_role;/u);
   assert.match(sql, /GRANT EXECUTE ON FUNCTION platform\.auth_user_by_exact_email_v1\(TEXT\) TO service_role;/u);

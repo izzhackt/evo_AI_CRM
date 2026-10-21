@@ -17,7 +17,7 @@ import { findRawAuthUserByExactEmail } from "./student-portal-invite-auth-provid
  *
  * - `staff`: the address belongs to a staff account. `basis` says how it was
  *   recognised: the provisioning marker in the Auth metadata, or a staff
- *   membership in the database (migration 313), which also catches a staff
+ *   membership in the database (migration 314), which also catches a staff
  *   account that has no marker, such as the first system administrator.
  * - `other`: a Student, an applicant, or an address nobody uses. All three are
  *   handled alike, so the answer cannot tell them apart.

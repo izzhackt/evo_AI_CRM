@@ -110,7 +110,7 @@ export type RawAuthUserLookup = Readonly<{
 
 /**
  * Exact, case-insensitive address match by one point lookup in the database
- * (`platform.auth_user_by_exact_email_v1`, migration 313, callable by the
+ * (`platform.auth_user_by_exact_email_v1`, migration 314, callable by the
  * service role only). It replaced the page-by-page `auth.admin.listUsers`
  * scan, whose cost grew with every Auth user and which failed closed from
  * about 9000 users on. The answer carries only the fields read here and the

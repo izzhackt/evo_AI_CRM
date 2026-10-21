@@ -1,8 +1,8 @@
--- 313: восстановление пароля студента спрашивает у базы, не сотрудник ли этот пользователь Auth
+-- 314: восстановление пароля студента спрашивает у базы, не сотрудник ли этот пользователь Auth
 -- (задача #1195, вариант (б); решение владельца 21.10.2026: «okay do these»). docs/PLAN_CHANGES.md
 -- «2026-10-21 · Восстановление пароля студента: сотрудник любого статуса не получает письмо
--- студента, точечный поиск по адресу (миграция 313)». Номер 313 - следующий за 312 на origin/main
--- 9b40eb7ad; сверяется ещё раз перед слиянием.
+-- студента, точечный поиск по адресу (миграция 314)». Номер 314: на origin/main 273ea8a83 последняя 312, 313 занимает
+-- CSCA (#1281, стек); сверяется ещё раз перед слиянием.
 --
 -- Forward-only и аддитивно: две новые служебные функции в `platform`; ни таблица, ни существующая
 -- функция, ни чьи-то права не меняются. SECURITY DEFINER с пустым search_path, EXECUTE только
@@ -48,7 +48,7 @@ BEGIN;
 -- ---------------------------------------------------------------------------
 -- Якоря: что читается, и свободные имена.
 -- ---------------------------------------------------------------------------
-DO $a313_anchor$
+DO $a314_anchor$
 BEGIN
   IF to_regclass('platform.profiles') IS NULL
     OR to_regclass('platform.organization_memberships') IS NULL
@@ -59,15 +59,15 @@ BEGIN
       WHERE c.table_schema = 'platform' AND c.table_name = 'profiles' AND c.column_name = 'auth_user_id')
     OR to_regprocedure('platform_private.staff_membership_identity(uuid,uuid)') IS NULL
   THEN
-    RAISE EXCEPTION 'a313_anchor_drift' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a314_anchor_drift' USING ERRCODE = '55000';
   END IF;
   IF to_regprocedure('platform.auth_user_has_staff_membership_v1(uuid)') IS NOT NULL
     OR to_regprocedure('platform.auth_user_by_exact_email_v1(text)') IS NOT NULL
   THEN
-    RAISE EXCEPTION 'a313_already_applied' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a314_already_applied' USING ERRCODE = '55000';
   END IF;
 END
-$a313_anchor$;
+$a314_anchor$;
 
 -- ---------------------------------------------------------------------------
 -- a) Членство сотрудника в любом статусе.
@@ -150,15 +150,15 @@ GRANT EXECUTE ON FUNCTION platform.auth_user_has_staff_membership_v1(UUID) TO se
 GRANT EXECUTE ON FUNCTION platform.auth_user_by_exact_email_v1(TEXT) TO service_role;
 
 COMMENT ON FUNCTION platform.auth_user_has_staff_membership_v1(UUID) IS
-  'Migration 313: service-only (service_role): does this Auth user have a staff membership in ANY status (invited, active, inactive, blocked) in any organization? Staff = a membership whose role is not student (a membership without a role counts). Student, no profile, a profile without a membership, an unknown or NULL id: FALSE. Used by the student password-recovery action to send no student email to staff.';
+  'Migration 314: service-only (service_role): does this Auth user have a staff membership in ANY status (invited, active, inactive, blocked) in any organization? Staff = a membership whose role is not student (a membership without a role counts). Student, no profile, a profile without a membership, an unknown or NULL id: FALSE. Used by the student password-recovery action to send no student email to staff.';
 COMMENT ON FUNCTION platform.auth_user_by_exact_email_v1(TEXT) IS
-  'Migration 313: service-only (service_role): the one Auth user whose email equals p_email (case-insensitive, trimmed), as JSONB {id, email, email_confirmed_at, confirmed_at, confirmation_sent_at, invited_at (UTC ...Z), app_metadata {evo_staff_password_request_id only}, user_metadata {evo_staff_invitation_request_id only}}; NULL when there is none; 21000 auth_user_email_ambiguous for two or more; 22023 auth_user_email_invalid for an empty, overlong or malformed address. Replaces the page-by-page auth.admin.listUsers scan.';
+  'Migration 314: service-only (service_role): the one Auth user whose email equals p_email (case-insensitive, trimmed), as JSONB {id, email, email_confirmed_at, confirmed_at, confirmation_sent_at, invited_at (UTC ...Z), app_metadata {evo_staff_password_request_id only}, user_metadata {evo_staff_invitation_request_id only}}; NULL when there is none; 21000 auth_user_email_ambiguous for two or more; 22023 auth_user_email_invalid for an empty, overlong or malformed address. Replaces the page-by-page auth.admin.listUsers scan.';
 
 -- ---------------------------------------------------------------------------
 -- Проверка в конце: определитель, пустой search_path, EXECUTE только у service_role, формы функций.
 -- Сами функции здесь не вызываются: в проверочной базе таблица auth.users - облегчённая заготовка.
 -- ---------------------------------------------------------------------------
-DO $a313_verify$
+DO $a314_verify$
 DECLARE
   routine RECORD;
 BEGIN
@@ -179,7 +179,7 @@ BEGIN
       OR EXISTS (SELECT 1 FROM pg_catalog.pg_proc q, pg_catalog.aclexplode(q.proacl) a
         WHERE q.oid = routine.oid AND a.grantee = 0)
     THEN
-      RAISE EXCEPTION 'a313_verify_function: %', routine.oid::regprocedure USING ERRCODE = '55000';
+      RAISE EXCEPTION 'a314_verify_function: %', routine.oid::regprocedure USING ERRCODE = '55000';
     END IF;
   END LOOP;
   IF (SELECT prorettype FROM pg_catalog.pg_proc
@@ -187,10 +187,10 @@ BEGIN
     OR (SELECT prorettype FROM pg_catalog.pg_proc
       WHERE oid = 'platform.auth_user_by_exact_email_v1(text)'::regprocedure) <> 'jsonb'::regtype
   THEN
-    RAISE EXCEPTION 'a313_verify_return_types' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a314_verify_return_types' USING ERRCODE = '55000';
   END IF;
 END
-$a313_verify$;
+$a314_verify$;
 
 NOTIFY pgrst, 'reload schema';
 

@@ -16,10 +16,10 @@ const IDLE: AccountDeletionActionState = { status: "idle", step: null, emailStat
 const FAILED: Readonly<Partial<Record<NonNullable<AccountDeletionActionState["step"]>, string>>> = {
   process: "База не выполнила удаление, данные не изменены. Повторите.",
   not_simple: "У аккаунта появились связанные записи, автоматически его удалить нельзя. Обновите страницу: запрос перейдёт в ручную обработку.",
-  config: "На сервере не настроен ключ Supabase service role: вход удалить нельзя. Нужен технический администратор.",
+  config: "На сервере не настроен ключ Supabase service role. Удаление не начато, данные не изменены. Нужен технический администратор.",
   auth: "Записи удалены, но вход в аккаунт не удалился. Повторите удаление.",
   complete: "Вход удалён, но база не подтвердила завершение. Повторите удаление.",
-  email: "Аккаунт удалён, но статус письма не записан. Повторите удаление: письмо не уйдёт дважды.",
+  email: "Аккаунт удалён, но статус письма не записался. Карточка обновится: письмо можно повторить там.",
 };
 
 /**
@@ -52,7 +52,10 @@ export function AccountDeletionProcess({
   const confirmed = word.trim().toLocaleLowerCase("ru") === ACCOUNT_DELETION_CONFIRM_WORD;
 
   useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
-  useEffect(() => { if (state.status === "completed" || state.step === "not_simple") router.refresh(); }, [state, router]);
+  // Не удалось только записать статус письма: запрос уже выполнен, карточка покажет «Повторить письмо».
+  useEffect(() => {
+    if (state.status === "completed" || state.step === "not_simple" || state.step === "email") router.refresh();
+  }, [state, router]);
 
   const error = state.status === "failed" && state.step
     ? FAILED[state.step] ?? "Удаление не выполнено. Повторите."

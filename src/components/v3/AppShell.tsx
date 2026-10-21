@@ -14,6 +14,7 @@ import {
   type RefObject,
 } from "react";
 
+import type { AccountDeletionOpenCount } from "@/lib/account-deletion-contract";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { isStaffPreview, staffHasPermission, staffHomeRoute } from "@/lib/platform-access";
 import type { StaffNotificationPage } from "@/lib/platform-staff-notifications-contract";
@@ -95,28 +96,47 @@ type HintHandlers = Readonly<{
 type Hint = (label: string) => HintHandlers;
 type ScrollEdges = Readonly<{ above: boolean; below: boolean }>;
 
+/** Число у пункта меню (то же начертание, что у непрочитанных уведомлений); `name` — для чтения с экрана. */
+type MenuBadge = Readonly<{ count: number; name: string }>;
+
 function MenuLink({
   link,
   activeId,
   rail = false,
   hint = {},
+  badge = null,
   onNavigate,
 }: {
   link: V3NavigationLink;
   activeId: V3NavigationLinkId | null;
   rail?: boolean;
   hint?: HintHandlers;
+  badge?: MenuBadge | null;
   onNavigate: () => void;
 }) {
   return (
     <IntentPrefetchLink
       href={link.href}
       aria-current={activeId === link.id ? "page" : undefined}
+      aria-label={badge ? `${link.label}: ${badge.name}` : undefined}
       onNavigate={onNavigate}
       className={cn(ITEM, rail && "md:max-2xl:justify-center md:max-2xl:px-0")}
       {...hint}
     >
-      <Icon name={LINK_ICONS[link.id]} size={20} className="shrink-0" />
+      {badge ? (
+        <span className="relative inline-flex shrink-0">
+          <Icon name={LINK_ICONS[link.id]} size={20} className="shrink-0" />
+          <span
+            aria-hidden="true"
+            data-testid="v3-shell-badge"
+            className="t-caption absolute -end-2 -top-2 min-w-5 rounded-full bg-fg px-1 text-center tabular-nums text-surface"
+          >
+            {badge.count > 99 ? "99+" : badge.count}
+          </span>
+        </span>
+      ) : (
+        <Icon name={LINK_ICONS[link.id]} size={20} className="shrink-0" />
+      )}
       <span className={cn("min-w-0", rail && "md:max-2xl:sr-only")}>{link.label}</span>
     </IntentPrefetchLink>
   );
@@ -356,10 +376,13 @@ export function AppShell({
   children,
   actor,
   initialNotifications,
+  deletionRequests = null,
 }: {
   children: ReactNode;
   actor: ActivePlatformActor;
   initialNotifications: StaffNotificationPage | null;
+  /** Не выполненные запросы на удаление аккаунта: число у «Настроек» (только Admin; ревью 280, UI-F6). */
+  deletionRequests?: AccountDeletionOpenCount | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -466,6 +489,12 @@ export function AppShell({
     : [...new Set(actor.assignments.map((assignment) => assignment.label))].join(", ") || "Права ещё не назначены";
   const home = staffHomeRoute(actor);
   const unreadCount = unread && unread !== "0" ? unread : null;
+  const settingsBadge: MenuBadge | null = deletionRequests && deletionRequests.open > 0
+    ? {
+      count: deletionRequests.open,
+      name: `запросов на удаление аккаунта: ${deletionRequests.open}${deletionRequests.overdue > 0 ? `, просрочено: ${deletionRequests.overdue}` : ""}`,
+    }
+    : null;
 
   return (
     <div
@@ -632,7 +661,7 @@ export function AppShell({
             <div className={cn("flex items-center gap-1 px-3 pt-2", rail && "md:max-2xl:flex-col md:max-2xl:px-2")}>
               {navigation.settings ? (
                 <div className={cn("min-w-0 flex-1", rail && "md:max-2xl:w-full md:max-2xl:flex-none")}>
-                  <MenuLink link={navigation.settings} activeId={navigation.activeId} rail={rail} hint={hint(navigation.settings.label)} onNavigate={closeAfterNavigation} />
+                  <MenuLink link={navigation.settings} activeId={navigation.activeId} rail={rail} hint={hint(navigation.settings.label)} badge={settingsBadge} onNavigate={closeAfterNavigation} />
                 </div>
               ) : null}
               <form action={logoutStaffAction} className="shrink-0">

@@ -6,6 +6,7 @@ import { ServerReleaseMark } from "@/components/ServerReleaseMark";
 import { AppShell } from "@/components/v3/AppShell";
 import { requirePlatformStaffActor } from "@/lib/platform-guards";
 import { readReleaseMetadata } from "@/lib/release-metadata";
+import { readOpenAccountDeletionCount } from "@/lib/v3/account-deletion-source";
 import { readStaffNotificationsForActor } from "@/lib/v3/staff-notification-source";
 
 import "./v3.css";
@@ -38,11 +39,16 @@ export const metadata: Metadata = {
 export default async function V3Layout({ children }: { children: ReactNode }) {
   const actor = await requirePlatformStaffActor();
   const release = readReleaseMetadata();
-  const notifications = !isStaffPreview(actor) ? await readStaffNotificationsForActor(actor).catch(() => null) : null;
+  // Уведомления и счётчик запросов на удаление читаются вместе; счётчик есть только у Admin и без
+  // просмотра роли (иначе `null`), любой сбой чтения — «нет счётчика», а не ошибка страницы.
+  const [notifications, deletionRequests] = await Promise.all([
+    !isStaffPreview(actor) ? readStaffNotificationsForActor(actor).catch(() => null) : Promise.resolve(null),
+    readOpenAccountDeletionCount(actor),
+  ]);
 
   return (
     <div className="v3-world" data-surface="staff">
-      <AppShell actor={actor} initialNotifications={notifications}>
+      <AppShell actor={actor} initialNotifications={notifications} deletionRequests={deletionRequests}>
         {children}
       </AppShell>
       <ServerReleaseMark release={release.status === "available" ? release.revision : null} />

@@ -22,6 +22,7 @@ export type AccountDeletionActionState = Readonly<{
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const PROCESS_FIELDS = ["request_row_id", "requested_at", "confirm"] as const;
 const DONE_FIELDS = ["request_row_id", "requested_at", "confirm", "note"] as const;
+const EMAIL_FIELDS = ["request_row_id", "requested_at"] as const;
 
 function word(value: string | undefined): string {
   return (value ?? "").trim().toLocaleLowerCase("ru");
@@ -97,6 +98,29 @@ export async function markAccountDeletionDoneAction(
   }
   const { markAccountDeletionDone } = await import("../server/account-deletion-processor.ts");
   const result = await markAccountDeletionDone(id, requestedAtOf(fields.get("requested_at")), note, await services());
+  revalidatePath("/v3/settings");
+  return state(result);
+}
+
+/**
+ * «Повторить письмо» (ревью 280 F1 и UI-F2): выполненный запрос, у которого письмо
+ * ушло или не ушло, но статус не записался, и адрес всё ещё хранится. Слово
+ * подтверждения не нужно: ничего не удаляется, письмо одно и то же, Resend
+ * узнаёт повтор по номеру запроса. Права решает база; просмотр роли ничего не пишет.
+ */
+export async function retryAccountDeletionEmailAction(
+  _previous: AccountDeletionActionState,
+  form: FormData,
+): Promise<AccountDeletionActionState> {
+  const actor = await requirePlatformStaffActor();
+  if (actor.systemRole !== "admin" || isStaffPreview(actor)) {
+    return { status: "forbidden", step: null, emailStatus: null };
+  }
+  const fields = exactActionStringFields(form, EMAIL_FIELDS);
+  const id = fields?.get("request_row_id") ?? "";
+  if (!fields || !UUID.test(id)) return { status: "invalid", step: null, emailStatus: null };
+  const { resendAccountDeletionEmail } = await import("../server/account-deletion-processor.ts");
+  const result = await resendAccountDeletionEmail(id, requestedAtOf(fields.get("requested_at")), await services());
   revalidatePath("/v3/settings");
   return state(result);
 }

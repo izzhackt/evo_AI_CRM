@@ -8,11 +8,14 @@ import { readRequestTheme } from "@/lib/theme-server";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Восстановление пароля | EVO Admissions",
-  robots: { index: false, follow: false },
-  referrer: "no-referrer",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPasswordRecoveryStrings(await getLocale());
+  return {
+    title: { absolute: `${strings.forgotTitle} | EVO Admissions` },
+    robots: { index: false, follow: false },
+    referrer: "no-referrer",
+  };
+}
 
 export default async function StudentForgotPasswordPage() {
   const [locale, theme] = await Promise.all([getLocale(), readRequestTheme()]);

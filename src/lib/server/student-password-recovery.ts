@@ -15,7 +15,6 @@ import { getSupabasePublicConfig } from "../supabase/config.ts";
 import { readVerifiedPlatformAuthority } from "../supabase/platform-authority.ts";
 import { createSupabaseServerClient } from "../supabase/server.ts";
 import {
-  classifyStudentRecoveryRequestError,
   hasStaffRecoveryMarker,
   STUDENT_PASSWORD_RESET_PATH,
   STUDENT_RECOVERY_ADDRESS_LIMIT,
@@ -32,7 +31,11 @@ import {
 
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
-import { findRawAuthUserByExactEmail } from "./student-portal-invite-auth-provider.ts";
+import {
+  classifyStudentRecoveryRecipient,
+  runStudentRecoveryRequest,
+  type StudentRecoveryRecipient,
+} from "./student-recovery-request.ts";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -222,30 +225,24 @@ export function admitStudentRecoveryRequest(
   return "admitted";
 }
 
-type RecoveryRecipient = "staff" | "other" | "unavailable";
-
 /**
  * Staff recovery is admin-driven, and a public request must not replace a
  * staff recovery token or the timestamp the staff journal reads. The service
- * role finds the exact address and refuses the provisioning markers before
- * Auth is called. Active membership without a marker cannot be read by the
- * service role without a migration; the link step still refuses it.
+ * role finds the exact address by one point lookup, then asks the database
+ * whether that Auth user holds a staff membership in any status (migration
+ * 314), and also honours the provisioning markers. A staff account without a
+ * marker, such as the first system administrator, is therefore refused before
+ * Auth is called. The link step still refuses staff as a second guard.
  */
-async function classifyRecoveryRecipient(normalizedEmail: string): Promise<RecoveryRecipient> {
+async function classifyRecoveryRecipient(
+  normalizedEmail: string,
+): Promise<StudentRecoveryRecipient> {
   try {
     const service = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
-    const found = await findRawAuthUserByExactEmail(service, normalizedEmail);
-    if (found.status === "unavailable") {
-      logStudentRecoveryFailure("request_lookup");
-      return "unavailable";
-    }
-    if (found.status === "found" && found.user !== null && hasStaffRecoveryMarker(found.user, undefined)) {
-      return "staff";
-    }
-    return "other";
+    return await classifyStudentRecoveryRecipient(service, normalizedEmail);
   } catch (error) {
     logStudentRecoveryFailure("request_lookup", error);
-    return "unavailable";
+    return { status: "unavailable", stage: "lookup" };
   }
 }
 
@@ -257,22 +254,16 @@ export async function requestStudentPasswordRecovery(
   email: string,
   redirectTo: string,
 ): Promise<StudentRecoveryRequestState["status"]> {
-  const recipient = await classifyRecoveryRecipient(email);
-  if (recipient === "unavailable") return "unavailable";
-  if (recipient === "staff") {
-    logStudentRecoveryFailure("request_staff_skipped");
-    return "sent";
-  }
-  try {
-    const { error } = await isolatedClient().auth.resetPasswordForEmail(email, {
-      redirectTo,
-    });
-    if (error) logStudentRecoveryFailure("request", error);
-    return classifyStudentRecoveryRequestError(error);
-  } catch (error) {
-    logStudentRecoveryFailure("request", error);
-    return "unavailable";
-  }
+  return runStudentRecoveryRequest(
+    {
+      recipient: classifyRecoveryRecipient,
+      sendEmail: (address, target) =>
+        isolatedClient().auth.resetPasswordForEmail(address, { redirectTo: target }),
+      log: logStudentRecoveryFailure,
+    },
+    email,
+    redirectTo,
+  );
 }
 
 export type StudentRecoveryLinkResult =

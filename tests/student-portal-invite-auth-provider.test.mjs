@@ -5,14 +5,25 @@ import { createStudentPortalInviteAuthProvider } from "../src/lib/server/student
 
 const AUTH_USER_ID = "10000000-0000-4000-8000-000000000001";
 
-function client({ invite, getUser, listUsers = async () => ({ data: { users: [], nextPage: null }, error: null }) }) {
+// The exact-address lookup is one service-role RPC (migration 314), not an Admin API list scan.
+function client({ invite, getUser, lookup = async () => ({ data: null, error: null }), rpcCalls = [] }) {
   return {
     auth: {
       admin: {
         inviteUserByEmail: invite,
         getUserById: getUser,
-        listUsers,
+        listUsers: async () => {
+          throw new Error("the Admin API user list must not be scanned");
+        },
       },
+    },
+    schema(name) {
+      return {
+        async rpc(fn, args) {
+          rpcCalls.push({ schema: name, fn, args });
+          return lookup(fn, args);
+        },
+      };
     },
   };
 }
@@ -53,23 +64,18 @@ test("provider reconciliation finds one exact normalized email without inviting"
         throw new Error("must not invite during readback");
       },
       getUser: async () => ({ data: { user: null }, error: null }),
-      listUsers: async (input) => {
-        calls.push(input);
-        return {
-          data: {
-            users: [
-              {
-                id: AUTH_USER_ID,
-                email: "Student@Example.com",
-                confirmation_sent_at: "2026-09-07T10:00:00.000Z",
-                email_confirmed_at: null,
-              },
-            ],
-            nextPage: null,
-          },
-          error: null,
-        };
-      },
+      rpcCalls: calls,
+      lookup: async () => ({
+        data: {
+          id: AUTH_USER_ID,
+          email: "Student@Example.com",
+          confirmation_sent_at: "2026-09-07T10:00:00.000Z",
+          email_confirmed_at: null,
+          app_metadata: {},
+          user_metadata: {},
+        },
+        error: null,
+      }),
     }),
   );
   assert.deepEqual(await provider.findUserByExactEmail("student@example.com"), {
@@ -81,7 +87,33 @@ test("provider reconciliation finds one exact normalized email without inviting"
       confirmationSentAt: "2026-09-07T10:00:00.000Z",
     },
   });
-  assert.deepEqual(calls, [{ page: 1, perPage: 1000 }]);
+  assert.deepEqual(calls, [
+    { schema: "platform", fn: "auth_user_by_exact_email_v1", args: { p_email: "student@example.com" } },
+  ]);
+});
+
+test("provider reconciliation: nobody is missing; an unclear lookup is unavailable, never a guess", async () => {
+  const find = async (lookup) =>
+    createStudentPortalInviteAuthProvider(
+      client({
+        invite: async () => ({ data: { user: null }, error: null }),
+        getUser: async () => ({ data: { user: null }, error: null }),
+        lookup,
+      }),
+    ).findUserByExactEmail("student@example.com");
+
+  assert.deepEqual(await find(async () => ({ data: null, error: null })), { status: "missing", user: null });
+  for (const unclear of [
+    async () => ({ data: null, error: { code: "21000", message: "auth_user_email_ambiguous" } }),
+    async () => ({ data: null, error: { status: 404, code: "PGRST202" } }),
+    async () => ({ data: { id: AUTH_USER_ID, email: "other@example.com" }, error: null }),
+    async () => ({ data: { id: "not-a-uuid", email: "student@example.com" }, error: null }),
+    async () => {
+      throw new Error("network");
+    },
+  ]) {
+    assert.deepEqual(await find(unclear), { status: "unavailable", user: null });
+  }
 });
 
 test("provider distinguishes definite Auth rejection from uncertain outcome", async () => {
@@ -188,10 +220,7 @@ test("provider classifies an occupied email via the trusted admin lookup (PORT-1
           error: { status: 422, code: "email_exists", name: "AuthApiError" },
         }),
         getUser: async () => ({ data: { user: null }, error: null }),
-        listUsers: async () => ({
-          data: { users: user ? [user] : [], nextPage: null },
-          error: null,
-        }),
+        lookup: async () => ({ data: user, error: null }),
       }),
     );
     assert.deepEqual(
@@ -241,7 +270,7 @@ test("provider keeps the legacy occupied-email code when the lookup is unavailab
         error: { status: 422, code: "email_address_exists", name: "AuthApiError" },
       }),
       getUser: async () => ({ data: { user: null }, error: null }),
-      listUsers: async () => ({ data: { users: null }, error: { status: 500 } }),
+      lookup: async () => ({ data: null, error: { status: 500 } }),
     }),
   );
   assert.deepEqual(

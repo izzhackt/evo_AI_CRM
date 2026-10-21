@@ -4168,6 +4168,25 @@ SQL
       exit 1
     fi
   fi
+  # Восстановление пароля студента спрашивает у базы, не сотрудник ли пользователь Auth (migration 314,
+  # задача #1195, PLAN_CHANGES 21.10.2026). Matched by name, not number. Run right after the migration,
+  # insisting on the suite's marker. The suite proves: the grants of both service-only functions (definer,
+  # empty search_path, STABLE, EXECUTE for service_role only; a staff session, anon and supabase_auth_admin
+  # refused with 42501); staff membership in ANY status (a bootstrap Admin without an Auth marker, a member
+  # without a role, invited / inactive / blocked memberships, a blocked profile) is TRUE, a Student, a profile
+  # without a membership, a user without a profile, an unknown id and NULL are FALSE; the exact lookup by
+  # address (case and spaces, the eight keys and the two staff markers only, UTC times, NULL for nobody,
+  # 21000 for two users with one address, 22023 for a malformed address).
+  if [[ "$(basename "$migration")" == *_platform_password_recovery_staff_check.sql ]]; then
+    password_recovery_staff_check_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_password_recovery_staff_check.sql </dev/null)"
+    printf '%s\n' "$password_recovery_staff_check_log"
+    if ! grep -q 'PASSWORD_RECOVERY_STAFF_CHECK_SUITE_PASSED' <<<"$password_recovery_staff_check_log"; then
+      echo "platform_password_recovery_staff_check.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

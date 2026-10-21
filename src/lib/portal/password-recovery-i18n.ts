@@ -108,11 +108,74 @@ const ky: Record<keyof typeof ru, string> = {
   goCabinet: "Кабинетке өтүү",
 };
 
+
+/**
+ * English for the short recovery pages. The email itself is one shared Supabase
+ * Auth template and is written in Russian, so `sent` says so instead of
+ * promising an English message.
+ */
+const en: Record<keyof typeof ru, string> = {
+  forgotLink: "Forgot password?",
+  forgotTitle: "Reset your password",
+  forgotIntro: "Enter the email you sign in with. We will send a link to set a new password.",
+  emailLabel: "Email",
+  submit: "Get link",
+  sending: "Sending…",
+  sent: "If an account with this email exists, you will get an email with the link within a few minutes. It is written in Russian. Check Spam too, and if nothing arrives, request it again later.",
+  sentAddress: "Address: {email}",
+  sentValidity: "The link can be used once, within one hour.",
+  resend: "Send again",
+  resendIn: "You can send again in {seconds} s",
+  backToLogin: "Back to sign-in",
+  invalid_email: "Check the email address.",
+  rate_limited: "Too many requests. Try again in 15 minutes.",
+  unavailable: "The request could not be sent. Try again in a few minutes.",
+  staffNote: "EVO staff recover access through an administrator.",
+
+  linkTitle: "New password",
+  linkIntro: "Press Continue to check the link and set a new password. Until you press it, the link changes nothing.",
+  continue: "Continue",
+  checking: "Checking the link…",
+  invalidLink: "The link did not open completely. Open it from the email again or request a new email.",
+  invalidRequest: "The security check failed. Open the link from the email again.",
+  expiredOrUsed: "This link has expired or was already used. Request a new email.",
+  staffRefused: "The password of this account cannot be reset in the student portal. Contact an EVO administrator.",
+  invalidIdentity: "The account could not be confirmed from this link. Request a new email.",
+  authUnavailable: "The sign-in service is temporarily unavailable. Open the link later.",
+  requestNew: "Request a new email",
+  toLogin: "Go to sign-in",
+
+  resetTitle: "New password",
+  resetIntro: "Choose the password you will use to sign in to the portal and the app.",
+  account: "Account: {email}",
+  passwordLabel: "New password",
+  confirmLabel: "Repeat password",
+  passwordHint: "At least 12 characters.",
+  save: "Save password",
+  saving: "Saving…",
+  mismatch: "The passwords do not match.",
+  too_short: "The password is shorter than 12 characters.",
+  too_long: "The password is too long. Shorten it.",
+  same_password: "The new password is the same as the old one. Choose a different one.",
+  rejected: "The sign-in service did not accept this password. Choose a different, stronger one.",
+  expired: "The time to change the password has run out. Request a new email.",
+  sign_in_required: "Password saved. Sign in with the new password.",
+  save_unavailable: "The password could not be saved. Try again.",
+  invalid_request: "The form is out of date. Refresh the page and try again.",
+  missingSession: "The link for a new password has expired or was already used. Request a new email.",
+  doneTitle: "Password updated",
+  done: "You are signed in to the portal with the new password. Use it in the EVO iPhone app too.",
+  goCabinet: "Go to the portal",
+};
+
 export type PasswordRecoveryStrings = typeof ru;
 
-/** Portal languages are Russian and Kyrgyz; English falls back to Russian. */
+/**
+ * The sign-in page offers Russian, Kyrgyz and English, so the recovery flow
+ * speaks all three. (The rest of the student portal is Russian and Kyrgyz.)
+ */
 export function getPasswordRecoveryStrings(locale: Locale): PasswordRecoveryStrings {
-  return locale === "ky" ? ky : ru;
+  return locale === "ky" ? ky : locale === "en" ? en : ru;
 }
 
 export function fillRecoveryString(

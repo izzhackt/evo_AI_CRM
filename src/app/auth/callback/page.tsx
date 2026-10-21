@@ -21,14 +21,26 @@ import { readRequestTheme } from "@/lib/theme-server";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Подтвердить аккаунт | EVO Admissions",
-  robots: { index: false, follow: false },
-};
-
 type CallbackSearchParams = Promise<
   Record<string, string | readonly string[] | undefined>
 >;
+
+/**
+ * One callback serves two emails. A recovery link is titled for what the
+ * student does there («Новый пароль»); only the invitation keeps «Подтвердить
+ * аккаунт». The URL carries the one-time token_hash for both, so the page says
+ * no-referrer itself (as the other recovery pages do) and its sub-requests do not
+ * depend on how the edge combines its Referrer-Policy with the one set here.
+ */
+export async function generateMetadata({
+  searchParams,
+}: Readonly<{ searchParams: CallbackSearchParams }>): Promise<Metadata> {
+  const isRecovery = (await searchParams).type === "recovery";
+  const title = isRecovery
+    ? { absolute: `${getPasswordRecoveryStrings(await getLocale()).linkTitle} | EVO Admissions` }
+    : "Подтвердить аккаунт | EVO Admissions";
+  return { title, robots: { index: false, follow: false }, referrer: "no-referrer" };
+}
 
 export default async function StudentInviteCallbackPage({
   searchParams,

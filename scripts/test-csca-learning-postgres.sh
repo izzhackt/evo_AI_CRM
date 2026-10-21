@@ -11,7 +11,11 @@
 #      migration (release 1.1.0, applied by the unchanged engine), then
 #      supabase/tests/platform_csca_math_part2.sql: the release carries 1.0.0
 #      unchanged, progress goes by key, the 24 item diagnostic and the 48 item
-#      mock run end to end.
+#      mock run end to end;
+#   3. the session calendar refresh (*_platform_csca_sessions_refresh.sql, in the
+#      chain of step 1): supabase/tests/platform_csca_sessions_refresh.sql proves
+#      the newest row of each session, the published window, the real Student
+#      home RPC and immutability; a second run of the migration must be refused.
 # Matched by name, not number, so a renumbering at merge keeps the hooks. No
 # network, nothing shared: the container is removed on exit.
 set -euo pipefail
@@ -92,4 +96,23 @@ part2_log="$(psql_run -At -f /workspace/supabase/tests/platform_csca_math_part2.
   printf '%s\n' "$part2_log" | grep -v '^$' | tail -20 >&2; exit 1;
 }
 printf '%s\n' "$part2_log" | grep -F 'CSCA_MATH_PART2_SUITE_PASSED'
+
+# Session calendar refresh: already applied by the chain; the suite checks its result.
+sessions_migration="$(find supabase/migrations -maxdepth 1 -type f -name '*_platform_csca_sessions_refresh.sql')"
+[[ -n "$sessions_migration" && "$(printf '%s\n' "$sessions_migration" | wc -l)" -eq 1 ]] || {
+  echo 'CSCA sessions refresh migration not found (exactly one expected)' >&2; exit 1;
+}
+sessions_log="$(psql_run -At -f /workspace/supabase/tests/platform_csca_sessions_refresh.sql 2>&1)" || {
+  printf '%s\n' "$sessions_log" | grep -v '^$' | tail -20 >&2; exit 1;
+}
+printf '%s\n' "$sessions_log" | grep -F 'CSCA_SESSIONS_REFRESH_SUITE_PASSED'
+# A second run is refused by the anchor: the newest rows are already checked on 21.10.2026.
+if rerun_log="$(psql_run -At -f "/workspace/$sessions_migration" 2>&1)"; then
+  echo 'the sessions refresh migration accepted a second run' >&2; exit 1;
+fi
+printf '%s\n' "$rerun_log" | grep -F 'p313_anchor_rerun' >/dev/null || {
+  printf '%s\n' "$rerun_log" | grep -v '^$' | tail -20 >&2
+  echo 'the second run failed for the wrong reason' >&2; exit 1;
+}
+echo 'CSCA_SESSIONS_REFRESH_RERUN_REFUSED'
 echo 'CSCA_LEARNING_POSTGRES_VERIFIED'

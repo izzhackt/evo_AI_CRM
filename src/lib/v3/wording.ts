@@ -937,7 +937,7 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "account.deletion.complete": "Автоматическое удаление аккаунта завершено",
   "account.deletion.manual.complete": "Ручное удаление аккаунта отмечено выполненным",
   "account.deletion.email": "Записан итог письма об удалении аккаунта",
-  // Склейка двух карточек одного человека (миграция 313; пишет 308). В записи только
+  // Склейка двух карточек одного человека (миграция 316; пишет 308). В записи только
   // идентификаторы, имён и телефонов нет; объект - оставленный клиент.
   "client.duplicate.merge": "Карточки клиента объединены",
 } satisfies Readonly<Record<PlatformAuditAction, string>>;

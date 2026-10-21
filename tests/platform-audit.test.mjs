@@ -88,7 +88,7 @@ const P7A_WRAPPER_MIGRATIONS = [
   // Удаление аккаунта (доработки P3): пять действий account.deletion.* и тип объекта account_deletion_request.
   ["315_platform_account_deletion_p3.sql", "account_deletion_journal"],
   // Склейка клиентов: действие client.duplicate.merge, объект client (новый тип).
-  ["313_platform_sales_import_tails.sql", "sales_import_tails"],
+  ["316_platform_sales_import_tails.sql", "sales_import_tails"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -600,7 +600,7 @@ test("account.deletion.* journal actions and the request object type are allowli
   assert.deepEqual(row.changedFieldCodes, ["record_status"]);
 });
 
-// Склейка клиентов (миграция 313; действие пишет 308): client.duplicate.merge с объектом client
+// Склейка клиентов (миграция 316; действие пишет 308): client.duplicate.merge с объектом client
 // видно в «Журнале действий» словами; тип объекта новый; неизвестное значение слова не получает.
 test("client.duplicate.merge journal action and the client object type are allowlisted and worded in Russian", () => {
   assert.deepEqual(PLATFORM_AUDIT_ACTIONS.filter((action) => action.startsWith("client.")), ["client.duplicate.merge"]);

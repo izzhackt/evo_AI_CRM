@@ -68,7 +68,7 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // `account_deletion_request`, by the same rename-and-union wrappers
 // (`..._pre_account_deletion_journal`). They fall through to the `["record_status"]`
 // default of `expectedChangedFieldCodes`, exactly like the server's `ELSE`.
-// Migration 313 («хвосты переноса отчёта продаж», docs/PLAN_CHANGES.md «2026-10-21 ·
+// Migration 316 («хвосты переноса отчёта продаж», docs/PLAN_CHANGES.md «2026-10-21 ·
 // Хвосты переноса отчёта продаж…») adds the action `client.duplicate.merge` (written
 // since 308 by `merge_clients_owner_confirmed_v1`) and the resource type `client`
 // by the same rename-and-union wrappers (`..._pre_sales_import_tails`). The row

@@ -605,24 +605,24 @@ SQL
     done
   fi
 
-  # Хвосты переноса отчёта продаж и склейки клиентов (миграция 313, PLAN_CHANGES 21.10.2026).
+  # Хвосты переноса отчёта продаж и склейки клиентов (миграция 316, PLAN_CHANGES 21.10.2026).
   # Matched by name, not number, so a renumbering at merge keeps the hook. IMMEDIATELY BEFORE the
-  # ordinary apply the migration must refuse with a313_anchor_drift, inside a transaction that the
+  # ordinary apply the migration must refuse with a316_anchor_drift, inside a transaction that the
   # failure rolls back, for each of the four functions it edits by fragment when that function is
   # edited after its own migration (the md5 pre-image anchors). The suite itself runs right after
   # the migration (below).
   if [[ "$(basename "$migration")" == *_platform_sales_import_tails.sql ]]; then
-    for t313_pinned in \
+    for t316_pinned in \
       'platform_private.acquire_waha_canonical_identity(uuid,uuid,uuid,uuid)' \
       'platform.telephony_lead_calls_v1(uuid,uuid,integer,timestamptz,timestamptz)' \
       'platform.telephony_set_result_v1(uuid,uuid,text,date)' \
       'platform.telephony_lead_recordings_v1(uuid,uuid,uuid[])'; do
-      t313_tamper_log="$(mktemp -t evo-t313-anchor.XXXXXX)"
+      t316_tamper_log="$(mktemp -t evo-t316-anchor.XXXXXX)"
       if docker exec -i "$container_name" \
         psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
-        -v "pinned_function=$t313_pinned" \
+        -v "pinned_function=$t316_pinned" \
         -v "migration_file=/workspace/$migration" \
-        >"$t313_tamper_log" 2>&1 <<'SQL'
+        >"$t316_tamper_log" 2>&1 <<'SQL'
 BEGIN;
 SELECT replace(
   pg_get_functiondef(:'pinned_function'::regprocedure),
@@ -633,15 +633,15 @@ SELECT replace(
 \i :migration_file
 SQL
       then
-        echo "migration 313 accepted an edited $t313_pinned" >&2
+        echo "migration 316 accepted an edited $t316_pinned" >&2
         exit 1
       fi
-      if ! grep -Fq "a313_anchor_drift" "$t313_tamper_log"; then
-        echo "migration 313 failed for the wrong pre-image reason ($t313_pinned)" >&2
-        sed -n '1,60p' "$t313_tamper_log" >&2
+      if ! grep -Fq "a316_anchor_drift" "$t316_tamper_log"; then
+        echo "migration 316 failed for the wrong pre-image reason ($t316_pinned)" >&2
+        sed -n '1,60p' "$t316_tamper_log" >&2
         exit 1
       fi
-      rm -f "$t313_tamper_log"
+      rm -f "$t316_tamper_log"
     done
   fi
 
@@ -4289,7 +4289,7 @@ SQL
       exit 1
     fi
   fi
-  # Хвосты переноса отчёта продаж и склейки клиентов (migration 313, PLAN_CHANGES 21.10.2026).
+  # Хвосты переноса отчёта продаж и склейки клиентов (migration 316, PLAN_CHANGES 21.10.2026).
   # Matched by name, not number. Run right after the migration, insisting on the suite's marker (a psql
   # exit code alone would pass a file that stopped early). The suite proves: the posture of everything
   # added or replaced; the erasure of the sales-report import receipts (service boundary, actor, strict
@@ -4303,7 +4303,7 @@ SQL
       psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
       -f /workspace/supabase/tests/platform_sales_import_tails.sql </dev/null)"
     printf '%s\n' "$sales_import_tails_log"
-    if ! grep -q 'T313_SALES_IMPORT_TAILS_SUITE_PASSED' <<<"$sales_import_tails_log"; then
+    if ! grep -q 'T316_SALES_IMPORT_TAILS_SUITE_PASSED' <<<"$sales_import_tails_log"; then
       echo "platform_sales_import_tails.sql did not reach its PASSED marker" >&2
       exit 1
     fi

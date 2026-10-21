@@ -1,8 +1,9 @@
--- 313: хвосты переноса отчёта продаж и склейки клиентов 17-18.10.2026 (агентская часть).
+-- 316: хвосты переноса отчёта продаж и склейки клиентов 17-18.10.2026 (агентская часть).
 -- docs/PLAN_CHANGES.md «2026-10-21 · Хвосты переноса отчёта продаж: стирание квитанций,
--- приём WhatsApp, журнал склейки, звонки склеенных клиентов (миграция 313)». Номер 313 -
--- следующий за 312 на origin/main 9b40eb7ad; сверяется ещё раз перед слиянием (хуки набора
--- привязаны к имени файла, не к номеру).
+-- приём WhatsApp, журнал склейки, звонки склеенных клиентов (миграция 316)». Номер 316:
+-- на origin/main 273ea8a83 последняя 312, 313-315 заняты стеком (CSCA, восстановление пароля,
+-- удаление аккаунта); сверяется ещё раз перед слиянием (хуки набора привязаны к имени файла,
+-- не к номеру).
 --
 -- Forward-only. Четыре независимые правки одной миграцией, у каждой свои якоря; новых
 -- клиентских функций нет, новая служебная функция одна (только service_role). SECURITY DEFINER
@@ -80,9 +81,9 @@
 BEGIN;
 
 -- ---------------------------------------------------------------------------
--- Якоря: что читается, что заменяется (md5 тел 001-312), свободные имена.
+-- Якоря: что читается, что заменяется (md5 тел 001-312 (313-315 этих функций не меняют)), свободные имена.
 -- ---------------------------------------------------------------------------
-DO $a313_anchor$
+DO $a316_anchor$
 BEGIN
   IF to_regclass('platform_private.sales_report_import_receipts') IS NULL
     OR to_regclass('platform_private.sales_register') IS NULL
@@ -101,34 +102,34 @@ BEGIN
     OR to_regprocedure('platform_private.p7a_safe_audit_resource_types()') IS NULL
     OR to_regprocedure('platform.import_sales_report_row_v1(uuid,uuid,text,text,jsonb,text)') IS NULL
   THEN
-    RAISE EXCEPTION 'a313_anchor_drift: the 304 / 308 / 295 objects this migration builds on are missing' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a316_anchor_drift: the 304 / 308 / 295 objects this migration builds on are missing' USING ERRCODE = '55000';
   END IF;
   -- 304: the receipts table carries the general lock (one row trigger, one TRUNCATE trigger).
   IF (SELECT count(*) FROM pg_catalog.pg_trigger t
       WHERE t.tgrelid = 'platform_private.sales_report_import_receipts'::regclass AND NOT t.tgisinternal
         AND t.tgfoid = 'platform_private.block_append_only_mutation()'::regprocedure) <> 2 THEN
-    RAISE EXCEPTION 'a313_anchor_drift: sales_report_import_receipts lost its append-only triggers' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a316_anchor_drift: sales_report_import_receipts lost its append-only triggers' USING ERRCODE = '55000';
   END IF;
   -- The bodies this migration edits by fragment are exactly the ones it was written against.
   IF (SELECT md5(p.prosrc) FROM pg_catalog.pg_proc p
       WHERE p.oid = to_regprocedure('platform_private.acquire_waha_canonical_identity(uuid,uuid,uuid,uuid)'))
         IS DISTINCT FROM '35b7c27c3928a6d8e1c2292c8fa729ad' THEN
-    RAISE EXCEPTION 'a313_anchor_drift: platform_private.acquire_waha_canonical_identity is not the 260 definition' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a316_anchor_drift: platform_private.acquire_waha_canonical_identity is not the 260 definition' USING ERRCODE = '55000';
   END IF;
   IF (SELECT md5(p.prosrc) FROM pg_catalog.pg_proc p
       WHERE p.oid = to_regprocedure('platform.telephony_lead_calls_v1(uuid,uuid,integer,timestamptz,timestamptz)'))
         IS DISTINCT FROM '9712f599f0f7352ff04cbdb330e20ed2' THEN
-    RAISE EXCEPTION 'a313_anchor_drift: platform.telephony_lead_calls_v1 is not the 295 definition' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a316_anchor_drift: platform.telephony_lead_calls_v1 is not the 295 definition' USING ERRCODE = '55000';
   END IF;
   IF (SELECT md5(p.prosrc) FROM pg_catalog.pg_proc p
       WHERE p.oid = to_regprocedure('platform.telephony_set_result_v1(uuid,uuid,text,date)'))
         IS DISTINCT FROM '407209bd70b8f1cf55082a32cc62c067' THEN
-    RAISE EXCEPTION 'a313_anchor_drift: platform.telephony_set_result_v1 is not the 295 definition' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a316_anchor_drift: platform.telephony_set_result_v1 is not the 295 definition' USING ERRCODE = '55000';
   END IF;
   IF (SELECT md5(p.prosrc) FROM pg_catalog.pg_proc p
       WHERE p.oid = to_regprocedure('platform.telephony_lead_recordings_v1(uuid,uuid,uuid[])'))
         IS DISTINCT FROM 'ee2782776dd9cf8ab1b21ae22238141f' THEN
-    RAISE EXCEPTION 'a313_anchor_drift: platform.telephony_lead_recordings_v1 is not the 297 definition' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a316_anchor_drift: platform.telephony_lead_recordings_v1 is not the 297 definition' USING ERRCODE = '55000';
   END IF;
   -- Nothing of this migration exists yet.
   IF to_regclass('platform_private.sales_report_erasure_requests') IS NOT NULL
@@ -139,26 +140,26 @@ BEGIN
     OR 'client.duplicate.merge' = ANY (platform_private.p7a_safe_audit_actions())
     OR 'client' = ANY (platform_private.p7a_safe_audit_resource_types())
   THEN
-    RAISE EXCEPTION 'a313_already_applied' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a316_already_applied' USING ERRCODE = '55000';
   END IF;
 END
-$a313_anchor$;
+$a316_anchor$;
 
 -- Замена проверяемых фрагментов внутри тела (шаблон 173/244/281/303/304): каждый фрагмент
 -- обязан встретиться ровно один раз, иначе миграция откатывается целиком; новое тело
 -- выполняется один раз, после всех замен (промежуточное тело может быть невалидным).
-CREATE FUNCTION pg_temp.a313_replace(p_signature TEXT, p_olds TEXT[], p_news TEXT[])
+CREATE FUNCTION pg_temp.a316_replace(p_signature TEXT, p_olds TEXT[], p_news TEXT[])
 RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE body TEXT; matches INTEGER; i INTEGER;
 BEGIN
   body := pg_get_functiondef(to_regprocedure(p_signature));
   IF body IS NULL OR cardinality(p_olds) IS DISTINCT FROM cardinality(p_news) THEN
-    RAISE EXCEPTION 'a313_replace_drift: % has no definition or a malformed patch', p_signature;
+    RAISE EXCEPTION 'a316_replace_drift: % has no definition or a malformed patch', p_signature;
   END IF;
   FOR i IN 1 .. cardinality(p_olds) LOOP
     matches := (length(body) - length(replace(body, p_olds[i], ''))) / length(p_olds[i]);
     IF matches IS DISTINCT FROM 1 THEN
-      RAISE EXCEPTION 'a313_replace_drift: % fragment % expected 1, found %', p_signature, i, matches;
+      RAISE EXCEPTION 'a316_replace_drift: % fragment % expected 1, found %', p_signature, i, matches;
     END IF;
     body := replace(body, p_olds[i], p_news[i]);
   END LOOP;
@@ -185,7 +186,7 @@ $$;
 REVOKE ALL ON FUNCTION platform_private.client_merged_ids(UUID, UUID)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent;
 COMMENT ON FUNCTION platform_private.client_merged_ids(UUID, UUID) IS
-  'Migration 313: the client and every client merged into it (recursive over client_aliases) as one array; empty when the client is not in the organization. Private; read by the lead call feed and the receipt erasure.';
+  'Migration 316: the client and every client merged into it (recursive over client_aliases) as one array; empty when the client is not in the organization. Private; read by the lead call feed and the receipt erasure.';
 
 -- ---------------------------------------------------------------------------
 -- a) Стирание квитанций переноса отчёта продаж
@@ -221,7 +222,7 @@ ALTER TABLE platform_private.sales_report_erasure_requests FORCE ROW LEVEL SECUR
 REVOKE ALL ON TABLE platform_private.sales_report_erasure_requests
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent;
 COMMENT ON TABLE platform_private.sales_report_erasure_requests IS
-  'Migration 313: receipt and transaction marker of every erasure of sales-report import receipts by person. Holds no name, phone or note: the Admin, what was searched by (client, lead, report row), an md5 of the search keys and row counts. Backend only.';
+  'Migration 316: receipt and transaction marker of every erasure of sales-report import receipts by person. Holds no name, phone or note: the Admin, what was searched by (client, lead, report row), an md5 of the search keys and row counts. Backend only.';
 
 -- Обход замка: только удаление строки, только внутри стирания этой миграции, только
 -- организация квитанции стирания.
@@ -254,7 +255,7 @@ BEGIN
       AND platform_private.account_erasure_bypass() THEN
       RETURN OLD;
     END IF;
-    -- 313: стирание квитанций переноса отчёта продаж (одна транзакция, только удаление
+    -- 316: стирание квитанций переноса отчёта продаж (одна транзакция, только удаление
     -- строки, только эта таблица, только организация квитанции стирания).
     IF NULLIF(pg_catalog.current_setting('platform.sales_report_erasure_request_id', TRUE), '') IS NOT NULL
       AND TG_TABLE_SCHEMA = 'platform_private'
@@ -453,12 +454,12 @@ REVOKE ALL ON FUNCTION platform.sales_report_erase_person_v1(UUID, UUID, UUID, U
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent;
 GRANT EXECUTE ON FUNCTION platform.sales_report_erase_person_v1(UUID, UUID, UUID, UUID, UUID, UUID, BOOLEAN) TO service_role;
 COMMENT ON FUNCTION platform.sales_report_erase_person_v1(UUID, UUID, UUID, UUID, UUID, UUID, BOOLEAN) IS
-  'Migration 313: service-only erasure of the sales-report import receipts of one person (by client with the clients merged into it, lead and/or report row), one transaction, a named system Admin answers for it, replay by request_id, dry_run counts only. Deletes the receipts and leaves an empty receipt of the same key (no name, note or previous values) so a repeated import call is refused (PT409) instead of recreating the person. The report rows themselves (sales_register) and every other table are not touched.';
+  'Migration 316: service-only erasure of the sales-report import receipts of one person (by client with the clients merged into it, lead and/or report row), one transaction, a named system Admin answers for it, replay by request_id, dry_run counts only. Deletes the receipts and leaves an empty receipt of the same key (no name, note or previous values) so a repeated import call is refused (PT409) instead of recreating the person. The report rows themselves (sales_register) and every other table are not touched.';
 
 -- ---------------------------------------------------------------------------
 -- b) Приём WhatsApp: номер студента прямого дела присоединяется к его клиенту и лиду
 -- ---------------------------------------------------------------------------
-SELECT pg_temp.a313_replace(
+SELECT pg_temp.a316_replace(
   'platform_private.acquire_waha_canonical_identity(uuid,uuid,uuid,uuid)',
   ARRAY[
     $old$  lead_owner_membership_id UUID;
@@ -480,7 +481,7 @@ BEGIN$old$,
 BEGIN$new$,
     $new$  source_ref := 'waha-event:' || source_event.id::TEXT;
 
-  -- 313: the number of a person who is already an admissions student. create_or_link_client
+  -- 316: the number of a person who is already an admissions student. create_or_link_client
   -- finds a client only by this chat's own external identity, so the first chat of such a
   -- number made a new client (a «phone» duplicate candidate) and a new open sales lead, and
   -- handing that lead off would open a second case (handoff_lead_to_admissions finds a case
@@ -599,19 +600,19 @@ REVOKE ALL ON FUNCTION
 -- ---------------------------------------------------------------------------
 -- d) Звонки склеенных клиентов в «Ленте» лида
 -- ---------------------------------------------------------------------------
-SELECT pg_temp.a313_replace(
+SELECT pg_temp.a316_replace(
   'platform.telephony_lead_calls_v1(uuid,uuid,integer,timestamptz,timestamptz)',
   ARRAY[$old$AND (c.lead_id = p_lead_id OR (c.lead_id IS NULL AND c.client_id = v_client))$old$],
   ARRAY[$new$AND (c.lead_id = p_lead_id OR (c.lead_id IS NULL
         AND c.client_id = ANY (platform_private.client_merged_ids(p_organization_id, v_client))))$new$]);
 
-SELECT pg_temp.a313_replace(
+SELECT pg_temp.a316_replace(
   'platform.telephony_lead_recordings_v1(uuid,uuid,uuid[])',
   ARRAY[$old$AND (c.lead_id = p_lead_id OR (c.lead_id IS NULL AND c.client_id = v_client))$old$],
   ARRAY[$new$AND (c.lead_id = p_lead_id OR (c.lead_id IS NULL
         AND c.client_id = ANY (platform_private.client_merged_ids(p_organization_id, v_client))))$new$]);
 
-SELECT pg_temp.a313_replace(
+SELECT pg_temp.a316_replace(
   'platform.telephony_set_result_v1(uuid,uuid,text,date)',
   ARRAY[$old$AND l.client_id = v_call.client_id$old$],
   ARRAY[$new$AND l.client_id = platform_private.resolve_canonical_client_id(p_organization_id, v_call.client_id)$new$]);
@@ -619,7 +620,7 @@ SELECT pg_temp.a313_replace(
 -- ---------------------------------------------------------------------------
 -- Проверка в конце: объекты на месте, права ровно такие, как задумано.
 -- ---------------------------------------------------------------------------
-DO $a313_verify$
+DO $a316_verify$
 DECLARE
   f pg_catalog.pg_proc%ROWTYPE;
   r TEXT;
@@ -643,7 +644,7 @@ BEGIN
       WHERE t.tgrelid = 'platform_private.sales_report_import_receipts'::regclass AND NOT t.tgisinternal
         AND t.tgfoid = 'platform_private.block_append_only_mutation()'::regprocedure) <> 1
   THEN
-    RAISE EXCEPTION 'a313_verify_erasure' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a316_verify_erasure' USING ERRCODE = '55000';
   END IF;
   FOREACH r IN ARRAY ARRAY['anon', 'authenticated', 'service_role', 'supabase_auth_admin', 'evo_ai_agent'] LOOP
     IF has_function_privilege(r, 'platform_private.sales_report_erasure_bypass(uuid)', 'EXECUTE')
@@ -652,7 +653,7 @@ BEGIN
       OR has_function_privilege(r, 'platform_private.sales_report_erasure_counts(uuid,bigint[])', 'EXECUTE')
       OR has_function_privilege(r, 'platform_private.client_merged_ids(uuid,uuid)', 'EXECUTE')
     THEN
-      RAISE EXCEPTION 'a313_verify_helper_acl: %', r USING ERRCODE = '55000';
+      RAISE EXCEPTION 'a316_verify_helper_acl: %', r USING ERRCODE = '55000';
     END IF;
   END LOOP;
   -- b) the WhatsApp intake: the same definer routine, still closed to every client role.
@@ -665,7 +666,7 @@ BEGIN
     OR has_function_privilege('service_role', 'platform_private.acquire_waha_canonical_identity(uuid,uuid,uuid,uuid)', 'EXECUTE')
     OR has_function_privilege('authenticated', 'platform_private.acquire_waha_canonical_identity(uuid,uuid,uuid,uuid)', 'EXECUTE')
   THEN
-    RAISE EXCEPTION 'a313_verify_whatsapp' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a316_verify_whatsapp' USING ERRCODE = '55000';
   END IF;
   -- c) the journal: one action and one object type more, the old lists intact.
   IF NOT ('client.duplicate.merge' = ANY (platform_private.p7a_safe_audit_actions()))
@@ -680,7 +681,7 @@ BEGIN
     OR has_function_privilege('authenticated', 'platform_private.p7a_safe_audit_actions()', 'EXECUTE')
     OR has_function_privilege('anon', 'platform_private.p7a_safe_audit_resource_types()', 'EXECUTE')
   THEN
-    RAISE EXCEPTION 'a313_verify_allowlist' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a316_verify_allowlist' USING ERRCODE = '55000';
   END IF;
   -- d) the call feed: the three replaced bodies read the merged clients, grants as before.
   IF (SELECT prosrc FROM pg_catalog.pg_proc
@@ -698,10 +699,10 @@ BEGIN
     OR has_function_privilege('anon', 'platform.telephony_lead_calls_v1(uuid,uuid,integer,timestamptz,timestamptz)', 'EXECUTE')
     OR has_function_privilege('service_role', 'platform.telephony_set_result_v1(uuid,uuid,text,date)', 'EXECUTE')
   THEN
-    RAISE EXCEPTION 'a313_verify_call_feed' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a316_verify_call_feed' USING ERRCODE = '55000';
   END IF;
 END
-$a313_verify$;
+$a316_verify$;
 
 NOTIFY pgrst, 'reload schema';
 COMMIT;

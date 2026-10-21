@@ -45,7 +45,7 @@
 --      script replays it through the real TS normalizer. Migration 291
 --      (telephony T2) adds the 6 telephony pairs to the same list (86 pairs);
 --      migration 311 («Подключение WhatsApp») adds its 2 pairs (88 pairs); migration 315
---      (удаление аккаунта) adds the 5 account.deletion.* pairs (93 pairs); migration 313
+--      (удаление аккаунта) adds the 5 account.deletion.* pairs (93 pairs); migration 316
 --      (клиент: склейка клиентов) adds its 1 pair (94 pairs).
 --
 -- Fixture: one organization + one Platform Admin membership, modelled like
@@ -425,7 +425,7 @@ INSERT INTO p7aj_pairs(action, resource_type) VALUES
     ('account.deletion.complete', 'account_deletion_request'),
     ('account.deletion.manual.complete', 'account_deletion_request'),
     ('account.deletion.email', 'account_deletion_request'),
-    -- The client merge (migration 308 writes it, 313 shows it in the journal): the object is the
+    -- The client merge (migration 308 writes it, 316 shows it in the journal): the object is the
     -- kept client, a new resource type.
     ('client.duplicate.merge', 'client');
 
@@ -466,7 +466,7 @@ SELECT pg_temp.p7aj_assert(
     AND (SELECT count(*) FROM p7aj_pairs WHERE action LIKE 'client.%') = 1
     AND (SELECT array_agg(action ORDER BY action) FROM p7aj_pairs WHERE action LIKE 'client.%')
       = (SELECT array_agg(a ORDER BY a) FROM unnest(platform_private.p7a_safe_audit_actions()) a WHERE a LIKE 'client.%'),
-  'the pair list covers exactly the one client merge action migration 313 added');
+  'the pair list covers exactly the one client merge action migration 316 added');
 
 SET LOCAL ROLE authenticated;
 CREATE TEMP TABLE p7aj_pair_pages(page JSONB);

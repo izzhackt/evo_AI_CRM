@@ -101,6 +101,12 @@ http://evo-crm.72.62.119.112.sslip.io:8080 {
 http://token-error.test:8080 {
 	reverse_proxy token-upstream.invalid:3000
 }
+# The app redirects a student link opened on the staff host to the student host and keeps the
+# query, so the token travels in the Location header of a response the access log records.
+http://token-redirect.test:8080 {
+	import evo_app
+	redir /auth/callback https://app.evoadmissions.com{uri} 308
+}
 CADDY
 
 run_with_deadline 180000 docker pull "${CADDY_IMAGE}" >/dev/null \
@@ -286,6 +292,40 @@ status="$(
 [[ "${status}" == "502" ]] \
   || fail "The unreachable-upstream request did not produce the expected 502."
 
+# The callback page's own sub-requests (/_next/static/*, the form post) carry the page URL as
+# Referer: the edge Referrer-Policy of evo_app overrides the app's no-referrer, so the same
+# one-time token reaches the logs through that header. Without a Referer the probe proves nothing.
+readonly TOKEN_REFERER="https://app.evoadmissions.com/auth/callback?token_hash=${TOKEN_SENTINEL}&type=recovery"
+status="$(
+  curl --silent --show-error \
+    --output "${RESPONSE_FILE}" \
+    --write-out '%{http_code}' \
+    --header "Host: ${CRM_HOST}" \
+    --header "Referer: ${TOKEN_REFERER}" \
+    "${edge_origin}/_next/static/redaction-probe.js"
+)" || fail "The disposable Caddy Referer-bearing request failed."
+[[ "${status}" == "204" ]] \
+  || fail "The disposable Caddy did not answer the Referer-bearing request."
+status="$(
+  curl --silent --show-error \
+    --output "${RESPONSE_FILE}" \
+    --write-out '%{http_code}' \
+    --header "Host: token-error.test" \
+    --header "Referer: ${TOKEN_REFERER}" \
+    "${edge_origin}/_next/static/redaction-probe.js"
+)" || fail "The disposable Caddy Referer-bearing unreachable-upstream request failed."
+[[ "${status}" == "502" ]] \
+  || fail "The Referer-bearing unreachable-upstream request did not produce the expected 502."
+status="$(
+  curl --silent --show-error \
+    --output "${RESPONSE_FILE}" \
+    --write-out '%{http_code}' \
+    --header "Host: token-redirect.test" \
+    "${edge_origin}/auth/callback?token_hash=${TOKEN_SENTINEL}&type=recovery"
+)" || fail "The disposable Caddy canonical-host redirect request failed."
+[[ "${status}" == "308" ]] \
+  || fail "The disposable Caddy did not redirect the token link to the student host."
+
 run_with_deadline 10000 docker logs "${CONTAINER_NAME}" >"${LOG_FILE}" 2>&1 \
   || fail "Unable to inspect bounded disposable Caddy logs."
 if grep -Fq -- "${AUTH_SENTINEL}" "${LOG_FILE}" \
@@ -298,6 +338,12 @@ fi
   || fail "The access and error logs did not record the redacted recovery-link query."
 grep -Fq -- 'token-upstream.invalid' "${LOG_FILE}" \
   || fail "The default (error) logger did not record the unreachable upstream."
+# The Referer is kept (the URL around the token stays readable) with only the value replaced: once
+# in the access log of the staff and student hosts, once in the default (error) log.
+[[ "$(grep -cF -- '"Referer":["https://app.evoadmissions.com/auth/callback?token_hash=REDACTED&type=recovery"]' "${LOG_FILE}")" -ge 2 ]] \
+  || fail "The access and error logs did not record the redacted Referer of a recovery-link page."
+grep -Fq -- '"Location":["https://app.evoadmissions.com/auth/callback?token_hash=REDACTED&type=recovery"]' "${LOG_FILE}" \
+  || fail "The access log did not record the redacted Location of the canonical-host redirect."
 if grep -Fq -- "${TOKEN_SENTINEL}" "${LOG_FILE}"; then
   fail "A one-time recovery or invitation token entered Caddy logs."
 fi
@@ -325,4 +371,4 @@ pids_limit="$(
 [[ "${memory_limit}" == "134217728" && "${pids_limit}" == "64" ]] \
   || fail "The disposable Caddy resource bounds were not applied."
 
-printf 'Verified the pinned disposable Caddy runtime denies private and noncanonical API routes, redacts credential headers and one-time link tokens, and enforces bounded resources/logs.\n'
+printf 'Verified the pinned disposable Caddy runtime denies private and noncanonical API routes, redacts credential headers and one-time link tokens (query, Referer, Location), and enforces bounded resources/logs.\n'

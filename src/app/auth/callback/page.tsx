@@ -28,7 +28,9 @@ type CallbackSearchParams = Promise<
 /**
  * One callback serves two emails. A recovery link is titled for what the
  * student does there («Новый пароль»); only the invitation keeps «Подтвердить
- * аккаунт».
+ * аккаунт». The URL carries the one-time token_hash for both, so the page says
+ * no-referrer itself (as the other recovery pages do) and its sub-requests do not
+ * depend on how the edge combines its Referrer-Policy with the one set here.
  */
 export async function generateMetadata({
   searchParams,
@@ -37,7 +39,7 @@ export async function generateMetadata({
   const title = isRecovery
     ? { absolute: `${getPasswordRecoveryStrings(await getLocale()).linkTitle} | EVO Admissions` }
     : "Подтвердить аккаунт | EVO Admissions";
-  return { title, robots: { index: false, follow: false } };
+  return { title, robots: { index: false, follow: false }, referrer: "no-referrer" };
 }
 
 export default async function StudentInviteCallbackPage({

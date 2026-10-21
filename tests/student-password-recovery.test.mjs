@@ -204,6 +204,8 @@ test("a recovery link is titled «Новый пароль», only the invitation
   // The invitation title is the only static one left on this page.
   assert.equal((callback.match(/Подтвердить аккаунт \| EVO Admissions/gu) ?? []).length, 1);
   assert.doesNotMatch(callback, /export const metadata/u);
+  // The link URL carries the one-time token for both emails: neither sends it onward as a Referer.
+  assert.match(callback, /referrer: "no-referrer"/u);
   // The recovery heading was already the recovery title; the tab title now agrees with it.
   assert.match(callback, /title=\{strings\.linkTitle\}/u);
   for (const page of ["forgot-password", "reset-password"]) {

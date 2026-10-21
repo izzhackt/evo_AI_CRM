@@ -11,7 +11,9 @@
 	# of evo-edge-caddy. Authorization is deleted although Caddy already masks it.
 	# ?token_hash= is the one-time token of the student recovery and invitation
 	# links (/auth/callback): anyone who could read it here could use the link
-	# before the student does.
+	# before the student does. The Referer header repeats it: the sub-requests of
+	# the callback page (/_next/static/*, the form post) carry the page URL, because
+	# the edge Referrer-Policy of (evo_app) overrides the app's no-referrer.
 	log {
 		format filter {
 			wrap json
@@ -19,6 +21,7 @@
 				request>headers>Apikey delete
 				request>headers>Authorization delete
 				request>headers>Cookie delete
+				request>headers>Referer regexp (token_hash=)[^&#\s]+ ${1}REDACTED
 				request>uri query {
 					replace apikey REDACTED
 					replace access_token REDACTED
@@ -49,10 +52,16 @@
 
 	# The access log of the CRM and student hosts. The emailed student links open
 	# /auth/callback?token_hash=...&type=recovery (or invite): the value is a one-time
-	# token that logs must not keep, so the query value is replaced, whatever the path.
+	# token that logs must not keep, so the query value is replaced, whatever the path,
+	# in the request URI, in the Referer of the page's own sub-requests and in the
+	# Location of the app's canonical-host redirect (a student link opened on crm.).
 	log {
 		format filter {
 			request>uri query {
+				replace token_hash REDACTED
+			}
+			request>headers>Referer regexp (token_hash=)[^&#\s]+ ${1}REDACTED
+			resp_headers>Location query {
 				replace token_hash REDACTED
 			}
 			request>headers>Cookie delete

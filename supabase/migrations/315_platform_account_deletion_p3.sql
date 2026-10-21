@@ -1,7 +1,7 @@
--- 313 «Удаление аккаунта (280): доработки P3 после независимого review 15.10.2026»
+-- 315 «Удаление аккаунта (280): доработки P3 после независимого review 15.10.2026»
 -- (issue #1192; docs/PLAN_CHANGES.md «2026-10-21 · Удаление аккаунта (280): доработки P3
--- (миграция 313)»). Номер 313 - следующий свободный после 312 на момент написания; при слиянии
--- сверяется и, если занят, меняется на следующий (имя файла и записи PLAN_CHANGES, тест
+-- (миграция 315)»). Номер 315: на origin/main 273ea8a83 последняя 312, 313 (CSCA, #1281) и 314 (#1282) идут перед ней
+-- в стеке; при слиянии сверяется и, если занят, меняется на следующий (имя файла и записи PLAN_CHANGES, тест
 -- журнала tests/platform-audit.test.mjs и хук набора в scripts/test-postgres-authorization.sh
 -- ищутся по имени файла/слуга, а не по номеру).
 --
@@ -57,7 +57,7 @@ BEGIN;
 -- ---------------------------------------------------------------------------
 -- Якоря: объекты, которые заменяются, ровно такие, какими их оставила 280, и новые имена свободны.
 -- ---------------------------------------------------------------------------
-DO $a313_anchor$
+DO $a315_anchor$
 BEGIN
   IF to_regclass('platform_private.account_deletion_requests') IS NULL
     OR to_regprocedure('platform_private.account_deletion_auth_log_erase(uuid)') IS NULL
@@ -68,7 +68,7 @@ BEGIN
     OR to_regprocedure('platform_private.p7a_safe_audit_actions()') IS NULL
     OR to_regprocedure('platform_private.p7a_safe_audit_resource_types()') IS NULL
   THEN
-    RAISE EXCEPTION 'a313_anchor_drift: the 280 objects are missing' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a315_anchor_drift: the 280 objects are missing' USING ERRCODE = '55000';
   END IF;
   IF (SELECT md5(p.prosrc) FROM pg_catalog.pg_proc p
       WHERE p.oid = 'platform_private.account_deletion_auth_log_erase(uuid)'::regprocedure)
@@ -92,7 +92,7 @@ BEGIN
       WHERE p.oid = 'platform.staff_account_deletion_detail_v1(uuid)'::regprocedure)
         IS DISTINCT FROM '3c43a59060c1b9c8aab473546221c6b2'
   THEN
-    RAISE EXCEPTION 'a313_anchor_drift: a replaced function is not the 280 definition' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a315_anchor_drift: a replaced function is not the 280 definition' USING ERRCODE = '55000';
   END IF;
   IF (SELECT pg_get_constraintdef(c.oid) FROM pg_catalog.pg_constraint c
       WHERE c.conrelid = 'platform_private.account_deletion_requests'::regclass
@@ -102,7 +102,7 @@ BEGIN
         AND c.conname = 'account_deletion_requests_shape_check')
         NOT LIKE '%(completion_mode = ''manual''::text) AND (processing_started_at IS NULL) AND (manual_note IS NOT NULL)%'
   THEN
-    RAISE EXCEPTION 'a313_anchor_drift: account_deletion_requests_shape_check is not the 280 constraint' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a315_anchor_drift: account_deletion_requests_shape_check is not the 280 constraint' USING ERRCODE = '55000';
   END IF;
   IF to_regprocedure('platform.staff_account_deletion_open_count_v1()') IS NOT NULL
     OR to_regprocedure('platform_private.p7a_safe_audit_actions_pre_account_deletion_journal()') IS NOT NULL
@@ -110,10 +110,10 @@ BEGIN
     OR 'account.deletion.request' = ANY (platform_private.p7a_safe_audit_actions())
     OR 'account_deletion_request' = ANY (platform_private.p7a_safe_audit_resource_types())
   THEN
-    RAISE EXCEPTION 'a313_already_applied' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a315_already_applied' USING ERRCODE = '55000';
   END IF;
 END
-$a313_anchor$;
+$a315_anchor$;
 
 -- ---------------------------------------------------------------------------
 -- c) Ограничение формы: ручное закрытие допускает запрос, который уже начинали
@@ -130,7 +130,7 @@ ALTER TABLE platform_private.account_deletion_requests
       AND processing_started_by_membership_id IS NOT NULL AND last_processed_at IS NOT NULL
       AND completed_at IS NULL)
     -- Automatic: after processing, no note. Manual: a note; the automatic processing may have
-    -- started before the account stopped being simple (313).
+    -- started before the account stopped being simple (315).
     OR (status = 'completed' AND completed_at IS NOT NULL AND completed_by_membership_id IS NOT NULL
       AND ((completion_mode = 'automatic' AND processing_started_at IS NOT NULL AND manual_note IS NULL)
         OR (completion_mode = 'manual' AND manual_note IS NOT NULL)))
@@ -178,7 +178,7 @@ $$;
 REVOKE ALL ON FUNCTION platform_private.account_deletion_auth_log_erase(UUID)
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 COMMENT ON FUNCTION platform_private.account_deletion_auth_log_erase(UUID) IS
-  'Migration 313: erases the Supabase Auth journal entries and PKCE flows keyed by the user id and returns {status: erased|not_erased, entries}; not_erased when the function owner lacks DELETE on an Auth table. Owner-only.';
+  'Migration 315: erases the Supabase Auth journal entries and PKCE flows keyed by the user id and returns {status: erased|not_erased, entries}; not_erased when the function owner lacks DELETE on an Auth table. Owner-only.';
 
 -- ---------------------------------------------------------------------------
 -- c) + e) план: режим «ручная» для начатого запроса, который стал не простым; результат
@@ -444,7 +444,7 @@ BEGIN
   PERFORM pg_advisory_xact_lock(hashtextextended('evo:account-deletion-subject:' || r.subject_auth_user_id::TEXT, 0));
   login := platform_private.account_deletion_login(r.subject_auth_user_id);
   -- Начатый запрос проверяется всегда: пока аккаунт прост, его закрывает автоматический путь,
-  -- а вручную - только тот, у которого появились связанные записи (313).
+  -- а вручную - только тот, у которого появились связанные записи (315).
   IF login <> 'absent' OR r.status = 'processing' THEN
     reasons := platform_private.account_deletion_check(r.organization_id, r.subject_auth_user_id) -> 'reasons';
     IF jsonb_array_length(reasons) = 0 THEN
@@ -497,7 +497,7 @@ REVOKE ALL ON FUNCTION platform.staff_account_deletion_open_count_v1()
   FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;
 GRANT EXECUTE ON FUNCTION platform.staff_account_deletion_open_count_v1() TO authenticated;
 COMMENT ON FUNCTION platform.staff_account_deletion_open_count_v1() IS
-  'Migration 313: {open, overdue} counts of the organization''s not completed account deletion requests, for the CRM counter. account.deletion.process only (the system Admin); everyone else 42501. No person data.';
+  'Migration 315: {open, overdue} counts of the organization''s not completed account deletion requests, for the CRM counter. account.deletion.process only (the system Admin); everyone else 42501. No person data.';
 
 -- ---------------------------------------------------------------------------
 -- d) «Журнал действий»: пять действий удаления и тип объекта (rename-and-union).
@@ -552,7 +552,7 @@ REVOKE ALL ON FUNCTION
 -- ---------------------------------------------------------------------------
 -- Проверка в конце: allowlist, форма и права заменённых и новой функций.
 -- ---------------------------------------------------------------------------
-DO $a313_verify$
+DO $a315_verify$
 DECLARE
   routine RECORD;
 BEGIN
@@ -570,7 +570,7 @@ BEGIN
     OR cardinality(platform_private.p7a_safe_audit_resource_types())
       <> cardinality(platform_private.p7a_safe_audit_resource_types_pre_account_deletion_journal()) + 1
   THEN
-    RAISE EXCEPTION 'a313_verify_allowlist' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a315_verify_allowlist' USING ERRCODE = '55000';
   END IF;
 
   FOR routine IN SELECT p.oid::REGPROCEDURE AS signature, p.prosecdef, p.proconfig
@@ -586,7 +586,7 @@ BEGIN
       'platform_private.account_deletion_queue_row(platform_private.account_deletion_requests)'::REGPROCEDURE)
   LOOP
     IF NOT routine.prosecdef OR routine.proconfig IS DISTINCT FROM ARRAY['search_path=""'] THEN
-      RAISE EXCEPTION 'a313_verify_function: %', routine.signature USING ERRCODE = '55000';
+      RAISE EXCEPTION 'a315_verify_function: %', routine.signature USING ERRCODE = '55000';
     END IF;
   END LOOP;
   IF NOT has_function_privilege('authenticated', 'platform.staff_account_deletion_open_count_v1()', 'EXECUTE')
@@ -599,10 +599,10 @@ BEGIN
     OR has_function_privilege('anon', 'platform_private.p7a_safe_audit_actions()', 'EXECUTE')
     OR has_function_privilege('authenticated', 'platform_private.p7a_safe_audit_resource_types()', 'EXECUTE')
   THEN
-    RAISE EXCEPTION 'a313_verify_grants' USING ERRCODE = '55000';
+    RAISE EXCEPTION 'a315_verify_grants' USING ERRCODE = '55000';
   END IF;
 END
-$a313_verify$;
+$a315_verify$;
 
 NOTIFY pgrst, 'reload schema';
 

@@ -44,7 +44,7 @@
 --      pair must be read back; that page is emitted too, so the checker
 --      script replays it through the real TS normalizer. Migration 291
 --      (telephony T2) adds the 6 telephony pairs to the same list (86 pairs);
---      migration 311 («Подключение WhatsApp») adds its 2 pairs (88 pairs); migration 313
+--      migration 311 («Подключение WhatsApp») adds its 2 pairs (88 pairs); migration 315
 --      (удаление аккаунта) adds the 5 account.deletion.* pairs (93 pairs).
 --
 -- Fixture: one organization + one Platform Admin membership, modelled like
@@ -417,7 +417,7 @@ INSERT INTO p7aj_pairs(action, resource_type) VALUES
     -- session's organization as the object (no new resource type).
     ('whatsapp.connect.qr', 'organization'),
     ('whatsapp.connect.code', 'organization'),
-    -- Удаление аккаунта (migrations 280 and 313): the five pairs the deletion functions write, all on the
+    -- Удаление аккаунта (migrations 280 and 315): the five pairs the deletion functions write, all on the
     -- deletion request row (the new resource type account_deletion_request).
     ('account.deletion.request', 'account_deletion_request'),
     ('account.deletion.process', 'account_deletion_request'),
@@ -456,7 +456,7 @@ SELECT pg_temp.p7aj_assert(
     AND (SELECT count(*) FROM p7aj_pairs WHERE action LIKE 'account.deletion.%') = 5
     AND (SELECT array_agg(action ORDER BY action) FROM p7aj_pairs WHERE action LIKE 'account.deletion.%')
       = (SELECT array_agg(a ORDER BY a) FROM unnest(platform_private.p7a_safe_audit_actions()) a WHERE a LIKE 'account.deletion.%'),
-  'the pair list covers exactly the five account deletion actions migration 313 added');
+  'the pair list covers exactly the five account deletion actions migration 315 added');
 
 SET LOCAL ROLE authenticated;
 CREATE TEMP TABLE p7aj_pair_pages(page JSONB);

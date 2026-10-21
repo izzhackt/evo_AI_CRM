@@ -930,7 +930,7 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   // их нет, а вид запроса (QR или код по номеру) различает само действие.
   "whatsapp.connect.qr": "Запрошен QR для подключения WhatsApp",
   "whatsapp.connect.code": "Запрошен код для подключения WhatsApp",
-  // Удаление аккаунта (миграции 280 и 313). Подписи без имени, почты и идентификатора Auth: в записи
+  // Удаление аккаунта (миграции 280 и 315). Подписи без имени, почты и идентификатора Auth: в записи
   // журнала их нет, а объект — запрос на удаление, не человек.
   "account.deletion.request": "Принят запрос на удаление аккаунта",
   "account.deletion.process": "Записи аккаунта удалены в базе",
@@ -1022,7 +1022,7 @@ const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
   telephony_dial_request: "Запрос на звонок из CRM",
   telephony_settings: "Настройки телефонии",
 
-  // Удаление аккаунта (миграция 313).
+  // Удаление аккаунта (миграция 315).
   account_deletion_request: "Запрос на удаление аккаунта",
 } satisfies Readonly<Record<PlatformAuditResourceType, string>>;
 

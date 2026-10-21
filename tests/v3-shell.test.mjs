@@ -381,7 +381,7 @@ test("a menu list longer than the window shows a cue at the clipped edge", () =>
 
 test("one shell for every staff member: the layout has no look switch, the old shell and the bar bell are gone", () => {
   const layout = read("src/app/(v3)/layout.tsx");
-  // Счётчик запросов на удаление аккаунта (миграция 313, UI-F6) приходит от сервера вместе с уведомлениями.
+  // Счётчик запросов на удаление аккаунта (миграция 315, UI-F6) приходит от сервера вместе с уведомлениями.
   assert.match(layout, /<div className="v3-world" data-surface="staff">\s*<AppShell actor=\{actor\} initialNotifications=\{notifications\} deletionRequests=\{deletionRequests\}>/u);
   assert.doesNotMatch(layout, /look/iu, "no look is read or passed");
   assert.equal(existsSync(new URL("../src/components/v3/AppShellNext.tsx", import.meta.url)), false, "one shell file");

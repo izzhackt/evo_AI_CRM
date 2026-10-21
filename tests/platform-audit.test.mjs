@@ -86,7 +86,7 @@ const P7A_WRAPPER_MIGRATIONS = [
   // «Подключение WhatsApp»: два действия whatsapp.connect.*, объект organization.
   ["311_platform_whatsapp_connect_audit.sql", "whatsapp_connect_audit"],
   // Удаление аккаунта (доработки P3): пять действий account.deletion.* и тип объекта account_deletion_request.
-  ["313_platform_account_deletion_p3.sql", "account_deletion_journal"],
+  ["315_platform_account_deletion_p3.sql", "account_deletion_journal"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -564,7 +564,7 @@ test("whatsapp.connect.* journal actions are allowlisted and worded in Russian",
   assert.deepEqual(row.changedFieldCodes, ["record_status"]);
 });
 
-// Удаление аккаунта (миграция 313): пять действий, которые пишут функции 280, видны в
+// Удаление аккаунта (миграция 315): пять действий, которые пишут функции 280, видны в
 // «Журнале действий» словами; тип объекта account_deletion_request новый; в подписях нет
 // ни имени, ни почты, ни идентификатора Auth; неизвестное значение слова не получает.
 test("account.deletion.* journal actions and the request object type are allowlisted and worded in Russian", () => {

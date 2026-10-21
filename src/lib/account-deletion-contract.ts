@@ -42,7 +42,7 @@ export type OwnAccountDeletion = Readonly<{
 }>;
 
 export type AccountDeletionKind = "student" | "applicant";
-/** Итог очистки журнала Supabase Auth (миграция 313): всё стёрто или не хватило права на таблицу. */
+/** Итог очистки журнала Supabase Auth (миграция 315): всё стёрто или не хватило права на таблицу. */
 export type AccountDeletionAuthLog = "erased" | "not_erased";
 export type AccountDeletionStatus = "requested" | "processing" | "completed";
 export type ConfirmationEmailStatus = "sent" | "failed" | "not_configured" | "no_address";
@@ -86,7 +86,7 @@ export type AccountDeletionQueueRow = Readonly<{
   /**
    * Подавал ли анкету аккаунт без одобрения (`kind: "applicant"`): `true`, `false`;
    * `null` у студента и когда неизвестно (ручной запрос без сводки; ответ базы
-   * до миграции 313).
+   * до миграции 315).
    */
   applicationSubmitted: boolean | null;
 }>;
@@ -98,7 +98,7 @@ export type AccountDeletionDetail = AccountDeletionQueueRow & Readonly<{
   /** Сколько собственных строк удаляется (открытый простой) или удалено (выполненный автоматически). */
   counts: AccountDeletionCounts;
   login: AccountDeletionLogin;
-  /** Очищен ли журнал Auth; `null` до первой обработки и в ответе базы до миграции 313. */
+  /** Очищен ли журнал Auth; `null` до первой обработки и в ответе базы до миграции 315. */
   authLog: AccountDeletionAuthLog | null;
   manualNote: string | null;
   processingStartedBy: string | null;

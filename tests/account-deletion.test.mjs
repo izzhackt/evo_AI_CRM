@@ -107,8 +107,8 @@ test("staff queue and detail parse strictly", () => {
   }
 });
 
-// Миграция 313: два новых ключа читаются терпимо (ответ базы до миграции их не несёт) и строго (чужое значение — ошибка).
-test("migration 313 keys: applicationSubmitted and authLog are optional, strict when present", () => {
+// Миграция 315: два новых ключа читаются терпимо (ответ базы до миграции их не несёт) и строго (чужое значение — ошибка).
+test("migration 315 keys: applicationSubmitted and authLog are optional, strict when present", () => {
   const { applicationSubmitted: _a, ...oldRow } = ROW;
   assert.equal(parseAccountDeletionQueue([oldRow])?.[0].applicationSubmitted, null, "an old database answer reads as unknown");
   for (const value of [true, false, null]) {
@@ -291,7 +291,7 @@ test("processor: automatic steps in order; a refusal or failure names its step",
 
   const missingUser = fakes({ deleteError: { status: 404, code: "user_not_found" } });
   assert.equal((await runAccountDeletion(ID, null, missingUser.services)).status, "completed", "an already deleted user is not an error");
-  // SQL-2 (миграция 313): сервер Auth не удалил вход, но база решает сама. Активный вход она отклоняет
+  // SQL-2 (миграция 315): сервер Auth не удалил вход, но база решает сама. Активный вход она отклоняет
   // (шаг «auth»), мягко отключённый принимает (запрос выполнен).
   const auth = fakes({ deleteError: { status: 500 }, completeError: { code: "55000", message: "account_deletion_auth_user_exists" } });
   assert.deepEqual(await runAccountDeletion(ID, null, auth.services), { status: "failed", step: "auth" });
@@ -451,7 +451,7 @@ test("deleted account session: user_not_found, sign-out route, proxy and screens
   assert.match(login, /role="status"/u);
 });
 
-// Ревью 280, доработки P3 (миграция 313): что проводит экран и где стоит счётчик.
+// Ревью 280, доработки P3 (миграция 315): что проводит экран и где стоит счётчик.
 test("P3 wiring: counts, labels, the email retry, the note rule and the Auth journal warning", () => {
   const section = source("src/components/v3/settings/AccountDeletionSection.tsx");
   assert.match(section, /accountDeletionDueText\(row, now\)/u, "UI-F3: the due word comes from the tested contract function");
@@ -498,14 +498,14 @@ test("P3 wiring: counts, labels, the email retry, the note rule and the Auth jou
   assert.match(open, /staff_account_deletion_open_count_v1/u);
   assert.match(open, /catch \{\s*return null;/u, "a failed read is «no counter», not a failed page");
   // The migration is the only writer of the new surface; its anchors name every replaced function.
-  const migration = source("supabase/migrations/313_platform_account_deletion_p3.sql");
-  const anchors = migration.slice(migration.indexOf("DO $a313_anchor$"), migration.indexOf("$a313_anchor$;"));
+  const migration = source("supabase/migrations/315_platform_account_deletion_p3.sql");
+  const anchors = migration.slice(migration.indexOf("DO $a315_anchor$"), migration.indexOf("$a315_anchor$;"));
   assert.equal((anchors.match(/IS DISTINCT FROM '[0-9a-f]{32}'/gu) ?? []).length, 7, "seven md5 pre-image anchors");
   for (const fn of ["account_deletion_auth_log_erase", "process_account_deletion_v1", "complete_account_deletion_v1",
     "mark_account_deletion_done_v1", "account_deletion_plan", "account_deletion_queue_row", "staff_account_deletion_detail_v1"]) {
     assert.ok(anchors.includes(fn), `${fn} is anchored`);
   }
-  assert.match(migration, /a313_already_applied/u);
+  assert.match(migration, /a315_already_applied/u);
 });
 
 // UI-F5: одна и та же фраза на сайте, в приложении и по-кыргызски, без намёка на другой способ отмены.

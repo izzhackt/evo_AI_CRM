@@ -61,8 +61,8 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // type, so no resource type is added; they fall through to the
 // `["record_status"]` default of `expectedChangedFieldCodes`, exactly like the
 // server's `ELSE`.
-// Migration 313 («Удаление аккаунта (280): доработки P3», docs/PLAN_CHANGES.md «2026-10-21 ·
-// Удаление аккаунта (280): доработки P3 (миграция 313)») adds five actions,
+// Migration 315 («Удаление аккаунта (280): доработки P3», docs/PLAN_CHANGES.md «2026-10-21 ·
+// Удаление аккаунта (280): доработки P3 (миграция 315)») adds five actions,
 // `account.deletion.request|process|complete|manual.complete|email` (written by 280's
 // request/process/complete/mark/record functions), and the resource type
 // `account_deletion_request`, by the same rename-and-union wrappers

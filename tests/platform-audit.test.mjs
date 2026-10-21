@@ -87,6 +87,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["311_platform_whatsapp_connect_audit.sql", "whatsapp_connect_audit"],
   // Удаление аккаунта (доработки P3): пять действий account.deletion.* и тип объекта account_deletion_request.
   ["315_platform_account_deletion_p3.sql", "account_deletion_journal"],
+  // Склейка клиентов: действие client.duplicate.merge, объект client (новый тип).
+  ["316_platform_sales_import_tails.sql", "sales_import_tails"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -224,6 +226,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "case.pipeline.move",
     "case.sales.owner.sync",
     "case.tranche.save",
+    "client.duplicate.merge",
     "company.file.download.grant",
     "company.file.file.archive",
     "company.file.file.create",
@@ -314,6 +317,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
   assert.deepEqual([...laterResourceTypes].sort(), [
     "account_deletion_request",
     "ai_prompt_artifact_version",
+    "client",
     "communication_media",
     "company_file",
     "company_file_folder",
@@ -594,6 +598,35 @@ test("account.deletion.* journal actions and the request object type are allowli
   }).rows;
   assert.equal(row.recognized, true);
   assert.deepEqual(row.changedFieldCodes, ["record_status"]);
+});
+
+// Склейка клиентов (миграция 316; действие пишет 308): client.duplicate.merge с объектом client
+// видно в «Журнале действий» словами; тип объекта новый; неизвестное значение слова не получает.
+test("client.duplicate.merge journal action and the client object type are allowlisted and worded in Russian", () => {
+  assert.deepEqual(PLATFORM_AUDIT_ACTIONS.filter((action) => action.startsWith("client.")), ["client.duplicate.merge"]);
+  assert.deepEqual(PLATFORM_AUDIT_RESOURCE_TYPES.filter((type) => type === "client"), ["client"]);
+  const word = journalEvent("client.duplicate.merge");
+  assert.equal(word, "Карточки клиента объединены");
+  assert.match(word, /[А-Яа-я]/u);
+  assert.equal(word.includes("client."), false, "the wording shows a raw code");
+  assert.equal(/\d/u.test(word), false, "the wording carries a number");
+  assert.equal(journalEvent("client.duplicate.resolve"), null);
+  assert.equal(journalEvent("client.duplicate"), null);
+  assert.equal(journalObject("client"), "Клиент");
+  assert.equal(journalObject("clients"), null);
+  // The row is recognized with the default field code and no extra key.
+  const [row] = normalizePlatformAuditSearchResult({
+    ...DIRECTION_PAGE_BASE,
+    rows: [{ ...SAFE_ROW, action: "client.duplicate.merge", resource_type: "client", actor_display_label: "Staff", changed_field_codes: ["record_status"] }],
+  }).rows;
+  assert.equal(row.recognized, true);
+  assert.deepEqual(row.changedFieldCodes, ["record_status"]);
+  // Without the resource type the same row is kept but not recognized (the list is what lets it through).
+  const [unknown] = normalizePlatformAuditSearchResult({
+    ...DIRECTION_PAGE_BASE,
+    rows: [{ ...SAFE_ROW, action: "client.duplicate.merge", resource_type: "client_x", actor_display_label: "Staff", changed_field_codes: ["record_status"] }],
+  }).rows;
+  assert.equal(unknown.recognized, false);
 });
 
 // Смена направления дела (миграция «аудит направления», номер 302):

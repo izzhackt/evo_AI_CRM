@@ -645,6 +645,38 @@ SQL
     done
   fi
 
+  # «ИИ-агенты» на Claude Managed Agents (миграция 317, PLAN_CHANGES 22.10.2026). Matched by name, not
+  # number. IMMEDIATELY BEFORE the ordinary apply the migration must refuse with a317_anchor_drift,
+  # inside a transaction that the failure rolls back, when the insert guard of manual_send_authorizations
+  # (276) is edited after its own migration: the md5 pre-image anchor of the one function it replaces.
+  # A second apply of the finished migration must refuse with a317_already_applied (below).
+  if [[ "$(basename "$migration")" == *_platform_ai_agents_managed.sql ]]; then
+    t317_tamper_log="$(mktemp -t evo-t317-anchor.XXXXXX)"
+    if docker exec -i "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v "migration_file=/workspace/$migration" \
+      >"$t317_tamper_log" 2>&1 <<'SQL'
+BEGIN;
+SELECT replace(
+  pg_get_functiondef('platform_private.guard_ai_autosend_authorization()'::regprocedure),
+  'BEGIN',
+  'BEGIN /* tampered after its own migration */'
+) AS tampered_definition \gset
+:tampered_definition ;
+\i :migration_file
+SQL
+    then
+      echo "migration 317 accepted an edited guard_ai_autosend_authorization" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a317_anchor_drift" "$t317_tamper_log"; then
+      echo "migration 317 failed for the wrong pre-image reason" >&2
+      sed -n '1,60p' "$t317_tamper_log" >&2
+      exit 1
+    fi
+    rm -f "$t317_tamper_log"
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -4305,6 +4337,42 @@ SQL
     printf '%s\n' "$sales_import_tails_log"
     if ! grep -q 'T316_SALES_IMPORT_TAILS_SUITE_PASSED' <<<"$sales_import_tails_log"; then
       echo "platform_sales_import_tails.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «ИИ-агенты» на Claude Managed Agents (migration 317, PLAN_CHANGES 22.10.2026). Matched by name, not
+  # number. Right after the migration: a second apply refuses (a317_already_applied), then the suite,
+  # insisting on its marker (a psql exit code alone would pass a file that stopped early). The suite proves:
+  # the posture of the nine closed tables and the 50 functions; the seed (the contract catalog) and the
+  # responsible member; the staff permission matrix, settings only for the system Admin, the version token,
+  # replay and conflict, every validation, a journal row without texts; the runtime (sync record, token
+  # stage / previous window / restore / clear, MCP auth, run reserve / update / get / open / scheduled
+  # upsert / dispatch targets, the action log and its argument summary); the 24 tools one by one (the
+  # schemas enforced by the database, masks, black list, cursors, organization separation, writes with
+  # idempotency); send_message: drafts and the three-draft cap, staff decisions, the canonical WhatsApp
+  # chain up to the work item, the exact claim and finish with a synthetic provider id, direct portal and
+  # WhatsApp sending with Auto and with an authority code, every fuse in the database, the insert guard;
+  # the file grants; the journal allowlist and the real journal reader.
+  if [[ "$(basename "$migration")" == *_platform_ai_agents_managed.sql ]]; then
+    t317_again_log="$(mktemp -t evo-t317-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t317_again_log" 2>&1; then
+      echo "migration 317 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a317_already_applied" "$t317_again_log"; then
+      echo "a second apply of migration 317 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t317_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t317_again_log"
+    ai_agents_managed_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_agents_managed.sql </dev/null)"
+    printf '%s\n' "$ai_agents_managed_log"
+    if ! grep -q 'A317_AI_AGENTS_MANAGED_SUITE_PASSED' <<<"$ai_agents_managed_log"; then
+      echo "platform_ai_agents_managed.sql did not reach its PASSED marker" >&2
       exit 1
     fi
   fi

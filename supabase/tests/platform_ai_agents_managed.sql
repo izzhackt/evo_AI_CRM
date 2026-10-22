@@ -322,6 +322,14 @@ SELECT pg_temp.a317_assert(pg_temp.a317_matrix(format('SELECT platform.ai_agents
     = '1:55000 3:42501 4:55000 2:42501 5:42501 6:42501 anon:42501 svc:42501',
   'run authorize with send authority needs ai.agent.manage: the viewer is refused: '
     || pg_temp.a317_matrix(format('SELECT platform.ai_agents_run_authorize_v1(%L, ''sales'', true)', pg_temp.a317_id(1))));
+-- The Director reads the whole organization, not the commanding employee's scope: only the system Admin commands it or reads its runs.
+SELECT pg_temp.a317_assert(pg_temp.a317_matrix(format('SELECT platform.ai_agents_run_authorize_v1(%L, ''director'')', pg_temp.a317_id(1)))
+    = '1:55000 3:42501 4:42501 2:42501 5:42501 6:42501 anon:42501 svc:42501',
+  'run authorize for the director: the system Admin reaches the disabled-agent refusal, every other staff member is refused: '
+    || pg_temp.a317_matrix(format('SELECT platform.ai_agents_run_authorize_v1(%L, ''director'')', pg_temp.a317_id(1))));
+SELECT pg_temp.a317_assert(pg_temp.a317_matrix(format('SELECT platform.ai_agents_runs_list_v1(%L, ''director'')', pg_temp.a317_id(1)))
+    = '1:ok 3:42501 4:42501 2:42501 5:42501 6:42501 anon:42501 svc:42501',
+  'runs list of the director: only the system Admin: ' || pg_temp.a317_matrix(format('SELECT platform.ai_agents_runs_list_v1(%L, ''director'')', pg_temp.a317_id(1))));
 SELECT pg_temp.a317_assert(
   (pg_temp.a317_staff(3, format('SELECT platform.ai_agents_list_v1(%L)', pg_temp.a317_id(1))) ->> 'canManage') = 'false'
   AND (pg_temp.a317_staff(3, format('SELECT platform.ai_agents_list_v1(%L)', pg_temp.a317_id(1))) ->> 'isAdmin') = 'false'
@@ -596,6 +604,17 @@ SELECT pg_temp.a317_assert((:'a317_r2'::JSONB) ->> 'reserved' = 'true'
     = jsonb_build_object('reserved', FALSE, 'reason', 'run_in_progress', 'existingRunId', :'a317_run2'::UUID)
   AND (pg_temp.a317_rt('ai_agent_runtime_run_reserve_v1', format('%L, ''sales'', ''whatsapp_inbound'', ''chat:317-1'', NULL, NULL, NULL, NULL, NULL', pg_temp.a317_id(1))) ->> 'reserved') = 'true',
   'an event run: the same dedupe key is a duplicate, a second open run of the same kind is in progress, another kind is free');
+-- An open event run older than 15 minutes (the reconciliation never reached it) no longer blocks the next event of its kind.
+SAVEPOINT a317_stale_guard;
+UPDATE platform_private.ai_agent_runs SET started_at = clock_timestamp() - INTERVAL '20 minutes' WHERE id = :'a317_run2';
+SELECT pg_temp.a317_assert(
+  (pg_temp.a317_rt('ai_agent_runtime_run_reserve_v1', format('%L, ''sales'', ''website_lead'', ''lead:317-3'', NULL, NULL, NULL, NULL, NULL', pg_temp.a317_id(1))) ->> 'reserved') = 'true',
+  'an open event run older than 15 minutes does not block the next event of its kind');
+ROLLBACK TO SAVEPOINT a317_stale_guard;
+SELECT pg_temp.a317_assert(
+  pg_temp.a317_rt('ai_agent_runtime_run_reserve_v1', format('%L, ''sales'', ''website_lead'', ''lead:317-4'', NULL, NULL, NULL, NULL, NULL', pg_temp.a317_id(1)))
+    = jsonb_build_object('reserved', FALSE, 'reason', 'run_in_progress', 'existingRunId', :'a317_run2'::UUID),
+  'the savepoint restored the fresh open run: it blocks again');
 -- Update: forward-only transitions, the finish row once.
 SELECT pg_temp.a317_assert(
   pg_temp.a317_err(pg_temp.a317_rt('ai_agent_runtime_run_update_v1', format('%L, %L, ''{"bogus":1}''::jsonb', pg_temp.a317_id(1), :'a317_run1'))) = '22023'
@@ -661,6 +680,11 @@ SELECT pg_temp.a317_assert((:'a317_su1'::JSONB) ->> 'created' = 'true'
       = jsonb_build_object('runId', (:'a317_su1'::JSONB) ->> 'runId', 'created', FALSE))
   AND (SELECT count(*) = 1 FROM platform.audit_events WHERE action = 'ai.agent.run.start' AND resource_id = ((:'a317_su1'::JSONB) ->> 'runId')::UUID),
   'a scheduled run found later is created once (trigger schedule), links the orphan actions and journals its start once');
+SELECT pg_temp.a317_assert(
+  pg_temp.a317_err(pg_temp.a317_staff(3, format('SELECT platform.ai_agents_run_get_v1(%L, %L)', pg_temp.a317_id(1), ((:'a317_su1'::JSONB) ->> 'runId')::UUID))) = '42501'
+  AND pg_temp.a317_err(pg_temp.a317_staff(4, format('SELECT platform.ai_agents_run_get_v1(%L, %L)', pg_temp.a317_id(1), ((:'a317_su1'::JSONB) ->> 'runId')::UUID))) = '42501'
+  AND (pg_temp.a317_staff(1, format('SELECT platform.ai_agents_run_get_v1(%L, %L)', pg_temp.a317_id(1), ((:'a317_su1'::JSONB) ->> 'runId')::UUID)) -> 'run' ->> 'agentKey') = 'director',
+  'a Director run (and so its transcript) is readable only by the system Admin');
 -- The action log: one open run is the run of the action; the summary hides texts and secrets.
 SELECT pg_temp.a317_rt('ai_agent_mcp_log_v1', format('%L, ''sales'', ''search_clients'', %L::jsonb, ''ok'', NULL, 12', pg_temp.a317_id(1),
   '{"query":"айбек SECRET-QUERY","limit":5,"cursor":"abcdef"}')) AS a317_l2 \gset

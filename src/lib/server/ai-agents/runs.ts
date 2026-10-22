@@ -678,6 +678,34 @@ async function closeOpenRun(
   }
 }
 
+/**
+ * Закрывает по состоянию сессии открытые запуски (всех агентов или одного). Зовётся сверкой страниц и
+ * приёмом событий (`dispatch.ts`): без неё запуск по событию, который закончился, пока никто не открывал
+ * раздел, оставался бы `running` и блокировал следующие события. Не бросает; `false` — список не прочитан.
+ */
+export async function closeOpenAiAgentRuns(
+  anthropic: AnthropicClient, client: ServiceClient, organizationId: string, key: string | null, deps: AiAgentsRuntimeDeps,
+): Promise<boolean> {
+  try {
+    const open = await callRpc(client, AI_AGENT_RUNTIME_RPC.runsOpen, {
+      p_organization_id: organizationId,
+      p_key: key,
+      p_limit: 20,
+    });
+    if (!open.ok) return false;
+    for (const entry of toOpenRuns(open.data)) {
+      try {
+        await closeOpenRun(anthropic, client, organizationId, entry, deps);
+      } catch {
+        deps.log({ op: "reconcile_run", status: "error" });
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function reconcileDeployments(
   ctx: AiAgentsStaffContext, anthropic: AnthropicClient, client: ServiceClient, key: AiAgentKey | undefined, deps: AiAgentsRuntimeDeps,
 ): Promise<void> {
@@ -759,20 +787,9 @@ export async function reconcileAiAgentRunsImpl(
     await reconcileDeployments(ctx, anthropic, client, input.key, deps);
 
     // 2. Открытые запуски: закрыть по состоянию сессии.
-    const open = await callRpc(client, AI_AGENT_RUNTIME_RPC.runsOpen, {
-      p_organization_id: ctx.actor.organizationId,
-      p_key: input.key ?? null,
-      p_limit: 20,
-    });
-    if (!open.ok) return;
-    for (const entry of toOpenRuns(open.data)) {
-      try {
-        await closeOpenRun(anthropic, client, ctx.actor.organizationId, entry, deps);
-      } catch {
-        deps.log({ op: "reconcile_run", status: "error" });
-      }
+    if (await closeOpenAiAgentRuns(anthropic, client, ctx.actor.organizationId, input.key ?? null, deps)) {
+      deps.log({ op: "reconcile", status: "ok" });
     }
-    deps.log({ op: "reconcile", status: "ok" });
   } catch {
     // сверка вторична: страница откроется и без неё
   }

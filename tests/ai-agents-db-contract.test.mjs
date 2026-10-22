@@ -144,3 +144,19 @@ test("the migration never stores a secret or a person: no key, no token value, n
     assert.ok(/\.invalid$|^a\*\*\*@|^(true_|false_)?\d+@c\.us$/u.test(address[0]), `unexpected address ${address[0]}`);
   }
 });
+
+test("event runs: a stale open run does not block the next event; the Director is the system Admin's only", () => {
+  // Reserve: an open website_lead / whatsapp_inbound run blocks the next only while it is younger than 15 minutes.
+  assert.match(
+    SOURCE,
+    /r\.status IN \('starting', 'running'\) AND r\.started_at > clock_timestamp\(\) - INTERVAL '15 minutes'\s+ORDER BY r\.started_at DESC LIMIT 1/u,
+  );
+  // Authorize, runs list and run get (so also follow-up, interrupt, poll and transcript): the Director needs the system Admin.
+  for (const guard of [
+    /IF p_key = 'director' AND NOT v_actor\.is_admin THEN\s+RAISE EXCEPTION 'ai_agent_forbidden' USING ERRCODE = '42501';/gu,
+    /IF r\.agent_key = 'director' AND NOT v_actor\.is_admin THEN\s+RAISE EXCEPTION 'ai_agent_forbidden' USING ERRCODE = '42501';/gu,
+  ]) {
+    assert.ok(guard.test(SOURCE), String(guard));
+  }
+  assert.equal([...SOURCE.matchAll(/IF p_key = 'director' AND NOT v_actor\.is_admin THEN/gu)].length, 2);
+});

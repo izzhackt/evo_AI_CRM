@@ -222,7 +222,7 @@
 | `platform.ai_agents_drafts_list_v1` | `(p_organization_id, p_key text DEFAULT NULL, p_status text DEFAULT NULL, p_limit int DEFAULT 50)` | use | `AiAgentDraftsListResult`: черновики (`sourceMessage` — текст ≤ 400 символов последнего входящего и время) и `counts` по статусам. `p_status = NULL` — все; ключ NULL — все агенты |
 | `platform.ai_agents_draft_decide_v1` | `(p_organization_id, p_draft_id uuid, p_decision text, p_edited_text text DEFAULT NULL, p_request_id uuid)` | manage | `{draftId, agentKey, channel, status, text, conversationId, studentCaseId, approverMembershipId}`. `approve`: `pending` → `approved`, `edited_text` (если передан, не равен `text`, валиден по длине и символам); `discard`: → `discarded`. Не `pending` (в т.ч. устарел) — `55000 ai_agent_draft_not_pending`. Аудит `ai.agent.draft.decide` |
 | `platform.ai_agents_digests_list_v1` | `(p_organization_id, p_key text DEFAULT NULL, p_limit int DEFAULT 10)` | use | `AiAgentDigestsListResult` |
-| `platform.ai_agents_run_authorize_v1` | `(p_organization_id, p_key text, p_send_authority boolean DEFAULT false)` | use; при `p_send_authority` — manage | `{agentKey, title, enabled, autoSend, model, runBudgetUsd, membershipId, claude: {agentId, agentVersion, environmentId, vaultId}}`. Выключен — `55000 agent_disabled`; не синхронизирован (нет `claude_agent_id`/`claude_vault_id`/`claude_environment_id` или `sync_status<>'ok'`) — `55000 agent_not_synced`; открытых запусков типа `command` уже три — `55000 run_in_progress` |
+| `platform.ai_agents_run_authorize_v1` | `(p_organization_id, p_key text, p_send_authority boolean DEFAULT false)` | use; при `p_send_authority` — manage; для `director` — только системный администратор (`42501` остальным) | `{agentKey, title, enabled, autoSend, model, runBudgetUsd, membershipId, claude: {agentId, agentVersion, environmentId, vaultId}}`. Выключен — `55000 agent_disabled`; не синхронизирован (нет `claude_agent_id`/`claude_vault_id`/`claude_environment_id` или `sync_status<>'ok'`) — `55000 agent_not_synced`; открытых запусков типа `command` уже три — `55000 run_in_progress` |
 
 Просмотр роли администратора (preview) рубит **сервер приложения** (D/C), не БД.
 
@@ -535,7 +535,7 @@
   - `website_lead`: «Событие: новая заявка с сайта (request_id=<ref>). Найди новый лид (list_leads, source=website, created_from=сегодня), проверь дубли, оцени заявку и подготовь первое сообщение или задачу по инструкции.»
   - `whatsapp_inbound`: «Событие: новое входящее сообщение в WhatsApp продаж. Посмотри неотвеченные чаты (list_conversations, filter=unanswered), для каждого прочитай переписку и подготовь ответ по инструкции.»
   Итог — одна JSON-строка со счётчиками.
-- Лимит: не более одного запуска вида события на агента за 5 минут (ключ `wa:`), заявка — по `ref`; открытый запуск того же вида блокирует новый (БД).
+- Лимит: не более одного запуска вида события на агента за 5 минут (ключ `wa:`), заявка — по `ref`; открытый запуск того же вида блокирует новый (БД) не дольше 15 минут. Отказ `run_in_progress` приём событий разбирает сам: закрывает открытые запуски агента по состоянию их сессий (`closeOpenAiAgentRuns`, та же сверка, что у страниц) и повторяет резерв один раз.
 
 ### C.5 Отправка WhatsApp `sendAiAgentWhatsAppDraft`
 

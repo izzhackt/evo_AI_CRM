@@ -64,10 +64,13 @@ export function AgentBody(props: AgentBodyProps) {
   const state = aiAgentStateChip({ enabled: detail.enabled, hasInstructions, syncStatus: detail.sync.status, needsSync });
   const model = AI_AGENT_MODELS.find((one) => one.id === detail.model)?.label ?? detail.model;
   const synced = detail.sync.status === "ok";
-  const canRun = !preview && runtimeConfigured && hasInstructions && detail.enabled && synced;
+  // Директору поручает только системный администратор (его инструменты читают данные организации целиком).
+  const directorLocked = detail.key === "director" && !canEdit;
+  const canRun = !preview && !directorLocked && runtimeConfigured && hasInstructions && detail.enabled && synced;
   const here = (target: AiAgentTab) => aiAgentHref(detail.key, { tab: target });
 
   const blockedNote = preview ? "В просмотре роли писать агенту нельзя."
+    : directorLocked ? "Директору поручает только системный администратор: он читает данные организации целиком."
     : !runtimeConfigured ? "Ключ Claude API не задан в CRM — его добавляет администратор."
       : !hasInstructions ? "Инструкции пока нет: без неё агента нельзя включить."
         : !detail.enabled ? "Агент выключен. Включает его системный администратор переключателем «Включён» в шапке страницы."

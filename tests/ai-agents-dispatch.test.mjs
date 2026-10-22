@@ -11,6 +11,7 @@ import { fakeClaude, fakeRpc, runtimeDeps, claudeError, NOW, ORG } from "./ai-ag
 
 const REQUEST_ID = "9f3c1d52-7a84-4e0b-9c61-2d5b8e7a4f10";
 const RUN = "77777777-7777-4777-8777-777777777777";
+const RUN_OLD = "88888888-8888-4888-8888-888888888888";
 
 const TARGET = {
   key: "sales",
@@ -100,6 +101,52 @@ test("dispatch: резерв отказал (повтор или уже идёт
     assert.equal(claude.calls.length, 0);
     assert.equal(service.called("ai_agent_runtime_run_update_v1").length, 0);
   }
+});
+
+test("dispatch: прошлый запуск по событию закончился, но не закрыт — закрывается по сессии, резерв повторяется и сессия стартует", async () => {
+  let reserveCalls = 0;
+  const service = fakeRpc({
+    ai_agent_runtime_dispatch_targets_v1: () => ({ data: [TARGET] }),
+    ai_agent_runtime_run_reserve_v1: () => {
+      reserveCalls += 1;
+      return { data: reserveCalls === 1 ? { reserved: false, reason: "run_in_progress", existingRunId: RUN_OLD } : { reserved: true, runId: RUN } };
+    },
+    ai_agent_runtime_runs_open_v1: () => ({ data: [
+      { runId: RUN_OLD, agentKey: "sales", sessionId: "sesn_old", status: "running", startedAt: new Date(NOW - 20 * 60_000).toISOString(), lastReconciledAt: null },
+    ] }),
+    ai_agent_runtime_run_update_v1: () => ({ data: { ok: true } }),
+  });
+  const claude = fakeClaude({
+    "GET /v1/sessions/sesn_old": { id: "sesn_old", status: "idle", usage: { input_tokens: 5, output_tokens: 1 } },
+    "GET /v1/sessions/:s/events": { data: [], next_page: null },
+    "POST /v1/sessions": () => ({ id: "sesn_new", status: "running" }),
+  });
+  const { deps } = runtimeDeps({ claude, service });
+  assert.deepEqual(await dispatchAiAgentEvent({ kind: "whatsapp_inbound", ref: null }, deps), { started: 1 });
+
+  assert.equal(reserveCalls, 2);
+  const updates = service.called("ai_agent_runtime_run_update_v1").map((call) => [call.args.p_run_id, call.args.p_patch.status]);
+  assert.deepEqual(updates[0], [RUN_OLD, "completed"], "старый запуск закрыт по состоянию сессии");
+  assert.deepEqual(updates.at(-1), [RUN, "running"]);
+  assert.equal(claude.callsFor("POST", "/v1/sessions").length, 1);
+});
+
+test("dispatch: запуск по событию действительно идёт — после сверки резерв отказывает снова, сессия не создаётся", async () => {
+  let reserveCalls = 0;
+  const service = fakeRpc({
+    ai_agent_runtime_dispatch_targets_v1: () => ({ data: [TARGET] }),
+    ai_agent_runtime_run_reserve_v1: () => { reserveCalls += 1; return { data: { reserved: false, reason: "run_in_progress", existingRunId: RUN_OLD } }; },
+    ai_agent_runtime_runs_open_v1: () => ({ data: [
+      { runId: RUN_OLD, agentKey: "sales", sessionId: "sesn_old", status: "running", startedAt: new Date(NOW - 60_000).toISOString(), lastReconciledAt: null },
+    ] }),
+    ai_agent_runtime_run_update_v1: () => ({ data: { ok: true } }),
+  });
+  const claude = fakeClaude({ "GET /v1/sessions/sesn_old": { id: "sesn_old", status: "running" } });
+  const { deps } = runtimeDeps({ claude, service });
+  assert.deepEqual(await dispatchAiAgentEvent({ kind: "website_lead", ref: REQUEST_ID }, deps), { started: 0 });
+  assert.equal(reserveCalls, 2, "ровно одна повторная попытка");
+  assert.equal(claude.callsFor("POST", "/v1/sessions").length, 0);
+  assert.ok(service.called("ai_agent_runtime_run_update_v1").every((call) => call.args.p_patch.status !== "completed"));
 });
 
 test("dispatch: нет ключа Claude, нет организации или нет целей — ничего не вызывается", async () => {

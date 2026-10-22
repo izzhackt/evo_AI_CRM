@@ -464,6 +464,11 @@ test("страница агента: ключ Claude не задан, просм
   const preview = body(bodyProps({ preview: true, canEdit: false, tab: "command" }));
   assert.match(preview, /data-testid="v3-aia-preview"/u);
   assert.match(preview, /В просмотре роли писать агенту нельзя\./u);
+  // Директору поручает только системный администратор; другому агенту — любой сотрудник.
+  const directorLocked = body(bodyProps({ canEdit: false, tab: "command" }));
+  assert.match(directorLocked, /Директору поручает только системный администратор/u);
+  assert.doesNotMatch(directorLocked, /data-testid="v3-aia-input"/u, "поля ввода у Директора для не-администратора нет");
+  assert.doesNotMatch(body(bodyProps({ canEdit: false, tab: "command", detail: { ...DETAIL, key: "sales" } })), /Директору поручает/u);
   const stale = body(bodyProps({ needsSync: true }));
   assert.match(stale, /Нужна синхронизация/u);
   assert.match(stale, /Изменения не отправлены в Claude/u);

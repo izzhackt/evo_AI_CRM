@@ -1074,6 +1074,10 @@ BEGIN
   IF NOT platform_private.ai_agent_key_known(p_key) THEN
     RAISE EXCEPTION 'ai_agent_not_found' USING ERRCODE = 'P0002';
   END IF;
+  -- Запуски Директора (поручения, протокол) видит только системный администратор: он читает данные организации целиком.
+  IF p_key = 'director' AND NOT v_actor.is_admin THEN
+    RAISE EXCEPTION 'ai_agent_forbidden' USING ERRCODE = '42501';
+  END IF;
   SELECT COALESCE(jsonb_agg(platform_private.ai_agent_run_json(r) ORDER BY r.started_at DESC, r.id DESC), '[]'::JSONB), count(*)
   INTO v_runs, v_n
   FROM (SELECT x.* FROM platform_private.ai_agent_runs x
@@ -1095,6 +1099,9 @@ BEGIN
   SELECT * INTO r FROM platform_private.ai_agent_runs x WHERE x.organization_id = p_organization_id AND x.id = p_run_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'ai_agent_run_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  IF r.agent_key = 'director' AND NOT v_actor.is_admin THEN
+    RAISE EXCEPTION 'ai_agent_forbidden' USING ERRCODE = '42501';
   END IF;
   RETURN jsonb_build_object('run', platform_private.ai_agent_run_json(r),
     'actions', (SELECT COALESCE(jsonb_agg(platform_private.ai_agent_action_json(x) ORDER BY x.at, x.id), '[]'::JSONB)
@@ -1220,6 +1227,10 @@ BEGIN
     CASE WHEN COALESCE(p_send_authority, FALSE) THEN 'ai.agent.manage' ELSE 'ai.agent.use' END);
   IF NOT platform_private.ai_agent_key_known(p_key) THEN
     RAISE EXCEPTION 'ai_agent_not_found' USING ERRCODE = 'P0002';
+  END IF;
+  -- Директору поручает только системный администратор: его инструменты читают данные организации целиком, не по правам сотрудника.
+  IF p_key = 'director' AND NOT v_actor.is_admin THEN
+    RAISE EXCEPTION 'ai_agent_forbidden' USING ERRCODE = '42501';
   END IF;
   PERFORM platform_private.ai_agents_ensure_rows(p_organization_id);
   SELECT * INTO a FROM platform_private.ai_agents x WHERE x.organization_id = p_organization_id AND x.key = p_key;
@@ -1397,9 +1408,11 @@ BEGIN
     END IF;
   END IF;
   IF p_trigger_kind IN ('website_lead', 'whatsapp_inbound') THEN
+    -- Открытый запуск старше 15 минут не блокирует: закрывает его сверка, а если она не дошла, события не должны вставать.
     SELECT r.id INTO v_existing FROM platform_private.ai_agent_runs r
     WHERE r.organization_id = p_organization_id AND r.agent_key = p_key AND r.trigger_kind = p_trigger_kind
-      AND r.status IN ('starting', 'running') ORDER BY r.started_at DESC LIMIT 1;
+      AND r.status IN ('starting', 'running') AND r.started_at > clock_timestamp() - INTERVAL '15 minutes'
+    ORDER BY r.started_at DESC LIMIT 1;
     IF FOUND THEN
       RETURN jsonb_build_object('reserved', FALSE, 'reason', 'run_in_progress', 'existingRunId', v_existing);
     END IF;

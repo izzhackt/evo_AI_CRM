@@ -5,7 +5,7 @@ import { AI_AGENT_LIMITS, AI_AGENT_RUNTIME_RPC } from "../../ai-agents/contract.
 import { AnthropicApiError } from "./anthropic.ts";
 import { callRpc, isRecord, numberOr, resolveDeps, stringOrNull, truncate, type AiAgentsRuntimeDeps } from "./deps.ts";
 import { readOrganizationId } from "./env.ts";
-import { anthropicFailure, createAgentSession } from "./runs.ts";
+import { anthropicFailure, closeOpenAiAgentRuns, createAgentSession } from "./runs.ts";
 
 /*
  * Контракт §C.4. Хуки приёма заявки сайта и входящего WhatsApp зовут
@@ -74,7 +74,7 @@ export async function dispatchAiAgentEvent(
       if (!key || !agentId || !environmentId || !vaultId) { skipped += 1; continue; }
       const version = numberOr(raw.agentVersion, NaN);
       try {
-        const reserved = await callRpc(client, AI_AGENT_RUNTIME_RPC.runReserve, {
+        const reserve = () => callRpc(client, AI_AGENT_RUNTIME_RPC.runReserve, {
           p_organization_id: organizationId,
           p_key: key,
           p_trigger_kind: event.kind,
@@ -85,6 +85,12 @@ export async function dispatchAiAgentEvent(
           p_model: stringOrNull(raw.model),
           p_agent_version: Number.isFinite(version) && version > 0 ? Math.floor(version) : null,
         });
+        let reserved = await reserve();
+        // Прошлый запуск по событию мог закончиться, пока никто не открывал раздел: закрываем его по сессии и пробуем ещё раз.
+        if (reserved.ok && isRecord(reserved.data) && reserved.data.reason === "run_in_progress") {
+          await closeOpenAiAgentRuns(anthropic, client, organizationId, key, deps);
+          reserved = await reserve();
+        }
         const reservation = reserved.ok && isRecord(reserved.data) ? reserved.data : null;
         const runId = reservation?.reserved === true ? stringOrNull(reservation.runId) : null;
         if (!runId) { skipped += 1; continue; }

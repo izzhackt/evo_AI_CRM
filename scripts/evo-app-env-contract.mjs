@@ -14,6 +14,7 @@ import {
   writeSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
+import { isIP } from "node:net";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -93,6 +94,31 @@ const TELEPHONY_CRM_TOKEN = /^[A-Za-z0-9-]{32,64}$/u;
 const TELEPHONY_PBX_TOKEN = /^[\x21-\x7e]{16,256}$/u;
 const TELEPHONY_PBX_HOST =
   /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/u;
+// «ИИ-агенты» на Claude Managed Agents (docs/design/ai-agents/contract.md §C.6;
+// ADR 0035), все имена OPTIONAL: пусто или нет — функция выключена, выпуск не
+// падает. Заданное значение должно быть well-formed.
+//  - EVO_ANTHROPIC_API_KEY: ключ Claude API (секрет), 20-300 печатных символов
+//    без пробелов; не совпадает ни с одним другим значением этого env.
+//  - EVO_ANTHROPIC_API_BASE_URL: https-адрес без пути (только свой шлюз/прокси).
+//  - EVO_AI_AGENTS_MCP_URL: публичный https-адрес MCP CRM, путь /api/mcp/v1.
+//  - EVO_AI_AGENTS_MCP_IP_ALLOWLIST: через запятую CIDR/адреса IPv4 и IPv6
+//    либо `off` (временный обход фильтра).
+//  - EVO_AI_AGENTS_RUN_BUDGET_USD: потолок расхода на запуск, число 0..100.
+const AI_AGENTS_KEY_NAME = "EVO_ANTHROPIC_API_KEY";
+const AI_AGENTS_BASE_URL_NAME = "EVO_ANTHROPIC_API_BASE_URL";
+const AI_AGENTS_MCP_URL_NAME = "EVO_AI_AGENTS_MCP_URL";
+const AI_AGENTS_MCP_IP_NAME = "EVO_AI_AGENTS_MCP_IP_ALLOWLIST";
+const AI_AGENTS_BUDGET_NAME = "EVO_AI_AGENTS_RUN_BUDGET_USD";
+const OPTIONAL_AI_AGENTS_NAMES = Object.freeze([
+  AI_AGENTS_KEY_NAME,
+  AI_AGENTS_BASE_URL_NAME,
+  AI_AGENTS_MCP_URL_NAME,
+  AI_AGENTS_MCP_IP_NAME,
+  AI_AGENTS_BUDGET_NAME,
+]);
+const AI_AGENTS_API_KEY = /^[\x21-\x7e]{20,300}$/u;
+const AI_AGENTS_MCP_PATH = "/api/mcp/v1";
+const AI_AGENTS_BUDGET = /^(?:0|[1-9]\d{0,2})(?:\.\d{1,2})?$/u;
 const FORBIDDEN_SUCCESSOR_RUNTIME_VALUES = Object.freeze([
   "AUTH_SECRET",
   "EVO_SECRET_ENCRYPTION_KEY",
@@ -439,6 +465,73 @@ function validateTelephonyConfiguration(entries) {
   }
 }
 
+function isCanonicalHttpsUrl(value, pathname) {
+  if (value === "" || value.endsWith("/")) return false;
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      url.username === "" &&
+      url.password === "" &&
+      url.search === "" &&
+      url.hash === "" &&
+      url.pathname === pathname &&
+      // Canonical text only: what is written is exactly what the client calls.
+      `${url.origin}${pathname === "/" ? "" : pathname}` === value
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isIpOrCidr(value) {
+  const [address, prefix, ...rest] = value.split("/");
+  if (rest.length > 0) return false;
+  const family = isIP(address);
+  if (family === 0) return false;
+  if (prefix === undefined) return true;
+  if (!/^(?:0|[1-9]\d{0,2})$/u.test(prefix)) return false;
+  return Number(prefix) <= (family === 4 ? 32 : 128);
+}
+
+function validateAiAgentsConfiguration(entries) {
+  const value = (name) => entries.get(name) ?? "";
+
+  const key = value(AI_AGENTS_KEY_NAME);
+  if (key !== "") {
+    if (!AI_AGENTS_API_KEY.test(key)) fail("optional_feature_configuration_invalid");
+    // Свой секрет: значение не совпадает ни с одним другим значением этого env.
+    for (const [name, other] of entries) {
+      if (name !== AI_AGENTS_KEY_NAME && other === key) {
+        fail("optional_feature_configuration_invalid");
+      }
+    }
+  }
+
+  const baseUrl = value(AI_AGENTS_BASE_URL_NAME);
+  if (baseUrl !== "" && !isCanonicalHttpsUrl(baseUrl, "/")) {
+    fail("optional_feature_configuration_invalid");
+  }
+
+  const mcpUrl = value(AI_AGENTS_MCP_URL_NAME);
+  if (mcpUrl !== "" && !isCanonicalHttpsUrl(mcpUrl, AI_AGENTS_MCP_PATH)) {
+    fail("optional_feature_configuration_invalid");
+  }
+
+  const allowlist = value(AI_AGENTS_MCP_IP_NAME);
+  if (allowlist !== "" && allowlist !== "off") {
+    const items = allowlist.split(",").map((item) => item.trim());
+    if (items.some((item) => !isIpOrCidr(item))) {
+      fail("optional_feature_configuration_invalid");
+    }
+  }
+
+  const budget = value(AI_AGENTS_BUDGET_NAME);
+  if (budget !== "" && (!AI_AGENTS_BUDGET.test(budget) || Number(budget) > 100)) {
+    fail("optional_feature_configuration_invalid");
+  }
+}
+
 export function validateAppEnvironmentContract({
   exampleText,
   actualText,
@@ -451,7 +544,8 @@ export function validateAppEnvironmentContract({
       !actualEntries.has(name) &&
       !OPTIONAL_RUNTIME_NAMES.includes(name) &&
       !OPTIONAL_AUTOSEND_NAMES.includes(name) &&
-      !OPTIONAL_TELEPHONY_NAMES.includes(name)
+      !OPTIONAL_TELEPHONY_NAMES.includes(name) &&
+      !OPTIONAL_AI_AGENTS_NAMES.includes(name)
     ) {
       fail("required_env_name_missing");
     }
@@ -482,6 +576,7 @@ export function validateAppEnvironmentContract({
   validateOptionalFeatureConfiguration(actualEntries);
   validateAutosendConfiguration(actualEntries);
   validateTelephonyConfiguration(actualEntries);
+  validateAiAgentsConfiguration(actualEntries);
   return Object.freeze({ ok: true, code: "valid" });
 }
 

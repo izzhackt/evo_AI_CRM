@@ -89,6 +89,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["315_platform_account_deletion_p3.sql", "account_deletion_journal"],
   // Склейка клиентов: действие client.duplicate.merge, объект client (новый тип).
   ["316_platform_sales_import_tails.sql", "sales_import_tails"],
+  // «ИИ-агенты» на Claude Managed Agents: одиннадцать действий ai.agent.* и типы ai_agent, ai_agent_run, ai_agent_draft.
+  ["317_platform_ai_agents_managed.sql", "ai_agents_managed"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -209,6 +211,17 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "account.deletion.manual.complete",
     "account.deletion.process",
     "account.deletion.request",
+    "ai.agent.config.change",
+    "ai.agent.document.read",
+    "ai.agent.draft.create",
+    "ai.agent.draft.decide",
+    "ai.agent.message.send",
+    "ai.agent.run.finish",
+    "ai.agent.run.start",
+    "ai.agent.sync",
+    "ai.agent.token.rotate",
+    "ai.agent.tool.read",
+    "ai.agent.tool.write",
     "ai.proposal.review",
     "application.document.review",
     "application.partner.details.update",
@@ -316,6 +329,9 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
   ]);
   assert.deepEqual([...laterResourceTypes].sort(), [
     "account_deletion_request",
+    "ai_agent",
+    "ai_agent_draft",
+    "ai_agent_run",
     "ai_prompt_artifact_version",
     "client",
     "communication_media",
@@ -625,6 +641,64 @@ test("client.duplicate.merge journal action and the client object type are allow
   const [unknown] = normalizePlatformAuditSearchResult({
     ...DIRECTION_PAGE_BASE,
     rows: [{ ...SAFE_ROW, action: "client.duplicate.merge", resource_type: "client_x", actor_display_label: "Staff", changed_field_codes: ["record_status"] }],
+  }).rows;
+  assert.equal(unknown.recognized, false);
+});
+
+// «ИИ-агенты» на Claude Managed Agents (миграция 317): одиннадцать действий ai.agent.* и три типа объектов
+// видны в «Журнале действий» словами; строка берёт ветку ["ai_status"] (как серверный `ai.%`);
+// неизвестный тип объекта слова не получает.
+const AI_AGENT_ACTIONS_317 = [
+  "ai.agent.config.change",
+  "ai.agent.document.read",
+  "ai.agent.draft.create",
+  "ai.agent.draft.decide",
+  "ai.agent.message.send",
+  "ai.agent.run.finish",
+  "ai.agent.run.start",
+  "ai.agent.sync",
+  "ai.agent.token.rotate",
+  "ai.agent.tool.read",
+  "ai.agent.tool.write",
+];
+const AI_AGENT_TYPES_317 = ["ai_agent", "ai_agent_draft", "ai_agent_run"];
+
+test("ai.agent.* journal actions and object types (317) are allowlisted, worded in Russian and recognized", () => {
+  assert.deepEqual(PLATFORM_AUDIT_ACTIONS.filter((action) => action.startsWith("ai.agent.")), AI_AGENT_ACTIONS_317);
+  assert.deepEqual(PLATFORM_AUDIT_RESOURCE_TYPES.filter((type) => type.startsWith("ai_agent")), AI_AGENT_TYPES_317);
+  for (const action of AI_AGENT_ACTIONS_317) {
+    const word = journalEvent(action);
+    assert.match(word, /[А-Яа-я]/u, action);
+    assert.equal(word.includes("ai.agent"), false, `${action} shows a raw code`);
+    assert.equal(/\d/u.test(word), false, `${action} carries a number`);
+  }
+  assert.equal(journalEvent("ai.agent.config.change"), "Настройки ИИ-агента изменены");
+  assert.equal(journalEvent("ai.agent.document.read"), "ИИ-агент открыл документ студента");
+  assert.equal(journalEvent("ai.agent.message.send"), "ИИ-агент отправил сообщение");
+  assert.equal(journalEvent("ai.agent.unknown"), null);
+  assert.equal(journalObject("ai_agent"), "ИИ-агент");
+  assert.equal(journalObject("ai_agent_run"), "Запуск ИИ-агента");
+  assert.equal(journalObject("ai_agent_draft"), "Сообщение ИИ-агента");
+  assert.equal(journalObject("ai_agents"), null);
+  const base = {
+    filters: { start_at: null, end_at: null, actions: null, resource_types: null, resource_id: null },
+    snapshot_created_at: "2026-10-22T09:00:00Z",
+    snapshot_id: SNAPSHOT_ID,
+    next_cursor_created_at: null,
+    next_cursor_id: null,
+    has_more: false,
+  };
+  const [row] = normalizePlatformAuditSearchResult({
+    ...base,
+    rows: [{ ...SAFE_ROW, action: "ai.agent.tool.read", resource_type: "student_case", actor_display_label: "Service",
+      actor_kind: "service", changed_field_codes: ["ai_status"] }],
+  }).rows;
+  assert.equal(row.recognized, true);
+  assert.deepEqual(row.changedFieldCodes, ["ai_status"]);
+  const [unknown] = normalizePlatformAuditSearchResult({
+    ...base,
+    rows: [{ ...SAFE_ROW, action: "ai.agent.tool.read", resource_type: "ai_agents", actor_display_label: "Service",
+      actor_kind: "service", changed_field_codes: ["ai_status"] }],
   }).rows;
   assert.equal(unknown.recognized, false);
 });

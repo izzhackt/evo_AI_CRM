@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 import { getPlatformSupabaseBackendConfig } from "./platform-supabase-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
+import { scheduleAiAgentEvent } from "./ai-agents/dispatch.ts";
 import { parseWebsiteEnquiryAttribution, parseWebsiteEnquiryUniversity, WEBSITE_ENQUIRY_COUNTRIES } from "../website-enquiry-contract.ts";
 
 const MAX_BYTES = 8192;
@@ -125,7 +126,11 @@ export async function receiveWebsiteLead(request: Request): Promise<Response> {
     }).abortSignal(AbortSignal.timeout(10000));
     if (error) return response(503, "unavailable", undefined, rpcErrorReason(error));
     if (!data || typeof data !== "object" || Array.isArray(data)) return response(503, "unavailable", undefined, "rpc_shape");
-    if (data.status === "accepted" && data.request_id === input.requestId.toLowerCase()) return response(200, "accepted", input.requestId);
+    if (data.status === "accepted" && data.request_id === input.requestId.toLowerCase()) {
+      // ИИ-агенты (ADR 0035): после ответа, без ожидания; сбой хука ответ не меняет.
+      scheduleAiAgentEvent({ kind: "website_lead", ref: input.requestId.toLowerCase() });
+      return response(200, "accepted", input.requestId);
+    }
     if (data.status === "rate_limited") return response(429, "rate_limited");
     if (data.status === "request_conflict") return response(409, "request_conflict");
     return response(503, "unavailable", undefined, data.status === "unavailable" ? "rpc_unavailable" : "rpc_status");

@@ -940,6 +940,19 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   // Склейка двух карточек одного человека (миграция 316; пишет 308). В записи только
   // идентификаторы, имён и телефонов нет; объект - оставленный клиент.
   "client.duplicate.merge": "Карточки клиента объединены",
+  // «ИИ-агенты» на Claude Managed Agents (миграция 317). В записях журнала нет текстов инструкций,
+  // сообщений и документов: только идентификаторы, названия инструментов, статусы и числа.
+  "ai.agent.config.change": "Настройки ИИ-агента изменены",
+  "ai.agent.sync": "ИИ-агент синхронизирован с Claude",
+  "ai.agent.token.rotate": "Токен доступа ИИ-агента обновлён",
+  "ai.agent.run.start": "Запущен ИИ-агент",
+  "ai.agent.run.finish": "ИИ-агент закончил запуск",
+  "ai.agent.tool.read": "ИИ-агент прочитал данные клиента",
+  "ai.agent.tool.write": "ИИ-агент изменил данные",
+  "ai.agent.draft.create": "ИИ-агент подготовил сообщение",
+  "ai.agent.draft.decide": "Решение по сообщению ИИ-агента",
+  "ai.agent.message.send": "ИИ-агент отправил сообщение",
+  "ai.agent.document.read": "ИИ-агент открыл документ студента",
 } satisfies Readonly<Record<PlatformAuditAction, string>>;
 
 const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
@@ -1028,6 +1041,11 @@ const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
 
   // Удаление аккаунта (миграция 315).
   account_deletion_request: "Запрос на удаление аккаунта",
+
+  // «ИИ-агенты» (миграция 317).
+  ai_agent: "ИИ-агент",
+  ai_agent_run: "Запуск ИИ-агента",
+  ai_agent_draft: "Сообщение ИИ-агента",
 } satisfies Readonly<Record<PlatformAuditResourceType, string>>;
 
 /**

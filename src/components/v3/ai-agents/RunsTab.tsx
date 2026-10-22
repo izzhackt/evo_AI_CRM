@@ -1,0 +1,212 @@
+import Link from "next/link";
+
+import { StatusChip } from "@/components/v3/blocks/StatusChip";
+import { Icon } from "@/components/icons";
+import {
+  AI_AGENT_DRAFT_CHANNEL_LABELS,
+  AI_AGENT_RUN_STATUS_LABELS,
+  AI_AGENT_TOOL_LABELS,
+  AI_AGENT_TRIGGER_LABELS,
+  type AiAgentKey,
+  type AiAgentRunGetResult,
+  type AiAgentRunRow,
+} from "@/lib/ai-agents/contract";
+import {
+  AI_AGENT_RUNS_MAX,
+  AI_AGENT_RUNS_STEP,
+  aiAgentHref,
+  draftStatusWords,
+  draftTargetHref,
+  durationWords,
+  formatDateTimeRu,
+  formatUsdCents,
+  pluralRu,
+  runErrorWords,
+  runStatusTone,
+} from "@/lib/v3/ai-agents-view";
+
+import { Markdown } from "./Markdown";
+import { TranscriptLoader } from "./TranscriptLoader";
+
+/** Список «Запусков» (контракт §D.4, п. 3): строка — ссылка на хронику запуска. */
+export function RunsList({
+  agentKey,
+  runs,
+  hasMore,
+  limit,
+  now,
+}: Readonly<{ agentKey: AiAgentKey; runs: readonly AiAgentRunRow[]; hasMore: boolean; limit: number; now: string }>) {
+  if (runs.length === 0) {
+    return (
+      <section className="rounded-card border border-border bg-surface px-5 py-6" data-testid="v3-aia-runs-empty" aria-labelledby="aia-runs-empty">
+        <h2 id="aia-runs-empty" className="t-section text-fg">Запусков ещё не было</h2>
+        <p className="mt-1 max-w-[60ch] t-body-compact text-fg-2">
+          Запуск появляется, когда вы пишете агенту во вкладке «Поручить», когда срабатывает расписание или приходит событие (заявка, сообщение).
+        </p>
+      </section>
+    );
+  }
+  const nextLimit = Math.min(AI_AGENT_RUNS_MAX, limit + AI_AGENT_RUNS_STEP);
+  return (
+    <section aria-labelledby="aia-runs" data-testid="v3-aia-runs">
+      <h2 id="aia-runs" className="sr-only">Запуски агента</h2>
+      <ul className="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface">
+        {runs.map((run) => {
+          const text = run.status === "failed" ? runErrorWords(run.errorCode, run.errorMessage) : run.summary ?? run.promptPreview ?? "";
+          return (
+            <li key={run.id}>
+              <Link
+                href={aiAgentHref(agentKey, { tab: "runs", run: run.id })}
+                className="grid gap-x-4 gap-y-1.5 px-4 py-3 transition-colors hover:bg-surface-2/60 motion-reduce:transition-none @3xl:grid-cols-[11rem_9.5rem_minmax(0,1fr)_9rem]"
+                data-testid="v3-aia-run-row"
+              >
+                <span className="min-w-0">
+                  <span className="block t-label tabular-nums text-fg">{formatDateTimeRu(run.startedAt, now)}</span>
+                  <span className="block t-meta text-fg-3">{AI_AGENT_TRIGGER_LABELS[run.triggerKind]}{run.startedByName ? ` · ${run.startedByName}` : ""}</span>
+                </span>
+                <span className="flex items-start gap-2">
+                  <StatusChip label={AI_AGENT_RUN_STATUS_LABELS[run.status]} tone={runStatusTone(run.status)} />
+                </span>
+                <span className="line-clamp-2 min-w-0 t-body-compact text-fg-2">{text || "—"}</span>
+                <span className="t-meta tabular-nums text-fg-3 @3xl:text-end">
+                  {durationWords(run.durationSeconds)} · {formatUsdCents(run.costCents)}
+                  <span className="block">
+                    {run.actionsCount} {pluralRu(run.actionsCount, ["действие", "действия", "действий"])}
+                    {run.draftsCount > 0 ? ` · ${run.draftsCount} ${pluralRu(run.draftsCount, ["черновик", "черновика", "черновиков"])}` : ""}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      {hasMore && limit < AI_AGENT_RUNS_MAX ? (
+        <p className="mt-3">
+          <Link href={aiAgentHref(agentKey, { tab: "runs", limit: nextLimit })} scroll={false} className="inline-flex min-h-11 items-center rounded-nav border border-control-edge bg-surface px-4 t-label text-fg-2 hover:bg-surface-2 hover:text-fg">
+            Показать ещё
+          </Link>
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+const RESULT_WORDS = { ok: "готово", error: "ошибка", denied: "отказано" } as const;
+
+/** Хроника одного запуска: показатели, причина ошибки словами, действия, черновики, переписка по кнопке. */
+export function RunDetail({
+  agentKey,
+  agentTitle,
+  data,
+  now,
+}: Readonly<{ agentKey: AiAgentKey; agentTitle: string; data: AiAgentRunGetResult; now: string }>) {
+  const { run, actions, drafts } = data;
+  const facts: readonly (readonly [string, string])[] = [
+    ["Начат", formatDateTimeRu(run.startedAt, now)],
+    ["Длительность", durationWords(run.durationSeconds)],
+    ["Расход", formatUsdCents(run.costCents)],
+    ["Модель", `${run.model ?? "—"}${run.agentVersion !== null ? ` · версия ${run.agentVersion}` : ""}`],
+    ["Токены", `вход ${run.inputTokens.toLocaleString("ru-RU")} · выход ${run.outputTokens.toLocaleString("ru-RU")}${run.cacheReadTokens > 0 ? ` · из кэша ${run.cacheReadTokens.toLocaleString("ru-RU")}` : ""}`],
+    ["Кто запустил", run.startedByName ?? AI_AGENT_TRIGGER_LABELS[run.triggerKind]],
+  ];
+  return (
+    <div className="space-y-4" data-testid="v3-aia-run-detail">
+      <Link href={aiAgentHref(agentKey, { tab: "runs" })} className="inline-flex min-h-11 items-center gap-1.5 rounded-nav t-label text-fg-2 hover:text-fg">
+        <Icon name="arrow-left" size={16} /> Все запуски
+      </Link>
+      <section aria-labelledby="aia-run-title" className="rounded-card border border-border bg-surface p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 id="aia-run-title" className="t-section text-fg">{AI_AGENT_TRIGGER_LABELS[run.triggerKind]}</h2>
+          <StatusChip label={AI_AGENT_RUN_STATUS_LABELS[run.status]} tone={runStatusTone(run.status)} />
+          {run.sendAuthority ? <StatusChip label="Отправка без черновика" tone="warn" /> : null}
+        </div>
+        <dl className="mt-3 grid gap-x-8 gap-y-2 @2xl:grid-cols-2">
+          {facts.map(([name, value]) => (
+            <div key={name} className="min-w-0">
+              <dt className="t-meta text-fg-3">{name}</dt>
+              <dd className="break-words t-body-compact tabular-nums text-fg">{value}</dd>
+            </div>
+          ))}
+        </dl>
+        {run.status === "failed" || run.errorCode ? (
+          <p role="alert" className="mt-3 rounded-card bg-danger-weak px-3 py-2 t-body-compact text-danger" data-testid="v3-aia-run-error">
+            {runErrorWords(run.errorCode, run.errorMessage)}
+          </p>
+        ) : null}
+        {run.promptPreview ? (
+          <div className="mt-3">
+            <p className="t-meta text-fg-3">Поручение</p>
+            <p className="whitespace-pre-wrap break-words t-body-compact text-fg">{run.promptPreview}</p>
+          </div>
+        ) : null}
+        {run.summary ? (
+          <div className="mt-3">
+            <p className="mb-1 t-meta text-fg-3">Итог агента</p>
+            <Markdown source={run.summary} />
+          </div>
+        ) : null}
+      </section>
+
+      <section aria-labelledby="aia-run-actions" className="rounded-card border border-border bg-surface p-4">
+        <h3 id="aia-run-actions" className="t-section text-fg">Действия агента <span className="font-normal tabular-nums text-fg-3">{actions.length}</span></h3>
+        {actions.length === 0 ? (
+          <p className="mt-2 t-body-compact text-fg-2">В этом запуске агент не вызывал инструменты.</p>
+        ) : (
+          <div className="mt-2 max-h-96 overflow-auto rounded-nav border border-border">
+            <table className="w-full min-w-[34rem] t-body-compact">
+              <thead>
+                <tr className="border-b border-border text-fg-2">
+                  <th scope="col" className="px-3 py-2 text-start font-medium">Время</th>
+                  <th scope="col" className="px-3 py-2 text-start font-medium">Инструмент</th>
+                  <th scope="col" className="px-3 py-2 text-start font-medium">Запрос</th>
+                  <th scope="col" className="px-3 py-2 text-start font-medium">Итог</th>
+                </tr>
+              </thead>
+              <tbody>
+                {actions.map((action) => (
+                  <tr key={action.id} className="border-b border-border last:border-b-0">
+                    <td className="whitespace-nowrap px-3 py-1.5 tabular-nums text-fg-3">{formatDateTimeRu(action.at, now)}</td>
+                    <td className="px-3 py-1.5 text-fg">{AI_AGENT_TOOL_LABELS[action.tool] ?? action.tool}</td>
+                    <td className="max-w-[18rem] break-words px-3 py-1.5 text-fg-2">{action.argsSummary || "—"}</td>
+                    <td className={`whitespace-nowrap px-3 py-1.5 ${action.resultStatus === "ok" ? "text-fg-2" : "text-danger"}`}>
+                      {RESULT_WORDS[action.resultStatus]}
+                      {action.errorCode ? <span className="block t-meta text-fg-3">{action.errorCode}</span> : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {drafts.length > 0 ? (
+        <section aria-labelledby="aia-run-drafts" className="rounded-card border border-border bg-surface p-4">
+          <h3 id="aia-run-drafts" className="t-section text-fg">Черновики этого запуска <span className="font-normal tabular-nums text-fg-3">{drafts.length}</span></h3>
+          <ul className="mt-2 divide-y divide-border">
+            {drafts.map((draft) => {
+              const words = draftStatusWords(draft);
+              const href = draftTargetHref(draft);
+              return (
+                <li key={draft.id} className="py-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusChip label={words.label} tone={words.tone} />
+                    <span className="t-label text-fg">{AI_AGENT_DRAFT_CHANNEL_LABELS[draft.channel]}</span>
+                    {draft.targetLabel ? (href ? <Link href={href} className="t-label text-fg underline underline-offset-4">{draft.targetLabel}</Link> : <span className="t-label text-fg-2">{draft.targetLabel}</span>) : null}
+                  </div>
+                  <p className="mt-1 line-clamp-3 whitespace-pre-wrap break-words t-body-compact text-fg-2">{draft.editedText ?? draft.text}</p>
+                  {words.note ? <p className="mt-0.5 t-meta text-fg-3">{words.note}</p> : null}
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-2"><Link href={aiAgentHref(agentKey, { tab: "drafts", show: "all" })} className="t-label text-fg underline underline-offset-4">Все черновики агента</Link></p>
+        </section>
+      ) : null}
+
+      {run.sessionId ? <TranscriptLoader runId={run.id} agentTitle={agentTitle} /> : (
+        <p className="t-body-compact text-fg-2">У запуска нет сессии Claude: переписки нет.</p>
+      )}
+    </div>
+  );
+}

@@ -35,7 +35,7 @@ export const LINK_ICONS = {
   "reply-snippets": "quote",
   knowledge: "book-open",
   marketing: "megaphone",
-  "ai-agent": "sparkles",
+  "ai-agents": "sparkles",
   settings: "settings",
 } as const satisfies Record<V3NavigationLinkId, IconName>;
 

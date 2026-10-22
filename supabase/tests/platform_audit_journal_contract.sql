@@ -46,7 +46,8 @@
 --      (telephony T2) adds the 6 telephony pairs to the same list (86 pairs);
 --      migration 311 («Подключение WhatsApp») adds its 2 pairs (88 pairs); migration 315
 --      (удаление аккаунта) adds the 5 account.deletion.* pairs (93 pairs); migration 316
---      (клиент: склейка клиентов) adds its 1 pair (94 pairs).
+--      (клиент: склейка клиентов) adds its 1 pair (94 pairs); migration 317 («ИИ-агенты»)
+--      adds the 11 ai.agent.* actions with 19 pairs (113 pairs).
 --
 -- Fixture: one organization + one Platform Admin membership, modelled like
 -- production per 155 (platform_private.staff_membership_identity,
@@ -427,7 +428,29 @@ INSERT INTO p7aj_pairs(action, resource_type) VALUES
     ('account.deletion.email', 'account_deletion_request'),
     -- The client merge (migration 308 writes it, 316 shows it in the journal): the object is the
     -- kept client, a new resource type.
-    ('client.duplicate.merge', 'client');
+    ('client.duplicate.merge', 'client'),
+    -- «ИИ-агенты» (migration 317): the pairs the agent functions write. The agent's own settings,
+    -- sync and token rows name the agent; runs name the run; drafts name the draft; a sent message
+    -- names the WhatsApp chat or the student case; the sensitive reads name what was read.
+    ('ai.agent.config.change', 'ai_agent'),
+    ('ai.agent.sync', 'ai_agent'),
+    ('ai.agent.token.rotate', 'ai_agent'),
+    ('ai.agent.run.start', 'ai_agent_run'),
+    ('ai.agent.run.finish', 'ai_agent_run'),
+    ('ai.agent.draft.create', 'ai_agent_draft'),
+    ('ai.agent.draft.decide', 'ai_agent_draft'),
+    ('ai.agent.message.send', 'communication_conversation'),
+    ('ai.agent.message.send', 'student_case'),
+    ('ai.agent.document.read', 'student_case'),
+    ('ai.agent.tool.read', 'student_case'),
+    ('ai.agent.tool.read', 'lead'),
+    ('ai.agent.tool.read', 'client'),
+    ('ai.agent.tool.read', 'communication_conversation'),
+    ('ai.agent.tool.write', 'ai_agent'),
+    ('ai.agent.tool.write', 'lead'),
+    ('ai.agent.tool.write', 'student_case'),
+    ('ai.agent.tool.write', 'staff_task'),
+    ('ai.agent.tool.write', 'case_task');
 
 INSERT INTO platform.audit_events(
   organization_id, actor_kind, actor_principal, action, resource_type, resource_id,
@@ -439,9 +462,9 @@ FROM p7aj_pairs;
 
 SELECT pg_temp.p7aj_assert(
   (SELECT count(DISTINCT action) FROM p7aj_pairs WHERE action NOT LIKE 'telephony.%' AND action NOT LIKE 'whatsapp.%'
-      AND action NOT LIKE 'account.deletion.%' AND action NOT LIKE 'client.%') = 71
+      AND action NOT LIKE 'account.deletion.%' AND action NOT LIKE 'client.%' AND action NOT LIKE 'ai.agent.%') = 71
     AND (SELECT count(*) FROM p7aj_pairs WHERE action NOT LIKE 'telephony.%' AND action NOT LIKE 'whatsapp.%'
-      AND action NOT LIKE 'account.deletion.%' AND action NOT LIKE 'client.%') = 80,
+      AND action NOT LIKE 'account.deletion.%' AND action NOT LIKE 'client.%' AND action NOT LIKE 'ai.agent.%') = 80,
   'the real-writer pair list covers the 71 actions 255 added (80 pairs: 9 document.export.* carry two resource types)');
 SELECT pg_temp.p7aj_assert(
   (SELECT count(DISTINCT action) FROM p7aj_pairs WHERE action LIKE 'telephony.%') = 6
@@ -467,17 +490,51 @@ SELECT pg_temp.p7aj_assert(
     AND (SELECT array_agg(action ORDER BY action) FROM p7aj_pairs WHERE action LIKE 'client.%')
       = (SELECT array_agg(a ORDER BY a) FROM unnest(platform_private.p7a_safe_audit_actions()) a WHERE a LIKE 'client.%'),
   'the pair list covers exactly the one client merge action migration 316 added');
+SELECT pg_temp.p7aj_assert(
+  (SELECT count(DISTINCT action) FROM p7aj_pairs WHERE action LIKE 'ai.agent.%') = 11
+    AND (SELECT count(*) FROM p7aj_pairs WHERE action LIKE 'ai.agent.%') = 19
+    AND (SELECT array_agg(action ORDER BY action) FROM (SELECT DISTINCT action FROM p7aj_pairs WHERE action LIKE 'ai.agent.%') d)
+      = (SELECT array_agg(a ORDER BY a) FROM unnest(platform_private.p7a_safe_audit_actions()) a WHERE a LIKE 'ai.agent.%'),
+  'the pair list covers exactly the eleven ai.agent.* actions migration 317 added');
 
 SET LOCAL ROLE authenticated;
-CREATE TEMP TABLE p7aj_pair_pages(page JSONB);
-INSERT INTO p7aj_pair_pages(page)
-  SELECT platform.search_audit_events(NULL, NULL, NULL, NULL, pg_temp.p7aj_id(901), 100);
+CREATE TEMP TABLE p7aj_pair_pages(page_index INTEGER PRIMARY KEY, page JSONB);
+-- Since migration 317 the pair list (113 pairs) is longer than one page of 100: read it page by page.
+DO $p7aj_pair_loop$
+DECLARE
+  current_page JSONB;
+  page_index INTEGER := 0;
+  snap_created TIMESTAMPTZ := NULL;
+  snap_id UUID := NULL;
+  cur_created TIMESTAMPTZ := NULL;
+  cur_id UUID := NULL;
+  more BOOLEAN := TRUE;
+BEGIN
+  WHILE more LOOP
+    page_index := page_index + 1;
+    IF page_index > 5 THEN
+      RAISE EXCEPTION 'P7AJ: pagination of the real-writer pairs did not terminate within 5 pages';
+    END IF;
+    SELECT platform.search_audit_events(
+      NULL, NULL, NULL, NULL, pg_temp.p7aj_id(901), 100,
+      snap_created, snap_id, cur_created, cur_id
+    ) INTO current_page;
+    INSERT INTO p7aj_pair_pages(page_index, page) VALUES (page_index, current_page);
+    more := (current_page ->> 'has_more')::BOOLEAN;
+    snap_created := (current_page ->> 'snapshot_created_at')::TIMESTAMPTZ;
+    snap_id := (current_page ->> 'snapshot_id')::UUID;
+    cur_created := (current_page ->> 'next_cursor_created_at')::TIMESTAMPTZ;
+    cur_id := (current_page ->> 'next_cursor_id')::UUID;
+  END LOOP;
+END
+$p7aj_pair_loop$;
 RESET ROLE;
 
 SELECT pg_temp.p7aj_assert(
-  (SELECT count(*) FROM p7aj_pair_pages) = 1
-    AND (SELECT (page ->> 'has_more')::BOOLEAN FROM p7aj_pair_pages) = FALSE,
-  'the real-writer pairs fit one search_audit_events() page');
+  (SELECT count(*) FROM p7aj_pair_pages) = 2
+    AND (SELECT bool_and((page ->> 'has_more')::BOOLEAN = (page_index <> (SELECT max(page_index) FROM p7aj_pair_pages)))
+      FROM p7aj_pair_pages),
+  'the real-writer pairs fill two search_audit_events() pages (100 + the rest), the last one without more');
 SELECT pg_temp.p7aj_assert(
   NOT EXISTS (
     SELECT action, resource_type FROM p7aj_pairs
@@ -704,7 +761,7 @@ SELECT 'P7A_JOURNAL_CONTRACT ' || jsonb_build_object(
 )::TEXT;
 
 SELECT 'P7A_JOURNAL_PAGE ' || page::TEXT FROM p7aj_pages ORDER BY page_index;
-SELECT 'P7A_JOURNAL_PAGE ' || page::TEXT FROM p7aj_pair_pages;
+SELECT 'P7A_JOURNAL_PAGE ' || page::TEXT FROM p7aj_pair_pages ORDER BY page_index;
 -- The actor-label page too: the checker replays it through the real TS
 -- normalizer, which must accept Student and User for a 'user' actor.
 SELECT 'P7A_JOURNAL_PAGE ' || :'p7aj_actor_page';

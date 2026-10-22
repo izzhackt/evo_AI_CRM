@@ -559,8 +559,9 @@ test("access: the section and the menu item follow ai.agent.use; every preview r
     assert.equal(staffCanAccessRoute({ ...staff([]), systemRole: "admin", presentationRole: role }, "/v3/ai-agent"), true, role);
   }
   const nav = buildV3Navigation(staff(["ai.agent.use"]), "/v3/ai-agent", new URLSearchParams());
-  assert.equal(nav.activeId, "ai-agent");
-  assert.deepEqual(nav.common.map((link) => [link.label, link.href]), [["ИИ-агент", "/v3/ai-agent"]]);
+  // 22.10.2026: пункт меню — «ИИ-агенты» (хаб); Gemini-страница — его дочерняя, пункт подсвечен и на ней.
+  assert.equal(nav.activeId, "ai-agents");
+  assert.deepEqual(nav.common.map((link) => [link.label, link.href]), [["ИИ-агенты", "/v3/ai-agents"]]);
 });
 
 // ------------------------------------------------------------ source contract

@@ -1,3 +1,4 @@
+import { AI_AGENTS_MCP_FILE_PATH_PATTERN, AI_AGENTS_MCP_PATH } from "./ai-agents/contract.ts";
 import { staffHomeRoute } from "./platform-access.ts";
 import type { ActivePlatformActor } from "./platform-auth.ts";
 import { STUDENT_PORTAL_UPDATES_PATH } from "./portal-poll-section.ts";
@@ -24,6 +25,8 @@ const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/v3/marketing",
   // «ИИ-агент» (план ИИ-агента §12.2): подразделы — `?section=`.
   "/v3/ai-agent",
+  // «ИИ-агенты» (решение владельца 22.10.2026): хаб; страница агента — ниже по ключу каталога.
+  "/v3/ai-agents",
   "/v3/reply-snippets",
   "/v3/documents",
   "/v3/calendar",
@@ -81,6 +84,8 @@ const STUDENT_AUTH_PAGE_ALLOWLIST = new Set([
 ]);
 
 const STAFF_UNIVERSITY_DETAIL_PATH = /^\/v3\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// «ИИ-агенты»: страница агента — только семь ключей каталога (contract.ts); вкладки — `?tab=`.
+const STAFF_AI_AGENT_PAGE_PATH = /^\/v3\/ai-agents\/(?:director|sales|curator-cn|curator-my|curator-eu|curator-ae|curator-tr)$/;
 const STAFF_UNIVERSITY_FORMS_PATH = /^\/v3\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/forms$/i;
 const STUDENT_UNIVERSITY_DETAIL_PATH = /^\/portal\/universities\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 // Университеты v2 (S3): страна и город каталога. Код страны — две строчные
@@ -175,6 +180,9 @@ const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/internal/platform-messaging/waha/work",
   "/api/internal/platform-operations/portal-overdue",
   AI_AGENT_AUTOSEND_SEND_PATH,
+  // MCP-сервер агентов Claude (ADR 0035): сам проверяет токен агента, IP и
+  // включённость агента; сессионных cookie сотрудника у него нет.
+  AI_AGENTS_MCP_PATH,
 ]);
 const RETIRED_PLATFORM_ROUTE_ROOTS = [
   "/dashboard",
@@ -223,6 +231,7 @@ export function isConnectedPlatformPage(path: string): boolean {
     PLATFORM_STAFF_PAGE_ALLOWLIST.has(path) ||
     STAFF_UNIVERSITY_DETAIL_PATH.test(path) ||
     STAFF_UNIVERSITY_FORMS_PATH.test(path) ||
+    STAFF_AI_AGENT_PAGE_PATH.test(path) ||
     isConnectedStudentPortalPage(path) ||
     isConnectedStudentAuthPage(path)
   );
@@ -296,7 +305,8 @@ export function isPublicStudentRegistrationApi(
  */
 export function isConnectedPlatformPrivateApi(path: string): boolean {
   return PLATFORM_PRIVATE_API_ALLOWLIST.has(path) || path === "/api/public/website-leads"
-    || AI_AGENT_STORAGE_BROKER_PATH.test(path);
+    || AI_AGENT_STORAGE_BROKER_PATH.test(path)
+    || AI_AGENTS_MCP_FILE_PATH_PATTERN.test(path);
 }
 
 /**

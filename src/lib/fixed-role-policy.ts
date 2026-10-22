@@ -36,6 +36,7 @@ export const FIXED_ROLE_ROUTES = [
   "/v3/knowledge",
   "/v3/marketing",
   "/v3/ai-agent",
+  "/v3/ai-agents",
   "/v3/reply-snippets",
   "/v3/documents",
   "/v3/settings",
@@ -86,6 +87,8 @@ const ROUTE_CAPABILITY_ANY_OF = {
   "/v3/marketing": ["admin.preview"],
   // «ИИ-агент» — все сотрудники (решение владельца Q9, «нет, все могут»).
   "/v3/ai-agent": ["dashboard.read"],
+  // «ИИ-агенты» (отдел агентов Claude, 22.10.2026) — те же сотрудники.
+  "/v3/ai-agents": ["dashboard.read"],
   "/v3/documents": ["documents.read"],
   "/v3/reply-snippets": ["sales.read", "admissions.read"],
   "/v3/settings": ["admin.preview"],

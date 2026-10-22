@@ -21,6 +21,7 @@ import {
   PlatformWahaProjectorError,
   projectPlatformWahaWorkItem,
 } from "./platform-waha-projector.ts";
+import { scheduleAiAgentEvent } from "./ai-agents/dispatch.ts";
 
 // A direct GOWS media event carries the message twice (`_data.Message` and
 // `_data.RawMessage`, both with the base64 `JPEGThumbnail`) and a quoted media
@@ -903,6 +904,15 @@ export function createPlatformWahaWebhookHandler(
         organizationId: config.organizationId,
         workItemId,
       });
+      // ИИ-агенты (ADR 0035): новое входящее от клиента запускает включённых агентов после ответа, без ожидания.
+      if (
+        descriptor.eventType === "message.any" &&
+        isObject(body.payload) &&
+        body.payload.fromMe === false &&
+        !(persisted.deduplicated || projection.deduplicated)
+      ) {
+        scheduleAiAgentEvent({ kind: "whatsapp_inbound", ref: null });
+      }
       return json(200, {
         ok: true,
         status: "projected",

@@ -1,7 +1,5 @@
 import "server-only";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-
 import type {
   AiAgentDraftDecisionResult,
   AiAgentKey,
@@ -11,90 +9,110 @@ import type {
   AiAgentSyncResult,
   AiAgentUiEvent,
 } from "../../ai-agents/contract.ts";
-import type { ActivePlatformActor } from "../../platform-auth.ts";
+import { type AiAgentsRuntimeDeps, type AiAgentsStaffContext } from "./deps.ts";
+import { decideAiAgentDraftImpl, type DecideDraftExtras } from "./drafts.ts";
+import { readAnthropicApiKey } from "./env.ts";
+import {
+  followUpAiAgentRunImpl,
+  interruptAiAgentRunImpl,
+  loadAiAgentRunTranscriptImpl,
+  pollAiAgentRunImpl,
+  reconcileAiAgentRunsImpl,
+  startAiAgentRunImpl,
+} from "./runs.ts";
+import { syncAiAgentImpl } from "./sync.ts";
 
 /*
- * ЗАГЛУШКА АРХИТЕКТОРА: подписи — замороженный контракт между строителями
- * (docs/design/ai-agents/contract.md §C.2). Файл принадлежит строителю C
- * («рантайм Managed Agents»): он заменяет тела, подписи не меняет. Строитель D
- * (интерфейс) вызывает только эти функции и никогда не открывает service-клиент.
+ * Публичные функции рантайма Managed Agents (контракт §C.2). Подписи заморожены:
+ * D (интерфейс) вызывает только их и никогда не открывает service-клиент. Каждая
+ * принимает необязательный последний аргумент с зависимостями — его используют
+ * тесты; интерфейс его не передаёт. Правила: просмотр роли администратором →
+ * `preview_read_only`; право, включён ли агент и синхронизирован ли — решает база.
  */
 
-/** Контекст сотрудника: его серверный клиент Supabase и проверенный актор. Каждая функция ниже начинает с RPC сотрудника (`ai_agents_run_authorize_v1` / `ai_agents_draft_decide_v1`). */
-export type AiAgentsStaffContext = Readonly<{ staffClient: SupabaseClient; actor: ActivePlatformActor }>;
+/** Контекст сотрудника: его серверный клиент Supabase и проверенный актор. Каждая функция начинает с RPC сотрудника. */
+export type { AiAgentsStaffContext } from "./deps.ts";
 
 export type AiAgentsRuntimeAvailability = Readonly<{ configured: boolean; reason: "api_key_missing" | null }>;
-
-const NOT_IMPLEMENTED = "ai_agents_runtime_not_implemented";
 
 /** Без обращения к сети: задан ли EVO_ANTHROPIC_API_KEY. UI показывает по нему «ключ Claude API не задан». */
 export function aiAgentsRuntimeAvailability(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): AiAgentsRuntimeAvailability {
-  const key = env.EVO_ANTHROPIC_API_KEY;
-  return key !== undefined && key.trim() !== "" ? { configured: true, reason: null } : { configured: false, reason: "api_key_missing" };
+  return readAnthropicApiKey(env) !== null
+    ? { configured: true, reason: null }
+    : { configured: false, reason: "api_key_missing" };
 }
 
 /** Создаёт или обновляет агента, среду, хранилище, расписание в Claude; `rotateToken` выпускает новый токен MCP. Только системный администратор. */
 export async function syncAiAgent(
-  _ctx: AiAgentsStaffContext,
-  _input: Readonly<{ key: AiAgentKey; rotateToken?: boolean; requestId: string }>,
+  ctx: AiAgentsStaffContext,
+  input: Readonly<{ key: AiAgentKey; rotateToken?: boolean; requestId: string }>,
+  deps?: Partial<AiAgentsRuntimeDeps>,
 ): Promise<AiAgentSyncResult> {
-  throw new Error(NOT_IMPLEMENTED);
+  return syncAiAgentImpl(ctx, input, deps);
 }
 
 /** Новый разговор с агентом: создаёт сессию Claude и первое сообщение. */
 export async function startAiAgentRun(
-  _ctx: AiAgentsStaffContext,
-  _input: Readonly<{ key: AiAgentKey; text: string; sendAuthority: boolean; requestId: string }>,
+  ctx: AiAgentsStaffContext,
+  input: Readonly<{ key: AiAgentKey; text: string; sendAuthority: boolean; requestId: string }>,
+  deps?: Partial<AiAgentsRuntimeDeps>,
 ): Promise<AiAgentStartRunResult> {
-  throw new Error(NOT_IMPLEMENTED);
+  return startAiAgentRunImpl(ctx, input, deps);
 }
 
 /** Следующее сообщение в уже созданной сессии (разговор «Поручить»). */
 export async function followUpAiAgentRun(
-  _ctx: AiAgentsStaffContext,
-  _input: Readonly<{ runId: string; text: string; requestId: string }>,
+  ctx: AiAgentsStaffContext,
+  input: Readonly<{ runId: string; text: string; requestId: string }>,
+  deps?: Partial<AiAgentsRuntimeDeps>,
 ): Promise<Readonly<{ ok: true }> | Readonly<{ ok: false; code: AiAgentRunErrorCode; message: string }>> {
-  throw new Error(NOT_IMPLEMENTED);
+  return followUpAiAgentRunImpl(ctx, input, deps);
 }
 
 /** Опрос: новые события сессии с курсора, обновление запуска (статус, токены, расход). */
 export async function pollAiAgentRun(
-  _ctx: AiAgentsStaffContext,
-  _input: Readonly<{ runId: string; cursor: string | null }>,
+  ctx: AiAgentsStaffContext,
+  input: Readonly<{ runId: string; cursor: string | null }>,
+  deps?: Partial<AiAgentsRuntimeDeps>,
 ): Promise<Readonly<{ ok: true; poll: AiAgentRunPoll }> | Readonly<{ ok: false; code: "not_found" | "forbidden" | "unavailable" }>> {
-  throw new Error(NOT_IMPLEMENTED);
+  return pollAiAgentRunImpl(ctx, input, deps);
 }
 
 /** Остановить работающую сессию (`user.interrupt`). */
 export async function interruptAiAgentRun(
-  _ctx: AiAgentsStaffContext,
-  _input: Readonly<{ runId: string }>,
+  ctx: AiAgentsStaffContext,
+  input: Readonly<{ runId: string }>,
+  deps?: Partial<AiAgentsRuntimeDeps>,
 ): Promise<Readonly<{ ok: true }> | Readonly<{ ok: false; code: AiAgentRunErrorCode | "not_found"; message: string }>> {
-  throw new Error(NOT_IMPLEMENTED);
+  return interruptAiAgentRunImpl(ctx, input, deps);
 }
 
 /** Полная хроника запуска для вкладки «Запуски» (до 400 событий). */
 export async function loadAiAgentRunTranscript(
-  _ctx: AiAgentsStaffContext,
-  _input: Readonly<{ runId: string }>,
+  ctx: AiAgentsStaffContext,
+  input: Readonly<{ runId: string }>,
+  deps?: Partial<AiAgentsRuntimeDeps>,
 ): Promise<Readonly<{ ok: true; events: readonly AiAgentUiEvent[]; truncated: boolean }> | Readonly<{ ok: false; code: "not_found" | "forbidden" | "unavailable" }>> {
-  throw new Error(NOT_IMPLEMENTED);
+  return loadAiAgentRunTranscriptImpl(ctx, input, deps);
 }
 
 /** Ленивая сверка: закрывает зависшие запуски, подтягивает запуски по расписанию из deployment_runs. Не бросает. */
 export async function reconcileAiAgentRuns(
-  _ctx: AiAgentsStaffContext,
-  _input: Readonly<{ key?: AiAgentKey }>,
+  ctx: AiAgentsStaffContext,
+  input: Readonly<{ key?: AiAgentKey }>,
+  deps?: Partial<AiAgentsRuntimeDeps>,
 ): Promise<void> {
-  throw new Error(NOT_IMPLEMENTED);
+  return reconcileAiAgentRunsImpl(ctx, input, deps);
 }
 
 /** «Одобрить» (с правкой текста) или «Отклонить» черновик; одобренный WhatsApp/кабинет отправляется сразу. */
 export async function decideAiAgentDraft(
-  _ctx: AiAgentsStaffContext,
-  _input: Readonly<{ draftId: string; decision: "approve" | "discard"; editedText?: string | null; requestId: string }>,
+  ctx: AiAgentsStaffContext,
+  input: Readonly<{ draftId: string; decision: "approve" | "discard"; editedText?: string | null; requestId: string }>,
+  deps?: Partial<AiAgentsRuntimeDeps>,
+  extras?: DecideDraftExtras,
 ): Promise<AiAgentDraftDecisionResult> {
-  throw new Error(NOT_IMPLEMENTED);
+  return decideAiAgentDraftImpl(ctx, input, deps, extras);
 }

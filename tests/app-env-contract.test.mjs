@@ -1044,3 +1044,118 @@ test("telephony env: each key is its own value, distinct from every other secret
     /optional_feature_configuration_invalid/u,
   );
 });
+
+// ------------------------------------------------ ИИ-агенты на Claude Managed Agents
+// docs/design/ai-agents/contract.md §C.6 (ADR 0035): every AI-agents name is OPTIONAL, so a
+// release never fails on missing env; a present value must be well-formed and the Claude API key
+// is distinct from every other value in the file.
+
+const AI_AGENTS_NAMES = [
+  "EVO_ANTHROPIC_API_KEY",
+  "EVO_ANTHROPIC_API_BASE_URL",
+  "EVO_AI_AGENTS_MCP_URL",
+  "EVO_AI_AGENTS_MCP_IP_ALLOWLIST",
+  "EVO_AI_AGENTS_RUN_BUDGET_USD",
+];
+const AI_AGENTS_KEY = "sk-ant-synthetic-key-0000000000000001";
+
+test("ai agents env: the shipped example documents every name empty, and an env without them or with them empty still releases", () => {
+  const { shipped, text, check } = telephonyHarness();
+  for (const name of AI_AGENTS_NAMES) {
+    assert.match(shipped, new RegExp(`^${name}=$`, "mu"), `${name} is documented with an empty value`);
+  }
+  const valid = { ok: true, code: "valid" };
+  // A production env file from before this slice: no AI-agents name at all.
+  assert.deepEqual(check(text()), valid);
+  // Every name present and empty: the section is off.
+  assert.deepEqual(check(text(Object.fromEntries(AI_AGENTS_NAMES.map((name) => [name, ""])))), valid);
+  // The unrelated required names are still required.
+  assert.throws(
+    () => check(text({ EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: undefined })),
+    /required_env_name_missing/u,
+  );
+});
+
+test("ai agents env: well-formed values are accepted", () => {
+  const { text, check } = telephonyHarness();
+  const valid = { ok: true, code: "valid" };
+  assert.deepEqual(check(text({ EVO_ANTHROPIC_API_KEY: AI_AGENTS_KEY })), valid);
+  assert.deepEqual(check(text({ EVO_ANTHROPIC_API_KEY: "k".repeat(20) })), valid);
+  assert.deepEqual(check(text({ EVO_ANTHROPIC_API_KEY: "k".repeat(300) })), valid);
+  assert.deepEqual(check(text({ EVO_ANTHROPIC_API_BASE_URL: "https://api.anthropic.com" })), valid);
+  assert.deepEqual(check(text({ EVO_ANTHROPIC_API_BASE_URL: "https://gateway.example.test:8443" })), valid);
+  assert.deepEqual(check(text({ EVO_AI_AGENTS_MCP_URL: "https://crm.evoadmissions.com/api/mcp/v1" })), valid);
+  for (const allowlist of ["off", "160.79.104.0/21", "160.79.104.0/21,203.0.113.7", "160.79.104.0/21, 2001:db8::/32", "::1", "0.0.0.0/0"]) {
+    assert.deepEqual(check(text({ EVO_AI_AGENTS_MCP_IP_ALLOWLIST: allowlist })), valid, allowlist);
+  }
+  for (const budget of ["0", "5", "12.5", "99.99", "100"]) {
+    assert.deepEqual(check(text({ EVO_AI_AGENTS_RUN_BUDGET_USD: budget })), valid, budget);
+  }
+  assert.deepEqual(
+    check(text({
+      EVO_ANTHROPIC_API_KEY: AI_AGENTS_KEY,
+      EVO_ANTHROPIC_API_BASE_URL: "https://api.anthropic.com",
+      EVO_AI_AGENTS_MCP_URL: "https://crm.evoadmissions.com/api/mcp/v1",
+      EVO_AI_AGENTS_MCP_IP_ALLOWLIST: "160.79.104.0/21",
+      EVO_AI_AGENTS_RUN_BUDGET_USD: "5",
+    })),
+    valid,
+  );
+});
+
+test("ai agents env: garbage values are rejected by name", () => {
+  const { text, check } = telephonyHarness();
+  const bad = [
+    ["EVO_ANTHROPIC_API_KEY", "short-key"],
+    ["EVO_ANTHROPIC_API_KEY", `${AI_AGENTS_KEY} extra`],
+    ["EVO_ANTHROPIC_API_KEY", "k".repeat(301)],
+    ["EVO_ANTHROPIC_API_KEY", `${AI_AGENTS_KEY}ключ`],
+    ["EVO_ANTHROPIC_API_BASE_URL", "http://api.anthropic.com"],
+    ["EVO_ANTHROPIC_API_BASE_URL", "https://api.anthropic.com/"],
+    ["EVO_ANTHROPIC_API_BASE_URL", "https://api.anthropic.com/v1"],
+    ["EVO_ANTHROPIC_API_BASE_URL", "https://user:pass@api.anthropic.com"],
+    ["EVO_ANTHROPIC_API_BASE_URL", "api.anthropic.com"],
+    ["EVO_AI_AGENTS_MCP_URL", "http://crm.evoadmissions.com/api/mcp/v1"],
+    ["EVO_AI_AGENTS_MCP_URL", "https://crm.evoadmissions.com/api/mcp/v1/"],
+    ["EVO_AI_AGENTS_MCP_URL", "https://crm.evoadmissions.com/api/mcp"],
+    ["EVO_AI_AGENTS_MCP_URL", "https://crm.evoadmissions.com/api/mcp/v1?x=1"],
+    ["EVO_AI_AGENTS_MCP_URL", "https://CRM.evoadmissions.com/api/mcp/v1"],
+    ["EVO_AI_AGENTS_MCP_IP_ALLOWLIST", "not-an-address"],
+    ["EVO_AI_AGENTS_MCP_IP_ALLOWLIST", "160.79.104.0/33"],
+    ["EVO_AI_AGENTS_MCP_IP_ALLOWLIST", "160.79.104.0/"],
+    ["EVO_AI_AGENTS_MCP_IP_ALLOWLIST", "160.79.104.0/021"],
+    ["EVO_AI_AGENTS_MCP_IP_ALLOWLIST", "160.79.104.0/21,,203.0.113.7"],
+    ["EVO_AI_AGENTS_MCP_IP_ALLOWLIST", "2001:db8::/129"],
+    ["EVO_AI_AGENTS_MCP_IP_ALLOWLIST", "300.1.1.1"],
+    ["EVO_AI_AGENTS_MCP_IP_ALLOWLIST", "OFF"],
+    ["EVO_AI_AGENTS_RUN_BUDGET_USD", "101"],
+    ["EVO_AI_AGENTS_RUN_BUDGET_USD", "100.01"],
+    ["EVO_AI_AGENTS_RUN_BUDGET_USD", "-1"],
+    ["EVO_AI_AGENTS_RUN_BUDGET_USD", "1e2"],
+    ["EVO_AI_AGENTS_RUN_BUDGET_USD", "5.555"],
+    ["EVO_AI_AGENTS_RUN_BUDGET_USD", "много"],
+  ];
+  for (const [name, value] of bad) {
+    assert.throws(() => check(text({ [name]: value })), /optional_feature_configuration_invalid/u, `${name}=${value}`);
+  }
+});
+
+test("ai agents env: the Claude API key is its own value, distinct from every other secret in the file", () => {
+  const { text, check } = telephonyHarness();
+  const secret = "s".repeat(40);
+  for (const other of [
+    { EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: secret },
+    { EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: secret },
+    { ANTHROPIC_API_KEY: secret },
+    { EVO_AI_AGENT_INTERNAL_SECRET: secret },
+    { EVO_PLATFORM_TELEPHONY_CRM_TOKEN: secret },
+  ]) {
+    assert.throws(
+      () => check(text({ EVO_ANTHROPIC_API_KEY: secret, ...other })),
+      /optional_feature_configuration_invalid/u,
+      Object.keys(other)[0],
+    );
+  }
+  // The same value in a field that is documented as a copy of nothing else is fine.
+  assert.deepEqual(check(text({ EVO_ANTHROPIC_API_KEY: secret })), { ok: true, code: "valid" });
+});

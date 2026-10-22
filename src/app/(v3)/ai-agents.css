@@ -1,0 +1,33 @@
+/*
+ * «ИИ-агенты» (решение владельца 22.10.2026, docs/design/ai-agents/contract.md
+ * §D): только то, что утилиты Tailwind не выразят. Весь облик — действующая
+ * система v3 (лист на тёплом столе, волосяные рамки, чернильные графики, красный
+ * только у главного действия и проблемы); переключатель берёт `.v3-switch` из
+ * ai-agent.css. Движение — только при разрешённом `prefers-reduced-motion`.
+ */
+
+/* Штриховка запусков с ошибкой на столбцах и в легенде: отличие рисунком, не цветом. */
+.v3-world .v3-aia-hatch {
+  background-color: var(--surface);
+  background-image: repeating-linear-gradient(135deg, var(--text) 0 1.5px, transparent 1.5px 4px);
+}
+
+/* Точка «Агент работает…» рядом со словом; без движения она просто серая. */
+.v3-world .v3-aia-working-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--text-3);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .v3-world .v3-aia-working-dot {
+    animation: v3-aia-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes v3-aia-pulse {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 1; }
+  }
+}

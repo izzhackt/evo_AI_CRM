@@ -859,7 +859,7 @@ test("исходники «Поручить»: ключ чата — у рабо
   assert.doesNotMatch(workspace, /history\.pushState/u, "адрес обновляется на месте, без записей в истории");
   assert.match(workspace, /window\.history\.replaceState\(null, "", href\)/u);
   const pageSource = read("src/app/(v3)/v3/ai-agents/[key]/page.tsx");
-  assert.match(pageSource, /run: runRead\.data\.run/u);
+  assert.match(pageSource, /run: toConversationRow\(runRead\.data\.run\)/u);
   assert.match(pageSource, /run: mine \}/u);
   assert.match(pageSource, /!route\.runId && !route\.fresh/u, "?new=1 пропускает автоподхват");
   assert.match(pageSource, /ownCommandRuns\(conversationsRead\.data\.runs, actor\.displayName/u);

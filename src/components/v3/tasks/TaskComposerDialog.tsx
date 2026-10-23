@@ -183,8 +183,11 @@ function TaskComposerModal({
       if (next.description !== description) setDescription(next.description);
       return;
     }
+    // Нетронутое описание, которое дал вход («Сделать задачей» под ответом ИИ-агента), черновиком не
+    // становится: отменённый диалог не подставит ответ агента в следующую, другую задачу.
+    if (initialDescription.trim() && title === opened.title && description === opened.description) return;
     drafts.write(draftContext, { title, description });
-  }, [draftContext, title, description, state.status]);
+  }, [draftContext, title, description, state.status, initialDescription, opened]);
 
   useEffect(() => {
     const dialog = dialogRef.current;

@@ -702,13 +702,21 @@ export type AiAgentConversationRow = Pick<
 
 const byStartedDesc = (a: Pick<AiAgentRunRow, "startedAt">, b: Pick<AiAgentRunRow, "startedAt">) => Date.parse(b.startedAt) - Date.parse(a.startedAt);
 
+/** Только поля разговора: сессия Claude, токены и имя в разметку клиента не уходят. */
+export const toConversationRow = (run: AiAgentConversationRow): AiAgentConversationRow => ({
+  id: run.id, status: run.status, startedAt: run.startedAt, endedAt: run.endedAt, durationSeconds: run.durationSeconds,
+  promptPreview: run.promptPreview, summary: run.summary, errorCode: run.errorCode, errorMessage: run.errorMessage,
+  costCents: run.costCents, actionsCount: run.actionsCount, sendAuthority: run.sendAuthority,
+});
+
 /** Свои поручения сотрудника этому агенту: тот же признак, что у восстановления («command» и его имя), новые выше. */
-export function ownCommandRuns(runs: readonly AiAgentRunRow[], displayName: string, limit = AI_AGENT_CONVERSATIONS_MAX): readonly AiAgentRunRow[] {
+export function ownCommandRuns(runs: readonly AiAgentRunRow[], displayName: string, limit = AI_AGENT_CONVERSATIONS_MAX): readonly AiAgentConversationRow[] {
   if (!displayName.trim()) return [];
   return runs
     .filter((run) => run.triggerKind === "command" && run.startedByName === displayName)
     .sort(byStartedDesc)
-    .slice(0, limit);
+    .slice(0, limit)
+    .map(toConversationRow);
 }
 
 /** То, что опрос узнаёт о разговоре по ходу работы; остальное в строке списка не меняется. */

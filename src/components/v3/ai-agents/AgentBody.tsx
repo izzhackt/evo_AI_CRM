@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { AI_AGENT_DEFAULTS, AI_AGENT_PREAMBLE } from "@/content/ai-agents";
-import { AI_AGENT_MODELS, type AiAgentDetail, type AiAgentDigestsListResult, type AiAgentDraftsListResult, type AiAgentRunGetResult, type AiAgentRunRow, type AiAgentRunsListResult } from "@/lib/ai-agents/contract";
+import { AI_AGENT_MODELS, type AiAgentDetail, type AiAgentDigestsListResult, type AiAgentDraftsListResult, type AiAgentRunGetResult, type AiAgentRunsListResult } from "@/lib/ai-agents/contract";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import { QueueViewTabs } from "@/components/v3/queue/QueueViewTabs";
 import {
@@ -13,6 +13,7 @@ import {
   aiAgentSyncProblemText,
   describeSchedule,
   formatDateTimeRu,
+  type AiAgentConversationRow,
   type AiAgentTab,
 } from "@/lib/v3/ai-agents-view";
 
@@ -53,9 +54,9 @@ export type AgentBodyProps = Readonly<{
    * Разговор, который вкладка «Поручить» восстанавливает при открытии; `run` — его строка из базы
    * (статус, поручение, итог), по ней серверная разметка сразу говорит правду о ходе работы.
    */
-  resume: Readonly<{ runId: string | null; sendAuthority: boolean; run?: AiAgentRunRow | null }>;
+  resume: Readonly<{ runId: string | null; sendAuthority: boolean; run?: AiAgentConversationRow | null }>;
   /** «Мои разговоры» вкладки «Поручить»: собственные `command`-запуски сотрудника этому агенту, новые выше. */
-  conversations?: readonly AiAgentRunRow[];
+  conversations?: readonly AiAgentConversationRow[];
   /** Сотрудник может создавать задачи (`taskComposerAccess`): под ответом агента есть «Сделать задачей». */
   canMakeTasks?: boolean;
 }>;

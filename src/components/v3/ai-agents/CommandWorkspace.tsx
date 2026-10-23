@@ -116,9 +116,9 @@ export function CommandWorkspace({
   canMakeTasks: boolean;
   now: string;
   /** Собственные `command`-запуски сотрудника этому агенту, новые выше. */
-  conversations: readonly AiAgentRunRow[];
+  conversations: readonly AiAgentConversationRow[];
   /** Разговор, который вкладка открывает сама (`?run=` или последний за 12 часов); читается один раз, при открытии. */
-  resume: Readonly<{ runId: string | null; sendAuthority: boolean; run?: AiAgentRunRow | null }>;
+  resume: Readonly<{ runId: string | null; sendAuthority: boolean; run?: AiAgentConversationRow | null }>;
   starters: readonly string[];
   syncSlot: ReactNode;
 }>) {

@@ -10,7 +10,7 @@ import { NotReady, Unavailable } from "@/components/v3/ai-agents/Notices";
 import { Icon } from "@/components/icons";
 import { PartShell } from "@/components/v3/PartShell";
 import { taskComposerAccess } from "@/components/v3/tasks/task-composer-access";
-import { isAiAgentKey, type AiAgentRunRow } from "@/lib/ai-agents/contract";
+import { isAiAgentKey } from "@/lib/ai-agents/contract";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { computeAiAgentConfigHash, resolveAiAgentsMcpUrl } from "@/lib/server/ai-agents/config-hash";
@@ -23,6 +23,8 @@ import {
   AI_AGENT_CONVERSATIONS_READ,
   AI_AGENTS_HUB_HREF,
   ownCommandRuns,
+  toConversationRow,
+  type AiAgentConversationRow,
   parseAiAgentRoute,
 } from "@/lib/v3/ai-agents-view";
 import {
@@ -108,10 +110,10 @@ export default async function AiAgentPage({
 
   // «Поручить» восстанавливает разговор: `?run=` или последний `command`-запуск этого сотрудника за 12 часов.
   // `?new=1` («Новый разговор») автоподхват пропускает: перезагрузка после него показывает пустой разговор.
-  let resume = { runId: null as string | null, sendAuthority: false, run: null as AiAgentRunRow | null };
+  let resume = { runId: null as string | null, sendAuthority: false, run: null as AiAgentConversationRow | null };
   if (tab === "command") {
     if (route.runId && runRead?.status === "available" && runRead.data.run.agentKey === key) {
-      resume = { runId: route.runId, sendAuthority: runRead.data.run.sendAuthority, run: runRead.data.run };
+      resume = { runId: route.runId, sendAuthority: runRead.data.run.sendAuthority, run: toConversationRow(runRead.data.run) };
     } else if (!route.runId && !route.fresh) {
       const nowMs = Date.parse(now);
       const mine = conversations.find((run) => nowMs - Date.parse(run.startedAt) < TWELVE_HOURS);

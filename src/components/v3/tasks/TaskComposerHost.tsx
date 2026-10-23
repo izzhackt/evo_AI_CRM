@@ -3,20 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { ActivePlatformActor } from "@/lib/platform-auth";
-import { isStaffPreview, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 
 import { TaskComposerDialog } from "./TaskComposerDialog";
 import { registerTaskComposerOpener, useTaskComposerPageContext, type TaskComposerPageContext } from "./task-composer-context";
-
-/** Кто может создать задачу из оболочки: те же условия, что у страницы «Задач». */
-export function taskComposerAccess(actor: ActivePlatformActor) {
-  const preview = isStaffPreview(actor);
-  return {
-    staff: !preview && staffHasPermission(actor, "staff.task.create"),
-    case: !preview && staffPresentationCan(actor, "admissions.read") && staffHasPermission(actor, "task.create"),
-  };
-}
+import { taskComposerAccess } from "./task-composer-access";
 
 type Request = Readonly<{ key: string; context: TaskComposerPageContext }>;
 
@@ -61,6 +52,8 @@ export function TaskComposerHost({ actor }: Readonly<{ actor: ActivePlatformActo
       initialCases={access.case ? context.cases ?? [] : []}
       casesHaveMore={access.case ? context.casesHaveMore ?? false : false}
       caseRemovable={!context.caseFixed}
+      initialTitle={context.title}
+      initialDescription={context.description}
       sourceLeadId={lead?.id}
       sourceLeadVersion={lead?.version}
       sourceLeadName={lead?.name ?? null}

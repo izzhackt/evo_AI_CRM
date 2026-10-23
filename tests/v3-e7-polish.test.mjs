@@ -200,6 +200,9 @@ test("opening the composer: a title typed before opening beats the draft; otherw
   const store = memoryDrafts({ general: { title: "Черновик меню", description: "Описание черновика" } });
   assert.deepEqual(openComposerDraft(store, "general", "  Набрано в строке  "), { title: "Набрано в строке", description: "Описание черновика" });
   assert.deepEqual(openComposerDraft(store, "general", ""), { title: "Черновик меню", description: "Описание черновика" });
+  // Заготовка входа («Сделать задачей» под ответом ИИ-агента) важнее черновика и не склеивается с ним.
+  assert.deepEqual(openComposerDraft(store, "general", "Итог недели", "Ответ агента"), { title: "Итог недели", description: "Ответ агента" });
+  assert.deepEqual(openComposerDraft(store, "general", "Итог недели", "  "), { title: "Итог недели", description: "Описание черновика" });
   assert.deepEqual(openComposerDraft(store, `case:${CASE.id}`, ""), { title: "", description: "" });
   assert.deepEqual(store.writes, []);
 });
@@ -261,7 +264,7 @@ test("the dialog moves drafts only through switchComposerDraft and never overwri
   assert.match(effect, /if \(next\.description !== description\) setDescription\(next\.description\);/u);
   // Прежняя ошибка: поля при смене дела заполнялись черновиком нового ключа или пустотой.
   assert.doesNotMatch(source, /setTitle\(next\?\.title \?\? ""\)|readDraft\(/u);
-  assert.match(source, /const \[opened\] = useState\(\(\) => openComposerDraft\(drafts, draftContext, initialTitle\)\);/u);
+  assert.match(source, /const \[opened\] = useState\(\(\) => openComposerDraft\(drafts, draftContext, initialTitle, initialDescription\)\);/u);
 });
 
 test("without staff.task.create the case search is open and cannot be folded away (spec: «без него поиск дела открыт сразу»)", () => {

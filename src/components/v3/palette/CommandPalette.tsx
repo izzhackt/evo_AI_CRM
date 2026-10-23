@@ -20,7 +20,7 @@ import type { V3Navigation, V3NavigationLinkId } from "@/lib/v3/navigation";
 import { LINK_ICONS } from "@/lib/v3/shell-tabs";
 
 import { openTaskComposer } from "../tasks/task-composer-context";
-import { taskComposerAccess } from "../tasks/TaskComposerHost";
+import { taskComposerAccess } from "../tasks/task-composer-access";
 import { openKeyboardHelp } from "./KeyboardHelpDialog";
 
 /** Пауза перед поиском: ввод не отправляет запрос на каждую букву. */

@@ -393,9 +393,9 @@ export function AppShell({
   const canCreateTask = !previewing && staffHasPermission(actor, "staff.task.create");
   const board = isBoardRoute(pathname);
   const rail = board;
-  // Высота окна от 768 px: доски и переписка WhatsApp (`isFillRoute`, аудит
-  // 26.09); рейка — только у досок.
-  const fill = isFillRoute(pathname);
+  // Высота окна от 768 px: доски, переписка WhatsApp и «Поручить» ИИ-агента
+  // (`isFillRoute`, аудит 26.09); рейка — только у досок.
+  const fill = isFillRoute(pathname, query.get("tab"));
   const contentId = useId();
   const menuId = useId();
   const headingId = useId();

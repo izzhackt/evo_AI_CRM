@@ -50,7 +50,7 @@ export function TaskComposerDialog({
   defaultDueDay = null, initialCase = null, initialCaseAssignees = [], initialCases = [], casesHaveMore = false,
   caseRemovable = false, sourceMessageId, sourceMessageVersion, sourceLeadId, sourceLeadVersion, sourceLeadName = null,
   triggerLabel = "+ Задача", triggerClassName, triggerChildren, triggerTitle, triggerTestId, openIntent = null,
-  hideTrigger = false, initialTitle = "", onClosed,
+  hideTrigger = false, initialTitle = "", initialDescription = "", onClosed,
 }: Readonly<{
   /** Исполнители рабочей задачи; null — диалог прочитает их сам при открытии. */
   participants?: readonly StaffParticipant[] | null;
@@ -84,6 +84,8 @@ export function TaskComposerDialog({
   hideTrigger?: boolean;
   /** Название, набранное до открытия (строка «Новая задача…»); важнее черновика. */
   initialTitle?: string;
+  /** Описание, заполненное входом («Сделать задачей» под ответом ИИ-агента); важнее черновика. */
+  initialDescription?: string;
   /** Куда вернуть фокус, если своей кнопки нет. */
   onClosed?: () => void;
 }>) {
@@ -107,7 +109,7 @@ export function TaskComposerDialog({
       initialCases={initialCases} casesHaveMore={casesHaveMore} caseRemovable={caseRemovable}
       sourceMessageId={sourceMessageId} sourceMessageVersion={sourceMessageVersion}
       sourceLeadId={sourceLeadId} sourceLeadVersion={sourceLeadVersion} sourceLeadName={sourceLeadName}
-      initialTitle={initialTitle}
+      initialTitle={initialTitle} initialDescription={initialDescription}
       onClose={() => { setOpen(false); if (trigger.current) trigger.current.focus(); else onClosed?.(); }}
     /> : null}
   </>;
@@ -116,7 +118,7 @@ export function TaskComposerDialog({
 function TaskComposerModal({
   participants, actorMembershipId, actor, staffAllowed, caseAllowed, day, defaultDueDay,
   initialCase, initialCaseAssignees, initialCases, casesHaveMore, caseRemovable,
-  sourceMessageId, sourceMessageVersion, sourceLeadId, sourceLeadVersion, sourceLeadName, initialTitle, onClose,
+  sourceMessageId, sourceMessageVersion, sourceLeadId, sourceLeadVersion, sourceLeadName, initialTitle, initialDescription, onClose,
 }: Readonly<{
   participants: readonly StaffParticipant[] | null; actorMembershipId: string; actor: ActivePlatformActor;
   staffAllowed: boolean; caseAllowed: boolean; day: Day; defaultDueDay: Day | null;
@@ -126,6 +128,7 @@ function TaskComposerModal({
   sourceMessageId?: string; sourceMessageVersion?: string;
   sourceLeadId?: string; sourceLeadVersion?: string; sourceLeadName: string | null;
   initialTitle: string;
+  initialDescription: string;
   onClose: () => void;
 }>) {
   const router = useRouter();
@@ -142,7 +145,7 @@ function TaskComposerModal({
   // (`composer-draft.ts`): дело считается, только пока задача идёт по делу.
   const draftContext = composerDraftContext({ caseId: caseMode ? caseId : "", sourceMessageId, sourceLeadId });
   // Поля входа читаются один раз: диалог создаётся заново при каждом открытии.
-  const [opened] = useState(() => openComposerDraft(drafts, draftContext, initialTitle));
+  const [opened] = useState(() => openComposerDraft(drafts, draftContext, initialTitle, initialDescription));
   const [title, setTitle] = useState(opened.title);
   const [description, setDescription] = useState(opened.description);
   const [priority, setPriority] = useState<PlatformCaseTaskPriority>("normal");

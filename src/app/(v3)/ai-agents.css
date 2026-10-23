@@ -12,7 +12,7 @@
   background-image: repeating-linear-gradient(135deg, var(--text) 0 1.5px, transparent 1.5px 4px);
 }
 
-/* Точка «Агент работает…» рядом со словом; без движения она просто серая. */
+/* Точка «Сейчас: …» и «Идёт» рядом со словом; без движения она просто серая. */
 .v3-world .v3-aia-working-dot {
   display: inline-block;
   width: 8px;
@@ -29,5 +29,25 @@
   @keyframes v3-aia-pulse {
     0%, 100% { opacity: 0.35; }
     50% { opacity: 1; }
+  }
+}
+
+/*
+ * «Поручить» (чат с агентом, 23.10.2026): новая реплика или ответ проявляется и
+ * поднимается на 4 px за 160 мс; лист «Мои разговоры» выезжает слева за 180 мс.
+ * Только при разрешённом движении; без него состояния те же, но сразу.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .v3-world .v3-aia-in {
+    animation: v3-aia-in 160ms ease-out both;
+  }
+  @keyframes v3-aia-in {
+    from { opacity: 0; transform: translateY(4px); }
+  }
+  .v3-world .v3-aia-sheet[open] {
+    animation: v3-aia-sheet-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes v3-aia-sheet-in {
+    from { transform: translateX(-1rem); opacity: 0; }
   }
 }

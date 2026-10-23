@@ -7,7 +7,6 @@ import { QueueViewTabs } from "@/components/v3/queue/QueueViewTabs";
 import {
   AI_AGENT_STARTERS,
   AI_AGENT_TABS,
-  aiAgentConsoleRestore,
   aiAgentHref,
   aiAgentIsRunnable,
   aiAgentStateChip,
@@ -18,7 +17,7 @@ import {
 } from "@/lib/v3/ai-agents-view";
 
 import { AgentSwitches } from "./AgentSwitches";
-import { Console } from "./Console";
+import { CommandWorkspace } from "./CommandWorkspace";
 import { DraftsTab } from "./DraftsTab";
 import { InstructionsEditor } from "./InstructionsEditor";
 import { ApiKeyMissingLine, InfoLine, NotReady, PreviewLine, Unavailable } from "./Notices";
@@ -55,6 +54,10 @@ export type AgentBodyProps = Readonly<{
    * (статус, поручение, итог), по ней серверная разметка сразу говорит правду о ходе работы.
    */
   resume: Readonly<{ runId: string | null; sendAuthority: boolean; run?: AiAgentRunRow | null }>;
+  /** «Мои разговоры» вкладки «Поручить»: собственные `command`-запуски сотрудника этому агенту, новые выше. */
+  conversations?: readonly AiAgentRunRow[];
+  /** Сотрудник может создавать задачи (`taskComposerAccess`): под ответом агента есть «Сделать задачей». */
+  canMakeTasks?: boolean;
 }>;
 
 function tabFailure(read: TabRead<unknown>, what: string, retryHref: string) {
@@ -88,6 +91,7 @@ export function AgentBody(props: AgentBodyProps) {
     ? <SyncNowButton agentKey={detail.key} disabled={false} />
     : null;
 
+  const chat = tab === "command";
   const effectiveInstructions = detail.instructionsOverride?.trim() ? detail.instructionsOverride : defaults.instructions;
 
   let content;
@@ -98,20 +102,21 @@ export function AgentBody(props: AgentBodyProps) {
       break;
     }
     case "command":
+      // Разговор живёт в состоянии `CommandWorkspace`, а не в адресе: после действий страница
+      // перерисовывается сервером, и ключ от `?run=` стёр бы набранное и ход разговора (#1293).
       content = (
-        <Console
-          // Ключ — только явный `?run=`: перерисовка страницы сервером (после «Синхронизировать», записи
-          // настроек и т. п.) не должна пересоздавать вкладку и стирать набранное и ход разговора.
-          key={props.runId ?? "conversation"}
+        <CommandWorkspace
           agentKey={detail.key}
           agentTitle={detail.title}
+          roleLine={detail.roleLine}
           autoSend={detail.autoSend}
           canRun={canRun}
           blockedNote={blockedNote}
           canDirect={canManage && !preview}
-          initialRunId={canRun ? props.resume.runId : null}
-          initialRunAuthority={props.resume.sendAuthority}
-          restore={canRun && props.resume.runId && props.resume.run ? aiAgentConsoleRestore(props.resume.run) : null}
+          canMakeTasks={Boolean(props.canMakeTasks) && !preview}
+          now={now}
+          conversations={props.conversations ?? []}
+          resume={props.resume}
           starters={AI_AGENT_STARTERS[detail.key]}
           syncSlot={syncSlot}
         />
@@ -187,7 +192,9 @@ export function AgentBody(props: AgentBodyProps) {
   }
 
   return (
-    <div className="space-y-4" data-testid="v3-aia-agent" data-tab={tab}>
+    // «Поручить» — чат во всю высоту окна: шапка вверху не сжимается, рабочая область забирает остаток. На телефоне
+    // шапка скрыта, и чат занимает экран между строкой логотипа и вкладками (v3.css).
+    <div className={chat ? "flex min-h-0 flex-1 flex-col gap-4 [&>:not(:last-child)]:shrink-0" : "space-y-4"} data-testid="v3-aia-agent" data-tab={tab} data-aia-chat={chat ? "" : undefined}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="v3-aia-state-strip">
         <StatusChip label={state.label} tone={state.tone} />
         <StatusChip label={detail.autoSend ? "Авто: вкл" : "Авто: выкл"} tone={detail.autoSend ? "warn" : "neutral"} />
@@ -220,7 +227,7 @@ export function AgentBody(props: AgentBodyProps) {
           href: here(one.key),
         }))}
       />
-      <div>{content}</div>
+      <div className={chat ? "flex min-h-0 flex-1 flex-col" : undefined}>{content}</div>
     </div>
   );
 }

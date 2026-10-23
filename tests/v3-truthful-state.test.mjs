@@ -338,6 +338,12 @@ test("WhatsApp fills the window from the shell column instead of its own 100dvh"
   assert.equal(isBoardRoute("/v3/inbox"), false, "no icon rail on WhatsApp");
   for (const board of ["/v3/pipeline", "/v3/admissions-pipeline"]) assert.equal(isFillRoute(board), true);
   for (const other of ["/v3/profile", "/v3/inbox/x", null]) assert.equal(isFillRoute(other), false);
+  // «Поручить» ИИ-агента — чат во всю высоту окна, но только его вкладка, а не обзор и не хаб.
+  assert.equal(isFillRoute("/v3/ai-agents/director", "command"), true);
+  assert.equal(isFillRoute("/v3/ai-agents/curator-cn", "command"), true);
+  for (const [path, tab] of [["/v3/ai-agents/director", null], ["/v3/ai-agents/director", "runs"], ["/v3/ai-agents", "command"], ["/v3/ai-agents/director/x", "command"], ["/v3/profile", "command"]]) {
+    assert.equal(isFillRoute(path, tab), false, `${path}?tab=${tab}`);
+  }
   const shell = source("src/components/v3/PartShell.tsx");
   assert.doesNotMatch(shell, /h-dvh/u);
   assert.match(shell, /fill \? "flex flex-col py-6 md:min-h-0 md:flex-1"/u);

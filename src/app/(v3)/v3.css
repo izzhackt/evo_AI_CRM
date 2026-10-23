@@ -195,6 +195,43 @@
 }
 
 /*
+ * «ИИ-агенты → Поручить» на телефоне (решение владельца 23.10.2026): чат —
+ * как открытый чат WhatsApp: рабочая область забирает экран между строкой
+ * логотипа и панелью вкладок, лента прокручивается сама, поле поручения всегда
+ * внизу над вкладками. Шапка страницы и полоса вкладок агента остаются только
+ * для читалки; к разделам агента ведёт стрелка над чатом. От 768 px высоту даёт
+ * колонка оболочки (`isFillRoute`).
+ */
+@media (width < 48rem) {
+  .v3-world[data-surface="staff"] [data-shell-content] main:has([data-aia-workspace]) {
+    padding: 0;
+  }
+  .v3-world[data-surface="staff"] [data-shell-content] main:has([data-aia-workspace]) > :not(:last-child),
+  .v3-world[data-surface="staff"] [data-shell-content] main [data-aia-chat] > :not(:last-child) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .v3-world[data-surface="staff"] [data-shell-content] main:has([data-aia-workspace]) > :last-child {
+    margin-top: 0;
+  }
+  .v3-world[data-surface="staff"] [data-aia-workspace] {
+    /* `flex-1` would size it to its content in the page's column. */
+    flex: none;
+    min-height: 0;
+    height: calc(100dvh - var(--shell-top) - var(--shell-tabbar) - var(--shell-safe-bottom));
+  }
+  .v3-world[data-surface="staff"] [data-aia-sheet] {
+    border-radius: 0;
+    border-inline: 0;
+    border-top: 0;
+  }
+}
+
+/*
  * Верх страницы без верхней панели: заголовок стоит на одной высоте у всех
  * разделов, переход «Задачи» → «Студенты» не прыгает. Страницы с PageHeader
  * (PartShell, доски, «Переписка») — отступ `main`.
@@ -299,9 +336,10 @@
 }
 
 /*
- * Поле ответа чата WhatsApp: полосу фокуса рисует его рамка (вместе с кнопкой
- * «Шаблон» и «Отправить»), иначе внутри рамки появлялась вторая — у самого
- * textarea (снимок connection-lost-390, ревью 06.10.2026).
+ * Поле ответа чата WhatsApp и поле «Поручить» ИИ-агента: полосу фокуса рисует
+ * их рамка (вместе с кнопкой «Шаблон» или «Без черновика» и «Отправить»), иначе
+ * внутри рамки появлялась вторая — у самого textarea (снимок
+ * connection-lost-390, ревью 06.10.2026).
  */
 .v3-world [data-composer-input]:focus-visible {
   outline: none;

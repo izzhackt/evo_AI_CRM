@@ -55,7 +55,9 @@ export type IconName =
   // «Маркетинг» (М1): своего знака у раздела не было.
   | "megaphone"
   // «ИИ-агент» (план ИИ-агента §12): раздел и капсула «Помочь с ответом».
-  | "sparkles";
+  | "sparkles"
+  // «Поручить» (чат с ИИ-агентом): «Скопировать» под ответом агента.
+  | "copy";
 
 const PATHS: Record<IconName, string> = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -117,6 +119,8 @@ const PATHS: Record<IconName, string> = {
   megaphone: '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
   // lucide «sparkles» (ISC).
   sparkles: '<path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.14 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
+  // lucide «copy» (ISC).
+  copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   x: '<path d="m18 6-12 12"/><path d="m6 6 12 12"/>',
   circle: '<circle cx="12" cy="12" r="9"/>',
   "circle-check": '<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9.5"/>',

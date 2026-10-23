@@ -61507,3 +61507,13 @@ http_status=403` (временный отказ API GitHub); ничего не �
 **Проверено (локально, 22.10.2026, без production).** `tests/ai-agents-dispatch.test.mjs` (повтор резерва после закрытия завершившегося запуска; идущий запуск не закрывается), `tests/ai-agents-db-contract.test.mjs`, `tests/ai-agents-ui.test.mjs`, `tests/ai-agents-runtime.test.mjs`, `tsc --noEmit`. Набор `supabase/tests/platform_ai_agents_managed.sql` (с новыми проверками: Директор для не администратора — 42501, запуск старше 15 минут не блокирует) пройден на копии локальной базы с цепочкой 001–317 после замены четырёх функций; на прежних функциях новая проверка падает. Полную цепочку `scripts/test-postgres-authorization.sh` с чистой базы не перезапускали (правка — четыре функции и условие резерва).
 
 **Не проверено.** Реальный вызов Anthropic; поведение под нагрузкой (параллельные события одного агента).
+
+## 2026-10-22/23 · ИИ-агенты на Claude Managed Agents: выпуск (квитанция)
+
+- #1290 слит в `main` `829e486e37` (22.10). Миграция 317 применена workflow `EVO schema ledger` (check → apply → check), журнал на production — 317.
+- Edge: строка `header_up X-Evo-Mcp-Ip {remote_host}` в блоке `crm.`/`app.` живого `Caddyfile.evo-edge` применена 22.10 15:44 UTC на месте (тот же inode): живой sha256 до — `e42bdf0a…`, после — `7779a383…` (= `origin/main`), разница −1 +3, `caddy validate` и `caddy reload` успешны, резервная копия `/root/evo-config-backups/Caddyfile.evo-edge.20261022T154406Z`. Хосты отвечают как прежде (проверено с сервера: `crm.`/`app.` 307, `/api/health` 200).
+- Выпуск: первая попытка (release 39807892978) остановилась на `production_candidate_deploy_failed` и откатилась (прод работал на прежней сборке). Кандидат в изолированном запуске рядом с прод-приложением был здоров (`/api/health` 200, 0 перезапусков); точная причина по журналам не установлена. Повторный выпуск того же `main` (release 39809792392) прошёл: production `829e486e…`, healthy.
+- Проба MCP без токена: `POST https://crm.evoadmissions.com/api/mcp/v1` → 401 `invalid_token` (ожидаемо); `/v3/ai-agents` без входа → 307 на `/login`.
+- 23.10: ключ Claude API задан владельцем через скрытый ввод (архив SOPS + `EVO_ANTHROPIC_API_KEY` в `/opt/evo-crm/.env.production`), проверен одним запросом `GET /v1/models` (200). Этот выпуск нужен, чтобы приложение подхватило ключ; затем синхронизация агентов из раздела «ИИ-агенты».
+
+**Не проверено.** Синхронизация с Claude и первый запуск агента — после этого выпуска.

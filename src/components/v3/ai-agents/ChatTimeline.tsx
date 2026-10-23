@@ -98,6 +98,8 @@ export function ChatTimeline({
 }>) {
   const blocks = useMemo(() => groupChatItems(items), [items]);
   const lastAgent = blocks.findLastIndex((block) => block.kind === "agent");
+  // «Идёт» только последний оборот: вызов без ответа из прерванного раньше оборота остаётся просто шагом.
+  const lastUser = blocks.findLastIndex((block) => block.kind === "user");
   return (
     <ol className="flex flex-col gap-4" data-testid="v3-aia-timeline">
       {blocks.map((block, index) => {
@@ -120,7 +122,7 @@ export function ChatTimeline({
               </Entry>
             );
           case "steps":
-            return <li key={block.id} data-kind="steps"><StepsGroup steps={block.steps} working={working} /></li>;
+            return <li key={block.id} data-kind="steps"><StepsGroup steps={block.steps} working={working && index > lastUser} /></li>;
           case "status":
             return (
               <li key={block.id} data-kind="status" className="flex items-center gap-3 t-meta text-fg-3">

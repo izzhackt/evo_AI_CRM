@@ -201,19 +201,28 @@
  * внизу над вкладками. Шапка страницы и полоса вкладок агента остаются только
  * для читалки; к разделам агента ведёт стрелка над чатом. От 768 px высоту даёт
  * колонка оболочки (`isFillRoute`).
+ *
+ * Скрытое остаётся в порядке табуляции, поэтому, пока в блоке стоит фокус
+ * (`:focus-within`), он показывается: невидимый переключатель «Авто» нельзя
+ * нажать вслепую. Без фокуса блок свёрнут в точку.
  */
 @media (width < 48rem) {
   .v3-world[data-surface="staff"] [data-shell-content] main:has([data-aia-workspace]) {
     padding: 0;
   }
-  .v3-world[data-surface="staff"] [data-shell-content] main:has([data-aia-workspace]) > :not(:last-child),
-  .v3-world[data-surface="staff"] [data-shell-content] main [data-aia-chat] > :not(:last-child) {
+  .v3-world[data-surface="staff"] [data-shell-content] main:has([data-aia-workspace]) > :not(:last-child):not(:focus-within),
+  .v3-world[data-surface="staff"] [data-shell-content] main [data-aia-chat] > :not(:last-child):not(:focus-within) {
     position: absolute;
     width: 1px;
     height: 1px;
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
+  }
+  .v3-world[data-surface="staff"] [data-shell-content] main:has([data-aia-workspace]) > :not(:last-child):focus-within,
+  .v3-world[data-surface="staff"] [data-shell-content] main [data-aia-chat] > :not(:last-child):focus-within {
+    /* Главный `main` без полей (чат во весь экран): показанному блоку поля возвращаются. */
+    padding: 0.5rem 1rem;
   }
   .v3-world[data-surface="staff"] [data-shell-content] main:has([data-aia-workspace]) > :last-child {
     margin-top: 0;

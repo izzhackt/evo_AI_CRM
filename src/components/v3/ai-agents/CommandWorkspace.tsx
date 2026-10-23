@@ -146,9 +146,10 @@ export function CommandWorkspace({
     sheetWas.current = sheet;
   }, [sheet]);
 
+  // Открытый разговор опрашивается прямо сейчас: его строка из опроса главнее строки сервера (продолжение «Идёт»).
   const rows = useMemo(
-    () => mergeConversations(conversations, local, patches, AI_AGENT_CONVERSATIONS_MAX),
-    [conversations, local, patches],
+    () => mergeConversations(conversations, local, patches, AI_AGENT_CONVERSATIONS_MAX, activeId),
+    [conversations, local, patches, activeId],
   );
   const runsHref = aiAgentHref(agentKey, { tab: "runs" });
   const locked = !canRun;
@@ -159,6 +160,13 @@ export function CommandWorkspace({
     if (!row) return;
     setOpened((previous) => ({ n: previous.n + 1, runId, authority: row.sendAuthority, run: row, focus: false }));
     setActiveId(runId);
+    // Строка опроса, оставшаяся с прошлого открытия, могла устареть: до первого опроса список и чат показывают одно — `row`.
+    setPatches((previous) => {
+      if (!(runId in previous)) return previous;
+      const next = { ...previous };
+      delete next[runId];
+      return next;
+    });
     replaceUrl(aiAgentHref(agentKey, { tab: "command", run: runId }));
   }
 
@@ -222,7 +230,19 @@ export function CommandWorkspace({
           </aside>
         )}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {locked ? null : (
+          {locked ? (
+            // Чат закрыт, а шапка страницы на телефоне скрыта (v3.css): без этой строки выхода к разделам агента нет.
+            <div className="flex shrink-0 items-center border-b border-border bg-surface px-2 md:hidden">
+              <Link
+                href={aiAgentHref(agentKey)}
+                className="inline-flex min-h-11 items-center gap-2 rounded-ctl px-2.5 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
+                data-testid="v3-aia-back"
+              >
+                <Icon name="arrow-left" size={18} className="shrink-0" />
+                К разделам агента
+              </Link>
+            </div>
+          ) : (
             <div className="flex shrink-0 items-center gap-1 border-b border-border bg-surface px-2 @4xl:hidden">
               {/* На телефоне шапка страницы скрыта (v3.css): отсюда можно вернуться к разделам агента. */}
               <Link

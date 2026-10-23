@@ -729,13 +729,16 @@ export function conversationPatchChanged(previous: AiAgentConversationPatch | un
  * дошедший до сервера (он выше всех: он заведомо новее), и то, что опрос
  * узнал после чтения страницы. Закончившийся по данным сервера разговор не
  * «оживает» устаревшей строкой опроса: вкладка могла уйти с него раньше, чем
- * опрос увидел конец.
+ * опрос увидел конец. Исключение — открытый сейчас разговор (`liveId`): его
+ * опрос идёт прямо сейчас, и продолжение закончившегося разговора («Идёт») в строке
+ * сервера, прочитанной до него, не отражено.
  */
 export function mergeConversations(
   server: readonly AiAgentConversationRow[],
   local: Readonly<Record<string, AiAgentConversationRow>>,
   patches: Readonly<Record<string, AiAgentConversationPatch>>,
   limit = AI_AGENT_CONVERSATIONS_MAX,
+  liveId: string | null = null,
 ): readonly AiAgentConversationRow[] {
   const known = new Set(server.map((row) => row.id));
   const apply = (row: AiAgentConversationRow, authoritative: boolean): AiAgentConversationRow => {
@@ -745,7 +748,7 @@ export function mergeConversations(
     return { ...row, ...patch };
   };
   const fresh = Object.values(local).filter((row) => !known.has(row.id)).sort(byStartedDesc).map((row) => apply(row, false));
-  const rows = [...server].sort(byStartedDesc).map((row) => apply(row, true));
+  const rows = [...server].sort(byStartedDesc).map((row) => apply(row, row.id !== liveId));
   return [...fresh, ...rows].slice(0, limit);
 }
 
@@ -818,10 +821,15 @@ export function stepsSummary(steps: readonly ToolChatItem[], working = true): Re
   return { title, errors: failed > 0 ? `${failed} ${pluralRu(failed, ["ошибка", "ошибки", "ошибок"])}` : null, running: lastRunning >= 0 };
 }
 
-/** Слово инструмента, который выполняется сейчас (последний из идущих); null — агент думает. */
+/**
+ * Слово инструмента, который выполняется сейчас (последний из идущих); null — агент думает.
+ * Ищется только в последнем обороте (после сообщения сотрудника): вызов без ответа из
+ * прерванного раньше оборота «идущим» не считается.
+ */
 export function runningToolWord(items: readonly ChatItem[]): string | null {
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index];
+    if (item.kind === "user") return null;
     if (item.kind === "tool" && item.state === "running") return item.word;
   }
   return null;

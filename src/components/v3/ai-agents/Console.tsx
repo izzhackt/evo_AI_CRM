@@ -40,14 +40,15 @@ const CLOSED = new Set<AiAgentRunStatus>(["completed", "failed", "budget_reached
  */
 function ProgressRow({ word, since }: Readonly<{ word: string | null; since: () => number }>) {
   const [elapsed, setElapsed] = useState<number | null>(null);
+  // Начало работы читается на каждом тике у свежей `since`: у разговора, открытого посреди продолжения,
+  // последнее сообщение сотрудника становится известно только после первого опроса, а не при монтировании.
+  const sinceRef = useRef(since);
+  useEffect(() => { sinceRef.current = since; });
   useEffect(() => {
-    const start = since();
-    const tick = () => setElapsed(Math.max(0, Date.now() - start));
+    const tick = () => setElapsed(Math.max(0, Date.now() - sinceRef.current()));
     tick();
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-    // `since` читает значение в момент монтирования строки: новая работа — новая строка.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return (
     <p className="mt-4 flex items-center gap-2 t-meta text-fg-3" data-testid="v3-aia-progress">

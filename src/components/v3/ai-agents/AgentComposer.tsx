@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useLayoutEffect, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, type RefObject } from "react";
 
 import { Icon } from "@/components/icons";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
@@ -74,9 +74,9 @@ export function AgentComposer({
   const choosing = canDirect && !hasRun;
 
   // Поле растёт с текстом до десяти строк, дальше — прокрутка внутри него.
-  useLayoutEffect(() => {
+  const fit = useCallback(() => {
     const field = textareaRef.current;
-    if (!field) return;
+    if (!field || field.getBoundingClientRect().width === 0) return;
     const style = getComputedStyle(field);
     const line = parseFloat(style.lineHeight) || 24;
     const chrome = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
@@ -84,7 +84,26 @@ export function AgentComposer({
     const next = Math.min(field.scrollHeight, line * MAX_LINES + chrome);
     field.style.height = `${next}px`;
     field.style.overflowY = field.scrollHeight > next ? "auto" : "hidden";
-  }, [value, textareaRef]);
+  }, [textareaRef]);
+  useLayoutEffect(() => { fit(); }, [fit, value, placeholder]);
+  // Ширина поля меняется и без набора (поворот, окно, нажатая «Без черновика»): число строк текста и подсказки
+  // меняется вместе с ней, а высота иначе осталась бы прежней и обрезала бы текст. Высота на ширину не влияет,
+  // поэтому следим только за шириной (так же — поле ответа командного чата), а пересчёт откладываем на кадр.
+  useEffect(() => {
+    const field = textareaRef.current;
+    if (!field || typeof ResizeObserver === "undefined") return undefined;
+    let width = field.getBoundingClientRect().width;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      const next = field.getBoundingClientRect().width;
+      if (next === width) return;
+      width = next;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fit);
+    });
+    observer.observe(field);
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); };
+  }, [fit, textareaRef]);
 
   return (
     <form
@@ -100,7 +119,7 @@ export function AgentComposer({
         {choosing ? <p id={noteId} className={direct ? "mb-2 t-meta text-warn" : "sr-only"}>{DIRECT_NOTE}</p> : null}
         {error ? <p role="alert" className="mb-2 t-body-compact text-danger">{error}</p> : null}
         {/* Фокус поля рисует рамка (одна полоса фокуса мира вокруг всего поля), а не сам textarea внутри неё. */}
-        <div className="flex items-end gap-1 rounded-card border border-border bg-surface p-1 focus-within:border-control-edge has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-focus-ring">
+        <div className="flex items-end gap-1 rounded-card border border-border bg-surface p-1 @max-md:flex-wrap focus-within:border-control-edge has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-focus-ring">
           {choosing ? (
             <button
               type="button"
@@ -108,11 +127,11 @@ export function AgentComposer({
               aria-describedby={noteId}
               onClick={() => onDirectChange(!direct)}
               disabled={sending}
-              className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-ctl px-2.5 t-label focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed ${direct ? "bg-warn-weak text-warn" : "text-fg-2 hover:bg-surface-2 hover:text-fg @max-md:w-11 @max-md:justify-center @max-md:px-0"}`}
+              className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-ctl px-2.5 t-label focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed ${direct ? "bg-warn-weak text-warn @max-md:basis-full" : "text-fg-2 hover:bg-surface-2 hover:text-fg @max-md:w-11 @max-md:justify-center @max-md:px-0"}`}
               data-testid="v3-aia-direct"
             >
               <Icon name="file-text" size={18} className="shrink-0" />
-              {/* На узком экране слово остаётся у нажатой кнопки: включённое отправление без одобрения не должно быть значком. */}
+              {/* На узком экране слово остаётся у нажатой кнопки (она занимает свою строку над полем): включённое отправление без одобрения не должно быть значком. */}
               <span className={direct ? undefined : "@max-md:sr-only"}>Без черновика</span>
             </button>
           ) : null}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { btnCls, btnGhostCls } from "@/components/ui";
 import type { AiAgentKey, AiAgentRunStatus, AiAgentUiEvent } from "@/lib/ai-agents/contract";
@@ -10,7 +10,14 @@ import {
   pollAiAgentRunAction,
   startAiAgentRunAction,
 } from "@/lib/platform-ai-agents-actions";
-import { AI_AGENTS_IDLE, aiAgentsErrorCopy, buildChatItems, type AiAgentsActionState } from "@/lib/v3/ai-agents-view";
+import {
+  AI_AGENTS_IDLE,
+  aiAgentRunIsActive,
+  aiAgentsErrorCopy,
+  buildChatItems,
+  type AiAgentConsoleRestore,
+  type AiAgentsActionState,
+} from "@/lib/v3/ai-agents-view";
 
 import { ChatTimeline } from "./ChatTimeline";
 
@@ -25,6 +32,14 @@ const CLOSED = new Set<AiAgentRunStatus>(["completed", "failed", "budget_reached
  * копируется в базу — она читается у Claude по запросу. Переключатель «Без
  * черновика» задаётся при старте разговора: код полномочия выдаёт сервер, не
  * модель.
+ *
+ * Восстановление: если страницу открыли посреди разговора или после него,
+ * `restore` (из строки запуска в базе) сразу даёт честную разметку — идёт ли
+ * работа, поручение, итог; опрос затем приносит всю хронику из Claude и
+ * заготовка уступает ей место. «Работает» всегда следует статусу запуска, а не
+ * тому, что опрос ещё не пуст. Разговор живёт в состоянии вкладки: перерисовка
+ * страницы сервером (`revalidatePath`) его не сбрасывает — ключ у `Console`
+ * только от явного `?run=` (см. `AgentBody`).
  */
 export function Console({
   agentKey,
@@ -35,6 +50,7 @@ export function Console({
   canDirect,
   initialRunId,
   initialRunAuthority,
+  restore,
   starters,
   syncSlot,
 }: Readonly<{
@@ -49,14 +65,18 @@ export function Console({
   canDirect: boolean;
   initialRunId: string | null;
   initialRunAuthority: boolean;
+  /** Состояние восстанавливаемого запуска из базы; null — восстановления нет (или строка запуска не прочитана). */
+  restore: AiAgentConsoleRestore | null;
   starters: readonly string[];
   syncSlot: ReactNode;
 }>) {
   const [runId, setRunId] = useState<string | null>(initialRunId);
   const [runAuthority, setRunAuthority] = useState(initialRunAuthority);
   const [events, setEvents] = useState<readonly AiAgentUiEvent[]>([]);
-  const [status, setStatus] = useState<AiAgentRunStatus | null>(null);
-  const [working, setWorking] = useState(initialRunId !== null);
+  const [status, setStatus] = useState<AiAgentRunStatus | null>(restore?.status ?? null);
+  // Строка запуска неизвестна — как раньше, считаем, что работа идёт, пока опрос не скажет иначе.
+  const [working, setWorking] = useState(restore ? restore.working : initialRunId !== null);
+  const [seed, setSeed] = useState<readonly AiAgentUiEvent[]>(restore?.seed ?? []);
   const [offline, setOffline] = useState(false);
   const [fatal, setFatal] = useState<string | null>(null);
   const [text, setText] = useState("");
@@ -70,8 +90,18 @@ export function Console({
   const frozen = useRef<{ fingerprint: string; id: string } | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  const input = useRef<HTMLTextAreaElement>(null);
+  // Объявлять «агент закончил» имеет смысл только о работе, которую вкладка видела идущей.
+  const sawActive = useRef(restore ? restore.working : initialRunId !== null);
 
-  const items = useMemo(() => buildChatItems(events), [events]);
+  const items = useMemo(() => buildChatItems(events.length > 0 ? events : seed), [events, seed]);
+
+  // Текст, набранный до гидратации, лежит в DOM, но не в состоянии: «Отправить» остался бы запертым, а
+  // первая же перерисовка стёрла бы набранное. Подхватываем его, пока состояние ещё не успело разойтись с полем.
+  useLayoutEffect(() => {
+    const typed = input.current?.value ?? "";
+    if (typed) setText(typed);
+  }, []);
 
   useEffect(() => {
     if (!runId) return undefined;
@@ -104,16 +134,20 @@ export function Console({
           for (const event of fresh) seen.current.add(event.id);
           setEvents((previous) => [...previous, ...fresh]);
           const lastAgent = [...fresh].reverse().find((event) => event.kind === "agent");
-          if (lastAgent) setAnnounce("Агент ответил.");
+          if (lastAgent && sawActive.current) setAnnounce("Агент ответил.");
         }
         setStatus(poll.run.status);
         setRunAuthority(poll.run.sendAuthority);
+        // «Работает» следует статусу запуска: у закончившегося разговора, чью хронику ещё дочитывает
+        // опрос, «Агент работает…» не мигает, а `done` лишь останавливает опрос.
+        const active = aiAgentRunIsActive(poll.run.status);
+        setWorking(active);
+        if (active) sawActive.current = true;
         if (poll.done) {
-          setWorking(false);
-          setAnnounce(poll.run.status === "completed" ? "Агент закончил работу." : "Работа агента остановлена.");
+          if (sawActive.current) setAnnounce(poll.run.status === "completed" ? "Агент закончил работу." : "Работа агента остановлена.");
+          sawActive.current = false;
           return;
         }
-        setWorking(true);
         schedule(poll.pollAfterMs > 0 ? poll.pollAfterMs : 150);
       } catch {
         if (!cancelled) { setOffline(true); schedule(3000); }
@@ -142,7 +176,8 @@ export function Console({
     seen.current = new Set();
     frozen.current = null;
     stick.current = true;
-    setRunId(null); setEvents([]); setStatus(null); setWorking(false); setOffline(false); setFatal(null);
+    sawActive.current = false;
+    setRunId(null); setEvents([]); setSeed([]); setStatus(null); setWorking(false); setOffline(false); setFatal(null);
     setSendState(AI_AGENTS_IDLE); setDirect(false); setRunAuthority(false); setAnnounce("");
   }
 
@@ -171,6 +206,7 @@ export function Console({
       setText("");
       stick.current = true;
       if (!runId && result.runId) { setRunId(result.runId); setRunAuthority(direct); }
+      sawActive.current = true;
       setWorking(true);
       setPollNonce((n) => n + 1);
     } else {
@@ -187,7 +223,7 @@ export function Console({
   }
 
   const finished = status !== null && CLOSED.has(status) && !working;
-  const empty = events.length === 0 && !working && !fatal;
+  const empty = events.length === 0 && seed.length === 0 && !working && !fatal;
   const locked = !canRun;
 
   return (
@@ -259,6 +295,7 @@ export function Console({
               <label htmlFor={`aia-text-${agentKey}`} className="sr-only">Поручение агенту</label>
               <textarea
                 id={`aia-text-${agentKey}`}
+                ref={input}
                 value={text}
                 maxLength={MAX_CHARS}
                 rows={3}

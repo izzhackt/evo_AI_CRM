@@ -1,12 +1,13 @@
 import Link from "next/link";
 
 import { AI_AGENT_DEFAULTS, AI_AGENT_PREAMBLE } from "@/content/ai-agents";
-import { AI_AGENT_MODELS, type AiAgentDetail, type AiAgentDigestsListResult, type AiAgentDraftsListResult, type AiAgentRunGetResult, type AiAgentRunsListResult } from "@/lib/ai-agents/contract";
+import { AI_AGENT_MODELS, type AiAgentDetail, type AiAgentDigestsListResult, type AiAgentDraftsListResult, type AiAgentRunGetResult, type AiAgentRunRow, type AiAgentRunsListResult } from "@/lib/ai-agents/contract";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import { QueueViewTabs } from "@/components/v3/queue/QueueViewTabs";
 import {
   AI_AGENT_STARTERS,
   AI_AGENT_TABS,
+  aiAgentConsoleRestore,
   aiAgentHref,
   aiAgentIsRunnable,
   aiAgentStateChip,
@@ -49,8 +50,11 @@ export type AgentBodyProps = Readonly<{
   runId: string | null;
   drafts: TabRead<AiAgentDraftsListResult> | null;
   draftsFilter: "pending" | "all";
-  /** Разговор, который вкладка «Поручить» восстанавливает при открытии. */
-  resume: Readonly<{ runId: string | null; sendAuthority: boolean }>;
+  /**
+   * Разговор, который вкладка «Поручить» восстанавливает при открытии; `run` — его строка из базы
+   * (статус, поручение, итог), по ней серверная разметка сразу говорит правду о ходе работы.
+   */
+  resume: Readonly<{ runId: string | null; sendAuthority: boolean; run?: AiAgentRunRow | null }>;
 }>;
 
 function tabFailure(read: TabRead<unknown>, what: string, retryHref: string) {
@@ -96,7 +100,9 @@ export function AgentBody(props: AgentBodyProps) {
     case "command":
       content = (
         <Console
-          key={props.resume.runId ?? "new"}
+          // Ключ — только явный `?run=`: перерисовка страницы сервером (после «Синхронизировать», записи
+          // настроек и т. п.) не должна пересоздавать вкладку и стирать набранное и ход разговора.
+          key={props.runId ?? "conversation"}
           agentKey={detail.key}
           agentTitle={detail.title}
           autoSend={detail.autoSend}
@@ -105,6 +111,7 @@ export function AgentBody(props: AgentBodyProps) {
           canDirect={canManage && !preview}
           initialRunId={canRun ? props.resume.runId : null}
           initialRunAuthority={props.resume.sendAuthority}
+          restore={canRun && props.resume.runId && props.resume.run ? aiAgentConsoleRestore(props.resume.run) : null}
           starters={AI_AGENT_STARTERS[detail.key]}
           syncSlot={syncSlot}
         />

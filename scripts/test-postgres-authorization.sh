@@ -677,6 +677,44 @@ SQL
     rm -f "$t317_tamper_log"
   fi
 
+  # «ИИ-агенты»: три мелкие правки по ревью #1290 (миграция 318, PLAN_CHANGES 23.10.2026). Matched by name,
+  # not number. IMMEDIATELY BEFORE the ordinary apply the migration must refuse with a318_anchor_drift, inside
+  # a transaction that the failure rolls back, for each of the three 317 functions it replaces when that
+  # function is edited after its own migration (the md5 pre-image anchors). A second apply of the finished
+  # migration must refuse with a318_already_applied (below).
+  if [[ "$(basename "$migration")" == *_platform_ai_agents_followups.sql ]]; then
+    for t318_pinned in \
+      'platform.ai_agents_run_authorize_v1(uuid,text,boolean)' \
+      'platform.ai_agent_runtime_dispatch_targets_v1(uuid,text)' \
+      'platform.ai_agent_tool_send_message_v1(uuid,text,jsonb)'; do
+      t318_tamper_log="$(mktemp -t evo-t318-anchor.XXXXXX)"
+      if docker exec -i "$container_name" \
+        psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+        -v "pinned_function=$t318_pinned" \
+        -v "migration_file=/workspace/$migration" \
+        >"$t318_tamper_log" 2>&1 <<'SQL'
+BEGIN;
+SELECT replace(
+  pg_get_functiondef(:'pinned_function'::regprocedure),
+  'BEGIN',
+  'BEGIN /* tampered after its own migration */'
+) AS tampered_definition \gset
+:tampered_definition ;
+\i :migration_file
+SQL
+      then
+        echo "migration 318 accepted an edited $t318_pinned" >&2
+        exit 1
+      fi
+      if ! grep -Fq "a318_anchor_drift" "$t318_tamper_log"; then
+        echo "migration 318 failed for the wrong pre-image reason ($t318_pinned)" >&2
+        sed -n '1,60p' "$t318_tamper_log" >&2
+        exit 1
+      fi
+      rm -f "$t318_tamper_log"
+    done
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -4373,6 +4411,37 @@ SQL
     printf '%s\n' "$ai_agents_managed_log"
     if ! grep -q 'A317_AI_AGENTS_MANAGED_SUITE_PASSED' <<<"$ai_agents_managed_log"; then
       echo "platform_ai_agents_managed.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «ИИ-агенты»: три мелкие правки по ревью #1290 (migration 318, PLAN_CHANGES 23.10.2026). Matched by name,
+  # not number. Right after the migration: a second apply refuses (a318_already_applied), then the suite,
+  # insisting on its marker. The suite proves: the posture of what 318 adds; a failed or pending re-sync does
+  # not block an agent that has a Claude configuration (run_authorize and dispatch_targets) while a never-synced,
+  # half-created, credential-less or adopted agent is still refused; send_message without an idempotency key
+  # (derived per target, text and agent, the 10-minute window, one chat message under Auto, the replay of
+  # needs_dispatch by draft state); the environment lease (known / claimed / busy, release by token, expiry,
+  # organizations apart, the CHECK, the closed functions).
+  if [[ "$(basename "$migration")" == *_platform_ai_agents_followups.sql ]]; then
+    t318_again_log="$(mktemp -t evo-t318-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t318_again_log" 2>&1; then
+      echo "migration 318 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a318_already_applied" "$t318_again_log"; then
+      echo "a second apply of migration 318 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t318_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t318_again_log"
+    ai_agents_followups_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_agents_followups.sql </dev/null)"
+    printf '%s\n' "$ai_agents_followups_log"
+    if ! grep -q 'A318_AI_AGENTS_FOLLOWUPS_SUITE_PASSED' <<<"$ai_agents_followups_log"; then
+      echo "platform_ai_agents_followups.sql did not reach its PASSED marker" >&2
       exit 1
     fi
   fi

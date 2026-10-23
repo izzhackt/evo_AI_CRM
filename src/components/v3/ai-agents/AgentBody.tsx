@@ -8,7 +8,9 @@ import {
   AI_AGENT_STARTERS,
   AI_AGENT_TABS,
   aiAgentHref,
+  aiAgentIsRunnable,
   aiAgentStateChip,
+  aiAgentSyncProblemText,
   describeSchedule,
   formatDateTimeRu,
   type AiAgentTab,
@@ -63,7 +65,9 @@ export function AgentBody(props: AgentBodyProps) {
   const hasInstructions = detail.hasInstructionsOverride || defaults.hasInstructions;
   const state = aiAgentStateChip({ enabled: detail.enabled, hasInstructions, syncStatus: detail.sync.status, needsSync });
   const model = AI_AGENT_MODELS.find((one) => one.id === detail.model)?.label ?? detail.model;
-  const synced = detail.sync.status === "ok";
+  // Запуск разрешён и при неудавшейся повторной синхронизации, если у агента есть рабочая настройка (миграция 318).
+  const synced = aiAgentIsRunnable(detail.sync);
+  const syncProblem = detail.enabled ? aiAgentSyncProblemText(detail.sync) : null;
   // Директору поручает только системный администратор (его инструменты читают данные организации целиком).
   const directorLocked = detail.key === "director" && !canEdit;
   const canRun = !preview && !directorLocked && runtimeConfigured && hasInstructions && detail.enabled && synced;
@@ -187,9 +191,9 @@ export function AgentBody(props: AgentBodyProps) {
 
       {preview ? <PreviewLine /> : null}
       {runtimeConfigured ? null : <ApiKeyMissingLine />}
-      {detail.enabled && detail.sync.status === "error" ? (
+      {syncProblem ? (
         <div className="space-y-2" data-testid="v3-aia-sync-error">
-          <InfoLine tone="warn" role="alert">Синхронизация с Claude не удалась{detail.sync.error ? `: ${detail.sync.error}` : ""}. Агент может работать по прежним настройкам.</InfoLine>
+          <InfoLine tone="warn" role="alert">{syncProblem}</InfoLine>
           {canEdit && runtimeConfigured && tab !== "settings" ? <SyncNowButton agentKey={detail.key} disabled={false} label="Повторить синхронизацию" /> : null}
         </div>
       ) : needsSync ? (

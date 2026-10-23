@@ -433,6 +433,177 @@ test("sync: ошибка Claude фиксируется статусом error б
   assert.equal((await first).ok, true);
 });
 
+/* ------------------------------------------- аренда среды (миграция 318, ревью #1290) */
+
+const CLAIM_TOKEN = "77777777-7777-4777-8777-777777777777";
+
+test("sync: среда под арендой — аренда, поиск или создание, запись id в строку агента, и только потом снятие аренды", async () => {
+  const order = [];
+  const { service, claude, deps, ctx } = syncSetup({
+    servicePatch: {
+      ai_agent_runtime_environment_claim_v1: () => { order.push("claim"); return { data: { status: "claimed", claimToken: CLAIM_TOKEN } }; },
+      ai_agent_runtime_environment_release_v1: () => { order.push("release"); return { data: { released: true } }; },
+      ai_agent_runtime_sync_record_v1: (args) => { if (args.p_result.environmentId && args.p_result.status === "pending") order.push("record_environment"); return { data: { ok: true } }; },
+    },
+    routes: { "POST /v1/environments": () => { order.push("create"); return { id: "env_new" }; } },
+  });
+  const result = await syncAiAgent(ctx, { key: "director", requestId: REQ_ID }, deps);
+  assert.equal(result.ok, true);
+  assert.equal(result.created.environment, true);
+  assert.deepEqual(order, ["claim", "create", "record_environment", "release"], "id записан в БД до снятия аренды");
+  assert.deepEqual(service.called("ai_agent_runtime_environment_claim_v1")[0].args, { p_organization_id: ORG, p_key: "director" });
+  assert.deepEqual(service.called("ai_agent_runtime_environment_release_v1")[0].args, { p_organization_id: ORG, p_claim_token: CLAIM_TOKEN });
+  assert.equal(claude.callsFor("GET", "/v1/environments").length, 1);
+});
+
+test("sync: среда уже записана у другого агента (known) — Claude не опрашивается и среда не создаётся, аренды нет", async () => {
+  const { service, claude, deps, ctx } = syncSetup({
+    servicePatch: {
+      ai_agent_runtime_environment_claim_v1: () => ({ data: { status: "known", environmentId: "env_shared" } }),
+      ai_agent_runtime_environment_release_v1: () => ({ data: { released: true } }),
+    },
+  });
+  const result = await syncAiAgent(ctx, { key: "director", requestId: REQ_ID }, deps);
+  assert.equal(result.ok, true);
+  assert.equal(result.created.environment, false);
+  assert.equal(claude.callsFor("GET", "/v1/environments").length + claude.callsFor("POST", "/v1/environments").length, 0);
+  assert.equal(service.called("ai_agent_runtime_environment_release_v1").length, 0);
+  const written = records(service);
+  assert.equal(written[1].environmentId, "env_shared");
+  assert.equal(written.at(-1).environmentId, "env_shared");
+  assert.equal(claude.callsFor("POST", "/v1/deployments")[0].body.environment_id, "env_shared");
+});
+
+test("sync: аренда занята — ждёт и берёт среду, записанную держателем; дольше предела — conflict и статус error", async () => {
+  let polls = 0;
+  const sleeps = [];
+  const waits = syncSetup({
+    servicePatch: {
+      ai_agent_runtime_environment_claim_v1: () => {
+        polls += 1;
+        return { data: polls < 4 ? { status: "busy", retryAfterSeconds: 2 } : { status: "known", environmentId: "env_by_holder" } };
+      },
+    },
+  });
+  waits.deps.sleep = async (ms) => { sleeps.push(ms); };
+  const ok = await syncAiAgent(waits.ctx, { key: "director", requestId: REQ_ID }, waits.deps);
+  assert.equal(ok.ok, true);
+  assert.deepEqual(sleeps, [2000, 2000, 2000]);
+  assert.equal(waits.claude.callsFor("POST", "/v1/environments").length, 0, "пока ждали, второй среды не создано");
+
+  let tries = 0;
+  const stuck = syncSetup({
+    servicePatch: { ai_agent_runtime_environment_claim_v1: () => { tries += 1; return { data: { status: "busy", retryAfterSeconds: 30 } }; } },
+  });
+  stuck.deps.sleep = async (ms) => { assert.ok(ms <= 5000, "пауза ограничена"); };
+  const conflict = await syncAiAgent(stuck.ctx, { key: "director", requestId: REQ_ID }, stuck.deps);
+  assert.deepEqual([conflict.ok, conflict.code], [false, "conflict"]);
+  assert.match(conflict.message, /Среду Claude сейчас создаёт другая синхронизация/u);
+  assert.equal(tries, 30);
+  assert.equal(stuck.claude.callsFor("POST", "/v1/environments").length, 0);
+  assert.equal(stuck.claude.callsFor("POST", "/v1/vaults").length, 0, "дальше среды синхронизация не идёт");
+  const last = records(stuck.service).at(-1);
+  assert.equal(last.status, "error");
+  assert.match(last.error, /Среду Claude сейчас создаёт/u);
+});
+
+test("sync: аренда снимается и при сбое создания среды; без миграции 318 (PGRST202) — прежний путь без аренды", async () => {
+  const failing = syncSetup({
+    servicePatch: {
+      ai_agent_runtime_environment_claim_v1: () => ({ data: { status: "claimed", claimToken: CLAIM_TOKEN } }),
+      ai_agent_runtime_environment_release_v1: () => ({ data: { released: true } }),
+    },
+    routes: { "POST /v1/environments": claudeError(500, "api_error", "env is down") },
+  });
+  const failed = await syncAiAgent(failing.ctx, { key: "director", requestId: REQ_ID }, failing.deps);
+  assert.deepEqual([failed.ok, failed.code], [false, "anthropic_error"]);
+  assert.equal(failing.service.called("ai_agent_runtime_environment_release_v1").length, 1, "аренда снята в finally");
+  assert.equal(records(failing.service).at(-1).status, "error");
+
+  const old = syncSetup();
+  const fine = await syncAiAgent(old.ctx, { key: "director", requestId: REQ_ID }, old.deps);
+  assert.equal(fine.ok, true);
+  assert.equal(fine.created.environment, true);
+  assert.equal(old.service.called("ai_agent_runtime_environment_claim_v1").length, 1, "аренду пробовали, функции в базе нет");
+  assert.equal(old.service.called("ai_agent_runtime_environment_release_v1").length, 0);
+  assert.equal(old.claude.callsFor("POST", "/v1/environments").length, 1);
+
+  const broken = syncSetup({ servicePatch: { ai_agent_runtime_environment_claim_v1: () => ({ error: { code: "XX000", message: "boom" } }) } });
+  const unavailable = await syncAiAgent(broken.ctx, { key: "director", requestId: REQ_ID }, broken.deps);
+  assert.deepEqual([unavailable.ok, unavailable.code], [false, "unavailable"]);
+  assert.equal(broken.claude.callsFor("POST", "/v1/environments").length, 0, "при другой ошибке аренды среду не создаём");
+});
+
+test("sync: среда создана, но id не записан в БД — синхронизация падает (иначе следующий создал бы вторую среду), аренда снята", async () => {
+  const { service, deps, ctx } = syncSetup({
+    servicePatch: {
+      ai_agent_runtime_environment_claim_v1: () => ({ data: { status: "claimed", claimToken: CLAIM_TOKEN } }),
+      ai_agent_runtime_environment_release_v1: () => ({ data: { released: true } }),
+      ai_agent_runtime_sync_record_v1: (args) => (args.p_result.environmentId && args.p_result.status === "pending"
+        ? { error: { code: "XX000", message: "write failed" } } : { data: { ok: true } }),
+    },
+  });
+  const result = await syncAiAgent(ctx, { key: "director", requestId: REQ_ID }, deps);
+  assert.deepEqual([result.ok, result.code], [false, "unavailable"]);
+  assert.equal(service.called("ai_agent_runtime_environment_release_v1").length, 1);
+});
+
+test("sync: два агента синхронизируются одновременно — среда создаётся один раз, оба получают её id", async () => {
+  // Подставная аренда ведёт себя как таблица в БД: known — если у какого-то агента среда записана, busy — пока аренда у другого.
+  const recorded = new Map();
+  let held = null;
+  const createdBodies = [];
+  const configs = {
+    director: { ...FRESH_CONFIG },
+    sales: { ...FRESH_CONFIG, key: "sales", title: "Продажи (Closer)", scheduleCron: null, enabled: true },
+  };
+  const service = fakeRpc({
+    ai_agent_runtime_get_v1: (args) => ({ data: configs[args.p_key] }),
+    ai_agent_runtime_sync_record_v1: (args) => {
+      if (args.p_result.environmentId) recorded.set(args.p_key, args.p_result.environmentId);
+      return { data: { ok: true } };
+    },
+    ai_agent_runtime_token_set_v1: () => ({ data: { tokenFingerprint: "abcdef012345" } }),
+    ai_agent_runtime_environment_claim_v1: (args) => {
+      const known = [...recorded.values()][0];
+      if (known) return { data: { status: "known", environmentId: known } };
+      if (held) return { data: { status: "busy", retryAfterSeconds: 1 } };
+      held = `${args.p_key}-lease`;
+      return { data: { status: "claimed", claimToken: CLAIM_TOKEN } };
+    },
+    ai_agent_runtime_environment_release_v1: () => { held = null; return { data: { released: true } }; },
+  });
+  let listed = [];
+  const claude = fakeClaude({
+    "GET /v1/environments": async () => { await new Promise((resolve) => setImmediate(resolve)); return { data: listed }; },
+    "POST /v1/environments": async (call) => {
+      await new Promise((resolve) => setImmediate(resolve));
+      createdBodies.push(call.body);
+      listed = [{ id: "env_only_one", name: call.body.name }];
+      return { id: "env_only_one" };
+    },
+    "POST /v1/vaults": (call) => ({ id: `vlt_${call.body.metadata.evo_agent_key}` }),
+    "POST /v1/vaults/:v/credentials": { id: "vcrd_new" },
+    "POST /v1/agents": (call) => ({ id: `agent_${call.body.metadata.evo_agent_key}`, version: 1 }),
+    "POST /v1/deployments": { id: "depl_new", status: "active" },
+  });
+  const { deps } = runtimeDeps({ claude, service });
+  deps.sleep = async () => { await new Promise((resolve) => setImmediate(resolve)); };
+  const ctx = { staffClient: fakeRpc().client, actor: actor() };
+  const [a, b] = await Promise.all([
+    syncAiAgent(ctx, { key: "director", requestId: REQ_ID }, deps),
+    syncAiAgent(ctx, { key: "sales", requestId: REQ_ID }, deps),
+  ]);
+  assert.deepEqual([a.ok, b.ok], [true, true]);
+  assert.equal(createdBodies.length, 1, "создана ровно одна среда");
+  assert.equal(claude.callsFor("POST", "/v1/environments").length, 1);
+  assert.deepEqual([recorded.get("director"), recorded.get("sales")], ["env_only_one", "env_only_one"]);
+  assert.equal(a.created.environment !== b.created.environment, true, "создала одна из двух синхронизаций");
+  assert.equal(claude.callsFor("POST", "/v1/vaults").length, 2, "хранилище у каждого агента своё");
+  const environmentsUsed = claude.callsFor("POST", "/v1/agents").length;
+  assert.equal(environmentsUsed, 2);
+});
+
 /* ------------------------------------------------------------------ запуски */
 
 const AUTH = {

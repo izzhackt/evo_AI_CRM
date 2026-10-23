@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   AI_AGENT_LIMITS,
   AI_AGENT_MCP_RPC,
+  AI_AGENTS_ENV,
   AI_AGENTS_MCP_FILE_PATH_PATTERN,
   AI_AGENTS_MCP_FILE_PATH_PREFIX,
 } from "../../ai-agents/contract.ts";
@@ -18,16 +19,21 @@ import {
   hashMcpToken,
   isSchemaMissingError,
   MCP_TOKEN_PATTERN,
+  parseMcpIpPolicy,
   readClientAddress,
   withDeadline,
+  type AiAgentsMcpIpPolicy,
 } from "./mcp-auth.ts";
 
 /**
  * Файл документа по одноразовой ссылке (контракт §B.6): `GET /api/mcp/v1/files/<token>`.
  * Ссылку выдаёт инструмент `get_document_file`; в базе лежит только SHA-256 токена,
- * срок — 10 минут и 3 использования. Маршрут не проверяет IP (адрес песочницы
- * Anthropic не документирован): защита — сама ссылка-капабилити. Неудачные
- * обращения считаются по адресу. В журнал приложения — только счётчики.
+ * срок — 10 минут и 3 использования. Ссылка привязана к запрашивающему (ревью #1290):
+ * принимается только с адресов списка
+ * `EVO_AI_AGENTS_MCP_IP_ALLOWLIST` (те же правила, что у MCP; `off` выключает). Чужой
+ * адрес получает пустой 404, и использование ссылки не тратится: проверка идёт до
+ * обращения к базе. Неудачные обращения считаются по адресу. В журнал приложения —
+ * только счётчики.
  */
 
 type LogValue = string | number | boolean;
@@ -124,6 +130,15 @@ export function createAiAgentsMcpFileHandler(
     ...overrides,
   };
 
+  let cachedPolicy: { raw: string; policy: AiAgentsMcpIpPolicy } | null = null;
+  const ipPolicy = (): AiAgentsMcpIpPolicy => {
+    const raw = deps.environment[AI_AGENTS_ENV.mcpIpAllowlist] ?? "";
+    if (cachedPolicy === null || cachedPolicy.raw !== raw) {
+      cachedPolicy = { raw, policy: parseMcpIpPolicy(raw) };
+    }
+    return cachedPolicy.policy;
+  };
+
   const handle = async (request: Request, context: AiAgentsMcpFileRouteContext | undefined): Promise<Response> => {
     const startedAt = deps.now();
     const finish = (status: number, body: BodyInit | null, reason: string, headers: Record<string, string> = {}): Response => {
@@ -151,9 +166,18 @@ export function createAiAgentsMcpFileHandler(
       return json(405, { error: "method_not_allowed" }, "method_not_allowed", { allow: "GET" });
     }
 
-    const address = readClientAddress(request.headers) ?? "unknown";
+    const clientAddress = readClientAddress(request.headers);
+    const address = clientAddress ?? "unknown";
     if (deps.failureLimiter.isBlocked(address)) {
       return json(429, { error: "rate_limited" }, "rate_limited", { "retry-after": "60" });
+    }
+
+    // Ссылка привязана к запрашивающему: сначала сеть клиента, потом токен и база. Чужой адрес не узнаёт,
+    // существует ли ссылка (тот же пустой 404), и не тратит её использования.
+    const policy = ipPolicy();
+    if (policy.mode === "list") {
+      if (clientAddress === null) return refuse("ip_unknown", address);
+      if (!policy.allows(clientAddress)) return refuse("ip_denied", address);
     }
 
     const token = await readToken(request, context);

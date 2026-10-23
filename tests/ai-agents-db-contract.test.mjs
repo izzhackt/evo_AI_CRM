@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
@@ -21,6 +22,9 @@ import {
 // defence, so a contract edit that is not carried into the migration must fail here, not in production.
 const SOURCE = readFileSync(new URL("../supabase/migrations/317_platform_ai_agents_managed.sql", import.meta.url), "utf8");
 const SUITE = readFileSync(new URL("../supabase/tests/platform_ai_agents_managed.sql", import.meta.url), "utf8");
+// Migration 318 (review #1290) replaces three 317 functions and adds two runtime functions (the environment lease).
+const SOURCE_318 = readFileSync(new URL("../supabase/migrations/318_platform_ai_agents_followups.sql", import.meta.url), "utf8");
+const SUITE_318 = readFileSync(new URL("../supabase/tests/platform_ai_agents_followups.sql", import.meta.url), "utf8");
 
 test("the tool schema table is the contract's registry, row for row", () => {
   const rows = [...SOURCE.matchAll(/\('([a-z_]+)', '(read|write)', '(none|read|write)', \$j\$(.*?)\$j\$::jsonb\)/gsu)].map(
@@ -39,16 +43,74 @@ test("the tool schema table is the contract's registry, row for row", () => {
 
 test("every RPC the contract names exists in the migration, in the right schema", () => {
   const created = new Set([...SOURCE.matchAll(/CREATE FUNCTION platform\.([a-z0-9_]+)\(/gu)].map(([, name]) => name));
+  const created318 = new Set([...SOURCE_318.matchAll(/CREATE FUNCTION platform\.([a-z0-9_]+)\(/gu)].map(([, name]) => name));
+  for (const name of created318) assert.ok(!created.has(name), `${name} is new in 318`);
   for (const name of [
     ...Object.values(AI_AGENT_STAFF_RPC),
     ...Object.values(AI_AGENT_RUNTIME_RPC),
     ...Object.values(AI_AGENT_MCP_RPC),
     ...AI_AGENT_TOOLS.map((tool) => tool.rpc),
   ]) {
-    assert.ok(created.has(name), `platform.${name} is created by 317`);
+    assert.ok(created.has(name) || created318.has(name), `platform.${name} is created by 317 or 318`);
   }
-  // Nothing extra in the public schema: 9 + 14 + 3 + 24 functions.
+  // Nothing extra in the public schema: 9 + 14 + 3 + 24 functions in 317, the two environment-lease functions in 318.
   assert.equal(created.size, 9 + 14 + 3 + 24);
+  assert.deepEqual(
+    [...created318].sort(),
+    [AI_AGENT_RUNTIME_RPC.environmentClaim, AI_AGENT_RUNTIME_RPC.environmentRelease].sort(),
+  );
+});
+
+test("318 pins the three 317 bodies it replaces by md5, and the md5 is the one of the text in the 317 file", () => {
+  const body = (name) => {
+    const start = SOURCE.indexOf(`CREATE FUNCTION platform.${name}(`);
+    assert.notEqual(start, -1, name);
+    const from = SOURCE.indexOf("AS $$", start) + "AS $$".length;
+    return SOURCE.slice(from, SOURCE.indexOf("\n$$;", from) + 1);
+  };
+  const pinned = [...SOURCE_318.matchAll(/\('platform\.([a-z0-9_]+)\(([a-z0-9,]*)\)', '([0-9a-f]{32})'\)/gu)];
+  assert.deepEqual(
+    pinned.map(([, name]) => name).sort(),
+    ["ai_agent_runtime_dispatch_targets_v1", "ai_agent_tool_send_message_v1", "ai_agents_run_authorize_v1"],
+  );
+  for (const [, name, , md5] of pinned) {
+    assert.equal(createHash("md5").update(body(name), "utf8").digest("hex"), md5, `${name}: the anchor is the 317 text`);
+    // Each pinned function is replaced in place, not duplicated under another name.
+    assert.ok(SOURCE_318.includes(`CREATE OR REPLACE FUNCTION platform.${name}(`), `${name} is replaced`);
+  }
+  // The re-run refusal comes before the md5 check (a second apply says "already applied", not "drift").
+  assert.ok(SOURCE_318.indexOf("a318_already_applied") < SOURCE_318.indexOf("a318_anchor_drift: % is not the 317 definition"));
+});
+
+test("318 replaces only the conditions it says: usable agent, derived send key, replay by draft state", () => {
+  // (a) one shared rule, read by authorize and by the event targets; the 317 conditions are gone from both.
+  assert.equal([...SOURCE_318.matchAll(/platform_private\.ai_agent_claude_usable\(a\)/gu)].length, 2, "exactly two callers: authorize and the event targets");
+  const replaced = (name) => {
+    const start = SOURCE_318.indexOf(`CREATE OR REPLACE FUNCTION platform.${name}(`);
+    assert.notEqual(start, -1, name);
+    return SOURCE_318.slice(start, SOURCE_318.indexOf("\n$$;", start));
+  };
+  for (const name of ["ai_agents_run_authorize_v1", "ai_agent_runtime_dispatch_targets_v1"]) {
+    const text = replaced(name);
+    assert.doesNotMatch(text, /sync_status <> 'ok'|sync_status = 'ok'/u, `${name}: the status no longer decides alone`);
+    assert.match(text, /ai_agent_claude_usable\(a\)/u, name);
+  }
+  // (b) the derived key: separate namespace, per target and per normalized text, the 10-minute window, one lock, the replay helper.
+  assert.match(SOURCE_318, /'send_message_auto:' \|\| platform_private\.ai_agent_sha256\(v_channel/u);
+  assert.match(SOURCE_318, /pg_advisory_xact_lock\(pg_catalog\.hashtextextended\(p_organization_id::TEXT/u);
+  assert.match(SOURCE_318, /ai_agent_dedupe_get\(p_organization_id, p_agent_key, v_key, INTERVAL '10 minutes'\)/u);
+  assert.match(SOURCE_318, /RETURN platform_private\.ai_agent_send_replay\(p_organization_id, v_prior\)/u);
+  assert.match(SOURCE_318, /ai_agent_dedupe_put\(p_organization_id, p_agent_key, v_key, v_result\)/u);
+  assert.equal(AI_AGENT_LIMITS.idempotencyWindowMinutes, 10);
+  // (c) the lease is three minutes and lives on the organization settings row.
+  assert.match(SOURCE_318, /environment_claim_until = v_now \+ INTERVAL '3 minutes'/u);
+  assert.match(SOURCE_318, /SELECT \* INTO s FROM platform_private\.ai_agents_org_settings x WHERE x\.organization_id = p_organization_id FOR UPDATE/u);
+  // The migration and its suite carry no secret, address or person.
+  assert.doesNotMatch(SOURCE_318, /sk-ant-|Bearer [A-Za-z0-9]|\+996\d{6,}|@gmail\.|@mail\./u);
+  assert.doesNotMatch(SUITE_318, /sk-ant-|Bearer [A-Za-z0-9]|@gmail\.|@mail\./u);
+  for (const address of SUITE_318.matchAll(/[A-Za-z0-9._-]+@[A-Za-z0-9.-]+/gu)) {
+    assert.ok(/\.invalid$/u.test(address[0]), `unexpected address ${address[0]}`);
+  }
 });
 
 test("the seeded catalog repeats AI_AGENT_CATALOG verbatim", () => {

@@ -22,8 +22,10 @@ import { LINK_ICONS } from "../src/lib/v3/shell-tabs.ts";
 import {
   AiAgentsShapeError,
   aiAgentHref,
+  aiAgentIsRunnable,
   aiAgentNeedsSync,
   aiAgentStateChip,
+  aiAgentSyncProblemText,
   buildChatItems,
   chartAxisTop,
   chartBarRows,
@@ -478,6 +480,54 @@ test("страница агента: ключ Claude не задан, просм
   assert.match(failed, /Повторить синхронизацию/u);
   const notSynced = body(bodyProps({ tab: "command", detail: { ...DETAIL, sync: sync({ status: "never", claudeAgentId: null, configHash: null }) } }));
   assert.match(notSynced, /Агент ещё не синхронизирован с Claude/u);
+});
+
+test("агента можно запускать, пока у него есть рабочая настройка: сбой или незавершённая синхронизация не запирает (ревью #1290)", () => {
+  assert.equal(aiAgentIsRunnable(sync()), true, "ok");
+  assert.equal(aiAgentIsRunnable(sync({ status: "error", error: "x" })), true, "error с агентом, версией, средой и хранилищем");
+  assert.equal(aiAgentIsRunnable(sync({ status: "pending" })), true, "pending с настройкой");
+  assert.equal(aiAgentIsRunnable(sync({ status: "never", claudeAgentId: null })), false, "never");
+  assert.equal(aiAgentIsRunnable(sync({ status: "never" })), false, "never даже с id (смена claudeAgentId обнуляет версию и статус)");
+  for (const missing of [{ claudeAgentId: null }, { agentVersion: null }, { environmentId: null }, { vaultId: null }]) {
+    assert.equal(aiAgentIsRunnable(sync({ status: "error", error: "x", ...missing })), false, JSON.stringify(missing));
+    assert.equal(aiAgentIsRunnable(sync({ status: "pending", ...missing })), false, JSON.stringify(missing));
+  }
+  assert.equal(aiAgentSyncProblemText(sync()), null);
+  assert.equal(aiAgentSyncProblemText(sync({ status: "never" })), null);
+  assert.equal(
+    aiAgentSyncProblemText(sync({ status: "error", error: "Среда не создана" })),
+    "Синхронизация с Claude не удалась: Среда не создана. Агент продолжает работать по прежней настройке (версия 3). Повторите синхронизацию.",
+  );
+  assert.equal(
+    aiAgentSyncProblemText(sync({ status: "error", error: null, claudeAgentId: null })),
+    "Синхронизация с Claude не удалась. Агент не запустится, пока синхронизация не пройдёт.",
+  );
+  assert.match(aiAgentSyncProblemText(sync({ status: "pending" })) ?? "", /не завершена\. Агент работает по прежней настройке \(версия 3\)/u);
+  assert.match(aiAgentSyncProblemText(sync({ status: "pending", agentVersion: null })) ?? "", /агент пока не запустится/u);
+});
+
+test("страница агента: после неудачной повторной синхронизации «Поручить» открыто и показывает ошибку; без настройки в Claude — заперто", async () => {
+  const { body } = await views();
+  const failedButUsable = body(bodyProps({ tab: "command", detail: { ...DETAIL, sync: sync({ status: "error", error: "Claude вернул ошибку: overloaded" }) } }));
+  assert.match(failedButUsable, /data-testid="v3-aia-input"/u, "поле ввода есть: настройка в Claude рабочая");
+  assert.doesNotMatch(failedButUsable, /Агент ещё не синхронизирован с Claude/u);
+  assert.match(failedButUsable, /Синхронизация с Claude не удалась: Claude вернул ошибку: overloaded\. Агент продолжает работать по прежней настройке \(версия 3\)/u);
+  assert.match(failedButUsable, /Повторить синхронизацию/u);
+
+  const pendingUsable = body(bodyProps({ tab: "command", detail: { ...DETAIL, sync: sync({ status: "pending" }) } }));
+  assert.match(pendingUsable, /data-testid="v3-aia-input"/u);
+  assert.match(pendingUsable, /Синхронизация с Claude не завершена\./u);
+
+  const failedNoAgent = body(bodyProps({ tab: "command", detail: { ...DETAIL, sync: sync({ status: "error", error: "Среда не создана", claudeAgentId: null, agentVersion: null }) } }));
+  assert.doesNotMatch(failedNoAgent, /data-testid="v3-aia-input"/u, "агента в Claude нет: писать нельзя");
+  assert.match(failedNoAgent, /Агент ещё не синхронизирован с Claude/u);
+  assert.match(failedNoAgent, /Агент не запустится, пока синхронизация не пройдёт\./u);
+
+  const panel = body(bodyProps({ tab: "settings", detail: { ...DETAIL, sync: sync({ status: "error", error: "Среда не создана" }) } }));
+  assert.match(panel, /Агент в Claude уже создан \(версия 3\) и работает по прежней настройке/u);
+  assert.match(panel, /Ошибка: Среда не создана/u);
+  const never = body(bodyProps({ tab: "settings", detail: { ...DETAIL, sync: sync({ status: "never", claudeAgentId: null, configHash: null }) } }));
+  assert.match(never, /Агент ещё не создан в Claude/u);
 });
 
 test("вкладки «Поручить», «Запуски», «Черновики», «Инструкция», «Настройки» рисуются по данным", async () => {

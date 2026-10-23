@@ -294,6 +294,9 @@ export const AI_AGENT_RUNTIME_RPC = {
   portalSend: "ai_agent_runtime_portal_send_v1",
   whatsappAuthorize: "ai_agent_runtime_whatsapp_authorize_v1",
   orgSettings: "ai_agent_runtime_org_settings_v1",
+  /** Миграция 318: аренда «найти или создать среду», одна среда на организацию. */
+  environmentClaim: "ai_agent_runtime_environment_claim_v1",
+  environmentRelease: "ai_agent_runtime_environment_release_v1",
 } as const;
 
 /** MCP-сервер (только service_role). Входы и ответы инструментов — snake_case. */
@@ -496,7 +499,7 @@ export const AI_AGENT_TOOLS: readonly AiAgentToolDefinition[] = [
   },
   {
     name: "send_message", title: "Сообщение клиенту", kind: "write", audit: "write", rpc: toolRpc("send_message"),
-    description: "Message a client (WhatsApp reply in an open chat) or a student (portal chat of a case). If this agent's Auto is OFF and no authority_code is given, a DRAFT for staff approval is created instead of sending. Сообщение клиенту или студенту; при выключенном Авто создаётся черновик.",
+    description: "Message a client (WhatsApp reply in an open chat) or a student (portal chat of a case). If this agent's Auto is OFF and no authority_code is given, a DRAFT for staff approval is created instead of sending. Retrying the same text to the same target within 10 minutes returns the first result and never sends twice. Сообщение клиенту или студенту; при выключенном Авто создаётся черновик.",
     inputSchema: objectArg({
       channel: enumArg(["whatsapp", "portal"], "Channel."), conversation_id: uuidArg("WhatsApp conversation id (channel=whatsapp)."),
       case_id: uuidArg("Student case id (channel=portal)."), text: textArg("Message text.", 8000),

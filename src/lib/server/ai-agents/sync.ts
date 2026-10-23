@@ -26,6 +26,7 @@ import {
   UUID_PATTERN,
   type AiAgentsRuntimeDeps,
   type AiAgentsStaffContext,
+  type RpcOutcome,
   type ServiceClient,
 } from "./deps.ts";
 import { mcpHost, sessionBudget } from "./env.ts";
@@ -42,6 +43,14 @@ import { userMessageEvent } from "./runs.ts";
 export const AI_AGENTS_ENVIRONMENT_NAME = "evo-crm-agents";
 
 const inFlight = new Set<string>();
+
+/** Сколько ждать чужую аренду среды: 30 опросов раз в 2 секунды (аренда в БД живёт 3 минуты). */
+const ENVIRONMENT_WAIT_ATTEMPTS = 30;
+const ENVIRONMENT_WAIT_MAX_MS = 5_000;
+const ENVIRONMENT_BUSY_MESSAGE = "Среду Claude сейчас создаёт другая синхронизация. Повторите через минуту";
+
+/** Аренда среды занята дольше, чем мы готовы ждать: синхронизация не ошибка Claude, а конфликт. */
+class EnvironmentBusy extends Error {}
 
 type AgentRuntimeConfig = Readonly<{
   title: string;
@@ -110,6 +119,76 @@ function describeAnthropicError(error: AnthropicApiError): string {
   if (error.status === 401 || error.status === 403) return "Claude отклонил ключ API — проверьте EVO_ANTHROPIC_API_KEY";
   if (error.status === 429) return "Claude ограничил число запросов — повторите через минуту";
   return `Claude вернул ошибку: ${truncate(error.message, 200)}`;
+}
+
+/** Среда с именем `evo-crm-agents` в Claude: находится по имени среди неархивных, иначе создаётся. */
+async function findOrCreateEnvironment(
+  anthropic: AnthropicClient, mcpUrl: string,
+): Promise<Readonly<{ id: string; created: boolean }>> {
+  const existing = (await anthropic.environments.list()).find((item) => item.name === AI_AGENTS_ENVIRONMENT_NAME && !item.archived_at);
+  const existingId = existing ? stringOrNull(existing.id) : null;
+  if (existingId) return { id: existingId, created: false };
+  const made = await anthropic.environments.create({
+    name: AI_AGENTS_ENVIRONMENT_NAME,
+    config: {
+      type: "cloud",
+      networking: { type: "limited", allowed_hosts: [mcpHost(mcpUrl)], allow_mcp_servers: true },
+    },
+  });
+  const madeId = stringOrNull(made.id);
+  if (!madeId) throw new AnthropicApiError(502, "invalid_response", "Claude API не вернул id среды");
+  return { id: madeId, created: true };
+}
+
+const isMissingRpc = (outcome: Extract<RpcOutcome, { ok: false }>): boolean =>
+  outcome.code === "PGRST202" || outcome.code === "42883";
+
+/**
+ * Среда одна на организацию (контракт §C.2.1). Две синхронизации разных агентов не должны создать две:
+ * находит или создаёт её только держатель аренды в БД (`environment_claim_v1`, миграция 318), остальные ждут
+ * и берут записанную им среду. Найденный id записывается в строку агента ДО снятия аренды — следующий
+ * увидит его как `known`. Без миграции 318 (PGRST202) — прежний путь без аренды.
+ */
+async function resolveSharedEnvironment(args: Readonly<{
+  client: ServiceClient;
+  anthropic: AnthropicClient;
+  deps: AiAgentsRuntimeDeps;
+  organizationId: string;
+  key: AiAgentKey;
+  mcpUrl: string;
+  record: (result: Record<string, unknown>) => Promise<RpcOutcome>;
+}>): Promise<Readonly<{ id: string; created: boolean }>> {
+  const { client, anthropic, deps, organizationId, key, mcpUrl, record } = args;
+  for (let attempt = 0; attempt < ENVIRONMENT_WAIT_ATTEMPTS; attempt += 1) {
+    const claim = await callRpc(client, AI_AGENT_RUNTIME_RPC.environmentClaim, { p_organization_id: organizationId, p_key: key });
+    if (!claim.ok) {
+      if (!isMissingRpc(claim)) throw new Error("environment_claim_failed");
+      const found = await findOrCreateEnvironment(anthropic, mcpUrl);
+      await record({ status: "pending", environmentId: found.id });
+      return found;
+    }
+    const data = isRecord(claim.data) ? claim.data : {};
+    const knownId = data.status === "known" ? stringOrNull(data.environmentId) : null;
+    if (knownId) {
+      await record({ status: "pending", environmentId: knownId });
+      return { id: knownId, created: false };
+    }
+    const token = data.status === "claimed" ? stringOrNull(data.claimToken) : null;
+    if (token) {
+      try {
+        const found = await findOrCreateEnvironment(anthropic, mcpUrl);
+        // Следующий держатель аренды увидит среду только если она записана: иначе он создал бы вторую.
+        const recorded = await record({ status: "pending", environmentId: found.id });
+        if (!recorded.ok) throw new Error("environment_record_failed");
+        return found;
+      } finally {
+        await callRpc(client, AI_AGENT_RUNTIME_RPC.environmentRelease, { p_organization_id: organizationId, p_claim_token: token });
+      }
+    }
+    if (data.status !== "busy") throw new Error("environment_claim_invalid");
+    await deps.sleep(Math.min(ENVIRONMENT_WAIT_MAX_MS, Math.max(1, numberOr(data.retryAfterSeconds, 2)) * 1_000));
+  }
+  throw new EnvironmentBusy(ENVIRONMENT_BUSY_MESSAGE);
 }
 
 /** Создаёт или обновляет агента Claude; обновление — по версии, одна повторная попытка при 409. */
@@ -236,24 +315,12 @@ async function runSync(
   try {
     await record({ status: "pending" });
 
-    // 1. Среда: одна на все агенты, сеть ограничена хостом MCP.
+    // 1. Среда: одна на все агенты (под арендой в БД), сеть ограничена хостом MCP.
     let environmentId = config.environmentId;
     if (!environmentId) {
-      const existing = (await anthropic.environments.list()).find((item) => item.name === AI_AGENTS_ENVIRONMENT_NAME && !item.archived_at);
-      environmentId = existing ? stringOrNull(existing.id) : null;
-      if (!environmentId) {
-        const made = await anthropic.environments.create({
-          name: AI_AGENTS_ENVIRONMENT_NAME,
-          config: {
-            type: "cloud",
-            networking: { type: "limited", allowed_hosts: [mcpHost(mcpUrl)], allow_mcp_servers: true },
-          },
-        });
-        environmentId = stringOrNull(made.id);
-        created.environment = true;
-      }
-      if (!environmentId) throw new AnthropicApiError(502, "invalid_response", "Claude API не вернул id среды");
-      await record({ status: "pending", environmentId });
+      const shared = await resolveSharedEnvironment({ client, anthropic, deps, organizationId, key, mcpUrl, record });
+      environmentId = shared.id;
+      created.environment = shared.created;
     } else if (config.mcpUrl && normalizeUrl(config.mcpUrl) !== normalizeUrl(mcpUrl)) {
       warnings.push("Адрес MCP изменился: проверьте список разрешённых хостов среды evo-crm-agents в Claude Console");
     }
@@ -398,6 +465,11 @@ async function runSync(
         p_new_sha256: null,
         p_mode: "restore",
       }).catch(() => undefined);
+    }
+    if (error instanceof EnvironmentBusy) {
+      await record({ status: "error", error: ENVIRONMENT_BUSY_MESSAGE }).catch(() => undefined);
+      deps.log({ op: "sync", status: "error", agent: key, reason: "environment_busy" });
+      return bad("conflict", ENVIRONMENT_BUSY_MESSAGE);
     }
     const anthropicError = error instanceof AnthropicApiError ? error : null;
     const reason = anthropicError ? `${anthropicError.type}: ${anthropicError.message}` : "ошибка CRM при синхронизации";

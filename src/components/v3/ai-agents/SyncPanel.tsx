@@ -4,7 +4,7 @@ import { btnCls, btnGhostCls } from "@/components/ui";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import { AI_AGENT_SYNC_STATUS_LABELS, type AiAgentKey, type AiAgentSyncInfo } from "@/lib/ai-agents/contract";
 import { syncAiAgentAction } from "@/lib/platform-ai-agents-actions";
-import { formatDateTimeRu } from "@/lib/v3/ai-agents-view";
+import { aiAgentIsRunnable, formatDateTimeRu } from "@/lib/v3/ai-agents-view";
 
 import { ActionMessage } from "./Notices";
 import { useAgentsAction } from "./useAgentsAction";
@@ -70,7 +70,9 @@ export function SyncPanel({
       <p className="mt-2 t-body-compact text-fg-2">
         {sync.status === "ok" && sync.syncedAt
           ? `Синхронизирован ${formatDateTimeRu(sync.syncedAt, now)}${sync.agentVersion !== null ? ` · версия ${sync.agentVersion}` : ""}.`
-          : "Агент ещё не создан в Claude: кнопка ниже создаёт его, среду, хранилище токена и расписание."}
+          : aiAgentIsRunnable(sync)
+            ? `Агент в Claude уже создан${sync.agentVersion !== null ? ` (версия ${sync.agentVersion})` : ""} и работает по прежней настройке, пока синхронизация не пройдёт.`
+            : "Агент ещё не создан в Claude: кнопка ниже создаёт его, среду, хранилище токена и расписание."}
       </p>
       {sync.status === "error" && sync.error ? <p role="alert" className="mt-1 t-body-compact text-danger">Ошибка: {sync.error}</p> : null}
       {needsSync ? <p className="mt-1 t-body-compact text-warn">Изменения не отправлены в Claude — агент работает по прежним настройкам.</p> : null}

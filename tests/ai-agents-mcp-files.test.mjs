@@ -15,13 +15,18 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+// The network check is off by default in this file so the older scenarios stay about the link itself; the
+// address binding has its own tests at the end (a link is accepted only from the Anthropic allow-list).
 function environment(overrides = {}) {
   return {
     NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
     EVO_PLATFORM_SUPABASE_SECRET_KEY: "sb_secret_mcp_test_key_000000001",
+    EVO_AI_AGENTS_MCP_IP_ALLOWLIST: "off",
     ...overrides,
   };
 }
+
+const ANTHROPIC_IP = "160.79.104.17";
 
 const RESOLVED = {
   bucket: "student-documents",
@@ -74,7 +79,7 @@ function get(token = FILE_TOKEN, { headers = {}, method = "GET" } = {}) {
   return new Request(`${BASE}${token}`, { method, headers });
 }
 
-test("a valid link serves the stored bytes with attachment headers, with no IP or login check", async () => {
+test("a valid link serves the stored bytes with attachment headers, with no login check", async () => {
   const { handler, state } = harness();
   const response = await handler(get());
   assert.equal(response.status, 200);
@@ -168,7 +173,7 @@ test("a missing Storage object is 404; other Storage failures are 503; hung Stor
 });
 
 test("database trouble is 503: not configured, schema missing, unavailable, hung", async () => {
-  const notConfigured = harness({ env: {} });
+  const notConfigured = harness({ env: { EVO_AI_AGENTS_MCP_IP_ALLOWLIST: "off" } });
   assert.deepEqual(await (await notConfigured.handler(get())).json(), { error: "not_configured" });
   assert.equal(notConfigured.state.rpc.length, 0);
 
@@ -264,4 +269,79 @@ test("attachmentDisposition: safe ASCII fallback, UTF-8 name, no header injectio
   assert.equal(attachmentDisposition(""), 'attachment; filename="document"');
   assert.equal(attachmentDisposition("...").startsWith('attachment; filename="document"'), true);
   assert.ok(attachmentDisposition("x'(y)*.pdf").includes("%27%28y%29%2A.pdf"));
+});
+
+/* ------------------------------------------------ the link is bound to the requester (review #1290) */
+
+test("by default a link works only from the Anthropic allow-list; the first request from it is served", async () => {
+  const env = environment();
+  delete env.EVO_AI_AGENTS_MCP_IP_ALLOWLIST;
+  const { handler, state } = harness({ env });
+  const served = await handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": ANTHROPIC_IP } }));
+  assert.equal(served.status, 200);
+  assert.deepEqual(new Uint8Array(await served.arrayBuffer()), BYTES);
+  assert.equal(state.rpc.length, 1);
+  // The same address through X-Forwarded-For (last element), as the edge rewrites it.
+  const viaForwarded = await handler(get(FILE_TOKEN, { headers: { "x-forwarded-for": `203.0.113.9, ${ANTHROPIC_IP}` } }));
+  assert.equal(viaForwarded.status, 200);
+});
+
+test("a foreign or unknown address gets an empty 404 before the database: the link is not spent and its existence is not revealed", async () => {
+  const env = environment();
+  delete env.EVO_AI_AGENTS_MCP_IP_ALLOWLIST;
+  const { handler, state } = harness({ env });
+  for (const headers of [{ "x-evo-mcp-ip": "198.51.100.77" }, { "x-forwarded-for": "198.51.100.77" }, { "x-evo-mcp-ip": "160.79.112.1" }, {}]) {
+    const response = await handler(get(FILE_TOKEN, { headers }));
+    assert.equal(response.status, 404, JSON.stringify(headers));
+    assert.equal(await response.text(), "");
+  }
+  assert.equal(state.rpc.length, 0, "the database is never asked and the 3 uses are untouched");
+  assert.equal(state.downloads.length, 0);
+  // An unknown token from a foreign address looks the same as a real one.
+  const unknown = await handler(get(randomBytes(32).toString("base64url"), { headers: { "x-evo-mcp-ip": "198.51.100.77" } }));
+  assert.equal(unknown.status, 404);
+  assert.equal(await unknown.text(), "");
+  // The allowed address still gets all three uses afterwards.
+  const statuses = [];
+  for (let attempt = 0; attempt < 4; attempt += 1) statuses.push((await handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": ANTHROPIC_IP } }))).status);
+  assert.deepEqual(statuses, [200, 200, 200, 404], "10 minutes and 3 uses are unchanged");
+});
+
+test("EVO_AI_AGENTS_MCP_IP_ALLOWLIST: a custom list replaces the default, a bad list refuses everyone, off switches the check off", async () => {
+  const custom = harness({ env: environment({ EVO_AI_AGENTS_MCP_IP_ALLOWLIST: "198.51.100.0/24, 203.0.113.5" }) });
+  assert.equal((await custom.handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": "198.51.100.20" } }))).status, 200);
+  assert.equal((await custom.handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": "203.0.113.5" } }))).status, 200);
+  assert.equal((await custom.handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": ANTHROPIC_IP } }))).status, 404, "the default network is not added to a custom list");
+
+  const broken = harness({ env: environment({ EVO_AI_AGENTS_MCP_IP_ALLOWLIST: "not-an-address, 999.1.1.1/8" }) });
+  assert.equal((await broken.handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": ANTHROPIC_IP } }))).status, 404, "no usable entry: refuse everyone");
+  assert.equal(broken.state.rpc.length, 0);
+
+  const off = harness({ env: environment({ EVO_AI_AGENTS_MCP_IP_ALLOWLIST: "off" }) });
+  assert.equal((await off.handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": "198.51.100.77" } }))).status, 200);
+  assert.equal((await off.handler(get(FILE_TOKEN))).status, 200, "off needs no address at all");
+});
+
+test("foreign-address attempts count toward the failure limiter (429 after the limit) and the log has the reason only", async () => {
+  let clock = 5_000_000;
+  const failureLimiter = new AiAgentsMcpFailureLimiter({ now: () => clock });
+  const env = environment();
+  delete env.EVO_AI_AGENTS_MCP_IP_ALLOWLIST;
+  const { handler, state } = harness({ env, failureLimiter });
+  const headers = { "x-evo-mcp-ip": "198.51.100.88" };
+  const statuses = [];
+  for (let attempt = 0; attempt < 22; attempt += 1) statuses.push((await handler(get(FILE_TOKEN, { headers }))).status);
+  assert.deepEqual(new Set(statuses.slice(0, 20)), new Set([404]));
+  assert.deepEqual(statuses.slice(20), [429, 429]);
+  assert.equal(state.rpc.length, 0);
+  assert.equal(state.logs.filter((entry) => entry.reason === "ip_denied").length, 20);
+  const serialized = JSON.stringify(state.logs);
+  for (const secret of [FILE_TOKEN, "198.51.100.88"]) assert.equal(serialized.includes(secret), false, `the log must not contain ${secret}`);
+
+  // An unknown address (no header at all) is refused and logged as ip_unknown.
+  const noAddress = harness({ env });
+  assert.equal((await noAddress.handler(get(FILE_TOKEN))).status, 404);
+  assert.deepEqual(noAddress.state.logs.map((entry) => entry.reason), ["ip_unknown"]);
+  clock += 61_000;
+  assert.equal((await handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": ANTHROPIC_IP } }))).status, 200, "the allowed address is unaffected after the block");
 });

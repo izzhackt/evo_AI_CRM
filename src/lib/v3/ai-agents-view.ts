@@ -269,6 +269,33 @@ export function aiAgentStateChip(input: Readonly<{
   return { label: "Включён", tone: "ok" };
 }
 
+/**
+ * Агента можно запускать («Поручить», события): синхронизация прошла или у агента осталась рабочая
+ * настройка в Claude, хотя последняя синхронизация не удалась или не завершилась (миграция 318, ревью #1290).
+ * Зеркало `platform_private.ai_agent_claude_usable`; решает всё равно база, это только вид интерфейса.
+ */
+export function aiAgentIsRunnable(sync: AiAgentSyncInfo): boolean {
+  if (sync.status === "ok") return true;
+  if (sync.status === "never") return false;
+  return sync.claudeAgentId !== null && sync.agentVersion !== null && sync.environmentId !== null && sync.vaultId !== null;
+}
+
+/** Строка о незавершённой или неудавшейся синхронизации у включённого агента; null — нечего сказать. */
+export function aiAgentSyncProblemText(sync: AiAgentSyncInfo): string | null {
+  if (sync.status !== "error" && sync.status !== "pending") return null;
+  const runnable = aiAgentIsRunnable(sync);
+  const version = sync.agentVersion !== null ? ` (версия ${sync.agentVersion})` : "";
+  if (sync.status === "error") {
+    const head = `Синхронизация с Claude не удалась${sync.error ? `: ${sync.error}` : ""}.`;
+    return runnable
+      ? `${head} Агент продолжает работать по прежней настройке${version}. Повторите синхронизацию.`
+      : `${head} Агент не запустится, пока синхронизация не пройдёт.`;
+  }
+  return runnable
+    ? `Синхронизация с Claude не завершена. Агент работает по прежней настройке${version}; повторите синхронизацию, если она сейчас не идёт.`
+    : "Синхронизация с Claude не завершена, агент пока не запустится. Повторите синхронизацию, если она сейчас не идёт.";
+}
+
 /** Хеш настроек, отправленных в Claude, не совпал с текущим: изменения «не отправлены». */
 export function aiAgentNeedsSync(syncStatus: AiAgentSyncInfo["status"], storedHash: string | null, currentHash: string | null): boolean {
   return syncStatus === "ok" && storedHash !== null && currentHash !== null && storedHash !== currentHash;

@@ -6,10 +6,11 @@
 //   node --conditions=react-server --experimental-strip-types --test tests/ai-agents-ui.test.mjs
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
@@ -22,8 +23,10 @@ import { LINK_ICONS } from "../src/lib/v3/shell-tabs.ts";
 import {
   AiAgentsShapeError,
   aiAgentHref,
+  aiAgentConsoleRestore,
   aiAgentIsRunnable,
   aiAgentNeedsSync,
+  aiAgentRunIsActive,
   aiAgentStateChip,
   aiAgentSyncProblemText,
   buildChatItems,
@@ -592,6 +595,308 @@ test("вкладки «Поручить», «Запуски», «Чернови�
   assert.match(settingsRead, /v3-aia-settings-read/u);
   assert.doesNotMatch(settingsRead, /role="switch"/u, "не админ видит значения словом");
   assert.match(settingsRead, /Параметры меняет системный администратор/u);
+});
+
+/* ------------------------------------------- «Поручить»: восстановление запуска и первый клик */
+
+const RESUME_RUN_ID = "11111111-1111-4111-8111-111111111111";
+const resumeRun = (over = {}) => ({
+  id: RESUME_RUN_ID, agentKey: "director", status: "running", triggerKind: "command", startedAt: "2026-10-22T10:20:00.000Z", endedAt: null,
+  durationSeconds: null, promptPreview: "Покажи студентов с просроченными документами", summary: null, errorCode: null, errorMessage: null,
+  model: "claude-sonnet-5-5", agentVersion: 3, sessionId: "sesn_1", inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, costCents: 0,
+  sendAuthority: false, startedByName: "Админ", actionsCount: 0, draftsCount: 0, ...over,
+});
+
+test("восстановление запуска: «работает» — только active-статусы; заготовка хроники строится из строки запуска без Claude", () => {
+  assert.deepEqual(["starting", "running", "completed", "failed", "budget_reached", "interrupted", "needs_attention"].map((status) => aiAgentRunIsActive(status)),
+    [true, true, false, false, false, false, false]);
+
+  const active = aiAgentConsoleRestore(resumeRun());
+  assert.equal(active.working, true);
+  assert.equal(active.status, "running");
+  assert.deepEqual(active.seed.map((event) => event.kind), ["user"], "идёт работа: есть поручение, итога ещё нет");
+  assert.equal(active.seed[0].text, "Покажи студентов с просроченными документами");
+
+  const done = aiAgentConsoleRestore(resumeRun({ status: "completed", endedAt: "2026-10-22T10:21:00.000Z", summary: "Итог: **3** студента" }));
+  assert.equal(done.working, false);
+  assert.deepEqual(done.seed.map((event) => [event.kind, event.at]), [["user", "2026-10-22T10:20:00.000Z"], ["agent", "2026-10-22T10:21:00.000Z"]]);
+
+  const failed = aiAgentConsoleRestore(resumeRun({ status: "failed", errorCode: "mcp_auth_failed" }));
+  assert.deepEqual(failed.seed.map((event) => event.kind), ["user", "error"]);
+  assert.match(buildChatItems(failed.seed).at(-1).text, /Токен доступа агента к CRM не принят/u);
+
+  const bare = aiAgentConsoleRestore(resumeRun({ status: "interrupted", promptPreview: null }));
+  assert.deepEqual(bare.seed, [], "нет ни поручения, ни итога — заготовки нет, а не пустые реплики");
+  for (const { seed } of [active, done, failed]) {
+    assert.equal(new Set(seed.map((event) => event.id)).size, seed.length, "id заготовки различны");
+    for (const event of seed) assert.match(event.id, /^restore:/u, "и не совпадают с id событий Claude: заготовка и настоящие события не склеиваются");
+  }
+});
+
+test("«Поручить» при открытии на запуске: разметка сразу говорит правду — идёт ли работа, поручение, итог, «Новый разговор»", async () => {
+  const { body } = await views();
+  const command = (resume, over = {}) => body(bodyProps({ tab: "command", resume: { runId: RESUME_RUN_ID, sendAuthority: false, run: resume, ...over } }));
+
+  const active = command(resumeRun());
+  assert.match(active, /data-testid="v3-aia-working"/u, "работа идёт — сказано");
+  assert.match(active, /Покажи студентов с просроченными документами/u, "видно, что поручили");
+  assert.match(active, /placeholder="Ответ или уточнение для агента…"/u);
+  assert.match(active, /<textarea[^>]*\sdisabled=""/u, "пока работа идёт, писать нельзя");
+  assert.match(active, /data-testid="v3-aia-stop"/u);
+
+  const done = command(resumeRun({ status: "completed", endedAt: "2026-10-22T10:21:00.000Z", summary: "Итог: **3** студента с просрочкой" }));
+  assert.doesNotMatch(done, /Агент работает/u, "работа закончилась — «работает» в разметке нет, пока опрос не ответил");
+  assert.doesNotMatch(done, /data-testid="v3-aia-working"/u);
+  assert.match(done, /Покажи студентов с просроченными документами/u);
+  assert.match(done, /Итог: <strong[^>]*>3<\/strong> студента с просрочкой/u, "итог — тот, что хранится в строке запуска");
+  assert.match(done, /Разговор закончен — можно продолжить сообщением ниже или начать новый\./u);
+  assert.match(done, /data-testid="v3-aia-new"/u, "«Новый разговор» доступен");
+  assert.doesNotMatch(done, /<textarea[^>]*\sdisabled=""/u, "после конца можно продолжить сообщением");
+  assert.doesNotMatch(done, /data-testid="v3-aia-stop"/u);
+
+  const failed = command(resumeRun({ status: "failed", errorCode: "mcp_auth_failed" }));
+  assert.match(failed, /Токен доступа агента к CRM не принят/u);
+  assert.match(failed, /data-testid="v3-aia-new"/u);
+
+  // Старое поведение для вызова без строки запуска: считаем, что работа идёт, пока опрос не скажет иначе.
+  const legacy = body(bodyProps({ tab: "command", resume: { runId: RESUME_RUN_ID, sendAuthority: false } }));
+  assert.match(legacy, /data-testid="v3-aia-working"/u);
+
+  // Восстановления нет там, где писать нельзя, и когда разговора нет.
+  assert.doesNotMatch(body(bodyProps({ tab: "command", runtimeConfigured: false, resume: { runId: RESUME_RUN_ID, sendAuthority: false, run: resumeRun() } })), /v3-aia-working|Покажи студентов с просроченными/u);
+  const fresh = body(bodyProps({ tab: "command" }));
+  assert.doesNotMatch(fresh, /v3-aia-working|v3-aia-new/u);
+  assert.match(fresh, /placeholder="Что поручить агенту\?"/u);
+});
+
+test("первый клик: кнопки синхронизации заперты, пока страница не гидратирована, и не теряют нажатие молча", async () => {
+  const { body } = await views();
+  const settings = body(bodyProps({ tab: "settings", needsSync: true }));
+  for (const testId of ["v3-aia-sync", "v3-aia-rotate"]) {
+    assert.match(settings, new RegExp(`<button[^>]*disabled=""[^>]*data-testid="${testId}"|<button[^>]*data-testid="${testId}"[^>]*disabled=""`, "u"), `${testId}: в серверной разметке заперта`);
+  }
+  const banner = body(bodyProps({ tab: "command", needsSync: true }));
+  assert.match(banner, /<button[^>]*data-testid="v3-aia-sync-now"[^>]*disabled=""|<button[^>]*disabled=""[^>]*data-testid="v3-aia-sync-now"/u, "кнопка в плашке «Нужна синхронизация» тоже");
+  // Поле «Поручить» и «Отправить» до гидратации: кнопка заперта пустым состоянием, текст подхватывает Console при монтировании.
+  const command = body(bodyProps({ tab: "command" }));
+  assert.match(command, /<button[^>]*disabled=""[^>]*data-testid="v3-aia-send"|<button[^>]*data-testid="v3-aia-send"[^>]*disabled=""/u);
+});
+
+test("исходники «Поручить»: ключ вкладки — только явный ?run=, страница передаёт строку запуска, набранное до гидратации подхватывается", () => {
+  const bodySource = read("src/components/v3/ai-agents/AgentBody.tsx");
+  assert.match(bodySource, /key=\{props\.runId \?\? "conversation"\}/u, "ключ от явного ?run=");
+  assert.doesNotMatch(bodySource, /key=\{props\.resume/u, "ключ не от разговора, который сервер подобрал сам: после перерисовки он сменился бы и стёр набранное");
+  const pageSource = read("src/app/(v3)/v3/ai-agents/[key]/page.tsx");
+  assert.match(pageSource, /run: runRead\.data\.run/u);
+  assert.match(pageSource, /run: mine \}/u);
+  const consoleSource = read("src/components/v3/ai-agents/Console.tsx");
+  assert.match(consoleSource, /useLayoutEffect\(\(\) => \{\s*const typed = input\.current\?\.value/u, "текст из поля, набранный до гидратации, попадает в состояние");
+  assert.doesNotMatch(consoleSource, /setWorking\(true\);\s*schedule\(/u, "«работает» следует статусу запуска, а не тому, что опрос не закончился");
+  assert.match(consoleSource, /setWorking\(aiAgentRunIsActive\(poll\.run\.status\)\)|setWorking\(active\)/u);
+});
+
+/* Настоящий React в Chromium: серверная разметка гидратируется, как на странице (без Next). Серверные действия — записанные
+ * заглушки в `window.__fake`; без установленного Chromium проверка пропускается словами, а не зеленеет. */
+const BROWSER_SSR = `import { renderToString } from "react-dom/server";
+import { AgentBody } from "@/components/v3/ai-agents/AgentBody";
+export const render = (props) => renderToString(<AgentBody {...props} />);`;
+const BROWSER_CLIENT = `import { hydrateRoot } from "react-dom/client";
+import { AgentBody } from "@/components/v3/ai-agents/AgentBody";
+window.__gate.then(() => {
+  const root = hydrateRoot(document.getElementById("root"), <AgentBody {...window.__PROPS} />, { onRecoverableError: (error) => window.__errors.push(String(error)) });
+  window.__rerender = (over) => root.render(<AgentBody {...window.__PROPS} {...over} />);
+});`;
+const BROWSER_ACTIONS = `const act = (name) => async (...args) => window.__fake.call(name, args);
+module.exports = { updateAiAgentAction: act("update"), saveAiAgentInstructionsAction: act("saveInstructions"), syncAiAgentAction: act("sync"),
+  startAiAgentRunAction: act("start"), followUpAiAgentRunAction: act("followUp"), pollAiAgentRunAction: act("poll"),
+  interruptAiAgentRunAction: act("interrupt"), loadAiAgentRunTranscriptAction: act("transcript"), decideAiAgentDraftAction: act("decide") };`;
+const BROWSER_FAKE = () => {
+  window.__fake = {
+    calls: [], pollScript: [], pollIndex: 0,
+    async call(name) {
+      this.calls.push(name);
+      if (name === "sync") return { status: "saved", code: null, message: "Агент синхронизирован с Claude.", requestId: "r" };
+      if (name === "poll") return this.pollScript[Math.min(this.pollIndex++, this.pollScript.length - 1)] ?? { ok: false, code: "unavailable" };
+      return { status: "idle", code: null, message: null, requestId: null };
+    },
+  };
+};
+
+let browserKitPromise;
+const browserCleanups = [];
+after(async () => { for (const cleanup of browserCleanups) await cleanup(); });
+function browserKit() {
+  browserKitPromise ??= (async () => {
+    let chromium;
+    try { ({ chromium } = createRequire(root("package.json"))("playwright")); } catch { return { skip: "playwright не установлен" }; }
+    const dir = mkdtempSync(join(tmpdir(), "aia-browser-"));
+    let browser;
+    try {
+      const resolveRoot = root("");
+      const common = {
+        bundle: true, jsx: "automatic", tsconfig: root("tsconfig.json"), absWorkingDir: resolveRoot, nodePaths: [root("node_modules")], logLevel: "silent",
+        define: { "process.env.NODE_ENV": '"production"' },
+        plugins: [{
+          name: "aia-browser",
+          setup(b) {
+            b.onResolve({ filter: /^server-only$/ }, () => ({ path: "server-only", namespace: "empty" }));
+            b.onLoad({ filter: /.*/, namespace: "empty" }, () => ({ contents: "", loader: "js" }));
+            b.onResolve({ filter: /^next\/link$/ }, () => ({ path: "next-link", namespace: "link" }));
+            b.onLoad({ filter: /.*/, namespace: "link" }, () => ({ contents: LINK_SHIM, resolveDir: resolveRoot, loader: "js" }));
+            b.onResolve({ filter: /^@\/lib\/platform-ai-agents-actions$/ }, () => ({ path: "actions", namespace: "browser-actions" }));
+            b.onLoad({ filter: /.*/, namespace: "browser-actions" }, () => ({ contents: BROWSER_ACTIONS, loader: "js" }));
+            b.onLoad({ filter: /\.css$/ }, () => ({ contents: "", loader: "js" }));
+          },
+        }],
+      };
+      writeFileSync(join(dir, "ssr.tsx"), BROWSER_SSR);
+      writeFileSync(join(dir, "client.tsx"), BROWSER_CLIENT);
+      await build({ ...common, entryPoints: [join(dir, "ssr.tsx")], outfile: join(dir, "ssr.cjs"), platform: "node", format: "cjs" });
+      await build({ ...common, entryPoints: [join(dir, "client.tsx")], outfile: join(dir, "client.js"), platform: "browser", format: "iife" });
+      browser = await chromium.launch({ headless: true });
+    } catch (error) {
+      rmSync(dir, { recursive: true, force: true });
+      return { skip: `Chromium не запустился: ${String(error?.message ?? error).split("\n")[0]}` };
+    }
+    const { render } = createRequire(import.meta.url)(join(dir, "ssr.cjs"));
+    const clientJs = readFileSync(join(dir, "client.js"), "utf8");
+    const scenarios = new Map();
+    const server = createServer((request, response) => {
+      const url = new URL(request.url, "http://x");
+      if (url.pathname === "/client.js") { response.writeHead(200, { "content-type": "text/javascript" }); response.end(clientJs); return; }
+      const props = scenarios.get(url.searchParams.get("s"));
+      if (!props) { response.writeHead(404); response.end(); return; }
+      response.writeHead(200, { "content-type": "text/html" });
+      // Гидратацию держит `window.__gate`: так проверяется и окно «разметка есть, JS ещё не ожил», и обычная жизнь после него.
+      response.end(`<!doctype html><html><head><meta charset="utf-8"><title>aia</title></head><body><div id="root">${render(props)}</div>
+<script>window.__PROPS=${JSON.stringify(props).replace(/</gu, "\\u003c")};window.__errors=[];window.__gate=new Promise(function(r){window.__release=r});</script>
+<script src="/client.js"></script></body></html>`);
+    });
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    browserCleanups.push(async () => { await browser.close(); server.close(); rmSync(dir, { recursive: true, force: true }); });
+    return {
+      async open(name, props, { release = true } = {}) {
+        scenarios.set(name, props);
+        const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+        const page = await context.newPage();
+        await page.addInitScript(BROWSER_FAKE);
+        await page.goto(`${base}/?s=${name}`);
+        const hydrated = (selector) => page.waitForFunction((css) => { const element = document.querySelector(css); return element && Object.keys(element).some((key) => key.startsWith("__react")); }, selector, { timeout: 10_000 });
+        if (release) { await page.evaluate(() => window.__release()); await hydrated("[data-testid=v3-aia-agent] a"); }
+        return { page, context, hydrated };
+      },
+    };
+  })();
+  return browserKitPromise;
+}
+const ev = (id, kind, extra) => ({ id, at: "2026-10-22T10:20:01.000Z", kind, ...extra });
+const poll = (status, events, over = {}) => ({ ok: true, poll: { run: { status, sendAuthority: false }, events, cursor: "c", done: false, pollAfterMs: 200, ...over } });
+const consoleText = (page) => page.evaluate(() => document.querySelector("[data-testid=v3-aia-console]")?.innerText ?? "");
+
+test("браузер: поле «Поручить» переживает перерисовку страницы сервером и текст, набранный до гидратации", async (t) => {
+  const kit = await browserKit();
+  if (kit.skip) return t.skip(kit.skip);
+  const props = bodyProps({ tab: "command" });
+  const { page, context, hydrated } = await kit.open("typing", props, { release: false });
+  try {
+    await page.click("[data-testid=v3-aia-input]");
+    await page.keyboard.type("первое поручение");
+    assert.equal(await page.isDisabled("[data-testid=v3-aia-send]"), true, "до гидратации «Отправить» заперт");
+    await page.evaluate(() => window.__release());
+    await hydrated("[data-testid=v3-aia-input]");
+    await page.waitForFunction(() => !document.querySelector("[data-testid=v3-aia-send]").disabled, null, { timeout: 5000 });
+    assert.equal(await page.inputValue("[data-testid=v3-aia-input]"), "первое поручение", "набранное до гидратации не потеряно");
+
+    await page.keyboard.type(" и уточнение");
+    const typed = await page.inputValue("[data-testid=v3-aia-input]");
+    assert.equal(typed, "первое поручение и уточнение");
+    // Сервер перерисовал страницу (revalidatePath после действия): теперь у него есть запуск этого сотрудника.
+    await page.evaluate((resume) => window.__rerender({ resume }), { runId: RESUME_RUN_ID, sendAuthority: false, run: resumeRun() });
+    await page.waitForTimeout(300);
+    assert.equal(await page.inputValue("[data-testid=v3-aia-input]"), typed, "перерисовка сервером не стёрла набранное");
+    assert.deepEqual(await page.evaluate(() => window.__errors), [], "гидратация без ошибок");
+    assert.deepEqual(await page.evaluate(() => window.__fake.calls.filter((name) => name === "poll")), [], "перерисовка не запустила чужой опрос: разговор остался новым");
+  } finally { await context.close(); }
+});
+
+test("браузер: перезагрузка во время поручения восстанавливает поручение, ход и итог; «Новый разговор» не откатывается", async (t) => {
+  const kit = await browserKit();
+  if (kit.skip) return t.skip(kit.skip);
+  const { page, context } = await kit.open("active", bodyProps({ tab: "command", resume: { runId: RESUME_RUN_ID, sendAuthority: false, run: resumeRun() } }), { release: false });
+  try {
+    const ssr = await consoleText(page);
+    assert.match(ssr, /Покажи студентов с просроченными документами/u);
+    assert.match(ssr, /Агент работает…/u);
+    await page.evaluate((script) => { window.__fake.pollScript = script; }, [
+      poll("running", [ev("e1", "user", { text: "Покажи студентов с просроченными документами" }), ev("e2", "tool_call", { tool: "list_tasks", label: "Задачи", argsSummary: "", builtin: false })]),
+      poll("running", []),
+      poll("completed", [ev("e3", "agent", { text: "Итог: у троих студентов просрочены документы." })], { pollAfterMs: 1500 }),
+      poll("completed", [], { cursor: null, done: true, pollAfterMs: 0 }),
+    ]);
+    await page.evaluate(() => window.__release());
+    await page.waitForFunction(() => document.querySelector("[data-testid=v3-aia-console]").innerText.includes("Итог: у троих"), null, { timeout: 8000 });
+    // Итог уже пришёл, а последний опрос (`done`) ещё нет: статус «Готово» — значит, «Агент работает…» уже снят.
+    assert.equal(await page.evaluate(() => window.__fake.calls.filter((name) => name === "poll").length), 3, "четвёртый опрос ещё не прошёл");
+    assert.doesNotMatch(await consoleText(page), /Агент работает…/u, "работа закончилась — индикатор снят, не ждёт последнего опроса");
+    await page.waitForFunction(() => window.__fake.calls.filter((name) => name === "poll").length >= 4, null, { timeout: 8000 });
+    const done = await consoleText(page);
+    assert.doesNotMatch(done, /Агент работает…/u);
+    assert.equal(await page.locator("[data-testid=v3-aia-tool-row]").count(), 1, "вызов инструмента из хроники Claude показан");
+    assert.equal(await page.locator("[data-kind=user]").count(), 1, "поручение показано один раз: заготовка уступила место событию Claude");
+    assert.equal(await page.isVisible("[data-testid=v3-aia-new]"), true);
+    assert.equal(await page.isEnabled("[data-testid=v3-aia-input]"), true, "продолжить сообщением можно");
+    assert.equal(await page.evaluate(() => document.querySelector("section [role=status].sr-only").textContent), "Агент закончил работу.");
+
+    await page.click("[data-testid=v3-aia-new]");
+    await page.evaluate((resume) => window.__rerender({ resume }), { runId: "22222222-2222-4222-8222-222222222222", sendAuthority: false, run: resumeRun({ id: "22222222-2222-4222-8222-222222222222", status: "completed", summary: "Другой итог" }) });
+    await page.waitForTimeout(300);
+    const fresh = await consoleText(page);
+    assert.doesNotMatch(fresh, /Итог: у троих|Другой итог/u, "«Новый разговор» остался новым после перерисовки сервером");
+    assert.equal(await page.isVisible("[data-testid=v3-aia-new]"), false);
+  } finally { await context.close(); }
+});
+
+test("браузер: перезагрузка после конца поручения сразу показывает итог и не объявляет «агент ответил» заново", async (t) => {
+  const kit = await browserKit();
+  if (kit.skip) return t.skip(kit.skip);
+  const run = resumeRun({ status: "completed", endedAt: "2026-10-22T10:21:00.000Z", summary: "Итог: у троих студентов просрочены документы." });
+  const { page, context } = await kit.open("finished", bodyProps({ tab: "command", resume: { runId: RESUME_RUN_ID, sendAuthority: false, run } }), { release: false });
+  try {
+    const ssr = await consoleText(page);
+    assert.match(ssr, /Итог: у троих студентов/u, "итог на месте до гидратации и до опроса");
+    assert.doesNotMatch(ssr, /Агент работает…/u);
+    await page.evaluate((script) => { window.__fake.pollScript = script; }, [
+      poll("completed", [ev("e1", "user", { text: "Покажи студентов с просроченными документами" }), ev("e3", "agent", { text: "Итог: у троих студентов просрочены документы." })], { pollAfterMs: 1200 }),
+      poll("completed", [], { cursor: null, done: true, pollAfterMs: 0 }),
+    ]);
+    await page.evaluate(() => window.__release());
+    await page.waitForFunction(() => window.__fake.calls.filter((name) => name === "poll").length >= 1, null, { timeout: 8000 });
+    const states = [];
+    for (let i = 0; i < 6; i += 1) { states.push(await consoleText(page)); await page.waitForTimeout(100); }
+    assert.equal(await page.evaluate(() => window.__fake.calls.filter((name) => name === "poll").length), 1, "хроника пришла, последний опрос ещё впереди");
+    assert.equal(states.some((text) => /Агент работает…/u.test(text)), false, "пока опрос дочитывает хронику закончившегося разговора, «работает» не мигает");
+    await page.waitForFunction(() => window.__fake.calls.filter((name) => name === "poll").length >= 2, null, { timeout: 8000 });
+    assert.equal(await page.locator("[data-kind=agent]").count(), 1);
+    assert.equal(await page.evaluate(() => document.querySelector("section [role=status].sr-only").textContent), "", "о восстановленном разговоре экранному диктору ничего не объявляется");
+    assert.equal(await page.isVisible("[data-testid=v3-aia-new]"), true);
+  } finally { await context.close(); }
+});
+
+test("браузер: кнопка «Синхронизировать» после гидратации работает с первого нажатия", async (t) => {
+  const kit = await browserKit();
+  if (kit.skip) return t.skip(kit.skip);
+  const { page, context, hydrated } = await kit.open("sync", bodyProps({ tab: "settings", needsSync: true }), { release: false });
+  try {
+    assert.equal(await page.isDisabled("[data-testid=v3-aia-sync]"), true, "до гидратации кнопка видимо заперта, нажатие не пропадает молча");
+    await page.evaluate(() => window.__release());
+    await hydrated("[data-testid=v3-aia-sync]");
+    await page.waitForFunction(() => !document.querySelector("[data-testid=v3-aia-sync]").disabled, null, { timeout: 5000 });
+    await page.click("[data-testid=v3-aia-sync]");
+    await page.waitForFunction(() => window.__fake.calls.includes("sync"), null, { timeout: 5000 });
+    assert.equal(await page.evaluate(() => window.__fake.calls.filter((name) => name === "sync").length), 1, "одно нажатие — одна синхронизация");
+    await page.waitForSelector("[data-testid=v3-aia-sync-message]");
+  } finally { await context.close(); }
 });
 
 /* ------------------------------------------------------------- исходники */

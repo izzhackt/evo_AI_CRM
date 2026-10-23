@@ -1,10 +1,24 @@
 "use client";
 
-import { startTransition, useActionState, useCallback, useRef } from "react";
+import { startTransition, useActionState, useCallback, useRef, useSyncExternalStore } from "react";
 
 import { AI_AGENTS_IDLE, aiAgentsErrorCopy, type AiAgentsActionState } from "@/lib/v3/ai-agents-view";
 
 type Action = (previous: AiAgentsActionState, form: FormData) => Promise<AiAgentsActionState>;
+
+const subscribe = () => () => {};
+const clientSnapshot = () => true;
+const serverSnapshot = () => false;
+
+/**
+ * `false` в серверной разметке и до гидратации, `true`, когда обработчики уже
+ * подключены. Кнопка, нажатая до этого, ничего не делает и ничего не говорит,
+ * поэтому действия остаются запертыми, пока `ready` ложно (тот же приём, что у
+ * `StaffDisclosure`): нажатие не пропадает молча, кнопка просто ещё не готова.
+ */
+export function useAgentsReady(): boolean {
+  return useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
+}
 
 /**
  * Запуск серверного действия формой с id запроса, замороженным при повторе:
@@ -34,5 +48,7 @@ export function useAgentsAction(action: Action) {
     startTransition(() => run(form));
   }, [run]);
 
-  return { state, pending, submit } as const;
+  const ready = useAgentsReady();
+
+  return { state, pending, submit, ready } as const;
 }

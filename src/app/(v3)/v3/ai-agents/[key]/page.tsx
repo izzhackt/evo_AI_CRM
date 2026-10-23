@@ -9,7 +9,7 @@ import { AgentSwitches } from "@/components/v3/ai-agents/AgentSwitches";
 import { NotReady, Unavailable } from "@/components/v3/ai-agents/Notices";
 import { Icon } from "@/components/icons";
 import { PartShell } from "@/components/v3/PartShell";
-import { isAiAgentKey } from "@/lib/ai-agents/contract";
+import { isAiAgentKey, type AiAgentRunRow } from "@/lib/ai-agents/contract";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { computeAiAgentConfigHash, resolveAiAgentsMcpUrl } from "@/lib/server/ai-agents/config-hash";
@@ -93,15 +93,15 @@ export default async function AiAgentPage({
   ]);
 
   // «Поручить» восстанавливает разговор: `?run=` или последний `command`-запуск этого сотрудника за 12 часов.
-  let resume = { runId: null as string | null, sendAuthority: false };
+  let resume = { runId: null as string | null, sendAuthority: false, run: null as AiAgentRunRow | null };
   if (tab === "command") {
     if (route.runId && runRead?.status === "available" && runRead.data.run.agentKey === key) {
-      resume = { runId: route.runId, sendAuthority: runRead.data.run.sendAuthority };
+      resume = { runId: route.runId, sendAuthority: runRead.data.run.sendAuthority, run: runRead.data.run };
     } else if (resumeRuns?.status === "available") {
       const nowMs = Date.parse(now);
       const mine = resumeRuns.data.runs.find((run) => run.triggerKind === "command" && run.startedByName === actor.displayName
         && nowMs - Date.parse(run.startedAt) < TWELVE_HOURS);
-      if (mine) resume = { runId: mine.id, sendAuthority: mine.sendAuthority };
+      if (mine) resume = { runId: mine.id, sendAuthority: mine.sendAuthority, run: mine };
     }
   }
 

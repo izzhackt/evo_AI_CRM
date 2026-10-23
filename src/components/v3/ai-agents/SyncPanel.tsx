@@ -15,13 +15,14 @@ export function SyncNowButton({
   disabled,
   label = "Синхронизировать с Claude",
 }: Readonly<{ agentKey: AiAgentKey; disabled: boolean; label?: string }>) {
-  const { state, pending, submit } = useAgentsAction(syncAiAgentAction);
+  const { state, pending, submit, ready } = useAgentsAction(syncAiAgentAction);
   return (
     <div className="space-y-1">
       <button
         type="button"
         className={btnCls}
-        disabled={disabled || pending}
+        disabled={disabled || pending || !ready}
+        aria-busy={!ready}
         onClick={() => submit({ key: agentKey, rotate_token: "0" })}
         data-testid="v3-aia-sync-now"
       >
@@ -53,7 +54,7 @@ export function SyncPanel({
   now: string;
 }>) {
   const run = useAgentsAction(syncAiAgentAction);
-  const blocked = !runtimeConfigured || !canEdit || run.pending;
+  const blocked = !runtimeConfigured || !canEdit || run.pending || !run.ready;
   const facts: readonly (readonly [string, string])[] = [
     ["Агент в Claude", sync.claudeAgentId ?? "—"],
     ["Среда", sync.environmentId ?? "—"],

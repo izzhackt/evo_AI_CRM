@@ -22,6 +22,7 @@ import {
   type AiAgentListItem,
   type AiAgentRunGetResult,
   type AiAgentRunRow,
+  type AiAgentRunStatus,
   type AiAgentRunsListResult,
   type AiAgentStats,
   type AiAgentSyncInfo,
@@ -640,6 +641,41 @@ export function buildChatItems(events: readonly AiAgentUiEvent[]): readonly Chat
     }
   }
   return items;
+}
+
+/** Агент ещё работает над поручением (`starting`/`running`); остальные статусы — разговор закончен или остановлен. */
+export const aiAgentRunIsActive = (status: AiAgentRunStatus): boolean => status === "starting" || status === "running";
+
+/**
+ * Каким вкладка «Поручить» открывается на запуске, который она восстанавливает
+ * (перезагрузка страницы посреди разговора или после него). Строится из строки
+ * запуска в базе CRM, без Claude: серверная разметка сразу говорит правду —
+ * идёт ли работа, какое было поручение, каков итог, — и не ждёт ни JS, ни
+ * первого опроса. `seed` — заготовка хроники (поручение, итог, ошибка); как
+ * только опрос принесёт настоящие события из Claude (с вызовами инструментов),
+ * заготовка уступает им место. Переписка в базе не хранится: берутся только
+ * `promptPreview` и `summary`, которые «Запуски» показывают и без того.
+ */
+export type AiAgentConsoleRestore = Readonly<{
+  status: AiAgentRunStatus;
+  working: boolean;
+  seed: readonly AiAgentUiEvent[];
+}>;
+
+export function aiAgentConsoleRestore(
+  run: Pick<AiAgentRunRow, "id" | "status" | "startedAt" | "endedAt" | "promptPreview" | "summary" | "errorCode" | "errorMessage">,
+): AiAgentConsoleRestore {
+  const working = aiAgentRunIsActive(run.status);
+  const seed: AiAgentUiEvent[] = [];
+  const prompt = run.promptPreview?.trim();
+  if (prompt) seed.push({ id: `restore:${run.id}:user`, at: run.startedAt, kind: "user", text: prompt });
+  if (!working) {
+    const at = run.endedAt ?? run.startedAt;
+    const answer = run.summary?.trim();
+    if (answer) seed.push({ id: `restore:${run.id}:agent`, at, kind: "agent", text: answer });
+    if (run.status === "failed") seed.push({ id: `restore:${run.id}:error`, at, kind: "error", code: run.errorCode ?? "failed", message: run.errorMessage ?? "" });
+  }
+  return { status: run.status, working, seed };
 }
 
 /** Готовые первые поручения во вкладке «Поручить»: подставляются в поле, отправляет сотрудник. */

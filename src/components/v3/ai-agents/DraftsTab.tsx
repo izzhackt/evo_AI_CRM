@@ -41,7 +41,8 @@ export function DraftsTab({
       {!canManage && counts.pending > 0 ? (
         <p className="t-body-compact text-fg-2" data-testid="v3-aia-drafts-readonly">Решает сотрудник с правом управлять ИИ-агентами.</p>
       ) : null}
-      <DraftList drafts={drafts} canManage={canManage} now={now} emptyText={filter === "pending" ? "Нет черновиков, которые ждут решения." : "Черновиков не было."} />
+      {/* `key`: решённые карточки, удержанные на месте, не переезжают из «Все» в «Ждут решения» и обратно. */}
+      <DraftList key={filter} drafts={drafts} canManage={canManage} now={now} emptyText={filter === "pending" ? "Нет черновиков, которые ждут решения." : "Черновиков не было."} />
     </section>
   );
 }

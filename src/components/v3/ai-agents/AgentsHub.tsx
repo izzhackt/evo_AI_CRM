@@ -92,8 +92,11 @@ function AgentCard({
 export function AgentsHub({
   list,
   runtimeConfigured,
-}: Readonly<{ list: AiAgentsListResult; runtimeConfigured: boolean }>) {
-  const pendingAgent = [...list.agents].sort((a, b) => a.sortOrder - b.sortOrder).find((agent) => agent.stats.draftsPending > 0);
+  preview = false,
+}: Readonly<{ list: AiAgentsListResult; runtimeConfigured: boolean; /** Просмотр роли ничего не меняет и не поручает. */ preview?: boolean }>) {
+  // Плитка с общим числом — ссылка, только когда очередь одна и число — её: иначе ссылка вела бы в часть (карточки ведут в каждую).
+  const withDrafts = list.agents.filter((agent) => agent.stats.draftsPending > 0);
+  const pendingAgent = withDrafts.length === 1 ? withDrafts[0] : undefined;
   const metrics: readonly Metric[] = [
     { label: "Включено агентов", value: list.summary.enabled, insteadOfDelta: `из ${list.agents.length}` },
     { label: "Запусков за 7 дней", value: list.summary.runs7d, insteadOfDelta: null },
@@ -130,7 +133,7 @@ export function AgentsHub({
               {ready.length > 0 ? (
                 <ul className={`grid gap-3 ${ready.length > 1 ? "@3xl:grid-cols-2" : ""}`}>
                   {ready.map((agent) => (
-                    <AgentCard key={agent.key} agent={agent} now={list.now} canAsk={runtimeConfigured && !(agent.key === "director" && !list.isAdmin)} />
+                    <AgentCard key={agent.key} agent={agent} now={list.now} canAsk={runtimeConfigured && !preview && !(agent.key === "director" && !list.isAdmin)} />
                   ))}
                 </ul>
               ) : null}

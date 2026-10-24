@@ -1,7 +1,7 @@
 import Link from "next/link";
 
+import { Icon } from "@/components/icons";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
-import { QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import {
   AI_AGENT_DRAFT_CHANNEL_LABELS,
   AI_AGENT_RUN_STATUS_LABELS,
@@ -30,6 +30,7 @@ import {
   toolErrorWords,
 } from "@/lib/v3/ai-agents-view";
 
+import { AIA_LINK_SECONDARY } from "./buttons";
 import { Markdown } from "./Markdown";
 import { RunActions } from "./RunActions";
 import { TranscriptLoader } from "./TranscriptLoader";
@@ -52,7 +53,7 @@ export function RunsList({
     return (
       <section className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-surface px-5 py-4" data-testid="v3-aia-runs-empty" aria-labelledby="aia-runs-empty">
         <h2 id="aia-runs-empty" className="t-section text-fg">Запусков ещё не было</h2>
-        {canRun ? <Link href={aiAgentHref(agentKey, { tab: "command" })} className={QUEUE_SECONDARY}>Поручить</Link> : null}
+        {canRun ? <Link href={aiAgentHref(agentKey, { tab: "command" })} className={AIA_LINK_SECONDARY}>Поручить</Link> : null}
       </section>
     );
   }
@@ -99,7 +100,7 @@ export function RunsList({
       </ul>
       {hasMore && limit < AI_AGENT_RUNS_MAX ? (
         <p className="mt-3">
-          <Link href={aiAgentHref(agentKey, { tab: "runs", limit: nextLimit })} scroll={false} className={QUEUE_SECONDARY}>
+          <Link href={aiAgentHref(agentKey, { tab: "runs", limit: nextLimit })} scroll={false} className={AIA_LINK_SECONDARY}>
             Показать ещё
           </Link>
         </p>
@@ -124,8 +125,9 @@ export function RunDetail({
   now,
   viewerName,
   canAct = false,
+  canStopAny = false,
   canRun = false,
-}: Readonly<{ agentKey: AiAgentKey; agentTitle: string; data: AiAgentRunGetResult; now: string; viewerName?: string; canAct?: boolean; canRun?: boolean }>) {
+}: Readonly<{ agentKey: AiAgentKey; agentTitle: string; data: AiAgentRunGetResult; now: string; viewerName?: string; canAct?: boolean; canStopAny?: boolean; canRun?: boolean }>) {
   const { run, actions, drafts } = data;
   const origin = runOriginLabel(run, viewerName);
   const ownCommand = run.triggerKind === "command" && origin === "Вы";
@@ -170,9 +172,12 @@ export function RunDetail({
             <Markdown source={run.summary} />
           </div>
         ) : null}
-        <RunActions agentKey={agentKey} run={run} ownCommand={ownCommand} canAct={canAct} canRun={canRun} />
-        <details className="mt-3 border-t border-border pt-1">
-          <summary className="flex min-h-11 cursor-pointer items-center t-label text-fg-2">Технические данные</summary>
+        <RunActions agentKey={agentKey} run={run} ownCommand={ownCommand} canAct={canAct} canStopAny={canStopAny} canRun={canRun} />
+        <details className="group mt-3 border-t border-border pt-1">
+          <summary className="flex min-h-11 cursor-pointer items-center gap-1.5 t-label text-fg-2">
+            Технические данные
+            <Icon name="chevron-down" size={16} className="shrink-0 text-fg-3 transition-transform duration-[180ms] group-open:rotate-180 motion-reduce:transition-none" />
+          </summary>
           <dl className="grid gap-x-8 gap-y-2 pb-2 @2xl:grid-cols-2">
             <div className="min-w-0">
               <dt className="t-meta text-fg-3">Модель</dt>
@@ -259,7 +264,9 @@ export function RunDetail({
         </section>
       ) : null}
 
-      {run.sessionId ? <TranscriptLoader runId={run.id} agentTitle={agentTitle} /> : null}
+      {run.sessionId ? <TranscriptLoader runId={run.id} agentTitle={agentTitle} /> : (
+        <p className="t-meta text-fg-3" data-testid="v3-aia-no-session">У запуска нет сессии Claude — переписки нет.</p>
+      )}
     </div>
   );
 }

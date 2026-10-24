@@ -35,7 +35,7 @@ export default async function AiAgentsPage() {
       <div className="space-y-5">
         {preview ? <PreviewLine /> : null}
         {list.status === "available" ? (
-          <AgentsHub list={list.data} runtimeConfigured={runtime.configured} />
+          <AgentsHub list={list.data} runtimeConfigured={runtime.configured} preview={preview} />
         ) : list.status === "not_ready" ? (
           <NotReady />
         ) : (

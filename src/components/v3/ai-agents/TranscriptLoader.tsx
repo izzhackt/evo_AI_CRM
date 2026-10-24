@@ -36,7 +36,10 @@ export function TranscriptLoader({ runId, agentTitle }: Readonly<{ runId: string
   return (
     <section aria-label="Переписка агента" className="rounded-card border border-border bg-surface p-4" data-testid="v3-aia-transcript">
       {phase === "idle" || phase === "failed" ? (
-        <button type="button" className={QUEUE_SECONDARY} title="Переписка читается у Claude и в базе CRM не хранится" onClick={() => void load()}>Показать переписку</button>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <button type="button" className={QUEUE_SECONDARY} onClick={() => void load()}>Показать переписку</button>
+          <span className="t-meta text-fg-3" data-testid="v3-aia-transcript-note">Читается у Claude, в CRM не хранится.</span>
+        </div>
       ) : phase === "ready" ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 id={`aia-transcript-${runId}`} className="t-section text-fg">Переписка агента</h3>

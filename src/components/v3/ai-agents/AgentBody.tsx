@@ -100,7 +100,10 @@ export function AgentBody(props: AgentBodyProps) {
 
   const chat = tab === "command";
   const effectiveInstructions = detail.instructionsOverride?.trim() ? detail.instructionsOverride : defaults.instructions;
-  const syncAction = canEdit && runtimeConfigured && hasInstructions ? <SyncNowButton agentKey={detail.key} disabled={false} label={syncProblem ? "Повторить синхронизацию" : undefined} /> : undefined;
+  // Первый несделанный шаг — «Отправка в Claude»: «Обзор» и закрытый чат уже несут эту же кнопку, второй такой же рядом с плашкой не нужен.
+  // На «Запусках», «Черновиках» и «Инструкции» шагов нет — там кнопка остаётся на плашке.
+  const stepOnScreen = step === "sync" && (tab === "overview" || tab === "command");
+  const syncAction = canEdit && runtimeConfigured && hasInstructions && !stepOnScreen ? <SyncNowButton agentKey={detail.key} disabled={false} label={syncProblem ? "Повторить синхронизацию" : undefined} /> : undefined;
 
   let content;
   switch (tab) {
@@ -143,7 +146,7 @@ export function AgentBody(props: AgentBodyProps) {
       if (props.runId) {
         const read = props.run;
         content = !read ? null
-          : read.status === "available" ? <RunDetail agentKey={detail.key} agentTitle={detail.title} data={read.data} now={now} viewerName={props.viewerName} canAct={!preview} canRun={canRun} />
+          : read.status === "available" ? <RunDetail agentKey={detail.key} agentTitle={detail.title} data={read.data} now={now} viewerName={props.viewerName} canAct={!preview} canStopAny={canEdit} canRun={canRun} />
             : read.status === "missing" ? (
               <p className="t-body-compact text-fg-2" data-testid="v3-aia-run-missing">
                 Такого запуска нет. <Link href={here("runs")} className="text-fg underline underline-offset-4">Все запуски</Link>

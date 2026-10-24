@@ -5,6 +5,12 @@ import { useEffect } from "react";
 const CONFIRM_TEXT = "Есть несохранённые изменения. Перейти без сохранения?";
 
 /**
+ * Щелчки, на которые уже ответили «Перейти»: при нескольких правленых черновиках охранников
+ * несколько, и второй переспрашивал бы о том же переходе.
+ */
+const confirmed = new WeakSet<Event>();
+
+/**
  * Охрана несохранённых правок (инструкция, настройки, текст черновика): закрытие
  * вкладки браузера и переход по ссылке на другую страницу спрашивают подтверждение,
  * пока `dirty`. Набранное лежит только в памяти — ни в `localStorage`, ни в
@@ -18,14 +24,16 @@ export function useDirtyGuard(dirty: boolean): void {
       event.returnValue = "";
     };
     const leave = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (confirmed.has(event) || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
       if (!link || link.hasAttribute("download") || (link.target && link.target !== "_self")) return;
       if (link.getAttribute("href")?.startsWith("#")) return;
       if (link.href.split("#")[0] === window.location.href.split("#")[0]) return;
-      if (!window.confirm(CONFIRM_TEXT)) {
+      if (window.confirm(CONFIRM_TEXT)) {
+        confirmed.add(event);
+      } else {
         event.preventDefault();
-        event.stopPropagation();
+        event.stopImmediatePropagation();
       }
     };
     window.addEventListener("beforeunload", beforeUnload);

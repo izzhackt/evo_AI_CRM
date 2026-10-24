@@ -360,7 +360,7 @@ import { NotReady, Unavailable } from "@/components/v3/ai-agents/Notices";
 import { PartShell } from "@/components/v3/PartShell";
 export const html = {
   switches: (props) => renderToStaticMarkup(<AgentSwitches {...props} />),
-  hub: (list, runtimeConfigured) => renderToStaticMarkup(<PartShell title="ИИ-агенты"><AgentsHub list={list} runtimeConfigured={runtimeConfigured} /></PartShell>),
+  hub: (list, runtimeConfigured, preview) => renderToStaticMarkup(<PartShell title="ИИ-агенты"><AgentsHub list={list} runtimeConfigured={runtimeConfigured} preview={preview} /></PartShell>),
   body: (props) => renderToStaticMarkup(<AgentBody {...props} />),
   notReady: () => renderToStaticMarkup(<PartShell title="ИИ-агенты"><NotReady /></PartShell>),
   unavailable: () => renderToStaticMarkup(<Unavailable what="агентов" retryHref="/v3/ai-agents" />),
@@ -436,7 +436,14 @@ test("хаб, нормальное состояние: три группы по 
   assert.match(html, /<a[^>]*data-testid="v3-aia-ask-curator-cn"[^>]*href="\/v3\/ai-agents\/curator-cn\?tab=command"[^>]*>Поручить →<\/a>/u);
   assert.doesNotMatch(html, /v3-aia-ask-curator-eu/u);
   assert.match(html, /<a[^>]*data-testid="v3-aia-drafts-director"[^>]*href="\/v3\/ai-agents\/director\?tab=drafts"[^>]*>3 черновика ждут решения/u);
-  assert.match(html, /<a[^>]*aria-label="Ждут решения: 10\. Открыть черновики"[^>]*href="\/v3\/ai-agents\/director\?tab=drafts"/u, "плитка «Ждут решения» — ссылка на первую очередь");
+  // Очередей несколько (у каждого настроенного агента по 3): общее число — не ссылка в одну из них, ссылки — на карточках.
+  assert.doesNotMatch(html, /aria-label="Ждут решения: 10/u, "плитка с суммой по нескольким очередям — не ссылка в первую из них");
+  assert.match(html, /Ждут решения[\s\S]{0,120}>10</u, "число остаётся на плитке");
+  // Очередь одна — число её, и плитка ведёт туда.
+  const oneQueue = { ...LIST, agents: LIST.agents.map((agent) => ({ ...agent, stats: { ...agent.stats, draftsPending: agent.key === "sales" ? 4 : 0 } })), summary: { ...LIST.summary, draftsPending: 4 } };
+  assert.match(hub(oneQueue, true), /<a[^>]*aria-label="Ждут решения: 4\. Открыть черновики"[^>]*href="\/v3\/ai-agents\/sales\?tab=drafts"/u, "единственная очередь — плитка ссылкой на неё");
+  // Просмотр роли ничего не поручает: «Поручить →» на карточках нет.
+  assert.doesNotMatch(hub(LIST, true, true), /v3-aia-ask-/u);
   assert.match(html, /role="img" aria-label="Запусков за последние 14 дней: 28\./u);
   assert.match(html, /data-testid="v3-aia-gemini"[\s\S]*href="\/v3\/ai-agent"[\s\S]*Помощник в чате WhatsApp[\s\S]*Подсказывает ответ, сам ничего не отправляет\./u);
   assert.doesNotMatch(html, /Информация для агента|Gemini/u, "список подразделов без ссылок и название вендора убраны");
@@ -561,6 +568,18 @@ test("страница агента: после неудачной повтор�
 
   const failedNoAgent = body(bodyProps({ tab: "command", detail: { ...DETAIL, sync: sync({ status: "error", error: "Среда не создана", claudeAgentId: null, agentVersion: null }) } }));
   assert.doesNotMatch(failedNoAgent, /data-testid="v3-aia-input"/u, "агента в Claude нет: писать нельзя");
+  // Кнопка синхронизации на экране одна: там, где первый шаг («Отправка в Claude») уже несёт её, плашка остаётся словами;
+  // там, где шагов нет («Запуски»), кнопка остаётся на плашке.
+  const brokenSync = { ...DETAIL, sync: sync({ status: "error", error: "Среда не создана", claudeAgentId: null, agentVersion: null }) };
+  const syncButtons = (html) => (html.match(/data-testid="v3-aia-sync-now"/gu) ?? []).length;
+  for (const tab of ["command", "overview"]) {
+    const html = body(bodyProps({ tab, detail: brokenSync, digests: { status: "available", data: { digests: [] } } }));
+    assert.equal(syncButtons(html), 1, `${tab}: одна кнопка синхронизации`);
+    assert.match(html, /Синхронизация с Claude не удалась: Среда не создана/u, `${tab}: слова плашки остались`);
+  }
+  const runsTab = body(bodyProps({ tab: "runs", detail: brokenSync, runs: { status: "available", data: { runs: [], hasMore: false } } }));
+  assert.equal(syncButtons(runsTab), 1, "«Запуски»: кнопка осталась на плашке");
+  assert.match(runsTab, /data-testid="v3-aia-sync-error"[\s\S]*data-testid="v3-aia-sync-now"/u);
   assert.match(failedNoAgent, /Агент ещё не синхронизирован с Claude/u);
   assert.match(failedNoAgent, /Агент не запустится, пока синхронизация не пройдёт\./u);
 
@@ -615,7 +634,7 @@ test("вкладки «Поручить», «Запуски», «Чернови�
   assert.match(detail, /Отчёт продаж/u);
   assert.match(detail, /Показать переписку</u);
   assert.match(detail, /data-testid="v3-aia-run-meta-line"[^>]*>[^<]*· 8 с · 0,00\u00A0\$ · По расписанию</u, "факты запуска — одной строкой");
-  assert.match(detail, /<summary[^>]*>Технические данные<\/summary>[\s\S]*Модель[\s\S]*Токены/u, "модель и токены — под «Техническими данными»");
+  assert.match(detail, /<summary[^>]*>Технические данные[\s\S]*Модель[\s\S]*Токены/u, "модель и токены — под «Техническими данными»");
   assert.match(detail, /data-testid="v3-aia-run-copy"/u, "итог можно скопировать");
   assert.match(body(bodyProps({ tab: "runs", runs: { status: "not_ready" } })), /Раздел готовится/u);
   assert.match(body(bodyProps({ tab: "runs", runs: { status: "unavailable" } })), /Не удалось загрузить запуски/u);
@@ -657,7 +676,7 @@ test("вкладки «Поручить», «Запуски», «Чернови�
   assert.doesNotMatch(settings, /Агент работает: расписание и события активны|Сообщения клиентам уходят в «Черновики»/u);
   assert.match(settings, /Claude Sonnet 5\.5/u);
   assert.match(settings, /отпечаток 3f9a1c7d02be/u, "виден только отпечаток токена");
-  assert.match(settings, /<summary[^>]*>Технические данные<\/summary>/u, "служебные номера Claude — под «Техническими данными»");
+  assert.match(settings, /<summary[^>]*>Технические данные/u, "служебные номера Claude — под «Техническими данными»");
   assert.doesNotMatch(settings, /Общие лимиты расходов владелец задаёт в Claude Console|События запускают агента только пока|Пусто — агента создаст синхронизация\.$/u);
   // Время — два списка в 24-часовом виде: `type="time"` рисует 12-часовое «09:00 AM»
   assert.doesNotMatch(settings, /type="time"/u);
@@ -941,11 +960,15 @@ module.exports = { updateAiAgentAction: act("update"), saveAiAgentInstructionsAc
   interruptAiAgentRunAction: act("interrupt"), loadAiAgentRunTranscriptAction: act("transcript"), decideAiAgentDraftAction: act("decide") };`;
 const BROWSER_FAKE = () => {
   window.__fake = {
-    calls: [], sent: [], pollScript: [], pollIndex: 0, startResult: null,
+    calls: [], forms: [], sent: [], pollScript: [], pollIndex: 0, startResult: null,
     async call(name, args) {
       this.calls.push(name);
+      if (typeof FormData !== "undefined" && args[1] instanceof FormData) this.forms.push({ name, fields: Object.fromEntries(args[1]) });
       if (name === "sync") return { status: "saved", code: null, message: "Агент синхронизирован с Claude.", requestId: "r" };
-      if (name === "decide") return this.decideResult ?? { status: "idle", code: null, message: null, requestId: null };
+      if (name === "decide") {
+        if (this.decideGate) await this.decideGate;
+        return this.decideResult ?? { status: "idle", code: null, message: null, requestId: null };
+      }
       if (name === "poll") return this.pollScript[Math.min(this.pollIndex++, this.pollScript.length - 1)] ?? { ok: false, code: "unavailable" };
       if (name === "start" || name === "followUp") {
         const form = args[1];
@@ -1338,7 +1361,7 @@ const browserDraft = (over = {}) => ({
   sourceMessage: { text: "Когда подавать документы?", at: NOW }, createdAt: NOW, expiresAt: "2026-10-29T10:00:00.000Z", decidedByName: null, decidedAt: null, sentAt: null, sentByAgent: false, ...over,
 });
 
-test("браузер: после «Одобрить и отправить» карточка остаётся со словом «Отправлено», хотя сервер уже не возвращает её в «Ждут решения»", async (t) => {
+test("браузер: после «Одобрить и отправить» карточка остаётся со словом «Отправлено», хотя сервер уже не возвращает её в «Ждут решения» — и когда список обновился раньше ответа действия", async (t) => {
   const kit = await browserKit();
   if (kit.skip) return t.skip(kit.skip);
   const draft = browserDraft();
@@ -1348,12 +1371,22 @@ test("браузер: после «Одобрить и отправить» ка
     await hydrated("[data-testid=v3-aia-approve]");
     await page.waitForFunction(() => !document.querySelector("[data-testid=v3-aia-approve]").disabled, null, { timeout: 5000 });
     await page.fill("[data-testid=v3-aia-draft-text]", "Здравствуйте! Подавать можно с 1 ноября.");
-    await page.evaluate(() => { window.__fake.decideResult = { status: "saved", code: null, message: "Отправлено.", requestId: "r", draftStatus: "sent", failureCode: null }; });
+    // Ответ действия придержан: так проверяется худший порядок — ответ и перечитанная страница приходят вместе, и карточку
+    // нельзя «подхватывать» по приходу ответа (к тому моменту её уже убрали бы из разметки), её держат с самого нажатия.
+    await page.evaluate(() => {
+      window.__fake.decideResult = { status: "saved", code: null, message: "Отправлено.", requestId: "r", draftStatus: "sent", failureCode: null };
+      window.__fake.decideGate = new Promise((resolve) => { window.__fake.decideOpen = resolve; });
+    });
     await page.click("[data-testid=v3-aia-approve]");
-    await page.waitForSelector("[data-testid=v3-aia-draft-result]");
-    // Сервер перерисовал страницу (revalidatePath): ждущих решения больше нет, а «Все» уже показывает отправленный.
+    await page.waitForFunction(() => window.__fake.calls.includes("decide"), null, { timeout: 5000 });
+    // Сервер перерисовал страницу (revalidatePath) до того, как действие вернуло ответ: ждущих решения больше нет, «Все» показывает отправленный.
     await page.evaluate(() => window.__rerender({ drafts: { status: "available", data: { drafts: [], counts: { pending: 0, approved: 0, sending: 0, sent: 1, discarded: 0, failed: 0, expired: 0 } } } }));
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(150);
+    assert.equal(await page.locator("[data-testid=v3-aia-draft]").count(), 1, "пока идёт отправка, карточка не пропала вместе со списком");
+    assert.match(await page.innerText("[data-testid=v3-aia-drafts]"), /Отправляю…/u);
+    await page.evaluate(() => window.__fake.decideOpen());
+    await page.waitForSelector("[data-testid=v3-aia-draft-result]");
+    await page.waitForTimeout(150);
     const card = await page.innerText("[data-testid=v3-aia-drafts]");
     assert.match(card, /Отправлено\./u, "слово результата не пропало вместе с карточкой");
     assert.match(card, /Отправлен/u, "статус карточки — «Отправлен»");
@@ -1385,6 +1418,78 @@ test("браузер: несохранённая инструкция — пер
     assert.deepEqual(dialogs, ["Есть несохранённые изменения. Перейти без сохранения?"]);
     assert.equal(page.url(), before, "«Отмена» — остались на странице");
     assert.equal(await page.inputValue("[data-testid=v3-aia-instructions-text]"), "Другая инструкция", "набранное цело");
+  } finally { await context.close(); }
+});
+
+test("браузер: два правленых черновика — переход по ссылке спрашивает подтверждение один раз, «Отмена» оставляет на месте", async (t) => {
+  const kit = await browserKit();
+  if (kit.skip) return t.skip(kit.skip);
+  const drafts = [browserDraft(), browserDraft({ id: "d2", text: "Добрый день!" })];
+  const { page, context, hydrated } = await kit.open("dirty-drafts", bodyProps({ tab: "drafts", drafts: { status: "available", data: { drafts, counts: DRAFT_COUNTS({ pending: 2 }) } } }));
+  try {
+    const dialogs = [];
+    let answer = "accept";
+    // Считаются только вопросы страницы (`confirm`): настоящий переход по ссылке стенда ещё и вызывает системное «Покинуть сайт?».
+    page.on("dialog", (dialog) => { if (dialog.type() === "confirm") dialogs.push(dialog.message()); void (answer === "accept" ? dialog.accept() : dialog.dismiss()); });
+    await hydrated("[data-testid=v3-aia-draft-text]");
+    const fields = page.locator("[data-testid=v3-aia-draft-text]");
+    await fields.nth(0).fill("Правка первого");
+    await fields.nth(1).fill("Правка второго");
+    const before = page.url();
+    // «Отмена»: один вопрос, остались на странице, набранное цело
+    answer = "dismiss";
+    await page.click("a[href='/v3/ai-agents/director?tab=runs']");
+    assert.equal(dialogs.length, 1, "«Отмена» первому охраннику — второй не переспрашивает");
+    assert.equal(page.url(), before);
+    assert.equal(await fields.nth(1).inputValue(), "Правка второго");
+    // «Перейти»: тоже один вопрос на переход, а не по одному на каждый правленый черновик
+    answer = "accept";
+    dialogs.length = 0;
+    await Promise.all([page.waitForNavigation({ timeout: 5000 }).catch(() => null), page.click("a[href='/v3/ai-agents/director?tab=runs']")]);
+    assert.equal(dialogs.length, 1, "«Перейти» подтверждено один раз");
+  } finally { await context.close(); }
+});
+
+test("браузер: «Обновить токен» сначала спрашивает («старый ещё 10 минут принимается») и шлёт rotate_token=1 только после «Обновить токен»; «Отмена» ничего не шлёт", async (t) => {
+  const kit = await browserKit();
+  if (kit.skip) return t.skip(kit.skip);
+  const { page, context, hydrated } = await kit.open("rotate", bodyProps({ tab: "settings" }));
+  try {
+    await hydrated("[data-testid=v3-aia-rotate]");
+    await page.click("[data-testid=v3-aia-sync-panel] summary");
+    await page.waitForFunction(() => !document.querySelector("[data-testid=v3-aia-rotate]").disabled, null, { timeout: 5000 });
+    await page.click("[data-testid=v3-aia-rotate]");
+    const confirm = page.locator("[role=group][aria-label='Подтверждение обновления токена']");
+    assert.match(await confirm.innerText(), /старый ещё 10 минут принимается/u);
+    assert.deepEqual(await page.evaluate(() => window.__fake.forms.filter((form) => form.name === "sync")), [], "до подтверждения ничего не отправлено");
+    await confirm.getByRole("button", { name: "Отмена" }).click();
+    assert.equal(await confirm.count(), 0);
+    assert.deepEqual(await page.evaluate(() => window.__fake.forms.filter((form) => form.name === "sync")), []);
+    await page.click("[data-testid=v3-aia-rotate]");
+    await page.click("[data-testid=v3-aia-rotate-confirm]");
+    await page.waitForFunction(() => window.__fake.forms.some((form) => form.name === "sync"), null, { timeout: 5000 });
+    const sent = await page.evaluate(() => window.__fake.forms.filter((form) => form.name === "sync"));
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].fields.rotate_token, "1");
+    assert.equal(sent[0].fields.key, "director");
+  } finally { await context.close(); }
+});
+
+test("браузер: «Включить агента» на «Обзоре» отправляет то же обновление, что переключатель в шапке: enabled=true с версией настроек", async (t) => {
+  const kit = await browserKit();
+  if (kit.skip) return t.skip(kit.skip);
+  const off = unsetDetail({ hasInstructionsOverride: true, instructionsOverride: "Инструкция" });
+  const { page, context, hydrated } = await kit.open("enable", bodyProps({ detail: off, digests: { status: "available", data: { digests: [] } } }));
+  try {
+    await hydrated("[data-testid=v3-aia-enable-now]");
+    await page.waitForFunction(() => !document.querySelector("[data-testid=v3-aia-enable-now]").disabled, null, { timeout: 5000 });
+    await page.click("[data-testid=v3-aia-enable-now]");
+    await page.waitForFunction(() => window.__fake.forms.some((form) => form.name === "update"), null, { timeout: 5000 });
+    const sent = await page.evaluate(() => window.__fake.forms.filter((form) => form.name === "update"));
+    assert.equal(sent.length, 1, "одно нажатие — одно включение");
+    assert.equal(sent[0].fields.key, "curator-eu");
+    assert.equal(sent[0].fields.expected_version, "12");
+    assert.deepEqual(JSON.parse(sent[0].fields.patch), { enabled: true });
   } finally { await context.close(); }
 });
 
@@ -1551,6 +1656,23 @@ test("запуск: ошибки действий словами, неудавш
   const foreign = body(bodyProps({ tab: "runs", runId, run: read({ status: "failed", errorCode: "anthropic_error", startedByName: "Мария" }), viewerName: "Админ" }));
   assert.doesNotMatch(foreign, /v3-aia-run-open-chat|v3-aia-run-repeat/u);
   assert.match(foreign, /· Мария</u);
+
+  // «Остановить» — своё идущее поручение; чужое, плановое и по событию — только системному администратору
+  const runningOf = (over, extra = {}) => body(bodyProps({ tab: "runs", runId, run: read({ status: "running", summary: null, ...over }), viewerName: "Админ", ...extra }));
+  assert.match(runningOf({}, { canEdit: false }), /v3-aia-run-stop/u, "своё идущее поручение останавливает сам автор");
+  assert.doesNotMatch(runningOf({ startedByName: "Мария" }, { canEdit: false }), /v3-aia-run-stop/u, "чужое идущее поручение рядовой сотрудник не останавливает");
+  assert.doesNotMatch(runningOf({ triggerKind: "schedule", startedByName: null }, { canEdit: false }), /v3-aia-run-stop/u, "плановый запуск тоже");
+  assert.match(runningOf({ triggerKind: "schedule", startedByName: null }, { canEdit: true }), /v3-aia-run-stop/u, "администратор может остановить любой идущий запуск");
+  assert.match(runningOf({ startedByName: "Мария" }, { canEdit: true }), /v3-aia-run-stop/u);
+  assert.doesNotMatch(runningOf({ triggerKind: "schedule", startedByName: null }, { canEdit: true, preview: true }), /v3-aia-run-stop/u, "в просмотре роли — нет");
+
+  // переписка: слово о том, где она хранится, видно без наведения; у запуска без сессии — причина, а не пустое место
+  assert.match(html, /data-testid="v3-aia-transcript-note"[^>]*>Читается у Claude, в CRM не хранится\./u);
+  assert.doesNotMatch(html, /title="Переписка читается/u);
+  assert.doesNotMatch(html, /v3-aia-no-session/u);
+  const noSession = body(bodyProps({ tab: "runs", runId, run: read({ sessionId: null }), viewerName: "Админ" }));
+  assert.match(noSession, /data-testid="v3-aia-no-session"[^>]*>У запуска нет сессии Claude — переписки нет\./u);
+  assert.doesNotMatch(noSession, /Показать переписку/u);
 
   // список: простой текст без разметки, поручение выше итога, «Вы» вместо длинной подписи
   const list = body(bodyProps({ tab: "runs", viewerName: "Админ", runs: { status: "available", data: { runs: [{ ...run, summary: "**Вывод.** В CRM за 7 дней — `curator-my`" }], hasMore: false } } }));

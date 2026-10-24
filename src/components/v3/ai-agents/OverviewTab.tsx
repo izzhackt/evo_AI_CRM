@@ -1,9 +1,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { Icon } from "@/components/icons";
 import { MetricCard, type Metric } from "@/components/v3/MetricCard";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
-import { QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import { TrendChart } from "@/components/v3/TrendChart";
 import {
   AI_AGENT_DIGEST_KIND_LABELS,
@@ -24,6 +24,7 @@ import {
 } from "@/lib/v3/ai-agents-view";
 
 import { AnswerActions } from "./AnswerActions";
+import { AIA_LINK_SECONDARY } from "./buttons";
 import { DayBars, ToolBars } from "./Charts";
 import { Markdown } from "./Markdown";
 import { PendingTile } from "./PendingTile";
@@ -151,7 +152,7 @@ export function OverviewTab({
           {canRun ? (
             <section className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-surface px-5 py-4" data-testid="v3-aia-first-run" aria-labelledby="aia-first-run">
               <h2 id="aia-first-run" className="t-section text-fg">Запусков ещё не было</h2>
-              <Link href={aiAgentHref(detail.key, { tab: "command" })} className={QUEUE_SECONDARY}>Поручить первую задачу</Link>
+              <Link href={aiAgentHref(detail.key, { tab: "command" })} className={AIA_LINK_SECONDARY}>Поручить первую задачу</Link>
             </section>
           ) : null}
           {when}
@@ -168,7 +169,7 @@ export function OverviewTab({
               ) : (
                 <div className="flex flex-wrap items-center justify-between gap-3" data-testid="v3-aia-no-digest">
                   <p className="t-body-compact text-fg-2">Отчётов пока нет.</p>
-                  {canRun ? <Link href={aiAgentHref(detail.key, { tab: "command" })} className={QUEUE_SECONDARY}>Попросить отчёт</Link> : null}
+                  {canRun ? <Link href={aiAgentHref(detail.key, { tab: "command" })} className={AIA_LINK_SECONDARY}>Попросить отчёт</Link> : null}
                 </div>
               )}
             </Panel>
@@ -191,10 +192,13 @@ export function OverviewTab({
           </div>
 
           {toolRows.length > 0 ? (
-            <details className="rounded-card border border-border bg-surface px-4" data-testid="v3-aia-tools-panel">
-              <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-x-3 t-section text-fg">
+            <details className="group rounded-card border border-border bg-surface px-4" data-testid="v3-aia-tools-panel">
+              <summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-x-3 t-section text-fg">
                 Что делает агент
-                <span className="font-normal tabular-nums text-fg-3 t-meta">{toolTotal} за 30 дней</span>
+                <span className="inline-flex items-center gap-2 font-normal tabular-nums text-fg-3 t-meta">
+                  {toolTotal} за 30 дней
+                  <Icon name="chevron-down" size={16} className="shrink-0 text-fg-3 transition-transform duration-[180ms] group-open:rotate-180 motion-reduce:transition-none" />
+                </span>
               </summary>
               <div className="pb-4 pt-1"><ToolBars rows={toolRows} emptyText="" /></div>
             </details>
@@ -205,10 +209,11 @@ export function OverviewTab({
               <ul className="divide-y divide-border">
                 {older.map((digest) => (
                   <li key={digest.id}>
-                    <details>
+                    <details className="group">
                       <summary className="flex min-h-11 cursor-pointer flex-wrap items-center gap-x-3 gap-y-0.5 py-2">
                         <span className="t-item text-fg">{digest.title}</span>
                         <span className="t-meta text-fg-3">{AI_AGENT_DIGEST_KIND_LABELS[digest.kind]} · {relativeTimeRu(digest.createdAt, now)}</span>
+                        <Icon name="chevron-down" size={16} className="ms-auto shrink-0 text-fg-3 transition-transform duration-[180ms] group-open:rotate-180 motion-reduce:transition-none" />
                       </summary>
                       <div className="pb-3 pt-1"><DigestBody digest={digest} now={now} /></div>
                     </details>

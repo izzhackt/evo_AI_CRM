@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
@@ -22,15 +22,16 @@ const COUNTER_FROM_SHARE = 0.9;
  * ответ агента (в очереди его можно поправить на месте), причина. Одобрить
  * может только держатель `ai.agent.manage`; результат — словами, в том числе
  * «Не отправлено: WhatsApp сейчас не подключён» и что черновик остаётся в очереди.
- * Решённая здесь карточка остаётся на месте со статусом и словом результата
- * (`onDecided` отдаёт её списку: сервер уже не вернёт её в «Ждут решения»).
+ * Карточка, по которой нажали «Одобрить» или «Отклонить», остаётся на месте со статусом и
+ * словом результата: `onDeciding` вызывается в момент нажатия и отдаёт её списку, потому что
+ * сервер уже не вернёт её в «Ждут решения», а ответ и обновлённый список приходят вместе.
  */
 export function DraftCard({
   draft,
   canManage,
   now,
-  onDecided,
-}: Readonly<{ draft: AiAgentDraftRow; canManage: boolean; now: string; onDecided?: () => void }>) {
+  onDeciding,
+}: Readonly<{ draft: AiAgentDraftRow; canManage: boolean; now: string; onDeciding?: () => void }>) {
   const [text, setText] = useState(draft.text);
   const { state, pending, submit } = useAgentsAction(decideAiAgentDraftAction);
   // Решение принято: любой итог, кроме «остаётся в очереди» (там карточка нужна для новой попытки).
@@ -46,13 +47,11 @@ export function DraftCard({
   const label = outcome
     ? draftStatusWords({ status: outcome, failureCode: state.failureCode ?? null, sentByAgent: false })
     : words;
-  const callback = useRef(onDecided);
-  useEffect(() => { callback.current = onDecided; });
-  useEffect(() => { if (decided) callback.current?.(); }, [decided]);
   // Срок называется, только когда он близок: «действует до 25 окт» у каждой карточки — шум.
   const expiresSoon = draft.status === "pending" && !decided && Date.parse(draft.expiresAt) - Date.parse(now) < DAY_MS;
 
   function decide(decision: "approve" | "discard") {
+    onDeciding?.();
     submit({ draft_id: draft.id, decision, edited_text: decision === "approve" && edited ? text : "" });
   }
 
@@ -132,7 +131,7 @@ export function DraftCard({
       <div className="mt-2">
         <ActionMessage state={state} testId="v3-aia-draft-result" />
         {outcome === "sent" && href ? (
-          <p className="mt-1"><Link href={href} className="t-label text-fg underline underline-offset-4">{draft.channel === "whatsapp" ? "Открыть чат" : "Открыть переписку"}</Link></p>
+          <p><Link href={href} className="inline-flex min-h-11 items-center t-label text-fg underline underline-offset-4">{draft.channel === "whatsapp" ? "Открыть чат" : "Открыть переписку"}</Link></p>
         ) : null}
       </div>
     </article>

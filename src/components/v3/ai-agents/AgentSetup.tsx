@@ -8,6 +8,7 @@ import type { AiAgentKey } from "@/lib/ai-agents/contract";
 import { updateAiAgentAction } from "@/lib/platform-ai-agents-actions";
 import { aiAgentHref, type AiAgentSetupStep } from "@/lib/v3/ai-agents-view";
 
+import { AIA_LINK_CONFIRM } from "./buttons";
 import { ActionMessage } from "./Notices";
 import { SyncNowButton } from "./SyncPanel";
 import { useAgentsAction } from "./useAgentsAction";
@@ -40,7 +41,7 @@ export function SetupAction({
 }: Readonly<{ step: AiAgentSetupStep; agentKey: AiAgentKey; configVersion: number }>) {
   if (step === "instructions") {
     return (
-      <Link href={aiAgentHref(agentKey, { tab: "instructions" })} className={QUEUE_CONFIRM} data-testid="v3-aia-setup-instructions">
+      <Link href={aiAgentHref(agentKey, { tab: "instructions" })} className={AIA_LINK_CONFIRM} data-testid="v3-aia-setup-instructions">
         Написать инструкцию
       </Link>
     );

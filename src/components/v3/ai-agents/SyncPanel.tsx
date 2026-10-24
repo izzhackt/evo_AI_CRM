@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { Icon } from "@/components/icons";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import { AI_AGENT_SYNC_STATUS_LABELS, type AiAgentKey, type AiAgentSyncInfo } from "@/lib/ai-agents/contract";
@@ -107,8 +108,11 @@ export function SyncPanel({
         <p className="mt-3 t-meta text-fg-3">Синхронизирует системный администратор.</p>
       )}
 
-      <details className="mt-3 border-t border-border pt-1">
-        <summary className="flex min-h-11 cursor-pointer items-center t-label text-fg-2">Технические данные</summary>
+      <details className="group mt-3 border-t border-border pt-1">
+        <summary className="flex min-h-11 cursor-pointer items-center gap-1.5 t-label text-fg-2">
+          Технические данные
+          <Icon name="chevron-down" size={16} className="shrink-0 text-fg-3 transition-transform duration-[180ms] group-open:rotate-180 motion-reduce:transition-none" />
+        </summary>
         <dl className="grid gap-x-6 gap-y-2 pb-2 pt-1 @2xl:grid-cols-2">
           {facts.map(([name, value]) => (
             <div key={name} className="min-w-0">

@@ -45,6 +45,15 @@ export function ManualLeadTrigger({ quiet = false }: Readonly<{ quiet?: boolean 
 }
 
 /**
+ * «Отмена» и «Закрыть» убирают панель вместе с кнопкой, на которой стоял фокус: возвращаем его на
+ * видимую кнопку «Добавить лида», иначе клавиатура теряет место и фокус падает в начало страницы.
+ */
+function focusManualLeadTrigger() {
+  const triggers = Array.from(document.querySelectorAll<HTMLElement>('[aria-controls="manual-lead-panel"]'));
+  (triggers.find((trigger) => trigger.getClientRects().length > 0) ?? triggers[0])?.focus();
+}
+
+/**
  * `owners: null` — список ответственных не прочитан (сбой чтения): панель
  * вместо полей говорит, что список не загрузился, а не «нет доступного
  * ответственного» — это была бы неправда о доступе сотрудников.
@@ -52,12 +61,19 @@ export function ManualLeadTrigger({ quiet = false }: Readonly<{ quiet?: boolean 
 export function ManualLeadForm(props: Readonly<{ requestId: string; ownerId: string; owners: readonly Readonly<{ id: string; displayName: string }>[] | null }>) {
   const { open, toggle } = useManualLeadDisclosure();
   const [requestId, setRequestId] = useState(props.requestId);
+  // Закрытая панель отдаёт идентификатор запроса: сохранённый лид уже занял его, и новое открытие
+  // с другими данными получило бы `request_conflict`. Так же и при закрытии кнопкой в шапке.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (!open) setRequestId(crypto.randomUUID());
+  }
   if (!open) return null;
   return (
     <div id="manual-lead-panel" className="mt-5 rounded-card border border-border bg-surface p-4">
       {props.owners === null
         ? <p role="status" className="t-body-compact text-fg-2">Список ответственных не загрузился, поэтому добавить лида сейчас нельзя. Обновите страницу.</p>
-        : props.owners.length ? <ManualLeadEditor key={requestId} {...props} owners={props.owners} requestId={requestId} onAnother={() => setRequestId(crypto.randomUUID())} onClose={toggle} />
+        : props.owners.length ? <ManualLeadEditor key={requestId} {...props} owners={props.owners} requestId={requestId} onAnother={() => setRequestId(crypto.randomUUID())} onClose={() => { focusManualLeadTrigger(); toggle(); }} />
         : <p role="status" className="t-body-compact text-fg-2">Нет доступного ответственного. Лида можно назначить активному администратору или сотруднику продаж. Проверьте доступ сотрудников в настройках команды и обновите страницу.</p>}
     </div>
   );

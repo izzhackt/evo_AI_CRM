@@ -844,6 +844,19 @@ async function manualLeadForm() {
       const sent = await tab.evaluate(() => globalThis.__manualLeads ?? []);
       expect(`${width}: the chosen keys are what the form sends`, sent.length === 1 && sent[0].source === "phone_call" && sent[0].channel === "referral", sent);
 
+      // «Отмена»/«Закрыть» возвращают фокус на «Добавить лида», а новое открытие получает свежий идентификатор запроса:
+      // прежний уже занят отправленным лидом, и другой ввод под ним получил бы request_conflict.
+      await tab.getByRole("button", { name: "Отмена" }).click();
+      const closed = await tab.evaluate(() => ({
+        panel: Boolean(document.getElementById("manual-lead-panel")),
+        focusedTrigger: document.activeElement?.getAttribute("aria-controls") === "manual-lead-panel",
+      }));
+      expect(`${width}: «Отмена» closes the panel and puts focus back on «Добавить лида»`, !closed.panel && closed.focusedTrigger, closed);
+      await tab.getByRole("button", { name: "Добавить лида" }).click();
+      const reopened = await tab.locator('input[name="request_id"]').inputValue();
+      expect(`${width}: reopening carries a fresh request id, not the one already used`,
+        reopened !== sent[0].request_id && reopened !== "99999999-5555-4555-8555-000000000001", { reopened, used: sent[0].request_id });
+
       if (errors.length) failures.push(`${width} browser errors: ${errors.join(" | ")}`);
       await browserContext.close();
     }

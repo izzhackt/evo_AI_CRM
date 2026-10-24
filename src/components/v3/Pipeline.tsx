@@ -672,9 +672,9 @@ export function Pipeline({
               title={focused ? <span className="truncate">{stage.title}</span> : stageTitleLink(stage, focusHref)}
               marker={
                 stage.gate ? (
-                  <span title="Передача в поступление — с этого этапа" className="flex shrink-0 items-center text-fg-3">
+                  <span title="Есть условия" className="flex shrink-0 items-center text-fg-3">
                     <Icon name="lock" size={14} />
-                    <span className="sr-only">Передача в поступление — с этого этапа</span>
+                    <span className="sr-only">Есть условия</span>
                   </span>
                 ) : null
               }

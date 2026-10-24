@@ -1,4 +1,4 @@
-import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
+import { isStaffPreview, staffCanAccessRoute, staffHasPermission } from "@/lib/platform-access";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -499,7 +499,7 @@ function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, ma
  */
 export async function SalesRegisterView({ actor, query, dynamics = null }: { actor: ActivePlatformActor; query: SalesReportQuery; dynamics?: ReactNode }) {
   const now = new Intl.DateTimeFormat("en-CA", { timeZone: ORG_TIMEZONE, year: "numeric", month: "2-digit" }).formatToParts(new Date());
-  const { year, month, offset, searchQuery, saleSlice, saleSliceHref, valid, reportMonth, params, href, clearFiltersHref } = salesReportContext(query, {
+  const { year, month, offset, searchQuery, saleSlice, saleSliceHref, valid, reportMonth, params, href, clearFiltersHref, importHref } = salesReportContext(query, {
     year: Number(now.find(p => p.type === "year")!.value), month: Number(now.find(p => p.type === "month")!.value),
   });
   const writeAccess = await readSalesRegisterWriteAccess(actor);
@@ -605,6 +605,9 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
   const periodHref = (nextYear: number, nextMonth: number | undefined) => filterHref({ year: String(nextYear), month: nextMonth ? String(nextMonth) : "all" });
   const rowHref = (row: SalesRegisterRow) => href({ record: row.id });
   const managersHref = canImport ? salesManagersHref(query) : null;
+  // «Перенос данных» живёт в Настройки → Платформа. Держателю права `sales.register.import` без доступа к настройкам
+  // (право выдаётся и обычной роли) остаётся тихая ссылка здесь — иначе у него не было бы входа.
+  const importLinkHere = canImport && !staffCanAccessRoute(actor, "/v3/settings");
   const managerName = (row: SalesRegisterRow) => workspace?.managerOptions.find((option) => option.key === row.managerKey)?.name ?? tidy(row.managerLabel);
   const directionGroups = groupSalesLabels(directions ?? []);
   const selectedManager = query.manager || null;
@@ -831,9 +834,10 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
         </li>)}</ul>}
       </section> : null}
       {dynamics}
-      {(showTargetForm && month && query.archived !== "true") || managementUnavailable ? <div className="mt-8 space-y-5 border-t border-border pt-5">
+      {(showTargetForm && month && query.archived !== "true") || importLinkHere || managementUnavailable ? <div className="mt-8 space-y-5 border-t border-border pt-5">
         {managementUnavailable ? <p role="alert" className="t-body-compact text-fg-2">Не удалось проверить доступ к плану и переносу данных.</p> : null}
         {showTargetForm && month && query.archived !== "true" ? <details className="group"><summary className="flex min-h-12 w-fit cursor-pointer list-none items-center gap-2 rounded-nav t-item text-fg [&::-webkit-details-marker]:hidden">Изменить план месяца<Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" /></summary><SalesTargetForm key={reportMonth} reportMonth={reportMonth} target={target} requestId={randomUUID()} readUnavailable={!workspace || managementUnavailable} /></details> : null}
+        {importLinkHere ? <Link href={importHref} className="t-label inline-flex min-h-11 items-center text-fg-2 underline underline-offset-4 hover:text-fg">Перенос данных</Link> : null}
       </div> : null}
     </>}
   </main>;

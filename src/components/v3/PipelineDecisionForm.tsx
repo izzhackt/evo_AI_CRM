@@ -87,6 +87,8 @@ export function PipelineDecisionForm({
     lead.nextActionDueDate ?? "",
   );
   const [reason, setReason] = useState("");
+  // Необязательная причина свёрнута; раскрытое поле не закрывается, когда текст стёрли.
+  const [noteOpen, setNoteOpen] = useState(false);
 
   // Один вызов на подтверждённое сохранение: новая функция `onSaved` от
   // родителя не перезапускает эффект и не повторяет обновление.
@@ -256,8 +258,9 @@ export function PipelineDecisionForm({
             </>
           )}
 
-          {/* Причина нужна при смене ответственного и снятии действия — тогда поле и стоит;
-              без неё сервер ждёт то же поле пустым, поэтому оно остаётся скрытым. */}
+          {/* Причина обязательна при смене ответственного и снятии действия — тогда поле открыто.
+              В остальных случаях это необязательная заметка в журнал: она за «Добавить причину»,
+              а не постоянным полем. Закрытая заметка тоже уходит с формой (пустая — как раньше). */}
           {reasonRequired ? (
             <label className="block t-label text-fg-2">
               Причина · обязательна
@@ -275,7 +278,25 @@ export function PipelineDecisionForm({
               />
             </label>
           ) : (
-            <input type="hidden" name="reason" value="" />
+            <details open={noteOpen || reason !== ""} onToggle={(event) => setNoteOpen(event.currentTarget.open)}>
+              <summary className="inline-flex min-h-11 cursor-pointer items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">
+                Добавить причину
+              </summary>
+              <label className="block t-label text-fg-2">
+                <span className="sr-only">Причина</span>
+                <textarea
+                  name="reason"
+                  value={reason}
+                  onChange={(event) => {
+                    setReason(event.target.value);
+                  }}
+                  maxLength={500}
+                  rows={2}
+                  className={`${CONTROL_CLASS} resize-y`}
+                  data-testid="v3-pipeline-reason"
+                />
+              </label>
+            </details>
           )}
 
           {/* Красный на доске один — «Добавить лида»; решение в панели —

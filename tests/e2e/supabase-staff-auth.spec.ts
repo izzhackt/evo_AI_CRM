@@ -2989,6 +2989,9 @@ test("Admissions manages one real private company file through V3", async ({
   await movedFileRow
     .getByRole("button", { name: "Удалить файл", exact: true })
     .click();
+  await movedFileRow
+    .getByRole("button", { name: "Да, удалить", exact: true })
+    .click();
   await expect(movedFileRow).toHaveCount(0);
 
   await folderLinks.filter({ hasText: folderName }).click();
@@ -3016,6 +3019,9 @@ test("Admissions manages one real private company file through V3", async ({
   await folderControls
     .getByRole("button", { name: "Удалить пустую папку", exact: true })
     .click();
+  await folderControls
+    .getByRole("button", { name: "Да, удалить", exact: true })
+    .click();
   await expect(folderLinks.filter({ hasText: folderName })).toHaveCount(0);
 
   await folderLinks.filter({ hasText: destinationFolderName }).click();
@@ -3027,6 +3033,9 @@ test("Admissions manages one real private company file through V3", async ({
     .click();
   await destinationFolderControls
     .getByRole("button", { name: "Удалить пустую папку", exact: true })
+    .click();
+  await destinationFolderControls
+    .getByRole("button", { name: "Да, удалить", exact: true })
     .click();
   await expect(folderLinks.filter({ hasText: destinationFolderName }))
     .toHaveCount(0);

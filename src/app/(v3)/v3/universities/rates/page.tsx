@@ -21,7 +21,7 @@ export default async function UniversityRatesPage({ searchParams }: { searchPara
     return <PartShell title="Курсы валют" back={back}><p role="alert" className="rounded-card border border-border bg-surface p-5 t-body-compact text-danger">Не удалось загрузить курсы. Обновите страницу: это не значит, что курсов нет.</p></PartShell>;
   }
   return (
-    <PartShell title="Курсы валют" back={back} meta="Ориентир в USD у стоимости вузов">
+    <PartShell title="Курсы валют" back={back}>
       <FxRates geography={geography} today={new Date().toISOString().slice(0, 10)} />
     </PartShell>
   );

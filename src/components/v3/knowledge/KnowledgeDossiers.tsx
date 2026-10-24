@@ -20,12 +20,15 @@ const TAB = "v3-choice inline-flex min-h-11 items-center rounded-nav px-3 t-labe
 
 type Directory = { items: PlatformStudentCaseQueueRow[]; hasMore: boolean; nextCursor: { sortAt: string; id: string } | null };
 type History = { events: ProfileEvent[]; nextCursor: { at: string; id: string } | null };
-export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; search: string }) {
+const TABS = { documents: "Документы", chat: "Переписка", history: "История" } as const;
+type Tab = keyof typeof TABS;
+/** Вкладка — часть адреса (`&tab=chat`): обновление страницы и «Назад» её сохраняют. */
+export function KnowledgeDossiers({ caseId, search, tab: tabParam = null }: { caseId?: string | null; search: string; tab?: string | null }) {
   const router = useRouter(); const [directory, setDirectory] = useState<Directory | null>(null);
   const [record, setRecord] = useState<PlatformStudentCaseQueueRow | null>(null);
   const [documents, setDocuments] = useState<PlatformCaseDocumentWorkspace | null>(null);
   const [chat, setChat] = useState<CaseChatPage | null>(null); const [history, setHistory] = useState<History | null>(null);
-  const [tab, setTab] = useState<"documents" | "chat" | "history">("documents");
+  const tab: Tab = tabParam === "chat" || tabParam === "history" ? tabParam : "documents";
   const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
   const [loadedAt, setLoadedAt] = useState<Date | null>(null);
   const load = useCallback(async (signal?: AbortSignal) => {
@@ -84,10 +87,9 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
       <h2 className="t-section">Клиенты</h2>
       {!directory && !error ? <ul aria-hidden="true" className="divide-y divide-border border-y border-border">{[0, 1, 2].map((index) => <li key={index} className="flex min-h-11 items-center py-2"><SkeletonBlock className={`h-3.5 rounded-nav ${index % 2 ? "w-1/3" : "w-1/2"}`} /></li>)}</ul> : null}
       {directory && !directory.items.length && <p className="t-body-compact text-fg-2">По запросу ничего не найдено.</p>}
-      {directory?.items.length ? <ul className="divide-y divide-border border-y border-border">{directory.items.map((item) => <li key={item.studentCaseId} className="grid gap-x-3 py-1 @xl/kbl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_auto] @xl/kbl:items-center">
+      {directory?.items.length ? <ul className="divide-y divide-border border-y border-border">{directory.items.map((item) => <li key={item.studentCaseId} className="grid gap-x-3 py-1 @xl/kbl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] @xl/kbl:items-center">
         <Link href={`/v3/knowledge?area=clients&case=${item.studentCaseId}`} className="flex min-h-11 items-center t-item text-fg underline-offset-4 hover:underline [overflow-wrap:anywhere]">{item.studentDisplayName}</Link>
         <span className="t-body-compact text-fg-2">{[item.targetCountry, item.targetDegree, item.intake].filter(Boolean).join(" · ")}</span>
-        <span className="t-meta text-fg-3">Дело <span className="font-mono">{item.studentCaseId.slice(0, 8)}</span></span>
       </li>)}</ul> : null}
       {directory?.hasMore && <button type="button" className={KB_QUIET} disabled={busy} onClick={() => void more()}>Показать ещё клиентов</button>}
     </> : <>
@@ -95,12 +97,12 @@ export function KnowledgeDossiers({ caseId, search }: { caseId?: string | null; 
       {record ? <h2 className="t-record-title [overflow-wrap:anywhere]">{record.studentDisplayName}</h2> : <><p role="status" className="sr-only">Загружаем досье…</p><SkeletonBlock className="h-7 w-64 max-w-full rounded-nav" /></>}
       <div className="flex flex-wrap gap-2">
         <Link href={`/v3/profile?case=${caseId}`} className={QUEUE_SECONDARY}>Открыть дело</Link>
-        <button type="button" className={QUEUE_SECONDARY} disabled={busy || !record} onClick={() => void openManual()}>Добавленные материалы</button>
+        <button type="button" className={QUEUE_SECONDARY} disabled={busy || !record} onClick={() => void openManual()}>Папка клиента</button>
         <KnowledgeExport caseIds={[caseId]} label="Выгрузить досье" />
       </div>
-      <div className="flex flex-wrap gap-1 border-b border-border pb-1" role="group" aria-label="Материалы клиента">
-        {(["documents", "chat", "history"] as const).map((key) => <button type="button" key={key} className={TAB} aria-pressed={tab === key} onClick={() => setTab(key)}>{({ documents: "Документы", chat: "Переписка", history: "История" })[key]}</button>)}
-      </div>
+      <nav className="flex flex-wrap gap-1 border-b border-border pb-1" aria-label="Материалы клиента">
+        {(Object.keys(TABS) as Tab[]).map((key) => <Link key={key} href={`/v3/knowledge?area=clients&case=${caseId}${key === "documents" ? "" : `&tab=${key}`}`} scroll={false} className={TAB} aria-current={tab === key ? "page" : undefined}>{TABS[key]}</Link>)}
+      </nav>
       {tab === "documents" && record && caseDocumentsAwaitCurator(record.state) && <p className="t-body-compact text-fg-2" data-testid="knowledge-documents-await">Документы {caseDocumentsWords.awaitCurator}.</p>}
       {tab === "documents" && documents && <KnowledgeCaseDocuments key={caseId} caseId={caseId} documents={documents} />}
       {tab === "chat" && chat && <>

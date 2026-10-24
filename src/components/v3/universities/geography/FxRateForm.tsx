@@ -32,6 +32,7 @@ export function FxRateForm({ currencies, latest, initialCurrency, today }: Reado
     <form
       className="space-y-4 rounded-card border border-border bg-surface p-4 sm:p-5"
       data-testid="fx-rate-form"
+      id="fx-rate-form"
       aria-labelledby={`${id}-heading`}
       noValidate
       onSubmit={(event) => { event.preventDefault(); setShown(true); if (errors.size === 0) run(input); else focusFirstInvalid(event.currentTarget); }}
@@ -54,6 +55,7 @@ export function FxRateForm({ currencies, latest, initialCurrency, today }: Reado
       </fieldset>
       {/* Кнопка над итогом и одного размера во время запроса (review CRM V2). */}
       <button type="submit" className={PRIMARY} disabled={pending}><BusyLabel busy={pending} label={state.status === "unavailable" ? "Повторить" : "Сохранить курс"} /></button>
+      <p className="t-meta text-fg-3">Тот же день и валюта: курс заменится.</p>
       <CommandResult state={state} saved={`Курс ${input.currency} на ${input.asOf.split("-").reverse().join(".")} сохранён.`} refresh={refresh} />
     </form>
   );

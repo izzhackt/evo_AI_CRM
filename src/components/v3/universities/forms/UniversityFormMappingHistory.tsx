@@ -7,7 +7,8 @@ export function UniversityFormMappingHistory({ base, templateId, versionId, mapp
   selectedId?: string; before: number | null; next: number | null;
 }) {
   const versionUrl = `${base}?template=${templateId}&version=${versionId}`;
-  const link = "inline-flex min-h-11 items-center rounded-ctl px-3 py-2 text-sm text-fg-2 hover:bg-surface-2";
+  const link = "inline-flex min-h-11 items-center rounded-ctl px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
+  const quiet = "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
   return <details className="border-t border-border pt-4" open={before !== null}>
     <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-fg">{words.history}</summary>
     <ul className="space-y-1">{mappings.map(mapping => <li key={mapping.id}>
@@ -18,7 +19,7 @@ export function UniversityFormMappingHistory({ base, templateId, versionId, mapp
         {mapping.review?.decision === "approved" ? words.mappingApproved : mapping.review?.decision === "rejected" ? words.mappingRejected : words.mappingPending}
       </Link>
     </li>)}</ul>
-    {next !== null ? <Link prefetch={false} href={`${versionUrl}&before_mapping=${next}`} className={link}>{words.older}</Link> : null}
-    {before !== null ? <Link prefetch={false} href={versionUrl} className={link}>{words.latestMapping}</Link> : null}
+    {next !== null ? <Link prefetch={false} href={`${versionUrl}&before_mapping=${next}`} className={quiet}>{words.older}</Link> : null}
+    {before !== null ? <Link prefetch={false} href={versionUrl} className={quiet}>{words.latestMapping}</Link> : null}
   </details>;
 }

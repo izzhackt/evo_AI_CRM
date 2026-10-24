@@ -34,6 +34,8 @@ export function UniversityCityPicker({ institution, cities }: Readonly<{ institu
   const chosen = own.find((city) => city.key === choice) ?? null;
   const changed = choice !== saved;
   const name = (city: CityOption | null) => (city ? `«${city.nameRu}»` : "«Без города»");
+  const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+  const cardCityDiffers = Boolean(institution.cityLabel) && !(current && sameName(current.nameRu, institution.cityLabel ?? ""));
   return (
     <section aria-labelledby="university-city-heading" className="space-y-3" data-testid="university-city-picker">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -51,7 +53,8 @@ export function UniversityCityPicker({ institution, cities }: Readonly<{ institu
             {own.map((city) => <option key={city.key} value={city.key}>{city.nameRu}{city.status === "draft" ? " (черновик)" : ""}</option>)}
           </select>
         </label>
-        <button type="submit" className={GHOST} disabled={pending || !changed || behind}><BusyLabel busy={pending} label="Сохранить город" /></button>
+        {/* Кнопка появляется, когда выбор изменён: постоянно серая «Сохранить» читалась как сломанная. */}
+        {changed || pending || behind ? <button type="submit" className={GHOST} disabled={pending || !changed || behind}><BusyLabel busy={pending} label="Сохранить город" /></button> : null}
       </form>
       {behind ? (
         <p role="status" className="flex flex-wrap items-center gap-x-3 t-body-compact text-warn" data-testid="university-city-behind">
@@ -59,10 +62,13 @@ export function UniversityCityPicker({ institution, cities }: Readonly<{ institu
           <button type="button" className={QUIET} onClick={() => { setBase(saved); setChoice(saved); }}>Показать сохранённый город</button>
         </p>
       ) : null}
-      <dl className="flex flex-wrap gap-x-5 gap-y-1 t-meta text-fg-2">
-        <div className="flex gap-1"><dt className="text-fg-3">В карточке вуза:</dt><dd>{institution.cityLabel ?? "город не указан"}</dd></div>
-        <div className="flex gap-1"><dt className="text-fg-3">Связь:</dt><dd>{current ? `${current.nameRu}, ${institution.assignedVia === "staff" ? "назначил сотрудник" : "назначен при первой загрузке"}` : "нет"}</dd></div>
-      </dl>
+      {/* Строка карточки вуза показана, только когда она расходится со связью: совпадающие значения повторяли бы выбор выше. */}
+      {cardCityDiffers ? (
+        <dl className="flex flex-wrap gap-x-5 gap-y-1 t-meta text-fg-2">
+          <div className="flex gap-1"><dt className="text-fg-3">В карточке вуза:</dt><dd>{institution.cityLabel}</dd></div>
+          {current ? <div className="flex gap-1"><dt className="text-fg-3">Связь:</dt><dd>{`${current.nameRu}, ${institution.assignedVia === "staff" ? "назначил сотрудник" : "назначен автоматически"}`}</dd></div> : null}
+        </dl>
+      ) : null}
       {chosen?.status === "draft" ? (
         <p className="flex flex-wrap items-center gap-2 t-body-compact text-fg-2">
           <StatusChip label="Черновик" tone="warn" />

@@ -51,7 +51,7 @@ export function UniversityCosts({ institutionId, country, programs, costs, rates
           <h2 id="university-costs-heading" className="t-section text-fg">Стоимость</h2>
           <p className="t-meta text-fg-2">
             {costs.length ? <>Студенты видят <span className="tabular-nums">{published}</span> из <span className="tabular-nums">{costs.length}</span></> : "Строк пока нет"}
-            {published === 0 ? " · пока ничего не опубликовано, блока «Стоимость» у студента нет" : null}
+            {published === 0 ? " · блока «Стоимость» у студента нет" : null}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-x-4">
@@ -92,7 +92,7 @@ export function UniversityCosts({ institutionId, country, programs, costs, rates
         </table>
       ) : editing === "new" ? null : (
         <p className="rounded-card border border-border bg-surface px-4 py-5 t-body-compact text-fg-2">
-          У вуза нет строк стоимости. Добавьте строку с источником и опубликуйте её: до этого у студента блока «Стоимость» нет.
+          Строк стоимости нет. Добавьте строку с источником и опубликуйте её.
         </p>
       )}
     </section>
@@ -111,7 +111,7 @@ function RateNotes({ currencies, latest }: Readonly<{ currencies: readonly strin
     <div role="status" className="flex flex-wrap items-start gap-x-3 gap-y-1 rounded-card bg-warn-weak px-4 py-2.5 text-warn" data-testid="university-costs-rate-notes">
       <Icon name="alert" size={18} className="mt-0.5 flex-none" />
       <ul className="min-w-0 flex-1 space-y-0.5">{notes.map((note) => <li key={note} className="t-body-compact">{note}</li>)}</ul>
-      <Link className="inline-flex min-h-6 items-center t-label underline underline-offset-4" href="/v3/universities/rates">Внести курс</Link>
+      <Link className="inline-flex min-h-11 items-center t-label underline underline-offset-4" href="/v3/universities/rates">Внести курс</Link>
     </div>
   );
 }

@@ -30,7 +30,7 @@ export function MarketingSpendCancel({ spendId, requestId }: Readonly<{ spendId:
           <input type="hidden" name="request_id" value={requestId} />
           <input type="hidden" name="spend_id" value={spendId} />
           <span className="t-body-compact text-fg-2">Отменить эту запись?</span>
-          <button className={btnGhostCls} disabled={pending}>{pending ? "Отменяем…" : "Да, отменить"}</button>
+          <button className={btnGhostCls} disabled={pending}>{pending ? "Отменяем…" : "Отменить запись"}</button>
           <button type="button" className={btnGhostCls} disabled={pending} onClick={() => setConfirming(false)}>Нет</button>
         </form>
       ) : (

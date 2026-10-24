@@ -1,6 +1,5 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- Превью фото из своего бакета portal-university-photos; без прокси произвольных картинок. */
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState, type ReactNode } from "react";
 
@@ -129,7 +128,7 @@ export function CityEditor({ city, country, today, photoBase }: Readonly<{ city:
               <FieldError id={`${id}-key-error`} text={error("key")} />
             </label>
           </div>
-          {city ? <p className="t-meta text-fg-3">Страну и ключ после создания не меняют: на них ссылаются вузы и адреса кабинета.</p> : null}
+          {city ? <p className="t-meta text-fg-3">Страна и ключ после создания не меняются: на них ссылаются вузы.</p> : null}
           <div className="grid gap-3 sm:grid-cols-3">
             <label className={LABEL}>Название, RU<input className={FIELD} value={draft.nameRu} maxLength={100} {...control("nameRu")} onChange={(event) => set("nameRu", event.target.value)} required /><FieldError id={`${id}-nameRu-error`} text={error("nameRu")} /></label>
             <label className={LABEL}>Название, KY<input className={FIELD} value={draft.nameKy} maxLength={100} {...control("nameKy")} onChange={(event) => set("nameKy", event.target.value)} required /><FieldError id={`${id}-nameKy-error`} text={error("nameKy")} /></label>
@@ -141,7 +140,7 @@ export function CityEditor({ city, country, today, photoBase }: Readonly<{ city:
           </div>
           <FieldError id={`${id}-coordinates-error`} text={error("coordinates")} />
         </Group>
-        <Group title="Фото" note="Файл фото загружают в хранилище отдельно, при выпуске; здесь путь к файлу и авторство. Только Unsplash, Pexels или Wikimedia Commons, фото агентств нельзя.">
+        <Group title="Фото" note="Файл загружают в хранилище при выпуске; здесь путь и авторство. Только Unsplash, Pexels или Wikimedia Commons.">
           {photoField("photoPath", "Путь к файлу в хранилище", { className: "font-mono" })}
           <div className="grid gap-3 sm:grid-cols-4">
             {photoField("photoWidth", "Ширина, px", { inputMode: "numeric", className: "tabular-nums" })}
@@ -226,7 +225,7 @@ export function CityEditor({ city, country, today, photoBase }: Readonly<{ city:
           </div>
           {city && dirty ? <p className="t-meta text-fg-3">Сначала сохраните изменения, затем публикуйте.</p> : null}
           {city && !published && !dirty && savedMissing.length === 0 && savedPhotoMissing ? (
-            <p className="t-meta text-warn" data-testid="city-photo-missing">Файла фото ещё нет в хранилище: опубликовать город можно после загрузки фото, иначе студент увидел бы карточку без фото. Загрузили файл: нажмите «Проверить снова» у превью.</p>
+            <p className="t-meta text-warn" data-testid="city-photo-missing">Файла фото нет в хранилище: опубликовать можно после загрузки. Загрузили файл? Нажмите «Проверить снова» у превью.</p>
           ) : null}
           <p className="flex flex-wrap items-center gap-2">
             <StatusChip label={published ? "Видят студенты" : city ? "Черновик" : "Новый город"} tone={published ? "ok" : "neutral"} />
@@ -234,7 +233,7 @@ export function CityEditor({ city, country, today, photoBase }: Readonly<{ city:
           </p>
           {missing.length ? <p className="t-body-compact text-warn" data-testid="city-missing">Для публикации не хватает: {missing.join(", ")}.</p> : <p className="t-body-compact text-fg-2">Карточка полная.</p>}
           {breaksPublished ? <p role="alert" className="t-body-compact text-danger">Город видят студенты, поэтому карточка должна остаться полной. Верните поля или сначала снимите город с публикации.</p> : null}
-          {newPhotoMissing ? <p role="alert" className="t-body-compact text-danger" data-testid="city-new-photo-missing">Нового фото ещё нет в хранилище, а город видят студенты. Оставьте прежний путь или, когда файл загрузят, нажмите «Проверить снова» у превью и сохраните.</p> : null}
+          {newPhotoMissing ? <p role="alert" className="t-body-compact text-danger" data-testid="city-new-photo-missing">Нового фото нет в хранилище, а город видят студенты. Верните прежний путь или, когда файл загрузят, нажмите «Проверить снова» у превью.</p> : null}
           {shown && errors.size ? <p role="alert" className="t-body-compact text-danger">Исправьте отмеченные поля: карточка не сохранена.</p> : null}
           {versioned.behind && city ? (
             <p role="status" className="flex flex-wrap items-center gap-x-3 t-body-compact text-warn" data-testid="city-behind">
@@ -247,7 +246,6 @@ export function CityEditor({ city, country, today, photoBase }: Readonly<{ city:
           {/* «Сохранено» не висит над новой правкой: итог показан, пока поля совпадают с сохранённой карточкой. */}
           {save.state.status !== "saved" || !dirty ? <CommandResult state={save.state} saved="Карточка сохранена." refresh={reloadSaved(save)} /> : null}
           {publish.state.status !== "saved" || !dirty ? <CommandResult state={publish.state} saved={published ? "Город опубликован: студенты видят карточку." : "Город снят с публикации."} refresh={reloadSaved(publish)} /> : null}
-          <Link className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg" href={`/v3/universities/cities?country=${draft.country}`}>К городам страны</Link>
         </div>
       </aside>
     </form>

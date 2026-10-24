@@ -23,7 +23,7 @@ import { salesWithdrawalWord } from "@/lib/v3/wording";
 import { salesDirectionControl } from "@/lib/sales-register-directions";
 import type { SalesRegisterManagementRead } from "@/lib/sales-register-management";
 import {
-  SALES_PAGE_SIZE, SALES_SUMMARY_MAX_PAGES, groupSalesLabels, recordsDative, recordsWord, salesLabelGroupOf, salesMoneySummary, salesPeriodSteps,
+  SALES_PAGE_SIZE, SALES_STATUS_MISSING_TEXT, SALES_SUMMARY_MAX_PAGES, groupSalesLabels, recordsDative, recordsWord, salesLabelGroupOf, salesMoneySummary, salesPeriodSteps,
   SALES_NO_REMAINDER_TEXT, salesDay, salesDayParts, salesReportMonth, salesRowContractPaid, salesRowNoRemainder, salesRowRemainder, salesRowReview, salesSummaryBasis,
   salesWithdrawalTone,
   type SalesLabelGroup, type SalesMoneySummary,
@@ -403,7 +403,9 @@ function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, ma
   const place = [row.country, row.program].map((part) => tidy(part)).filter(Boolean).join(" · ");
   const reportMonth = showReportMonth ? reportMonthOf(row.reportMonth) : null;
   const saleDay = row.signingDate ? salesDayParts(row.signingDate, year) : null;
-  const reviewText = review.state === "review" ? review.reasons.join(", ") : review.state === "checked" ? "Сверено" : "В архиве";
+  // Не указанный статус оплаты как единственная причина — тихое слово, не «Уточнить» (24.10.2026).
+  const reviewText = review.state === "review" ? review.reasons.join(", ") : review.state === "checked" ? "Сверено"
+    : review.state === "status_missing" ? SALES_STATUS_MISSING_TEXT : "В архиве";
   const reviewTone = review.state === "review" ? "text-fg-2" : "text-fg-3";
   const reviewMark = compact && review.state === "review";
   const name = row.applicantName || "Имя не указано";
@@ -462,7 +464,7 @@ function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, ma
           {remainderWhy ? <span className="sr-only"> ({remainderWhy})</span> : null}
         </span>
       </td> : null}
-      <td role="cell" className={`${at.review} pe-4`}><span className={`block truncate t-body-compact ${reviewTone}`} title={reviewText}>{reviewText}</span></td>
+      <td role="cell" className={`${at.review} pe-4`}><span className={`block truncate ${review.state === "status_missing" ? "t-meta" : "t-body-compact"} ${reviewTone}`} title={reviewText}>{reviewText}</span></td>
       {/* «Убрать» / «Вернуть»: справа от имени в стопке (телефон) и своим столбцом в полной таблице. */}
       {action || actionColumn ? <td role="cell" className={at.action}>{action}</td> : null}
       {/* Узкий контейнер: сведения строки под именем (широкий их не показывает); дата — JetBrains Mono,

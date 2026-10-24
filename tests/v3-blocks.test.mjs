@@ -413,7 +413,7 @@ test("the blocks render on every first surface", () => {
   for (const name of ["sales", "admissions"]) assert.doesNotMatch(boards.get(name), /v3-phase-dot|v3-stage/u, `${name}: column headers are words`);
   // Э7: the lead panel's track opens its header context line, which names the stage (no second caption).
   assert.match(boards.get("sales-panel"), /data-side-panel-context=""><div class="v3-track [^"]*" data-track="sales"><ol [\s\S]*?<\/ol><\/div><p>Связались · Ответственный: /u, "lead panel: stage track");
-  assert.match(boards.get("admissions"), /<a [^>]*class="v3-chip-link inline-flex" href="\/v3\/messages\?case=[^"]+"><span class="v3-chip t-caption" data-tone="danger" data-size="sm">нужен ответ<\/span><\/a>/u, "reply chip link");
+  assert.match(boards.get("admissions"), /<a [^>]*class="v3-chip-link inline-flex" href="\/v3\/messages\?case=[^"]+"><span class="v3-chip t-caption" data-tone="warn" data-size="sm">нужен ответ<\/span><\/a>/u, "reply chip link: a warning word, red stays for «просрочено»");
   assert.match(boards.get("admissions"), /<span class="v3-initials t-caption" data-size="sm" title="[^"]+">/u, "card: curator initials with the name in the title");
   // Карточка продаж: дата, затем слово срока — как в «Задачах»; возраст этапа подписан.
   const lines = [...boards.get("sales").matchAll(/<p class="v3-card-meta t-meta text-fg-3">([\s\S]*?)<\/p>/gu)].map(([, html]) => html);

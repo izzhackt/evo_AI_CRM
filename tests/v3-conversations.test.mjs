@@ -279,6 +279,23 @@ test("a template is inserted into the text without sending: the same picker, rea
   assert.match(component, /popoverTarget=\{picker\.popoverId\}/u);
   assert.match(component, /popover="auto" role="dialog" aria-label="Шаблон ответа"/u);
   assert.match(component, /if \(event\.key === "\/" && !event\.ctrlKey && !event\.metaKey && !event\.altKey\) \{\s*if \(!canPick \|\| draft\.body !== ""\) return;\s*event\.preventDefault\(\);\s*openPicker\(\);/u);
+  // 24.10.2026: клавиши поля «Переписки» — те же, что у чата WhatsApp (InboxComposer): Enter и Ctrl/⌘+Enter
+  // отправляют, Shift+Enter — строка, на сенсорном экране Enter — строка, IME (isComposing, 229) не отправляет.
+  const keys = (source) => source.slice(source.indexOf("onKeyDown={(event) => {"), source.indexOf("/>", source.indexOf("onKeyDown={(event) => {")));
+  const caseKeys = keys(component);
+  const inboxKeys = keys(read("src/components/v3/inbox/InboxComposer.tsx"));
+  for (const part of [
+    /if \(event\.nativeEvent\.isComposing \|\| composing\.current \|\| event\.keyCode === 229\) return;/u,
+    /if \(event\.key !== "Enter" \|\| event\.shiftKey \|\| event\.altKey\) return;/u,
+    /const coarse = typeof window\.matchMedia === "function" && window\.matchMedia\("\(pointer: coarse\)"\)\.matches;\s*if \(coarse && !event\.ctrlKey && !event\.metaKey\) return;/u,
+    /event\.preventDefault\(\);\s*if \(canSend/u,
+  ]) {
+    assert.match(caseKeys, part, `case chat keys: ${part}`);
+    assert.match(inboxKeys.replace("native.isComposing", "event.nativeEvent.isComposing"), part, `WhatsApp keys: ${part}`);
+  }
+  assert.doesNotMatch(caseKeys, /\(!event\.ctrlKey && !event\.metaKey\) \|\| event\.altKey/u, "a plain Enter is no longer a newline on a mouse and keyboard");
+  assert.match(caseKeys, /canSend && !uncertain\) event\.currentTarget\.form\?\.requestSubmit\(\)/u, "a frozen retry is still sent only by «Повторить»");
+  assert.doesNotMatch(component, /(?:placeholder|title|aria-label|aria-description)=(?:"[^"]*|\{`[^`]*)(?:Enter|Ctrl|⌘)|>[^<>{}\n=]*(?:Enter|Ctrl|⌘)[^<>{}\n]*</u, "no keyboard hint in the interface");
   const page = read("src/app/(v3)/v3/messages/page.tsx");
   assert.match(page, /staffCan\(actor, "snippets\.read"\)\s*\? readV3ReplySnippets\(actor\)/u);
   assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /readV3ReplySnippets\(actor\)/u);

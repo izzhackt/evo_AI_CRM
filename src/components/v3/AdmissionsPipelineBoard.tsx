@@ -278,13 +278,15 @@ function BoardCard({
   // Та же грамматика, что у карточки продаж: куратор — круг инициалов справа
   // во второй строке (полное имя в подсказке), состояние — чипы со словом в
   // третьей (Э1.3); дней просрочки нет — чтение доски даты шага не отдаёт.
+  // «нужен ответ» — предупреждение, как в обзоре дела и в «Переписке» (Э5, решение
+  // владельца 24.10.2026): красным остаётся только «просрочено».
   const replyWord = caseChatAwaitState("needs_reply")?.toLocaleLowerCase("ru-RU") ?? "";
   const marks = [
     row.overdue ? <StatusChip key="overdue" label="просрочено" tone="danger" size="sm" /> : null,
     row.needsReply ? (
       // Ссылка на переписку дела: чип 18 px, зона нажатия 44 px (`.v3-chip-link`, v3.css).
       <Link key="reply" href={`/v3/messages?case=${row.studentCaseId}`} prefetch={false} draggable={false} className="v3-chip-link inline-flex">
-        <StatusChip label={replyWord} tone="danger" size="sm" />
+        <StatusChip label={replyWord} tone="warn" size="sm" />
       </Link>
     ) : null,
     row.awaitingAck ? <StatusChip key="ack" label="ждёт принятия" tone="warn" size="sm" /> : null,

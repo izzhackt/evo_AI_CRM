@@ -112,7 +112,7 @@ function RequestRow({ request, workspace, organizationId }: { request: StaffAuth
     <p className="text-sm text-fg-3">{request.status === "completed" ? request.operation === "password" ? "Аккаунт создан; пароль повторно не показывается" : "Зарегистрировано в сервисе входа; доставка письма не подтверждена"
       : request.status === "rejected" ? `${staffAuthRejectionMessage(request.rejectionCode)} Изменений в Auth не обнаружено. Проверьте причину отказа перед новым запросом.`
       : "Требуется проверка результата; повторная отправка заблокирована"}</p>
-    <p className="t-meta text-fg-3">{new Date(request.createdAt).toLocaleString("ru-RU", { timeZone: "Asia/Dubai", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })} (Dubai)</p>
+    <p className="t-meta text-fg-3">{new Date(request.createdAt).toLocaleString("ru-RU", { timeZone: "Asia/Bishkek", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
     {request.status !== "completed" && request.status !== "rejected" ? <form action={action}>
       <input type="hidden" name="operation" value="reconcile" /><input type="hidden" name="request_id" value={request.requestId} />
       <button className={`${btnGhostCls} min-h-11`} disabled={pending || operation === "prepare"}>{pending ? "Проверяем…" : "Проверить результат"}</button>

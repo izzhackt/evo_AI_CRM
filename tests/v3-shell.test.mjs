@@ -140,6 +140,11 @@ test("icons tell the rail items apart: one glyph per meaning, three conversation
   assert.equal(LINK_ICONS.inbox, "message-circle");
   assert.notEqual(LINK_ICONS.inbox, "phone", "conversations, not a call");
   assert.notEqual(LINK_ICONS["reply-snippets"], "send", "templates are text, not a send action");
+  // 24.10.2026: `quote` — «Ответить с цитатой» в переписке, `file-text` — «Документы»; у шаблонов свой знак.
+  assert.equal(LINK_ICONS["reply-snippets"], "message-square-text");
+  assert.notEqual(LINK_ICONS["reply-snippets"], "quote");
+  assert.notEqual(LINK_ICONS["reply-snippets"], LINK_ICONS.documents);
+  assert.match(read("src/components/icons.tsx"), /"message-square-text": '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"\/>/u, "the glyph is drawn, not just named");
   assert.deepEqual(new Set([LINK_ICONS.messages, LINK_ICONS.inbox, LINK_ICONS["team-chat"]]).size, 3);
   // Групп и «Ещё» это тоже касается: их знаки не совпадают с пунктами.
   for (const icon of [...Object.values(GROUP_ICONS), "menu"]) assert.ok(!byIcon.has(icon), icon);

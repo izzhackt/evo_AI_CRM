@@ -51,10 +51,17 @@ export function composerDraftIsEmpty(draft: ComposerDraft): boolean {
   return draft.title === "" && draft.description === "";
 }
 
-/** Поля при открытии диалога в контексте `context`. */
-export function openComposerDraft(store: ComposerDraftStore, context: string, initialTitle: string): ComposerDraft {
+/**
+ * Поля при открытии диалога в контексте `context`. Название и описание,
+ * которые дал сам вход, важнее черновика: ответ агента не склеивается с
+ * прежним текстом.
+ */
+export function openComposerDraft(store: ComposerDraftStore, context: string, initialTitle: string, initialDescription = ""): ComposerDraft {
   const stored = store.read(context);
-  return { title: initialTitle.trim() || stored?.title || "", description: stored?.description ?? "" };
+  return {
+    title: initialTitle.trim() || stored?.title || "",
+    description: initialDescription.trim() ? initialDescription : stored?.description ?? "",
+  };
 }
 
 /**

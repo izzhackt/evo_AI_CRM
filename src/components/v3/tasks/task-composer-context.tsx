@@ -27,6 +27,14 @@ export type TaskComposerPageContext = Readonly<{
    * из страницы для «Создать задачу» меню: его в диалоге не убирают.
    */
   caseFixed?: boolean;
+  /**
+   * Заготовка, которую дал сам вход («Сделать задачей» под ответом ИИ-агента):
+   * название и описание заполнены, человеку остаётся проверить и создать. Это
+   * подсказка формы, не часть контекста страницы: у `TaskComposerContextMark`
+   * её нет.
+   */
+  title?: string;
+  description?: string;
 }>;
 
 type Entry = Readonly<{ token: symbol; value: TaskComposerPageContext }>;

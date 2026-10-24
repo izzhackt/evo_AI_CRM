@@ -9,13 +9,24 @@ import { AgentSwitches } from "@/components/v3/ai-agents/AgentSwitches";
 import { NotReady, Unavailable } from "@/components/v3/ai-agents/Notices";
 import { Icon } from "@/components/icons";
 import { PartShell } from "@/components/v3/PartShell";
-import { isAiAgentKey, type AiAgentRunRow } from "@/lib/ai-agents/contract";
+import { taskComposerAccess } from "@/components/v3/tasks/task-composer-access";
+import { isAiAgentKey } from "@/lib/ai-agents/contract";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { computeAiAgentConfigHash, resolveAiAgentsMcpUrl } from "@/lib/server/ai-agents/config-hash";
 import { aiAgentsRuntimeAvailability, reconcileAiAgentRuns } from "@/lib/server/ai-agents/runtime";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { aiAgentHref, aiAgentNeedsSync, AI_AGENTS_HUB_HREF, parseAiAgentRoute } from "@/lib/v3/ai-agents-view";
+import {
+  aiAgentHref,
+  aiAgentNeedsSync,
+  AI_AGENT_CONVERSATIONS_MAX,
+  AI_AGENT_CONVERSATIONS_READ,
+  AI_AGENTS_HUB_HREF,
+  ownCommandRuns,
+  toConversationRow,
+  type AiAgentConversationRow,
+  parseAiAgentRoute,
+} from "@/lib/v3/ai-agents-view";
 import {
   readAiAgent,
   readAiAgentDigests,
@@ -35,7 +46,8 @@ const TWELVE_HOURS = 12 * 60 * 60 * 1000;
  * (меняет только системный администратор), шесть вкладок настоящими ссылками
  * `?tab=`: Обзор · Поручить · Запуски · Черновики · Инструкция · Настройки.
  * Читается только то, что нужно выбранной вкладке; хеш «нужна синхронизация»
- * считает сервер. Неизвестный ключ или вкладка — 404.
+ * считает сервер. Неизвестный ключ или вкладка — 404. «Поручить» занимает
+ * высоту окна (`fill`) и получает собственные разговоры сотрудника.
  */
 export default async function AiAgentPage({
   params,
@@ -84,32 +96,39 @@ export default async function AiAgentPage({
 
   const tab = route.tab;
   const now = new Date().toISOString();
-  const [digestsRead, runsRead, runRead, draftsRead, resumeRuns] = await Promise.all([
+  const [digestsRead, runsRead, runRead, draftsRead, conversationsRead] = await Promise.all([
     tab === "overview" ? readAiAgentDigests(actor, { key, limit: 6 }) : Promise.resolve(null),
     tab === "runs" && !route.runId ? readAiAgentRuns(actor, key, { limit: route.runsLimit + 1 }) : Promise.resolve(null),
     (tab === "runs" || tab === "command") && route.runId ? readAiAgentRun(actor, route.runId) : Promise.resolve(null),
     tab === "drafts" ? readAiAgentDrafts(actor, { key, status: route.draftsFilter === "pending" ? "pending" : null, limit: 50 }) : Promise.resolve(null),
-    tab === "command" && !route.runId ? readAiAgentRuns(actor, key, { limit: 10 }) : Promise.resolve(null),
+    // «Мои разговоры» — собственные поручения сотрудника этому агенту (RPC без изменений: фильтр здесь).
+    tab === "command" ? readAiAgentRuns(actor, key, { limit: AI_AGENT_CONVERSATIONS_READ }) : Promise.resolve(null),
   ]);
+  const conversations = conversationsRead?.status === "available"
+    ? ownCommandRuns(conversationsRead.data.runs, actor.displayName, AI_AGENT_CONVERSATIONS_MAX)
+    : [];
 
   // «Поручить» восстанавливает разговор: `?run=` или последний `command`-запуск этого сотрудника за 12 часов.
-  let resume = { runId: null as string | null, sendAuthority: false, run: null as AiAgentRunRow | null };
+  // `?new=1` («Новый разговор») автоподхват пропускает: перезагрузка после него показывает пустой разговор.
+  let resume = { runId: null as string | null, sendAuthority: false, run: null as AiAgentConversationRow | null };
   if (tab === "command") {
     if (route.runId && runRead?.status === "available" && runRead.data.run.agentKey === key) {
-      resume = { runId: route.runId, sendAuthority: runRead.data.run.sendAuthority, run: runRead.data.run };
-    } else if (resumeRuns?.status === "available") {
+      resume = { runId: route.runId, sendAuthority: runRead.data.run.sendAuthority, run: toConversationRow(runRead.data.run) };
+    } else if (!route.runId && !route.fresh) {
       const nowMs = Date.parse(now);
-      const mine = resumeRuns.data.runs.find((run) => run.triggerKind === "command" && run.startedByName === actor.displayName
-        && nowMs - Date.parse(run.startedAt) < TWELVE_HOURS);
+      const mine = conversations.find((run) => nowMs - Date.parse(run.startedAt) < TWELVE_HOURS);
       if (mine) resume = { runId: mine.id, sendAuthority: mine.sendAuthority, run: mine };
     }
   }
+  const taskAccess = taskComposerAccess(actor);
 
   return (
     <PartShell
       title={detail.title}
       testId="v3-ai-agent-page"
       back={back}
+      // «Поручить» — чат во всю высоту окна (оболочка отдаёт страницу целиком по `isFillRoute`).
+      fill={tab === "command"}
       meta={detail.roleLine}
       action={
         <AgentSwitches
@@ -140,6 +159,8 @@ export default async function AiAgentPage({
         drafts={draftsRead}
         draftsFilter={route.draftsFilter}
         resume={resume}
+        conversations={conversations}
+        canMakeTasks={taskAccess.staff || taskAccess.case}
       />
     </PartShell>
   );

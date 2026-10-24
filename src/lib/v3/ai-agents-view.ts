@@ -68,18 +68,21 @@ export type AiAgentPageRoute = Readonly<{
   /** Сколько строк «Запусков» показано (шаг «Показать ещё»). */
   runsLimit: number;
   draftsFilter: "pending" | "all";
+  /** `?new=1`: «Поручить» открывается пустым разговором и не подхватывает последний за 12 часов. */
+  fresh: boolean;
 }>;
 
 export const AI_AGENT_RUNS_STEP = 30;
 export const AI_AGENT_RUNS_MAX = 120;
 
-/** Разбор `?tab=`, `&run=`, `&limit=`, `&show=`; неизвестное значение — `null` (404), а не молчаливая замена. */
+/** Разбор `?tab=`, `&run=`, `&limit=`, `&show=`, `&new=`; неизвестное значение — `null` (404), а не молчаливая замена. */
 export function parseAiAgentRoute(query: Query): AiAgentPageRoute | null {
   const tab = single(query, "tab");
   const run = single(query, "run");
   const limit = single(query, "limit");
   const show = single(query, "show");
-  if (tab === null || run === null || limit === null || show === null) return null;
+  const fresh = single(query, "new");
+  if (tab === null || run === null || limit === null || show === null || fresh === null) return null;
   const known = tab === undefined ? "overview" : AI_AGENT_TABS.find((one) => one.key === tab)?.key;
   if (!known) return null;
   if (run !== undefined && !isAiAgentUuid(run)) return null;
@@ -89,20 +92,22 @@ export function parseAiAgentRoute(query: Query): AiAgentPageRoute | null {
     runsLimit = Math.min(AI_AGENT_RUNS_MAX, Math.max(AI_AGENT_RUNS_STEP, Number(limit)));
   }
   if (show !== undefined && show !== "all") return null;
-  return { tab: known, runId: run ?? null, runsLimit, draftsFilter: show === "all" ? "all" : "pending" };
+  if (fresh !== undefined && fresh !== "1") return null;
+  return { tab: known, runId: run ?? null, runsLimit, draftsFilter: show === "all" ? "all" : "pending", fresh: fresh === "1" };
 }
 
 export const AI_AGENTS_HUB_HREF = "/v3/ai-agents";
 
 export function aiAgentHref(
   key: AiAgentKey,
-  options: Readonly<{ tab?: AiAgentTab; run?: string | null; limit?: number | null; show?: "all" | null }> = {},
+  options: Readonly<{ tab?: AiAgentTab; run?: string | null; limit?: number | null; show?: "all" | null; fresh?: boolean }> = {},
 ): string {
   const params = new URLSearchParams();
   if (options.tab && options.tab !== "overview") params.set("tab", options.tab);
   if (options.run) params.set("run", options.run);
   if (options.limit && options.limit > AI_AGENT_RUNS_STEP) params.set("limit", String(options.limit));
   if (options.show === "all") params.set("show", "all");
+  if (options.fresh) params.set("new", "1");
   const query = params.toString();
   return `${AI_AGENTS_HUB_HREF}/${key}${query ? `?${query}` : ""}`;
 }
@@ -676,6 +681,217 @@ export function aiAgentConsoleRestore(
     if (run.status === "failed") seed.push({ id: `restore:${run.id}:error`, at, kind: "error", code: run.errorCode ?? "failed", message: run.errorMessage ?? "" });
   }
   return { status: run.status, working, seed };
+}
+
+/* ------------------------------------- «Поручить»: разговоры, ход работы, ответы агента */
+
+/**
+ * Страница читает последние запуски агента (RPC без изменений, потолок 100) и
+ * оставляет из них собственные `command`-разговоры сотрудника: так «Мои
+ * разговоры» обходятся без новой выборки в базе. Запуски по расписанию, по
+ * заявкам и чужие поручения остаются во вкладке «Запуски».
+ */
+export const AI_AGENT_CONVERSATIONS_READ = 60;
+export const AI_AGENT_CONVERSATIONS_MAX = 20;
+
+/** Поля запуска, которых хватает списку разговоров, восстановлению и строке итога под ответом. */
+export type AiAgentConversationRow = Pick<
+  AiAgentRunRow,
+  "id" | "status" | "startedAt" | "endedAt" | "durationSeconds" | "promptPreview" | "summary" | "errorCode" | "errorMessage" | "costCents" | "actionsCount" | "sendAuthority"
+>;
+
+const byStartedDesc = (a: Pick<AiAgentRunRow, "startedAt">, b: Pick<AiAgentRunRow, "startedAt">) => Date.parse(b.startedAt) - Date.parse(a.startedAt);
+
+/** Только поля разговора: сессия Claude, токены и имя в разметку клиента не уходят. */
+export const toConversationRow = (run: AiAgentConversationRow): AiAgentConversationRow => ({
+  id: run.id, status: run.status, startedAt: run.startedAt, endedAt: run.endedAt, durationSeconds: run.durationSeconds,
+  promptPreview: run.promptPreview, summary: run.summary, errorCode: run.errorCode, errorMessage: run.errorMessage,
+  costCents: run.costCents, actionsCount: run.actionsCount, sendAuthority: run.sendAuthority,
+});
+
+/** Свои поручения сотрудника этому агенту: тот же признак, что у восстановления («command» и его имя), новые выше. */
+export function ownCommandRuns(runs: readonly AiAgentRunRow[], displayName: string, limit = AI_AGENT_CONVERSATIONS_MAX): readonly AiAgentConversationRow[] {
+  if (!displayName.trim()) return [];
+  return runs
+    .filter((run) => run.triggerKind === "command" && run.startedByName === displayName)
+    .sort(byStartedDesc)
+    .slice(0, limit)
+    .map(toConversationRow);
+}
+
+/** То, что опрос узнаёт о разговоре по ходу работы; остальное в строке списка не меняется. */
+export type AiAgentConversationPatch = Pick<AiAgentConversationRow, "status" | "endedAt" | "durationSeconds" | "summary" | "errorCode" | "errorMessage" | "costCents" | "actionsCount" | "sendAuthority">;
+
+export const conversationPatch = (run: AiAgentConversationRow): AiAgentConversationPatch => ({
+  status: run.status, endedAt: run.endedAt, durationSeconds: run.durationSeconds, summary: run.summary, errorCode: run.errorCode,
+  errorMessage: run.errorMessage, costCents: run.costCents, actionsCount: run.actionsCount, sendAuthority: run.sendAuthority,
+});
+
+export function conversationPatchChanged(previous: AiAgentConversationPatch | undefined, next: AiAgentConversationPatch): boolean {
+  if (!previous) return true;
+  return (Object.keys(next) as (keyof AiAgentConversationPatch)[]).some((field) => previous[field] !== next[field]);
+}
+
+/**
+ * Список «Мои разговоры»: строки сервера, разговор, начатый в этой вкладке и ещё не
+ * дошедший до сервера (он выше всех: он заведомо новее), и то, что опрос
+ * узнал после чтения страницы. Закончившийся по данным сервера разговор не
+ * «оживает» устаревшей строкой опроса: вкладка могла уйти с него раньше, чем
+ * опрос увидел конец. Исключение — открытый сейчас разговор (`liveId`): его
+ * опрос идёт прямо сейчас, и продолжение закончившегося разговора («Идёт») в строке
+ * сервера, прочитанной до него, не отражено.
+ */
+export function mergeConversations(
+  server: readonly AiAgentConversationRow[],
+  local: Readonly<Record<string, AiAgentConversationRow>>,
+  patches: Readonly<Record<string, AiAgentConversationPatch>>,
+  limit = AI_AGENT_CONVERSATIONS_MAX,
+  liveId: string | null = null,
+): readonly AiAgentConversationRow[] {
+  const known = new Set(server.map((row) => row.id));
+  const apply = (row: AiAgentConversationRow, authoritative: boolean): AiAgentConversationRow => {
+    const patch = patches[row.id];
+    if (!patch) return row;
+    if (authoritative && !aiAgentRunIsActive(row.status) && aiAgentRunIsActive(patch.status)) return row;
+    return { ...row, ...patch };
+  };
+  const fresh = Object.values(local).filter((row) => !known.has(row.id)).sort(byStartedDesc).map((row) => apply(row, false));
+  const rows = [...server].sort(byStartedDesc).map((row) => apply(row, row.id !== liveId));
+  return [...fresh, ...rows].slice(0, limit);
+}
+
+/** «Сегодня 10:42», «Вчера 18:05», «21 окт 09:10» (Бишкек); другой год — с годом. */
+export function conversationTimeRu(iso: string, nowIso: string): string {
+  const at = zoned(iso);
+  if (!at) return "—";
+  const clock = `${two(at.h)}:${two(at.mi)}`;
+  const now = zoned(nowIso);
+  if (!now) return formatDateTimeRu(iso);
+  const days = Math.round((Date.UTC(now.y, now.mo - 1, now.d) - Date.UTC(at.y, at.mo - 1, at.d)) / 86_400_000);
+  if (days === 0) return `Сегодня ${clock}`;
+  if (days === 1) return `Вчера ${clock}`;
+  return `${at.d} ${MONTHS_SHORT[at.mo - 1]}${now.y !== at.y ? ` ${at.y}` : ""} ${clock}`;
+}
+
+export type ConversationStatusWord = Readonly<{ word: string; tone: "working" | "danger" | "warn" | "neutral" }>;
+
+/** Слово состояния разговора в списке; обычный «Готово» не подписывается — тишина значит «всё хорошо». */
+export function conversationStatusWord(status: AiAgentRunStatus): ConversationStatusWord | null {
+  switch (status) {
+    case "starting":
+    case "running": return { word: "Идёт", tone: "working" };
+    case "failed": return { word: "Ошибка", tone: "danger" };
+    case "interrupted": return { word: "Остановлен", tone: "neutral" };
+    case "budget_reached": return { word: "Лимит", tone: "warn" };
+    case "needs_attention": return { word: "Нужно внимание", tone: "warn" };
+    default: return null;
+  }
+}
+
+export const conversationPrompt = (row: Pick<AiAgentConversationRow, "promptPreview">): string => row.promptPreview?.trim() || "Разговор без текста";
+
+export const lowerFirst = (value: string): string => (value ? value.charAt(0).toLowerCase() + value.slice(1) : value);
+
+export type ToolChatItem = Extract<ChatItem, { kind: "tool" }>;
+export type ChatBlock =
+  | Exclude<ChatItem, { kind: "tool" }>
+  | Readonly<{ id: string; at: string; kind: "steps"; steps: readonly ToolChatItem[] }>;
+
+/**
+ * Подряд идущие вызовы инструментов — один блок «Ход работы»: переписка
+ * читается как реплики, а не как лента вызовов. Блок получает id первого
+ * вызова, поэтому растущая группа остаётся тем же элементом (раскрытие не слетает).
+ */
+export function groupChatItems(items: readonly ChatItem[]): readonly ChatBlock[] {
+  const blocks: ChatBlock[] = [];
+  let steps: ToolChatItem[] | null = null;
+  for (const item of items) {
+    if (item.kind !== "tool") { steps = null; blocks.push(item); continue; }
+    if (!steps) {
+      steps = [];
+      blocks.push({ id: item.id, at: item.at, kind: "steps", steps });
+    }
+    steps.push(item);
+  }
+  return blocks;
+}
+
+/**
+ * Строка свёрнутого блока: «Ход работы · 5 шагов» или, пока он идёт, «Ход работы · шаг 3 · ищет клиента…»;
+ * ошибки — отдельным словом. Вызов без ответа у закончившегося запуска (работа прервана) «идущим» не считается.
+ */
+export function stepsSummary(steps: readonly ToolChatItem[], working = true): Readonly<{ title: string; errors: string | null; running: boolean }> {
+  const lastRunning = working ? steps.findLastIndex((step) => step.state === "running") : -1;
+  const failed = steps.filter((step) => step.state === "error").length;
+  const title = lastRunning >= 0
+    ? `Ход работы · шаг ${lastRunning + 1} · ${lowerFirst(steps[lastRunning].word)}…`
+    : `Ход работы · ${steps.length} ${pluralRu(steps.length, ["шаг", "шага", "шагов"])}`;
+  return { title, errors: failed > 0 ? `${failed} ${pluralRu(failed, ["ошибка", "ошибки", "ошибок"])}` : null, running: lastRunning >= 0 };
+}
+
+/**
+ * Слово инструмента, который выполняется сейчас (последний из идущих); null — агент думает.
+ * Ищется только в последнем обороте (после сообщения сотрудника): вызов без ответа из
+ * прерванного раньше оборота «идущим» не считается.
+ */
+export function runningToolWord(items: readonly ChatItem[]): string | null {
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (item.kind === "user") return null;
+    if (item.kind === "tool" && item.state === "running") return item.word;
+  }
+  return null;
+}
+
+/** «0:12», «3:05», «1:02:03». */
+export function elapsedClock(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  return hours > 0 ? `${hours}:${two(minutes)}:${two(total % 60)}` : `${minutes}:${two(total % 60)}`;
+}
+
+/** «12 с · 0,11 $ · 5 шагов» под последним ответом закончившегося запуска; чего нет в строке запуска, того нет и в строке. */
+export function answerRunMeta(
+  run: Pick<AiAgentConversationRow, "startedAt" | "endedAt" | "durationSeconds" | "costCents" | "actionsCount">,
+  toolSteps: number,
+): string {
+  const seconds = run.durationSeconds
+    ?? (run.endedAt ? Math.max(0, Math.round((Date.parse(run.endedAt) - Date.parse(run.startedAt)) / 1000)) : null);
+  const parts: string[] = [];
+  if (seconds !== null && Number.isFinite(seconds)) parts.push(durationWords(seconds));
+  if (run.costCents > 0) parts.push(formatUsdCents(run.costCents));
+  const steps = toolSteps > 0 ? toolSteps : run.actionsCount;
+  if (steps > 0) parts.push(`${steps} ${pluralRu(steps, ["шаг", "шага", "шагов"])}`);
+  return parts.join(" · ");
+}
+
+/**
+ * Название задачи из ответа агента: первая содержательная строка без разметки
+ * (заголовок, список, цитата, ссылка, выделение, кодовые блоки и линии
+ * пропускаются), не длиннее `max` знаков. Пусто — в ответе нет текста.
+ */
+export function answerTaskTitle(markdown: string, max = 120): string {
+  let fenced = false;
+  for (const raw of markdown.split(/\r?\n/u)) {
+    const line = raw.trim();
+    if (/^(```|~~~)/u.test(line)) { fenced = !fenced; continue; }
+    if (fenced || !line) continue;
+    if (/^([-*_]\s*){3,}$/u.test(line) || (/^[\s|:-]+$/u.test(line) && line.includes("-"))) continue;
+    const plain = line
+      .replace(/^#{1,6}\s+/u, "")
+      .replace(/^>\s?/u, "")
+      .replace(/^(?:[-*+]|\d{1,3}[.)])\s+/u, "")
+      .replace(/!?\[([^\]]*)\]\([^)]*\)/gu, "$1")
+      .replace(/\*\*(.+?)\*\*|__(.+?)__/gu, "$1$2")
+      .replace(/\*(.+?)\*|(?<![\p{L}\p{N}])_(.+?)_(?![\p{L}\p{N}])/gu, "$1$2")
+      .replace(/`([^`]*)`/gu, "$1")
+      .replace(/\|/gu, " ")
+      .replace(/\s+/gu, " ")
+      .trim();
+    if (plain) return clip(plain, max);
+  }
+  return "";
 }
 
 /** Готовые первые поручения во вкладке «Поручить»: подставляются в поле, отправляет сотрудник. */

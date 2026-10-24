@@ -29,6 +29,8 @@ import {
   aiAgentRunIsActive,
   aiAgentStateChip,
   aiAgentSyncProblemText,
+  answerRunMeta,
+  answerTaskTitle,
   buildChatItems,
   chartAxisTop,
   chartBarRows,
@@ -38,11 +40,19 @@ import {
   describeSchedule,
   draftStatusWords,
   draftTargetHref,
+  conversationPatch,
+  conversationPatchChanged,
+  conversationStatusWord,
+  conversationTimeRu,
   durationWords,
+  elapsedClock,
   formatDayRu,
   formatUsdCents,
+  groupChatItems,
   isValidCron,
   mapAiAgentsDbError,
+  mergeConversations,
+  ownCommandRuns,
   parseAiAgentDetail,
   parseAiAgentDigests,
   parseAiAgentDrafts,
@@ -55,6 +65,8 @@ import {
   parseMarkdown,
   parseMarkdownInline,
   relativeTimeRu,
+  runningToolWord,
+  stepsSummary,
   successShare,
 } from "../src/lib/v3/ai-agents-view.ts";
 
@@ -235,14 +247,17 @@ test("ошибки: сообщения базы → коды → русские 
   assert.equal(mapAiAgentsDbError({ code: "P0002", message: "ai_agent_not_found" }), "not_found");
   assert.equal(mapAiAgentsDbError({ code: "XX000", message: "boom" }), "unavailable");
 
-  assert.deepEqual(parseAiAgentRoute({}), { tab: "overview", runId: null, runsLimit: 30, draftsFilter: "pending" });
+  assert.deepEqual(parseAiAgentRoute({}), { tab: "overview", runId: null, runsLimit: 30, draftsFilter: "pending", fresh: false });
+  assert.equal(parseAiAgentRoute({ tab: "command", new: "1" })?.fresh, true, "?new=1 — «Новый разговор»");
   assert.equal(parseAiAgentRoute({ tab: "drafts", show: "all" })?.draftsFilter, "all");
   assert.equal(parseAiAgentRoute({ tab: "runs", run: "11111111-1111-4111-8111-111111111111" })?.runId, "11111111-1111-4111-8111-111111111111");
   assert.equal(parseAiAgentRoute({ tab: "runs", limit: "60" })?.runsLimit, 60);
-  for (const bad of [{ tab: "nope" }, { tab: ["runs", "drafts"] }, { run: "x" }, { limit: "abc" }, { show: "weird" }]) assert.equal(parseAiAgentRoute(bad), null, JSON.stringify(bad));
+  for (const bad of [{ tab: "nope" }, { tab: ["runs", "drafts"] }, { run: "x" }, { limit: "abc" }, { show: "weird" }, { new: "0" }, { new: ["1", "1"] }]) assert.equal(parseAiAgentRoute(bad), null, JSON.stringify(bad));
   assert.equal(aiAgentHref("director"), "/v3/ai-agents/director");
   assert.equal(aiAgentHref("sales", { tab: "drafts", show: "all" }), "/v3/ai-agents/sales?tab=drafts&show=all");
   assert.equal(aiAgentHref("sales", { tab: "runs", run: "r1" }), "/v3/ai-agents/sales?tab=runs&run=r1");
+  assert.equal(aiAgentHref("sales", { tab: "command", fresh: true }), "/v3/ai-agents/sales?tab=command&new=1");
+  assert.equal(aiAgentHref("sales", { tab: "command", run: "r1" }), "/v3/ai-agents/sales?tab=command&run=r1");
 
   assert.deepEqual(draftStatusWords({ status: "pending", failureCode: "whatsapp_unavailable", sentByAgent: false }), { label: "Ждёт решения", tone: "warn", note: "Остаётся в очереди: WhatsApp сейчас не подключён" });
   assert.equal(draftStatusWords({ status: "failed", failureCode: "conversation_moved_on", sentByAgent: false }).note, "Не отправлено: клиент написал ещё — ответ устарел");
@@ -537,12 +552,22 @@ test("вкладки «Поручить», «Запуски», «Чернови�
   const { body } = await views();
   const command = body(bodyProps({ tab: "command" }));
   assert.match(command, /data-testid="v3-aia-input"/u);
-  assert.match(command, /Авто выключен: сообщения клиентам и студентам агент кладёт в «Черновики»/u);
-  assert.match(command, /Отправлять без черновика/u, "переключатель — для ai.agent.manage");
+  assert.match(command, /Авто выкл · сообщения клиентам — в «Черновики»/u);
+  assert.match(command, /<button[^>]*aria-pressed="false"[^>]*data-testid="v3-aia-direct"[\s\S]*Без черновика/u, "переключатель — для ai.agent.manage");
   assert.match(command, /Агент отправит сообщения клиентам сразу, без вашего одобрения, на время этого разговора\./u);
   assert.match(command, /Покажи свои настройки/u);
-  assert.doesNotMatch(body(bodyProps({ tab: "command", canManage: false })), /Отправлять без черновика/u);
-  assert.match(body(bodyProps({ tab: "command", detail: { ...DETAIL, autoSend: true } })), /Авто включён: сообщения клиентам и студентам агент отправляет сам\./u);
+  assert.match(command, /placeholder="Что поручить: Директор \/ Аналитик\?"/u);
+  assert.doesNotMatch(command, /Ctrl\+Enter|Разговор закончен/u, "подсказок о клавишах и «Разговор закончен» больше нет");
+  assert.doesNotMatch(body(bodyProps({ tab: "command", canManage: false })), /Без черновика/u);
+  assert.match(body(bodyProps({ tab: "command", detail: { ...DETAIL, autoSend: true } })), /Авто вкл<\/span> · агент отправляет клиентам сам/u);
+  // «Мои разговоры»: колонка со ссылкой на «Запуски» и пустым словом; «Поручить» — рабочая область окна
+  assert.match(command, /<nav aria-label="Мои разговоры с агентом"[^>]*data-testid="v3-aia-conversations"/u);
+  assert.match(command, /Здесь появятся ваши разговоры с агентом\./u);
+  assert.match(command, /href="\/v3\/ai-agents\/director\?tab=runs"[^>]*>Все запуски|data-testid="v3-aia-all-runs" href="\/v3\/ai-agents\/director\?tab=runs"/u);
+  assert.match(command, /data-aia-workspace/u);
+  assert.match(command, /<h2[^>]*class="sr-only">Поручить: Директор \/ Аналитик<\/h2>/u, "заголовок раздела остаётся для читалки");
+  assert.doesNotMatch(command, /<h2[^>]*class="t-section text-fg">Поручить<\/h2>/u, "видимого «Поручить» над полем больше нет");
+  assert.match(command, /Считает продажи, воронку и поступление/u, "строка роли — в пустом состоянии");
 
   const run = { id: "11111111-1111-4111-8111-111111111111", agentKey: "director", status: "failed", triggerKind: "schedule", startedAt: NOW, endedAt: null,
     durationSeconds: 8, promptPreview: null, summary: null, errorCode: "mcp_auth_failed", errorMessage: null, model: "claude-sonnet-5-5", agentVersion: 3,
@@ -633,40 +658,182 @@ test("восстановление запуска: «работает» — то
   }
 });
 
+test("«Мои разговоры»: свои запуски, слияние с тем, что знает вкладка, подписи списка", () => {
+  const row = (id, startedAt, over = {}) => resumeRun({ id, startedAt, ...over });
+  const runs = [
+    row("a", "2026-10-22T08:00:00.000Z"),
+    row("b", "2026-10-22T09:00:00.000Z", { startedByName: "Другой сотрудник" }),
+    row("c", "2026-10-22T07:00:00.000Z", { triggerKind: "schedule", startedByName: null }),
+    row("d", "2026-10-22T10:00:00.000Z"),
+    row("e", "2026-10-21T10:00:00.000Z", { startedByName: null }),
+  ];
+  assert.deepEqual(ownCommandRuns(runs, "Админ").map((one) => one.id), ["d", "a"], "только свои command-запуски, новые выше");
+  assert.deepEqual(ownCommandRuns(runs, "Админ", 1).map((one) => one.id), ["d"], "потолок списка");
+  assert.deepEqual(ownCommandRuns(runs, "  "), [], "без имени сотрудника своих нет, а не «все без имени»");
+
+  const server = [row("d", "2026-10-22T10:00:00.000Z", { status: "running" }), row("a", "2026-10-22T08:00:00.000Z", { status: "completed" })];
+  const local = { n: row("n", "2026-10-22T09:59:00.000Z", { status: "running" }), d: row("d", "2030-01-01T00:00:00.000Z") };
+  assert.deepEqual(mergeConversations(server, local, {}).map((one) => one.id), ["n", "d", "a"], "начатый во вкладке и ещё не дошедший до сервера — наверху; строка сервера главнее локальной");
+  const done = conversationPatch(row("d", "x", { status: "completed", costCents: 40, durationSeconds: 9, endedAt: "2026-10-22T10:01:00.000Z" }));
+  const merged = mergeConversations(server, {}, { d: done });
+  assert.equal(merged[0].status, "completed");
+  assert.equal(merged[0].costCents, 40, "свежая строка из опроса дополняет список");
+  assert.equal(merged[0].startedAt, "2026-10-22T10:00:00.000Z", "а дата и текст поручения остаются");
+  const stale = conversationPatch(row("a", "x", { status: "running" }));
+  assert.equal(mergeConversations(server, {}, { a: stale }).find((one) => one.id === "a").status, "completed", "закончившийся по данным сервера разговор не оживает устаревшей строкой опроса");
+  assert.equal(mergeConversations(server, { n: local.n }, {}, 2).length, 2);
+  // Открытый разговор опрашивается сейчас: продолжение закончившегося («Идёт», расход) видно в списке сразу, остальные не оживают.
+  const live = conversationPatch(row("a", "x", { status: "running", costCents: 9 }));
+  const liveRow = mergeConversations(server, {}, { a: live }, undefined, "a").find((one) => one.id === "a");
+  assert.equal(liveRow.status, "running", "живой разговор берёт строку опроса, а не закончившуюся строку сервера");
+  assert.equal(liveRow.costCents, 9);
+  assert.equal(mergeConversations(server, {}, { a: live }, undefined, "d").find((one) => one.id === "a").status, "completed", "для чужого живого разговора устаревшая строка по-прежнему не оживает");
+  assert.equal(conversationPatchChanged(undefined, done), true);
+  assert.equal(conversationPatchChanged(done, { ...done }), false, "тот же опрос список не перерисовывает");
+  assert.equal(conversationPatchChanged(done, { ...done, costCents: 41 }), true);
+
+  const now = "2026-10-22T10:30:00.000Z";
+  assert.equal(conversationTimeRu("2026-10-22T04:42:00.000Z", now), "Сегодня 10:42");
+  assert.equal(conversationTimeRu("2026-10-21T12:05:00.000Z", now), "Вчера 18:05");
+  assert.equal(conversationTimeRu("2026-10-21T18:30:00.000Z", now), "Сегодня 00:30", "день считается по Бишкеку, не по UTC");
+  assert.equal(conversationTimeRu("2026-10-20T03:10:00.000Z", now), "20 окт 09:10");
+  assert.equal(conversationTimeRu("2025-12-31T03:10:00.000Z", now), "31 дек 2025 09:10");
+  assert.equal(conversationTimeRu("не дата", now), "—");
+
+  assert.deepEqual(["starting", "running", "completed", "failed", "interrupted", "budget_reached", "needs_attention"].map((status) => conversationStatusWord(status)?.word ?? null),
+    ["Идёт", "Идёт", null, "Ошибка", "Остановлен", "Лимит", "Нужно внимание"]);
+  assert.equal(conversationStatusWord("failed").tone, "danger");
+});
+
+test("ход работы: вызовы подряд — один блок со словом шага, ошибки и идущий вызов говорят словами; живая строка", () => {
+  const call = (id, tool) => ({ id, at: NOW, kind: "tool_call", tool, label: tool, argsSummary: "", builtin: false });
+  const result = (id, tool, ok) => ({ id, at: NOW, kind: "tool_result", tool, ok, preview: "" });
+  const items = buildChatItems([
+    { id: "u", at: NOW, kind: "user", text: "Привет" },
+    call("t1", "list_leads"), result("r1", "list_leads", true),
+    call("t2", "get_case"), result("r2", "get_case", false),
+    call("t3", "search_clients"),
+    { id: "a", at: NOW, kind: "agent", text: "Ответ" },
+    call("t4", "list_tasks"), result("r4", "list_tasks", true),
+  ]);
+  const blocks = groupChatItems(items);
+  assert.deepEqual(blocks.map((block) => block.kind), ["user", "steps", "agent", "steps"]);
+  assert.equal(blocks[1].id, "t1", "id блока — первого вызова: растущая серия остаётся тем же элементом");
+  assert.equal(blocks[1].steps.length, 3);
+
+  const running = stepsSummary(blocks[1].steps);
+  assert.equal(running.title, "Ход работы · шаг 3 · ищет клиента…");
+  assert.equal(running.errors, "1 ошибка");
+  assert.equal(running.running, true);
+  const parked = stepsSummary(blocks[1].steps, false);
+  assert.equal(parked.title, "Ход работы · 3 шага", "прерванный запуск не делает вид, что вызов ещё идёт");
+  assert.equal(stepsSummary(blocks[3].steps).title, "Ход работы · 1 шаг");
+  assert.equal(stepsSummary(blocks[3].steps).errors, null);
+  assert.equal(stepsSummary([...blocks[1].steps, ...blocks[3].steps, ...blocks[3].steps, ...blocks[3].steps].map((step) => ({ ...step, state: "error" })), false).errors, "6 ошибок");
+  assert.equal(runningToolWord(items), "Ищет клиента", "«Сейчас: …» — слово идущего вызова");
+  assert.equal(runningToolWord(items.slice(0, 2)), null, "ни один вызов не идёт — «Думает…»");
+  // Вызов без ответа из прерванного оборота не «идёт» в новом обороте: после сообщения сотрудника — «Думает…».
+  const interrupted = buildChatItems([
+    { id: "u", at: NOW, kind: "user", text: "Раз" }, call("t1", "search_clients"),
+    { id: "u2", at: NOW, kind: "user", text: "Два" },
+  ]);
+  assert.equal(runningToolWord(interrupted), null, "вызов из прошлого оборота не считается идущим");
+  assert.equal(runningToolWord([...interrupted, ...buildChatItems([call("t2", "get_case")])]), "Читает дело студента", "а вызов в последнем обороте — считается");
+
+  assert.equal(elapsedClock(0), "0:00");
+  assert.equal(elapsedClock(12_400), "0:12");
+  assert.equal(elapsedClock(185_000), "3:05");
+  assert.equal(elapsedClock(3_723_000), "1:02:03");
+  assert.equal(elapsedClock(-5), "0:00");
+});
+
+test("ответ агента: строка итога под ним и название задачи из первой содержательной строки", () => {
+  // Сумма и «$» разделены неразрывным пробелом, чтобы не оказаться на разных строках.
+  const meta = (over = {}, steps = 0) => answerRunMeta({ startedAt: "2026-10-22T10:20:00.000Z", endedAt: "2026-10-22T10:20:12.000Z", durationSeconds: 12, costCents: 11, actionsCount: 2, ...over }, steps).replaceAll("\u00a0", " ");
+  assert.equal(meta({}, 5), "12 с · 0,11 $ · 5 шагов");
+  assert.equal(meta({}, 0), "12 с · 0,11 $ · 2 шага", "нет вызовов в хронике — берётся число действий из строки запуска");
+  assert.equal(meta({ durationSeconds: null }), "12 с · 0,11 $ · 2 шага", "длительность считается по началу и концу");
+  assert.equal(meta({ durationSeconds: null, endedAt: null, costCents: 0, actionsCount: 0 }), "", "чего нет — того нет в строке");
+  assert.equal(meta({ costCents: 0 }, 1), "12 с · 1 шаг");
+
+  assert.equal(answerTaskTitle("## Итог недели\n\nВыручка выросла"), "Итог недели");
+  assert.equal(answerTaskTitle("\n\n---\n**Позвонить** клиенту [Иванов](https://crm.example/x) до `пятницы`"), "Позвонить клиенту Иванов до пятницы");
+  assert.equal(answerTaskTitle("```\nкод\n```\n- первый пункт\n- второй"), "первый пункт", "кодовый блок пропускается, маркер списка снимается");
+  assert.equal(answerTaskTitle("> цитата\n\nдальше"), "цитата");
+  assert.equal(answerTaskTitle("| Имя | Статус |\n|---|---|\n| Аня | ок |"), "Имя Статус");
+  assert.equal(answerTaskTitle("Проверить list_tasks и _snake_case_ в отчёте"), "Проверить list_tasks и snake_case в отчёте", "подчёркивания внутри слов остаются");
+  assert.equal(answerTaskTitle("---\n```\n```"), "");
+  const long = answerTaskTitle(`Очень длинная строка ${"слово ".repeat(60)}`);
+  assert.ok(long.length <= 120 && long.endsWith("…"), "название не длиннее 120 знаков");
+});
+
 test("«Поручить» при открытии на запуске: разметка сразу говорит правду — идёт ли работа, поручение, итог, «Новый разговор»", async () => {
   const { body } = await views();
   const command = (resume, over = {}) => body(bodyProps({ tab: "command", resume: { runId: RESUME_RUN_ID, sendAuthority: false, run: resume, ...over } }));
 
   const active = command(resumeRun());
-  assert.match(active, /data-testid="v3-aia-working"/u, "работа идёт — сказано");
+  assert.match(active, /data-testid="v3-aia-progress"/u, "работа идёт — сказано");
+  assert.match(active, /data-testid="v3-aia-working">Думает…/u, "инструмент не вызван — «Думает…»");
   assert.match(active, /Покажи студентов с просроченными документами/u, "видно, что поручили");
-  assert.match(active, /placeholder="Ответ или уточнение для агента…"/u);
-  assert.match(active, /<textarea[^>]*\sdisabled=""/u, "пока работа идёт, писать нельзя");
-  assert.match(active, /data-testid="v3-aia-stop"/u);
+  assert.match(active, /placeholder="Уточнение или следующий вопрос…"/u);
+  assert.doesNotMatch(active, /<textarea[^>]*\sdisabled=""/u, "пока агент работает, следующее сообщение можно готовить");
+  assert.match(active, /<button[^>]*aria-label="Остановить агента"[^>]*data-testid="v3-aia-stop"/u, "круглая кнопка — «Остановить агента»");
+  assert.doesNotMatch(active, /data-testid="v3-aia-send"/u);
+  assert.doesNotMatch(active, /data-testid="v3-aia-direct"/u, "«Без черновика» задаётся при старте, не в начатом разговоре");
 
-  const done = command(resumeRun({ status: "completed", endedAt: "2026-10-22T10:21:00.000Z", summary: "Итог: **3** студента с просрочкой" }));
-  assert.doesNotMatch(done, /Агент работает/u, "работа закончилась — «работает» в разметке нет, пока опрос не ответил");
-  assert.doesNotMatch(done, /data-testid="v3-aia-working"/u);
+  const done = command(resumeRun({ status: "completed", endedAt: "2026-10-22T10:21:00.000Z", durationSeconds: 60, costCents: 11, summary: "Итог: **3** студента с просрочкой" }));
+  assert.doesNotMatch(done, /Агент работает|Думает/u, "работа закончилась — индикатора в разметке нет, пока опрос не ответил");
+  assert.doesNotMatch(done, /data-testid="v3-aia-progress"/u);
   assert.match(done, /Покажи студентов с просроченными документами/u);
   assert.match(done, /Итог: <strong[^>]*>3<\/strong> студента с просрочкой/u, "итог — тот, что хранится в строке запуска");
-  assert.match(done, /Разговор закончен — можно продолжить сообщением ниже или начать новый\./u);
-  assert.match(done, /data-testid="v3-aia-new"/u, "«Новый разговор» доступен");
+  assert.match(done, /data-testid="v3-aia-copy"/u, "под ответом есть «Скопировать»");
+  assert.match(done, /data-testid="v3-aia-run-meta">1 мин 00 с · 0,11[^<]*\$<\/span>/u, "под последним ответом закончившегося запуска — длительность и расход из строки запуска");
+  assert.doesNotMatch(done, /Разговор закончен/u);
+  assert.match(done, /data-testid="v3-aia-new"/u, "«Новый разговор» всегда в колонке разговоров");
   assert.doesNotMatch(done, /<textarea[^>]*\sdisabled=""/u, "после конца можно продолжить сообщением");
   assert.doesNotMatch(done, /data-testid="v3-aia-stop"/u);
+  assert.match(done, /<button[^>]*aria-label="Отправить"[^>]*data-testid="v3-aia-send"/u);
+  assert.doesNotMatch(done, /data-testid="v3-aia-make-task"/u, "без права создавать задачи «Сделать задачей» нет");
+  assert.match(body(bodyProps({ tab: "command", canMakeTasks: true, resume: { runId: RESUME_RUN_ID, sendAuthority: false, run: resumeRun({ status: "completed", summary: "Итог" }) } })), /data-testid="v3-aia-make-task"/u);
 
   const failed = command(resumeRun({ status: "failed", errorCode: "mcp_auth_failed" }));
   assert.match(failed, /Токен доступа агента к CRM не принят/u);
   assert.match(failed, /data-testid="v3-aia-new"/u);
 
+  // Начатый с полномочием разговор: слово «Без черновика» стоит в мете, переключателя нет.
+  assert.match(command(resumeRun({ sendAuthority: true }), { sendAuthority: true }), /data-tone="warn">Без черновика<\/span>/u);
+
   // Старое поведение для вызова без строки запуска: считаем, что работа идёт, пока опрос не скажет иначе.
   const legacy = body(bodyProps({ tab: "command", resume: { runId: RESUME_RUN_ID, sendAuthority: false } }));
-  assert.match(legacy, /data-testid="v3-aia-working"/u);
+  assert.match(legacy, /data-testid="v3-aia-progress"/u);
 
   // Восстановления нет там, где писать нельзя, и когда разговора нет.
-  assert.doesNotMatch(body(bodyProps({ tab: "command", runtimeConfigured: false, resume: { runId: RESUME_RUN_ID, sendAuthority: false, run: resumeRun() } })), /v3-aia-working|Покажи студентов с просроченными/u);
+  const locked = body(bodyProps({ tab: "command", runtimeConfigured: false, resume: { runId: RESUME_RUN_ID, sendAuthority: false, run: resumeRun() }, conversations: [resumeRun()] }));
+  assert.doesNotMatch(locked, /v3-aia-progress|Покажи студентов с просроченными/u);
+  assert.doesNotMatch(locked, /v3-aia-conversations|v3-aia-new/u, "заперто — списка разговоров и поля нет, только объяснение");
+  assert.match(locked, /<a[^>]*data-testid="v3-aia-back" href="\/v3\/ai-agents\/director">[\s\S]*К разделам агента<\/a>/u, "на телефоне шапки страницы нет: у запертого состояния остаётся выход к разделам агента");
   const fresh = body(bodyProps({ tab: "command" }));
-  assert.doesNotMatch(fresh, /v3-aia-working|v3-aia-new/u);
-  assert.match(fresh, /placeholder="Что поручить агенту\?"/u);
+  assert.doesNotMatch(fresh, /v3-aia-progress/u);
+  assert.match(fresh, /placeholder="Что поручить: Директор \/ Аналитик\?"/u);
+});
+
+test("«Мои разговоры»: список из своих запусков, выбранный отмечен, слова состояния и расход", async () => {
+  const { body } = await views();
+  const mine = [
+    resumeRun({ id: "aaaaaaaa-1111-4111-8111-111111111111", status: "failed", startedAt: "2026-10-21T12:05:00.000Z", promptPreview: "Старое поручение", costCents: 0 }),
+    resumeRun({ id: RESUME_RUN_ID, status: "running", startedAt: "2026-10-22T10:20:00.000Z", costCents: 11 }),
+    resumeRun({ id: "bbbbbbbb-1111-4111-8111-111111111111", status: "completed", startedAt: "2026-10-22T08:05:00.000Z", promptPreview: "Закончено", costCents: 250 }),
+  ];
+  const html = body(bodyProps({ tab: "command", conversations: mine, resume: { runId: RESUME_RUN_ID, sendAuthority: false, run: mine[1] } }));
+  const list = html.slice(html.indexOf('data-testid="v3-aia-conversations"'));
+  assert.equal((list.match(/data-testid="v3-aia-conversation-item"/gu) ?? []).length, 3);
+  assert.ok(list.indexOf("Покажи студентов") < list.indexOf("Закончено") && list.indexOf("Закончено") < list.indexOf("Старое поручение"), "новые выше");
+  assert.match(list, /aria-current="true"[^>]*data-testid="v3-aia-conversation-item"[^>]*>[\s\S]*?Покажи студентов с просроченными документами/u, "открытый разговор отмечен");
+  assert.equal((list.match(/aria-current="true"/gu) ?? []).length, 1);
+  assert.match(list, /Сегодня 16:20[\s\S]*?v3-aia-working-dot[\s\S]*?Идёт[\s\S]*?0,11/u, "время (Бишкек), «Идёт» с точкой, расход");
+  assert.match(list, /Вчера 18:05[\s\S]*?text-danger[^>]*>[\s\S]*?Ошибка/u, "ошибка — красным и словом");
+  assert.doesNotMatch(list.slice(list.indexOf("Закончено"), list.indexOf("Старое поручение")), /Готово|Идёт|Ошибка/u, "обычный «Готово» не подписывается");
+  assert.match(html, /<span class="tabular-nums text-fg-3">3<\/span>/u, "в узкой шапке у «Разговоры» — число");
 });
 
 test("первый клик: кнопки синхронизации заперты, пока страница не гидратирована, и не теряют нажатие молча", async () => {
@@ -682,17 +849,26 @@ test("первый клик: кнопки синхронизации запер�
   assert.match(command, /<button[^>]*disabled=""[^>]*data-testid="v3-aia-send"|<button[^>]*data-testid="v3-aia-send"[^>]*disabled=""/u);
 });
 
-test("исходники «Поручить»: ключ вкладки — только явный ?run=, страница передаёт строку запуска, набранное до гидратации подхватывается", () => {
+test("исходники «Поручить»: ключ чата — у рабочей области, страница передаёт строку запуска и «Мои разговоры», набранное до гидратации подхватывается", () => {
   const bodySource = read("src/components/v3/ai-agents/AgentBody.tsx");
-  assert.match(bodySource, /key=\{props\.runId \?\? "conversation"\}/u, "ключ от явного ?run=");
-  assert.doesNotMatch(bodySource, /key=\{props\.resume/u, "ключ не от разговора, который сервер подобрал сам: после перерисовки он сменился бы и стёр набранное");
+  assert.doesNotMatch(bodySource, /key=\{props\.runId/u, "ключ не от ?run=: после перерисовки сервером адрес и свойства меняются, а разговор — нет");
+  assert.doesNotMatch(bodySource, /key=\{props\.resume/u);
+  const workspace = read("src/components/v3/ai-agents/CommandWorkspace.tsx");
+  assert.match(workspace, /<Console\s+key=\{opened\.n\}/u, "ключ Console — счётчик рабочей области");
+  assert.match(workspace, /n: previous\.n \+ 1/u, "растёт только по выбору строки или «Новому разговору»");
+  assert.doesNotMatch(workspace, /history\.pushState/u, "адрес обновляется на месте, без записей в истории");
+  assert.match(workspace, /window\.history\.replaceState\(null, "", href\)/u);
   const pageSource = read("src/app/(v3)/v3/ai-agents/[key]/page.tsx");
-  assert.match(pageSource, /run: runRead\.data\.run/u);
+  assert.match(pageSource, /run: toConversationRow\(runRead\.data\.run\)/u);
   assert.match(pageSource, /run: mine \}/u);
+  assert.match(pageSource, /!route\.runId && !route\.fresh/u, "?new=1 пропускает автоподхват");
+  assert.match(pageSource, /ownCommandRuns\(conversationsRead\.data\.runs, actor\.displayName/u);
+  assert.match(pageSource, /fill=\{tab === "command"\}/u);
   const consoleSource = read("src/components/v3/ai-agents/Console.tsx");
   assert.match(consoleSource, /useLayoutEffect\(\(\) => \{\s*const typed = input\.current\?\.value/u, "текст из поля, набранный до гидратации, попадает в состояние");
   assert.doesNotMatch(consoleSource, /setWorking\(true\);\s*schedule\(/u, "«работает» следует статусу запуска, а не тому, что опрос не закончился");
   assert.match(consoleSource, /setWorking\(aiAgentRunIsActive\(poll\.run\.status\)\)|setWorking\(active\)/u);
+  assert.match(read("src/lib/v3/board-layout.ts"), /tab === "command"/u);
 });
 
 /* Настоящий React в Chromium: серверная разметка гидратируется, как на странице (без Next). Серверные действия — записанные
@@ -702,6 +878,8 @@ import { AgentBody } from "@/components/v3/ai-agents/AgentBody";
 export const render = (props) => renderToString(<AgentBody {...props} />);`;
 const BROWSER_CLIENT = `import { hydrateRoot } from "react-dom/client";
 import { AgentBody } from "@/components/v3/ai-agents/AgentBody";
+import { registerTaskComposerOpener } from "@/components/v3/tasks/task-composer-context";
+window.__registerOpener = (open) => registerTaskComposerOpener(open);
 window.__gate.then(() => {
   const root = hydrateRoot(document.getElementById("root"), <AgentBody {...window.__PROPS} />, { onRecoverableError: (error) => window.__errors.push(String(error)) });
   window.__rerender = (over) => root.render(<AgentBody {...window.__PROPS} {...over} />);
@@ -712,11 +890,16 @@ module.exports = { updateAiAgentAction: act("update"), saveAiAgentInstructionsAc
   interruptAiAgentRunAction: act("interrupt"), loadAiAgentRunTranscriptAction: act("transcript"), decideAiAgentDraftAction: act("decide") };`;
 const BROWSER_FAKE = () => {
   window.__fake = {
-    calls: [], pollScript: [], pollIndex: 0,
-    async call(name) {
+    calls: [], sent: [], pollScript: [], pollIndex: 0, startResult: null,
+    async call(name, args) {
       this.calls.push(name);
       if (name === "sync") return { status: "saved", code: null, message: "Агент синхронизирован с Claude.", requestId: "r" };
       if (name === "poll") return this.pollScript[Math.min(this.pollIndex++, this.pollScript.length - 1)] ?? { ok: false, code: "unavailable" };
+      if (name === "start" || name === "followUp") {
+        const form = args[1];
+        this.sent.push({ name, text: form.get("text"), authority: form.get("send_authority"), runId: form.get("run_id") });
+        return this.startResult ?? { status: "idle", code: null, message: null, requestId: null };
+      }
       return { status: "idle", code: null, message: null, requestId: null };
     },
   };
@@ -791,7 +974,11 @@ function browserKit() {
   return browserKitPromise;
 }
 const ev = (id, kind, extra) => ({ id, at: "2026-10-22T10:20:01.000Z", kind, ...extra });
-const poll = (status, events, over = {}) => ({ ok: true, poll: { run: { status, sendAuthority: false }, events, cursor: "c", done: false, pollAfterMs: 200, ...over } });
+const pollRun = (status) => ({
+  id: RESUME_RUN_ID, status, sendAuthority: false, startedAt: "2026-10-22T10:20:00.000Z", endedAt: status === "completed" ? "2026-10-22T10:21:00.000Z" : null,
+  durationSeconds: status === "completed" ? 60 : null, costCents: 11, actionsCount: 0, summary: null, errorCode: null, errorMessage: null,
+});
+const poll = (status, events, over = {}) => ({ ok: true, poll: { run: pollRun(status), events, cursor: "c", done: false, pollAfterMs: 200, ...over } });
 const consoleText = (page) => page.evaluate(() => document.querySelector("[data-testid=v3-aia-console]")?.innerText ?? "");
 
 test("браузер: поле «Поручить» переживает перерисовку страницы сервером и текст, набранный до гидратации", async (t) => {
@@ -827,7 +1014,7 @@ test("браузер: перезагрузка во время поручени�
   try {
     const ssr = await consoleText(page);
     assert.match(ssr, /Покажи студентов с просроченными документами/u);
-    assert.match(ssr, /Агент работает…/u);
+    assert.match(ssr, /Думает…/u);
     await page.evaluate((script) => { window.__fake.pollScript = script; }, [
       poll("running", [ev("e1", "user", { text: "Покажи студентов с просроченными документами" }), ev("e2", "tool_call", { tool: "list_tasks", label: "Задачи", argsSummary: "", builtin: false })]),
       poll("running", []),
@@ -835,25 +1022,31 @@ test("браузер: перезагрузка во время поручени�
       poll("completed", [], { cursor: null, done: true, pollAfterMs: 0 }),
     ]);
     await page.evaluate(() => window.__release());
+    await page.waitForSelector("[data-testid=v3-aia-progress]");
+    await page.waitForFunction(() => document.querySelector("[data-testid=v3-aia-working]")?.textContent?.startsWith("Сейчас: смотрит задачи"), null, { timeout: 8000 });
     await page.waitForFunction(() => document.querySelector("[data-testid=v3-aia-console]").innerText.includes("Итог: у троих"), null, { timeout: 8000 });
-    // Итог уже пришёл, а последний опрос (`done`) ещё нет: статус «Готово» — значит, «Агент работает…» уже снят.
+    // Итог уже пришёл, а последний опрос (`done`) ещё нет: статус «Готово» — значит, строка хода уже снята.
     assert.equal(await page.evaluate(() => window.__fake.calls.filter((name) => name === "poll").length), 3, "четвёртый опрос ещё не прошёл");
-    assert.doesNotMatch(await consoleText(page), /Агент работает…/u, "работа закончилась — индикатор снят, не ждёт последнего опроса");
+    assert.equal(await page.locator("[data-testid=v3-aia-progress]").count(), 0, "работа закончилась — строка хода снята, не ждёт последнего опроса");
     await page.waitForFunction(() => window.__fake.calls.filter((name) => name === "poll").length >= 4, null, { timeout: 8000 });
     const done = await consoleText(page);
-    assert.doesNotMatch(done, /Агент работает…/u);
+    assert.doesNotMatch(done, /Думает…|Сейчас:/u);
     assert.equal(await page.locator("[data-testid=v3-aia-tool-row]").count(), 1, "вызов инструмента из хроники Claude показан");
+    assert.equal(await page.locator("[data-testid=v3-aia-steps]").count(), 1, "вызовы свёрнуты в один блок «Ход работы»");
+    assert.match(await page.locator("[data-testid=v3-aia-steps] > summary").innerText(), /^Ход работы · 1 шаг/u);
     assert.equal(await page.locator("[data-kind=user]").count(), 1, "поручение показано один раз: заготовка уступила место событию Claude");
-    assert.equal(await page.isVisible("[data-testid=v3-aia-new]"), true);
     assert.equal(await page.isEnabled("[data-testid=v3-aia-input]"), true, "продолжить сообщением можно");
-    assert.equal(await page.evaluate(() => document.querySelector("section [role=status].sr-only").textContent), "Агент закончил работу.");
+    assert.equal(await page.locator("[data-testid=v3-aia-stop]").count(), 0);
+    assert.equal(await page.evaluate(() => document.querySelector("[data-testid=v3-aia-announce]").textContent), "Агент закончил работу.");
 
     await page.click("[data-testid=v3-aia-new]");
-    await page.evaluate((resume) => window.__rerender({ resume }), { runId: "22222222-2222-4222-8222-222222222222", sendAuthority: false, run: resumeRun({ id: "22222222-2222-4222-8222-222222222222", status: "completed", summary: "Другой итог" }) });
+    await page.evaluate((resume) => window.__rerender({ resume }), { runId: "22222222-2222-4222-8333-222222222222", sendAuthority: false, run: resumeRun({ id: "22222222-2222-4222-8333-222222222222", status: "completed", summary: "Другой итог" }) });
     await page.waitForTimeout(300);
     const fresh = await consoleText(page);
     assert.doesNotMatch(fresh, /Итог: у троих|Другой итог/u, "«Новый разговор» остался новым после перерисовки сервером");
-    assert.equal(await page.isVisible("[data-testid=v3-aia-new]"), false);
+    assert.equal(await page.getAttribute("[data-testid=v3-aia-input]", "placeholder"), "Что поручить: Директор / Аналитик?");
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("data-testid")), "v3-aia-input", "после «Нового разговора» фокус в поле");
+    assert.match(new URL(page.url()).search, /^\?tab=command&new=1$/u, "адрес обновился на месте");
   } finally { await context.close(); }
 });
 
@@ -865,7 +1058,7 @@ test("браузер: перезагрузка после конца поруч�
   try {
     const ssr = await consoleText(page);
     assert.match(ssr, /Итог: у троих студентов/u, "итог на месте до гидратации и до опроса");
-    assert.doesNotMatch(ssr, /Агент работает…/u);
+    assert.doesNotMatch(ssr, /Думает…/u);
     await page.evaluate((script) => { window.__fake.pollScript = script; }, [
       poll("completed", [ev("e1", "user", { text: "Покажи студентов с просроченными документами" }), ev("e3", "agent", { text: "Итог: у троих студентов просрочены документы." })], { pollAfterMs: 1200 }),
       poll("completed", [], { cursor: null, done: true, pollAfterMs: 0 }),
@@ -875,12 +1068,199 @@ test("браузер: перезагрузка после конца поруч�
     const states = [];
     for (let i = 0; i < 6; i += 1) { states.push(await consoleText(page)); await page.waitForTimeout(100); }
     assert.equal(await page.evaluate(() => window.__fake.calls.filter((name) => name === "poll").length), 1, "хроника пришла, последний опрос ещё впереди");
-    assert.equal(states.some((text) => /Агент работает…/u.test(text)), false, "пока опрос дочитывает хронику закончившегося разговора, «работает» не мигает");
+    assert.equal(states.some((text) => /Думает…|Сейчас:/u.test(text)), false, "пока опрос дочитывает хронику закончившегося разговора, «работает» не мигает");
     await page.waitForFunction(() => window.__fake.calls.filter((name) => name === "poll").length >= 2, null, { timeout: 8000 });
     assert.equal(await page.locator("[data-kind=agent]").count(), 1);
-    assert.equal(await page.evaluate(() => document.querySelector("section [role=status].sr-only").textContent), "", "о восстановленном разговоре экранному диктору ничего не объявляется");
-    assert.equal(await page.isVisible("[data-testid=v3-aia-new]"), true);
+    assert.equal(await page.evaluate(() => document.querySelector("[data-testid=v3-aia-announce]").textContent), "", "о восстановленном разговоре экранному диктору ничего не объявляется");
+    assert.equal(await page.locator("[data-testid=v3-aia-run-meta]").count(), 1, "под ответом закончившегося запуска — длительность и расход");
   } finally { await context.close(); }
+});
+
+const NEW_RUN_ID = "33333333-3333-4333-8333-333333333333";
+
+test("браузер: пример кладёт текст в поле и не отправляет; Enter отправляет, Shift+Enter — строка; во время работы кнопка «Остановить», Enter молчит", async (t) => {
+  const kit = await browserKit();
+  if (kit.skip) return t.skip(kit.skip);
+  const { page, context } = await kit.open("compose", bodyProps({ tab: "command" }));
+  try {
+    await page.waitForFunction(() => !document.querySelector("[data-testid=v3-aia-input]").readOnly, null, { timeout: 5000 });
+    // Пример: текст в поле, фокус в поле, каретка в конце; ничего не отправлено.
+    await page.click("ul[aria-label='Примеры поручений'] li:nth-child(2) button");
+    assert.equal(await page.inputValue("[data-testid=v3-aia-input]"), "Подготовь недельный отчёт за прошлую неделю");
+    assert.deepEqual(await page.evaluate(() => { const el = document.activeElement; return [el.getAttribute("data-testid"), el.selectionStart === el.value.length && el.selectionEnd === el.value.length]; }), ["v3-aia-input", true]);
+    assert.deepEqual(await page.evaluate(() => window.__fake.sent), [], "пример не отправляется");
+    await page.fill("[data-testid=v3-aia-input]", "");
+    assert.equal(await page.isDisabled("[data-testid=v3-aia-send]"), true, "пусто — «Отправить» заперт");
+
+    await page.evaluate(({ run }) => {
+      window.__fake.startResult = { status: "saved", code: null, message: null, requestId: "r", runId: run };
+      window.__fake.pollScript = [
+        { ok: true, poll: { run: { id: run, status: "running", sendAuthority: false, startedAt: "2026-10-22T10:20:00.000Z", endedAt: null, durationSeconds: null, costCents: 0, actionsCount: 0 }, events: [
+          { id: "u1", at: "2026-10-22T10:20:01.000Z", kind: "user", text: "первая строка\nвторая" },
+          { id: "c1", at: "2026-10-22T10:20:02.000Z", kind: "tool_call", tool: "search_clients", label: "Клиенты", argsSummary: "", builtin: false }], cursor: "c", done: false, pollAfterMs: 200 } },
+      ];
+    }, { run: NEW_RUN_ID });
+    await page.click("[data-testid=v3-aia-input]");
+    await page.keyboard.type("первая строка");
+    await page.keyboard.press("Shift+Enter");
+    await page.keyboard.type("вторая");
+    assert.equal(await page.inputValue("[data-testid=v3-aia-input]"), "первая строка\nвторая", "Shift+Enter — новая строка");
+    assert.deepEqual(await page.evaluate(() => window.__fake.sent), [], "Shift+Enter не отправляет");
+    await page.keyboard.press("Enter");
+    await page.waitForSelector("[data-testid=v3-aia-stop]");
+    assert.deepEqual(await page.evaluate(() => window.__fake.sent.map((one) => [one.name, one.text, one.authority, one.runId])), [["start", "первая строка\nвторая", "0", null]]);
+    assert.equal(await page.inputValue("[data-testid=v3-aia-input]"), "", "после отправки поле пусто");
+    assert.equal(await page.getAttribute("[data-testid=v3-aia-stop]", "aria-label"), "Остановить агента");
+    assert.equal(await page.isEnabled("[data-testid=v3-aia-input]"), true, "поле доступно: следующее сообщение можно готовить");
+    assert.equal(await page.getAttribute("[data-testid=v3-aia-input]", "placeholder"), "Уточнение или следующий вопрос…");
+
+    // Разговор появился в списке сразу — «Идёт», адрес стал ?run=…
+    await page.waitForFunction(() => document.querySelector("[data-testid=v3-aia-working]")?.textContent === "Сейчас: ищет клиента", null, { timeout: 5000 });
+    const item = page.locator("[data-testid=v3-aia-conversation-item]");
+    assert.equal(await item.count(), 1);
+    assert.match(await item.innerText(), /первая строка\s+вторая[\s\S]*Идёт/u);
+    assert.equal(await item.getAttribute("aria-current"), "true");
+    assert.equal(new URL(page.url()).search, `?tab=command&run=${NEW_RUN_ID}`);
+    assert.match(await page.locator("[data-testid=v3-aia-steps] > summary").innerText(), /^Ход работы · шаг 1 · ищет клиента…/u);
+    assert.match(await page.locator("[data-testid=v3-aia-progress]").innerText(), /· 0:0\d/u, "время хода идёт");
+
+    // Пока агент работает, Enter ничего не отправляет и не вставляет строку.
+    await page.click("[data-testid=v3-aia-input]");
+    await page.keyboard.type("дальше");
+    await page.keyboard.press("Enter");
+    assert.equal(await page.inputValue("[data-testid=v3-aia-input]"), "дальше");
+    assert.equal(await page.evaluate(() => window.__fake.sent.length), 1);
+    await page.click("[data-testid=v3-aia-stop]");
+    await page.waitForFunction(() => window.__fake.calls.includes("interrupt"), null, { timeout: 3000 });
+  } finally { await context.close(); }
+});
+
+test("браузер: «Скопировать» и «Сделать задачей» под ответом; без диалога задачи кнопка исчезает, а текст не теряется", async (t) => {
+  const kit = await browserKit();
+  if (kit.skip) return t.skip(kit.skip);
+  const answer = "## Итог недели\n\nВыручка выросла на **12 %**.";
+  const run = resumeRun({ status: "completed", endedAt: "2026-10-22T10:21:00.000Z", summary: answer });
+  const { page, context } = await kit.open("answer", bodyProps({ tab: "command", canMakeTasks: true, resume: { runId: RESUME_RUN_ID, sendAuthority: false, run } }));
+  try {
+    await page.evaluate(() => { Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text) => { window.__copied = text; } } }); });
+
+    await page.click("[data-testid=v3-aia-copy]");
+    assert.equal(await page.evaluate(() => window.__copied), answer, "копируется текст ответа как Markdown");
+    assert.equal(await page.locator("[data-testid=v3-aia-copy]").innerText(), "Скопировано");
+    assert.equal(await page.locator("[data-testid=v3-aia-copy] ~ [role=status]").textContent(), "Скопировано", "слово слышно и вслух");
+
+    // Диалога задач нет (нет права или страница вне оболочки): кнопка исчезает, адрес не меняется.
+    const before = page.url();
+    await page.click("[data-testid=v3-aia-make-task]");
+    assert.equal(await page.locator("[data-testid=v3-aia-make-task]").count(), 0);
+    assert.equal(page.url(), before);
+  } finally { await context.close(); }
+
+  // Диалог есть: он открывается с названием из первой строки и самим ответом в описании.
+  const second = await kit.open("answer-task", bodyProps({ tab: "command", canMakeTasks: true, resume: { runId: RESUME_RUN_ID, sendAuthority: false, run } }));
+  try {
+    await second.page.evaluate(() => { window.__task = null; window.__registerOpener((context) => { window.__task = context; }); });
+    await second.page.click("[data-testid=v3-aia-make-task]");
+    assert.deepEqual(await second.page.evaluate(() => window.__task), { title: "Итог недели", description: answer });
+    assert.equal(await second.page.locator("[data-testid=v3-aia-make-task]").count(), 1, "кнопка остаётся");
+  } finally { await second.context.close(); }
+});
+
+test("браузер: выбор разговора в списке и лист «Разговоры» на узком экране", async (t) => {
+  const kit = await browserKit();
+  if (kit.skip) return t.skip(kit.skip);
+  const other = resumeRun({ id: "44444444-4444-4444-8444-444444444444", status: "completed", startedAt: "2026-10-21T12:05:00.000Z", endedAt: "2026-10-21T12:06:00.000Z", promptPreview: "Вчерашнее поручение", summary: "Вчерашний итог" });
+  const current = resumeRun({ status: "completed", endedAt: "2026-10-22T10:21:00.000Z", summary: "Сегодняшний итог" });
+  const { page, context } = await kit.open("select", bodyProps({ tab: "command", conversations: [current, other], resume: { runId: RESUME_RUN_ID, sendAuthority: false, run: current } }));
+  try {
+    await page.evaluate(({ id }) => {
+      window.__fake.pollScript = [{ ok: true, poll: { run: { id, status: "completed", sendAuthority: false, startedAt: "2026-10-21T12:05:00.000Z", endedAt: "2026-10-21T12:06:00.000Z", durationSeconds: 60, costCents: 0, actionsCount: 0 }, events: [], cursor: null, done: true, pollAfterMs: 0 } }];
+    }, { id: other.id });
+    assert.equal(await page.locator("[data-testid=v3-aia-conversation-item][aria-current=true]").innerText().then((text) => text.includes("Покажи студентов")), true);
+    // Лист узкого экрана: открывается модально, строка выбирает разговор и закрывает лист, фокус возвращается на «Разговоры».
+    await page.click("[data-testid=v3-aia-conversations-open]");
+    await page.waitForSelector("dialog[open][data-testid=v3-aia-conversations-sheet]");
+    assert.equal(await page.evaluate(() => document.querySelector("dialog[data-testid=v3-aia-conversations-sheet]").matches(":modal")), true);
+    await page.click("dialog[open] [data-testid=v3-aia-conversation-item]:has-text('Вчерашнее поручение')");
+    await page.waitForSelector("dialog[open]", { state: "detached" });
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("data-testid")), "v3-aia-conversations-open");
+    await page.waitForFunction(() => document.querySelector("[data-testid=v3-aia-console]").innerText.includes("Вчерашний итог"), null, { timeout: 5000 });
+    const consoleNow = await consoleText(page);
+    assert.doesNotMatch(consoleNow, /Сегодняшний итог/u, "в чате — выбранный разговор, а не прежний");
+    assert.equal(new URL(page.url()).search, `?tab=command&run=${other.id}`);
+    assert.equal(await page.locator("aside [data-testid=v3-aia-conversation-item][aria-current=true]").innerText().then((text) => text.includes("Вчерашнее поручение")), true, "выделена выбранная строка");
+    // Сервер перерисовал страницу с другим «последним» разговором: выбор вкладки не меняется.
+    await page.evaluate((resume) => window.__rerender({ resume }), { runId: RESUME_RUN_ID, sendAuthority: false, run: current });
+    await page.waitForTimeout(200);
+    assert.match(await consoleText(page), /Вчерашний итог/u);
+
+    // Esc закрывает лист и возвращает фокус.
+    await page.click("[data-testid=v3-aia-conversations-open]");
+    await page.waitForSelector("dialog[open]");
+    await page.keyboard.press("Escape");
+    await page.waitForSelector("dialog[open]", { state: "detached" });
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("data-testid")), "v3-aia-conversations-open");
+  } finally { await context.close(); }
+});
+
+test("браузер: продолжение закончившегося разговора сразу видно в списке; прерванный вызов не делает «идущим» новый оборот, часы — от последнего сообщения", async (t) => {
+  const kit = await browserKit();
+  if (kit.skip) return t.skip(kit.skip);
+  const done = resumeRun({ status: "completed", endedAt: "2026-10-22T10:21:00.000Z", durationSeconds: 60, costCents: 5, summary: "Итог" });
+  const first = [ev("e1", "user", { text: "Покажи студентов с просроченными документами" }), ev("e3", "agent", { text: "Итог" })];
+  const { page, context } = await kit.open("follow-live", bodyProps({ tab: "command", conversations: [done], resume: { runId: RESUME_RUN_ID, sendAuthority: false, run: done } }), { release: false });
+  try {
+    await page.evaluate(({ first, next }) => {
+      window.__fake.startResult = { status: "saved", code: null, message: null, requestId: "r" };
+      window.__fake.pollScript = [
+        { ok: true, poll: { run: { id: next.run.id, status: "completed", sendAuthority: false, startedAt: next.run.startedAt, endedAt: "2026-10-22T10:21:00.000Z", durationSeconds: 60, costCents: 5, actionsCount: 0 }, events: first, cursor: "c", done: true, pollAfterMs: 0 } },
+        { ok: true, poll: { run: { ...next.run, status: "running", costCents: 9 }, events: next.events, cursor: "c2", done: false, pollAfterMs: 200 } },
+      ];
+    }, {
+      first,
+      next: {
+        run: { id: RESUME_RUN_ID, sendAuthority: false, startedAt: "2026-10-22T10:20:00.000Z", endedAt: null, durationSeconds: null, actionsCount: 0 },
+        events: [
+          ev("t1", "tool_call", { tool: "search_clients", label: "Клиенты", argsSummary: "", builtin: false }),
+          ev("e5", "user", { text: "Уточни по двум", at: new Date(Date.now() - 5000).toISOString() }),
+        ],
+      },
+    });
+    await page.evaluate(() => window.__release());
+    await page.waitForFunction(() => window.__fake.calls.filter((name) => name === "poll").length >= 1 && !document.querySelector("[data-testid=v3-aia-input]").readOnly, null, { timeout: 8000 });
+    assert.doesNotMatch(await page.locator("[data-testid=v3-aia-conversation-item]").innerText(), /Идёт/u);
+
+    await page.click("[data-testid=v3-aia-input]");
+    await page.keyboard.type("Уточни по двум");
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(() => /Идёт/u.test(document.querySelector("[data-testid=v3-aia-conversation-item]")?.innerText ?? ""), null, { timeout: 5000 });
+    assert.match(await page.locator("[data-testid=v3-aia-conversation-item]").innerText(), /0,09/u, "расход из опроса виден в строке списка");
+    assert.equal(await page.locator("[data-testid=v3-aia-working]").innerText(), "Думает…", "вызов из прошлого оборота не идёт");
+    assert.match(await page.locator("[data-testid=v3-aia-steps] > summary").innerText(), /^Ход работы · 1 шаг$/u, "и серия не говорит, что вызов ещё идёт");
+    await page.waitForFunction(() => /· 0:\d\d$/u.test(document.querySelector("[data-testid=v3-aia-progress]")?.innerText ?? ""), null, { timeout: 5000 });
+  } finally { await context.close(); }
+
+  // Вкладку открыли посреди продолжения: пока опрос не принёс сообщение, часы показывают время с начала разговора,
+  // затем — с последнего сообщения сотрудника.
+  const running = resumeRun({ status: "running" });
+  const reopened = await kit.open("clock", bodyProps({ tab: "command", resume: { runId: RESUME_RUN_ID, sendAuthority: false, run: running } }), { release: false });
+  try {
+    await reopened.page.evaluate((events) => {
+      window.__fake.pollScript = [{ ok: true, poll: { run: { id: events[0].runId, status: "running", sendAuthority: false, startedAt: "2026-10-22T10:20:00.000Z", endedAt: null, durationSeconds: null, costCents: 0, actionsCount: 0 }, events: events.slice(1), cursor: "c", done: false, pollAfterMs: 200 } }];
+    }, [{ runId: RESUME_RUN_ID }, ev("e1", "user", { text: "Вопрос", at: new Date(Date.now() - 5000).toISOString() })]);
+    await reopened.page.evaluate(() => window.__release());
+    await reopened.page.waitForFunction(() => /· 0:\d\d$/u.test(document.querySelector("[data-testid=v3-aia-progress]")?.innerText ?? ""), null, { timeout: 5000 });
+  } finally { await reopened.context.close(); }
+});
+
+test("исходники: меню страницы не прячет фокус на телефоне, поле поручения следит за шириной, запертое состояние не тупик", () => {
+  const css = read("src/app/(v3)/v3.css");
+  assert.equal((css.match(/> :not\(:last-child\):not\(:focus-within\)/gu) ?? []).length, 2, "скрытая шапка и полоса вкладок показываются, пока в них фокус");
+  const composer = read("src/components/v3/ai-agents/AgentComposer.tsx");
+  assert.match(composer, /new ResizeObserver/u, "высота поля пересчитывается и при смене ширины");
+  assert.match(composer, /@max-md:flex-wrap/u);
+  assert.match(composer, /bg-warn-weak text-warn @max-md:basis-full/u, "нажатая «Без черновика» на узком экране занимает свою строку");
+  assert.match(read("src/components/v3/ai-agents/CommandWorkspace.tsx"), /data-testid="v3-aia-back"/u);
 });
 
 test("браузер: кнопка «Синхронизировать» после гидратации работает с первого нажатия", async (t) => {

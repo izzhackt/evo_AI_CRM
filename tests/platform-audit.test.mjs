@@ -91,6 +91,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["316_platform_sales_import_tails.sql", "sales_import_tails"],
   // «ИИ-агенты» на Claude Managed Agents: одиннадцать действий ai.agent.* и типы ai_agent, ai_agent_run, ai_agent_draft.
   ["317_platform_ai_agents_managed.sql", "ai_agents_managed"],
+  // Согласие студента на ИИ-помощников: два действия ai.consent.* и тип объекта student_ai_consent.
+  ["320_platform_student_ai_consent.sql", "student_ai_consent"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -222,6 +224,8 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "ai.agent.token.rotate",
     "ai.agent.tool.read",
     "ai.agent.tool.write",
+    "ai.consent.decline",
+    "ai.consent.grant",
     "ai.proposal.review",
     "application.document.review",
     "application.partner.details.update",
@@ -354,6 +358,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "sales_register_target",
     "staff_role",
     "staff_task",
+    "student_ai_consent",
     // 088's own extension is ["student_case"] — already in the 071 baseline,
     // so it disappears once the final list is de-duplicated by Set below.
     "student_case",
@@ -699,6 +704,47 @@ test("ai.agent.* journal actions and object types (317) are allowlisted, worded 
     ...base,
     rows: [{ ...SAFE_ROW, action: "ai.agent.tool.read", resource_type: "ai_agents", actor_display_label: "Service",
       actor_kind: "service", changed_field_codes: ["ai_status"] }],
+  }).rows;
+  assert.equal(unknown.recognized, false);
+});
+
+// Согласие студента на ИИ-помощников (миграция 320): два действия ai.consent.* и тип student_ai_consent видны в
+// «Журнале действий» словами, без имени, почты и идентификатора Auth; строка берёт ветку ["ai_status"]
+// (как серверный `ai.%`); неизвестный тип объекта слова не получает.
+test("ai.consent.* journal actions and the consent object type (320) are allowlisted, worded in Russian and recognized", () => {
+  const actions = ["ai.consent.decline", "ai.consent.grant"];
+  assert.deepEqual(PLATFORM_AUDIT_ACTIONS.filter((action) => action.startsWith("ai.consent.")), actions);
+  assert.deepEqual(PLATFORM_AUDIT_RESOURCE_TYPES.filter((type) => type.startsWith("student_ai")), ["student_ai_consent"]);
+  for (const action of actions) {
+    const word = journalEvent(action);
+    assert.match(word, /[А-Яа-я]/u, action);
+    assert.equal(word.includes("ai.consent"), false, `${action} shows a raw code`);
+    assert.equal(/\d|@|auth:/u.test(word), false, `${action} wording carries a number, an address or an Auth id`);
+  }
+  assert.equal(journalEvent("ai.consent.grant"), "Студент разрешил ИИ-помощников");
+  assert.equal(journalEvent("ai.consent.decline"), "Студент не разрешил ИИ-помощников");
+  assert.equal(journalEvent("ai.consent.revoke"), null);
+  assert.equal(journalObject("student_ai_consent"), "Согласие на ИИ-помощников");
+  assert.equal(journalObject("student_ai_consents"), null);
+  const base = {
+    filters: { start_at: null, end_at: null, actions: null, resource_types: null, resource_id: null },
+    snapshot_created_at: "2026-10-25T09:00:00Z",
+    snapshot_id: SNAPSHOT_ID,
+    next_cursor_created_at: null,
+    next_cursor_id: null,
+    has_more: false,
+  };
+  const [row] = normalizePlatformAuditSearchResult({
+    ...base,
+    rows: [{ ...SAFE_ROW, action: "ai.consent.grant", resource_type: "student_ai_consent", actor_display_label: "System",
+      actor_kind: "system", changed_field_codes: ["ai_status"] }],
+  }).rows;
+  assert.equal(row.recognized, true);
+  assert.deepEqual(row.changedFieldCodes, ["ai_status"]);
+  const [unknown] = normalizePlatformAuditSearchResult({
+    ...base,
+    rows: [{ ...SAFE_ROW, action: "ai.consent.grant", resource_type: "student_ai_consents", actor_display_label: "System",
+      actor_kind: "system", changed_field_codes: ["ai_status"] }],
   }).rows;
   assert.equal(unknown.recognized, false);
 });

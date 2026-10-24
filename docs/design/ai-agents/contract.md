@@ -344,6 +344,10 @@
 
 `supabase/tests/platform_ai_agents_managed.sql` (один файл, метка `PASSED`, хук в `test-postgres-authorization.sh` по образцу 316): сид; матрица прав (админ/обычный сотрудник/студент/anon/service); `ai_agents_update_v1` (патч, версия, валидации, аудит без текстов); токены (`stage`, окно `prev`, `restore`); `ai_agent_mcp_auth_v1` (текущий, прежний, просроченный, неизвестный, выключенный); по **одному** сценарию на каждый из 24 инструментов (форма ответа, отказ на лишний ключ, маски, чёрный список); `send_message` (черновик; direct портал; предохранители; лимиты); авторизация WhatsApp (если раздел F есть): создаёт `kind='ai_agent'` + работу, повтор — `replayed`; журнал (11 действий, 3 типа, `p7a_*`); `ai_agent_file_grants` (срок, число использований). **Не запускать** весь `test-postgres-authorization.sh`: применить цепочку 001…317 на временную базу (образец — запуск самого скрипта: образ `scripts/resolve-postgres-test-image.sh`, `supabase/tests/bootstrap_supabase.sql`) и выполнить только свой файл.
 
+### A.9 Согласие студента на ИИ-помощников (миграция 320)
+
+`get_document_file`, `get_case_chat` и `get_conversation` (чат, связанный со студентом) отвечают `ai_consent_missing` (SQLSTATE 42501, `denied` в журнале действий), а `list_conversations` скрывает текст предпросмотра, пока студент с кабинетом не разрешил ИИ-помощников (решение: `platform_private.student_ai_consents`, запрет: `platform_private.ai_agent_student_ai_allowed`, студент без кабинета — основание договор и политика); данные дела без переписки и файлов не закрыты — `docs/runbooks/ai-agents-managed.md` §10.
+
 ## §B. MCP-сервер `/api/mcp/v1`
 
 Строитель B. Образец границы: `src/lib/server/platform-telephony-ingress.ts` и его route (один обработчик на все методы, ограничитель неудачных запросов, JSON-журнал только со счётчиками, внедрение зависимостей для тестов). Сервер **без состояния**: ни `Mcp-Session-Id`, ни SSE. Без новых зависимостей.
@@ -396,7 +400,7 @@
 
 | Источник | `error_code` |
 |---|---|
-| `MESSAGE` исключения равен коду из списка (в т.ч. `agent_disabled`, `whatsapp_unavailable`, `conversation_moved_on`, `no_inbound_message`) | этот код |
+| `MESSAGE` исключения равен коду из списка (в т.ч. `agent_disabled`, `whatsapp_unavailable`, `conversation_moved_on`, `no_inbound_message`, `ai_consent_missing`) | этот код |
 | SQLSTATE `22023` | `invalid_arguments` |
 | `42501` | `forbidden` |
 | `P0002` | `not_found` |

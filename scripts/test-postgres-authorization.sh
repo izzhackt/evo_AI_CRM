@@ -760,6 +760,48 @@ SQL
     done
   fi
 
+  # «Согласие студента на ИИ-помощников» (миграция 320, PLAN_CHANGES 25.10.2026). Matched by name, not
+  # number. IMMEDIATELY BEFORE the ordinary apply the migration must refuse with a320_anchor_drift, inside
+  # a transaction that the failure rolls back, for each of the six functions it replaces (the account
+  # deletion closure of 280, the file resolver and the chat list of 317, the file, the WhatsApp chat and
+  # the case chat of 319) when that function is edited after its own migration (the md5 pre-image
+  # anchors). A second apply of the finished migration must refuse with a320_already_applied (below).
+  if [[ "$(basename "$migration")" == *_platform_student_ai_consent.sql ]]; then
+    for t320_pinned in \
+      'platform_private.account_deletion_closure(uuid,uuid)' \
+      'platform.ai_agent_mcp_file_resolve_v1(text)' \
+      'platform.ai_agent_tool_list_conversations_v1(uuid,text,jsonb)' \
+      'platform.ai_agent_tool_get_document_file_v1(uuid,text,jsonb)' \
+      'platform.ai_agent_tool_get_conversation_v1(uuid,text,jsonb)' \
+      'platform.ai_agent_tool_get_case_chat_v1(uuid,text,jsonb)'; do
+      t320_tamper_log="$(mktemp -t evo-t320-anchor.XXXXXX)"
+      if docker exec -i "$container_name" \
+        psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+        -v "pinned_function=$t320_pinned" \
+        -v "migration_file=/workspace/$migration" \
+        >"$t320_tamper_log" 2>&1 <<'SQL'
+BEGIN;
+SELECT replace(
+  pg_get_functiondef(:'pinned_function'::regprocedure),
+  'BEGIN',
+  'BEGIN /* tampered after its own migration */'
+) AS tampered_definition \gset
+:tampered_definition ;
+\i :migration_file
+SQL
+      then
+        echo "migration 320 accepted an edited $t320_pinned" >&2
+        exit 1
+      fi
+      if ! grep -Fq "a320_anchor_drift" "$t320_tamper_log"; then
+        echo "migration 320 failed for the wrong pre-image reason ($t320_pinned)" >&2
+        sed -n '1,60p' "$t320_tamper_log" >&2
+        exit 1
+      fi
+      rm -f "$t320_tamper_log"
+    done
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -4519,6 +4561,42 @@ SQL
     printf '%s\n' "$ai_agents_hardening_log"
     if ! grep -q 'A319_AI_AGENTS_HARDENING_SUITE_PASSED' <<<"$ai_agents_hardening_log"; then
       echo "platform_ai_agents_hardening.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «Согласие студента на ИИ-помощников» (migration 320, PLAN_CHANGES 25.10.2026). Matched by name, not
+  # number. Right after the migration: a second apply refuses (a320_already_applied), then the suite,
+  # insisting on its marker. The suite proves: the posture (the closed table, the three definer RPCs for
+  # authenticated only, the six closed helpers, the 24 tools and 3 MCP functions unchanged); the student
+  # RPCs (only about oneself, the account deletion's identity incl. an applicant, one journal event per
+  # change, idempotent and stale replays, conflicts, wrong input); the enforcement helper for every state
+  # (not asked, declined, granted, older version; with and without a portal account; a suspended
+  # membership; unknown and foreign cases; the chat helper by case, client and lead); the tools (case chat,
+  # file link and WhatsApp chat refused with ai_consent_missing and no data, grant or read audit row; the
+  # list withholds the preview; case metadata, client card and lead stay readable; an issued file link stops
+  # working after a decline); the staff read; the account deletion (the account stays simple, the
+  # automatic processing erases the row and its journal events, the Auth user delete cascades the row);
+  # the journal allowlist and the ai.% field codes.
+  if [[ "$(basename "$migration")" == *_platform_student_ai_consent.sql ]]; then
+    t320_again_log="$(mktemp -t evo-t320-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t320_again_log" 2>&1; then
+      echo "migration 320 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a320_already_applied" "$t320_again_log"; then
+      echo "a second apply of migration 320 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t320_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t320_again_log"
+    student_ai_consent_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_ai_consent.sql </dev/null)"
+    printf '%s\n' "$student_ai_consent_log"
+    if ! grep -q 'A320_STUDENT_AI_CONSENT_SUITE_PASSED' <<<"$student_ai_consent_log"; then
+      echo "platform_student_ai_consent.sql did not reach its PASSED marker" >&2
       exit 1
     fi
   fi

@@ -953,6 +953,9 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "ai.agent.draft.decide": "Решение по сообщению ИИ-агента",
   "ai.agent.message.send": "ИИ-агент отправил сообщение",
   "ai.agent.document.read": "ИИ-агент открыл документ студента",
+  // Согласие студента на ИИ-помощников (миграция 320). В записи только состояние и версия текста, без имени.
+  "ai.consent.grant": "Студент разрешил ИИ-помощников",
+  "ai.consent.decline": "Студент не разрешил ИИ-помощников",
 } satisfies Readonly<Record<PlatformAuditAction, string>>;
 
 const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
@@ -1046,6 +1049,9 @@ const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
   ai_agent: "ИИ-агент",
   ai_agent_run: "Запуск ИИ-агента",
   ai_agent_draft: "Сообщение ИИ-агента",
+
+  // Согласие студента на ИИ-помощников (миграция 320).
+  student_ai_consent: "Согласие на ИИ-помощников",
 } satisfies Readonly<Record<PlatformAuditResourceType, string>>;
 
 /**

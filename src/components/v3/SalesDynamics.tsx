@@ -11,6 +11,14 @@ import { QUEUE_QUIET_LINK } from "./queue/QueueStates";
 import { TrendChart } from "./TrendChart";
 
 /**
+ * Пресет «Месяц» — последние 30 дней до сегодня, а не месяц отчёта выше («Октябрь» — 19 продаж, «Месяц» —
+ * 28): слово обещало календарный месяц, поэтому в отчёте он назван тем, что считает.
+ */
+export function reportPeriodChoices(choices: readonly PeriodChoice[]): readonly PeriodChoice[] {
+  return choices.map((choice) => choice.key === "month" ? { ...choice, title: "30 дней" } : choice);
+}
+
+/**
  * Слова когорты периода. Когорта — лиды, пришедшие за период, и сколько из
  * НИХ сейчас квалифицированы и переданы; у доски «Переданы» — вся колонка
  * сейчас. Одно слово с двумя разными числами рядом — то самое «один лид,
@@ -73,7 +81,7 @@ export function SalesDynamics({
               <h3 id={`${id}-period`} className="t-item text-fg">Лиды за период</h3>
               <p className="t-meta text-fg-3">{periodText}</p>
             </div>
-            <MainHeader choices={choices} range={range} action={formAction} hidden={carry} />
+            <MainHeader choices={reportPeriodChoices(choices)} range={range} action={formAction} hidden={carry} />
           </div>
           {!dashboard ? (
             <div role="alert" className="mt-4 border-y border-border py-6 t-body-compact text-fg-2">
@@ -118,7 +126,7 @@ export function SalesDynamics({
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <div className="min-w-0">
               <h3 id={`${id}-board`} className="t-item text-fg">Сейчас на доске</h3>
-              <p className="t-meta text-fg-3">Воронка продаж, как на доске: этапы в работе и «Переданы» — без периода.</p>
+              <p className="t-meta text-fg-3">Этапы в работе и «Переданы», без периода.</p>
             </div>
             <Link href="/v3/pipeline" className={QUEUE_QUIET_LINK}>К доске</Link>
           </div>

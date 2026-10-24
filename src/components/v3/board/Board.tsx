@@ -48,6 +48,14 @@ export const BOARD_PANEL_FOLD = {
   wideRail: "hidden @6xl:flex @6xl:xl:@max-[98.25rem]:hidden",
   /** Раскрытая колонка того же этапа: только пока панель открыта рядом и места мало. */
   column: "hidden @6xl:xl:@max-[98.25rem]:flex",
+  /**
+   * Панель открыта рядом, а у этапа нет лидов: вместо колонки «Нет лидов» — рейка 44 px
+   * (дорожки `--board-tracks-open`; там, где места мало, дорожки `--board-tracks-panel` уже
+   * свернули всё, кроме этапа лида, — рейка и там одна).
+   */
+  openTracks: "@6xl:xl:@min-[98.25rem]:[grid-template-columns:var(--board-tracks-open)]",
+  emptyColumn: "hidden @6xl:flex @6xl:xl:hidden",
+  emptyRail: "hidden @6xl:xl:flex",
 } as const;
 
 /** Оболочка карточки: одна рамка, наведение — край контрола, волосяная тень (`.v3-raised`). */
@@ -207,7 +215,7 @@ export function BoardSegments({
               href={item.href}
               prefetch={false}
               aria-current={item.active ? "page" : undefined}
-              className="v3-choice inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-nav px-2.5 text-sm text-fg-2 hover:bg-surface-2 hover:text-fg"
+              className="v3-choice t-label inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-nav px-2.5 text-fg-2 hover:bg-surface-2 hover:text-fg"
             >
               {item.title}
               {item.count !== null ? <span className="tabular-nums text-fg-3">{item.count}</span> : null}
@@ -225,7 +233,7 @@ export function BoardReset({ href }: Readonly<{ href: string }>) {
     <Link
       href={href}
       prefetch={false}
-      className="inline-flex min-h-11 shrink-0 items-center px-1 text-sm text-fg-2 underline underline-offset-4 hover:text-fg"
+      className="t-label inline-flex min-h-11 shrink-0 items-center px-1 text-fg-2 underline underline-offset-4 hover:text-fg"
     >
       Сбросить
     </Link>
@@ -250,24 +258,25 @@ export function BoardSearch({
   hidden: ReactNode;
 }>) {
   return (
-    <form method="get" action={action} role="search" className="flex min-w-48 flex-1 items-center gap-2 @2xl:max-w-[30rem]">
+    <form method="get" action={action} role="search" className="flex min-w-48 grow basis-full items-center gap-2 @2xl:max-w-[30rem] @2xl:basis-0">
       {hidden}
       <label className="relative flex min-w-0 flex-1 items-center">
         <span className="sr-only">Поиск</span>
         <Icon name="search" size={18} className="pointer-events-none absolute start-3 text-fg-3" />
         <input
           type="search"
+          enterKeyHint="search"
           name={name}
           defaultValue={defaultValue}
           maxLength={maxLength}
           placeholder={placeholder}
-          className="min-h-11 w-full min-w-0 rounded-ctl border border-control-edge bg-surface pe-2.5 ps-9 text-sm text-fg placeholder:text-fg-3"
+          className="t-body-compact min-h-11 w-full min-w-0 rounded-ctl border border-control-edge bg-surface pe-2.5 ps-9 text-fg placeholder:text-fg-3"
         />
       </label>
       {/* На desktop Enter отправляет поиск, кнопка нужна только телефону. */}
       <button
         type="submit"
-        className="inline-flex h-11 min-w-11 shrink-0 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-sm font-semibold text-fg-2 hover:bg-surface-2 hover:text-fg @2xl:hidden"
+        className="t-label inline-flex h-11 min-w-11 shrink-0 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-fg-2 hover:bg-surface-2 hover:text-fg @2xl:hidden"
       >
         Найти
       </button>

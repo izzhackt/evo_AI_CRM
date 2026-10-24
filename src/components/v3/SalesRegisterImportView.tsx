@@ -24,9 +24,9 @@ export async function SalesRegisterImportView({ actor, query }: { actor: ActiveP
       <h1 className="t-page-title text-fg">Перенос данных отчёта</h1>
       <Link href={context.reportHref} className={`${btnGhostCls} min-h-11`}>Вернуться к отчёту</Link>
     </header>
-    {!context.valid ? <p role="alert" className="mt-6 text-sm text-fg-2">Проверьте год, месяц и фильтры в отчёте перед переносом данных.</p> : null}
-    {unavailable ? <p role="alert" className="mt-6 text-sm text-fg-2">Не удалось проверить доступ к переносу данных. Обновите страницу.</p> : null}
-    {context.valid && !unavailable && !allowed ? <p role="status" className="mt-6 text-sm text-fg-2">Нет доступа к переносу данных отчёта.</p> : null}
+    {!context.valid ? <p role="alert" className="mt-6 t-body-compact text-fg-2">Проверьте год, месяц и фильтры в отчёте перед переносом данных.</p> : null}
+    {unavailable ? <p role="alert" className="mt-6 t-body-compact text-fg-2">Не удалось проверить доступ к переносу данных. Обновите страницу.</p> : null}
+    {context.valid && !unavailable && !allowed ? <p role="status" className="mt-6 t-body-compact text-fg-2">Нет доступа к переносу данных отчёта.</p> : null}
     <div className="mt-6 max-w-[860px]">
       {showForm ? <SalesRegisterImport requestId={randomUUID()} readUnavailable={unavailable} /> : null}
     </div>

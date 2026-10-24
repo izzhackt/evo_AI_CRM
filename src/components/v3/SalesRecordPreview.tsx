@@ -21,9 +21,9 @@ export function salesRecordLeadHref(leadId: string): string {
   return `/v3/profile?id=${encodeURIComponent(leadId)}`;
 }
 
-/** Строка под именем записи: откуда сведения и где текущие. */
-export function salesRecordContext(record: SalesRegisterRow): string {
-  return `Сведения из записи отчёта.${record.leadId ? " Текущие данные клиента и условия — в его карточке." : ""}`;
+/** Строка под именем записи: откуда сведения. */
+export function salesRecordContext(): string {
+  return "Сведения из записи отчёта.";
 }
 
 /**
@@ -40,14 +40,14 @@ export function salesRecordPanelHeader(record: SalesRegisterRow | null, editing:
   if (editing) {
     return {
       title: record?.applicantName || "Запись продажи",
-      context: record ? salesRecordContext(record) : null,
+      context: record ? salesRecordContext() : null,
       open: record?.sourceKind === "pipeline" && record.leadId ? { href: salesRecordLeadHref(record.leadId), label: "Открыть профиль студента" } : null,
     };
   }
   if (!record) return { title: "Запись продажи", context: null, open: null };
   return {
     title: record.applicantName || "Имя не указано",
-    context: salesRecordContext(record),
+    context: salesRecordContext(),
     open: record.leadId ? { href: salesRecordLeadHref(record.leadId), label: "Открыть карточку клиента" } : null,
   };
 }
@@ -126,7 +126,7 @@ export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId,
     <div className="space-y-3">
       {record.archived ? <p className="t-body-compact text-fg-2">Запись в архиве и не входит в рабочие итоги.</p> : null}
       {review.state === "review" ? <p className="t-body-compact text-fg" data-record-review="">
-        <span className="font-semibold">Требует проверки:</span> {review.reasons.join(", ")}
+        <span className="font-semibold">Нужно уточнить:</span> {review.reasons.join(", ")}
       </p> : null}
       {record.withdrawal && refusalWord && refusalTone ? <div className="space-y-1" data-testid="sales-record-withdrawal" data-withdrawal-tone={refusalTone}>
         <StatusChip label={refusalWord} tone={refusalTone} />
@@ -159,7 +159,7 @@ export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId,
         {remainderMinor === null && noRemainder ? <dd className="col-span-2 text-left font-normal t-meta text-fg-2">Остатка нет: {SALES_NO_REMAINDER_TEXT[noRemainder]}.</dd> : null}
       </div>
     </dl>
-    <p className="t-meta text-fg-2">Суммы записи — часть отчёта продажи, а не подтверждение поступления денег. Валюты не пересчитываются: сумму в валюте договора вводит менеджер.</p>
+    <p className="t-meta text-fg-2">Суммы — из отчёта, не подтверждение поступления денег.</p>
     <dl className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] gap-x-4 gap-y-2 t-body-compact">
       {details.map(({ label, value }) => <div key={label} className="contents">
         <dt className="text-fg-2">{label}</dt><dd className="min-w-0 break-words text-fg">{value}</dd>
@@ -171,7 +171,7 @@ export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId,
     </section> : null}
     <p className="border-t border-border pt-4 t-meta text-fg-2">
       {record.sourceKind === "import" ? "Перенесённая запись." : record.sourceKind === "pipeline" ? "Продажа оформлена из карточки клиента." : "Запись добавлена вручную."}
-      {record.sourceSheet ? ` Источник: ${record.sourceSheet}, строка ${record.sourceRow}. Исходный файл не изменён.` : ""}
+      {record.sourceSheet ? ` Источник: ${record.sourceSheet}, строка ${record.sourceRow}.` : ""}
     </p>
   </section>;
 }

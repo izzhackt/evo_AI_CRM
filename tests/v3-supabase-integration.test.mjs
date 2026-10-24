@@ -390,7 +390,7 @@ test("V3 pipeline links and document table remain keyboard-operable", () => {
   const pipeline = source("src/components/v3/Pipeline.tsx");
   const fileManager = source("src/components/v3/FileManager.tsx");
 
-  assert.match(pipeline, /className="flex min-h-6 items-center/);
+  assert.match(pipeline, /className="flex min-h-11 items-center/);
   assert.match(fileManager, /aria-label="Таблица документов"/);
   assert.match(fileManager, /tabIndex=\{0\}/);
 });

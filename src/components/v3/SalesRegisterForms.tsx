@@ -82,7 +82,7 @@ type FormProps = Readonly<{
 export function SalesRegisterForm(props: FormProps) {
   const [lastRead, setLastRead] = useState(props.record);
   if (props.record && props.record !== lastRead) setLastRead(props.record);
-  if (props.recordId && !lastRead) return <div className="space-y-4"><p role="alert" className="text-sm text-fg-2">Запись недоступна. Возможно, она была переназначена или соединение прервалось.</p><Link href={props.backHref} className={`${btnGhostCls} min-h-11`}>К отчёту</Link></div>;
+  if (props.recordId && !lastRead) return <div className="space-y-4"><p role="alert" className="t-body-compact text-fg-2">Запись недоступна. Возможно, она была переназначена или соединение прервалось.</p><Link href={props.backHref} className={`${btnGhostCls} min-h-11`}>К отчёту</Link></div>;
   return <SalesDraft {...props} record={lastRead} readUnavailable={props.readUnavailable || Boolean(props.recordId && !props.record)} />;
 }
 
@@ -92,27 +92,27 @@ function ConditionsPreview({ leadId, preview, pending }: {
   leadId: string; preview: SalesReportConditionsPreview | null; pending: boolean;
 }) {
   const cardHref = `/v3/profile?id=${encodeURIComponent(leadId)}&tab=overview#sale-conditions`;
-  if (pending) return <p role="status" className="text-sm text-fg-2">Загружаем условия продажи из карточки…</p>;
+  if (pending) return <p role="status" className="t-body-compact text-fg-2">Загружаем условия продажи из карточки…</p>;
   if (!preview || preview.status !== "ready") {
-    return <p role="alert" className="text-sm text-fg-2">Не удалось загрузить условия продажи. Обновите страницу перед сохранением.</p>;
+    return <p role="alert" className="t-body-compact text-fg-2">Не удалось загрузить условия продажи. Обновите страницу перед сохранением.</p>;
   }
   const conditions: LeadSaleConditions = preview.conditions;
   const missing = conditions.serviceCostMinor === null || !preview.reportMonth;
   if (missing) {
-    return <div className="space-y-2 rounded-card border border-border p-4 text-sm" data-testid="v3-sales-conditions-missing">
+    return <div className="space-y-2 rounded-card border border-border p-4 t-body-compact" data-testid="v3-sales-conditions-missing">
       <p className="text-fg-2">Для добавления продажи заполните в карточке стоимость услуг и дату продажи.</p>
       <Link href={cardHref} className={`${btnGhostCls} min-h-11`}>Исправить условия</Link>
     </div>;
   }
-  return <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1.5 text-sm" data-testid="v3-sales-conditions-preview">
+  return <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1.5 t-body-compact" data-testid="v3-sales-conditions-preview">
     <dt className="text-fg-3">Услуга/пакет</dt><dd className="text-right text-fg">{conditions.serviceLabel || "не указано"}</dd>
     <dt className="text-fg-3">Дата продажи</dt><dd className="text-right text-fg">{conditions.signingDate ? conditions.signingDate.split("-").reverse().join(".") : "не указана"}</dd>
     <dt className="text-fg-3">Месяц отчёта</dt><dd className="text-right font-medium text-fg">{new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${preview.reportMonth}T00:00:00Z`))}</dd>
     <dt className="text-fg-3">Стоимость</dt><dd className="text-right tabular-nums text-fg">{previewMoney(conditions.serviceCostMinor, conditions.serviceCostCurrency)}</dd>
     <dt className="text-fg-3">Оплачено</dt><dd className="text-right tabular-nums text-fg">{previewMoney(conditions.paidMinor, conditions.paidCurrency)}</dd>
     {conditions.paymentNote ? <><dt className="text-fg-3">Об оплате</dt><dd className="text-right text-fg">{conditions.paymentNote}</dd></> : null}
-    <dt className="col-span-2 border-t border-border pt-2 text-xs text-fg-3">
-      <Link href={cardHref} className="inline-flex min-h-11 items-center text-sm text-fg underline underline-offset-4">Исправить условия</Link>
+    <dt className="col-span-2 border-t border-border pt-2 t-meta text-fg-3">
+      <Link href={cardHref} className="inline-flex min-h-11 items-center t-body-compact text-fg underline underline-offset-4">Исправить условия</Link>
     </dt>
   </dl>;
 }
@@ -186,6 +186,13 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
     });
   });
   useEffect(() => { searchInitialLead(); }, []);
+  const searchStudents = () => startSearch(async () => {
+    const generation = ++selectionGeneration.current;
+    setLeadId(""); setSelectedLead(null); setConditionsPreview(null);
+    const result = await searchSalesRegisterStudentsAction(studentQuery).catch(() => ({ status: "unavailable" as const, leads: [] }));
+    if (generation !== selectionGeneration.current) return;
+    setStudentResults(result.leads); setSearchStatus(result.status); setLeadId(""); setSelectedLead(null); setConditionsPreview(null);
+  });
   // «Оплачено в валюте договора» — только у оплаты в другой валюте и всегда в валюте стоимости (253).
   const otherCurrency = Boolean(draft.service_cost_currency && draft.paid_currency && draft.paid_currency !== draft.service_cost_currency);
   const contractMinor = otherCurrency ? minor(draft.paid_contract) : "";
@@ -206,8 +213,8 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
       <Link href={backHref} className={`${btnGhostCls} min-h-11`}>← К отчёту</Link>
       <h1 className="t-page-title">{recordId ? "Запись продажи" : "Добавить продажу"}</h1>
     </>}
-    {!panel && record?.sourceKind === "pipeline" && record.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(record.leadId)}`} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">Открыть профиль студента</Link> : null}
-    {record?.archived ? <p className="text-sm text-fg-2">Эта запись в архиве и не входит в рабочие итоги. Для редактирования сначала восстановите её.</p> : null}
+    {!panel && record?.sourceKind === "pipeline" && record.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(record.leadId)}`} className="inline-flex min-h-11 items-center t-body-compact underline underline-offset-4">Открыть профиль студента</Link> : null}
+    {record?.archived ? <p className="t-body-compact text-fg-2">Эта запись в архиве и не входит в рабочие итоги. Для редактирования сначала восстановите её.</p> : null}
     <form action={action} aria-busy={pending} className="space-y-6" data-testid="sales-register-form">
       <input type="hidden" name="operation" value={recordId ? "update" : "create"} />
       <input type="hidden" name="record_id" value={recordId ?? ""} />
@@ -223,37 +230,36 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
           {/* «Выберите лида и куратора» — план §6: отчёт больше не создаёт
               нового студента и не переспрашивает условия продажи. */}
           <div className="space-y-4">
-            <p className="text-sm text-fg-2">Выберите лида и куратора. Условия продажи и данные заявителя подставятся из карточки.</p>
+            <p className="t-body-compact text-fg-2">Выберите лида и куратора: условия продажи подставятся из карточки.</p>
             <label className="block"><span className={fieldLabelCls}>Имя или телефон</span><div className="flex gap-2">
               <input value={studentQuery} onChange={e => {
                 selectionGeneration.current += 1;
                 setStudentQuery(e.target.value); setLeadId(""); setSelectedLead(null); setStudentResults([]); setSearchStatus("idle"); setConditionsPreview(null);
-              }} maxLength={200} className={`${inputCls} min-h-11 min-w-0 flex-1`} />
-              <button type="button" disabled={searchPending || studentQuery.trim().length < 2} className={`${btnGhostCls} min-h-11`} onClick={() => startSearch(async () => {
-                const generation = ++selectionGeneration.current;
-                setLeadId(""); setSelectedLead(null); setConditionsPreview(null);
-                const result = await searchSalesRegisterStudentsAction(studentQuery).catch(() => ({ status: "unavailable" as const, leads: [] }));
-                if (generation !== selectionGeneration.current) return;
-                setStudentResults(result.leads); setSearchStatus(result.status); setLeadId(""); setSelectedLead(null); setConditionsPreview(null);
-              })}>{searchPending ? "Ищем…" : "Найти"}</button>
+              }} onKeyDown={e => {
+                // Enter ищет: форма ниже сохраняет, а её кнопка до выбора лида недоступна — без этого Enter молчал.
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                if (!searchPending && studentQuery.trim().length >= 2) searchStudents();
+              }} maxLength={200} enterKeyHint="search" className={`${inputCls} min-h-11 min-w-0 flex-1`} />
+              <button type="button" disabled={searchPending || studentQuery.trim().length < 2} className={`${btnGhostCls} min-h-11`} onClick={searchStudents}>{searchPending ? "Ищем…" : "Найти"}</button>
             </div></label>
             {searchStatus === "ready" && studentResults.length > 0 ? <label className="block"><span className={fieldLabelCls}>Выберите студента</span><select value={leadId} required onChange={e => {
               chooseLead(studentResults.find(item => item.id === e.target.value) ?? null);
             }} className={`${inputCls} min-h-11 w-full`}>
               <option value="">Выберите студента</option>{studentResults.map(lead => <option key={lead.id} value={lead.id}>{lead.label}{lead.phone ? ` · ${lead.phone}` : ""}</option>)}
             </select></label> : null}
-            {searchStatus === "ready" && studentResults.length === 0 ? <p role="status" className="text-sm text-fg-2">Непереданных студентов не найдено. Уточните имя или телефон.</p> : null}
-            {searchStatus === "unavailable" ? <p role="alert" className="text-sm text-fg-2">Поиск недоступен. Попробуйте ещё раз.</p> : null}
+            {searchStatus === "ready" && studentResults.length === 0 ? <p role="status" className="t-body-compact text-fg-2">Непереданных студентов не найдено. Уточните имя или телефон.</p> : null}
+            {searchStatus === "unavailable" ? <p role="alert" className="t-body-compact text-fg-2">Поиск недоступен. Попробуйте ещё раз.</p> : null}
           </div>
           {selectedLead ? <div className={pair}>
-            <p className="text-sm"><span className={fieldLabelCls}>Заявитель</span><span className="block text-fg">{selectedLead.label}</span></p>
-            <p className="text-sm"><span className={fieldLabelCls}>Телефон</span><span className="block text-fg">{selectedLead.phone || "не указан"}</span></p>
+            <p className="t-body-compact"><span className={fieldLabelCls}>Заявитель</span><span className="block text-fg">{selectedLead.label}</span></p>
+            <p className="t-body-compact"><span className={fieldLabelCls}>Телефон</span><span className="block text-fg">{selectedLead.phone || "не указан"}</span></p>
           </div> : null}
           <label className="block max-w-md"><span className={fieldLabelCls}>Куратор</span><select value={curatorId} required onChange={e => setCuratorId(e.target.value)} className={`${inputCls} min-h-11 w-full`}>
             <option value="">Выберите куратора</option>{intakeOptions?.curators.map(curator => <option value={curator.id} key={curator.id}>{curator.label}</option>)}
           </select></label>
-          {intakeOptions && intakeOptions.curators.length === 0 ? <p role="alert" className="text-sm text-fg-2">Нет доступного куратора. Администратор может назначить роль сотруднику в настройках команды.</p> : null}
-          {!intakeOptions ? <p role="alert" className="text-sm text-fg-2">Не удалось загрузить кураторов. Обновите страницу перед сохранением.</p> : null}
+          {intakeOptions && intakeOptions.curators.length === 0 ? <p role="alert" className="t-body-compact text-fg-2">Нет доступного куратора. Администратор может назначить роль сотруднику в настройках команды.</p> : null}
+          {!intakeOptions ? <p role="alert" className="t-body-compact text-fg-2">Не удалось загрузить кураторов. Обновите страницу перед сохранением.</p> : null}
           {leadId ? <div className="border-t border-border pt-4">
             <h2 className="t-item mb-2 text-fg">Условия продажи</h2>
             <ConditionsPreview leadId={leadId} preview={conditionsPreview} pending={previewPending} />
@@ -264,10 +270,10 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
         <div className={panel ? "grid gap-5" : "grid gap-5 sm:grid-cols-2"}>
           <div className="space-y-3 border-t border-border pt-4"><div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-3">
             <label><span className={fieldLabelCls}>Стоимость услуг</span><input inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={draft.cost} onChange={e => update("cost", e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>{currency("service_cost_currency")}
-          </div>{record?.serviceCostRaw ? <p className="break-words text-xs text-fg-3">В источнике: {record.serviceCostRaw}</p> : null}</div>
+          </div>{record?.serviceCostRaw ? <p className="break-words t-meta text-fg-3">В источнике: {record.serviceCostRaw}</p> : null}</div>
           <div className="space-y-3 border-t border-border pt-4"><div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-3">
             <label><span className={fieldLabelCls}>Оплачено</span><input inputMode="decimal" pattern="[0-9]+([.,][0-9]{1,2})?" value={draft.paid} onChange={e => update("paid", e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>{currency("paid_currency")}
-          </div>{record?.paidRaw ? <p className="break-words text-xs text-fg-3">В источнике: {record.paidRaw}</p> : null}
+          </div>{record?.paidRaw ? <p className="break-words t-meta text-fg-3">В источнике: {record.paidRaw}</p> : null}
           {/* Оплата в другой валюте: сколько это в валюте договора — вводит менеджер, система не пересчитывает (Э8.6). */}
           {otherCurrency ? <div className="space-y-1" data-testid="sales-contract-amount">
             <label className="block"><span className={fieldLabelCls}>Оплачено в валюте договора</span>
@@ -279,27 +285,27 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
             <p id="sales-contract-amount-hint" className="t-meta text-fg-2">Сколько оплачено в {draft.service_cost_currency}, валюте стоимости. Система валюты не пересчитывает; без этой суммы остатка нет и запись отмечается «Нужно уточнить».</p>
           </div> : null}</div>
         </div>
-        <p className="text-xs text-fg-3">Если сумма неизвестна, оставьте сумму и валюту пустыми.</p>
+        <p className="t-meta text-fg-3">Если сумма неизвестна, оставьте сумму и валюту пустыми.</p>
         <div className={pair}>{input("manager_label", "text", false, 300)}
           {canChooseOwner ? <label><span className={fieldLabelCls}>Ответственный за продажу</span><select value={draft.owner_membership_id} disabled={locked} onChange={e => update("owner_membership_id", e.target.value)} className={`${inputCls} min-h-11 w-full`}>
             <option value="">Не назначен</option>{ownerOptions.map(owner => <option value={owner.id} key={owner.id}>{owner.label || "Сотрудник без имени"}</option>)}
           </select></label> : null}
         </div>
-        <details><summary className="cursor-pointer py-3 text-sm font-medium">Программа и договор</summary><div className={`mt-3 ${pair}`}>
+        <details><summary className="t-label cursor-pointer py-3">Программа и договор</summary><div className={`mt-3 ${pair}`}>
           {input("country")}{input("university", "text", false, 500)}{input("program", "text", false, 500)}{input("direction", "text", false, 500)}{input("intake")}{input("contract_number")}{input("status_raw", "text", false, 2000)}
         </div></details>
         <label className="block"><span className={fieldLabelCls}>Примечание</span><textarea value={draft.notes} onChange={e => update("notes", e.target.value)} maxLength={2000} rows={3} className={`${inputCls} w-full`} /></label>
-        <div><label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={draft.needs_review === "true"} onChange={e => update("needs_review", String(e.target.checked))} aria-describedby="sales-review-hint" className="h-5 w-5" />Нужно уточнить данные</label>
+        <div><label className="flex min-h-11 items-center gap-3 t-body-compact"><input type="checkbox" checked={draft.needs_review === "true"} onChange={e => update("needs_review", String(e.target.checked))} aria-describedby="sales-review-hint" className="h-5 w-5" />Нужно уточнить данные</label>
           <p id="sales-review-hint" className="t-meta text-fg-2">Отметка ставится сама, пока нет даты продажи, стоимости, оплаты или суммы в валюте договора.</p></div>
         <label className="block"><span className={fieldLabelCls}>Причина изменения</span><input name="reason" value={reason} onChange={e => setReason(e.target.value)} required maxLength={1000} className={`${inputCls} min-h-11 w-full`} /></label>
         </> : null}
       </fieldset>
-      {readUnavailable ? <p role="alert" className="text-sm text-fg-2">Актуальные данные недоступны. Ввод сохранён; отправка остановлена.</p> : null}
-      {status !== "idle" ? <p role={status === "saved" ? "status" : "alert"} className="text-sm text-fg-2">{status === "saved" && !recordId ? "Продажа добавлена" : MESSAGES[status]}</p> : null}
+      {readUnavailable ? <p role="alert" className="t-body-compact text-fg-2">Актуальные данные недоступны. Ввод сохранён; отправка остановлена.</p> : null}
+      {status !== "idle" ? <p role={status === "saved" ? "status" : "alert"} className="t-body-compact text-fg-2">{status === "saved" && !recordId ? "Продажа добавлена" : MESSAGES[status]}</p> : null}
       {status === "conditions_missing" && leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(leadId)}&tab=overview`} className={`${btnGhostCls} min-h-11`}>Заполнить условия в карточке</Link> : null}
       {changed ? <div className="space-y-3 border-s-2 border-border ps-4">
-        <p className="text-sm font-medium">Изменения другого сотрудника</p>
-        <ul className="space-y-2 text-sm text-fg-2">{Object.keys(fresh).filter(key => fresh[key] !== base.values[key]).map(key => <li key={key} className="break-words">{FIELD_LABELS[key]}: {displayValue(key, fresh[key])}. {draft[key] !== base.values[key] ? `Ваш ввод: ${displayValue(key, draft[key])}.` : "Будет обновлено в форме."}</li>)}</ul>
+        <p className="t-label">Изменения другого сотрудника</p>
+        <ul className="space-y-2 t-body-compact text-fg-2">{Object.keys(fresh).filter(key => fresh[key] !== base.values[key]).map(key => <li key={key} className="break-words">{FIELD_LABELS[key]}: {displayValue(key, fresh[key])}. {draft[key] !== base.values[key] ? `Ваш ввод: ${displayValue(key, draft[key])}.` : "Будет обновлено в форме."}</li>)}</ul>
         <button type="button" className={`${btnGhostCls} min-h-11`} disabled={pending || readUnavailable} onClick={() => {
           setDraft(previous => Object.fromEntries(Object.keys(fresh).map(key => [key, previous[key] === base.values[key] ? fresh[key] : previous[key]])));
           setBase({ version: record!.version, values: fresh });
@@ -308,8 +314,8 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
       {status === "stale" || status === "unavailable" || readUnavailable ? <button type="button" className={`${btnGhostCls} min-h-11`} disabled={pending} onClick={() => router.refresh()}>Обновить данные без сброса ввода</button> : null}
       <div className="flex flex-wrap gap-3"><button type="submit" disabled={!canSubmit} className={panel ? QUEUE_CONFIRM : `${btnCls} min-h-11`}>{pending ? "Сохраняем…" : recordId ? "Сохранить продажу" : "Сохранить"}</button><Link href={backHref} className={`${btnGhostCls} min-h-11`}>{status === "saved" ? panel ? "Готово" : "Готово — к отчёту" : "Отмена"}</Link></div>
     </form>
-    {record ? <details className="border-t border-border pt-3"><summary className="cursor-pointer py-3 text-sm font-medium">Источник и архив</summary>
-      {record.sourceSheet ? <p className="my-3 text-sm text-fg-3">Импорт: {record.sourceSheet}, строка {record.sourceRow}. Исходный файл не изменён.</p> : null}
+    {record ? <details className="border-t border-border pt-3"><summary className="t-label cursor-pointer py-3">Источник и архив</summary>
+      {record.sourceSheet ? <p className="my-3 t-body-compact text-fg-3">Импорт: {record.sourceSheet}, строка {record.sourceRow}.</p> : null}
       <ArchiveForm key={record.id} record={record} expectedVersion={base.version} requestId={archiveRequestId} disabled={readUnavailable || changed || pending || status === "saved"} backHref={backHref} />
     </details> : null}
   </div>;
@@ -325,9 +331,9 @@ function ArchiveForm({ record, expectedVersion, requestId, disabled, backHref }:
   return <form action={action} className="space-y-3" aria-busy={pending}>
     <input type="hidden" name="operation" value={record.archived ? "restore" : "archive"} /><input type="hidden" name="record_id" value={record.id} />
     <input type="hidden" name="expected_version" value={expectedVersion} /><input type="hidden" name="request_id" value={state.requestId} />
-    <p className="text-sm text-fg-3">{record.archived ? "Запись снова войдёт в рабочий отчёт." : "Ошибочную запись можно убрать из рабочих итогов. История сохранится, восстановление доступно здесь."}</p>
+    <p className="t-body-compact text-fg-3">{record.archived ? "Запись снова войдёт в рабочий отчёт." : "Запись уйдёт из рабочих итогов. История сохранится, восстановить можно здесь."}</p>
     <label className="block"><span className={fieldLabelCls}>Причина</span><input name="reason" required maxLength={1000} value={reason} onChange={e => setReason(e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>
-    {status !== "idle" ? <p role={status === "saved" ? "status" : "alert"} className="text-sm">{MESSAGES[status]}</p> : null}
+    {status !== "idle" ? <p role={status === "saved" ? "status" : "alert"} className="t-body-compact">{MESSAGES[status]}</p> : null}
     {status === "stale" || status === "unavailable" ? <button type="button" className={`${btnGhostCls} min-h-11`} disabled={pending} onClick={() => router.refresh()}>Обновить и сверить запись выше</button> : null}
     {status === "saved" ? <Link href={backHref} className={`${btnGhostCls} min-h-11`}>К отчёту</Link> : <button disabled={disabled || pending || status === "stale"} className={`${btnGhostCls} min-h-11`}>{pending ? "Сохраняем…" : record.archived ? "Восстановить запись" : "Архивировать запись"}</button>}
   </form>;
@@ -352,10 +358,10 @@ export function SalesTargetForm({ reportMonth, target, requestId, readUnavailabl
     <input type="hidden" name="expected_version" value={base?.version ?? 0} /><input type="hidden" name="report_month" value={reportMonth} /><input type="hidden" name="manager_label" value="" />
     <label className="block"><span className={fieldLabelCls}>План отдела — количество продаж</span><input name="target_count" type="number" required min="0" max="1000000" value={count} onChange={e => setCount(e.target.value)} className={`${inputCls} min-h-11 w-full`} /></label>
     <label className="block"><span className={fieldLabelCls}>Причина</span><input name="reason" value={reason} onChange={e => setReason(e.target.value)} required maxLength={1000} className={`${inputCls} min-h-11 w-full`} /></label>
-    {status !== "idle" ? <p role={status === "saved" ? "status" : "alert"} className="text-sm">{MESSAGES[status]}</p> : null}
-    {readUnavailable ? <p role="alert" className="text-sm">Актуальный план недоступен. Ваш ввод сохранён; отправка остановлена.</p> : null}
+    {status !== "idle" ? <p role={status === "saved" ? "status" : "alert"} className="t-body-compact">{MESSAGES[status]}</p> : null}
+    {readUnavailable ? <p role="alert" className="t-body-compact">Актуальный план недоступен. Ваш ввод сохранён; отправка остановлена.</p> : null}
     {changed || status === "stale" || status === "unavailable" || readUnavailable ? <div className="space-y-2">
-      {!readUnavailable ? <p className="text-sm">Текущий план: {current?.targetCount ?? "не задан"}. Ваш ввод сохранён.</p> : null}
+      {!readUnavailable ? <p className="t-body-compact">Текущий план: {current?.targetCount ?? "не задан"}. Ваш ввод сохранён.</p> : null}
       <button type="button" className={`${btnGhostCls} min-h-11`} disabled={pending} onClick={() => router.refresh()}>Проверить актуальный план</button><button type="button" disabled={!changed || pending || readUnavailable} className={`${btnGhostCls} min-h-11`} onClick={() => { setBase(current); setCount(current ? String(current.targetCount) : ""); }}>Загрузить актуальное значение вместо моего ввода</button></div> : null}
     {/* Тёмная нейтральная: сплошной красный отчёта — «Добавить продажу» (Э4). */}
     <button disabled={pending || readUnavailable || changed || status === "saved" || status === "stale"} className={QUEUE_CONFIRM}>{pending ? "Сохраняем…" : "Сохранить план"}</button>
@@ -372,13 +378,13 @@ export function SalesRegisterImport({ requestId, readUnavailable = false }: { re
   }, { status: "idle", requestId, recordId: null, leadId: null, importResult: null } as Awaited<ReturnType<typeof importSalesRegisterAction>>);
   return <form action={action} aria-busy={pending} className="mt-3 max-w-xl space-y-3">
     <input type="hidden" name="request_id" value={state.requestId} />
-    <p className="text-sm text-fg-3">Однократная загрузка подготовленной копии. Повтор не добавляет дубли и не заменяет исправления сотрудников. Google-таблица не изменяется.</p>
-    <label className="block"><span className={fieldLabelCls}>Подготовленный файл переноса (.json)</span><input type="file" accept=".json,application/json" onChange={e => setFile(e.target.files?.[0] ?? null)} disabled={pending || readUnavailable || state.status === "saved"} className="min-h-11 max-w-full text-sm" /></label>
-    {file ? <p className="break-words text-xs text-fg-3">Выбран: {file.name}</p> : null}
-    {state.status !== "idle" ? <p role={state.status === "saved" ? "status" : "alert"} className="text-sm">{MESSAGES[state.status]}</p> : null}
-    {state.importResult ? <div role="status" className="space-y-2 text-sm"><p>Добавлено записей: {state.importResult.inserted}. Уже были перенесены: {state.importResult.skipped}. Добавлено планов: {state.importResult.targetsInserted}.</p>
+    <p className="t-body-compact text-fg-3">Однократная загрузка подготовленной копии. Повтор не добавляет дубли и не заменяет исправления сотрудников.</p>
+    <label className="block"><span className={fieldLabelCls}>Подготовленный файл переноса (.json)</span><input type="file" accept=".json,application/json" onChange={e => setFile(e.target.files?.[0] ?? null)} disabled={pending || readUnavailable || state.status === "saved"} className="t-body-compact min-h-11 max-w-full" /></label>
+    {file ? <p className="break-words t-meta text-fg-3">Выбран: {file.name}</p> : null}
+    {state.status !== "idle" ? <p role={state.status === "saved" ? "status" : "alert"} className="t-body-compact">{MESSAGES[state.status]}</p> : null}
+    {state.importResult ? <div role="status" className="space-y-2 t-body-compact"><p>Добавлено записей: {state.importResult.inserted}. Уже были перенесены: {state.importResult.skipped}. Добавлено планов: {state.importResult.targetsInserted}.</p>
       {state.importResult.mismatches || state.importResult.targetsMismatched ? <p>Есть расхождения с ранее перенесёнными данными: записи — {state.importResult.mismatches}, планы — {state.importResult.targetsMismatched}. Существующие данные не перезаписаны.</p> : null}</div> : null}
-    {readUnavailable ? <div className="space-y-2"><p role="alert" className="text-sm">{file ? "Перенос временно недоступен. Выбранный файл сохранён; отправка остановлена." : "Перенос временно недоступен. Проверьте доступ перед выбором файла."}</p><button type="button" disabled={pending} className={`${btnGhostCls} min-h-11`} onClick={() => router.refresh()}>Проверить доступ к переносу</button></div> : null}
+    {readUnavailable ? <div className="space-y-2"><p role="alert" className="t-body-compact">{file ? "Перенос временно недоступен. Выбранный файл сохранён; отправка остановлена." : "Перенос временно недоступен. Проверьте доступ перед выбором файла."}</p><button type="button" disabled={pending} className={`${btnGhostCls} min-h-11`} onClick={() => router.refresh()}>Проверить доступ к переносу</button></div> : null}
     <button disabled={!file || pending || readUnavailable || state.status === "saved"} className={`${btnCls} min-h-11`}>{pending ? "Переносим записи…" : "Перенести записи в платформу"}</button>
   </form>;
 }

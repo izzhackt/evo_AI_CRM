@@ -7,7 +7,7 @@ import {
   type FixedRoleRoute,
 } from "@/lib/fixed-role-policy";
 import { requirePlatformStaffActor } from "@/lib/platform-guards";
-import { roleTitle } from "@/lib/v3/wording";
+import { chromeWords, roleTitle } from "@/lib/v3/wording";
 
 export const metadata = { title: "Нет доступа" };
 
@@ -81,7 +81,7 @@ export default async function AccessDeniedPage({
           href={home}
           className="mt-8 inline-flex min-h-11 items-center rounded-ctl bg-accent px-4 t-item text-on-accent hover:bg-accent-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         >
-          Вернуться в мой раздел
+          {chromeWords.accessDenied.staffAction}
         </Link>
       </section>
     </main>

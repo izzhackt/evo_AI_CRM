@@ -8,7 +8,7 @@ import { todayVisibleCount, type TodayBandView, type TodayItem } from "@/lib/v3/
 import { UndoToast } from "../blocks/UndoToast";
 import { DueBands } from "../queue/DueBands";
 import { QUEUE_QUIET_LINK } from "../queue/QueueStates";
-import { useQueueKeyboard } from "../queue/useQueueKeyboard";
+import { focusQueueRow, useQueueKeyboard } from "../queue/useQueueKeyboard";
 import { taskPanelHref } from "../tasks/TaskQueueList";
 import { TaskQueueRow, type TaskRowPermissions } from "../tasks/TaskQueueRow";
 import { useRecentCompletions, useUndoToasts, type CompletionBand } from "../tasks/useRecentCompletions";
@@ -75,7 +75,8 @@ export function TodayQueueList({
         bands={shown.map((band) => {
           const open = expanded.includes(band.key);
           const visible = todayVisibleCount(band.rows.length, open);
-          const hidden = band.rows.length - todayVisibleCount(band.rows.length, false);
+          const hiddenFrom = todayVisibleCount(band.rows.length, false);
+          const hidden = band.rows.length - hiddenFrom;
           return {
             key: band.key,
             label: band.label,
@@ -103,13 +104,14 @@ export function TodayQueueList({
               <div className="border-b border-border ps-3">
                 <button
                   type="button"
-                  aria-expanded={open}
                   data-today-more={band.key}
                   onClick={(event) => {
                     const button = event.currentTarget;
                     setExpanded((current) => open ? current.filter((key) => key !== band.key) : [...current, band.key]);
                     // Свёрнутый список короче: кнопка уезжает вверх, и окно не должно остаться ниже конца страницы.
                     if (open) requestAnimationFrame(() => button.scrollIntoView({ block: "nearest" }));
+                    // Раскрытый: клавиатура продолжает с первой открывшейся строки, а не с начала страницы.
+                    if (!open) requestAnimationFrame(() => focusQueueRow(band.rows[hiddenFrom].key));
                   }}
                   className={QUEUE_QUIET_LINK}
                 >

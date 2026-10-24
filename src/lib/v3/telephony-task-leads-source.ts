@@ -42,13 +42,17 @@ export async function readTaskLeadRef(actor: ActivePlatformActor, taskId: string
 /**
  * Лиды рабочих задач «Сегодня» по ключу строки (`staff:<id>`): только у задач-перезвонов самой телефонии
  * (`isCallbackTaskTitle`) — остальные рабочие задачи не читаются вовсе, на «Сегодня» это не лишние чтения базы.
- * Читаются только строки, видимые сразу (окно группы, `todayVisibleCount`): клиент назван у каждой из них, а не у
- * первых по порядку. Строки за «Показать ещё» читаются без клиента — это дальняя часть длинной группы, а не её начало.
+ * Читаются только строки, видимые сразу (окно группы, `todayVisibleCount`), и не больше `TODAY_TASK_LEAD_CAP` по
+ * порядку групп: каждая задача — два чтения под сессией, и все они идут в одной отрисовке страницы. Строки за
+ * «Показать ещё» и сверх предела читаются без клиента — это дальняя часть очереди, а не её начало.
  */
+export const TODAY_TASK_LEAD_CAP = 15;
+
 export async function readTodayTaskLeads(actor: ActivePlatformActor, queue: TodayQueue): Promise<Readonly<Record<string, TaskLeadRef>>> {
   const tasks = queue.bands
     .flatMap((band) => band.items.slice(0, todayVisibleCount(band.items.length, false)))
-    .filter((item) => item.task?.kind === "staff" && item.task.key === item.key && isCallbackTaskTitle(item.task.title));
+    .filter((item) => item.task?.kind === "staff" && item.task.key === item.key && isCallbackTaskTitle(item.task.title))
+    .slice(0, TODAY_TASK_LEAD_CAP);
   const refs = await Promise.all(tasks.map(async (item) => [item.key, await readTaskLeadRef(actor, item.task!.id)] as const));
   return Object.freeze(Object.fromEntries(refs.filter((entry): entry is readonly [string, TaskLeadRef] => entry[1] !== null)));
 }

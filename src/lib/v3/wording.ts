@@ -1495,6 +1495,10 @@ export const caseDocumentsWords = {
  * человеческим и одинаковым в обоих мирах.
  */
 export const chromeWords = {
+  /** Страница отказа в доступе (staff): один заголовок и одна кнопка в свой раздел. */
+  accessDenied: {
+    staffAction: "В мой раздел",
+  },
   notFound: {
     /** Кабинет студента держит надпись над заголовком; у staff CRM её нет — заголовок один (`staffTitle`). */
     eyebrow: "Страница не найдена",

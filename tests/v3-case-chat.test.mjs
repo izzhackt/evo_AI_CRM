@@ -206,7 +206,7 @@ test("the composer freezes the exact submitted field values (not just the reques
   // row chip (StatusChip, Э1.3) always carries its word; «Нужен ответ» is a
   // warning, not danger red.
   assert.match(component, /\{caseChatAwaitChoice\(value\)\}/u);
-  assert.match(component, /return <StatusChip label=\{label\} tone=\{tone === "solid" \? "neutral" : tone\} \/>;/u);
+  assert.match(component, /return <StatusChip label=\{label\} tone=\{tone\} \/>;/u);
   assert.match(component, /return state === "needs_reply" \? "warn" : "neutral";/u);
 });
 

@@ -38,7 +38,8 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
         readMarketingOverview(actor, range),
         readMarketingRecent(actor, { from: shiftIsoDate(period.today, -(RECENT_DAYS_FOR_SIGNAL - 1)), to: period.today }),
       ]);
-      return <MarketingOverviewView read={read} recent={recent} period={range} retryHref={retryHref} />;
+      const unknownHref = marketingHref({ view: "leads", period: hrefPeriod, filters: { ...NO_MARKETING_FILTERS, unknownOnly: true } });
+      return <MarketingOverviewView read={read} recent={recent} period={range} retryHref={retryHref} unknownHref={unknownHref} />;
     })();
 
   return (

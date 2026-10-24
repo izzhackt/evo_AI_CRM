@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 
-import { btnCls, btnGhostCls, cn, inputCls } from "@/components/ui";
+import { btnDangerGhostCls, btnGhostCls, cn, inputCls } from "@/components/ui";
+import { QUEUE_CONFIRM } from "@/components/v3/queue/queue-buttons";
 import { ACCOUNT_DELETION_CONFIRM_WORD } from "@/lib/account-deletion-contract";
 import {
   processAccountDeletionAction,
@@ -69,7 +70,7 @@ export function AccountDeletionProcess({
   if (!open) {
     return (
       <div className="flex flex-col items-start gap-2">
-        <button ref={startRef} type="button" className={btnCls} onClick={() => setOpen(true)} data-testid="v3-deletion-start">
+        <button ref={startRef} type="button" className={btnDangerGhostCls} onClick={() => setOpen(true)} data-testid="v3-deletion-start">
           {retry ? "Повторить удаление" : "Удалить аккаунт и данные"}
         </button>
         {error ? <p role="alert" className="t-body-compact text-danger">{error}</p> : null}
@@ -123,7 +124,7 @@ export function AccountDeletionProcess({
         >
           Отмена
         </button>
-        <button type="submit" className={cn(btnCls, "whitespace-nowrap")} disabled={pending || !confirmed} data-testid="v3-deletion-submit">
+        <button type="submit" className={cn(QUEUE_CONFIRM, "whitespace-nowrap")} disabled={pending || !confirmed} data-testid="v3-deletion-submit">
           {pending ? "Удаляем…" : "Удалить навсегда"}
         </button>
       </div>

@@ -42,7 +42,7 @@ test("the image carries the bundle at /app/telephony-maintenance.mjs and the bui
   );
   const pkg = JSON.parse(read("package.json"));
   assert.equal(pkg.scripts["build:telephony-maintenance"], "node scripts/build-telephony-maintenance.mjs");
-  assert.match(pkg.scripts.build, /npm run build:telephony-maintenance$/u);
+  assert.match(pkg.scripts.build, /npm run build:telephony-maintenance( |$)/u);
   for (const file of [
     "tests/platform-telephony-pbx-config.test.mjs",
     "tests/platform-telephony-pbx-client.test.mjs",

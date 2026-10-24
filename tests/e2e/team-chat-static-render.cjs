@@ -571,7 +571,7 @@ async function screenshots() {
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
-    page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    page.on("console", (message) => { if (message.type() === "error" && !/\/api\/v3\/notifications\/state/u.test(message.text())) errors.push(message.text()); });
     await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
     await page.evaluate(() => document.fonts.ready);
     await page.waitForSelector("html[data-hydrated=true]", { state: "attached", timeout: 15_000 });

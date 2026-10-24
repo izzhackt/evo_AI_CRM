@@ -15,6 +15,8 @@ import type { V3Navigation, V3NavigationGroup, V3NavigationLink, V3NavigationLin
  * подсказка, поэтому три переписки различимы: «Переписка» поступления —
  * квадратный пузырь, WhatsApp — круглый (его собственная форма), «Командный
  * чат» — два пузыря (решение владельца 27.09.2026 развело «Переписки» Э5).
+ * «Шаблоны ответов» — пузырь со строками текста (24.10.2026): `quote` остался
+ * за «Ответить с цитатой», `file-text` — за «Документами».
  */
 export const LINK_ICONS = {
   // «Сегодня» (Э3).
@@ -32,10 +34,10 @@ export const LINK_ICONS = {
   messages: "message-square",
   "team-chat": "messages-square",
   documents: "file-text",
-  "reply-snippets": "quote",
+  "reply-snippets": "message-square-text",
   knowledge: "book-open",
   marketing: "megaphone",
-  "ai-agent": "sparkles",
+  "ai-agents": "sparkles",
   settings: "settings",
 } as const satisfies Record<V3NavigationLinkId, IconName>;
 

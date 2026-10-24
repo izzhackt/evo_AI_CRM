@@ -55,8 +55,8 @@ const STATUS_COPY: Record<Exclude<ActionStatus, "idle">, string> = {
   invalid: "Проверьте обязательные поля и формат значений.",
   forbidden: "У вашей роли нет права выполнить это действие.",
   stale: "Данные уже изменились. Показано актуальное состояние — проверьте его перед повтором.",
-  request_conflict: "Этот запрос уже использован с другими данными. Повторите действие с новым идентификатором запроса.",
-  unavailable: "Supabase не подтвердил изменение. Ничего не отмечено как сохранённое.",
+  request_conflict: "Этот запрос уже использован с другими данными. Повторите действие.",
+  unavailable: "Не удалось подтвердить изменение. Ничего не сохранено.",
 };
 
 /** Exported for ApplicationCreateDialog.tsx, which reuses this same locked/refresh convention. */
@@ -257,7 +257,7 @@ function ApplicationDetailsForm({
       <fieldset disabled={locked} className="grid gap-3 md:grid-cols-2">
         <PrimaryApplicationField defaultChecked={application.isPrimary} />
         <label>
-          <span className={fieldLabelCls}>Дедлайн от университета</span>
+          <span className={fieldLabelCls}>Срок подачи</span>
           <input
             name="university_deadline_on"
             type="date"
@@ -420,7 +420,7 @@ function FinanceStopCreateForm({
           <span className={fieldLabelCls}>Ссылка на подтверждение</span>
           <input name="evidence_ref" required maxLength={512} className={inputCls} />
         </label>
-        <button type="submit" className={btnGhostCls} disabled={locked}>
+        <button type="submit" className={cn(btnGhostCls, "w-fit justify-self-start")} disabled={locked}>
           {pending ? "Сохраняем…" : "Поставить стоп"}
         </button>
       </fieldset>
@@ -466,7 +466,7 @@ function FinanceStopResolveForm({
           <span className={fieldLabelCls}>Ссылка на подтверждение</span>
           <input name="evidence_ref" required maxLength={512} className={inputCls} />
         </label>
-        <button type="submit" className={btnGhostCls} disabled={locked}>
+        <button type="submit" className={cn(btnGhostCls, "w-fit justify-self-start")} disabled={locked}>
           {pending ? "Сохраняем…" : "Снять стоп"}
         </button>
       </fieldset>
@@ -490,22 +490,20 @@ function webLink(value: string | null | undefined): string | null {
 }
 
 /**
- * Путь «вариант → заявка подана → решение» (Э8.2): пройденные шаги — тихим
- * текстом, текущий — одним словом `StatusChip` (слово статуса), следующие —
- * самым тихим. Заявка, сошедшая с пути (отозвана, закрыта), — только слово.
+ * Состояние заявки в строке: одно слово `StatusChip` — текущий шаг пути
+ * «вариант → заявка подана → решение» (Э8.2). Весь путь строка не повторяет:
+ * он у каждой из строк был бы тем же; читалке шаг называется словами, а форма
+ * «Отметить статус» показывает все статусы. Заявка, сошедшая с пути (отозвана,
+ * закрыта), — только слово.
  */
 function UniversityPath({ row }: Readonly<{ row: UniversityRow }>) {
   const chip = row.word ? <StatusChip label={row.word} tone={row.tone} /> : null;
   if (row.step === null) return <p className="t-meta">{chip}</p>;
   return (
-    <ol aria-label="Путь заявки" className="flex flex-wrap items-center gap-x-1.5 gap-y-1 t-meta" data-step={row.step}>
-      {APPLICATION_PATH_STEPS.map((label, index) => (
-        <li key={label} className="flex items-center gap-1.5" aria-current={index === row.step ? "step" : undefined}>
-          {index > 0 ? <span aria-hidden="true" className="text-fg-3">→</span> : null}
-          {index === row.step ? chip : <span className={index < row.step! ? "text-fg-2" : "text-fg-3"}>{label}</span>}
-        </li>
-      ))}
-    </ol>
+    <p className="t-meta" data-step={row.step}>
+      {chip}
+      <span className="sr-only"> — шаг {row.step + 1} из {APPLICATION_PATH_STEPS.length}: {APPLICATION_PATH_STEPS.join(", ")}</span>
+    </p>
   );
 }
 
@@ -621,8 +619,10 @@ function UniversityRowItem({
             ) : null}
             {partner.length ? <p className="break-words t-meta text-fg-2">{partner.join(" · ")}</p> : null}
             {partnerLink ? (
-              <a href={partnerLink} target="_blank" rel="noopener noreferrer" className="-my-1.5 inline-flex min-h-11 items-center t-meta text-accent-text underline underline-offset-4">
-                Ссылка партнёра (откроется в новой вкладке)
+              <a href={partnerLink} target="_blank" rel="noopener noreferrer" className="-my-1.5 inline-flex min-h-11 items-center t-meta text-fg-2 underline underline-offset-4 hover:text-fg">
+                Ссылка партнёра
+                <Icon name="arrow-right" size={14} className="ms-1 shrink-0 -rotate-45" />
+                <span className="sr-only"> (откроется в новой вкладке)</span>
               </a>
             ) : null}
           </div>

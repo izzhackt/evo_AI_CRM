@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import type { ApplicationPublishedFormsWorkspace, UniversityFormExportWorkspace } from "@/lib/document-export-artifact-contract";
 import { readPublishedFormsForApplication, readUniversityFormExportWorkspace } from "@/lib/document-export-client";
 import { universityFormExport as words, studentProfileFiles, studentProfileFileMessage } from "@/lib/v3/wording";
+import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "../queue/queue-buttons";
 import type { ProfileApplication } from "./types";
 
-const BUTTON = "min-h-11 rounded-ctl border border-control-edge px-3 py-2 text-sm font-semibold text-fg hover:bg-bg disabled:cursor-not-allowed disabled:text-fg-3";
-const PRIMARY = "min-h-11 rounded-ctl border border-accent bg-accent px-3 py-2 text-sm font-semibold text-white hover:brightness-95 disabled:cursor-not-allowed disabled:border-border disabled:bg-bg disabled:text-fg-3 disabled:hover:brightness-100";
+const BUTTON = QUEUE_SECONDARY;
+const PRIMARY = QUEUE_CONFIRM;
 const SELECT = "min-h-11 w-full min-w-0 rounded-ctl border border-control-edge bg-surface px-3 py-2 text-sm text-fg disabled:cursor-not-allowed disabled:text-fg-3";
 type ReadResult<T> = Readonly<{ key: string; status: string; workspace: T | null }>;
 type Props = Readonly<{
@@ -16,6 +17,8 @@ type Props = Readonly<{
   canExport: boolean; busy: boolean; creationBlocked: boolean; unresolved: boolean; blocker: string | null; readVersion: number;
   onGenerate(mode: "draft" | "final", workspace: UniversityFormExportWorkspace): void;
   onRefreshProfile(): void;
+  /** «Вузы и программы» — куда добавить заявление; null — вкладки нет. */
+  routeHref?: string | null;
 }>;
 
 /** Selection reads are disposable; the parent owns the one retained export command and history. */
@@ -77,6 +80,9 @@ export function UniversityFormExportPanel(props: Props) {
   const controlsBlocked = props.busy || props.unresolved || !canExport;
   const failure = catalogResult && !catalog ? studentProfileFileMessage(catalogResult.status) ?? words.loadFailed
     : formResult && !workspace ? studentProfileFileMessage(formResult.status) ?? words.loadFailed : null;
+  // Сообщения «обновите список» (нет каталога, нет бланков, публикация изменилась) получают кнопку на месте.
+  const listStale = catalog !== null && (!forms || forms.items.length === 0
+    || Boolean(workspace && workspace.unavailable_reason !== "profile_missing" && !publicationMatches));
   const selectionMessage = workspace ? workspace.unavailable_reason === "profile_missing" ? words.profileMissing
     : !publicationMatches ? words.mappingChanged : !profileMatches ? words.profileChanged : words.ready : null;
   const message = !canExport ? studentProfileFileMessage("unavailable_access") : props.unresolved ? words.uncertain
@@ -91,7 +97,7 @@ export function UniversityFormExportPanel(props: Props) {
 
   return <section aria-label={words.title} aria-busy={props.busy || catalogLoading || formLoading} className="space-y-3 border-t border-border pt-4">
     <h4 className="text-sm font-semibold">{words.title}</h4>
-    <p className="text-sm leading-6 text-fg-2">{words.explanation}</p>
+    {applications.length ? <p className="text-sm leading-6 text-fg-2">{words.explanation}</p> : null}
     {applications.length ? <label className="block space-y-1 text-sm font-semibold">
       <span>{words.application}</span>
       <select className={SELECT} value={applicationExists ? applicationId : ""} disabled={controlsBlocked}
@@ -99,7 +105,10 @@ export function UniversityFormExportPanel(props: Props) {
         <option value="">{words.chooseApplication}</option>
         {applications.map(application => <option key={application.id} value={application.id}>{application.institution} · {application.program}</option>)}
       </select>
-    </label> : <p className="text-sm leading-6 text-fg-2">{words.noApplications}</p>}
+    </label> : <p className="text-sm leading-6 text-fg-2">
+      {words.noApplications}
+      {props.routeHref ? <>{" "}<a href={props.routeHref} className="inline-flex min-h-11 items-center text-sm font-medium text-fg-2 underline underline-offset-4 hover:text-fg">{words.addApplication}</a></> : null}
+    </p>}
     {canExport && applicationExists ? <>
       {catalog && !forms ? <p className="text-sm leading-6 text-fg-2">{words.noCatalog}</p> : null}
       {forms?.items.length ? <label className="block space-y-1 text-sm font-semibold">
@@ -114,7 +123,7 @@ export function UniversityFormExportPanel(props: Props) {
         {afterId ? <button type="button" className={BUTTON} disabled={controlsBlocked || catalogLoading} onClick={() => page()}>{words.first}</button> : null}
         {forms?.next_after_id ? <button type="button" className={BUTTON} disabled={controlsBlocked || catalogLoading}
           onClick={() => page(forms.next_after_id!)}>{words.next}</button> : null}
-        <button type="button" className={BUTTON} disabled={controlsBlocked || catalogLoading || formLoading} onClick={refresh}>{failure ? words.retry : words.refresh}</button>
+        {failure || listStale ? <button type="button" className={BUTTON} disabled={controlsBlocked || catalogLoading || formLoading} onClick={refresh}>{failure ? words.retry : words.refresh}</button> : null}
       </div>
     </> : null}
     {message ? <p role="status" aria-live="polite" className="text-sm leading-6 text-fg-2">{message}</p> : null}

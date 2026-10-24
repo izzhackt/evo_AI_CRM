@@ -309,7 +309,8 @@ test("pages wire the reads, the hints and the preview rule", () => {
   // «⋯» Lead 360 (Э4) — в действиях у заголовка, собранных `leadWorkParts`: то же право и та же причина.
   const leadParts = read("src/components/v3/profile/LeadWorkParts.tsx");
   assert.match(leadParts, /const closable = !preview && staffHasPermission\(actor, "lead\.sales\.workflow\.manage"\);/u);
-  assert.match(leadParts, /blockedReason=\{sales\.handoff\.handedOffAt \? closureWords\.lead\.handedOff : null\}/u);
+  // Переданный лид закрыть нельзя: «⋯» с одним недоступным пунктом не рисуется (этап «Переданы» уже говорит об этом).
+  assert.match(leadParts, /\{closable && !sales\.handoff\.handedOffAt \? \(\s*<LeadMoreMenu/u);
   assert.match(profile, /readClosedLeads\(actor, \{ leadId: explicitTarget\.leadId, limit: 1 \}\)/u);
   const pipeline = read("src/components/v3/Pipeline.tsx");
   assert.match(pipeline, /blockedReason=\{terminal \? closureWords\.lead\.handedOff : null\}/u);

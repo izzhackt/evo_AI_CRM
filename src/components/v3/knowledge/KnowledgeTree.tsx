@@ -13,10 +13,11 @@ type Href = (next: { area?: KnowledgeArea; folder?: string | null; view?: Knowle
 const ROW = "v3-choice flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-nav px-2 hover:bg-surface-2 hover:text-fg";
 const ROW_LINK = `${ROW} t-body-compact text-fg-2`;
 const AREA_LINK = `${ROW} t-item text-fg`;
-const VIEW_LINK = `${ROW_LINK} ps-13`;
+const VIEW_LINK = `${ROW_LINK} ps-3`;
+const GROUP_LABEL = "px-3 pb-1 pt-2 t-caption text-fg-3";
 const TOGGLE = "grid size-11 shrink-0 place-items-center rounded-nav text-fg-3 hover:bg-surface-2 hover:text-fg";
 const VIEWS: readonly (readonly [Exclude<KnowledgeView, "list">, string])[] = [
-  ["inbox", "Входящие"], ["review", "На уточнении"], ["archive", "Архив"], ["trash", "Корзина"],
+  ["inbox", "Неразобранное"], ["review", "На уточнении"], ["archive", "Архив"], ["trash", "Корзина"],
 ];
 
 /**
@@ -124,14 +125,23 @@ export function KnowledgeTree({ folders, folderError = false, onRetryFolders, ar
       <p className="t-body-compact text-danger">Папки не загрузились.</p>
       <button type="button" onClick={onRetryFolders} className={QUEUE_SECONDARY}>Повторить</button>
     </div> : null}
-    <nav aria-label="Разделы базы знаний" className="border-t border-border pt-3">
-      <ul className="space-y-0.5">
-        <li><Link href="/v3/knowledge?section=documents" aria-current={section === "documents" ? "page" : undefined} onClick={onNavigate} className={VIEW_LINK}>Документы</Link></li>
-        <li><Link href="/v3/knowledge?section=snippets" aria-current={section === "snippets" ? "page" : undefined} onClick={onNavigate} className={VIEW_LINK}>Шаблоны ответов</Link></li>
-        {VIEWS.map(([key, label]) => <li key={key}>
-          <Link href={href({ folder: null, view: key })} aria-current={!section && view === key ? "page" : undefined} onClick={onNavigate} className={VIEW_LINK}>{label}</Link>
-        </li>)}
-      </ul>
+    {/* Две подписанные группы: без подписей шесть ссылок читались вложенными в «Секреты и доступы», а «Входящие» совпадало с папкой того же имени. */}
+    <nav aria-label="Разделы базы знаний" className="space-y-2 border-t border-border pt-1">
+      <div>
+        <p className={GROUP_LABEL}>Файлы и шаблоны</p>
+        <ul className="space-y-0.5">
+          <li><Link href="/v3/knowledge?section=documents" aria-current={section === "documents" ? "page" : undefined} onClick={onNavigate} className={VIEW_LINK}>Документы</Link></li>
+          <li><Link href="/v3/knowledge?section=snippets" aria-current={section === "snippets" ? "page" : undefined} onClick={onNavigate} className={VIEW_LINK}>Шаблоны ответов</Link></li>
+        </ul>
+      </div>
+      <div>
+        <p className={GROUP_LABEL}>Состояние материалов</p>
+        <ul className="space-y-0.5">
+          {VIEWS.map(([key, label]) => <li key={key}>
+            <Link href={href({ folder: null, view: key })} aria-current={!section && view === key ? "page" : undefined} onClick={onNavigate} className={VIEW_LINK}>{label}</Link>
+          </li>)}
+        </ul>
+      </div>
     </nav>
   </div>;
 }

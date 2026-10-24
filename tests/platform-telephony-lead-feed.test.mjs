@@ -622,13 +622,13 @@ test("rendered lead: an unreadable answer says so and leaves the notes alone; a 
   const unavailable = pages.get("lead-unavailable");
   assert.equal(callRows(unavailable).length, 0);
   assert.match(unavailable, /data-testid="v3-calls-unavailable"/u);
-  assert.match(text(unavailable), /Звонки не загрузились\. Заметки и события ниже на месте\. Повторить/u);
+  assert.match(text(unavailable), /Звонки не загрузились\. Повторить/u);
   assert.match(unavailable, /data-testid="v3-calls-retry"/u, "«Повторить» stands beside the failure, not under the list");
   // «Повторить» re-reads the page itself (a button that refreshes, not a link to the address already open), and the icon shares a block with
   // the words, so on a phone it never stands alone on a line of its own.
   assert.match(unavailable, /<button [^>]*data-testid="v3-calls-retry"[^>]*>Повторить<\/button>/u);
   assert.doesNotMatch(unavailable, /<a [^>]*data-testid="v3-calls-retry"/u);
-  assert.match(unavailable, /<p class="flex min-w-0 flex-1 basis-64 items-start gap-x-2 py-2"><svg[^>]*>[\s\S]*?<\/svg><span>Звонки не загрузились\. Заметки и события ниже на месте\.<\/span><\/p>/u);
+  assert.match(unavailable, /<p class="flex min-w-0 flex-1 basis-64 items-start gap-x-2 py-2"><svg[^>]*>[\s\S]*?<\/svg><span>Звонки не загрузились\.<\/span><\/p>/u);
   const retry = read("src/components/v3/profile/LeadCallsRetry.tsx");
   assert.match(retry, /^"use client";/u);
   assert.match(retry, /onClick=\{\(\) => \{ if \(!pending\) start\(\(\) => router\.refresh\(\)\); \}\}/u, "the page is re-read, once at a time");

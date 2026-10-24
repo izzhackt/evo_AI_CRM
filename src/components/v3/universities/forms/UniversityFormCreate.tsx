@@ -5,9 +5,10 @@ import { unstable_rethrow } from "next/navigation";
 import { useActionState, useId, useRef, useState } from "react";
 import type { UniversityFormAction, UniversityFormActionState } from "@/lib/university-form-ui";
 import { universityFormActionMessage, universityFormWorkspace as words } from "@/lib/v3/wording";
+import { FORM_PRIMARY, FORM_SECONDARY } from "./form-buttons";
 
 const input = "min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2 text-base text-fg";
-const button = "inline-flex min-h-11 items-center justify-center rounded-ctl px-4 py-2 text-sm font-medium disabled:cursor-wait disabled:opacity-60";
+const button = FORM_SECONDARY;
 
 export function UniversityFormCreate({ catalogId, templateId, requestId, action }: {
   catalogId: string; templateId: string; requestId: string; action: UniversityFormAction;
@@ -62,11 +63,11 @@ export function UniversityFormCreate({ catalogId, templateId, requestId, action 
       {saved ? <p role="status" className="text-sm text-fg">{words.saved}</p> : null}
       <div className="flex flex-wrap items-center gap-3">
         {!saved && !blocked ? <button type="submit" disabled={pending || !title.trim()}
-          className={`${button} bg-accent text-on-accent`}>
+          className={FORM_PRIMARY}>
           {pending ? words.creating : uncertain ? words.retry : words.create}
         </button> : null}
-        {saved && state.receipt ? <Link prefetch={false} href={`${listUrl}?template=${state.receipt.template_id}`} className={`${button} bg-accent text-on-accent`}>{words.upload}</Link> : null}
-        <Link prefetch={false} href={listUrl} className={`${button} text-fg-2`}>{uncertain || blocked ? words.checkSaved : words.cancel}</Link>
+        {saved && state.receipt ? <Link prefetch={false} href={`${listUrl}?template=${state.receipt.template_id}`} className={FORM_PRIMARY}>{words.upload}</Link> : null}
+        <Link prefetch={false} href={listUrl} className={button}>{uncertain || blocked ? words.checkSaved : words.cancel}</Link>
       </div>
     </form>
   </section>;

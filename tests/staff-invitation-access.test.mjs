@@ -86,6 +86,13 @@ test("status restart is explicit and invitation operations share a parent interl
   assert.match(preparation, /readPending=\{pending \|\| reconcileLocked\}/u);
 });
 
+test("the access log shows request time in the CRM zone, Asia/Bishkek, without a zone label", () => {
+  // 24.10.2026: журнал показывал Дубай; остальная CRM — Бишкек. Сохранённое время не меняется.
+  const section = readFileSync(new URL("../src/components/v3/settings/StaffSection.tsx", import.meta.url), "utf8");
+  assert.match(section, /new Date\(request\.createdAt\)\.toLocaleString\("ru-RU", \{ timeZone: "Asia\/Bishkek", day: "2-digit"/u);
+  assert.doesNotMatch(section, /Asia\/Dubai|\(Dubai\)/u);
+});
+
 test("development request logging excludes credential callbacks but keeps ordinary routes", () => {
   const ignored = (url) => nextConfig.logging.incomingRequests.ignore.some((pattern) => pattern.test(url));
   for (const url of ["/auth/staff", "/auth/staff?token_hash=local-fixture", "/auth/staff/?token_hash=local-fixture", "/auth/callback?code=local-fixture"]) {

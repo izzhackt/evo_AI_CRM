@@ -63,16 +63,18 @@ export function StaffDirectoryList({ members, accessMembers, departments, select
       <label className="min-w-40 flex-1 basis-40 sm:max-w-56">
         <span className="sr-only">Доступ</span>
         <select className={`${CONTROL} px-3`} value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="">Все сотрудники</option>
-          <option value="active">Активен</option>
-          <option value="suspended">Заблокирован</option>
+          <option value="">Любой доступ</option>
+          <option value="active">Доступ активен</option>
+          <option value="suspended">Доступ заблокирован</option>
         </select>
       </label>
-      <p role="status" className="t-meta px-1 text-fg-3">Показано <span className="tabular-nums">{visible.length}</span> из <span className="tabular-nums">{members.length}</span></p>
+      {visible.length !== members.length ? (
+        <p role="status" className="t-meta px-1 text-fg-3">Показано <span className="tabular-nums">{visible.length}</span> из <span className="tabular-nums">{members.length}</span></p>
+      ) : null}
     </div>
     <div className="grid min-w-0 gap-6 border-t border-border @4xl:grid-cols-[minmax(220px,0.8fr)_minmax(0,1.2fr)]">
       <section aria-label="Список сотрудников" className={selectedMemberId ? "hidden min-w-0 @4xl:block" : "min-w-0"}>
-        {!visible.length ? <p className="py-6 text-sm leading-6 text-fg-3">
+        {!visible.length ? <p className="t-body-compact py-6 text-fg-3">
           {members.length ? "Сотрудники не найдены. Измените поиск или фильтры." : "Подключённых сотрудников пока нет."}
         </p> : <ul className="divide-y divide-border">
           {visible.map((member) => {
@@ -83,12 +85,12 @@ export function StaffDirectoryList({ members, accessMembers, departments, select
                 aria-current={selected ? "page" : undefined}
                 className={`block min-h-11 rounded-nav px-3 py-4 transition-colors motion-reduce:transition-none ${selected
                   ? "bg-accent-weak" : "hover:bg-surface-2"}`}>
-                <span className={`block break-words font-semibold ${selected ? "text-accent" : "text-fg"}`}>{member.displayName}</span>
-                <span className="mt-1 block break-words text-sm leading-6 text-fg-2">
+                <span className="t-item block break-words text-fg">{member.displayName}</span>
+                <span className="t-body-compact mt-1 block break-words text-fg-2">
                   {[member.metadata.jobTitle, department].filter(Boolean).join(" · ") || "Рабочие сведения не заполнены"}
                 </span>
-                <span className="mt-2 block text-sm leading-6 text-fg-3">
-                  {staffDirectoryAccessSummary(member, accessByMember.get(member.membershipId))} · {member.status === "active" ? "Доступ активен" : "Доступ заблокирован"}
+                <span className="t-body-compact mt-2 block text-fg-3">
+                  {staffDirectoryAccessSummary(member, accessByMember.get(member.membershipId))}{member.status === "active" ? "" : " · Доступ заблокирован"}
                 </span>
               </Link>
             </li>;

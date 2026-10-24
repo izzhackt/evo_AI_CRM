@@ -559,8 +559,9 @@ test("access: the section and the menu item follow ai.agent.use; every preview r
     assert.equal(staffCanAccessRoute({ ...staff([]), systemRole: "admin", presentationRole: role }, "/v3/ai-agent"), true, role);
   }
   const nav = buildV3Navigation(staff(["ai.agent.use"]), "/v3/ai-agent", new URLSearchParams());
-  assert.equal(nav.activeId, "ai-agent");
-  assert.deepEqual(nav.common.map((link) => [link.label, link.href]), [["ИИ-агент", "/v3/ai-agent"]]);
+  // 22.10.2026: пункт меню — «ИИ-агенты» (хаб); Gemini-страница — его дочерняя, пункт подсвечен и на ней.
+  assert.equal(nav.activeId, "ai-agents");
+  assert.deepEqual(nav.common.map((link) => [link.label, link.href]), [["ИИ-агенты", "/v3/ai-agents"]]);
 });
 
 // ------------------------------------------------------------ source contract
@@ -605,7 +606,7 @@ test("the section shows P1, P2 and P4 sub-pages and no dictation or knowledge-co
   // P2 adds «Лист сверки» and «Лаборатория» (tests/ai-agent-p2-ui.test.mjs);
   // P4 adds «Автоответчик» in its own view (tests/ai-agent-p4-ui.test.mjs).
   assert.deepEqual(AI_AGENT_SECTIONS.map((section) => section.title),
-    ["Информация для агента", "Лист сверки", "Лаборатория", "Правила общения", "Расходы", "Автоответчик"]);
+    ["Материалы", "Лист сверки", "Лаборатория", "Правила общения", "Расходы", "Автоответчик"]);
   // Code only: the header comment names the later sub-pages on purpose.
   const views = read("src/components/v3/ai-agent/AiAgentViews.tsx").replace(/\/\*[\s\S]*?\*\//gu, "");
   for (const later of ["Автоответчик", "Диктовка", "Взять из базы знаний", "Обновить из базы знаний"]) {
@@ -613,7 +614,7 @@ test("the section shows P1, P2 and P4 sub-pages and no dictation or knowledge-co
   }
   const page = read("src/app/(v3)/v3/ai-agent/page.tsx");
   assert.match(page, /requireV3PageActor\("\/v3\/ai-agent"\)/u);
-  assert.match(page, /<PartShell title="ИИ-агент"/u);
+  assert.match(page, /<PartShell\s+title="ИИ-агент"/u);
 });
 
 test("AI styles: own stylesheet right after v3.css, outside the shared blocks, motion only when the system allows it", () => {

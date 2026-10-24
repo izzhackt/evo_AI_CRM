@@ -31,12 +31,13 @@ export function FxRates({ geography, today }: Readonly<{ geography: StaffGeograp
   return (
     <div className="@container/rates space-y-5">
       {stale.length || missing.length ? (
-        <div role="status" className="flex gap-3 rounded-card bg-warn-weak px-4 py-3 text-warn" data-testid="fx-rate-warning">
+        <div role="status" className="flex flex-wrap items-start gap-x-3 gap-y-1 rounded-card bg-warn-weak px-4 py-2.5 text-warn" data-testid="fx-rate-warning">
           <Icon name="alert" size={18} className="mt-0.5 flex-none" />
-          <ul className="space-y-1">
-            {stale.map((rate) => <li key={rate.currency} className="t-body-compact">Курс {rate.currency} от {dayText(rate.asOf)} старше {FX_STALE_DAYS} дней ({rate.ageDays} дн.). Ориентир в USD у студентов считается по нему: внесите новый курс.</li>)}
+          <ul className="min-w-0 flex-1 space-y-1">
+            {stale.map((rate) => <li key={rate.currency} className="t-body-compact">Курс {rate.currency} от {dayText(rate.asOf)} старше {FX_STALE_DAYS} дней ({rate.ageDays} дн.): ориентир в USD у студентов считается по нему.</li>)}
             {missing.map((code) => <li key={code} className="t-body-compact">Нет курса {code}: студенты видят суммы в {code} без ориентира в USD.</li>)}
           </ul>
+          <a className="inline-flex min-h-11 flex-none items-center t-label underline underline-offset-4" href="#fx-rate-form">Внести курс</a>
         </div>
       ) : null}
       {latest.length ? (
@@ -44,7 +45,7 @@ export function FxRates({ geography, today }: Readonly<{ geography: StaffGeograp
           <caption className="sr-only">Последний курс каждой валюты к USD</caption>
           <thead role="rowgroup" className="sr-only @min-[44rem]/rates:not-sr-only @min-[44rem]/rates:block">
             <tr role="row" className={`${ROW} border-b border-border`}>
-              {["Валюта", "Курс", "Дата курса", "Источник", "Строк у студентов"].map((label) => <th key={label} role="columnheader" scope="col" className={HEAD}>{label}</th>)}
+              {["Валюта", "Курс", "Дата курса", "Источник", "У студентов"].map((label) => <th key={label} role="columnheader" scope="col" className={HEAD}>{label}</th>)}
             </tr>
           </thead>
           <tbody role="rowgroup" className="block">
@@ -55,15 +56,15 @@ export function FxRates({ geography, today }: Readonly<{ geography: StaffGeograp
                 <td role="cell" className={`${CELL} t-body-compact`}>
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <time className="font-mono tabular-nums text-fg" dateTime={rate.asOf}>{dayText(rate.asOf)}</time>
-                    {rateIsStale(rate) ? <StatusChip label={`Устарел: ${rate.ageDays} дн.`} tone="warn" /> : <span className="t-meta text-fg-3">{rate.ageDays} дн.</span>}
+                    {rateIsStale(rate) ? <StatusChip label={`Устарел: ${rate.ageDays} дн.`} tone="warn" /> : <span className="t-meta text-fg-3">{rate.ageDays} дн. назад</span>}
                   </span>
                 </td>
                 <td role="cell" className={`${CELL} t-body-compact text-fg-2`}>
                   {/* Название источника записано как есть (полное название ЕЦБ или ЦБ ОАЭ): две строки, целиком в подсказке. */}
-                  {rate.sourceUrl ? <a className="line-clamp-2 underline underline-offset-4 [overflow-wrap:anywhere] hover:text-fg" title={rate.sourceName} href={rate.sourceUrl} target="_blank" rel="noopener noreferrer">{rate.sourceName}<span className="sr-only"> (в новой вкладке)</span></a> : <span className="line-clamp-2" title={rate.sourceName}>{rate.sourceName}</span>}
+                  {rate.sourceUrl ? <span className="flex min-h-11 items-center"><a className="line-clamp-2 underline underline-offset-4 [overflow-wrap:anywhere] hover:text-fg" title={rate.sourceName} href={rate.sourceUrl} target="_blank" rel="noopener noreferrer">{rate.sourceName}<span className="sr-only"> (в новой вкладке)</span></a></span> : <span className="line-clamp-2" title={rate.sourceName}>{rate.sourceName}</span>}
                   <span className="block t-meta text-fg-3">Внесён {stamp(rate.setAt)}</span>
                 </td>
-                <td role="cell" className={`${CELL} t-body-compact tabular-nums text-fg-2`}><span className="@min-[44rem]/rates:sr-only">Строк у студентов: </span>{used.get(rate.currency) ?? 0}</td>
+                <td role="cell" className={`${CELL} t-body-compact tabular-nums text-fg-2`}><span className="@min-[44rem]/rates:sr-only">Строк стоимости у студентов: </span>{used.get(rate.currency) ?? 0}</td>
               </tr>
             ))}
           </tbody>
@@ -83,7 +84,6 @@ export function FxRates({ geography, today }: Readonly<{ geography: StaffGeograp
           </ul>
         </details>
       ) : null}
-      <p className="t-meta text-fg-3">Курс на тот же день той же валюты заменяет прежний.</p>
     </div>
   );
 }

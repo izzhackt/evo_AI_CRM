@@ -122,8 +122,8 @@ export function AccountDeletionSection({
       <div className="rounded-card border border-border bg-surface px-4 py-5" data-testid="v3-deletions-empty">
         <p className="t-item text-fg">Запросов на удаление нет</p>
         <p className="t-body-compact mt-1 max-w-[70ch] text-fg-2">
-          Студент или человек после анкеты нажимает «Удалить аккаунт» в кабинете или в приложении iPhone. Запрос появится
-          здесь со сроком: 30 дней с даты запроса.
+          Запрос появится здесь, когда человек нажмёт «Удалить аккаунт» в кабинете или в приложении iPhone. Срок — 30 дней
+          с даты запроса.
         </p>
       </div>
     );
@@ -131,7 +131,7 @@ export function AccountDeletionSection({
   return (
     <div className="flex flex-col gap-3">
       <p className="t-body-compact text-fg-2" data-testid="v3-deletions-summary">
-        {open === 0 ? "Открытых запросов нет." : `Открытых запросов: ${open}. Срок каждого: 30 дней с даты запроса.`}
+        {open === 0 ? "Открытых запросов нет." : `Открытых запросов: ${open}.`}
       </p>
       <div className="@container/deletions">
         <table role="table" className="block w-full overflow-hidden rounded-card border border-border bg-surface" data-testid="v3-deletions">
@@ -225,15 +225,15 @@ function ManualPlan({ d }: Readonly<{ d: AccountDeletionDetail }>) {
           </p>
         ) : null}
         {d.otherTables.length > 0 ? (
-          <p className="t-meta mt-1 break-all text-fg-2" data-testid="v3-deletion-other-tables">
-            Для технического администратора, другие записи в таблицах: {d.otherTables.join(", ")}.
-          </p>
+          <details className="mt-1" data-testid="v3-deletion-other-tables">
+            <summary className="t-label inline-flex min-h-11 cursor-pointer items-center text-fg-2 underline underline-offset-4 hover:text-fg">Для технического администратора</summary>
+            <p className="t-meta break-all text-fg-2">Другие записи в таблицах: {d.otherTables.join(", ")}.</p>
+          </details>
         ) : null}
       </div>
       <div>
         <p className="t-body-compact text-fg">
-          Команда удаляет или обезличивает по списку в течение 30 дней с даты запроса. Порядок и кто что делает: инструкция
-          «Удаление аккаунта вручную» (docs/runbooks/account-deletion.md). Многие пункты делает технический администратор
+          Удалить или обезличить по списку в течение 30 дней с даты запроса. Многие пункты делает технический администратор
           с доступом к базе: в CRM для них кнопок нет.
         </p>
         <ol className="mt-2 flex flex-col" data-testid="v3-deletion-checklist">
@@ -319,7 +319,7 @@ function AccountDeletionDetailView({ read, backHref, now }: Readonly<{
             ) : null}
             {d.mode === "automatic" && d.login === "disabled" ? (
               <p className="t-body-compact mt-1 text-fg-2" data-testid="v3-deletion-login-disabled">
-                Вход в аккаунт отключён мягким удалением Auth: почта и пароль обезличены, но строка пользователя в Auth осталась.
+                Вход в аккаунт отключён: почта и пароль обезличены.
               </p>
             ) : null}
           </div>
@@ -342,8 +342,7 @@ function AccountDeletionDetailView({ read, backHref, now }: Readonly<{
         <div role="status" className="flex items-start gap-2 rounded-card border border-border bg-surface px-4 py-3" data-testid="v3-deletion-authlog">
           <Icon name="alert" size={18} className="mt-0.5 shrink-0 text-warn" />
           <p className="t-body-compact text-fg">
-            Журнал входов Supabase Auth не очищен: у базы нет права удалять записи в нём. Остальные данные удалены. Записи этого
-            пользователя в журнале Auth убирает технический администратор (инструкция docs/runbooks/account-deletion.md).
+            Журнал входов не очищен: его чистит технический администратор. Остальные данные удалены.
           </p>
         </div>
       ) : null}

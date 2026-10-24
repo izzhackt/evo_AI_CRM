@@ -23,7 +23,7 @@ export type V3NavigationLinkId =
   | "reply-snippets"
   | "knowledge"
   | "marketing"
-  | "ai-agent"
+  | "ai-agents"
   | "settings";
 
 export type V3NavigationLink = Readonly<{
@@ -121,8 +121,11 @@ const COMMON: readonly V3NavigationLink[] = [
   { id: "documents", href: "/v3/documents", route: "/v3/documents", label: "Документы" },
   { id: "reply-snippets", href: "/v3/reply-snippets", route: "/v3/reply-snippets", label: "Шаблоны ответов" },
   { id: "knowledge", href: "/v3/knowledge", route: "/v3/knowledge", label: "База знаний" },
-  // «ИИ-агент» (план ИИ-агента §12.2): все сотрудники (Q9), маршрут — ai.agent.use.
-  { id: "ai-agent", href: "/v3/ai-agent", route: "/v3/ai-agent", label: "ИИ-агент" },
+  // «ИИ-агенты» (решение владельца 22.10.2026): отдел агентов Claude, хаб с
+  // карточками по группам; Gemini-помощник «ИИ-агент» (план ИИ-агента §12.2)
+  // стал его карточкой, а не отдельным пунктом. Все сотрудники (Q9), маршрут —
+  // ai.agent.use.
+  { id: "ai-agents", href: "/v3/ai-agents", route: "/v3/ai-agents", label: "ИИ-агенты" },
   // Только настоящий администратор, не просмотр роли: маршрут закрыт тем же правилом, что «База знаний».
   { id: "marketing", href: "/v3/marketing", route: "/v3/marketing", label: "Маркетинг" },
 ];
@@ -161,13 +164,18 @@ export function v3SectionTitle(
     for (const one of typeof value === "string" ? [value] : value ?? []) query.append(name, one);
   }
   if (pathname === "/v3/profile" && !isSingleValue(query, "section", "docs") && isLeadProfile(query)) return "Лид";
+  // Gemini-помощник — дочерняя страница хаба «ИИ-агенты»: пункт меню подсвечен
+  // тот же, а вкладка называет саму страницу, как карточка лида.
+  if (pathname === "/v3/ai-agent") return "ИИ-агент";
   const id: V3NavigationLinkId | undefined = pathname === "/v3/main"
     ? isSingleValue(query, "view", "sales") ? "sales-report" : "home"
     : pathname === "/v3/profile"
       ? isSingleValue(query, "section", "docs") ? "evo-docs" : "admissions-worklist"
       : pathname.startsWith("/v3/universities/")
         ? "universities"
-        : ALL_LINKS.find((link) => link.route === pathname)?.id;
+        : pathname.startsWith("/v3/ai-agents/")
+          ? "ai-agents"
+          : ALL_LINKS.find((link) => link.route === pathname)?.id;
   return ALL_LINKS.find((link) => link.id === id)?.label;
 }
 
@@ -243,6 +251,9 @@ export function buildV3Navigation(
         : "admissions-worklist";
   } else if (pathname.startsWith("/v3/universities/")) {
     candidate = "universities";
+  } else if (pathname.startsWith("/v3/ai-agents/") || pathname === "/v3/ai-agent") {
+    // Страница агента и Gemini-помощник — дочерние страницы хаба «ИИ-агенты».
+    candidate = "ai-agents";
   } else {
     candidate = links.find((link) => link.route === pathname)?.id;
   }

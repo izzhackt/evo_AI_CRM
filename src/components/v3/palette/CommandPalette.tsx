@@ -20,7 +20,7 @@ import type { V3Navigation, V3NavigationLinkId } from "@/lib/v3/navigation";
 import { LINK_ICONS } from "@/lib/v3/shell-tabs";
 
 import { openTaskComposer } from "../tasks/task-composer-context";
-import { taskComposerAccess } from "../tasks/TaskComposerHost";
+import { taskComposerAccess } from "../tasks/task-composer-access";
 import { openKeyboardHelp } from "./KeyboardHelpDialog";
 
 /** Пауза перед поиском: ввод не отправляет запрос на каждую букву. */
@@ -267,10 +267,13 @@ export function CommandPalette({ actor, navigation }: Readonly<{ actor: ActivePl
             className="v3-palette-input h-14 min-w-0 flex-1 bg-transparent t-body text-fg outline-none placeholder:text-fg-3"
             data-testid="v3-command-palette-input"
           />
-          <button type="button" onClick={() => hide()} className="inline-flex min-h-11 shrink-0 items-center rounded-ctl px-2 t-meta text-fg-2 hover:bg-surface-2 hover:text-fg">
-            {/* На телефоне клавиатуры нет — кнопка называет действие словом. */}
-            <span className="md:hidden">Закрыть</span>
-            <kbd className="hidden font-mono md:inline">Esc</kbd><span className="sr-only max-md:hidden"> — закрыть</span>
+          <button
+            type="button"
+            onClick={() => hide()}
+            aria-label="Закрыть"
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-ctl text-fg-3 hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring"
+          >
+            <Icon name="x" size={18} />
           </button>
         </div>
         <div id={listId} role="listbox" aria-label="Результаты" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2" data-testid="v3-command-palette-results">
@@ -306,8 +309,7 @@ export function CommandPalette({ actor, navigation }: Readonly<{ actor: ActivePl
             но строка статуса остаётся в дереве доступности (живая область). */}
         <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-2${status ? "" : " max-md:sr-only"}`} data-testid="v3-command-palette-footer">
           <p role="status" aria-live="polite" className="min-w-0 flex-1 t-meta text-fg-2" data-testid="v3-command-palette-status">{status}</p>
-          <button type="button" onClick={() => { hide(); openKeyboardHelp(); }} className="hidden min-h-11 items-center gap-1.5 rounded-ctl px-2 t-meta text-fg-2 hover:bg-surface-2 hover:text-fg md:inline-flex">
-            <kbd className="inline-flex min-w-6 justify-center rounded-nav border border-border bg-bg px-1.5 font-mono text-fg">?</kbd>
+          <button type="button" onClick={() => { hide(); openKeyboardHelp(); }} className="hidden min-h-11 items-center rounded-ctl px-2 t-meta text-fg-2 underline underline-offset-4 hover:text-fg md:inline-flex">
             Все клавиши
           </button>
         </div>

@@ -79,7 +79,13 @@ export function isCallbackTaskTitle(title: string): boolean {
 }
 
 /** Та же подсказка видимой строкой для сенсорного экрана, где нет `title` при наведении: короче, под рядом действий лида. */
-export const DIAL_TOUCH_HINT = "«Позвонить» сначала звонит вам: возьмите трубку, и мы наберём клиента.";
+export const DIAL_TOUCH_HINT = "Сначала звонит ваш телефон.";
+
+/**
+ * Одно скрытое описание на весь список кнопок «Позвонить» (`DialListHint`): подсказка читалке не повторяется в каждой
+ * строке. Кнопка со своей строкой-подсказкой (`sharedHint`) ссылается на него; на странице только один такой список.
+ */
+export const DIAL_LIST_HINT_ID = "v3-dial-list-hint";
 
 export const DIAL_COPY = Object.freeze({
   button: "Позвонить",

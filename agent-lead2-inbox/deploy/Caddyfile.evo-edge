@@ -112,7 +112,9 @@ crm.evoadmissions.com, app.evoadmissions.com {
 		max_size 105MB
 	}
 	encode zstd gzip
-	reverse_proxy evo-crm-app:3000
+	reverse_proxy evo-crm-app:3000 {
+		header_up X-Evo-Mcp-Ip {remote_host}
+	}
 }
 
 # Navigation from the retired technical hostname is not a second app origin.

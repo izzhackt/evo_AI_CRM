@@ -12,6 +12,8 @@ import { SALES_STAGE_TITLE, source as sourceWord } from "@/lib/v3/wording";
 import { ChannelLabel } from "./ChannelLabel";
 
 const TH = "whitespace-nowrap px-2 py-2 text-left t-caption font-medium text-fg-2";
+/** Девять столбцов узко прокручиваются вбок: имя остаётся на месте. */
+const STICKY = "sticky left-0 z-10 bg-bg";
 const TD = "px-2 py-2.5 align-top t-body-compact text-fg";
 const META = "block t-meta text-fg-2";
 const PAID_SOURCE = { case: "по платежам дела", gate: "подтверждено вручную", report: "по записи отчёта" } as const;
@@ -33,8 +35,8 @@ function Row({ row }: Readonly<{ row: MarketingLeadRow }>) {
   const basis = set?.basis ?? row.basis;
   return (
     <tr className="border-b border-border" data-lead-id={row.leadId}>
-      <th scope="row" className={`${TD} min-w-36 text-left font-medium`}>
-        <Link href={`/v3/profile?id=${row.leadId}`} className="underline-offset-4 hover:underline">{row.name ?? "Лид без имени"}</Link>
+      <th scope="row" className={`${TD} ${STICKY} min-w-36 text-left font-medium`}>
+        <Link href={`/v3/profile?id=${row.leadId}`} className="flex min-h-11 items-center underline-offset-4 hover:underline">{row.name ?? "Лид без имени"}</Link>
         <span className={`${META} tabular-nums`}>{formatBishkekMoment(row.createdAt)}</span>
       </th>
       <td className={`${TD} whitespace-nowrap tabular-nums`}>{row.phone ?? <span className="text-fg-2">—</span>}</td>
@@ -115,12 +117,12 @@ export function MarketingLeadsTable({ initial, request }: Readonly<{
         {total > 0 ? <> · показано <span className="tabular-nums">{rows.length.toLocaleString("ru-RU")}</span></> : null}
       </p>
       {rows.length === 0 ? <p className="mt-3 t-body-compact text-fg-2">За этот период заявок по фильтрам нет.</p> : (
-        <div className="relative mt-2 overflow-x-auto">
+        <div className="relative mt-2 overflow-x-auto" role="region" aria-label="Таблица заявок" tabIndex={0}>
           <table className="min-w-[56rem] w-full border-collapse">
             <caption className="sr-only">Заявки периода: кто пришёл, откуда и что с ними стало</caption>
             <thead>
               <tr className="border-b border-border">
-                <th scope="col" className={TH}>Имя и время</th>
+                <th scope="col" className={`${TH} ${STICKY}`}>Имя и время</th>
                 <th scope="col" className={TH}>Телефон</th>
                 <th scope="col" className={TH}>Канал связи</th>
                 <th scope="col" className={TH}>Откуда узнал</th>

@@ -465,19 +465,19 @@ test("«Продажи» headline: one number by sale date, discrepancies named,
   const full = render(september);
   const plain = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
   assert.match(full, /<p class="t-section text-fg"><span class="tabular-nums">5<\/span> продаж<\/p>/u);
-  assert.match(plain(full), /^5 продаж по дате продажи за сентябрь 2026, без архива Не входят: без даты продажи — 1 запись дата продажи в другом месяце — 1 запись Входят из другого месяца отчёта: 1 запись$/u);
+  assert.match(plain(full), /^5 продаж по дате продажи, без архива Не входят: без даты продажи — 1 запись дата продажи в другом месяце — 1 запись Входят из другого месяца отчёта: 1 запись$/u);
   // Each named discrepancy opens exactly those records (same period, no other filter), with a 44 px target.
   for (const [slice, words] of [["undated", "без даты продажи — 1 запись"], ["other_sale_date", "дата продажи в другом месяце — 1 запись"], ["filed_elsewhere", "1 запись"]]) {
     assert.match(full, new RegExp(`<a href="/v3/main\\?view=sales&amp;year=2026&amp;month=9&amp;sale=${slice}" class="inline-flex min-h-11 [^"]*" data-sale-slice="${slice}">${words}</a>`, "u"), slice);
   }
   assert.doesNotMatch(full, /без фильтров/u);
-  assert.match(plain(render(september, { filtered: true })), /по дате продажи за сентябрь 2026, без архива и без фильтров/u, "not to be read against the filtered rows");
+  assert.match(plain(render(september, { filtered: true })), /по дате продажи, без архива и без фильтров/u, "not to be read against the filtered rows");
   // Э4: план месяца из чтения — «N продаж из плана M», «осталось» и тонкая полоса «продажи из плана» (Э1.3).
   const planned = render(september, { target: 35 });
-  assert.match(plain(planned), /^5 продаж из плана 35 по дате продажи за сентябрь 2026, без архива · осталось 30 /u);
+  assert.match(plain(planned), /^5 продаж из плана 35 по дате продажи, без архива · осталось 30 /u);
   assert.match(planned, /<span class="v3-progress-track mt-1\.5" aria-hidden="true"><span class="v3-progress-fill" style="width:14\.3%"><\/span><\/span>/u);
   assert.doesNotMatch(full, /v3-progress-track/u, "no plan read — no bar");
-  assert.match(plain(render(september, { target: 5 })), /^5 продаж из плана 5 по дате продажи за сентябрь 2026, без архива · план выполнен/u);
+  assert.match(plain(render(september, { target: 5 })), /^5 продаж из плана 5 по дате продажи, без архива · план выполнен/u);
   assert.doesNotMatch(render(september, { target: 4 }), /v3-progress-track/u, "no bar past the plan: 5 of 4 is not a share");
   assert.match(plain(render({ status: "available", count: { ...september.count, sales: 1 } })), /^1 продажа /u);
   assert.match(plain(render({ status: "available", count: { ...september.count, sales: 3 } })), /^3 продажи /u);
@@ -556,12 +556,12 @@ test("rendered pages: Lead 360 strip, the report headline and the board funnel t
   assert.match(working, /<span class="sr-only">Квалифицирован, текущий этап, Продажи<\/span>/u);
   assert.doesNotMatch(working, /v3-handoff-summary|v3-handoff-warnings/u);
   assert.doesNotMatch(working, /v3-lead-group-contract|v3-gate-contract-form|Подтверждение договора и платежа/u);
-  assert.match(working, /<a class="inline-flex min-h-11 [^"]*ms-auto" data-testid="v3-handoff-edit" aria-label="Изменить договор и оплату" href="\/v3\/profile\?id=[^"]+&amp;tab=money#handoff-confirm">Изменить<\/a>/u);
+  assert.match(working, /<a class="inline-flex min-h-11 [^"]*ms-auto" data-testid="v3-handoff-edit" aria-label="Подтвердить договор и оплату" href="\/v3\/profile\?id=[^"]+&amp;tab=money#handoff-confirm">Подтвердить<\/a>/u);
   const money = pages.get("lead-working-money");
   const gateSection = money.slice(money.indexOf('<section id="handoff-confirm"'));
   assert.match(gateSection, /^<section id="handoff-confirm" aria-labelledby="handoff-confirm-title" class="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate"><h2 id="handoff-confirm-title" class="t-section text-fg">Подтверждение вручную<\/h2>/u);
-  assert.match(gateSection, /<h3 class="t-item text-fg">Подтвердить договор<\/h3>.*?data-testid="v3-gate-contract-form"/u);
-  assert.match(gateSection, /<details class="group py-1"><summary[^>]*>.*?Исключение Admin<\/summary>/u);
+  assert.match(gateSection, /<h3 class="t-item text-fg">Договор<\/h3>.*?data-testid="v3-gate-contract-form"/u);
+  assert.match(gateSection, /<details class="group\/override py-1"><summary[^>]*>Исключение Admin<svg[^>]*group-open\/override:rotate-180[^>]*>.*?<\/summary>/u);
   // У лида без дела пустого «Все обязательства по делу» нет; сплошной красный — только главное действие.
   assert.doesNotMatch(money, /Все обязательства по делу|Обязательств пока нет/u);
   assert.match(money, /aria-current="page" class="v3-choice inline-flex min-h-11 [^"]*" href="[^"]*tab=money">Договор и оплата<\/a>/u);
@@ -586,12 +586,12 @@ test("rendered pages: Lead 360 strip, the report headline and the board funnel t
   // «Отчёт продаж»: «Продажи» по дате продажи; таблица месяца (6 записей) сходится со словами,
   // а каждое расхождение ведёт к своим записям.
   assert.match(report, /data-testid="v3-sales-headline" data-sales="5"/u);
-  assert.match(text(report), /5 продаж по дате продажи за сентябрь 2026, без архива Не входят: без даты продажи — 1 запись дата продажи в другом месяце — 1 запись Входят из другого месяца отчёта: 1 запись/u);
+  assert.match(text(report), /5 продаж по дате продажи, без архива Не входят: без даты продажи — 1 запись дата продажи в другом месяце — 1 запись Входят из другого месяца отчёта: 1 запись/u);
   assert.match(report, /href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;sale=undated"/u);
   assert.match(text(report), /Продажи: 6 записей/u);
   // По ссылке «без даты продажи»: ровно эта запись, слова среза и «без фильтров» у числа.
   const undated = pages.get("report-undated");
-  assert.match(text(undated), /5 продаж по дате продажи за сентябрь 2026, без архива и без фильтров/u);
+  assert.match(text(undated), /5 продаж по дате продажи, без архива и без фильтров/u);
   assert.match(text(undated), /Записи без даты продажи: в продажи не входят — сентябрь 2026\. Все записи периода/u);
   assert.match(text(undated), /Продажи: 1 запись/u);
   assert.match(text(undated), /Данияр Макетов/u);

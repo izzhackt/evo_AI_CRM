@@ -91,7 +91,7 @@ export function StudentsDirectoryFallback({
                       {href ? (
                         <Link href={href} data-queue-open="" title={row.studentDisplayName} className="block truncate t-item text-fg before:absolute before:inset-0 before:content-[''] hover:underline">{row.studentDisplayName}</Link>
                       ) : <span className="block truncate t-item text-fg" title={row.studentDisplayName}>{row.studentDisplayName}</span>}
-                      <span className="block truncate t-meta text-fg-2" title={meta}>{meta}{row.access === "sales_summary" ? " · итог передачи" : ""}</span>
+                      <span className="block truncate t-meta text-fg-2" title={meta}>{meta}{row.access === "sales_summary" ? " · передан в поступление" : ""}</span>
                       {docsMode && caseDocumentsAwaitCurator(row.state)
                         ? <span className="block t-meta text-fg-2" data-testid="v3-student-case-documents-await">Документы {caseDocumentsWords.awaitCurator}.</span> : null}
                     </th>

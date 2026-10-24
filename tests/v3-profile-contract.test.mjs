@@ -69,7 +69,9 @@ test("unified section preserves independent finance and contract access and old 
       assert.equal(resolveTab("money", true, access, true), finance || contract ? "money" : "overview");
       assert.equal(resolveTab("contract", true, access, true), contract ? "money" : "overview");
       assert.equal(resolveTab("contract", false, access, false), "overview");
-      assert.equal(resolveTab("money", false, access, false), "money");
+      // Лид без дела видит «Договор и оплата» только с формами подтверждения вручную (`gateForms`).
+      assert.equal(resolveTab("money", false, access, false), "overview");
+      assert.equal(resolveTab("money", false, { ...access, gateForms: true }, false), "money");
       assert.equal(resolveTab("unrecognized", true, access, true), "overview");
     }
   }

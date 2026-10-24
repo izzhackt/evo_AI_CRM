@@ -36,6 +36,7 @@ import { AI_MEMORY_SETTINGS_COPY } from "@/lib/v3/ai-agent-memory";
 import type { AiRead } from "@/lib/v3/ai-agent-source";
 
 import { AiActionForm } from "./AiActionForm";
+import { AiDocumentFilter } from "./AiDocumentFilter";
 import { AiMemoryToggle } from "./AiMemoryToggle";
 import { AiDocumentUpload } from "./AiDocumentUpload";
 import { AiMonthlyCapForm } from "./AiMonthlyCapForm";
@@ -43,10 +44,10 @@ import { AiRowMore } from "./AiRowMore";
 import { AiRulesEditor } from "./AiRulesEditor";
 
 /**
- * Раздел «ИИ-агент» (план ИИ-агента §12.2): вкладки «Информация для агента»,
- * «Лист сверки» (с числом открытых пунктов), «Лаборатория» (P2), «Правила
- * общения», «Расходы». «Автоответчика» и «Диктовки» (P4) здесь нет — без
- * пустых кнопок. Числа — из базы; не прочитано — без числа, а не ноль.
+ * Раздел «ИИ-агент» (план ИИ-агента §12.2): вкладки «Материалы», «Лист
+ * сверки» (с числом открытых пунктов), «Лаборатория» (P2), «Правила общения»,
+ * «Расходы», «Автоответчик» (P4). «Диктовки» здесь нет — без пустых кнопок.
+ * Числа — из базы; не прочитано — без числа, а не ноль.
  */
 export function AiAgentNav({ section, reviewOpenCount }: Readonly<{ section: AiAgentSection; reviewOpenCount: number | null }>) {
   return (
@@ -97,7 +98,7 @@ export function AiAgentNotice({
     <>
       {!featureOn ? (
         <Line tone="muted" testId="v3-ai-feature-off">
-          ИИ-агент не подключён к CRM на сервере — окно «Помочь с ответом» в чате пока не готовит ответы. Подключает администратор.
+          ИИ-агент не подключён на сервере — «Помочь с ответом» в чате не готовит ответы. Подключает администратор.
         </Line>
       ) : null}
       {!consent && settings?.isAdmin && !preview ? (
@@ -146,10 +147,19 @@ function plural(count: number, one: string, few: string, many: string): string {
   return `${count.toLocaleString("ru-RU")} ${tens >= 11 && tens <= 14 ? many : ones === 1 ? one : ones >= 2 && ones <= 4 ? few : many}`;
 }
 
+/** «День.месяц.год» без времени: время обработки в списке ничего не решает. */
+function documentDay(iso: string): string {
+  return aiDateTime(iso).split(",")[0] ?? "";
+}
+
+/**
+ * Откуда материал и что с ним: страница «Базы знаний» не называется «страница» (это и так видно из «Базы
+ * знаний»), версия — только если не первая.
+ */
 function sourceLine(document: AiDocument): string {
-  const kind = KIND_LABEL[document.kind] ?? document.kind;
+  const kind = document.kind === "knowledge" ? null : KIND_LABEL[document.kind] ?? document.kind;
   const from = document.source === "seed_kb"
-    ? `«База знаний»${document.sourceNodeVersion !== null ? `, версия ${document.sourceNodeVersion}` : ""}`
+    ? `«База знаний»${document.sourceNodeVersion !== null && document.sourceNodeVersion > 1 ? `, версия ${document.sourceNodeVersion}` : ""}`
     : document.source === "lab" ? "Лаборатория" : "загружен";
   return [kind, from, document.editedInLab ? "изменён в Лаборатории" : null].filter(Boolean).join(" · ");
 }
@@ -272,7 +282,7 @@ function DocumentRow({
         main={(
           <>
             <p className="t-item break-words text-fg">
-              <Link href={aiAgentHref("documents", { document: document.id })} className="underline decoration-border-strong underline-offset-4 hover:decoration-fg">
+              <Link href={aiAgentHref("documents", { document: document.id })} className="-my-3 inline-flex min-h-11 items-center underline decoration-border-strong underline-offset-4 hover:decoration-fg">
                 {document.title}
               </Link>
             </p>
@@ -280,7 +290,7 @@ function DocumentRow({
               {sourceLine(document)}
               {document.pageCount !== null && document.pageCount > 0 ? ` · ${plural(document.pageCount, "страница", "страницы", "страниц")}` : ""}
               {document.chunkCount > 0 ? ` · ${plural(document.chunkCount, "фрагмент", "фрагмента", "фрагментов")}` : ""}
-              {` · ${aiDateTime(document.updatedAt)}`}
+              {` · ${documentDay(document.updatedAt)}`}
             </p>
             {personal ? (
               <p className="mt-1 max-w-[64ch] t-body-compact text-fg-2">
@@ -295,8 +305,13 @@ function DocumentRow({
         )}
         aside={(
           <>
-            <StatusChip label={AUDIENCE_LABEL[document.audience]} tone={document.audience === "internal" ? "info" : "neutral"} />
-            {document.status === "review" && document.openReviewCount > 0 ? (
+            {/* Одинаковое у всех строк не повторяется: «Внутреннее» и «Готов» — по умолчанию, слышны читалке. */}
+            {document.audience === "client"
+              ? <StatusChip label={AUDIENCE_LABEL.client} tone="neutral" />
+              : <span className="sr-only">{AUDIENCE_LABEL[document.audience]}</span>}
+            {document.status === "ready" ? (
+              <span className="sr-only">{status.label}</span>
+            ) : document.status === "review" && document.openReviewCount > 0 ? (
               <Link href={aiAgentHref("review", { document: document.id })} className="inline-flex min-h-11 items-center rounded-full focus-visible:outline-offset-2" aria-label={`${status.label} — открыть «Лист сверки»`}>
                 <StatusChip label={status.label} tone="warn" />
               </Link>
@@ -388,22 +403,26 @@ export function AiDocumentsView({
       <section aria-labelledby="ai-documents-title" className="space-y-3" data-testid="v3-ai-documents">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <h2 id="ai-documents-title" className="t-section text-fg">Материалы агента</h2>
+          {/* Не весь список — не итог: «Показаны первые 100», а не «100 документов». */}
           <p className="t-meta tabular-nums text-fg-3">
-            {plural(rows.length, "документ", "документа", "документов")} · ищутся {live.length} · для клиентов {client} · внутренних {live.length - client}
+            {hasMore ? `Показаны первые ${items.length}` : plural(rows.length, "документ", "документа", "документов")}
+            {live.length !== rows.length ? ` · ищутся ${live.length}` : ""} · для клиентов {client}
           </p>
         </div>
-        <ul className="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface">
-          {rows.map((document) => (
-            <DocumentRow
-              key={document.id}
-              document={document}
-              successor={successors.get(document.id) ?? null}
-              canManage={canManage}
-              requestIds={requestIds}
-            />
-          ))}
-        </ul>
-        {hasMore ? <p className="t-meta text-fg-3">Показаны первые 100 документов.</p> : null}
+        <AiDocumentFilter
+          entries={rows.map((document) => ({
+            id: document.id,
+            title: document.title,
+            row: (
+              <DocumentRow
+                document={document}
+                successor={successors.get(document.id) ?? null}
+                canManage={canManage}
+                requestIds={requestIds}
+              />
+            ),
+          }))}
+        />
       </section>
     </div>
   );
@@ -519,12 +538,12 @@ function Figure({ label, value, meta, testId }: Readonly<{ label: string; value:
   );
 }
 
-function agentStatusLine(status: AiAgentStatus): Readonly<{ tone: "ok" | "warn" | "muted"; text: string }> {
+function agentStatusLine(status: AiAgentStatus, showModel: boolean): Readonly<{ tone: "ok" | "warn" | "muted"; text: string }> {
   if (status.state === "off") return { tone: "muted", text: "ИИ-агент не подключён к CRM на сервере." };
   if (status.state === "unavailable") return { tone: "warn", text: aiErrorCopy("agent_unavailable") };
   if (status.block) return { tone: "warn", text: aiErrorCopy(status.block) };
   return status.keyAccepted
-    ? { tone: "ok", text: `Gemini принимает ключ EVO${status.model ? ` · модель ${status.model}` : ""}.` }
+    ? { tone: "ok", text: `Gemini принимает ключ EVO${showModel && status.model ? ` · модель ${status.model}` : ""}.` }
     : { tone: "warn", text: "Gemini не принял ключ EVO — проверьте ключ в Google Cloud." };
 }
 
@@ -547,14 +566,16 @@ export function AiSpendView({
   memoryRequestId: string;
   retryHref: string;
 }>) {
-  const status = agentStatusLine(agentStatus);
+  // Имена моделей, лимит запросов и смена цен по моделям — устройство сервера: видит администратор, остальным они ничего не дают.
+  const admin = settings.status === "available" && settings.data.isAdmin;
+  const status = agentStatusLine(agentStatus, admin);
   return (
     <div className="space-y-6">
       {spend.status !== "available" ? <AiUnavailable what="расходы" retryHref={retryHref} /> : (() => {
         const data = spend.data;
         const groups = [...data.byGroup].sort((left, right) => right.usd - left.usd);
         const anyEstimated = data.monthEstimated || groups.some((group) => group.estimated);
-        const notes = priceNotes(data);
+        const notes = admin ? priceNotes(data) : [];
         const used = data.monthlyCapUsd > 0 ? Math.min(100, Math.round(((data.monthUsd + data.reservedUsd) / data.monthlyCapUsd) * 100)) : null;
         return (
           <>
@@ -635,12 +656,14 @@ export function AiSpendView({
           const data = settings.data;
           return (
             <>
-              <dl className="grid gap-x-6 gap-y-1 t-body-compact sm:grid-cols-[max-content_minmax(0,1fr)]">
-                <dt className="text-fg-3">Модель ответа</dt><dd className="font-mono text-fg">{data.models.answer}</dd>
-                <dt className="text-fg-3">Быстрая модель</dt><dd className="font-mono text-fg">{data.models.fast}</dd>
-                <dt className="text-fg-3">Эмбеддинги</dt><dd className="font-mono text-fg">{data.models.embedding}</dd>
-                <dt className="text-fg-3">Лимит запросов</dt><dd className="text-fg">{data.ratePerMemberMinute} ответов в минуту на сотрудника</dd>
-              </dl>
+              {data.isAdmin ? (
+                <dl className="grid gap-x-6 gap-y-1 t-body-compact sm:grid-cols-[max-content_minmax(0,1fr)]">
+                  <dt className="text-fg-3">Модель ответа</dt><dd className="font-mono text-fg">{data.models.answer}</dd>
+                  <dt className="text-fg-3">Быстрая модель</dt><dd className="font-mono text-fg">{data.models.fast}</dd>
+                  <dt className="text-fg-3">Эмбеддинги</dt><dd className="font-mono text-fg">{data.models.embedding}</dd>
+                  <dt className="text-fg-3">Лимит запросов</dt><dd className="text-fg">{data.ratePerMemberMinute} ответов в минуту на сотрудника</dd>
+                </dl>
+              ) : null}
               {data.unpricedModels.length > 0 ? (
                 <p className="flex items-start gap-2 rounded-card bg-warn-weak px-3 py-2 t-body-compact text-warn">
                   <Icon name="alert" size={16} className="mt-0.5 shrink-0" />

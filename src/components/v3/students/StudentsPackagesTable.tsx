@@ -11,14 +11,14 @@ const NBSP = "\u00a0";
 /**
  * Вкладка «Комплекты» EVO Docs (Э3, 27.09.2026): комплекты, отправленные на
  * проверку EVO и ещё без решения, — строки чтения очереди «Комплекты на
- * проверку» (`application_package_queue_v1`). Порядок называет строка над
- * таблицей: при полном чтении — сначала дольше всех ждущие (Э8.5), иначе —
- * порядок сервера, новые сверху. Студент | Комплект | Отправлен («24.09 ·
+ * проверку» (`application_package_queue_v1`). Порядок: при полном чтении —
+ * сначала дольше всех ждущие (Э8.5), иначе — порядок сервера, новые сверху;
+ * о неполном чтении говорит одна строка под таблицей (`QueueRest`). Студент | Комплект | Отправлен («24.09 ·
  * ждёт 3 дн», с двух дней — предупреждением) | одно действие «Открыть
  * документы →»: подготовка программы на вкладке дела «Вузы и программы»
  * (`#preparation-…`), где комплект открывается и проверяется.
  * Состояние у всех строк одно («отправлен на проверку EVO»: решения ещё нет) —
- * оно названо один раз над таблицей, а не в каждой строке. В строке — вуз и
+ * ни в строке, ни над таблицей оно не повторяется: это сама очередь. В строке — вуз и
  * программа, число документов, набор и, если комплект собран по прежней
  * редакции требований, это предупреждение. Полосы «N из M» нет: принятых
  * документов комплекта очередь не отдаёт — только их число. От 48rem своей
@@ -36,7 +36,6 @@ export function StudentsPackagesTable({
   caption,
   returnTo,
   today,
-  oldestFirst,
 }: Readonly<{
   items: readonly ApplicationPackageQueueItem[];
   caption: string;
@@ -44,15 +43,10 @@ export function StudentsPackagesTable({
   returnTo: string;
   /** Сегодня в Бишкеке — для дня отправки и «ждёт N дн». */
   today: string;
-  /** Строки отсортированы «сначала дольше всех ждущие» (полное чтение); иначе — порядок сервера. */
-  oldestFirst: boolean;
 }>) {
   const words = packageStrings("ru");
   return (
     <div className="@container/packages min-w-0 space-y-1" data-queue-list="">
-      <p className="t-meta text-fg-2">
-        Отправлены на проверку EVO, решения ещё нет. {oldestFirst ? "Порядок: сначала дольше всех ждущие" : "Порядок: сначала недавно отправленные — прочитана не вся очередь"}
-      </p>
       <table role="table" className="block w-full" data-testid="v3-student-package-table">
         <caption className="sr-only">{caption}</caption>
         <thead role="rowgroup" className="sr-only @min-[48rem]/packages:not-sr-only @min-[48rem]/packages:sticky @min-[48rem]/packages:top-0 @min-[48rem]/packages:z-30 @min-[48rem]/packages:block @min-[48rem]/packages:bg-bg">
@@ -77,7 +71,7 @@ export function StudentsPackagesTable({
                 className={`v3-queue-row group relative ${ROW_GRID} border-b border-border py-2 hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface @min-[48rem]/packages:py-0`}
               >
                 <th role="rowheader" scope="row" className={`${CELL} [grid-area:student] self-center text-start font-normal @min-[48rem]/packages:ps-3`}>
-                  <span className="block truncate t-item text-fg" title={item.studentDisplayName}>{item.studentDisplayName}</span>
+                  <span className="block line-clamp-2 break-words t-item text-fg" title={item.studentDisplayName}>{item.studentDisplayName}</span>
                 </th>
                 <td role="cell" className={`${CELL} [grid-area:package] t-body-compact`}>
                   {/* В стопке голова строки — студент: вуз и программа обычным весом; в таблице — своя колонка, как имя. */}

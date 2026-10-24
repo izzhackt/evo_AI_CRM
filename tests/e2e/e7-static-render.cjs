@@ -171,7 +171,7 @@ function studentsPage(search) {
  * одна без срока; «empty» — пустая неделя; «undated» — только задачи без
  * срока (одна выполнена); «month» — сентябрь, в одном дне больше трёх задач;
  * «day» — один день с задачами; «panel» — неделя с открытой панелью задачи
- * (управление задачей: «Выполнить», «Отменить задачу», «Изменить задачу»).
+ * (управление задачей: «Завершить», «Отменить задачу», «Изменить задачу»).
  */
 function calendarPage() {
   const variant = fixture.calendar ?? "week";
@@ -387,16 +387,26 @@ async function clickShellCreate(page) {
   await page.waitForSelector('[data-testid="v3-task-composer-dialog"][open]');
 }
 
-/** Телефон: отметок нет, пока не нажато «Выбрать»; на компьютере колонка видна сразу. */
-async function revealSelect(page) {
-  if (!isPhone(page)) return;
+/**
+ * Отметок нет, пока не нажато «Выбрать». У «Студентов» колонка на компьютере
+ * видна сразу — там «Выбрать» только на телефоне; у «Задач» отметки скрыты на
+ * любой ширине (`always`).
+ */
+async function revealSelect(page, { always = false } = {}) {
+  if (!always && !isPhone(page)) return;
   const shown = await page.locator("[data-queue-select]").filter({ visible: true }).count();
-  if (shown) throw new Error(`phone shows ${shown} row checkboxes before «Выбрать»`);
+  if (shown) throw new Error(`${shown} row checkboxes are shown before «Выбрать»`);
   await page.getByTestId("queue-bulk-pick").click();
 }
 
-async function selectRows(page, count) {
-  await revealSelect(page);
+/** «Задачи»: «Выбрать», если отметки скрыты (после полного успеха выбор пуст и они прячутся снова). */
+async function ensureSelectShown(page) {
+  if (await page.locator("[data-queue-select]").filter({ visible: true }).count()) return;
+  await page.getByTestId("queue-bulk-pick").click();
+}
+
+async function selectRows(page, count, options) {
+  await revealSelect(page, options);
   const boxes = page.locator("[data-queue-select]");
   for (let index = 0; index < count; index += 1) await boxes.nth(index).check();
   await page.waitForSelector('[data-testid="queue-bulk-bar"]');
@@ -424,7 +434,7 @@ const SHOTS = [
     await page.getByTestId("v3-calendar-new-task").click();
     const dialog = page.getByTestId("v3-task-composer-dialog");
     await dialog.locator('[data-composer-context="case-search"]').waitFor();
-    const folds = await dialog.locator("summary").filter({ hasText: /^Студент\/дело/u }).count();
+    const folds = await dialog.locator("summary").filter({ hasText: /^Студент или дело/u }).count();
     if (folds) throw new Error("a required case is shown as an optional, foldable section");
   }],
   ["e7-composer-quickadd", "tasks", async (page) => {
@@ -433,16 +443,19 @@ const SHOTS = [
     await page.waitForSelector('[data-testid="v3-task-composer-dialog"][open]');
   }],
   // До выбора: на компьютере колонка отметок, на телефоне — только «Выбрать».
-  ["e7-select-idle", "tasks", async () => {}],
-  ["e7-bulk-tasks", "tasks", async (page) => { await selectRows(page, 3); }],
+  ["e7-select-idle", "tasks", async (page) => {
+    const shown = await page.locator("[data-queue-select]").filter({ visible: true }).count();
+    if (shown) throw new Error(`${shown} row checkboxes are shown before «Выбрать»`);
+  }],
+  ["e7-bulk-tasks", "tasks", async (page) => { await selectRows(page, 3, { always: true }); }],
   ["e7-bulk-tasks-dialog", "tasks", async (page) => {
-    await selectRows(page, 3);
+    await selectRows(page, 3, { always: true });
     await page.getByTestId("task-bulk-reschedule-trigger").click();
     await page.waitForSelector('[data-testid="task-bulk-reschedule"][open]');
     await page.getByTestId("task-bulk-reschedule").locator("input:not([type=date])").last().fill("Семья перенесла встречу");
   }],
   ["e7-bulk-tasks-result", "tasks", async (page) => {
-    await selectRows(page, 3);
+    await selectRows(page, 3, { always: true });
     await page.getByTestId("task-bulk-reschedule-trigger").click();
     const dialog = page.getByTestId("task-bulk-reschedule");
     await dialog.locator("input:not([type=date])").last().fill("Семья перенесла встречу");
@@ -640,7 +653,8 @@ async function screenshots() {
           if (shot === "e8-calendar-week" && (facts.emptyLine !== "-" || facts.undated !== "Без срока — 1")) failures.push(`${file}: dated week reads «${facts.emptyLine}» / «${facts.undated}»`);
           if (shot === "e8-calendar-empty" && facts.undated !== "-") failures.push(`${file}: «Без срока» without open undated tasks`);
         }
-        const real = errors.filter((message) => !/server action .* is not available/u.test(message));
+        // Под file:// опрос уведомлений AppShell (`/api/v3/notifications/state`) не имеет сервера: это шум оболочки, не ошибка страницы.
+        const real = errors.filter((message) => !/server action .* is not available|\/api\/v3\/notifications\/state/u.test(message));
         if (real.length) failures.push(`${file}: browser errors: ${real.join(" | ")}`);
         await page.screenshot({ path: join(outDir, file), fullPage: false });
         process.stdout.write(`${file}: ${Object.entries(facts).filter(([, value]) => value !== null).map(([key, value]) => `${key}=${value}`).join(" ")}\n`);
@@ -723,6 +737,7 @@ async function bulkFocusProbe(browser, outDir, expect) {
   await page.waitForSelector("html[data-rendered]", { state: "attached" });
   const row = page.locator('[data-kind="staff"][data-queue-row]').first();
   const key = await row.getAttribute("data-queue-row");
+  await ensureSelectShown(page);
   await row.locator("[data-queue-select]").focus();
   await page.keyboard.press("Space");
   await page.getByTestId("task-bulk-reschedule-trigger").focus();
@@ -744,6 +759,7 @@ async function bulkFocusProbe(browser, outDir, expect) {
   }));
   expect("full success: the bar is gone and focus is on the sent row, not body", !after.bar && after.row === key && after.tag !== "BODY", { after, key });
   // Частичный отказ: две строки, вторая отвечает отказом — строка действий остаётся, фокус — на её кнопке.
+  await ensureSelectShown(page);
   const rows = page.locator('[data-kind="staff"][data-queue-row] [data-queue-select]');
   await rows.nth(0).check();
   await rows.nth(1).check();
@@ -766,7 +782,7 @@ async function bulkFocusProbe(browser, outDir, expect) {
  * же, как настоящие действия: `unavailable` — с присланным ключом; у задачи по
  * делу `request_conflict` — с новым случайным (failureState), у рабочей — с
  * присланным (failed). Рабочая задача — из «Задач», задача по делу — из
- * календаря («Студент/дело» → дело), как в найденном ревью случае.
+ * календаря («Студент или дело» → дело), как в найденном ревью случае.
  */
 async function retryKeyProbe(browser, outDir, expect) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -820,8 +836,8 @@ async function retryKeyProbe(browser, outDir, expect) {
   await stub();
   await clickShellCreate(page);
   const dialog = page.getByTestId("v3-task-composer-dialog");
-  await dialog.locator("summary").filter({ hasText: /^Студент\/дело/u }).click();
-  await dialog.getByRole("combobox", { name: "Студент", exact: true }).selectOption({ index: 1 });
+  await dialog.locator("summary").filter({ hasText: /^Студент или дело/u }).click();
+  await dialog.getByRole("combobox", { name: "Дело студента", exact: true }).selectOption({ index: 1 });
   await dialog.locator('input[name="title"]').fill("Проверить повтор задачи по делу");
   const caseTask = check("calendar case task", await attempts("case"));
   process.stdout.write(`retry key: staff ${staff ? "same key on retry, new after conflict" : "FAILED"}; calendar case ${caseTask ? "same key on retry, new after conflict" : "FAILED"}\n`);
@@ -836,7 +852,7 @@ async function retryKeyProbe(browser, outDir, expect) {
  * или старый текст; обязательное название останавливало отправку. Здесь в
  * хранилище заранее лежат старые черновики: у выбираемого дела, у другого дела
  * и у рабочей задачи. Пути: сценарий `supabase-staff-auth.spec.ts` шаг в шаг
- * (название → «Студент/дело» → дело → «Приоритет» → отправка) — кнопкой
+ * (название → «Студент или дело» → дело → «Приоритет» → отправка) — кнопкой
  * оболочки и своей кнопкой календаря (без staff.task.create); дело → ввод →
  * другое дело → то же дело; страница дела: ввод → «Без дела». В каждом —
  * название на месте, `checkValidity()` истина и команда создания вызвана с
@@ -916,7 +932,7 @@ async function draftProbe(browser, outDir, expect, width) {
   };
 
   // (1) Сценарий supabase-staff-auth.spec.ts шаг в шаг: «Создать задачу» оболочки
-  // (или своя кнопка календаря) → название → «Студент/дело» → дело → «Приоритет» → отправка.
+  // (или своя кнопка календаря) → название → «Студент или дело» → дело → «Приоритет» → отправка.
   // Чистое хранилище — как у живого сценария в новом браузере (там прежний диалог давал пустое название);
   // со старыми черновиками — прежний диалог ставил в поле чужой текст и отправлял его.
   const seeds = [["fresh storage", {}], ["stale drafts", { [`case:${PICKED}`]: OWN, [`case:${OTHER}`]: FOREIGN }]];
@@ -934,9 +950,9 @@ async function draftProbe(browser, outDir, expect, width) {
       expect(label(`${journey}: the entry is the expected button`), entry === "shell" ? ownButton === 0 : ownButton === 1, { ownButton });
       const typed = "Синтетическая задача: проверить перевод аттестата";
       await dialog.locator('input[name="title"]').fill(typed);
-      const caseSection = dialog.locator("summary").filter({ hasText: /^Студент\/дело/u });
+      const caseSection = dialog.locator("summary").filter({ hasText: /^Студент или дело/u });
       if (await caseSection.count()) await caseSection.click();
-      await dialog.getByRole("combobox", { name: "Студент", exact: true }).selectOption(PICKED);
+      await dialog.getByRole("combobox", { name: "Дело студента", exact: true }).selectOption(PICKED);
       const picked = await dialog.locator('[name="student_case_id"]').inputValue();
       expect(label(`${journey}: the case is selected`), picked === PICKED, { picked });
       await expectTyped(page, journey, typed, "case");
@@ -972,8 +988,8 @@ async function draftProbe(browser, outDir, expect, width) {
     const dialog = page.getByTestId("v3-task-composer-dialog");
     const empty = await facts(page);
     expect(label(`${journey}: the menu entry opens empty (no general draft)`), empty.title === "", empty);
-    await dialog.locator("summary").filter({ hasText: /^Студент\/дело/u }).click();
-    const student = dialog.getByRole("combobox", { name: "Студент", exact: true });
+    await dialog.locator("summary").filter({ hasText: /^Студент или дело/u }).click();
+    const student = dialog.getByRole("combobox", { name: "Дело студента", exact: true });
     await student.selectOption(PICKED);
     await page.waitForFunction((own) => document.querySelector('[data-testid="v3-task-composer-dialog"][open] input[name="title"]')?.value === own, OWN.title, { timeout: 2_000 }).catch(() => {});
     const restored = await facts(page);

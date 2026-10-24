@@ -7,7 +7,7 @@ import {
   type FixedRoleRoute,
 } from "@/lib/fixed-role-policy";
 import { requirePlatformStaffActor } from "@/lib/platform-guards";
-import { roleTitle } from "@/lib/v3/wording";
+import { chromeWords, roleTitle } from "@/lib/v3/wording";
 
 export const metadata = { title: "Нет доступа" };
 
@@ -26,6 +26,7 @@ const ROUTE_LABELS: Record<FixedRoleRoute, string> = {
   "/v3/knowledge": "База знаний",
   "/v3/marketing": "Маркетинг",
   "/v3/ai-agent": "ИИ-агент",
+  "/v3/ai-agents": "ИИ-агенты",
   "/v3/documents": "Документы",
   "/v3/reply-snippets": "Шаблоны ответов",
   "/v3/settings": "Настройки",
@@ -54,6 +55,12 @@ export default async function AccessDeniedPage({
   const requestedLabel = isFixedRoleRoute(requestedPath)
     ? ROUTE_LABELS[requestedPath]
     : "Защищённый раздел";
+  // Название роли — как в меню («Администратор»), а не ключ «Admin».
+  const accessLabel = actor.presentationRole
+    ? roleTitle(actor.presentationRole)
+    : actor.systemRole === "admin"
+      ? "Администратор"
+      : [...new Set(actor.assignments.map((item) => item.label))].join(", ") || "Права ещё не назначены";
 
   return (
     <main
@@ -64,26 +71,17 @@ export default async function AccessDeniedPage({
         <h1 className="t-page-title text-fg">
           Нет доступа к разделу
         </h1>
-        <p className="mt-4 max-w-2xl text-sm leading-6 text-fg-3">
+        <p className="mt-3 max-w-2xl t-body-compact text-fg-2">
           Раздел «{requestedLabel}» пока не открыт для вашей учётной записи.
         </p>
-        <dl className="mt-8 grid gap-5 border-y border-border py-5 sm:grid-cols-2">
-          <div>
-            <dt className="t-caption text-fg-3">Запрошенный раздел</dt>
-            <dd className="mt-1 font-medium text-fg">{requestedLabel}</dd>
-          </div>
-          <div>
-            <dt className="t-caption text-fg-3">Ваш доступ</dt>
-            <dd className="mt-1 font-medium text-fg">
-              {actor.presentationRole ? roleTitle(actor.presentationRole) : actor.systemRole === "admin" ? "Admin" : actor.assignments.map(item => item.label).join(" · ") || "Права ещё не назначены"}
-            </dd>
-          </div>
-        </dl>
+        <p className="mt-4 t-body-compact text-fg-2" data-testid="access-denied-access">
+          Ваш доступ: <span className="t-item text-fg">{accessLabel}</span>
+        </p>
         <Link
           href={home}
-          className="mt-8 inline-flex min-h-11 items-center rounded-ctl bg-accent px-4 text-sm font-semibold text-on-accent"
+          className="mt-8 inline-flex min-h-11 items-center rounded-ctl bg-accent px-4 t-item text-on-accent hover:bg-accent-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         >
-          Вернуться в мой раздел
+          {chromeWords.accessDenied.staffAction}
         </Link>
       </section>
     </main>

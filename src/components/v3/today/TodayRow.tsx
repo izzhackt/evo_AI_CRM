@@ -41,7 +41,13 @@ const PIECE = QUEUE_META_PIECE;
  * этому сотруднику (`dial`) — значок 44 px рядом с «Открыть», над ссылкой, покрывающей строку.
  * Задачи и дела студентов кнопки не получают: в строке нет лида (`todayDialLeadId`).
  */
-export function TodayRow({ item, nowIso, dial = null }: Readonly<{ item: TodayItem; nowIso: string; dial?: DialOptions | null }>) {
+export function TodayRow({ item, nowIso, dial = null, hideReason = false }: Readonly<{
+  item: TodayItem;
+  nowIso: string;
+  dial?: DialOptions | null;
+  /** Причина одна у всей группы и уже стоит под её заголовком: у строки её нет. */
+  hideReason?: boolean;
+}>) {
   const when = todayWhen(item, new Date(nowIso));
   const dialLeadId = dial?.status === "ready" ? todayDialLeadId(item) : null;
   const icon = item.source === "tasks" ? "check-square" : SOURCE_ICON[item.source];
@@ -80,7 +86,7 @@ export function TodayRow({ item, nowIso, dial = null }: Readonly<{ item: TodayIt
             {/* Причина «шаг просрочен · ждёт принятия» — по части на слово: на узкой
                 строке переносится целая часть, а не обрывок, и разделитель не
                 остаётся висеть в конце строки. */}
-            {item.reason.split(" · ").map((part, index) => (
+            {(hideReason ? [] : item.reason.split(" · ")).map((part, index) => (
               <span key={`${index}:${part}`} className={`${PIECE} order-1 max-w-full @min-[32rem]:order-2`} data-today-reason="">{part}</span>
             ))}
             {item.who ? (
@@ -99,7 +105,7 @@ export function TodayRow({ item, nowIso, dial = null }: Readonly<{ item: TodayIt
 
       <div className="flex justify-end">
         {dialLeadId && dial?.status === "ready" ? (
-          <DialButton leadId={dialLeadId} mapped={dial.mapped} variant="row" subject={item.who?.name ?? item.title} />
+          <DialButton leadId={dialLeadId} mapped={dial.mapped} variant="row" subject={item.who?.name ?? item.title} sharedHint />
         ) : null}
         <IntentPrefetchLink
           href={item.openHref}

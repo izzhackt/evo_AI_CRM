@@ -163,7 +163,7 @@ function ExtensionRow({
       ) : null}
       {extension.legsWithoutStaff > 0 ? (
         <p className="mt-1 t-meta text-fg-3" data-testid="v3-telephony-extension-legs">
-          Звонков без сотрудника: {extension.legsWithoutStaff}. Они сотруднику не переносятся: сопоставление действует на новые звонки.
+          Звонков без сотрудника: {extension.legsWithoutStaff}
         </p>
       ) : null}
       {!extension.active && !extension.membershipId ? (
@@ -238,14 +238,11 @@ export function TelephonyExtensions({
   readOnly: boolean;
 }>) {
   const takenBy = new Set(extensions.filter((item) => item.active && item.membershipId).map((item) => item.membershipId as string));
-  const unmapped = extensions.filter((item) => item.active && !item.membershipId).length;
   return (
     <section aria-labelledby="tel-extensions-title" data-testid="v3-telephony-extensions">
       <h3 id="tel-extensions-title" className="t-section mb-1 text-fg">Пользователи ВАТС и сотрудники</h3>
       <p className="mb-2 max-w-prose t-body-compact text-fg-2">
-        Список приходит из ВАТС сам. Сотрудника выбираете и подтверждаете вы: пока пользователь не сопоставлен, его звонки
-        сохраняются без сотрудника. Сопоставьте до включения разбора звонков.
-        {unmapped > 0 ? ` Не сопоставлено: ${unmapped}.` : ""}
+        Звонки пользователя без сопоставления сохраняются без сотрудника. Сопоставление действует на новые звонки.
       </p>
       {extensions.length === 0 ? (
         <p className="rounded-card border border-border bg-surface px-4 py-3 t-body-compact text-fg-2" data-testid="v3-telephony-extensions-empty">

@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { CoverageDueTime } from "../profile/CoverageDueTime";
 import { CuratorCoverageFacts, CuratorCoveragePanel, curatorCoverageSubject } from "../profile/CuratorCoveragePanel";
-import { COVERAGE_VIEW_HREF, coverageHref, coverageWorkload, type StudentsCoverage } from "../profile/students-coverage-view";
+import { COVERAGE_VIEW_HREF, coverageDue, coverageHref, coverageWorkload, type StudentsCoverage } from "../profile/students-coverage-view";
 import { queueRowReturn, sidePanelSplit } from "../panel/side-panel";
 import { SidePanel } from "../panel/SidePanel";
 import { QueueKeyboard } from "../queue/QueueKeyboard";
@@ -105,7 +105,11 @@ export function CuratorWorkloadView({
                           <span className="@min-[40rem]/curators:hidden text-fg-2">Открытых задач: </span>{curator.open_task_count}
                         </td>
                         <td role="cell" className={`${CELL} [grid-area:due] text-fg`}>
-                          <span className="@min-[40rem]/curators:hidden text-fg-2">Ближайший срок: </span><CoverageDueTime value={curator.nearest_due} today={today} />
+                          <span className="@min-[40rem]/curators:hidden text-fg-2">Ближайший срок: </span>
+                          {coverageDue(curator.nearest_due, today)
+                            ? <CoverageDueTime value={curator.nearest_due} today={today} />
+                            // «Без срока» в каждой строке — шум: пустой срок — тире, слова остаются читалке.
+                            : <><span aria-hidden="true" className="text-fg-3">—</span><span className="sr-only">Без срока</span></>}
                         </td>
                       </tr>
                     );

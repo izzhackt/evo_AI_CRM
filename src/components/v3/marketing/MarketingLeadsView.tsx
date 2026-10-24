@@ -38,10 +38,10 @@ export function MarketingLeadsView({ read, period, filters, retryHref }: Readonl
           </select></label>
         <label><span className={fieldLabelCls}>Договор</span>
           <select name="contract" defaultValue={filters.hasContract === null ? "" : filters.hasContract ? "yes" : "no"} className={inputCls}>
-            <option value="">Не важно</option><option value="yes">Есть договор</option><option value="no">Договора нет</option>
+            <option value="">Любой</option><option value="yes">Есть договор</option><option value="no">Договора нет</option>
           </select></label>
-        <label className="flex min-h-11 items-center gap-2 t-label text-fg-2"><input type="checkbox" name="unknown" value="1" defaultChecked={filters.unknownOnly} className="size-4" />Источник не известен</label>
-        <label className="flex min-h-11 items-center gap-2 t-label text-fg-2"><input type="checkbox" name="no_owner" value="1" defaultChecked={filters.noOwner} className="size-4" />Без ответственного</label>
+        <label className="flex min-h-11 items-center gap-2 t-label text-fg-2"><input type="checkbox" name="unknown" value="1" defaultChecked={filters.unknownOnly} className="size-[18px] accent-fg" />Источник не известен</label>
+        <label className="flex min-h-11 items-center gap-2 t-label text-fg-2"><input type="checkbox" name="no_owner" value="1" defaultChecked={filters.noOwner} className="size-[18px] accent-fg" />Без ответственного</label>
         <div className="flex items-center gap-3 sm:col-span-2">
           <button className={btnGhostCls}>Применить</button>
           {filtered ? <a href={clear} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">Сбросить</a> : null}

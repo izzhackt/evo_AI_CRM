@@ -844,7 +844,7 @@ test("rendered lead: the button sits in the header actions beside «Написа
   assert.match(button, /aria-disabled:text-fg-3/u, "the unmapped state has a style of its own");
   assert.equal(text(button), "Позвонить", "the word for the screen reader, visible from sm");
   assert.match(button, /<span class="sr-only sm:not-sr-only">Позвонить<\/span>/u);
-  assert.match(html, /<p class="hidden basis-full t-meta text-fg-2 max-sm:block pointer-coarse:block" data-testid="v3-dial-hint">«Позвонить» сначала звонит вам: возьмите трубку, и мы наберём клиента\.<\/p>/u,
+  assert.match(html, /<p class="hidden basis-full t-meta text-fg-2 max-sm:block pointer-coarse:block" data-testid="v3-dial-hint">Сначала звонит ваш телефон\.<\/p>/u,
     "a touch screen has no hover: the same fact stands as a quiet line under the actions");
   const actionsAt = html.indexOf('data-testid="v3-lead-actions"');
   assert.ok(actionsAt > 0 && html.indexOf('data-testid="v3-dial-button"') > actionsAt, "inside the header actions");
@@ -927,8 +927,9 @@ test("a lead made by an unknown number is «Номер …» on the lead card, t
   // The lead card: the page title, and the heading of the plain profile header, from the lead's own source. The name that profile
   // data carries is not touched: the portal-access forms send it as the student's display name.
   const profilePage = read("src/app/(v3)/v3/profile/page.tsx");
-  assert.match(profilePage, /\? leadDisplayName\(view\.profile\.source, view\.profile\.person\) : docsMode/u);
-  assert.match(read("src/components/v3/profile/Profile.tsx"), /\{leadDisplayName\(profile\.source, profile\.person\)\}/u);
+  assert.match(profilePage, /title=\{view \? leadDisplayName\(view\.profile\.source, view\.profile\.person\) : docsMode/u);
+  // The plain profile header no longer repeats the name as a second heading: the page title (h1) already says it.
+  assert.doesNotMatch(read("src/components/v3/profile/Profile.tsx"), /leadDisplayName/u);
   assert.doesNotMatch(read("src/lib/v3/profile-source.ts"), /leadDisplayName|callerDisplayName/u, "the data keeps the database name");
   // The lead's tasks heading; the pipeline search link keeps the name as the database wrote it.
   const tasks = read("src/app/(v3)/v3/tasks/page.tsx");
@@ -949,7 +950,8 @@ test("callback task: the Today row and the task panel name the client, and only 
   assert.match(source, /^import "server-only";/u);
   assert.match(source, /readStaffTaskContext\(actor, taskId\)/u, "the lead of a task comes from the read the «Задачи» page already uses");
   assert.match(source, /readStaffTaskLeadContext\(actor, leadId\)/u, "and its name from the lead read under the same session");
-  assert.match(source, /const TASK_LEAD_LIMIT = 12;/u);
+  // Читаются только строки, видимые сразу (окно группы «Сегодня»), — клиент назван у каждой из них, а не у первых двенадцати.
+  assert.match(source, /todayVisibleCount\(band\.items\.length, false\)/u);
   // Only the call-back tasks telephony itself creates (migration 298) are read; every other work task costs «Сегодня» no database read.
   assert.match(source, /item\.task\?\.kind === "staff" && item\.task\.key === item\.key && isCallbackTaskTitle\(item\.task\.title\)/u);
   for (const title of ["Перезвонить клиенту", "Перезвонить клиенту: недозвон"]) {
@@ -966,9 +968,13 @@ test("callback task: the Today row and the task panel name the client, and only 
   assert.match(main, /taskLeads=\{taskLeads\}/u);
   const row = read("src/components/v3/tasks/TaskQueueRow.tsx");
   assert.match(row, /leadRef \? <>/u);
-  assert.match(row, /<span className="min-w-0 truncate">Рабочая<\/span>/u, "a task without a lead still says «Рабочая»");
+  assert.doesNotMatch(row, /Рабочая/u, "an ordinary work task no longer carries a «Рабочая» kind word: its row says nothing the list does not already say");
+  assert.match(row, /dialLeadId = leadRef && dial\?\.status === "ready" && open && !done \? leadRef\.leadId : null;/u, "a call-back row dials its lead only while the base opened dial to this employee");
+  assert.match(row, /<DialButton leadId=\{dialLeadId\} mapped=\{dial\.mapped\} variant="row" subject=\{leadRef\?\.name \?\? null\} sharedHint \/>/u);
   const tasks = read("src/app/(v3)/v3/tasks/page.tsx");
-  assert.match(tasks, /if \(selected && taskContext\?\.leadId\) \{\s*const dial = await readDialOptions\(actor\);\s*if \(dial\.status === "ready"\)/u);
+  assert.match(tasks, /if \(selected && taskContext\?\.leadId\) \{\s*const dial = await dialOptions\(\);\s*if \(dial\.status === "ready"\)/u);
+  assert.match(tasks, /const dialOptions = \(\) => \(dialRead \?\?= readDialOptions\(actor\)\);/u, "the dial is read once for the panel and the list");
+  assert.match(tasks, /const taskLeads = !sourceLead && canReadTaskQueue && workspace\.canReadStaffTasks && \(await dialOptions\(\)\)\.status === "ready"\s*\? await readQueueTaskLeads\(actor, /u, "the list names clients only while dial is open to this employee, and never on the lead page");
   const panel = read("src/components/v3/tasks/TaskDetailPanel.tsx");
   assert.match(panel, /Клиент: <span className="break-words">\{data\.extra\.lead\.name\}<\/span>/u);
   assert.match(panel, /<DialButton leadId=\{data\.extra\.lead\.leadId\} mapped=\{data\.extra\.lead\.mapped\}/u);
@@ -987,6 +993,7 @@ test("«Заявки → Звонки»: the outcome and «Позвонить» 
   assert.match(source, /const REQUEST_CALLS_LIMIT = 20;/u);
   assert.match(source, /p_limit: 1,/u, "the newest call of the lead is enough");
   const view = read("src/components/v3/requests/RequestsQueueView.tsx");
-  assert.match(view, /<DialButton leadId=\{dialLeadId\} mapped=\{props\.dial\.mapped\} subject=\{name\} iconOnly \/>/u);
+  assert.match(view, /<DialButton leadId=\{dialLeadId\} mapped=\{props\.dial\.mapped\} subject=\{name\} iconOnly sharedHint \/>/u);
+  assert.match(view, /<DialListHint \/>/u, "one hidden description for the whole list, not one per row");
   assert.match(view, /!props\.readOnly \? leadId : null/u, "a role preview has no button");
 });

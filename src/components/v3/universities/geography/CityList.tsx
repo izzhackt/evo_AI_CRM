@@ -10,7 +10,7 @@ import { cityMissing, type GeoCity, type GeoInstitution, type StaffGeography } f
  * открывает редактор карточки. Ниже вузы без города: у студента они в
  * «Других вузах страны», связь ставится в карточке вуза.
  */
-const ROW = "grid grid-cols-1 gap-x-3 gap-y-0.5 @min-[44rem]/cities:grid-cols-[minmax(0,30fr)_minmax(0,8fr)_minmax(0,34fr)_minmax(0,14fr)_minmax(0,14fr)] @min-[44rem]/cities:items-center";
+const ROW = "grid grid-cols-1 gap-x-3 gap-y-0.5 @min-[44rem]/cities:grid-cols-[minmax(0,32fr)_minmax(0,9fr)_minmax(0,39fr)_minmax(0,20fr)] @min-[44rem]/cities:items-center";
 const HEAD = "t-caption flex h-8 items-center px-2 text-start text-fg-2 first:ps-3";
 const CELL = "min-w-0 px-3 @min-[44rem]/cities:px-2";
 const dayText = (value: string) => value.split("-").reverse().join(".");
@@ -24,10 +24,11 @@ function CityRow({ city }: Readonly<{ city: GeoCity }>) {
         <span className="block truncate t-meta text-fg-2">{city.nameEn} · <span className="font-mono">{city.key}</span></span>
       </th>
       <td role="cell" className={`${CELL} t-body-compact tabular-nums text-fg`}><span className="@min-[44rem]/cities:sr-only">Вузов: </span>{city.institutionCount}</td>
-      <td role="cell" className={`${CELL} t-body-compact text-fg-2`}>
-        {missing.length ? <span className="text-warn">Не хватает: {missing.join(", ")}</span> : <span>Полная</span>}
+      {/* Одно состояние вместо двух столбцов («Полная» и «Видят студенты» читались одним фактом): чип со словом, ниже то, чего не хватает, или «Карточка полная». */}
+      <td role="cell" className={`${CELL} t-body-compact`}>
+        <StatusChip label={city.status === "published" ? "Видят студенты" : "Черновик"} tone={city.status === "published" ? "ok" : "neutral"} />
+        {missing.length ? <span className="mt-1 block text-warn">Не хватает: {missing.join(", ")}</span> : city.status === "published" ? null : <span className="mt-1 block text-fg-2">Карточка полная</span>}
       </td>
-      <td role="cell" className={CELL}><StatusChip label={city.status === "published" ? "Видят студенты" : "Черновик"} tone={city.status === "published" ? "ok" : "neutral"} /></td>
       <td role="cell" className={`${CELL} t-meta text-fg-2`}>
         <span className="@min-[44rem]/cities:sr-only">Факт проверен </span>
         {city.factVerifiedOn ? <time className="font-mono tabular-nums" dateTime={city.factVerifiedOn}>{dayText(city.factVerifiedOn)}</time> : <span className="text-fg-3">не проверен</span>}
@@ -53,9 +54,9 @@ export function CityList({ geography, country }: Readonly<{ geography: StaffGeog
   return (
     <div className="@container/cities space-y-4">
       <p className="t-body-compact text-fg-2" data-testid="cities-summary">
-        Студенты видят <span className="tabular-nums">{publishedCities.size}</span> из <span className="tabular-nums">{geography.cities.length}</span> городов
-        {" · "}вузов в опубликованных городах: <span className="tabular-nums">{linked}</span> из <span className="tabular-nums">{published}</span>
-        {kyPending ? <>{" · "}кыргызский текст ждёт проверки носителем: <span className="tabular-nums">{kyPending}</span></> : null}
+        Опубликовано <span className="tabular-nums">{publishedCities.size}</span> из <span className="tabular-nums">{geography.cities.length}</span>
+        {" · "}вузов в них: <span className="tabular-nums">{linked}</span> из <span className="tabular-nums">{published}</span> опубликованных
+        {kyPending ? <>{" · "}<span className="text-warn">кыргызский текст ждёт проверки носителем: <span className="tabular-nums">{kyPending}</span></span></> : null}
       </p>
       <QueueViewTabs label="Страна" tabs={tabs} />
       {cities.length ? (
@@ -63,7 +64,7 @@ export function CityList({ geography, country }: Readonly<{ geography: StaffGeog
           <caption className="sr-only">Города{country ? `: ${name(country)}` : " шести стран"}, по названию</caption>
           <thead role="rowgroup" className="sr-only @min-[44rem]/cities:not-sr-only @min-[44rem]/cities:block">
             <tr role="row" className={`${ROW} border-b border-border`}>
-              {["Город", "Вузов", "Карточка", "Публикация", "Факт проверен"].map((label) => <th key={label} role="columnheader" scope="col" className={HEAD}>{label}</th>)}
+              {["Город", "Вузов", "Состояние", "Факт проверен"].map((label) => <th key={label} role="columnheader" scope="col" className={HEAD}>{label}</th>)}
             </tr>
           </thead>
           <tbody role="rowgroup" className="block">
@@ -81,25 +82,23 @@ export function CityList({ geography, country }: Readonly<{ geography: StaffGeog
 }
 
 function UnlinkedInstitutions({ institutions, name }: Readonly<{ institutions: readonly GeoInstitution[]; name: (code: string) => string }>) {
+  // Все вузы с городом: блока нет совсем (пустой раздел с нулём только занимает место).
+  if (!institutions.length) return null;
   return (
     <section aria-labelledby="unlinked-heading" className="space-y-2 pt-4" data-testid="unlinked-institutions">
       <h2 id="unlinked-heading" className="t-section text-fg">Вузы без города <span className="font-normal tabular-nums text-fg-3">{institutions.length}</span></h2>
-      {institutions.length ? (
-        <>
-          <p className="t-body-compact text-fg-2">Студент видит их в «Других вузах страны». Город выбирается в карточке вуза.</p>
-          <ul className="divide-y divide-border border-y border-border">
-            {institutions.map((item) => (
-              <li key={item.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 py-2">
-                <span className="min-w-0">
-                  {item.published ? <Link className="t-item text-fg underline-offset-4 hover:underline" href={`/v3/universities/${item.id}`}>{item.name}</Link> : <span className="t-item text-fg">{item.name}</span>}
-                  <span className="block t-meta text-fg-2">{name(item.country)}{item.cityLabel ? ` · в карточке: ${item.cityLabel}` : ""}</span>
-                </span>
-                {item.published ? null : <StatusChip label="Карточка не опубликована" />}
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : <p role="status" className="t-body-compact text-fg-2">У всех вузов есть город.</p>}
+      <p className="t-body-compact text-fg-2">Студент видит их в «Других вузах страны». Город выбирается в карточке вуза.</p>
+      <ul className="divide-y divide-border border-y border-border">
+        {institutions.map((item) => (
+          <li key={item.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 py-2">
+            <span className="min-w-0">
+              {item.published ? <Link className="t-item text-fg underline-offset-4 hover:underline" href={`/v3/universities/${item.id}`}>{item.name}</Link> : <span className="t-item text-fg">{item.name}</span>}
+              <span className="block t-meta text-fg-2">{name(item.country)}{item.cityLabel ? ` · в карточке: ${item.cityLabel}` : ""}</span>
+            </span>
+            {item.published ? null : <StatusChip label="Карточка не опубликована" />}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

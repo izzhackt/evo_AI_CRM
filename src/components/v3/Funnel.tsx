@@ -19,8 +19,8 @@ export function Funnel({ stages, caption }: {
             {index < stages.length - 1 ? <span className="absolute bottom-[-0.75rem] top-1/2 w-px bg-control-edge" /> : null}
             <span className={`relative size-2 rounded-full ${stage.value > 0 ? "bg-fg-2" : "border border-control-edge bg-surface"}`} />
           </span>
-          <span className="min-w-0 text-sm text-fg-2">{stage.name}</span>
-          <span className="text-sm font-semibold tabular-nums text-fg">{stage.value.toLocaleString("ru-RU")}</span>
+          <span className="t-body-compact min-w-0 text-fg-2">{stage.name}</span>
+          <span className="t-item tabular-nums text-fg">{stage.value.toLocaleString("ru-RU")}</span>
           <span aria-hidden="true" className="col-start-2 col-end-4 mt-2 h-1 overflow-hidden rounded-full bg-surface-2">
             <span className="block h-full rounded-full bg-fg-2" style={{ width: `${largest === 0 ? 0 : stage.value / largest * 100}%` }} />
           </span>

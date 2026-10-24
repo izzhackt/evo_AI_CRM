@@ -99,7 +99,7 @@ export function AiReviewSheet({
       <div className="space-y-1">
         <h2 id="ai-review-title" className="t-section text-fg">Лист сверки</h2>
         <p className="max-w-[72ch] t-body-compact text-fg-2">
-          Числа из сканов, которые агент не прочитал уверенно. Документ уже ищется, но пока пункт открыт, ответы помечают это число как непроверенное.
+          Числа из сканов, в которых агент не уверен. Пока пункт открыт, ответы помечают число как непроверенное.
         </p>
       </div>
       <QueueViewTabs

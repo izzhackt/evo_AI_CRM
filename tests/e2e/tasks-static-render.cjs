@@ -170,6 +170,16 @@ const CASES = [
   caseRow(10, { title: "Выдать итоговые документы", student: "Алина Ким", caseState: "closed", status: "done", dueOn: "2026-09-10", updatedAt: "2026-09-22T09:00:00.000Z" }),
 ];
 
+// Задачи-перезвоны телефонии («Перезвонить клиенту», миграция 298): строка называет клиента и даёт позвонить, пока база открыла набор.
+const CALLBACKS = [
+  staff(21, { title: "Перезвонить клиенту", dueOn: "2026-09-23" }),
+  staff(22, { title: "Перезвонить клиенту: недозвон", dueAt: "2026-09-24T09:30:00.000Z" }),
+];
+const CALLBACK_LEADS = {
+  [`staff:${staffId(21)}`]: { leadId: "ffffffff-7777-4777-8777-000000000021", name: "Айдар Условный", href: "/v3/profile?id=ffffffff-7777-4777-8777-000000000021" },
+  [`staff:${staffId(22)}`]: { leadId: "ffffffff-7777-4777-8777-000000000022", name: "Номер ••••4521", href: "/v3/profile?id=ffffffff-7777-4777-8777-000000000022" },
+};
+
 // Три прошедшие закрытые задачи по студентам: так выглядит начало очереди,
 // которую сервер отдаёт по сроку без отбора по состоянию.
 const PAST_DONE_CASES = [
@@ -212,6 +222,7 @@ function scenario(search, extra = {}) {
       },
       composerKey: "standalone", canCreate: true, urlIntent: null, permissions: PERMISSIONS,
       selectedKey: extra.selectedKey ?? null,
+      taskLeads: extra.taskLeads ?? null, dial: extra.dial ?? null,
       panel: extra.panel ? createElement(TaskDetailPanel, extra.panel) : null,
     },
     // Свойства панели без React-элемента: браузерная сборка создаёт её сама.
@@ -259,6 +270,8 @@ const panelStaff = (search) => ({
 const SCENARIOS = {
   "mine-default": scenario(""),
   "team-view": scenario("view=all"),
+  // Мои задачи с двумя перезвонами: клиент в строке, «Позвонить» рядом с «⋯» (набор открыт и сотрудник сопоставлен).
+  "callback-dial": scenario("", { staff: [STAFF[0], STAFF[1], STAFF[2], ...CALLBACKS], cases: [], taskLeads: CALLBACK_LEADS, dial: { status: "ready", mapped: true } }),
   "team-panel": scenario("view=all", { selectedKey: `case:${PANEL_CASE.caseTaskId}`, panel: panelCase("view=all") }),
   "team-panel-staff": scenario("view=all", { selectedKey: `staff:${PANEL_STAFF.id}`, panel: panelStaff("view=all") }),
   "team-case-filter": scenario("view=all&type=case&due=overdue"),
@@ -572,6 +585,10 @@ async function screenshots() {
     ["tasks-team", renderTasksPage("team-view"), "team-view", [
       ["tasks-team-1440.png", DESKTOP, false, null],
       ["tasks-team-mobile-390.png", PHONE, false, null],
+    ]],
+    ["tasks-callback", renderTasksPage("callback-dial"), "callback-dial", [
+      ["tasks-callback-dial-1440.png", DESKTOP, false, null],
+      ["tasks-callback-dial-390.png", PHONE, false, null],
     ]],
     ["tasks-panel", renderTasksPage("team-panel"), "team-panel", [
       ["tasks-panel-1440.png", DESKTOP, false, null],

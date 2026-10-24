@@ -48,7 +48,6 @@ export default async function UniversityCitiesPage({ searchParams }: { searchPar
       title="Города"
       count={geography.cities.length}
       back={back("/v3/universities", "Все университеты")}
-      meta="Карточки городов в кабинете студента"
       action={<Link href={`/v3/universities/cities?new=${country ?? "CN"}`} className="v3-raised inline-flex h-11 items-center gap-1.5 rounded-ctl border border-accent bg-accent px-4 t-label text-on-accent hover:border-accent-2 hover:bg-accent-2"><Icon name="plus" size={16} />Добавить город</Link>}
     >
       <CityList geography={geography} country={country} />

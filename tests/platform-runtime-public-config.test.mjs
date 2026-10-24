@@ -131,7 +131,7 @@ test("chat connects with supplied public config in an env-free browser and keeps
     "./TeamChatMessageRow": { TeamChatMessageRow: "MessageRow" },
     "./useTeamChatSeen": seenHook,
     "./team-chat.module.css": { default: {} },
-  }, { process: { env: {} }, setInterval: () => 0, clearInterval() {}, clearTimeout() {},
+  }, { process: { env: {} }, setInterval: () => 0, clearInterval() {}, setTimeout: () => 0, clearTimeout() {},
     document: { addEventListener() {}, removeEventListener() {} },
     window: { addEventListener() {}, removeEventListener() {} } });
   TeamChat({ initial: { page: { schemaVersion: 2, messages: [], quotes: [], watermark: "0", beforeCursor: "0", afterCursor: "0", hasBefore: false, hasAfter: false, latestMessageId: null, focusMessageId: null }, channels: [], participants: [] },
@@ -180,7 +180,7 @@ test("revocation remains terminal when an earlier context request rejects afterw
     "./TeamChatComposer": { TeamChatComposer: "Composer" },
     "./TeamChatMessageRow": { TeamChatMessageRow: "MessageRow" }, "./useTeamChatSeen": seenHook,
     "./team-chat.module.css": { default: {} },
-  }, { setInterval: () => 0, clearInterval() {}, clearTimeout() {},
+  }, { setInterval: () => 0, clearInterval() {}, setTimeout: () => 0, clearTimeout() {},
     document: { addEventListener() {}, removeEventListener() {} },
     window: { addEventListener() {}, removeEventListener() {} } });
   const props = { initial: { page: { schemaVersion: 2, messages: [], quotes: [], watermark: "0", beforeCursor: "0", afterCursor: "0", hasBefore: false, hasAfter: false, latestMessageId: null, focusMessageId: null }, channels: [], participants: [] },

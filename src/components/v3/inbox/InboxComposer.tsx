@@ -117,7 +117,7 @@ export function InboxComposer({
             aria-haspopup="dialog"
             className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-ctl px-2.5 t-label text-fg-2 hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring @max-md:w-11 @max-md:justify-center @max-md:px-0"
           >
-            <Icon name="quote" size={18} className="shrink-0" />
+            <Icon name="file-text" size={18} className="shrink-0" />
             <span className="@max-md:sr-only">Шаблон</span>
           </button>
         ) : null}
@@ -173,7 +173,7 @@ export function InboxComposer({
           aria-label="Шаблон ответа"
           style={picker.popoverStyle}
           data-testid="v3-inbox-snippet-popover"
-          className="v3-anchored w-[min(24rem,calc(100vw-1rem))] rounded-ctl border border-border bg-surface p-3 text-fg shadow-evo-lg"
+          className="v3-anchored w-[min(24rem,calc(100vw-1rem))] rounded-ctl border border-border bg-surface p-1 text-fg shadow-evo-lg"
         >
           <ReplySnippetPicker
             snippets={snippets}

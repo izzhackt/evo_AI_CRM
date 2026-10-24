@@ -72,7 +72,7 @@ export function KnowledgeAssignCase({ items, folders, onClose, onSaved }: { item
                 onChange={() => { setSelected(item); setConfirmed(false); }} />
               <span className="min-w-0">
                 <span className="block text-fg [overflow-wrap:anywhere]">{item.studentDisplayName} · {item.targetCountry ?? "Страна не указана"} · {item.intake ?? "Набор не указан"}</span>
-                <span className="block t-meta text-fg-3 [overflow-wrap:anywhere]">Дело <span className="font-mono">{item.studentCaseId}</span>{created ? <> · создано <span className="font-mono">{created}</span></> : null}</span>
+                <span className="block t-meta text-fg-3">Дело <span className="font-mono">{item.studentCaseId.slice(0, 8)}</span>{created ? <> · создано <span className="font-mono">{created}</span></> : null}</span>
               </span>
             </label>
           </li>;

@@ -376,7 +376,8 @@ test("StaffNotifications stops polling at the first unrecognized action and offe
     // The shell prompt is visible and reloads the page.
     const toast = findAll(shell(), (node) => node.props?.["data-testid"] === "v3-stale-deployment");
     assert.equal(toast.length, 1);
-    assert.match(textOf(toast), /Вышла новая версия — обновите страницу/u);
+    // Видимая строка не повторяет просьбу кнопки («Обновить страницу»); живая область для читалки говорит полностью.
+    assert.match(textOf(toast), /^Вышла новая версияОбновить страницу$/u);
     assert.match(textOf(findAll(shell(), (node) => node.props?.role === "status")), /Вышла новая версия — обновите страницу\./u);
     findAll(toast, (node) => node.type === "button")[0].props.onClick();
     assert.deepEqual(browser.reloads, ["reload"]);
@@ -388,7 +389,7 @@ test("StaffNotifications stops polling at the first unrecognized action and offe
     assert.equal(calls, 1, "opening the panel does not call the action again");
     const panel = findAll(view(), (node) => node.props?.["aria-label"] === "Уведомления сотрудников")[0];
     assert.ok(panel, "the panel is open");
-    assert.match(textOf(panel), /Вышла новая версия — обновите страницу/u);
+    assert.match(textOf(panel), /Вышла новая версия/u);
     assert.doesNotMatch(textOf(panel), /Нет связи/u);
     assert.equal(findAll(panel, (node) => node.props?.role === "alert").length, 0);
     assert.equal(panel.props["aria-busy"], false);
@@ -1063,7 +1064,7 @@ test("error boundaries reload instead of reset() for a stale action and keep res
       const { store, shared } = await staleModules(runtime);
       const Boundary = compile(path, (id) => shared(id) ?? ({
         "next/link": { default: () => null },
-        "@/lib/v3/wording": { chromeWords: { error: { eyebrow: "e", title: "t", staffText: "s", retry: "Попробовать снова", staffAction: "a", staleEyebrow: "Вышла новая версия", staleTitle: "Обновите страницу", staleText: "x", staleAction: "Обновить страницу" } } },
+        "@/lib/v3/wording": { chromeWords: { error: { staffTitle: "t", staffText: "s", retry: "Попробовать снова", staffAction: "a", staleTitle: "Вышла новая версия", staleText: "x", staleAction: "Обновить страницу" } } },
       })[id]).default;
       const resets = [];
       const reset = () => resets.push("reset");
@@ -1078,7 +1079,7 @@ test("error boundaries reload instead of reset() for a stale action and keep res
       const { store: staleStore, shared: staleShared } = await staleModules(staleRuntime);
       const StaleBoundary = compile(path, (id) => staleShared(id) ?? ({
         "next/link": { default: () => null },
-        "@/lib/v3/wording": { chromeWords: { error: { eyebrow: "e", title: "t", staffText: "s", retry: "Попробовать снова", staffAction: "a", staleEyebrow: "Вышла новая версия", staleTitle: "Обновите страницу", staleText: "x", staleAction: "Обновить страницу" } } },
+        "@/lib/v3/wording": { chromeWords: { error: { staffTitle: "t", staffText: "s", retry: "Попробовать снова", staffAction: "a", staleTitle: "Вышла новая версия", staleText: "x", staleAction: "Обновить страницу" } } },
       })[id]).default;
       const stale = staleRuntime.render(StaleBoundary, { error: staleActionError(), reset });
       assert.match(textOf(stale()), /Вышла новая версия/u, path);

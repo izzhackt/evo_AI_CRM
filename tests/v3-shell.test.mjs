@@ -140,6 +140,11 @@ test("icons tell the rail items apart: one glyph per meaning, three conversation
   assert.equal(LINK_ICONS.inbox, "message-circle");
   assert.notEqual(LINK_ICONS.inbox, "phone", "conversations, not a call");
   assert.notEqual(LINK_ICONS["reply-snippets"], "send", "templates are text, not a send action");
+  // 24.10.2026: `quote` — «Ответить с цитатой» в переписке, `file-text` — «Документы»; у шаблонов свой знак.
+  assert.equal(LINK_ICONS["reply-snippets"], "message-square-text");
+  assert.notEqual(LINK_ICONS["reply-snippets"], "quote");
+  assert.notEqual(LINK_ICONS["reply-snippets"], LINK_ICONS.documents);
+  assert.match(read("src/components/icons.tsx"), /"message-square-text": '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"\/>/u, "the glyph is drawn, not just named");
   assert.deepEqual(new Set([LINK_ICONS.messages, LINK_ICONS.inbox, LINK_ICONS["team-chat"]]).size, 3);
   // Групп и «Ещё» это тоже касается: их знаки не совпадают с пунктами.
   for (const icon of [...Object.values(GROUP_ICONS), "menu"]) assert.ok(!byIcon.has(icon), icon);
@@ -272,10 +277,10 @@ test("one shell: no top bar; menu holds create, bell, preview exit and account; 
 // не меняются (EXPECTED_TABS выше).
 const MENU_BY_ROLE = {
   // «ИИ-агент» (план ИИ-агента §12.2): после «Базы знаний» у всех, кому открыт маршрут (ai.agent.use).
-  admin: { sales: ["/v3/requests", "/v3/pipeline", "/v3/inbox", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/knowledge", "/v3/ai-agent", "/v3/marketing"] },
+  admin: { sales: ["/v3/requests", "/v3/pipeline", "/v3/inbox", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/knowledge", "/v3/ai-agents", "/v3/marketing"] },
   // Просмотр «Приёмной»: у фиксированной роли нет sales.read — ни доски, ни «Заявок», как и раньше;
   // WhatsApp у неё с 06.10.2026 («нет, все могут»): единственный пункт «Продаж».
-  admissions: { sales: ["/v3/inbox"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets", "/v3/ai-agent"] },
+  admissions: { sales: ["/v3/inbox"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets", "/v3/ai-agents"] },
   // Куратор с lead.read: правило D скрывает доску, «Заявки» и «Отчёт продаж» остаются, а WhatsApp с 06.10.2026 виден (communication.read.full).
   "admissions-staff": { sales: ["/v3/requests", "/v3/inbox", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets"] },
   sales: { sales: ["/v3/requests", "/v3/pipeline", "/v3/inbox", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/reply-snippets"] },
@@ -339,8 +344,8 @@ test("phone chrome and window-height pages share rem units, so the composer stay
   // WhatsApp (PartShell `fill`, отдельная страница «Продаж») своей высоты не
   // задаёт: от 768 px её даёт колонка оболочки по `isFillRoute`.
   assert.match(read("src/components/v3/PartShell.tsx"), /fill \? "flex flex-col py-6 md:min-h-0 md:flex-1"/u);
-  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /<PartShell title="WhatsApp" count=\{notConnected \? null : view\.conversations\.length\} fill>/u);
-  assert.match(shell, /const fill = isFillRoute\(pathname\);/u);
+  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /<PartShell title="WhatsApp" count=\{notConnected \|\| paged \? null : view\.conversations\.length\} fill>/u);
+  assert.match(shell, /const fill = isFillRoute\(pathname, query\.get\("tab"\)\);/u);
   assert.match(shell, /fill && "md:flex md:h-dvh md:flex-col"/u, "the content column is window-high on fill routes");
   assert.match(shell, /fill && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto"/u);
   assert.doesNotMatch(shell, /board && "md:flex md:h-dvh/u, "not only boards");

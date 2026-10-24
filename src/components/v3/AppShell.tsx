@@ -43,7 +43,7 @@ import {
   type ShellTabs,
 } from "@/lib/v3/shell-tabs";
 import { roleTitle } from "@/lib/v3/wording";
-import { onCreateTaskClick, PaletteButton, ShellCommands } from "@/components/v3/palette/ShellCommands";
+import { onCreateTaskClick, PaletteButton, PaletteIconButton, ShellCommands } from "@/components/v3/palette/ShellCommands";
 
 /*
  * Оболочка staff CRM — Э1.2 плана редизайна 25.09.2026
@@ -68,13 +68,13 @@ import { onCreateTaskClick, PaletteButton, ShellCommands } from "@/components/v3
 const RAIL_MEDIA = "(width >= 48rem) and (width < 96rem)";
 const DESKTOP_MEDIA = "(width >= 48rem)";
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
-const ITEM = `v3-choice flex min-h-11 min-w-0 items-center gap-3 rounded-nav px-3 py-2 text-sm leading-5 text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
+const ITEM = `v3-choice flex min-h-11 min-w-0 items-center gap-3 rounded-nav px-3 py-2 t-body-compact text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
 /** Нейтральная кнопка оболочки: красным остаётся только главное действие страницы. */
-const SHELL_BUTTON = `v3-raised inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-ctl border border-control-edge bg-surface px-3 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
+const SHELL_BUTTON = `v3-raised inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
 /** Ctrl+K для мыши и телефона — строка меню «Поиск» (Э7), как пункт, без рамки. */
-const SEARCH_ROW = `flex min-h-11 w-full min-w-0 items-center gap-3 rounded-nav px-3 py-2 text-sm leading-5 text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
+const SEARCH_ROW = `flex min-h-11 w-full min-w-0 items-center gap-3 rounded-nav px-3 py-2 t-body-compact text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
 /** Тихая кнопка без рамки и тени: «Выйти» не спорит с «Создать задачу». */
-const QUIET_BUTTON = `inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-ctl px-3 text-sm font-medium text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
+const QUIET_BUTTON = `inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-ctl px-3 t-label text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 /**
  * Вкладка нижней панели: иконка в «пилюле» и подпись в одну строку. Колонки
@@ -145,6 +145,7 @@ function MenuLink({
 function MenuGroup({
   group,
   open,
+  flat,
   onToggle,
   activeId,
   rail,
@@ -153,6 +154,8 @@ function MenuGroup({
 }: {
   group: V3NavigationGroup;
   open: boolean;
+  /** Лист «Ещё» на телефоне: пункты отдела всегда на виду, под подписью отдела, без раскрытия. */
+  flat: boolean;
   onToggle: () => void;
   activeId: V3NavigationLinkId | null;
   rail: boolean;
@@ -161,6 +164,21 @@ function MenuGroup({
 }) {
   const contentId = useId();
   const icon = GROUP_ICONS[group.id];
+
+  if (flat) {
+    return (
+      <li>
+        <p id={contentId} className="t-caption px-3 pb-1 pt-3 text-fg-3">{group.label}</p>
+        <ul aria-labelledby={contentId}>
+          {group.links.map((link) => (
+            <li key={link.id}>
+              <MenuLink link={link} activeId={activeId} onNavigate={onNavigate} />
+            </li>
+          ))}
+        </ul>
+      </li>
+    );
+  }
 
   return (
     <li>
@@ -171,7 +189,7 @@ function MenuGroup({
         aria-controls={contentId}
         onClick={onToggle}
         className={cn(
-          `flex min-h-11 w-full items-center gap-3 rounded-nav px-3 py-2 text-start text-sm font-medium transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`,
+          `flex min-h-11 w-full items-center gap-3 rounded-nav px-3 py-2 text-start t-label transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`,
           group.active ? "text-fg" : "text-fg-2",
           rail && "md:max-2xl:hidden",
         )}
@@ -235,11 +253,14 @@ function MenuGroup({
 function MenuLists({
   navigation,
   rail,
+  flat,
   hint,
   onNavigate,
 }: {
   navigation: V3Navigation;
   rail: boolean;
+  /** Лист «Ещё»: отделы не раскрываются по одному — в листе хватает места, а путь «Ещё → отдел → пункт» лишний. */
+  flat: boolean;
   hint: Hint;
   onNavigate: () => void;
 }) {
@@ -259,6 +280,7 @@ function MenuLists({
             key={group.id}
             group={group}
             open={openGroups.includes(group.id)}
+            flat={flat}
             onToggle={() => setOpenGroups((previous) => toggleMenuGroup(previous, group.id, activeGroups))}
             activeId={navigation.activeId}
             rail={rail}
@@ -269,7 +291,7 @@ function MenuLists({
       </ul>
       {navigation.common.length ? (
         <section aria-label="Общее" className={cn("mx-3 border-t border-border pb-2 pt-2", rail && "md:max-2xl:mx-2")}>
-          <h2 className={cn("t-caption mb-1 px-3 pt-1 text-fg-3", rail && "md:max-2xl:sr-only")}>Общее</h2>
+          <p aria-hidden="true" className={cn("t-caption mb-1 px-3 pt-1 text-fg-3", rail && "md:max-2xl:sr-only")}>Общее</p>
           <ul>
             {navigation.common.map((link) => (
               <li key={link.id}>
@@ -393,9 +415,9 @@ export function AppShell({
   const canCreateTask = !previewing && staffHasPermission(actor, "staff.task.create");
   const board = isBoardRoute(pathname);
   const rail = board;
-  // Высота окна от 768 px: доски и переписка WhatsApp (`isFillRoute`, аудит
-  // 26.09); рейка — только у досок.
-  const fill = isFillRoute(pathname);
+  // Высота окна от 768 px: доски, переписка WhatsApp и «Поручить» ИИ-агента
+  // (`isFillRoute`, аудит 26.09); рейка — только у досок.
+  const fill = isFillRoute(pathname, query.get("tab"));
   const contentId = useId();
   const menuId = useId();
   const headingId = useId();
@@ -532,6 +554,8 @@ export function AppShell({
         {previewRole !== null ? (
           <span className="t-caption min-w-0 truncate rounded-full bg-surface-2 px-3 py-1 text-fg-2">Просмотр: {previewRole}</span>
         ) : null}
+        {/* Поиск по студентам и лидам нужен с телефона чаще, чем «Ещё → Поиск». */}
+        <PaletteIconButton className={`ms-auto inline-flex size-11 shrink-0 items-center justify-center rounded-ctl text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`} />
       </div>
 
       {/* Боковое меню; на телефоне — лист «Ещё» (тот же DOM). */}
@@ -600,7 +624,8 @@ export function AppShell({
                   className={cn(SHELL_BUTTON, "w-full", rail && "md:max-2xl:w-11 md:max-2xl:px-0")}
                   {...hint("Выйти из просмотра")}
                 >
-                  <Icon name="arrow-left" size={18} className="shrink-0" />
+                  {/* «×», а не «→]» выхода из аккаунта: в рейке внизу стоит «Выйти», и два одинаковых значка путали бы просмотр с выходом. */}
+                  <Icon name="x" size={18} className="shrink-0" />
                   <span className={cn("truncate", rail && "md:max-2xl:sr-only")}>Выйти из просмотра</span>
                 </button>
               </form>
@@ -652,7 +677,7 @@ export function AppShell({
             className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain border-t border-border pt-3", rail && "md:max-2xl:pt-2")}
           >
             <div ref={listRef}>
-              <MenuLists key={navigation.destinationKey} navigation={navigation} rail={rail} hint={hint} onNavigate={closeAfterNavigation} />
+              <MenuLists key={navigation.destinationKey} navigation={navigation} rail={rail} flat={sheetOpen} hint={hint} onNavigate={closeAfterNavigation} />
             </div>
           </div>
 

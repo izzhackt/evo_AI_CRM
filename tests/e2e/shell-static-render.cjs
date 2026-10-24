@@ -736,7 +736,8 @@ async function screenshots() {
   };
   const finish = async ({ context, page, errors }, label) => {
     const harness = await page.evaluate(() => window.__harness);
-    const problems = [...errors, ...harness.recoverable.map((message) => `recoverable: ${message}`)];
+    // Под file:// опрос уведомлений AppShell (`/api/v3/notifications/state`) не имеет сервера: шум оболочки, не ошибка страницы.
+    const problems = [...errors.filter((message) => !/\/api\/v3\/notifications\/state/u.test(message)), ...harness.recoverable.map((message) => `recoverable: ${message}`)];
     check(problems.length === 0, `${label}: browser errors: ${problems.join(" | ")}`);
     await context.close();
     return harness;

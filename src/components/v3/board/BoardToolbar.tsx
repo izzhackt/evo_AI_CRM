@@ -42,7 +42,7 @@ export function NavigateSelect({
           setCurrent(next);
           startTransition(() => router.push(href, { scroll: false }));
         }}
-        className="min-h-11 min-w-0 max-w-60 rounded-ctl border border-control-edge bg-surface px-2.5 text-sm font-normal text-fg"
+        className="t-body-compact min-h-11 min-w-0 max-w-60 rounded-ctl border border-control-edge bg-surface px-2.5 text-fg"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -77,7 +77,7 @@ export function BoardFilters({ activeCount, children }: Readonly<{ activeCount: 
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen((previous) => !previous)}
-        className="v3-choice inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 hover:text-fg @2xl:hidden"
+        className="v3-choice t-label inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 text-fg-2 hover:bg-surface-2 hover:text-fg @2xl:hidden"
       >
         Фильтры
         {activeCount > 0 ? <span className="tabular-nums">({activeCount})</span> : null}

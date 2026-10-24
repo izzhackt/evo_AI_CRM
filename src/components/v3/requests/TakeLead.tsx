@@ -112,7 +112,7 @@ export function TakeLeadButton({
         <p role="alert" className="basis-full t-meta text-warn">
           {message}
           {result.status === "stale" || result.status === "invalid" ? (
-            <button type="button" onClick={() => router.refresh()} className="ms-1 inline-flex min-h-6 items-center underline underline-offset-2">Обновить</button>
+            <button type="button" onClick={() => router.refresh()} className="ms-1 inline-flex min-h-11 items-center underline underline-offset-4">Обновить</button>
           ) : null}
         </p>
       ) : null}

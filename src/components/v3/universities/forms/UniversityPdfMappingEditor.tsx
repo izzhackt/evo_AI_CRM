@@ -13,8 +13,11 @@ import { readUniversityPdfPage, universityPdfPoint, universityPdfFit, university
 import { universityFormActionMessage, universityFormSourceLabel, universityFormManagement as words,
   universityFormWorkspace as shared, universityPdfMapping as pdf } from "@/lib/v3/wording";
 
+// Те же кнопки, что в form-buttons.ts: здесь строки свои, потому что тест разбирает этот файл без соседних модулей.
+const FORM_PRIMARY = "v3-raised inline-flex min-h-11 items-center justify-center gap-1.5 rounded-ctl border border-accent bg-accent px-4 t-label text-on-accent hover:border-accent-2 hover:bg-accent-2 disabled:cursor-not-allowed disabled:opacity-50";
+const FORM_SECONDARY = "v3-raised inline-flex min-h-11 items-center justify-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 enabled:hover:bg-surface-2 enabled:hover:text-fg disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-2 disabled:text-fg-3";
 const control = "min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2 text-base text-fg";
-const button = "min-h-11 rounded-ctl px-3 py-2 text-sm font-medium text-fg-2 hover:bg-surface-2 disabled:opacity-50";
+const button = FORM_SECONDARY;
 const dates = new Set(["date_of_birth", "passport_expiry_date", "desired_start_date"]);
 const combined = ["full_name", "surname_first_name", "father_full_name", "mother_full_name"];
 type Gesture = { type: "create" | "move" | "resize"; start: { x: number; y: number }; original: UniversityPdfPosition;
@@ -225,7 +228,7 @@ export function UniversityPdfMappingEditor({ catalogId, templateId, revision, ve
               onChange={event => update({ manual: event.target.value === "manual", sourceKey: event.target.value === "manual" ? null : event.target.value as UniversityFormSourceKey, format: "text" })}>
               <option value="manual">{words.manual}</option><optgroup label={words.combined}>{combined.map(key => <option key={key} value={key}>{universityFormSourceLabel(key)}</option>)}</optgroup>
               {PROFILE_GROUPS.map(group => <optgroup key={group} label={PROFILE_GROUP_LABELS[group]}>{PROFILE_FIELDS.filter(item => item.group === group).map(item => <option key={item.key} value={item.key}>{universityFormSourceLabel(item.key)}</option>)}</optgroup>)}</select></div>
-            <label className="flex min-h-11 items-center gap-2 self-end text-sm text-fg"><input type="checkbox" className="h-5 w-5 accent-accent" disabled={locked} checked={field.required} onChange={event => update({ required: event.target.checked })} />{words.required}</label></div>
+            <label className="flex min-h-11 items-center gap-2 self-end text-sm text-fg"><input type="checkbox" className="h-5 w-5 accent-fg" disabled={locked} checked={field.required} onChange={event => update({ required: event.target.checked })} />{words.required}</label></div>
           {field.sourceKey && dates.has(field.sourceKey) ? <div className="max-w-xs space-y-2"><label htmlFor={`${id}-format`} className="text-sm font-medium text-fg">{words.format}</label>
             <select id={`${id}-format`} className={control} disabled={locked} value={field.format} onChange={event => update({ format: event.target.value as UniversityFormFormat })}>
               <option value="text">{words.dateFull}</option><option value="DD.MM.YYYY">31.12.2026</option><option value="DD/MM/YYYY">31/12/2026</option><option value="YYYY-MM-DD">2026-12-31</option>
@@ -248,7 +251,7 @@ export function UniversityPdfMappingEditor({ catalogId, templateId, revision, ve
       {saved ? <p role="status" className="text-sm text-fg">{words.mappingSaved}</p> : null}
       <div className="flex flex-wrap items-center gap-3">
         {!readOnly && !saved && !blocked ? <button type="submit" disabled={pending || !mappings.length || (!uncertain && (loading || readError || !!regionError || drawing || !!moving))}
-          className="min-h-11 rounded-ctl bg-accent px-4 py-2 text-sm font-medium text-on-accent disabled:opacity-50">{pending ? words.saving : uncertain ? shared.retry : words.saveMapping}</button> : null}
+          className={FORM_PRIMARY}>{pending ? words.saving : uncertain ? shared.retry : words.saveMapping}</button> : null}
         {!readOnly ? <><button type="button" className={button} disabled={locked || !history.length} onClick={() => { stopGesture(); const previous = history.at(-1)!; setMappings(previous); setHistory(history.slice(0, -1)); setSelected(previous[0]?.slotId ?? ""); setLocalError(null); }}>{pdf.undo}</button>
           <button type="button" className={button} disabled={locked || !history.length} onClick={() => { change(initialMappings); setSelected(initialMappings[0]?.slotId ?? ""); }}>{pdf.reset}</button></> : null}
         {saved || blocked || uncertain ? <a href={base} className={button}>{saved ? words.next : shared.reload}</a> : null}

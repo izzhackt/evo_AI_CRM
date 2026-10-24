@@ -130,13 +130,6 @@ export function StudentQuickView({
       open={{ href: links.case, label: "Открыть дело" }}
       returnTo={queueRowReturn(row.studentCaseId)}
     >
-      {row.state === "active" && canChange && (known !== null || closure?.state === "active") ? (
-        <div className="mb-4 flex flex-wrap gap-2">
-          <CloseRecordButton kind="case" subjectId={row.studentCaseId} subjectName={row.studentDisplayName}
-            expectedVersion={row.admissionsVersion} onClosed={changed} className={QUEUE_SECONDARY}
-            openTasks={tasks?.kind === "ready" ? tasks.tasks.length : null} />
-        </div>
-      ) : null}
       {/* Принять дело — главное действие куратора по переданному делу: первым под шапкой. */}
       {handoff ? (
         <div className="mb-4" data-testid="v3-students-panel-handoff">
@@ -248,6 +241,15 @@ export function StudentQuickView({
         {/* У дела без куратора вкладки «Документы» нет — ссылке вести некуда. */}
         {documentsAwaitCurator ? null : <Link href={links.documents} className={LINK}>Документы дела</Link>}
       </section>
+
+      {/* Редкое действие — последним: ежедневные (принять, шаг, задачи) выше. */}
+      {row.state === "active" && canChange && (known !== null || closure?.state === "active") ? (
+        <div className={`mt-4 ${SECTION}`}>
+          <CloseRecordButton kind="case" subjectId={row.studentCaseId} subjectName={row.studentDisplayName}
+            expectedVersion={row.admissionsVersion} onClosed={changed} className={QUEUE_SECONDARY}
+            openTasks={tasks?.kind === "ready" ? tasks.tasks.length : null} />
+        </div>
+      ) : null}
     </SidePanel>
   );
 }
@@ -258,8 +260,8 @@ export function StudentQuickViewMissing({ closeHref, caseHref }: Readonly<{ clos
     <SidePanel
       closeHref={closeHref}
       backLabel="К студентам"
-      title="Дела нет на этой странице списка"
-      context="Оно в другом виде или на другой странице, либо недоступно вам."
+      title="Дела нет в этом списке"
+      context="Оно в другом виде, на другой странице или недоступно вам."
       open={{ href: caseHref, label: "Открыть дело" }}
     />
   );

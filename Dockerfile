@@ -135,6 +135,9 @@ COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/knowledge-main
 # Telephony background job (docs/EVO_TELEPHONY_PLAN_2026-10-16.md 5.3): run by the host timer
 # deploy/telephony/ as `docker exec evo-crm-app-1 node /app/telephony-maintenance.mjs`.
 COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/telephony-maintenance.mjs ./telephony-maintenance.mjs
+# AI agents background reconcile (docs/runbooks/ai-agents-managed.md): run by a host timer as
+# `docker exec evo-crm-app-1 node /app/ai-agents-maintenance.mjs`; a no-op without EVO_ANTHROPIC_API_KEY.
+COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/ai-agents-maintenance.mjs ./ai-agents-maintenance.mjs
 
 USER nextjs
 

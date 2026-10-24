@@ -119,6 +119,8 @@ export default async function InboxPart({
   // Не подключён и пусто: считать нечего, числа в заголовке нет. Подключает
   // Администратор — только ему ссылка на Настройки (не в просмотре роли).
   const notConnected = inboxNotConnected(view);
+  // Число — размер страницы, не всех диалогов: со следующей страницей оно «50» вместо настоящего итога, поэтому числа нет.
+  const paged = view.queueOlderHref !== null || view.queueNewestHref !== null;
   const settingsHref = actor.systemRole === "admin" && actor.presentationRole === null
     ? "/v3/settings?section=integrations"
     : null;
@@ -127,7 +129,7 @@ export default async function InboxPart({
   // продажников, куда приходят лиды); страница стоит отдельно от «Переписки»
   // поступления, число диалогов — у заголовка, как до Э5.
   return (
-    <PartShell title="WhatsApp" count={notConnected ? null : view.conversations.length} fill>
+    <PartShell title="WhatsApp" count={notConnected || paged ? null : view.conversations.length} fill>
       <Inbox
         view={view}
         profileHref={profileHref}

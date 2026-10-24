@@ -10,6 +10,9 @@ import { prepareUniversityTemplateFile, uploadUniversityTemplateFile, type Unive
 import { universityFormActionMessage, universityFormWorkspace as words } from "@/lib/v3/wording";
 import { UniversityFormUploadStatus } from "./UniversityFormUploadStatus";
 
+// Те же кнопки, что в form-buttons.ts: здесь строки свои, потому что тест разбирает этот файл без соседних модулей.
+const FORM_PRIMARY = "v3-raised inline-flex min-h-11 items-center justify-center gap-1.5 rounded-ctl border border-accent bg-accent px-4 t-label text-on-accent hover:border-accent-2 hover:bg-accent-2 disabled:cursor-not-allowed disabled:opacity-50";
+const FORM_SECONDARY = "v3-raised inline-flex min-h-11 items-center justify-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 enabled:hover:bg-surface-2 enabled:hover:text-fg disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-2 disabled:text-fg-3";
 const input = "min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2 text-base text-fg";
 type Version = Pick<UniversityFormVersionMetadata, "id" | "sha256" | "byte_size" | "mime_type" | "revision">;
 type State = { error: string | null; version: Version | null; receipt: UniversityTemplateIngressReceipt | null; sent: boolean };
@@ -116,10 +119,10 @@ export function UniversityFormUpload({ catalogId, templateId, revision, reserveR
       {state.error ? <p role="alert" className="text-sm leading-6 text-danger">{state.error}</p> : null}
       <div className="flex flex-wrap items-center gap-3">
         <button type="submit" disabled={pending || blocked || !hasFile || (!version && (!reference.trim() || !date))}
-          className="inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-4 py-2 text-sm font-medium text-on-accent disabled:opacity-60">
+          className={FORM_PRIMARY}>
           {pending ? phase === "reserving" ? words.reserving : words.uploading : uncertain ? words.retry : words.upload}
         </button>
-        <Link prefetch={false} href={`/v3/universities/${catalogId}/forms?template=${templateId}`} className="inline-flex min-h-11 items-center px-3 text-sm text-fg-2">{uncertain || blocked ? words.checkSaved : words.cancel}</Link>
+        <Link prefetch={false} href={`/v3/universities/${catalogId}/forms?template=${templateId}`} className={FORM_SECONDARY}>{uncertain || blocked ? words.checkSaved : words.cancel}</Link>
       </div>
     </form>
   </section>;

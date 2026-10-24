@@ -46,7 +46,7 @@ export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRole
   if (route === "/v3/documents") return staffHasPermission(actor, "document.read.full") || staffHasPermission(actor, "company.file.read");
   // «ИИ-агент» (план ИИ-агента §12.2, §13): право ai.agent.use — у всех
   // сотрудников через роли «… — общие разделы» (268); решает каждый RPC раздела.
-  if (route === "/v3/ai-agent") return staffHasPermission(actor, "ai.agent.use");
+  if (route === "/v3/ai-agent" || route === "/v3/ai-agents") return staffHasPermission(actor, "ai.agent.use");
   // «Настройки → Телефония» (план телефонии §11, §12; срез T4b): администратор,
   // как и раньше, и держатель telephony.manage («Телефония — руководитель»). Этому
   // сотруднику страница показывает один раздел — «Телефония»; остальные разделы
@@ -71,6 +71,7 @@ export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRole
     "/v3/knowledge": ["knowledge.read", "documents.read", "snippets.read"],
     "/v3/marketing": ["admin.preview"],
     "/v3/ai-agent": ["admin.preview"],
+    "/v3/ai-agents": ["admin.preview"],
     "/v3/documents": ["documents.read"],
     "/v3/reply-snippets": ["snippets.read"],
     "/v3/settings": ["admin.preview"],

@@ -16,15 +16,12 @@ export const QUEUE_KEYS: readonly KeyHint[] = [
 /** Там, где у строк есть колонка выбора и массовые действия. */
 export const SELECT_KEY: KeyHint = [["x"], "отметить строку"];
 
-/** Поиск и переход — на любой странице. */
-export const PALETTE_KEY: KeyHint = [["Ctrl", "K"], "поиск и переход"];
-/** То же на Mac. */
-export const PALETTE_MAC_KEY: KeyHint = [["⌘", "K"], "то же на Mac"];
+/** Поиск и переход — на любой странице; одна строка для Windows и Mac (⌘ на Mac). */
+export const PALETTE_KEY: KeyHint = [["Ctrl / ⌘", "K"], "поиск и переход"];
 
 /** Окно оболочки: на страницах без своей очереди. */
 export const SHELL_KEYS: readonly KeyHint[] = [
   PALETTE_KEY,
-  PALETTE_MAC_KEY,
   [["?"], "клавиши"],
   [["Esc"], "закрыть окно"],
 ];

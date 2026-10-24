@@ -10,6 +10,8 @@ export type DueBandView = Readonly<{
   /** Тихая строка под заголовком: почему у группы нет числа при полном чтении. */
   note?: string | null;
   rows: ReactNode;
+  /** Под списком группы: «Показать ещё N» у длинной группы («Сегодня»). */
+  after?: ReactNode;
 }>;
 
 /**
@@ -32,6 +34,7 @@ export function DueBands({ bands, idPrefix = "queue-band" }: Readonly<{ bands: r
             </h2>
             {band.note ? <p className="border-b border-border py-2 ps-3 t-meta text-fg-2">{band.note}</p> : null}
             <ul>{band.rows}</ul>
+            {band.after ?? null}
           </section>
         );
       })}

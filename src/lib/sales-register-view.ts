@@ -71,7 +71,25 @@ export function salesLabelGroupOf(groups: readonly SalesLabelGroup[], value: str
 export type SalesRowReview =
   | Readonly<{ state: "archived" }>
   | Readonly<{ state: "checked" }>
+  /** Единственная причина пометки — статус оплаты не указан: тихое слово, не «Нужно уточнить» (24.10.2026). */
+  | Readonly<{ state: "status_missing" }>
   | Readonly<{ state: "review"; reasons: readonly string[] }>;
+
+/** Слово для записи, у которой не указан статус оплаты и других причин пометки нет. */
+export const SALES_STATUS_MISSING_TEXT = "Статус не указан";
+
+/** Пометка переноса «статус оплаты не указан» в ключах причин сервера (253). */
+const STATUS_UNSPECIFIED_REASON = "import:status_unspecified";
+
+/**
+ * Запись помечена только из-за не указанного статуса оплаты: причина одна и это
+ * она (сервер называет причины, пока запись помечена, 253). Любая другая причина
+ * — нет даты, стоимости, оплаты, суммы в валюте договора, телефон, формула —
+ * снова делает запись «Нужно уточнить».
+ */
+function onlyStatusUnspecified(row: SalesRegisterRow): boolean {
+  return row.reviewReasons.length > 0 && row.reviewReasons.every((reason) => reason === STATUS_UNSPECIFIED_REASON);
+}
 
 /** Поля записи, из которых «при переносе: …» называет пометку переноса. */
 const IMPORT_FIELD_TEXT: Readonly<Record<string, string>> = {
@@ -94,11 +112,13 @@ export function salesImportFlagText(flag: string): string {
  * только пока запись помечена. Чего не хватает в самой записи — словами; пометки
  * переноса, чьё поле ещё не исправлено, — одной строкой «при переносе: …».
  * Причин нет — «отмечено вручную» (или «отмечено при переносе»): причина не
- * придумывается.
+ * придумывается. Не указанный статус оплаты как единственная причина — не
+ * пометка, а тихое слово «Статус не указан» (решение владельца 24.10.2026).
  */
 export function salesRowReview(row: SalesRegisterRow): SalesRowReview {
   if (row.archived) return { state: "archived" };
   if (!row.needsReview) return { state: "checked" };
+  if (onlyStatusUnspecified(row)) return { state: "status_missing" };
   const reasons: string[] = [];
   const fromImport: string[] = [];
   for (const reason of row.reviewReasons) {

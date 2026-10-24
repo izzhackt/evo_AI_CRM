@@ -104,7 +104,7 @@ test("card makes resend and reconciliation boundaries explicit", () => {
   const card = source("src/components/v3/profile/StudentPortalAccessCard.tsx");
   assert.match(card, /Повторная отправка запрещена/u);
   assert.match(card, /только проверка провайдера/u);
-  assert.match(card, /Явно подтвердить новое приглашение/u);
+  assert.match(card, /Отправить новое приглашение/u);
   assert.match(card, /name="reissue_request_id"/u);
 });
 

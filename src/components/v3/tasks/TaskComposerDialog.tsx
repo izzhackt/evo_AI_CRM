@@ -21,7 +21,7 @@ import type { CalendarCaseOption, Day } from "../calendar/types";
 /** Поле диалога: 16 px (`t-body`) — без увеличения на iPhone, как у полей очереди. */
 const CONTROL = "mt-1 min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2.5 t-body text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:bg-surface-2";
 /** Единственный сплошной красный — «Создать задачу» (и «Открыть задачу» после сохранения). */
-const PRIMARY = "inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-4 t-label text-on-accent hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55";
+const PRIMARY = "v3-raised inline-flex min-h-11 items-center justify-center rounded-ctl border border-accent bg-accent px-4 t-label text-on-accent hover:border-accent-2 hover:bg-accent-2 disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-2 disabled:text-fg-3";
 const SECONDARY = QUEUE_SECONDARY;
 /** Подпись поля — роль `t-label`, как у окон массовых действий. */
 const LABEL = "block t-label text-fg";
@@ -50,7 +50,7 @@ export function TaskComposerDialog({
   defaultDueDay = null, initialCase = null, initialCaseAssignees = [], initialCases = [], casesHaveMore = false,
   caseRemovable = false, sourceMessageId, sourceMessageVersion, sourceLeadId, sourceLeadVersion, sourceLeadName = null,
   triggerLabel = "+ Задача", triggerClassName, triggerChildren, triggerTitle, triggerTestId, openIntent = null,
-  hideTrigger = false, initialTitle = "", onClosed,
+  hideTrigger = false, initialTitle = "", initialDescription = "", onClosed,
 }: Readonly<{
   /** Исполнители рабочей задачи; null — диалог прочитает их сам при открытии. */
   participants?: readonly StaffParticipant[] | null;
@@ -84,6 +84,8 @@ export function TaskComposerDialog({
   hideTrigger?: boolean;
   /** Название, набранное до открытия (строка «Новая задача…»); важнее черновика. */
   initialTitle?: string;
+  /** Описание, заполненное входом («Сделать задачей» под ответом ИИ-агента); важнее черновика. */
+  initialDescription?: string;
   /** Куда вернуть фокус, если своей кнопки нет. */
   onClosed?: () => void;
 }>) {
@@ -97,7 +99,7 @@ export function TaskComposerDialog({
   if ((!staffAllowed && !caseAllowed) || isStaffPreview(actor)) return null;
   return <>
     {!hideTrigger ? <button ref={trigger} type="button" aria-haspopup="dialog" title={triggerTitle} data-testid={triggerTestId}
-      className={triggerClassName ?? "min-h-11 rounded-ctl bg-accent px-4 text-sm font-semibold text-on-accent hover:opacity-90"}
+      className={triggerClassName ?? "min-h-11 rounded-ctl bg-accent px-4 t-label text-on-accent hover:bg-accent-2"}
       onClick={() => setOpen(true)}>{triggerChildren ?? triggerLabel}</button> : null}
     {open ? <TaskComposerModal
       participants={participants} actorMembershipId={actorMembershipId} actor={actor} day={day}
@@ -107,7 +109,7 @@ export function TaskComposerDialog({
       initialCases={initialCases} casesHaveMore={casesHaveMore} caseRemovable={caseRemovable}
       sourceMessageId={sourceMessageId} sourceMessageVersion={sourceMessageVersion}
       sourceLeadId={sourceLeadId} sourceLeadVersion={sourceLeadVersion} sourceLeadName={sourceLeadName}
-      initialTitle={initialTitle}
+      initialTitle={initialTitle} initialDescription={initialDescription}
       onClose={() => { setOpen(false); if (trigger.current) trigger.current.focus(); else onClosed?.(); }}
     /> : null}
   </>;
@@ -116,7 +118,7 @@ export function TaskComposerDialog({
 function TaskComposerModal({
   participants, actorMembershipId, actor, staffAllowed, caseAllowed, day, defaultDueDay,
   initialCase, initialCaseAssignees, initialCases, casesHaveMore, caseRemovable,
-  sourceMessageId, sourceMessageVersion, sourceLeadId, sourceLeadVersion, sourceLeadName, initialTitle, onClose,
+  sourceMessageId, sourceMessageVersion, sourceLeadId, sourceLeadVersion, sourceLeadName, initialTitle, initialDescription, onClose,
 }: Readonly<{
   participants: readonly StaffParticipant[] | null; actorMembershipId: string; actor: ActivePlatformActor;
   staffAllowed: boolean; caseAllowed: boolean; day: Day; defaultDueDay: Day | null;
@@ -126,6 +128,7 @@ function TaskComposerModal({
   sourceMessageId?: string; sourceMessageVersion?: string;
   sourceLeadId?: string; sourceLeadVersion?: string; sourceLeadName: string | null;
   initialTitle: string;
+  initialDescription: string;
   onClose: () => void;
 }>) {
   const router = useRouter();
@@ -142,7 +145,7 @@ function TaskComposerModal({
   // (`composer-draft.ts`): дело считается, только пока задача идёт по делу.
   const draftContext = composerDraftContext({ caseId: caseMode ? caseId : "", sourceMessageId, sourceLeadId });
   // Поля входа читаются один раз: диалог создаётся заново при каждом открытии.
-  const [opened] = useState(() => openComposerDraft(drafts, draftContext, initialTitle));
+  const [opened] = useState(() => openComposerDraft(drafts, draftContext, initialTitle, initialDescription));
   const [title, setTitle] = useState(opened.title);
   const [description, setDescription] = useState(opened.description);
   const [priority, setPriority] = useState<PlatformCaseTaskPriority>("normal");
@@ -180,8 +183,11 @@ function TaskComposerModal({
       if (next.description !== description) setDescription(next.description);
       return;
     }
+    // Нетронутое описание, которое дал вход («Сделать задачей» под ответом ИИ-агента), черновиком не
+    // становится: отменённый диалог не подставит ответ агента в следующую, другую задачу.
+    if (initialDescription.trim() && title === opened.title && description === opened.description) return;
     drafts.write(draftContext, { title, description });
-  }, [draftContext, title, description, state.status]);
+  }, [draftContext, title, description, state.status, initialDescription, opened]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -342,7 +348,9 @@ function TaskComposerModal({
     <div className="flex max-h-[85dvh] flex-col">
       <header className="flex items-center justify-between gap-3 border-b border-border p-4">
         <h2 id={titleId} className="t-section">Новая задача</h2>
-        <button type="button" onClick={close} className={SECONDARY}>Закрыть</button>
+        <button type="button" onClick={close} aria-label="Закрыть" className="inline-flex size-11 shrink-0 items-center justify-center rounded-ctl text-fg-2 hover:bg-surface-2 hover:text-fg">
+          <Icon name="x" size={18} />
+        </button>
       </header>
       {state.status === "saved" ? <div className="space-y-4 p-4">
         <p role="status" className="t-body-compact text-ok">Задача создана.</p>
@@ -366,7 +374,7 @@ function TaskComposerModal({
 
           {/* «Без дела» — рядом с именем; перенесённое на телефоне — по левому краю полей (-ms-2 снимает отступ зоны нажатия). */}
           {caseAllowed ? (attachedCase ? <div className="flex flex-wrap items-center gap-x-4 t-body-compact" data-composer-context="case">
-            <span><span className="text-fg-2">Студент/дело: </span>{attachedCase.name}</span>
+            <span><span className="text-fg-2">Студент: </span>{attachedCase.name}</span>
             {caseRemovable && staffAllowed ? <button type="button" className={`${QUIET} -ms-2`} disabled={locked} onClick={detachCase}>
               Без дела
             </button> : null}
@@ -375,7 +383,7 @@ function TaskComposerModal({
             <TaskCasePicker initialCases={initialCases} initialHasMore={casesHaveMore} onCaseChange={setCaseId} disabled={locked} />
           </div> : <details open={caseSectionOpen} onToggle={(event) => setCaseSectionOpen(event.currentTarget.open)} className="group">
             <summary className={DISCLOSURE}>
-              Студент/дело · необязательно
+              Студент или дело
               <Icon name="chevron-down" size={16} className="shrink-0 text-fg-3 group-open:rotate-180" />
             </summary>
             <div className="grid gap-3 pt-2 sm:grid-cols-2">

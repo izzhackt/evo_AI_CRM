@@ -20,6 +20,9 @@ import {
   studentProfileExportIssue, studentProfileFiles,
   studentProfileFieldActionMessage, studentProfileFieldState, studentProfileProposalState,
 } from "@/lib/v3/wording";
+import { Icon } from "@/components/icons";
+import { StatusChip } from "../blocks/StatusChip";
+import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { StaffDisclosure } from "../settings/StaffDisclosure";
 import { DocumentPreviewButton } from "./DocumentPreviewButton";
 import { StudentProfileExportHistory } from "./StudentProfileExportHistory";
@@ -40,11 +43,14 @@ type WorkspaceProps = Readonly<{
   readOnly: boolean;
   sourceVersions: readonly ProfileFieldSourceVersion[];
   documentsHref: string | null;
+  /** «Вузы и программы» — туда ведёт «Бланк университета» без заявлений; null — вкладки нет. */
+  routeHref?: string | null;
   applications?: readonly Pick<ProfileApplication, "id" | "institution" | "program">[];
 }>;
 
-const BUTTON = "min-h-11 rounded-ctl border border-control-edge px-3 py-2 text-sm font-semibold text-fg hover:bg-bg disabled:cursor-not-allowed";
-const PRIMARY = "min-h-11 rounded-ctl border border-accent bg-accent px-3 py-2 text-sm font-semibold text-white hover:brightness-95 disabled:cursor-not-allowed";
+/** Сплошной красный — главному действию страницы; кнопки анкеты — спокойные и тёмные. */
+const BUTTON = QUEUE_SECONDARY;
+const PRIMARY = QUEUE_CONFIRM;
 const INPUT = "min-h-11 w-full min-w-0 resize-y rounded-ctl border border-control-edge bg-surface px-3 py-2 text-sm leading-6 text-fg focus:border-accent";
 const DATE = new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeZone: "Asia/Bishkek" });
 type ExportIssue = Pick<ProfileIssue, "key" | "kind">;
@@ -132,7 +138,7 @@ function StartProfile({ snapshot, requestId, readOnly }: WorkspaceProps) {
   }, initialState(requestId));
   return <section aria-labelledby="student-profile-fields-title" className="space-y-3 rounded-card border border-border bg-surface p-4">
     <h2 id="student-profile-fields-title" className="t-section">Анкета студента</h2>
-    <p className="text-sm leading-6 text-fg-2">Анкета ещё не создана. Начните её и заполняйте сведения по мере проверки.</p>
+    <p className="text-sm leading-6 text-fg-2">Анкета ещё не создана.</p>
     {snapshot.canInitialize && !readOnly ? <form action={action} className="space-y-3">
       <input type="hidden" name="student_case_id" value={snapshot.studentCaseId} />
       <input type="hidden" name="expected_profile_revision" value="0" />
@@ -155,11 +161,11 @@ function SourceDetails({ versionId, page, sourceVersions, documentsHref }: Reado
     {source?.downloadReady
       ? <DocumentPreviewButton versionId={source.id} filename={source.filename} versionNumber={source.versionNumber} />
       : <p className="text-sm text-fg-3">Просмотр этой версии здесь недоступен.</p>}
-    {documentsHref ? <a href={documentsHref} className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline">К документам дела</a> : null}
+    {documentsHref ? <a href={documentsHref} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">К документам дела</a> : null}
   </div>;
 }
 
-function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, documentsHref, applications }: WorkspaceProps) {
+function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, documentsHref, routeHref = null, applications }: WorkspaceProps) {
   const router = useRouter();
   const workspaceRef = useRef<HTMLElement>(null);
   const commandInFlight = useRef(false);
@@ -225,17 +231,16 @@ function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, docume
     <header className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="student-profile-fields-title" className="t-section">Анкета студента</h2>
-        <span className={`text-sm font-semibold ${readiness.ready ? "text-ok" : "text-fg-2"}`}>{readiness.ready ? "Проверена" : "Черновик"}</span>
+        <StatusChip label={readiness.ready ? "Проверена" : "Черновик"} tone={readiness.ready ? "ok" : "neutral"} />
       </div>
-      <p className="text-sm leading-6 text-fg-2">Подтверждено {confirmedCount} из {PROFILE_FIELDS.length} полей. Звёздочкой отмечены обязательные.</p>
-      {readiness.missingRequired.length > 0 ? <p className="text-sm text-fg-2">Не заполнены обязательные поля: {readiness.missingRequired.length}.</p> : null}
+      <p className="text-sm leading-6 text-fg-2">Подтверждено {confirmedCount} из {PROFILE_FIELDS.length}{readiness.missingRequired.length > 0 ? ` · не заполнены обязательные: ${readiness.missingRequired.length}` : ""}</p>
       {readiness.conflicts.length > 0 ? <p className="text-sm text-danger">Источники расходятся: {readiness.conflicts.length}. Выберите верные значения.</p> : null}
       {!mayReview ? <p className="text-sm text-fg-3">Только просмотр. Изменения в этом режиме недоступны.</p> : null}
       {state.status === "stale" ? <div className="space-y-2"><ActionMessage state={state} pending={pending} /><button type="button" className={BUTTON} disabled={busy} onClick={() => router.refresh()}>Обновить анкету</button></div> : null}
     </header>
 
     <StudentProfileExportHistory studentCaseId={snapshot.studentCaseId} profile={profile} canExport={snapshot.canExport}
-      applications={applications}
+      applications={applications} routeHref={routeHref}
       ready={readiness.ready} draftBlocker={draftBlocker} finalBlocker={finalBlocker} busy={busy}
       commandInFlightRef={commandInFlight} onBusyChange={setExportPending} onRefreshProfile={() => router.refresh()}>
       {!readiness.ready ? <StaffDisclosure label={studentProfileFiles.review} buttonClassName="font-semibold">
@@ -269,17 +274,20 @@ function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, docume
               const fieldIssues = readiness.issues.filter(issue => issue.key === field.key);
               const status = field.state === "needs_review" && field.value === null ? null : studentProfileFieldState(field.state);
               const fieldId = `profile-field-${field.key}`;
-              return <div key={field.key} className="min-w-0 py-3">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                  <p className="text-sm font-semibold text-fg">{definition.label}{definition.required ? <span aria-label="обязательное поле"> *</span> : null}</p>
-                  {status ? <span className={`text-sm ${field.state === "conflict" ? "text-danger" : "text-fg-3"}`}>{status}</span> : null}
-                </div>
-                <p className="mt-1 break-words text-sm leading-6 text-fg-2">{profileFieldSummary(field)}</p>
-                {draft ? <p className="mt-1 text-sm text-fg-3">Есть несохранённые правки.</p> : null}
-                <button type="button" className="inline-flex min-h-11 items-center text-sm font-semibold text-accent"
+              return <div key={field.key} className="min-w-0 py-1">
+                {/* Вся строка поля — переключатель: отдельная ссылка «Проверить поле» у 61 поля повторялась бы 61 раз. */}
+                <button type="button" className="group flex min-h-11 w-full items-start gap-3 rounded-nav py-2 text-start"
                   aria-expanded={activeField === field.key} aria-controls={`${fieldId}-editor`}
                   onClick={() => setActiveField(current => current === field.key ? null : field.key)}>
-                  {activeField === field.key ? "Свернуть поле" : mayReview ? "Проверить поле" : "Подробности поля"}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                      <span className="text-sm font-semibold text-fg">{definition.label}{definition.required ? <span aria-label="обязательное поле"> *</span> : null}</span>
+                      {status ? <span className={`text-sm ${field.state === "conflict" ? "text-danger" : "text-fg-3"}`}>{status}</span> : null}
+                    </span>
+                    <span className="mt-1 block break-words text-sm font-normal leading-6 text-fg-2">{profileFieldSummary(field)}</span>
+                    {draft ? <span className="mt-1 block text-sm font-normal text-fg-3">Есть несохранённые правки.</span> : null}
+                  </span>
+                  <Icon name="chevron-down" size={18} className={`mt-1 shrink-0 text-fg-3 transition-transform duration-150 motion-reduce:transition-none ${activeField === field.key ? "rotate-180" : ""}`} />
                 </button>
                 <div id={`${fieldId}-editor`} hidden={activeField !== field.key}>
                   {activeField === field.key ? <div className="space-y-4 pb-2 pt-1">
@@ -318,7 +326,7 @@ function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, docume
                       <StaffDisclosure label="Оставить поле пустым" buttonClassName="text-fg-2">
                         <form action={action} className="space-y-3 pb-2">
                           {commandFields(field, "clear")}
-                          <p className="text-sm leading-6 text-fg-2">Это явное решение: значение будет очищено и отмечено как проверенное. Предложения не заполнят его автоматически.</p>
+                          <p className="text-sm leading-6 text-fg-2">Значение будет очищено и отмечено проверенным.</p>
                           <button type="submit" className={BUTTON} disabled={blocked || (field.state === "confirmed" && field.value === null)}>Подтвердить пустое значение</button>
                         </form>
                       </StaffDisclosure>
@@ -328,7 +336,7 @@ function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, docume
                       <div className="space-y-4 py-2">
                         {field.reviewedAt ? <p className="text-sm text-fg-3">Последняя проверка: <time dateTime={field.reviewedAt}>{DATE.format(new Date(field.reviewedAt))}</time>.</p> : null}
                         <SourceDetails versionId={field.sourceDocumentVersionId} page={field.sourcePage} sourceVersions={sourceVersions} documentsHref={documentsHref} />
-                        {field.proposals.length === 0 ? <p className="text-sm text-fg-3">Предложений нет. Значение можно проверить вручную.</p> : <ol className="divide-y divide-border">
+                        {field.proposals.length === 0 ? <p className="text-sm text-fg-3">Предложений нет.</p> : <ol className="divide-y divide-border">
                           {field.proposals.map(proposal => <li key={proposal.id} className="space-y-3 py-3">
                             <p className="text-sm font-semibold">{studentProfileProposalState(proposal.status)}</p>
                             <p className="whitespace-pre-wrap break-words text-sm leading-6">{proposal.value}</p>

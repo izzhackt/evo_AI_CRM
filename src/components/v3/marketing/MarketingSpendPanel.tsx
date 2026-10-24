@@ -45,14 +45,13 @@ export function MarketingSpendPanel({ overview, period }: Readonly<{
             {spend.insideTotals.map((total) => (
               <span key={total.currency} className="t-figure tabular-nums text-fg">{formatMinor(total.amountMinor, total.currency)}</span>
             ))}
-            <span className="t-meta text-fg-2">записи целиком в периоде</span>
           </p>
           <SpendList rows={spend.insidePeriod} testId="marketing-spend-inside" />
         </>
       ) : <p className="t-body-compact text-fg-2">Расход за период не введён.</p>}
       {spend.partiallyOverlapping.length ? (
         <div>
-          <p className="t-body-compact text-fg-2">Частично в периоде — в итог и цену не входят, по дням не делятся:</p>
+          <p className="t-body-compact text-fg-2">Частично в периоде (не входят в итог):</p>
           <SpendList rows={spend.partiallyOverlapping} testId="marketing-spend-partial" />
         </div>
       ) : null}

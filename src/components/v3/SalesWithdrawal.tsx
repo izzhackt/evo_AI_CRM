@@ -19,7 +19,7 @@ import { useAnchoredPopover } from "./queue/useAnchoredPopover";
  * получает тот, у кого они есть.
  */
 
-const ACTION = "inline-flex min-h-11 items-center rounded-nav px-2 t-label text-fg-2 underline underline-offset-4 hover:text-fg disabled:cursor-not-allowed disabled:opacity-50";
+const ACTION = "inline-flex min-h-11 items-center rounded-nav px-2 t-label text-fg-2 underline underline-offset-4 hover:text-fg disabled:cursor-not-allowed disabled:text-fg-3";
 const CHOICE = "flex min-h-11 items-center gap-2 rounded-nav px-1 t-body-compact text-fg";
 
 export function SalesWithdrawalControl({ record, name, withdrawn, requestId, align = "end" }: Readonly<{

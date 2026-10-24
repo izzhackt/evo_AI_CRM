@@ -75,6 +75,15 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // names only identifiers (the kept client is the object); it falls through to the
 // `["record_status"]` default of `expectedChangedFieldCodes`, exactly like the
 // server's `ELSE`.
+// Migration 317 («ИИ-агенты» на Claude Managed Agents, docs/PLAN_CHANGES.md «2026-10-22 ·
+// ИИ-агенты на Claude Managed Agents: план») adds eleven `ai.agent.*` actions
+// (`config.change`, `sync`, `token.rotate`, `run.start`, `run.finish`, `tool.read`,
+// `tool.write`, `draft.create`, `draft.decide`, `message.send`, `document.read`) and the
+// resource types `ai_agent`, `ai_agent_run` and `ai_agent_draft` by the same rename-and-union
+// wrappers (`..._pre_ai_agents_managed`). Their rows name only identifiers, tool names,
+// statuses and counts (no instruction text, message text or document content). They fall
+// through to the `action.startsWith("ai.")` branch of `expectedChangedFieldCodes`
+// (`["ai_status"]`), exactly like the server's `ai.%` branch of `p7a_changed_field_codes`.
 // `expectedChangedFieldCodes` below needed no new branch for 255's 71
 // actions: 9 `document.export.*` actions already hit the existing
 // `action.startsWith("document.")` branch (mirroring the server's
@@ -97,6 +106,17 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "account.deletion.manual.complete",
   "account.deletion.process",
   "account.deletion.request",
+  "ai.agent.config.change",
+  "ai.agent.document.read",
+  "ai.agent.draft.create",
+  "ai.agent.draft.decide",
+  "ai.agent.message.send",
+  "ai.agent.run.finish",
+  "ai.agent.run.start",
+  "ai.agent.sync",
+  "ai.agent.token.rotate",
+  "ai.agent.tool.read",
+  "ai.agent.tool.write",
   "ai.control.set",
   "ai.draft.generate",
   "ai.draft.language.resolve",
@@ -315,6 +335,9 @@ export const PLATFORM_AUDIT_ACTIONS = [
 
 export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "account_deletion_request",
+  "ai_agent",
+  "ai_agent_draft",
+  "ai_agent_run",
   "ai_draft",
   "ai_draft_request",
   "ai_draft_request_knowledge_selection",

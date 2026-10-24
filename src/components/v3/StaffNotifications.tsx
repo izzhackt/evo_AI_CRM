@@ -7,16 +7,19 @@ import { loadStaffNotificationsAction, markAllStaffNotificationsReadAction, mark
 import type { StaffNotification, StaffNotificationCursor, StaffNotificationPage } from "@/lib/platform-staff-notifications-contract";
 import { dayInOrganizationTimezone, projectPlatformTaskDeadline } from "@/lib/platform-task-deadline";
 import { caseMessageNotificationCopy } from "@/components/v3/staff-notification-copy";
-import { STALE_DEPLOYMENT_TEXT } from "@/components/v3/StaleDeploymentNotice";
+import { STALE_DEPLOYMENT_LABEL } from "@/components/v3/StaleDeploymentNotice";
 import { createLightPoller, fetchLightPoll } from "@/lib/light-poll";
 import { isStaleDeployment, noteServerRelease, noteStaleDeployment, reloadForNewDeployment } from "@/lib/stale-deployment";
 import { useInlineStalePrompt, useStaleDeployment } from "@/lib/use-stale-deployment";
 
-const TIME = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bishkek" });
+// «ДД.ММ ЧЧ:ММ» по Бишкеку — как даты строк очередей во всём CRM, а не «26 сент., 11:10».
+const STAMP = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Asia/Bishkek" });
 const EXACT_TIME = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bishkek" });
 const STAFF_NOTIFICATIONS_STATE_URL = "/api/v3/notifications/state";
 const DATE_ONLY = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", timeZone: "Asia/Bishkek" });
-const CONTROL = "min-h-11 rounded-ctl border border-control-edge px-3 text-sm text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+const CONTROL = "min-h-11 rounded-ctl border border-control-edge px-3 t-label text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+/** Тихое текстовое действие панели: «Прочитать всё», «Повторить», «Обновить страницу» (как `QUEUE_QUIET_LINK`). */
+const QUIET = "inline-flex min-h-11 shrink-0 items-center rounded-ctl px-1 t-label text-fg-2 underline underline-offset-4 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:no-underline disabled:opacity-60";
 /**
  * Колокольчик (Э1.2) — квадратная кнопка в боковом меню и в листе «Ещё»,
  * число — на ней; панель живёт в верхнем слое (popover), поэтому ни меню, ни
@@ -24,6 +27,11 @@ const CONTROL = "min-h-11 rounded-ctl border border-control-edge px-3 text-sm te
  */
 const MENU_TRIGGER = "v3-raised relative flex size-11 shrink-0 items-center justify-center rounded-ctl border border-control-edge bg-surface text-fg-2 hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
 const PHONE_MEDIA = "(width < 48rem)";
+
+function stamp(iso: string): string {
+  const parts = Object.fromEntries(STAMP.formatToParts(new Date(iso)).map((part) => [part.type, part.value]));
+  return `${parts.day}.${parts.month} ${parts.hour}:${parts.minute}`;
+}
 
 function addDaysToIsoDate(day: string, delta: number): string {
   const [year, month, date] = day.split("-").map(Number);
@@ -52,22 +60,22 @@ function rowCopy(item: StaffNotification): string {
   switch (item.kind) {
     case "task_assigned":
       return item.actorDisplayName && item.subjectTitle
-        ? `${item.actorDisplayName} назначил(а) вам задачу «${item.subjectTitle}»`
+        ? `Задача от ${item.actorDisplayName}: «${item.subjectTitle}»`
         : "Вам назначили задачу";
     case "task_updated":
       return item.actorDisplayName && item.subjectTitle
-        ? `${item.actorDisplayName} изменил(а) вашу задачу «${item.subjectTitle}»`
+        ? `Изменена ваша задача «${item.subjectTitle}» — ${item.actorDisplayName}`
         : "Изменилась ваша задача";
     case "case_task_assigned":
       return item.actorDisplayName && item.subjectTitle
-        ? `${item.actorDisplayName} назначил(а) задачу «${item.subjectTitle}»${item.studentDisplayName ? ` · ${item.studentDisplayName}` : ""}`
+        ? `Задача от ${item.actorDisplayName}: «${item.subjectTitle}»${item.studentDisplayName ? ` · ${item.studentDisplayName}` : ""}`
         : "Вам назначили задачу по делу студента";
     case "task_due": {
       const prefix = taskDueLabel(item, new Date());
       return item.subjectTitle ? `${prefix} «${item.subjectTitle}»` : prefix;
     }
     case "chat_mention":
-      return item.actorDisplayName ? `${item.actorDisplayName} упомянул(а) вас в чате` : "Вас упомянули в чате";
+      return item.actorDisplayName ? `${item.actorDisplayName}: упоминание в чате` : "Вас упомянули в чате";
     case "case_help":
       return item.studentDisplayName ? `Новое обращение по делу студента · ${item.studentDisplayName}` : "Новое обращение по делу студента";
     case "case_message":
@@ -87,7 +95,6 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
   const router = useRouter();
   const id = useId();
   const [open, setOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [page, setPage] = useState<StaffNotificationPage | null>(initialPage);
   const [error, setError] = useState<string | null>(initialPage ? null : "Уведомления пока недоступны.");
   const [busy, setBusy] = useState(false);
@@ -205,7 +212,7 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
     finally { endMutation(); }
   }
   async function markAll() {
-    setMenuOpen(false); mutationsInFlight.current++; setBusy(true);
+    mutationsInFlight.current++; setBusy(true);
     try {
       const result = await markAllStaffNotificationsReadAction();
       if (!result.ok) { setError(result.message ?? "Не удалось отметить уведомления прочитанными."); return; }
@@ -259,7 +266,7 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
     }}>
       <button ref={toggle} type="button" aria-expanded={open} aria-controls={id}
         aria-label={count && count !== "0" ? `Уведомления: ${count} непрочитанных` : "Уведомления"}
-        className={MENU_TRIGGER} onClick={() => { if (!open) { setBusy(true); setMenuOpen(false); void load(); } setOpen((value) => !value); }}
+        className={MENU_TRIGGER} onClick={() => { if (!open) { setBusy(true); void load(); } setOpen((value) => !value); }}
         {...triggerProps}>
         <Icon name="bell" size={20} />
         {count && count !== "0" ? <span className="t-caption absolute -end-2 -top-2 min-w-5 rounded-full bg-fg px-1 text-center tabular-nums text-surface">{BigInt(count) > BigInt(99) ? "99+" : count}</span> : null}
@@ -269,33 +276,26 @@ export function StaffNotifications({ initialPage, onCountChange, triggerProps }:
         className="inset-auto m-0 w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-card border border-border bg-surface p-4 text-fg shadow-evo-lg">
         <div className="flex items-center justify-between gap-3">
           <h2 className="t-section text-fg">Уведомления</h2>
-          <div className="relative">
-            <button type="button" aria-haspopup="menu" aria-expanded={menuOpen} className={CONTROL}
-              onClick={() => setMenuOpen((value) => !value)}>⋯</button>
-            {menuOpen ? <div role="menu" className="absolute end-0 top-full z-50 mt-1 w-52 rounded-card border border-border bg-surface p-1 shadow-evo-lg">
-              <button type="button" role="menuitem" disabled={locked} onClick={() => void markAll()}
-                className="min-h-11 w-full rounded-nav px-3 py-2 text-start text-sm hover:bg-surface-2">Прочитать всё</button>
-            </div> : null}
-          </div>
+          {count && count !== "0" ? <button type="button" disabled={locked} onClick={() => void markAll()} className={QUIET}>Прочитать всё</button> : null}
         </div>
-        {stale ? <div className="my-3 flex flex-wrap items-center justify-between gap-2 rounded-ctl border border-border bg-surface-2 px-3 py-2 text-sm text-fg" data-testid="v3-notifications-stale">
-          <span>{STALE_DEPLOYMENT_TEXT}</span>
-          <button type="button" onClick={reloadForNewDeployment} className="min-h-11 shrink-0 font-semibold underline">Обновить страницу</button>
+        {stale ? <div className="my-3 flex flex-wrap items-center justify-between gap-2 rounded-ctl border border-border bg-surface-2 px-3 py-1 t-body-compact text-fg" data-testid="v3-notifications-stale">
+          <span>{STALE_DEPLOYMENT_LABEL}</span>
+          <button type="button" onClick={reloadForNewDeployment} className={QUIET}>Обновить страницу</button>
         </div> : null}
-        {failed ? <div role="alert" className="my-3 flex flex-wrap items-center justify-between gap-2 rounded-ctl border border-danger/30 bg-danger-weak px-3 py-2 text-sm text-danger">
+        {failed ? <div role="alert" className="my-3 flex flex-wrap items-center justify-between gap-2 rounded-ctl border border-danger/30 bg-danger-weak px-3 py-1 t-body-compact text-danger">
           <span>{error}</span>
-          <button type="button" disabled={busy} onClick={() => { setBusy(true); void load(); }} className="min-h-11 shrink-0 font-semibold underline">Повторить</button>
+          <button type="button" disabled={busy} onClick={() => { setBusy(true); void load(); }} className={QUIET}>Повторить</button>
         </div> : null}
-        {busy && !page ? <p role="status" className="py-6 text-sm text-fg-2">Загружаем…</p> : null}
-        {page?.items.length === 0 ? <p className="py-6 text-sm text-fg-2">Новых событий пока нет.</p> : null}
+        {busy && !page ? <p role="status" className="py-6 t-body-compact text-fg-2">Загружаем…</p> : null}
+        {page?.items.length === 0 ? <p className="py-6 t-body-compact text-fg-2">Новых событий пока нет.</p> : null}
         <ul className="mt-3 divide-y divide-border">{page?.items.map((item) => <li key={item.id}>
           <button type="button" disabled={locked} onClick={() => void openItem(item)}
             className="min-h-11 w-full rounded-nav py-3 text-start focus-visible:outline-2 focus-visible:outline-focus-ring">
-            <span className={`block text-sm ${item.readAt ? "text-fg-2" : "font-semibold text-fg"}`}>{rowCopy(item)}</span>
-            <span className="mt-1 block text-xs text-fg-3">{TIME.format(new Date(item.createdAt))}{item.readAt ? " · Прочитано" : " · Не прочитано"}</span>
+            <span className={`block ${item.readAt ? "t-body-compact text-fg-2" : "t-item text-fg"}`}>{rowCopy(item)}</span>
+            <span className="mt-1 block t-meta text-fg-3"><time dateTime={item.createdAt} className="font-mono tabular-nums">{stamp(item.createdAt)}</time>{item.readAt ? "" : " · Не прочитано"}</span>
           </button>
         </li>)}</ul>
-        {page?.nextCursor ? <button type="button" disabled={locked} className={`${CONTROL} mt-3 w-full`} onClick={() => { setBusy(true); void load(page.nextCursor); }}>Раньше</button> : null}
+        {page?.nextCursor ? <button type="button" disabled={locked} className={`${CONTROL} mt-3 w-full`} onClick={() => { setBusy(true); void load(page.nextCursor); }}>Показать ещё</button> : null}
       </section> : null}
     </div>
   );

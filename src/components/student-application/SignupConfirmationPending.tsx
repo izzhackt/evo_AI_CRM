@@ -31,7 +31,7 @@ export function SignupConfirmationPending({ initial, locale, restored = false }:
     </form>}
     <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
       <Link href="/login" className="inline-flex min-h-11 items-center text-accent-text underline">{strings.login}</Link>
-      <a href="mailto:evo@evoadmissions.com" className="inline-flex min-h-11 items-center text-accent-text underline">{strings.support}</a>
+      <a href="mailto:evoadmissions@gmail.com" className="inline-flex min-h-11 items-center text-accent-text underline">{strings.support}</a>
     </div>
   </section>;
 }

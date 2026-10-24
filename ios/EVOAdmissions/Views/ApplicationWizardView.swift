@@ -388,7 +388,7 @@ struct ApplicationWizardView: View {
             Button("signup_confirmation_sign_in", action: returnToSignIn)
                 .frame(minHeight: 44).disabled(model.isSubmitting)
             Text("signup_confirmation_sign_in_hint").font(.footnote).foregroundStyle(.secondaryText)
-            Link("evo@evoadmissions.com", destination: URL(string: "mailto:evo@evoadmissions.com")!)
+            Link("evoadmissions@gmail.com", destination: URL(string: "mailto:evoadmissions@gmail.com")!)
                 .frame(minHeight: 44)
         }
     }

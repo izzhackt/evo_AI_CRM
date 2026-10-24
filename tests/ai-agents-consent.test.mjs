@@ -61,7 +61,12 @@ test("the chip says one of three words; only «не разрешено» is a wa
   assert.match(declined.title, /не читают/u);
   assert.match(none.title, /не читают/u);
   assert.match(noPortal.title, /нет кабинета/u);
-  assert.match(granted.title, /читают/u);
+  // «Разрешено» is a permission, not a claim that the helpers read: «могут читать».
+  assert.match(granted.title, /могут читать/u);
+  // Not asked and granted on an older text version look the same to the staff read: the hint names both.
+  assert.match(none.title, /прежней версии/u);
+  // The words promise only what migration 320 enforces (the Claude agents' tools), not every AI helper.
+  for (const chip of [granted, declined, none, noPortal]) assert.match(chip.title, /агенты Claude/u);
   for (const chip of [granted, declined, none, noPortal]) {
     assert.equal(/\d|@|auth:/u.test(chip.label + chip.title), false, "no number, address or Auth id in the words");
   }

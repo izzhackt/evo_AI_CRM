@@ -8,8 +8,16 @@
 -- явного разрешения в приложении, прежде чем личные данные уйдут стороннему ИИ. Эта миграция — база данных части
 -- «согласие»: решение студента, его чтение в CRM и запрет для инструментов агентов читать то, чего студент не разрешил.
 --
+-- Границы запрета (что НЕ закрыто этой миграцией). Запрет действует только на MCP-инструменты агентов Claude.
+-- Три других пути к стороннему ИИ он не закрывает, их закрытие - отдельное решение владельца: (1) Gemini-помощник в чате
+-- (`evo-lead-agent`, читает чаты WhatsApp продаж) и память Gemini-разговоров в CRM, у них только согласие владельца
+-- на уровне организации; (2) распознавание документов (`src/lib/server/gemini-document-recognition.ts` загружает
+-- файлы дела в Google Files API; очередь 162/163 согласия студента не проверяет; путь включается только записью
+-- `document_recognition_configs.enabled`); (3) `send_message` не читает переписку. Тексты для студента и подсказки
+-- сотрудника не должны обещать больше: «агенты Claude», а не «все ИИ».
+--
 -- Forward-only, ничего не удаляет. Новое: одна таблица, три функции схемы `platform` (две — кабинет студента и iPhone,
--- одна — сотрудник), пять помощников `platform_private` без грантов, два действия и один тип объекта журнала платформы.
+-- одна — сотрудник), шесть помощников `platform_private` без грантов, два действия и один тип объекта журнала платформы.
 -- Заменяются (каждая привязана к md5 прежнего определения: чужой дрейф останавливает миграцию, ничего не меняя):
 -- четыре функции MCP-инструментов (`get_document_file`, `get_case_chat`, `get_conversation`, `list_conversations`),
 -- `ai_agent_mcp_file_resolve_v1` и `account_deletion_closure` (280, одно место: список «своих» таблиц аккаунта).
@@ -25,6 +33,11 @@
 --     `platform.portal_ai_consent_set_v1(статус, версия политики, источник, id запроса)` - решение. Повтор того же
 --     запроса идемпотентен (по событию журнала с ключом из id запроса), повтор с другим содержимым - конфликт;
 --     тот же статус на той же версии - не изменение и не событие; не больше 20 изменений в час на студента (54000).
+--     Предел защиты: запомнены только запросы, которые что-то изменили. Запрос без изменения (то же решение на той же
+--     версии) не пишет событие и его id не запоминается: его запоздалый повтор после более позднего решения применится
+--     как новое решение (разрешил 5001, разрешил 5002 без изменения, отказал 5003, повтор 5002 - снова «разрешил»).
+--     Запоминать такие запросы значило бы писать событие или строку на каждый вызов без изменения, а журнал только
+--     добавляется; клиент шлёт новый id на каждое нажатие и повторяет прежний только в пределах одной попытки.
 --     Неверный статус, источник, версия - 22023.
 --  c) Сотрудник: `platform.staff_student_ai_consent_v1(организация, дело)` - `{status, decidedAt, aiAllowed}` для
 --     чипа «ИИ: ...» в Student 360. Право то же, что у чтения дела целиком (`case.read.full` на это дело).
@@ -34,7 +47,8 @@
 --     версии); true - разрешил на действующей версии, либо кабинета нет (основание - договор и политика, правило Apple
 --     не применяется). Отказ действует и при выключенном участии. Нет такого дела - false.
 --     `platform_private.ai_agent_conversation_ai_allowed(организация, чат)`: чат WhatsApp, связанный с делом студента
---     (по делу, клиенту или лиду), разрешён, только если разрешены ВСЕ связанные дела; чат без студента разрешён.
+--     (по делу, клиенту или лиду; клиент берётся и из самого чата, и из его лида), разрешён, только если разрешены ВСЕ
+--     связанные дела; чат без студента разрешён.
 --  e) Инструменты агентов. Всё, что отдаёт переписку или файлы дела, перед данными проверяет запрет и отвечает
 --     ошибкой `ai_consent_missing` (SQLSTATE 42501, текст ошибки - код): `get_document_file` (ссылка на файл),
 --     `get_case_chat` (чат кабинета), `get_conversation` (чат WhatsApp, связанный со студентом). `list_conversations`
@@ -194,18 +208,22 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
 $$;
 
 -- d) То же для чата WhatsApp: все связанные со студентами дела (по делу чата, по клиенту, по лиду клиента) разрешены.
--- Чат, не связанный ни с одним делом (обычный лид), разрешён. Нет такого чата - тоже true: вызывающий уже проверил его наличие.
+-- Клиент чата - и его собственный `canonical_client_id`, и клиент его лида (чат, связанный только с лидом, достаёт
+-- дело, которое знает только клиента этого лида). Чат, не связанный ни с одним делом (обычный лид), разрешён.
+-- Нет такого чата - тоже true: вызывающий уже проверил его наличие.
 CREATE FUNCTION platform_private.ai_agent_conversation_ai_allowed(p_organization_id UUID, p_conversation_id UUID)
 RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT NOT EXISTS (
     SELECT 1
     FROM platform.communication_conversations cv
+    LEFT JOIN platform.leads cl ON cl.organization_id = cv.organization_id AND cl.id = cv.canonical_lead_id
     JOIN platform.student_cases s ON s.organization_id = cv.organization_id
       AND (s.id = cv.student_case_id
-        OR (cv.canonical_client_id IS NOT NULL AND s.canonical_client_id = cv.canonical_client_id)
+        OR s.canonical_client_id IN (cv.canonical_client_id, cl.client_id)
         OR (cv.canonical_lead_id IS NOT NULL AND s.canonical_lead_id = cv.canonical_lead_id)
-        OR (cv.canonical_client_id IS NOT NULL AND s.canonical_lead_id IN (
-          SELECT l.id FROM platform.leads l WHERE l.organization_id = cv.organization_id AND l.client_id = cv.canonical_client_id)))
+        OR s.canonical_lead_id IN (
+          SELECT l.id FROM platform.leads l WHERE l.organization_id = cv.organization_id
+            AND l.client_id IN (cv.canonical_client_id, cl.client_id)))
     WHERE cv.organization_id = p_organization_id AND cv.id = p_conversation_id
       AND NOT platform_private.ai_agent_student_ai_allowed(s.organization_id, s.id))
 $$;

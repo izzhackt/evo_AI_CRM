@@ -346,7 +346,7 @@
 
 ### A.9 Согласие студента на ИИ-помощников (миграция 320)
 
-`get_document_file`, `get_case_chat` и `get_conversation` (чат, связанный со студентом) отвечают `ai_consent_missing` (SQLSTATE 42501, `denied` в журнале действий), а `list_conversations` скрывает текст предпросмотра, пока студент с кабинетом не разрешил ИИ-помощников (решение: `platform_private.student_ai_consents`, запрет: `platform_private.ai_agent_student_ai_allowed`, студент без кабинета — основание договор и политика); данные дела без переписки и файлов не закрыты — `docs/runbooks/ai-agents-managed.md` §10.
+`get_document_file`, `get_case_chat` и `get_conversation` (чат, связанный со студентом) отвечают `ai_consent_missing` (SQLSTATE 42501, `denied` в журнале действий), а `list_conversations` скрывает текст предпросмотра, пока студент с кабинетом не разрешил ИИ-помощников (решение: `platform_private.student_ai_consents`, запрет: `platform_private.ai_agent_student_ai_allowed`, студент без кабинета — основание договор и политика); данные дела без переписки и файлов не закрыты. Запрет действует только на агентов Claude: Gemini-помощник и распознавание документов им не закрыты — `docs/runbooks/ai-agents-managed.md` §10.
 
 ## §B. MCP-сервер `/api/mcp/v1`
 

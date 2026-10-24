@@ -13,12 +13,14 @@
 --  2. the student RPCs: only about oneself (anon, service_role, staff, no claims refused), the same identity as the
 --     account deletion (a student member and an applicant without a membership), get of an empty state, set granted /
 --     declined, one journal event per change (system actor, state and version only), idempotent replay (also a stale
---     replay after a later decision), a conflicting reuse of a request id, the same decision again is no change,
+--     replay of a request that CHANGED the decision, after a later decision; a request that changed nothing is not
+--     remembered, see the 320 header), a conflicting reuse of a request id, the same decision again is no change,
 --     wrong status / source / version / request id refused (22023), a decision on an older policy version is read
 --     back as stored and replaced by a new one;
 --  3. the enforcement helper, case by case: undecided / declined / granted / older version for a student WITH a
 --     portal account; a student WITHOUT one (no membership; a suspended membership) is allowed unless declined; an
---     unknown or foreign case is refused; the conversation helper (linked by client, by lead, unlinked);
+--     unknown or foreign case is refused; the conversation helper (linked by client, by lead, by a lead whose client has a
+--     case linked by client only, unlinked);
 --  4. the tools: get_case_chat, get_document_file and get_conversation answer ai_consent_missing (42501) with no
 --     data, no file grant and no read audit row while the student has not allowed, and answer normally after it;
 --     list_conversations keeps the row and withholds the text preview; a chat with no student, and the chat of a
@@ -559,7 +561,25 @@ SELECT pg_temp.a320_assert(pg_temp.a320_conv_allowed(:'a320_c2'::UUID) = FALSE, 
 UPDATE platform.communication_conversations SET canonical_client_id = NULL, canonical_lead_id = pg_temp.a320_id(601)
   WHERE id = :'a320_c2'::UUID;
 SELECT pg_temp.a320_assert(pg_temp.a320_conv_allowed(:'a320_c2'::UUID) = FALSE, 'a chat linked only by the lead follows the cases of that lead');
+-- A chat linked ONLY by a lead (no client of its own), where that lead's client belongs to a case that knows its client only
+-- (case 705, student 2, no lead): the client comes from the lead of the chat, so the chat follows that case too.
+SET LOCAL session_replication_role = replica;
+INSERT INTO platform.leads (id, organization_id, client_id, current_owner_membership_id, stage_key, source_key, lifecycle_state,
+  interest_direction, created_at, updated_at) VALUES
+  (pg_temp.a320_id(605), pg_temp.a320_id(1), pg_temp.a320_id(505), pg_temp.a320_id(301), 'new', 'whatsapp', 'open', 'MY',
+    clock_timestamp() - INTERVAL '2 days', clock_timestamp() - INTERVAL '2 days');
+UPDATE platform.communication_conversations SET canonical_client_id = NULL, canonical_lead_id = pg_temp.a320_id(605)
+  WHERE id = :'a320_c2'::UUID;
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+SELECT pg_temp.a320_assert(pg_temp.a320_conv_allowed(:'a320_c2'::UUID) = FALSE,
+  'a chat linked only by a lead whose client has a case linked by client only follows that case (the client comes from the lead of the chat)');
+SELECT pg_temp.a320_put(2, 'granted', '2026-10-25');
+SELECT pg_temp.a320_assert(pg_temp.a320_conv_allowed(:'a320_c2'::UUID) = TRUE, 'and is allowed once that student allows');
 UPDATE platform.communication_conversations SET canonical_client_id = NULL, canonical_lead_id = NULL WHERE id = :'a320_c2'::UUID;
+SET LOCAL session_replication_role = replica;
+DELETE FROM platform.leads WHERE id = pg_temp.a320_id(605);
+SET LOCAL session_replication_role = origin;
 SELECT pg_temp.a320_assert(pg_temp.a320_conv_allowed(:'a320_c2'::UUID) = TRUE, 'unlinked again: allowed');
 
 -- ---------------------------------------------------------------------------

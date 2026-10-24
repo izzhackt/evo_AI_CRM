@@ -25,14 +25,15 @@ const TARGET = {
   autoSend: false,
 };
 
-function setup({ targets = [TARGET], reserve, sessions, env } = {}) {
+function setup({ targets = [TARGET], reserve, sessions, env, update, events } = {}) {
   const service = fakeRpc({
     ai_agent_runtime_dispatch_targets_v1: () => ({ data: targets }),
     ai_agent_runtime_run_reserve_v1: reserve ?? (() => ({ data: { reserved: true, runId: RUN } })),
-    ai_agent_runtime_run_update_v1: () => ({ data: { ok: true } }),
+    ai_agent_runtime_run_update_v1: update ?? (() => ({ data: { ok: true } })),
   });
   const claude = fakeClaude({
     "POST /v1/sessions": sessions ?? (() => ({ id: "sesn_01", status: "running" })),
+    ...(events ? { "POST /v1/sessions/:s/events": events } : {}),
   });
   const { deps, logs } = runtimeDeps({ claude, service, env });
   return { service, claude, deps, logs };
@@ -206,4 +207,40 @@ test("dispatch: хук приёма (scheduleAiAgentEvent) без ключа в 
   } finally {
     if (saved !== undefined) process.env.EVO_ANTHROPIC_API_KEY = saved;
   }
+});
+
+/* ------------------------------------------------ аудит 24.10.2026, пункт 2 */
+
+test("dispatch: id запуска CRM уходит в metadata сессии, чтобы сверка могла сопоставить сессию с запуском", async () => {
+  const { claude, deps } = setup();
+  await dispatchAiAgentEvent({ kind: "website_lead", ref: REQUEST_ID }, deps);
+  assert.deepEqual(claude.callsFor("POST", "/v1/sessions")[0].body.metadata, { evo_run_id: RUN, evo_agent_key: "sales" });
+});
+
+test("dispatch: сессию записать в запуск не удалось — она останавливается, запуск failed и в started не считается", async () => {
+  const { service, claude, deps, logs } = setup({
+    update: (args) => (args.p_patch.sessionId ? { error: { code: "XX000", message: "db down" } } : { data: { ok: true } }),
+    events: { data: [] },
+  });
+  const result = await dispatchAiAgentEvent({ kind: "website_lead", ref: REQUEST_ID }, deps);
+  assert.deepEqual(result, { started: 0 });
+  const interrupt = claude.callsFor("POST", "/v1/sessions/sesn_01/events");
+  assert.equal(interrupt.length, 1);
+  assert.deepEqual(interrupt[0].body, { events: [{ type: "user.interrupt" }] });
+  const patches = service.called("ai_agent_runtime_run_update_v1").map((call) => call.args.p_patch);
+  assert.deepEqual([patches.at(-1).status, patches.at(-1).errorCode], ["failed", "session_unlinked"]);
+  const summary = logs.at(-1);
+  assert.deepEqual([summary.op, summary.started, summary.failed, summary.status], ["dispatch", 0, 1, "error"]);
+  const link = logs.find((line) => line.op === "run_link");
+  assert.deepEqual([link.run_id, link.session_id, link.interrupted], [RUN, "sesn_01", true]);
+});
+
+test("dispatch: обрыв при создании сессии — запуск failed с честным «не подтверждено», в журнале ambiguous", async () => {
+  const { service, deps, logs } = setup({ sessions: () => claudeError(503, "overloaded_error", "later") });
+  assert.deepEqual(await dispatchAiAgentEvent({ kind: "website_lead", ref: REQUEST_ID }, deps), { started: 0 });
+  const patch = service.called("ai_agent_runtime_run_update_v1")[0].args.p_patch;
+  assert.deepEqual([patch.status, patch.errorCode], ["failed", "anthropic_error"]);
+  assert.match(patch.errorMessage, /могла быть создана без записи в CRM/u);
+  const line = logs.find((entry) => entry.op === "dispatch_run");
+  assert.deepEqual([line.run_id, line.ambiguous], [RUN, true]);
 });

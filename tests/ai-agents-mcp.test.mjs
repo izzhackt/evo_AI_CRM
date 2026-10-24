@@ -905,3 +905,70 @@ test("the edge Caddyfile overwrites X-Evo-Mcp-Ip for the CRM host and keeps the 
   assert.match(crmBlock, /reverse_proxy evo-crm-app:3000 \{\s*header_up X-Evo-Mcp-Ip \{remote_host\}\s*\}/u);
   assert.equal(/api\/mcp/u.test(caddyfile), false, "the MCP path must not be listed as private (404)");
 });
+
+/* ------------------------------------------- аудит 24.10.2026, пункт 4: версии протокола */
+
+test("версии протокола: 2025-11-25 — новейшая, остальные прежние; initialize на неизвестную версию отвечает новейшей", async () => {
+  assert.deepEqual([...AI_AGENTS_MCP_PROTOCOL_VERSIONS], ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]);
+  const { handler } = harness();
+  const newest = await call(handler, rpcRequest("initialize", { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "t", version: "1" } }));
+  assert.equal(newest.json.result.protocolVersion, "2025-11-25");
+  const unknown = await call(handler, rpcRequest("initialize", { protocolVersion: "2026-07-28" }));
+  assert.equal(unknown.json.result.protocolVersion, "2025-11-25", "2026-07-28 не поддерживается: клиент получает нашу новейшую версию");
+});
+
+test("MCP-Protocol-Version: известная версия или отсутствие заголовка — запрос обслуживается", async () => {
+  const { handler } = harness({ rpc: rpcWith(() => ({ data: {}, error: null })) });
+  for (const version of AI_AGENTS_MCP_PROTOCOL_VERSIONS) {
+    const { response, json } = await call(handler, rpcRequest("tools/list"), { headers: { "mcp-protocol-version": version } });
+    assert.equal(response.status, 200, version);
+    assert.equal(json.result.tools.length, 24);
+  }
+  const absent = await call(handler, rpcRequest("tools/list"));
+  assert.equal(absent.response.status, 200, "без заголовка — совместимость со старыми клиентами");
+  const padded = await call(handler, rpcRequest("ping"), { headers: { "mcp-protocol-version": " 2025-11-25 " } });
+  assert.equal(padded.response.status, 200);
+});
+
+test("MCP-Protocol-Version: неизвестная версия — HTTP 400 с ошибкой JSON-RPC без id, работа не начинается", async () => {
+  const { handler, state, toolCalls } = harness({ rpc: rpcWith(() => ({ data: { items: [], next_cursor: null }, error: null })) });
+  for (const bad of ["2099-01-01", "2026-07-28", "latest", "", "2025-11-25; evil"]) {
+    const { response, json } = await call(handler, rpcRequest("tools/call", { name: "search_clients", arguments: { query: "ab" } }), { headers: { "mcp-protocol-version": bad } });
+    assert.equal(response.status, 400, JSON.stringify(bad));
+    assert.equal(response.headers.get("content-type"), "application/json; charset=utf-8");
+    assert.equal(json.jsonrpc, "2.0");
+    assert.equal(json.id, null);
+    assert.equal(json.error.code, -32600);
+    assert.match(json.error.message, /MCP-Protocol-Version/u);
+    assert.deepEqual(json.error.data.supported, ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]);
+  }
+  assert.equal(toolCalls().length, 0, "инструмент не вызывался");
+  assert.equal(state.calls.some((entry) => entry.functionName === "ai_agent_mcp_log_v1"), false, "журнал действий агента не пишется");
+  assert.equal(state.logs.at(-1).reason, "unsupported_protocol_version");
+  assert.equal(JSON.stringify(state.logs).includes("evil"), false, "значение заголовка в журнал не попадает");
+});
+
+test("MCP-Protocol-Version: initialize заголовок не проверяет (версия ещё не согласована); уведомление и пакет проверяются", async () => {
+  const { handler } = harness({ rpc: rpcWith(() => ({ data: {}, error: null })) });
+  const init = await call(handler, rpcRequest("initialize", { protocolVersion: "2025-11-25" }), { headers: { "mcp-protocol-version": "2099-01-01" } });
+  assert.equal(init.response.status, 200, "зонд хранилища Claude (initialize) работает при любом заголовке");
+  assert.equal(init.json.result.protocolVersion, "2025-11-25");
+
+  const notification = await call(handler, { jsonrpc: "2.0", method: "notifications/initialized" }, { headers: { "mcp-protocol-version": "2099-01-01" } });
+  assert.equal(notification.response.status, 400);
+  const accepted = await call(handler, { jsonrpc: "2.0", method: "notifications/initialized" }, { headers: { "mcp-protocol-version": "2025-11-25" } });
+  assert.equal(accepted.response.status, 202);
+
+  const batch = await call(handler, [rpcRequest("ping", undefined, 1), rpcRequest("ping", undefined, 2)], { headers: { "mcp-protocol-version": "2099-01-01" } });
+  assert.equal(batch.response.status, 400);
+});
+
+test("MCP-Protocol-Version: порядок отказов — токен, затем тело, затем версия; Origin не проверяется", async () => {
+  const { handler } = harness({ rpc: rpcWith(() => ({ data: {}, error: null })) });
+  const noToken = await call(handler, rpcRequest("ping"), { token: OTHER_TOKEN, headers: { "mcp-protocol-version": "2099-01-01" } });
+  assert.equal(noToken.response.status, 401, "неверный токен — раньше версии");
+  const wrongType = await handler(post("{}", { contentType: "text/plain", raw: true, headers: { "mcp-protocol-version": "2099-01-01" } }));
+  assert.equal(wrongType.status, 415);
+  const origin = await call(handler, rpcRequest("ping"), { headers: { origin: "https://evil.example.test", "mcp-protocol-version": "2025-11-25" } });
+  assert.equal(origin.response.status, 200, "проверку Origin сознательно не вводим (решение владельца)");
+});

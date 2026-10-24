@@ -178,10 +178,12 @@ function syncSetup({ config = FRESH_CONFIG, routes = {}, noKey = false, serviceP
   const claude = fakeClaude({
     "GET /v1/environments": { data: [] },
     "POST /v1/environments": { id: "env_new" },
+    "GET /v1/vaults": { data: [] },
     "POST /v1/vaults": { id: "vlt_new" },
     "POST /v1/vaults/:v/credentials": { id: "vcrd_new" },
     "POST /v1/vaults/:v/credentials/:c": { id: "vcrd_old" },
     "POST /v1/vaults/:v/credentials/:c/archive": { id: "vcrd_old", archived_at: NOW_ISO },
+    "GET /v1/agents": { data: [] },
     "POST /v1/agents": { id: "agent_new", version: 1 },
     "GET /v1/agents/:a": { id: "agent_old", version: 4, archived_at: null },
     "POST /v1/agents/:a": { id: "agent_old", version: 5 },
@@ -229,8 +231,13 @@ test("sync с нуля: среда, vault, токен, агент, распис�
   assert.ok(agent.system.includes("Ты аналитик EVO. Работай только с данными CRM."));
   assert.deepEqual(agent.mcp_servers, [{ type: "url", name: "evo_crm", url: DEFAULT_MCP }]);
   const allow = { permission_policy: { type: "always_allow" } };
+  // Интернета у агентов нет (24.10.2026): web_search и web_fetch выключены поштучно, bash и файловые остаются.
   assert.deepEqual(agent.tools, [
-    { type: "agent_toolset_20260401", default_config: allow },
+    {
+      type: "agent_toolset_20260401",
+      default_config: allow,
+      configs: [{ name: "web_search", enabled: false }, { name: "web_fetch", enabled: false }],
+    },
     { type: "mcp_toolset", mcp_server_name: "evo_crm", default_config: allow },
   ]);
   assert.equal(agent.metadata.evo_agent_key, "director");
@@ -582,8 +589,10 @@ test("sync: два агента синхронизируются одновре�
       listed = [{ id: "env_only_one", name: call.body.name }];
       return { id: "env_only_one" };
     },
+    "GET /v1/vaults": { data: [] },
     "POST /v1/vaults": (call) => ({ id: `vlt_${call.body.metadata.evo_agent_key}` }),
     "POST /v1/vaults/:v/credentials": { id: "vcrd_new" },
+    "GET /v1/agents": { data: [] },
     "POST /v1/agents": (call) => ({ id: `agent_${call.body.metadata.evo_agent_key}`, version: 1 }),
     "POST /v1/deployments": { id: "depl_new", status: "active" },
   });
@@ -1193,4 +1202,236 @@ test("whatsapp: ответ базы с чужим текстом, организ
   assert.equal(replay.kind, "authorized");
   assert.equal(replay.replayed, true);
   assert.equal(replay.authorization.workState, "queued");
+});
+
+/* ------------------------------------------- аудит 24.10.2026: пункты 1, 2, 3, 5 */
+
+test("пункт 1: web_search и web_fetch выключены поштучно при создании и при обновлении агента, bash и файловые остаются", async () => {
+  const fresh = syncSetup();
+  await syncAiAgent(fresh.ctx, { key: "director", requestId: REQ_ID }, fresh.deps);
+  const created = fresh.claude.callsFor("POST", "/v1/agents")[0].body.tools[0];
+  const synced = syncSetup({ config: SYNCED_CONFIG });
+  await syncAiAgent(synced.ctx, { key: "director", requestId: REQ_ID }, synced.deps);
+  const updated = synced.claude.callsFor("POST", "/v1/agents/agent_old")[0].body.tools[0];
+  for (const tool of [created, updated]) {
+    assert.equal(tool.type, "agent_toolset_20260401");
+    assert.deepEqual(tool.configs, [{ name: "web_search", enabled: false }, { name: "web_fetch", enabled: false }]);
+    assert.deepEqual(tool.default_config, { permission_policy: { type: "always_allow" } }, "остальной набор включён без подтверждений");
+    assert.ok(!("enabled" in tool.default_config), "набор не выключается целиком: bash и файловые инструменты нужны песочнице");
+  }
+});
+
+test("пункт 1: выключенные встроенные инструменты входят в хеш конфигурации («нужна синхронизация» у уже синхронизированных агентов)", async () => {
+  const { AI_AGENT_DISABLED_BUILTIN_TOOLS } = await import("../src/lib/ai-agents/contract.ts");
+  const input = {
+    key: "director", title: "Директор / Аналитик", model: "claude-sonnet-5-5", instructionsOverride: "Ты аналитик.",
+    scheduleCron: null, scheduleTz: "Asia/Bishkek", schedulePromptOverride: null, enabled: true, mcpUrl: DEFAULT_MCP,
+  };
+  const before = computeAiAgentConfigHash(input);
+  AI_AGENT_DISABLED_BUILTIN_TOOLS.push("bash");
+  try {
+    assert.notEqual(computeAiAgentConfigHash(input), before, "список выключенных инструментов влияет на хеш");
+  } finally {
+    AI_AGENT_DISABLED_BUILTIN_TOOLS.pop();
+  }
+  assert.equal(computeAiAgentConfigHash(input), before);
+  assert.deepEqual([...AI_AGENT_DISABLED_BUILTIN_TOOLS], ["web_search", "web_fetch"]);
+});
+
+test("пункт 2: сессия получает id запуска CRM в metadata (и ключ агента) — по нему можно сопоставить «осиротевшую» сессию", async () => {
+  const { claude, deps, ctx } = runSetup();
+  await startAiAgentRun(ctx, { key: "director", text: "Покажи настройки", sendAuthority: false, requestId: REQ_ID }, deps);
+  const body = claude.callsFor("POST", "/v1/sessions")[0].body;
+  assert.deepEqual(body.metadata, { evo_run_id: RUN_ID, evo_agent_key: "director" });
+  assert.ok(Object.keys(body.metadata).length <= 16 && Object.entries(body.metadata).every(([k, v]) => k.length <= 64 && v.length <= 512));
+  assert.ok(!JSON.stringify(body.metadata).includes("Покажи настройки"), "в metadata нет текста поручения");
+});
+
+const failingLink = () => (args) => (args.p_patch.sessionId ? { error: { code: "XX000", message: "db down" } } : { data: { ok: true } });
+
+test("пункт 2: запись сессии в запуск не удалась — сессия останавливается (user.interrupt), запуск failed, отказ правдив, в журнале id", async () => {
+  const { serviceRpc, claude, deps, logs, ctx } = runSetup({
+    service: { ai_agent_runtime_run_update_v1: failingLink() },
+    routes: { "POST /v1/sessions/sesn_1/events": { data: [] } },
+  });
+  const result = await startAiAgentRun(ctx, { key: "director", text: "Секретный текст поручения", sendAuthority: false, requestId: REQ_ID }, deps);
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "unavailable");
+  assert.match(result.message, /остановлена/u);
+
+  const patches = serviceRpc.called("ai_agent_runtime_run_update_v1").map((call) => call.args.p_patch);
+  assert.equal(patches.filter((patch) => patch.sessionId).length, 3, "запись сессии: попытка и два повтора");
+  const marked = patches.at(-1);
+  assert.deepEqual([marked.status, marked.errorCode], ["failed", "session_unlinked"]);
+  const interrupt = claude.callsFor("POST", "/v1/sessions/sesn_1/events");
+  assert.equal(interrupt.length, 1);
+  assert.deepEqual(interrupt[0].body, { events: [{ type: "user.interrupt" }] });
+
+  const link = logs.find((line) => line.op === "run_link");
+  assert.deepEqual([link.status, link.run_id, link.session_id, link.interrupted, link.db_code], ["error", RUN_ID, "sesn_1", true, "XX000"]);
+  assert.equal(logs.some((line) => line.op === "run_start" && line.status === "ok"), false, "«ok» в журнале не пишется");
+  assert.ok(!JSON.stringify(logs).includes("Секретный текст"), "в журнале нет текста поручения");
+});
+
+test("пункт 2: остановить сессию тоже не вышло — отказ говорит об этом, а журнал фиксирует interrupted=false", async () => {
+  const { claude, deps, logs, ctx } = runSetup({
+    service: { ai_agent_runtime_run_update_v1: failingLink() },
+    routes: { "POST /v1/sessions/sesn_1/events": claudeError(500, "api_error", "down") },
+  });
+  const result = await startAiAgentRun(ctx, { key: "director", text: "Привет", sendAuthority: false, requestId: REQ_ID }, deps);
+  assert.deepEqual([result.ok, result.code], [false, "unavailable"]);
+  assert.match(result.message, /остановить её не удалось/u);
+  assert.equal(logs.find((line) => line.op === "run_link").interrupted, false);
+  assert.ok(claude.callsFor("POST", "/v1/sessions/sesn_1/events").length >= 1);
+});
+
+test("пункт 2: ответ на создание сессии не получен (обрыв, 5xx) — запуск failed с честным «не подтверждено», 4xx и 429 — прежний текст", async () => {
+  const lost = runSetup();
+  // Подставной fetch обрывается → клиент превращает это в сетевую ошибку (status 0): ответа на создание нет.
+  const lostFetch = { ...lost.claude, fetch: async () => { throw new TypeError("socket hang up"); } };
+  const networkDeps = runtimeDeps({ claude: lostFetch, service: lost.serviceRpc }).deps;
+  const network = await startAiAgentRun(lost.ctx, { key: "director", text: "Привет", sendAuthority: false, requestId: REQ_ID }, networkDeps);
+  assert.deepEqual([network.ok, network.code], [false, "anthropic_error"]);
+  assert.match(network.message, /не подтвердил создание сессии/u);
+  const networkPatch = lost.serviceRpc.called("ai_agent_runtime_run_update_v1").at(-1).args.p_patch;
+  assert.deepEqual([networkPatch.status, networkPatch.errorCode], ["failed", "anthropic_error"]);
+  assert.match(networkPatch.errorMessage, /могла быть создана без записи в CRM/u);
+
+  const server = runSetup({ routes: { "POST /v1/sessions": claudeError(503, "overloaded_error", "later") } });
+  const overloaded = await startAiAgentRun(server.ctx, { key: "director", text: "Привет", sendAuthority: false, requestId: REQ_ID }, server.deps);
+  assert.match(overloaded.message, /не подтвердил создание сессии/u);
+  assert.equal(server.logs.find((line) => line.op === "run_start").ambiguous, true);
+  assert.equal(server.claude.callsFor("POST", "/v1/sessions").length, 1, "после 5xx сессия не создаётся повторно");
+
+  const refused = runSetup({ routes: { "POST /v1/sessions": claudeError(400, "invalid_request_error", "environment archived") } });
+  const bad = await startAiAgentRun(refused.ctx, { key: "director", text: "Привет", sendAuthority: false, requestId: REQ_ID }, refused.deps);
+  assert.equal(bad.message, "Claude не принял запрос. Повторите позже");
+  assert.equal(refused.logs.find((line) => line.op === "run_start").ambiguous, undefined);
+});
+
+test("пункт 3: создание агента повторяется только при 429; потерянный ответ (5xx, обрыв) не создаёт второго агента", async () => {
+  const delays = [];
+  let attempts = 0;
+  const claude = fakeClaude({
+    "POST /v1/agents": () => {
+      attempts += 1;
+      return attempts < 3 ? new Response(JSON.stringify({ type: "error", error: { type: "rate_limit_error", message: "slow" } }), { status: 429 }) : { id: "agent_1", version: 1 };
+    },
+  });
+  const client = createAnthropicClient({ fetch: claude.fetch, apiKey: CLAUDE_TEST_KEY, sleep: async (ms) => { delays.push(ms); } });
+  assert.equal((await client.agents.create({ name: "x" })).id, "agent_1");
+  assert.equal(attempts, 3, "429 повторяется");
+
+  const broken = fakeClaude({ "POST /v1/agents": claudeError(500, "api_error", "boom") });
+  const brokenClient = createAnthropicClient({ fetch: broken.fetch, apiKey: CLAUDE_TEST_KEY, sleep: async () => {} });
+  await assert.rejects(brokenClient.agents.create({ name: "x" }), (error) => error.status === 500);
+  assert.equal(broken.callsFor("POST", "/v1/agents").length, 1);
+
+  let hangs = 0;
+  const down = createAnthropicClient({ fetch: async () => { hangs += 1; throw new TypeError("fetch failed"); }, apiKey: CLAUDE_TEST_KEY, sleep: async () => {} });
+  await assert.rejects(down.agents.create({ name: "x" }), (error) => error.type === "network_error");
+  assert.equal(hangs, 1, "после обрыва второй запрос на создание не уходит");
+});
+
+test("пункт 3: списки агентов и хранилищ читаются постранично, по 100, без архивных", async () => {
+  const claude = fakeClaude({
+    "GET /v1/agents": (call) => (call.query.page === "p2" ? { data: [{ id: "agent_2" }], next_page: null } : { data: [{ id: "agent_1" }], next_page: "p2" }),
+    "GET /v1/vaults": { data: [{ id: "vlt_1" }], next_page: null },
+  });
+  const client = createAnthropicClient({ fetch: claude.fetch, apiKey: CLAUDE_TEST_KEY });
+  assert.deepEqual((await client.agents.list()).map((item) => item.id), ["agent_1", "agent_2"]);
+  assert.deepEqual((await client.vaults.list()).map((item) => item.id), ["vlt_1"]);
+  assert.deepEqual(claude.callsFor("GET", "/v1/agents").map((call) => [call.query.limit, call.query.page ?? null, call.query.include_archived ?? null]), [["100", null, null], ["100", "p2", null]]);
+});
+
+const keyed = (id, key, extra = {}) => ({ id, archived_at: null, created_at: "2026-10-21T10:00:00Z", metadata: { evo_agent_key: key }, ...extra });
+
+test("пункт 3: агент и хранилище, уже созданные в Claude (ответ на создание потерян), находятся по metadata.evo_agent_key и не создаются заново", async () => {
+  const { service, claude, deps, ctx } = syncSetup({ routes: {
+    "GET /v1/agents": { data: [keyed("agent_other", "sales"), keyed("agent_found", "director", { version: 2 })], next_page: null },
+    "GET /v1/vaults": { data: [keyed("vlt_found", "director"), keyed("vlt_archived", "director", { archived_at: "2026-10-22T00:00:00Z" })], next_page: null },
+    "GET /v1/agents/:a": { id: "agent_found", version: 2, archived_at: null },
+    "POST /v1/agents/:a": { id: "agent_found", version: 3 },
+  } });
+  const result = await syncAiAgent(ctx, { key: "director", requestId: REQ_ID }, deps);
+  assert.equal(result.ok, true);
+  assert.equal(claude.callsFor("POST", "/v1/agents").length, 0, "второй агент не создан");
+  assert.equal(claude.callsFor("POST", "/v1/vaults").length, 0, "второе хранилище не создано");
+  assert.equal(claude.callsFor("POST", "/v1/agents/agent_found")[0].body.version, 2, "найденный агент обновлён по актуальной версии");
+  assert.deepEqual([result.created.agent, result.created.vault, result.agentVersion], [false, false, 3]);
+  assert.ok(result.warnings.some((line) => /Агент с этим ключом уже был в Claude/u.test(line)));
+  assert.ok(result.warnings.some((line) => /Хранилище токена с этим ключом уже было в Claude/u.test(line)));
+  assert.ok(claude.callsFor("POST", "/v1/vaults/vlt_found/credentials").length === 1, "токен записан в найденное хранилище");
+  const last = records(service).at(-1);
+  assert.deepEqual([last.claudeAgentId, last.vaultId, last.status], ["agent_found", "vlt_found", "ok"]);
+});
+
+test("пункт 3: несколько агентов с одним ключом — берётся самый ранний, о лишних сказано в предупреждении; чужие ключи и архивные не мешают", async () => {
+  const { claude, deps, ctx } = syncSetup({ routes: {
+    "GET /v1/agents": { data: [
+      keyed("agent_late", "director", { created_at: "2026-10-23T10:00:00Z" }),
+      keyed("agent_early", "director", { created_at: "2026-10-20T10:00:00Z" }),
+      keyed("agent_archived", "director", { created_at: "2026-10-01T10:00:00Z", archived_at: "2026-10-02T00:00:00Z" }),
+    ], next_page: null },
+    "GET /v1/agents/:a": (call) => ({ id: call.path.split("/").at(-1), version: 1, archived_at: null }),
+    "POST /v1/agents/:a": { id: "agent_early", version: 2 },
+  } });
+  const result = await syncAiAgent(ctx, { key: "director", requestId: REQ_ID }, deps);
+  assert.equal(result.ok, true);
+  assert.equal(claude.callsFor("POST", "/v1/agents/agent_early").length, 1);
+  assert.equal(claude.callsFor("POST", "/v1/agents").length, 0);
+  assert.ok(result.warnings.some((line) => /лишние агенты/u.test(line)));
+});
+
+test("пункт 3: список агентов не прочитан — синхронизация честно падает и ничего не создаёт вслепую", async () => {
+  const { service, claude, deps, ctx } = syncSetup({ routes: { "GET /v1/agents": claudeError(500, "api_error", "list down") } });
+  const result = await syncAiAgent(ctx, { key: "director", requestId: REQ_ID }, deps);
+  assert.deepEqual([result.ok, result.code], [false, "anthropic_error"]);
+  assert.equal(claude.callsFor("POST", "/v1/agents").length, 0);
+  assert.equal(records(service).at(-1).status, "error");
+});
+
+test("пункт 5: request-id из заголовка (запасной — request_id тела) остаётся на ошибке Claude; мусорный идентификатор отбрасывается", async () => {
+  const withHeader = fakeClaude({ "GET /v1/agents/a1": () => new Response(
+    JSON.stringify({ type: "error", error: { type: "not_found_error", message: "gone" }, request_id: "req_from_body" }),
+    { status: 404, headers: { "request-id": "req_011CSHoEeqs5C35K2UUqR7Fy" } },
+  ) });
+  const client = createAnthropicClient({ fetch: withHeader.fetch, apiKey: CLAUDE_TEST_KEY });
+  await assert.rejects(client.agents.get("a1"), (error) => error.status === 404 && error.requestId === "req_011CSHoEeqs5C35K2UUqR7Fy");
+
+  const bodyOnly = fakeClaude({ "GET /v1/agents/a2": { status: 400, body: { type: "error", error: { type: "invalid_request_error", message: "bad" }, request_id: "req_only_body" } } });
+  await assert.rejects(createAnthropicClient({ fetch: bodyOnly.fetch, apiKey: CLAUDE_TEST_KEY }).agents.get("a2"), (error) => error.requestId === "req_only_body");
+
+  const junk = fakeClaude({ "GET /v1/agents/a3": () => new Response("not json", { status: 502, headers: { "request-id": "bad id; with spaces <script>" } }) });
+  await assert.rejects(createAnthropicClient({ fetch: junk.fetch, apiKey: CLAUDE_TEST_KEY, sleep: async () => {} }).agents.get("a3"), (error) => error.status === 502 && error.requestId === null);
+
+  const none = createAnthropicClient({ fetch: async () => { throw new TypeError("fetch failed"); }, apiKey: CLAUDE_TEST_KEY, sleep: async () => {} });
+  await assert.rejects(none.agents.get("a4"), (error) => error.requestId === null);
+});
+
+test("пункт 5: в журнале запуска — id запуска, id сессии, длительность и request-id Claude; ни текстов, ни ключа", async () => {
+  let clock = NOW;
+  const ok = runSetup();
+  const okDeps = { ...ok.deps, now: () => (clock += 1_500) };
+  await startAiAgentRun(ok.ctx, { key: "director", text: "Секретный текст", sendAuthority: false, requestId: REQ_ID }, okDeps);
+  const started = ok.logs.find((line) => line.op === "run_start");
+  assert.deepEqual([started.status, started.run_id, started.session_id], ["ok", RUN_ID, "sesn_1"]);
+  assert.ok(started.duration_ms > 0);
+
+  const failing = runSetup({ routes: { "POST /v1/sessions": () => new Response(
+    JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "bad" } }),
+    { status: 400, headers: { "request-id": "req_011FAILED" } },
+  ) } });
+  await startAiAgentRun(failing.ctx, { key: "director", text: "Секретный текст", sendAuthority: false, requestId: REQ_ID }, failing.deps);
+  const failed = failing.logs.find((line) => line.op === "run_start");
+  assert.deepEqual([failed.status, failed.run_id, failed.request_id, failed.http], ["error", RUN_ID, "req_011FAILED", 400]);
+
+  const follow = runSetup({ routes: { "GET /v1/sessions/sesn_1": { id: "sesn_1", status: "idle" }, "POST /v1/sessions/sesn_1/events": { data: [] } } });
+  await followUpAiAgentRun(follow.ctx, { runId: RUN_ID, text: "Секретный текст", requestId: REQ_ID }, follow.deps);
+  const followed = follow.logs.find((line) => line.op === "run_follow_up");
+  assert.deepEqual([followed.run_id, followed.session_id], [RUN_ID, "sesn_1"]);
+
+  const everything = JSON.stringify([ok.logs, failing.logs, follow.logs]);
+  assert.ok(!everything.includes("Секретный текст"));
+  assert.ok(!everything.includes(CLAUDE_TEST_KEY));
 });

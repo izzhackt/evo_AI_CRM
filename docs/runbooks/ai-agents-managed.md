@@ -8,7 +8,13 @@
 
 Границы:
 
-- Агенты работают **только** с данными EVO CRM. amoCRM вне объёма.
+- Агенты работают **только** с данными EVO CRM. amoCRM вне объёма. Интернета у
+  агентов нет: встроенные `web_search` и `web_fetch` выключены (решение владельца
+  24.10.2026), `bash` и файловые инструменты остаются (песочнице нужен curl для
+  ссылок на файлы документов). После выпуска этой правки у уже синхронизированных
+  агентов появится «нужна синхронизация»: нажать «Синхронизировать с Claude» у
+  каждого, тогда новая версия агента без веб-инструментов вступит в силу для новых
+  сессий.
 - Секреты — только в окружении приложения, vault Claude и архиве SOPS
   (`EVO_Знания/Секреты и доступы ЭВО`). В Git, чат и этот файл их не вносить.
 - Лимиты расходов владелец задаёт в **Claude Console**. CRM показывает расход по
@@ -116,7 +122,12 @@ node scripts/ai-agents-mcp-smoke.mjs https://crm.evoadmissions.com/api/mcp/v1 "$
   добавить её адрес в `EVO_AI_AGENTS_MCP_IP_ALLOWLIST`, а если сети Anthropic
   `160.79.104.0/21` не покрывают Managed Agents — временно `off` (основная
   защита остаётся: токен 256 бит) и сообщить разработчикам;
-- `503 not_configured` — нет ключа сервера Supabase или не применена 317.
+- `503 not_configured` — нет ключа сервера Supabase или не применена 317;
+- `400` с ошибкой JSON-RPC «Unsupported MCP-Protocol-Version» — клиент прислал
+  заголовок `MCP-Protocol-Version` с версией не из списка (`2025-11-25`,
+  `2025-06-18`, `2025-03-26`, `2024-11-05`). Без заголовка и на `initialize`
+  запрос принимается. Проверку `Origin` и версию `2026-07-28` не вводили
+  (спецификация: modelcontextprotocol.io/specification/2025-11-25/basic/transports).
 
 Одноразовая ссылка на файл документа (`GET /api/mcp/v1/files/<токен>`) привязана
 к запрашивающему тем же списком адресов: с чужого адреса отвечает пустой `404`
@@ -173,7 +184,9 @@ MCP), остаётся доступным для «Поручить» и соб�
 | --- | --- |
 | `mcp_authentication_failed_error` («Токен MCP не принят») | синхронизировать с обновлением токена (раздел 4); проверить, что адрес креденшла совпадает с адресом агента |
 | `mcp_connection_failed_error` («MCP недоступен») | проверить адрес и доступность (раздел 3), фильтр адресов (`403 ip_not_allowed` в журнале приложения), список хостов среды `evo-crm-agents` в Console |
-| запуск `failed` с кодом `start_lost` | сессия не была создана; повторить поручение |
+| запуск `failed` с кодом `start_lost` | приложение не получило id сессии; сессия в Claude могла быть создана (у неё в `metadata` есть `evo_run_id`) — проверить в Console и повторить поручение |
+| запуск `failed` с кодом `session_unlinked` | сессия создана, но запуск в CRM не записался (сбой базы); приложение остановило сессию (`user.interrupt`). Повторить поручение; не остановилась — остановить в Console, id сессии в журнале приложения (`op:"run_link"`) |
+| запуск по расписанию `failed` с кодом `deployment_paused` | расписание агента стоит на паузе в Claude (вручную или из-за ошибки). Фоновая сверка паузу **не снимает**: устранить причину и нажать «Синхронизировать с Claude» (снимает паузу) |
 | запуск `failed` с кодом `terminated` | сессия Claude завершилась ошибкой; смотреть хронику и журнал приложения |
 | `Остановлен по лимиту` | сработал потолок запуска; увеличить в настройках агента или начать новое поручение |
 | агент не скачивает документ студента (в журнале `ai_agents_mcp_file` причина `ip_denied`) | сеть песочницы не входит в `EVO_AI_AGENTS_MCP_IP_ALLOWLIST`: добавить её или временно `off` (раздел 3) |
@@ -181,7 +194,11 @@ MCP), остаётся доступным для «Поручить» и соб�
 Журнал приложения (`docker logs evo-crm-app-1`) — одна JSON-строка на операцию:
 `{"event":"ai_agents_runtime","op":"run_start|sync|dispatch|reconcile|…","status":"ok|error",…}`
 и `ai_agents_whatsapp_send`. В них только счётчики, коды и ключи агентов: ни
-текстов поручений и ответов, ни ключей, ни токенов, ни данных клиентов.
+текстов поручений и ответов, ни ключей, ни токенов, ни данных клиентов. У
+операций с запуском есть `run_id`, `session_id`, `duration_ms`, а у ошибок
+Claude — `request_id` (заголовок `request-id` ответа): его просят в поддержке
+Anthropic. Фоновая сверка пишет строку `{"event":"ai_agents_maintenance",…}`
+(раздел 8).
 
 ## 7. Удаление сессий
 
@@ -191,7 +208,92 @@ MCP), остаётся доступным для «Поручить» и соб�
 события и песочницу. Записи запусков в CRM (статус, расход, сводка, действия
 агента, черновики) остаются в БД.
 
-## 8. Что здесь не проверено
+Решение владельца 24.10.2026: протоколы сессий у Anthropic хранятся
+**бессрочно**, автоматического удаления сессий нет (CRM их не удаляет, фоновая
+сверка тоже); удаляют только вручную в Console.
+
+## 8. Фоновая сверка (таймер systemd на хосте)
+
+Раньше статусы и расход запусков обновлялись, только когда кто-то открывал
+страницу раздела (ленивая сверка), а запуски расписания читались одной страницей
+из 20. Фоновая сверка делает это сама раз в ~5 минут: это
+`/app/ai-agents-maintenance.mjs` в образе приложения (собирается из
+`scripts/ai-agents-maintenance.mjs`, как задача телефонии). За один проход:
+
+1. без `EVO_ANTHROPIC_API_KEY` ничего не делает (строка `status:"disabled"`);
+2. один проход за раз: замок `/tmp/evo-ai-agents-maintenance.lock` в контейнере
+   (старше 6 минут считается брошенным);
+3. для расписания каждого агента читает его запуски в Claude (`deployment_runs`,
+   по 100 на страницу, до 5 страниц, за последние 8 суток): запуск с сессией
+   становится строкой «Запусков», запуск без сессии (Claude его не создал) —
+   строкой `failed`; повторы ничего не дублируют;
+4. расписание, которому положено работать (агент включён, cron задан), но которое
+   стоит на паузе в Claude, записывает в «Запуски» одной строкой `failed` с кодом
+   `deployment_paused`. **Паузу не снимает** — её снимает только «Синхронизировать
+   с Claude»;
+5. закрывает открытые запуски по состоянию сессии (до 100 за проход): итог и расход
+   попадают в CRM без открытия страницы.
+
+Проход ограничен по времени (150 с; жёсткий предел процесса 200 с, у unit 240 с).
+В журнал уходит одна JSON-строка с счётчиками (`agents`, `deployments`,
+`deployment_runs_seen`, `deployments_paused`, `open_closed`, …) и статусом
+`ok`/`error`/`disabled`/`skipped`; код выхода 1 — сбой базы или Claude (в строке
+есть `request_id`). Видно так: `journalctl -u evo-ai-agents-maintenance -n 20`.
+
+Установка на VPS — отдельный серверный шаг по разрешению владельца (не часть
+выпуска). Файлы unit и timer:
+
+```ini
+# /etc/systemd/system/evo-ai-agents-maintenance.service
+[Unit]
+Description=EVO AI agents maintenance (reconcile of runs, schedule runs and paused schedules)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+# The script does nothing unless EVO_ANTHROPIC_API_KEY is set in the app container.
+# A oneshot unit never overlaps itself: the timer waits for it to end.
+ExecStart=/usr/bin/docker exec evo-crm-app-1 node /app/ai-agents-maintenance.mjs
+TimeoutStartSec=240
+```
+
+```ini
+# /etc/systemd/system/evo-ai-agents-maintenance.timer
+[Unit]
+Description=Run EVO AI agents maintenance every 5 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=5min
+Unit=evo-ai-agents-maintenance.service
+
+[Install]
+WantedBy=timers.target
+```
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now evo-ai-agents-maintenance.timer
+systemctl list-timers evo-ai-agents-maintenance.timer
+# откат
+sudo systemctl disable --now evo-ai-agents-maintenance.timer
+```
+
+Файл `/app/ai-agents-maintenance.mjs` есть только в образе, собранном с этой
+правкой: до выпуска образа `docker exec` ответит «Cannot find module» — таймер
+включать после выпуска.
+
+Источники, по которым сверены формы запросов (24.10.2026):
+`platform.claude.com/docs/en/managed-agents/tools` (выключение инструментов набора),
+`…/en/api/beta/agents/list`, `…/beta/vaults/list` (нет фильтра по метаданным,
+`limit` ≤ 100, `page`/`next_page`), `…/beta/sessions/create` (`metadata`: до 16 пар,
+ключ ≤ 64, значение ≤ 512), `…/beta/deployments/retrieve` (`status`, `paused_reason`),
+`…/beta/deployment_runs/list` (`limit` ≤ 1000, `created_at[gte]`, `page`),
+`…/en/api/errors` (`request-id`); MCP: `modelcontextprotocol.io/specification/2025-11-25`
+(`changelog`, `basic/transports`, `basic/lifecycle`, `server/tools`).
+
+## 9. Что здесь не проверено
 
 - Живой Claude API: формы запросов сверены с документацией 22.10.2026, но ни
   один вызов с настоящим ключом не выполнялся. Первая живая проверка — п. 5
@@ -204,6 +306,13 @@ MCP), остаётся доступным для «Поручить» и соб�
   терпимо.
 - Отправка в WhatsApp: путь проверен тестами с подставным провайдером, на живом
   WhatsApp не проверялся (сессия отключена с 12.10).
+- Правки 24.10.2026 (выключение `web_search`/`web_fetch`, поиск ранее созданных
+  агента и хранилища по `metadata.evo_agent_key`, `metadata` сессии, фоновая
+  сверка, версия протокола MCP `2025-11-25`) проверены тестами на подставном Claude
+  и по документации; ни один вызов настоящего Claude и установка таймера на VPS не
+  выполнялись. Не реализовано: автоматическое сопоставление «осиротевших» сессий с
+  запусками по `metadata.evo_run_id` (id в сессии уже кладётся — для будущей
+  сверки).
 - Запуск после ответа приёма использует `after()` из Next; в тестах работает
   запасной путь (фоновая задача), под настоящим сервером Next он проверяется при
   первом выпуске.

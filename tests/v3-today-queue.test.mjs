@@ -10,6 +10,8 @@ import { salesBoardFunnel } from "../src/lib/v3/sales-board-funnel.ts";
 import {
   TODAY_BANDS,
   TODAY_MERGED_SOURCES,
+  TODAY_WINDOW,
+  TODAY_WINDOW_SLACK,
   TODAY_SOURCES,
   TODAY_UNCOUNTED,
   buildTodayQueue,
@@ -21,6 +23,7 @@ import {
   todayRequestItems,
   todayStudentItems,
   todayTaskItems,
+  todayVisibleCount,
   todayWhen,
 } from "../src/lib/v3/today-queue.ts";
 import { TodaySourceDenied, readTodayQueue, todayAccess, todayLinks } from "../src/lib/v3/today-source.ts";
@@ -269,7 +272,7 @@ test("no invented numbers: a band counts only when every read writing into it is
   assert.deepEqual(partial.bands.map((band) => [band.band, band.count]), [["overdue", null], ["today", null], ["waiting", 1]]);
   assert.equal(partial.complete, false);
   assert.deepEqual(partial.notices, [{
-    source: "tasks", kind: "partial", text: "Задачи прочитаны не полностью: показана прочитанная часть, числа скрыты.",
+    source: "tasks", kind: "partial", text: "Показаны не все задачи — числа скрыты.",
     link: { label: "Все задачи", href: "/v3/tasks" },
   }]);
 
@@ -284,7 +287,7 @@ test("no invented numbers: a band counts only when every read writing into it is
   const withChats = buildTodayQueue([read("tasks", tasks), read("requests", requests), read("chats", chats)], NOW);
   assert.deepEqual(bandOf(withChats, "waiting").count, null);
   assert.equal(bandOf(withChats, "waiting").items.length, 2);
-  assert.equal(bandOf(withChats, "waiting").note, "Без числа: часть переписок «Нужен ответ» может быть уже отвечена.");
+  assert.equal(bandOf(withChats, "waiting").note, "Числа нет: часть переписок могла получить ответ.");
   assert.equal(bandOf(withChats, "waiting").note, TODAY_UNCOUNTED.chats);
   assert.equal(bandOf(withChats, "overdue").count, 1, "other bands keep their numbers");
   assert.equal(withChats.complete, true, "rows are all read: «На сегодня всё» is not blocked by the missing number");
@@ -546,7 +549,7 @@ test("static render: the page root, the dated heading and one queue for Admin", 
   assert.doesNotMatch(html, /Главная|Рабочий обзор|Лиды за период|data-dashboard-card/u);
   const headers = [...html.matchAll(/<h2 id="today-band-[a-z_]+"[^>]*>(.*?)<\/h2>/gu)].map((match) => text(match[1]).trim());
   assert.deepEqual(headers, ["Просрочено · 5", "Сегодня · сб 26.09 · 4", "Ждут ответа", "Без следующего шага · 2", "Ближайшие 14 дней · 4"]);
-  assert.match(html, /<\/h2><p class="[^"]*t-meta[^"]*">Без числа: часть переписок «Нужен ответ» может быть уже отвечена\.<\/p>/u);
+  assert.match(html, /<\/h2><p class="[^"]*t-meta[^"]*">Числа нет: часть переписок могла получить ответ\.<\/p>/u);
   // Две доски: на телефоне короткие имена в строке заголовка, шире — полные; видимое слово и есть имя ссылки.
   assert.match(html, /aria-label="Доски"[\s\S]*href="\/v3\/pipeline"[^>]*><span class="sm:hidden">Продажи<\/span><span class="hidden sm:inline">Воронка продаж<\/span><\/a>[\s\S]*href="\/v3\/admissions-pipeline"[^>]*><span class="sm:hidden">Поступление<\/span><span class="hidden sm:inline">Воронка поступления<\/span><\/a>/u);
   // Красный — у просроченного срока, не у причины: причина всегда обычным текстом.
@@ -654,4 +657,32 @@ test("report: charts and funnel are ink; red stays with the page action", () => 
   assert.ok(collapsed.indexOf('aria-label="Записи продаж"') < collapsed.indexOf('<details id="sales-dynamics"'));
   assert.match(collapsed, /<details id="sales-dynamics" class=/u);
   assert.match(html, /<details id="sales-dynamics" open="" class=/u);
+});
+
+// --- окно группы: «Показать ещё N» вместо стены из сотни строк ---------------------------
+
+const sourceText = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+
+test("a long group shows the first TODAY_WINDOW rows; a group within the slack shows everything; expanding shows all", () => {
+  assert.equal(todayVisibleCount(0, false), 0);
+  assert.equal(todayVisibleCount(TODAY_WINDOW, false), TODAY_WINDOW);
+  assert.equal(todayVisibleCount(TODAY_WINDOW + TODAY_WINDOW_SLACK, false), TODAY_WINDOW + TODAY_WINDOW_SLACK, "no «Показать ещё 1» for one or two rows");
+  assert.equal(todayVisibleCount(TODAY_WINDOW + TODAY_WINDOW_SLACK + 1, false), TODAY_WINDOW);
+  assert.equal(todayVisibleCount(38, false), TODAY_WINDOW);
+  assert.equal(todayVisibleCount(38, true), 38);
+  const list = sourceText("src/components/v3/today/TodayQueueList.tsx");
+  assert.match(list, /rows: band\.rows\.slice\(0, visible\)\.map\(/u, "rows beyond the window are not rendered, so j/k never lands on a hidden row");
+  assert.match(list, /aria-expanded=\{open\}/u);
+  assert.match(list, /\{open \? "Свернуть" : `Показать ещё \$\{hidden\}`\}/u);
+  // Клиент у задачи-перезвона читается ровно у видимых строк, а не у первых двенадцати по порядку.
+  const leads = sourceText("src/lib/v3/telephony-task-leads-source.ts");
+  assert.match(leads, /band\.items\.slice\(0, todayVisibleCount\(band\.items\.length, false\)\)/u);
+  assert.doesNotMatch(leads, /TASK_LEAD_LIMIT/u);
+});
+
+test("the one reason of a whole «Ждут ответа» group stands once under the heading, not on every row", () => {
+  const list = sourceText("src/components/v3/today/TodayQueueList.tsx");
+  assert.match(list, /band\.band !== "waiting" \|\| band\.note !== null \|\| band\.items\.length < SHARED_REASON_ROWS/u, "only «Ждут ответа» without its own note");
+  assert.match(list, /band\.items\.some\(\(item\) => item\.task \|\| item\.reason !== reason\)/u, "every row must share it, and none is a task");
+  assert.match(sourceText("src/components/v3/today/TodayRow.tsx"), /\(hideReason \? \[\] : item\.reason\.split\(" · "\)\)/u);
 });

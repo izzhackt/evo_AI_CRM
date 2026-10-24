@@ -949,7 +949,8 @@ test("callback task: the Today row and the task panel name the client, and only 
   assert.match(source, /^import "server-only";/u);
   assert.match(source, /readStaffTaskContext\(actor, taskId\)/u, "the lead of a task comes from the read the «Задачи» page already uses");
   assert.match(source, /readStaffTaskLeadContext\(actor, leadId\)/u, "and its name from the lead read under the same session");
-  assert.match(source, /const TASK_LEAD_LIMIT = 12;/u);
+  // Читаются только строки, видимые сразу (окно группы «Сегодня»), — клиент назван у каждой из них, а не у первых двенадцати.
+  assert.match(source, /todayVisibleCount\(band\.items\.length, false\)/u);
   // Only the call-back tasks telephony itself creates (migration 298) are read; every other work task costs «Сегодня» no database read.
   assert.match(source, /item\.task\?\.kind === "staff" && item\.task\.key === item\.key && isCallbackTaskTitle\(item\.task\.title\)/u);
   for (const title of ["Перезвонить клиенту", "Перезвонить клиенту: недозвон"]) {

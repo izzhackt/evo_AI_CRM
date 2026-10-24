@@ -33,7 +33,7 @@ import {
   paletteQuery,
   searchCommandPalette,
 } from "../src/lib/v3/command-palette.ts";
-import { LIST_KEYS, PALETTE_KEY, PALETTE_MAC_KEY, QUEUE_KEYS, SELECT_KEY, SHELL_KEYS } from "../src/components/v3/queue/keyboard-keys.ts";
+import { LIST_KEYS, PALETTE_KEY, QUEUE_KEYS, SELECT_KEY, SHELL_KEYS } from "../src/components/v3/queue/keyboard-keys.ts";
 
 const require = createRequire(import.meta.url);
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime.js");
@@ -575,12 +575,13 @@ test("keys: Ctrl+K / ⌘K on any layout, and the «?» windows list /, j/k, Ente
   assert.equal(isPaletteShortcut(event({})), false);
   const combos = (keys) => keys.map(([combo]) => combo.join(" "));
   assert.deepEqual(combos(QUEUE_KEYS), ["/", "↑ ↓", "j k", "Enter", "Esc"]);
-  assert.deepEqual(combos(SHELL_KEYS), ["Ctrl K", "⌘ K", "?", "Esc"]);
+  // Одна строка поиска на Windows и Mac: «Ctrl / ⌘» и K, а не две строки с «то же на Mac».
+  assert.deepEqual(combos(SHELL_KEYS), ["Ctrl / ⌘ K", "?", "Esc"]);
   assert.deepEqual(combos(LIST_KEYS), ["/", "↑ ↓", "j k", "Enter", "x"]);
   assert.deepEqual(SELECT_KEY[0], ["x"]);
   const help = read("src/components/v3/queue/QueueKeyboardHelp.tsx");
-  assert.match(help, /<KeyList keys=\{\[\.\.\.QUEUE_KEYS, \.\.\.extra, PALETTE_KEY, PALETTE_MAC_KEY\]\}/u);
-  assert.ok(PALETTE_KEY && PALETTE_MAC_KEY);
+  assert.match(help, /<KeyList keys=\{\[\.\.\.QUEUE_KEYS, \.\.\.extra, PALETTE_KEY\]\}/u);
+  assert.ok(PALETTE_KEY);
   // «x» в окне «?» — только там, где у роли есть массовые действия.
   assert.match(read("src/components/v3/tasks/TasksWorkspace.tsx"), /\? \[SELECT_KEY\] : \[\]/u);
   assert.match(read("src/components/v3/students/StudentsQueueHead.tsx"), /\.\.\.\(selectKey \? \[SELECT_KEY\] : \[\]\)/u);
@@ -725,7 +726,7 @@ test("palette footer hides on phone without a status; the «?» window lists two
   const palette = read("src/components/v3/palette/CommandPalette.tsx");
   assert.match(palette, /border-t border-border px-4 py-2\$\{status \? "" : " max-md:sr-only"\}/u, "the live status stays in the tree");
   const help = read("src/components/v3/palette/KeyboardHelpDialog.tsx");
-  assert.match(help, /<div className="p-4 \[--key-column:5\.5rem\]">/u);
+  assert.match(help, /<div className="p-4 \[--key-column:7rem\]">/u);
   assert.match(help, /<h3 className="mt-3 t-item text-fg">Везде<\/h3>\s*<KeyList keys=\{SHELL_KEYS\}/u);
   assert.match(help, /<h3 className="mt-4 t-item text-fg">В списках<\/h3>/u);
   assert.match(read("src/components/v3/queue/KeyList.tsx"), /grid-cols-\[var\(--key-column,auto\)_1fr\]/u);

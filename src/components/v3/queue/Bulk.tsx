@@ -302,9 +302,9 @@ export function BulkActionDialog<Item extends BulkItem>({
         className="m-auto w-[min(34rem,calc(100vw-2rem))] max-w-none rounded-card border border-border bg-surface p-0 text-fg shadow-evo-lg backdrop:bg-black/45"
       >
         {open ? <div className="flex max-h-[85dvh] flex-col">
-          <header className="flex items-center justify-between gap-3 border-b border-border p-4">
+          {/* Выход один: «Отмена» в форме, «Готово» в итоге (и Esc) — второй «Закрыть» в шапке повторял их. */}
+          <header className="border-b border-border p-4">
             <h2 id={titleId} className="t-section">{title}</h2>
-            <button type="button" onClick={close} disabled={phase.kind === "running"} className={QUEUE_SECONDARY}>Закрыть</button>
           </header>
           {/* Строки прокручиваются, кнопки — в закреплённом низу окна (как у «Новой задачи»). */}
           {phase.kind === "done" && summary ? (
@@ -337,7 +337,7 @@ export function BulkActionDialog<Item extends BulkItem>({
             <form onSubmit={submit} className="flex min-h-0 flex-col" aria-busy={phase.kind === "running"}>
               <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain p-4">
                 <p className="t-body-compact text-fg">
-                  Изменим: {items.length} {plural(items.length, noun)}. Каждая строка сохраняется отдельно.
+                  Изменим: {items.length} {plural(items.length, noun)}.
                 </p>
                 <fieldset disabled={phase.kind === "running"} className="space-y-4">{children}</fieldset>
                 {skipped.length ? (

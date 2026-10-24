@@ -53,7 +53,7 @@ function awaitTone(state: CaseChatAwaitState): PillTone {
 
 /** Состояние словом — чип (Э1.3). Слово есть всегда. */
 function StateWord({ tone, label }: Readonly<{ tone: PillTone; label: string }>) {
-  return <StatusChip label={label} tone={tone === "solid" ? "neutral" : tone} />;
+  return <StatusChip label={label} tone={tone} />;
 }
 
 /** Порядок видимого переключателя состояния в шапке переписки. */

@@ -38,20 +38,19 @@ export default function V3Error({
       data-testid="v3-error"
     >
       <section role="alert" className="w-full border-y border-border py-10 sm:py-14">
-        <p className="t-caption text-fg-3">{stale ? words.staleEyebrow : words.eyebrow}</p>
-        <h1 className="t-page-title mt-2 text-fg">{stale ? words.staleTitle : words.title}</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-fg-3">{stale ? words.staleText : words.staffText}</p>
+        <h1 className="t-page-title text-fg">{stale ? words.staleTitle : words.staffTitle}</h1>
+        <p className="mt-3 max-w-2xl t-body-compact text-fg-2">{stale ? words.staleText : words.staffText}</p>
         <div className="mt-8 flex flex-wrap gap-3">
           <button
             type="button"
             onClick={stale ? reloadForNewDeployment : reset}
-            className="inline-flex min-h-11 items-center rounded-ctl bg-accent px-4 text-sm font-semibold text-on-accent hover:bg-accent-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            className="inline-flex min-h-11 items-center rounded-ctl bg-accent px-4 t-item text-on-accent hover:bg-accent-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
           >
             {stale ? words.staleAction : words.retry}
           </button>
           <Link
             href="/v3"
-            className="inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-4 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            className="inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-4 t-label text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
           >
             {words.staffAction}
           </Link>

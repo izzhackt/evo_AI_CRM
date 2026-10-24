@@ -4,7 +4,7 @@ import type { ActivePlatformActor } from "../platform-auth.ts";
 import { readStaffTaskContext, readStaffTaskLeadContext } from "../server/platform-staff-task-repository.ts";
 import { isCallbackTaskTitle } from "./telephony-dial.ts";
 import { callerDisplayName } from "./wording.ts";
-import type { TodayQueue } from "./today-queue.ts";
+import { todayVisibleCount, type TodayQueue } from "./today-queue.ts";
 
 /**
  * Чей лид у рабочей задачи («Телефония Beeline KG», срез T8: задача «Перезвонить клиенту» несёт лид).
@@ -13,9 +13,6 @@ import type { TodayQueue } from "./today-queue.ts";
  * сотрудника: чужой лид или закрытая задача не отдают имени. Любой сбой — задача остаётся как была.
  */
 export type TaskLeadRef = Readonly<{ leadId: string; name: string; href: string }>;
-
-/** Сколько задач «Сегодня» перечитывается за раз: у остальных всё остаётся как было. */
-const TASK_LEAD_LIMIT = 12;
 
 export function leadCardHref(leadId: string): string {
   return `/v3/profile?id=${encodeURIComponent(leadId)}`;
@@ -45,12 +42,13 @@ export async function readTaskLeadRef(actor: ActivePlatformActor, taskId: string
 /**
  * Лиды рабочих задач «Сегодня» по ключу строки (`staff:<id>`): только у задач-перезвонов самой телефонии
  * (`isCallbackTaskTitle`) — остальные рабочие задачи не читаются вовсе, на «Сегодня» это не лишние чтения базы.
+ * Читаются только строки, видимые сразу (окно группы, `todayVisibleCount`): клиент назван у каждой из них, а не у
+ * первых по порядку. Строки за «Показать ещё» читаются без клиента — это дальняя часть длинной группы, а не её начало.
  */
 export async function readTodayTaskLeads(actor: ActivePlatformActor, queue: TodayQueue): Promise<Readonly<Record<string, TaskLeadRef>>> {
   const tasks = queue.bands
-    .flatMap((band) => band.items)
-    .filter((item) => item.task?.kind === "staff" && item.task.key === item.key && isCallbackTaskTitle(item.task.title))
-    .slice(0, TASK_LEAD_LIMIT);
+    .flatMap((band) => band.items.slice(0, todayVisibleCount(band.items.length, false)))
+    .filter((item) => item.task?.kind === "staff" && item.task.key === item.key && isCallbackTaskTitle(item.task.title));
   const refs = await Promise.all(tasks.map(async (item) => [item.key, await readTaskLeadRef(actor, item.task!.id)] as const));
   return Object.freeze(Object.fromEntries(refs.filter((entry): entry is readonly [string, TaskLeadRef] => entry[1] !== null)));
 }

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 
 export function cn(...classes: Array<string | false | null | undefined>) {
@@ -138,49 +137,6 @@ export function Card({
   );
 }
 
-export function StatCard({
-  label,
-  value,
-  href,
-  meta,
-  tone = "neutral",
-}: {
-  label: string;
-  value: number | string;
-  href?: string;
-  meta?: string;
-  tone?: Tone;
-}) {
-  const stripe: Record<Tone, string> = {
-    neutral: "bg-border-strong",
-    accent: "bg-accent",
-    info: "bg-info",
-    warn: "bg-warn",
-    danger: "bg-danger",
-    ok: "bg-ok",
-  };
-  const inner = (
-    <div
-      className={cn(
-        "relative h-full overflow-hidden rounded-card border border-border bg-surface px-5 py-4 shadow-evo transition-[transform,box-shadow,border-color] duration-150 ease-out motion-reduce:transition-none",
-        href && "hover:-translate-y-0.5 hover:border-control-edge hover:shadow-evo-lg motion-reduce:hover:translate-y-0",
-      )}
-    >
-      <span className={cn("absolute inset-y-0 left-0 w-[3px]", stripe[tone])} aria-hidden="true" />
-      <div className="t-figure text-fg">{value}</div>
-      <div className="t-caption mt-2 text-fg-2">{label}</div>
-      {meta && <div className="t-meta mt-1.5 text-fg-3">{meta}</div>}
-    </div>
-  );
-  return href ? (
-    <Link href={href} className="block rounded-card">
-      {inner}
-    </Link>
-  ) : (
-    inner
-  );
-}
-
 export function PageHeader({
   title,
   count,
@@ -209,7 +165,7 @@ export function PageHeader({
           ) : null}
         </h1>
         {meta ? <p className="t-meta mt-1 text-fg-3">{meta}</p> : null}
-        {description && <p className="mt-1 max-w-[56ch] text-sm leading-6 text-fg-3">{description}</p>}
+        {description && <p className="mt-1 max-w-[56ch] t-body-compact text-fg-3">{description}</p>}
       </div>
       {action && <div className="max-w-full shrink-0">{action}</div>}
     </div>
@@ -227,12 +183,6 @@ export const btnGhostCls =
 
 export const btnDangerGhostCls =
   "v3-raised inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 text-sm font-semibold text-fg-2 transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-danger hover:bg-danger-weak hover:text-danger active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
-
-export const compactActionCls =
-  "inline-flex min-h-10 items-center gap-1 rounded-nav px-2.5 py-1 text-xs font-semibold text-accent transition-[background-color,color] duration-150 ease-out hover:bg-accent-weak motion-reduce:transition-none";
-
-export const filterBarCls =
-  "grid gap-2 rounded-card border border-border bg-surface p-3 shadow-evo";
 
 export const labelCls = "mb-1 block text-xs font-medium text-fg-2";
 
@@ -253,8 +203,8 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center gap-2 px-4 py-6 text-center">
-      {title ? <p className="text-sm font-semibold text-fg">{title}</p> : null}
-      <p className="text-sm text-fg-3">{text}</p>
+      {title ? <p className="t-item text-fg">{title}</p> : null}
+      <p className="t-body-compact text-fg-3">{text}</p>
       {action ? <div className="mt-1">{action}</div> : null}
     </div>
   );

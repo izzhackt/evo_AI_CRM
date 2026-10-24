@@ -3,7 +3,7 @@
 import { Icon } from "@/components/icons";
 
 import { KeyList } from "./KeyList";
-import { PALETTE_KEY, PALETTE_MAC_KEY, QUEUE_KEYS, type KeyHint } from "./keyboard-keys";
+import { PALETTE_KEY, QUEUE_KEYS, type KeyHint } from "./keyboard-keys";
 import { useAnchoredPopover } from "./useAnchoredPopover";
 
 /** Один на странице: `useQueueKeyboard` открывает его клавишей «?». */
@@ -40,7 +40,7 @@ export function QueueKeyboardHelp({ extra = [] }: Readonly<{ extra?: readonly Qu
         className="v3-anchored v3-anchored-end w-72 rounded-ctl border border-border bg-surface p-3 text-fg shadow-evo-lg"
       >
         <p className="t-item text-fg">Клавиши</p>
-        <KeyList keys={[...QUEUE_KEYS, ...extra, PALETTE_KEY, PALETTE_MAC_KEY]} className="mt-2" />
+        <KeyList keys={[...QUEUE_KEYS, ...extra, PALETTE_KEY]} className="mt-2" />
       </div>
     </>
   );

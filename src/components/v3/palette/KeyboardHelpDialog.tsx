@@ -75,7 +75,7 @@ export function KeyboardHelpDialog() {
       className="m-auto w-[min(26rem,calc(100vw-2rem))] max-w-none rounded-card border border-border bg-surface p-0 text-fg shadow-evo-lg backdrop:bg-black/35"
     >
       {/* Два списка — одна сетка: общая ширина колонки клавиш (`--key-column`), у каждой группы свой заголовок. */}
-      {open ? <div className="p-4 [--key-column:5.5rem]">
+      {open ? <div className="p-4 [--key-column:7rem]">
         <div className="flex items-center justify-between gap-3">
           <h2 id={titleId} className="t-section">Клавиши</h2>
           <button ref={closeRef} type="button" onClick={hide} className="inline-flex min-h-11 items-center rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg">

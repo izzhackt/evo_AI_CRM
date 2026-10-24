@@ -189,7 +189,10 @@ test("solid red stays for the main action and every selection shares one accent-
   const notifications = read("src/components/v3/StaffNotifications.tsx");
   assert.doesNotMatch(notifications, /\bbg-accent\b/u);
   assert.match(notifications, /aria-label=\{count && count !== "0" \? `Уведомления: \$\{count\} непрочитанных` : "Уведомления"\}/u);
-  assert.match(read("src/components/v3/Pill.tsx"), /solid: "bg-fg text-surface",/u);
+  // Pill — тот же вид, что у StatusChip (`.v3-chip`): один чип на весь CRM, без своей палитры и без «solid».
+  const pill = read("src/components/v3/Pill.tsx");
+  assert.match(pill, /className="v3-chip t-caption shrink-0" data-tone=\{tone\}/u);
+  assert.doesNotMatch(pill, /solid|bg-fg|rounded-\[5px\]/u);
 });
 
 // Шрифтовые роли staff CRM (решение владельца 24.09.2026): Golos Text и

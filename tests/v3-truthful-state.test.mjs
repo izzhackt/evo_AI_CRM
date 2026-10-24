@@ -414,10 +414,10 @@ test("lead card from the board panel returns to the same board state", () => {
 /* ------------------------------------------------ Уведомления и подписи */
 
 test("a case message notification does not repeat the author as the case", () => {
-  assert.equal(caseMessageNotificationCopy("Абитуриент Тестов", "Абитуриент Тестов"), "Абитуриент Тестов написал(а) в переписке");
-  assert.equal(caseMessageNotificationCopy("Абитуриент Тестов ", "абитуриент тестов"), "Абитуриент Тестов написал(а) в переписке");
+  assert.equal(caseMessageNotificationCopy("Абитуриент Тестов", "Абитуриент Тестов"), "Абитуриент Тестов: новое сообщение в переписке");
+  assert.equal(caseMessageNotificationCopy("Абитуриент Тестов ", "абитуриент тестов"), "Абитуриент Тестов: новое сообщение в переписке");
   assert.equal(caseMessageNotificationCopy("  ", "Абитуриент Тестов"), "Новое сообщение в переписке по делу");
-  assert.equal(caseMessageNotificationCopy("Куратор Первый", "Абитуриент Тестов"), "Куратор Первый написал(а) в переписке · Абитуриент Тестов");
+  assert.equal(caseMessageNotificationCopy("Куратор Первый", "Абитуриент Тестов"), "Куратор Первый: новое сообщение в переписке · Абитуриент Тестов");
   assert.equal(caseMessageNotificationCopy(null, "Абитуриент Тестов"), "Новое сообщение в переписке по делу");
   assert.equal(caseMessageNotificationCopy("Куратор Первый", null), "Новое сообщение в переписке по делу");
   assert.match(source("src/components/v3/StaffNotifications.tsx"), /return caseMessageNotificationCopy\(item\.actorDisplayName, item\.studentDisplayName\);/u);

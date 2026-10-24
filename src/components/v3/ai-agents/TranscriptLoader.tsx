@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { btnGhostCls } from "@/components/ui";
+import { QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import type { AiAgentUiEvent } from "@/lib/ai-agents/contract";
 import { loadAiAgentRunTranscriptAction } from "@/lib/platform-ai-agents-actions";
 import { aiAgentsErrorCopy, buildChatItems } from "@/lib/v3/ai-agents-view";
@@ -10,7 +10,7 @@ import { aiAgentsErrorCopy, buildChatItems } from "@/lib/v3/ai-agents-view";
 import { ChatTimeline } from "./ChatTimeline";
 
 /**
- * «Показать переписку агента» (вкладка «Запуски»): хроника читается у Claude по
+ * «Показать переписку» (вкладка «Запуски»): хроника читается у Claude по
  * кнопке и в базе CRM не хранится, поэтому страница запуска открывается быстро
  * и без персональных данных переписки в разметке.
  */
@@ -34,17 +34,19 @@ export function TranscriptLoader({ runId, agentTitle }: Readonly<{ runId: string
   }
 
   return (
-    <section aria-labelledby={`aia-transcript-${runId}`} className="rounded-card border border-border bg-surface p-4" data-testid="v3-aia-transcript">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 id={`aia-transcript-${runId}`} className="t-section text-fg">Переписка агента</h3>
-        {phase === "idle" || phase === "failed" ? (
-          <button type="button" className={btnGhostCls} onClick={() => void load()}>Показать переписку агента</button>
-        ) : phase === "ready" ? (
-          <button type="button" className={btnGhostCls} onClick={() => void load()}>Обновить</button>
-        ) : null}
-      </div>
-      <p className="mt-1 max-w-[62ch] t-meta text-fg-3">Переписка читается у Claude и в базе CRM не хранится.</p>
-      <div className="mt-3" aria-live="polite">
+    <section aria-label="Переписка агента" className="rounded-card border border-border bg-surface p-4" data-testid="v3-aia-transcript">
+      {phase === "idle" || phase === "failed" ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <button type="button" className={QUEUE_SECONDARY} onClick={() => void load()}>Показать переписку</button>
+          <span className="t-meta text-fg-3" data-testid="v3-aia-transcript-note">Читается у Claude, в CRM не хранится.</span>
+        </div>
+      ) : phase === "ready" ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 id={`aia-transcript-${runId}`} className="t-section text-fg">Переписка агента</h3>
+          <button type="button" className={QUEUE_SECONDARY} onClick={() => void load()}>Обновить</button>
+        </div>
+      ) : null}
+      <div className={phase === "idle" ? undefined : "mt-3"} aria-live="polite">
         {phase === "loading" ? <p className="t-body-compact text-fg-2">Загружаю…</p> : null}
         {phase === "failed" && message ? <p role="alert" className="t-body-compact text-danger">{message}</p> : null}
         {phase === "ready" ? (
@@ -53,7 +55,7 @@ export function TranscriptLoader({ runId, agentTitle }: Readonly<{ runId: string
             : (
               <div className="space-y-3">
                 <ChatTimeline items={buildChatItems(events)} userLabel="Поручение" agentLabel={agentTitle} />
-                {truncated ? <p className="t-meta text-fg-3">Показаны первые события: переписка длиннее, остальное смотрите в Claude Console.</p> : null}
+                {truncated ? <p className="t-meta text-fg-3">Показаны первые события: переписка длиннее.</p> : null}
               </div>
             )
         ) : null}

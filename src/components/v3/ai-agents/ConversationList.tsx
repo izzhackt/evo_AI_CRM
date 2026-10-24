@@ -3,7 +3,8 @@
 import Link from "next/link";
 
 import { Icon } from "@/components/icons";
-import { btnGhostCls, cn } from "@/components/ui";
+import { cn } from "@/components/ui";
+import { QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import {
   conversationPrompt,
   conversationStatusWord,
@@ -40,11 +41,12 @@ export function ConversationList({
 }>) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 space-y-3 px-3 pb-2 pt-3">
+      {/* «Новый разговор» — не во всю ширину: в списке из одной-двух строк кнопка тяжелее самого списка. */}
+      <div className={cn("flex shrink-0 items-center gap-2 px-3 pb-2 pt-3", showHeading ? "justify-between" : "justify-start")}>
         {showHeading ? <h2 className="t-item px-1 text-fg">Мои разговоры</h2> : null}
-        <button type="button" onClick={onNew} className={cn(btnGhostCls, "w-full")} data-testid="v3-aia-new">
+        <button type="button" onClick={onNew} aria-label="Новый разговор" className={QUEUE_SECONDARY} data-testid="v3-aia-new">
           <Icon name="plus" size={18} className="shrink-0" />
-          Новый разговор
+          Новый
         </button>
       </div>
       <nav aria-label="Мои разговоры с агентом" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2" data-testid="v3-aia-conversations">

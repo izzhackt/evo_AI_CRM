@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { btnCls, btnGhostCls, fieldLabelCls, inputCls } from "@/components/ui";
+import { fieldLabelCls, inputCls } from "@/components/ui";
+import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import { AI_AGENT_MODELS, type AiAgentDetail, type AiAgentModelId } from "@/lib/ai-agents/contract";
 import { startAiAgentRunAction, updateAiAgentAction } from "@/lib/platform-ai-agents-actions";
 import {
@@ -19,14 +20,18 @@ import {
   type ScheduleKind,
 } from "@/lib/v3/ai-agents-view";
 
+import { AIA_PRIMARY, AIA_STATIC_BAR, AIA_STICKY_BAR } from "./buttons";
 import { ActionMessage } from "./Notices";
 import { useAgentsAction } from "./useAgentsAction";
+import { useDirtyGuard } from "./useDirtyGuard";
 
 type Kind = ScheduleKind | "custom";
 const KIND_LABELS: Readonly<Record<Kind, string>> = {
-  none: "Нет", daily: "Каждый день", weekdays: "По будням", weekly: "Раз в неделю", custom: "Свой cron",
+  none: "Нет", daily: "Каждый день", weekdays: "По будням", weekly: "Раз в неделю", custom: "Своё расписание",
 };
 const CLAUDE_AGENT_ID = /^agent_[A-Za-z0-9]{8,64}$/u;
+const HOURS = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, "0"));
+const MINUTE_STEPS = Array.from({ length: 12 }, (_, step) => String(step * 5).padStart(2, "0"));
 
 function initial(detail: AiAgentDetail) {
   const plan = parseCronPlan(detail.scheduleCron);
@@ -82,7 +87,7 @@ export function SettingsForm({
   if (form.kind === "custom" && cron !== null && !isValidCron(cron)) problems.push("Cron: пять полей из цифр и знаков * / , - (например, 0 9 * * 1).");
   if (form.kind !== "custom" && form.kind !== "none" && !/^([01]\d|2[0-3]):[0-5]\d$/u.test(form.time)) problems.push("Время расписания — в формате ЧЧ:ММ.");
   if (form.budget.trim() === "" || !Number.isFinite(budget) || budget < 0 || budget > 100) problems.push("Потолок расхода — число от 0 до 100 долларов.");
-  if (form.claudeId.trim() !== "" && !CLAUDE_AGENT_ID.test(form.claudeId.trim())) problems.push("ID агента в Claude начинается с «agent_» (его показывает Claude Console).");
+  if (form.claudeId.trim() !== "" && !CLAUDE_AGENT_ID.test(form.claudeId.trim())) problems.push("ID агента в Claude начинается с «agent_».");
   if (form.prompt.length > 8000) problems.push("Поручение для расписания — не длиннее 8000 знаков.");
 
   const patch: Record<string, unknown> = {};
@@ -95,6 +100,7 @@ export function SettingsForm({
   if (problems.length === 0 && String(budget) !== String(detail.runBudgetUsd)) patch.runBudgetUsd = budget;
   if (form.claudeId.trim() !== base.claudeId) patch.claudeAgentId = form.claudeId.trim() === "" ? null : form.claudeId.trim();
   const dirty = Object.keys(patch).length > 0;
+  useDirtyGuard(dirty && canEdit);
   const effectivePrompt = (detail.schedulePromptOverride ?? defaultSchedulePrompt ?? "").trim();
   const timezones = SCHEDULE_TIMEZONES.includes(form.tz) ? SCHEDULE_TIMEZONES : [form.tz, ...SCHEDULE_TIMEZONES];
 
@@ -102,7 +108,7 @@ export function SettingsForm({
     const rows: readonly (readonly [string, string])[] = [
       ["Модель", AI_AGENT_MODELS.find((model) => model.id === detail.model)?.label ?? detail.model],
       ["Расписание", describeSchedule(detail.scheduleCron, detail.scheduleTz)],
-      ["Реагирует на", [detail.triggerWebsiteLead ? "новую заявку с сайта" : null, detail.triggerWhatsappInbound ? "новое сообщение в WhatsApp" : null].filter(Boolean).join(", ") || "ничего: запускается поручением или по расписанию"],
+      ["Реагирует на", [detail.triggerWebsiteLead ? "новую заявку с сайта" : null, detail.triggerWhatsappInbound ? "новое сообщение в WhatsApp" : null].filter(Boolean).join(", ") || "ничего"],
       ["Потолок расхода на запуск", detail.runBudgetUsd === 0 ? "без потолка" : formatUsd(detail.runBudgetUsd)],
     ];
     return (
@@ -114,14 +120,18 @@ export function SettingsForm({
           ))}
         </dl>
         <p className="mt-4 t-meta text-fg-3">Параметры меняет системный администратор.</p>
-        <RunNow run={run} agentKey={detail.key} prompt={effectivePrompt} canRunNow={canRunNow} note={runNowNote} />
+        <RunNow run={run} agentKey={detail.key} prompt={effectivePrompt} canRunNow={canRunNow} note={runNowNote} budgetUsd={detail.runBudgetUsd} />
       </section>
     );
   }
 
+  const [hour, minute] = form.time.split(":");
+  const minutes = MINUTE_STEPS.includes(minute ?? "") ? MINUTE_STEPS : [...MINUTE_STEPS, minute ?? "00"].sort();
+  const setTime = (nextHour: string, nextMinute: string) => set("time", `${nextHour}:${nextMinute}`);
+
   return (
     <form
-      className="space-y-6"
+      className="space-y-4"
       onSubmit={(event) => {
         event.preventDefault();
         if (!dirty || problems.length > 0 || save.pending) return;
@@ -130,7 +140,7 @@ export function SettingsForm({
       data-testid="v3-aia-settings"
     >
       <fieldset className="rounded-card border border-border bg-surface p-4">
-        <legend className="float-left w-full t-section text-fg">Модель</legend>
+        <legend className="float-left w-full t-section text-fg">Модель и лимит</legend>
         <div className="clear-both space-y-1 pt-2">
           {AI_AGENT_MODELS.map((model) => (
             <label key={model.id} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-nav px-2 py-2 hover:bg-surface-2/60">
@@ -139,12 +149,16 @@ export function SettingsForm({
             </label>
           ))}
         </div>
+        <div className="mt-3 border-t border-border pt-3">
+          <label htmlFor="aia-budget" className={fieldLabelCls}>Потолок расхода на один запуск, $</label>
+          <input id="aia-budget" inputMode="decimal" className={`${inputCls} max-w-[10rem]`} value={form.budget} onChange={(event) => set("budget", event.target.value)} />
+          <p className="mt-1 t-meta text-fg-3">0 — без потолка.</p>
+        </div>
       </fieldset>
 
       <fieldset className="rounded-card border border-border bg-surface p-4">
-        <legend className="float-left w-full t-section text-fg">Расписание</legend>
-        <p className="clear-both pt-1 t-body-compact text-fg-2">{describeSchedule(cron, form.tz)}</p>
-        <div className="mt-3 grid gap-3 @2xl:grid-cols-3">
+        <legend className="float-left w-full t-section text-fg">Расписание и события</legend>
+        <div className="clear-both grid gap-3 pt-2 @2xl:grid-cols-4">
           <div>
             <label htmlFor="aia-kind" className={fieldLabelCls}>Как часто</label>
             <select id="aia-kind" className={inputCls} value={form.kind} onChange={(event) => set("kind", event.target.value as Kind)}>
@@ -153,9 +167,18 @@ export function SettingsForm({
             </select>
           </div>
           {form.kind !== "none" && form.kind !== "custom" ? (
-            <div>
-              <label htmlFor="aia-time" className={fieldLabelCls}>Время</label>
-              <input id="aia-time" type="time" className={inputCls} value={form.time} onChange={(event) => set("time", event.target.value)} />
+            // Поле `type="time"` рисует 12-часовое «09:00 AM» в русском интерфейсе: время — два списка в 24-часовом виде.
+            <div role="group" aria-labelledby="aia-time-label">
+              <span id="aia-time-label" className={fieldLabelCls}>Время</span>
+              <div className="flex items-center gap-1.5">
+                <select aria-label="Часы" className={inputCls} value={hour} onChange={(event) => setTime(event.target.value, minute ?? "00")} data-testid="v3-aia-time-hour">
+                  {HOURS.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+                <span aria-hidden="true" className="t-label text-fg-3">:</span>
+                <select aria-label="Минуты" className={inputCls} value={minute} onChange={(event) => setTime(hour ?? "09", event.target.value)} data-testid="v3-aia-time-minute">
+                  {minutes.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </div>
             </div>
           ) : null}
           {form.kind === "weekly" ? (
@@ -166,18 +189,18 @@ export function SettingsForm({
               </select>
             </div>
           ) : null}
+          {form.kind !== "none" ? (
+            <div>
+              <label htmlFor="aia-tz" className={fieldLabelCls}>Часовой пояс</label>
+              <select id="aia-tz" className={inputCls} value={form.tz} onChange={(event) => set("tz", event.target.value)}>
+                {timezones.map((tz) => <option key={tz} value={tz}>{timezoneLabel(tz)}</option>)}
+              </select>
+            </div>
+          ) : null}
         </div>
-        <div className="mt-3 grid gap-3 @2xl:grid-cols-3">
-          <div>
-            <label htmlFor="aia-tz" className={fieldLabelCls}>Часовой пояс</label>
-            <select id="aia-tz" className={inputCls} value={form.tz} onChange={(event) => set("tz", event.target.value)}>
-              {timezones.map((tz) => <option key={tz} value={tz}>{timezoneLabel(tz)}</option>)}
-            </select>
-          </div>
-        </div>
-        <details className="mt-3" open={form.kind === "custom"}>
-          <summary className="cursor-pointer t-label text-fg-2">Расширенно: cron для разработчиков</summary>
-          <label htmlFor="aia-cron" className={`${fieldLabelCls} mt-2`}>Cron (минута час день месяц день_недели)</label>
+        <details className="mt-2" open={form.kind === "custom"}>
+          <summary className="cursor-pointer t-label text-fg-2">Своё расписание (cron)</summary>
+          <label htmlFor="aia-cron" className={`${fieldLabelCls} mt-2`}>Минута, час, день, месяц, день недели</label>
           <input
             id="aia-cron"
             className={`${inputCls} max-w-xs font-mono`}
@@ -196,58 +219,50 @@ export function SettingsForm({
             value={form.prompt}
             placeholder={defaultSchedulePrompt ?? "Расписание для этого агента не предусмотрено — напишите поручение сами."}
             onChange={(event) => set("prompt", event.target.value)}
-            className="min-h-24 w-full resize-y rounded-ctl border border-control-edge bg-surface px-3 py-2.5 text-base text-fg placeholder:text-fg-3 focus-visible:border-accent"
+            className="min-h-24 w-full resize-y rounded-ctl border border-control-edge bg-surface px-3 py-2.5 t-body text-fg placeholder:text-fg-3 focus-visible:border-accent"
           />
-          <p className="mt-1 t-meta text-fg-3">
-            {form.prompt.trim() === "" ? (defaultSchedulePrompt ? "Пусто — используется стандартное поручение EVO (видно серым)." : "Пусто — по расписанию агенту нечего поручить, расписание не создаётся.") : "Используется ваше поручение."}
-          </p>
+          {form.prompt.trim() === "" ? (
+            <p className="mt-1 t-meta text-fg-3">{defaultSchedulePrompt ? "Пусто — стандартное поручение EVO." : "Пусто — расписание не создаётся."}</p>
+          ) : null}
         </div>
-        <RunNow run={run} agentKey={detail.key} prompt={effectivePrompt} canRunNow={canRunNow} note={runNowNote} />
-      </fieldset>
 
-      <fieldset className="rounded-card border border-border bg-surface p-4">
-        <legend className="float-left w-full t-section text-fg">Реагировать на</legend>
-        <div className="clear-both space-y-1 pt-2">
-          <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-nav px-2 hover:bg-surface-2/60">
-            <input type="checkbox" className="size-4 accent-[var(--text)]" checked={form.website} onChange={(event) => set("website", event.target.checked)} />
-            <span className="t-body-compact text-fg">Новая заявка с сайта</span>
-          </label>
-          <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-nav px-2 hover:bg-surface-2/60">
-            <input type="checkbox" className="size-4 accent-[var(--text)]" checked={form.whatsapp} onChange={(event) => set("whatsapp", event.target.checked)} />
-            <span className="t-body-compact text-fg">Новое входящее сообщение в WhatsApp</span>
-          </label>
-        </div>
-        <p className="mt-1 max-w-[60ch] t-meta text-fg-3">События запускают агента только пока он включён и синхронизирован.</p>
-      </fieldset>
-
-      <fieldset className="rounded-card border border-border bg-surface p-4">
-        <legend className="float-left w-full t-section text-fg">Расход и привязка</legend>
-        <div className="clear-both grid gap-4 pt-3 @2xl:grid-cols-2">
-          <div>
-            <label htmlFor="aia-budget" className={fieldLabelCls}>Потолок расхода на один запуск, $</label>
-            <input id="aia-budget" inputMode="decimal" className={`${inputCls} max-w-[10rem]`} value={form.budget} onChange={(event) => set("budget", event.target.value)} />
-            <p className="mt-1 t-meta text-fg-3">0 — без потолка. Общие лимиты расходов владелец задаёт в Claude Console.</p>
-          </div>
-          <div>
-            <label htmlFor="aia-claude-id" className={fieldLabelCls}>ID агента в Claude (если создан в Console)</label>
-            <input id="aia-claude-id" className={`${inputCls} font-mono`} value={form.claudeId} placeholder="agent_…" onChange={(event) => set("claudeId", event.target.value)} />
-            <p className="mt-1 t-meta text-fg-3">Пусто — агента создаст синхронизация.</p>
+        <div role="group" aria-labelledby="aia-events-label" className="mt-4 border-t border-border pt-3">
+          <span id="aia-events-label" className="t-label text-fg-2">Реагировать на</span>
+          <div className="mt-1 space-y-1">
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-nav px-2 hover:bg-surface-2/60">
+              <input type="checkbox" className="size-4 accent-[var(--text)]" checked={form.website} onChange={(event) => set("website", event.target.checked)} />
+              <span className="t-body-compact text-fg">Новая заявка с сайта</span>
+            </label>
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-nav px-2 hover:bg-surface-2/60">
+              <input type="checkbox" className="size-4 accent-[var(--text)]" checked={form.whatsapp} onChange={(event) => set("whatsapp", event.target.checked)} />
+              <span className="t-body-compact text-fg">Новое входящее сообщение в WhatsApp</span>
+            </label>
           </div>
         </div>
+        <RunNow run={run} agentKey={detail.key} prompt={effectivePrompt} canRunNow={canRunNow} note={runNowNote} budgetUsd={detail.runBudgetUsd} />
       </fieldset>
+
+      <details className="rounded-card border border-border bg-surface px-4" open={form.claudeId.trim() !== base.claudeId}>
+        <summary className="cursor-pointer t-label text-fg-2">Технические данные</summary>
+        <div className="pb-4 pt-1">
+          <label htmlFor="aia-claude-id" className={fieldLabelCls}>ID агента в Claude</label>
+          <input id="aia-claude-id" className={`${inputCls} max-w-xl font-mono`} value={form.claudeId} placeholder="agent_…" onChange={(event) => set("claudeId", event.target.value)} />
+          <p className="mt-1 t-meta text-fg-3">Пусто — агента создаст синхронизация. Смена ID привязывает другого агента Claude.</p>
+        </div>
+      </details>
 
       {problems.length > 0 ? (
         <ul role="alert" className="space-y-0.5 t-body-compact text-danger" data-testid="v3-aia-settings-problems">
           {problems.map((problem) => <li key={problem}>{problem}</li>)}
         </ul>
       ) : null}
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" className={btnCls} disabled={!dirty || problems.length > 0 || save.pending} data-testid="v3-aia-settings-save">
+      <div className={dirty ? AIA_STICKY_BAR : AIA_STATIC_BAR}>
+        <button type="submit" className={AIA_PRIMARY} disabled={!dirty || problems.length > 0 || save.pending} data-testid="v3-aia-settings-save">
           {save.pending ? "Сохраняю…" : "Сохранить настройки"}
         </button>
-        {dirty ? <button type="button" className={btnGhostCls} disabled={save.pending} onClick={() => setForm(base)}>Отменить правки</button> : null}
+        {dirty ? <button type="button" className={QUEUE_SECONDARY} disabled={save.pending} onClick={() => setForm(base)}>Отменить правки</button> : null}
+        <ActionMessage state={save.state} testId="v3-aia-settings-message" />
       </div>
-      <ActionMessage state={save.state} testId="v3-aia-settings-message" />
     </form>
   );
 }
@@ -258,26 +273,49 @@ function RunNow({
   prompt,
   canRunNow,
   note,
+  budgetUsd,
 }: Readonly<{
   run: ReturnType<typeof useAgentsAction>;
   agentKey: AiAgentDetail["key"];
   prompt: string;
   canRunNow: boolean;
   note: string | null;
+  budgetUsd: number;
 }>) {
-  const disabled = !canRunNow || !prompt || run.pending;
+  const [confirming, setConfirming] = useState(false);
+  // Нечего запускать (поручения для расписания нет) — кнопки нет: слова о пустом поручении стоят у поля.
+  if (!prompt) return null;
+  const disabled = !canRunNow || run.pending;
   return (
-    <div className="mt-4 space-y-2 border-t border-border pt-4">
+    <div className="mt-4 space-y-2 border-t border-border pt-3">
       <button
         type="button"
-        className={btnGhostCls}
+        className={QUEUE_SECONDARY}
         disabled={disabled}
-        onClick={() => run.submit({ key: agentKey, text: prompt, send_authority: "0" })}
+        onClick={() => setConfirming(true)}
         data-testid="v3-aia-run-schedule-now"
       >
         {run.pending ? "Запускаю…" : "Запустить по расписанию сейчас"}
       </button>
-      {!prompt ? <p className="t-meta text-fg-3">Нет поручения для расписания — запускать нечего.</p> : !canRunNow && note ? <p className="t-meta text-fg-3">{note}</p> : null}
+      {!canRunNow && note ? <p className="t-meta text-fg-3">{note}</p> : null}
+      {confirming && !disabled ? (
+        <div role="group" aria-label="Подтверждение запуска" className="rounded-card border border-border bg-surface-2/60 p-3">
+          <p className="max-w-[60ch] t-body-compact text-fg">
+            Агент начнёт работу сейчас, расход — {budgetUsd > 0 ? `до ${formatUsd(budgetUsd)}` : "без потолка"}. Запустить?
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              className={QUEUE_CONFIRM}
+              onClick={() => { setConfirming(false); run.submit({ key: agentKey, text: prompt, send_authority: "0" }); }}
+              data-testid="v3-aia-run-schedule-confirm"
+            >
+              Запустить
+            </button>
+            <button type="button" className={QUEUE_SECONDARY} onClick={() => setConfirming(false)}>Отмена</button>
+          </div>
+        </div>
+      ) : null}
       {run.state.status === "saved" && run.state.runId ? (
         <p role="status" className="t-body-compact text-fg-2">
           Запуск начат. <Link href={aiAgentHref(agentKey, { tab: "command", run: run.state.runId })} className="text-fg underline underline-offset-4">Открыть ход работы</Link>

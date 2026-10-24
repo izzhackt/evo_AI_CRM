@@ -10,7 +10,7 @@ import { NotReady, Unavailable } from "@/components/v3/ai-agents/Notices";
 import { Icon } from "@/components/icons";
 import { PartShell } from "@/components/v3/PartShell";
 import { taskComposerAccess } from "@/components/v3/tasks/task-composer-access";
-import { isAiAgentKey } from "@/lib/ai-agents/contract";
+import { AI_AGENT_CATALOG, isAiAgentKey } from "@/lib/ai-agents/contract";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { computeAiAgentConfigHash, resolveAiAgentsMcpUrl } from "@/lib/server/ai-agents/config-hash";
@@ -19,6 +19,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   aiAgentHref,
   aiAgentNeedsSync,
+  aiAgentRoleLine,
   AI_AGENT_CONVERSATIONS_MAX,
   AI_AGENT_CONVERSATIONS_READ,
   AI_AGENTS_HUB_HREF,
@@ -36,7 +37,13 @@ import {
 } from "@/lib/v3/ai-agents-source";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "ИИ-агенты" };
+
+/** Вкладка браузера называет агента (названия берутся из каталога: чтения базы для заголовка не нужно). */
+export async function generateMetadata({ params }: Readonly<{ params: Promise<{ key: string }> }>) {
+  const { key } = await params;
+  const title = AI_AGENT_CATALOG.find((entry) => entry.key === key)?.title;
+  return { title: title ? `${title} — ИИ-агенты` : "ИИ-агенты" };
+}
 
 type Query = Record<string, string | string[] | undefined>;
 const TWELVE_HOURS = 12 * 60 * 60 * 1000;
@@ -129,7 +136,7 @@ export default async function AiAgentPage({
       back={back}
       // «Поручить» — чат во всю высоту окна (оболочка отдаёт страницу целиком по `isFillRoute`).
       fill={tab === "command"}
-      meta={detail.roleLine}
+      meta={aiAgentRoleLine(detail.roleLine)}
       action={
         <AgentSwitches
           agentKey={key}
@@ -138,7 +145,6 @@ export default async function AiAgentPage({
           configVersion={detail.configVersion}
           hasInstructions={hasInstructions}
           canEdit={canEdit}
-          variant="header"
         />
       }
     >
@@ -161,6 +167,7 @@ export default async function AiAgentPage({
         resume={resume}
         conversations={conversations}
         canMakeTasks={taskAccess.staff || taskAccess.case}
+        viewerName={actor.displayName}
       />
     </PartShell>
   );

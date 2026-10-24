@@ -1,13 +1,13 @@
 import Link from "next/link";
 
 import { Icon } from "@/components/icons";
-import { btnGhostCls } from "@/components/ui";
 import { StageChip } from "@/components/v3/blocks/StatusChip";
 import type { InboxAssistantConfig } from "@/components/v3/inbox/InboxAiAssistant";
 import { InboxChat, type InboxChatData } from "@/components/v3/inbox/InboxChat";
 import { InboxListPulse } from "@/components/v3/inbox/InboxListPulse";
 import { Pill } from "@/components/v3/Pill";
 import { FilterMenu } from "@/components/v3/queue/FilterMenu";
+import { QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import { DialButton } from "@/components/v3/telephony/DialButton";
 import type { ReplySnippetPickerItem } from "@/components/v3/reply-snippets/ReplySnippetPicker";
 import type { V3InboxSort } from "@/lib/v3/inbox-href";
@@ -170,6 +170,12 @@ export function Inbox({
   // Два чата без имени («WhatsApp») различает только номер — и для читалки.
   const spokenTitle = open ? `${open.person}${open.phone ? `, ${spokenPhone(open.phone)}` : ""}` : "";
   const hasConversations = view.conversations.length > 0;
+  // Пустая правая часть — не тупик: первый ждущий ответа диалог страницы; «Все ответы даны» — только когда
+  // страница и есть весь список (нет ни других страниц, ни поиска) и канал исправен: при выключенном приёме,
+  // непрочитанном состоянии или потерянной связи «всё отвечено» было бы успокаивающей неправдой.
+  const nextWaiting = view.conversations.find((conversation) => conversation.waitingSince) ?? null;
+  const wholeListRead = view.channelState === "ready"
+    && !view.queueOlderHref && !view.queueNewestHref && !view.searchQuery;
   // «Сортировка» не фильтр: она меняет порядок, а не состав списка.
   const hasFilters = Boolean(view.searchQuery);
   if (inboxNotConnected(view)) {
@@ -183,7 +189,7 @@ export function Inbox({
         {settingsHref ? (
           <Link
             href={settingsHref}
-            className="mt-4 inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-4 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+            className={`${QUEUE_SECONDARY} mt-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring`}
             data-testid="v3-inbox-settings"
           >
             Открыть настройки
@@ -233,19 +239,25 @@ export function Inbox({
             <label htmlFor="v3-inbox-search" className="sr-only">
               Найти диалог
             </label>
-            <div className="flex gap-2">
+            {/* Лупа в поле — и есть «Найти» (44 px, без отдельной рамки); Enter работает так же. */}
+            <div className="relative">
+              <button
+                type="submit"
+                aria-label="Найти"
+                className="absolute inset-y-0 start-0 inline-flex w-11 items-center justify-center rounded-ctl text-fg-3 hover:text-fg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring"
+              >
+                <Icon name="search" size={18} className="shrink-0" />
+              </button>
               <input
                 id="v3-inbox-search"
                 name="q"
                 type="search"
+                enterKeyHint="search"
                 maxLength={200}
                 defaultValue={view.searchQuery ?? ""}
                 placeholder="Имя, телефон или тема"
-                className="min-h-11 min-w-0 flex-1 rounded-ctl border border-control-edge bg-surface px-3 t-body text-fg placeholder:text-fg-3"
+                className="min-h-11 w-full min-w-0 rounded-ctl border border-control-edge bg-surface ps-11 pe-3 t-body text-fg placeholder:text-fg-3"
               />
-              <button type="submit" className={btnGhostCls}>
-                Найти
-              </button>
             </div>
           </form>
           {/* Тот же выпадающий выбор, что «Сортировка» «Студентов»: ссылки в
@@ -264,32 +276,15 @@ export function Inbox({
           </div>
         </div>
 
-        {view.queueNewestHref || view.queueOlderHref ? (
-          <nav
-            aria-label="Страницы диалогов"
-            className="flex min-h-12 items-center justify-between gap-2 border-b border-border px-3 py-1"
-          >
-            {view.queueNewestHref ? (
-              <Link
-                href={view.queueNewestHref}
-                className="inline-flex min-h-11 items-center rounded-ctl px-2 t-label text-fg-2 hover:bg-surface-2"
-                data-testid="v3-inbox-queue-newest"
-              >
-                ← К новым
-              </Link>
-            ) : (
-              <span />
-            )}
-            {view.queueOlderHref ? (
-              <Link
-                href={view.queueOlderHref}
-                rel="next"
-                className="inline-flex min-h-11 items-center rounded-ctl px-2 t-label text-fg-2 hover:bg-surface-2"
-                data-testid="v3-inbox-queue-older"
-              >
-                Ранее →
-              </Link>
-            ) : null}
+        {view.queueNewestHref ? (
+          <nav aria-label="К новым диалогам" className="flex min-h-12 items-center border-b border-border px-3 py-1">
+            <Link
+              href={view.queueNewestHref}
+              className="inline-flex min-h-11 items-center rounded-ctl px-2 t-label text-fg-2 hover:bg-surface-2"
+              data-testid="v3-inbox-queue-newest"
+            >
+              ← К новым
+            </Link>
           </nav>
         ) : null}
 
@@ -322,17 +317,29 @@ export function Inbox({
                     <ContactPhone phone={conversation.phone} className="t-meta tabular-nums text-fg-2" />
                   ) : null}
                   {conversation.waitingSince ? (
-                    <span className="t-caption text-warn">
-                      Ждёт ответа с {conversation.waitingSince}
+                    <span className="t-caption text-warn" title={`Ждёт ответа с ${conversation.waitingSince}`}>
+                      Ждёт ответа
                       {conversation.awaitingReplyFor
                         ? ` · ${conversation.awaitingReplyFor}`
-                        : ""}
+                        : ` с ${conversation.waitingSince}`}
                     </span>
                   ) : null}
                 </Link>
               </li>
             );
           })}
+          {view.queueOlderHref ? (
+            <li className="flex min-h-12 items-center justify-end px-3 py-1">
+              <Link
+                href={view.queueOlderHref}
+                rel="next"
+                className="inline-flex min-h-11 items-center rounded-ctl px-2 t-label text-fg-2 hover:bg-surface-2"
+                data-testid="v3-inbox-queue-older"
+              >
+                Ранее →
+              </Link>
+            </li>
+          ) : null}
           {!hasConversations ? (
             <li className="px-4 py-10 sm:px-6" data-testid="v3-inbox-empty">
               <h2 className="t-section text-fg">{emptyTitle}</h2>
@@ -346,7 +353,7 @@ export function Inbox({
               {hasFilters && !view.queueNewestHref ? (
                 <Link
                   href="/v3/inbox"
-                  className="mt-4 inline-flex min-h-11 items-center rounded-ctl border border-control-edge px-4 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                  className={`${QUEUE_SECONDARY} mt-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring`}
                   data-testid="v3-inbox-clear-filters"
                 >
                   Сбросить фильтры
@@ -378,7 +385,7 @@ export function Inbox({
               {/* Имя не сжимается первым: при нехватке ширины чипы
                   переносятся на свою строку, а имя остаётся целым. */}
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <h2 className="t-section min-w-0 break-words text-fg">{open.person}</h2>
+                <h2 className="t-section min-w-0 basis-full break-words text-fg @2xl:basis-auto">{open.person}</h2>
                 {open.chat.stage ? (
                   <StageChip label={open.chat.stage.label} phase={open.chat.stage.phase} />
                 ) : null}
@@ -433,8 +440,27 @@ export function Inbox({
           />
         </section>
       ) : hasConversations ? (
-        <section className="hidden place-items-center bg-bg p-8 text-center @4xl:grid">
-          <p className="t-body text-fg-3">Выберите диалог слева</p>
+        <section className="hidden place-items-center bg-bg p-8 text-center @4xl:grid" data-testid="v3-inbox-next">
+          {nextWaiting ? (
+            <div className="flex flex-col items-center gap-3">
+              <p className="max-w-[48ch] t-body text-fg-2">
+                Ждёт ответа:{" "}
+                {nextWaiting.phone && nextWaiting.person === "WhatsApp" ? (
+                  <ContactPhone phone={nextWaiting.phone} className="font-semibold tabular-nums text-fg" />
+                ) : (
+                  <span className="font-semibold text-fg">{nextWaiting.person}</span>
+                )}
+                {nextWaiting.awaitingReplyFor ? ` · ${nextWaiting.awaitingReplyFor}` : ""}
+              </p>
+              <Link href={nextWaiting.href} className={`${QUEUE_SECONDARY} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring`}>
+                Открыть
+              </Link>
+            </div>
+          ) : wholeListRead ? (
+            <p className="t-body text-fg-3">Все ответы даны</p>
+          ) : (
+            <p className="t-body text-fg-3">Выберите диалог слева</p>
+          )}
         </section>
       ) : null}
     </div>

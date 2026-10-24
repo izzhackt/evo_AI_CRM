@@ -2,8 +2,6 @@
 
 import { useState, type RefObject } from "react";
 
-import { btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
-
 import { insertReplySnippetWithinCodePointLimit, REPLY_MESSAGE_MAX_CODE_POINTS } from "./insert-reply-snippet";
 
 export type ReplySnippetPickerItem = Readonly<{
@@ -25,6 +23,11 @@ export type ReplySnippetPickerProps = Readonly<{
   maxCodePoints?: number;
 }>;
 
+/**
+ * Окно шаблонов в поле ответа: список названий с началом текста, нажатие
+ * вставляет шаблон в текст (в место курсора) и ничего не отправляет. Окно
+ * закрывает вызвавший его экран в `onMessageTextChange`.
+ */
 export function ReplySnippetPicker({
   snippets,
   messageText,
@@ -33,20 +36,11 @@ export function ReplySnippetPicker({
   disabled = false,
   maxCodePoints = REPLY_MESSAGE_MAX_CODE_POINTS,
 }: ReplySnippetPickerProps) {
-  const [selectedId, setSelectedId] = useState(snippets[0]?.replySnippetId ?? "");
   const [rejectedMessageText, setRejectedMessageText] = useState<string | null>(
     null,
   );
-  const activeSelectedId = snippets.some(
-      (snippet) => snippet.replySnippetId === selectedId,
-    )
-    ? selectedId
-    : (snippets[0]?.replySnippetId ?? "");
 
-  const insertSelected = () => {
-    const snippet = snippets.find((item) => item.replySnippetId === activeSelectedId);
-    if (!snippet) return;
-
+  const insert = (snippet: ReplySnippetPickerItem) => {
     const textarea = textareaRef.current;
     const insertion = insertReplySnippetWithinCodePointLimit(
       messageText,
@@ -73,38 +67,28 @@ export function ReplySnippetPicker({
   };
 
   if (snippets.length === 0) {
-    return <p className="text-sm text-fg-3">Доступных шаблонов ответа нет.</p>;
+    return <p className="p-2 t-body-compact text-fg-3">Доступных шаблонов ответа нет.</p>;
   }
 
   return (
-    <div className="space-y-2" data-testid="v3-reply-snippet-picker">
-      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-        <label>
-          <span className={fieldLabelCls}>Шаблон ответа</span>
-          <select
-            className={inputCls}
-            value={activeSelectedId}
-            onChange={(event) => setSelectedId(event.currentTarget.value)}
-            disabled={disabled}
-          >
-            {snippets.map((snippet) => (
-              <option key={snippet.replySnippetId} value={snippet.replySnippetId}>
-                {snippet.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          className={btnGhostCls}
-          onClick={insertSelected}
-          disabled={disabled || activeSelectedId === ""}
-        >
-          Вставить в текст
-        </button>
-      </div>
+    <div data-testid="v3-reply-snippet-picker">
+      <ul className="max-h-[min(24rem,calc(100dvh-2rem))] overflow-y-auto">
+        {snippets.map((snippet) => (
+          <li key={snippet.replySnippetId}>
+            <button
+              type="button"
+              onClick={() => insert(snippet)}
+              disabled={disabled}
+              className="flex min-h-11 w-full flex-col items-start gap-0.5 rounded-nav px-3 py-2 text-start hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:text-fg-3"
+            >
+              <span className="t-item text-fg">{snippet.title}</span>
+              <span className="line-clamp-2 break-words t-meta text-fg-2">{snippet.body}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
       {rejectedMessageText === messageText ? (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className="px-3 py-2 t-body-compact text-danger">
           Шаблон не вставлен: финальный текст не может превышать {maxCodePoints} символов.
         </p>
       ) : null}

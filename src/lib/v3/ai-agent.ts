@@ -383,7 +383,7 @@ export function answerWarnings(result: AiAnswerResult): readonly string[] {
  * после «Расходов». «Диктовка» (позже, Q6) не показывается — без пустых вкладок.
  */
 export const AI_AGENT_SECTIONS = Object.freeze([
-  { key: "documents", title: "Информация для агента" },
+  { key: "documents", title: "Материалы" },
   { key: "review", title: "Лист сверки" },
   { key: "lab", title: "Лаборатория" },
   { key: "rules", title: "Правила общения" },

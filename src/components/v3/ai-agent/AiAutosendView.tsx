@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Icon } from "@/components/icons";
 import { btnGhostCls } from "@/components/ui";
 import { StatusChip, type StatusChipTone } from "@/components/v3/blocks/StatusChip";
+import { FilterMenu } from "@/components/v3/queue/FilterMenu";
 import { QUEUE_CONFIRM } from "@/components/v3/queue/queue-buttons";
 import { QueueViewTabs } from "@/components/v3/queue/QueueViewTabs";
 import {
@@ -262,18 +263,19 @@ function JournalRow({ row }: Readonly<{ row: AiAutosendJournalRow }>) {
 function AiAutosendJournalView({ read, route, retryHref }: Readonly<{ read: AiRead<AiAutosendJournal>; route: AiAutosendRoute; retryHref: string }>) {
   return (
     <section aria-label="Журнал решений" className="space-y-3" data-testid="v3-ai-autosend-journal">
-      <nav aria-label="Фильтр журнала" className="flex flex-wrap gap-1">
-        {AI_AUTOSEND_JOURNAL_FILTERS.map((filter) => (
-          <Link
-            key={filter.key}
-            href={aiAgentHref("autosend", { view: "journal", status: filter.key === "all" ? null : filter.key })}
-            aria-current={route.journalFilter === filter.key ? "page" : undefined}
-            className="v3-choice inline-flex min-h-11 items-center rounded-nav px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
-          >
-            {filter.label}
-          </Link>
-        ))}
-      </nav>
+      {/* Один выпадающий выбор, как «Сортировка» в других списках, а не третий ряд вкладок под двумя. */}
+      <div className="flex" data-testid="v3-ai-autosend-journal-filter">
+        <FilterMenu
+          label="Показать"
+          valueLabel={AI_AUTOSEND_JOURNAL_FILTERS.find((filter) => filter.key === route.journalFilter)?.label ?? null}
+          options={AI_AUTOSEND_JOURNAL_FILTERS.map((filter) => ({
+            key: filter.key,
+            label: filter.label,
+            href: aiAgentHref("autosend", { view: "journal", status: filter.key === "all" ? null : filter.key }),
+            selected: route.journalFilter === filter.key,
+          }))}
+        />
+      </div>
       {read.status !== "available" ? <AiUnavailable what="журнал" retryHref={retryHref} /> : read.data.items.length === 0 ? (
         <p className="rounded-card border border-dashed border-border px-4 py-6 text-center t-body-compact text-fg-2">
           {route.journalFilter === "all" ? "Решений пока нет — первые появятся ночью, когда напишет клиент." : "Таких решений нет."}

@@ -238,6 +238,7 @@ function inboxModule() {
     if (id === "@/components/v3/inbox/InboxChat") return { InboxChat: () => null };
     if (id === "@/components/v3/inbox/InboxListPulse") return { InboxListPulse: () => null };
     if (id === "@/components/v3/queue/FilterMenu") return { FilterMenu: function FilterMenu() { return null; } };
+    if (id === "@/components/v3/queue/queue-buttons") return { QUEUE_SECONDARY: "" };
     if (id === "@/components/v3/telephony/DialButton") return { DialButton: () => null };
     return undefined;
   });
@@ -292,6 +293,21 @@ test("WhatsApp page (07.10.2026): a working channel says nothing; two chats endi
   }
 });
 
+test("WhatsApp empty pane: «Все ответы даны» only for a healthy channel and a fully read list; a warned channel never claims a clean state", () => {
+  const { Inbox } = inboxModule();
+  const answered = { id: "a", person: "Айгуль", phone: null, queue: "sales", status: "open", updatedAt: "07.10 12:40",
+    waitingSince: null, awaitingReplyFor: null, href: "/v3/inbox?conversation=a" };
+  const pane = (view) => textOf(findElements(Inbox({ view, profileHref: null, settingsHref: null }),
+    (node) => node.props?.["data-testid"] === "v3-inbox-next")[0]);
+  assert.equal(pane({ ...EMPTY_VIEW, channelState: "ready", conversations: [answered] }), "Все ответы даны");
+  for (const state of ["attention", "intake_off", "unavailable", "unknown"]) {
+    assert.equal(pane({ ...EMPTY_VIEW, channelState: state, conversations: [answered] }), "Выберите диалог слева",
+      `${state}: the pane does not reassure next to the channel warning`);
+  }
+  assert.equal(pane({ ...EMPTY_VIEW, channelState: "ready", conversations: [answered], queueOlderHref: "/v3/inbox?before=x" }),
+    "Выберите диалог слева", "another page may still hold waiting chats");
+});
+
 test("WhatsApp not connected: one honest state instead of «не подтверждено» and an empty list", () => {
   const { Inbox, inboxNotConnected } = inboxModule();
   const admin = Inbox({ view: EMPTY_VIEW, profileHref: null, settingsHref: "/v3/settings?section=integrations" });
@@ -326,7 +342,7 @@ test("WhatsApp not connected: one honest state instead of «не подтвер�
 test("WhatsApp page: settings link only for Admin outside role preview, no count when there is nothing to count", () => {
   const page = source("src/app/(v3)/v3/inbox/page.tsx");
   assert.match(page, /const settingsHref = actor\.systemRole === "admin" && actor\.presentationRole === null\s*\? "\/v3\/settings\?section=integrations"\s*: null;/u);
-  assert.match(page, /count=\{notConnected \? null : view\.conversations\.length\}/u);
+  assert.match(page, /count=\{notConnected \|\| paged \? null : view\.conversations\.length\}/u);
   const adapter = source("src/lib/v3/inbox-source.ts");
   // No session row is «not connected»; a failed read stays «unavailable».
   assert.match(adapter, /health === null\s*\? "not_connected"/u);

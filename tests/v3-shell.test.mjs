@@ -339,7 +339,7 @@ test("phone chrome and window-height pages share rem units, so the composer stay
   // WhatsApp (PartShell `fill`, отдельная страница «Продаж») своей высоты не
   // задаёт: от 768 px её даёт колонка оболочки по `isFillRoute`.
   assert.match(read("src/components/v3/PartShell.tsx"), /fill \? "flex flex-col py-6 md:min-h-0 md:flex-1"/u);
-  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /<PartShell title="WhatsApp" count=\{notConnected \? null : view\.conversations\.length\} fill>/u);
+  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /<PartShell title="WhatsApp" count=\{notConnected \|\| paged \? null : view\.conversations\.length\} fill>/u);
   assert.match(shell, /const fill = isFillRoute\(pathname, query\.get\("tab"\)\);/u);
   assert.match(shell, /fill && "md:flex md:h-dvh md:flex-col"/u, "the content column is window-high on fill routes");
   assert.match(shell, /fill && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto"/u);

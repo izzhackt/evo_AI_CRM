@@ -78,6 +78,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const [busy, setBusy] = useState(false);
   const [transport, setTransport] = useState<"connecting" | "live" | "error">("connecting");
   const [connectionAttempt, setConnectionAttempt] = useState(0);
+  const [connectSlow, setConnectSlow] = useState(false);
   const [newMessages, setNewMessages] = useState(false);
   const [highlighted, setHighlighted] = useState<string | null>(initialMessageId);
   const [deletion, setDeletion] = useState<TeamChatDeletionAttempt | null>(null);
@@ -284,6 +285,13 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
     };
   }, [channel, organizationId, connectionAttempt, refresh, reportFailure, forbidden, stale, realtimeConfig.url, realtimeConfig.publishableKey]);
 
+  // Подсказка «Подключаем обновления…» — только если связь не встала за три секунды.
+  useEffect(() => {
+    if (transport !== "connecting") return;
+    const timer = setTimeout(() => setConnectSlow(true), 3000);
+    return () => { clearTimeout(timer); setConnectSlow(false); };
+  }, [transport, connectionAttempt]);
+
   useLayoutEffect(() => {
     const root = viewport.current;
     if (!root || !root.getBoundingClientRect().height) return;
@@ -297,7 +305,9 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
       const row = document.getElementById(`team-message-channel-${requested.id}`);
       if (row) { root.scrollTop += row.getBoundingClientRect().top - root.getBoundingClientRect().top - root.clientHeight / 3; row.focus({ preventScroll: true }); }
     }
-    stableAnchor.current = captureAnchor(root); wasAtBottom.current = nearBottom(root);
+    // Перешли к сообщению по ссылке или из поиска — лента не должна «прилипнуть» к низу при изменении размера:
+    // когда сообщений мало и лента почти умещается в окне, она сама была бы «внизу» и сдвинулась от сообщения.
+    stableAnchor.current = captureAnchor(root); wasAtBottom.current = requested?.kind === "message" ? false : nearBottom(root);
   }, [feed, view, search, panel]);
   useLayoutEffect(() => {
     const root = viewport.current;
@@ -415,7 +425,8 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   const continuations = teamChatMessageContinuations(rows, { highlightedId: highlighted, firstUnreadId: currentChannel?.firstUnreadId });
   const currentYear = YEAR.format(new Date());
   const days = rows.map((message) => teamChatDay(message.createdAt, currentYear));
-  const transportLabel = forbidden ? "Доступ к каналу закрыт" : stale || transport === "live" ? null : transport === "connecting" ? "Подключаем обновления…" : "Живые обновления недоступны";
+  // «Подключаем обновления…» — только если связь не встала за пару секунд: обычное подключение ничего не говорит.
+  const transportLabel = forbidden ? "Доступ к каналу закрыт" : stale || transport === "live" ? null : transport === "connecting" ? (connectSlow ? "Подключаем обновления…" : null) : "Живые обновления недоступны";
   const afterSave = () => { void refresh(); };
   // Чтения прошлой сборки не уйдут: кнопки чтения не обещают того, что не случится.
   const locked = busy || stale;
@@ -454,7 +465,7 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
     </nav>
     <section className={styles.conversation} aria-label={`Канал ${TEAM_CHAT_LABELS[channel]}`}>
       <div className={styles.conversationHeader}>
-        <button type="button" className={`${styles.secondary} ${styles.mobileBack}`} onClick={() => setPanel("channels")}><Icon name="arrow-left" size={18} />Каналы</button>
+        <button type="button" className={`${styles.iconButton} ${styles.mobileBack}`} aria-label="К каналам" title="К каналам" onClick={() => setPanel("channels")}><Icon name="arrow-left" size={20} /></button>
         <span className={styles.channelAvatar} data-channel={channel} aria-hidden="true"><Icon name={TEAM_CHAT_CHANNEL_ICONS[channel]} size={20} /></span><h2>{TEAM_CHAT_LABELS[channel]}</h2>
         <button type="button" className={styles.iconButton} disabled={forbidden} aria-label={searchOpen ? "Закрыть поиск" : "Поиск в этом канале"} aria-expanded={searchOpen} aria-controls="team-chat-search-form" onClick={() => {
           setSearchOpen((value) => !value);

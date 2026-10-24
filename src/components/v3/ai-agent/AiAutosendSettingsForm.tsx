@@ -249,7 +249,7 @@ export function AiAutosendSettingsForm({
       <input type="hidden" name="baseline" value={JSON.stringify(initial)} />
 
       <fieldset disabled={readOnly} className="@container min-w-0">
-        <Row title="Расписание" hint="По Бишкеку (Asia/Bishkek), не меняется" testId="v3-ai-autosend-schedule">
+        <Row title="Расписание" hint="По времени Бишкека" testId="v3-ai-autosend-schedule">
           <ul className="divide-y divide-border rounded-ctl border border-border">
             {AI_AUTOSEND_DAYS.map((day) => {
               const spans = draft.schedule[day];
@@ -292,7 +292,7 @@ export function AiAutosendSettingsForm({
           <FieldIssues messages={issuesFor(shown, "schedule")} />
         </Row>
 
-        <Row title="Особые даты" hint="Праздники и выходные; «включён весь день» — тоже нерабочий день для звонка" testId="v3-ai-autosend-overrides">
+        <Row title="Особые даты" hint="Праздники и выходные" testId="v3-ai-autosend-overrides">
           {draft.dateOverrides.length === 0 ? <p className="t-body-compact text-fg-3">Особых дат нет.</p> : (
             <ul className="space-y-2">
               {draft.dateOverrides.map((item, index) => {

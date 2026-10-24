@@ -252,7 +252,8 @@ test("the header state control is visible and calls the existing set_await comma
   // Запись состояния не выглядит как фильтр очереди: подпись «Состояние» и
   // нажатая часть в тоне самого состояния, а не общим «выбрано» (.v3-choice).
   const header = component.slice(component.indexOf("function ThreadHeader("), component.indexOf("function AttachmentCard("));
-  assert.match(header, /<span className="t-label text-fg-3" aria-hidden="true">Состояние<\/span>/u);
+  // Подпись — только широко (узко группа названа для читалки), и она не часть доступного имени.
+  assert.match(header, /<span className="hidden t-label text-fg-3 @2xl:inline" aria-hidden="true">Состояние<\/span>/u);
   assert.doesNotMatch(header, /v3-choice/u);
   assert.match(header, /data-tone=\{awaitTone\(value\)\}/u);
   assert.match(component, /needs_reply: "aria-pressed:border-warn\/40 aria-pressed:bg-warn-weak aria-pressed:text-warn",/u);
@@ -277,7 +278,7 @@ test("a template is inserted into the text without sending: the same picker, rea
   // «Шаблон» и «/» в пустом поле открывают одно окно в верхнем слое.
   assert.match(component, /popoverTarget=\{picker\.popoverId\}/u);
   assert.match(component, /popover="auto" role="dialog" aria-label="Шаблон ответа"/u);
-  assert.match(component, /if \(event\.key !== "\/" \|\| event\.ctrlKey \|\| event\.metaKey \|\| event\.altKey \|\| event\.nativeEvent\.isComposing\) return;\s*if \(!canPick \|\| draft\.body !== ""\) return;/u);
+  assert.match(component, /if \(event\.key === "\/" && !event\.ctrlKey && !event\.metaKey && !event\.altKey\) \{\s*if \(!canPick \|\| draft\.body !== ""\) return;\s*event\.preventDefault\(\);\s*openPicker\(\);/u);
   const page = read("src/app/(v3)/v3/messages/page.tsx");
   assert.match(page, /staffCan\(actor, "snippets\.read"\)\s*\? readV3ReplySnippets\(actor\)/u);
   assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /readV3ReplySnippets\(actor\)/u);
@@ -373,23 +374,27 @@ test("a phone thread takes the screen: page title only for screen readers, no ch
   // Узко имя встаёт в две строки, а не обрезается до «Студент …».
   assert.match(header, /<h2 class="[^"]*@max-2xl:line-clamp-2 @2xl:truncate">Нурай Образцова<\/h2>/u);
   // Список на всю ширину телефона — без своей черты справа.
-  assert.match(page("cabinet"), /<nav aria-label="Переписки кабинета студента" class="flex w-full flex-col border-border @2xl:w-\[360px\] @2xl:shrink-0 @2xl:border-e">/u);
+  assert.match(page("cabinet"), /<nav aria-label="Переписки кабинета студента" class="flex w-full flex-col border-border @2xl:w-\[320px\] @2xl:shrink-0 @2xl:border-e">/u);
 });
 
 test("the empty default queue fills the right pane with «Все ответы даны», the list says it once in other words", () => {
   const html = page("answered");
   assert.match(html, /data-testid="case-chat-next"><p class="t-body text-fg-3">Все ответы даны<\/p><\/div>/u);
-  assert.match(html, /<p role="status" class="text-sm text-fg-3">Нет переписок, ждущих ответа\.<\/p>/u);
-  assert.match(html, />Показать все переписки<\/button>/u);
+  assert.match(html, /<p role="status" class="t-body-compact text-fg-3">Нет переписок, ждущих ответа\.<\/p>/u);
+  // «Все» уже стоит рядом сегментом: второй кнопки с тем же действием нет.
+  assert.doesNotMatch(html, /Показать все переписки/u);
 });
 
-test("message actions: an icon from the set on the author · time line, the menu in the top layer, no «⋯» glyph", () => {
+test("message actions: one «Ответить с цитатой» icon in the time line, no «⋯» menu, own bubble neutral, day dividers", () => {
   const thread = page("thread");
-  assert.doesNotMatch(thread, /⋯/u);
-  const triggers = [...thread.matchAll(/<button type="button" id="[^"]+" popoverTarget="([^"]+)"[^>]*aria-label="Действия с сообщением"[^>]*><span [^>]*><svg [^>]*><circle cx="5" cy="12" r="1\.2"\/>/gu)];
+  assert.doesNotMatch(thread, /⋯|popover="auto" role="group" aria-label="Действия с сообщением"/u);
+  const triggers = [...thread.matchAll(/<button type="button" aria-label="Ответить с цитатой" title="Ответить с цитатой"/gu)];
   assert.equal(triggers.length, 5, "one per message");
-  for (const [, id] of triggers) assert.match(thread, new RegExp(`<div id="${id}" popover="auto" role="group" aria-label="Действия с сообщением"`, "u"));
   const component = read("src/components/v3/case-chat/CaseChatThread.tsx");
-  assert.doesNotMatch(component, /<details|<summary/u);
-  assert.match(component, /onClick=\{\(\) => \{ document\.getElementById\(menu\.popoverId\)\?\.hidePopover\(\); onReply\(message\); \}\}/u);
+  assert.doesNotMatch(component, /<details|<summary|Действия с сообщением/u);
+  assert.match(component, /onClick=\{\(\) => onReply\(message\)\}/u);
+  // Грамматика чата WhatsApp: чужое — белый лист с рамкой, наше — «выбрано» (не розовое `accent/10`), день — разделителем.
+  assert.match(component, /own \? "bg-accent-weak" : "border border-border bg-surface"/u);
+  assert.doesNotMatch(component, /bg-accent\/10/u);
+  assert.match(thread, /<span class="rounded-card bg-surface-2 px-3 py-1 t-meta text-fg-3">24 сентября<\/span>/u);
 });

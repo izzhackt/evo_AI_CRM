@@ -143,7 +143,9 @@ test("V3 Inbox search and «Сортировка» use the server waiting_since 
   assert.match(inbox, /label: "Сначала новые"/u);
   assert.match(inbox, /label: "Неотвеченные"/u);
   assert.doesNotMatch(inbox, /Только ждут ответа|name="waiting"/u);
-  assert.match(inbox, /Ждёт ответа с \{conversation\.waitingSince\}/u);
+  // Строка не повторяет время: «Ждёт ответа · 11 дн», полная дата — подсказкой.
+  assert.match(inbox, /title=\{`Ждёт ответа с \$\{conversation\.waitingSince\}`\}/u);
+  assert.match(inbox, /: ` с \$\{conversation\.waitingSince\}`\}/u);
   assert.match(inbox, /Ждёт ответа\{open\.awaitingReplyFor \? ` · \$\{open\.awaitingReplyFor\}` : ""\}/u);
   assert.doesNotMatch(`${adapter}\n${inbox}`, /lastMessageAt.*formatWaitingRu/su);
 });

@@ -30,13 +30,30 @@ const ATTACH_STATUS_COPY: Readonly<
   unavailable: "Вложение или документ сейчас недоступны.",
 });
 
+/** Тип файла словом для сотрудника: «PDF», «Фото», «Word» — не «application/pdf». Неизвестный тип не показываем. */
+function mediaTypeLabel(mimeType: string | null): string | null {
+  if (!mimeType) return null;
+  const type = mimeType.toLowerCase();
+  if (type === "application/pdf") return "PDF";
+  if (type.startsWith("image/")) return "Фото";
+  if (type.startsWith("audio/")) return "Аудио";
+  if (type.startsWith("video/")) return "Видео";
+  if (type.includes("wordprocessingml") || type === "application/msword") return "Word";
+  if (type.includes("spreadsheetml") || type === "application/vnd.ms-excel") return "Excel";
+  if (type === "text/plain") return "Текст";
+  return null;
+}
+
+const mediaActionCls =
+  "inline-flex min-h-11 items-center rounded-nav px-1.5 -mx-1.5 t-label text-fg underline decoration-fg-3 underline-offset-2 hover:decoration-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
       disabled={pending}
-      className="inline-flex min-h-11 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-xs font-semibold text-fg-2 hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex min-h-11 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg disabled:cursor-wait disabled:border-border disabled:bg-surface-2 disabled:text-fg-3"
     >
       {pending ? "Добавляем…" : "В дело студента"}
     </button>
@@ -96,7 +113,7 @@ function MediaAttachmentForm({
           name="document_slot_id"
           value={selectedSlotId}
           onChange={(event) => setSelectedSlotId(event.currentTarget.value)}
-          className="min-h-11 w-full rounded-ctl border border-border bg-surface px-2 text-xs text-fg"
+          className="min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-2 t-body text-fg"
           required
         >
           <option value="">Выберите документ</option>
@@ -153,27 +170,27 @@ export function InboxMessageMedia({
             <p className="t-item truncate">
               {item.fileName ?? item.kindLabel}
             </p>
-            {item.mimeType || item.fileSizeLabel ? (
+            {mediaTypeLabel(item.mimeType) || item.fileSizeLabel ? (
               <p className={`t-meta mt-0.5 ${statusTone}`}>
-                {[item.mimeType, item.fileSizeLabel].filter(Boolean).join(" · ")}
+                {[mediaTypeLabel(item.mimeType), item.fileSizeLabel].filter(Boolean).join(" · ")}
               </p>
             ) : null}
 
             {item.state === "available" && item.previewHref && item.downloadHref ? (
-              <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
+              <div className="mt-1 flex flex-wrap items-center gap-x-4">
                 <a
                   href={item.previewHref}
                   target="_blank"
                   rel="noreferrer"
                   aria-label={`Открыть вложение ${item.fileName ?? item.kindLabel}`}
-                  className="inline-flex min-h-11 items-center rounded-ctl border border-current px-2.5 hover:opacity-80"
+                  className={mediaActionCls}
                 >
                   Открыть
                 </a>
                 <a
                   href={item.downloadHref}
                   aria-label={`Скачать вложение ${item.fileName ?? item.kindLabel}`}
-                  className="inline-flex min-h-11 items-center rounded-ctl border border-current px-2.5 hover:opacity-80"
+                  className={mediaActionCls}
                 >
                   Скачать
                 </a>

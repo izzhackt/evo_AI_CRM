@@ -31,15 +31,17 @@ export function AiRowMore({
   };
   return (
     <>
-      <div className="grid gap-x-4 gap-y-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
-        <div className="min-w-0">{main}</div>
-        <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
+      {/* Телефон: «⋯» стоит в строке названия справа, а метки (если они есть) идут под ним; без видимых меток отдельной
+          строки нет — слова только для читалки не занимают высоты. От md метки и «⋯» — колонка справа. */}
+      <div className="relative grid gap-x-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+        <div className={`min-w-0${panel ? " pe-11 md:pe-0" : ""}`}>{main}</div>
+        <div className="flex flex-wrap items-center gap-1.5 has-[>:not(.sr-only):not(.v3-ai-more)]:mt-2 md:mt-0 md:justify-end md:has-[>:not(.sr-only):not(.v3-ai-more)]:mt-0">
           {aside}
           {panel ? (
             <button
               ref={buttonRef}
               type="button"
-              className="v3-ai-more"
+              className="v3-ai-more absolute end-0 top-0 md:static"
               aria-expanded={open}
               aria-controls={`${ids}-panel`}
               aria-label={`Ещё действия: ${label}`}

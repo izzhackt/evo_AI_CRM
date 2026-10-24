@@ -61,6 +61,19 @@
 .messageMetadata { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; color: var(--text-3); }
 .messageMetadata time { white-space: nowrap; }
 .messageFooter > button, .messageFooter > .messageMenu { flex-shrink: 0; }
+/* Время и действия — строкой внутри пузыря: время слева, «Ответить» и «⋯» справа. Цели остаются 44 px, а
+   строка от них не растёт (отрицательный отступ), поэтому сообщение занимает на ~35 px меньше. Мышью
+   действия проявляются при наведении и фокусе, на сенсорном экране видны всегда. */
+.bubble .messageFooter { justify-content: flex-end; gap: 0 8px; margin-top: 2px; }
+.bubble .messageMetadata { margin-inline-end: auto; }
+.bubble .messageFooter > button, .bubble .messageFooter .messageMenu summary { margin-block: -14px; }
+.bubble .messageFooter > .messageMenu[open] summary { margin-block: 0; }
+@media (hover: hover) and (pointer: fine) {
+  .bubble .messageFooter > button, .bubble .messageFooter > .messageMenu { opacity: 0; }
+  .message:hover .messageFooter > button, .message:hover .messageFooter > .messageMenu,
+  .message:focus-within .messageFooter > button, .message:focus-within .messageFooter > .messageMenu,
+  .messageFooter > .messageMenu[open] { opacity: 1; }
+}
 .body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .messageActions, .readActions { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
 .readActions { padding: 0 20px; background: var(--bg); }
@@ -117,7 +130,7 @@
 .error { color: var(--danger); font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); padding: 8px 12px; overflow-wrap: anywhere; }
 .empty { color: var(--text-3); font-size: var(--type-body); line-height: var(--type-body-leading); padding: 32px 8px; }
 .confirmation { background: var(--bg); padding: 12px; border-radius: 8px; font-size: var(--type-body-compact); line-height: var(--type-body-compact-leading); }
-.mobileBack { display: none; }
+.mobileBack { display: none; margin-inline-start: -8px; }
 .srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 @media (max-width: 800px) {
   .workspace { height: 100%; min-height: 0; }

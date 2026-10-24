@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { Icon } from "@/components/icons";
 import {
   AiAgentNav,
   AiAgentNotice,
@@ -22,6 +24,7 @@ import { aiAgentFeatureOn } from "@/lib/server/ai-agent-internal-auth";
 import { aiAutosendServerState } from "@/lib/server/ai-agent-send-config";
 import { readAiAgentStatus } from "@/lib/server/ai-agent-route-handlers";
 import { aiAgentHref, parseAiAgentRoute } from "@/lib/v3/ai-agent";
+import { AI_AGENTS_HUB_HREF } from "@/lib/v3/ai-agents-view";
 import { readAiAutosend, readAiAutosendJournal, readAiAutosendSummary } from "@/lib/v3/ai-agent-autosend-source";
 import {
   readAiDocumentDetail,
@@ -44,7 +47,7 @@ const requestIdsFor = (ids: readonly string[]) => Object.fromEntries(ids.map((id
 
 /**
  * «ИИ-агент» (план ИИ-агента §12.2): все сотрудники (Q9, право ai.agent.use).
- * Подразделы — настоящие ссылки `?section=`: «Информация для агента» (список,
+ * Подразделы — настоящие ссылки `?section=`: «Материалы» (список,
  * загрузка, «Новая версия» `?replace=`, просмотр `?document=&page=&chunk=`),
  * «Лист сверки» (`?status=resolved`, `?document=`), «Лаборатория», «Правила
  * общения», «Расходы», «Автоответчик» (P4: `?view=journal|summary`, пауза —
@@ -198,7 +201,15 @@ export default async function AiAgentPage({ searchParams }: Readonly<{ searchPar
   }
 
   return (
-    <PartShell title="ИИ-агент" testId="v3-ai-agent">
+    <PartShell
+      title="ИИ-агент"
+      testId="v3-ai-agent"
+      back={(
+        <Link href={AI_AGENTS_HUB_HREF} className="mb-3 inline-flex min-h-11 items-center gap-1.5 rounded-nav t-label text-fg-2 hover:text-fg">
+          <Icon name="arrow-left" size={16} /> Все ИИ-агенты
+        </Link>
+      )}
+    >
       <div className="space-y-5">
         <AiAgentNav section={section} reviewOpenCount={reviewOpenCount} />
         <AiAgentNotice settings={settingsData} featureOn={featureOn} preview={preview} consentRequestId={randomUUID()} />

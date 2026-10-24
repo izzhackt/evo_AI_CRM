@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
-import { startTransition, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { startTransition, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/icons";
 import { Initials } from "@/components/v3/blocks/Initials";
 import { StageChip, StatusChip } from "@/components/v3/blocks/StatusChip";
@@ -35,6 +35,30 @@ const TIME = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digi
 /** Плотная дата строки списка: «25.09»; сегодняшнее сообщение — время «14:05». */
 const ROW_DAY = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", timeZone: PLATFORM_ORGANIZATION_TIMEZONE });
 const DAY_KEY = new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: PLATFORM_ORGANIZATION_TIMEZONE });
+
+const DAY_MONTH = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: PLATFORM_ORGANIZATION_TIMEZONE });
+const DAY_MONTH_YEAR = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: PLATFORM_ORGANIZATION_TIMEZONE });
+
+/** День ленты по времени организации; пустая строка — дату не прочитать. */
+function dayKey(at: string): string {
+  const moment = new Date(at);
+  return Number.isFinite(moment.getTime()) ? DAY_KEY.format(moment) : "";
+}
+
+/** Разделитель дня, как у чата WhatsApp: «Сегодня», «Вчера», «5 октября»; год — если не текущий. */
+function dayLabel(at: string, readAt: string): string {
+  const moment = new Date(at);
+  const now = new Date(readAt);
+  if (!Number.isFinite(moment.getTime())) return "";
+  if (Number.isFinite(now.getTime())) {
+    const today = DAY_KEY.format(now);
+    const day = DAY_KEY.format(moment);
+    if (day === today) return "Сегодня";
+    if (day === DAY_KEY.format(new Date(now.getTime() - 86_400_000))) return "Вчера";
+    if (day.slice(0, 4) === today.slice(0, 4)) return DAY_MONTH.format(moment);
+  }
+  return DAY_MONTH_YEAR.format(moment).replace(/\s*г\.$/u, "");
+}
 
 function rowTime(at: string, readAt: string): string {
   const moment = new Date(at);
@@ -136,10 +160,17 @@ function CaseChatComposer(props: Readonly<{
   snippets: CaseChatSnippets;
 }>) {
   const mounted = useSyncExternalStore(subscribeNever, clientTrue, serverFalse);
+  // До монтирования — рамка поля без подписи: черновик читается из localStorage только в браузере.
   return mounted
     ? <MountedCaseChatComposer {...props} />
-    : <div className="border-t border-border p-3 text-sm text-fg-3" role="status">Загружаем черновик…</div>;
+    : <div className="shrink-0 border-t border-border bg-surface px-3 pb-3 pt-2.5" aria-busy="true"><div className="h-[54px] rounded-card border border-border" /></div>;
 }
+
+/** Восемь строк поля: дальше оно прокручивается само. */
+const COMPOSER_MAX_LINES = 8;
+
+/** Кнопка «×» в строке цитаты и вложения: цель 44 px, подложка при наведении. */
+const CHIP_CLOSE = "inline-flex size-11 shrink-0 items-center justify-center rounded-nav text-fg-3 hover:bg-surface-3 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
 
 function MountedCaseChatComposer({
   caseId, storageScope, pendingAttachment, onAttachmentConsumed, replyTo, onClearReply, onSaved, snippets,
@@ -160,6 +191,7 @@ function MountedCaseChatComposer({
   const [draft, setDraft] = useState<Draft>(initial);
   const [storageError, setStorageError] = useState(false);
   const textarea = useRef<HTMLTextAreaElement>(null);
+  const composing = useRef(false);
   const consumedAttachment = useRef(false);
 
   // Notifies the parent that the one-shot ?attach= link-card has been folded
@@ -196,6 +228,19 @@ function MountedCaseChatComposer({
   // или повтор заморожен («Повторить»), текст менять нельзя — и шаблон тоже.
   const picker = useAnchoredPopover("start");
   const canPick = snippets !== null && !pending && !uncertain;
+
+  // Поле растёт с текстом до восьми строк (после вставки шаблона — тоже).
+  useLayoutEffect(() => {
+    const field = textarea.current;
+    if (!field) return;
+    const style = getComputedStyle(field);
+    const line = parseFloat(style.lineHeight) || 24;
+    const chrome = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+    field.style.height = "auto";
+    const next = Math.min(field.scrollHeight, line * COMPOSER_MAX_LINES + chrome);
+    field.style.height = `${next}px`;
+    field.style.overflowY = field.scrollHeight > next ? "auto" : "hidden";
+  }, [draft.body]);
 
   useEffect(() => {
     const element = document.getElementById(picker.popoverId);
@@ -250,7 +295,7 @@ function MountedCaseChatComposer({
   }
 
   return (
-    <form action={submit} className="border-t border-border p-3" aria-label="Новое сообщение">
+    <form action={submit} className="shrink-0 border-t border-border bg-surface px-3 pb-3 pt-2.5" aria-label="Новое сообщение">
       <input type="hidden" name="case_id" value={caseId} />
       <input type="hidden" name="request_id" value={draft.requestId} />
       <input type="hidden" name="body" value={draft.retryBody ?? draft.body} />
@@ -259,56 +304,79 @@ function MountedCaseChatComposer({
       <input type="hidden" name="attachment_id" value={draft.retryAttachmentId ?? draft.attachment?.id ?? ""} />
 
       {replyTo ? (
-        <div className="mb-2 flex items-start justify-between gap-2 rounded-ctl border border-border bg-surface-2 px-3 py-2 text-sm">
-          <p className="min-w-0 truncate text-fg-2">{replyTo.authorName}: {replyTo.body}</p>
-          <button type="button" className="shrink-0 text-fg-3 hover:text-fg" aria-label="Убрать цитату" onClick={onClearReply}>×</button>
+        <div className="mb-2 flex min-h-11 items-center justify-between gap-2 rounded-ctl border border-border bg-bg ps-3">
+          <p className="min-w-0 truncate t-body-compact text-fg-2">{replyTo.authorName}: {replyTo.body}</p>
+          <button type="button" className={CHIP_CLOSE} aria-label="Убрать цитату" onClick={onClearReply}>
+            <Icon name="x" size={16} className="shrink-0" />
+          </button>
         </div>
       ) : null}
       {draft.attachment ? (
-        <div className="mb-2 flex items-center justify-between gap-2 rounded-ctl border border-border bg-surface-2 px-3 py-2 text-sm">
-          <span className="text-fg-2">{draft.attachment.kind === "document" ? "Документ дела" : "Задача дела"} прикреплён к сообщению</span>
-          <button type="button" className="shrink-0 text-fg-3 hover:text-fg" aria-label="Убрать вложение" onClick={() => persist({ ...draft, attachment: null })}>×</button>
+        <div className="mb-2 flex min-h-11 items-center justify-between gap-2 rounded-ctl border border-border bg-bg ps-3">
+          <span className="min-w-0 truncate t-body-compact text-fg-2">{draft.attachment.kind === "document" ? "Прикреплён документ дела" : "Прикреплена задача дела"}</span>
+          <button type="button" className={CHIP_CLOSE} aria-label="Убрать вложение" onClick={() => persist({ ...draft, attachment: null })}>
+            <Icon name="x" size={16} className="shrink-0" />
+          </button>
         </div>
       ) : null}
 
-      <div className="flex items-end gap-1.5 @md:gap-2">
+      {/* Одна рамка, как у чата WhatsApp: «Шаблон» слева, поле растёт, справа круглая «Отправить» —
+          красная, только когда есть что отправить. Фокус рисует рамка, а не поле внутри неё. */}
+      <div className="flex items-end gap-1 rounded-card border border-border bg-surface p-1 focus-within:border-control-edge has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-focus-ring">
         {snippets !== null ? (
           <button
             type="button" id={picker.triggerId} popoverTarget={picker.popoverId} style={picker.triggerStyle}
             aria-haspopup="dialog" disabled={!canPick}
-            className={`${QUEUE_SECONDARY} shrink-0 @max-md:px-0 @max-md:w-11`}
+            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-ctl px-2.5 t-label text-fg-2 hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:text-fg-3 @max-md:w-11 @max-md:justify-center @max-md:px-0"
           >
-            <Icon name="quote" size={18} className="shrink-0" />
+            <Icon name="file-text" size={18} className="shrink-0" />
             <span className="@max-md:sr-only">Шаблон</span>
           </button>
         ) : null}
         <label className="sr-only" htmlFor={`${key}-body`}>Сообщение в переписке</label>
         <textarea
           id={`${key}-body`} ref={textarea} value={draft.body} rows={1} maxLength={CASE_CHAT_BODY_LIMIT + 200}
-          readOnly={pending || uncertain} disabled={pending}
-          placeholder="Сообщение…" aria-invalid={tooLong || undefined}
-          className="min-h-11 min-w-0 flex-1 resize-y rounded-ctl border border-control-edge bg-surface px-3 py-2 text-sm text-fg"
+          readOnly={pending || uncertain}
+          placeholder="Сообщение…" aria-invalid={tooLong || undefined} data-composer-input=""
+          className="min-h-11 min-w-0 flex-1 resize-none bg-transparent px-2 py-2.5 t-body text-fg outline-none placeholder:text-fg-3"
           onChange={(event) => persist({ ...draft, body: event.target.value })}
+          onCompositionStart={() => { composing.current = true; }}
+          onCompositionEnd={() => { composing.current = false; }}
           onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing || composing.current || event.keyCode === 229) return;
             // «/» в пустом поле открывает шаблоны, как кнопка «Шаблон»; сам знак не печатается.
-            if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey || event.nativeEvent.isComposing) return;
-            if (!canPick || draft.body !== "") return;
+            if (event.key === "/" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+              if (!canPick || draft.body !== "") return;
+              event.preventDefault();
+              openPicker();
+              return;
+            }
+            // Enter — строка, как и было: сообщение уходит студенту без отзыва, поэтому одиночный Enter не отправляет,
+            // пока владелец не решит это для «Переписки». Ctrl/Cmd+Enter — быстрая отправка.
+            if (event.key !== "Enter" || (!event.ctrlKey && !event.metaKey) || event.altKey || event.shiftKey) return;
             event.preventDefault();
-            openPicker();
+            if (canSend && !uncertain) event.currentTarget.form?.requestSubmit();
           }}
         />
-        <button type="submit" disabled={!canSend} className="inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-3 text-sm font-semibold text-on-accent disabled:cursor-not-allowed disabled:opacity-55 @md:px-4">
-          {pending ? "Отправляем…" : uncertain ? "Повторить" : "Отправить"}
-        </button>
+        {uncertain ? (
+          <button type="submit" disabled={!canSend} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-ctl bg-accent px-4 t-label text-on-accent hover:bg-accent-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-fg-3">
+            Повторить
+          </button>
+        ) : (
+          <button type="submit" disabled={!canSend} aria-label={pending ? "Отправляем…" : "Отправить"}
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent hover:bg-accent-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-fg-3">
+            <Icon name={pending ? "clock" : "send"} size={20} className="shrink-0" />
+          </button>
+        )}
       </div>
-      {tooLong ? <p role="alert" className="mt-1 text-sm text-danger">Сократите сообщение до {CASE_CHAT_BODY_LIMIT} символов.</p> : null}
-      {state.status !== "idle" && state.status !== "saved" ? <p role="alert" className="mt-1 text-sm text-danger">{CASE_CHAT_FAILURE_COPY[state.status]}</p> : null}
-      {storageError ? <p className="mt-1 text-sm text-fg-3">Браузер не сохраняет черновик в этой вкладке.</p> : null}
+      {tooLong ? <p role="alert" className="mt-1 t-body-compact text-danger">Сократите сообщение до {CASE_CHAT_BODY_LIMIT} символов.</p> : null}
+      {state.status !== "idle" && state.status !== "saved" ? <p role="alert" className="mt-1 t-body-compact text-danger">{CASE_CHAT_FAILURE_COPY[state.status]}</p> : null}
+      {storageError ? <p className="mt-1 t-body-compact text-fg-3">Браузер не сохраняет черновик в этой вкладке.</p> : null}
       {snippets !== null ? (
         <div
           id={picker.popoverId} popover="auto" role="dialog" aria-label="Шаблон ответа" style={picker.popoverStyle}
           data-testid="case-chat-snippet-popover"
-          className="v3-anchored w-[min(24rem,calc(100vw-1rem))] rounded-ctl border border-border bg-surface p-3 text-fg shadow-evo-lg"
+          className="v3-anchored w-[min(24rem,calc(100vw-1rem))] rounded-ctl border border-border bg-surface p-1 text-fg shadow-evo-lg"
         >
           {snippets.status === "ready" ? (
             <ReplySnippetPicker
@@ -323,7 +391,7 @@ function MountedCaseChatComposer({
               }}
             />
           ) : (
-            <p role="alert" className="t-body-compact text-danger">Шаблоны не загрузились. Обновите страницу.</p>
+            <p role="alert" className="p-2 t-body-compact text-danger">Шаблоны не загрузились. Обновите страницу.</p>
           )}
         </div>
       ) : null}
@@ -363,7 +431,7 @@ function ThreadHeader({
   const stage = facts?.stage ? admissionsPipelineStage(facts.stage) : null;
   const direction = facts?.direction ?? null;
   return (
-    <div className="flex flex-col gap-2 border-b border-border p-3" data-testid="case-chat-thread-header">
+    <div className="flex flex-col gap-1.5 border-b border-border px-3 py-2 @2xl:gap-2 @2xl:p-3" data-testid="case-chat-thread-header">
       <div className="flex items-start justify-between gap-2 @2xl:gap-3">
         <div className="flex min-w-0 items-start gap-1 @2xl:gap-2.5">
           <Link href={listHref} scroll={false} aria-label="К списку" title="К списку"
@@ -383,18 +451,19 @@ function ThreadHeader({
             ) : null}
           </div>
         </div>
-        <Link href={`/v3/profile?case=${caseId}`} className={`${QUEUE_SECONDARY} shrink-0 hover:bg-surface-2 hover:text-fg`}>
+        <Link href={`/v3/profile?case=${caseId}`}
+          className="inline-flex min-h-11 shrink-0 items-center rounded-nav px-2 t-label text-fg underline decoration-fg-3 underline-offset-2 hover:decoration-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
           Открыть дело
         </Link>
       </div>
       {awaitState !== null ? (
-        /* Подпись «Состояние» отличает запись от фильтра очереди. Узко —
-           подпись над переключателем и три равные части на всю ширину (слово
-           может встать в две строки), широко — в строку, по ширине слов. */
-        <div className="flex flex-col gap-1 @2xl:flex-row @2xl:items-center @2xl:gap-3">
-          <span className="t-label text-fg-3" aria-hidden="true">Состояние</span>
+        /* Подпись «Состояние» отличает запись от фильтра очереди — только широко (узко группа
+           названа для читалки, подпись отняла бы строку у ленты): три равные части на всю
+           ширину (слово может встать в две строки), широко — по ширине слов. */
+        <div className="flex items-center gap-3">
+          <span className="hidden t-label text-fg-3 @2xl:inline" aria-hidden="true">Состояние</span>
           <div role="group" aria-label="Состояние переписки" data-testid="case-chat-await-control"
-            className="grid grid-cols-3 gap-0.5 rounded-ctl border border-border bg-surface-2 p-0.5 @2xl:flex @2xl:w-fit">
+            className="grid w-full grid-cols-3 gap-0.5 rounded-ctl border border-border bg-surface-2 p-0.5 @2xl:flex @2xl:w-fit">
             {AWAIT_CONTROL_ORDER.map((value) => (
               <button key={value} type="button" aria-pressed={awaitState === value} disabled={awaitPending}
                 onClick={() => { if (value !== awaitState) onSetAwait(value); }}
@@ -415,11 +484,11 @@ function AttachmentCard({ message, caseId, documentsAwaitCurator }: Readonly<{ m
   // У дела без куратора вкладки «Документы» нет (`caseDocumentsAwaitCurator`, считает страница): метка и причина вместо ссылки.
   if (message.attachmentKind === "document" && documentsAwaitCurator) {
     return (
-      <div className="mt-1.5 flex min-h-11 items-center gap-2 rounded-ctl border border-border bg-surface px-3 py-2 text-sm text-fg" data-testid="case-chat-attachment-await">
+      <div className="mt-1.5 flex min-h-11 items-center gap-2 rounded-ctl border border-border bg-surface px-3 py-2 t-body-compact text-fg" data-testid="case-chat-attachment-await">
         <Icon name="folder" size={16} className="shrink-0" />
         <span className="min-w-0">
           <span className="block truncate">{message.attachmentLabel ?? "Документ дела"}</span>
-          <span className="block text-xs text-fg-3">Документы {caseDocumentsWords.awaitCurator}.</span>
+          <span className="block t-meta text-fg-3">Документы {caseDocumentsWords.awaitCurator}.</span>
         </span>
       </div>
     );
@@ -428,7 +497,7 @@ function AttachmentCard({ message, caseId, documentsAwaitCurator }: Readonly<{ m
     ? `/v3/profile?case=${caseId}&tab=documents`
     : `/v3/tasks?task=${message.attachmentId}&kind=case&case=${caseId}`;
   return (
-    <Link href={href} className="mt-1.5 flex min-h-11 items-center gap-2 rounded-ctl border border-border bg-surface px-3 py-2 text-sm text-fg underline decoration-transparent hover:decoration-inherit">
+    <Link href={href} className="mt-1.5 flex min-h-11 items-center gap-2 rounded-ctl border border-border bg-surface px-3 py-2 t-body-compact text-fg underline decoration-transparent hover:decoration-inherit">
       <Icon name={message.attachmentKind === "document" ? "folder" : "check-square"} size={16} />
       <span className="truncate">{message.attachmentLabel ?? (message.attachmentKind === "document" ? "Документ дела" : "Задача дела")}</span>
     </Link>
@@ -436,46 +505,34 @@ function AttachmentCard({ message, caseId, documentsAwaitCurator }: Readonly<{ m
 }
 
 /**
- * Сообщение ленты. «Действия с сообщением» — знак из набора иконок в строке
- * «автор · время» самого пузыря (не отдельной строкой под ним и не символом
- * «⋯»): цель 44 px, но строка пузыря от неё не растёт. Меню — в верхнем слое
- * (popover), прокрутка ленты его не обрежет.
+ * Сообщение ленты — та же грамматика, что у чата WhatsApp: чужое — белый лист с
+ * волосяной рамкой слева, наше — нейтральное «выбрано» справа (не красное), время
+ * в строке под текстом. Автор подписан только у чужих сообщений: наше слева не
+ * нуждается в «Вы». «Ответить с цитатой» — один знак в строке времени, цель
+ * 44 px, а строка от неё не растёт; мышью он проявляется при наведении и фокусе,
+ * на сенсорном экране виден всегда.
  */
 function MessageRow({
   message, own, caseId, documentsAwaitCurator, onReply,
 }: Readonly<{ message: CaseChatMessage; own: boolean; caseId: string; documentsAwaitCurator: boolean; onReply: (message: CaseChatMessage) => void }>) {
-  const menu = useAnchoredPopover(own ? "end" : "start");
   return (
-    <div className={`flex flex-col py-2 ${own ? "items-end" : "items-start"}`} id={`case-message-${message.id}`}>
-      <div className={`max-w-[85%] min-w-0 rounded-ctl px-3 py-2 ${own ? "bg-accent/10" : "bg-surface-2"}`}>
-        <div className="flex items-center gap-2">
-          <p className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 text-xs text-fg-3">
-            <span className="font-medium text-fg-2">{own ? "Вы" : message.authorName}</span>
-            <time dateTime={message.createdAt}>{TIME.format(new Date(message.createdAt))}</time>
-          </p>
-          <button type="button" id={menu.triggerId} popoverTarget={menu.popoverId} style={menu.triggerStyle}
-            aria-label="Действия с сообщением"
-            className="group -my-3.5 -me-2.5 inline-flex size-11 shrink-0 items-center justify-center rounded-nav text-fg-3 hover:text-fg">
-            {/* Цель — 44 px, подложка при наведении — только вокруг знака, внутри пузыря. */}
-            <span className="inline-flex size-7 items-center justify-center rounded-nav group-hover:bg-surface-3">
-              <Icon name="more-horizontal" size={16} className="shrink-0" />
-            </span>
-          </button>
-        </div>
+    <div className={`group flex py-1 ${own ? "justify-end" : "justify-start"}`} id={`case-message-${message.id}`}>
+      <div className={`min-w-0 max-w-[min(36rem,85%)] rounded-ctl px-3 py-2 ${own ? "bg-accent-weak" : "border border-border bg-surface"}`}>
+        {own ? <span className="sr-only">Вы. </span> : <p className="t-meta font-medium text-fg-2">{message.authorName}</p>}
         {message.quotedPreview ? (
-          <p className="mt-1 truncate border-s-2 border-border ps-2 text-xs text-fg-3">
+          <p className="mt-1 truncate border-s-2 border-border ps-2 t-meta text-fg-3">
             {message.quotedPreview.authorName}: {message.quotedPreview.bodyPreview}
           </p>
         ) : null}
-        {message.body ? <p className="mt-1 whitespace-pre-wrap break-words text-sm text-fg">{message.body}</p> : null}
+        {message.body ? <p className="mt-0.5 whitespace-pre-wrap break-words t-body-compact text-fg">{message.body}</p> : null}
         <AttachmentCard message={message} caseId={caseId} documentsAwaitCurator={documentsAwaitCurator} />
-      </div>
-      <div id={menu.popoverId} popover="auto" role="group" aria-label="Действия с сообщением" style={menu.popoverStyle}
-        className={`v3-anchored ${own ? "v3-anchored-end" : ""} w-52 rounded-ctl border border-border bg-surface p-1 text-fg shadow-evo-lg`}>
-        <button type="button" className="flex min-h-11 w-full items-center rounded-nav px-2 text-left text-sm text-fg hover:bg-surface-2"
-          onClick={() => { document.getElementById(menu.popoverId)?.hidePopover(); onReply(message); }}>
-          Ответить с цитатой
-        </button>
+        <div className="mt-1 flex items-center justify-end gap-1 t-meta text-fg-3">
+          <time dateTime={message.createdAt} className="tabular-nums">{TIME.format(new Date(message.createdAt))}</time>
+          <button type="button" aria-label="Ответить с цитатой" title="Ответить с цитатой" onClick={() => onReply(message)}
+            className="-my-3.5 -me-2.5 inline-flex size-11 shrink-0 items-center justify-center rounded-nav text-fg-3 hover:text-fg focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:group-focus-within:opacity-100">
+            <Icon name="quote" size={16} className="shrink-0" />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -483,9 +540,9 @@ function MessageRow({
 
 function CaseChatThreadView({
   caseId, initialPage, initialFailure, storageScope, membershipId, pendingAttachment, onAttachmentConsumed,
-  organizationId, realtimeConfig, studentDisplayName, listHref, onListChanged, facts, snippets, documentsAwaitCurator,
+  organizationId, realtimeConfig, studentDisplayName, listHref, onListChanged, facts, snippets, documentsAwaitCurator, readAt,
 }: Readonly<{
-  caseId: string; initialPage: CaseChatPage | null; initialFailure: CaseChatFailure | null;
+  caseId: string; initialPage: CaseChatPage | null; initialFailure: CaseChatFailure | null; readAt: string;
   storageScope: string; membershipId: string; pendingAttachment: CaseChatPendingAttachment | null;
   onAttachmentConsumed: () => void; organizationId: string; realtimeConfig: SupabasePublicConfig;
   studentDisplayName: string | null; listHref: string; onListChanged: () => void;
@@ -498,6 +555,11 @@ function CaseChatThreadView({
   const [awaitPending, setAwaitPending] = useState(false);
   const [awaitState, setAwaitState] = useState<CaseChatAwaitState | null>(initialPage?.thread.awaitState ?? null);
   const viewport = useRef<HTMLDivElement>(null);
+  // Сотрудник у конца ленты (или только что отправил): новое сообщение видно сразу; иначе — «Новые сообщения».
+  const nearBottom = useRef(true);
+  const newestId = page?.messages[0]?.id ?? null;
+  const [view, setView] = useState({ atBottom: true, seenNewest: newestId });
+  const showNew = !view.atBottom && newestId !== view.seenNewest;
   const alive = useRef(true);
   const pageSequence = useRef(0);
   const markedUpTo = useRef<string>(initialPage?.readSequenceId ?? "0");
@@ -563,22 +625,49 @@ function CaseChatThreadView({
     };
   }, [caseId, organizationId, realtimeConfig.url, realtimeConfig.publishableKey, refresh, stale]);
 
-  // Scroll: pinned to bottom on load; position preserved across refresh via
-  // a saved scrollTop, restored once per case mount.
+  // Scroll: pinned to bottom on load; the saved position is restored once per case mount.
   useEffect(() => {
     const key = scrollStorageKey(storageScope, caseId);
+    const node = viewport.current;
+    if (!node) return;
     let restored = false;
     try {
       const saved = localStorage.getItem(key);
-      if (saved) { const value = Number(saved); if (Number.isFinite(value) && viewport.current) { viewport.current.scrollTop = value; restored = true; } }
+      if (saved) { const value = Number(saved); if (Number.isFinite(value)) { node.scrollTop = value; restored = true; } }
     } catch { /* ignore */ }
-    if (!restored && viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight;
-    const node = viewport.current;
-    const onScroll = () => { try { if (node) localStorage.setItem(key, String(node.scrollTop)); } catch { /* ignore */ } };
-    node?.addEventListener("scroll", onScroll);
-    return () => node?.removeEventListener("scroll", onScroll);
+    if (!restored) node.scrollTop = node.scrollHeight;
+    nearBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caseId]);
+
+  // Новое сообщение внизу: лента идёт за ним, если сотрудник был внизу.
+  const followed = useRef(newestId);
+  useLayoutEffect(() => {
+    if (followed.current === newestId) return;
+    followed.current = newestId;
+    const node = viewport.current;
+    if (node && nearBottom.current) node.scrollTop = node.scrollHeight;
+  }, [newestId]);
+
+  function onFeedScroll() {
+    const node = viewport.current;
+    if (!node) return;
+    try { localStorage.setItem(scrollStorageKey(storageScope, caseId), String(node.scrollTop)); } catch { /* ignore */ }
+    const atBottom = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
+    nearBottom.current = atBottom;
+    if (atBottom) {
+      if (!view.atBottom || view.seenNewest !== newestId) setView({ atBottom: true, seenNewest: newestId });
+    } else if (view.atBottom) {
+      setView((previous) => ({ ...previous, atBottom: false }));
+    }
+  }
+
+  function jumpToNewest() {
+    const node = viewport.current;
+    if (!node) return;
+    nearBottom.current = true;
+    node.scrollTo({ top: node.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
 
   // Mark-read: fires while the thread is open and new messages render.
   // Reading alone never clears «Нужен ответ» — the RPC only bumps the
@@ -630,33 +719,62 @@ function CaseChatThreadView({
     finally { if (alive.current) setAwaitPending(false); }
   }
 
+  // Сбой чтения: предложение понятно, повтор — одной кнопкой, без перезагрузки страницы.
+  const failureNotice = error ? (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+      <p role="alert" className="t-body-compact text-danger">{CASE_CHAT_FAILURE_COPY[error]}</p>
+      {error === "unavailable" ? (
+        <button type="button" onClick={() => void refresh()} className={QUEUE_SECONDARY}>Повторить</button>
+      ) : null}
+    </div>
+  ) : null;
+
   if (!page) {
     return <div className="flex min-w-0 flex-1 flex-col">
       <ThreadHeader name={studentDisplayName} facts={facts} caseId={caseId} listHref={listHref}
         awaitState={null} onSetAwait={() => {}} awaitPending={false} />
-      <p role="alert" className="p-4 text-sm text-danger">{CASE_CHAT_FAILURE_COPY[error ?? "unavailable"]}</p>
+      {failureNotice ?? <p role="alert" className="p-4 t-body-compact text-danger">{CASE_CHAT_FAILURE_COPY.unavailable}</p>}
     </div>;
   }
 
   const messages = [...page.messages].reverse();
+  let currentDay = "";
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <ThreadHeader
         name={studentDisplayName} facts={facts} caseId={caseId} listHref={listHref}
         awaitState={awaitState ?? page.thread.awaitState} onSetAwait={changeAwait} awaitPending={awaitPending} />
-      {error ? <p role="alert" className="px-3 pt-2 text-sm text-danger">{CASE_CHAT_FAILURE_COPY[error]}</p> : null}
-      <div ref={viewport} className="min-h-0 flex-1 overflow-y-auto px-3" aria-label="История переписки">
-        {page.hasMore ? <button type="button" disabled={busy || stale} onClick={() => void loadOlder()} className="my-2 inline-flex min-h-11 items-center rounded-ctl border border-border px-3 text-sm text-fg-2 hover:bg-surface-2">
-          Показать более ранние
-        </button> : null}
-        {messages.length ? messages.map((message) => (
-          <MessageRow key={message.id} message={message} own={message.authorMembershipId === membershipId} caseId={caseId}
-            documentsAwaitCurator={documentsAwaitCurator} onReply={(target) => setReplyTo(target)} />
-        )) : <p className="py-10 text-center text-sm text-fg-3">Сообщений пока нет. Куратор может начать разговор.</p>}
+      {failureNotice}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div ref={viewport} onScroll={onFeedScroll} className="min-h-0 flex-1 overflow-y-auto bg-bg px-3 py-2 @2xl:px-5" aria-label="История переписки">
+          {page.hasMore ? <div className="flex justify-center"><button type="button" disabled={busy || stale} onClick={() => void loadOlder()}
+            className="my-2 inline-flex min-h-11 items-center rounded-ctl border border-border bg-surface px-3 t-label text-fg-2 hover:text-fg disabled:cursor-wait disabled:text-fg-3">
+            {busy ? "Загружаем…" : "Показать более ранние"}
+          </button></div> : null}
+          {messages.length ? messages.map((message) => {
+            const key = dayKey(message.createdAt);
+            const divider = key && key !== currentDay;
+            if (key) currentDay = key;
+            return (
+              <div key={message.id}>
+                {divider ? <div className="my-2 flex justify-center"><span className="rounded-card bg-surface-2 px-3 py-1 t-meta text-fg-3">{dayLabel(message.createdAt, readAt)}</span></div> : null}
+                <MessageRow message={message} own={message.authorMembershipId === membershipId} caseId={caseId}
+                  documentsAwaitCurator={documentsAwaitCurator} onReply={(target) => setReplyTo(target)} />
+              </div>
+            );
+          }) : <p className="py-10 text-center t-body-compact text-fg-3">Сообщений пока нет.</p>}
+        </div>
+        {showNew ? (
+          <button type="button" onClick={jumpToNewest}
+            className="v3-raised absolute bottom-3 left-1/2 inline-flex min-h-11 -translate-x-1/2 items-center gap-1.5 rounded-full border border-border bg-surface px-4 t-label text-fg hover:bg-surface-2">
+            Новые сообщения
+            <Icon name="chevron-down" size={16} className="shrink-0" />
+          </button>
+        ) : null}
       </div>
       <CaseChatComposer caseId={caseId} storageScope={storageScope} pendingAttachment={pendingAttachment}
         onAttachmentConsumed={onAttachmentConsumed} replyTo={replyTo} onClearReply={() => setReplyTo(null)}
-        onSaved={() => startTransition(() => { void refresh(); })} snippets={snippets} />
+        onSaved={() => { nearBottom.current = true; startTransition(() => { void refresh(); }); }} snippets={snippets} />
     </div>
   );
 }
@@ -672,7 +790,6 @@ function threadRowBadges(row: CaseChatThreadRow, queue: CaseChatQueue): { tone: 
     const text = caseChatAwaitState(row.awaitState);
     if (text) badges.push({ tone: awaitTone(row.awaitState), text });
   }
-  if (row.unread) badges.push({ tone: "info", text: "Непрочитанное" });
   return badges;
 }
 
@@ -681,24 +798,26 @@ function queueLabel(queue: CaseChatQueue): string {
 }
 
 function CaseChatList({
-  threads, counts, readAt, selectedCaseId, query, onQuery, queue, onQueue, membershipId, hidden, loading, failure, onRetry,
+  threads, counts, readAt, selectedCaseId, query, onQuery, queue, onQueue, membershipId, hidden, loading, current, failure, onRetry,
 }: Readonly<{
   threads: CaseChatThreadsList; counts: CaseChatQueueRead["counts"] | null; readAt: string;
   selectedCaseId: string | null; query: string; onQuery: (value: string) => void;
   queue: CaseChatQueue; onQueue: (value: CaseChatQueue) => void;
-  membershipId: string; hidden: boolean; loading: boolean; failure: CaseChatFailure | null; onRetry: () => void;
+  membershipId: string; hidden: boolean; loading: boolean;
+  /** Строки прочитаны для нынешних поиска и очереди; иначе сбой скрывает чужие строки. */
+  current: boolean; failure: CaseChatFailure | null; onRetry: () => void;
 }>) {
-  const router = useRouter();
+  const showRows = !loading && current;
   return (
-    <nav aria-label="Переписки кабинета студента" className={`${hidden ? "hidden @2xl:flex" : "flex"} w-full flex-col border-border @2xl:w-[360px] @2xl:shrink-0 @2xl:border-e`}>
+    <nav aria-label="Переписки кабинета студента" className={`${hidden ? "hidden @2xl:flex" : "flex"} w-full flex-col border-border @2xl:w-[320px] @2xl:shrink-0 @2xl:border-e`}>
       <div className="flex flex-col gap-2 border-b border-border p-3">
         {/* Очереди на виду (Э5): число — из того же чтения, только из полного; «Все» без числа. */}
-        <div role="group" aria-label="Очередь переписок" data-testid="case-chat-queues" className="flex flex-wrap gap-1">
+        <div role="group" aria-label="Очередь переписок" data-testid="case-chat-queues" className="-mx-1 flex flex-wrap">
           {CASE_CHAT_QUEUE_ORDER.map((value) => {
             const count = value === "all" || counts === null ? null : counts[value];
             return (
               <button key={value} type="button" aria-pressed={queue === value} onClick={() => onQueue(value)}
-                className="v3-choice inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-nav px-2.5 t-label text-fg-2 hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+                className="v3-choice inline-flex min-h-11 items-center gap-1 whitespace-nowrap rounded-nav px-2 t-label text-fg-2 hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
                 {queueLabel(value)}
                 {count !== null ? <span className="tabular-nums text-fg-3" data-queue-count={value}>{count}</span> : null}
               </button>
@@ -709,51 +828,50 @@ function CaseChatList({
           <label className="sr-only" htmlFor="case-chat-search">Поиск по студенту</label>
           <input id="case-chat-search" type="search" value={query} placeholder="Поиск по студенту"
             onChange={(event) => onQuery(event.target.value)}
-            className="min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 text-sm text-fg" />
+            className="min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 t-body text-fg placeholder:text-fg-3" />
         </form>
       </div>
-      {loading ? <p role="status" className="p-4 text-sm text-fg-3">Ищем переписки…</p> : null}
-      {failure ? <div className="p-4">
-        <p role="alert" className="text-sm text-danger">{failure === "forbidden"
+      {loading ? <p role="status" className="p-4 t-body-compact text-fg-3">Ищем переписки…</p> : null}
+      {failure ? <div className="flex flex-wrap items-center gap-x-3 gap-y-1 p-4">
+        <p role="alert" className="t-body-compact text-danger">{failure === "forbidden"
           ? "Доступ к перепискам изменился. Обновите страницу."
-          : "Не удалось загрузить переписки. Повторите поиск."}</p>
-        <button type="button" onClick={onRetry} className="mt-2 inline-flex min-h-11 items-center rounded-ctl border border-border px-3 text-sm text-fg hover:bg-surface-2">
-          Повторить поиск
-        </button>
+          : "Не удалось загрузить."}</p>
+        {failure === "forbidden" ? null : <button type="button" onClick={onRetry} className={QUEUE_SECONDARY}>Повторить</button>}
       </div> : null}
       <div className="flex-1 overflow-y-auto" aria-busy={loading}>
-        {!loading && !failure && (threads.rows.length === 0 ? <div className="p-4">
-          <p role="status" className="text-sm text-fg-3">{query.trim()
+        {showRows && (threads.rows.length === 0 ? <div className="p-4">
+          <p role="status" className="t-body-compact text-fg-3">{query.trim()
             ? queue === "all" ? "По вашему запросу переписок не найдено." : "В этой очереди нет переписок по вашему запросу."
             : queue === "needs_reply" ? "Нет переписок, ждущих ответа." : queue === "all" ? "Переписок пока нет." : "В этой очереди переписок нет."}</p>
-          {query.trim() ? <button type="button" onClick={() => onQuery("")} className="mt-2 inline-flex min-h-11 items-center rounded-ctl border border-border px-3 text-sm text-fg hover:bg-surface-2">
+          {query.trim() ? <button type="button" onClick={() => onQuery("")} className={`${QUEUE_SECONDARY} mt-2`}>
             Сбросить поиск
-          </button> : queue !== "all" ? <button type="button" onClick={() => onQueue("all")} className="mt-2 inline-flex min-h-11 items-center rounded-ctl border border-border px-3 text-sm text-fg hover:bg-surface-2">
-            Показать все переписки
           </button> : null}
         </div> : threads.rows.map((row) => {
           const badges = threadRowBadges(row, queue);
+          const active = row.studentCaseId === selectedCaseId;
           return (
-            <button key={row.studentCaseId} type="button"
-              onClick={() => router.push(caseChatHref(query, queue, row.studentCaseId))}
-              aria-current={row.studentCaseId === selectedCaseId ? "page" : undefined}
+            <Link key={row.studentCaseId} href={caseChatHref(query, queue, row.studentCaseId)} scroll={false}
+              aria-current={active ? "page" : undefined}
               data-case-chat-row={row.studentCaseId}
-              className={`flex w-full items-start gap-2.5 border-b border-border px-3 py-3 text-start hover:bg-surface-2 ${row.studentCaseId === selectedCaseId ? "bg-surface-2" : ""}`}>
+              className={`flex w-full items-start gap-2.5 border-b border-border px-3 py-3 text-start focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring ${active ? "bg-accent-weak" : "hover:bg-surface-2"}`}>
               <span className="mt-0.5 shrink-0"><Initials name={row.studentDisplayName} decorative /></span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="flex items-center justify-between gap-2">
                   <span className="truncate t-item text-fg">{row.studentDisplayName}</span>
                   {row.lastMessageAt ? <time className="t-meta shrink-0 font-mono tabular-nums text-fg-3" dateTime={row.lastMessageAt}>{rowTime(row.lastMessageAt, readAt)}</time> : null}
                 </span>
-                {row.lastMessageSnippet ? <span className="truncate text-sm text-fg-2">
+                {row.lastMessageSnippet ? <span className="truncate t-body-compact text-fg-2">
                   {row.lastMessageAuthorMembershipId === membershipId ? "Вы: " : ""}{row.lastMessageSnippet}
-                </span> : <span className="text-sm text-fg-3">Нет сообщений</span>}
-                {badges.length ? <span className="mt-0.5 flex flex-wrap gap-1">{badges.map((badge) => <StateWord key={badge.text} tone={badge.tone} label={badge.text} />)}</span> : null}
+                </span> : <span className="t-body-compact text-fg-3">Нет сообщений</span>}
+                {row.unread || badges.length ? <span className="mt-0.5 flex flex-wrap gap-1">
+                  {row.unread ? <span className="inline-flex min-h-6 items-center rounded-full bg-fg px-2 t-caption text-surface">Непрочитанное</span> : null}
+                  {badges.map((badge) => <StateWord key={badge.text} tone={badge.tone} label={badge.text} />)}
+                </span> : null}
               </span>
-            </button>
+            </Link>
           );
         }))}
-        {!loading && !failure && threads.truncated ? <p className="t-meta p-3 text-fg-3">Показаны первые {threads.rows.length}. Уточните поиск.</p> : null}
+        {showRows && threads.truncated ? <p className="t-meta p-3 text-fg-3">Показаны первые {threads.rows.length}. Уточните поиск.</p> : null}
       </div>
     </nav>
   );
@@ -816,8 +934,12 @@ export function CaseChatWorkspace({
   const queue = parseCaseChatQueue(params.get("queue") ?? undefined) ?? CASE_CHAT_DEFAULT_QUEUE;
   const attachment = params.get("case") === selectedCaseId ? parseCaseChatAttachParam(params.get("attach")) : null;
   const scope = useRef({ query, queue });
+  // «Ищем…» — только когда поиск или очередь сменились и строк для них ещё нет. Фоновое перечитывание
+  // (открытие переписки, отметка прочтения, живое обновление) строки не убирает: список не мигает и не теряет прокрутку.
   const [loading, setLoading] = useState(false);
   const [failure, setFailure] = useState<CaseChatFailure | null>(null);
+  const [shown, setShown] = useState({ query, queue });
+  const shownScope = useRef(shown);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const searchSequence = useRef(0);
 
@@ -832,8 +954,12 @@ export function CaseChatWorkspace({
       if (isStaleDeployment()) return;
       const result = await loadStaffCaseChatThreadsAction(value, selectedQueue);
       if (sequence !== searchSequence.current) return;
-      if (result.status === "ready") { setQueueRead(result.read); setCountsQuery(value.trim()); }
-      else setFailure(result.status);
+      if (result.status === "ready") {
+        setQueueRead(result.read); setCountsQuery(value.trim()); setFailure(null);
+        const next = { query: value, queue: selectedQueue };
+        shownScope.current = next;
+        setShown(next);
+      } else setFailure(result.status);
     } catch (cause) {
       if (noteStaleDeployment(cause) || sequence !== searchSequence.current) return;
       setFailure("unavailable");
@@ -845,8 +971,6 @@ export function CaseChatWorkspace({
   const refreshList = useCallback(() => {
     clearTimeout(debounceRef.current);
     const sequence = ++searchSequence.current;
-    setFailure(null);
-    setLoading(true);
     void search(scope.current.query, scope.current.queue, sequence);
   }, [search]);
 
@@ -857,14 +981,23 @@ export function CaseChatWorkspace({
     setLoading(true);
   }, []);
 
+  // «Повторить» после сбоя: ошибка уступает «Ищем переписки…», иначе повторный сбой выглядел бы как «ничего не произошло».
+  const retryList = useCallback(() => {
+    setFailure(null);
+    setLoading(true);
+    refreshList();
+  }, [refreshList]);
+
   useEffect(() => {
     const delay = scope.current.query === query ? 0 : 250;
     scope.current = { query, queue };
     clearTimeout(debounceRef.current);
     const sequence = ++searchSequence.current;
     debounceRef.current = setTimeout(() => {
-      setFailure(null);
-      setLoading(true);
+      if (shownScope.current.query !== query || shownScope.current.queue !== queue) {
+        setFailure(null);
+        setLoading(true);
+      }
       void search(query, queue, sequence);
     }, delay);
     return () => clearTimeout(debounceRef.current);
@@ -879,6 +1012,11 @@ export function CaseChatWorkspace({
         query: current.searchParams.get("q") ?? "",
         queue: parseCaseChatQueue(current.searchParams.get("queue") ?? undefined) ?? CASE_CHAT_DEFAULT_QUEUE,
       };
+      // Назад/вперёд в другую очередь или поиск: строк для неё ещё нет — сразу «Ищем…», а не пустой список до таймера.
+      if (shownScope.current.query !== scope.current.query || shownScope.current.queue !== scope.current.queue) {
+        setFailure(null);
+        setLoading(true);
+      }
       refreshList();
     };
     window.addEventListener("popstate", restore);
@@ -910,13 +1048,15 @@ export function CaseChatWorkspace({
     <div className="flex min-h-0 min-w-0 flex-1 rounded-card border border-border bg-surface">
       <CaseChatList threads={threads} counts={counts} readAt={queueRead.readAt} selectedCaseId={selectedCaseId} query={query} onQuery={onQuery}
         queue={queue} onQueue={onQueue}
-        membershipId={membershipId} hidden={selectedCaseId !== null} loading={loading} failure={failure} onRetry={refreshList} />
+        membershipId={membershipId} hidden={selectedCaseId !== null} loading={loading} failure={failure} onRetry={retryList}
+        current={shown.query === query && shown.queue === queue} />
       {selectedCaseId ? (
         <CaseChatThreadView caseId={selectedCaseId} initialPage={initialPage} initialFailure={initialPageFailure}
           storageScope={`${organizationId}:${membershipId}`} membershipId={membershipId} pendingAttachment={attachment}
           onAttachmentConsumed={consumeAttachment} organizationId={organizationId} realtimeConfig={realtimeConfig}
           studentDisplayName={row?.studentDisplayName ?? initialStudentDisplayName} onListChanged={refreshList}
-          listHref={caseChatHref(query, queue)} facts={caseFacts} snippets={snippets} documentsAwaitCurator={documentsAwaitCurator} />
+          listHref={caseChatHref(query, queue)} facts={caseFacts} snippets={snippets} documentsAwaitCurator={documentsAwaitCurator}
+          readAt={queueRead.readAt} />
       ) : (
         <NextThreadPane read={queueRead} membershipId={membershipId} query={query} queue={queue} loading={loading} failure={failure} />
       )}

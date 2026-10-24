@@ -1,17 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import {
   btnCls,
-  btnDangerGhostCls,
-  btnGhostCls,
   cn,
   inputCls,
   fieldLabelCls,
 } from "@/components/ui";
 import { Pill } from "@/components/v3/Pill";
+import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import {
   createReplySnippetFormKey,
   replySnippetRowFormKey,
@@ -37,7 +36,7 @@ const ACTION_MESSAGES: Record<
   Exclude<PlatformReplySnippetActionState["status"], "idle">,
   string
 > = {
-  saved: "Сохранено. Список обновляется.",
+  saved: "Сохранено.",
   invalid: "Проверьте название, текст и аудиторию шаблона.",
   forbidden: "У вашей роли нет права на это действие.",
   stale: "Шаблон уже изменён. Обновляем актуальную версию.",
@@ -72,21 +71,19 @@ function initialState(
   };
 }
 
-function actionEdge(status: PlatformReplySnippetActionState["status"]): string {
-  if (status === "saved") return "v3-edge-ok";
-  if (status === "stale" || status === "request_conflict") return "v3-edge-warn";
-  return "v3-edge-danger";
+/** Слово итога: «Сохранено» — спокойно, расхождение версий — предупреждение, остальное — проблема. */
+function actionTone(status: PlatformReplySnippetActionState["status"]): string {
+  if (status === "saved") return "text-fg-2";
+  if (status === "stale" || status === "request_conflict") return "text-warn";
+  return "text-danger";
 }
 
 function ActionFeedback({ state }: Readonly<{ state: PlatformReplySnippetActionState }>) {
   if (state.status === "idle") return null;
   return (
     <p
-      role="status"
-      className={cn(
-        "mt-3 rounded-ctl border border-border border-s-2 bg-surface px-3 py-2 text-sm text-fg-2",
-        actionEdge(state.status),
-      )}
+      role={state.status === "saved" ? "status" : "alert"}
+      className={cn("mt-3 t-body-compact", actionTone(state.status))}
     >
       {ACTION_MESSAGES[state.status]}
     </p>
@@ -103,9 +100,11 @@ function useCanonicalRefresh(state: PlatformReplySnippetActionState) {
 function CreateSnippetForm({
   requestId,
   audiences,
+  onCancel,
 }: Readonly<{
   requestId: string;
   audiences: readonly PlatformReplySnippetAudience[];
+  onCancel: () => void;
 }>) {
   const [state, action, pending] = useActionState(
     createPlatformReplySnippetAction,
@@ -115,18 +114,8 @@ function CreateSnippetForm({
   const locked = pending || state.status === "saved";
 
   return (
-    <form action={action} className="space-y-3" aria-busy={pending}>
+    <form action={action} className="grid max-w-xl gap-3" aria-busy={pending}>
       <input type="hidden" name="request_id" value={state.requestId} />
-      <label>
-        <span className={fieldLabelCls}>Кому доступен</span>
-        <select name="audience" className={inputCls} disabled={locked}>
-          {audiences.map((audience) => (
-            <option key={audience} value={audience}>
-              {AUDIENCE_LABELS[audience]}
-            </option>
-          ))}
-        </select>
-      </label>
       <label>
         <span className={fieldLabelCls}>Название</span>
         <input
@@ -142,14 +131,29 @@ function CreateSnippetForm({
         <textarea
           name="body"
           required
-          rows={7}
-          className={cn(inputCls, "h-auto min-h-36 py-2")}
+          rows={6}
+          className={cn(inputCls, "h-auto min-h-32 py-2")}
           disabled={locked}
         />
       </label>
-      <button type="submit" className={btnCls} disabled={locked}>
-        {pending ? "Сохраняем…" : "Создать шаблон"}
-      </button>
+      <label>
+        <span className={fieldLabelCls}>Кому доступен</span>
+        <select name="audience" className={inputCls} disabled={locked}>
+          {audiences.map((audience) => (
+            <option key={audience} value={audience}>
+              {AUDIENCE_LABELS[audience]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" className={QUEUE_CONFIRM} disabled={locked}>
+          {pending ? "Сохраняем…" : "Создать шаблон"}
+        </button>
+        <button type="button" className={QUEUE_SECONDARY} disabled={pending} onClick={onCancel}>
+          Отмена
+        </button>
+      </div>
       <ActionFeedback state={state} />
     </form>
   );
@@ -177,6 +181,8 @@ function SnippetRow({
   useCanonicalRefresh(archiveState);
   const updateLocked = updating || updateState.status === "saved";
   const archiveLocked = archiving || archiveState.status === "saved";
+  // Архив не возвращается из этого экрана — как «Удалить…» в других местах: сначала вопрос в строке.
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
 
   return (
     <li id={`reply-snippet-${snippet.replySnippetId}`} className="border-t border-border py-4 first:border-t-0 first:pt-0 last:pb-0">
@@ -188,19 +194,21 @@ function SnippetRow({
               {AUDIENCE_LABELS[snippet.audience]}
             </Pill>
           </div>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-fg-2">
+          <p className="mt-2 whitespace-pre-wrap t-body-compact text-fg-2">
             {snippet.body}
           </p>
-          <p className="mt-2 text-xs text-fg-3">
-            Автор: {snippet.createdByDisplayName}
-          </p>
+          {canManage ? (
+            <p className="mt-2 t-meta text-fg-3">
+              Автор: {snippet.createdByDisplayName}
+            </p>
+          ) : null}
         </div>
       </div>
 
       {canManage && item.canMutate ? (
         <details className="mt-3">
-          <summary className={cn(btnGhostCls, "w-fit cursor-pointer list-none")}>Изменить</summary>
-          <div className="mt-3 grid gap-4 border-s-2 border-border ps-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+          <summary className="inline-flex min-h-11 w-fit cursor-pointer list-none items-center t-label text-accent-text underline underline-offset-4 hover:text-fg [&::-webkit-details-marker]:hidden">Изменить</summary>
+          <div className="mt-1 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
             <form action={updateAction} className="grid gap-3" aria-busy={updating}>
               <input type="hidden" name="reply_snippet_id" value={snippet.replySnippetId} />
               <input type="hidden" name="expected_version" value={snippet.version} />
@@ -242,9 +250,11 @@ function SnippetRow({
                   disabled={updateLocked}
                 />
               </label>
-              <button type="submit" className={btnCls} disabled={updateLocked}>
-                {updating ? "Сохраняем…" : "Сохранить"}
-              </button>
+              <div>
+                <button type="submit" className={QUEUE_CONFIRM} disabled={updateLocked}>
+                  {updating ? "Сохраняем…" : "Сохранить"}
+                </button>
+              </div>
               <ActionFeedback state={updateState} />
             </form>
 
@@ -252,13 +262,21 @@ function SnippetRow({
               <input type="hidden" name="reply_snippet_id" value={snippet.replySnippetId} />
               <input type="hidden" name="expected_version" value={snippet.version} />
               <input type="hidden" name="request_id" value={archiveState.requestId} />
-              <button
-                type="submit"
-                className={btnDangerGhostCls}
-                disabled={archiveLocked}
-              >
-                {archiving ? "Архивируем…" : "Архивировать"}
-              </button>
+              {confirmingArchive || archiving ? (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <p className="t-body-compact text-fg">Архивировать шаблон?</p>
+                  <button type="submit" className={QUEUE_CONFIRM} disabled={archiveLocked}>
+                    {archiving ? "Архивируем…" : "Архивировать"}
+                  </button>
+                  <button type="button" className={QUEUE_SECONDARY} disabled={archiving} onClick={() => setConfirmingArchive(false)}>
+                    Отмена
+                  </button>
+                </div>
+              ) : (
+                <button type="button" className={QUEUE_SECONDARY} onClick={() => setConfirmingArchive(true)}>
+                  Архивировать
+                </button>
+              )}
               <ActionFeedback state={archiveState} />
             </form>
           </div>
@@ -268,60 +286,88 @@ function SnippetRow({
   );
 }
 
+/**
+ * Шапка списка: «Новый шаблон» — главное действие страницы (единственная красная кнопка), форма
+ * открывается под ней по нажатию, а не стоит пустой рядом со списком. После сохранения приходит новый
+ * запрос — ключ шапки меняется, и форма закрывается сама.
+ */
+function SnippetsHeader({
+  canManage,
+  standalone,
+  requestId,
+  audiences,
+}: Readonly<{
+  canManage: boolean;
+  standalone: boolean;
+  requestId: string;
+  audiences: readonly PlatformReplySnippetAudience[];
+}>) {
+  const [creating, setCreating] = useState(false);
+  if (standalone && !canManage) return null;
+  return (
+    <>
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
+        <h2 id="v3-reply-snippets-heading" className={cn("t-section text-fg", standalone && "sr-only")}>
+          Шаблоны ответов
+        </h2>
+        {canManage && !creating ? (
+          <button type="button" className={btnCls} onClick={() => setCreating(true)}>
+            Новый шаблон
+          </button>
+        ) : null}
+      </header>
+      {canManage && creating ? (
+        <div className="border-b border-border p-4 sm:p-5">
+          <CreateSnippetForm requestId={requestId} audiences={audiences} onCancel={() => setCreating(false)} />
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 export function KnowledgeReplySnippetSection({
   items,
   canManage,
   availableAudiences,
   createRequestId,
-}: KnowledgeReplySnippetSectionProps) {
+  standalone = false,
+}: KnowledgeReplySnippetSectionProps & Readonly<{
+  /** Страница без раздела «База знаний» вокруг: её заголовок уже называет шаблоны, второй не нужен. */
+  standalone?: boolean;
+}>) {
   return (
     <section
-      aria-labelledby="v3-reply-snippets-heading"
+      aria-label={standalone ? "Шаблоны ответов" : undefined}
+      aria-labelledby={standalone ? undefined : "v3-reply-snippets-heading"}
       data-testid="v3-knowledge-reply-snippets"
       className="rounded-card border border-border bg-surface"
     >
-      <header className="border-b border-border px-4 py-3 sm:px-5">
-        <h2 id="v3-reply-snippets-heading" className="t-section text-fg">
-          Шаблоны ответов
-        </h2>
-        <p className="mt-1 text-sm leading-5 text-fg-3">
-          Готовые тексты для ручной вставки в сообщение. Шаблон никогда не отправляется сам.
-        </p>
-      </header>
-
-      <div className={cn("grid gap-6 p-4 sm:p-5", canManage && "lg:grid-cols-[minmax(16rem,0.7fr)_minmax(0,1.3fr)]")}>
-        {canManage ? (
-          <div>
-            <h3 className="t-item mb-3 text-fg">Новый шаблон</h3>
-            <CreateSnippetForm
-              key={createReplySnippetFormKey(createRequestId)}
-              requestId={createRequestId}
-              audiences={availableAudiences}
-            />
-          </div>
-        ) : null}
-
-        <div className={cn(canManage && "lg:border-s lg:border-border lg:ps-6")}>
-          <h3 className="t-item mb-3 text-fg">Доступные шаблоны</h3>
-          {items.length === 0 ? (
-            <p className="py-6 text-center text-sm text-fg-3">Шаблонов пока нет.</p>
-          ) : (
-            <ul>
-              {items.map((item) => (
-                <SnippetRow
-                  key={replySnippetRowFormKey(
-                    item.snippet.replySnippetId,
-                    item.updateRequestId,
-                    item.archiveRequestId,
-                  )}
-                  item={item}
-                  canManage={canManage}
-                  audiences={availableAudiences}
-                />
-              ))}
-            </ul>
-          )}
-        </div>
+      <SnippetsHeader
+        key={createReplySnippetFormKey(createRequestId)}
+        canManage={canManage}
+        standalone={standalone}
+        requestId={createRequestId}
+        audiences={availableAudiences}
+      />
+      <div className="p-4 sm:p-5">
+        {items.length === 0 ? (
+          <p className="py-6 text-center t-body-compact text-fg-3">Шаблонов пока нет.</p>
+        ) : (
+          <ul>
+            {items.map((item) => (
+              <SnippetRow
+                key={replySnippetRowFormKey(
+                  item.snippet.replySnippetId,
+                  item.updateRequestId,
+                  item.archiveRequestId,
+                )}
+                item={item}
+                canManage={canManage}
+                audiences={availableAudiences}
+              />
+            ))}
+          </ul>
+        )}
       </div>
     </section>
   );

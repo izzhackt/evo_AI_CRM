@@ -367,7 +367,7 @@ test("admissions card shares the sales grammar: states are chips with words; cur
   const admissions = surfaces.get("admissions");
   const card = (n) => tag(admissions, new RegExp(`<article [^>]*data-student-case-id="[^"]*${n}"[\\s\\S]*?<div class="absolute end-0\\.5 top-0\\.5">`, "u"));
   assert.match(card("06"), /<span class="min-w-0 flex-1 truncate text-fg-2" title="Малайзия · UCSI University">Малайзия · UCSI University<\/span><span class="v3-initials t-caption" data-size="sm" title="Куратор Один"><span aria-hidden="true">КО<\/span><span class="sr-only">Куратор Один<\/span><\/span>/u);
-  assert.match(card("06"), /<p class="flex flex-wrap gap-1 py-px"><span class="v3-chip t-caption" data-tone="danger" data-size="sm">просрочено<\/span><a draggable="false" class="v3-chip-link inline-flex" href="\/v3\/messages\?case=[^"]+"><span class="v3-chip t-caption" data-tone="danger" data-size="sm">нужен ответ<\/span><\/a><\/p>/u);
+  assert.match(card("06"), /<p class="flex flex-wrap gap-1 py-px"><span class="v3-chip t-caption" data-tone="danger" data-size="sm">просрочено<\/span><a draggable="false" class="v3-chip-link inline-flex" href="\/v3\/messages\?case=[^"]+"><span class="v3-chip t-caption" data-tone="warn" data-size="sm">нужен ответ<\/span><\/a><\/p>/u);
   assert.match(card("01"), /<span class="v3-chip t-caption" data-tone="warn" data-size="sm">ждёт принятия<\/span>/u);
   for (const n of ["01", "02", "03", "04", "05", "06", "07"]) {
     assert.ok(count(card(n), /<p class=/gu) <= 3, `case ${n} has at most 3 lines`);

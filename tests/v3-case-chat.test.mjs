@@ -244,15 +244,17 @@ test("the board decoder tolerates the new needs_reply key (field-picking, no exh
   assert.match(contract, /needsReply: boolean;/u);
 });
 
-test("the pipeline board renders needs_reply as a danger word with a link to the messages screen", () => {
+test("the pipeline board renders needs_reply as a warning word with a link to the messages screen", () => {
   // Boards 25.09 (finish review): the card states its condition as a word in
   // the shared card grammar — a StatusChip with its word (Э1.3), linked to the
-  // case chat; the wording source is the same.
+  // case chat; the wording source is the same. 24.10.2026 (owner): «нужен ответ» is a
+  // warning, not a problem — warn, like the case overview and «Переписки» (Э5); red is «просрочено».
   const board = source("src/components/v3/AdmissionsPipelineBoard.tsx");
   assert.match(board, /row\.needsReply \?/u);
   assert.match(board, /href=\{`\/v3\/messages\?case=\$\{row\.studentCaseId\}`\}/u);
   assert.match(board, /const replyWord = caseChatAwaitState\("needs_reply"\)\?\.toLocaleLowerCase\("ru-RU"\) \?\? "";/u);
-  assert.match(board, /className="v3-chip-link inline-flex">\s*<StatusChip label=\{replyWord\} tone="danger" size="sm" \/>/u);
+  assert.match(board, /className="v3-chip-link inline-flex">\s*<StatusChip label=\{replyWord\} tone="warn" size="sm" \/>/u);
+  assert.doesNotMatch(board, /<StatusChip label=\{replyWord\} tone="danger"/u);
 });
 
 test("the staff notification contract decodes case_message with an ids-only href to the messages screen", () => {

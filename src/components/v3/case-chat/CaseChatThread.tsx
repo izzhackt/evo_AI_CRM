@@ -351,9 +351,11 @@ function MountedCaseChatComposer({
               openPicker();
               return;
             }
-            // Enter — строка, как и было: сообщение уходит студенту без отзыва, поэтому одиночный Enter не отправляет,
-            // пока владелец не решит это для «Переписки». Ctrl/Cmd+Enter — быстрая отправка.
-            if (event.key !== "Enter" || (!event.ctrlKey && !event.metaKey) || event.altKey || event.shiftKey) return;
+            // Клавиши те же, что у чата WhatsApp (решение владельца 24.10.2026): Enter или Ctrl/⌘+Enter
+            // отправляют, Shift+Enter — новая строка; на сенсорном экране Enter — новая строка.
+            if (event.key !== "Enter" || event.shiftKey || event.altKey) return;
+            const coarse = typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
+            if (coarse && !event.ctrlKey && !event.metaKey) return;
             event.preventDefault();
             if (canSend && !uncertain) event.currentTarget.form?.requestSubmit();
           }}

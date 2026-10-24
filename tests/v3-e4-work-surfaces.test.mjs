@@ -14,7 +14,7 @@ import {
 } from "../src/components/v3/profile/lead-work-view.ts";
 import { profileTabAccess, resolveTab, tabsFor } from "../src/components/v3/profile/types.ts";
 import {
-  SALES_NO_REMAINDER_TEXT, groupSalesLabels, managersWord, recordsDative, recordsWord, salesImportFlagText, salesLabelGroupOf, salesManualReview,
+  SALES_NO_REMAINDER_TEXT, SALES_STATUS_MISSING_TEXT, groupSalesLabels, managersWord, recordsDative, recordsWord, salesImportFlagText, salesLabelGroupOf, salesManualReview,
   salesDay, salesDayParts, salesMoneySummary, salesPeriodSteps, salesRowContractPaid, salesRowNoRemainder, salesRowRemainder, salesRowReview, salesSummaryBasis, salesWord,
 } from "../src/lib/sales-register-view.ts";
 
@@ -152,6 +152,18 @@ test("«Отчёт продаж»: «Уточнить» names the server's reaso
   // Э8.6 (253): причины — ключи сервера словами; без причин причина не придумывается.
   assert.deepEqual(salesRowReview(row({ needsReview: true })), { state: "review", reasons: ["отмечено вручную"] });
   assert.deepEqual(salesRowReview(row({ needsReview: true, sourceKind: "import", importFlags: ["status_unspecified"] })).reasons, ["отмечено при переносе"]);
+  // 24.10.2026: не указанный статус оплаты — единственная причина — не «Нужно уточнить», а тихое слово.
+  assert.equal(SALES_STATUS_MISSING_TEXT, "Статус не указан");
+  assert.deepEqual(salesRowReview(row({ needsReview: true, sourceKind: "import", importFlags: ["status_unspecified"], reviewReasons: ["import:status_unspecified"] })), { state: "status_missing" });
+  // Любая другая причина — снова «Нужно уточнить», и статус остаётся в списке причин.
+  assert.deepEqual(salesRowReview(row({ needsReview: true, sourceKind: "import", importFlags: ["status_unspecified", "phone_missing"],
+    reviewReasons: ["import:status_unspecified", "import:phone_missing"] })).reasons, ["при переносе: статус оплаты не указан, нет телефона"]);
+  assert.deepEqual(salesRowReview(row({ needsReview: true, paidMinor: null, paidCurrency: null, paidRaw: "", sourceKind: "import",
+    reviewReasons: ["paid_missing", "import:status_unspecified"] })).reasons, ["оплата не указана", "при переносе: статус оплаты не указан"]);
+  assert.equal(salesRowReview(row({ needsReview: true, reviewReasons: ["import:phone_missing"] })).state, "review", "another import flag alone still flags");
+  // Не помеченная и архивная запись остаются прежними, даже если причины были бы названы.
+  assert.deepEqual(salesRowReview(row({ reviewReasons: ["import:status_unspecified"] })), { state: "checked" });
+  assert.deepEqual(salesRowReview(row({ archived: true, needsReview: true, reviewReasons: ["import:status_unspecified"] })), { state: "archived" });
   assert.deepEqual(salesRowReview(row({ needsReview: true, signingDate: null, serviceCostMinor: null, serviceCostCurrency: null,
     serviceCostRaw: "1500 долл", paidMinor: null, paidCurrency: null, paidRaw: "половина",
     reviewReasons: ["signing_date_missing", "service_cost_missing", "paid_missing", "import:status_unspecified", "import:phone_missing"] })).reasons,
@@ -440,7 +452,10 @@ test("rendered «Отчёт продаж»: stepper, plan headline, sums by curr
   assert.match(text(report), /Студент Страна · программа Менеджер Дата Стоимость Оплачено Остаток Уточнить/u);
   assert.match(text(report), /Бекзат Тестов Малайзия · Бакалавриат Санжар Эскизов — 1 500 USD 600 USD остаток 900 USD нет даты продажи/u);
   assert.match(text(report), /Руслан Прототипов Малайзия · Бакалавриат Айдана Макетова 03\.09 1 800 USD 45 000 KGS остаток — \(оплата в другой валюте без суммы в валюте договора\) нет суммы в валюте договора/u);
-  assert.match(text(report), /Айжан Примерова Малайзия · Бакалавриат Санжар Эскизов 20\.09 1 500 USD 600 USD остаток 900 USD при переносе: статус оплаты не указан/u);
+  assert.match(text(report), /Айжан Примерова Малайзия · Бакалавриат Санжар Эскизов 20\.09 1 500 USD 600 USD остаток 900 USD Статус не указан/u);
+  assert.doesNotMatch(text(report), /при переносе: статус оплаты не указан/u, "an unspecified status alone is not a reason to clarify");
+  // Тихое слово 12 px, нейтральное, в том же столбце, что «Сверено»; «Уточнить» у такой записи нет.
+  assert.match(report, /<span class="block truncate t-meta text-fg-3" title="Статус не указан">Статус не указан<\/span>/u);
   assert.match(text(report), /Алина Переданная Малайзия · Бакалавриат Санжар Эскизов 22\.09 1 500 USD 600 USD остаток 900 USD Сверено/u);
   // Оплата не указана — неизвестна: остатка нет, причина — подсказкой и для чтения с экрана, на узкой строке — словами.
   assert.match(text(report), /Тимур Образцов Китай · Магистратура, экономика Айдана Макетова 14\.09 1 500 USD — остаток — \(оплата не указана\) оплата не указана/u);
@@ -450,7 +465,8 @@ test("rendered «Отчёт продаж»: stepper, plan headline, sums by curr
   assert.match(report, /<time dateTime="2026-09-22" class="t-body-compact text-fg-2 font-mono tabular-nums">22\.09<\/time>/u);
   // Узкая строка: дата — JetBrains Mono, «Уточнить» — своей строкой целиком, без многоточия.
   assert.match(report, /<p class="truncate t-meta text-fg-2"><time dateTime="2026-09-20" class="font-mono tabular-nums">20\.09<\/time> · Санжар Эскизов · Малайзия · Бакалавриат<\/p>/u);
-  assert.match(report, /<p class="break-words t-meta text-fg-2" data-row-review="">Уточнить: при переносе: статус оплаты не указан<\/p>/u);
+  assert.match(report, /<p class="break-words t-meta text-fg-3" data-row-review="">Статус не указан<\/p>/u);
+  assert.doesNotMatch(report, /Уточнить: Статус не указан|Уточнить: при переносе/u);
   assert.doesNotMatch(text(report), /причина не записана/u);
   assert.match(report, /<p class="break-words t-meta text-fg-3" data-row-review="">Сверено<\/p>/u);
   // Ширины столбцов: суммы — не шире нужного, место — тексту (от 70rem).
@@ -481,7 +497,10 @@ test("rendered «Отчёт продаж»: the record opens in the right panel 
   assert.doesNotMatch(page, /data-testid="sales-register-form"/u);
   const panel = text(page.slice(page.indexOf("<dialog"), page.indexOf("</dialog>")));
   // 307: рядом с «Исправить запись» стоит «Убрать» (его маленькое окно закрыто, но есть в разметке).
-  assert.match(panel, /Нужно уточнить: при переносе: статус оплаты не указан Исправить запись Убрать Убрать из продаж Оплатил частично Не оплатил Заметка Убрать Отмена Стоимость 1 500 USD Оплачено 600 USD Остаток 900 USD/u);
+  assert.match(panel, /Статус не указан Исправить запись Убрать Убрать из продаж Оплатил частично Не оплатил Заметка Убрать Отмена Стоимость 1 500 USD Оплачено 600 USD Остаток 900 USD/u);
+  const preview = page.slice(page.indexOf("<dialog"), page.indexOf("</dialog>"));
+  assert.match(preview, /<p class="t-meta text-fg-2" data-record-status-missing="">Статус не указан<\/p>/u, "quiet word, not a review line");
+  assert.doesNotMatch(preview, /data-record-review=/u);
   // Написание в записи — опрятно (без пробелов по краям и двойных), без опечатки внутри кавычек.
   assert.match(panel, /Менеджер Санжар Эскизов в записи: «санжар эскизов»/u);
   assert.match(page, /<a class="[^"]*" data-testid="sales-record-edit" href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000002&amp;edit=true">Исправить запись<\/a>/u);
@@ -506,9 +525,9 @@ test("rendered «Отчёт продаж»: the record opens in the right panel 
   // только у помеченных записей; от 42rem и на телефоне (строки стопкой) её нет — там свой столбец и своя строка.
   const mark = /<span class="truncate t-meta text-fg-2 hidden @min-\[32rem\]\/sales-records:block @min-\[42rem\]\/sales-records:hidden" title="Уточнить: ([^"]+)" data-row-review-mark="">Уточнить: ([^<]+)<\/span>/gu;
   const marks = [...page.matchAll(mark)];
-  assert.equal(marks.length, 6, "one per flagged row of the month");
+  assert.equal(marks.length, 5, "one per flagged row of the month, except the one flagged only for an unspecified status");
   assert.ok(marks.every(([, title, words]) => title === words.trim()));
-  assert.ok(marks.some(([, title]) => title === "при переносе: статус оплаты не указан"));
+  assert.ok(marks.every(([, title]) => !/статус оплаты не указан/u.test(title)), "the unspecified status alone leaves no «Уточнить» line");
   assert.doesNotMatch(pages.get("report"), /data-row-review-mark/u, "the full table keeps its «Уточнить» column");
 
   // «Исправить запись» — форма в той же панели; «Отмена» возвращает к просмотру записи.

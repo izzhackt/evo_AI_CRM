@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { btnGhostCls } from "@/components/ui";
 import type { SalesRegisterRow } from "@/lib/platform-sales-register-contract";
 import {
-  SALES_NO_REMAINDER_TEXT, salesDay, salesReportMonth, salesRowContractPaid, salesRowNoRemainder, salesRowRemainder, salesRowReview,
+  SALES_NO_REMAINDER_TEXT, SALES_STATUS_MISSING_TEXT, salesDay, salesReportMonth, salesRowContractPaid, salesRowNoRemainder, salesRowRemainder, salesRowReview,
   salesWithdrawalTone,
 } from "@/lib/sales-register-view";
 import { ORG_TIMEZONE } from "@/lib/v3/period";
@@ -128,6 +128,8 @@ export function SalesRecordPreview({ record, backHref, editHref, panelHeadingId,
       {review.state === "review" ? <p className="t-body-compact text-fg" data-record-review="">
         <span className="font-semibold">Нужно уточнить:</span> {review.reasons.join(", ")}
       </p> : null}
+      {/* Единственная причина пометки — не указан статус оплаты: тихое слово вместо «Нужно уточнить» (24.10.2026). */}
+      {review.state === "status_missing" ? <p className="t-meta text-fg-2" data-record-status-missing="">{SALES_STATUS_MISSING_TEXT}</p> : null}
       {record.withdrawal && refusalWord && refusalTone ? <div className="space-y-1" data-testid="sales-record-withdrawal" data-withdrawal-tone={refusalTone}>
         <StatusChip label={refusalWord} tone={refusalTone} />
         <p className="t-body-compact text-fg-2">

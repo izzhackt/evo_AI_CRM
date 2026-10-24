@@ -2,10 +2,17 @@ import "server-only";
 
 import type { AiAgentEventKind } from "../../ai-agents/contract.ts";
 import { AI_AGENT_LIMITS, AI_AGENT_RUNTIME_RPC } from "../../ai-agents/contract.ts";
-import { AnthropicApiError } from "./anthropic.ts";
 import { callRpc, isRecord, numberOr, resolveDeps, stringOrNull, truncate, type AiAgentsRuntimeDeps } from "./deps.ts";
 import { readOrganizationId } from "./env.ts";
-import { anthropicFailure, closeOpenAiAgentRuns, createAgentSession } from "./runs.ts";
+import {
+  anthropicFailure,
+  anthropicRequestIdField,
+  attachSessionToRun,
+  closeOpenAiAgentRuns,
+  createAgentSession,
+  isAmbiguousSessionCreateFailure,
+  sessionCreateFailurePatch,
+} from "./runs.ts";
 
 /*
  * Контракт §C.4. Хуки приёма заявки сайта и входящего WhatsApp зовут
@@ -103,23 +110,26 @@ export async function dispatchAiAgentEvent(
             title: truncate(`${stringOrNull(raw.title) ?? key} · ${EVENT_TITLES[event.kind]}`, 120),
             text,
             budgetUsd: numberOr(raw.runBudgetUsd, AI_AGENT_LIMITS.defaultRunBudgetUsd),
+            runId,
+            agentKey: key,
           });
-          await callRpc(client, AI_AGENT_RUNTIME_RPC.runUpdate, {
-            p_organization_id: organizationId,
-            p_run_id: runId,
-            p_patch: { sessionId, status: "running" },
-          });
-          started += 1;
+          // Записать сессию не удалось — она остановлена (или нет), запуск не считается начатым.
+          const link = await attachSessionToRun({ anthropic, client, organizationId, runId, sessionId, agentKey: key, deps });
+          if (link.ok) started += 1; else failed += 1;
         } catch (error) {
           failed += 1;
+          try {
+            deps.log({
+              op: "dispatch_run", status: "error", agent: key, event: event.kind, code: anthropicFailure(error).code,
+              run_id: runId, ...(isAmbiguousSessionCreateFailure(error) ? { ambiguous: true } : {}), ...anthropicRequestIdField(error),
+            });
+          } catch {
+            // журнал не должен ломать приём
+          }
           await callRpc(client, AI_AGENT_RUNTIME_RPC.runUpdate, {
             p_organization_id: organizationId,
             p_run_id: runId,
-            p_patch: {
-              status: "failed",
-              errorCode: anthropicFailure(error).code,
-              errorMessage: truncate(error instanceof AnthropicApiError ? error.message : "Сессия Claude не создана", 500),
-            },
+            p_patch: sessionCreateFailurePatch(error),
           });
         }
       } catch {

@@ -231,7 +231,7 @@ export function SettingsForm({
           <div>
             <label htmlFor="aia-claude-id" className={fieldLabelCls}>ID агента в Claude (если создан в Console)</label>
             <input id="aia-claude-id" className={`${inputCls} font-mono`} value={form.claudeId} placeholder="agent_…" onChange={(event) => set("claudeId", event.target.value)} />
-            <p className="mt-1 t-meta text-fg-3">Пусто — агента создаст синхронизация.</p>
+            <p className="mt-1 t-meta text-fg-3">Пусто — синхронизация подключит уже созданного агента с этим ключом, а если его нет — создаст нового. Чтобы получить нового, сначала архивируйте прежнего в Claude Console.</p>
           </div>
         </div>
       </fieldset>

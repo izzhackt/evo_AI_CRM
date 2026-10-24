@@ -7,6 +7,7 @@ import {
   buildAiAgentSystemPrompt,
 } from "../../../content/ai-agents/index.ts";
 import {
+  AI_AGENT_DISABLED_BUILTIN_TOOLS,
   AI_AGENTS_DEFAULT_MCP_URL,
   AI_AGENTS_ENV,
   ANTHROPIC_API,
@@ -65,7 +66,7 @@ function canonicalJson(value: unknown): string {
   return `{${Object.keys(record).sort().map((name) => `${JSON.stringify(name)}:${canonicalJson(record[name])}`).join(",")}}`;
 }
 
-/** SHA-256 hex от канонического JSON «что отправляется в Claude»: имя, модель, system (преамбула + инструкция), mcp-адрес, версия набора инструментов, расписание и поручение расписания, включён ли агент. */
+/** SHA-256 hex от канонического JSON «что отправляется в Claude»: имя, модель, system (преамбула + инструкция), mcp-адрес, версия набора инструментов и выключенные встроенные инструменты (web_search, web_fetch), расписание и поручение расписания, включён ли агент. */
 export function computeAiAgentConfigHash(input: AiAgentEffectiveConfigInput): string {
   const cron = input.scheduleCron?.trim() || null;
   const schedule = input.enabled && cron
@@ -78,6 +79,8 @@ export function computeAiAgentConfigHash(input: AiAgentEffectiveConfigInput): st
     system: buildAiAgentSystemPrompt(input.key, input.instructionsOverride),
     mcpUrl: input.mcpUrl,
     toolsetVersion: ANTHROPIC_API.agentToolset,
+    // Выключенные инструменты входят в хеш: уже синхронизированные агенты покажут «нужна синхронизация».
+    disabledBuiltinTools: [...AI_AGENT_DISABLED_BUILTIN_TOOLS],
     schedule,
     enabled: input.enabled,
   });

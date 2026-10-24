@@ -47,7 +47,7 @@ const requestIdsFor = (ids: readonly string[]) => Object.fromEntries(ids.map((id
 
 /**
  * «ИИ-агент» (план ИИ-агента §12.2): все сотрудники (Q9, право ai.agent.use).
- * Подразделы — настоящие ссылки `?section=`: «Информация для агента» (список,
+ * Подразделы — настоящие ссылки `?section=`: «Материалы» (список,
  * загрузка, «Новая версия» `?replace=`, просмотр `?document=&page=&chunk=`),
  * «Лист сверки» (`?status=resolved`, `?document=`), «Лаборатория», «Правила
  * общения», «Расходы», «Автоответчик» (P4: `?view=journal|summary`, пауза —

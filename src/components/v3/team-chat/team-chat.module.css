@@ -64,7 +64,8 @@
 /* Время и действия — строкой внутри пузыря: время слева, «Ответить» и «⋯» справа. Цели остаются 44 px, а
    строка от них не растёт (отрицательный отступ), поэтому сообщение занимает на ~35 px меньше. Мышью
    действия проявляются при наведении и фокусе, на сенсорном экране видны всегда. */
-.bubble .messageFooter { justify-content: space-between; gap: 0 8px; margin-top: 2px; }
+.bubble .messageFooter { justify-content: flex-end; gap: 0 8px; margin-top: 2px; }
+.bubble .messageMetadata { margin-inline-end: auto; }
 .bubble .messageFooter > button, .bubble .messageFooter .messageMenu summary { margin-block: -14px; }
 .bubble .messageFooter > .messageMenu[open] summary { margin-block: 0; }
 @media (hover: hover) and (pointer: fine) {

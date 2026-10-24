@@ -112,8 +112,6 @@ function CreateSnippetForm({
   );
   useCanonicalRefresh(state);
   const locked = pending || state.status === "saved";
-  // По умолчанию — самая широкая аудитория, какую можно выдать: шаблон не сужается молча до «Продаж».
-  const defaultAudience = audiences.includes("all") ? "all" : audiences[0];
 
   return (
     <form action={action} className="grid max-w-xl gap-3" aria-busy={pending}>
@@ -140,7 +138,7 @@ function CreateSnippetForm({
       </label>
       <label>
         <span className={fieldLabelCls}>Кому доступен</span>
-        <select name="audience" className={inputCls} defaultValue={defaultAudience} disabled={locked}>
+        <select name="audience" className={inputCls} disabled={locked}>
           {audiences.map((audience) => (
             <option key={audience} value={audience}>
               {AUDIENCE_LABELS[audience]}

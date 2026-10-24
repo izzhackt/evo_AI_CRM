@@ -842,7 +842,7 @@ async function screenshots() {
       check(JSON.stringify(metrics.rows) === JSON.stringify(["Лейла Тестовая", "Данияр Макетов"]), `${file}: rows after the change ${metrics.rows.join(", ")}`);
     }
 
-    // Поле ответа: с текстом «Отправить» одна красная кнопка; мышью Enter отправляет, Shift+Enter — строка.
+    // Поле ответа: с текстом «Отправить» одна красная кнопка; Enter — строка, Ctrl+Enter отправляет.
     for (const viewportKey of ["1440", "390"]) {
       const session = await open(htmlFor.thread, viewportKey);
       const { page } = session;
@@ -853,18 +853,19 @@ async function screenshots() {
       await page.evaluate(() => { window.__harness.actions.length = 0; });
       let sent = null;
       if (viewportKey === "1440") {
-        await field.press("Shift+Enter");
-        const lines = await field.inputValue();
         await field.press("Enter");
+        const lines = await field.inputValue();
+        const afterEnter = await page.evaluate(() => window.__harness.actions.slice());
+        await field.press("Control+Enter");
         await page.waitForTimeout(150);
-        sent = { lines, actions: await page.evaluate(() => window.__harness.actions) };
+        sent = { lines, afterEnter, actions: await page.evaluate(() => window.__harness.actions) };
       }
       const file = `${prefix}-thread-typed-${viewportKey}.png`;
       await page.screenshot({ path: join(outDir, file) });
       await finish(session, file);
       report({ journey: "composer", file, solidRed: typed.solidRed, sent });
       check(typed.solidRed === 1, `${file}: ${typed.solidRed} solid red controls with text`);
-      if (sent) check(sent.lines.includes("\n") && sent.actions.includes("post"), `${file}: Enter/Shift+Enter ${JSON.stringify(sent)}`);
+      if (sent) check(sent.lines.includes("\n") && !sent.afterEnter.includes("post") && sent.actions.includes("post"), `${file}: Enter/Ctrl+Enter ${JSON.stringify(sent)}`);
     }
     // «Ответить с цитатой»: один знак в строке времени (без меню «⋯»), цель 44 px; нажатие ставит цитату в поле ответа.
     for (const viewportKey of ["1440", "390"]) {

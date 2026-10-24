@@ -20,7 +20,7 @@ export function TeamChatMessageRow({ message, quote, ownMembershipId, canModerat
   onEdit: (message: TeamChatMessage) => void; onDelete: (message: TeamChatMessage) => void; onQuote: (id: string) => void; highlighted?: boolean; continuation?: boolean;
 }) {
   const menu = useRef<HTMLDetailsElement>(null);
-  const [linkCopied, setLinkCopied] = useState(false);
+  const [linkState, setLinkState] = useState<"idle" | "copied" | "failed">("idle");
   const isOwn = message.authorMembershipId === ownMembershipId;
   // replyCount counts legacy root children, not incoming direct quotes to a reply.
   const compactDeleted = Boolean(message.deletedAt) && message.parentMessageId === null
@@ -28,14 +28,14 @@ export function TeamChatMessageRow({ message, quote, ownMembershipId, canModerat
   const initials = message.authorName.trim().split(/\s+/u).slice(0, 2).map((part) => part[0]).join("").toLocaleUpperCase("ru-RU");
   const mentionedNames = message.mentionedMembershipIds.map((id) => participants.find((person) => person.membershipId === id)?.displayName ?? "Участник");
   function closeMenu() { if (menu.current) menu.current.open = false; }
-  // «Копировать ссылку» копирует адрес сообщения; если браузер не даёт доступ к буферу — открывает его, как прежняя «Ссылка».
+  // «Копировать ссылку» копирует адрес сообщения; если браузер не даёт доступ к буферу — честно говорит об этом,
+  // а не уводит страницу на тот же адрес без копии.
   async function copyLink() {
     const path = `/v3/team-chat?channel=${message.channelKey}&message=${message.id}`;
-    try {
-      await navigator.clipboard.writeText(`${window.location.origin}${path}`);
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 2000);
-    } catch { window.location.href = new URL(path, window.location.origin).toString(); }
+    let next: "copied" | "failed" = "copied";
+    try { await navigator.clipboard.writeText(`${window.location.origin}${path}`); } catch { next = "failed"; }
+    setLinkState(next);
+    setTimeout(() => setLinkState("idle"), 2000);
   }
   return <article id={`team-message-channel-${message.id}`} data-chat-row={message.id} tabIndex={-1}
     className={`${styles.message} ${isOwn ? styles.ownMessage : ""} ${highlighted ? styles.highlighted : ""} ${continuation ? styles.continuation : ""} ${compactDeleted ? styles.compactDeleted : ""}`}>
@@ -64,7 +64,7 @@ export function TeamChatMessageRow({ message, quote, ownMembershipId, canModerat
           <div className={styles.menuItems}>
             {!message.deletedAt && isOwn ? <button type="button" className={styles.textButton} onClick={() => { onEdit(message); closeMenu(); }}>Изменить</button> : null}
             {!message.deletedAt && (isOwn || canModerate) ? <button type="button" className={styles.textButton} onClick={() => { onDelete(message); closeMenu(); }}>{isOwn ? "Удалить" : "Модерация"}</button> : null}
-            <button type="button" className={styles.textButton} onClick={() => { void copyLink(); }}>{linkCopied ? "Ссылка скопирована" : "Копировать ссылку"}</button>
+            <button type="button" className={styles.textButton} onClick={() => { void copyLink(); }}>{linkState === "copied" ? "Ссылка скопирована" : linkState === "failed" ? "Не удалось скопировать" : "Копировать ссылку"}</button>
           </div>
         </details>
         </div>

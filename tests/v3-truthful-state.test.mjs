@@ -293,6 +293,21 @@ test("WhatsApp page (07.10.2026): a working channel says nothing; two chats endi
   }
 });
 
+test("WhatsApp empty pane: «Все ответы даны» only for a healthy channel and a fully read list; a warned channel never claims a clean state", () => {
+  const { Inbox } = inboxModule();
+  const answered = { id: "a", person: "Айгуль", phone: null, queue: "sales", status: "open", updatedAt: "07.10 12:40",
+    waitingSince: null, awaitingReplyFor: null, href: "/v3/inbox?conversation=a" };
+  const pane = (view) => textOf(findElements(Inbox({ view, profileHref: null, settingsHref: null }),
+    (node) => node.props?.["data-testid"] === "v3-inbox-next")[0]);
+  assert.equal(pane({ ...EMPTY_VIEW, channelState: "ready", conversations: [answered] }), "Все ответы даны");
+  for (const state of ["attention", "intake_off", "unavailable", "unknown"]) {
+    assert.equal(pane({ ...EMPTY_VIEW, channelState: state, conversations: [answered] }), "Выберите диалог слева",
+      `${state}: the pane does not reassure next to the channel warning`);
+  }
+  assert.equal(pane({ ...EMPTY_VIEW, channelState: "ready", conversations: [answered], queueOlderHref: "/v3/inbox?before=x" }),
+    "Выберите диалог слева", "another page may still hold waiting chats");
+});
+
 test("WhatsApp not connected: one honest state instead of «не подтверждено» and an empty list", () => {
   const { Inbox, inboxNotConnected } = inboxModule();
   const admin = Inbox({ view: EMPTY_VIEW, profileHref: null, settingsHref: "/v3/settings?section=integrations" });

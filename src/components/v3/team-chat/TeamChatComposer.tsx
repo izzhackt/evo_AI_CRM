@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useImperativeHandle, useLayoutEffect, useRef, useState, useSyncExternalStore, type Ref, type RefObject } from "react";
+import { useActionState, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, useSyncExternalStore, type Ref, type RefObject } from "react";
 import { Icon } from "@/components/icons";
 import { teamChatCommandAction } from "@/lib/platform-team-chat-actions";
 import { postTeamChatV2Action } from "@/lib/platform-team-chat-v2-actions";
@@ -49,6 +49,14 @@ function MountedComposer({ channel, storageScope, ref, quotes, onSaved, onResume
   const [session, setSession] = useState<{ key: string; draft: TeamChatDraft | null; serial: number; focus: boolean }>({ key: defaultKey, draft: initial.drafts.get(defaultKey) ?? null, serial: 0, focus: false });
   const [storageError, setStorageError] = useState(initial.error);
   const [notice, setNotice] = useState<string | null>(null);
+  // Подтверждение нового сообщения — только для читалки: зрячему его показывает лента, а область статуса
+  // существует заранее, иначе вставку текста читалка не объявит. Через 3 с текст убирается, чтобы не устаревать.
+  const [sentNotice, setSentNotice] = useState("");
+  useEffect(() => {
+    if (!sentNotice) return undefined;
+    const timer = setTimeout(() => setSentNotice(""), 3000);
+    return () => clearTimeout(timer);
+  }, [sentNotice]);
   const [draftList, setDraftList] = useState(() => Array.from(initial.drafts.entries()));
   const recoveryMenu = useRef<HTMLDetailsElement>(null);
   const [resuming, setResuming] = useState(false);
@@ -119,6 +127,7 @@ function MountedComposer({ channel, storageScope, ref, quotes, onSaved, onResume
       </div>)}
     </details> : null}
     {notice ? <p className={styles.muted} role="status">{notice}</p> : null}
+    <span className={styles.srOnly} role="status">{sentNotice}</span>
     {resume ? <div data-chat-overlay="true">
       <p className={styles.muted}>Сейчас в переписке:</p><p className={styles.draftPreview}>{resume.message.body}</p>
       <p className={styles.muted}>Продолжить правку с вашим сохранённым текстом?</p>
@@ -146,6 +155,7 @@ function MountedComposer({ channel, storageScope, ref, quotes, onSaved, onResume
           select(defaultKey, drafts.current.get(defaultKey) ?? null, session.draft?.target.kind !== "edit");
           // Новое сообщение подтверждает лента; «сохранено» — только у правки, чьё сообщение может быть вне экрана.
           setNotice(session.draft?.target.kind === "edit" ? "Сообщение сохранено." : null);
+          setSentNotice(session.draft?.target.kind === "edit" ? "" : "Сообщение отправлено.");
           onSaved(id); // Read failures are reported by the feed, never as failed sending.
           if (session.draft?.target.kind === "edit") {
             if (returnFocus.current?.isConnected) returnFocus.current.focus();

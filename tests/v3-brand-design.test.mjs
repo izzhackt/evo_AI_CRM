@@ -171,7 +171,12 @@ test("solid red stays for the main action and every selection shares one accent-
     const labels = [...source.matchAll(/(?:Найти|Показать)\s*<\/button>|aria-label="Найти"/gu)];
     assert.ok(labels.length > 0, `${path} keeps its filter submit`);
     for (const label of labels) {
-      const button = source.slice(source.lastIndexOf("<button", label.index), label.index);
+      // Текстовая кнопка: от `<button` до подписи. Знак-лупа: подпись стоит внутри тега, а класс идёт за ней, —
+      // берём весь открывающий тег, иначе проверка пуста.
+      const isAriaLabel = label[0].startsWith("aria-label");
+      const end = isAriaLabel ? source.indexOf(">", label.index) + 1 : label.index;
+      const button = source.slice(source.lastIndexOf("<button", label.index), end);
+      assert.ok(button.length > 0 && (!isAriaLabel || /className=/u.test(button)), `${path}: the filter submit's opening tag is read`);
       assert.doesNotMatch(button, /\bbg-accent\b/u, `${path}: filter submit is secondary`);
     }
   }

@@ -171,9 +171,11 @@ export function Inbox({
   const spokenTitle = open ? `${open.person}${open.phone ? `, ${spokenPhone(open.phone)}` : ""}` : "";
   const hasConversations = view.conversations.length > 0;
   // Пустая правая часть — не тупик: первый ждущий ответа диалог страницы; «Все ответы даны» — только когда
-  // страница и есть весь список (нет ни других страниц, ни поиска), иначе ждущие могут быть вне её.
+  // страница и есть весь список (нет ни других страниц, ни поиска) и канал исправен: при выключенном приёме,
+  // непрочитанном состоянии или потерянной связи «всё отвечено» было бы успокаивающей неправдой.
   const nextWaiting = view.conversations.find((conversation) => conversation.waitingSince) ?? null;
-  const wholeListRead = !view.queueOlderHref && !view.queueNewestHref && !view.searchQuery;
+  const wholeListRead = view.channelState === "ready"
+    && !view.queueOlderHref && !view.queueNewestHref && !view.searchQuery;
   // «Сортировка» не фильтр: она меняет порядок, а не состав списка.
   const hasFilters = Boolean(view.searchQuery);
   if (inboxNotConnected(view)) {

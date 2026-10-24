@@ -351,10 +351,9 @@ function MountedCaseChatComposer({
               openPicker();
               return;
             }
-            // Мышь и клавиатура: Enter отправляет, Shift+Enter — строка; на сенсорном экране Enter — строка.
-            if (event.key !== "Enter" || event.shiftKey || event.altKey) return;
-            const coarse = typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
-            if (coarse && !event.ctrlKey && !event.metaKey) return;
+            // Enter — строка, как и было: сообщение уходит студенту без отзыва, поэтому одиночный Enter не отправляет,
+            // пока владелец не решит это для «Переписки». Ctrl/Cmd+Enter — быстрая отправка.
+            if (event.key !== "Enter" || (!event.ctrlKey && !event.metaKey) || event.altKey || event.shiftKey) return;
             event.preventDefault();
             if (canSend && !uncertain) event.currentTarget.form?.requestSubmit();
           }}
@@ -858,7 +857,7 @@ function CaseChatList({
               <span className="mt-0.5 shrink-0"><Initials name={row.studentDisplayName} decorative /></span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="flex items-center justify-between gap-2">
-                  <span className={`truncate t-item ${row.unread ? "font-semibold" : ""} text-fg`}>{row.studentDisplayName}</span>
+                  <span className="truncate t-item text-fg">{row.studentDisplayName}</span>
                   {row.lastMessageAt ? <time className="t-meta shrink-0 font-mono tabular-nums text-fg-3" dateTime={row.lastMessageAt}>{rowTime(row.lastMessageAt, readAt)}</time> : null}
                 </span>
                 {row.lastMessageSnippet ? <span className="truncate t-body-compact text-fg-2">
@@ -982,6 +981,13 @@ export function CaseChatWorkspace({
     setLoading(true);
   }, []);
 
+  // «Повторить» после сбоя: ошибка уступает «Ищем переписки…», иначе повторный сбой выглядел бы как «ничего не произошло».
+  const retryList = useCallback(() => {
+    setFailure(null);
+    setLoading(true);
+    refreshList();
+  }, [refreshList]);
+
   useEffect(() => {
     const delay = scope.current.query === query ? 0 : 250;
     scope.current = { query, queue };
@@ -1006,6 +1012,11 @@ export function CaseChatWorkspace({
         query: current.searchParams.get("q") ?? "",
         queue: parseCaseChatQueue(current.searchParams.get("queue") ?? undefined) ?? CASE_CHAT_DEFAULT_QUEUE,
       };
+      // Назад/вперёд в другую очередь или поиск: строк для неё ещё нет — сразу «Ищем…», а не пустой список до таймера.
+      if (shownScope.current.query !== scope.current.query || shownScope.current.queue !== scope.current.queue) {
+        setFailure(null);
+        setLoading(true);
+      }
       refreshList();
     };
     window.addEventListener("popstate", restore);
@@ -1037,7 +1048,7 @@ export function CaseChatWorkspace({
     <div className="flex min-h-0 min-w-0 flex-1 rounded-card border border-border bg-surface">
       <CaseChatList threads={threads} counts={counts} readAt={queueRead.readAt} selectedCaseId={selectedCaseId} query={query} onQuery={onQuery}
         queue={queue} onQueue={onQueue}
-        membershipId={membershipId} hidden={selectedCaseId !== null} loading={loading} failure={failure} onRetry={refreshList}
+        membershipId={membershipId} hidden={selectedCaseId !== null} loading={loading} failure={failure} onRetry={retryList}
         current={shown.query === query && shown.queue === queue} />
       {selectedCaseId ? (
         <CaseChatThreadView caseId={selectedCaseId} initialPage={initialPage} initialFailure={initialPageFailure}

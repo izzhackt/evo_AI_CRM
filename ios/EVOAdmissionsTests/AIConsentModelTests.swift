@@ -101,6 +101,61 @@ final class AIConsentModelTests: XCTestCase {
         XCTAssertEqual(h.model.phase, .loaded(receipt(.granted)))
     }
 
+    func testCancelledFirstReadDoesNotLeaveTheModelLoading() async {
+        // Главную закрыли, пока шло первое чтение: строка «Профиля» не должна
+        // вертеть индикатор без повтора (вызов, пришедший за это время,
+        // отброшен, пока чтение идёт).
+        let started = Gate()
+        let reads = Box(0)
+        let model = AIConsentModel(
+            load: {
+                let call = reads.value
+                reads.value += 1
+                if call == 0 {
+                    await started.open()
+                    try await Task.sleep(nanoseconds: 60_000_000_000)
+                }
+                return AIConsent(status: nil, policyVersion: nil, decidedAt: nil, currentPolicyVersion: "2026-10-25")
+            },
+            save: { _ in throw Boom() }
+        )
+        let first = Task { await model.load() }
+        await started.wait()
+        await model.load()
+        XCTAssertEqual(model.phase, .loading, "второй вызов отброшен, первое чтение ещё идёт")
+        first.cancel()
+        await first.value
+        XCTAssertEqual(model.phase, .failed)
+        XCTAssertNil(model.consent)
+
+        await model.load()
+        XCTAssertEqual(model.phase, .loaded(notAsked))
+    }
+
+    func testCancelledRefreshKeepsTheShownDecision() async {
+        let started = Gate()
+        let reads = Box(0)
+        let model = AIConsentModel(
+            load: {
+                let call = reads.value
+                reads.value += 1
+                if call == 1 {
+                    await started.open()
+                    try await Task.sleep(nanoseconds: 60_000_000_000)
+                }
+                return AIConsent(status: .granted, policyVersion: "2026-10-25",
+                                 decidedAt: "2026-10-25T09:30:00+00:00", currentPolicyVersion: "2026-10-25")
+            },
+            save: { _ in throw Boom() }
+        )
+        await model.load()
+        let refresh = Task { await model.load() }
+        await started.wait()
+        refresh.cancel()
+        await refresh.value
+        XCTAssertEqual(model.phase, .loaded(receipt(.granted)))
+    }
+
     func testRefreshPicksUpAChangeMadeElsewhere() async {
         let h = harness(initial: notAsked)
         await h.model.load()
@@ -141,6 +196,32 @@ final class AIConsentModelTests: XCTestCase {
         XCTAssertEqual(h.model.consent?.status, .granted)
         XCTAssertEqual(h.sent.value.count, 2)
         XCTAssertEqual(h.sent.value[0].p_request_id, h.sent.value[1].p_request_id)
+    }
+
+    func testFailedSaveWithoutNetworkKeepsTheScreenAsItWas() async {
+        let h = harness(initial: notAsked)
+        await h.model.load()
+        h.saveFails.value = true
+        h.loadFails.value = true
+        await h.model.choose(.granted)
+        XCTAssertTrue(h.model.sendFailed)
+        XCTAssertNil(h.model.sending)
+        XCTAssertEqual(h.model.phase, .loaded(notAsked), "сбой перечитывания ничего не стирает")
+    }
+
+    func testRejectedSaveRereadsAndAsksToUpdateWhenTheServerBumpedTheText() async throws {
+        // Сервер сменил версию текста между чтением и записью и отклонил запись.
+        let stored = Box(notAsked)
+        let model = AIConsentModel(load: { stored.value }, save: { _ in throw Boom() })
+        await model.load()
+        XCTAssertTrue(AIConsentPolicy.isTextCurrent(try XCTUnwrap(model.consent)))
+        stored.value = AIConsent(status: nil, policyVersion: nil, decidedAt: nil, currentPolicyVersion: "2026-12-01")
+        await model.choose(.granted)
+        XCTAssertTrue(model.sendFailed)
+        XCTAssertNil(model.sending)
+        let after = try XCTUnwrap(model.consent)
+        XCTAssertEqual(after.currentPolicyVersion, "2026-12-01")
+        XCTAssertFalse(AIConsentPolicy.isTextCurrent(after), "теперь экран просит обновить приложение")
     }
 
     func testOtherChoiceAfterFailureAndNextDecisionGetNewRequestIds() async {

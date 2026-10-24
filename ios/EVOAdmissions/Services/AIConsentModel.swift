@@ -64,8 +64,10 @@ final class AIConsentModel: ObservableObject {
             let loaded = try await loadConsent()
             if startedAt == generation { phase = .loaded(loaded) }
         } catch {
-            if Task.isCancelled { return }
             // Уже показанное решение остаётся; пустой экран не выдаём за «не спрашивали».
+            // Это верно и при отмене (экран закрыт, пока шло чтение): вызов, пришедший
+            // за это время, отброшен `isLoading`, и без решения строка «Профиля»
+            // вертела бы индикатор без повтора. Теперь она показывает сбой с повтором.
             if consent == nil { phase = .failed }
         }
     }
@@ -77,6 +79,7 @@ final class AIConsentModel: ObservableObject {
         sending = status
         sendFailed = false
         let requestId = memo.requestId(for: status, make: makeRequestId)
+        var saveFailed = false
         do {
             let receipt = try await saveConsent(AIConsentPolicy.params(for: status, requestId: requestId))
             generation += 1
@@ -84,7 +87,12 @@ final class AIConsentModel: ObservableObject {
             phase = .loaded(receipt)
         } catch {
             sendFailed = true
+            saveFailed = true
         }
         sending = nil
+        // Сервер мог сменить версию текста между чтением и записью и отклонить
+        // запись: перечитываем, чтобы экран попросил обновить приложение, а не
+        // остался с «проверьте интернет». Сбой чтения ничего не стирает.
+        if saveFailed { await load() }
     }
 }

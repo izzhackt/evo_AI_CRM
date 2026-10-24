@@ -81,7 +81,8 @@ test("same-origin and current authenticated staff boundary preserve fixed errors
 
 test("published request failures map exactly; unknown outcomes reveal no diagnostics or retry", async () => {
   for (const [code, status] of [["invalid_request",400], ["unavailable",403], ["profile_changed",409], ["request_conflict",409],
-    ["equivalent_job_active",409], ["document_not_eligible",422], ["profile_not_started",422], ["budget_exhausted",429], ["provider_not_configured",503]]) {
+    ["equivalent_job_active",409], ["document_not_eligible",422], ["profile_not_started",422], ["budget_exhausted",429], ["provider_not_configured",503],
+    ["ai_consent_missing",403]]) {
     const response = await handlers({ enqueue: async () => { throw new PlatformDocumentRecognitionError(code); } }).POST(request("POST"), context);
     assert.equal(response.status, status); assert.deepEqual(await response.json(), { error: code });
   }

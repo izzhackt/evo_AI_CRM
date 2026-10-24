@@ -41,7 +41,11 @@ async function readChat(conversationId: string, signal?: AbortSignal): Promise<E
   }
 }
 
-export function InboxAiAutosend({ conversationId }: Readonly<{ conversationId: string }>) {
+/**
+ * `studentAiAllowed: false` — студент чата не разрешил ИИ-помощников (окно ИИ знает это из базы): переключатель
+ * остаётся (исключение чата переживёт будущее согласие), а строка под ним честно говорит, что ночью ответа не будет.
+ */
+export function InboxAiAutosend({ conversationId, studentAiAllowed = true }: Readonly<{ conversationId: string; studentAiAllowed?: boolean }>) {
   const id = useId();
   const router = useRouter();
   const [load, setLoad] = useState<Load>({ kind: "loading" });
@@ -115,7 +119,7 @@ export function InboxAiAutosend({ conversationId }: Readonly<{ conversationId: s
       <span className="min-w-0 flex-1">
         <span id={`${id}-label`} className="block t-label text-fg">{AI_AUTOSEND_COPY.chatToggle}</span>
         <span id={`${id}-line`} className="block t-meta text-fg-2" data-testid="v3-ai-autosend-chat-line">
-          {aiAutosendChatLine(chat, serverOn)}
+          {aiAutosendChatLine(chat, serverOn, studentAiAllowed)}
         </span>
         {failure ? <span className="block t-meta text-danger" role="alert">{failure}</span> : null}
       </span>

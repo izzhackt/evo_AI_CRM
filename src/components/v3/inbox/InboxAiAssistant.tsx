@@ -646,6 +646,8 @@ export function InboxAiAssistant({
   }
   const slow = phase.kind === "streaming" && slowToken === phase.token;
   const showExtras = !(phase.kind === "blocked" && NO_EXTRAS.has(phase.code));
+  // Студент не разрешил ИИ-помощников: автоответчик чат пропустит, и его строка не должна обещать ночной ответ.
+  const studentAiAllowed = !(phase.kind === "blocked" && phase.code === AI_CONSENT_MISSING_CODE);
 
   // Одна главная кнопка во всю ширину: пока пишется — недоступна, устарело — «Обновить ответ».
   const primary: "writing" | "refresh" | "adding" | "added" | "add" | null = phase.kind === "streaming" ? "writing"
@@ -872,7 +874,7 @@ export function InboxAiAssistant({
             {showExtras ? (
               <div className="v3-ai-extras">
                 <InboxAiMemory conversationId={conversationId} />
-                <InboxAiAutosend conversationId={conversationId} />
+                <InboxAiAutosend conversationId={conversationId} studentAiAllowed={studentAiAllowed} />
               </div>
             ) : null}
 

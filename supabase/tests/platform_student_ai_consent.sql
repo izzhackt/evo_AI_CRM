@@ -906,12 +906,41 @@ SELECT pg_temp.a320_assert(pg_temp.a320_err(:'a320_ctx_mid'::JSONB) = '42501' AN
   AND pg_temp.a320_err(pg_temp.a320_context(:'a320_red_yes'::JSONB)) = '42501',
   'P1: after a decline a redeemed ticket reads nothing (ai_redemption_invalid) and an unredeemed one cannot be redeemed (ai_ticket_invalid): '
   || :'a320_ctx_mid' || :'a320_red_late');
--- The search and the answer claim of a redeemed ticket go through the same check.
+-- The rate take of a redeemed ticket goes through the same check (the search and the answer claim are called directly below).
 SELECT pg_temp.a320_assert(pg_temp.a320_err(pg_temp.a320_agent(format('SELECT platform_ai_agent.rate_take_v1(%L)', :'a320_red_yes'::JSONB ->> 'redemptionId'))) = '42501',
   'P1: the rate take of a redeemed ticket is refused after a decline too');
 SELECT pg_temp.a320_put(2, 'granted', '2026-10-25');
 SELECT pg_temp.a320_assert(NOT (pg_temp.a320_context(:'a320_red_yes'::JSONB) ? 'error'),
   'P1: the same redemption reads again after a new grant (the check follows the live decision)');
+
+-- The search and the answer claim themselves (the entry points the Gemini agent calls, not only the rate take): a redemption
+-- made while the student allowed is refused by both after a decline (ai_redemption_invalid, 42501) and answers again after a grant.
+CREATE FUNCTION pg_temp.a320_search(p_red JSONB) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a320_agent(format('SELECT platform_ai_agent.search_v1(%L, ''[]''::jsonb, %L::jsonb)',
+    p_red ->> 'redemptionId', '["сколько стоит обучение"]'))
+$$;
+CREATE FUNCTION pg_temp.a320_claim(p_red JSONB) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a320_agent(format('SELECT platform_ai_agent.answer_claim_v1(%L, ''reply'', ''a320-flight'')', p_red ->> 'redemptionId'))
+$$;
+SELECT (pg_temp.a320_as(1, format('SELECT platform.ai_agent_answer_current_v1(%L, %L, NULL)', pg_temp.a320_id(1), :'a320_c1'::UUID)) ->> 'latestInboundMessageId') AS a320_c1_latest \gset
+SELECT pg_temp.a320_as(1, format('SELECT platform.ai_agent_ticket_v1(%L, ''answer'', %L, %L)', pg_temp.a320_id(1), :'a320_c1'::UUID, :'a320_c1_latest')) AS a320_t_ref \gset
+SELECT pg_temp.a320_redeem(:'a320_t_ref'::JSONB) AS a320_red_ref \gset
+SELECT pg_temp.a320_search(:'a320_red_ref'::JSONB) AS a320_s_yes \gset
+SELECT pg_temp.a320_claim(:'a320_red_ref'::JSONB) AS a320_cl_yes \gset
+SELECT pg_temp.a320_assert(NOT ((:'a320_s_yes'::JSONB) ? 'error') AND NOT ((:'a320_cl_yes'::JSONB) ? 'error'),
+  'P1: while the student allows, the search and the answer claim of a redeemed ticket answer: ' || :'a320_s_yes' || :'a320_cl_yes');
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+SELECT pg_temp.a320_search(:'a320_red_ref'::JSONB) AS a320_s_no \gset
+SELECT pg_temp.a320_claim(:'a320_red_ref'::JSONB) AS a320_cl_no \gset
+SELECT pg_temp.a320_assert(
+  pg_temp.a320_err(:'a320_s_no'::JSONB) = '42501' AND pg_temp.a320_msg(:'a320_s_no'::JSONB) = 'ai_redemption_invalid'
+  AND pg_temp.a320_err(:'a320_cl_no'::JSONB) = '42501' AND pg_temp.a320_msg(:'a320_cl_no'::JSONB) = 'ai_redemption_invalid',
+  'P1: after a decline the search and the answer claim of a redeemed ticket are refused (ai_redemption_invalid): ' || :'a320_s_no' || :'a320_cl_no');
+SELECT pg_temp.a320_put(2, 'granted', '2026-10-25');
+SELECT pg_temp.a320_search(:'a320_red_ref'::JSONB) AS a320_s_again \gset
+SELECT pg_temp.a320_assert(NOT ((:'a320_s_again'::JSONB) ? 'error')
+  AND pg_temp.a320_err(pg_temp.a320_claim(:'a320_red_ref'::JSONB)) IS DISTINCT FROM '42501',
+  'P1: the same redemption searches and claims again after a new grant (the check follows the live decision): ' || :'a320_s_again');
 
 -- The window learns the reason without asking for a ticket: studentAiAllowed, and no saved answer for a refused chat.
 SELECT pg_temp.a320_as(1, format('SELECT platform.ai_agent_answer_current_v1(%L, %L, NULL)', pg_temp.a320_id(1), :'a320_c1'::UUID)) AS a320_cur_yes \gset

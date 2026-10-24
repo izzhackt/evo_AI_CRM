@@ -384,6 +384,13 @@ test("chat: off, shadow, live test, live; the chip only where it would really an
   assert.equal(aiAutosendChatLine(chat({ mode: "live" }), false), "Отправка выключена на сервере.");
   assert.equal(aiAutosendChatLine(chat({ mode: "live", handedOff: true }), true), "Финальная фраза сказана — до утра молчит.");
   assert.equal(aiAutosendChatLine(chat({ mode: "live_test" }), true), "Живой тест: ночью отвечает по-настоящему.");
+  // Миграция 320: студент чата не разрешил ИИ-помощников - база пропускает чат (`ai_consent_missing`), строка не обещает ночной ответ.
+  for (const fields of [{ mode: "live" }, { mode: "live_test" }, {}, { excluded: true }, { paused: true }, { mode: "live", handedOff: true }]) {
+    assert.equal(aiAutosendChatLine(chat(fields), true, false), "Студент не дал согласия на ИИ-помощников — автоответчик здесь не отвечает.", JSON.stringify(fields));
+    assert.equal(aiAutosendChatLine(chat(fields), false, false), "Студент не дал согласия на ИИ-помощников — автоответчик здесь не отвечает.");
+  }
+  assert.equal(aiAutosendChatLine(chat({ mode: "live" }), true, true), "Ночью отвечает по расписанию.", "the default and an allowed student are unchanged");
+  assert.equal(aiAutosendChatLine(chat({ mode: "live" }), true), "Ночью отвечает по расписанию.");
   assert.throws(() => normalizeAiAutosendChat({ enabled: true, excluded: false, mode: "on" }), /ai_agent_shape_invalid/u);
   // Окно ИИ читает ответ маршрута — уже нормализованный вид — и проверяет его строго (живой тест не теряется).
   const liveTest = chat({ mode: "live_test" });
@@ -690,13 +697,16 @@ test("UI copy: the spec's Russian words, one red action, switch semantics, AI-wi
   const toggle = read("src/components/v3/inbox/InboxAiAutosend.tsx");
   assert.match(toggle, /role="switch"/u);
   assert.match(toggle, /aria-checked=\{on\}/u);
+  // 320: the strip gets the student's refusal from the window and says so; the window derives it from the blocked consent code.
+  assert.match(toggle, /aiAutosendChatLine\(chat, serverOn, studentAiAllowed\)/u);
   assert.match(toggle, /if \(load\.kind === "hidden" \|\| load\.kind === "loading"\) return null;/u, "an org without the autoresponder shows nothing");
   const assistant = read("src/components/v3/inbox/InboxAiAssistant.tsx");
   const body = assistant.slice(assistant.indexOf('<div className="v3-ai-body">'));
+  assert.match(assistant, /const studentAiAllowed = !\(phase\.kind === "blocked" && phase\.code === AI_CONSENT_MISSING_CODE\);/u);
   // Окно «как в SoodaCloser» (08.10): автоответчик — полоса под памятью, внизу карточки, после ответа.
-  assert.ok(body.indexOf("<InboxAiMemory conversationId={conversationId} />") < body.indexOf("<InboxAiAutosend conversationId={conversationId} />"));
-  assert.ok(body.indexOf('phase.kind === "loading"') < body.indexOf("<InboxAiAutosend conversationId={conversationId} />"));
-  assert.ok(body.indexOf('data-testid="v3-ai-sources"') < body.indexOf("<InboxAiAutosend conversationId={conversationId} />"));
+  assert.ok(body.indexOf("<InboxAiMemory conversationId={conversationId} />") < body.indexOf("<InboxAiAutosend conversationId={conversationId} studentAiAllowed={studentAiAllowed} />"));
+  assert.ok(body.indexOf('phase.kind === "loading"') < body.indexOf("<InboxAiAutosend conversationId={conversationId} studentAiAllowed={studentAiAllowed} />"));
+  assert.ok(body.indexOf('data-testid="v3-ai-sources"') < body.indexOf("<InboxAiAutosend conversationId={conversationId} studentAiAllowed={studentAiAllowed} />"));
   const inbox = read("src/components/v3/Inbox.tsx");
   assert.match(inbox, /open\.chat\.autoreplyAtNight \? \(/u);
   const page = read("src/app/(v3)/v3/ai-agent/page.tsx");

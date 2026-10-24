@@ -34,7 +34,7 @@ export function RunActions({
   canRun,
 }: Readonly<{
   agentKey: AiAgentKey;
-  run: Pick<AiAgentRunRow, "id" | "status" | "summary" | "promptPreview">;
+  run: Pick<AiAgentRunRow, "id" | "status" | "summary" | "promptPreview" | "errorCode">;
   /** Своё `command`-поручение сотрудника: его можно открыть в чате и повторить. */
   ownCommand: boolean;
   /** Не просмотр роли. */

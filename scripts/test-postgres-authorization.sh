@@ -715,6 +715,51 @@ SQL
     done
   fi
 
+  # «ИИ-агенты»: два пункта аудита стека 24.10.2026 (миграция 319, PLAN_CHANGES 24.10.2026). Matched by name,
+  # not number. IMMEDIATELY BEFORE the ordinary apply the migration must refuse with a319_anchor_drift, inside
+  # a transaction that the failure rolls back, for each of the ten 317 functions it replaces (three writes, six
+  # sensitive reads, the action log) when that function is edited after its own migration (the md5 pre-image
+  # anchors). A second apply of the finished migration must refuse with a319_already_applied (below).
+  if [[ "$(basename "$migration")" == *_platform_ai_agents_hardening.sql ]]; then
+    for t319_pinned in \
+      'platform.ai_agent_tool_create_task_v1(uuid,text,jsonb)' \
+      'platform.ai_agent_tool_add_note_v1(uuid,text,jsonb)' \
+      'platform.ai_agent_tool_post_digest_v1(uuid,text,jsonb)' \
+      'platform.ai_agent_tool_get_client_card_v1(uuid,text,jsonb)' \
+      'platform.ai_agent_tool_get_lead_v1(uuid,text,jsonb)' \
+      'platform.ai_agent_tool_get_case_v1(uuid,text,jsonb)' \
+      'platform.ai_agent_tool_get_document_file_v1(uuid,text,jsonb)' \
+      'platform.ai_agent_tool_get_conversation_v1(uuid,text,jsonb)' \
+      'platform.ai_agent_tool_get_case_chat_v1(uuid,text,jsonb)' \
+      'platform.ai_agent_mcp_log_v1(uuid,text,text,jsonb,text,text,integer)'; do
+      t319_tamper_log="$(mktemp -t evo-t319-anchor.XXXXXX)"
+      if docker exec -i "$container_name" \
+        psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+        -v "pinned_function=$t319_pinned" \
+        -v "migration_file=/workspace/$migration" \
+        >"$t319_tamper_log" 2>&1 <<'SQL'
+BEGIN;
+SELECT replace(
+  pg_get_functiondef(:'pinned_function'::regprocedure),
+  'BEGIN',
+  'BEGIN /* tampered after its own migration */'
+) AS tampered_definition \gset
+:tampered_definition ;
+\i :migration_file
+SQL
+      then
+        echo "migration 319 accepted an edited $t319_pinned" >&2
+        exit 1
+      fi
+      if ! grep -Fq "a319_anchor_drift" "$t319_tamper_log"; then
+        echo "migration 319 failed for the wrong pre-image reason ($t319_pinned)" >&2
+        sed -n '1,60p' "$t319_tamper_log" >&2
+        exit 1
+      fi
+      rm -f "$t319_tamper_log"
+    done
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -4442,6 +4487,38 @@ SQL
     printf '%s\n' "$ai_agents_followups_log"
     if ! grep -q 'A318_AI_AGENTS_FOLLOWUPS_SUITE_PASSED' <<<"$ai_agents_followups_log"; then
       echo "platform_ai_agents_followups.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «ИИ-агенты»: два пункта аудита стека 24.10.2026 (migration 319, PLAN_CHANGES 24.10.2026). Matched by name,
+  # not number. Right after the migration: a second apply refuses (a319_already_applied), then the suite,
+  # insisting on its marker. The suite proves: the posture of what 319 adds and replaces (three closed helpers,
+  # grants and the number of functions unchanged, the bodies carry the audit / the key / no audit in the log);
+  # create_task, add_note and post_digest without a model key (the same call is one row and the first answer,
+  # whitespace and case apart; every other part of the call, another agent, the 11th minute and the model's own
+  # key are new or separate; a refused call is not cached; the lock on the key); the audit of the six sensitive
+  # reads written by the read itself (object, actor, after_state as before; none for other or refused reads; a
+  # failing journal insert fails the read with no data and no file link); the action log with its row and no audit.
+  if [[ "$(basename "$migration")" == *_platform_ai_agents_hardening.sql ]]; then
+    t319_again_log="$(mktemp -t evo-t319-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t319_again_log" 2>&1; then
+      echo "migration 319 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a319_already_applied" "$t319_again_log"; then
+      echo "a second apply of migration 319 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t319_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t319_again_log"
+    ai_agents_hardening_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_agents_hardening.sql </dev/null)"
+    printf '%s\n' "$ai_agents_hardening_log"
+    if ! grep -q 'A319_AI_AGENTS_HARDENING_SUITE_PASSED' <<<"$ai_agents_hardening_log"; then
+      echo "platform_ai_agents_hardening.sql did not reach its PASSED marker" >&2
       exit 1
     fi
   fi

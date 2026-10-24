@@ -240,7 +240,16 @@ export const AI_AGENTS_DEFAULT_MCP_URL = "https://crm.evoadmissions.com/api/mcp/
 /** Имя MCP-сервера внутри агента Claude (`mcp_servers[].name` и `mcp_toolset.mcp_server_name`). */
 export const AI_AGENTS_CLAUDE_MCP_SERVER_NAME = "evo_crm";
 export const AI_AGENTS_MCP_SERVER_INFO = { name: "evo-crm-agents", version: "1.0.0" } as const;
-export const AI_AGENTS_MCP_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"] as const;
+/*
+ * Новейшая версия первая: ею отвечает `initialize` на неизвестную версию клиента. 2025-11-25 сверена с
+ * modelcontextprotocol.io/specification/2025-11-25/changelog: наши `initialize`, `tools/list` и `tools/call`
+ * остаются валидными (имена инструментов snake_case, ошибки проверки аргументов — результат с isError).
+ * Заголовок `MCP-Protocol-Version` на запросах после `initialize`: неизвестная версия — 400
+ * (…/2025-11-25/basic/transports#protocol-version-header), без заголовка — принимается.
+ * Проверку Origin (403) и версию 2026-07-28 сознательно не вводим.
+ */
+export const AI_AGENTS_MCP_PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"] as const;
+export const AI_AGENTS_MCP_PROTOCOL_HEADER = "mcp-protocol-version";
 /** Адрес клиента: сначала заголовок, который ставит edge, потом последний элемент X-Forwarded-For. */
 export const AI_AGENTS_MCP_IP_HEADER = "x-evo-mcp-ip";
 /** Исходящие адреса Anthropic для вызовов MCP (docs: platform.claude.com/docs/en/api/ip-addresses). */
@@ -262,6 +271,14 @@ export const ANTHROPIC_API = {
   betaHeaderValue: "managed-agents-2026-04-01",
   agentToolset: "agent_toolset_20260401",
 } as const;
+
+/**
+ * Встроенные инструменты набора, которые у агентов выключены (решение владельца 24.10.2026: агенты работают
+ * только с данными EVO CRM, интернета у них нет). `bash` и файловые остаются: песочнице нужен curl для
+ * ссылок на файлы документов. Форма — `configs:[{name, enabled:false}]`
+ * (platform.claude.com/docs/en/managed-agents/tools, «Disabling specific tools»).
+ */
+export const AI_AGENT_DISABLED_BUILTIN_TOOLS = ["web_search", "web_fetch"] as const;
 
 /* ------------------------------------------------------------- имена RPC БД */
 
@@ -740,9 +757,14 @@ export type AiAgentRunPoll = Readonly<{
   pollAfterMs: number;
 }>;
 
+/**
+ * `session_unlinked` и `create_unconfirmed` — запуск уже записан как `failed` под ключом повтора `cmd:<requestId>`,
+ * поэтому повторять нужно с НОВЫМ id запроса (интерфейс сохраняет id только при `unavailable`).
+ */
 export type AiAgentRunErrorCode =
   | "api_key_missing" | "agent_disabled" | "agent_not_synced" | "forbidden" | "preview_read_only"
-  | "invalid_input" | "run_in_progress" | "duplicate" | "anthropic_error" | "rate_limited" | "unavailable";
+  | "invalid_input" | "run_in_progress" | "duplicate" | "anthropic_error" | "rate_limited" | "unavailable"
+  | "session_unlinked" | "create_unconfirmed";
 
 export type AiAgentStartRunResult =
   | Readonly<{ ok: true; runId: string }>

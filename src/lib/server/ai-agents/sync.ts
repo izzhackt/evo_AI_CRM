@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 
 import { effectiveAiAgentInstructions, buildAiAgentSystemPrompt } from "../../../content/ai-agents/index.ts";
 import {
+  AI_AGENT_DISABLED_BUILTIN_TOOLS,
   AI_AGENTS_CLAUDE_MCP_SERVER_NAME,
   AI_AGENT_RUNTIME_RPC,
   ANTHROPIC_API,
@@ -191,21 +192,59 @@ async function resolveSharedEnvironment(args: Readonly<{
   throw new EnvironmentBusy(ENVIRONMENT_BUSY_MESSAGE);
 }
 
+/**
+ * Ранее созданный объект Claude с тем же `metadata.evo_agent_key` (агент или хранилище): список Claude
+ * не фильтруется по метаданным, поэтому читается постранично. Нужен, чтобы потерянный ответ на создание
+ * (сеть, тайм-аут, сбой записи id в БД) не породил второго агента или второе хранилище при повторной
+ * синхронизации. Несколько кандидатов — берётся самый ранний, остальные оставлены как есть.
+ */
+function pickByAgentKey(items: readonly AnthropicJson[], key: AiAgentKey): Readonly<{ item: AnthropicJson; extra: number }> | null {
+  const matches = items.filter((item) => !item.archived_at && isRecord(item.metadata) && item.metadata.evo_agent_key === key
+    && stringOrNull(item.id) !== null);
+  if (matches.length === 0) return null;
+  const created = (item: AnthropicJson): number => {
+    const at = typeof item.created_at === "string" ? Date.parse(item.created_at) : NaN;
+    return Number.isFinite(at) ? at : Number.MAX_SAFE_INTEGER;
+  };
+  const earliest = matches.reduce((best, item) => (created(item) < created(best) ? item : best));
+  return { item: earliest, extra: matches.length - 1 };
+}
+
 /** Создаёт или обновляет агента Claude; обновление — по версии, одна повторная попытка при 409. */
 async function upsertAgent(
-  anthropic: AnthropicClient, existingId: string | null, body: AnthropicJson, warnings: string[],
+  anthropic: AnthropicClient, existingId: string | null, body: AnthropicJson, warnings: string[], key: AiAgentKey,
 ): Promise<Readonly<{ id: string; version: number; created: boolean }>> {
   let id = existingId;
+  let adopted = false;
+  if (!id) {
+    const found = pickByAgentKey(await anthropic.agents.list(), key);
+    if (found) {
+      id = stringOrNull(found.item.id);
+      adopted = id !== null;
+      if (adopted) {
+        warnings.push("Агент с этим ключом уже был в Claude — подключён, заново не создан. Нужен новый — архивируйте прежнего в Claude Console и синхронизируйте снова");
+        if (found.extra > 0) warnings.push("В Claude есть лишние агенты с тем же ключом — лишних архивируйте в Claude Console");
+      }
+    }
+  }
   if (id) {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       let current: AnthropicJson;
       try {
         current = await anthropic.agents.get(id);
       } catch (error) {
-        if (isStatus(error, 404)) { id = null; warnings.push("Прежний агент не найден в Claude — создан новый"); break; }
+        if (isStatus(error, 404)) {
+          id = null;
+          if (!adopted) warnings.push("Прежний агент не найден в Claude — создан новый");
+          break;
+        }
         throw error;
       }
-      if (current.archived_at) { id = null; warnings.push("Прежний агент в Claude архивирован — создан новый"); break; }
+      if (current.archived_at) {
+        id = null;
+        if (!adopted) warnings.push("Прежний агент в Claude архивирован — создан новый");
+        break;
+      }
       try {
         const updated = await anthropic.agents.update(id, { ...body, version: numberOr(current.version, 1) });
         return { id, version: numberOr(updated.version, numberOr(current.version, 1)), created: false };
@@ -219,6 +258,23 @@ async function upsertAgent(
   const newId = stringOrNull(created.id);
   if (!newId) throw new AnthropicApiError(502, "invalid_response", "Claude API не вернул id агента");
   return { id: newId, version: numberOr(created.version, 1), created: true };
+}
+
+/** Хранилище агента: найденное по `metadata.evo_agent_key` или новое. */
+async function findOrCreateVault(
+  anthropic: AnthropicClient, key: AiAgentKey, warnings: string[],
+): Promise<Readonly<{ id: string; created: boolean }>> {
+  const found = pickByAgentKey(await anthropic.vaults.list(), key);
+  const foundId = found ? stringOrNull(found.item.id) : null;
+  if (found && foundId) {
+    warnings.push("Хранилище токена с этим ключом уже было в Claude — подключено, заново не создано");
+    if (found.extra > 0) warnings.push("В Claude есть лишние хранилища с тем же ключом — лишние архивируйте в Claude Console");
+    return { id: foundId, created: false };
+  }
+  const vault = await anthropic.vaults.create({ display_name: `EVO CRM · ${key}`, metadata: { evo_agent_key: key } });
+  const vaultId = stringOrNull(vault.id);
+  if (!vaultId) throw new AnthropicApiError(502, "invalid_response", "Claude API не вернул id хранилища");
+  return { id: vaultId, created: true };
 }
 
 /** Новый креденшл `static_bearer`; если адрес уже занят (409) — находит его и обновляет токен. */
@@ -328,10 +384,9 @@ async function runSync(
     // 2. Vault агента.
     let vaultId = config.vaultId;
     if (!vaultId) {
-      const vault = await anthropic.vaults.create({ display_name: `EVO CRM · ${key}`, metadata: { evo_agent_key: key } });
-      vaultId = stringOrNull(vault.id);
-      if (!vaultId) throw new AnthropicApiError(502, "invalid_response", "Claude API не вернул id хранилища");
-      created.vault = true;
+      const vault = await findOrCreateVault(anthropic, key, warnings);
+      vaultId = vault.id;
+      created.vault = vault.created;
       await record({ status: "pending", vaultId });
     }
 
@@ -387,11 +442,17 @@ async function runSync(
       system: buildAiAgentSystemPrompt(key, config.instructionsOverride),
       mcp_servers: [{ type: "url", name: AI_AGENTS_CLAUDE_MCP_SERVER_NAME, url: mcpUrl }],
       tools: [
-        { type: ANTHROPIC_API.agentToolset, default_config: permission },
+        // Интернета у агентов нет (решение владельца 24.10.2026): web_search и web_fetch выключены поштучно,
+        // остальной набор (bash и файловые инструменты) работает: platform.claude.com/docs/en/managed-agents/tools.
+        {
+          type: ANTHROPIC_API.agentToolset,
+          default_config: permission,
+          configs: AI_AGENT_DISABLED_BUILTIN_TOOLS.map((name) => ({ name, enabled: false })),
+        },
         { type: "mcp_toolset", mcp_server_name: AI_AGENTS_CLAUDE_MCP_SERVER_NAME, default_config: permission },
       ],
       metadata: { evo_agent_key: key, evo_config_hash: configHash },
-    }, warnings);
+    }, warnings, key);
     created.agent = agent.created;
     await record({ status: "pending", claudeAgentId: agent.id, agentVersion: agent.version });
 
@@ -472,9 +533,14 @@ async function runSync(
       return bad("conflict", ENVIRONMENT_BUSY_MESSAGE);
     }
     const anthropicError = error instanceof AnthropicApiError ? error : null;
-    const reason = anthropicError ? `${anthropicError.type}: ${anthropicError.message}` : "ошибка CRM при синхронизации";
+    const reason = anthropicError
+      ? `${anthropicError.type}${anthropicError.requestId ? ` [request-id ${anthropicError.requestId}]` : ""}: ${anthropicError.message}`
+      : "ошибка CRM при синхронизации";
     await record({ status: "error", error: truncate(reason.replace(/\s+/gu, " "), 300) }).catch(() => undefined);
-    deps.log({ op: "sync", status: "error", agent: key, http: anthropicError?.status ?? null });
+    deps.log({
+      op: "sync", status: "error", agent: key, http: anthropicError?.status ?? null,
+      ...(anthropicError?.requestId ? { request_id: anthropicError.requestId } : {}),
+    });
     return anthropicError
       ? bad("anthropic_error", describeAnthropicError(anthropicError))
       : bad("unavailable", "Не удалось завершить синхронизацию. Повторите позже");

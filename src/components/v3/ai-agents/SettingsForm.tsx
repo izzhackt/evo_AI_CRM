@@ -247,7 +247,7 @@ export function SettingsForm({
         <div className="pb-4 pt-1">
           <label htmlFor="aia-claude-id" className={fieldLabelCls}>ID агента в Claude</label>
           <input id="aia-claude-id" className={`${inputCls} max-w-xl font-mono`} value={form.claudeId} placeholder="agent_…" onChange={(event) => set("claudeId", event.target.value)} />
-          <p className="mt-1 t-meta text-fg-3">Пусто — агента создаст синхронизация. Смена ID привязывает другого агента Claude.</p>
+          <p className="mt-1 t-meta text-fg-3">Пусто — синхронизация подключит уже созданного агента EVO или создаст нового. Чтобы получить нового, сначала архивируйте прежнего в Claude Console. Смена ID привязывает другого агента Claude.</p>
         </div>
       </details>
 

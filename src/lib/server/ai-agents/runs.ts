@@ -71,6 +71,8 @@ export const RUN_ERROR_MESSAGES: Readonly<Record<AiAgentRunErrorCode, string>> =
   anthropic_error: "Claude не принял запрос. Повторите позже",
   rate_limited: "Слишком много запросов к Claude. Повторите через минуту",
   unavailable: "Сервис временно недоступен. Повторите позже",
+  session_unlinked: "Сессия Claude создана, но запуск не записан в CRM. Проверьте раздел «Запуски» и повторите поручение",
+  create_unconfirmed: "Claude не подтвердил создание сессии — она могла запуститься. Проверьте раздел «Запуски» и повторите позже",
 });
 
 const fail = (code: AiAgentRunErrorCode, message?: string): { ok: false; code: AiAgentRunErrorCode; message: string } =>
@@ -120,9 +122,16 @@ export type NewSessionInput = Readonly<{
   title: string;
   text: string;
   budgetUsd: number;
+  /** Строка запуска CRM: уходит в `metadata` сессии, по ней сверка сопоставляет «осиротевшие» сессии с запусками. */
+  runId: string;
+  agentKey: string;
 }>;
 
-/** Создаёт сессию Claude с первым сообщением (`initial_events` сразу запускают работу). Возвращает id сессии. */
+/**
+ * Создаёт сессию Claude с первым сообщением (`initial_events` сразу запускают работу). Возвращает id сессии.
+ * `metadata` сессии — до 16 пар, ключ до 64 знаков, значение до 512
+ * (platform.claude.com/docs/en/api/beta/sessions/create); в ней id запуска CRM и ключ агента, без текстов и данных.
+ */
 export async function createAgentSession(client: AnthropicClient, input: NewSessionInput): Promise<string> {
   const budget = sessionBudget(input.budgetUsd);
   const body: AnthropicJson = {
@@ -132,6 +141,7 @@ export async function createAgentSession(client: AnthropicClient, input: NewSess
     environment_id: input.environmentId,
     vault_ids: [input.vaultId],
     title: input.title,
+    metadata: { evo_run_id: input.runId, evo_agent_key: input.agentKey },
     initial_events: [userMessageEvent(input.text)],
     ...(budget ? { budget } : {}),
   };
@@ -145,6 +155,34 @@ export async function createAgentSession(client: AnthropicClient, input: NewSess
 export function anthropicFailure(error: unknown): { code: "rate_limited" | "anthropic_error"; status: number | null } {
   if (error instanceof AnthropicApiError) return { code: error.status === 429 ? "rate_limited" : "anthropic_error", status: error.status };
   return { code: "anthropic_error", status: null };
+}
+
+/** `{request_id}` для строки журнала, если Claude вернул идентификатор запроса (секретов в нём нет). */
+export function anthropicRequestIdField(error: unknown): Readonly<{ request_id?: string }> {
+  return error instanceof AnthropicApiError && error.requestId ? { request_id: error.requestId } : {};
+}
+
+const CREATE_UNCONFIRMED_RECORD = "Claude не подтвердил создание сессии; она могла быть создана без записи в CRM";
+
+/**
+ * Ответ на создание сессии не получен (тайм-аут, обрыв сети, 5xx, ответ без id): сессия в Claude могла
+ * появиться. 429 и 4xx — запрос точно не выполнен.
+ */
+export function isAmbiguousSessionCreateFailure(error: unknown): boolean {
+  return !(error instanceof AnthropicApiError) || error.status === 0 || error.status >= 500;
+}
+
+/** Патч `failed` для запуска, чью сессию создать не удалось. */
+export function sessionCreateFailurePatch(error: unknown): Record<string, unknown> {
+  // Неоднозначный отказ — свой код: «Запуски» не должны говорить «Claude ответил ошибкой», когда сессия могла начаться.
+  if (isAmbiguousSessionCreateFailure(error)) {
+    return { status: "failed", errorCode: "create_unconfirmed", errorMessage: CREATE_UNCONFIRMED_RECORD };
+  }
+  return {
+    status: "failed",
+    errorCode: anthropicFailure(error).code,
+    errorMessage: truncate(error instanceof AnthropicApiError ? error.message : "Сессия Claude не создана", 500),
+  };
 }
 
 /** Ответ `ai_agents_run_authorize_v1`: нужные поля или null. */
@@ -208,6 +246,57 @@ async function updateRunWithRetry(
   }
   return last;
 }
+
+const LINK_FAILED_STOPPED = "Сессия Claude создана, но запуск не записан в CRM; сессия остановлена. Повторите поручение";
+const LINK_FAILED_RUNNING = "Сессия Claude создана, но запуск не записан в CRM, и остановить её не удалось. Сообщите администратору";
+
+export type SessionLink = Readonly<{ ok: true }> | Readonly<{ ok: false; interrupted: boolean }>;
+
+/**
+ * Записывает id созданной сессии в строку запуска. Если запись не удалась даже после повторов, сессия в Claude
+ * уже работает без привязки к запуску: её останавливает `user.interrupt` (тот же путь, что у кнопки «Стоп»;
+ * не вышло — сессия ограничена потолком расхода), строка помечается `failed` (если база ответит), а вызывающий
+ * получает правдивый отказ и не считает запуск начатым. В журнал уходят только идентификаторы.
+ */
+export async function attachSessionToRun(args: Readonly<{
+  anthropic: AnthropicClient;
+  client: ServiceClient;
+  organizationId: string;
+  runId: string;
+  sessionId: string;
+  agentKey: string;
+  deps: AiAgentsRuntimeDeps;
+}>): Promise<SessionLink> {
+  const { anthropic, client, organizationId, runId, sessionId, agentKey, deps } = args;
+  const updated = await updateRunWithRetry(client, organizationId, runId, { sessionId, status: "running" }, deps);
+  if (updated.ok) return { ok: true };
+  let interrupted = false;
+  let interruptRequestId: Readonly<{ request_id?: string }> = {};
+  try {
+    await anthropic.sessions.sendEvents(sessionId, [{ type: "user.interrupt" }]);
+    interrupted = true;
+  } catch (error) {
+    interruptRequestId = anthropicRequestIdField(error);
+  }
+  await updateRun(client, organizationId, runId, {
+    status: "failed",
+    errorCode: "session_unlinked",
+    errorMessage: interrupted ? LINK_FAILED_STOPPED : LINK_FAILED_RUNNING,
+  });
+  deps.log({
+    op: "run_link", status: "error", agent: agentKey, run_id: runId, session_id: sessionId,
+    db_code: updated.code, interrupted, ...interruptRequestId,
+  });
+  return { ok: false, interrupted };
+}
+
+/**
+ * Отказ запуска, когда сессию создали, а записать её не удалось. Строка запуска уже `failed` под ключом повтора
+ * `cmd:<requestId>`, поэтому не `unavailable` («безопасно повторите» с тем же id вернул бы этот же пустой запуск):
+ * свой код заставляет интерфейс взять новый id запроса.
+ */
+export const sessionLinkFailure = (link: Extract<SessionLink, { ok: false }>) =>
+  fail("session_unlinked", link.interrupted ? LINK_FAILED_STOPPED : LINK_FAILED_RUNNING);
 
 /* ------------------------------------------------------------------- чтение запуска */
 
@@ -294,6 +383,8 @@ export async function startAiAgentRunImpl(
 
   // 2. Код полномочия отправки: в БД только SHA-256, открытый текст — в сообщении агенту.
   const authorityCode = input.sendAuthority ? base32(deps.randomBytes(12)) : null;
+  const startedMs = deps.now();
+  const elapsed = (): number => Math.max(0, deps.now() - startedMs);
 
   // 3. Резерв строки запуска (повтор по requestId возвращает прежний запуск).
   const client = await deps.serviceClient();
@@ -329,21 +420,27 @@ export async function startAiAgentRunImpl(
       title: plainTitle(auth.title, input.text),
       text: authorityCode ? withAuthorityNote(input.text, authorityCode) : input.text,
       budgetUsd: auth.runBudgetUsd,
+      runId,
+      agentKey: input.key,
     });
   } catch (error) {
     const failure = anthropicFailure(error);
-    deps.log({ op: "run_start", status: "error", agent: input.key, code: failure.code, http: failure.status });
-    await updateRun(client, organizationId, runId, {
-      status: "failed",
-      errorCode: failure.code,
-      errorMessage: truncate(error instanceof AnthropicApiError ? error.message : "Сессия Claude не создана", 500),
+    const ambiguous = isAmbiguousSessionCreateFailure(error);
+    deps.log({
+      op: "run_start", status: "error", agent: input.key, code: failure.code, http: failure.status,
+      run_id: runId, duration_ms: elapsed(), ...(ambiguous ? { ambiguous: true } : {}), ...anthropicRequestIdField(error),
     });
-    return fail(failure.code);
+    await updateRun(client, organizationId, runId, sessionCreateFailurePatch(error));
+    return ambiguous ? fail("create_unconfirmed") : fail(failure.code);
   }
 
-  // 5. Запуск работает.
-  const updated = await updateRunWithRetry(client, organizationId, runId, { sessionId, status: "running" }, deps);
-  deps.log({ op: "run_start", status: updated.ok ? "ok" : "error", agent: input.key });
+  // 5. Запуск работает. Не записалась сессия в строку — она останавливается, а отказ правдив (не «ok»).
+  const link = await attachSessionToRun({ anthropic, client, organizationId, runId, sessionId, agentKey: input.key, deps });
+  if (!link.ok) {
+    deps.log({ op: "run_start", status: "error", agent: input.key, reason: "run_update_failed", run_id: runId, session_id: sessionId, duration_ms: elapsed() });
+    return sessionLinkFailure(link);
+  }
+  deps.log({ op: "run_start", status: "ok", agent: input.key, run_id: runId, session_id: sessionId, duration_ms: elapsed() });
   return { ok: true, runId };
 }
 
@@ -375,6 +472,7 @@ export async function followUpAiAgentRunImpl(
   });
   if (!authorized.ok) return authorizeFailure(authorized);
 
+  const startedMs = deps.now();
   try {
     const session = await anthropic.sessions.get(run.sessionId);
     if (session.status === "running" || session.status === "rescheduling") return fail("run_in_progress");
@@ -382,12 +480,15 @@ export async function followUpAiAgentRunImpl(
     await anthropic.sessions.sendEvents(run.sessionId, [userMessageEvent(input.text)]);
   } catch (error) {
     const failure = anthropicFailure(error);
-    deps.log({ op: "run_follow_up", status: "error", agent: run.agentKey, code: failure.code, http: failure.status });
+    deps.log({
+      op: "run_follow_up", status: "error", agent: run.agentKey, code: failure.code, http: failure.status,
+      run_id: run.id, session_id: run.sessionId, duration_ms: Math.max(0, deps.now() - startedMs), ...anthropicRequestIdField(error),
+    });
     return fail(failure.code);
   }
   const client = await deps.serviceClient();
   await updateRunWithRetry(client, ctx.actor.organizationId, run.id, { status: "running" }, deps);
-  deps.log({ op: "run_follow_up", status: "ok", agent: run.agentKey });
+  deps.log({ op: "run_follow_up", status: "ok", agent: run.agentKey, run_id: run.id, session_id: run.sessionId, duration_ms: Math.max(0, deps.now() - startedMs) });
   return { ok: true };
 }
 
@@ -411,10 +512,13 @@ export async function interruptAiAgentRunImpl(
     await anthropic.sessions.sendEvents(run.sessionId, [{ type: "user.interrupt" }]);
   } catch (error) {
     const failure = anthropicFailure(error);
-    deps.log({ op: "run_interrupt", status: "error", agent: run.agentKey, code: failure.code, http: failure.status });
+    deps.log({
+      op: "run_interrupt", status: "error", agent: run.agentKey, code: failure.code, http: failure.status,
+      run_id: run.id, session_id: run.sessionId, ...anthropicRequestIdField(error),
+    });
     return fail(failure.code);
   }
-  deps.log({ op: "run_interrupt", status: "ok", agent: run.agentKey });
+  deps.log({ op: "run_interrupt", status: "ok", agent: run.agentKey, run_id: run.id, session_id: run.sessionId });
   return { ok: true };
 }
 
@@ -534,7 +638,7 @@ export async function pollAiAgentRunImpl(
       const updated = await updateRun(client, ctx.actor.organizationId, run.id, patch);
       if (!updated.ok && updated.code !== "55000" && updated.code !== "22023") throw new Error("run_update_failed");
       if (updated.ok) run = applyPatch(run, patch);
-      deps.log({ op: "run_poll", status: updated.ok ? "ok" : "error", agent: run.agentKey, run_status: derived.status });
+      deps.log({ op: "run_poll", status: updated.ok ? "ok" : "error", agent: run.agentKey, run_status: derived.status, run_id: run.id, session_id: sessionId });
     }
 
     const done = isTerminalRunStatus(run.status) && fresh.length === 0;
@@ -548,9 +652,9 @@ export async function pollAiAgentRunImpl(
         pollAfterMs: done ? 0 : AI_AGENT_LIMITS.pollIntervalMs,
       },
     };
-  } catch {
+  } catch (error) {
     // Недоступность Claude или базы — не ошибка запуска: прежний статус, пустая пачка, курсор не сдвинут.
-    deps.log({ op: "run_poll", status: "error", agent: run.agentKey, reason: "unavailable" });
+    deps.log({ op: "run_poll", status: "error", agent: run.agentKey, reason: "unavailable", run_id: run.id, session_id: sessionId, ...anthropicRequestIdField(error) });
     return { ok: true, poll: settled(run) };
   }
 }
@@ -581,8 +685,8 @@ export async function loadAiAgentRunTranscriptImpl(
     const names: ToolNameMap = new Map();
     const events = convertSessionEvents(raw.slice(0, 400), names, new Date(deps.now()).toISOString());
     return { ok: true, events, truncated: more || raw.length > 400 };
-  } catch {
-    deps.log({ op: "run_transcript", status: "error", agent: loaded.run.agentKey });
+  } catch (error) {
+    deps.log({ op: "run_transcript", status: "error", agent: loaded.run.agentKey, run_id: loaded.run.id, session_id: sessionId, ...anthropicRequestIdField(error) });
     return { ok: false, code: "unavailable" };
   }
 }
@@ -628,32 +732,40 @@ function toOpenRuns(data: unknown): OpenRun[] {
   return result;
 }
 
+/**
+ * Закрывает один открытый запуск по состоянию его сессии. `true` — записан окончательный статус.
+ * `start_lost`: id сессии так и не был записан (приложение упало между созданием и записью): сессия в Claude
+ * могла появиться, поэтому текст не утверждает обратного; у такой сессии в `metadata` есть `evo_run_id`.
+ */
 async function closeOpenRun(
   anthropic: AnthropicClient, client: ServiceClient, organizationId: string, entry: OpenRun, deps: AiAgentsRuntimeDeps,
-): Promise<void> {
+): Promise<boolean> {
   const now = deps.now();
   const nowIso = new Date(now).toISOString();
   if (!entry.sessionId) {
     const started = entry.startedAt ? Date.parse(entry.startedAt) : NaN;
     if (entry.status === "starting" && Number.isFinite(started) && now - started > START_LOST_AFTER_MS) {
-      await updateRun(client, organizationId, entry.runId, {
-        status: "failed", endedAt: nowIso, errorCode: "start_lost", errorMessage: "Сессия Claude не была создана",
+      const lost = await updateRun(client, organizationId, entry.runId, {
+        status: "failed", endedAt: nowIso, errorCode: "start_lost", errorMessage: "Сессия Claude не подтверждена: запуск не получил id сессии",
       });
+      return lost.ok;
     }
-    return;
+    return false;
   }
   const last = entry.lastReconciledAt ? Date.parse(entry.lastReconciledAt) : NaN;
-  if (Number.isFinite(last) && now - last < RECONCILE_INTERVAL_MS) return;
+  if (Number.isFinite(last) && now - last < RECONCILE_INTERVAL_MS) return false;
   let session: AnthropicJson;
   try {
     session = await anthropic.sessions.get(entry.sessionId);
   } catch (error) {
     if (error instanceof AnthropicApiError && error.status === 404) {
-      await updateRun(client, organizationId, entry.runId, {
+      const gone = await updateRun(client, organizationId, entry.runId, {
         status: "failed", endedAt: nowIso, errorCode: "session_missing", errorMessage: "Сессия Claude удалена",
       });
+      return gone.ok;
     }
-    return;
+    // Недоступность Claude (ключ, лимит, сеть) не прячем: вызывающий считает сбой и пишет его в журнал.
+    throw error;
   }
   if (session.status === "idle") {
     let status: AiAgentRunStatus = "completed";
@@ -667,43 +779,215 @@ async function closeOpenRun(
     } catch {
       // без причины остановки — «Готово»: сессия отработала
     }
-    await updateRun(client, organizationId, entry.runId, { ...terminalPatch(status, session, nowIso, { summary }), lastReconciledAt: nowIso });
-  } else if (session.status === "terminated") {
-    await updateRun(client, organizationId, entry.runId, {
+    const closed = await updateRun(client, organizationId, entry.runId, { ...terminalPatch(status, session, nowIso, { summary }), lastReconciledAt: nowIso });
+    return closed.ok;
+  }
+  if (session.status === "terminated") {
+    const closed = await updateRun(client, organizationId, entry.runId, {
       ...terminalPatch("failed", session, nowIso, { errorCode: "terminated", errorMessage: "Сессия Claude завершена" }),
       lastReconciledAt: nowIso,
     });
-  } else {
-    await updateRun(client, organizationId, entry.runId, { ...(entry.status === "starting" ? { status: "running" } : {}), lastReconciledAt: nowIso });
+    return closed.ok;
   }
+  await updateRun(client, organizationId, entry.runId, { ...(entry.status === "starting" ? { status: "running" } : {}), lastReconciledAt: nowIso });
+  return false;
 }
 
+export type CloseOpenRunsSummary = Readonly<{
+  ok: boolean;
+  checked: number;
+  closed: number;
+  failed: number;
+  /** `request-id` первого сбоя Claude: его просят в поддержке Anthropic. */
+  requestId: string | null;
+}>;
+
 /**
- * Закрывает по состоянию сессии открытые запуски (всех агентов или одного). Зовётся сверкой страниц и
- * приёмом событий (`dispatch.ts`): без неё запуск по событию, который закончился, пока никто не открывал
- * раздел, оставался бы `running` и блокировал следующие события. Не бросает; `false` — список не прочитан.
+ * Закрывает по состоянию сессии открытые запуски (всех агентов или одного). Зовётся сверкой страниц, приёмом
+ * событий (`dispatch.ts`) и фоновой сверкой (`maintenance.ts`): без неё запуск по событию, который закончился,
+ * пока никто не открывал раздел, оставался бы `running` и блокировал следующие события. Не бросает; `ok: false`
+ * — список не прочитан. `limit` — сколько открытых запусков читать за раз (по умолчанию 20, у БД предел 100),
+ * `shouldStop` — остановка по бюджету времени.
  */
-export async function closeOpenAiAgentRuns(
+export async function closeOpenAiAgentRunsDetailed(
   anthropic: AnthropicClient, client: ServiceClient, organizationId: string, key: string | null, deps: AiAgentsRuntimeDeps,
-): Promise<boolean> {
+  options: Readonly<{ limit?: number; shouldStop?: () => boolean }> = {},
+): Promise<CloseOpenRunsSummary> {
+  const summary: { ok: boolean; checked: number; closed: number; failed: number; requestId: string | null } =
+    { ok: false, checked: 0, closed: 0, failed: 0, requestId: null };
   try {
     const open = await callRpc(client, AI_AGENT_RUNTIME_RPC.runsOpen, {
       p_organization_id: organizationId,
       p_key: key,
-      p_limit: 20,
+      p_limit: options.limit ?? 20,
     });
-    if (!open.ok) return false;
+    if (!open.ok) return summary;
+    summary.ok = true;
     for (const entry of toOpenRuns(open.data)) {
+      if (options.shouldStop?.()) break;
+      summary.checked += 1;
       try {
-        await closeOpenRun(anthropic, client, organizationId, entry, deps);
-      } catch {
-        deps.log({ op: "reconcile_run", status: "error" });
+        if (await closeOpenRun(anthropic, client, organizationId, entry, deps)) summary.closed += 1;
+      } catch (error) {
+        summary.failed += 1;
+        summary.requestId ??= anthropicRequestIdField(error).request_id ?? null;
+        deps.log({ op: "reconcile_run", status: "error", run_id: entry.runId, ...(entry.sessionId ? { session_id: entry.sessionId } : {}), ...anthropicRequestIdField(error) });
       }
     }
-    return true;
+    return summary;
   } catch {
-    return false;
+    return summary;
   }
+}
+
+/** То же без счётчиков: `false` — список открытых запусков не прочитан. */
+export async function closeOpenAiAgentRuns(
+  anthropic: AnthropicClient, client: ServiceClient, organizationId: string, key: string | null, deps: AiAgentsRuntimeDeps,
+): Promise<boolean> {
+  return (await closeOpenAiAgentRunsDetailed(anthropic, client, organizationId, key, deps)).ok;
+}
+
+/** Расписание агента в Claude: что нужно, чтобы читать его запуски и заносить их в CRM. */
+export type DeploymentTarget = Readonly<{
+  key: AiAgentKey;
+  deploymentId: string;
+  model: string | null;
+  agentVersion: number | null;
+}>;
+
+export type DeploymentRunsOptions = Readonly<{
+  /** Запусков на страницу (у Claude 1..1000). */
+  limit: number;
+  maxPages: number;
+  /** Читать только запуски не старше этой границы (ISO). */
+  createdAtGte?: string;
+  shouldStop?: () => boolean;
+}>;
+
+export type DeploymentRunsSummary = Readonly<{ pages: number; seen: number; linked: number; failedRecorded: number }>;
+
+/**
+ * Запуск расписания, которого Claude не создал, заносится в «Запуски» только пока он свежий. Резерв строки
+ * (`ai_agent_runtime_run_reserve_v1`) не принимает время начала: `started_at` = момент записи, поэтому давний сбой
+ * получил бы начало «сейчас», конец «несколько дней назад» (отрицательная длительность) и стал бы «последним
+ * запуском» агента. Окно больше интервала фоновой сверки (5 минут) с запасом на простой таймера; полное чтение
+ * истории вернётся, когда резерв получит `p_started_at` (поток БД).
+ */
+const FAILED_DEPLOYMENT_RUN_RECORD_WINDOW_MS = 60 * 60_000;
+
+/**
+ * Заносит запуски расписания из `deployment_runs` в CRM: запуск с сессией — строка по id сессии (дальше её закрывает
+ * сверка открытых запусков, с расходом), запуск без сессии — одна строка `failed` на запись (`dedupe_key = drun:<id>`).
+ * Идемпотентна: повтор тех же запусков ничего не дублирует. Исключения Claude не глотает — решает вызывающий.
+ */
+export async function syncDeploymentRuns(
+  anthropic: AnthropicClient, client: ServiceClient, organizationId: string, target: DeploymentTarget,
+  deps: AiAgentsRuntimeDeps, options: DeploymentRunsOptions,
+): Promise<DeploymentRunsSummary> {
+  const summary = { pages: 0, seen: 0, linked: 0, failedRecorded: 0 };
+  let page: string | undefined;
+  for (let index = 0; index < options.maxPages; index += 1) {
+    if (options.shouldStop?.()) break;
+    const response = await anthropic.deploymentRuns.listPage(target.deploymentId, {
+      limit: options.limit,
+      ...(options.createdAtGte ? { createdAtGte: options.createdAtGte } : {}),
+      ...(page ? { page } : {}),
+    });
+    summary.pages += 1;
+    for (const run of response.data) {
+      const runId = stringOrNull(run.id);
+      if (!runId) continue;
+      summary.seen += 1;
+      if (seenDeploymentRuns.has(runId)) continue;
+      const sessionId = stringOrNull(run.session_id);
+      const startedAt = stringOrNull(run.created_at) ?? new Date(deps.now()).toISOString();
+      if (sessionId) {
+        const upsert = await callRpc(client, AI_AGENT_RUNTIME_RPC.scheduledRunUpsert, {
+          p_organization_id: organizationId,
+          p_key: target.key,
+          p_session_id: sessionId,
+          p_started_at: startedAt,
+          p_status: "running",
+        });
+        if (upsert.ok) {
+          seenDeploymentRuns.add(runId);
+          summary.linked += 1;
+        }
+      } else if (isRecord(run.error)) {
+        // Запуск по расписанию не создался в Claude: одна строка `failed` на запись (dedupe_key = drun:<id>).
+        // Давний сбой не записывается (см. FAILED_DEPLOYMENT_RUN_RECORD_WINDOW_MS), в память процесса не попадает.
+        const createdMs = Date.parse(startedAt);
+        if (Number.isFinite(createdMs) && deps.now() - createdMs > FAILED_DEPLOYMENT_RUN_RECORD_WINDOW_MS) continue;
+        const reserved = await callRpc(client, AI_AGENT_RUNTIME_RPC.runReserve, {
+          p_organization_id: organizationId,
+          p_key: target.key,
+          p_trigger_kind: "schedule",
+          p_dedupe_key: `drun:${runId}`,
+          p_started_by_membership_id: null,
+          p_send_authority_sha256: null,
+          p_prompt_preview: "Запуск по расписанию не создан",
+          p_model: target.model,
+          p_agent_version: target.agentVersion,
+        });
+        if (reserved.ok) {
+          const data = isRecord(reserved.data) ? reserved.data : {};
+          const newRunId = data.reserved === true ? stringOrNull(data.runId) : null;
+          if (newRunId) {
+            await updateRun(client, organizationId, newRunId, {
+              status: "failed",
+              // Конец не раньше начала строки (оно = момент записи); сбой свежий, расхождение в пределах окна.
+              endedAt: new Date(deps.now()).toISOString(),
+              errorCode: truncate(stringOrNull(run.error.type) ?? "deployment_run_error", 64),
+              errorMessage: truncate(stringOrNull(run.error.message) ?? "Запуск по расписанию не удался", 500),
+            });
+            summary.failedRecorded += 1;
+          }
+          seenDeploymentRuns.add(runId);
+        }
+      }
+    }
+    if (!response.nextPage) break;
+    page = response.nextPage;
+  }
+  return summary;
+}
+
+export type PausedDeploymentRecord = "recorded" | "known" | "skipped";
+
+/**
+ * Расписание агента, которому положено работать (включён, есть cron), стоит в Claude на паузе: пишет в «Запуски»
+ * одну строку `failed` с кодом `deployment_paused` на каждое состояние паузы (`dedupe_key` — id расписания и
+ * его `updated_at`), чтобы раздел показывал правду. Паузу НЕ снимает: её снимает только «Синхронизировать с Claude».
+ * Состояние синхронизации агента не трогается: от него зависят «Поручить» и события.
+ */
+export async function recordPausedDeployment(
+  client: ServiceClient, organizationId: string, target: DeploymentTarget, deployment: AnthropicJson, deps: AiAgentsRuntimeDeps,
+): Promise<PausedDeploymentRecord> {
+  const reason = isRecord(deployment.paused_reason) ? deployment.paused_reason : {};
+  const errorType = isRecord(reason.error) ? stringOrNull(reason.error.type) : null;
+  const message = reason.type === "manual"
+    ? "Расписание поставлено на паузу в Claude вручную. Нажмите «Синхронизировать с Claude» на странице агента: пауза будет снята"
+    : `Claude приостановил расписание из-за ошибки${errorType ? ` (${truncate(errorType, 80)})` : ""}. Устраните причину и нажмите «Синхронизировать с Claude»`;
+  const reserved = await callRpc(client, AI_AGENT_RUNTIME_RPC.runReserve, {
+    p_organization_id: organizationId,
+    p_key: target.key,
+    p_trigger_kind: "schedule",
+    p_dedupe_key: truncate(`dpause:${target.deploymentId}:${stringOrNull(deployment.updated_at) ?? "-"}`, 200),
+    p_started_by_membership_id: null,
+    p_send_authority_sha256: null,
+    p_prompt_preview: "Расписание на паузе в Claude",
+    p_model: target.model,
+    p_agent_version: target.agentVersion,
+  });
+  if (!reserved.ok) return "skipped";
+  const data = isRecord(reserved.data) ? reserved.data : {};
+  const newRunId = data.reserved === true ? stringOrNull(data.runId) : null;
+  if (!newRunId) return data.reason === "duplicate" ? "known" : "skipped";
+  const nowIso = new Date(deps.now()).toISOString();
+  const updated = await updateRun(client, organizationId, newRunId, {
+    status: "failed", endedAt: nowIso, errorCode: "deployment_paused", errorMessage: truncate(message, 500),
+  });
+  return updated.ok ? "recorded" : "skipped";
 }
 
 async function reconcileDeployments(
@@ -717,51 +1001,15 @@ async function reconcileDeployments(
     const deploymentId = stringOrNull(sync.deploymentId);
     if (!deploymentId) continue;
     try {
-      const runs = await anthropic.deploymentRuns.list(deploymentId, 20);
-      for (const run of runs) {
-        const runId = stringOrNull(run.id);
-        if (!runId || seenDeploymentRuns.has(runId)) continue;
-        const sessionId = stringOrNull(run.session_id);
-        const startedAt = stringOrNull(run.created_at) ?? new Date(deps.now()).toISOString();
-        if (sessionId) {
-          const upsert = await callRpc(client, AI_AGENT_RUNTIME_RPC.scheduledRunUpsert, {
-            p_organization_id: ctx.actor.organizationId,
-            p_key: agent.key,
-            p_session_id: sessionId,
-            p_started_at: startedAt,
-            p_status: "running",
-          });
-          if (upsert.ok) seenDeploymentRuns.add(runId);
-        } else if (isRecord(run.error)) {
-          // Запуск по расписанию не создался в Claude: одна строка `failed` на запись (dedupe_key = drun:<id>).
-          const reserved = await callRpc(client, AI_AGENT_RUNTIME_RPC.runReserve, {
-            p_organization_id: ctx.actor.organizationId,
-            p_key: agent.key,
-            p_trigger_kind: "schedule",
-            p_dedupe_key: `drun:${runId}`,
-            p_started_by_membership_id: null,
-            p_send_authority_sha256: null,
-            p_prompt_preview: "Запуск по расписанию не создан",
-            p_model: stringOrNull(agent.model),
-            p_agent_version: numberOr(sync.agentVersion, NaN) > 0 ? numberOr(sync.agentVersion, 0) : null,
-          });
-          if (reserved.ok) {
-            const data = isRecord(reserved.data) ? reserved.data : {};
-            const newRunId = data.reserved === true ? stringOrNull(data.runId) : null;
-            if (newRunId) {
-              await updateRun(client, ctx.actor.organizationId, newRunId, {
-                status: "failed",
-                endedAt: startedAt,
-                errorCode: truncate(stringOrNull(run.error.type) ?? "deployment_run_error", 64),
-                errorMessage: truncate(stringOrNull(run.error.message) ?? "Запуск по расписанию не удался", 500),
-              });
-            }
-            seenDeploymentRuns.add(runId);
-          }
-        }
-      }
-    } catch {
-      deps.log({ op: "reconcile_deployment", status: "error", agent: agent.key });
+      // Страница открыта человеком: дёшево, одна страница. Полное чтение со страницами — у фоновой сверки.
+      await syncDeploymentRuns(anthropic, client, ctx.actor.organizationId, {
+        key: agent.key,
+        deploymentId,
+        model: stringOrNull(agent.model),
+        agentVersion: numberOr(sync.agentVersion, NaN) > 0 ? numberOr(sync.agentVersion, 0) : null,
+      }, deps, { limit: 20, maxPages: 1 });
+    } catch (error) {
+      deps.log({ op: "reconcile_deployment", status: "error", agent: agent.key, ...anthropicRequestIdField(error) });
     }
   }
 }

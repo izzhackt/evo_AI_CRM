@@ -3,6 +3,7 @@ import "server-only";
 import {
   AI_AGENT_LIMITS,
   AI_AGENTS_ENV,
+  AI_AGENTS_MCP_PROTOCOL_HEADER,
   AI_AGENTS_MCP_PROTOCOL_VERSIONS,
   AI_AGENTS_MCP_SERVER_INFO,
 } from "../../ai-agents/contract.ts";
@@ -44,7 +45,7 @@ import { sendAiAgentWhatsAppDraft } from "./whatsapp-send.ts";
  *
  * Порядок отказов (дешёвые раньше базы): метод → конфигурация → форма токена →
  * заблокированный адрес → токен в базе (`ai_agent_mcp_auth_v1`) → разрешённая сеть
- * → тип и размер тела → разбор → метод JSON-RPC. Журнал приложения — одна строка
+ * → тип и размер тела → разбор → версия протокола из заголовка → метод JSON-RPC. Журнал приложения — одна строка
  * на запрос со счётчиками: без токена, аргументов, адресов и данных клиентов.
  */
 
@@ -95,11 +96,22 @@ function isObject(value: unknown): value is JsonObject {
 
 type JsonRpcResponse = Readonly<
   | { jsonrpc: "2.0"; id: JsonRpcId; result: unknown }
-  | { jsonrpc: "2.0"; id: JsonRpcId; error: { code: number; message: string } }
+  | { jsonrpc: "2.0"; id: JsonRpcId; error: { code: number; message: string; data?: unknown } }
 >;
 
-function rpcError(id: JsonRpcId, code: number, message: string): JsonRpcResponse {
-  return { jsonrpc: "2.0", id, error: { code, message } };
+function rpcError(id: JsonRpcId, code: number, message: string, data?: unknown): JsonRpcResponse {
+  return { jsonrpc: "2.0", id, error: data === undefined ? { code, message } : { code, message, data } };
+}
+
+/**
+ * Версия протокола в заголовке `MCP-Protocol-Version` (spec 2025-11-25, basic/transports, «Protocol Version Header»):
+ * клиент шлёт её на всех запросах после `initialize`. Заголовка нет — принимаем (прежние клиенты); есть, но версия
+ * неизвестна — 400. `initialize` заголовка не требует: версия там ещё не согласована. `server/discover` (зонд
+ * ревизии 2026-07-28) тоже: клиент Anthropic шлёт его первым с заголовком 2026-07-28 и, получив -32601, переходит
+ * на `initialize` (наблюдали в production 24.10.2026); 400 на зонд этот путь не гарантирует.
+ */
+function isHandshakeProbe(parsed: unknown): boolean {
+  return isObject(parsed) && (parsed.method === "initialize" || parsed.method === "server/discover");
 }
 
 function rpcResult(id: JsonRpcId, result: unknown): JsonRpcResponse {
@@ -438,7 +450,19 @@ export function createAiAgentsMcpHandler(
       return finish(200, rpcError(null, RPC_PARSE_ERROR, "Parse error"), "parse_error");
     }
 
-    // 8. JSON-RPC.
+    // 8. Версия протокола из заголовка (после `initialize`): неизвестная — 400 до любой работы.
+    const declaredVersion = request.headers.get(AI_AGENTS_MCP_PROTOCOL_HEADER);
+    if (declaredVersion !== null && !isHandshakeProbe(parsed)
+      && !(AI_AGENTS_MCP_PROTOCOL_VERSIONS as readonly string[]).includes(declaredVersion.trim())) {
+      context.method = "version";
+      return finish(
+        400,
+        rpcError(null, RPC_INVALID_REQUEST, "Unsupported MCP-Protocol-Version", { supported: AI_AGENTS_MCP_PROTOCOL_VERSIONS }),
+        "unsupported_protocol_version",
+      );
+    }
+
+    // 9. JSON-RPC.
     const runtime: McpToolRuntime = {
       client,
       sendWhatsAppDraft: deps.sendWhatsAppDraft,

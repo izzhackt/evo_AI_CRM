@@ -1019,7 +1019,10 @@ const RUN_ERROR_WORDS: Readonly<Record<string, string>> = {
   mcp_authentication_failed_error: "Токен доступа агента к CRM не принят — администратору нужно обновить токен в настройках агента.",
   mcp_unreachable: "Агент не смог достучаться до CRM — проверьте адрес MCP и IP-фильтр.",
   mcp_connection_failed_error: "Агент не смог достучаться до CRM — проверьте адрес MCP и IP-фильтр.",
-  start_lost: "Запуск не дошёл до Claude и был закрыт.",
+  start_lost: "Запуск не получил подтверждения от Claude — сессия могла начаться. Проверьте, не работает ли агент, прежде чем повторять поручение.",
+  create_unconfirmed: "Claude не подтвердил создание сессии — она могла запуститься. Проверьте, не работает ли агент, прежде чем повторять поручение.",
+  session_unlinked: "Сессия Claude создана, но запуск не записан в CRM. Приложение остановило сессию; не остановилась — остановите её в Console Claude.",
+  deployment_paused: "Расписание агента стоит на паузе в Claude. Устраните причину и нажмите «Синхронизировать с Claude» на странице агента.",
   terminated: "Сеанс Claude завершился с ошибкой.",
   budget: "Запуск остановлен по лимиту расходов.",
   budget_reached: "Запуск остановлен по лимиту расходов.",
@@ -1029,7 +1032,12 @@ const RUN_ERROR_WORDS: Readonly<Record<string, string>> = {
   interrupted: "Запуск остановлен сотрудником.",
 };
 
+/** Коды, у которых текст из строки запуска точнее общего слова (приложение пишет его само, без данных клиентов). */
+const RUN_ERROR_MESSAGE_FIRST: ReadonlySet<string> = new Set(["session_unlinked", "deployment_paused"]);
+
 export function runErrorWords(code: string | null, message?: string | null): string {
+  const own = message?.trim();
+  if (code && own && RUN_ERROR_MESSAGE_FIRST.has(code)) return clip(own, 300);
   if (code && RUN_ERROR_WORDS[code]) return RUN_ERROR_WORDS[code];
   const detail = message?.trim();
   return detail ? `Ошибка запуска: ${clip(detail, 200)}` : "Запуск завершился ошибкой.";
@@ -1049,6 +1057,8 @@ export const AI_AGENTS_ERROR_COPY: Readonly<Record<string, string>> = {
   anthropic_error: "Claude ответил ошибкой — попробуйте позже.",
   rate_limited: "Claude временно ограничил запросы — повторите через минуту.",
   unavailable: "Результат пока неизвестен — безопасно повторите.",
+  session_unlinked: "Сессия Claude создана, но запуск не записан в CRM. Проверьте раздел «Запуски» и повторите поручение.",
+  create_unconfirmed: "Claude не подтвердил создание сессии — она могла запуститься. Проверьте раздел «Запуски» и повторите позже.",
   instructions_empty: "Инструкции пока нет — напишите её во вкладке «Инструкция».",
   not_pending: "Черновик уже обработан или устарел.",
   version_conflict: "Настройки уже изменились — обновите страницу.",

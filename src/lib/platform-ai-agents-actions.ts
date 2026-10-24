@@ -75,6 +75,13 @@ async function authorize(): Promise<Authorized> {
 const failed = (code: string, requestId: string | null, extra: Partial<AiAgentsActionState> = {}): AiAgentsActionState =>
   ({ status: "failed", code, message: aiAgentsErrorCopy(code), requestId, ...extra });
 
+/**
+ * Сессия создана, но запуск не записан: слова зависят от того, остановилась ли она, и сотрудник не должен
+ * повторять вслепую — поэтому текст приложения доходит до экрана как есть (остальные коды говорят общей фразой).
+ */
+const startFailed = (result: Readonly<{ code: string; message: string }>, requestId: string | null): AiAgentsActionState =>
+  failed(result.code, requestId, result.code === "session_unlinked" ? { message: result.message } : {});
+
 const textOf = (value: string) => value.replace(/\r\n?/gu, "\n");
 
 function refresh(key?: AiAgentKey) {
@@ -269,7 +276,7 @@ export async function startAiAgentRunAction(_previous: AiAgentsActionState, form
     const access = await authorize();
     if (!access.ok) return failed(access.code, requestId);
     const result = await startAiAgentRun(access.ctx, { key, text, sendAuthority: authority === "1", requestId });
-    if (!result.ok) return failed(result.code, requestId);
+    if (!result.ok) return startFailed(result, requestId);
     return { status: "saved", code: null, message: null, requestId, runId: result.runId };
   } catch {
     return failed("unavailable", requestId);

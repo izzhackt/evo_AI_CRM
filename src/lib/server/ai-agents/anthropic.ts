@@ -11,16 +11,22 @@ import { ANTHROPIC_API } from "../../ai-agents/contract.ts";
 
 export type AnthropicJson = Record<string, unknown>;
 
-/** Ошибка Claude API: статус HTTP (0 — сети нет), тип из тела ошибки и короткое сообщение. */
+/**
+ * Ошибка Claude API: статус HTTP (0 — сети нет), тип из тела ошибки, короткое сообщение и `requestId` —
+ * идентификатор запроса из заголовка `request-id` (он же `request_id` в теле ошибки;
+ * platform.claude.com/docs/en/api/errors#request-id). Его просят в поддержке Anthropic; секретов в нём нет.
+ */
 export class AnthropicApiError extends Error {
   readonly status: number;
   readonly type: string;
+  readonly requestId: string | null;
 
-  constructor(status: number, type: string, message: string) {
+  constructor(status: number, type: string, message: string, requestId: string | null = null) {
     super(message);
     this.name = "AnthropicApiError";
     this.status = status;
     this.type = type;
+    this.requestId = requestId;
   }
 }
 
@@ -36,8 +42,19 @@ export type AnthropicEventsQuery = Readonly<{
 
 export type AnthropicEventsPage = Readonly<{ data: readonly AnthropicJson[]; nextPage: string | null }>;
 
+export type AnthropicDeploymentRunsQuery = Readonly<{
+  /** 1..1000, по умолчанию 20 (platform.claude.com/docs/en/api/beta/deployment_runs/list). */
+  limit?: number;
+  /** Нижняя граница по `created_at` включительно (ISO). */
+  createdAtGte?: string;
+  /** Непрозрачный `next_page` прошлого ответа. */
+  page?: string;
+}>;
+
 export type AnthropicClient = Readonly<{
   agents: Readonly<{
+    /** Неархивные агенты, постранично (до 1000): фильтра по метаданным у списка нет. */
+    list(): Promise<readonly AnthropicJson[]>;
     create(body: AnthropicJson): Promise<AnthropicJson>;
     get(agentId: string): Promise<AnthropicJson>;
     update(agentId: string, body: AnthropicJson): Promise<AnthropicJson>;
@@ -47,6 +64,8 @@ export type AnthropicClient = Readonly<{
     create(body: AnthropicJson): Promise<AnthropicJson>;
   }>;
   vaults: Readonly<{
+    /** Неархивные хранилища, постранично (до 1000): фильтра по метаданным у списка нет. */
+    list(): Promise<readonly AnthropicJson[]>;
     create(body: AnthropicJson): Promise<AnthropicJson>;
     credentials: Readonly<{
       list(vaultId: string): Promise<readonly AnthropicJson[]>;
@@ -62,12 +81,17 @@ export type AnthropicClient = Readonly<{
     listEvents(sessionId: string, query?: AnthropicEventsQuery): Promise<AnthropicEventsPage>;
   }>;
   deployments: Readonly<{
+    get(deploymentId: string): Promise<AnthropicJson>;
     create(body: AnthropicJson): Promise<AnthropicJson>;
     update(deploymentId: string, body: AnthropicJson): Promise<AnthropicJson>;
     pause(deploymentId: string): Promise<AnthropicJson>;
     unpause(deploymentId: string): Promise<AnthropicJson>;
   }>;
-  deploymentRuns: Readonly<{ list(deploymentId: string, limit?: number): Promise<readonly AnthropicJson[]> }>;
+  deploymentRuns: Readonly<{
+    list(deploymentId: string, limit?: number): Promise<readonly AnthropicJson[]>;
+    /** Одна страница с `nextPage`: фоновая сверка читает запуски расписания постранично. */
+    listPage(deploymentId: string, query?: AnthropicDeploymentRunsQuery): Promise<AnthropicEventsPage>;
+  }>;
 }>;
 
 export type AnthropicClientOptions = Readonly<{
@@ -81,6 +105,8 @@ const REQUEST_TIMEOUT_MS = 20_000;
 const SESSION_CREATE_TIMEOUT_MS = 30_000;
 const RETRY_DELAYS_MS = [400, 1_200] as const;
 const MAX_RETRY_AFTER_MS = 5_000;
+/** Списки агентов и хранилищ: по 100 на страницу, не больше 10 страниц (1000 записей). */
+const LIST_MAX_PAGES = 10;
 
 type RequestOptions = Readonly<{
   query?: readonly (readonly [string, string])[];
@@ -91,7 +117,7 @@ type RequestOptions = Readonly<{
   /**
    * `all` — повтор при 429, 5xx и сетевой ошибке (чтение, идемпотентные записи);
    * `rate_limit` — только при 429: запрос точно не выполнен, повтор не создаст
-   * вторую сессию или второе сообщение.
+   * вторую сессию, второе сообщение, второго агента или второе хранилище.
    */
   retry?: "all" | "rate_limit";
 }>;
@@ -104,18 +130,28 @@ function summarize(text: string, limit = 300): string {
 const isRecord = (value: unknown): value is AnthropicJson =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+/** Идентификатор запроса безопасен для журнала только в виде короткой «слов-цифр» строки. */
+const REQUEST_ID_PATTERN = /^[A-Za-z0-9_.-]{1,100}$/u;
+
+function cleanRequestId(value: unknown): string | null {
+  return typeof value === "string" && REQUEST_ID_PATTERN.test(value.trim()) ? value.trim() : null;
+}
+
 async function toApiError(response: Response): Promise<AnthropicApiError> {
   let type = "api_error";
   let message = `Claude API ответил ${response.status}`;
+  // Заголовок есть у каждого ответа; `request_id` в теле — запасной путь, если прокси заголовок срезал.
+  let requestId = cleanRequestId(response.headers.get("request-id"));
   try {
     const parsed: unknown = JSON.parse(await response.text());
     const error = isRecord(parsed) && isRecord(parsed.error) ? parsed.error : null;
     if (error && typeof error.type === "string") type = summarize(error.type, 80);
     if (error && typeof error.message === "string" && error.message.trim()) message = summarize(error.message);
+    if (requestId === null && isRecord(parsed)) requestId = cleanRequestId(parsed.request_id);
   } catch {
     // тело не JSON — остаётся статус
   }
-  return new AnthropicApiError(response.status, type, message);
+  return new AnthropicApiError(response.status, type, message, requestId);
 }
 
 export function createAnthropicClient(options: AnthropicClientOptions): AnthropicClient {
@@ -161,7 +197,7 @@ export function createAnthropicClient(options: AnthropicClientOptions): Anthropi
         try {
           return JSON.parse(text) as unknown;
         } catch {
-          throw new AnthropicApiError(502, "invalid_response", "Claude API вернул не JSON");
+          throw new AnthropicApiError(502, "invalid_response", "Claude API вернул не JSON", cleanRequestId(response.headers.get("request-id")));
         }
       }
       const retriable = response.status === 429 || (retryAll && response.status >= 500);
@@ -201,7 +237,9 @@ export function createAnthropicClient(options: AnthropicClientOptions): Anthropi
 
   return Object.freeze({
     agents: Object.freeze({
-      create: (body: AnthropicJson) => object("POST", "/v1/agents", { body }),
+      list: () => listAll("/v1/agents", { query: [["limit", "100"]] }, LIST_MAX_PAGES),
+      // Только при 429: повтор после потерянного ответа создал бы второго агента с теми же метаданными.
+      create: (body: AnthropicJson) => object("POST", "/v1/agents", { body, retry: "rate_limit" }),
       get: (agentId: string) => object("GET", `/v1/agents/${id(agentId)}`),
       update: (agentId: string, body: AnthropicJson) => object("POST", `/v1/agents/${id(agentId)}`, { body }),
     }),
@@ -210,6 +248,7 @@ export function createAnthropicClient(options: AnthropicClientOptions): Anthropi
       create: (body: AnthropicJson) => object("POST", "/v1/environments", { body, retry: "rate_limit" }),
     }),
     vaults: Object.freeze({
+      list: () => listAll("/v1/vaults", { query: [["limit", "100"]] }, LIST_MAX_PAGES),
       create: (body: AnthropicJson) => object("POST", "/v1/vaults", { body, retry: "rate_limit" }),
       credentials: Object.freeze({
         list: (vaultId: string) => listAll(`/v1/vaults/${id(vaultId)}/credentials`, {}),
@@ -242,6 +281,7 @@ export function createAnthropicClient(options: AnthropicClientOptions): Anthropi
       },
     }),
     deployments: Object.freeze({
+      get: (deploymentId: string) => object("GET", `/v1/deployments/${id(deploymentId)}`, { beta: true }),
       create: (body: AnthropicJson) => object("POST", "/v1/deployments", { beta: true, body, retry: "rate_limit" }),
       update: (deploymentId: string, body: AnthropicJson) =>
         object("POST", `/v1/deployments/${id(deploymentId)}`, { beta: true, body }),
@@ -255,6 +295,15 @@ export function createAnthropicClient(options: AnthropicClientOptions): Anthropi
           query: [["deployment_id", deploymentId], ["limit", String(limit)]],
         });
         return (Array.isArray(value.data) ? value.data : []).filter(isRecord);
+      },
+      async listPage(deploymentId: string, query: AnthropicDeploymentRunsQuery = {}) {
+        const pairs: (readonly [string, string])[] = [["deployment_id", deploymentId], ["limit", String(query.limit ?? 20)]];
+        if (query.createdAtGte) pairs.push(["created_at[gte]", query.createdAtGte]);
+        if (query.page) pairs.push(["page", query.page]);
+        const value = await object("GET", "/v1/deployment_runs", { beta: true, query: pairs });
+        const data = (Array.isArray(value.data) ? value.data : []).filter(isRecord);
+        const nextPage = typeof value.next_page === "string" && value.next_page ? value.next_page : null;
+        return Object.freeze({ data, nextPage });
       },
     }),
   });

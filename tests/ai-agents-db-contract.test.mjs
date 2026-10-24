@@ -25,6 +25,10 @@ const SUITE = readFileSync(new URL("../supabase/tests/platform_ai_agents_managed
 // Migration 318 (review #1290) replaces three 317 functions and adds two runtime functions (the environment lease).
 const SOURCE_318 = readFileSync(new URL("../supabase/migrations/318_platform_ai_agents_followups.sql", import.meta.url), "utf8");
 const SUITE_318 = readFileSync(new URL("../supabase/tests/platform_ai_agents_followups.sql", import.meta.url), "utf8");
+// Migration 319 (stack audit of 24.10.2026) replaces ten more 317 functions: the repeat key of three writes, the audit of
+// six reads and the action log; it adds three closed helpers and no function of schema platform.
+const SOURCE_319 = readFileSync(new URL("../supabase/migrations/319_platform_ai_agents_hardening.sql", import.meta.url), "utf8");
+const SUITE_319 = readFileSync(new URL("../supabase/tests/platform_ai_agents_hardening.sql", import.meta.url), "utf8");
 
 test("the tool schema table is the contract's registry, row for row", () => {
   const rows = [...SOURCE.matchAll(/\('([a-z_]+)', '(read|write)', '(none|read|write)', \$j\$(.*?)\$j\$::jsonb\)/gsu)].map(
@@ -221,4 +225,129 @@ test("event runs: a stale open run does not block the next event; the Director i
     assert.ok(guard.test(SOURCE), String(guard));
   }
   assert.equal([...SOURCE.matchAll(/IF p_key = 'director' AND NOT v_actor\.is_admin THEN/gu)].length, 2);
+});
+
+const REPLACED_319 = [
+  "ai_agent_mcp_log_v1",
+  "ai_agent_tool_add_note_v1",
+  "ai_agent_tool_create_task_v1",
+  "ai_agent_tool_get_case_chat_v1",
+  "ai_agent_tool_get_case_v1",
+  "ai_agent_tool_get_client_card_v1",
+  "ai_agent_tool_get_conversation_v1",
+  "ai_agent_tool_get_document_file_v1",
+  "ai_agent_tool_get_lead_v1",
+  "ai_agent_tool_post_digest_v1",
+];
+
+test("319 pins the ten 317 bodies it replaces by md5, and the md5 is the one of the text in the 317 file", () => {
+  const body = (name) => {
+    const start = SOURCE.indexOf(`CREATE FUNCTION platform.${name}(`);
+    assert.notEqual(start, -1, name);
+    const from = SOURCE.indexOf("AS $$", start) + "AS $$".length;
+    return SOURCE.slice(from, SOURCE.indexOf("\n$$;", from) + 1);
+  };
+  const pinned = [...SOURCE_319.matchAll(/\('platform\.([a-z0-9_]+)\(([a-z0-9,]*)\)', '([0-9a-f]{32})'\)/gu)];
+  assert.deepEqual(pinned.map(([, name]) => name).sort(), REPLACED_319);
+  for (const [, name, , md5] of pinned) {
+    assert.equal(createHash("md5").update(body(name), "utf8").digest("hex"), md5, `${name}: the anchor is the 317 text`);
+    // Each pinned function is replaced in place (same signature, same grants), not duplicated under another name.
+    assert.ok(SOURCE_319.includes(`CREATE OR REPLACE FUNCTION platform.${name}(`), `${name} is replaced`);
+    assert.ok(!SOURCE_318.includes(`FUNCTION platform.${name}(`), `${name} was not touched by 318, so the 317 text is its last text`);
+  }
+  // 319 adds no function to schema platform: the RPC lists above stay exact.
+  assert.doesNotMatch(SOURCE_319, /CREATE FUNCTION platform\./u);
+  assert.deepEqual(
+    [...SOURCE_319.matchAll(/CREATE FUNCTION platform_private\.([a-z0-9_]+)\(/gu)].map(([, name]) => name).sort(),
+    ["ai_agent_audit_read", "ai_agent_auto_key", "ai_agent_dedupe_once"],
+  );
+  // The re-run refusal comes before the md5 check (a second apply says "already applied", not "drift").
+  assert.ok(SOURCE_319.indexOf("a319_already_applied") < SOURCE_319.indexOf("a319_anchor_drift: % is not the 317 definition"));
+});
+
+test("319 gives the three writes a derived repeat key under one lock, in the contract's window", () => {
+  const replaced = (name) => {
+    const start = SOURCE_319.indexOf(`CREATE OR REPLACE FUNCTION platform.${name}(`);
+    assert.notEqual(start, -1, name);
+    return SOURCE_319.slice(start, SOURCE_319.indexOf("\n$$;", start));
+  };
+  for (const [tool, namespace] of [
+    ["create_task", "create_task"],
+    ["add_note", "add_note"],
+    ["post_digest", "post_digest"],
+  ]) {
+    const text = replaced(`ai_agent_tool_${tool}_v1`);
+    assert.match(text, new RegExp(`platform_private\\.ai_agent_auto_key\\('${namespace}', jsonb_build_array\\(`, "u"), `${tool}: the derived key`);
+    assert.match(text, /v_prior := platform_private\.ai_agent_dedupe_once\(p_organization_id, p_agent_key, v_key\)/u, `${tool}: lock + lookup`);
+    assert.match(text, /ai_agent_dedupe_put\(p_organization_id, p_agent_key, v_key, v_result\)/u, `${tool}: the first answer is stored under the same key`);
+    // Normalized text as in 318: whitespace and case do not make a new call.
+    assert.match(text, /ai_agent_send_text_norm\(p_args ->> '(title|body|body_md)'\)/u, `${tool}: normalized text`);
+  }
+  // The model's own keys keep their old names, so entries written by 317 stay valid.
+  assert.match(replaced("ai_agent_tool_create_task_v1"), /'create_task:' \|\| v_idem/u);
+  assert.match(replaced("ai_agent_tool_add_note_v1"), /'add_note:' \|\| v_idem/u);
+  // Every part of a create_task call is in its key (the key expression itself, not the rest of the body).
+  const createTask = replaced("ai_agent_tool_create_task_v1");
+  const createTaskKey = createTask.slice(createTask.indexOf("ai_agent_auto_key('create_task'"), createTask.indexOf(")) END;"));
+  for (const part of ["'title'", "'description'", "'assignee_id'", "'due_on'", "v_priority", "'case_id'", "'lead_id'"]) {
+    assert.ok(createTaskKey.includes(part), `create_task key: ${part}`);
+  }
+  // add_note: the target (lead or case) and the text; post_digest: kind, title, text, charts, period.
+  const addNoteText = replaced("ai_agent_tool_add_note_v1");
+  const addNoteKey = addNoteText.slice(addNoteText.indexOf("ai_agent_auto_key('add_note'"), addNoteText.indexOf(")) END;"));
+  for (const part of ["'lead_id'", "'case_id'", "'body'"]) assert.ok(addNoteKey.includes(part), `add_note key: ${part}`);
+  const digestText = replaced("ai_agent_tool_post_digest_v1");
+  const digestKey = digestText.slice(digestText.indexOf("ai_agent_auto_key('post_digest'"), digestText.indexOf("ai_agent_dedupe_once("));
+  for (const part of ["'kind'", "'title'", "'body_md'", "'metrics'", "'period_from'", "'period_to'"]) {
+    assert.ok(digestKey.includes(part), `post_digest key: ${part}`);
+  }
+  // The lock is the one of 318 (organization, agent, key) and lives until the end of the transaction; the window is the contract's.
+  const once = SOURCE_319.slice(SOURCE_319.indexOf("CREATE FUNCTION platform_private.ai_agent_dedupe_once("));
+  assert.match(once, /pg_advisory_xact_lock\(pg_catalog\.hashtextextended\(\s*p_organization_id::TEXT \|\| ':' \|\| p_agent_key \|\| ':' \|\| p_dedupe_key, 0\)\)/u);
+  assert.match(once, /ai_agent_dedupe_get\(p_organization_id, p_agent_key, p_dedupe_key, INTERVAL '10 minutes'\)/u);
+  assert.equal(AI_AGENT_LIMITS.idempotencyWindowMinutes, 10);
+  // Derived keys fit the table's 200-character limit (longest namespace + 64 hex).
+  assert.ok("post_digest_auto:".length + 64 <= 200 && "create_task_auto:".length + 64 <= 200);
+  assert.match(SOURCE, /char_length\(dedupe_key\) BETWEEN 1 AND 200/u);
+});
+
+test("319 writes the audit of the six sensitive reads inside the read, and the action log no longer audits", () => {
+  const replaced = (name) => {
+    const start = SOURCE_319.indexOf(`CREATE OR REPLACE FUNCTION platform.${name}(`);
+    assert.notEqual(start, -1, name);
+    return SOURCE_319.slice(start, SOURCE_319.indexOf("\n$$;", start));
+  };
+  // The six are exactly the contract's audited reads.
+  const audited = AI_AGENT_TOOLS.filter((tool) => tool.audit === "read").map((tool) => tool.name).sort();
+  assert.equal(audited.length, 6);
+  for (const name of audited) {
+    const text = replaced(`ai_agent_tool_${name}_v1`);
+    assert.equal([...text.matchAll(/ai_agent_audit_read\(/gu)].length, 1, `${name}: one audit call`);
+    assert.match(text, new RegExp(`ai_agent_audit_read\\(p_organization_id, p_agent_key, '${name}',`, "u"), name);
+    // Audit comes after the target is found (a refused read audits nothing) and before the data is built.
+    assert.ok(text.indexOf("ai_agent_audit_read(") > text.indexOf("P0002"), `${name}: after the not-found check`);
+  }
+  assert.deepEqual(REPLACED_319.filter((name) => name.startsWith("ai_agent_tool_get_")).map((name) => name.slice(14, -3)).sort(), audited);
+  // The audit helper: one journal row, service principal of the agent, only agent and tool in after_state; the file has its own action.
+  const helper = SOURCE_319.slice(SOURCE_319.indexOf("CREATE FUNCTION platform_private.ai_agent_audit_read("));
+  assert.match(helper, /jsonb_build_object\('agentKey', p_agent_key, 'tool', p_tool\)/u);
+  assert.match(helper, /WHEN 'get_document_file' THEN 'ai\.agent\.document\.read' ELSE 'ai\.agent\.tool\.read'/u);
+  // The action log keeps its row and loses the audit.
+  const log = replaced("ai_agent_mcp_log_v1");
+  assert.doesNotMatch(log, /ai_agent_audit\(|audit_event_id\s*=|v_audit/u);
+  assert.match(log, /INSERT INTO platform_private\.ai_agent_actions/u);
+  assert.match(log, /RETURN jsonb_build_object\('actionId', v_action\)/u);
+  // No parameter was added to any tool or to the log: the app calls them as before (migration and app can ship in either order).
+  for (const name of REPLACED_319) {
+    const signature = SOURCE_319.match(new RegExp(`CREATE OR REPLACE FUNCTION platform\\.${name}\\(([^)]*)\\)`, "u"))[1];
+    const before = SOURCE.match(new RegExp(`CREATE FUNCTION platform\\.${name}\\(([^)]*)\\)`, "u"))[1];
+    assert.equal(signature.replace(/\s+/gu, " "), before.replace(/\s+/gu, " "), `${name}: same parameters`);
+  }
+  // The migration and its suite carry no secret, address or person.
+  assert.doesNotMatch(SOURCE_319, /sk-ant-|Bearer [A-Za-z0-9]|\+996\d{6,}|@gmail\.|@mail\./u);
+  assert.doesNotMatch(SUITE_319, /sk-ant-|Bearer [A-Za-z0-9]|@gmail\.|@mail\./u);
+  for (const address of SUITE_319.matchAll(/[A-Za-z0-9._-]+@[A-Za-z0-9.-]+/gu)) {
+    assert.ok(/\.invalid$|^(true_|false_)?\d+@c\.us$/u.test(address[0]), `unexpected address ${address[0]}`);
+  }
+  assert.match(SUITE_319, /A319_AI_AGENTS_HARDENING_SUITE_PASSED/u);
 });

@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { Icon } from "@/components/icons";
+import { AI_CONSENT_MISSING_CODE } from "@/lib/ai-agents/consent";
 import {
   aiErrorBlocked,
   aiErrorCopy,
@@ -63,6 +64,13 @@ import { InboxAiMemory } from "./InboxAiMemory";
  * и автоответчик остаются (это их единственное место: «Забыть сводку»,
  * исключить чат из автоответчика). Их нет только без права на чат
  * (`forbidden`) и в просмотре роли (`preview`).
+ *
+ * Согласие студента (миграция 320, решение владельца 25.10.2026): если студент
+ * чата не разрешил ИИ-помощников, база не выдаёт билет, а чтение сохранённого
+ * ответа говорит `studentAiAllowed: false`. Окно сразу пишет причину —
+ * «Студент не дал согласия на ИИ-помощников — помощник не читает эту переписку.»
+ * — вместо общей ошибки и без «Попробовать снова»; сохранённый ответ о таком
+ * чате база не отдаёт.
  *
  * Запрос привязан к последнему сообщению клиента, которое окно видело последним:
  * из базы (каждое чтение `GET …/answer`) или из страницы (новое сообщение в
@@ -440,6 +448,8 @@ export function InboxAiAssistant({
     // сверяет билет с последним сообщением клиента в базе (PT409).
     knownInbound.current = view.latestInboundMessageId;
     setStale(false);
+    // Миграция 320: студент чата не разрешил ИИ-помощников - окно говорит причину и не просит билет (база его и не выдаст).
+    if (!view.studentAiAllowed) { setPhase({ kind: "blocked", code: AI_CONSENT_MISSING_CODE }); return; }
     if (view.answer && view.answer.current && view.answer.result) {
       setPhase({ kind: "ready", answer: view.answer });
       return;

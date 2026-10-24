@@ -3,6 +3,7 @@ import "server-only";
 import { isStaffPreview, staffCanAccessRoute, staffHasPermission } from "../platform-access.ts";
 import type { ActivePlatformActor } from "../platform-auth.ts";
 import { parsePlatformRouteUuid } from "../platform-communications.ts";
+import { AI_CONSENT_MISSING_CODE } from "../ai-agents/consent.ts";
 import { normalizeAiAnswerView, type AiAnswerView, type AiIntent } from "../v3/ai-agent.ts";
 import { normalizeAiMemoryView, type AiMemoryView } from "../v3/ai-agent-memory.ts";
 import { normalizeAiAutosendChat, type AiAutosendChat } from "../v3/ai-agent-autosend.ts";
@@ -15,7 +16,8 @@ import { aiAutosendServerState } from "./ai-agent-send-config.ts";
  *
  *  - `POST /api/v3/ai-agent/conversations/[id]/answer` — билет базы по сессии
  *    сотрудника (`platform.ai_agent_ticket_v1`: право ai.agent.use, чтение
- *    диалога продаж, согласие на Gemini), подписанный запрос к агенту по
+ *    диалога продаж, согласие на Gemini и согласие студента чата — отказ
+ *    `ai_consent_missing`, 403), подписанный запрос к агенту по
  *    внутренней сети и поток SSE агента — в браузер без буферизации. Закрыл
  *    браузер поток — CRM обрывает запрос к агенту;
  *  - `GET  /api/v3/ai-agent/conversations/[id]/answer` — сохранённый ответ и
@@ -60,7 +62,7 @@ type Authorization =
 
 export type AiTicketResult =
   | Readonly<{ status: "issued"; ticket: string }>
-  | Readonly<{ status: "refused"; code: "consent_required" | "rate_limited" | "forbidden" | "invalid_request" | "unavailable" }>;
+  | Readonly<{ status: "refused"; code: "consent_required" | "ai_consent_missing" | "rate_limited" | "forbidden" | "invalid_request" | "unavailable" }>;
 
 export type AiInsertResult = Readonly<{ status: "inserted"; text: string }>
   | Readonly<{ status: "stale" | "forbidden" | "not_found" | "invalid" | "unavailable" }>;
@@ -159,9 +161,12 @@ async function rpcClient() {
   return (await createSupabaseServerClient()).schema("platform");
 }
 
-function ticketRefusal(error: RpcError): AiTicketResult {
+/** Отказ `ai_agent_ticket_v1` -> итог маршрута (код базы и текст ошибки); открыт для теста. */
+export function ticketRefusal(error: RpcError): AiTicketResult {
   if (error.code === "PT412") return { status: "refused", code: "consent_required" };
   if (error.code === "PT429") return { status: "refused", code: "rate_limited" };
+  // Миграция 320: студент чата не разрешил ИИ-помощников (42501 с кодом в тексте) - не «нет доступа», а своя причина.
+  if (error.code === "42501" && error.message === AI_CONSENT_MISSING_CODE) return { status: "refused", code: "ai_consent_missing" };
   if (error.code === "42501") return { status: "refused", code: "forbidden" };
   if (error.code === "22023") return { status: "refused", code: "invalid_request" };
   return { status: "refused", code: "unavailable" };
@@ -354,7 +359,7 @@ export function createAiAnswerStreamHandler(dependencies: AiAgentRouteDependenci
       if (!config) return failure(503, "ai_agent_off");
       const ticket = await dependencies.issueTicket(authorization.actor, { conversationId, refId });
       if (ticket.status !== "issued") {
-        const status = { consent_required: 412, rate_limited: 429, forbidden: 403, invalid_request: 400, unavailable: 503 }[ticket.code];
+        const status = { consent_required: 412, ai_consent_missing: 403, rate_limited: 429, forbidden: 403, invalid_request: 400, unavailable: 503 }[ticket.code];
         return failure(status, ticket.code);
       }
 

@@ -283,6 +283,7 @@ export function aiAutosendPauseReason(pause: AiAutosendPause): string {
 export const AI_AUTOSEND_REASON_RU: Readonly<Record<string, string>> = Object.freeze({
   disabled: "Автоответчик выключен",
   no_consent: "Нет согласия на передачу текстов в Gemini",
+  ai_consent_missing: "Студент не дал согласия на ИИ-помощников",
   paused: "Автоответчик на паузе",
   shadow_mode: "Режим «Проверка без отправки»",
   not_sales: "Чат не в очереди продаж",

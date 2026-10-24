@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -17,7 +17,10 @@ import {
   AI_AGENT_DIGEST_KINDS,
   AI_AGENT_TOOL_ERROR_CODES,
 } from "../src/lib/ai-agents/contract.ts";
+import { AI_AUTOSEND_REASON_RU } from "../src/lib/v3/ai-agent-autosend.ts";
+import { AI_WINDOW_UNAVAILABLE } from "../src/lib/v3/ai-agent.ts";
 import {
+  AI_CONSENT_MISSING_CHAT_LINE,
   AI_CONSENT_MISSING_CODE,
   AI_CONSENT_POLICY_VERSION,
   AI_CONSENT_SOURCES,
@@ -37,7 +40,8 @@ const SUITE_318 = readFileSync(new URL("../supabase/tests/platform_ai_agents_fol
 const SOURCE_319 = readFileSync(new URL("../supabase/migrations/319_platform_ai_agents_hardening.sql", import.meta.url), "utf8");
 const SUITE_319 = readFileSync(new URL("../supabase/tests/platform_ai_agents_hardening.sql", import.meta.url), "utf8");
 // Migration 320 (student consent to AI helpers, 25.10.2026) replaces the account-deletion closure of 280, two functions of 317 and three
-// of 319, and adds one table, three RPCs and six closed helpers.
+// of 319, patches thirteen Gemini / document recognition functions of 066-277 and 162 by checked fragments, and adds one table, three RPCs and
+// six closed helpers.
 const SOURCE_280 = readFileSync(new URL("../supabase/migrations/280_platform_account_deletion.sql", import.meta.url), "utf8");
 const SOURCE_315 = readFileSync(new URL("../supabase/migrations/315_platform_account_deletion_p3.sql", import.meta.url), "utf8");
 const SOURCE_320 = readFileSync(new URL("../supabase/migrations/320_platform_student_ai_consent.sql", import.meta.url), "utf8");
@@ -379,17 +383,30 @@ function functionBody(source, header) {
 }
 const md5 = (text) => createHash("md5").update(text, "utf8").digest("hex");
 
-test("320 pins the six bodies it replaces by md5, each the text of the migration that last wrote it", () => {
+test("320 pins the nineteen bodies it replaces or patches by md5, each the text of the migration that last wrote it", () => {
   const pinned = Object.fromEntries(
-    [...SOURCE_320.matchAll(/\('((?:platform|platform_private)\.[a-z0-9_]+\([a-z0-9,]*\))', '([0-9a-f]{32})'\)/gu)].map(([, signature, hash]) => [signature, hash]),
+    [...SOURCE_320.matchAll(/\('((?:platform|platform_private|platform_ai_agent)\.[a-z0-9_]+\([a-z0-9_.,[\]]*\))', '([0-9a-f]{32})'\)/gu)].map(([, signature, hash]) => [signature, hash]),
   );
   assert.deepEqual(Object.keys(pinned).sort(), [
+    "platform.ai_agent_answer_current_v1(uuid,uuid,text)",
     "platform.ai_agent_mcp_file_resolve_v1(text)",
+    "platform.ai_agent_memory_v1(uuid,uuid)",
+    "platform.ai_agent_ticket_v1(uuid,text,uuid,uuid)",
     "platform.ai_agent_tool_get_case_chat_v1(uuid,text,jsonb)",
     "platform.ai_agent_tool_get_conversation_v1(uuid,text,jsonb)",
     "platform.ai_agent_tool_get_document_file_v1(uuid,text,jsonb)",
     "platform.ai_agent_tool_list_conversations_v1(uuid,text,jsonb)",
+    "platform.begin_gemini_proposal(uuid,uuid,uuid,uuid,text,integer,text)",
+    "platform.request_gemini_proposal(uuid,uuid,uuid,uuid,text,integer,text,text)",
+    "platform_ai_agent.autosend_summary_context_v1(uuid,text,integer)",
+    "platform_ai_agent.memory_context_v1(uuid,text,integer)",
+    "platform_ai_agent.memory_put_v1(uuid,text,bigint,text,text,uuid,integer,uuid,text)",
     "platform_private.account_deletion_closure(uuid,uuid)",
+    "platform_private.ai_autosend_check(platform_private.ai_autosend_log,text,text,bigint[])",
+    "platform_private.ai_autosend_reason_ru(text)",
+    "platform_private.ai_memory_poke(uuid,boolean,integer)",
+    "platform_private.ai_ticket_allowed(platform_private.ai_tickets)",
+    "platform_private.document_recognition_require_actor(uuid,uuid,uuid,uuid)",
   ]);
   // Last writer of each: 317 (file resolver and the chat list; neither 318 nor 319 touches them), 319 (the three reads). The closure was
   // written by 280 and extended by 284 and 285 by a fragment edit of the live body (their own-table list), so no file holds its final
@@ -412,8 +429,79 @@ test("320 pins the six bodies it replaces by md5, each the text of the migration
     assert.equal(md5(functionBody(SOURCE_319, `CREATE OR REPLACE FUNCTION platform.${name}(`)), pinned[`platform.${name}(uuid,text,jsonb)`],
       `${name}: the anchor is the 319 text`);
   }
+  // The thirteen Gemini / recognition anchors: each is the text of the migration that last wrote the function, and no later
+  // migration below 320 writes it again (a later edit would move the anchor and this list at once).
+  const migrations = readdirSync(new URL("../supabase/migrations/", import.meta.url)).filter((file) => /^\d{3}_.*\.sql$/u.test(file) && Number(file.slice(0, 3)) < 320).sort();
+  const writers = {
+    "platform.ai_agent_ticket_v1(uuid,text,uuid,uuid)": "273_platform_ai_agent_lab.sql",
+    "platform_private.ai_ticket_allowed(platform_private.ai_tickets)": "273_platform_ai_agent_lab.sql",
+    "platform.ai_agent_answer_current_v1(uuid,uuid,text)": "270_platform_ai_agent_answer_sources.sql",
+    "platform_private.ai_memory_poke(uuid,boolean,integer)": "274_platform_ai_agent_memory.sql",
+    "platform_ai_agent.memory_context_v1(uuid,text,integer)": "274_platform_ai_agent_memory.sql",
+    "platform_ai_agent.memory_put_v1(uuid,text,bigint,text,text,uuid,integer,uuid,text)": "274_platform_ai_agent_memory.sql",
+    "platform.ai_agent_memory_v1(uuid,uuid)": "274_platform_ai_agent_memory.sql",
+    "platform_private.ai_autosend_check(platform_private.ai_autosend_log,text,text,bigint[])": "276_platform_ai_agent_autosend_send_path.sql",
+    "platform_private.ai_autosend_reason_ru(text)": "275_platform_ai_agent_autosend_schema.sql",
+    "platform_ai_agent.autosend_summary_context_v1(uuid,text,integer)": "277_platform_ai_agent_autosend_rpc.sql",
+    "platform_private.document_recognition_require_actor(uuid,uuid,uuid,uuid)": "162_platform_document_recognition_queue.sql",
+    "platform.begin_gemini_proposal(uuid,uuid,uuid,uuid,text,integer,text)": "096_platform_provider_workflow_contract.sql",
+    "platform.request_gemini_proposal(uuid,uuid,uuid,uuid,text,integer,text,text)": "096_platform_provider_workflow_contract.sql",
+  };
+  for (const [signature, writer] of Object.entries(writers)) {
+    const [schema, rest] = [signature.slice(0, signature.indexOf(".")), signature.slice(signature.indexOf(".") + 1)];
+    const header = new RegExp(`CREATE (?:OR REPLACE )?FUNCTION ${schema}\\.${rest.slice(0, rest.indexOf("("))}\\(`, "u");
+    const last = migrations.filter((file) => header.test(readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"))).at(-1);
+    assert.equal(last, writer, `${signature}: the last migration that writes it`);
+    const text = readFileSync(new URL(`../supabase/migrations/${writer}`, import.meta.url), "utf8");
+    const start = text.search(header);
+    const from = text.indexOf("AS $$", start) + "AS $$".length;
+    // Most bodies end with a line holding `$$;`; the 162 check ends `END $$;` on the same line.
+    const end = signature.includes("document_recognition_require_actor") ? text.indexOf("$$;", from) : text.indexOf("\n$$;", from) + 1;
+    assert.equal(md5(text.slice(from, end)), pinned[signature], `${signature}: the anchor is the ${writer} text`);
+  }
   // The re-run refusal comes before the md5 check (a second apply says "already applied", not "drift").
   assert.ok(SOURCE_320.indexOf("a320_already_applied") < SOURCE_320.indexOf("a320_anchor_drift: % is not the expected definition"));
+});
+
+test("320 closes the Gemini and document recognition paths with the same refusal, by fragments that must occur the expected number of times", () => {
+  const patched = [...SOURCE_320.matchAll(/SELECT pg_temp\.a320_replace(?:_more)?\('([^']+)',/gu)].map(([, signature]) => signature);
+  assert.deepEqual([...new Set(patched)].sort(), [
+    "platform.ai_agent_answer_current_v1(uuid,uuid,text)",
+    "platform.ai_agent_memory_v1(uuid,uuid)",
+    "platform.ai_agent_ticket_v1(uuid,text,uuid,uuid)",
+    "platform.begin_gemini_proposal(uuid,uuid,uuid,uuid,text,integer,text)",
+    "platform.request_gemini_proposal(uuid,uuid,uuid,uuid,text,integer,text,text)",
+    "platform_ai_agent.autosend_summary_context_v1(uuid,text,integer)",
+    "platform_ai_agent.memory_context_v1(uuid,text,integer)",
+    "platform_ai_agent.memory_put_v1(uuid,text,bigint,text,text,uuid,integer,uuid,text)",
+    "platform_private.ai_autosend_check(platform_private.ai_autosend_log,text,text,bigint[])",
+    "platform_private.ai_autosend_reason_ru(text)",
+    "platform_private.ai_memory_poke(uuid,boolean,integer)",
+    "platform_private.ai_ticket_allowed(platform_private.ai_tickets)",
+    "platform_private.document_recognition_require_actor(uuid,uuid,uuid,uuid)",
+  ].sort());
+  // The helper stops the migration when a fragment is not found exactly as often as expected, and when a body already carries the check.
+  const helper = SOURCE_320.slice(SOURCE_320.indexOf("CREATE FUNCTION pg_temp.a320_replace("), SOURCE_320.indexOf("CREATE FUNCTION pg_temp.a320_replace_more("));
+  assert.match(helper, /matches IS DISTINCT FROM p_count/u);
+  assert.match(helper, /strpos\(body, 'ai_agent_conversation_ai_allowed'\) <> 0/u);
+  assert.match(helper, /a320_replace_drift/u);
+  assert.match(SOURCE_320, /DROP FUNCTION pg_temp\.a320_replace\(TEXT, TEXT, TEXT, INTEGER\);\s+DROP FUNCTION pg_temp\.a320_replace_more\(TEXT, TEXT, TEXT, INTEGER\);/u);
+  // Every gate raises the one code with SQLSTATE 42501, and uses the one rule (the student of the chat or of the case).
+  const gates = [...SOURCE_320.matchAll(/RAISE EXCEPTION '([a-z_]+)' USING ERRCODE = '42501'/gu)].map(([, code]) => code);
+  assert.ok(gates.filter((code) => code === AI_CONSENT_MISSING_CODE).length >= 8, "the ticket, memory put, recognition, two U9, and the tools raise ai_consent_missing");
+  assert.equal(SOURCE_320.match(/ai_agent_conversation_ai_allowed\(/gu).length > 12, true);
+  assert.match(SOURCE_320, /IF NOT platform_private\.ai_agent_student_ai_allowed\(p_org, p_case\) THEN\s+RAISE EXCEPTION 'ai_consent_missing' USING ERRCODE = '42501';/u);
+  // The autoresponder's skip reason is a code the log accepts, with Russian words equal to the TypeScript table; the window's line is one string.
+  assert.match(SOURCE_320, /RETURN 'ai_consent_missing';/u);
+  const words = SOURCE_320.match(/WHEN 'ai_consent_missing' THEN '([^']+)'/u)[1];
+  assert.equal(AI_AUTOSEND_REASON_RU.ai_consent_missing, words);
+  assert.ok(words.length <= 200, "the log keeps the reason in at most 200 characters");
+  assert.match(AI_CONSENT_MISSING_CODE, /^[a-z][a-z0-9_]{0,63}$/u, "the log accepts the code as a reason code");
+  assert.equal(AI_WINDOW_UNAVAILABLE[AI_CONSENT_MISSING_CODE], AI_CONSENT_MISSING_CHAT_LINE);
+  // The tests of the database prove each of the paths.
+  for (const marker of ["8a. P1", "8b. P3", "8c. P4", "8d. Document recognition", "8e. The legacy Gemini proposals"]) {
+    assert.ok(SUITE_320.includes(marker), marker);
+  }
 });
 
 test("320 carries the shared consent contract: version, statuses, sources, the three RPCs and their grants", () => {
@@ -541,7 +629,9 @@ test("320 and its suite hold no secret, no address and no real person; the suite
   assert.match(TEST_SCRIPT, /a320_anchor_drift/u);
   assert.match(TEST_SCRIPT, /a320_already_applied/u);
   assert.match(TEST_SCRIPT, /platform_student_ai_consent\.sql[\s\S]*A320_STUDENT_AI_CONSENT_SUITE_PASSED/u);
-  // The six pinned functions are the six the script tampers with.
-  const tampered = TEST_SCRIPT.slice(TEST_SCRIPT.indexOf("for t320_pinned in"), TEST_SCRIPT.indexOf("t320_tamper_log=")).match(/'[a-z0-9_.]+\([a-z,]*\)'/gu);
-  assert.equal(tampered.length, 6);
+  // The nineteen pinned functions are the nineteen the script tampers with.
+  const tampered = TEST_SCRIPT.slice(TEST_SCRIPT.indexOf("for t320_pinned in"), TEST_SCRIPT.indexOf("t320_tamper_log=")).match(/'[a-z0-9_.]+\([a-z0-9_.,[\]]*\)'/gu);
+  assert.equal(tampered.length, 19);
+  assert.deepEqual([...tampered].map((signature) => signature.slice(1, -1)).sort(),
+    [...SOURCE_320.matchAll(/\('((?:platform|platform_private|platform_ai_agent)\.[a-z0-9_]+\([a-z0-9_.,[\]]*\))', '[0-9a-f]{32}'\)/gu)].map(([, signature]) => signature).sort());
 });

@@ -20,6 +20,7 @@
  * квитанции). Стоит ли указатель сейчас, `ai_agent_memory_v1` не отдаёт —
  * поэтому слова «ИИ соберёт сам», без срока и без «готовится».
  */
+import { AI_CONSENT_MISSING_CHAT_LINE } from "../ai-agents/consent.ts";
 import { LEAD_DIRECTIONS } from "../platform-manual-lead-contract.ts";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "../platform-organization-time.ts";
 import { AiAgentShapeError } from "./ai-agent.ts";
@@ -52,8 +53,13 @@ export type AiClientMemory = Readonly<{
 export type AiMemoryView = Readonly<{
   enabled: boolean;
   consentRecorded: boolean;
-  /** Память работает: включена, согласие записано, организация активна (`ai_memory_gate`). */
+  /** Память работает: включена, согласие записано, организация активна (`ai_memory_gate`) и студент чата не отказал. */
   active: boolean;
+  /**
+   * Студент чата разрешил ИИ-помощников или в чате нет студента с кабинетом (миграция 320). Ложь - сводка и интерес не
+   * собираются, записанное раньше остаётся и его можно забыть. Нет ключа (база без 320) - истина.
+   */
+  studentAiAllowed: boolean;
   canManage: boolean;
   messageCount: number;
   /** Сводку пора собрать (> 20 сообщений и ≥ 6 непокрытых за окном, или пересборка); без `active` — false. */
@@ -115,6 +121,7 @@ export function normalizeAiMemoryView(value: unknown): AiMemoryView {
     enabled: value.enabled,
     consentRecorded: value.consentRecorded,
     active: value.active,
+    studentAiAllowed: value.studentAiAllowed !== false,
     canManage: value.canManage,
     messageCount: count(value.messageCount) ?? invalid(),
     summaryDue: value.active && value.summaryDue,
@@ -132,6 +139,8 @@ export const AI_MEMORY_COPY = Object.freeze({
   // Окно ИИ в чате (08.10, «давай без этого»): ни «Включить», ни согласия на
   // Gemini — память включают и согласие записывают в разделе «ИИ-агент».
   paused: "Память на паузе: сводка и интерес не собираются.",
+  // Миграция 320: та же строка, что в окне ИИ; сводка и интерес не собираются, записанное остаётся.
+  student: AI_CONSENT_MISSING_CHAT_LINE,
   short: "ИИ видит всю переписку — сводка не нужна.",
   waiting: "Сводка появится, когда переписка станет длиннее.",
   due: "Сводки пока нет — ИИ соберёт её сам.",
@@ -148,6 +157,8 @@ export const AI_MEMORY_COPY = Object.freeze({
   // Строка памяти удаляется целиком, и пока память работает, база сразу ставит
   // пересборку в очередь агента (274, `enqueued`) — ждать сообщения клиента не нужно.
   forgetConfirm: "Сводка и интерес удалятся. ИИ сразу начнёт собирать их заново.",
+  // Студент не разрешил ИИ-помощников (320): пересборки не будет, обещать её нельзя.
+  forgetConfirmStopped: "Сводка и интерес удалятся. Заново ИИ их не соберёт.",
   forgotten: "Сводка и интерес удалены.",
   forgottenRebuilding: "Сводка и интерес удалены — ИИ собирает их заново.",
   forgetFailed: "Не удалось забыть сводку. Повторите.",
@@ -162,11 +173,14 @@ export const AI_MEMORY_COPY = Object.freeze({
  * случай такого ответа или неактивной организации, а не обычный путь; `short` — переписка не длиннее окна, сводка не
  * нужна; `waiting` — длиннее окна, но за окном меньше шести непокрытых
  * сообщений — сводку собирать рано; `due` — сводку пора собрать, её ещё нет;
- * `ready` — сводка есть.
+ * `ready` — сводка есть; `student` — студент чата не разрешил ИИ-помощников
+ * (миграция 320): память этого чата не работает, ждать сводку не нужно, а
+ * записанное раньше остаётся видимым.
  */
-export type AiMemoryState = "off" | "paused" | "short" | "waiting" | "due" | "ready";
+export type AiMemoryState = "off" | "paused" | "student" | "short" | "waiting" | "due" | "ready";
 
 export function aiMemoryState(view: AiMemoryView): AiMemoryState {
+  if (!view.studentAiAllowed) return "student";
   if (!view.enabled) return "off";
   if (!view.active) return "paused";
   if (view.memory?.summary) return "ready";
@@ -191,6 +205,7 @@ export function aiMemoryHint(view: AiMemoryView): string {
   const state = aiMemoryState(view);
   if (state === "off") return "Память выключена";
   if (state === "paused") return "Память на паузе";
+  if (state === "student") return "Студент не дал согласия";
   if (view.memory?.interest) return view.memory.interest;
   return state === "due" ? "Сводки пока нет" : state === "waiting" ? "Сводка пока не нужна"
     : state === "short" ? "Вся переписка на виду у ИИ" : "Интереса пока нет";

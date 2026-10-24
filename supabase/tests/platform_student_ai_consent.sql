@@ -2,9 +2,10 @@
 -- Boundary suite for migration 320: «Согласие студента на ИИ-помощников» (docs/PLAN_CHANGES.md
 -- «2026-10-25 · Согласие студента на ИИ-помощников, база данных (миграция 320)»; ADR 0035; контракт §A.9).
 -- Runs on the real chain right after 320 inside one transaction that is rolled back, with its own synthetic
--- organizations and members; WhatsApp conversations come through the real WAHA projection chain, the account
--- deletion goes through the real 280 / 315 RPCs (only the Auth server's own deleteUser is simulated). No provider,
--- no Claude / Anthropic call, no real person, no production action.
+-- organizations and members; WhatsApp conversations come through the real WAHA projection chain, the document source
+-- goes through the real ingress RPCs, the account deletion goes through the real 280 / 315 RPCs (only the Auth server's
+-- own deleteUser is simulated). No provider, no Claude / Anthropic / Gemini / Google call, no real person, no production
+-- action.
 --
 -- Proves:
 --  1. posture: the table is closed to every API role (RLS forced); the three RPCs are definer functions with an
@@ -32,7 +33,18 @@
 --     the automatic processing erases the row and the journal events about it and nothing else changes in the
 --     journal of the request; deleting the Auth user cascades the row of a student that has a case;
 --  7. the journal: the two actions and the object type are in the server allowlist (plus two and one) and take the
---     ai.% branch of the changed-field codes.
+--     ai.% branch of the changed-field codes;
+--  8. Gemini and document recognition (320, h) - the promise «if you do not allow, the helpers do not read your
+--     documents and correspondence» holds for every path: (a) P1 the sales-chat helper: no ticket for a declined or
+--     undecided student with a portal account (and no spent quota), a redeemed ticket stops reading after a decline,
+--     the window learns the reason (`studentAiAllowed`) and the saved answer is hidden; (b) P3 memory: nothing is queued,
+--     a queued chat is dropped without a text, a result after a decline is refused, the block says why and a stored
+--     summary stays visible and can be forgotten; (c) P4 night autoresponder: the decision is skipped with
+--     `ai_consent_missing` (Russian words) on every stage, no messages are handed to the decision, the night summary
+--     leaves the chat out; (d) document recognition: no enqueue, a queued job is failed `access_revoked` at the claim,
+--     no further source grant, lease renewal or upload for a running attempt, every stage goes through the one check;
+--     (e) the legacy U9 proposals: the staff request and the service context (also a replay) are refused. In every case
+--     a chat with no student and a student without a portal account are unchanged (the same calls succeed).
 BEGIN;
 
 SET LOCAL TIME ZONE 'UTC';
@@ -823,5 +835,440 @@ SELECT pg_temp.a320_assert(
   AND platform_private.p7a_changed_field_codes('ai.consent.grant') = ARRAY['ai_status']::TEXT[]
   AND platform_private.p7a_changed_field_codes('ai.consent.decline') = ARRAY['ai_status']::TEXT[],
   'the journal allowlist gained exactly two actions and one object type (older ones stay); both actions take the ai.% field-code branch');
+-- ---------------------------------------------------------------------------
+-- 8. Gemini and document recognition (320, h): the same refusal on every path that hands correspondence or files to a
+--    third-party model. Student 2 (a portal account) / case 701 / chat c1 is the student; chat c2 (no student) and chat
+--    c3 (case 702, no portal account) must stay as they were. The agent role calls the platform_ai_agent functions as the
+--    private service does; the organization's Gemini consent is recorded by the Admin like in production.
+-- ---------------------------------------------------------------------------
+GRANT evo_ai_agent TO postgres WITH INHERIT FALSE, SET TRUE;
+CREATE FUNCTION pg_temp.a320_agent(p_sql TEXT) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a320_call('evo_ai_agent', NULL, p_sql)
+$$;
+-- (c2 is a plain sales chat with no student, as section 3 left it.)
+SELECT pg_temp.a320_as(1, format('SELECT platform.ai_agent_consent_record_v1(%L, ''grant'', ''gemini-v1-2026-10-06'', %L)',
+  pg_temp.a320_id(1), pg_temp.a320_id(5001))) AS a320_org_consent \gset
+SELECT pg_temp.a320_assert((:'a320_org_consent'::JSONB) ->> 'status' = 'granted', 'the Admin records the Gemini consent of the organization: ' || :'a320_org_consent');
+
+-- 8a. P1, the sales-chat helper: ticket, redemption, context.
+CREATE FUNCTION pg_temp.a320_ticket(p_conv UUID) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a320_as(1, format('SELECT platform.ai_agent_ticket_v1(%L, ''answer'', %L, NULL)', pg_temp.a320_id(1), p_conv))
+$$;
+CREATE FUNCTION pg_temp.a320_redeem(p_ticket JSONB) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a320_agent(format('SELECT platform_ai_agent.redeem_ticket_v1(%L, ''answer'')', p_ticket ->> 'ticket'))
+$$;
+CREATE FUNCTION pg_temp.a320_context(p_redemption JSONB) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a320_agent(format('SELECT platform_ai_agent.conversation_context_v1(%L)', p_redemption ->> 'redemptionId'))
+$$;
+CREATE FUNCTION pg_temp.a320_tickets() RETURNS BIGINT LANGUAGE SQL AS $$
+  SELECT count(*) FROM platform_private.ai_tickets WHERE organization_id = pg_temp.a320_id(1)
+$$;
+
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+SELECT pg_temp.a320_tickets() AS a320_tickets0 \gset
+SELECT pg_temp.a320_ticket(:'a320_c1'::UUID) AS a320_t_no \gset
+SELECT pg_temp.a320_assert(pg_temp.a320_err(:'a320_t_no'::JSONB) = '42501' AND pg_temp.a320_msg(:'a320_t_no'::JSONB) = 'ai_consent_missing'
+  AND pg_temp.a320_tickets() = :a320_tickets0,
+  'P1: a declined student''s chat gets no ticket (ai_consent_missing, 42501) and no ticket row (the quota is not spent): ' || :'a320_t_no');
+SELECT pg_temp.a320_put(2, NULL, NULL);
+SELECT pg_temp.a320_assert(pg_temp.a320_msg(pg_temp.a320_ticket(:'a320_c1'::UUID)) = 'ai_consent_missing',
+  'P1: a student with a portal account who was never asked gets no ticket either');
+SELECT pg_temp.a320_put(2, 'granted', '2025-01-01');
+SELECT pg_temp.a320_assert(pg_temp.a320_msg(pg_temp.a320_ticket(:'a320_c1'::UUID)) = 'ai_consent_missing',
+  'P1: a grant on an older text version counts as not decided: no ticket');
+-- A chat with no student and the chat of a student without a portal account are unchanged.
+SELECT pg_temp.a320_ticket(:'a320_c2'::UUID) AS a320_t_c2 \gset
+SELECT pg_temp.a320_ticket(:'a320_c3'::UUID) AS a320_t_c3 \gset
+SELECT pg_temp.a320_assert((:'a320_t_c2'::JSONB ->> 'ticket') ~ '^[0-9a-f]{64}$' AND (:'a320_t_c3'::JSONB ->> 'ticket') ~ '^[0-9a-f]{64}$',
+  'P1: a chat with no student and the chat of a student without a portal account still get tickets: ' || :'a320_t_c2' || :'a320_t_c3');
+-- The organization''s own consent still decides first (PT412) and the other ticket purposes are untouched.
+SELECT pg_temp.a320_assert(
+  (pg_temp.a320_as(1, format('SELECT platform.ai_agent_ticket_v1(%L, ''laboratory'', NULL, NULL)', pg_temp.a320_id(1))) ->> 'ticket') ~ '^[0-9a-f]{64}$',
+  'P1: the laboratory ticket (no student data) is not affected');
+-- Granted on the current version: a ticket, its redemption and the context with the messages and the lead card.
+SELECT pg_temp.a320_put(2, 'granted', '2026-10-25');
+SELECT pg_temp.a320_ticket(:'a320_c1'::UUID) AS a320_t_yes \gset
+SELECT pg_temp.a320_redeem(:'a320_t_yes'::JSONB) AS a320_red_yes \gset
+SELECT pg_temp.a320_context(:'a320_red_yes'::JSONB) AS a320_ctx_yes \gset
+SELECT pg_temp.a320_assert((:'a320_t_yes'::JSONB ->> 'ticket') ~ '^[0-9a-f]{64}$' AND (:'a320_red_yes'::JSONB) ? 'redemptionId'
+  AND jsonb_array_length((:'a320_ctx_yes'::JSONB) -> 'messages') = 2
+  AND (:'a320_ctx_yes'::JSONB) #>> '{messages,1,text}' = 'Сколько стоит обучение?',
+  'P1: granted on the current version, the ticket is issued, redeemed and the context holds the messages: ' || :'a320_ctx_yes');
+-- The student declines while a redeemed ticket is still valid (5 minutes): every further read is refused.
+SELECT pg_temp.a320_ticket(:'a320_c1'::UUID) AS a320_t_mid \gset
+SELECT pg_temp.a320_redeem(:'a320_t_mid'::JSONB) AS a320_red_mid \gset
+SELECT pg_temp.a320_ticket(:'a320_c1'::UUID) AS a320_t_unredeemed \gset
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+SELECT pg_temp.a320_context(:'a320_red_mid'::JSONB) AS a320_ctx_mid \gset
+SELECT pg_temp.a320_redeem(:'a320_t_unredeemed'::JSONB) AS a320_red_late \gset
+SELECT pg_temp.a320_assert(pg_temp.a320_err(:'a320_ctx_mid'::JSONB) = '42501' AND pg_temp.a320_msg(:'a320_ctx_mid'::JSONB) = 'ai_redemption_invalid'
+  AND pg_temp.a320_err(:'a320_red_late'::JSONB) = '42501' AND pg_temp.a320_msg(:'a320_red_late'::JSONB) = 'ai_ticket_invalid'
+  AND pg_temp.a320_err(pg_temp.a320_context(:'a320_red_yes'::JSONB)) = '42501',
+  'P1: after a decline a redeemed ticket reads nothing (ai_redemption_invalid) and an unredeemed one cannot be redeemed (ai_ticket_invalid): '
+  || :'a320_ctx_mid' || :'a320_red_late');
+-- The search and the answer claim of a redeemed ticket go through the same check.
+SELECT pg_temp.a320_assert(pg_temp.a320_err(pg_temp.a320_agent(format('SELECT platform_ai_agent.rate_take_v1(%L)', :'a320_red_yes'::JSONB ->> 'redemptionId'))) = '42501',
+  'P1: the rate take of a redeemed ticket is refused after a decline too');
+SELECT pg_temp.a320_put(2, 'granted', '2026-10-25');
+SELECT pg_temp.a320_assert(NOT (pg_temp.a320_context(:'a320_red_yes'::JSONB) ? 'error'),
+  'P1: the same redemption reads again after a new grant (the check follows the live decision)');
+
+-- The window learns the reason without asking for a ticket: studentAiAllowed, and no saved answer for a refused chat.
+SELECT pg_temp.a320_as(1, format('SELECT platform.ai_agent_answer_current_v1(%L, %L, NULL)', pg_temp.a320_id(1), :'a320_c1'::UUID)) AS a320_cur_yes \gset
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+SELECT pg_temp.a320_as(1, format('SELECT platform.ai_agent_answer_current_v1(%L, %L, NULL)', pg_temp.a320_id(1), :'a320_c1'::UUID)) AS a320_cur_no \gset
+SELECT pg_temp.a320_as(1, format('SELECT platform.ai_agent_answer_current_v1(%L, %L, NULL)', pg_temp.a320_id(1), :'a320_c2'::UUID)) AS a320_cur_c2 \gset
+SELECT pg_temp.a320_assert((:'a320_cur_yes'::JSONB ->> 'studentAiAllowed') = 'true' AND (:'a320_cur_no'::JSONB ->> 'studentAiAllowed') = 'false'
+  AND (:'a320_cur_c2'::JSONB ->> 'studentAiAllowed') = 'true'
+  AND (:'a320_cur_no'::JSONB -> 'answer') = 'null'::JSONB AND (:'a320_cur_no'::JSONB ->> 'consentRecorded') = 'true'
+  AND (:'a320_cur_no'::JSONB ->> 'latestInboundMessageId') IS NOT NULL AND (:'a320_cur_no'::JSONB ->> 'lastMessageDirection') = 'inbound',
+  'P1: the saved-answer read says studentAiAllowed (false for the declined chat, true otherwise) and hides the answer: ' || :'a320_cur_no');
+
+
+-- 8b. P3, the memory of the Gemini conversations: nothing is queued, read or stored for a chat of a student who has not allowed.
+SELECT version AS a320_aiv FROM platform_private.ai_settings WHERE organization_id = pg_temp.a320_id(1) \gset
+SELECT pg_temp.a320_as(1, format('SELECT platform.ai_agent_memory_toggle_v1(%L, TRUE, %s, %L)', pg_temp.a320_id(1), :'a320_aiv', pg_temp.a320_id(5002))) AS a320_mem_on \gset
+SELECT pg_temp.a320_assert((:'a320_mem_on'::JSONB) ->> 'status' = 'applied' AND (:'a320_mem_on'::JSONB) ->> 'memoryEnabled' = 'true',
+  'the Admin switches the memory on: ' || :'a320_mem_on');
+CREATE FUNCTION pg_temp.a320_queue() RETURNS BIGINT LANGUAGE plpgsql AS $$
+DECLARE n BIGINT;
+BEGIN
+  EXECUTE 'SELECT count(*) FROM pgmq.q_ai_agent_work_v1' INTO n;
+  RETURN n;
+END
+$$;
+CREATE FUNCTION pg_temp.a320_due(p_conv UUID) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a320_agent(format('SELECT platform_ai_agent.memory_due_v1(ARRAY[%L]::UUID[]) -> ''items'' -> 0', p_conv))
+$$;
+CREATE FUNCTION pg_temp.a320_mem_ctx(p_conv UUID) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a320_agent(format('SELECT platform_ai_agent.memory_context_v1(%L, ''a320-worker'', 120)', p_conv))
+$$;
+CREATE FUNCTION pg_temp.a320_mem_put(p_conv UUID, p_claim JSONB) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a320_agent(format('SELECT platform_ai_agent.memory_put_v1(%L, ''a320-worker'', %s, %L, NULL, NULL, NULL, %L, ''gemini-3-flash'')',
+    p_conv, p_claim #>> '{prior,version}', 'Интерес: Китай', p_claim ->> 'interestMessageId'))
+$$;
+CREATE FUNCTION pg_temp.a320_mem_view(p_conv UUID) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a320_as(1, format('SELECT platform.ai_agent_memory_v1(%L, %L)', pg_temp.a320_id(1), p_conv))
+$$;
+
+-- Granted: the chat is queued, claimed and stored as before.
+SELECT pg_temp.a320_put(2, 'granted', '2026-10-25');
+SELECT pg_temp.a320_queue() AS a320_q0 \gset
+SELECT pg_temp.a320_due(:'a320_c1'::UUID) AS a320_due_yes \gset
+SELECT pg_temp.a320_mem_ctx(:'a320_c1'::UUID) AS a320_mctx_yes \gset
+SELECT pg_temp.a320_assert((:'a320_due_yes'::JSONB) ->> 'status' = 'enqueued' AND pg_temp.a320_queue() = :a320_q0 + 1
+  AND (:'a320_mctx_yes'::JSONB) ->> 'status' = 'claimed' AND (:'a320_mctx_yes'::JSONB) ->> 'mode' = 'interest'
+  AND jsonb_array_length((:'a320_mctx_yes'::JSONB) -> 'window') = 2,
+  'P3: a student who allowed: the chat is queued, claimed and the context holds the messages: ' || :'a320_due_yes' || :'a320_mctx_yes');
+-- The student declines while the worker holds the claim: the result is refused and not stored.
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+SELECT pg_temp.a320_mem_put(:'a320_c1'::UUID, :'a320_mctx_yes'::JSONB) AS a320_mput_no \gset
+SELECT pg_temp.a320_assert(pg_temp.a320_err(:'a320_mput_no'::JSONB) = '42501' AND pg_temp.a320_msg(:'a320_mput_no'::JSONB) = 'ai_consent_missing'
+  AND (SELECT interest IS NULL AND summary IS NULL FROM platform_private.ai_client_memory WHERE conversation_id = :'a320_c1'::UUID),
+  'P3: a result that comes after a decline is refused (ai_consent_missing) and nothing is stored: ' || :'a320_mput_no');
+-- The next claim reads no text, drops the pointer and the lease, and says why.
+SELECT pg_temp.a320_mem_ctx(:'a320_c1'::UUID) AS a320_mctx_no \gset
+SELECT pg_temp.a320_assert((:'a320_mctx_no'::JSONB) ->> 'status' = 'none' AND (:'a320_mctx_no'::JSONB) ->> 'reason' = 'ai_consent_missing'
+  AND (:'a320_mctx_no'::JSONB) ->> 'mode' = 'none' AND (:'a320_mctx_no'::JSONB) ? 'version'
+  AND NOT ((:'a320_mctx_no'::JSONB) ? 'window') AND NOT ((:'a320_mctx_no'::JSONB) ? 'leaving')
+  AND (SELECT lease_owner IS NULL AND lease_expires_at IS NULL AND enqueued_at IS NULL
+      FROM platform_private.ai_client_memory WHERE conversation_id = :'a320_c1'::UUID),
+  'P3: a queued chat of a student who declined is dropped without reading a text: ' || :'a320_mctx_no');
+-- Polling queues nothing for it; the chat of a student without a portal account and the chat with no student are queued.
+SELECT pg_temp.a320_queue() AS a320_q1 \gset
+SELECT pg_temp.a320_due(:'a320_c1'::UUID) AS a320_due_no \gset
+SELECT pg_temp.a320_assert((:'a320_due_no'::JSONB) ->> 'status' = 'skipped' AND (:'a320_due_no'::JSONB) ->> 'reason' = 'ai_consent_missing'
+  AND pg_temp.a320_queue() = :a320_q1,
+  'P3: the poll skips the chat of a student who declined and puts nothing in the queue: ' || :'a320_due_no');
+SELECT pg_temp.a320_due(:'a320_c2'::UUID) AS a320_due_c2 \gset
+SELECT pg_temp.a320_due(:'a320_c3'::UUID) AS a320_due_c3 \gset
+SELECT pg_temp.a320_mem_ctx(:'a320_c2'::UUID) AS a320_mctx_c2 \gset
+SELECT pg_temp.a320_mem_ctx(:'a320_c3'::UUID) AS a320_mctx_c3 \gset
+SELECT pg_temp.a320_mem_put(:'a320_c3'::UUID, :'a320_mctx_c3'::JSONB) AS a320_mput_c3 \gset
+SELECT pg_temp.a320_assert((:'a320_due_c2'::JSONB) ->> 'status' = 'enqueued' AND (:'a320_due_c3'::JSONB) ->> 'status' = 'enqueued'
+  AND (:'a320_mctx_c2'::JSONB) ->> 'status' = 'claimed' AND (:'a320_mctx_c3'::JSONB) ->> 'status' = 'claimed'
+  AND (:'a320_mput_c3'::JSONB) ->> 'status' = 'saved'
+  AND (SELECT interest = 'Интерес: Китай' FROM platform_private.ai_client_memory WHERE conversation_id = :'a320_c3'::UUID),
+  'P3: a chat with no student and the chat of a student without a portal account are queued, claimed and stored as before: '
+  || :'a320_due_c2' || :'a320_due_c3' || :'a320_mput_c3');
+-- A summary stored earlier stays visible to staff (and can be forgotten), but the memory is not active for the refused chat.
+SELECT pg_temp.a320_put(2, 'granted', '2026-10-25');
+SELECT pg_temp.a320_due(:'a320_c1'::UUID) AS a320_due_again \gset
+SELECT pg_temp.a320_mem_ctx(:'a320_c1'::UUID) AS a320_mctx_again \gset
+SELECT pg_temp.a320_mem_put(:'a320_c1'::UUID, :'a320_mctx_again'::JSONB) AS a320_mput_again \gset
+SELECT pg_temp.a320_mem_view(:'a320_c1'::UUID) AS a320_mv_yes \gset
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+SELECT pg_temp.a320_mem_view(:'a320_c1'::UUID) AS a320_mv_no \gset
+SELECT pg_temp.a320_mem_view(:'a320_c3'::UUID) AS a320_mv_c3 \gset
+SELECT pg_temp.a320_assert((:'a320_mput_again'::JSONB) ->> 'status' = 'saved'
+  AND (:'a320_mv_yes'::JSONB ->> 'studentAiAllowed') = 'true' AND (:'a320_mv_yes'::JSONB ->> 'active') = 'true'
+  AND (:'a320_mv_yes'::JSONB #>> '{memory,interest}') = 'Интерес: Китай'
+  AND (:'a320_mv_no'::JSONB ->> 'studentAiAllowed') = 'false' AND (:'a320_mv_no'::JSONB ->> 'active') = 'false'
+  AND (:'a320_mv_no'::JSONB ->> 'interestDue') = 'false' AND (:'a320_mv_no'::JSONB ->> 'summaryDue') = 'false'
+  AND (:'a320_mv_no'::JSONB ->> 'enabled') = 'true' AND (:'a320_mv_no'::JSONB ->> 'consentRecorded') = 'true'
+  AND (:'a320_mv_no'::JSONB #>> '{memory,interest}') = 'Интерес: Китай'
+  AND (:'a320_mv_c3'::JSONB ->> 'studentAiAllowed') = 'true' AND (:'a320_mv_c3'::JSONB ->> 'active') = 'true',
+  'P3: the memory block says studentAiAllowed; for a declined chat the memory is not active, nothing is due, what was stored stays visible: '
+  || :'a320_mv_no');
+SELECT pg_temp.a320_queue() AS a320_q2 \gset
+SELECT pg_temp.a320_as(1, format('SELECT platform.ai_agent_memory_clear_v1(%L, %L, %L)', pg_temp.a320_id(1), :'a320_c1'::UUID, pg_temp.a320_id(5003))) AS a320_forget \gset
+SELECT pg_temp.a320_assert((:'a320_forget'::JSONB) ->> 'status' = 'cleared' AND (:'a320_forget'::JSONB) ->> 'deleted' = 'true'
+  AND (:'a320_forget'::JSONB) ->> 'enqueued' = 'false' AND pg_temp.a320_queue() = :a320_q2
+  AND NOT EXISTS (SELECT 1 FROM platform_private.ai_client_memory WHERE conversation_id = :'a320_c1'::UUID),
+  'P3: "forget the summary" works for a declined chat and does not start a rebuild: ' || :'a320_forget');
+
+
+-- 8c. P4, the night autoresponder: the decision is skipped with its own reason on every stage, no text is handed out, the
+--     night summary does not take the chat. The autoresponder is switched on for the whole test (a date override covers today),
+--     the three inbound messages are made fresh, so a chat that is allowed really gets as far as «decide».
+SELECT platform_private.ai_autosend_settings_row(pg_temp.a320_id(1)) IS NOT NULL AS a320_as_row \gset
+UPDATE platform_private.ai_autosend_settings SET enabled = TRUE, shadow_mode = TRUE, enabled_at = clock_timestamp(),
+  responsible_membership_id = pg_temp.a320_id(301),
+  date_overrides = jsonb_build_array(jsonb_build_object(
+    'from', to_char((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE - 2, 'YYYY-MM-DD'),
+    'to', to_char((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 2, 'YYYY-MM-DD'), 'mode', 'on'))
+WHERE organization_id = pg_temp.a320_id(1);
+SELECT pg_temp.a320_assert(platform_private.ai_autosend_gate(pg_temp.a320_id(1)), 'the autoresponder gate is open for the test');
+SELECT (platform_private.ai_autosend_window(platform_private.ai_autosend_settings_row(pg_temp.a320_id(1)), clock_timestamp()) ->> 'intervalStart')::TIMESTAMPTZ AS a320_istart \gset
+SET LOCAL session_replication_role = replica;
+UPDATE platform.communication_messages SET created_at = greatest(clock_timestamp() - INTERVAL '30 seconds', :'a320_istart'::TIMESTAMPTZ + INTERVAL '1 second')
+  WHERE id IN (:'a320_m2'::UUID, :'a320_m3'::UUID, :'a320_m4'::UUID);
+SET LOCAL session_replication_role = origin;
+-- A ticket for the window counts as staff activity in the chat (15 minutes); the P1 tickets above are removed first.
+DELETE FROM platform_private.ai_tickets WHERE organization_id = pg_temp.a320_id(1);
+CREATE FUNCTION pg_temp.a320_due_items(p_c1 UUID, p_m1 UUID, p_c2 UUID, p_m2 UUID, p_c3 UUID, p_m3 UUID) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a320_agent(format('SELECT platform_ai_agent.autosend_due_v1(%L::jsonb)',
+    jsonb_build_array(
+      jsonb_build_object('conversationId', p_c1, 'messageId', p_m1),
+      jsonb_build_object('conversationId', p_c2, 'messageId', p_m2),
+      jsonb_build_object('conversationId', p_c3, 'messageId', p_m3))::TEXT))
+$$;
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+SELECT pg_temp.a320_due_items(:'a320_c1'::UUID, :'a320_m2'::UUID, :'a320_c2'::UUID, :'a320_m3'::UUID, :'a320_c3'::UUID, :'a320_m4'::UUID) AS a320_ad \gset
+SELECT pg_temp.a320_assert(NOT ((:'a320_ad'::JSONB) ? 'error'), 'autosend_due_v1 answers: ' || :'a320_ad');
+SELECT pg_temp.a320_assert(
+  (SELECT i FROM jsonb_array_elements((:'a320_ad'::JSONB) -> 'items') i WHERE i ->> 'conversationId' = :'a320_c1') ->> 'status' = 'skipped'
+  AND (SELECT i FROM jsonb_array_elements((:'a320_ad'::JSONB) -> 'items') i WHERE i ->> 'conversationId' = :'a320_c1') ->> 'reasonCode' = 'ai_consent_missing'
+  AND (SELECT i FROM jsonb_array_elements((:'a320_ad'::JSONB) -> 'items') i WHERE i ->> 'conversationId' = :'a320_c1') ->> 'enqueued' = 'false'
+  AND (SELECT l.status = 'skipped' AND l.reason_code = 'ai_consent_missing' AND l.reason_ru = 'Студент не дал согласия на ИИ-помощников'
+        AND l.body IS NULL AND l.text IS NULL
+      FROM platform_private.ai_autosend_log l WHERE l.client_message_id = :'a320_m2'::UUID),
+  'P4: the declined student''s message is skipped with ai_consent_missing, in Russian words, with no text drafted: ' || :'a320_ad');
+SELECT pg_temp.a320_assert(
+  (SELECT count(*) = 2 FROM jsonb_array_elements((:'a320_ad'::JSONB) -> 'items') i
+    WHERE i ->> 'conversationId' IN (:'a320_c2', :'a320_c3') AND i ->> 'status' = 'considering' AND (i ->> 'enqueued')::BOOLEAN),
+  'P4: the chat with no student and the chat of a student without a portal account are taken for a decision as before: ' || :'a320_ad');
+-- The pre-claimed decision row of a chat whose student declines AFTER it was queued: the context gives no text.
+SELECT l.id AS a320_dec_c2 FROM platform_private.ai_autosend_log l WHERE l.client_message_id = :'a320_m3'::UUID \gset
+SELECT l.id AS a320_dec_c3 FROM platform_private.ai_autosend_log l WHERE l.client_message_id = :'a320_m4'::UUID \gset
+SELECT pg_temp.a320_agent(format('SELECT platform_ai_agent.autosend_context_v1(%L, ''a320-worker'', 120)', :'a320_dec_c2')) AS a320_actx_c2 \gset
+SELECT pg_temp.a320_assert((:'a320_actx_c2'::JSONB) ->> 'action' = 'decide' AND jsonb_array_length((:'a320_actx_c2'::JSONB) -> 'messages') = 1
+  AND (:'a320_actx_c2'::JSONB) #>> '{messages,0,text}' = 'Добрый день, интересует Малайзия',
+  'P4: a chat with no student is handed to the decision with its messages, as before: ' || :'a320_actx_c2');
+-- Student 2 gets a second chat of the case (linked), a message of which reaches the decision stage through a row made by the owner.
+SET LOCAL session_replication_role = replica;
+UPDATE platform.communication_conversations SET canonical_client_id = pg_temp.a320_id(501), canonical_lead_id = pg_temp.a320_id(601)
+  WHERE id = :'a320_c2'::UUID;
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.a320_agent(format('SELECT platform_ai_agent.autosend_context_v1(%L, ''a320-worker'', 120)', :'a320_dec_c2')) AS a320_actx_c2b \gset
+SELECT pg_temp.a320_assert((:'a320_actx_c2b'::JSONB) ->> 'action' = 'skip' AND (:'a320_actx_c2b'::JSONB) ->> 'reasonCode' = 'ai_consent_missing'
+  AND NOT ((:'a320_actx_c2b'::JSONB) ? 'messages') AND NOT ((:'a320_actx_c2b'::JSONB) ? 'lead')
+  AND (SELECT status = 'skipped' AND reason_code = 'ai_consent_missing' AND lease_owner IS NULL
+      FROM platform_private.ai_autosend_log WHERE id = :'a320_dec_c2'::UUID),
+  'P4: a decision already queued for a chat whose student declined meanwhile gets no messages: skipped, no lease: ' || :'a320_actx_c2b');
+SET LOCAL session_replication_role = replica;
+UPDATE platform.communication_conversations SET canonical_client_id = NULL, canonical_lead_id = NULL WHERE id = :'a320_c2'::UUID;
+SET LOCAL session_replication_role = origin;
+
+-- The check itself, on every stage, for the declined chat and for the allowed ones (the first reason on the way is not ours).
+CREATE FUNCTION pg_temp.a320_check(p_decision UUID, p_stage TEXT) RETURNS TEXT LANGUAGE SQL AS $$
+  SELECT platform_private.ai_autosend_check(l, p_stage, NULL, NULL) FROM platform_private.ai_autosend_log l WHERE l.id = p_decision
+$$;
+SELECT l.id AS a320_dec_c1 FROM platform_private.ai_autosend_log l WHERE l.client_message_id = :'a320_m2'::UUID \gset
+SELECT pg_temp.a320_assert(pg_temp.a320_check(:'a320_dec_c1'::UUID, 'due') = 'ai_consent_missing'
+  AND pg_temp.a320_check(:'a320_dec_c1'::UUID, 'commit') = 'ai_consent_missing'
+  AND pg_temp.a320_check(:'a320_dec_c1'::UUID, 'authorize') = 'ai_consent_missing'
+  AND pg_temp.a320_check(:'a320_dec_c3'::UUID, 'due') IS NULL
+  AND pg_temp.a320_check(:'a320_dec_c3'::UUID, 'authorize') IS DISTINCT FROM 'ai_consent_missing',
+  'P4: the check answers ai_consent_missing at due, commit and authorize for a declined student and not for the others');
+-- The student allows: the same decision row passes the check again (the check follows the live decision).
+SELECT pg_temp.a320_put(2, 'granted', '2026-10-25');
+SELECT pg_temp.a320_assert(pg_temp.a320_check(:'a320_dec_c1'::UUID, 'due') IS DISTINCT FROM 'ai_consent_missing',
+  'P4: after a grant the check no longer answers ai_consent_missing');
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+
+-- The night summary hands Gemini the messages of the chats it covers: not the refused one.
+INSERT INTO platform_private.ai_autosend_summaries (id, organization_id, interval_start, interval_end, shadow_night, counts, items)
+VALUES (pg_temp.a320_id(5101), pg_temp.a320_id(1), clock_timestamp() - INTERVAL '1 day', clock_timestamp() + INTERVAL '1 hour', TRUE, '{}'::JSONB,
+  jsonb_build_array(jsonb_build_object('conversationId', :'a320_c1'::UUID, 'qualification', '{}'::JSONB),
+    jsonb_build_object('conversationId', :'a320_c2'::UUID, 'qualification', '{}'::JSONB)));
+SELECT pg_temp.a320_agent(format('SELECT platform_ai_agent.autosend_summary_context_v1(%L, ''a320-worker'', 120)', pg_temp.a320_id(5101))) AS a320_sum_no \gset
+SELECT pg_temp.a320_put(2, 'granted', '2026-10-25');
+UPDATE platform_private.ai_autosend_summaries SET lease_owner = NULL, lease_expires_at = NULL WHERE id = pg_temp.a320_id(5101);
+SELECT pg_temp.a320_agent(format('SELECT platform_ai_agent.autosend_summary_context_v1(%L, ''a320-worker'', 120)', pg_temp.a320_id(5101))) AS a320_sum_yes \gset
+SELECT pg_temp.a320_assert(
+  (:'a320_sum_no'::JSONB) ->> 'status' = 'claimed' AND jsonb_array_length((:'a320_sum_no'::JSONB) -> 'chats') = 1
+  AND (:'a320_sum_no'::JSONB) #>> '{chats,0,conversationId}' = :'a320_c2'
+  AND (:'a320_sum_no'::JSONB)::TEXT NOT LIKE '%Сколько стоит обучение%' AND (:'a320_sum_no'::JSONB)::TEXT NOT LIKE '%хочу учиться в Китае%'
+  AND jsonb_array_length((:'a320_sum_yes'::JSONB) -> 'chats') = 2
+  AND (:'a320_sum_yes'::JSONB)::TEXT LIKE '%Сколько стоит обучение%',
+  'P4: the night summary takes the chat with no student and leaves out the declined student''s chat; after a grant it takes both: '
+  || :'a320_sum_no');
+SELECT pg_temp.a320_assert(
+  platform_private.ai_autosend_reason_ru('ai_consent_missing') = 'Студент не дал согласия на ИИ-помощников'
+  AND platform_private.ai_autosend_reason_ru('no_consent') = 'Нет согласия на передачу текстов в Gemini'
+  AND platform_private.ai_autosend_reason_ru('paused') = 'Автоответчик на паузе',
+  'P4: the reason has its Russian words and the older ones are unchanged');
+
+
+-- 8d. Document recognition (queue 162/163): the file of the case goes to Google only for a student who allowed. The real
+--     chain: configuration, profile, a source with the scan proof of the real ingress RPCs, enqueue, claim, source grant.
+INSERT INTO platform_private.document_recognition_configs(organization_id, config, registry_version, prompt_policy_version, enabled)
+VALUES (pg_temp.a320_id(1),
+  '{"enabled":true,"projectId":"a320-project","model":"gemini-3.1-flash","configVersion":"a320-v1",
+    "pricingPolicyVersion":"a320-price-v1","paidProjectId":"a320-project","paidEligibilityReference":"a320-no-billing-proof",
+    "perJobBudgetMicros":10000,"dailyOrgBudgetMicros":100000,"inputTokenCeiling":10000,"outputTokenCeiling":6000,
+    "inputMicrosPerMillionTokens":100000,"outputMicrosPerMillionTokens":200000}'::JSONB,
+  'evo-profile-61-v1', 'a320-prompt-v1', TRUE);
+SELECT pg_temp.a320_as(1, format('SELECT platform.start_student_profile(%L, %L, 0, ''A320 partial profile'', %L)',
+  pg_temp.a320_id(1), pg_temp.a320_id(701), pg_temp.a320_id(5201))) AS a320_prof \gset
+SELECT pg_temp.a320_assert(NOT ((:'a320_prof'::JSONB) ? 'error'), 'the staff starts the profile of case 701: ' || :'a320_prof');
+INSERT INTO platform.document_slots(id, organization_id, student_case_id, requirement_id, intent_kind, display_label, group_label, created_by_membership_id)
+VALUES (pg_temp.a320_id(812), pg_temp.a320_id(1), pg_temp.a320_id(701), NULL, 'custom', 'A320 recognition source', 'A320 documents', pg_temp.a320_id(301));
+SELECT pg_temp.a320_svc(format('SELECT platform.reserve_document_upload_after_ingress_scan(%L, %L, %L, ''a320.pdf'', ''application/pdf'', 128, %L, ''clean'', ''ClamAV'', ''1.5.3'', ''27889'', ''clamd-zinstream-v1'', statement_timestamp(), %L)',
+  pg_temp.a320_id(1), pg_temp.a320_id(101), pg_temp.a320_id(812), repeat('b', 64), pg_temp.a320_id(5202))) AS a320_up \gset
+SELECT pg_temp.a320_assert(NOT ((:'a320_up'::JSONB) ? 'error'), 'the ingress reserves the upload: ' || :'a320_up');
+INSERT INTO storage.buckets(id, name, public) VALUES ('platform-documents', 'platform-documents', FALSE) ON CONFLICT (id) DO NOTHING;
+INSERT INTO storage.objects(bucket_id, name, metadata, created_at)
+VALUES ((:'a320_up'::JSONB) ->> 'bucket_id', (:'a320_up'::JSONB) ->> 'object_name', '{"size":128,"mimetype":"application/pdf"}', statement_timestamp());
+SELECT pg_temp.a320_svc(format('SELECT platform.finalize_document_upload_with_scan(%L, %L, ''ClamAV'', ''1.5.3'', ''27889'', ''clamd-zinstream-v1'', %L, statement_timestamp(), %L)',
+  pg_temp.a320_id(1), (:'a320_up'::JSONB) ->> 'upload_reservation_id', repeat('b', 64), pg_temp.a320_id(5203))) AS a320_fin \gset
+SELECT pg_temp.a320_assert(NOT ((:'a320_fin'::JSONB) ? 'error'), 'the ingress finalizes the upload with its scan proof: ' || :'a320_fin');
+SELECT (:'a320_up'::JSONB) ->> 'document_version_id' AS a320_ver \gset
+CREATE FUNCTION pg_temp.a320_enqueue(p_request INTEGER, p_retry UUID DEFAULT NULL) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a320_as(1, format('SELECT platform.enqueue_document_recognition(%L, %L, %L, 1, %L, %L)',
+    pg_temp.a320_id(1), pg_temp.a320_id(701), current_setting('a320.ver'), pg_temp.a320_id(p_request), p_retry))
+$$;
+SELECT set_config('a320.ver', :'a320_ver', TRUE);
+CREATE FUNCTION pg_temp.a320_jobs() RETURNS BIGINT LANGUAGE SQL AS $$
+  SELECT count(*) FROM platform_private.document_recognition_jobs WHERE organization_id = pg_temp.a320_id(1)
+$$;
+
+-- A student who has not allowed: nothing is queued.
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+SELECT pg_temp.a320_enqueue(5301) AS a320_enq_no \gset
+SELECT pg_temp.a320_put(2, NULL, NULL);
+SELECT pg_temp.a320_enqueue(5302) AS a320_enq_none \gset
+SELECT pg_temp.a320_assert(pg_temp.a320_err(:'a320_enq_no'::JSONB) = '42501' AND pg_temp.a320_msg(:'a320_enq_no'::JSONB) = 'ai_consent_missing'
+  AND pg_temp.a320_err(:'a320_enq_none'::JSONB) = '42501' AND pg_temp.a320_msg(:'a320_enq_none'::JSONB) = 'ai_consent_missing'
+  AND pg_temp.a320_jobs() = 0,
+  'recognition: a declined student and a student never asked (with a portal account) cannot have the document enqueued; no job: '
+  || :'a320_enq_no' || :'a320_enq_none');
+-- Allowed: queued as before.
+SELECT pg_temp.a320_put(2, 'granted', '2026-10-25');
+SELECT pg_temp.a320_enqueue(5303) AS a320_enq_yes \gset
+SELECT pg_temp.a320_assert((:'a320_enq_yes'::JSONB) ->> 'state' = 'queued' AND (:'a320_enq_yes'::JSONB) ->> 'replayed' = 'false' AND pg_temp.a320_jobs() = 1,
+  'recognition: a student who allowed has the document queued as before: ' || :'a320_enq_yes');
+-- The student declines while the job waits: the claim fails the job (access_revoked), releases the reservation, starts nothing.
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+SELECT pg_temp.a320_svc('SELECT platform.claim_document_recognition(''a320-worker'')') AS a320_claim_no \gset
+SELECT pg_temp.a320_assert((:'a320_claim_no'::JSONB) = 'null'::JSONB
+  AND (SELECT j.state = 'failed' AND j.failure_code = 'access_revoked' AND j.reservation_released_at IS NOT NULL AND j.upload_started_at IS NULL
+      FROM platform_private.document_recognition_jobs j WHERE j.id = ((:'a320_enq_yes'::JSONB) ->> 'job_id')::UUID)
+  AND NOT EXISTS (SELECT 1 FROM platform_private.document_recognition_attempts)
+  AND NOT EXISTS (SELECT 1 FROM platform_private.document_recognition_provider_files),
+  'recognition: the claim of a job whose student declined meanwhile fails it as access_revoked, frees the budget and starts no attempt, no upload: '
+  || :'a320_claim_no');
+-- Allowed again: a retry is queued, claimed, and the worker is granted the exact file; then the student declines mid-flight.
+SELECT pg_temp.a320_put(2, 'granted', '2026-10-25');
+SELECT pg_temp.a320_enqueue(5304, ((:'a320_enq_yes'::JSONB) ->> 'job_id')::UUID) AS a320_enq_retry \gset
+SELECT pg_temp.a320_svc('SELECT platform.claim_document_recognition(''a320-worker'')') AS a320_claim_yes \gset
+SELECT pg_temp.a320_assert((:'a320_enq_retry'::JSONB) ->> 'state' = 'queued' AND (:'a320_claim_yes'::JSONB) ->> 'state' = 'preflight'
+  AND (:'a320_claim_yes'::JSONB) ->> 'attempt_id' IS NOT NULL,
+  'recognition: after a new grant the retry is queued and claimed: ' || :'a320_enq_retry' || :'a320_claim_yes');
+SELECT pg_temp.a320_svc(format('SELECT platform.grant_document_recognition_source(%L, %L)', (:'a320_claim_yes'::JSONB) ->> 'attempt_id',
+  (:'a320_claim_yes'::JSONB) ->> 'claim_token')) AS a320_grant_yes \gset
+SELECT pg_temp.a320_assert((:'a320_grant_yes'::JSONB) ->> 'bucket_id' = 'platform-documents' AND (:'a320_grant_yes'::JSONB) ->> 'object_name' IS NOT NULL
+  AND (SELECT count(*) = 1 FROM platform.document_access_events WHERE access_purpose = 'document_recognition'),
+  'recognition: the worker is granted the exact file of an allowed student (one access event): ' || :'a320_grant_yes');
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+SELECT pg_temp.a320_svc(format('SELECT platform.grant_document_recognition_source(%L, %L)', (:'a320_claim_yes'::JSONB) ->> 'attempt_id',
+  (:'a320_claim_yes'::JSONB) ->> 'claim_token')) AS a320_grant_no \gset
+SELECT pg_temp.a320_svc(format('SELECT platform.renew_document_recognition_lease(%L, %L)', (:'a320_claim_yes'::JSONB) ->> 'attempt_id',
+  (:'a320_claim_yes'::JSONB) ->> 'claim_token')) AS a320_renew_no \gset
+SELECT pg_temp.a320_svc(format('SELECT platform.begin_document_recognition_upload(%L, %L)', (:'a320_claim_yes'::JSONB) ->> 'attempt_id',
+  (:'a320_claim_yes'::JSONB) ->> 'claim_token')) AS a320_upload_no \gset
+SELECT pg_temp.a320_assert(
+  pg_temp.a320_msg(:'a320_grant_no'::JSONB) = 'ai_consent_missing' AND pg_temp.a320_err(:'a320_grant_no'::JSONB) = '42501'
+  AND pg_temp.a320_msg(:'a320_renew_no'::JSONB) = 'ai_consent_missing' AND pg_temp.a320_msg(:'a320_upload_no'::JSONB) = 'ai_consent_missing'
+  AND (SELECT count(*) = 1 FROM platform.document_access_events WHERE access_purpose = 'document_recognition')
+  AND (SELECT upload_started_at IS NULL FROM platform_private.document_recognition_jobs WHERE id = ((:'a320_claim_yes'::JSONB) ->> 'job_id')::UUID)
+  AND NOT EXISTS (SELECT 1 FROM platform_private.document_recognition_provider_files),
+  'recognition: after a decline the same attempt gets no new grant, no lease renewal and no upload (ai_consent_missing); nothing goes to the provider: '
+  || :'a320_grant_no' || :'a320_renew_no' || :'a320_upload_no');
+-- Every stage of the queue goes through the one check; a case without a portal account passes it.
+SELECT pg_temp.a320_assert(
+  (SELECT count(*) = 8 FROM pg_proc p WHERE p.pronamespace = 'platform'::REGNAMESPACE
+    AND p.proname IN ('enqueue_document_recognition', 'claim_document_recognition', 'renew_document_recognition_lease',
+      'grant_document_recognition_source', 'seal_document_recognition_preflight', 'begin_document_recognition_upload',
+      'begin_document_recognition_generation', 'publish_document_recognition_proposals')
+    AND strpos(p.prosrc, 'document_recognition_require_actor(') > 0),
+  'recognition: the eight stages that touch the source or publish call the one check');
+CREATE FUNCTION pg_temp.a320_try(p_sql TEXT) RETURNS TEXT LANGUAGE plpgsql AS $$
+BEGIN
+  EXECUTE p_sql;
+  RETURN 'ok';
+EXCEPTION WHEN OTHERS THEN
+  RETURN SQLSTATE || ':' || SQLERRM;
+END
+$$;
+CREATE FUNCTION pg_temp.a320_require(p_case INTEGER) RETURNS TEXT LANGUAGE SQL AS $$
+  SELECT pg_temp.a320_try(format('SELECT platform_private.document_recognition_require_actor(%L, %L, %L, %L)',
+    pg_temp.a320_id(1), pg_temp.a320_id(p_case), pg_temp.a320_id(101), pg_temp.a320_id(301)))
+$$;
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+SELECT pg_temp.a320_assert(pg_temp.a320_require(702) = 'ok' AND pg_temp.a320_require(701) = '42501:ai_consent_missing',
+  'recognition: the check passes for a case whose student has no portal account and refuses the declined one');
+SELECT pg_temp.a320_put(2, 'granted', '2026-10-25');
+SELECT pg_temp.a320_assert(pg_temp.a320_require(701) = 'ok', 'recognition: and passes once that student allows');
+-- A staff member without the rights learns nothing of the consent: the older refusal comes first.
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+SELECT pg_temp.a320_assert(pg_temp.a320_try(format('SELECT platform_private.document_recognition_require_actor(%L, %L, %L, %L)',
+  pg_temp.a320_id(1), pg_temp.a320_id(701), pg_temp.a320_id(102), pg_temp.a320_id(302))) = '42501:unavailable',
+  'recognition: the order of the check is kept - a caller without the staff rights gets the old "unavailable", not the consent state');
+
+
+-- 8e. The legacy Gemini proposals (U9, 066): the staff request and the service's context both refuse a declined student.
+CREATE FUNCTION pg_temp.a320_u9_request(p_conv UUID, p_msg UUID, p_req INTEGER) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a320_as(1, format('SELECT to_jsonb(r) FROM platform.request_gemini_proposal(%L, %L, %L, %L, ''gemini-3.7-flash'', 2, ''u9-gemini-human-review-v1'', ''A320 check'') r',
+    pg_temp.a320_id(1), p_conv, p_msg, pg_temp.a320_id(p_req)))
+$$;
+CREATE FUNCTION pg_temp.a320_u9_begin(p_conv UUID, p_msg UUID, p_req INTEGER) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a320_svc(format('SELECT to_jsonb(b) FROM platform.begin_gemini_proposal(%L, %L, %L, %L, ''gemini-3.7-flash'', 2, ''u9-gemini-human-review-v1'') b',
+    pg_temp.a320_id(1), p_conv, p_msg, pg_temp.a320_id(p_req)))
+$$;
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+SELECT pg_temp.a320_u9_request(:'a320_c1'::UUID, :'a320_m2'::UUID, 5401) AS a320_u9_no \gset
+SELECT pg_temp.a320_assert(pg_temp.a320_err(:'a320_u9_no'::JSONB) = '42501' AND pg_temp.a320_msg(:'a320_u9_no'::JSONB) = 'ai_consent_missing'
+  AND NOT EXISTS (SELECT 1 FROM platform_private.gemini_proposal_request_receipts),
+  'U9: the staff request for a declined student''s chat is refused (ai_consent_missing) and leaves no receipt: ' || :'a320_u9_no');
+SELECT pg_temp.a320_put(2, 'granted', '2026-10-25');
+SELECT pg_temp.a320_u9_request(:'a320_c1'::UUID, :'a320_m2'::UUID, 5402) AS a320_u9_yes \gset
+SELECT pg_temp.a320_assert(NOT ((:'a320_u9_yes'::JSONB) ? 'error') AND (SELECT count(*) = 1 FROM platform_private.gemini_proposal_request_receipts),
+  'U9: a student who allowed - the request is taken as before: ' || :'a320_u9_yes');
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+SELECT pg_temp.a320_u9_begin(:'a320_c1'::UUID, :'a320_m2'::UUID, 5402) AS a320_u9_begin_no \gset
+SELECT pg_temp.a320_assert(pg_temp.a320_err(:'a320_u9_begin_no'::JSONB) = '42501' AND pg_temp.a320_msg(:'a320_u9_begin_no'::JSONB) = 'ai_consent_missing'
+  AND NOT EXISTS (SELECT 1 FROM platform_private.gemini_proposal_requests),
+  'U9: the service gets no message text for a student who declined after the request, and no request is stored: ' || :'a320_u9_begin_no');
+SELECT pg_temp.a320_put(2, 'granted', '2026-10-25');
+SELECT pg_temp.a320_u9_begin(:'a320_c1'::UUID, :'a320_m2'::UUID, 5402) AS a320_u9_begin_yes \gset
+SELECT pg_temp.a320_assert(NOT ((:'a320_u9_begin_yes'::JSONB) ? 'error') AND (:'a320_u9_begin_yes'::JSONB) #>> '{context,source_message,body_text}' = 'Сколько стоит обучение?',
+  'U9: for a student who allowed the service gets the context as before: ' || :'a320_u9_begin_yes');
+SELECT pg_temp.a320_put(2, 'declined', '2026-10-25');
+SELECT pg_temp.a320_u9_begin(:'a320_c1'::UUID, :'a320_m2'::UUID, 5402) AS a320_u9_replay_no \gset
+SELECT pg_temp.a320_assert(pg_temp.a320_msg(:'a320_u9_replay_no'::JSONB) = 'ai_consent_missing',
+  'U9: the stored context is not replayed to the service after a decline either: ' || :'a320_u9_replay_no');
+
 \echo A320_STUDENT_AI_CONSENT_SUITE_PASSED
 ROLLBACK;

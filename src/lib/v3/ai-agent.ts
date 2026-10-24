@@ -9,6 +9,7 @@
  * ответ устарел). Поток SSE агента — только живой предпросмотр: вставляется
  * всегда проверенный сохранённый текст.
  */
+import { AI_CONSENT_MISSING_CHAT_LINE, AI_CONSENT_MISSING_CODE } from "../ai-agents/consent.ts";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "../platform-organization-time.ts";
 import { AI_AUTOSEND_JOURNAL_FILTERS, type AiAutosendJournalFilter } from "./ai-agent-autosend.ts";
 
@@ -69,6 +70,12 @@ export type AiAnswerView = Readonly<{
   latestInboundMessageId: string | null;
   lastMessageDirection: "inbound" | "outbound" | null;
   consentRecorded: boolean;
+  /**
+   * Студент чата разрешил ИИ-помощников или в чате нет студента с кабинетом (миграция 320, `ai_agent_conversation_ai_allowed`).
+   * Ложь - окно не просит билет и говорит причину; сохранённый ответ в таком случае база не отдаёт. Нет ключа (база без
+   * 320) - истина: окно ведёт себя как раньше, а запрет всё равно держит билет.
+   */
+  studentAiAllowed: boolean;
 }>;
 
 type Json = Record<string, unknown>;
@@ -165,6 +172,7 @@ export function normalizeAiAnswerView(value: unknown): AiAnswerView {
     latestInboundMessageId: uuidOrNull(value.latestInboundMessageId),
     lastMessageDirection: direction,
     consentRecorded: value.consentRecorded,
+    studentAiAllowed: value.studentAiAllowed !== false,
   });
 }
 
@@ -254,6 +262,8 @@ export const AI_ERROR_COPY: Readonly<Record<string, string>> = Object.freeze({
   gemini_quota_day: "Дневной лимит запросов к модели исчерпан.",
   stale_answer: "Переписка изменилась. Обновите ответ перед использованием.",
   forbidden: "Помощник недоступен в этом чате.",
+  // Миграция 320: студент чата не разрешил ИИ-помощников. Тот же текст в окне и в блоке «Что ИИ знает о клиенте».
+  [AI_CONSENT_MISSING_CODE]: AI_CONSENT_MISSING_CHAT_LINE,
   preview: "В просмотре роли помощник не вызывается.",
   invalid_request: "Не удалось подготовить ответ. Обновите страницу.",
   unavailable: "Не удалось подготовить ответ. Повторите.",
@@ -268,7 +278,7 @@ export function aiErrorCopy(code: string, agentMessage: string | null = null): s
  * а не ошибку с «Повторить». `model_unpriced` (агент, HTTP 402) — не
  * `budget_exhausted`: у модели из настроек нет цены на сегодня, поднять лимит не поможет.
  */
-export const AI_BLOCKED_CODES = Object.freeze(["ai_agent_off", "consent_required", "forbidden", "preview", "model_unpriced"] as const);
+export const AI_BLOCKED_CODES = Object.freeze(["ai_agent_off", "consent_required", AI_CONSENT_MISSING_CODE, "forbidden", "preview", "model_unpriced"] as const);
 export type AiBlockedCode = (typeof AI_BLOCKED_CODES)[number];
 export function aiErrorBlocked(code: string): code is AiBlockedCode {
   return (AI_BLOCKED_CODES as readonly string[]).includes(code);
@@ -289,6 +299,8 @@ export function aiErrorRetryable(code: string): boolean {
 export const AI_WINDOW_UNAVAILABLE: Readonly<Record<string, string>> = Object.freeze({
   ai_agent_off: "ИИ-агент не подключён к CRM.",
   consent_required: "ИИ-агент выключен в CRM.",
+  // Миграция 320: причина названа прямо - студент не разрешил, а не «ошибка» и не «выключено».
+  [AI_CONSENT_MISSING_CODE]: AI_CONSENT_MISSING_CHAT_LINE,
   forbidden: "Помощник недоступен в этом чате.",
   preview: "В просмотре роли помощник не вызывается.",
   model_unpriced: "У выбранной модели нет цены.",

@@ -762,10 +762,14 @@ SQL
 
   # «Согласие студента на ИИ-помощников» (миграция 320, PLAN_CHANGES 25.10.2026). Matched by name, not
   # number. IMMEDIATELY BEFORE the ordinary apply the migration must refuse with a320_anchor_drift, inside
-  # a transaction that the failure rolls back, for each of the six functions it replaces (the account
+  # a transaction that the failure rolls back, for each of the nineteen functions it replaces (the account
   # deletion closure of 280, the file resolver and the chat list of 317, the file, the WhatsApp chat and
-  # the case chat of 319) when that function is edited after its own migration (the md5 pre-image
-  # anchors). A second apply of the finished migration must refuse with a320_already_applied (below).
+  # the case chat of 319, and the thirteen Gemini / document recognition functions it patches by fragment:
+  # the P1 ticket and its check, the saved-answer read, the P3 poll, claim, put and block, the P4 check,
+  # reason words and night summary, the recognition actor check, the two U9 proposal functions) when that
+  # function is edited after its own migration (the md5 pre-image anchors). The edit is a comment placed
+  # right after the body's opening delimiter, so it works for SQL and PL/pgSQL functions alike. A second
+  # apply of the finished migration must refuse with a320_already_applied (below).
   if [[ "$(basename "$migration")" == *_platform_student_ai_consent.sql ]]; then
     for t320_pinned in \
       'platform_private.account_deletion_closure(uuid,uuid)' \
@@ -773,7 +777,20 @@ SQL
       'platform.ai_agent_tool_list_conversations_v1(uuid,text,jsonb)' \
       'platform.ai_agent_tool_get_document_file_v1(uuid,text,jsonb)' \
       'platform.ai_agent_tool_get_conversation_v1(uuid,text,jsonb)' \
-      'platform.ai_agent_tool_get_case_chat_v1(uuid,text,jsonb)'; do
+      'platform.ai_agent_tool_get_case_chat_v1(uuid,text,jsonb)' \
+      'platform.ai_agent_ticket_v1(uuid,text,uuid,uuid)' \
+      'platform_private.ai_ticket_allowed(platform_private.ai_tickets)' \
+      'platform.ai_agent_answer_current_v1(uuid,uuid,text)' \
+      'platform_private.ai_memory_poke(uuid,boolean,integer)' \
+      'platform_ai_agent.memory_context_v1(uuid,text,integer)' \
+      'platform_ai_agent.memory_put_v1(uuid,text,bigint,text,text,uuid,integer,uuid,text)' \
+      'platform.ai_agent_memory_v1(uuid,uuid)' \
+      'platform_private.ai_autosend_check(platform_private.ai_autosend_log,text,text,bigint[])' \
+      'platform_private.ai_autosend_reason_ru(text)' \
+      'platform_ai_agent.autosend_summary_context_v1(uuid,text,integer)' \
+      'platform_private.document_recognition_require_actor(uuid,uuid,uuid,uuid)' \
+      'platform.begin_gemini_proposal(uuid,uuid,uuid,uuid,text,integer,text)' \
+      'platform.request_gemini_proposal(uuid,uuid,uuid,uuid,text,integer,text,text)'; do
       t320_tamper_log="$(mktemp -t evo-t320-anchor.XXXXXX)"
       if docker exec -i "$container_name" \
         psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
@@ -783,8 +800,8 @@ SQL
 BEGIN;
 SELECT replace(
   pg_get_functiondef(:'pinned_function'::regprocedure),
-  'BEGIN',
-  'BEGIN /* tampered after its own migration */'
+  '$function$',
+  '$function$ /* tampered after its own migration */'
 ) AS tampered_definition \gset
 :tampered_definition ;
 \i :migration_file
@@ -4576,7 +4593,11 @@ SQL
   # list withholds the preview; case metadata, client card and lead stay readable; an issued file link stops
   # working after a decline); the staff read; the account deletion (the account stays simple, the
   # automatic processing erases the row and its journal events, the Auth user delete cascades the row);
-  # the journal allowlist and the ai.% field codes.
+  # the journal allowlist and the ai.% field codes; and the Gemini / document recognition paths (section 8):
+  # no P1 ticket and no redeemed read after a decline, the P3 memory not queued, read or stored, the P4
+  # night autoresponder skipped on every stage and left out of the night summary, no recognition enqueue,
+  # claim, source grant or upload, the legacy U9 proposals refused - with a chat that has no student and a
+  # student without a portal account unchanged in each.
   if [[ "$(basename "$migration")" == *_platform_student_ai_consent.sql ]]; then
     t320_again_log="$(mktemp -t evo-t320-again.XXXXXX)"
     if docker exec "$container_name" \

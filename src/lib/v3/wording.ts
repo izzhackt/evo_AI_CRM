@@ -1197,6 +1197,7 @@ export function documentRecognitionError(value: string): string | null {
     equivalent_job_active: "Для этой версии уже есть задание. Проверьте историю.",
     document_not_eligible: "Документ не подходит для распознавания.", profile_not_started: "Сначала начните анкету.",
     budget_exhausted: "Бюджет обработки исчерпан.", provider_not_configured: "Обработка документов ещё не настроена.",
+    ai_consent_missing: "Студент не дал согласия на ИИ-помощников — документ не передаётся на распознавание.",
     access_revoked: "Доступ изменился.", source_changed: "Исходная версия изменилась.", source_unavailable: "Исходный файл недоступен.",
     provider_rejected: "Провайдер отклонил обработку.", provider_unavailable: "Провайдер недоступен.",
     invalid_result: "Результат не прошёл проверку.", upload_unknown: "Исход передачи неизвестен.",

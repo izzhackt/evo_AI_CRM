@@ -61,6 +61,8 @@ export default async function StudentPortalHomePage() {
   // а студенту с другой страной лишнего чтения нет.
   // Согласие на ИИ-помощников (25.10.2026) читается в той же волне: отдельного
   // круга ожидания нет, а сбой чтения прячет карточку, не роняя «Главную».
+  // Только у клиента с делом на сопровождении (tier assisted, он уже известен
+  // из actor): самостоятельному студенту вопроса нет, и RPC не вызывается.
   const [overviewResult, modules, assessments, favoritesResult, recentUniversities, choiceRead, aiConsentRead] = await Promise.all([
     tier === "assisted"
       ? readStudentPortalOverview()
@@ -83,7 +85,7 @@ export default async function StudentPortalHomePage() {
       choice,
       cscaHome: cscaHomeCardVisible(choice) ? await readCscaHome().catch((): null => null) : null,
     })),
-    readOwnAiConsent(),
+    readOwnAiConsent(tier),
   ]);
   const { choice, cscaHome } = choiceRead;
   const now = new Date();

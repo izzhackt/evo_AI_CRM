@@ -787,6 +787,8 @@ const surfaces = [
           // Не передавался с #929: HomeView падал на recentUniversities.length.
           recentUniversities: [],
           journey: timelineChoose,
+          // Самостоятельному студенту карточку согласия вид не показывает, даже
+          // если её передали (tests/portal-ai-consent.test.mjs это проверяет).
           aiConsent: createElement(AiConsentHomeCard, {
             initialConsent: aiConsentAsked,
             strings: aiConsentStrings,

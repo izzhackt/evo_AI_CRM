@@ -1,5 +1,6 @@
 import { AiConsentHomeCard } from "@/components/portal/consent/AiConsent";
 import type { Locale } from "@/lib/i18n-data";
+import type { AiConsentAccessTier } from "@/lib/portal/ai-consent";
 import { readOwnAiConsent } from "@/lib/portal/ai-consent-source";
 import { getPortalStrings } from "@/lib/portal/i18n";
 
@@ -10,10 +11,14 @@ import { getPortalStrings } from "@/lib/portal/i18n";
  * серверный компонент-сосед: его чтение идёт одновременно с чтениями экрана,
  * а сбой RPC прячет карточку и не трогает остальной экран. Пока решения нет,
  * внутри лежит та же `AiConsentHomeCard`, что на «Главной»; когда карточки
- * нет, слот пуст и не занимает места (`.pt-consent-slot:empty`).
+ * нет, слот пуст и не занимает места (`.pt-consent-slot:empty`). Самостоятельному
+ * студенту (не `assisted`) слот всегда пуст, а база не читается.
  */
-export async function AiConsentSlot({ locale }: Readonly<{ locale: Locale }>) {
-  const read = await readOwnAiConsent();
+export async function AiConsentSlot({ locale, accessTier }: Readonly<{
+  locale: Locale;
+  accessTier: AiConsentAccessTier;
+}>) {
+  const read = await readOwnAiConsent(accessTier);
   return (
     <div className="pt-consent-slot">
       {read.status === "ready" ? (

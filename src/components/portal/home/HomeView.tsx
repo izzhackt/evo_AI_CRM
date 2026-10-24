@@ -4,6 +4,7 @@ import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 
 import type { Locale } from "@/lib/i18n-data";
 import type { PublishedUniversity } from "@/lib/platform-university-catalog";
+import { aiConsentApplies } from "@/lib/portal/ai-consent";
 import {
   formatPortalString,
   getPortalStrings,
@@ -35,7 +36,8 @@ import { formatPortalMoney, studentActionDueLabel } from "../admission/presentat
  * действий дела, у самостоятельного студента первым. Карточка CSCA (`csca`,
  * только при выбранном Китае) открывает «Продолжить» (план v2 §9.1). Карточка согласия на ИИ-помощников
  * (`aiConsent`, 25.10.2026) стоит самой первой, пока для текущей версии текста нет решения, и не блокирует
- * ничего ниже. Серверные read model приходят пропсами,
+ * ничего ниже; она только у клиента с делом на сопровождении (tier assisted), самостоятельному
+ * студенту вид её не показывает, даже если её передали. Серверные read model приходят пропсами,
  * каждый источник несёт свой честный сбой (null) и честную пустоту.
  * Новое в каталоге использует firstPublishedAt из неизменяемой истории
  * публикаций (207); reviewed_at текущей версии не является признаком новизны.
@@ -125,7 +127,7 @@ export function HomeView({
   journey?: ReactNode;
   /** Карточка CSCA (CscaHomeCard) для студента, выбравшего Китай; иначе null. */
   csca?: ReactNode;
-  /** Согласие на ИИ-помощников (AiConsentHomeCard): первым блоком, пока для текущей версии нет решения; иначе null. */
+  /** Согласие на ИИ-помощников (AiConsentHomeCard): первым блоком клиента с делом на сопровождении, пока для текущей версии нет решения; самостоятельному студенту не показывается, даже если передан. */
   aiConsent?: ReactNode;
   locale: Locale;
   now: Date;
@@ -155,7 +157,7 @@ export function HomeView({
 
   return (
     <div className="pt-home">
-      {aiConsent}
+      {aiConsentApplies(tier) ? aiConsent : null}
       {tier === "assisted" ? null : journey}
       {tier === "assisted" ? (
         <section aria-labelledby="home-case" className="pt-card pt-home-case">

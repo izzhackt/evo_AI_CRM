@@ -86,7 +86,7 @@ export const dynamic = "force-dynamic";
  * аккаунта (280): запрос, срок 30 дней и его статус с сервера.
  */
 export default async function ProfilePage() {
-  const [, locale] = await Promise.all([
+  const [actor, locale] = await Promise.all([
     requireStudentPortalActor(),
     getLocale(),
   ]);
@@ -100,12 +100,14 @@ export default async function ProfilePage() {
   // отдельно от профиля; сбой чтения — честная строка, не пустая история.
   // Удаление аккаунта (280): статус своего запроса читается отдельно от
   // профиля 196, который не знает «в обработке». Согласие на ИИ-помощников
-  // (320, 25.10.2026) — тоже отдельное чтение со своей честной строкой сбоя.
+  // (320, 25.10.2026) — тоже отдельное чтение со своей честной строкой сбоя,
+  // и только у клиента с делом на сопровождении: самостоятельному студенту
+  // (accessTier approved) строки нет, а база не читается.
   const [profile, deletion, consultationHistory, aiConsent] = await Promise.all([
     readOwnPortalProfile().catch((): PortalProfile | null => null),
     readOwnAccountDeletion(),
     readOwnConsultationRequests().catch((): readonly ConsultationReceipt[] | null => null),
-    readOwnAiConsent(),
+    readOwnAiConsent(actor.accessTier),
   ]);
 
   return (
@@ -175,16 +177,18 @@ export default async function ProfilePage() {
             />
           </section>
 
-          <section aria-labelledby="portal-profile-ai-consent" className="pt-profile-card">
-            <h2 id="portal-profile-ai-consent" className="pt-section-title">
-              {aiConsentStrings.rowHeading}
-            </h2>
-            {aiConsent.status === "ready" ? (
-              <AiConsentSettingsRow initialConsent={aiConsent.consent} strings={aiConsentStrings} />
-            ) : (
-              <p role="alert" className="pt-account-deletion-error">{aiConsentStrings.unavailable}</p>
-            )}
-          </section>
+          {aiConsent.status === "not_applicable" ? null : (
+            <section aria-labelledby="portal-profile-ai-consent" className="pt-profile-card">
+              <h2 id="portal-profile-ai-consent" className="pt-section-title">
+                {aiConsentStrings.rowHeading}
+              </h2>
+              {aiConsent.status === "ready" ? (
+                <AiConsentSettingsRow initialConsent={aiConsent.consent} strings={aiConsentStrings} />
+              ) : (
+                <p role="alert" className="pt-account-deletion-error">{aiConsentStrings.unavailable}</p>
+              )}
+            </section>
+          )}
 
           <section aria-labelledby="portal-profile-session" className="pt-profile-card">
             <h2 id="portal-profile-session" className="pt-section-title">

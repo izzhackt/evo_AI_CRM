@@ -3,11 +3,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   AI_CONSENT_POLICY_VERSION,
   AI_CONSENT_SOURCE,
+  aiConsentApplies,
   isAiConsentRequestId,
   isAiConsentStatus,
   parseAiConsent,
   type AiConsent,
   type AiConsentActionResult,
+  type AiConsentRead,
 } from "./ai-consent.ts";
 
 /**
@@ -48,4 +50,41 @@ export async function writeAiConsentWith(
     return { ok: false };
   }
   return { ok: true, consent };
+}
+
+/**
+ * Чтение своего согласия с учётом уровня доступа: самостоятельному студенту
+ * (не `assisted`) вопрос не задаётся, клиент базы даже не открывается и RPC не
+ * вызывается. Сбой открытия клиента, RPC или чужая форма ответа — `unavailable`.
+ */
+export async function readAiConsentForTier(
+  accessTier: unknown,
+  openClient: () => Promise<SupabaseClient>,
+): Promise<AiConsentRead> {
+  if (!aiConsentApplies(accessTier)) return { status: "not_applicable" };
+  try {
+    const consent = await readAiConsentWith(await openClient());
+    return consent === null ? { status: "unavailable" } : { status: "ready", consent };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
+/**
+ * Запись выбора с тем же условием: у самостоятельного студента решения нет и
+ * записать его нельзя, даже прямым вызовом действия в обход экрана (база не
+ * трогается). Сбой записи — отказ без выдуманного успеха.
+ */
+export async function writeAiConsentForTier(
+  accessTier: unknown,
+  openClient: () => Promise<SupabaseClient>,
+  status: unknown,
+  requestId: unknown,
+): Promise<AiConsentActionResult> {
+  if (!aiConsentApplies(accessTier)) return { ok: false };
+  try {
+    return await writeAiConsentWith(await openClient(), status, requestId);
+  } catch {
+    return { ok: false };
+  }
 }

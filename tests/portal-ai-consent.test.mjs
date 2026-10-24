@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
@@ -6,6 +7,7 @@ import {
   AI_CONSENT_POLICY_VERSION,
   AI_CONSENT_PRIVACY_URL,
   AI_CONSENT_SOURCE,
+  aiConsentApplies,
   aiConsentDate,
   aiConsentOutdated,
   aiConsentState,
@@ -13,13 +15,21 @@ import {
   isAiConsentStatus,
   parseAiConsent,
 } from "../src/lib/portal/ai-consent.ts";
-import { readAiConsentWith, writeAiConsentWith } from "../src/lib/portal/ai-consent-rpc.ts";
+import {
+  readAiConsentForTier,
+  readAiConsentWith,
+  writeAiConsentForTier,
+  writeAiConsentWith,
+} from "../src/lib/portal/ai-consent-rpc.ts";
 import { PORTAL_DICTIONARIES } from "../src/lib/portal/i18n.ts";
 
 // Согласие студента на ИИ-помощников (решение владельца 25.10.2026, Apple
 // 5.1.2(i)), веб-поток. Контракт RPC живёт в миграции 320 (поток db): здесь
 // строгий разбор ответа, транспорт с точными аргументами, текст владельца
-// слово в слово и проводка карточки «Главной» и строки «Профиля».
+// слово в слово и проводка карточки «Главной» и строки «Профиля». Вопрос
+// задаётся только клиенту EVO с делом на сопровождении (accessTier assisted):
+// самостоятельный студент не видит ни карточку, ни строку, а база для него не
+// читается и не пишется.
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 /** Исходник без комментариев: проверки «в коде нет …» не цепляют пояснения. */
 const code = (path) => read(path).replace(/\/\*[\s\S]*?\*\//gu, "").replace(/^\s*\/\/.*$/gmu, "");
@@ -228,8 +238,8 @@ test("the Kyrgyz draft covers every key, keeps the names of the processors and i
 test("the action is a server action that checks the student, then writes through the RPC transport only", () => {
   const action = read("src/lib/portal/ai-consent-actions.ts");
   assert.match(action, /^"use server";/u);
-  assert.match(action, /await requireStudentPortalActor\(\);/u);
-  assert.match(action, /writeAiConsentWith\(await createSupabaseServerClient\(\), status, requestId\)/u);
+  assert.match(action, /const actor = await requireStudentPortalActor\(\);/u);
+  assert.match(action, /writeAiConsentForTier\(\s*actor\.accessTier,\s*createSupabaseServerClient,\s*status,\s*requestId,?\s*\)/u);
   assert.match(action, /revalidatePath\("\/portal"\);\s*revalidatePath\("\/portal\/home"\);\s*revalidatePath\("\/portal\/profile"\);/u);
   // Версию и источник выбирает серверный модуль, а не аргументы из браузера.
   assert.match(action, /status: unknown,\s*requestId: unknown,/u);
@@ -240,22 +250,24 @@ test("the action is a server action that checks the student, then writes through
   assert.doesNotMatch(code("src/lib/portal/ai-consent-rpc.ts"), /auth\.uid|getUser|userId|user_id/u, "the RPC derives the student itself");
   const source = read("src/lib/portal/ai-consent-source.ts");
   assert.match(source, /^import "server-only";/u);
-  assert.match(source, /catch \{\s*return \{ status: "unavailable" \};/u);
+  assert.match(source, /readAiConsentForTier\(accessTier, createSupabaseServerClient\)/u);
+  assert.match(rpc, /catch \{\s*return \{ status: "unavailable" \};/u);
 });
 
 test("the home card is read in the same wave and sits first in HomeView, without blocking anything", () => {
   const page = read("src/app/(portal)/portal/home/page.tsx");
   const wave = page.match(/await Promise\.all\(\[\n([\s\S]*?)\n {2}\]\);/u);
   assert.ok(wave, "home reads stay in one Promise.all");
-  assert.match(wave[1], /^\s*readOwnAiConsent\(\),?$/mu);
+  assert.match(wave[1], /^\s*readOwnAiConsent\(tier\),?$/mu, "the tier is already known from the actor: no extra read");
   assert.equal(page.match(/await Promise\.all\(/gu)?.length, 2, "no extra wave");
   assert.match(page, /aiConsent=\{aiConsentRead\.status === "ready" \? \(\s*<AiConsentHomeCard\s+initialConsent=\{aiConsentRead\.consent\}\s+strings=\{getPortalStrings\("aiConsent", locale\)\}/u);
   assert.doesNotMatch(page, /\.rpc\(|\.schema\(/u);
   // Сбой чтения прячет карточку и не трогает остальную «Главную».
   assert.match(page, /\) : null\}\s*locale=\{locale\}/u);
   const view = read("src/components/portal/home/HomeView.tsx");
-  assert.ok(view.indexOf("{aiConsent}") > 0);
-  assert.ok(view.indexOf("{aiConsent}") < view.indexOf('{tier === "assisted" ? null : journey}'), "first block of the home");
+  const card = view.indexOf("{aiConsentApplies(tier) ? aiConsent : null}");
+  assert.ok(card > 0, "the view drops the card for a self-service student even if one is passed");
+  assert.ok(card < view.indexOf('{tier === "assisted" ? null : journey}'), "first block of the home");
   assert.doesNotMatch(read("src/components/portal/consent/AiConsent.tsx"), /role="dialog"|aria-modal|createPortal|<dialog/u, "never a blocking modal");
 });
 
@@ -264,7 +276,7 @@ test("the post-login screen /portal asks too: a sibling slot above the overview,
   assert.match(page, /import \{ AiConsentSlot \} from "@\/components\/portal\/consent\/AiConsentSlot";/u);
   // Слот стоит после шапки и перед обзором, как сосед: его чтение идёт одновременно с остальными.
   const header = page.indexOf("</header>");
-  const slot = page.indexOf("<AiConsentSlot locale={locale} />");
+  const slot = page.indexOf("<AiConsentSlot locale={locale} accessTier={actor.accessTier} />");
   const overview = page.indexOf("<AdmissionOverview actor={actor} locale={locale} />");
   assert.ok(header > 0 && slot > header && overview > slot, "header, then the slot, then the overview");
   assert.equal(page.match(/readOwnAiConsent/gu), null, "the page itself does not read; the slot does");
@@ -273,7 +285,7 @@ test("the post-login screen /portal asks too: a sibling slot above the overview,
   assert.match(page, /<h1 className="pt-page-title">\{strings\.overviewTitle\}<\/h1>/u);
   const slotSource = read("src/components/portal/consent/AiConsentSlot.tsx");
   assert.doesNotMatch(slotSource, /^"use client"/mu, "the slot is a server component");
-  assert.match(slotSource, /const read = await readOwnAiConsent\(\);/u);
+  assert.match(slotSource, /const read = await readOwnAiConsent\(accessTier\);/u);
   assert.match(slotSource, /read\.status === "ready" \? \(\s*<AiConsentHomeCard\s+initialConsent=\{read\.consent\}\s+strings=\{getPortalStrings\("aiConsent", locale\)\}/u);
   assert.match(slotSource, /\) : null\}\s*<\/div>/u, "a failed read leaves an empty slot");
   // Пустой слот не оставляет зазора.
@@ -283,8 +295,10 @@ test("the post-login screen /portal asks too: a sibling slot above the overview,
 
 test("the settings row sits in the profile, with its own honest line when the read fails", () => {
   const page = read("src/app/(portal)/portal/profile/page.tsx");
-  assert.match(page, /readOwnAiConsent\(\),\n\s*\]\);/u);
-  assert.match(page, /<section aria-labelledby="portal-profile-ai-consent" className="pt-profile-card">/u);
+  assert.match(page, /const \[actor, locale\] = await Promise\.all\(\[\s*requireStudentPortalActor\(\),/u);
+  assert.match(page, /readOwnAiConsent\(actor\.accessTier\),\n\s*\]\);/u);
+  // Самостоятельный студент: ни раздела, ни заголовка, ни строки.
+  assert.match(page, /\{aiConsent\.status === "not_applicable" \? null : \(\s*<section aria-labelledby="portal-profile-ai-consent" className="pt-profile-card">/u);
   assert.match(page, /\{aiConsentStrings\.rowHeading\}/u);
   assert.match(page, /<AiConsentSettingsRow initialConsent=\{aiConsent\.consent\} strings=\{aiConsentStrings\} \/>/u);
   assert.match(page, /<p role="alert" className="pt-account-deletion-error">\{aiConsentStrings\.unavailable\}<\/p>/u);
@@ -334,4 +348,88 @@ test("the styles use portal tokens only: no raw colours, no side stripes, target
   // Кнопки и ссылка — общие классы портала с высотой 44 px.
   assert.match(css, /\.pt-btn,\n\.pt-btn-ghost \{[^}]*min-height: 44px;/u);
   assert.match(css, /\.pt-link \{[^}]*min-height: 44px;/u);
+});
+
+test("the question applies to a client with a case on accompaniment only; anything else fails closed", () => {
+  assert.equal(aiConsentApplies("assisted"), true);
+  // «approved» — самостоятельный студент без дела на сопровождении: его данные ИИ-помощники не читают.
+  assert.equal(aiConsentApplies("approved"), false);
+  for (const wrong of [undefined, null, "", "Assisted", "pending", "active", 1, true, {}]) {
+    assert.equal(aiConsentApplies(wrong), false, String(wrong));
+  }
+  // Граница — серверный accessTier, а не вторая локальная деривация из caseState.
+  const authority = read("src/lib/supabase/student-portal-authority.ts");
+  assert.match(authority, /accessTier: portalCase\.case_state === "pending" \? "approved" : "assisted"/u);
+  assert.doesNotMatch(code("src/lib/portal/ai-consent.ts"), /caseState|case_state/u);
+});
+
+test("a client with a case is asked: one RPC read, a failed read hides the question instead of inventing a state", async () => {
+  let opened = 0;
+  const client = fakeClient({ data: ASKED, error: null });
+  const open = () => { opened += 1; return Promise.resolve(client); };
+  assert.deepEqual(await readAiConsentForTier("assisted", open), { status: "ready", consent: ASKED });
+  assert.equal(opened, 1);
+  assert.deepEqual(client.calls, [{ schema: "platform", fn: "portal_ai_consent_get_v1", args: undefined }]);
+  // Сбой RPC, чужая форма ответа, сбой открытия клиента: «unavailable».
+  for (const failing of [
+    () => Promise.resolve(fakeClient({ data: null, error: { code: "42501" } })),
+    () => Promise.resolve(fakeClient({ data: { ...GRANTED, extra: 1 }, error: null })),
+    () => Promise.reject(new Error("no session")),
+  ]) {
+    assert.deepEqual(await readAiConsentForTier("assisted", failing), { status: "unavailable" });
+  }
+});
+
+test("a self-service student is never asked: no client, no RPC, nothing to render", async () => {
+  const client = fakeClient({ data: ASKED, error: null });
+  let opened = 0;
+  const open = () => { opened += 1; return Promise.resolve(client); };
+  for (const tier of ["approved", undefined, null, "pending", ""]) {
+    assert.deepEqual(await readAiConsentForTier(tier, open), { status: "not_applicable" }, String(tier));
+  }
+  assert.equal(opened, 0, "the database client is not even opened");
+  assert.deepEqual(client.calls, []);
+});
+
+test("the decision can be recorded for a client with a case only; the action cannot be used to bypass the screen", async () => {
+  const client = fakeClient((_fn, args) => ({ data: { ...GRANTED, status: args.p_status }, error: null }));
+  let opened = 0;
+  const open = () => { opened += 1; return Promise.resolve(client); };
+  assert.deepEqual(await writeAiConsentForTier("assisted", open, "granted", REQUEST_ID), { ok: true, consent: GRANTED });
+  assert.equal(client.calls.length, 1);
+  assert.equal(client.calls[0].fn, "portal_ai_consent_set_v1");
+  opened = 0;
+  for (const tier of ["approved", undefined, "pending"]) {
+    assert.deepEqual(await writeAiConsentForTier(tier, open, "granted", REQUEST_ID), { ok: false }, String(tier));
+  }
+  assert.equal(opened, 0);
+  assert.equal(client.calls.length, 1, "no write reaches the database for a self-service student");
+  // Сбой открытия клиента — отказ, а не исключение.
+  assert.deepEqual(
+    await writeAiConsentForTier("assisted", () => Promise.reject(new Error("no session")), "granted", REQUEST_ID),
+    { ok: false },
+  );
+});
+
+test("rendered: the client's home and the post-login screen carry the consent card, the self-service home does not", () => {
+  // Тот же статический рендер реальных компонентов, что гонит a11y-гейт портала.
+  const surfaces = JSON.parse(
+    execFileSync(process.execPath, [new URL("./e2e/portal-static-render.cjs", import.meta.url).pathname], {
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    }),
+  );
+  const html = (name) => {
+    const surface = surfaces.find((candidate) => candidate.name === name);
+    assert.ok(surface, name);
+    return surface.html;
+  };
+  const CARD = 'data-testid="ai-consent-card"';
+  assert.ok(html("home-assisted").includes(CARD), "client home");
+  assert.ok(html("admission-overview").includes(CARD), "client post-login screen");
+  // Фикстура самостоятельной «Главной» намеренно получает карточку в пропсах: вид её не показывает.
+  const approved = html("home-approved");
+  assert.equal(approved.includes(CARD), false, "self-service home");
+  assert.equal(approved.includes("ИИ-помощники EVO"), false);
+  assert.equal(approved.includes('id="home-continue"'), true, "the rest of the home is intact");
 });

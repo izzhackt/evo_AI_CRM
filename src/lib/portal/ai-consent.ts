@@ -41,6 +41,33 @@ export type AiConsentActionResult =
   | Readonly<{ ok: true; consent: AiConsent }>
   | Readonly<{ ok: false }>;
 
+/**
+ * Уровень доступа студента кабинета (`actor.accessTier`, PORT-1a): `assisted` —
+ * клиент EVO с делом на сопровождении (active/closed), `approved` —
+ * самостоятельный студент, у которого дела на сопровождении нет.
+ */
+export type AiConsentAccessTier = "approved" | "assisted";
+
+/**
+ * Итог чтения своего согласия: `ready` — вопрос применим и ответ получен,
+ * `unavailable` — вопрос применим, но чтение не удалось, `not_applicable` —
+ * вопроса нет, базу не спрашивали.
+ */
+export type AiConsentRead =
+  | Readonly<{ status: "ready"; consent: AiConsent }>
+  | Readonly<{ status: "unavailable" }>
+  | Readonly<{ status: "not_applicable" }>;
+
+/**
+ * Вопрос о согласии задаём только клиентам EVO с делом на сопровождении:
+ * ИИ-помощники читают переписку и документы дела, а у самостоятельного
+ * студента (уровень `approved`) дела на сопровождении нет, и его данные они не
+ * читают. Всё, что не равно `assisted`, — «нет вопроса» (закрыто по умолчанию).
+ */
+export function aiConsentApplies(accessTier: unknown): accessTier is "assisted" {
+  return accessTier === "assisted";
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T/u;
 const VERSION = /^[0-9A-Za-z._-]{1,32}$/u;

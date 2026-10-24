@@ -262,7 +262,7 @@ test("V3 profile actions use canonical versioned server commands and honest outc
 
   assert.match(controls, /status === "saved" \|\| status === "stale"/u);
   assert.match(controls, /Основной вариант/u);
-  assert.match(controls, /Дедлайн от университета/u);
+  assert.match(controls, /Срок подачи/u);
   assert.match(controls, /application\.universityDeadlineOn/u);
   assert.match(controls, /type="checkbox"[\s\S]*name="is_primary"/u);
   assert.doesNotMatch(controls, /<select[^>]*name="is_primary"/u);

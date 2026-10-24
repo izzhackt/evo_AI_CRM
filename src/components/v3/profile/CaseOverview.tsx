@@ -220,7 +220,6 @@ function DocumentsFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
           ) : null}
         </div>
       ) : <span className="text-fg-2">нет доступа</span>}
-      {input.hrefs.documents ? <Link href={input.hrefs.documents} className={FACT_LINK}>Документы дела</Link> : null}
     </Fact>
   );
 }
@@ -236,13 +235,12 @@ function ApplicationsFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
               <span className="text-fg-2">
                 {" — "}{applicationStatus(application.status) ?? "статус не указан"}
                 {application.primary ? " · основной вариант" : null}
-                {application.deadlineOn ? <> · дедлайн <time dateTime={application.deadlineOn} className="font-mono tabular-nums">{formatQueueDay(application.deadlineOn, input.work.today)}</time></> : null}
+                {application.deadlineOn ? <> · срок подачи <time dateTime={application.deadlineOn} className="font-mono tabular-nums">{formatQueueDay(application.deadlineOn, input.work.today)}</time></> : null}
               </span>
             </li>
           ))}
         </ul>
       )}
-      {input.hrefs.route ? <Link href={input.hrefs.route} className={FACT_LINK}>Вузы и программы</Link> : null}
     </Fact>
   );
 }
@@ -251,14 +249,12 @@ function ChatFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
   const chat = input.work.chat;
   return (
     <Fact term="Переписка" testId="v3-case-chat">
-      <span className="flex flex-wrap items-center gap-x-3">
-        {chat.kind === "forbidden" ? <span className="text-fg-2">нет доступа</span>
-          : chat.kind === "unavailable" ? <span className="text-fg-2">не прочитана</span>
-            : chat.awaitState === "needs_reply" ? <Pill tone="danger">{caseChatAwaitState("needs_reply")}</Pill>
-              : chat.awaitState === "awaiting_student" ? <Pill>{caseChatAwaitState("awaiting_student")}</Pill>
-                : <span className="text-fg-2">{chat.last === null ? "сообщений пока нет" : "ответа не ждёт"}</span>}
-        {chat.kind !== "forbidden" ? <Link href={input.hrefs.messages} className={LINK}>Открыть переписку</Link> : null}
-      </span>
+      {chat.kind === "forbidden" ? <span className="text-fg-2">нет доступа</span>
+        : chat.kind === "unavailable" ? <span className="text-fg-2">не прочитана</span>
+          : chat.awaitState === "needs_reply" ? <Pill tone="danger">{caseChatAwaitState("needs_reply")}</Pill>
+            : chat.awaitState === "awaiting_student" ? <Pill>{caseChatAwaitState("awaiting_student")}</Pill>
+              : <span className="text-fg-2">{chat.last === null ? "сообщений пока нет" : "ответа не ждёт"}</span>}
+      {chat.kind !== "forbidden" ? <Link href={input.hrefs.messages} className={FACT_LINK}>Открыть переписку</Link> : null}
     </Fact>
   );
 }
@@ -298,7 +294,7 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
           {curator.coverage && !input.work.needsCurator ? (
             <Link href={curator.membershipId ? coverageHref(curator.membershipId, input.studentCaseId) : COVERAGE_VIEW_HREF}
               className={FACT_LINK}>
-              Нагрузка кураторов
+              {curator.membershipId ? "Сменить куратора" : "Нагрузка кураторов"}
             </Link>
           ) : null}
         </Fact>
@@ -306,11 +302,13 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
           <Fact term="Передал">
             {input.handedOffBy.name}
             <span className="text-fg-2"> · <time dateTime={input.handedOffBy.at} className="font-mono tabular-nums">{caseMomentLabel(input.handedOffBy.at, input.work.today)}</time></span>
+            {/* Тот же человек, что менеджер продаж, — одна строка; следующий шаг продаж остаётся под ней. */}
+            {input.sales && input.sales.manager === input.handedOffBy.name && input.sales.nextAction ? <span className="block text-fg-2">{input.sales.nextAction}</span> : null}
           </Fact>
         ) : null}
-        {input.sales ? (
-          <Fact term="Продажа">
-            <span className="block">{input.sales.manager ?? "Менеджер не назначен"}</span>
+        {input.sales && !(input.handedOffBy && input.sales.manager === input.handedOffBy.name) ? (
+          <Fact term="Менеджер продаж">
+            <span className="block">{input.sales.manager ?? "не назначен"}</span>
             {input.sales.nextAction ? <span className="block text-fg-2">{input.sales.nextAction}</span> : null}
           </Fact>
         ) : null}
@@ -337,11 +335,10 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
         <ChatFact input={input} />
         {payment ? (
           <Fact term="Оплата" testId="v3-case-payment">
-            {payment.percent === null ? <span className="text-fg-2">Плана платежей нет</span> : (
+            {payment.percent === null ? <span className="text-fg-2">плана платежей нет</span> : (
               <><span className="font-semibold tabular-nums">{payment.percent}%</span> оплачено{payment.remaining ? <span className="text-fg-2"> · остаток <span className="tabular-nums">{payment.remaining}</span></span> : null}</>
             )}
             {payment.financeStop ? <span className="block text-danger">Финансовый стоп: {payment.financeStop}</span> : null}
-            {input.hrefs.money ? <Link href={input.hrefs.money} className={FACT_LINK}>Договор и оплата</Link> : null}
           </Fact>
         ) : null}
         {input.portal && !input.portal.settings ? (
@@ -381,15 +378,15 @@ function Groups({ input }: Readonly<{ input: CaseOverviewInput }>) {
 }
 
 /**
- * «Помощь по делу» для читателя «Ждут куратора» без права на само дело
+ * «Обращения студента» для читателя «Ждут куратора» без права на само дело
  * (248/281): обращения ему не читаются, поэтому вместо чтения с «Обновите
- * страницу» — та же рамка и честное «нет доступа».
+ * страницу» — тот же заголовок и честное «нет доступа».
  */
 export function CaseHelpNoAccess() {
   return (
-    <section id="case-help" className="rounded-card border border-border bg-surface p-4" data-testid="v3-case-help-forbidden">
-      <h3 className="font-semibold text-fg">Помощь по делу</h3>
-      <p className="mt-2 text-sm text-fg-2">Нет доступа к обращениям этого дела.</p>
+    <section id="case-help" className="border-y border-border py-3" data-testid="v3-case-help-forbidden">
+      <h3 className="t-item text-fg">Обращения студента</h3>
+      <p className="mt-1 t-body-compact text-fg-2">Нет доступа к обращениям этого дела.</p>
     </section>
   );
 }

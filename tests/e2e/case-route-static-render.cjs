@@ -630,7 +630,10 @@ async function clientCheck() {
       const retryKept = await retryPrepare.isVisible();
       check(retryKept && await retryPrepare.isEnabled() && await packetSelect.inputValue() === submitted.universityApplicationId && await packetSelect.isDisabled(),
         `${w}: an uncertain «Зафиксировать пакет» survives «Пакет партнёру» of another row — the retry stays, the choice stays locked`);
-      check(await packets.getByRole("button", { name: "Обновить историю и составы" }).isDisabled(), `${w}: while the packet result is uncertain, the history stays blocked`);
+      // «Обновить» у истории нет вовсе; после сбоя чтения остаётся «Повторить чтение» — и пока итог пакета неизвестен, оно заблокировано.
+      const retryRead = packets.getByRole("button", { name: "Повторить чтение" });
+      check(await packets.getByRole("button", { name: "Обновить историю и составы" }).count() === 0
+        && (await retryRead.count() === 0 || await retryRead.isDisabled()), `${w}: no manual history refresh; a read retry stays blocked while the packet result is uncertain`);
       if (retryKept) {
         await retryPrepare.click();
         await page.waitForFunction(() => window.__route.calls.filter((call) => call.name === "preparePartnerPacketAction").length === 2, null, { timeout: 5000 });

@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
 
+import { FeedNoteBody } from "./FeedNoteBody";
+
 /**
  * Строки «Ленты» Lead 360 и Student 360 (Э4) — одна разметка на обе страницы.
  * У каждой строки одна и та же метка (кольцо 10 px) в одной колонке 16 px,
@@ -36,13 +38,13 @@ type Focus = Readonly<{
   focusTarget?: boolean;
 }>;
 
-/** Заметка: текст целиком, под ним автор и момент. */
+/** Заметка: текст (длинный — свёрнут до пяти строк), под ним автор и момент. */
 export function FeedNote({ body, author, at, label, focusTarget }: Readonly<{ body: string; author: string; at: string; label: string }> & Focus) {
   return (
     <li className="flex gap-x-2 py-3" data-feed="note" tabIndex={focusTarget ? -1 : undefined}>
       <Mark type="t-body" />
       <div className="min-w-0 flex-1">
-        <p className="whitespace-pre-wrap break-words t-body text-fg">{body}</p>
+        <FeedNoteBody body={body} />
         <p className="t-meta mt-1 text-fg-2">{author} · <Moment at={at} label={label} /></p>
       </div>
     </li>

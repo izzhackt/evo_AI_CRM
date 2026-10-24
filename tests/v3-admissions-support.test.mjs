@@ -125,7 +125,10 @@ function compile(path, resolve = require) {
   return compiledModule.exports;
 }
 const disclosure = compile("src/components/v3/settings/StaffDisclosure.tsx");
+// Э8.2: подтверждения пакетов партнёру и кнопки анкеты — общие кнопки очереди `QUEUE_CONFIRM` и `QUEUE_SECONDARY`.
+const queueButtons = compile("src/components/v3/queue/queue-buttons.ts");
 const common = id => {
+  if (id === "../queue/queue-buttons") return queueButtons;
   if (id === "@/lib/v3/wording") return wording;
   if (id === "@/lib/document-export-client" || id === "@/lib/platform-admissions-support-actions") return boundaries;
   if (id === "next/navigation") return { useRouter: () => ({ refresh: noCommand }) };
@@ -137,10 +140,7 @@ const historyUI = compile("src/components/v3/profile/StudentProfileExportHistory
   if (id === "./UniversityFormExportPanel") return universityPanel;
   return common(id);
 });
-// Э8.2: подтверждения пакетов партнёру — общая тёмная кнопка очереди `QUEUE_CONFIRM`.
-const queueButtons = compile("src/components/v3/queue/queue-buttons.ts");
-const ui = compile("src/components/v3/profile/CaseOperationsForms.tsx", id => id === "./StudentProfileExportHistory" ? historyUI
-  : id === "../queue/queue-buttons" ? queueButtons : common(id));
+const ui = compile("src/components/v3/profile/CaseOperationsForms.tsx", id => id === "./StudentProfileExportHistory" ? historyUI : common(id));
 const words = wording.partnerPacketExport;
 const CASE = "64016900-0000-4000-8000-000000000001";
 const APP = "64016900-0000-4000-8000-000000000002";
@@ -157,7 +157,7 @@ const packetWorkspace = (overrides = {}) => ({ files: [original()], generatedExp
 test("packet UI preserves one existing surface, clear 50 MiB cap and legacy read-only composition", () => {
   const html = renderToStaticMarkup(createElement(ui.PartnerPacketWorkspace, { caseId: CASE, active: true,
     applications: [{ id: APP, name: "Isolated application" }], workspace: packetWorkspace({ packets: [packet({ revision: null })] }) }));
-  for (const text of [words.cap, words.sizeHint, words.legacy, words.manifest, words.originalDownload, words.history, words.loading]) assert.ok(html.includes(text), text);
+  for (const text of [words.cap, words.legacy, words.manifest, words.originalDownload, words.history, words.loading]) assert.ok(html.includes(text), text);
   assert.match(html, /href="\/api\/v2\/document-versions\/original-1\/download"/u);
   assert.match(html, /<button[^>]*disabled=""[^>]*>Сохранить финальный ZIP/u);
   assert.doesNotMatch(html, /260|localStorage|profile_revision|expected_workspace_revision|Зафиксированный состав/u);
@@ -221,7 +221,7 @@ test("packet sizes stay human-readable without exposing byte counts in the main 
   assert.equal(ui.formatPacketFileSize(1536), "1,5 КБ");
   assert.equal(ui.formatPacketFileSize(128), "меньше 1 КБ");
   assert.equal(ui.formatPacketFileSize(0), "0 КБ");
-  assert.equal(words.cap, "ZIP до 50 МБ · до 50 файлов");
+  assert.equal(words.cap, "ZIP до 50 МБ и 50 файлов; размер проверим перед сохранением.");
 });
 
 test("definite pre-write ZIP failures have human messages, not uncertain-save wording", () => {
@@ -267,3 +267,10 @@ test("package commands retain exact intent, serialize busy work and ignore super
   assert.match(form, /!uncertain && \(invalid \|\| command.blocked\)/u, "uncertain prepare replays retained input despite refreshed selection");
 });
 }
+
+test("packets: the ZIP history refresh appears after a failed read and when a reply asks to refresh the data", () => {
+  const form = readFileSync(new URL("../src/components/v3/profile/CaseOperationsForms.tsx", import.meta.url), "utf8");
+  assert.match(form, /STALE_STATUSES: readonly string\[\] = \["source_changed", "package_not_ready", "invalid_request"\]/u);
+  assert.match(form, /\{readFailed \|\| stale \? <button[\s\S]*?\}\}>\{readFailed \? words\.retryRead : words\.refresh\}<\/button> : null\}/u);
+  for (const code of ["source_changed", "package_not_ready", "invalid_request"]) assert.match(wording.partnerPacketExport.errors[code], /[Оо]бновите/u, code);
+});

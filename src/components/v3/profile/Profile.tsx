@@ -7,7 +7,7 @@ import { Pill } from "@/components/v3/Pill";
 import { TaskComposerDialog } from "@/components/v3/tasks/TaskComposerDialog";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { studentPortalProvisioningRequestId } from "@/lib/server/student-portal-command-ids";
-import { leadDisplayName, personState } from "@/lib/v3/wording";
+import { personState } from "@/lib/v3/wording";
 
 import { Documents } from "./Documents";
 import type { DocumentStateFilter } from "./documents-view";
@@ -20,6 +20,7 @@ import { QueueTabStrip } from "../queue/QueueTabStrip";
 import { HandoffGateForms } from "./ProfileSalesTransition";
 import { LEAD_GATE_ANCHOR, hasHandoffGateForms } from "./lead-work-view";
 import {
+  leadAnketaHasContent,
   profileTabAccess,
   tabsFor,
   type PersonProfile,
@@ -123,7 +124,7 @@ export function Profile({
     financeConfirm: !isStaffPreview(actor) && !!sales?.handoff.caseId && staffHasPermission(actor, "finance.event.confirm"),
     gateForms: leadGate !== null,
   });
-  const tabs = tabsFor(profile.student, tabAccess, draft.admissions !== null);
+  const tabs = tabsFor(profile.student, tabAccess, draft.admissions !== null, leadAnketaHasContent(profile, draft));
   // Лид без дела: договора и платежей дела нет — пустой блок «Все обязательства по делу» не рисуется.
   const leadWithoutCase = draft.routeTarget.leadId !== null && !profile.student;
   const current = tabs.some((entry) => entry.key === tab) ? tab : "overview";
@@ -152,11 +153,8 @@ export function Profile({
       data-testid="v3-profile"
     >
       {caseHeader ?? (
-        <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h2 className="t-record-title min-w-0 text-fg">
-            {leadDisplayName(profile.source, profile.person)}
-          </h2>
-          <p className="text-sm text-fg-3">{state}</p>
+        <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="t-body-compact text-fg-2">{state}</p>
           {profile.financeStop ? (
             <Pill tone="danger">финансовый стоп</Pill>
           ) : null}
@@ -179,22 +177,25 @@ export function Profile({
           Э8.4): 44 px, не переносится, лишнее прокручивается вбок без полосы
           прокрутки, у края с продолжением ряд гаснет, текущая вкладка видна.
           Прокрутка обрезает внешнюю рамку фокуса — `focusable` рисует её
-          внутри вкладки (v3.css). */}
-      <QueueTabStrip label="Разделы профиля" focusable testId="v3-profile-tabs">
-        <ul className="flex min-w-max items-center gap-1 border-b border-border pb-2">
-          {tabs.map((entry) => (
-            <li key={entry.key}>
-              <Link
-                href={hrefFor(entry.key)}
-                aria-current={entry.key === current ? "page" : undefined}
-                className="v3-choice inline-flex min-h-11 items-center whitespace-nowrap rounded-nav px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
-              >
-                {entry.title}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </QueueTabStrip>
+          внутри вкладки (v3.css). Одна вкладка («Обзор» у лида без содержимого) —
+          ряда нет. */}
+      {tabs.length > 1 ? (
+        <QueueTabStrip label="Разделы профиля" focusable testId="v3-profile-tabs">
+          <ul className="flex min-w-max items-center gap-1 border-b border-border pb-2">
+            {tabs.map((entry) => (
+              <li key={entry.key}>
+                <Link
+                  href={hrefFor(entry.key)}
+                  aria-current={entry.key === current ? "page" : undefined}
+                  className="v3-choice inline-flex min-h-11 items-center whitespace-nowrap rounded-nav px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
+                >
+                  {entry.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </QueueTabStrip>
+      ) : null}
 
       {current === "route" ? universityProgramsTab : null}
       {current === "overview" && caseOverview ? caseOverview : null}
@@ -231,6 +232,7 @@ export function Profile({
                   )}
                   curatorOptions={studentPortalCurators}
                   curatorOptionsAvailable={studentPortalCuratorsAvailable}
+                  quiet
                 />
               ) : !isStaffPreview(actor) && !draft.admissions && draft.leadCabinetCase?.cabinetInvite ? (
                 // Решение владельца C (миграция 248): ожидающий кабинет лида —
@@ -248,6 +250,7 @@ export function Profile({
                   )}
                   curatorOptions={[]}
                   curatorOptionsAvailable
+                  quiet
                 />
               ) : null}
             </PlatformAccessCard>
@@ -272,7 +275,8 @@ export function Profile({
       {current === "anketa" ? <Anketa profile={profile} draft={draft}
         fieldsRequestId={randomUUID()}
         fieldsReadOnly={isStaffPreview(actor) || !staffHasPermission(actor, "profile.manage")}
-        documentsHref={draft.access.documents ? hrefFor("documents") : null} /> : null}
+        documentsHref={draft.access.documents ? hrefFor("documents") : null}
+        routeHref={tabs.some((entry) => entry.key === "route") ? hrefFor("route") : null} /> : null}
       {current === "documents" ? (
         <Documents
           groups={draft.documents}
@@ -295,17 +299,12 @@ export function Profile({
         <section id={LEAD_GATE_ANCHOR} aria-labelledby={`${LEAD_GATE_ANCHOR}-title`} className="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate">
           <h2 id={`${LEAD_GATE_ANCHOR}-title`} className="t-section text-fg">Подтверждение вручную</h2>
           <p className="mt-1 t-body-compact text-fg-2">
-            Договор, затем первый платёж — доказательства передачи в поступление, если их нет в деле и в отчёте продаж.
+            Доказательства передачи в поступление, если их нет в деле и в отчёте.
           </p>
           <div className="mt-3 border-t border-border pt-3">
             <HandoffGateForms actor={actor} gate={leadGate} requestIds={requestIds} bare />
           </div>
         </section>
-      ) : null}
-      {current === "money" && leadWithoutCase && !leadGate ? (
-        <p className="t-body-compact text-fg-2" data-testid="v3-lead-money-empty">
-          Договор и платежи ведутся в деле студента; у этого лида дела пока нет.
-        </p>
       ) : null}
       {current === "money" && !leadWithoutCase ? (
         <Money profile={profile} draft={draft} actor={actor} salesCaseId={sales?.handoff.caseId}

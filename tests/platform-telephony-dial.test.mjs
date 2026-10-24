@@ -927,8 +927,9 @@ test("a lead made by an unknown number is «Номер …» on the lead card, t
   // The lead card: the page title, and the heading of the plain profile header, from the lead's own source. The name that profile
   // data carries is not touched: the portal-access forms send it as the student's display name.
   const profilePage = read("src/app/(v3)/v3/profile/page.tsx");
-  assert.match(profilePage, /\? leadDisplayName\(view\.profile\.source, view\.profile\.person\) : docsMode/u);
-  assert.match(read("src/components/v3/profile/Profile.tsx"), /\{leadDisplayName\(profile\.source, profile\.person\)\}/u);
+  assert.match(profilePage, /title=\{view \? leadDisplayName\(view\.profile\.source, view\.profile\.person\) : docsMode/u);
+  // The plain profile header no longer repeats the name as a second heading: the page title (h1) already says it.
+  assert.doesNotMatch(read("src/components/v3/profile/Profile.tsx"), /leadDisplayName/u);
   assert.doesNotMatch(read("src/lib/v3/profile-source.ts"), /leadDisplayName|callerDisplayName/u, "the data keeps the database name");
   // The lead's tasks heading; the pipeline search link keeps the name as the database wrote it.
   const tasks = read("src/app/(v3)/v3/tasks/page.tsx");

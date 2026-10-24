@@ -149,7 +149,7 @@ test("the template warning speaks to the viewer: who adds it, or what the Admin 
   assert.deepEqual(caseContractTemplateNote(workspace({ templates: [template("draft")] })),
     { text: "Утверждённого шаблона договора нет — его утверждает Администратор.", link: null });
   const admin = { canManageTemplates: true };
-  assert.match(caseContractTemplateNote(workspace(admin)).text, /проверенного источника пока нет/u);
+  assert.match(caseContractTemplateNote(workspace(admin)).text, /нужен проверенный источник шаблона/u);
   assert.equal(caseContractTemplateNote(workspace(admin)).link, null, "no link to a screen CRM does not have");
   // Раскрытие «Создать версию шаблона» — прямо под предупреждением: слова указывают на него, второй ссылки нет.
   assert.deepEqual(caseContractTemplateNote(workspace({ ...admin, reviewedSources: [{}] })),
@@ -215,7 +215,7 @@ test("different currencies on the page: each currency separately, dates in Bishk
 test("the template warnings on the page address the viewer", () => {
   assert.match(text(sheet(pages.get("curator-template"))), /Шаблона договора нет — его добавляет Администратор\./u);
   assert.doesNotMatch(sheet(pages.get("curator-template")), /data-testid="platform-contract-template-create-panel"/u);
-  assert.match(text(sheet(pages.get("admin-template"))), /Шаблона договора нет\. Создать его можно после проверки источника шаблона, а проверенного источника пока нет\./u);
+  assert.match(text(sheet(pages.get("admin-template"))), /Шаблона договора нет — нужен проверенный источник шаблона\./u);
   assert.doesNotMatch(sheet(pages.get("admin-template-source")), /<a href="#contract-template-create"/u, "no second «Создать версию шаблона»");
   assert.match(text(sheet(pages.get("admin-template-source"))), /Шаблона договора нет — создайте его в «Создать версию шаблона» ниже\. Создать версию шаблона Ключ шаблона/u);
   assert.match(sheet(pages.get("admin-template-source")), /<details id="contract-template-create"/u);

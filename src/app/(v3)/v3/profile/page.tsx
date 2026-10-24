@@ -14,6 +14,7 @@ import { CaseHelpWorkspace } from "@/components/v3/profile/CaseHelpWorkspace";
 import { caseWorkParts } from "@/components/v3/profile/CaseWorkParts";
 import { leadWorkParts } from "@/components/v3/profile/LeadWorkParts";
 import { LeadChannelFact } from "@/components/v3/profile/LeadChannelFact";
+import { LeadInterestFact } from "@/components/v3/profile/LeadInterestFact";
 import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmissions";
 import { ParentPhoneLookalikes } from "@/components/v3/profile/ParentPhoneLookalikes";
 import type { ParentPhoneSubject } from "@/lib/parent-phone-lookalikes-contract";
@@ -27,6 +28,7 @@ import { DOCUMENT_STATE_PARAM, parseDocumentStateFilter } from "@/components/v3/
 import { toProfileNotesSnapshot } from "@/components/v3/profile/profile-notes-view";
 import {
   buildV3ProfileHref,
+  leadAnketaHasContent,
   profileTabAccess,
   resolveTab,
   type ProfileContractRetry,
@@ -344,6 +346,7 @@ export default async function ProfilePart({
     Boolean(view?.profile.student),
     tabAccess,
     Boolean(view?.details.admissions),
+    view ? leadAnketaHasContent(view.profile, view.details) : true,
   );
   const hrefFor = (next: string) => view
     ? withRequestsReturn(withDocsSection(buildV3ProfileHref(view.details.routeTarget, next), docsMode))
@@ -486,6 +489,12 @@ export default async function ProfilePart({
         <LeadChannelFact actor={actor} leadId={view.details.routeTarget.leadId} requestId={randomUUID()} />
       </Suspense>
     ),
+    // Лид без дела: направление, которое указали при создании, стоит в «Сведениях» — вкладки «Анкета» у такого лида нет.
+    interest: !view.profile.student ? (
+      <Suspense fallback={null}>
+        <LeadInterestFact leadId={view.details.routeTarget.leadId} />
+      </Suspense>
+    ) : null,
     submissions: !isStaffPreview(actor) ? (
       <Suspense fallback={<p role="status" className="t-body-compact text-fg-2">Загружаем заявки с сайта…</p>}>
         <WebsiteLeadSubmissions actor={actor} leadId={view.details.routeTarget.leadId} />
@@ -531,7 +540,7 @@ export default async function ProfilePart({
   ) : undefined;
 
   return (
-    <PartShell title={(caseParts || leadParts) && view ? leadDisplayName(view.profile.source, view.profile.person) : docsMode ? "EVO Docs" : view ? "Профиль"
+    <PartShell title={view ? leadDisplayName(view.profile.source, view.profile.person) : docsMode ? "EVO Docs"
       : closedLead ? closedLead.name ?? "Лид без имени" : "Студенты"}
       count={queuePage?.count ?? null} action={docsAction ?? caseParts?.actions ?? leadParts?.actions} dense={queuePage !== null || caseParts !== null || leadParts !== null}
       back={caseBack ?? leadBack ?? closedLeadBack}>
@@ -543,7 +552,7 @@ export default async function ProfilePart({
         {view ? (
           <>
             {caseParts || leadParts ? null : <Link
-              className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline"
+              className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg"
               href={requestsReturnTo ?? pipelineBackHref ?? directoryHref}
             >
               {requestsReturnTo ? "К списку заявок" : pipelineBackHref ? "К воронке продаж" : docsMode ? "К списку EVO Docs" : "К списку студентов"}
@@ -584,14 +593,14 @@ export default async function ProfilePart({
         ) : closedLead ? (
           <ClosedLeadView row={closedLead} readOnly={isStaffPreview(actor)} />
         ) : invalidIdentityShape || missing ? (
-          <p className="border-t border-border px-4 py-5 text-sm leading-relaxed text-fg-2">
-            {invalidIdentityShape
-              ? "Ссылка на профиль некорректна. Найдите студента через поиск."
-              : "Профиль не найден или недоступен вам. Найдите студента через поиск."}
-            <Link href={requestsReturnTo ?? directoryHref} className="mt-3 flex min-h-11 w-fit items-center font-medium text-accent underline underline-offset-4">
-              {requestsReturnTo ? "К списку заявок" : "Найти студента"}
+          <div className="border-t border-border py-5">
+            <p className="t-body text-fg-2">
+              {invalidIdentityShape ? "Ссылка на профиль некорректна." : "Профиль не найден или недоступен вам."}
+            </p>
+            <Link href={requestsReturnTo ?? directoryHref} className="mt-2 inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">
+              {requestsReturnTo ? "К списку заявок" : "К списку"}
             </Link>
-          </p>
+          </div>
         ) : null}
       </div>
     </PartShell>

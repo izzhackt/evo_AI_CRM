@@ -222,7 +222,7 @@ export function CaseAgreementView({
                 <span className="flex min-h-11 min-w-0 flex-1 basis-40 items-center break-words t-body-compact text-fg">{tranche.label}</span>
                 <span className="t-body-compact tabular-nums text-fg @2xl:text-end">{financeMoney(tranche.amountMinor, tranche.currency)}</span>
                 <span className="t-meta text-fg-2">
-                  {tranche.dueOn ? <>до <time dateTime={tranche.dueOn} className="font-mono tabular-nums">{moneyDay(tranche.dueOn, today)}</time></> : "без срока"}
+                  {tranche.dueOn ? <>до <time dateTime={tranche.dueOn} className="font-mono tabular-nums">{moneyDay(tranche.dueOn, today)}</time></> : null}
                 </span>
                 <span className="flex min-h-11 flex-wrap items-center gap-x-2">
                   {state === "paid" ? <StatusChip label="оплачен" tone="ok" /> : (

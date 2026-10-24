@@ -7,6 +7,9 @@ import { btnGhostCls } from "@/components/ui";
 import styles from "./DocumentPreviewButton.module.css";
 
 const MAX_PREVIEW_BYTES = 25 * 1024 * 1024;
+
+/** «Просмотреть» в строке — тихое текстовое действие 44 px, не кнопка с рамкой на каждой строке; тёмная «Принять» остаётся единственной заливкой. */
+export const PREVIEW_LINK = "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
 const PREVIEW_MIME_TYPES = new Set(["application/pdf", "image/jpeg", "image/png"]);
 
 type PreviewState =
@@ -28,7 +31,7 @@ export function DocumentPreviewButton(props: DocumentPreviewProps) {
     <>
       <button
         type="button"
-        className={`${btnGhostCls} min-h-11`}
+        className={PREVIEW_LINK}
         aria-haspopup="dialog"
         aria-label={`Просмотреть ${props.filename}, версия ${props.versionNumber}`}
         onClick={(event) => {

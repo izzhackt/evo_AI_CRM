@@ -16,6 +16,7 @@ import { buildV3InboxHref } from "@/lib/v3/inbox-href";
 
 import { Card } from "@/components/ui";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
+import { caseMomentLabel } from "./case-work-view";
 import { caseMoneyWords } from "@/lib/v3/wording";
 import { StatusChip } from "../blocks/StatusChip";
 import { CaseAgreementBlock } from "./CaseAgreementBlock";
@@ -34,7 +35,9 @@ import {
   ProfileAdmissionsWorkspacePanel,
   ProfileFinanceControls,
 } from "./ProfileAdmissionsWorkspace";
-import { ProfileHandoffAcknowledgement, ProfileSalesHandoffAcknowledgement, ProfileSalesTransition } from "./ProfileSalesTransition";
+import { HandoffGateForms, HandoffStripBlock, ProfileHandoffAcknowledgement, ProfileSalesHandoffAcknowledgement, ProfileSalesTransition } from "./ProfileSalesTransition";
+import { EditGroup } from "./EditGroup";
+import { leadGroupSummaries } from "./lead-work-view";
 import { LeadSaleConditions } from "./LeadSaleConditions";
 import { LeadConditionsCard, LeadEducationCard, LeadWishesCard, SaleConditionsRevisionProvider } from "./LeadCardFieldsForm";
 import { PrepareLeadCabinetAction } from "./PrepareLeadCabinetAction";
@@ -52,7 +55,7 @@ import type {
 function FactList({ facts }: { facts: readonly Fact[] }) {
   const shown = facts.filter((f) => f.value !== null);
   if (shown.length === 0) {
-    return <p className="px-4 py-3 text-sm text-fg-3">Пока ничего не заполнено.</p>;
+    return <p className="px-4 py-3 text-sm text-fg-3">Не заполнено.</p>;
   }
   return (
     <dl>
@@ -98,19 +101,19 @@ export function PlatformAccessCard({ application, requestId, readOnly, leadId, l
         {application === null && leadCabinetCase !== null ? (
           <p className="text-sm text-fg-2">
             {leadCabinetCase.state === "closed" ? "Дело закрыто." : "Дело уже создано."}
-            {caseLink ? <>{" "}<Link className="font-semibold text-accent hover:underline" href={`/v3/profile?case=${encodeURIComponent(leadCabinetCase.studentCaseId)}&tab=anketa`}>
+            {caseLink ? <>{" "}<Link className="text-fg underline underline-offset-4 hover:text-fg-2" href={`/v3/profile?case=${encodeURIComponent(leadCabinetCase.studentCaseId)}&tab=anketa`}>
               Открыть дело
             </Link></> : null}
           </p>
         ) : application === null ? (readOnly || leadId === null ? (
           <p className="text-sm text-fg-2">Заявка на доступ не заполнена. Подготовка кабинета недоступна в этом режиме.</p>
         ) : (
-          <PrepareLeadCabinetAction leadId={leadId} requestId={prepareRequestId} caseLink={caseLink} quiet={bare} />
+          <PrepareLeadCabinetAction leadId={leadId} requestId={prepareRequestId} caseLink={caseLink} quiet />
         )) : application.status === "approved" ? (
           <p className="text-sm text-fg-2">
             Заявка на доступ одобрена.{" "}
             {application.studentCaseId ? (
-              <Link className="font-semibold text-accent hover:underline" href={`/v3/profile?case=${encodeURIComponent(application.studentCaseId)}&tab=anketa`}>
+              <Link className="text-fg underline underline-offset-4 hover:text-fg-2" href={`/v3/profile?case=${encodeURIComponent(application.studentCaseId)}&tab=anketa`}>
                 Открыть дело
               </Link>
             ) : null}
@@ -125,7 +128,7 @@ export function PlatformAccessCard({ application, requestId, readOnly, leadId, l
         ) : (
           <>
             <p className="text-sm text-fg-2">Анкета ожидает решения.</p>
-            <ApplicationDecision application={application} requestId={requestId} quiet={bare} />
+            <ApplicationDecision application={application} requestId={requestId} quiet />
           </>
         )}
       </div>
@@ -136,12 +139,46 @@ export function PlatformAccessCard({ application, requestId, readOnly, leadId, l
 }
 
 /**
+ * Card ↔ chat link (plan §4/§12): only when a linked conversation already
+ * exists, and only for actors who can actually open Inbox (`messaging.read` —
+ * the route's own gate, symmetric with v3InboxProfileHref's reverse-direction
+ * check on the inbox page). The lead read already carries this (see types.ts).
+ */
+function LinkedConversationLinks({ sales, actor, className }: {
+  sales: ProfileSalesSnapshot;
+  actor: ActivePlatformActor;
+  className: string;
+}) {
+  if (sales.linkedConversations.length === 0 || !staffPresentationCan(actor, "messaging.read")) return null;
+  return (
+    <div className={className}>
+      {sales.linkedConversations.map((conversation) => (
+        <Link
+          key={conversation.conversationId}
+          href={buildV3InboxHref({
+            conversationId: conversation.conversationId,
+            filters: { query: null, sort: "newest" },
+          })}
+          className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg"
+        >
+          {sales.linkedConversations.length > 1
+            ? `Открыть переписку WhatsApp — ${conversation.subject}`
+            : "Открыть переписку WhatsApp"}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Продажа на карточке: менеджер и действие продаж, проверка договора и
  * первого платежа («Договор и оплата») и четыре блока условий продажи. Одна
  * часть для обоих видов: на карточке лида — в «Обзоре» как раньше, на деле
  * студента — в свёрнутом разделе «Данные продажи» (решение владельца 26.09).
- * `quiet` (дело): «Сохранить» четырёх блоков условий — спокойные кнопки,
- * сплошной красный остаётся одному главному действию страницы.
+ * `quiet` — «Сохранить» четырёх блоков условий спокойные кнопки, сплошной
+ * красный остаётся одному главному действию страницы. `groups` (дело) —
+ * те же группы, что у Lead 360, вместо карточки «Продажи»: менеджер и шаг
+ * продаж стоят в «Сведениях» дела.
  */
 export function SalesOverview({
   profile,
@@ -150,6 +187,7 @@ export function SalesOverview({
   actor,
   requestIds,
   quiet = false,
+  groups = false,
 }: {
   profile: PersonProfile;
   sales: ProfileSalesSnapshot;
@@ -157,6 +195,7 @@ export function SalesOverview({
   actor: ActivePlatformActor;
   requestIds: ProfileSalesRequestIds;
   quiet?: boolean;
+  groups?: boolean;
 }) {
   // Этап — по одному правилу доски (Э2, 26.09.2026): переданный лид —
   // «Переданы», закрытый — не рабочий. Без чтения полосы этапа не показываем:
@@ -165,6 +204,41 @@ export function SalesOverview({
     ? handoffStripView(sales.strip.strip, { now: new Date() })
     : null;
   const saleConditionsReadOnly = isStaffPreview(actor) || !staffHasPermission(actor, "lead.sales.workflow.manage");
+  if (groups) {
+    // Дело студента: те же группы и названия, что у Lead 360 («Данные лида»), по одной. Менеджер и шаг продаж —
+    // в «Сведениях» дела, поэтому отдельной карточки «Продажи» нет; переписка WhatsApp лида осталась ссылкой здесь.
+    const conditions = draft.saleConditions;
+    const summaries = conditions ? leadGroupSummaries(conditions) : null;
+    return (
+      <div className="min-w-0 ps-3" data-testid="v3-sales-groups">
+        <LinkedConversationLinks sales={sales} actor={actor} className="flex flex-col gap-1 border-b border-border" />
+        <EditGroup title="Передача" summary={null} testId="v3-case-group-handoff">
+          <HandoffStripBlock gate={sales.gate} view={strip} className="space-y-3" />
+          <HandoffGateForms actor={actor} gate={sales.gate} requestIds={requestIds} bare />
+        </EditGroup>
+        {conditions && summaries ? (
+          <SaleConditionsRevisionProvider initialRevision={conditions.revision}>
+            <EditGroup id="sale-conditions" title="Условия продажи" summary={summaries.sale} testId="v3-case-group-sale">
+              <LeadSaleConditions leadId={conditions.leadId} conditions={conditions} requestId={requestIds.saleConditions}
+                readOnly={saleConditionsReadOnly} quiet bare />
+            </EditGroup>
+            <EditGroup title="Пожелания" summary={summaries.wishes} testId="v3-case-group-wishes">
+              <LeadWishesCard leadId={conditions.leadId} conditions={conditions} requestId={requestIds.wishesCard}
+                readOnly={saleConditionsReadOnly} quiet bare />
+            </EditGroup>
+            <EditGroup title="Образование" summary={summaries.education} testId="v3-case-group-education">
+              <LeadEducationCard leadId={conditions.leadId} conditions={conditions} requestId={requestIds.educationCard}
+                readOnly={saleConditionsReadOnly} quiet bare />
+            </EditGroup>
+            <EditGroup title="Бюджет и ограничения" summary={summaries.conditions} testId="v3-case-group-conditions">
+              <LeadConditionsCard leadId={conditions.leadId} conditions={conditions} requestId={requestIds.conditionsCard}
+                readOnly={saleConditionsReadOnly} quiet bare />
+            </EditGroup>
+          </SaleConditionsRevisionProvider>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <>
       <Card
@@ -185,31 +259,8 @@ export function SalesOverview({
             { label: "Срок", value: profile.nextActionAt },
           ]}
         />
-        {/*
-         * Card ↔ chat link (plan §4/§12): only when a linked conversation
-         * already exists, and only for actors who can actually open
-         * Inbox (messaging.read — the route's own gate, symmetric with
-         * v3InboxProfileHref's reverse-direction check on the inbox
-         * page). The lead read already carries this (see types.ts).
-         */}
-        {sales.linkedConversations.length > 0 && staffPresentationCan(actor, "messaging.read") ? (
-          <div className="flex flex-col gap-1 border-t border-border px-4 py-2.5">
-            {sales.linkedConversations.map((conversation) => (
-              <Link
-                key={conversation.conversationId}
-                href={buildV3InboxHref({
-                  conversationId: conversation.conversationId,
-                  filters: { query: null, sort: "newest" },
-                })}
-                className="inline-flex min-h-11 items-center text-sm font-semibold text-accent hover:underline"
-              >
-                {sales.linkedConversations.length > 1
-                  ? `Открыть переписку WhatsApp — ${conversation.subject}`
-                  : "Открыть переписку WhatsApp"}
-              </Link>
-            ))}
-          </div>
-        ) : null}
+        {/* Card ↔ chat link (plan §4/§12): см. LinkedConversationLinks. */}
+        <LinkedConversationLinks sales={sales} actor={actor} className="flex flex-col gap-1 border-t border-border px-4 py-2.5" />
       </Card>
 
       <ProfileSalesTransition
@@ -307,7 +358,7 @@ export function Overview({
   return (
     <div className="flex flex-col gap-4">
       {sales && staffPresentationCan(actor, "sales.read") ? (
-        <SalesOverview profile={profile} sales={sales} draft={draft} actor={actor} requestIds={requestIds} />
+        <SalesOverview profile={profile} sales={sales} draft={draft} actor={actor} requestIds={requestIds} quiet />
       ) : null}
 
       {draft.handoffAcknowledgement ? (
@@ -376,7 +427,7 @@ export function Overview({
               <p className="t-meta px-4 pb-3 pt-0.5 text-fg-3">
                 {application.institution} · набор {application.intake}
                 {application.universityDeadlineOn
-                  ? ` · дедлайн ${allDayDate(application.universityDeadlineOn) ?? "не указан"}`
+                  ? ` · срок подачи ${allDayDate(application.universityDeadlineOn) ?? "не указан"}`
                   : ""}
               </p>
             </>
@@ -405,32 +456,41 @@ export function Overview({
 
 /* ----------------------------------------------------------------- Анкета */
 
-export function Anketa({ profile, draft, fieldsRequestId, fieldsReadOnly, documentsHref }: {
+export function Anketa({ profile, draft, fieldsRequestId, fieldsReadOnly, documentsHref, routeHref = null }: {
   profile: PersonProfile; draft: ProfileDraft;
   fieldsRequestId: string; fieldsReadOnly: boolean; documentsHref: string | null;
+  routeHref?: string | null;
 }) {
-  const caseFacts = (
+  // Пустые карточки не рисуются: одна строка вместо двух «ничего не заполнено».
+  // Интересующее направление лида без дела стоит в «Сведениях» Lead 360, не здесь.
+  const personShown = [profile.phone, profile.email].some(Boolean) || draft.person.some((fact) => fact.value !== null);
+  const studyShown = draft.study.some((fact) => fact.value !== null) || (profile.student && profile.leadId !== null);
+  const caseFacts = !personShown && !studyShown && !profile.qualification ? (
+    <p className="t-body-compact text-fg-2">Других сведений нет.</p>
+  ) : (
     <div className="grid gap-4 @4xl:grid-cols-2">
-      <Card eyebrow title="Человек">
-        {/* Телефон и почта — настоящие: они единственные, что модель знает про
-            человека кроме имени. Поэтому без пунктира.
-            Обёртки <dl> здесь нет: FactList рисует свой, и вложенный список
-            определений — невалидная разметка. */}
-        <FactList
-          facts={[
-            { label: "Телефон", value: profile.phone },
-            { label: "Почта", value: profile.email },
-          ]}
-        />
-        <div className="border-t border-border">
-          <FactList facts={draft.person} />
-        </div>
-      </Card>
+      {personShown ? (
+        <Card eyebrow title="Человек">
+          {/* Телефон и почта — настоящие: они единственные, что модель знает про
+              человека кроме имени. Поэтому без пунктира.
+              Обёртки <dl> здесь нет: FactList рисует свой, и вложенный список
+              определений — невалидная разметка. */}
+          <FactList
+            facts={[
+              { label: "Телефон", value: profile.phone },
+              { label: "Почта", value: profile.email },
+              ...draft.person,
+            ]}
+          />
+        </Card>
+      ) : null}
 
-      <Card eyebrow title="Учёба и планы">
-        {profile.leadId ? <LeadInterestSummary leadId={profile.leadId} /> : null}
-        <FactList facts={draft.study} />
-      </Card>
+      {studyShown ? (
+        <Card eyebrow title="Учёба и планы">
+          {profile.student && profile.leadId ? <LeadInterestSummary leadId={profile.leadId} /> : null}
+          {draft.study.some((fact) => fact.value !== null) ? <FactList facts={draft.study} /> : null}
+        </Card>
+      ) : null}
 
       {profile.qualification ? (
         <div className="lg:col-span-2">
@@ -447,7 +507,7 @@ export function Anketa({ profile, draft, fieldsRequestId, fieldsReadOnly, docume
     {studentAnswers}
     <StudentProfileFields key={draft.profileFields.studentCaseId} snapshot={draft.profileFields} requestId={fieldsRequestId}
       applications={profile.applications.map(({ id, institution, program }) => ({ id, institution, program }))}
-      readOnly={fieldsReadOnly} sourceVersions={draft.profileFieldSources} documentsHref={documentsHref} />
+      readOnly={fieldsReadOnly} sourceVersions={draft.profileFieldSources} documentsHref={documentsHref} routeHref={routeHref} />
     <StaffDisclosure label="Другие сведения дела" buttonClassName="font-semibold">
       <div className="pt-3">{caseFacts}</div>
     </StaffDisclosure>
@@ -536,9 +596,9 @@ export function Money({
                 <span className="t-meta text-fg-2">
                   {payment.at ? <>{payment.state === "paid" ? "оплачен" : "до"}{" "}
                     <time dateTime={payment.at} className="font-mono tabular-nums">{moneyMomentDay(payment.at, today)}</time></>
-                    : payment.state === "paid" ? "оплачен" : "срок не указан"}
+                    : payment.state === "paid" ? "оплачен" : null}
                 </span>
-                {payment.state === "overdue" ? <StatusChip label="просрочено" tone="danger" /> : null}
+                {payment.state === "overdue" ? <StatusChip label="просрочен" tone="danger" /> : null}
               </li>
             ))}
             {draft.payments.length === 0 ? (
@@ -565,45 +625,42 @@ export function Money({
 /* --------------------------------------------------------------- История */
 
 export function History({ profile }: { profile: PersonProfile }) {
+  const today = dayInOrganizationTimezone(new Date());
   return (
     <div className="grid gap-4 @4xl:grid-cols-2">
       <Card eyebrow title="Что происходило">
-        <div
-          role="group"
-          aria-label="История изменений"
-          tabIndex={0}
-          className="max-h-[560px] overflow-y-auto"
-        >
-          <ol>
-            {profile.timeline.map((entry) => {
-              const label = journalEventText(entry.transition, entry.directionChange) ?? eventLabel(entry.transition);
-              // Неизвестное событие пропускается: сырой ключ на экране — это
-              // ровно то, что мы убирали.
-              if (!label) return null;
-              return (
-                <li key={entry.id} className="border-b border-border px-4 py-2.5 last:border-b-0">
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                    {entry.href ? (
-                      <Link href={entry.href} className="inline-flex min-h-11 min-w-0 items-center text-sm text-fg underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2">{label}</Link>
-                    ) : <span className="min-w-0 text-sm text-fg">{label}</span>}
-                    {entry.at ? <span className="t-meta font-mono text-fg-3">{entry.at}</span> : null}
-                  </div>
-                  {entry.changedFields?.length ? (
-                    <p className="mt-1 text-xs text-fg-3">Изменено: {[...new Set(entry.changedFields.map(taskChangeField).filter(Boolean))].join(", ")}.</p>
-                  ) : null}
-                  {roleWord(entry.role) ? (
-                    <p className="t-meta mt-0.5 text-fg-3">{roleWord(entry.role)}</p>
-                  ) : null}
-                </li>
-              );
-            })}
-            {profile.timelineForbidden ? (
-              <li className="px-4 py-3 text-sm text-fg-2" data-testid="v3-history-forbidden">Нет доступа к журналу этого дела.</li>
-            ) : profile.timeline.length === 0 ? (
-              <li className="px-4 py-3 text-sm text-fg-3">Событий нет.</li>
-            ) : null}
-          </ol>
-        </div>
+        <ol>
+          {profile.timeline.map((entry) => {
+            const label = journalEventText(entry.transition, entry.directionChange) ?? eventLabel(entry.transition);
+            // Неизвестное событие пропускается: сырой ключ на экране — это
+            // ровно то, что мы убирали.
+            if (!label) return null;
+            // Момент — как в «Ленте» на «Обзоре» («18.10 02:39»); без ISO — готовая подпись журнала.
+            const moment = entry.occurredAt && Number.isFinite(Date.parse(entry.occurredAt))
+              ? caseMomentLabel(entry.occurredAt, today) : entry.at;
+            return (
+              <li key={entry.id} className="border-b border-border px-4 py-2.5 last:border-b-0">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  {entry.href ? (
+                    <Link href={entry.href} className="inline-flex min-h-11 min-w-0 items-center text-sm text-fg underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2">{label}</Link>
+                  ) : <span className="min-w-0 text-sm text-fg">{label}</span>}
+                  {moment ? <span className="t-meta font-mono tabular-nums text-fg-3">{moment}</span> : null}
+                </div>
+                {entry.changedFields?.length ? (
+                  <p className="mt-1 text-xs text-fg-3">Изменено: {[...new Set(entry.changedFields.map(taskChangeField).filter(Boolean))].join(", ")}.</p>
+                ) : null}
+                {roleWord(entry.role) ? (
+                  <p className="t-meta mt-0.5 text-fg-3">{roleWord(entry.role)}</p>
+                ) : null}
+              </li>
+            );
+          })}
+          {profile.timelineForbidden ? (
+            <li className="px-4 py-3 text-sm text-fg-2" data-testid="v3-history-forbidden">Нет доступа к журналу этого дела.</li>
+          ) : profile.timeline.length === 0 ? (
+            <li className="px-4 py-3 text-sm text-fg-3">Событий нет.</li>
+          ) : null}
+        </ol>
         {profile.timelineOlderHref || profile.timelineLatestHref ? (
           <nav aria-label="Страницы истории" className="flex flex-wrap gap-4 border-t border-border px-4 py-2">
             {profile.timelineOlderHref ? <Link className="inline-flex min-h-11 items-center text-sm underline underline-offset-4" href={profile.timelineOlderHref}>Более ранние события</Link> : null}
@@ -620,10 +677,10 @@ export function History({ profile }: { profile: PersonProfile }) {
           обычными документами группы «Виза». `profile.visa` остаётся в
           модели (реальное чтение `getPlatformCaseVisa`, не выдумка) и
           намеренно нигде не рисуется — ни здесь, ни в панели приёмной. */}
-      <Card eyebrow title="Как он к нам пришёл">
+      <Card eyebrow title="Источник">
         <FactList
           facts={[
-            { label: "Откуда", value: sourceWord(profile.source) ?? "неизвестно" },
+            { label: "Откуда", value: sourceWord(profile.source) ?? "Не известно" },
             { label: "Появился", value: profile.arrived },
             {
               label: "Передан",

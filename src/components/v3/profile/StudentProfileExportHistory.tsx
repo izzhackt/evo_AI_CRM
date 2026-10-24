@@ -8,11 +8,12 @@ import {
 } from "@/lib/document-export-client";
 import { studentProfileFiles as words, studentProfileFileMessage, studentProfileFileState, partnerPacketExport as packetWords } from "@/lib/v3/wording";
 import { StaffDisclosure } from "../settings/StaffDisclosure";
+import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { UniversityFormExportPanel } from "./UniversityFormExportPanel";
 import type { ProfileApplication } from "./types";
 
-const BUTTON = "min-h-11 rounded-ctl border border-control-edge px-3 py-2 text-sm font-semibold text-fg hover:bg-bg disabled:cursor-not-allowed disabled:text-fg-3";
-const PRIMARY = "min-h-11 rounded-ctl border border-accent bg-accent px-3 py-2 text-sm font-semibold text-white hover:brightness-95 disabled:cursor-not-allowed disabled:border-border disabled:bg-bg disabled:text-fg-3 disabled:hover:brightness-100";
+const BUTTON = QUEUE_SECONDARY;
+const PRIMARY = QUEUE_CONFIRM;
 const DATE = new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bishkek" });
 const unfinished = (artifact: StoredDocumentExportReceipt) => artifact.state !== "ready" && artifact.state !== "failed";
 type ExportCommand = DocumentExportCommand | UniversityFormExportCommand;
@@ -23,6 +24,7 @@ type Props = Readonly<{
   draftBlocker: string | null; finalBlocker: string | null; busy: boolean;
   commandInFlightRef: RefObject<boolean>; onBusyChange(value: boolean): void; onRefreshProfile(): void;
   applications?: readonly Pick<ProfileApplication, "id" | "institution" | "program">[];
+  routeHref?: string | null;
   children?: ReactNode;
 }>;
 
@@ -192,8 +194,9 @@ export function StudentProfileExportHistory(props: Props) {
     <p role="status" aria-live="polite" className="text-sm leading-6 text-fg-2">{studentProfileFileMessage(hint)}</p>
     {unresolvedCommand ? <button type="button" className={BUTTON} disabled={props.busy || retryBlocked || !canExport}
       onClick={() => void retry()}>{words.retry}</button> : null}
-    {canExport ? <div className="flex flex-wrap gap-2">
-      <button type="button" className={BUTTON} disabled={props.busy || loading} onClick={refresh}>{words.refresh}</button>
+    {/* История читается при открытии и после каждой команды: «Обновить» нужен после сбоя чтения или смены анкеты. */}
+    {canExport && (readFailed || props.draftBlocker === "awaiting_snapshot" || needsRefresh || hint === "workspace_changed") ? <div className="flex flex-wrap gap-2">
+      {readFailed ? <button type="button" className={BUTTON} disabled={props.busy || loading} onClick={refresh}>{words.retryRead}</button> : null}
       {props.draftBlocker === "awaiting_snapshot" || needsRefresh || hint === "workspace_changed"
         ? <button type="button" className={BUTTON} disabled={props.busy || loading} onClick={() => { props.onRefreshProfile(); refresh(); }}>{words.refreshProfile}</button> : null}
     </div> : null}
@@ -201,7 +204,7 @@ export function StudentProfileExportHistory(props: Props) {
     <UniversityFormExportPanel key={`${studentCaseId}:${profile.id}:${profile.revision}:${canExport}`} studentCaseId={studentCaseId} profile={profile}
       applications={props.applications ?? NO_APPLICATIONS} canExport={canExport} busy={props.busy} creationBlocked={creationBlocked}
       unresolved={Boolean(unresolvedCommand)} blocker={formBlocker} readVersion={readVersion} onGenerate={generateForm}
-      onRefreshProfile={() => { props.onRefreshProfile(); refresh(); }} />
+      onRefreshProfile={() => { props.onRefreshProfile(); refresh(); }} routeHref={props.routeHref ?? null} />
     {workspace ? <StudentProfileExportList artifacts={workspace.artifacts} busy={props.busy || !canExport}
       uncertainReconciles={uncertainReconciles} onDownload={artifact => void download(artifact)} onReconcile={artifact => void reconcile(artifact)} /> : null}
   </div>;

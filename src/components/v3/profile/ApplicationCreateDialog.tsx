@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 
 import { Icon } from "@/components/icons";
-import { btnCls, btnGhostCls, inputCls, fieldLabelCls } from "@/components/ui";
+import { btnCls, inputCls, fieldLabelCls } from "@/components/ui";
 import {
   createPlatformUniversityApplicationAction,
   type PlatformUniversityApplicationActionState,
@@ -79,7 +79,7 @@ function ApplicationCreateForm({
           </summary>
           <div className="mt-3 grid gap-3">
             <label>
-              <span className={fieldLabelCls}>Дедлайн от университета</span>
+              <span className={fieldLabelCls}>Срок подачи</span>
               <input name="university_deadline_on" type="date" className={inputCls} />
             </label>
             <ApplicationCountryField />
@@ -136,8 +136,8 @@ function ApplicationCreateDialogBody({
       <div className={styles.layout}>
         <header className={styles.header}>
           <h2 id={titleId}>Добавить вуз</h2>
-          <button type="button" className={btnGhostCls} onClick={onClose}>
-            Закрыть
+          <button type="button" aria-label="Закрыть" className="grid size-11 shrink-0 place-items-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg" onClick={onClose}>
+            <Icon name="x" size={18} />
           </button>
         </header>
         <div className={styles.body}>

@@ -71,8 +71,15 @@ test("Lead 360 (Э8.4): «Изменить» leads to the contract workflow only
 test("Lead 360 (Э8.4): «Договор и оплата» exists for whoever has the gate forms, without opening the case's finances", () => {
   const none = { documents: false, finance: false, studentProfile: false, contract: false };
   const keys = (student, access) => tabsFor(student, access, false).map((tab) => tab.key);
-  // Лид без дела — вкладка есть всегда (как раньше).
-  assert.ok(keys(false, profileTabAccess(none, { financeConfirm: false, gateForms: false })).includes("money"));
+  // Лид без дела: вкладка — только с формами подтверждения вручную; пустая вкладка с одной фразой «дела пока нет» не нужна.
+  assert.ok(!keys(false, profileTabAccess(none, { financeConfirm: false, gateForms: false })).includes("money"));
+  assert.ok(keys(false, profileTabAccess(none, { financeConfirm: false, gateForms: true })).includes("money"));
+  assert.equal(resolveTab("money", false, profileTabAccess(none, { financeConfirm: false, gateForms: false }), false), "overview");
+  // «История» — журнал дела: у лида без дела её нет (события лида — «Лента» на «Обзоре»); «Анкета» — только с содержимым.
+  assert.ok(!keys(false, profileTabAccess(none, { financeConfirm: false, gateForms: false })).includes("history"));
+  assert.ok(keys(true, profileTabAccess({ ...none, studentProfile: true }, { financeConfirm: false, gateForms: false })).includes("history"));
+  assert.ok(!tabsFor(false, none, false, false).some((tab) => tab.key === "anketa"));
+  assert.ok(tabsFor(false, none, false, true).some((tab) => tab.key === "anketa"));
   // Переданный лид (есть дело): без прав на финансы и договор вкладки нет, пока нет форм подтверждения.
   assert.ok(!keys(true, profileTabAccess(none, { financeConfirm: false, gateForms: false })).includes("money"));
   const withForms = profileTabAccess(none, { financeConfirm: false, gateForms: true });
@@ -255,8 +262,10 @@ test("rendered Lead 360: name as h1, stage and «Что дальше» in the he
   for (const page of [early, potential]) {
     assert.match(page, /<div id="lead-next-step" popover="auto" role="dialog" aria-labelledby="[^"]+" data-testid="v3-lead-step-drawer"/u);
     assert.match(page, /data-testid="v3-pipeline-workflow-form"/u);
-    assert.match(page, /<button type="button" popoverTarget="lead-next-step" aria-haspopup="dialog" class="[^"]*underline[^"]*">Изменить<\/button>/u);
   }
+  // Красная «Записать следующий шаг» открывает ту же панель: второго «Изменить» рядом с ней нет; у «Оформить продажу» он остаётся.
+  assert.doesNotMatch(early, /<button type="button" popoverTarget="lead-next-step" aria-haspopup="dialog" class="[^"]*underline[^"]*">/u);
+  assert.match(potential, /<button type="button" popoverTarget="lead-next-step" aria-haspopup="dialog" class="[^"]*underline[^"]*">Изменить<\/button>/u);
   assert.doesNotMatch(handed, /v3-lead-step-drawer|v3-pipeline-workflow-form/u);
   assert.match(text(handed), /Что дальше Передано 18\.09 · Айгерим Условная · принято 19\.09/u);
   assert.match(text(early), /Что дальше Позвонить после консультации с родителями 29\.09/u);
@@ -286,7 +295,7 @@ test("rendered Lead 360 (Э8.4): feed and groups in the work column, only facts 
   assert.match(text(page), /Лента Новая заметка Добавить заметку Встреча прошла.*? Санжар Эскизов · 23\.09 16:15 Назначили встречу.*? Квалифицирован:.*? Лид создан · сайт 05\.09 11:00/u);
   // Порядок чтения (и телефона), как у дела: «Сведения», «Передача», лента, группы правки.
   // Дата появления — «05.09» (этот год), без «.2026».
-  assert.match(text(page), /Сведения Ответственный СЭ Санжар Эскизов Источник сайт · с 05\.09 Контакты \+996 000 000 002 lead@example\.invalid Последний контакт 23\.09 16:15 · заметка Передача ничего не подтверждено Изменить Лента .*? Лид создан · сайт 05\.09 11:00 Данные лида/u);
+  assert.match(text(page), /Сведения Ответственный СЭ Санжар Эскизов Источник сайт · 05\.09 Контакты \+996 000 000 002 lead@example\.invalid Последний контакт 23\.09 16:15 · заметка Передача ничего не подтверждено Подтвердить Лента .*? Лид создан · сайт 05\.09 11:00 Данные лида/u);
   assert.doesNotMatch(page, /05\.09\.2026/u);
   assert.match(page, /<a href="tel:\+996000000002" class="flex min-h-11/u);
   // До первого доказательства «Передача» — одна строка, не пять прочерков; первый факт — полоса.
@@ -317,14 +326,15 @@ test("rendered Lead 360 (Э8.4): feed and groups in the work column, only facts 
   assert.match(edit, />Сохранить условия<\/button>/u);
   assert.equal(edit.match(/>Сохранить<\/button>/gu)?.length, 3, "Пожелания, Образование, Условия");
   // «Изменить» в «Передаче» — тихая ссылка 44 px к подтверждению вручную на вкладке «Договор и оплата».
-  assert.match(page, /<a class="inline-flex min-h-11 items-center t-label text-fg-2 underline [^"]*ms-auto" data-testid="v3-handoff-edit" aria-label="Изменить договор и оплату" href="\/v3\/profile\?id=[^"]+&amp;tab=money#handoff-confirm">Изменить<\/a>/u);
+  assert.match(page, /<a class="inline-flex min-h-11 items-center t-label text-fg-2 underline [^"]*ms-auto" data-testid="v3-handoff-edit" aria-label="Подтвердить договор и оплату" href="\/v3\/profile\?id=[^"]+&amp;tab=money#handoff-confirm">Подтвердить<\/a>/u);
   // «⋯»: только «Закрыть лид…» — «Доступ к порталу» живёт в своей группе.
   const menu = page.slice(page.indexOf('data-testid="v3-lead-actions-menu"'));
   assert.match(menu, /^data-testid="v3-lead-actions-menu"[^>]*><button type="button" class="[^"]*">Закрыть лид…<\/button>/u);
   assert.doesNotMatch(page.slice(page.indexOf('data-testid="v3-lead-actions"'), page.indexOf('data-testid="v3-lead-header"')), /Доступ к порталу/u);
-  // Переданный лид: закрыть нельзя, причина словами; строки передачи в «Сведениях» второй раз нет.
+  // Переданный лид: закрыть нельзя — «⋯» с единственным недоступным «Закрыть лид» нет вовсе (этап «Переданы» уже говорит об этом);
+  // строки передачи в «Сведениях» второй раз нет.
   const handed = pages.get("lead-handed");
-  assert.match(text(handed), /Закрыть лид Лид передан в поступление — это продажа\./u);
+  assert.doesNotMatch(handed, /v3-lead-actions-menu|Закрыть лид/u);
   assert.doesNotMatch(handed, /v3-handoff-summary/u);
   assert.doesNotMatch(handed, /v3-lead-group-contract/u);
   // Решение куратора уже в «Принято» — факта «Приём дела» без нового текста нет; «Оплата N%» — в полосе, не в «Сведениях».
@@ -354,7 +364,7 @@ test("rendered Lead 360 (Э8.4): contract and payment in one place — the strip
   // Вкладка «Договор и оплата» лида без дела: подтверждение вручную наверху, пустых обязательств нет.
   const money = pages.get("lead-money");
   assert.match(money, /<section id="handoff-confirm" aria-labelledby="handoff-confirm-title" class="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate">/u);
-  assert.match(text(money), /Подтверждение вручную Договор, затем первый платёж — доказательства передачи в поступление, если их нет в деле и в отчёте продаж\. Подтвердить договор/u);
+  assert.match(text(money), /Подтверждение вручную Доказательства передачи в поступление, если их нет в деле и в отчёте\. Договор /u);
   assert.match(money, /<label class="block"><span[^>]*>Доказательство<\/span>/u);
   assert.doesNotMatch(money, /Все обязательства по делу/u);
   assert.equal(solidRed(money), 1, "the confirmations are quiet; red stays the page's main action");
@@ -365,7 +375,8 @@ test("Lead 360 and Student 360 tabs (Э8.4): 44 px, the queue tab strip without 
   const strip = potential.slice(potential.indexOf('aria-label="Разделы профиля"') - 5, potential.indexOf("</nav>", potential.indexOf('aria-label="Разделы профиля"')));
   assert.match(strip, /^<nav aria-label="Разделы профиля" tabindex="0" data-tab-strip="" class="v3-tab-strip -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0" data-testid="v3-profile-tabs"><ul class="flex min-w-max items-center gap-1 border-b border-border pb-2">/u);
   const links = [...strip.matchAll(/<a [^>]*class="([^"]+)"[^>]*>([^<]+)<\/a>/gu)];
-  assert.deepEqual(links.map((match) => match[2]), ["Обзор", "Анкета", "Договор и оплата", "История"]);
+  // Лид без дела: «Анкета» и «История» не рисуются пустыми — события лида в «Ленте», направление в «Сведениях».
+  assert.deepEqual(links.map((match) => match[2]), ["Обзор", "Договор и оплата"]);
   assert.ok(links.every((match) => /(^| )min-h-11( |$)/u.test(match[1]) && /(^| )t-label( |$)/u.test(match[1])), "44 px, one type role");
   const profile = read("src/components/v3/profile/Profile.tsx");
   assert.match(profile, /<QueueTabStrip label="Разделы профиля" focusable testId="v3-profile-tabs">/u);

@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useRef, useState, useTransition, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
-import { btnGhostCls, fieldLabelCls, inputCls } from "@/components/ui";
+import { fieldLabelCls, inputCls } from "@/components/ui";
 import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import {
   applyCaseBaselineChecklistAction,
@@ -17,10 +16,11 @@ import type { PlatformDocumentSlotStatus } from "@/lib/platform-private-document
 
 import { caseMomentLabel } from "./case-work-view";
 import { ChecklistFeedback, useRefreshAfterSave } from "./DocumentChecklistFeedback";
-import { DocumentPreviewButton } from "./DocumentPreviewButton";
+import { DocumentPreviewButton, PREVIEW_LINK } from "./DocumentPreviewButton";
 import { DocumentRecognitionJobs } from "./DocumentRecognitionJobs";
 import { DocumentRow, useHydrated } from "./DocumentRow";
 import {
+  DOCUMENT_UPLOAD_HINT,
   DOCUMENT_UPLOAD_IDLE,
   DOCUMENT_UPLOAD_SAVED,
   documentUploadConfirmed,
@@ -63,20 +63,19 @@ function RemovedDocumentHistory({
 }: Readonly<{ groups: readonly RemovedDocumentGroup[]; today: string }>) {
   if (groups.length === 0) return null;
 
+  const total = groups.reduce((sum, group) => sum + group.items.length, 0);
+
   return (
-    <section
-      className="space-y-2 pt-2"
-      aria-labelledby="removed-document-history-title"
+    <details
+      className="group border-y border-border"
       data-testid="v3-removed-document-history"
     >
-      <div className="border-b border-border pb-2">
-        <h3 id="removed-document-history-title" className="t-item text-fg">
-          История удалённых пунктов
+      <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 rounded-nav py-1.5 [&::-webkit-details-marker]:hidden">
+        <h3 id="removed-document-history-title" className="min-w-0 flex-1 t-item text-fg">
+          История удалённых пунктов · {total}
         </h3>
-        <p className="t-meta text-fg-2">
-          Удалённые пункты и их файлы сохранены только для просмотра.
-        </p>
-      </div>
+        <Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
+      </summary>
 
       <ul>
         {groups.map((group) => (
@@ -109,7 +108,7 @@ function RemovedDocumentHistory({
                           className="flex flex-wrap items-center justify-between gap-3 py-2"
                           data-testid="v3-removed-document-version"
                         >
-                          <div className="min-w-0 flex-1">
+                          <div className="min-w-0 flex-1 max-sm:basis-full">
                             <p className="truncate t-body-compact text-fg">
                               {version.filename} · версия {version.versionNumber}
                             </p>
@@ -122,7 +121,7 @@ function RemovedDocumentHistory({
                               <DocumentPreviewButton key={version.id} versionId={version.id} filename={version.filename} versionNumber={version.versionNumber} />
                               <a
                                 href={`/api/v2/document-versions/${version.id}/download`}
-                                className={btnGhostCls}
+                                className={PREVIEW_LINK}
                                 data-testid="v3-removed-document-download"
                               >
                                 Скачать
@@ -143,7 +142,7 @@ function RemovedDocumentHistory({
           </li>
         ))}
       </ul>
-    </section>
+    </details>
   );
 }
 
@@ -202,7 +201,7 @@ function ApplyBaselineChecklist({
         {pending ? "Применяем…" : "Применить базовый чек-лист"}
       </button>
       <p className="t-meta text-fg-2 md:col-span-2">
-        Привязка версии требований выполняется один раз; страна и степень дела будут зафиксированы.
+        Применяется один раз: страна и степень дела фиксируются.
       </p>
       <div className="md:col-span-2">
         <ChecklistFeedback state={state} />
@@ -430,11 +429,11 @@ export function ProfileDocumentsClient({
         options={baselineOptions}
         requestId={baselineChecklistRequestId}
       />
-    ) : uploadAccess === "allowed" && studentCaseId && createRequestId && baselineTemplatesAbsent ? (
-      // A quiet fact, not an error: the manual form right below is the way.
+    ) : uploadAccess === "allowed" && studentCaseId && createRequestId && baselineTemplatesAbsent && !checklistEmpty ? (
+      // A quiet fact, not an error: the manual form right below is the way. Пустой чек-лист говорит это сам («Чек-лист пуст»).
       <p className="t-body-compact text-fg-2"
         data-testid="v3-document-baseline-checklist-empty">
-        Шаблонов чек-листа пока нет — документы добавляются вручную.
+        Шаблонов чек-листа нет.
       </p>
     ) : null;
 
@@ -447,16 +446,11 @@ export function ProfileDocumentsClient({
     <section aria-labelledby="case-documents-title" className="min-w-0 space-y-3" data-testid="v3-case-documents">
       <h2 id="case-documents-title" className="sr-only">Документы дела</h2>
 
-      {progress || canChangeChecklist || studentCaseId ? (
+      {progress || (canChangeChecklist && !checklistEmpty) ? (
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">{progress}</div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            {studentCaseId ? (
-              <Link href={`/v3/messages?case=${studentCaseId}`} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">
-                Обсудить
-              </Link>
-            ) : null}
-            {canChangeChecklist ? (
+            {canChangeChecklist && !checklistEmpty ? (
               <button
                 type="button"
                 className={`${QUEUE_SECONDARY} v3-choice`}
@@ -474,6 +468,11 @@ export function ProfileDocumentsClient({
         </div>
       ) : null}
 
+      {uploadAccess === "allowed" && groups.some((group) => group.items.some((item) => item.presence !== "present" && item.uploadRequestId !== null)) ? (
+        // Одна подсказка про форматы на весь список, а не у каждой «Загрузить файл».
+        <p className="t-meta text-fg-2" data-testid="v3-document-upload-hint">Загрузка: {DOCUMENT_UPLOAD_HINT}</p>
+      ) : null}
+
       {uploadAccess !== "allowed" ? (
         <p className="t-body-compact text-fg-2" role="status">
           {ACCESS_MESSAGE[uploadAccess]}
@@ -485,7 +484,7 @@ export function ProfileDocumentsClient({
       ) : null}
 
       {canChangeChecklist && studentCaseId && createRequestId ? (
-        <div id={ADD_REGION_ID} hidden={!addOpen} className="space-y-4 border-y border-border py-4" data-testid="v3-document-add">
+        <div id={ADD_REGION_ID} hidden={!(addOpen || checklistEmpty)} className="space-y-4 border-y border-border py-4" data-testid="v3-document-add">
           {baseline}
           <CreateChecklistItem
             key={createRequestId}
@@ -503,7 +502,7 @@ export function ProfileDocumentsClient({
 
       {groups.length === 0 ? (
         <p className="py-4 t-body-compact text-fg-2" data-testid="v3-document-empty">
-          {emptyText ?? "В чек-листе пока нет документов."}
+          {emptyText ?? (checklistEmpty && canChangeChecklist ? "Чек-лист пуст. Добавьте документы вручную." : "В чек-листе пока нет документов.")}
         </p>
       ) : (
         <ul className="@container/documents min-w-0">
@@ -534,7 +533,7 @@ export function ProfileDocumentsClient({
       )}
 
       {/* Под списком черта последней строки уже отделяет раздел: своя не нужна. */}
-      {recognition ? <DocumentRecognitionJobs key={recognition.studentCaseId}
+      {recognition && !checklistEmpty ? <DocumentRecognitionJobs key={recognition.studentCaseId}
         access={recognition} sourceVersionId={null} sourceReady={false} ruled={groups.length === 0} /> : null}
 
       <RemovedDocumentHistory groups={historyGroups} today={today} />

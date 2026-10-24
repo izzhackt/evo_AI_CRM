@@ -125,8 +125,9 @@ const MENU_ITEM_CLASS = "flex min-h-11 w-full items-center rounded-nav px-2 text
 /**
  * «Действия с делом» — меню в top layer (`TopLayerMenu`): колонка с
  * `overflow-y-auto` больше не обрезает его до первой строки. Сначала этапы
- * текущего раздела, этапы другого раздела — за «Другой раздел», затем
- * «Открыть дело» и отдельно «Убрать из воронки» с подтверждением.
+ * текущего раздела, этапы другого раздела — за его названием, отдельно
+ * «Убрать из воронки» с подтверждением. «Открыть дело» в меню нет: дело
+ * открывает имя на карточке.
  */
 function CardMenu({
   row,
@@ -163,7 +164,8 @@ function CardMenu({
     ADMISSIONS_PIPELINE_TAB_STAGES[tabKey].filter((stage) => stage !== row.pipelineStage);
   return (
     <TopLayerMenu
-      label="Действия с делом"
+      label={`Действия с делом: ${row.studentDisplayName}`}
+      menuLabel="Действия с делом"
       trigger={<Icon name="more-horizontal" size={20} />}
       triggerClassName="flex size-11 items-center justify-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg"
       menuClassName="w-64 rounded-ctl border border-border bg-surface p-1 shadow-evo-lg"
@@ -202,11 +204,10 @@ function CardMenu({
             className={cn(MENU_ITEM_CLASS, "justify-between gap-2")}
             onClick={() => setOtherOpen((previous) => !previous)}
           >
-            Другой раздел
+            {admissionsPipelineTab(otherTab)}
             <Icon name="chevron-down" size={16} className={cn("shrink-0 text-fg-3", otherOpen && "rotate-180")} />
           </button>
           <div id={otherId} hidden={!otherOpen} role="group" aria-label={admissionsPipelineTab(otherTab)}>
-            <p className="t-caption px-2 pt-1 text-fg-3">{admissionsPipelineTab(otherTab)}</p>
             {tabTargets(otherTab).map((stage) => (
               <button
                 key={stage}
@@ -218,10 +219,6 @@ function CardMenu({
               </button>
             ))}
           </div>
-          <hr className="my-1 border-border" />
-          <Link href={caseHref(row.studentCaseId)} prefetch={false} className={MENU_ITEM_CLASS}>
-            Открыть дело
-          </Link>
           <hr className="my-1 border-border" />
           {confirmingRemove ? (
             <div role="group" aria-labelledby={confirmTextId} className="rounded-nav bg-danger-weak p-2">
@@ -312,7 +309,7 @@ function BoardCard({
           prefetch={false}
           draggable={false}
           title={row.studentDisplayName}
-          className="t-item block min-w-0 truncate text-fg underline-offset-4 hover:underline"
+          className="t-item block min-w-0 line-clamp-2 break-words text-fg underline-offset-4 hover:underline"
         >
           {row.studentDisplayName}
         </Link>
@@ -755,7 +752,9 @@ export function AdmissionsPipelineBoard({
           </div>
         </div>
       ) : boardEmpty ? (
-        <p className="t-body-compact px-1 py-10 text-center text-fg-3">Дел в работе нет.</p>
+        <p className="t-body-compact px-1 py-10 text-center text-fg-3">
+          {query.q !== null || query.country !== null || query.curator !== null ? "Ничего не найдено." : "Дел в работе нет."}
+        </p>
       ) : (
         <>
           {/* Narrow screens: stage picker + single-column list, moves via the card menu only. */}
@@ -794,7 +793,8 @@ export function AdmissionsPipelineBoard({
                   count={inStage.length}
                   emptyText={BOARD_EMPTY.cases}
                   testId="v3-admissions-pipeline-column"
-                  className={stage === narrowStage ? "flex" : "hidden @5xl:flex"}
+                  // Телефон: этап назван выбором «Этап» над списком — заголовок колонки повторял бы его.
+                  className={stage === narrowStage ? "flex @max-5xl:[&>header]:hidden" : "hidden @5xl:flex"}
                   highlighted={dragOverStage === stage}
                   onDragOver={(event) => { event.preventDefault(); setDragOverStage(stage); }}
                   onDragLeave={() => setDragOverStage((current) => (current === stage ? null : current))}

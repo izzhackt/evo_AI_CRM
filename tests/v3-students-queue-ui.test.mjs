@@ -236,9 +236,9 @@ test("counts come only from the counts read: tabs, bands, menus and the header g
   assert.deepEqual([...docsNav.matchAll(/<a [^>]*>([^<]+)(?:<span class="tabular-nums text-fg-3">(\d+)<\/span>)?<\/a>/gu)].map((match) => [match[1], match[2] ?? null]), [
     ["Документы дела", null], ["Исправить", null], ["Не хватает", null], ["Все", "20"],
   ]);
-  // Прочитаны не все дела: «Документы дела» в порядке сервера, и это сказано.
-  assert.match(incomplete, /Порядок: сначала недавно изменённые дела — прочитаны не все дела, поэтому не по ожиданию/u);
-  assert.match(incomplete, /Проверены первые 20 дел в работе; числа вкладок — после полного чтения\./u);
+  // Прочитаны не все дела: «Документы дела» в порядке сервера, и это сказано коротко.
+  assert.match(incomplete, /Прочитаны не все дела — порядок не по ожиданию\./u);
+  assert.match(incomplete, /Прочитаны первые 20 дел; числа вкладок неполные\./u);
 });
 
 test("view tabs are real links with exactly one aria-current page and the old summary anchor", () => {
@@ -275,7 +275,11 @@ test("the queue is one semantic table: caption, column headers, a row header per
   assert.doesNotMatch(html, /Индивидуальный этап сопровождения/u);
   assert.match(html, /<time dateTime="2026-09-19" class="font-mono tabular-nums [^"]*text-fg">19\.09<\/time><span class="[^"]*"><span class="v3-due t-caption" data-due="overdue">прошёл 4 дн<\/span><\/span>/u);
   assert.match(html, /<time dateTime="2026-09-24" class="font-mono tabular-nums [^"]*text-fg">24\.09<\/time><span class="[^"]*"><span class="v3-due t-caption" data-due="upcoming">завтра<\/span><\/span>/u);
-  assert.match(html, /<span class="t-meta text-fg-3[^"]*">без срока<\/span>/u);
+  // Under the band «Без срока» the word is the band's: the row keeps it for a screen reader only.
+  assert.doesNotMatch(html, /<span class="t-meta text-fg-3[^"]*">без срока<\/span>/u);
+  assert.match(html, /<span class="sr-only">без срока<\/span>/u);
+  // Sorted by update there are no bands, and a step without a date says so itself.
+  assert.match(surfaces.get("admin-updated"), /<span class="t-meta text-fg-3[^"]*">без срока<\/span>/u);
   // Awaiting acceptance under the curator; a case without one says it needs one.
   assert.match(html, /<span class="font-medium text-warn @min-\[36rem\]\/students:block">ждёт принятия<\/span>/u);
   // «Требуют действия» holds the pending cases that need one.
@@ -283,8 +287,10 @@ test("the queue is one semantic table: caption, column headers, a row header per
   // Signals are words from the row.
   assert.match(html, /2\u00a0задачи просрочены/u);
   assert.match(html, /2\u00a0документа исправить/u);
-  assert.match(html, /Просрочен дедлайн/u);
-  assert.match(html, /Ждём партнёра/u);
+  // Chips read in one case — lower, like «ждёт принятия» and «нужен ответ».
+  assert.match(html, />дедлайн просрочен</u);
+  assert.match(html, />ждём партнёра</u);
+  assert.doesNotMatch(html, /Просрочен дедлайн|Ждём партнёра/u);
   // 245: the chat waits for a staff answer — «нужен ответ», red, on the row that says so, and on no other.
   assert.equal((html.match(/>нужен ответ</gu) ?? []).length, 1);
   assert.match(html, /data-queue-row="cccccccc-2222-4222-8222-000000000021"[\s\S]*?data-tone="danger">нужен ответ<[\s\S]*?<\/tr>/u);
@@ -313,12 +319,12 @@ test("«Мои» has no curator column: its exceptions become signals, and the u
   assert.deepEqual(studentsRowSignals({ ...base, isMine: false }, { curatorWords: true }).map((signal) => signal.text), ["куратор:\u00a0Имя Ф."]);
   assert.deepEqual(studentsRowSignals({ ...base, currentCuratorMembershipId: null, isMine: false, attentionFlags: ["needs_curator"] }, { curatorWords: true }).map((signal) => [signal.text, signal.tone]), [["нужен куратор", "danger"]]);
   // Sorted by update there are no due bands: the overdue step is a word and the row shows «обн. ДД.ММ».
-  assert.deepEqual(studentsRowSignals({ ...base, dueBand: "overdue" }, { overdueStep: true }).map((signal) => signal.text), ["Шаг просрочен"]);
+  assert.deepEqual(studentsRowSignals({ ...base, dueBand: "overdue" }, { overdueStep: true }).map((signal) => signal.text), ["шаг просрочен"]);
   assert.deepEqual(studentsUpdatedDay("2026-09-22T20:30:00Z", "2026-09-23"), { dateTime: "2026-09-22T20:30:00Z", text: "23.09" }, "the Bishkek day");
   assert.equal(studentsUpdatedDay("not a date", "2026-09-23"), null);
   const updated = surfaces.get("admin-updated");
   assert.match(updated, /обн\. <time dateTime="[^"]+" class="font-mono tabular-nums">\d\d\.\d\d<\/time>/u);
-  assert.match(updated, />Шаг просрочен</u);
+  assert.match(updated, />шаг просрочен</u);
   assert.doesNotMatch(surfaces.get("admin-active"), /обн\. <time/u, "the due sort keeps the due word");
 });
 
@@ -327,7 +333,7 @@ test("row signals and the documents line are words from the row, never guesses",
   assert.deepEqual(studentsRowSignals(base), []);
   assert.deepEqual(studentsRowSignals({ ...base, overdueTaskCount: 5, attentionFlags: ["overdue"] }).map((signal) => signal.text), ["5\u00a0задач просрочено"]);
   // The overdue flag without overdue tasks or an overdue step is a deadline (application/visa).
-  assert.deepEqual(studentsRowSignals({ ...base, attentionFlags: ["overdue"] }).map((signal) => signal.text), ["Просрочен дедлайн"]);
+  assert.deepEqual(studentsRowSignals({ ...base, attentionFlags: ["overdue"] }).map((signal) => signal.text), ["дедлайн просрочен"]);
   assert.deepEqual(studentsRowSignals({ ...base, attentionFlags: ["overdue"], dueBand: "overdue" }), []);
   // 245: a chat waiting for staff is a red word first among the work signals.
   assert.deepEqual(studentsRowSignals({ ...base, needsReply: true, overdueTaskCount: 1 }).map((signal) => [signal.text, signal.tone]), [
@@ -460,7 +466,8 @@ test("«Быстрый просмотр» is the queue panel: record heading, th
   assert.match(panel, /Документы<\/h3><div class="space-y-2"><span class="v3-progress" data-progress="6\/10"><span class="t-body-compact text-fg">6 из 10 принято<\/span>/u);
   // A row that is not on this page is said plainly, with the case link.
   const missing = surfaces.get("panel-missing").slice(surfaces.get("panel-missing").indexOf("<dialog"));
-  assert.match(missing, /Дела нет на этой странице списка/u);
+  assert.match(missing, /Дела нет в этом списке/u);
+  assert.match(missing, /Оно в другом виде, на другой странице или недоступно вам\./u);
   assert.match(missing, /data-side-panel-open="" href="\/v3\/profile\?case=cccccccc-2222-4222-8222-000000000099&amp;tab=overview&amp;returnTo=%2Fv3%2Fprofile%3Fview%3Dactive">Открыть дело<svg/u);
 });
 
@@ -538,8 +545,8 @@ test("EVO Docs is a document review queue without work statuses", () => {
   assert.match(surfaces.get("docs-all"), /Нет доступа к документам/u);
   // The row action looks like a link: text and arrow, underlined on row hover and on focus, one line.
   assert.match(menu, /className="inline-flex min-h-11 items-center gap-1\.5 whitespace-nowrap t-label text-fg underline-offset-4 before:absolute before:inset-0 before:content-\[''\] group-hover:underline focus-visible:underline"/u);
-  assert.match(html, /Порядок: сначала дольше всех ждущие проверки/u, "the order is said, not implied");
-  assert.match(surfaces.get("docs-fix"), /Порядок: сначала недавно изменённые дела<\/p>/u);
+  assert.doesNotMatch(html, /Порядок:/u, "the wait words in the rows say the order; no standing caption");
+  assert.doesNotMatch(surfaces.get("docs-fix"), /Порядок:/u);
   // The documents cell leads with the number that defines the tab.
   const documents = { total: 12, approved: 7, submitted: 2, correctionRequired: 1, rejected: 1, missing: 1 };
   assert.deepEqual(studentsDocsCell("review", documents).lead.map((part) => part.text), ["2\u00a0на проверке"]);
@@ -620,7 +627,8 @@ test("Sales keeps the 078 list with the limited handoff summary", () => {
   assert.doesNotMatch(sales, /data-access="full"/u);
   assert.doesNotMatch(sales, /href="[^"]*case=/u);
   assert.match(sales, /href="\/v3\/profile\?id=dddddddd-3333-4333-8333-000000000001"/u);
-  assert.match(sales, /итог передачи/u);
+  assert.match(sales, /передан в поступление/u);
+  assert.doesNotMatch(sales, /итог передачи/u, "no internal jargon for Sales");
   assert.match(sales, /name="case_q"/u);
 });
 
@@ -709,7 +717,7 @@ test("EVO Docs does not say «нет» from a partial read or without document a
   assert.match(partial, /В прочитанной части списка ничего не найдено/u);
   assert.doesNotMatch(partial, /Документов на проверку нет/u);
   assert.match(partial, /Проверить следующие 100/u);
-  assert.match(partial, /Проверены первые \d+ (дело|дела|дел) в работе/u);
+  assert.match(partial, /Прочитаны первые \d+ (дело|дела|дел);/u);
   assert.doesNotMatch(partial, /первые [234] дел /u, "Russian plural: 4 дела, not 4 дел");
   const noAccess = surfaces.get("docs-no-access");
   assert.match(noAccess, /Нет доступа к документам дел — откройте «Все»/u);
@@ -730,7 +738,7 @@ test("«Закрытые» has no due groups and no add-a-step hint", () => {
   // Without steps in work the order is by update: the key is shown, there is no sort choice, an old step is not «просрочен».
   assert.match(texts(closed), /обн\. \d\d\.\d\d/u);
   assert.doesNotMatch(closed, /Сортировка/u);
-  assert.doesNotMatch(closed, /Шаг просрочен/u);
+  assert.doesNotMatch(closed, /[Шш]аг просрочен/u);
   for (const view of ["closed", "pending"]) {
     assert.equal(studentsQueueRequest(ok({ view })).sort, "updated", view);
     assert.equal(studentsQueueRequest(ok({ view, sort: "due" })).sort, "updated", `${view}: a carried due sort is not applied`);
@@ -770,7 +778,7 @@ test("«Ожидает начала» is a queue view: pending cases, no due gro
   assert.doesNotMatch(html, /добавьте шаг/u);
   // A declined case keeps its saved step (182): its date is shown, but it is not «просрочен».
   assert.match(texts(html), /Созвониться о старте занятий 18\.09/u);
-  assert.doesNotMatch(html, /Шаг просрочен|прошёл/u);
+  assert.doesNotMatch(html, /[Шш]аг просрочен|прошёл/u);
   // Nor in its quick view, where the step is read-only (overdue open tasks keep their own word).
   const panel = surfaces.get("pending-panel");
   assert.match(texts(panel), /Созвониться о старте занятий · 18\.09 Шаг задаётся только делу в работе/u);
@@ -873,4 +881,65 @@ test("«Принять дело» in the panel reuses the case card, only for th
   assert.match(panel, /if \(!answered \|\| handoff\) return;[\s\S]*active === document\.body\) headingRef\.current\?\.focus\(\);/u);
   const page = read("src/app/(v3)/v3/profile/page.tsx");
   assert.match(page, /params\.open && !isStaffPreview\(actor\) \? readStudentsHandoff\(actor, params\.open\)/u, "one read per open panel, never in role preview");
+});
+
+// --- Чистка очереди (24.10.2026, аудит интерфейса «Поступление») -----------------
+
+test("the queue does not repeat what its band already says: a step word per row only where no band says it", () => {
+  const visible = (html) => [...html.matchAll(/<span class="text-fg-3">Шаг не задан<\/span>/gu)].length;
+  const spoken = (html) => [...html.matchAll(/<span class="sr-only">Шаг не задан<\/span>/gu)].length;
+  // The band «Без следующего шага» is the statement: its rows keep the words for a screen reader only.
+  const bands = surfaces.get("admin-default");
+  assert.match(bands, /Без следующего шага<\/span>/u);
+  assert.equal(visible(bands), 0);
+  assert.equal(spoken(bands), 5);
+  // Sorted by update there are no bands: a case in work without a step still says so.
+  assert.equal(visible(surfaces.get("admin-updated")), 3);
+  // A case that is not in work has no step to set: no word in every row of «Закрытые».
+  const closed = surfaces.get("closed");
+  assert.equal(visible(closed), 0);
+  assert.ok(spoken(closed) >= 3);
+});
+
+test("a list without a single step or signal drops the three empty columns and keeps the student, stage and curator", () => {
+  const bare = surfaces.get("admin-bare");
+  const headers = [...bare.matchAll(/<th role="columnheader" scope="col"[^>]*>([\s\S]*?)<\/th>/gu)].map((match) => texts(match[1]));
+  assert.deepEqual(headers, ["Студент", "Этап", "Куратор", "Дело"]);
+  assert.match(bare, /grid-template-areas:&#x27;student_stage_curator_link&#x27;/u);
+  // The band still says it once, and the rows carry no step, due or signal cell content.
+  assert.match(bare, /Без следующего шага/u);
+  assert.equal([...bare.matchAll(/<span class="text-fg-3">Шаг не задан<\/span>/gu)].length, 0);
+  // The moment one row has a step or a signal, the full table is back.
+  assert.deepEqual([...surfaces.get("admin-default").matchAll(/<th role="columnheader" scope="col"[^>]*>([\s\S]*?)<\/th>/gu)].map((match) => texts(match[1])),
+    ["Студент", "Следующий шаг", "Срок", "Этап", "Куратор", "Сигналы", "Дело"]);
+  // «Закрытые» and the update sort show «обн. ДД.ММ» in «Срок»: never bare.
+  assert.match(texts(surfaces.get("closed")), /Срок/u);
+});
+
+test("«Ожидает начала» and «Ждут куратора» appear only with cases or when you stand on them", () => {
+  const counts = (fields) => ({ views: { mine: 3, needs_action: 4, active: 9, pending: 0, needs_curator: 0, closed: 2, ...fields } });
+  const keys = (params, fields) => studentsQueueTabs(params, counts(fields), ADMIN).map((tab) => tab.key);
+  assert.deepEqual(keys(ok({}), {}), ["mine", "needs_action", "active", "closed", "curators"], "a read zero hides both");
+  assert.deepEqual(keys(ok({}), { pending: 2 }), ["mine", "needs_action", "active", "pending", "closed", "curators"]);
+  assert.deepEqual(keys(ok({}), { needs_curator: 1 }), ["mine", "needs_action", "active", "needs_curator", "closed", "curators"]);
+  assert.deepEqual(keys(ok({ view: "pending" }), {}), ["mine", "needs_action", "active", "pending", "closed", "curators"], "the open tab stays, even empty");
+  // Unknown is not zero: without the counts read nothing is hidden, and «Мои» is a personal view that always stays.
+  assert.deepEqual(studentsQueueTabs(ok({}), null, ADMIN).map((tab) => tab.key), ["mine", "needs_action", "active", "pending", "needs_curator", "closed", "curators"]);
+  assert.equal(keys(ok({}), { mine: 0 }).includes("mine"), true);
+});
+
+test("the heading carries no count: the open tab already shows it", () => {
+  const source = read("src/components/v3/students/StudentsQueueScreen.tsx");
+  assert.doesNotMatch(source, /count: read\.counts\?\.total/u);
+  assert.equal(source.match(/count: null,/gu)?.length >= 4, true, "every branch of the queue screen returns no heading count");
+});
+
+test("the quick view puts the rare action last and keeps the ordinary ones first", () => {
+  const source = read("src/components/v3/students/StudentQuickView.tsx");
+  assert.ok(source.indexOf("<CloseRecordButton") > source.indexOf('aria-label="Документы дела"'), "«Завершить дело…» after the documents block");
+  const panel = surfaces.get("panel-close");
+  assert.ok(panel.indexOf('data-testid="v3-close-case"') > panel.indexOf("Документы дела"), "rendered after the documents link");
+  assert.ok(panel.indexOf('data-testid="v3-close-case"') > panel.indexOf("Следующий шаг"));
+  // The next-step field is named by its heading; the visible «Шаг» label was a repeat.
+  assert.match(read("src/components/v3/students/NextStepEditor.tsx"), /<label htmlFor=\{fieldId\} className="sr-only">Шаг<\/label>/u);
 });

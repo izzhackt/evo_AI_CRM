@@ -50,6 +50,22 @@ const ROW_GRID_MINE = `${PHONE} ${MID_COLUMNS_MINE} @min-[36rem]/students:[grid-
  */
 const HEAD_GRID = `grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 ${MID_COLUMNS} ${WIDE_COLUMNS}`;
 const HEAD_GRID_MINE = `grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 ${MID_COLUMNS_MINE} ${WIDE_COLUMNS_MINE}`;
+/**
+ * Пустая таблица шагов: ни у одной строки нет ни шага, ни сигнала (и сортировка
+ * не по обновлению) — колонки «Следующий шаг», «Срок» и «Сигналы» были бы
+ * пустыми во всю высоту списка. Тогда остаются студент, этап и куратор; о
+ * шагах говорит группа «Без следующего шага». Как только у одной строки
+ * появляется шаг или сигнал, возвращается полная таблица.
+ */
+const WIDE_BARE = "@min-[60rem]/students:grid-cols-[minmax(14rem,2fr)_minmax(7.5rem,1fr)_minmax(6.5rem,1fr)_2.75rem] @min-[60rem]/students:[grid-template-areas:'student_stage_curator_link']";
+const WIDE_BARE_MINE = "@min-[60rem]/students:grid-cols-[minmax(14rem,2fr)_minmax(7.5rem,1fr)_2.75rem] @min-[60rem]/students:[grid-template-areas:'student_stage_link']";
+const MID_BARE = "@min-[36rem]/students:grid-cols-[minmax(0,1fr)_minmax(0,11rem)_2.75rem]";
+const MID_BARE_MINE = "@min-[36rem]/students:grid-cols-[minmax(0,1fr)_2.75rem]";
+const ROW_GRID_BARE = `${PHONE} ${MID_BARE} @min-[36rem]/students:[grid-template-areas:'student_curator_link'] ${WIDE_BARE}`;
+const ROW_GRID_BARE_MINE = `${PHONE} ${MID_BARE_MINE} @min-[36rem]/students:[grid-template-areas:'student_link'] ${WIDE_BARE_MINE}`;
+const HEAD_GRID_BARE = `grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 ${MID_BARE} ${WIDE_BARE}`;
+const HEAD_GRID_BARE_MINE = `grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 ${MID_BARE_MINE} ${WIDE_BARE_MINE}`;
+const BARE_HIDDEN_COLUMNS: ReadonlySet<string> = new Set(["Следующий шаг", "Срок", "Сигналы"]);
 function headClass(label: string): string {
   if (label === "Следующий шаг" || label === "Этап" || label === "Сигналы") return `${HEAD} @max-[60rem]/students:sr-only`;
   if (label === "Срок") return `${HEAD} @max-[36rem]/students:justify-end @max-[36rem]/students:px-3`;
@@ -87,7 +103,11 @@ export function studentsRowMeta(row: Pick<StudentCaseQueueRow, "admissionsDirect
  * занимает день изменения дела («обн. 22.09») — строки стоят по нему, и он
  * должен быть виден; просроченный шаг тогда назван в сигналах.
  */
-function DueCell({ row, now, today, sort }: Readonly<{ row: StudentCaseQueueRow; now: Date; today: string; sort: StudentCaseQueueSort }>) {
+function DueCell({ row, now, today, sort, hidden = false, inBand = false }: Readonly<{
+  row: StudentCaseQueueRow; now: Date; today: string; sort: StudentCaseQueueSort; hidden?: boolean;
+  /** Строка стоит в группе «Без срока»: слова «без срока» говорит её заголовок. */
+  inBand?: boolean;
+}>) {
   // Шаг ведётся только у дела в работе: у закрытого и ожидающего начала дата без «прошёл».
   const due = row.nextAction && row.nextActionDueOn ? queueDue({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state === "active") : null;
   const updated = sort === "updated" ? studentsUpdatedDay(row.updatedAt, today) : null;
@@ -95,12 +115,12 @@ function DueCell({ row, now, today, sort }: Readonly<{ row: StudentCaseQueueRow;
   // Слово срока — блок `DueWord` (Э1.3); у закрытого и ожидающего — подпись «срок».
   const dueWord = due && !updated ? dueWordOf({ dueOn: row.nextActionDueOn, dueAt: null }, now, row.state === "active") : null;
   return (
-    <td role="cell" className={`${CELL} [grid-area:due] self-start text-end t-body-compact @min-[36rem]/students:text-start`}>
+    <td role="cell" className={`${CELL} [grid-area:due] self-start text-end t-body-compact @min-[36rem]/students:text-start${hidden ? " hidden" : ""}`}>
       {due ? <>
         <time dateTime={due.dateTime} className={`${DATE} @min-[36rem]/students:block @min-[36rem]/students:leading-5 text-fg`}>{due.text}</time>
         {dueWord ? <span className="ms-1.5 @min-[36rem]/students:ms-0 @min-[36rem]/students:block"><DueWord view={dueWord} /></span>
           : caption ? <span className="ms-1.5 t-meta @min-[36rem]/students:ms-0 @min-[36rem]/students:block text-fg-3">{caption}</span> : null}
-      </> : row.nextAction ? <span className="t-meta text-fg-3 @min-[36rem]/students:block @min-[36rem]/students:leading-5">без срока</span>
+      </> : row.nextAction ? <span className={inBand ? "sr-only" : "t-meta text-fg-3 @min-[36rem]/students:block @min-[36rem]/students:leading-5"}>без срока</span>
         : <span className="sr-only">Нет</span>}
       {updated ? (
         <span className="ms-1.5 t-meta text-fg-3 @min-[36rem]/students:ms-0 @min-[36rem]/students:block">
@@ -137,9 +157,9 @@ function CuratorCell({ row }: Readonly<{ row: StudentCaseQueueRow }>) {
   );
 }
 
-function SignalsCell({ signals }: Readonly<{ signals: readonly StudentsSignal[] }>) {
+function SignalsCell({ signals, hidden = false }: Readonly<{ signals: readonly StudentsSignal[]; hidden?: boolean }>) {
   return (
-    <td role="cell" className={`${CELL} [grid-area:signals] self-start t-body-compact @min-[36rem]/students:ps-3 @min-[60rem]/students:ps-2 ${signals.length ? "" : "@max-[60rem]/students:sr-only"}`}>
+    <td role="cell" className={`${CELL} [grid-area:signals] self-start t-body-compact @min-[36rem]/students:ps-3 @min-[60rem]/students:ps-2 ${hidden ? "hidden" : signals.length ? "" : "@max-[60rem]/students:sr-only"}`}>
       {signals.length ? (
         // Сигнал — чип со словом; перенос только между чипами.
         <span className="inline-flex max-w-full flex-wrap gap-1">
@@ -159,6 +179,9 @@ export function StudentsQueueRow({
   selected,
   links,
   select = null,
+  bare = false,
+  stepInBand = false,
+  dueInBand = false,
 }: Readonly<{
   row: StudentCaseQueueRow;
   /** Полдень сегодняшнего дня Бишкека из чтения 241 (`bishkekNoon`). */
@@ -172,6 +195,12 @@ export function StudentsQueueRow({
   links: StudentsRowLinks;
   /** Отметка строки для массовых действий; null — их нет. */
   select?: StudentsRowSelect | null;
+  /** Таблица без колонок шага, срока и сигналов (см. `WIDE_BARE`). */
+  bare?: boolean;
+  /** Строка стоит в группе «Без следующего шага»: слова «Шаг не задан» говорит её заголовок. */
+  stepInBand?: boolean;
+  /** Строка стоит в группе «Без срока»: «без срока» в каждой строке только повторяло бы заголовок. */
+  dueInBand?: boolean;
 }>) {
   // Э1.3–Э1.4: этап — точка фазы и слово, срок словом, сигналы — чипы.
   // Куратор остаётся «Имя Ф.»: круг инициалов в узкой колонке обрезал бы имя
@@ -209,7 +238,7 @@ export function StudentsQueueRow({
       data-student-case-id={row.studentCaseId}
       data-band={row.dueBand}
       data-selected={select?.checked ? "" : undefined}
-      className={`v3-queue-row relative ${curatorColumn ? ROW_GRID : ROW_GRID_MINE} scroll-mt-9 py-2 shadow-[inset_0_-1px_0_var(--border)] @min-[30rem]/students:scroll-mt-[4.25rem] @min-[36rem]/students:py-1.5 @min-[60rem]/students:py-0 ${selected || select?.checked ? "bg-surface-2" : "hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface"}`}
+      className={`v3-queue-row relative ${bare ? (curatorColumn ? ROW_GRID_BARE : ROW_GRID_BARE_MINE) : curatorColumn ? ROW_GRID : ROW_GRID_MINE} scroll-mt-9 py-2 shadow-[inset_0_-1px_0_var(--border)] @min-[30rem]/students:scroll-mt-[4.25rem] @min-[36rem]/students:py-1.5 @min-[60rem]/students:py-0 ${selected || select?.checked ? "bg-surface-2" : "hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface"}`}
     >
       <th role="rowheader" scope="row" className={`${CELL} [grid-area:student] text-start font-normal ${select ? `flex items-start gap-1 ps-0 ${phoneHidden ? "max-sm:ps-3 " : ""}@min-[36rem]/students:ps-0` : "@min-[36rem]/students:ps-3"}`}>
         {/* Отметка для массовых действий (Э7) — слева от имени, над ссылкой строки. */}
@@ -220,17 +249,20 @@ export function StudentsQueueRow({
           <span className="min-w-0 flex-1 self-center">{name}</span>
         </> : name}
       </th>
-      <td role="cell" className={`${CELL} [grid-area:step] t-body-compact @min-[36rem]/students:ps-3 @min-[60rem]/students:ps-2`}>
+      <td role="cell" className={`${CELL} [grid-area:step] t-body-compact @min-[36rem]/students:ps-3 @min-[60rem]/students:ps-2${bare ? " hidden" : ""}`}>
         {row.nextAction
           ? <span className="line-clamp-2 break-words text-fg @min-[36rem]/students:line-clamp-1 @min-[60rem]/students:line-clamp-2" title={row.nextAction}>{row.nextAction}</span>
-          : <span className="text-fg-3">Шаг не задан</span>}
+          // Шаг ведётся только у дела в работе, а у стоящего в группе «Без следующего шага» об этом
+          // уже сказал её заголовок: слово в каждой строке только повторяло бы его.
+          : row.state !== "active" || stepInBand ? <span className="sr-only">Шаг не задан</span>
+            : <span className="text-fg-3">Шаг не задан</span>}
       </td>
-      <DueCell row={row} now={now} today={today} sort={sort} />
+      <DueCell row={row} now={now} today={today} sort={sort} hidden={bare} inBand={dueInBand} />
       <td role="cell" className={`${CELL} t-body-compact text-fg sr-only @min-[60rem]/students:not-sr-only @min-[60rem]/students:[grid-area:stage]`}>
         <StageChip label={stage} phase={stagePhase("admissions", row.pipelineStage)} />
       </td>
       {curatorColumn ? <CuratorCell row={row} /> : null}
-      <SignalsCell signals={signals} />
+      <SignalsCell signals={signals} hidden={bare} />
       <td role="cell" className="hidden [grid-area:link] @min-[36rem]/students:flex @min-[36rem]/students:items-center @min-[36rem]/students:justify-center">
         <Link
           href={links.case}
@@ -281,12 +313,16 @@ export function StudentsQueueTable({
   const columns = curatorColumn
     ? (["Студент", "Следующий шаг", "Срок", "Этап", "Куратор", "Сигналы"] as const)
     : (["Студент", "Следующий шаг", "Срок", "Этап", "Сигналы"] as const);
+  // Срок строки без шага пуст, если только список не по обновлению («обн. ДД.ММ»); при другой
+  // сортировке «Шаг просрочен» не сигнал, поэтому `overdueStep` здесь всегда false.
+  const bare = sort !== "updated" && bands.every((band) => band.rows.every((row) => !row.nextAction
+    && studentsRowSignals(row, { curatorWords: !curatorColumn }).length === 0));
   return (
     <table role="table" className="block w-full" data-testid="v3-student-case-table">
       <caption className="sr-only">{caption}</caption>
       <thead role="rowgroup" className="sr-only @min-[30rem]/students:not-sr-only @min-[30rem]/students:sticky @min-[30rem]/students:top-0 @min-[30rem]/students:z-30 @min-[30rem]/students:block @min-[30rem]/students:bg-bg">
-        <tr role="row" className={`${curatorColumn ? HEAD_GRID : HEAD_GRID_MINE} shadow-[inset_0_-1px_0_var(--border)]`}>
-          {columns.map((label) => (
+        <tr role="row" className={`${bare ? (curatorColumn ? HEAD_GRID_BARE : HEAD_GRID_BARE_MINE) : curatorColumn ? HEAD_GRID : HEAD_GRID_MINE} shadow-[inset_0_-1px_0_var(--border)]`}>
+          {columns.filter((label) => !bare || !BARE_HIDDEN_COLUMNS.has(label)).map((label) => (
             <th key={label} role="columnheader" scope="col" className={headClass(label)}>{label}</th>
           ))}
           <th role="columnheader" scope="col" className={headClass("Дело")}><span className="sr-only">Дело</span></th>
@@ -316,6 +352,9 @@ export function StudentsQueueTable({
                 selected={row.studentCaseId === selectedKey}
                 links={links(row)}
                 select={select ? select(row) : null}
+                bare={bare}
+                stepInBand={band.key === "no_step" && band.label !== null}
+                dueInBand={band.key === "undated" && band.label !== null}
               />
             ))}
           </tbody>

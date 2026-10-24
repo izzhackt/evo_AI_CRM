@@ -70,8 +70,11 @@ test("the card menu offers «Переместить в…» and «Убрать �
   assert.match(board, /data-testid="v3-admissions-pipeline-card"/u);
   assert.match(board, /ADMISSIONS_PIPELINE_TAB_STAGES\[tabKey\]\.filter\(\(stage\) => stage !== row\.pipelineStage\)/u);
   assert.match(board, /tabTargets\(tab\)\.map/u, "this tab's stages first");
-  assert.match(board, /Другой раздел/u);
-  assert.match(board, /tabTargets\(otherTab\)\.map/u, "the other tab's stages behind «Другой раздел»");
+  assert.match(board, /\{admissionsPipelineTab\(otherTab\)\}\s*<Icon name="chevron-down"/u, "the other tab folds behind its own name");
+  assert.doesNotMatch(board, /Другой раздел/u, "no vague «other section» label");
+  assert.match(board, /tabTargets\(otherTab\)\.map/u, "the other tab's stages behind its name");
+  // «Открыть дело» is the card's name link: the menu does not repeat it.
+  assert.doesNotMatch(board.match(/function CardMenu[\s\S]*?\n\}\n/u)?.[0] ?? "", /Открыть дело/u);
 });
 
 test("a failed move renders a role=\"alert\" error and reverts the optimistic move", () => {
@@ -437,16 +440,16 @@ test("a refused or lost removal restores the card, alerts and leaves no success 
 test("card menu targets are at least 44px, labels at least 12px, and removal is styled apart", () => {
   const render = boardHarness(async () => ({ status: "saved" }));
   const tree = render(boardProps);
-  const [trigger] = allNodes(tree, (node) => node.type === "button" && node.props["aria-label"] === "Действия с делом");
+  const [trigger] = allNodes(tree, (node) => node.type === "button" && node.props["aria-label"] === "Действия с делом: Студент Синтетический");
   const [menu] = allNodes(tree, (node) => node.props?.["data-testid"] === "v3-admissions-pipeline-move");
   assert.equal(trigger.props.popoverTarget, menu.props.id, "the trigger opens the top-layer menu");
   assert.match(trigger.props.className, /\bsize-11\b/u, "44px trigger");
   const targets = allNodes(menu, (node) => node.type === "button" || node.type === "a");
-  // 4 stage moves in this tab, «Другой раздел», 4 moves of the other tab, «Открыть дело», the removal.
-  assert.equal(targets.length, 11);
+  // 4 stage moves in this tab, the other tab's name, its 4 moves, the removal.
+  assert.equal(targets.length, 10);
   for (const target of targets) assert.match(target.props.className, /\bmin-h-11\b/u, textOf(target));
   assert.doesNotMatch(JSON.stringify(allNodes(menu, (node) => node.type === "p").map((node) => node.props.className)), /text-2xs/u);
-  const [other] = buttonsNamed(menu, "Другой раздел");
+  const [other] = buttonsNamed(menu, "tab:visa");
   const otherGroup = allNodes(menu, (node) => node.props?.id === other.props["aria-controls"])[0];
   assert.equal(otherGroup.props.hidden, true, "the other tab's stages stay folded until asked");
   assert.deepEqual(allNodes(otherGroup, (node) => node.type === "button").map(textOf),
@@ -455,7 +458,7 @@ test("card menu targets are at least 44px, labels at least 12px, and removal is 
   assert.match(remove.props.className, /\btext-danger\b/u);
   const menuChildren = [menu.props.children].flat(Infinity).flatMap((child) => child?.props?.children ?? []).flat(Infinity)
     .filter((child) => child && typeof child === "object");
-  assert.equal(menuChildren.at(-2).type, "hr", "a separator sets removal apart from moves and «Открыть дело»");
+  assert.equal(menuChildren.at(-2).type, "hr", "a separator sets removal apart from the moves");
   assert.equal(menuChildren.at(-1), remove);
 });
 

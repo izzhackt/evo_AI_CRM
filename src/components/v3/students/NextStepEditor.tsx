@@ -178,7 +178,8 @@ export function NextStepEditor({
   return (
     <form ref={formRef} onSubmit={submit} noValidate aria-busy={pending} className="space-y-3" data-testid="v3-next-step-editor">
       <div>
-        <label htmlFor={fieldId} className="block t-label text-fg">Шаг</label>
+        {/* Поле называет заголовок «Следующий шаг» над формой; видимая подпись «Шаг» повторяла бы его. */}
+        <label htmlFor={fieldId} className="sr-only">Шаг</label>
         <textarea
           ref={fieldRef}
           id={fieldId}

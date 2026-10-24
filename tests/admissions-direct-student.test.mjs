@@ -50,7 +50,9 @@ test("amounts: spaces and comma, two decimals, positive only", () => {
 test("China default cost is 1 500 USD (owner decision 16.10.2026)", () => {
   assert.deepEqual({ ...CHINA_DEFAULT_COST }, { amount: "1500", currency: "USD" });
   assert.match(drawer, /value === "CN" && untouched/u);
-  assert.match(drawer, /Для Китая по умолчанию 1 500 USD\. Можно изменить\./u);
+  // The value itself stands in the field; the note says only where it comes from.
+  assert.match(drawer, /По умолчанию для Китая\./u);
+  assert.doesNotMatch(drawer, /Можно изменить/u);
 });
 
 test("degrees come from the product wording", () => {

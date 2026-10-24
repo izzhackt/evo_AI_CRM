@@ -343,6 +343,16 @@ const SCENARIOS = {
   "preview-panel": scenario(`open=${caseId(4)}`, { actor: "preview", openTasks: TASKS }),
   "panel-missing": scenario(`view=active&open=${caseId(99)}`, { openTasks: { kind: "unavailable" } }),
   "admin-filtered": scenario(`view=active&direction=CN&curator=${ME}&stage=documents`),
+  // Список, как он стоит у живого ввода шагов: ни у одного дела нет шага и сигнала — «Следующий шаг», «Срок»
+  // и «Сигналы» были бы пустыми во всю высоту (24.10.2026), остаются студент, этап и куратор.
+  "admin-bare": (() => {
+    const base = scenario("");
+    const rows = base.input.read.page.rows.map((row) => ({
+      ...row, nextAction: null, nextActionDueOn: null, dueBand: "no_step", overdueTaskCount: 0, documents: null, needsReply: false,
+      attentionFlags: row.attentionFlags.filter((flag) => flag === "awaiting_ack" || flag === "needs_curator"),
+    }));
+    return { ...base, input: { ...base.input, read: { ...base.input.read, page: { ...base.input.read.page, rows } } } };
+  })(),
   "admin-updated": scenario("view=active&sort=updated"),
   "counts-unavailable": (() => {
     const base = scenario("view=active");
@@ -648,6 +658,11 @@ async function screenshots() {
       ["students-direction-menu-1440.png", DESKTOP, false, "direction"],
     ]],
     ["admin-default", [["students-admin-default-1440.png", DESKTOP, false, null]]],
+    ["admin-bare", [
+      ["students-bare-1440.png", DESKTOP, false, null],
+      ["students-bare-1280.png", LAPTOP, false, null],
+      ["students-bare-390.png", PHONE, false, null],
+    ]],
     ["curator-mine", [
       ["students-curator-mine-1440.png", DESKTOP, false, null],
       ["students-curator-mine-1280.png", LAPTOP, false, null],

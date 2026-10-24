@@ -107,7 +107,7 @@ university,college,applicant,english,lessons,test,career,professions,campus,bach
 
 ## Категории, ссылки, Copyright
 
-Те же, что в listing-ru.md: Education и Reference; Support URL https://evoadmissions.com/ru/support/, Privacy Policy URL https://evoadmissions.com/ru/privacy/, Marketing URL https://evoadmissions.com/ru/, Copyright «2026 EVO Admissions». Support URL и Marketing URL можно задать отдельно для этой локали, если появятся английские страницы сайта; сейчас указаны русские. PR сайта №26 готовит и английские страницы `/privacy/` и `/support/`; после его выпуска их можно указать здесь (решение владельца). 17.10.2026 все эти адреса отвечают 404, это блокер отправки (listing-ru.md, «Что проверить до отправки»).
+Те же, что в listing-ru.md: Education и Reference; Support URL https://evoadmissions.com/ru/support/, Privacy Policy URL https://evoadmissions.com/ru/privacy/, Marketing URL https://evoadmissions.com/ru/, Copyright «2026 EVO Admissions LLC». Support URL и Marketing URL можно задать отдельно для этой локали, если появятся английские страницы сайта; сейчас указаны русские. PR сайта №26 готовит и английские страницы `/privacy/` и `/support/`; после его выпуска их можно указать здесь (решение владельца). 17.10.2026 все эти адреса отвечают 404, это блокер отправки (listing-ru.md, «Что проверить до отправки»).
 
 ## Источники (проверено 07.10.2026)
 

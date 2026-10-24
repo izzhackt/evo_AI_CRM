@@ -798,7 +798,7 @@ export function studentsRowSignals(
     }
   }
   // Студент написал и ждёт ответа сотрудника — работа, которую видно только здесь и в «Сообщениях».
-  if (row.needsReply) signals.push({ key: "reply", tone: "danger", text: "нужен ответ" });
+  if (row.needsReply) signals.push({ key: "reply", tone: "warn", text: "нужен ответ" });
   if (options.overdueStep && row.dueBand === "overdue") signals.push({ key: "step", tone: "danger", text: "шаг просрочен" });
   const tasks = row.overdueTaskCount;
   if (tasks > 0) {

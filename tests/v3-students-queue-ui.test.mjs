@@ -291,9 +291,9 @@ test("the queue is one semantic table: caption, column headers, a row header per
   assert.match(html, />дедлайн просрочен</u);
   assert.match(html, />ждём партнёра</u);
   assert.doesNotMatch(html, /Просрочен дедлайн|Ждём партнёра/u);
-  // 245: the chat waits for a staff answer — «нужен ответ», red, on the row that says so, and on no other.
+  // 245 → 24.10.2026: the chat waits for a staff answer — «нужен ответ», a warning word (owner decision: red only for problems), on the row that says so, and on no other.
   assert.equal((html.match(/>нужен ответ</gu) ?? []).length, 1);
-  assert.match(html, /data-queue-row="cccccccc-2222-4222-8222-000000000021"[\s\S]*?data-tone="danger">нужен ответ<[\s\S]*?<\/tr>/u);
+  assert.match(html, /data-queue-row="cccccccc-2222-4222-8222-000000000021"[\s\S]*?data-tone="warn">нужен ответ<[\s\S]*?<\/tr>/u);
   // Signals are never cut: no clamp or ellipsis on the signals cell; each signal is a whole chip.
   const source = read("src/components/v3/students/StudentsQueueTable.tsx");
   const signalsCell = source.match(/function SignalsCell[\s\S]*?\n\}\n/u)?.[0] ?? "";
@@ -335,9 +335,9 @@ test("row signals and the documents line are words from the row, never guesses",
   // The overdue flag without overdue tasks or an overdue step is a deadline (application/visa).
   assert.deepEqual(studentsRowSignals({ ...base, attentionFlags: ["overdue"] }).map((signal) => signal.text), ["дедлайн просрочен"]);
   assert.deepEqual(studentsRowSignals({ ...base, attentionFlags: ["overdue"], dueBand: "overdue" }), []);
-  // 245: a chat waiting for staff is a red word first among the work signals.
+  // 245 → 24.10.2026: a chat waiting for staff is a warning word first among the work signals.
   assert.deepEqual(studentsRowSignals({ ...base, needsReply: true, overdueTaskCount: 1 }).map((signal) => [signal.text, signal.tone]), [
-    ["нужен ответ", "danger"], ["1\u00a0задача просрочена", "danger"],
+    ["нужен ответ", "warn"], ["1\u00a0задача просрочена", "danger"],
   ]);
   assert.deepEqual(studentsRowSignals({ ...base, needsReply: false }), []);
   const documents = { total: 12, approved: 7, submitted: 2, correctionRequired: 1, rejected: 1, missing: 1 };

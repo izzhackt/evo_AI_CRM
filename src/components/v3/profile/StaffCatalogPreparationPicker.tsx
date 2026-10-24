@@ -77,7 +77,9 @@ export function CatalogPreparationLauncher({ primary, ...picker }: PickerProps &
       <div className={styles.layout}>
         <header className={styles.header}>
           <h2 id={titleId}>Вуз из каталога</h2>
-          <button type="button" className={btnGhostCls} onClick={() => dialogRef.current?.close()}>Закрыть</button>
+          <button type="button" aria-label="Закрыть" className="grid size-11 shrink-0 place-items-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg" onClick={() => dialogRef.current?.close()}>
+            <Icon name="x" size={18} />
+          </button>
         </header>
         <div className={styles.body}>
           <StaffCatalogPreparationPicker {...picker} onLeave={leave} />
@@ -187,7 +189,7 @@ function StaffCatalogPreparationPicker({ scope, canSelect, canInitialize, initia
     finally { busy.current = false; setPending(false); }
   }
   return <div className="space-y-4" aria-busy={pending} data-testid="staff-catalog-preparation-picker">
-      <p className="t-body-compact text-fg-2">В каталоге — {COUNTRY_WORDS}. Выбор сразу открывает подготовку документов; это ещё не подача в университет. Вуза нет в каталоге — добавьте его вручную.</p>
+      <p className="t-body-compact text-fg-2">В каталоге — {COUNTRY_WORDS}. Выбор сразу открывает подготовку документов; это ещё не подача в университет.</p>
       {storageBlocked ? <p role="alert" className="text-sm text-danger">Не удалось прочитать сохранённый запрос в этой сессии. Новый запрос не отправляется. Проверьте сохранённые подготовки.</p> : null}
       {retained ? <div className="space-y-2"><p className="text-sm text-fg-2">Есть запрос выбора без подтверждённого результата.</p><button className={btnGhostCls} type="button" disabled={pending || storageBlocked} onClick={() => void retry()}>Повторить сохранённый запрос</button></div> : null}
       {preparations.status !== "ready" ? <p role="alert" className="text-sm text-danger">Сохранённые подготовки сейчас недоступны. Новый выбор временно отключён.</p> : null}
@@ -205,7 +207,7 @@ function StaffCatalogPreparationPicker({ scope, canSelect, canInitialize, initia
       </> : null}
       {university ? <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="t-item min-w-0 break-words text-fg">{university.content.name}</h4><button type="button" className={btnGhostCls} disabled={pending} onClick={() => setUniversity(null)}>Другой университет</button></div>
-        <a href={`/v3/universities/${university.id}`} className="inline-flex min-h-11 items-center text-sm text-accent-text underline underline-offset-4">Карточка университета и источники</a>
+        <a href={`/v3/universities/${university.id}`} className="inline-flex min-h-11 items-center text-sm text-fg-2 underline underline-offset-4 hover:text-fg">Карточка университета и источники</a>
         {!countries.has(university.content.country) ? <p className="text-sm text-fg-2">Для этой страны пока доступно ручное добавление заявки.</p> : null}
         {university.content.programs.map((program) => <section key={program.id} className="border-t border-border pt-3">
           <h5 className="t-item break-words text-fg">{program.title}</h5><p className="mt-1 text-sm text-fg-3">{UNIVERSITY_LEVEL_LABELS[program.level]}{program.language ? ` · ${program.language}` : ""}</p>

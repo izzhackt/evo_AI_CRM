@@ -109,7 +109,7 @@ test("a row that leaves the filter after an upload or a decision is named in one
 test("one rule between the checklist and the case recognition history", () => {
   const section = (html) => html.match(/<section class="([^"]+)" data-testid="document-recognition">/u)?.[1];
   assert.equal(section(rendered.get("all")), "mt-3 pt-1", "the last row's rule already separates it");
-  assert.match(section(rendered.get("empty")), /\bborder-t border-border\b/u, "without rows the section draws its own rule");
+  assert.equal(section(rendered.get("empty")), undefined, "an empty checklist has no recognition history to show");
 });
 
 test("upload: a hidden field under a visible «Загрузить файл», the hint, no separate «Сохранить»", () => {
@@ -129,8 +129,10 @@ test("upload: a hidden field under a visible «Загрузить файл», th
   for (const form of visible) {
     assert.match(form, /class="sr-only"/u);
     assert.match(form, /accept="application\/pdf,image\/jpeg,image\/png"/u);
-    assert.match(form, /PDF, JPEG, PNG · до 25 МБ/u);
+    assert.doesNotMatch(form, /PDF, JPEG, PNG · до 25 МБ/u, "the formats are said once for the list, not beside every button");
   }
+  assert.equal((html.match(/PDF, JPEG, PNG · до 25 МБ/gu) ?? []).length, 1);
+  assert.match(html, /<p class="t-meta text-fg-2" data-testid="v3-document-upload-hint">Загрузка: PDF, JPEG, PNG · до 25 МБ<\/p>/u);
 });
 
 test("rare actions sit in the row's «⋯»; «+ Документ» is quiet and reveals the forms", () => {
@@ -149,7 +151,8 @@ test("one empty state: an empty checklist, and a filter without rows says which 
   const empty = rendered.get("empty");
   assert.doesNotMatch(empty, /из \d+ принято|data-testid="queue-view-tabs"/u, "no read numbers without a checklist");
   assert.equal((empty.match(/data-testid="v3-document-empty"/gu) ?? []).length, 1);
-  assert.match(empty, /В чек-листе пока нет документов\./u);
+  assert.match(empty, /Чек-лист пуст\. Добавьте документы вручную\./u);
+  assert.doesNotMatch(empty, /v3-document-add-toggle|Шаблонов чек-листа/u, "the open forms need no toggle and no second empty sentence");
   assert.match(empty, /<div id="case-documents-add" class=/u, "an empty checklist opens the forms");
   assert.match(empty, /Применить базовый чек-лист/u);
   const filtered = rendered.get("filter-empty");

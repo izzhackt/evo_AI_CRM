@@ -63,7 +63,7 @@ export function AnswerCaseHelpForm({ caseId, request, onSaved }: { caseId: strin
   return <form className="mt-4 space-y-3" onSubmit={event => { event.preventDefault(); command.submit({ caseId, id: request.id, answer, version: request.version, requestId: crypto.randomUUID() }); }}>
     <label className="grid gap-1.5 text-sm text-fg-2">Ответ студенту<textarea className={INPUT} required rows={3} maxLength={4000} readOnly={command.blocked} value={answer} onChange={event => setAnswer(event.target.value)} /></label>
     <Result command={command} />
-    {command.result?.ok ? <button type="button" className={SECONDARY} onClick={command.reset}>Дополнить ответ</button> : <button className={BUTTON} disabled={command.pending || Boolean(command.result && !command.result.ok && ["stale", "request_conflict"].includes(command.result.code))}>{command.pending ? "Сохраняем…" : command.result && !command.result.ok && command.result.code === "unavailable" ? "Проверить сохранение" : "Сохранить ответ в кабинете"}</button>}
+    {command.result?.ok ? <button type="button" className={SECONDARY} onClick={command.reset}>Дополнить ответ</button> : <button className={QUEUE_CONFIRM} disabled={command.pending || Boolean(command.result && !command.result.ok && ["stale", "request_conflict"].includes(command.result.code))}>{command.pending ? "Сохраняем…" : command.result && !command.result.ok && command.result.code === "unavailable" ? "Проверить сохранение" : "Сохранить ответ в кабинете"}</button>}
   </form>;
 }
 function generatedLabel(file: PacketGeneratedExport) {
@@ -231,26 +231,27 @@ export function PartnerPacketWorkspace({ caseId, active, applications, workspace
   }
   const message = words.errors[status] ?? studentProfileFileMessage(status);
   return <div className="space-y-5" aria-busy={busy}>
-    <p className="text-sm leading-6 text-fg-2">{words.cap} {words.sizeHint}</p>
+    <p className="text-sm leading-6 text-fg-2">{words.cap}</p>
     <PreparePartnerPacketForm caseId={caseId} workspace={workspace} applications={applications} active={active}
       disabled={busy || Boolean(unresolved) || uncertainReconciles.length > 0 || pending} action={prepare} initialApplicationId={initialApplicationId} />
-    <div><h4 className="font-medium text-fg">{words.recent}</h4>{!workspace.packets.length ? <p className="mt-2 text-sm text-fg-3">{words.noPackets}</p> : <ul className="mt-3 space-y-3">{workspace.packets.map(packet => {
+    <div><h4 className="text-sm font-medium text-fg-2">{words.recent}</h4>{!workspace.packets.length ? <p className="mt-2 text-sm text-fg-3">{words.noPackets}</p> : <ul className="mt-3 space-y-3">{workspace.packets.map(packet => {
       const draftBlocker = partnerPacketZipBlocker(packet, "draft", workspace.maxArchiveBytes);
       const finalBlocker = partnerPacketZipBlocker(packet, "final", workspace.maxArchiveBytes);
       return <li key={packet.id} className="rounded-ctl border border-border p-3"><details><summary className="min-h-11 cursor-pointer text-sm font-medium text-fg">{packet.applicationName} · {new Date(packet.createdAt).toLocaleString("ru-RU", { timeZone: "Asia/Bishkek" })}</summary>
         <DownloadPacketManifest packet={packet} />
-        <ul className="mt-3 divide-y divide-border">{packet.files.map(file => <li key={file.versionId} className="py-3 text-sm"><p className="break-words text-fg">{file.name} · {words.version} {file.versionNo}</p><a className="inline-flex min-h-11 items-center font-medium text-accent-text underline" href={`/api/v2/document-versions/${file.versionId}/download`}>{words.originalDownload}</a></li>)}
+        <ul className="mt-3 divide-y divide-border">{packet.files.map(file => <li key={file.versionId} className="py-3 text-sm"><p className="break-words text-fg">{file.name} · {words.version} {file.versionNo}</p><a className="inline-flex min-h-11 items-center font-medium text-fg-2 underline underline-offset-4 hover:text-fg" href={`/api/v2/document-versions/${file.versionId}/download`}>{words.originalDownload}</a></li>)}
           {packet.generatedExports.map(file => <li key={file.id} className="break-words py-3 text-sm text-fg">{generatedLabel(file)}</li>)}</ul>
         <div className="my-3 flex flex-wrap gap-2"><button className={QUEUE_CONFIRM} type="button" disabled={!active || creationBlocked || Boolean(draftBlocker)} onClick={() => generate(packet, "draft")}>{words.createDraft}</button><button className={SECONDARY} type="button" disabled={!active || creationBlocked || Boolean(finalBlocker)} onClick={() => generate(packet, "final")}>{words.createFinal}</button></div>
         {draftBlocker || finalBlocker ? <p className="text-sm leading-6 text-fg-2">{draftBlocker ?? finalBlocker}</p> : null}
       </details></li>;
     })}</ul>}</div>
-    <div className="space-y-3"><h4 className="font-medium text-fg">{words.history}</h4>
+    <div className="space-y-3"><h4 className="text-sm font-medium text-fg-2">{words.history}</h4>
       {loading ? <p role="status" className="text-sm text-fg-2">{words.loading}</p> : readFailed ? <p role="alert" className="text-sm text-danger">{words.historyFailed}</p> : null}
       {message ? <p role="status" className="text-sm leading-6 text-fg-2">{message}</p> : null}
       {unresolved ? <button type="button" className={QUEUE_CONFIRM} disabled={busy || unresolved.caseId !== caseId} onClick={() => { if (unresolved.caseId === caseId) void execute(unresolved.command); }}>{words.retryCreate}</button> : null}
       {pending ? <p className="text-sm leading-6 text-fg-2">{words.pending}</p> : null}
-      <button type="button" className={SECONDARY} disabled={busy || Boolean(unresolved) || prepareUncertain || uncertainReconciles.length > 0} onClick={() => { setReadVersion(version => version + 1); router.refresh(); }}>{words.refresh}</button>
+      {/* История читается при открытии и обновляется после каждой команды: «Обновить» нужен только после сбоя чтения. */}
+      {readFailed ? <button type="button" className={SECONDARY} disabled={busy || Boolean(unresolved) || prepareUncertain || uncertainReconciles.length > 0} onClick={() => { setReadVersion(version => version + 1); router.refresh(); }}>{words.retryRead}</button> : null}
       {!loading && !readFailed ? artifacts.length ? <StudentProfileExportList artifacts={artifacts} busy={busy || Boolean(unresolved) || prepareUncertain} uncertainReconciles={uncertainReconciles} onDownload={artifact => { void download(artifact); }} onReconcile={artifact => { void reconcile(artifact); }} /> : <p className="text-sm text-fg-3">{words.emptyHistory}</p> : null}
     </div>
   </div>;

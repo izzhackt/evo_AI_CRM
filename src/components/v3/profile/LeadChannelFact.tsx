@@ -19,7 +19,8 @@ export async function LeadChannelFact({ actor, leadId, requestId }: Readonly<{ a
         <span aria-hidden="true" className="v3-channel-dot" />
         <span>{leadChannelText(state.read)}</span>
       </span>
-      {canCorrect ? <LeadChannelCorrection leadId={leadId} requestId={requestId} current={state.read.channel} /> : null}
+      {canCorrect ? <LeadChannelCorrection leadId={leadId} requestId={requestId} current={state.read.channel}
+        label={state.read.channel === "unknown" ? "Указать" : "Исправить"} /> : null}
     </>
   );
 }

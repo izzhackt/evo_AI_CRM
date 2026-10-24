@@ -26,13 +26,13 @@ export function ParentPhoneLookalikesView({ state }: Readonly<{ state: ParentPho
   if (state.matches.length === 0) {
     if (!state.restricted) return null;
     return (
-      <section aria-label={WORDS.label} data-testid="v3-parent-phone-restricted" className="rounded-xl bg-info-weak px-4 py-3">
+      <section aria-label={WORDS.label} data-testid="v3-parent-phone-restricted" className="rounded-card bg-info-weak px-4 py-3">
         <p className="t-body-compact text-fg">{WORDS.restricted}</p>
       </section>
     );
   }
   return (
-    <section aria-label={WORDS.label} data-testid="v3-parent-phone-lookalikes" className="rounded-xl bg-info-weak px-4 py-3">
+    <section aria-label={WORDS.label} data-testid="v3-parent-phone-lookalikes" className="rounded-card bg-info-weak px-4 py-3">
       <div className="flex min-w-0 flex-col sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-2">
         <p className="t-body-compact font-medium text-fg">{WORDS.label}:</p>
         <ul className="min-w-0 sm:flex-1">
@@ -40,7 +40,7 @@ export function ParentPhoneLookalikesView({ state }: Readonly<{ state: ParentPho
             <li key={match.studentCaseId} data-testid="v3-parent-phone-lookalike" data-relation={match.relation}
               className="flex min-w-0 flex-wrap items-baseline gap-x-2 t-body-compact text-fg">
               <Link href={parentPhoneCaseHref(match.studentCaseId)}
-                className="inline-flex min-h-11 min-w-0 items-center break-words font-medium text-fg underline underline-offset-4 hover:text-accent">
+                className="inline-flex min-h-11 min-w-0 items-center break-words font-medium text-fg underline underline-offset-4 hover:text-fg-2">
                 {match.studentName}
               </Link>
               <span className="min-w-0 text-fg-2">{WORDS.kind}, {parentPhoneRelationText(match.relation)}</span>

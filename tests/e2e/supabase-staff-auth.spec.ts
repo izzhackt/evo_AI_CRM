@@ -1118,7 +1118,7 @@ test("Sales reads the exact Supabase RLS queue and detail while Admissions is de
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
   await expect(
     page.getByText(
-      "Профиль не найден или недоступен вам. Найдите студента через поиск.",
+      "Профиль не найден или недоступен вам.",
     ),
   ).toBeVisible();
 });
@@ -1596,7 +1596,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   expect(expectObject((salesCaseView.payload as unknown[])[0]).access_mode).toBe("sales_summary");
   await page.goto(`/v3/profile?case=${studentCaseId}&tab=documents`);
   await expect(page.getByText(
-    "Профиль не найден или недоступен вам. Найдите студента через поиск.",
+    "Профиль не найден или недоступен вам.",
   )).toBeVisible();
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
 
@@ -1626,7 +1626,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
 
   await page.goto(`/v3/profile?id=${leadId}&case_q=${studentCaseId}`);
   await expect(page.getByText(
-    "Ссылка на профиль некорректна. Найдите студента через поиск.",
+    "Ссылка на профиль некорректна.",
   )).toBeVisible();
   await expect(page.getByTestId("v3-student-case-directory")).toHaveCount(0);
   await expect(page.getByTestId("v3-student-case-row")).toHaveCount(0);
@@ -2656,7 +2656,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
   await expect(
     page.getByText(
-      "Профиль не найден или недоступен вам. Найдите студента через поиск.",
+      "Профиль не найден или недоступен вам.",
     ),
   ).toBeVisible();
   await expect(page.getByTestId("v3-document-upload-form")).toHaveCount(0);
@@ -3077,7 +3077,7 @@ test("Admin preview changes only the effective interface, not Supabase authority
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
   await expect(
     page.getByText(
-      "Профиль не найден или недоступен вам. Найдите студента через поиск.",
+      "Профиль не найден или недоступен вам.",
     ),
   ).toBeVisible();
   await page.getByTestId("preview-role-admin").click();

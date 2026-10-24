@@ -221,15 +221,15 @@ test("the messages route registers in all three route maps and as «Перепи
   assert.match(navigation, /\{ id: "messages", href: "\/v3\/messages", route: "\/v3\/messages", label: "Переписка" \}/u);
 });
 
-test("«Обсудить» links exist from the case card, task detail panel (case tasks) and the documents panel", () => {
+test("«Обсудить» links exist from the case card and the task detail panel (case tasks); the documents tab relies on the header «Написать»", () => {
   assert.match(source("src/components/v3/profile/tabs.tsx"), /href=\{`\/v3\/messages\?case=\$\{draft\.admissions\.studentCaseId\}`\}/u);
   const taskPanel = source("src/components/v3/tasks/TaskDetailPanel.tsx");
   assert.match(taskPanel, /href=\{`\/v3\/messages\?case=\$\{data\.caseId\}&attach=case_task:\$\{data\.task\.id\}`\}/u);
   assert.match(taskPanel, />\s*Обсудить\s*</u);
-  // Documents tab: one tab-level link (not per-slot), a quiet text link in the
-  // tab's top line next to «+ Документ» (Э8.1, 28.09.2026).
+  // Documents tab: the second «Обсудить» to the same chat sat beside the header's «Написать» on the same screen — removed (24.10.2026).
   const documents = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
-  assert.match(documents, /\{studentCaseId \? \(\s*<Link href=\{`\/v3\/messages\?case=\$\{studentCaseId\}`\} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">\s*Обсудить\s*<\/Link>/u);
+  assert.doesNotMatch(documents, /\/v3\/messages\?case=|Обсудить/u);
+  assert.match(source("src/components/v3/profile/CaseWorkParts.tsx"), /const messagesHref = `\/v3\/messages\?case=\$\{encodeURIComponent\(caseId\)\}`;[\s\S]*?<span className="sr-only sm:not-sr-only">Написать<\/span>/u);
 });
 
 test("the board decoder tolerates the new needs_reply key (field-picking, no exhaustive key check) — verified, not assumed", () => {

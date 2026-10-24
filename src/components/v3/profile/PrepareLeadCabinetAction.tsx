@@ -57,7 +57,7 @@ export function PrepareLeadCabinetAction({ leadId, requestId, caseLink = true, q
     return (
       <p className="text-sm text-fg-2" role="status">
         Кабинет подготовлен.
-        {caseLink ? <>{" "}<Link className="font-semibold text-accent hover:underline" href={`/v3/profile?case=${encodeURIComponent(state.studentCaseId)}&tab=anketa`}>
+        {caseLink ? <>{" "}<Link className="text-fg underline underline-offset-4 hover:text-fg-2" href={`/v3/profile?case=${encodeURIComponent(state.studentCaseId)}&tab=anketa`}>
           Открыть дело
         </Link></> : null}
       </p>
@@ -68,7 +68,6 @@ export function PrepareLeadCabinetAction({ leadId, requestId, caseLink = true, q
     <form action={action} className="space-y-2">
       <input type="hidden" name="lead_id" value={leadId} />
       <input type="hidden" name="request_id" value={state.requestId} />
-      <p className="text-sm text-fg-2">Анкета в платформе не заполнена. Можно подготовить кабинет вручную.</p>
       <button type="submit" disabled={pending} className={cn(quiet ? btnGhostCls : btnCls, "min-h-11")}>
         {pending ? "Готовим…" : "Подготовить кабинет"}
       </button>

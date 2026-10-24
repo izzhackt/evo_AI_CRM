@@ -432,19 +432,38 @@ export function profileTabAccess(
  *
  * Документы и договор заводятся на дело студента. Пока человек лид, дела нет —
  * и этих вкладок нет тоже: ни пустых, ни с объяснением, почему они пустые.
+ * То же для остальных вкладок лида: «История» — журнал дела, у лида без дела
+ * его нет (события лида — «Лента» на «Обзоре»); «Анкета» лида есть, только
+ * если в ней что-то лежит (`leadAnketa`, `leadAnketaHasContent`); «Договор и
+ * оплата» — только с формами подтверждения вручную.
  */
 export function tabsFor(
   student: boolean,
   access: ProfileTabAccess,
   hasAdmissions: boolean,
+  leadAnketa = true,
 ): readonly (typeof TABS)[number][] {
   return TABS.filter((tab) => {
     if (tab.key === "documents") return student && access.documents;
-    if (tab.key === "anketa") return !student || access.studentProfile;
-    if (tab.key === "money") return !student || access.finance || access.contract || access.gateForms === true;
+    if (tab.key === "anketa") return student ? access.studentProfile : leadAnketa;
+    if (tab.key === "money") return student ? access.finance || access.contract || access.gateForms === true : access.gateForms === true;
     if (tab.key === "route") return student && hasAdmissions;
+    if (tab.key === "history") return student;
     return true;
   });
+}
+
+/**
+ * Есть ли у лида без дела что показать во вкладке «Анкета»: ответы анкеты
+ * платформы, итог квалификации или сведения анкеты. Интересующее направление
+ * лида стоит в «Сведениях» Lead 360, телефон и почта — в «Контактах».
+ */
+export function leadAnketaHasContent(
+  profile: Pick<PersonProfile, "qualification">,
+  draft: Pick<ProfileDraft, "studentApplication" | "person" | "study">,
+): boolean {
+  return Boolean(profile.qualification) || draft.studentApplication !== null
+    || draft.person.some((fact) => fact.value !== null) || draft.study.some((fact) => fact.value !== null);
 }
 
 /**
@@ -456,10 +475,11 @@ export function resolveTab(
   student: boolean,
   access: ProfileTabAccess,
   hasAdmissions: boolean,
+  leadAnketa = true,
 ): TabKey {
   // Existing contract links keep their outcome/retry parameters in place.
   // The alias grants navigation only to the independently authorized section.
   if (value === "contract") return student && access.contract ? "money" : "overview";
-  const found = tabsFor(student, access, hasAdmissions).find((tab) => tab.key === value);
+  const found = tabsFor(student, access, hasAdmissions, leadAnketa).find((tab) => tab.key === value);
   return found ? found.key : "overview";
 }

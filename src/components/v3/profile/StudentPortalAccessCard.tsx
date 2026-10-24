@@ -19,13 +19,13 @@ const STATE_COPY: Readonly<Record<
   string
 >> = {
   invalid: "Проверьте обязательные поля и повторите действие.",
-  unavailable: "Состояние доступа сейчас не подтверждено. Письмо не отправлено повторно.",
-  blocked: "Операция остановлена безопасно. Письмо не отправлено повторно.",
+  unavailable: "Состояние доступа не подтверждено. Письмо повторно не отправлялось.",
+  blocked: "Остановлено. Письмо повторно не отправлялось.",
   portalActivated: "Доступ к порталу активирован.",
   inviteIssued: "Приглашение уже выдано и ещё действует. Повторная отправка запрещена.",
   inviteFailed: "Провайдер подтвердил неуспешную отправку. Можно повторить подготовку.",
   reconciliationRequired: "Результат отправки неизвестен. Разрешена только проверка провайдера — без повторной отправки.",
-  accountPending: "Приглашение принято; завершение authority ещё ожидается.",
+  accountPending: "Приглашение принято. Ждём завершения регистрации.",
 };
 
 function BindingFields({ state }: Readonly<{ state: NonNullable<StudentPortalAccessActionState> }>) {
@@ -99,17 +99,16 @@ export function StudentPortalAccessControls({
     "receiptId" in state &&
     Boolean(state.attemptId && state.inviteKind);
   const forbiddenCopy = cabinetPending
-    ? "Только Admin или Sales с действующим доступом к лиду может управлять доступом."
-    : "Только Admin с действующей authority может управлять доступом.";
+    ? "Управлять доступом может Admin или менеджер продаж с доступом к лиду."
+    : "Управлять доступом может только Admin.";
   const reissueAvailableCopy = cabinetPending
-    ? "Срок приглашения истёк. Новую отправку должен явно подтвердить Admin или Sales."
-    : "Срок приглашения истёк. Новую отправку должен явно подтвердить Admin.";
+    ? "Срок приглашения истёк. Новое приглашение отправляет Admin или менеджер продаж."
+    : "Срок приглашения истёк. Новое приглашение отправляет Admin.";
 
   return (
-    <div className="space-y-4 p-4 text-sm text-fg-2" data-testid="student-portal-access-controls">
+    <div className={quiet ? "space-y-3 text-sm text-fg-2" : "space-y-4 p-4 text-sm text-fg-2"} data-testid="student-portal-access-controls">
       <p className="max-w-prose">
-        Проверьте доступ студента. Если нужно приглашение, оно будет отправлено
-        на email из карточки. Действующее приглашение повторно не отправляется.
+        Приглашение уйдёт на email студента; действующее повторно не отправляется.
       </p>
       {cabinetPending ? (
         <p>
@@ -120,11 +119,11 @@ export function StudentPortalAccessControls({
       {caseState === "closed" ? (
         <p role="status">Закрытое дело нельзя подключить к порталу.</p>
       ) : email === null ? (
-        <p role="status">Сначала добавьте студенту подтверждённый рабочий email.</p>
+        <p role="status">Нет рабочего email — добавьте его.</p>
       ) : legacyPending && !curatorOptionsAvailable ? (
         <p role="status">Список активных кураторов недоступен. Доступ не подготовлен.</p>
       ) : legacyPending && curatorOptions.length === 0 ? (
-        <p role="status">Для pending-дела сначала нужен активный Curator.</p>
+        <p role="status">Сначала нужен активный куратор.</p>
       ) : null}
 
       {state ? (
@@ -136,7 +135,7 @@ export function StudentPortalAccessControls({
               : state.status === "inviteFailed" && state.code
                 ? studentPortalInviteFailure(state.code) ?? STATE_COPY[state.status]
                 : STATE_COPY[state.status]}
-          {state.code ? ` Код: ${state.code}.` : ""}
+          {state.code && !(state.status === "inviteFailed" && studentPortalInviteFailure(state.code)) ? ` Код: ${state.code}.` : ""}
         </p>
       ) : null}
 
@@ -150,7 +149,7 @@ export function StudentPortalAccessControls({
         <input type="hidden" name="request_id" value={requestId} />
         {legacyPending ? (
           <label>
-            <span className={fieldLabelCls}>Ответственный Curator</span>
+            <span className={fieldLabelCls}>Ответственный куратор</span>
             <select
               className={inputCls}
               name="legacy_curator_membership_id"
@@ -170,19 +169,25 @@ export function StudentPortalAccessControls({
         ) : (
           <input type="hidden" name="legacy_curator_membership_id" value="" />
         )}
-        <label className={legacyPending ? "" : "md:col-span-2"}>
-          <span className={fieldLabelCls}>Причина</span>
-          <input
-            className={inputCls}
-            name="reason"
-            required
-            minLength={1}
-            maxLength={1000}
-            defaultValue="Предоставление студенту доступа к порталу"
-            disabled={prepareUnavailable || pending}
-          />
-        </label>
-        <button className={buttonCls} type="submit" disabled={!canPrepare || pending}>
+        {/* Причина записывается в журнал: стандартная подставлена, правят её редко — поле под раскрытием, но уходит с формой. */}
+        <details className={legacyPending ? "self-end" : "md:col-span-2"}>
+          <summary className="inline-flex min-h-11 cursor-pointer list-none items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg [&::-webkit-details-marker]:hidden">
+            Изменить причину
+          </summary>
+          <label className="block">
+            <span className={fieldLabelCls}>Причина</span>
+            <input
+              className={inputCls}
+              name="reason"
+              required
+              minLength={1}
+              maxLength={1000}
+              defaultValue="Предоставление студенту доступа к порталу"
+              disabled={prepareUnavailable || pending}
+            />
+          </label>
+        </details>
+        <button className={`${buttonCls} w-fit justify-self-start`} type="submit" disabled={!canPrepare || pending}>
           {pending ? "Проверяем…" : "Проверить и подготовить доступ"}
         </button>
       </form>
@@ -204,7 +209,7 @@ export function StudentPortalAccessControls({
             />
           </label>
           <button className={buttonCls} type="submit" disabled={pending}>
-            Явно подтвердить новое приглашение
+            Отправить новое приглашение
           </button>
         </form>
       ) : null}

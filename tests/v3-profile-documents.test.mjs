@@ -135,7 +135,7 @@ test("V3 profile document upload fails closed and explains every failure class",
   const upload = await import("../src/components/v3/profile/document-upload.ts");
 
   assert.match(client, /!item\.uploadRequestId/u);
-  assert.match(row, /сервер не выдал безопасный идентификатор команды/u);
+  assert.match(row, /Загрузка сейчас недоступна\. Обновите страницу\./u);
   // Every server status class has its own words; unknown codes never reach the screen.
   const words = new Map([
     ["401", upload.documentUploadFailure(401, "authentication_required")],
@@ -196,7 +196,9 @@ test("V3 profile document upload starts on file choice; the hint and the busy st
   // A hidden file field under a visible label; no separate «Сохранить» sends it.
   assert.match(row, /<label className=\{UPLOAD_LABEL\}>\s*<input\s+ref=\{fileRef\}\s+name="file"\s+type="file"[\s\S]*?className="sr-only"[\s\S]*?onChange=\{choose\}/u);
   assert.match(row, /\{sending \? "Загружаем…" : "Загрузить файл"\}/u);
-  assert.match(row, /<span className="t-meta text-fg-2">\{DOCUMENT_UPLOAD_HINT\}<\/span>/u);
+  // Форматы сказаны один раз на весь список, а не у каждой «Загрузить файл».
+  assert.doesNotMatch(row, /DOCUMENT_UPLOAD_HINT/u);
+  assert.match(source("src/components/v3/profile/ProfileDocumentsClient.tsx"), /data-testid="v3-document-upload-hint">Загрузка: \{DOCUMENT_UPLOAD_HINT\}<\/p>/u);
   assert.doesNotMatch(row, /type="submit"[^>]*>\s*\{?[^<]*Сохранить[^<]*\}?\s*<\/button>\s*<\/form>\s*\) : null\}\s*<\/div>\s*<div className="flex justify-end/u);
   assert.match(row, /if \(file\) onUpload\(item, file\);/u);
   // Before hydration the handler does not exist yet: the field is unavailable, not silently dead.
@@ -340,7 +342,7 @@ test("V3 profile offers staff a one-time baseline checklist seed above the custo
   assert.match(client, /Применить базовый чек-лист/u);
   assert.match(
     client,
-    /Привязка версии требований выполняется один раз; страна и степень дела будут зафиксированы\./u,
+    /Применяется один раз: страна и степень дела фиксируются\./u,
   );
 
   const applyComponent = client.slice(
@@ -530,7 +532,7 @@ test("V3 documents client shows an honest retry for a failed read and a quiet li
   assert.equal(failedSlot.unavailable.length, 1);
   assert.equal(failedSlot.apply.length, 0);
   // One empty state for the checklist itself (Э8.1), whatever the baseline read did.
-  assert.match(textOf(failed), /В чек-листе пока нет документов\./u);
+  assert.match(textOf(failed), /Чек-лист пуст\. Добавьте документы вручную\./u);
 
   const notice = failedSlot.unavailable[0].type();
   const [alert] = findElements(notice, (node) => node.props.role === "alert");
@@ -550,16 +552,18 @@ test("V3 documents client shows an honest retry for a failed read and a quiet li
 
   // Read succeeded, nothing to apply and nothing applied: one quiet line
   // above the manual form, no alert, no danger colour.
-  const absentTree = ProfileDocumentsClient({ ...base, baselineTemplatesAbsent: true });
+  // Пустой чек-лист говорит это сам («Чек-лист пуст…»): второй фразы про шаблоны нет.
+  assert.equal(baselineSlot(ProfileDocumentsClient({ ...base, baselineTemplatesAbsent: true })).absent.length, 0);
+  const absentTree = ProfileDocumentsClient({ ...base, checklistEmpty: false, baselineTemplatesAbsent: true });
   const absent = baselineSlot(absentTree);
   assert.equal(absent.unavailable.length, 0);
   assert.equal(absent.apply.length, 0);
   assert.equal(absent.absent.length, 1);
-  assert.equal(textOf(absent.absent[0]).trim(), "Шаблонов чек-листа пока нет — документы добавляются вручную.");
+  assert.equal(textOf(absent.absent[0]).trim(), "Шаблонов чек-листа нет.");
   assert.doesNotMatch(absent.absent[0].props.className, /danger|accent/u);
   assert.equal(absent.absent[0].props.role, undefined);
   // Without the manual form (no command id) the line would point nowhere.
-  assert.equal(baselineSlot(ProfileDocumentsClient({ ...base, createRequestId: null, baselineTemplatesAbsent: true })).absent.length, 0);
+  assert.equal(baselineSlot(ProfileDocumentsClient({ ...base, checklistEmpty: false, createRequestId: null, baselineTemplatesAbsent: true })).absent.length, 0);
   // A failed read wins over «absent»: never both.
   const both = baselineSlot(ProfileDocumentsClient({ ...base, baselineOptionsUnavailable: true, baselineTemplatesAbsent: true }));
   assert.equal(both.unavailable.length, 1);

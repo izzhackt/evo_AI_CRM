@@ -120,7 +120,7 @@ export function ProfileNotes({
         ) : null}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="t-body-compact text-fg-3" aria-live="polite">
-            {state.status === "idle" ? "До 4000 знаков." : STATUS_COPY[state.status]}
+            {state.status === "idle" ? "" : STATUS_COPY[state.status]}
           </p>
           <button
             type="submit"
@@ -153,14 +153,14 @@ export function ProfileNotes({
       )}
 
       {olderHref || latestHref ? (
-        <nav aria-label="Страницы заметок" className="flex items-center gap-4 border-t border-border px-4 py-3 text-xs font-semibold">
+        <nav aria-label="Страницы заметок" className="flex items-center gap-4 border-t border-border px-4 text-xs font-semibold">
           {latestHref ? (
-            <Link href={latestHref} prefetch={false} className="text-accent hover:underline">
+            <Link href={latestHref} prefetch={false} className="inline-flex min-h-11 items-center text-fg-2 underline underline-offset-4 hover:text-fg">
               К последним
             </Link>
           ) : null}
           {olderHref ? (
-            <Link href={olderHref} prefetch={false} className="text-accent hover:underline">
+            <Link href={olderHref} prefetch={false} className="inline-flex min-h-11 items-center text-fg-2 underline underline-offset-4 hover:text-fg">
               Ранее
             </Link>
           ) : null}

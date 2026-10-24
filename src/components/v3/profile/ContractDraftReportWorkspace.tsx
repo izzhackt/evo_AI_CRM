@@ -6,6 +6,7 @@ import {
   inputCls,
   fieldLabelCls,
 } from "@/components/ui";
+import { Icon } from "@/components/icons";
 import { ContextBanner } from "@/components/platform/operations/OperationsPrimitives";
 import type {
   PlatformCaseContractWorkspace,
@@ -15,6 +16,12 @@ import { contractStatus, role as roleWord } from "@/lib/v3/wording";
 
 import { QUEUE_CONFIRM } from "../queue/queue-buttons";
 import { caseContractTemplateNote } from "./case-money-view";
+
+/** Строка раскрытия раздела: название и шеврон справа — как у остальных групп карточки (`EditGroup`). */
+const SECTION_SUMMARY = "flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-2 t-item text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring [&::-webkit-details-marker]:hidden";
+function SectionChevron() {
+  return <Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-open/section:rotate-180 motion-reduce:transition-none" />;
+}
 
 function StatusBadge({ value }: { value: string }) {
   const label = contractStatus(value);
@@ -126,7 +133,7 @@ const RESULT_COPY: Record<
   unavailable: {
     tone: "danger",
     title: "Операция не подтверждена",
-    description: "Сервер не подтвердил запись. Сохранённый request ID можно повторить только для той же операции.",
+    description: "Сервер не подтвердил запись. Повторите ту же операцию.",
   },
   not_allowed: {
     tone: "danger",
@@ -290,10 +297,10 @@ function TemplateLifecycle({
       </div>
       <dl className="grid gap-x-5 gap-y-3 sm:grid-cols-2">
         <div className="min-w-0 border-b border-border pb-3">
-          <dt className="t-caption text-fg-3">Канонический источник</dt>
+          <dt className="t-caption text-fg-3">Источник шаблона</dt>
           <dd className="mt-1 break-all t-meta text-fg-2">
             {source ? (
-              <a className="text-accent underline-offset-2 hover:underline" href={source.sourceUrl} target="_blank" rel="noreferrer">
+              <a className="text-fg underline underline-offset-4 hover:text-fg-2" href={source.sourceUrl} target="_blank" rel="noreferrer">
                 {source.sourceUrl}
               </a>
             ) : "Источник недоступен этой роли"}
@@ -597,6 +604,11 @@ export function ContractDraftReportWorkspace({
   const banner = result ? RESULT_COPY[result] : undefined;
   // Предупреждение о шаблоне — тому, кто смотрит (Э8.3): Admin получает действие, остальные — кто его сделает.
   const templateNote = caseContractTemplateNote(workspace);
+  // Пока нет ни утверждённого шаблона, ни черновиков, ни пунктов, ни отчётов, остальным разделам нечего показать:
+  // остаётся предупреждение и «Шаблоны договора».
+  const showDrafts = approvedTemplates.length > 0 || workspace.drafts.length > 0;
+  const showItems = workspace.items.length > 0 || (workspace.canManagePostContract && approvedTemplates.length > 0);
+  const showReports = workspace.reports.length > 0 || (workspace.canManagePostContract && reportableTemplates.length > 0);
 
   return (
     <div
@@ -625,8 +637,8 @@ export function ContractDraftReportWorkspace({
       ) : null}
 
       {workspace.canManageTemplates && hasReviewedSource ? (
-        <details id="contract-template-create" className="min-w-0 scroll-mt-24 border-t border-border pt-2" data-testid="platform-contract-template-create-panel">
-          <summary className="min-h-11 cursor-pointer py-2 t-item text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Создать версию шаблона</summary>
+        <details id="contract-template-create" className="group/section min-w-0 scroll-mt-24 border-t border-border pt-2" data-testid="platform-contract-template-create-panel">
+          <summary className={SECTION_SUMMARY}>Создать версию шаблона<SectionChevron /></summary>
           <form
             action={actions.createTemplate}
             data-testid="platform-contract-template-create-form"
@@ -692,8 +704,8 @@ export function ContractDraftReportWorkspace({
       ) : null}
 
       <div className="space-y-4">
-        <details id="contract-template-list" className="min-w-0 scroll-mt-24 border-t border-border pt-2">
-          <summary id="contract-template-list-title" className="min-h-11 cursor-pointer py-2 t-item text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Шаблоны договора</summary>
+        <details id="contract-template-list" className="group/section min-w-0 scroll-mt-24 border-t border-border pt-2">
+          <summary id="contract-template-list-title" className={SECTION_SUMMARY}>Шаблоны договора<SectionChevron /></summary>
           <div className="mt-4 space-y-4" data-testid="platform-contract-template-list">
             {workspace.templates.length > 0 ? workspace.templates.map((template) => (
               <TemplateLifecycle key={template.contractTemplateVersionId} workspace={workspace} template={template} actions={actions} requestIdFor={requestIdFor} />
@@ -701,12 +713,9 @@ export function ContractDraftReportWorkspace({
           </div>
         </details>
 
-        <section className="min-w-0 border-t border-border pt-4" aria-labelledby="contract-draft-list-title">
+        {showDrafts ? <section className="min-w-0 border-t border-border pt-4" aria-labelledby="contract-draft-list-title">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h4 id="contract-draft-list-title" className="t-item text-fg">Черновики договора</h4>
-              <p className="mt-1 t-meta text-fg-2">Новая генерация всегда создаёт новую версию.</p>
-            </div>
+            <h4 id="contract-draft-list-title" className="t-item text-fg">Черновики договора</h4>
           </div>
           {workspace.canGenerateContract && approvedTemplates.length > 0 ? (
             <form action={actions.generateDraft} data-testid="platform-contract-draft-generate-form" className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3">
@@ -732,11 +741,11 @@ export function ContractDraftReportWorkspace({
               <DraftArtifact key={draft.studentCaseContractDraftId} workspace={workspace} draft={draft} actions={actions} requestIdFor={requestIdFor} />
             )) : <Empty text="Черновиков пока нет." />}
           </div>
-        </section>
+        </section> : null}
       </div>
 
-      <details className="min-w-0 border-t border-border pt-2" open={workspace.items.length > 0 || Boolean(result)}>
-        <summary id="post-contract-items-title" className="min-h-11 cursor-pointer py-3 t-item text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Работа после договора</summary>
+      {showItems ? <details className="group/section min-w-0 border-t border-border pt-2" open={workspace.items.length > 0 || Boolean(result)}>
+        <summary id="post-contract-items-title" className={SECTION_SUMMARY}>Работа после договора<SectionChevron /></summary>
         <p className="mt-1 t-meta text-fg-2">«Выполнен» требует подтверждения; открытым пунктам нужны ответственный и следующее действие.</p>
         {workspace.canManagePostContract && approvedTemplates.length > 0 ? (
           <form action={actions.seedItems} data-testid="platform-post-contract-seed-form" className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
@@ -788,10 +797,10 @@ export function ContractDraftReportWorkspace({
             </article>
           )) : <Empty text="Пункты ещё не созданы. Отчёт без валидного чек-листа недоступен." />}
         </div>
-      </details>
+      </details> : null}
 
-      <details className="min-w-0 border-t border-border pt-2" open={workspace.reports.length > 0 || Boolean(result)}>
-        <summary id="post-contract-report-title" className="min-h-11 cursor-pointer py-3 t-item text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">Отчёты по делу</summary>
+      {showReports ? <details className="group/section min-w-0 border-t border-border pt-2" open={workspace.reports.length > 0 || Boolean(result)}>
+        <summary id="post-contract-report-title" className={SECTION_SUMMARY}>Отчёты по делу<SectionChevron /></summary>
         <p className="mt-1 t-meta text-fg-2">Каждая версия фиксирует статусы пунктов, ответственных, подтверждения и следующие действия на момент генерации.</p>
         {workspace.canManagePostContract && reportableTemplates.length > 0 ? (
           <form action={actions.generateReport} data-testid="platform-post-contract-report-generate-form" className="mt-4 grid gap-3 rounded-nav border border-border bg-surface-2 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
@@ -821,7 +830,7 @@ export function ContractDraftReportWorkspace({
             <ReportArtifact key={report.postContractReportId} workspace={workspace} report={report} actions={actions} requestIdFor={requestIdFor} />
           )) : <Empty text="Версий отчёта нет." />}
         </div>
-      </details>
+      </details> : null}
     </div>
   );
 }

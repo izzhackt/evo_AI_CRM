@@ -1098,7 +1098,7 @@ async function drawerCheck() {
       await trigger.click();
       await page.getByRole("button", { name: "Нужно уточнить" }).click();
       now = await state();
-      check(now.pressed.join() === "Нужно уточнить" && await page.getByLabel("Что нужно уточнить у Sales").isVisible(), `${w}: switching the decision keeps the panel and shows its field`);
+      check(now.pressed.join() === "Нужно уточнить" && await page.getByLabel("Что нужно уточнить у продаж").isVisible(), `${w}: switching the decision keeps the panel and shows its field`);
       await page.getByRole("button", { name: "Отмена" }).click();
       now = await state();
       check(now.modal === false && now.focused === "button:Принять дело", `${w}: «Отмена» closes the panel and returns focus`);
@@ -1108,7 +1108,7 @@ async function drawerCheck() {
       const clarify = async (index) => {
         await trigger.click();
         await page.getByRole("button", { name: "Нужно уточнить", exact: true }).click();
-        await page.getByLabel("Что нужно уточнить у Sales").fill("Уточните, оплачен ли перевод аттестата.");
+        await page.getByLabel("Что нужно уточнить у продаж").fill("Уточните, оплачен ли перевод аттестата.");
         await page.getByRole("button", { name: "Сохранить уточнение", exact: true }).click();
         // Ждём вызова заглушки, не «Уже сохранено»: закрытая панель должна дать названную ошибку, а не тайм-аут.
         await page.waitForFunction((count) => window.__s360.calls.length === count, index + 1, { timeout: 5000 });

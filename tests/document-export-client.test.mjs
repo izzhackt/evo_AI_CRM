@@ -253,12 +253,15 @@ function compile(path, resolve = require) {
   return compiledModule.exports;
 }
 const disclosure = compile("src/components/v3/settings/StaffDisclosure.tsx");
+const queueButtons = compile("src/components/v3/queue/queue-buttons.ts");
 const formPanel = compile("src/components/v3/profile/UniversityFormExportPanel.tsx", id => {
+  if (id === "../queue/queue-buttons") return queueButtons;
   if (id === "@/lib/document-export-client") return client;
   if (id === "@/lib/v3/wording") return wording;
   return require(id);
 });
 const ui = compile("src/components/v3/profile/StudentProfileExportHistory.tsx", id => {
+  if (id === "../queue/queue-buttons") return queueButtons;
   if (id === "@/lib/document-export-client") return client;
   if (id === "@/lib/v3/wording") return wording;
   if (id === "../settings/StaffDisclosure") return disclosure;

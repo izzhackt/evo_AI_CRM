@@ -14,7 +14,8 @@ export function openLeadGroup(id: string): boolean {
   const target = document.getElementById(id);
   const group = target?.closest<HTMLDetailsElement>("details[data-lead-group]");
   if (!group) return false;
-  group.open = true;
+  // Группа может лежать в другой («Условия продажи» — в «Данных продажи» дела): открываются все объемлющие.
+  for (let outer: HTMLDetailsElement | null | undefined = group; outer; outer = outer.parentElement?.closest<HTMLDetailsElement>("details[data-lead-group]")) outer.open = true;
   group.scrollIntoView({ block: "start" });
   group.querySelector<HTMLElement>("summary")?.focus({ preventScroll: true });
   return true;

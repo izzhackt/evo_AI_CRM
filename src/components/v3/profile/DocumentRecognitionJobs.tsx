@@ -116,11 +116,11 @@ export function DocumentRecognitionJobs({ access, sourceVersionId, sourceReady, 
       {page?.jobs.length === 0 ? <p className="t-body-compact text-fg-2">{sourceVersionId === null ? copy.caseEmpty : copy.empty}</p> : null}
       {page ? <DocumentRecognitionJobList jobs={page.jobs} reviewHref={access.reviewHref}
         canRetry={canEnqueue && !sending && !unresolved && !readError} onRetry={jobId => choose(jobId)} /> : null}
-      <div className="flex flex-wrap gap-2">
-        <button type="button" className={button} onClick={() => setRefresh(value => value + 1)}>{copy.refresh}</button>
+      {/* История обновляется сама (опрос раз в 8 с, в том числе после сбоя чтения): ручного «Обновить» нет. */}
+      {cursor !== null || page?.next_cursor ? <div className="flex flex-wrap gap-2">
         {cursor !== null ? <button type="button" className={button} onClick={() => { setPage(null); setCursor(null); }}>{copy.latest}</button> : null}
         {page?.next_cursor ? <button type="button" className={button} onClick={() => { setCursor(page.next_cursor); setPage(null); }}>{copy.older}</button> : null}
-      </div>
+      </div> : null}
       {canEnqueue ? <button type="button" className={button} disabled={sending || !!unresolved || !page || readError}
         onClick={() => choose(null)}>{copy.extract}</button>
         : sourceVersionId !== null ? <p className="t-body-compact text-fg-2">{access.profileRevision === null ? copy.profileMissing : copy.readOnly}</p> : null}

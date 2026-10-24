@@ -199,6 +199,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       curators={input.curators}
       assignCuratorRequestId={input.requestIds.assignCurator}
       closure={input.closure ?? null}
+      acceptShown={primary === "accept" && handoff !== null}
     />
   </>);
 

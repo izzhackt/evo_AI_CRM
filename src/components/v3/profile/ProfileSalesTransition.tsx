@@ -116,7 +116,7 @@ function GateActionForm({
       {contract ? (
         <div className="grid gap-3 @4xl:grid-cols-[minmax(0,1fr)_7rem_10rem]">
           <label>
-            <span className={fieldLabelCls}>Ожидаемая сумма</span>
+            <span className={fieldLabelCls}>Сумма первого платежа</span>
             <input
               name="amount"
               inputMode="decimal"
@@ -142,7 +142,7 @@ function GateActionForm({
             />
           </label>
           <label>
-            <span className={fieldLabelCls}>Ожидаемая дата</span>
+            <span className={fieldLabelCls}>Срок первого платежа</span>
             <input
               type="date"
               name="due_date"
@@ -381,13 +381,13 @@ export function HandoffGateForms({
     <>
       {contractForm ? (
         <div className={part}>
-          <Heading className="t-item text-fg">Подтвердить договор</Heading>
+          <Heading className="t-item text-fg">Договор</Heading>
           <GateActionForm key={`contract:${gate.gateVersion}`} actionName="confirm_contract" gate={gate} requestId={requestIds.contract} />
         </div>
       ) : null}
       {paymentForm ? (
         <div className={part}>
-          <Heading className="t-item text-fg">Подтвердить первый платёж</Heading>
+          <Heading className="t-item text-fg">Первый платёж</Heading>
           <GateActionForm key={`payment:${gate.gateVersion}`} actionName="confirm_first_payment" gate={gate} requestId={requestIds.firstPayment} />
         </div>
       ) : null}
@@ -594,7 +594,7 @@ export function ProfileHandoffAcknowledgement({ snapshot, onSaved, drawer }: {
             ) : null}
             {decision === "clarification_requested" ? (
               <label className={fieldLabelCls}>
-                Что нужно уточнить у Sales
+                Что нужно уточнить у продаж
                 <textarea name="clarification" required maxLength={2000} rows={3}
                   className={cn(inputCls, "mt-1 min-h-24 resize-y")} value={clarification}
                   onChange={(event) => setClarification(event.target.value)} disabled={pending}

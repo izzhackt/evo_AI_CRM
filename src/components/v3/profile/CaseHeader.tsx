@@ -37,6 +37,8 @@ export type CaseHeaderInput = Readonly<{
   assignCuratorRequestId: string;
   /** Закрытие дела (246): исход, дата и «Вернуть в работу»; null — не прочитано. */
   closure?: CaseClosure | null;
+  /** У заголовка стоит красная «Принять дело»: «ждёт принятия» она говорит сама, второй раз под ней это слово не нужно. */
+  acceptShown?: boolean;
 }>;
 
 /**
@@ -53,7 +55,7 @@ export function CaseHeader(input: CaseHeaderInput) {
   const { work } = input;
   const row = work.row;
   const stage = row ? admissionsPipelineStage(row.pipelineStage) : null;
-  const awaiting = row?.attentionFlags.includes("awaiting_ack") ?? false;
+  const awaiting = (row?.attentionFlags.includes("awaiting_ack") ?? false) && input.acceptShown !== true;
   const closed = input.state === "closed" && input.closure?.state === "closed" ? input.closure : null;
   const stateWords = [
     input.state === "closed" && !closed ? "Дело закрыто" : null,

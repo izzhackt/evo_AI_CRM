@@ -164,15 +164,16 @@ test("a row: university · program · intake, the path with one chip, the deadli
   assert.equal(rows.length, 3);
   const [main, submitted, decided] = rows.map((row) => text(visible(row)));
   assert.match(rows[0], /data-primary="true"/u);
-  assert.match(main, /^Шанхайский университет ★ основной Международная торговля · Осень 2027 Китай · Бакалавриат · Добавил: Айгүл Осмонова вариант → заявка подана → решение Срок подачи 30\.11 через 68 дн Документы программы$/u);
+  assert.match(main, /^Шанхайский университет ★ основной Международная торговля · Осень 2027 Китай · Бакалавриат · Добавил: Айгүл Осмонова вариант — шаг 1 из 3: вариант, заявка подана, решение Срок подачи 30\.11 через 68 дн Документы программы$/u);
   // Порядок чтения: путь и срок — до подтверждения и партнёра (на телефоне это и порядок строк).
-  assert.match(submitted, /Добавил: Айгүл Осмонова вариант → заявка подана → решение Срок подачи 30\.09 Подтверждение: Номер заявления 0000 \(синтетика\)$/u);
-  assert.match(decided, /вариант → заявка подана → получен оффер Срок подачи 15\.08 Партнёр: Партнёр «Синтетика» · Решение: Оффер № 0000 Ссылка партнёра \(откроется в новой вкладке\)$/u);
+  assert.match(submitted, /Добавил: Айгүл Осмонова заявка подана — шаг 2 из 3: вариант, заявка подана, решение Срок подачи 30\.09 Подтверждение: Номер заявления 0000 \(синтетика\)$/u);
+  assert.match(decided, /получен оффер — шаг 3 из 3: вариант, заявка подана, решение Срок подачи 15\.08 Партнёр: Партнёр «Синтетика» · Решение: Оффер № 0000 Ссылка партнёра \(откроется в новой вкладке\)$/u);
   assert.match(rows[1].replaceAll("&#x27;", "'"), /\[grid-template-areas:'main_menu'_'path_path'_'more_more'\][^"]*@min-\[48rem\]\/unis:\[grid-template-areas:'main_path_menu'_'more_path_menu'\]/u);
   assert.doesNotMatch(rows[0], /more_more|\[grid-area:more\]/u, "a row without evidence or partner has no second area");
-  // Текущий шаг — одно слово-чип; остальные шаги — текст.
+  // Строка называет только текущий шаг — одним словом-чипом; весь путь у каждой строки был бы тем же и остаётся читалке.
   for (const row of rows) assert.equal([...row.matchAll(/class="v3-chip t-caption"/gu)].length, 1);
-  assert.match(rows[1], /<li class="flex items-center gap-1\.5" aria-current="step"><span aria-hidden="true" class="text-fg-3">→<\/span><span class="v3-chip t-caption" data-tone="neutral">заявка подана<\/span><\/li>/u);
+  for (const row of rows) assert.doesNotMatch(visible(row), /→/u, "no repeated three-step path");
+  assert.match(rows[1], /<p class="t-meta" data-step="1"><span class="v3-chip t-caption" data-tone="neutral">заявка подана<\/span><span class="sr-only"> — шаг 2 из 3: вариант, заявка подана, решение<\/span><\/p>/u);
   assert.match(rows[2], /<span class="v3-chip t-caption" data-tone="ok">получен оффер<\/span>/u);
   assert.match(rows[0], /<time dateTime="2026-11-30" class="font-mono tabular-nums text-fg">30\.11<\/time> <span class="v3-due t-caption" data-due="upcoming">через 68 дн<\/span>/u);
   // «⋯»: три формы строки и пакет партнёру; формы стоят скрытыми под строкой.
@@ -181,7 +182,7 @@ test("a row: university · program · intake, the path with one chip, the deadli
   assert.match(rows[1], /<form[^>]*>[\s\S]*?name="application_id" value="66666666-5555-4555-8555-000000000002"[\s\S]*?<select name="status" required=""/u);
   const many = surfaces.get("many");
   assert.match(text(visible(many)), /Карлов университет Медицина Чехия · Магистратура · Добавил: Айгүл Осмонова отозвана/u, "off the path: only the status word");
-  assert.match(text(visible(many)), /Университет Цинхуа Архитектура · Осень 2027 Китай вариант → заявка подана → решение Срок подачи 15\.01\.27 · нужно подтвердить Документы программы/u);
+  assert.match(text(visible(many)), /Университет Цинхуа Архитектура · Осень 2027 Китай вариант — шаг 1 из 3: вариант, заявка подана, решение Срок подачи 15\.01\.27 · нужно подтвердить Документы программы/u);
   assert.match(many, /<span class="v3-due t-caption" data-due="today">сегодня<\/span>/u);
   assert.match(many, /<span class="v3-due t-caption" data-due="overdue">прошёл 5 дн<\/span>/u);
   assert.match(many, /<span class="v3-chip t-caption" data-tone="danger">отказ вуза<\/span>/u);
@@ -242,7 +243,8 @@ test("the packet form is not recreated by «⋯ → Пакет партнёру�
   const forms = read("src/components/v3/profile/CaseOperationsForms.tsx");
   // Одна тёмная кнопка очереди, без копии.
   assert.doesNotMatch(forms, /const CONFIRM =/u);
-  assert.equal([...forms.matchAll(/className=\{QUEUE_CONFIRM\}/gu)].length, 3);
+  // Пакет, «Сохранить черновик ZIP», «Проверить исходную попытку» и ответ студенту в «Обращениях» (поручение 24.10: не красная).
+  assert.equal([...forms.matchAll(/className=\{QUEUE_CONFIRM\}/gu)].length, 4);
   // Без ключа по выбранной заявке: пересоздание формы теряло удержанный запрос (`frozen`) и повтор.
   assert.match(forms, /<PreparePartnerPacketForm caseId=\{caseId\}/u);
   assert.doesNotMatch(forms, /<PreparePartnerPacketForm key=/u);

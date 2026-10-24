@@ -751,13 +751,14 @@ async function screenshots() {
         }
         // Пустая «Нужен ответ»: справа — «Все ответы даны», слева — без повтора.
         if (name === "answered") {
-          check(metrics.listEmpty === "Нет переписок, ждущих ответа.Показать все переписки", `${file}: list «${metrics.listEmpty}»`);
+          check(metrics.listEmpty === "Нет переписок, ждущих ответа.", `${file}: list «${metrics.listEmpty}»`);
           if (viewportKey !== "390") check(metrics.next === "Все ответы даны", `${file}: pane «${metrics.next}»`);
         }
         if (name === "answered-awaiting" && viewportKey !== "390") check(metrics.next === "Все ответы даны", `${file}: pane «${metrics.next}»`);
         if (name === "thread") {
           check(JSON.stringify(metrics.awaitControl) === JSON.stringify(["Нужен ответ*", "Ждём студента", "Не требуется"]), `${file}: await control ${metrics.awaitControl.join(" · ")}`);
-          check(metrics.awaitLabel === true, `${file}: no visible «Состояние» label`);
+          // Подпись «Состояние» — только широко: на телефоне группа названа для читалки, подпись отняла бы строку у ленты.
+          check(metrics.awaitLabel === !phoneThread, `${file}: «Состояние» label visible ${metrics.awaitLabel}`);
           check(metrics.awaitPressed?.tone === "warn", `${file}: pressed «Нужен ответ» tone ${JSON.stringify(metrics.awaitPressed)}`);
           // Запись состояния не выглядит как фильтр очереди рядом.
           if (!phoneThread) check(metrics.queuePressed && metrics.awaitPressed.bg !== metrics.queuePressed.bg && metrics.awaitPressed.color !== metrics.queuePressed.color,
@@ -766,7 +767,8 @@ async function screenshots() {
           if (phoneThread) check(metrics.thread.headerBottomFromMain <= 190, `${file}: thread header ends ${metrics.thread.headerBottomFromMain}px below the page top`);
           check(metrics.facts === "Китай · Документы", `${file}: facts «${metrics.facts}»`);
           check(metrics.composer?.inViewport === true, `${file}: composer ${JSON.stringify(metrics.composer)}`);
-          check(metrics.solidRed === 1, `${file}: ${metrics.solidRed} solid red controls (only «Отправить»)`);
+          // Красная «Отправить» — только когда есть что отправить: с пустым полем сплошного красного нет.
+          check(metrics.solidRed === 0, `${file}: ${metrics.solidRed} solid red controls with an empty field`);
         }
         // У продаж «Переписки» поступления нет: ни пункта, ни ссылки.
         if (name === "whatsapp-sales") check(!metrics.menu.some((item) => item.includes("=/v3/messages")), `${file}: student chat in the sales menu`);
@@ -797,8 +799,7 @@ async function screenshots() {
       const opened = await page.evaluate(pageMetrics);
       const file = `${prefix}-thread-picker-${via === "slash" ? "slash-" : ""}${viewportKey}.png`;
       await page.screenshot({ path: join(outDir, file) });
-      await page.locator('[data-testid="case-chat-snippet-popover"] select').selectOption({ label: "Список документов для визы" });
-      await page.locator('[data-testid="case-chat-snippet-popover"] button', { hasText: "Вставить в текст" }).click();
+      await page.locator('[data-testid="case-chat-snippet-popover"] button', { hasText: "Список документов для визы" }).click();
       await page.waitForTimeout(150);
       const inserted = await page.evaluate(() => ({
         text: document.querySelector('form[aria-label="Новое сообщение"] textarea').value,
@@ -808,7 +809,7 @@ async function screenshots() {
       }));
       await finish(session, file);
       report({ journey: "snippet", file, via, popover: opened.popover, inserted });
-      check(opened.popover?.label === "Шаблон ответа" && opened.popover.focus === "SELECT" && opened.popover.inViewport, `${file}: picker ${JSON.stringify(opened.popover)}`);
+      check(opened.popover?.label === "Шаблон ответа" && opened.popover.focus === "BUTTON" && opened.popover.inViewport, `${file}: picker ${JSON.stringify(opened.popover)}`);
       check(inserted.text.startsWith("Для визы нужны:") && !inserted.open && inserted.focus === "TEXTAREA", `${file}: insert ${JSON.stringify(inserted)}`);
       check(!inserted.actions.includes("post"), `${file}: inserting a template sent the message`);
     }
@@ -841,32 +842,50 @@ async function screenshots() {
       check(JSON.stringify(metrics.rows) === JSON.stringify(["Лейла Тестовая", "Данияр Макетов"]), `${file}: rows after the change ${metrics.rows.join(", ")}`);
     }
 
-    // Действия с сообщением: знак из набора иконок в строке «автор · время»,
-    // меню — в верхнем слое; «Ответить с цитатой» ставит цитату в поле ответа.
+    // Поле ответа: с текстом «Отправить» одна красная кнопка; мышью Enter отправляет, Shift+Enter — строка.
     for (const viewportKey of ["1440", "390"]) {
       const session = await open(htmlFor.thread, viewportKey);
       const { page } = session;
-      const trigger = page.locator('[id^="case-message-"] button[aria-label="Действия с сообщением"]').last();
+      const field = page.locator('form[aria-label="Новое сообщение"] textarea');
+      await field.fill("Проверка поля ответа");
+      await page.waitForTimeout(300);
+      const typed = await page.evaluate(pageMetrics);
+      await page.evaluate(() => { window.__harness.actions.length = 0; });
+      let sent = null;
+      if (viewportKey === "1440") {
+        await field.press("Shift+Enter");
+        const lines = await field.inputValue();
+        await field.press("Enter");
+        await page.waitForTimeout(150);
+        sent = { lines, actions: await page.evaluate(() => window.__harness.actions) };
+      }
+      const file = `${prefix}-thread-typed-${viewportKey}.png`;
+      await page.screenshot({ path: join(outDir, file) });
+      await finish(session, file);
+      report({ journey: "composer", file, solidRed: typed.solidRed, sent });
+      check(typed.solidRed === 1, `${file}: ${typed.solidRed} solid red controls with text`);
+      if (sent) check(sent.lines.includes("\n") && sent.actions.includes("post"), `${file}: Enter/Shift+Enter ${JSON.stringify(sent)}`);
+    }
+    // «Ответить с цитатой»: один знак в строке времени (без меню «⋯»), цель 44 px; нажатие ставит цитату в поле ответа.
+    for (const viewportKey of ["1440", "390"]) {
+      const session = await open(htmlFor.thread, viewportKey);
+      const { page } = session;
+      const trigger = page.locator('[id^="case-message-"] button[aria-label="Ответить с цитатой"]').last();
       const placed = await trigger.evaluate((button) => {
         const line = button.parentElement.querySelector("time").getBoundingClientRect();
         const icon = button.querySelector("svg").getBoundingClientRect();
         const bubble = button.closest('[id^="case-message-"] > div').getBoundingClientRect();
-        return { onNameLine: Math.abs((icon.top + icon.bottom) / 2 - (line.top + line.bottom) / 2) <= 3, insideBubble: icon.top >= bubble.top && icon.bottom <= bubble.bottom, height: Math.round(button.getBoundingClientRect().height) };
+        return { onTimeLine: Math.abs((icon.top + icon.bottom) / 2 - (line.top + line.bottom) / 2) <= 3, insideBubble: icon.top >= bubble.top && icon.bottom <= bubble.bottom, height: Math.round(button.getBoundingClientRect().height), menus: document.querySelectorAll('[id^="case-message-"] [popover]').length };
       });
       await trigger.click();
-      await page.waitForSelector('[id^="case-message-"] [popover]:popover-open');
       await page.waitForTimeout(100);
       const file = `${prefix}-thread-message-menu-${viewportKey}.png`;
       await page.screenshot({ path: join(outDir, file) });
-      const menu = await page.evaluate(() => { const popover = document.querySelector("[popover]:popover-open"); const box = popover.getBoundingClientRect(); return { label: popover.getAttribute("aria-label"), inViewport: box.top >= 0 && box.left >= 0 && box.bottom <= window.innerHeight && box.right <= window.innerWidth }; });
-      await page.locator("[popover]:popover-open button", { hasText: "Ответить с цитатой" }).click();
-      await page.waitForTimeout(100);
-      const quoted = await page.evaluate(() => ({ open: Boolean(document.querySelector("[popover]:popover-open")), quote: document.querySelector('form[aria-label="Новое сообщение"] p.truncate')?.textContent ?? null, actions: window.__harness.actions }));
+      const quoted = await page.evaluate(() => ({ quote: document.querySelector('form[aria-label="Новое сообщение"] p.truncate')?.textContent ?? null, actions: window.__harness.actions }));
       await finish(session, file);
-      report({ journey: "message-menu", file, placed, menu, quoted });
-      check(placed.onNameLine && placed.insideBubble && placed.height >= 44, `${file}: menu icon ${JSON.stringify(placed)}`);
-      check(menu.label === "Действия с сообщением" && menu.inViewport, `${file}: menu ${JSON.stringify(menu)}`);
-      check(!quoted.open && quoted.quote?.startsWith("Нурай Образцова: Добрый день!") && !quoted.actions.includes("post"), `${file}: quote ${JSON.stringify(quoted)}`);
+      report({ journey: "message-reply", file, placed, quoted });
+      check(placed.onTimeLine && placed.insideBubble && placed.height >= 44 && placed.menus === 0, `${file}: reply icon ${JSON.stringify(placed)}`);
+      check(quoted.quote?.startsWith("Нурай Образцова: Добрый день!") && !quoted.actions.includes("post"), `${file}: quote ${JSON.stringify(quoted)}`);
     }
   } finally {
     await browser.close();
@@ -1202,7 +1221,7 @@ async function whatsappScreenshots() {
       await page.waitForTimeout(150);
       const metrics = await shot(session, `picker-${viewportKey}.png`);
       check(metrics.popover?.label === "Шаблон ответа" && metrics.popover.inViewport, `picker-${viewportKey}: ${JSON.stringify(metrics.popover)}`);
-      await page.getByRole("button", { name: "Вставить в текст" }).click();
+      await page.locator('[data-testid="v3-reply-snippet-picker"] button').first().click();
       await page.waitForTimeout(150);
       const value = await page.locator('[data-testid="v3-inbox-composer"] textarea').inputValue();
       const harness = await close(session, `picker-${viewportKey}`);

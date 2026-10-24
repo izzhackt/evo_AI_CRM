@@ -144,7 +144,8 @@ function MountedComposer({ channel, storageScope, ref, quotes, onSaved, onResume
           else drafts.current.delete(session.key);
           try { sessionStorage.removeItem(session.key); } catch { setStorageError(true); }
           select(defaultKey, drafts.current.get(defaultKey) ?? null, session.draft?.target.kind !== "edit");
-          setNotice("Сообщение сохранено.");
+          // Новое сообщение подтверждает лента; «сохранено» — только у правки, чьё сообщение может быть вне экрана.
+          setNotice(session.draft?.target.kind === "edit" ? "Сообщение сохранено." : null);
           onSaved(id); // Read failures are reported by the feed, never as failed sending.
           if (session.draft?.target.kind === "edit") {
             if (returnFocus.current?.isConnected) returnFocus.current.focus();

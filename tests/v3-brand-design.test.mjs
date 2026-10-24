@@ -131,7 +131,6 @@ test("solid red stays for the main action and every selection shares one accent-
     "src/components/v3/tasks/ComposerDeadlineField.tsx",
     "src/components/v3/MainHeader.tsx",
     "src/components/v3/profile/Profile.tsx",
-    "src/components/v3/reply-snippets/KnowledgeWorkspaceTabs.tsx",
     // «База знаний» (Э8.10, 28.09): дерево, «Вся база / Текущая папка», режим
     // редактора и вкладки досье — общий нейтральный выбор, без розового.
     "src/components/v3/knowledge/KnowledgeTree.tsx",
@@ -168,7 +167,8 @@ test("solid red stays for the main action and every selection shares one accent-
   ];
   for (const path of filterSubmits) {
     const source = read(path);
-    const labels = [...source.matchAll(/(?:Найти|Показать)\s*<\/button>/gu)];
+    // «Найти» — текстом кнопки или именем знака-лупы в поле (Inbox: 44 px без отдельной рамки).
+    const labels = [...source.matchAll(/(?:Найти|Показать)\s*<\/button>|aria-label="Найти"/gu)];
     assert.ok(labels.length > 0, `${path} keeps its filter submit`);
     for (const label of labels) {
       const button = source.slice(source.lastIndexOf("<button", label.index), label.index);

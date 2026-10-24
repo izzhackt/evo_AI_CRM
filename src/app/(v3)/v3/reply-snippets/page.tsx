@@ -10,5 +10,5 @@ export const metadata = { title: "Шаблоны ответов" };
 export default async function ReplySnippetsPage() {
   const actor = await requireV3PageActor("/v3/reply-snippets");
   if (staffCanAccessRoute(actor, "/v3/knowledge")) redirect("/v3/knowledge?section=snippets");
-  return <PartShell title="Шаблоны ответов"><KnowledgeSnippets actor={actor} /></PartShell>;
+  return <PartShell title="Шаблоны ответов"><KnowledgeSnippets actor={actor} standalone /></PartShell>;
 }

@@ -20,6 +20,7 @@ export function TeamChatMessageRow({ message, quote, ownMembershipId, canModerat
   onEdit: (message: TeamChatMessage) => void; onDelete: (message: TeamChatMessage) => void; onQuote: (id: string) => void; highlighted?: boolean; continuation?: boolean;
 }) {
   const menu = useRef<HTMLDetailsElement>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const isOwn = message.authorMembershipId === ownMembershipId;
   // replyCount counts legacy root children, not incoming direct quotes to a reply.
   const compactDeleted = Boolean(message.deletedAt) && message.parentMessageId === null
@@ -27,11 +28,20 @@ export function TeamChatMessageRow({ message, quote, ownMembershipId, canModerat
   const initials = message.authorName.trim().split(/\s+/u).slice(0, 2).map((part) => part[0]).join("").toLocaleUpperCase("ru-RU");
   const mentionedNames = message.mentionedMembershipIds.map((id) => participants.find((person) => person.membershipId === id)?.displayName ?? "Участник");
   function closeMenu() { if (menu.current) menu.current.open = false; }
+  // «Копировать ссылку» копирует адрес сообщения; если браузер не даёт доступ к буферу — открывает его, как прежняя «Ссылка».
+  async function copyLink() {
+    const path = `/v3/team-chat?channel=${message.channelKey}&message=${message.id}`;
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}${path}`);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch { window.location.href = new URL(path, window.location.origin).toString(); }
+  }
   return <article id={`team-message-channel-${message.id}`} data-chat-row={message.id} tabIndex={-1}
     className={`${styles.message} ${isOwn ? styles.ownMessage : ""} ${highlighted ? styles.highlighted : ""} ${continuation ? styles.continuation : ""} ${compactDeleted ? styles.compactDeleted : ""}`}>
     {!isOwn ? <span className={`t-caption ${styles.authorAvatar} ${continuation ? styles.continuationAvatar : ""}`} aria-hidden="true">{initials}</span> : null}
     <div className={styles.messageContent}>
-      <div className={continuation ? styles.srOnly : `t-meta ${styles.messageHeader}`}>
+      <div className={continuation || isOwn ? styles.srOnly : `t-meta ${styles.messageHeader}`}>
         <strong>{message.authorName}</strong>
       </div>
       <div className={styles.bubble}>
@@ -41,9 +51,9 @@ export function TeamChatMessageRow({ message, quote, ownMembershipId, canModerat
         {message.deletedAt ? <p className={styles.muted}>Сообщение удалено</p> : <p className={`t-body-compact ${styles.body}`} data-chat-body={isOwn ? undefined : message.id.toLowerCase()}>
           {plainTextLinks(message.body).map((part, index) => part.href ? <a key={index} href={part.href} target="_blank" rel="noopener noreferrer" className="text-accent-text underline underline-offset-2">{part.text}</a> : part.text)}
         </p>}
-        {!message.deletedAt && mentionedNames.length ? <p className={styles.mentionNames}>Упоминания: {mentionedNames.join(", ")}</p> : null}
-      </div>
-      <div className={`${styles.messageActions} ${styles.messageFooter}`}>
+        {!message.deletedAt && mentionedNames.length ? <p className={styles.mentionNames}>@{mentionedNames.join(", @")}</p> : null}
+        {/* Время и действия — в строке самого пузыря, а не отдельной строкой под ним: сообщение занимает меньше высоты. */}
+        <div className={`${styles.messageActions} ${styles.messageFooter}`}>
         <span className={`t-meta ${styles.messageMetadata}`}>
           <time className="font-mono" dateTime={message.createdAt} title={new Date(message.createdAt).toLocaleString("ru-RU", { dateStyle: "long", timeStyle: "short", timeZone: PLATFORM_ORGANIZATION_TIMEZONE })}>{new Date(message.createdAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: PLATFORM_ORGANIZATION_TIMEZONE })}</time>
           {message.editedAt && !message.deletedAt ? <span className={styles.muted}>изменено</span> : null}
@@ -54,9 +64,10 @@ export function TeamChatMessageRow({ message, quote, ownMembershipId, canModerat
           <div className={styles.menuItems}>
             {!message.deletedAt && isOwn ? <button type="button" className={styles.textButton} onClick={() => { onEdit(message); closeMenu(); }}>Изменить</button> : null}
             {!message.deletedAt && (isOwn || canModerate) ? <button type="button" className={styles.textButton} onClick={() => { onDelete(message); closeMenu(); }}>{isOwn ? "Удалить" : "Модерация"}</button> : null}
-            <a className={styles.textButton} href={`/v3/team-chat?channel=${message.channelKey}&message=${message.id}`}>Ссылка</a>
+            <button type="button" className={styles.textButton} onClick={() => { void copyLink(); }}>{linkCopied ? "Ссылка скопирована" : "Копировать ссылку"}</button>
           </div>
         </details>
+        </div>
       </div>
     </div>
   </article>;

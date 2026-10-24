@@ -238,6 +238,7 @@ function inboxModule() {
     if (id === "@/components/v3/inbox/InboxChat") return { InboxChat: () => null };
     if (id === "@/components/v3/inbox/InboxListPulse") return { InboxListPulse: () => null };
     if (id === "@/components/v3/queue/FilterMenu") return { FilterMenu: function FilterMenu() { return null; } };
+    if (id === "@/components/v3/queue/queue-buttons") return { QUEUE_SECONDARY: "" };
     if (id === "@/components/v3/telephony/DialButton") return { DialButton: () => null };
     return undefined;
   });
@@ -326,7 +327,7 @@ test("WhatsApp not connected: one honest state instead of «не подтвер�
 test("WhatsApp page: settings link only for Admin outside role preview, no count when there is nothing to count", () => {
   const page = source("src/app/(v3)/v3/inbox/page.tsx");
   assert.match(page, /const settingsHref = actor\.systemRole === "admin" && actor\.presentationRole === null\s*\? "\/v3\/settings\?section=integrations"\s*: null;/u);
-  assert.match(page, /count=\{notConnected \? null : view\.conversations\.length\}/u);
+  assert.match(page, /count=\{notConnected \|\| paged \? null : view\.conversations\.length\}/u);
   const adapter = source("src/lib/v3/inbox-source.ts");
   // No session row is «not connected»; a failed read stays «unavailable».
   assert.match(adapter, /health === null\s*\? "not_connected"/u);

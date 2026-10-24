@@ -2,9 +2,14 @@ import { QueueViewTabs } from "@/components/v3/queue/QueueViewTabs";
 import type { AiAgentDraftRow, AiAgentDraftStatus, AiAgentKey } from "@/lib/ai-agents/contract";
 import { aiAgentHref } from "@/lib/v3/ai-agents-view";
 
-import { DraftCard } from "./DraftCard";
+import { DraftList } from "./DraftList";
 
-/** Очередь «Черновиков» (контракт §D.4, п. 4): по умолчанию ждущие решения, «Все» — вся история. */
+/**
+ * Очередь «Черновиков» (контракт §D.4, п. 4): по умолчанию ждущие решения, «Все» — вся история.
+ * Заголовка и пересказа правил нет: вкладка уже называется «Черновики», а «уходят только
+ * после одобрения» говорит кнопка «Одобрить и отправить». Фильтр появляется, когда черновики
+ * вообще были; пустая очередь — одна строка.
+ */
 export function DraftsTab({
   agentKey,
   drafts,
@@ -23,30 +28,20 @@ export function DraftsTab({
   const all = Object.values(counts).reduce((sum, value) => sum + value, 0);
   return (
     <section className="space-y-4" aria-labelledby="aia-drafts" data-testid="v3-aia-drafts">
-      <div>
-        <h2 id="aia-drafts" className="t-section text-fg">Черновики</h2>
-        <p className="mt-1 max-w-[62ch] t-body-compact text-fg-2">
-          Сообщения клиентам и студентам, которые агент подготовил при выключенном Авто. Они уходят только после вашего одобрения.
-        </p>
-      </div>
-      <QueueViewTabs
-        label="Какие черновики показать"
-        tabs={[
-          { key: "pending", label: "Ждут решения", count: counts.pending, current: filter === "pending", href: aiAgentHref(agentKey, { tab: "drafts" }) },
-          { key: "all", label: "Все", count: all, current: filter === "all", href: aiAgentHref(agentKey, { tab: "drafts", show: "all" }) },
-        ]}
-      />
-      {drafts.length === 0 ? (
-        <p className="rounded-card border border-border bg-surface px-4 py-5 t-body-compact text-fg-2" data-testid="v3-aia-drafts-empty">
-          {filter === "pending"
-            ? "Черновиков, которые ждут решения, нет. Когда агент подготовит сообщение клиенту, оно появится здесь."
-            : "Агент ещё не готовил черновиков."}
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {drafts.map((draft) => <DraftCard key={`${draft.id}-${draft.status}`} draft={draft} canManage={canManage} now={now} />)}
-        </div>
-      )}
+      <h2 id="aia-drafts" className="sr-only">Черновики</h2>
+      {all > 0 ? (
+        <QueueViewTabs
+          label="Какие черновики показать"
+          tabs={[
+            { key: "pending", label: "Ждут решения", count: counts.pending, current: filter === "pending", href: aiAgentHref(agentKey, { tab: "drafts" }) },
+            { key: "all", label: "Все", count: all, current: filter === "all", href: aiAgentHref(agentKey, { tab: "drafts", show: "all" }) },
+          ]}
+        />
+      ) : null}
+      {!canManage && counts.pending > 0 ? (
+        <p className="t-body-compact text-fg-2" data-testid="v3-aia-drafts-readonly">Решает сотрудник с правом управлять ИИ-агентами.</p>
+      ) : null}
+      <DraftList drafts={drafts} canManage={canManage} now={now} emptyText={filter === "pending" ? "Нет черновиков, которые ждут решения." : "Черновиков не было."} />
     </section>
   );
 }

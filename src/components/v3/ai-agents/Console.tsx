@@ -81,7 +81,6 @@ function ProgressRow({ word, since }: Readonly<{ word: string | null; since: () 
 export function Console({
   agentKey,
   agentTitle,
-  roleLine,
   autoSend,
   canRun,
   blockedNote,
@@ -92,15 +91,13 @@ export function Console({
   initialRun,
   restore,
   starters,
-  syncSlot,
+  nextStep,
   autoFocus,
   onStarted,
   onRunUpdate,
 }: Readonly<{
   agentKey: AiAgentKey;
   agentTitle: string;
-  /** Одна строка о том, что делает агент (пустое состояние). */
-  roleLine: string | null;
   autoSend: boolean;
   /** Агент включён, синхронизирован, ключ задан, это не просмотр роли. */
   canRun: boolean;
@@ -117,7 +114,8 @@ export function Console({
   /** Состояние восстанавливаемого запуска из базы; null — восстановления нет (или строка запуска не прочитана). */
   restore: AiAgentConsoleRestore | null;
   starters: readonly string[];
-  syncSlot: ReactNode;
+  /** Действие первого несделанного шага запуска агента (под причиной запертого чата); null — шагов нет. */
+  nextStep: ReactNode;
   /** «Новый разговор»: фокус сразу в поле. */
   autoFocus?: boolean;
   /** Разговор создан этой вкладкой: список «Мои разговоры» добавляет его сверху (`background` — сотрудник уже ушёл на другой разговор). */
@@ -281,8 +279,8 @@ export function Console({
     if (box) box.scrollTo({ top: box.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
 
-  async function send() {
-    const value = text.trim();
+  async function send(override?: string) {
+    const value = (override ?? text).trim();
     if (!value || sending || !canRun || working) return;
     setSending(true);
     setSendState(AI_AGENTS_IDLE);
@@ -308,7 +306,7 @@ export function Console({
     setSending(false);
     if (result.status === "saved") {
       frozen.current = null;
-      setText("");
+      if (override === undefined) setText("");
       stick.current = true;
       const sentNow = { text: value, at: new Date().toISOString(), baseline: built.filter((item) => item.kind === "user").length };
       pendingRef.current = sentNow;
@@ -347,6 +345,10 @@ export function Console({
     return Number.isFinite(at) ? Math.min(at, Date.now()) : Date.now();
   };
   const meta = finished && runRow ? answerRunMeta(runRow, toolSteps) : null;
+  // «Повторить» под ошибкой: то же последнее сообщение сотрудника уходит ещё раз. Только когда ошибка — последнее в хронике и писать можно.
+  const lastUser = items.findLast((item) => item.kind === "user");
+  const lastUserText = lastUser && "text" in lastUser ? lastUser.text : null;
+  const retry = canRun && !working && !sending && lastUserText && items[items.length - 1]?.kind === "error" ? () => void send(lastUserText) : undefined;
 
   return (
     <section aria-labelledby={headingId} className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="v3-aia-console">
@@ -366,32 +368,34 @@ export function Console({
           <div className="mx-auto flex min-h-full w-full max-w-[46rem] flex-col px-4 py-5 @2xl:px-6">
             {empty ? (
               <div className="my-auto py-6">
-                <h3 className="t-section text-center text-fg">{agentTitle}</h3>
-                {roleLine ? <p className="mx-auto mt-1 max-w-[52ch] text-center t-body-compact text-fg-2">{roleLine}</p> : null}
                 {locked ? (
-                  <div className="mx-auto mt-5 max-w-[52ch] text-center">
+                  <div className="mx-auto max-w-[52ch] text-center">
                     <p className="t-item text-fg">Писать агенту пока нельзя</p>
                     <p className="mt-1 t-body-compact text-fg-2">{blockedNote}</p>
+                    {nextStep ? <div className="mt-4 flex justify-center">{nextStep}</div> : null}
                   </div>
                 ) : starters.length > 0 ? (
-                  <ul className="mt-6 grid gap-2 @2xl:grid-cols-2" aria-label="Примеры поручений">
-                    {starters.map((starter) => (
-                      <li key={starter} className="flex">
-                        <button
-                          type="button"
-                          className="v3-choice flex min-h-14 w-full items-center justify-between gap-3 rounded-card border border-border bg-surface px-4 py-3 text-start t-body-compact text-fg hover:bg-surface-2"
-                          onClick={() => { setText(starter); setStarterTick((tick) => tick + 1); }}
-                        >
-                          <span className="min-w-0">{starter}</span>
-                          <Icon name="arrow-right" size={16} className="shrink-0 text-fg-3" />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="mx-auto w-full max-w-[34rem]">
+                    <p className="t-meta text-fg-3">Примеры поручений</p>
+                    <ul className="mt-2 flex flex-col gap-1.5" aria-label="Примеры поручений">
+                      {starters.map((starter) => (
+                        <li key={starter} className="flex">
+                          <button
+                            type="button"
+                            className="v3-choice flex min-h-11 w-full items-center justify-between gap-3 rounded-ctl border border-border bg-surface px-3 py-2 text-start t-body-compact text-fg hover:bg-surface-2"
+                            onClick={() => { setText(starter); setStarterTick((tick) => tick + 1); }}
+                          >
+                            <span className="min-w-0">{starter}</span>
+                            <Icon name="arrow-right" size={16} className="shrink-0 text-fg-3" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ) : null}
               </div>
             ) : (
-              <ChatTimeline items={items} agentLabel={agentTitle} runMeta={meta} allowTask={canMakeTasks} working={working} staticIds={staticIds} />
+              <ChatTimeline items={items} agentLabel={agentTitle} runMeta={meta} allowTask={canMakeTasks} working={working} staticIds={staticIds} onRetry={retry} />
             )}
             {working ? <ProgressRow key={runId ?? "new"} word={runningToolWord(items)} since={since} /> : null}
             {offline ? <p role="status" className="mt-3 t-meta text-warn">Нет связи, повторяю…</p> : null}
@@ -412,10 +416,10 @@ export function Console({
       </div>
 
       {locked ? (
-        empty && !syncSlot ? null : (
+        empty ? null : (
           <div className="shrink-0 space-y-3 border-t border-border bg-surface px-4 py-3" data-testid="v3-aia-blocked">
-            {empty ? null : <p className="t-body-compact text-fg-2">{blockedNote}</p>}
-            {syncSlot}
+            <p className="t-body-compact text-fg-2">{blockedNote}</p>
+            {nextStep}
           </div>
         )
       ) : (
@@ -427,7 +431,7 @@ export function Console({
           onSend={() => void send()}
           onStop={() => void stop()}
           maxChars={MAX_CHARS}
-          placeholder={runId ? "Уточнение или следующий вопрос…" : `Что поручить: ${agentTitle}?`}
+          placeholder={runId ? "Уточнение или следующий вопрос…" : "Что поручить?"}
           working={working}
           sending={sending}
           hasRun={runId !== null}

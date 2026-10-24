@@ -71,7 +71,8 @@ export function AgentComposer({
   const length = value.length;
   const over = length > maxChars;
   const canSend = value.trim().length > 0 && !over && !sending && !working;
-  const choosing = canDirect && !hasRun;
+  // При включённом «Авто» агент и так пишет клиентам сам: выбирать «Без черновика» нечего.
+  const choosing = canDirect && !hasRun && !autoSend;
 
   // Поле растёт с текстом до десяти строк, дальше — прокрутка внутри него.
   const fit = useCallback(() => {
@@ -186,15 +187,16 @@ export function AgentComposer({
             </span>
           </button>
         </div>
-        <div className="mt-1.5 flex min-h-4 items-center justify-between gap-3 t-meta text-fg-3">
-          <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-            {autoSend
-              ? <span><span className="text-warn">Авто вкл</span> · агент отправляет клиентам сам</span>
-              : <span>Авто выкл · сообщения клиентам — в «Черновики»</span>}
-            {hasRun && runAuthority ? <StatusChip label="Без черновика" tone="warn" /> : null}
-          </p>
-          <span className={`shrink-0 tabular-nums ${over ? "text-danger" : ""}`}>{length > COUNTER_FROM ? `${length} из ${maxChars}` : ""}</span>
-        </div>
+        {/* Постоянной строки «Авто выкл · …» нет: состояние «Авто» — в шапке страницы. Здесь только то, что отличается от нормы. */}
+        {autoSend || (hasRun && runAuthority) || length > COUNTER_FROM ? (
+          <div className="mt-1.5 flex items-center justify-between gap-3 t-meta text-fg-3">
+            <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+              {autoSend ? <span><span className="text-warn">Авто вкл</span> · агент отправляет клиентам сам</span> : null}
+              {hasRun && runAuthority ? <StatusChip label="Без черновика" tone="warn" /> : null}
+            </p>
+            <span className={`shrink-0 tabular-nums ${over ? "text-danger" : ""}`}>{length > COUNTER_FROM ? `${length} из ${maxChars}` : ""}</span>
+          </div>
+        ) : null}
       </div>
     </form>
   );

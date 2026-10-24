@@ -56,10 +56,12 @@ export function DayBars({
     : `${caption}. За ${rows.length} ${pluralRu(rows.length, ["день", "дня", "дней"])} — ${total} ${pluralRu(total, ["запуск", "запуска", "запусков"])}. Данные по дням — в таблице под графиком.`;
   return (
     <figure className="min-w-0" aria-label={caption}>
-      <p className="mb-2 flex min-h-5 flex-wrap items-center gap-x-4 gap-y-1 t-meta text-fg-2" aria-hidden="true">
-        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-[2px] bg-fg-2" />{mode === "money" ? "Расход за день" : "Запуски за день"}</span>
-        {anyFailed ? <span className="inline-flex items-center gap-1.5"><span className="v3-aia-hatch size-2.5 rounded-[2px] border border-fg" />Из них с ошибкой</span> : null}
-      </p>
+      {/* Легенда нужна только штриховке: «что за столбцы» говорит заголовок панели. */}
+      {anyFailed ? (
+        <p className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 t-meta text-fg-2" aria-hidden="true">
+          <span className="inline-flex items-center gap-1.5"><span className="v3-aia-hatch size-2.5 rounded-[2px] border border-fg" />Из них с ошибкой</span>
+        </p>
+      ) : null}
       <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2">
         <div aria-hidden="true" className="relative h-40 t-meta tabular-nums text-fg-3">
           <span className="invisible block">{valueText(mode, top)}</span>

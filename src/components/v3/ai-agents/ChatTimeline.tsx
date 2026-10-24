@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
 import { cn } from "@/components/ui";
+import { QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import { formatDateTimeRu, groupChatItems, stepsSummary, type ChatItem, type ToolChatItem } from "@/lib/v3/ai-agents-view";
 
 import { AnswerActions } from "./AnswerActions";
@@ -79,6 +80,7 @@ export function ChatTimeline({
   allowTask = false,
   working = false,
   staticIds = null,
+  onRetry,
 }: Readonly<{
   items: readonly ChatItem[];
   /** Подпись перед временем под репликой сотрудника («Поручение» в «Запусках»); без неё — только время. */
@@ -95,6 +97,8 @@ export function ChatTimeline({
    * подъёмом. `null` — движения нет совсем (хроника «Запусков», история ещё грузится).
    */
   staticIds?: ReadonlySet<string> | null;
+  /** «Повторить» под ошибкой в конце хроники: последнее сообщение сотрудника уходит ещё раз. Нет — кнопки нет («Запуски»). */
+  onRetry?: () => void;
 }>) {
   const blocks = useMemo(() => groupChatItems(items), [items]);
   const lastAgent = blocks.findLastIndex((block) => block.kind === "agent");
@@ -133,8 +137,11 @@ export function ChatTimeline({
             );
           case "error":
             return (
-              <li key={block.id} data-kind="error">
-                <p role="alert" className="rounded-card bg-danger-weak px-3 py-2 t-body-compact text-danger">{block.text}</p>
+              <li key={block.id} data-kind="error" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card bg-danger-weak px-3 py-2">
+                <p role="alert" className="min-w-0 flex-1 t-body-compact text-danger">{block.text}</p>
+                {onRetry && index === blocks.length - 1 ? (
+                  <button type="button" className={QUEUE_SECONDARY} onClick={onRetry} data-testid="v3-aia-retry">Повторить</button>
+                ) : null}
               </li>
             );
         }

@@ -94,7 +94,6 @@ function ConversationSheet({ onClose, children }: Readonly<{ onClose: () => void
 export function CommandWorkspace({
   agentKey,
   agentTitle,
-  roleLine,
   autoSend,
   canRun,
   blockedNote,
@@ -104,11 +103,10 @@ export function CommandWorkspace({
   conversations,
   resume,
   starters,
-  syncSlot,
+  nextStep,
 }: Readonly<{
   agentKey: AiAgentKey;
   agentTitle: string;
-  roleLine: string | null;
   autoSend: boolean;
   canRun: boolean;
   blockedNote: string | null;
@@ -120,7 +118,8 @@ export function CommandWorkspace({
   /** Разговор, который вкладка открывает сама (`?run=` или последний за 12 часов); читается один раз, при открытии. */
   resume: Readonly<{ runId: string | null; sendAuthority: boolean; run?: AiAgentConversationRow | null }>;
   starters: readonly string[];
-  syncSlot: ReactNode;
+  /** Действие первого несделанного шага запуска агента (запертый чат); null — шагов нет. */
+  nextStep: ReactNode;
 }>) {
   const [opened, setOpened] = useState<Opened>(() => ({
     n: 0,
@@ -203,7 +202,6 @@ export function CommandWorkspace({
       key={opened.n}
       agentKey={agentKey}
       agentTitle={agentTitle}
-      roleLine={roleLine}
       autoSend={autoSend}
       canRun={canRun}
       blockedNote={blockedNote}
@@ -214,7 +212,7 @@ export function CommandWorkspace({
       initialRun={opened.run}
       restore={opened.run ? aiAgentConsoleRestore(opened.run) : null}
       starters={starters}
-      syncSlot={syncSlot}
+      nextStep={nextStep}
       autoFocus={opened.focus}
       onStarted={started}
       onRunUpdate={updated}

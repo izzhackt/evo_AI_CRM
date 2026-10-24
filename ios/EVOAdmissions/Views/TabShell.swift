@@ -14,10 +14,13 @@ struct TabShell: View {
     @ObservedObject var router: SessionRouter
 
     @State private var selectedTab: PortalTab = .home
+    /// Согласие на ИИ-помощников: один объект для карточки «Главной» и строки
+    /// «Профиля». Живёт, пока открыта сессия, и не переходит к следующему студенту.
+    @StateObject private var aiConsent = AIConsentModel.live()
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            HomeView(session: session, router: router, selectedTab: $selectedTab)
+            HomeView(session: session, router: router, selectedTab: $selectedTab, aiConsent: aiConsent)
                 .tabFade(.home, selected: selectedTab)
                 .tabItem { Label("tab_home", systemImage: "house.fill") }
                 .tag(PortalTab.home)
@@ -52,7 +55,7 @@ struct TabShell: View {
                 .tabItem { Label("tab_english", systemImage: "book.fill") }
                 .tag(PortalTab.english)
 
-            ProfileView(session: session, router: router)
+            ProfileView(session: session, router: router, aiConsent: aiConsent)
                 .tabFade(.profile, selected: selectedTab)
                 .tabItem { Label("tab_profile", systemImage: "person.crop.circle") }
                 .tag(PortalTab.profile)

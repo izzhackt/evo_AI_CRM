@@ -122,11 +122,14 @@ function DocsEmpty({ title, next, href, divider = true }: Readonly<{
   ) : null} />;
 }
 
-/** Строка под очередью, прочитанной не целиком: очередь длиннее показанной. */
+/**
+ * Единственная строка о неполном чтении очереди (под таблицей): «последние» уже
+ * говорит, что сверху новые; здесь — что остальные не потеряны.
+ */
 function QueueRest({ shown, words }: Readonly<{ shown: number; words: readonly [string, string, string] }>) {
   return (
     <p role="status" className="t-body-compact text-fg-2">
-      Показаны последние {shown} {russianPlural(shown, ...words)}: очередь длиннее.
+      Показаны последние {shown} {russianPlural(shown, ...words)}: очередь длиннее — после проверки появятся остальные.
     </p>
   );
 }
@@ -150,12 +153,11 @@ function ProgramView({ program, review, returnTo, today, empty }: Readonly<{
     return <QueueEmpty title="Очередь документов программ вашей учётной записи недоступна" />;
   }
   const { nextCursor } = program.queue;
-  const { items, oldestFirst } = docsOldestFirst(program.queue.items, (item) => item.submission.submittedAt, (item) => item.submission.submissionId, nextCursor === null);
+  const { items } = docsOldestFirst(program.queue.items, (item) => item.submission.submittedAt, (item) => item.submission.submissionId, nextCursor === null);
   return <>
     {/* Незавершённые решения по документам программ (прежняя очередь доски) — и при пустой очереди; решения по видимым строкам повторяет сама строка. */}
     <ProgramDocsRecovery owner={review.owner} visibleSubmissions={items.map((item) => item.submission.submissionId)} />
     {items.length === 0 ? empty : <>
-      {oldestFirst ? null : <p className="t-meta text-fg-2">Прочитана не вся очередь — порядок: сначала недавно отправленные.</p>}
       <StudentsProgramDocsTable items={items} owner={review.owner} canReview={review.canReview} returnTo={returnTo} today={today}
         caption={nextCursor ? `Документы программ: последние ${items.length} отправленных` : `Документы программ: ${items.length}`} />
       {nextCursor ? <QueueRest shown={items.length} words={["документ", "документа", "документов"]} /> : null}
@@ -175,12 +177,12 @@ function PackagesView({ packages, owner, returnTo, today, empty }: Readonly<{
     return <QueueEmpty title="Очередь комплектов вашей учётной записи недоступна" />;
   }
   const { nextCursor } = packages.queue;
-  const { items, oldestFirst } = docsOldestFirst(packages.queue.items, (item) => item.package.submittedAt, (item) => item.package.packageId, nextCursor === null);
+  const { items } = docsOldestFirst(packages.queue.items, (item) => item.package.submittedAt, (item) => item.package.packageId, nextCursor === null);
   return <>
     {/* Незавершённые решения по комплектам (прежняя очередь доски) — и при пустой очереди. */}
     {owner ? <PackagesRecovery owner={owner} /> : null}
     {items.length === 0 ? empty : <>
-      <StudentsPackagesTable items={items} returnTo={returnTo} today={today} oldestFirst={oldestFirst}
+      <StudentsPackagesTable items={items} returnTo={returnTo} today={today}
         caption={nextCursor ? `Комплекты: последние ${items.length} отправленных` : `Комплекты: ${items.length}`} />
       {nextCursor ? <QueueRest shown={items.length} words={["комплект", "комплекта", "комплектов"]} /> : null}
     </>}

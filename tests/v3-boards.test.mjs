@@ -380,7 +380,10 @@ test("admissions card shares the sales grammar: states are chips with words; cur
   // Queue links: one quiet wrapping line, also on a phone.
   const queues = tag(admissions, /<nav aria-label="Очереди на проверку"[^>]*>/u);
   assert.match(classOf(queues), /^flex flex-wrap items-center gap-x-2$/u);
-  assert.match(read("src/app/(v3)/v3/admissions-pipeline/page.tsx"), /const QUEUE_LINK_CLASS =\s*"t-meta inline-flex min-h-11 /u);
+  const boardPage = read("src/app/(v3)/v3/admissions-pipeline/page.tsx");
+  assert.match(boardPage, /const QUEUE_LINK_CLASS =\s*"t-meta inline-flex min-h-11 /u);
+  // The main action comes first in the markup (phone: above the links, Tab reaches it first); `sm:flex-row-reverse` keeps the desktop order.
+  assert.match(boardPage, /<div className="flex flex-col items-end [^"]*sm:flex-row-reverse[^"]*">\s*\{addStudent\}\s*\{queues\}\s*<\/div>/u);
 });
 
 test("rail mode has no top bar: the logo row hides in the 64px rail, the menu keeps its items", () => {

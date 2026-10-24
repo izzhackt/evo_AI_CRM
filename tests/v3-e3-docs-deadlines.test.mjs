@@ -120,12 +120,14 @@ test("«Комплекты» reuses the board's queue: number only without a nex
   assert.deepEqual(studentsDocsTabs(params, counts, { program: false, packages: false }).map((tab) => tab.key), ["review", "fix", "missing", "all"]);
   assert.deepEqual(studentsDocsTabs(params, counts, { program: true, packages: true }).map((tab) => tab.key), ["review", "program", "packages", "fix", "missing", "all"]);
   assert.deepEqual(tabsOf(surfaces.get("docs-no-packages")).map(([label]) => label), ["Документы дела", "Исправить", "Не хватает", "Все"]);
-  // A work tab with a read zero is not a button: only the tab you stand on and «Все» stay; unknown numbers hide nothing.
+  // A case tab with a read zero is not a button: only the tab you stand on stays; unknown numbers hide nothing.
+  // «Документы программ», «Комплекты» and «Все» stay at zero: the two queues carry the recovery of an unconfirmed decision (browser state, not a server count).
   const none = { review: 0, program: 0, packages: 0, fix: 0, missing: 0, all: 5 };
   const shownAll = { program: true, packages: true };
-  assert.deepEqual(studentsDocsTabs(params, none, shownAll).map((tab) => tab.key), ["review", "all"], "«Документы дела» is current, the rest are empty");
-  assert.deepEqual(studentsDocsTabs({ ...params, view: "all" }, none, shownAll).map((tab) => tab.key), ["all"]);
-  assert.deepEqual(studentsDocsTabs(params, { ...none, fix: null, packages: null }, shownAll).map((tab) => tab.key), ["review", "packages", "fix", "all"], "unknown is not zero");
+  assert.deepEqual(studentsDocsTabs(params, none, shownAll).map((tab) => tab.key), ["review", "program", "packages", "all"], "«Документы дела» is current, the empty case tabs are gone, the queue tabs stay");
+  assert.deepEqual(studentsDocsTabs({ ...params, view: "all" }, none, shownAll).map((tab) => tab.key), ["program", "packages", "all"]);
+  assert.deepEqual(studentsDocsTabs(params, { ...none, fix: null, packages: null }, shownAll).map((tab) => tab.key), ["review", "program", "packages", "fix", "all"], "unknown is not zero");
+  assert.deepEqual(studentsDocsTabs(params, none, { program: false, packages: false }).map((tab) => tab.key), ["review", "all"], "an unread queue has no tab at all");
 
   const html = surfaces.get("docs-packages");
   // The same state for every row is said once above the table, not in each row; a complete read waits oldest first.
@@ -155,9 +157,9 @@ test("«Комплекты» reuses the board's queue: number only without a nex
   assert.deepEqual(tabsOf(more)[2], ["Комплекты", null], "3 pages read and still a next page — no number");
   assert.equal([...more.matchAll(/data-testid="v3-student-package-row"/gu)].length, 60);
   // Oldest items may be missing from a partial read: server order, said honestly; no board link any more.
-  assert.match(more, /Прочитана не вся очередь — порядок: сначала недавно отправленные\./u);
-  assert.match(more, /Показаны последние 60 комплектов: очередь длиннее\./u);
-  assert.doesNotMatch(more, /Проверенные уходят из очереди/u);
+  assert.match(more, /Показаны последние 60 комплектов: очередь длиннее — после проверки появятся остальные\./u);
+  // One line for a partial read: the old caption above the table is gone.
+  assert.doesNotMatch(more, /Прочитана не вся очередь|Проверенные уходят из очереди/u);
   assert.doesNotMatch(more, /admissions-pipeline/u);
   // Two pages that end: the whole queue is read — the number shows and no rest line.
   const pages = surfaces.get("docs-packages-pages");
@@ -277,8 +279,8 @@ test("Э8.5: without a view EVO Docs opens the first tab with work; unknown numb
   assert.equal([...html.matchAll(/data-testid="v3-student-case-row"/gu)].length, 1);
   // The case entry returns to the tab that was open, not to «first non-empty» again.
   assert.match(html, /returnTo=%2Fv3%2Fprofile%3Fsection%3Ddocs%26view%3Dmissing/u);
-  // Empty work tabs are not buttons (Э8.5, 24.10): «Все» is the only other tab, and it writes its view too.
-  assert.deepEqual(tabsOf(html).map(([label]) => label), ["Не хватает", "Все"]);
+  // Empty case tabs are not buttons (Э8.5, 24.10); the two queue tabs stay (their recovery panels live there), and «Все» writes its view too.
+  assert.deepEqual(tabsOf(html).map(([label]) => label), ["Документы программ", "Комплекты", "Не хватает", "Все"]);
   assert.match(html, /href="\/v3\/profile\?section=docs&amp;view=all">Все/u);
 });
 
@@ -370,8 +372,8 @@ test("Э8.5: «Документы программ» is the board's program queu
   const more = surfaces.get("docs-program-more");
   assert.deepEqual(tabsOf(more)[1], ["Документы программ", null], "3 pages and a next one: no number");
   assert.equal([...more.matchAll(/data-testid="v3-program-document-row"/gu)].length, 60);
-  assert.match(more, /Прочитана не вся очередь — порядок: сначала недавно отправленные\./u);
-  assert.match(more, /Показаны последние 60 документов: очередь длиннее\./u);
+  assert.match(more, /Показаны последние 60 документов: очередь длиннее — после проверки появятся остальные\./u);
+  assert.doesNotMatch(more, /Прочитана не вся очередь/u, "one line for a partial read");
   assert.match(surfaces.get("docs-program-error"), /data-testid="queue-error"[\s\S]*Не удалось загрузить документы программ на проверку\./u);
 });
 

@@ -192,10 +192,11 @@ export default async function AdmissionsPipelinePart({
       width="board"
       title="Воронка поступления"
       action={queues || addStudent ? (
-        // Телефон: главное действие над ссылками очередей, не под ними.
-        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 max-sm:flex-col-reverse max-sm:flex-nowrap max-sm:items-end">
-          {queues}
+        // Главное действие первым в разметке: на телефоне оно над ссылками очередей и
+        // Tab доходит до него первым; от `sm` ряд зеркалится — ссылки слева, кнопка справа.
+        <div className="flex flex-col items-end gap-y-2 sm:flex-row-reverse sm:flex-wrap sm:items-center sm:justify-start sm:gap-x-4">
           {addStudent}
+          {queues}
         </div>
       ) : undefined}
     >

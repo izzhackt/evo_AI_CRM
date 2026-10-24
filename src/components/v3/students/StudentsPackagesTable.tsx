@@ -12,8 +12,8 @@ const NBSP = "\u00a0";
  * Вкладка «Комплекты» EVO Docs (Э3, 27.09.2026): комплекты, отправленные на
  * проверку EVO и ещё без решения, — строки чтения очереди «Комплекты на
  * проверку» (`application_package_queue_v1`). Порядок: при полном чтении —
- * сначала дольше всех ждущие (Э8.5), иначе — порядок сервера, новые сверху, и
- * строка над таблицей говорит об этом. Студент | Комплект | Отправлен («24.09 ·
+ * сначала дольше всех ждущие (Э8.5), иначе — порядок сервера, новые сверху;
+ * о неполном чтении говорит одна строка под таблицей (`QueueRest`). Студент | Комплект | Отправлен («24.09 ·
  * ждёт 3 дн», с двух дней — предупреждением) | одно действие «Открыть
  * документы →»: подготовка программы на вкладке дела «Вузы и программы»
  * (`#preparation-…`), где комплект открывается и проверяется.
@@ -36,7 +36,6 @@ export function StudentsPackagesTable({
   caption,
   returnTo,
   today,
-  oldestFirst,
 }: Readonly<{
   items: readonly ApplicationPackageQueueItem[];
   caption: string;
@@ -44,13 +43,10 @@ export function StudentsPackagesTable({
   returnTo: string;
   /** Сегодня в Бишкеке — для дня отправки и «ждёт N дн». */
   today: string;
-  /** Строки отсортированы «сначала дольше всех ждущие» (полное чтение); иначе — порядок сервера. */
-  oldestFirst: boolean;
 }>) {
   const words = packageStrings("ru");
   return (
     <div className="@container/packages min-w-0 space-y-1" data-queue-list="">
-      {oldestFirst ? null : <p className="t-meta text-fg-2">Прочитана не вся очередь — порядок: сначала недавно отправленные.</p>}
       <table role="table" className="block w-full" data-testid="v3-student-package-table">
         <caption className="sr-only">{caption}</caption>
         <thead role="rowgroup" className="sr-only @min-[48rem]/packages:not-sr-only @min-[48rem]/packages:sticky @min-[48rem]/packages:top-0 @min-[48rem]/packages:z-30 @min-[48rem]/packages:block @min-[48rem]/packages:bg-bg">

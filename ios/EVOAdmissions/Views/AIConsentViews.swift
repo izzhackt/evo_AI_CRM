@@ -3,7 +3,9 @@ import SwiftUI
 /// Согласие на ИИ-помощников (общий контракт 25.10.2026, правило App Store
 /// 5.1.2(i)). Два входа к одному `AIConsentModel`: карточка на «Главной» до
 /// решения на действующую версию текста и строка в «Профиле», где решение
-/// меняется в любой момент. Ничего не блокирует работу в приложении. Тексты
+/// меняется в любой момент. Оба входа видит только студент с делом EVO
+/// (`AIConsentPolicy.isOffered`); самостоятельный студент не видит ни карточки,
+/// ни строки. Ничего не блокирует работу в приложении. Тексты
 /// RU и KY в `Localizable.xcstrings` (ключи `ai_consent_*`, KY ждёт вычитки
 /// носителем).
 
@@ -49,9 +51,12 @@ private struct AIConsentActionButton: View {
 /// которого студент не видел, нельзя.
 struct AIConsentCardSection: View {
     @ObservedObject var model: AIConsentModel
+    /// Уровень доступа студента: без дела EVO (`approved`) карточки нет.
+    let tier: AccessTier
 
     var body: some View {
-        if let consent = model.consent, AIConsentPolicy.needsDecision(consent) {
+        if AIConsentPolicy.isOffered(to: tier),
+           let consent = model.consent, AIConsentPolicy.needsDecision(consent) {
             Section {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("ai_consent_title")
@@ -89,28 +94,32 @@ struct AIConsentCardSection: View {
 /// «не выбрано».
 struct AIConsentSettingsSection: View {
     @ObservedObject var model: AIConsentModel
+    /// Уровень доступа студента: без дела EVO (`approved`) раздела нет.
+    let tier: AccessTier
 
     var body: some View {
-        Section {
-            switch model.phase {
-            case .loading:
-                ProgressView()
-            case .failed:
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("ai_consent_unavailable")
-                        .foregroundStyle(.secondaryText)
-                    Button("retry_button") { Task { await model.load() } }
-                        .frame(minHeight: 44)
+        if AIConsentPolicy.isOffered(to: tier) {
+            Section {
+                switch model.phase {
+                case .loading:
+                    ProgressView()
+                case .failed:
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("ai_consent_unavailable")
+                            .foregroundStyle(.secondaryText)
+                        Button("retry_button") { Task { await model.load() } }
+                            .frame(minHeight: 44)
+                    }
+                case .loaded(let consent):
+                    loadedRows(consent)
                 }
-            case .loaded(let consent):
-                loadedRows(consent)
+            } header: {
+                Text("ai_consent_title")
+                    .foregroundStyle(.secondaryText)
+            } footer: {
+                Text("ai_consent_body")
+                    .foregroundStyle(.secondaryText)
             }
-        } header: {
-            Text("ai_consent_title")
-                .foregroundStyle(.secondaryText)
-        } footer: {
-            Text("ai_consent_body")
-                .foregroundStyle(.secondaryText)
         }
     }
 

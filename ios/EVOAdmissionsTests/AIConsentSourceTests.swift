@@ -41,4 +41,38 @@ final class AIConsentSourceTests: XCTestCase {
         XCTAssertTrue(code.contains("load: { try await SupabaseService.shared.aiConsent() }"))
         XCTAssertTrue(code.contains("save: { try await SupabaseService.shared.setAIConsent($0) }"))
     }
+
+    // MARK: Экраны показывают согласие только студенту с делом EVO
+
+    /// Экраны лежат вне тестовой цели (SwiftUI и Supabase SDK), поэтому
+    /// проводку проверяет исходник: забыть уровень на одном из входов нельзя.
+    private func source(_ relativePath: String) throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(relativePath)
+        return try String(contentsOf: url, encoding: .utf8)
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.hasPrefix("//") }
+            .joined(separator: "\n")
+    }
+
+    func testBothSectionsGateThemselvesByTier() throws {
+        let views = try source("EVOAdmissions/Views/AIConsentViews.swift")
+        XCTAssertTrue(views.contains("let tier: AccessTier"))
+        XCTAssertEqual(views.components(separatedBy: "AIConsentPolicy.isOffered(to: tier)").count - 1, 2,
+                       "карточка и строка настроек сами проверяют уровень доступа")
+    }
+
+    func testScreensPassTheSessionTierAndReadOnlyWhenOffered() throws {
+        let home = try source("EVOAdmissions/Views/HomeView.swift")
+        let profile = try source("EVOAdmissions/Views/ProfileView.swift")
+        XCTAssertTrue(home.contains("AIConsentCardSection(model: aiConsent, tier: session.accessTier)"))
+        XCTAssertTrue(profile.contains("AIConsentSettingsSection(model: aiConsent, tier: session.accessTier)"))
+        for screen in [home, profile] {
+            XCTAssertTrue(screen.contains("aiConsent.load(offeredTo: session.accessTier)"))
+            XCTAssertFalse(screen.contains("aiConsent.load()"), "чтение без проверки уровня недопустимо")
+        }
+    }
 }

@@ -72,6 +72,13 @@ final class AIConsentModel: ObservableObject {
         }
     }
 
+    /// Чтение для экрана: самостоятельный студент (без дела EVO) согласие не
+    /// видит, поэтому его решение не читается и RPC не вызывается.
+    func load(offeredTo tier: AccessTier) async {
+        guard AIConsentPolicy.isOffered(to: tier) else { return }
+        await load()
+    }
+
     func choose(_ status: AIConsentStatus) async {
         guard sending == nil,
               let current = consent,

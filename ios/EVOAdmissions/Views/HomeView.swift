@@ -89,9 +89,10 @@ struct HomeView: View {
                     Text(session.authority.displayName).font(.title2.bold())
                         .motionStagger(index: 0, key: "home.greeting")
                 }
-                // Согласие на ИИ-помощников: карточка до решения на действующий
-                // текст, ничего не блокирует (правило App Store 5.1.2(i)).
-                AIConsentCardSection(model: aiConsent)
+                // Согласие на ИИ-помощников: только студенту с делом EVO, карточка
+                // до решения на действующий текст, ничего не блокирует
+                // (правило App Store 5.1.2(i)).
+                AIConsentCardSection(model: aiConsent, tier: session.accessTier)
                 // «Путь поступления» (S4): у самостоятельного студента первым, у клиента после дела.
                 if session.accessTier == .approved { timelineSection }
                 if session.accessTier == .assisted && admissionNeedsAttention {
@@ -128,7 +129,9 @@ struct HomeView: View {
             // ведут карточка CSCA («К подготовке») и ссылка шага «Пути поступления».
             .navigationDestination(for: CSCARoute.self) { route in CSCARouteView(route: route) }
             .refreshable { await refresh() }
-            .task { await refresh() }
+            // Уровень сменился (дело получило сопровождение): перечитать, чтобы
+            // карточка согласия появилась без перезапуска.
+            .task(id: session.accessTier) { await refresh() }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { Task { await refresh() } }
             }
@@ -152,7 +155,7 @@ struct HomeView: View {
 
     private func refresh() async {
         async let path: () = loadPathAndCSCACard()
-        async let consent: () = aiConsent.load()
+        async let consent: () = aiConsent.load(offeredTo: session.accessTier)
         await model.refresh(tier: session.accessTier, admission: admission)
         await path
         await consent

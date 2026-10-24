@@ -82,6 +82,28 @@ final class AIConsentModelTests: XCTestCase {
         XCTAssertEqual(h.model.phase, .loaded(notAsked))
     }
 
+    func testSelfServiceStudentNeverReadsTheDecision() async {
+        // Самостоятельный студент (без дела EVO) согласия не видит: RPC не вызывается.
+        let reads = Box(0)
+        let model = AIConsentModel(
+            load: {
+                reads.value += 1
+                return AIConsent(status: nil, policyVersion: nil, decidedAt: nil, currentPolicyVersion: "2026-10-25")
+            },
+            save: { _ in throw Boom() }
+        )
+        await model.load(offeredTo: .approved)
+        XCTAssertEqual(reads.value, 0)
+        XCTAssertEqual(model.phase, .loading)
+        XCTAssertNil(model.consent)
+    }
+
+    func testStudentWithAnEVOCaseReadsTheDecision() async {
+        let h = harness(initial: notAsked)
+        await h.model.load(offeredTo: .assisted)
+        XCTAssertEqual(h.model.phase, .loaded(notAsked))
+    }
+
     func testFailedFirstReadIsFailedNotUnasked() async {
         let h = harness(initial: notAsked)
         h.loadFails.value = true

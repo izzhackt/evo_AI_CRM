@@ -83,6 +83,37 @@ final class AIConsentPolicyTests: XCTestCase {
         XCTAssertEqual(AIConsentPolicy.source, "ios")
     }
 
+    // MARK: Кому предлагается согласие
+
+    /// Дело в форме ответа `platform.student_portal_cases()`: уровень доступа
+    /// считается из `case_state`, как в приложении.
+    private func portalCase(state: String) throws -> StudentPortalCase {
+        try JSONDecoder().decode(StudentPortalCase.self, from: Data("""
+        {"case_id": "11111111-2222-3333-4444-555555555555", "student_display_name": "Студент",
+         "case_state": "\(state)"}
+        """.utf8))
+    }
+
+    func testConsentIsOfferedOnlyToStudentsWithAnEVOCase() {
+        XCTAssertTrue(AIConsentPolicy.isOffered(to: .assisted))
+        XCTAssertFalse(AIConsentPolicy.isOffered(to: .approved))
+    }
+
+    func testSelfServiceCaseStateGetsNoConsent() throws {
+        // `pending`: одобрен, куратора нет - самостоятельный студент.
+        let pending = try portalCase(state: "pending")
+        XCTAssertEqual(pending.accessTier, .approved)
+        XCTAssertFalse(AIConsentPolicy.isOffered(to: pending.accessTier))
+    }
+
+    func testStudentsWithAnActiveOrClosedEVOCaseGetConsent() throws {
+        for state in ["active", "closed"] {
+            let tier = try portalCase(state: state).accessTier
+            XCTAssertEqual(tier, .assisted, state)
+            XCTAssertTrue(AIConsentPolicy.isOffered(to: tier), state)
+        }
+    }
+
     // MARK: Что видит студент
 
     func testCardAsksUntilDecidedOnCurrentVersion() {

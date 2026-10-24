@@ -115,26 +115,26 @@ struct ProfileView: View {
             List {
                 dataSection
                 languageSection
-                AIConsentSettingsSection(model: aiConsent)
+                AIConsentSettingsSection(model: aiConsent, tier: session.accessTier)
                 consultationSection
                 appSection
                 sessionSection
                 AccountDeletionContent(model: deletion)
             }
             .navigationTitle("tab_profile")
-            .task {
+            .task(id: session.accessTier) {
                 // Email берём из реальной Auth-сессии как фолбэк; профиль
                 // (196) даёт серверную копию вместе с языком и отметкой
                 // запроса удаления.
                 sessionEmail = try? await SupabaseService.shared.client.auth.session.user.email
                 await model.load()
                 await deletion.load()
-                await aiConsent.load()
+                await aiConsent.load(offeredTo: session.accessTier)
             }
             .refreshable {
                 await model.load()
                 await deletion.load()
-                await aiConsent.load()
+                await aiConsent.load(offeredTo: session.accessTier)
             }
             .sheet(isPresented: $showsConsultationSheet, onDismiss: {
                 Task { await model.loadHistory() }

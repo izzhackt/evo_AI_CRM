@@ -71,6 +71,8 @@ export const RUN_ERROR_MESSAGES: Readonly<Record<AiAgentRunErrorCode, string>> =
   anthropic_error: "Claude не принял запрос. Повторите позже",
   rate_limited: "Слишком много запросов к Claude. Повторите через минуту",
   unavailable: "Сервис временно недоступен. Повторите позже",
+  session_unlinked: "Сессия Claude создана, но запуск не записан в CRM. Проверьте раздел «Запуски» и повторите поручение",
+  create_unconfirmed: "Claude не подтвердил создание сессии — она могла запуститься. Проверьте раздел «Запуски» и повторите позже",
 });
 
 const fail = (code: AiAgentRunErrorCode, message?: string): { ok: false; code: AiAgentRunErrorCode; message: string } =>
@@ -161,7 +163,6 @@ export function anthropicRequestIdField(error: unknown): Readonly<{ request_id?:
 }
 
 const CREATE_UNCONFIRMED_RECORD = "Claude не подтвердил создание сессии; она могла быть создана без записи в CRM";
-const CREATE_UNCONFIRMED_REPLY = "Claude не подтвердил создание сессии — она могла запуститься. Проверьте раздел «Запуски» и повторите позже";
 
 /**
  * Ответ на создание сессии не получен (тайм-аут, обрыв сети, 5xx, ответ без id): сессия в Claude могла
@@ -173,13 +174,14 @@ export function isAmbiguousSessionCreateFailure(error: unknown): boolean {
 
 /** Патч `failed` для запуска, чью сессию создать не удалось. */
 export function sessionCreateFailurePatch(error: unknown): Record<string, unknown> {
-  const failure = anthropicFailure(error);
+  // Неоднозначный отказ — свой код: «Запуски» не должны говорить «Claude ответил ошибкой», когда сессия могла начаться.
+  if (isAmbiguousSessionCreateFailure(error)) {
+    return { status: "failed", errorCode: "create_unconfirmed", errorMessage: CREATE_UNCONFIRMED_RECORD };
+  }
   return {
     status: "failed",
-    errorCode: failure.code,
-    errorMessage: isAmbiguousSessionCreateFailure(error)
-      ? CREATE_UNCONFIRMED_RECORD
-      : truncate(error instanceof AnthropicApiError ? error.message : "Сессия Claude не создана", 500),
+    errorCode: anthropicFailure(error).code,
+    errorMessage: truncate(error instanceof AnthropicApiError ? error.message : "Сессия Claude не создана", 500),
   };
 }
 
@@ -288,9 +290,13 @@ export async function attachSessionToRun(args: Readonly<{
   return { ok: false, interrupted };
 }
 
-/** Отказ запуска, когда сессию создали, а записать её не удалось. */
+/**
+ * Отказ запуска, когда сессию создали, а записать её не удалось. Строка запуска уже `failed` под ключом повтора
+ * `cmd:<requestId>`, поэтому не `unavailable` («безопасно повторите» с тем же id вернул бы этот же пустой запуск):
+ * свой код заставляет интерфейс взять новый id запроса.
+ */
 export const sessionLinkFailure = (link: Extract<SessionLink, { ok: false }>) =>
-  fail("unavailable", link.interrupted ? LINK_FAILED_STOPPED : LINK_FAILED_RUNNING);
+  fail("session_unlinked", link.interrupted ? LINK_FAILED_STOPPED : LINK_FAILED_RUNNING);
 
 /* ------------------------------------------------------------------- чтение запуска */
 
@@ -425,7 +431,7 @@ export async function startAiAgentRunImpl(
       run_id: runId, duration_ms: elapsed(), ...(ambiguous ? { ambiguous: true } : {}), ...anthropicRequestIdField(error),
     });
     await updateRun(client, organizationId, runId, sessionCreateFailurePatch(error));
-    return ambiguous ? fail(failure.code, CREATE_UNCONFIRMED_REPLY) : fail(failure.code);
+    return ambiguous ? fail("create_unconfirmed") : fail(failure.code);
   }
 
   // 5. Запуск работает. Не записалась сессия в строку — она останавливается, а отказ правдив (не «ok»).
@@ -861,6 +867,15 @@ export type DeploymentRunsOptions = Readonly<{
 export type DeploymentRunsSummary = Readonly<{ pages: number; seen: number; linked: number; failedRecorded: number }>;
 
 /**
+ * Запуск расписания, которого Claude не создал, заносится в «Запуски» только пока он свежий. Резерв строки
+ * (`ai_agent_runtime_run_reserve_v1`) не принимает время начала: `started_at` = момент записи, поэтому давний сбой
+ * получил бы начало «сейчас», конец «несколько дней назад» (отрицательная длительность) и стал бы «последним
+ * запуском» агента. Окно больше интервала фоновой сверки (5 минут) с запасом на простой таймера; полное чтение
+ * истории вернётся, когда резерв получит `p_started_at` (поток БД).
+ */
+const FAILED_DEPLOYMENT_RUN_RECORD_WINDOW_MS = 60 * 60_000;
+
+/**
  * Заносит запуски расписания из `deployment_runs` в CRM: запуск с сессией — строка по id сессии (дальше её закрывает
  * сверка открытых запусков, с расходом), запуск без сессии — одна строка `failed` на запись (`dedupe_key = drun:<id>`).
  * Идемпотентна: повтор тех же запусков ничего не дублирует. Исключения Claude не глотает — решает вызывающий.
@@ -900,6 +915,9 @@ export async function syncDeploymentRuns(
         }
       } else if (isRecord(run.error)) {
         // Запуск по расписанию не создался в Claude: одна строка `failed` на запись (dedupe_key = drun:<id>).
+        // Давний сбой не записывается (см. FAILED_DEPLOYMENT_RUN_RECORD_WINDOW_MS), в память процесса не попадает.
+        const createdMs = Date.parse(startedAt);
+        if (Number.isFinite(createdMs) && deps.now() - createdMs > FAILED_DEPLOYMENT_RUN_RECORD_WINDOW_MS) continue;
         const reserved = await callRpc(client, AI_AGENT_RUNTIME_RPC.runReserve, {
           p_organization_id: organizationId,
           p_key: target.key,
@@ -917,7 +935,8 @@ export async function syncDeploymentRuns(
           if (newRunId) {
             await updateRun(client, organizationId, newRunId, {
               status: "failed",
-              endedAt: startedAt,
+              // Конец не раньше начала строки (оно = момент записи); сбой свежий, расхождение в пределах окна.
+              endedAt: new Date(deps.now()).toISOString(),
               errorCode: truncate(stringOrNull(run.error.type) ?? "deployment_run_error", 64),
               errorMessage: truncate(stringOrNull(run.error.message) ?? "Запуск по расписанию не удался", 500),
             });

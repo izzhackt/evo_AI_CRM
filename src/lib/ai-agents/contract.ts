@@ -757,9 +757,14 @@ export type AiAgentRunPoll = Readonly<{
   pollAfterMs: number;
 }>;
 
+/**
+ * `session_unlinked` и `create_unconfirmed` — запуск уже записан как `failed` под ключом повтора `cmd:<requestId>`,
+ * поэтому повторять нужно с НОВЫМ id запроса (интерфейс сохраняет id только при `unavailable`).
+ */
 export type AiAgentRunErrorCode =
   | "api_key_missing" | "agent_disabled" | "agent_not_synced" | "forbidden" | "preview_read_only"
-  | "invalid_input" | "run_in_progress" | "duplicate" | "anthropic_error" | "rate_limited" | "unavailable";
+  | "invalid_input" | "run_in_progress" | "duplicate" | "anthropic_error" | "rate_limited" | "unavailable"
+  | "session_unlinked" | "create_unconfirmed";
 
 export type AiAgentStartRunResult =
   | Readonly<{ ok: true; runId: string }>

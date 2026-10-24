@@ -239,7 +239,7 @@ test("dispatch: обрыв при создании сессии — запуск
   const { service, deps, logs } = setup({ sessions: () => claudeError(503, "overloaded_error", "later") });
   assert.deepEqual(await dispatchAiAgentEvent({ kind: "website_lead", ref: REQUEST_ID }, deps), { started: 0 });
   const patch = service.called("ai_agent_runtime_run_update_v1")[0].args.p_patch;
-  assert.deepEqual([patch.status, patch.errorCode], ["failed", "anthropic_error"]);
+  assert.deepEqual([patch.status, patch.errorCode], ["failed", "create_unconfirmed"]);
   assert.match(patch.errorMessage, /могла быть создана без записи в CRM/u);
   const line = logs.find((entry) => entry.op === "dispatch_run");
   assert.deepEqual([line.run_id, line.ambiguous], [RUN, true]);

@@ -65,7 +65,9 @@ function setup({ rows = agentRows(), claudeRoutes = {}, servicePatch = {}, now =
       if (id === "depl_director" && !call.query.page) {
         return { data: [
           { id: "drun_1", deployment_id: id, session_id: "sesn_sched_1", error: null, created_at: t(1) },
-          { id: "drun_2", deployment_id: id, session_id: null, error: { type: "session_rate_limited_error", message: "rate limited" }, created_at: t(2) },
+          { id: "drun_2", deployment_id: id, session_id: null, error: { type: "session_rate_limited_error", message: "rate limited" }, created_at: new Date(NOW - 5 * 60_000).toISOString() },
+          // Давний сбой (внутри 8 суток, вне часового окна) в «Запуски» не заносится: строка получила бы начало «сейчас».
+          { id: "drun_old", deployment_id: id, session_id: null, error: { type: "session_rate_limited_error", message: "old" }, created_at: new Date(NOW - 3 * 24 * 60 * 60_000).toISOString() },
         ], next_page: "page_2" };
       }
       if (id === "depl_director") return { data: [{ id: "drun_3", deployment_id: id, session_id: "sesn_sched_3", error: null, created_at: t(3) }], next_page: null };
@@ -133,7 +135,7 @@ test("проход: запуски расписания читаются пос�
     const log = report.log;
     assert.deepEqual(
       [log.status, log.agents, log.deployments, log.deployment_runs_seen, log.deployment_runs_linked, log.deployment_runs_failed_recorded],
-      ["ok", 7, 3, 3, 2, 1],
+      ["ok", 7, 3, 4, 2, 1],
     );
     assert.deepEqual([log.deployments_paused, log.deployments_paused_recorded], [1, 1]);
     assert.deepEqual([log.open_runs, log.open_checked, log.open_closed], ["ok", 1, 1]);
@@ -150,7 +152,11 @@ test("проход: запуски расписания читаются пос�
     const failedRun = reserves.find((args) => args.p_dedupe_key === "drun:drun_2");
     assert.deepEqual([failedRun.p_key, failedRun.p_trigger_kind, failedRun.p_agent_version], ["director", "schedule", 3]);
     const updates = service.called("ai_agent_runtime_run_update_v1").map((call) => call.args.p_patch);
-    assert.ok(updates.some((patch) => patch.errorCode === "session_rate_limited_error" && patch.errorMessage === "rate limited"));
+    const recorded = updates.find((patch) => patch.errorCode === "session_rate_limited_error" && patch.errorMessage === "rate limited");
+    assert.ok(recorded);
+    // Конец не раньше начала строки (начало = момент записи, не время запуска Claude): длительность не отрицательна.
+    assert.equal(recorded.endedAt, new Date(NOW).toISOString());
+    assert.equal(reserves.some((args) => args.p_dedupe_key === "drun:drun_old"), false, "давний сбой в «Запуски» не заносится");
 
     // Пауза: расписание director включено и на паузе → одна строка failed; curator-cn выключен, curator-my активен → нет строки.
     const pause = reserves.filter((args) => args.p_dedupe_key.startsWith("dpause:"));

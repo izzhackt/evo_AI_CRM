@@ -222,7 +222,7 @@ async function upsertAgent(
       id = stringOrNull(found.item.id);
       adopted = id !== null;
       if (adopted) {
-        warnings.push("Агент с этим ключом уже был в Claude — подключён, заново не создан");
+        warnings.push("Агент с этим ключом уже был в Claude — подключён, заново не создан. Нужен новый — архивируйте прежнего в Claude Console и синхронизируйте снова");
         if (found.extra > 0) warnings.push("В Claude есть лишние агенты с тем же ключом — лишних архивируйте в Claude Console");
       }
     }

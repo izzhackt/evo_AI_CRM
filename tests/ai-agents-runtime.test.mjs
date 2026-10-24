@@ -933,7 +933,7 @@ test("сверка: закрывает зависшие запуски по со
   const claude = fakeClaude({
     "GET /v1/deployment_runs": { data: [
       { id: "drun_1", deployment_id: "depl_1", session_id: "sesn_sched", error: null, created_at: t(1) },
-      { id: "drun_2", deployment_id: "depl_1", session_id: null, error: { type: "session_rate_limited_error", message: "rate limited" }, created_at: t(2) },
+      { id: "drun_2", deployment_id: "depl_1", session_id: null, error: { type: "session_rate_limited_error", message: "rate limited" }, created_at: new Date(NOW - 5 * 60_000).toISOString() },
     ] },
     "GET /v1/sessions/sesn_a": SESSION_DONE,
     "GET /v1/sessions/sesn_t": { id: "sesn_t", status: "terminated", usage: { input_tokens: 5, output_tokens: 1, list_cost: { amount: "3", currency: "USD" } } },
@@ -1256,7 +1256,8 @@ test("пункт 2: запись сессии в запуск не удалас�
   });
   const result = await startAiAgentRun(ctx, { key: "director", text: "Секретный текст поручения", sendAuthority: false, requestId: REQ_ID }, deps);
   assert.equal(result.ok, false);
-  assert.equal(result.code, "unavailable");
+  // Не «unavailable»: интерфейс сохраняет id запроса только при нём, а повтор с тем же id вернул бы этот же failed-запуск без сессии.
+  assert.equal(result.code, "session_unlinked");
   assert.match(result.message, /остановлена/u);
 
   const patches = serviceRpc.called("ai_agent_runtime_run_update_v1").map((call) => call.args.p_patch);
@@ -1279,7 +1280,7 @@ test("пункт 2: остановить сессию тоже не вышло �
     routes: { "POST /v1/sessions/sesn_1/events": claudeError(500, "api_error", "down") },
   });
   const result = await startAiAgentRun(ctx, { key: "director", text: "Привет", sendAuthority: false, requestId: REQ_ID }, deps);
-  assert.deepEqual([result.ok, result.code], [false, "unavailable"]);
+  assert.deepEqual([result.ok, result.code], [false, "session_unlinked"]);
   assert.match(result.message, /остановить её не удалось/u);
   assert.equal(logs.find((line) => line.op === "run_link").interrupted, false);
   assert.ok(claude.callsFor("POST", "/v1/sessions/sesn_1/events").length >= 1);
@@ -1291,14 +1292,15 @@ test("пункт 2: ответ на создание сессии не полу�
   const lostFetch = { ...lost.claude, fetch: async () => { throw new TypeError("socket hang up"); } };
   const networkDeps = runtimeDeps({ claude: lostFetch, service: lost.serviceRpc }).deps;
   const network = await startAiAgentRun(lost.ctx, { key: "director", text: "Привет", sendAuthority: false, requestId: REQ_ID }, networkDeps);
-  assert.deepEqual([network.ok, network.code], [false, "anthropic_error"]);
+  assert.deepEqual([network.ok, network.code], [false, "create_unconfirmed"]);
   assert.match(network.message, /не подтвердил создание сессии/u);
   const networkPatch = lost.serviceRpc.called("ai_agent_runtime_run_update_v1").at(-1).args.p_patch;
-  assert.deepEqual([networkPatch.status, networkPatch.errorCode], ["failed", "anthropic_error"]);
+  assert.deepEqual([networkPatch.status, networkPatch.errorCode], ["failed", "create_unconfirmed"]);
   assert.match(networkPatch.errorMessage, /могла быть создана без записи в CRM/u);
 
   const server = runSetup({ routes: { "POST /v1/sessions": claudeError(503, "overloaded_error", "later") } });
   const overloaded = await startAiAgentRun(server.ctx, { key: "director", text: "Привет", sendAuthority: false, requestId: REQ_ID }, server.deps);
+  assert.equal(overloaded.code, "create_unconfirmed");
   assert.match(overloaded.message, /не подтвердил создание сессии/u);
   assert.equal(server.logs.find((line) => line.op === "run_start").ambiguous, true);
   assert.equal(server.claude.callsFor("POST", "/v1/sessions").length, 1, "после 5xx сессия не создаётся повторно");

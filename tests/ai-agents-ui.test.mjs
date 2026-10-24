@@ -51,6 +51,7 @@ import {
   groupChatItems,
   isValidCron,
   mapAiAgentsDbError,
+  aiAgentsErrorCopy,
   mergeConversations,
   ownCommandRuns,
   parseAiAgentDetail,
@@ -65,6 +66,7 @@ import {
   parseMarkdown,
   parseMarkdownInline,
   relativeTimeRu,
+  runErrorWords,
   runningToolWord,
   stepsSummary,
   successShare,
@@ -234,6 +236,21 @@ test("хроника: результат склеивается со своим 
   assert.deepEqual(items.filter((item) => item.kind === "tool").map((item) => [item.state, item.word]), [["ok", "Читает дело студента"], ["error", "Читает дело студента"]]);
   assert.match(items.at(-1).text, /Токен доступа агента к CRM не принят/u);
   assert.equal(items.at(-2).text, "Готово");
+});
+
+test("слова ошибок запуска: сессия могла начаться — не «не дошёл до Claude»; новые коды имеют свои слова", () => {
+  assert.doesNotMatch(runErrorWords("start_lost"), /не дошёл/u);
+  assert.match(runErrorWords("start_lost"), /могла начаться/u);
+  assert.match(runErrorWords("create_unconfirmed"), /не подтвердил создание сессии/u);
+  assert.notEqual(runErrorWords("create_unconfirmed"), runErrorWords("anthropic_error"));
+  // Тексты приложения о сессии без привязки и паузе точнее общего слова: остановлена/нет и причина паузы доходят до экрана.
+  assert.equal(runErrorWords("session_unlinked", "Сессия Claude создана, но запуск не записан в CRM, и остановить её не удалось. Сообщите администратору"),
+    "Сессия Claude создана, но запуск не записан в CRM, и остановить её не удалось. Сообщите администратору");
+  assert.match(runErrorWords("session_unlinked"), /остановило сессию/u);
+  assert.match(runErrorWords("deployment_paused", "Расписание поставлено на паузу в Claude вручную."), /^Расписание поставлено на паузу/u);
+  assert.match(runErrorWords("deployment_paused"), /на паузе в Claude/u);
+  // Ответ действия: новые коды не «unavailable», иначе интерфейс оставил бы прежний id запроса.
+  for (const code of ["session_unlinked", "create_unconfirmed"]) assert.notEqual(aiAgentsErrorCopy(code), aiAgentsErrorCopy("unavailable"), code);
 });
 
 test("ошибки: сообщения базы → коды → русские фразы; маршрут и адреса вкладок", () => {

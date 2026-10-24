@@ -76,6 +76,8 @@ const { ConsultationRequest } = require(join(ROOT, "src/components/portal/consul
 const { TestsCatalog } = require(join(ROOT, "src/components/portal/tests/TestsCatalog.tsx"));
 const { AssessmentRunner } = require(join(ROOT, "src/components/portal/tests/AssessmentRunner.tsx"));
 const { AssessmentResults } = require(join(ROOT, "src/components/portal/tests/AssessmentResults.tsx"));
+// Согласие на ИИ-помощников (25.10.2026): карточка «Главной» и строка «Профиля».
+const { AiConsentHomeCard, AiConsentSettingsRow } = require(join(ROOT, "src/components/portal/consent/AiConsent.tsx"));
 // PORT-9c: «Главная» кабинета.
 const { HomeView } = require(join(ROOT, "src/components/portal/home/HomeView.tsx"));
 // S4: «Путь поступления» на «Главной», настоящий контент src/content/timelines.
@@ -593,6 +595,24 @@ const favoriteUniversityFixture = {
   },
 };
 
+/** Ответы portal_ai_consent_get_v1 в форме сервера (миграция 320). */
+const aiConsentAsked = {
+  status: null,
+  policyVersion: null,
+  decidedAt: null,
+  currentPolicyVersion: "2026-10-25",
+};
+const aiConsentGranted = {
+  status: "granted",
+  policyVersion: "2026-10-25",
+  decidedAt: "2026-10-25T10:30:00+00:00",
+  currentPolicyVersion: "2026-10-25",
+};
+const aiConsentDeclined = { ...aiConsentGranted, status: "declined" };
+/** Решение по старой версии текста: для текущей это «не выбрано» с пояснением. */
+const aiConsentOutdated = { ...aiConsentGranted, policyVersion: "2026-01-01" };
+const aiConsentStrings = getPortalStrings("aiConsent", "ru");
+
 const surfaces = [
   {
     name: "admission-overview",
@@ -757,6 +777,10 @@ const surfaces = [
           // Не передавался с #929: HomeView падал на recentUniversities.length.
           recentUniversities: [],
           journey: timelineChoose,
+          aiConsent: createElement(AiConsentHomeCard, {
+            initialConsent: aiConsentAsked,
+            strings: aiConsentStrings,
+          }),
           locale: "ru",
           now: HOME_NOW,
         }),
@@ -781,9 +805,45 @@ const surfaces = [
           favoritesTotal: 0,
           recentUniversities: [],
           journey: timelineChina,
+          aiConsent: createElement(AiConsentHomeCard, {
+            initialConsent: aiConsentOutdated,
+            strings: aiConsentStrings,
+          }),
           locale: "ru",
           now: HOME_NOW,
         }),
+      ),
+    ),
+  },
+  // Согласие на ИИ-помощников в «Профиле»: все состояния строки подряд
+  // (разрешено, не разрешено, не выбрано).
+  {
+    name: "profile-ai-consent",
+    html: renderSurface(
+      "Профиль — ИИ-помощники — a11y",
+      pageShell(
+        profileStrings.kicker,
+        profileStrings.title,
+        profileStrings.lead,
+        createElement(
+          "div",
+          { className: "pt-profile-sections" },
+          ...[aiConsentGranted, aiConsentDeclined, aiConsentAsked].map((consent, index) =>
+            createElement(
+              "section",
+              {
+                key: index,
+                "aria-labelledby": `portal-profile-ai-consent-${index}`,
+                className: "pt-profile-card",
+              },
+              createElement(
+                "h2",
+                { id: `portal-profile-ai-consent-${index}`, className: "pt-section-title" },
+                aiConsentStrings.rowHeading,
+              ),
+              createElement(AiConsentSettingsRow, { initialConsent: consent, strings: aiConsentStrings }),
+            )),
+        ),
       ),
     ),
   },

@@ -33,7 +33,9 @@ import { formatPortalMoney, studentActionDueLabel } from "../admission/presentat
  * OverviewView «Моего поступления»). «Путь поступления» (S4, план §8.4)
  * приходит готовым блоком `journey`: у клиента он стоит после ближайших
  * действий дела, у самостоятельного студента первым. Карточка CSCA (`csca`,
- * только при выбранном Китае) открывает «Продолжить» (план v2 §9.1). Серверные read model приходят пропсами,
+ * только при выбранном Китае) открывает «Продолжить» (план v2 §9.1). Карточка согласия на ИИ-помощников
+ * (`aiConsent`, 25.10.2026) стоит самой первой, пока для текущей версии текста нет решения, и не блокирует
+ * ничего ниже. Серверные read model приходят пропсами,
  * каждый источник несёт свой честный сбой (null) и честную пустоту.
  * Новое в каталоге использует firstPublishedAt из неизменяемой истории
  * публикаций (207); reviewed_at текущей версии не является признаком новизны.
@@ -105,6 +107,7 @@ export function HomeView({
   recentUniversities,
   journey = null,
   csca = null,
+  aiConsent = null,
   locale,
   now,
 }: {
@@ -122,6 +125,8 @@ export function HomeView({
   journey?: ReactNode;
   /** Карточка CSCA (CscaHomeCard) для студента, выбравшего Китай; иначе null. */
   csca?: ReactNode;
+  /** Согласие на ИИ-помощников (AiConsentHomeCard): первым блоком, пока для текущей версии нет решения; иначе null. */
+  aiConsent?: ReactNode;
   locale: Locale;
   now: Date;
 }) {
@@ -150,6 +155,7 @@ export function HomeView({
 
   return (
     <div className="pt-home">
+      {aiConsent}
       {tier === "assisted" ? null : journey}
       {tier === "assisted" ? (
         <section aria-labelledby="home-case" className="pt-card pt-home-case">

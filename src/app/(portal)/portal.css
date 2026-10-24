@@ -1282,6 +1282,159 @@
   font-size: var(--pt-size-secondary);
 }
 
+/*
+ * Согласие на ИИ-помощников (решение владельца 25.10.2026). Карточка на
+ * «Главной» и строка в «Профиле» говорят одним текстом. Только токены --pt-*,
+ * обе темы; новых анимаций нет: подтверждение рисует общая галочка
+ * (.pt-check[data-fresh]). Кнопки — общие .pt-btn / .pt-btn-ghost (44 px).
+ */
+.pt-consent,
+.pt-consent-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.pt-consent {
+  padding: 20px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-consent-title {
+  margin: 0;
+  font-size: var(--pt-size-heading);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.pt-consent-body,
+.pt-consent-note {
+  max-width: 68ch;
+  margin: 0;
+  font-size: var(--pt-size-secondary);
+  text-wrap: pretty;
+}
+
+.pt-consent-body {
+  color: var(--pt-text);
+}
+
+.pt-consent-note {
+  color: var(--pt-text-2);
+}
+
+/* Ссылка высотой 44 px: отрицательный отступ возвращает её к тексту, зона касания не меняется. */
+.pt-consent-policy {
+  margin: -6px 0;
+}
+
+.pt-consent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+/* Отказ так же заметен, как согласие: кромка кнопки — цвет границы контрола, не волосяная линия. */
+.pt-consent-actions .pt-btn-ghost {
+  border-color: var(--pt-control-edge);
+}
+
+/* Запись идёт: кнопки остаются на месте (фокус не теряется), но не реагируют. */
+.pt-consent-actions [aria-disabled="true"] {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.pt-consent-state {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-consent-state-word {
+  color: var(--pt-text);
+  font-weight: 600;
+}
+
+.pt-consent-state-word[data-state="granted"] {
+  color: var(--pt-ok);
+}
+
+/*
+ * Живая область стоит в разметке всегда: пустая, она не занимает места и
+ * не оставляет зазор между блоками (отрицательный отступ гасит gap).
+ */
+.pt-consent-live {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-consent-live:empty {
+  margin-top: -12px;
+}
+
+.pt-consent-live[data-phase="saved"] {
+  display: flex;
+  align-items: center;
+  color: var(--pt-ok);
+  font-weight: 500;
+}
+
+.pt-consent-error {
+  margin: 0;
+  color: var(--pt-error);
+  font-size: var(--pt-size-secondary);
+}
+
+/*
+ * Широкий экран: карточка — полоса. Текст держит свою меру слева, действия
+ * стоят справа столбцом, а не оставляют пустую половину карточки.
+ */
+@media (min-width: 1100px) {
+  .pt-consent {
+    padding-bottom: 14px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 40px;
+    align-items: start;
+    justify-items: start;
+  }
+
+  .pt-consent > * {
+    grid-column: 1;
+  }
+
+  .pt-consent > .pt-consent-actions {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+    flex-direction: column;
+    align-self: center;
+    justify-self: stretch;
+    min-width: 200px;
+  }
+}
+
+@media (max-width: 480px) {
+  .pt-consent {
+    padding: 16px;
+  }
+
+  /* Узкий телефон: кнопки делят строку поровну или встают друг под друга. */
+  .pt-consent-actions {
+    align-self: stretch;
+  }
+
+  .pt-consent-actions > * {
+    flex: 1 1 auto;
+  }
+}
+
 /* ---------- Фото с атрибуцией ---------- */
 
 .pt-photo {

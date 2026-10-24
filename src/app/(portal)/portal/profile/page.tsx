@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AiConsentSettingsRow } from "@/components/portal/consent/AiConsent";
 import { ConsultationRequest } from "@/components/portal/consultation/ConsultationRequest";
 import { AccountDeletionPanel } from "@/components/account-deletion/AccountDeletionPanel";
 import { LanguageForm } from "@/components/portal/profile/LanguageForm";
@@ -12,6 +13,7 @@ import {
 import { readOwnConsultationRequests } from "@/lib/portal/consultation-source";
 import { formatPortalString, getPortalStrings, type PortalStrings } from "@/lib/portal/i18n";
 import { readOwnAccountDeletion } from "@/lib/account-deletion/own-source";
+import { readOwnAiConsent } from "@/lib/portal/ai-consent-source";
 import { readOwnPortalProfile } from "@/lib/portal/portal-profile-source";
 import type { PortalProfile } from "@/lib/portal/portal-profile";
 import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
@@ -80,8 +82,8 @@ export const dynamic = "force-dynamic";
 /**
  * Экран «Профиль» (PORT-5a, план §6 «Профиль», §13; дизайн-контракт §6):
  * данные read-only, язык RU/KY (RPC 196 + cookie в одном действии), личные
- * результаты тестов, выход и удаление аккаунта (280): запрос, срок 30 дней и
- * его статус с сервера.
+ * результаты тестов, согласие на ИИ-помощников (320), выход и удаление
+ * аккаунта (280): запрос, срок 30 дней и его статус с сервера.
  */
 export default async function ProfilePage() {
   const [, locale] = await Promise.all([
@@ -91,16 +93,19 @@ export default async function ProfilePage() {
   const strings = getPortalStrings("profile", locale);
   const consultationStrings = getPortalStrings("consultation", locale);
   const deletionStrings = getPortalStrings("accountDeletion", locale);
+  const aiConsentStrings = getPortalStrings("aiConsent", locale);
 
-  // Три независимых чтения — одним заходом (план A, 16.10.2026).
+  // Четыре независимых чтения — одним заходом (план A, 16.10.2026).
   // Запрос консультации (PORT-5b): история и открытый запрос читаются
   // отдельно от профиля; сбой чтения — честная строка, не пустая история.
   // Удаление аккаунта (280): статус своего запроса читается отдельно от
-  // профиля 196, который не знает «в обработке».
-  const [profile, deletion, consultationHistory] = await Promise.all([
+  // профиля 196, который не знает «в обработке». Согласие на ИИ-помощников
+  // (320, 25.10.2026) — тоже отдельное чтение со своей честной строкой сбоя.
+  const [profile, deletion, consultationHistory, aiConsent] = await Promise.all([
     readOwnPortalProfile().catch((): PortalProfile | null => null),
     readOwnAccountDeletion(),
     readOwnConsultationRequests().catch((): readonly ConsultationReceipt[] | null => null),
+    readOwnAiConsent(),
   ]);
 
   return (
@@ -168,6 +173,17 @@ export default async function ProfilePage() {
                 languageError: strings.languageError,
               }}
             />
+          </section>
+
+          <section aria-labelledby="portal-profile-ai-consent" className="pt-profile-card">
+            <h2 id="portal-profile-ai-consent" className="pt-section-title">
+              {aiConsentStrings.rowHeading}
+            </h2>
+            {aiConsent.status === "ready" ? (
+              <AiConsentSettingsRow initialConsent={aiConsent.consent} strings={aiConsentStrings} />
+            ) : (
+              <p role="alert" className="pt-account-deletion-error">{aiConsentStrings.unavailable}</p>
+            )}
           </section>
 
           <section aria-labelledby="portal-profile-session" className="pt-profile-card">

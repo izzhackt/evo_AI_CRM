@@ -49,6 +49,9 @@ const EXPECTED_SURFACES = [
   // PORT-9c: «Главная» кабинета — оба tier'а.
   "home-approved",
   "home-assisted",
+  // Согласие на ИИ-помощников (25.10.2026): строка «Профиля» во всех состояниях;
+  // карточка «Главной» входит в обе «Главные» выше.
+  "profile-ai-consent",
 ] as const;
 
 test("static render produces every expected portal surface", () => {

@@ -190,7 +190,7 @@
 
 **`ai_agent_file_grants`** — `id uuid`, `organization_id`, `agent_key`, `token_sha256 text UNIQUE`, `document_version_id uuid`, `storage_bucket text`, `storage_path text`, `mime_type`, `byte_size bigint`, `file_name text`, `expires_at`, `used_count int DEFAULT 0`, `max_uses int DEFAULT 3`, `created_at`. В открытом виде токен нигде не хранится.
 
-**`ai_agent_dedupe`** — `(organization_id, agent_key, dedupe_key)` PK, `result jsonb`, `created_at`. Для повторов записи (`idempotency_key`, `dedupe_key` уведомлений). Окно из `AI_AGENT_LIMITS.idempotencyWindowMinutes`; `notify_staff` — 24 часа. Старые строки чистятся по случаю при вставке (`DELETE … created_at < now() - 2 days`, не более 100 за раз).
+**`ai_agent_dedupe`** — `(organization_id, agent_key, dedupe_key)` PK, `result jsonb`, `created_at`. Для повторов записи (`idempotency_key`, ключи, выведенные из вызова при его отсутствии: `send_message_auto:`, `create_task_auto:`, `add_note_auto:`, `post_digest_auto:`; `dedupe_key` уведомлений). Окно из `AI_AGENT_LIMITS.idempotencyWindowMinutes`; `notify_staff` — 24 часа. Старые строки чистятся по случаю при вставке (`DELETE … created_at < now() - 2 days`, не более 100 за раз).
 
 ### A.2 Сид и «ленивые» строки
 
@@ -254,7 +254,7 @@
 | RPC | Параметры | Ответ |
 |---|---|---|
 | `platform.ai_agent_mcp_auth_v1` | `(p_token_sha256 text)` | `NULL` (токен неизвестен или просрочен как `prev`) или `{organizationId, agentKey, title, direction, enabled, autoSend}`. Принимает `mcp_token_sha256` и, пока `now() < mcp_token_prev_until`, `mcp_token_prev_sha256` |
-| `platform.ai_agent_mcp_log_v1` | `(p_organization_id, p_agent_key, p_tool text, p_args jsonb, p_status text, p_error_code text, p_duration_ms int)` | `{actionId}`. Сама строит `args_summary` (≤ 300 символов): ключи и короткие скаляры (uuid, enum, числа, даты), текстовые поля (`text`, `body`, `body_md`, `description`, `query`, `title`, `reason`, `metrics`) заменяются на `<N симв.>`. Привязывает к единственному открытому запуску агента (`starting`/`running`), иначе `run_id NULL`. Для шести «чувствительных» чтений (`get_client_card, get_lead, get_case, get_document_file, get_conversation, get_case_chat`) при `p_status='ok'` пишет аудит `ai.agent.tool.read` (объект по приоритету: `document_version_id`/`slot_id`→`student_case`; `case_id`→`student_case`; `lead_id`→`lead`; `client_id`→`client`; `conversation_id`→`communication_conversation`; в `after_state` только `{agentKey, tool}`); для `get_document_file` вместо него — `ai.agent.document.read`. Записи (`audit:'write'` в реестре) аудит пишут сами RPC инструмента, тут дублирования нет |
+| `platform.ai_agent_mcp_log_v1` | `(p_organization_id, p_agent_key, p_tool text, p_args jsonb, p_status text, p_error_code text, p_duration_ms int)` | `{actionId}`. Сама строит `args_summary` (≤ 300 символов): ключи и короткие скаляры (uuid, enum, числа, даты), текстовые поля (`text`, `body`, `body_md`, `description`, `query`, `title`, `reason`, `metrics`) заменяются на `<N симв.>`. Привязывает к единственному открытому запуску агента (`starting`/`running`), иначе `run_id NULL`. Аудит платформы здесь **не пишется** (с миграции 319, 24.10.2026): аудит шести «чувствительных» чтений (`get_client_card, get_lead, get_case, get_document_file, get_conversation, get_case_chat`) пишут сами функции чтения в своей транзакции (A.5.2, п. 9), аудит записей (`audit:'write'`) — RPC записи; `ai_agent_actions.audit_event_id` у новых строк пуст (до 319 здесь стояла строка аудита, написанная после выдачи данных) |
 | `platform.ai_agent_mcp_file_resolve_v1` | `(p_token_sha256 text)` | `{bucket, path, mimeType, byteSize, fileName}` и `used_count+1`; просрочен, исчерпан или не найден — `P0002 not_found` |
 
 #### A.5.2 Правила для всех `platform.ai_agent_tool_<name>_v1`
@@ -268,6 +268,8 @@
 5. **Student-private** (оценки, обучение CSCA и т. п.) не читать никаким инструментом.
 6. Ограничения размера: строки текста сообщений ≤ 2000 символов, заметки ≤ 500, отзывы по документам ≤ 300; общий ответ — сжимает MCP-слой (B), БД не раздувает выше ~200 KB.
 7. Ошибки — исключения с кодом из `AI_AGENT_TOOL_ERROR_CODES` в `MESSAGE`: `invalid_arguments` (22023), `forbidden` (42501), `not_found` (P0002), `conflict`/`agent_disabled`/конкретные коды отправки (55000), `rate_limited` (54000), `too_large` (54001). Сообщение исключения — только код, без значений данных.
+8. **Повтор записи без ключа модели (319, 24.10.2026).** `create_task`, `add_note` и `post_digest` (у отчёта ключа модели нет вовсе) строят ключ повтора из частей вызова, как `send_message` в 318: заголовок, описание, исполнитель, срок, приоритет, дело, лид / лид или дело и текст / вид, заголовок, текст, данные графиков, период; текст нормализован (пробелы сжаты, регистр снят); окно 10 минут; пространства `create_task_auto:`, `add_note_auto:`, `post_digest_auto:`; блокировка по ключу до конца транзакции (в том числе при ключе модели). Повтор после обрыва или таймаута приложения отдаёт первый ответ (у `create_task` — с `deduplicated:true`) и не создаёт вторую строку.
+9. **Аудит чтений в транзакции чтения (319).** Шесть чувствительных чтений (`audit:'read'` в реестре) вставляют строку журнала платформы сами, до выдачи данных (`platform_private.ai_agent_audit_read`: `ai.agent.tool.read`, для файла — `ai.agent.document.read`; объект — как в вызове, у файла дело версии документа; в `after_state` только `{agentKey, tool}`): не записалось — исключение, данные не выданы. Отказанное чтение (не найдено, чужая организация, неверные аргументы) строки не пишет.
 
 #### A.5.3 Источники и формы ответов (минимум; можно добавлять ключи, нельзя убирать/переименовывать)
 
@@ -386,7 +388,7 @@
 3. Вызов RPC: `serviceClient.schema("platform").rpc(def.rpc, {p_organization_id, p_agent_key, p_args})`. Клиент — `createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig())`. Дедлайн `AI_AGENT_LIMITS.toolTimeoutMs` (20 с).
 4. **Ответ.** `result = {content:[{type:"text", text: JSON.stringify(value)}], isError:false}`. Если текст длиннее `toolOutputMaxChars` (80 000) — урезать: выбрать самый длинный массив в корне (`items`, `messages`, `results`, `rows`…) и отбрасывать хвост, пока не уложится; добавить `truncated:true` и `hint` («сузьте фильтры или возьмите next_cursor»). Не обрезайте строки посередине JSON.
 5. **Журнал действий.** После вызова (успех или ошибка) — `ai_agent_mcp_log_v1(org, agent, tool, args, status, error_code, duration_ms)`; сбой самого журнала не меняет ответ инструмента (только строка в журнале приложения).
-6. Если `AI_AGENT_TOOLS[tool].kind === "write"` и вызов вернул ошибку, запись не выполнена — повтор безопасен (`idempotency_key`).
+6. Если `AI_AGENT_TOOLS[tool].kind === "write"` и вызов вернул ошибку, запись не выполнена — повтор безопасен (`idempotency_key`). После таймаута приложения (`unavailable`) запись могла успеть: повтор тех же аргументов отдаёт первый результат, а не создаёт вторую строку (с 319 ключ повтора выводится из вызова, если `idempotency_key` нет; A.5.2, п. 8).
 
 ### B.4 Ошибки инструментов
 

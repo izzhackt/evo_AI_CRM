@@ -312,7 +312,8 @@ function RequestsEmpty({ queue, props, now }: Readonly<{
     );
   }
   const latest = requestLatestLine(queue.latestAt, now);
-  const what = requestEmptyWhat(queue, selection.source);
+  // «Что сюда приходит» нужно у «Все» (роль читает не всё); у своей вкладки её название уже ответ.
+  const what = selection.source === "all" ? requestEmptyWhat(queue, selection.source) : null;
   return (
     <div role="status" className="flex flex-col items-center gap-2 border-t border-border py-12 text-center" data-testid="queue-empty">
       <p className="t-item text-fg">{selection.status === "waiting" ? "Новых заявок нет" : "Заявок нет"}</p>

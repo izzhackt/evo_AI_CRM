@@ -206,7 +206,7 @@ test("sales card: full-width name, owner beside the action, due word beside its 
   assert.match(lines("02")[2].body, /^<span class="v3-card-due"><time dateTime="\d{4}-\d{2}-\d{2}" class="font-mono tabular-nums">\d{2}\.\d{2}<\/time> <span class="v3-due t-caption" data-due="today">сегодня<\/span><\/span>/u);
   assert.doesNotMatch(cards.get("04"), /прошёл|сегодня/u, "a later date is neutral");
   assert.match(cards.get("04"), /data-due="upcoming">через \d+ дн</u);
-  assert.match(cards.get("03"), /Без следующего действия/u);
+  assert.match(cards.get("03"), /Без действия/u);
   for (const n of ["01", "02", "03", "04", "05", "06"]) assert.ok(lines(n).length <= 3, `card ${n} has at most 3 lines`);
   assert.doesNotMatch(read("src/components/v3/Pipeline.tsx"), /rounded-full|DUE_MARK/u);
   assert.doesNotMatch(tag(surfaces.get("sales-mine"), /<article data-testid="v3-pipeline-card"[\s\S]*?<\/article>/u), /v3-initials|<abbr/u, "no initials when only «Мои» are shown");
@@ -318,7 +318,7 @@ test("one solid red per board page: the shell «Создать задачу» is
     // sales board's: the solid red stays one per board page.
     assert.deepEqual(solid, name === "admissions" ? ["Добавить студента"] : ["Добавить лида"], name);
   }
-  assert.match(read("src/components/v3/PipelineDecisionForm.tsx"), /className="inline-flex min-h-11 items-center rounded-ctl bg-fg px-4 text-sm font-semibold text-surface/u);
+  assert.match(read("src/components/v3/PipelineDecisionForm.tsx"), /className="inline-flex min-h-11 items-center rounded-ctl bg-fg px-4 t-label text-surface/u);
 });
 
 test("one 44px toolbar: no «Стадия» chips, selects apply on change, «Срок» counts come from the read", () => {

@@ -186,8 +186,11 @@ function matchesDue(one, dueFilter) {
   if (dueFilter === "unscheduled") return one.nextActionDueDate === null;
   return true;
 }
+// Перекошенная доска (прод 24.10): все лиды в «Новый», остальные этапы пусты — с открытой панелью
+// пустые этапы стоят рейками, а единственная колонка раскладывает карточки сеткой.
+const LOPSIDED_ROWS = VOLUME_ROWS.filter((row) => row.stageKey === "new" || row.stageKey === "handed_off").slice(0, 34);
 function selectSalesRows(kind) {
-  state.salesRows = kind === "volume" ? VOLUME_ROWS : SALES_ROWS;
+  state.salesRows = kind === "volume" ? VOLUME_ROWS : kind === "lopsided" ? LOPSIDED_ROWS : SALES_ROWS;
 }
 function setSaveSucceeds(value) {
   state.saveSucceeds = value;

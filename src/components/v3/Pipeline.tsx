@@ -4,7 +4,7 @@ import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useId, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 
 import { Icon } from "@/components/icons";
 import { cn } from "@/components/ui";
@@ -189,7 +189,7 @@ function LeadCard({
       {actionLine ? (
         <p className="t-meta flex min-w-0 items-baseline gap-2 text-fg-3">
           <span className={`min-w-0 flex-1 truncate ${lead.nextAction ? "text-fg-2" : ""}`} title={lead.nextAction ?? undefined}>
-            {lead.nextAction ?? "Без следующего действия"}
+            {lead.nextAction ?? "Без действия"}
           </span>
           {initials}
         </p>
@@ -414,13 +414,24 @@ export function Pipeline({
   // переданного лида это «Переданы»: рабочие этапы сворачиваются в рейки,
   // а не сжимаются до 111 px рядом с панелью.
   const foldFor = focus === "all" && selectedStage ? selectedStage.key : null;
-  const boardStyle = {
-    "--board-tracks": tracks,
-    ...(foldFor ? { "--board-tracks-panel": boardTracks(stageKeys, foldFor, terminalKeys) } : {}),
-  } as CSSProperties;
   const emptyWorking = focus === "all"
     ? stages.filter((stage) => !stage.terminal && !leads.some((lead) => lead.stageKey === stage.key))
     : [];
+  // Панель открыта при всех этапах: пустые рабочие этапы не держат по 183 px
+  // «Нет лидов» — они стоят рейками, а этапы с лидами делят место и читаются
+  // (иначе имена в единственной заполненной колонке режутся до «Номер +996 ••• …»).
+  // Если лидов нет ни в одном рабочем этапе (открыт переданный лид), рейками
+  // стали бы все колонки — тогда доска остаётся как есть. Единственная
+  // заполненная колонка раскладывает карточки сеткой, как фокус этапа.
+  const panelBoard = selected !== null && focus === "all";
+  const populatedWorking = stages.filter((stage) => !stage.terminal && leads.some((lead) => lead.stageKey === stage.key));
+  const emptyRailKeys = panelBoard && populatedWorking.length > 0 ? emptyWorking.map((stage) => stage.key) : [];
+  const soleColumn = panelBoard && populatedWorking.length === 1;
+  const boardStyle = {
+    "--board-tracks": tracks,
+    ...(foldFor ? { "--board-tracks-panel": boardTracks(stageKeys, foldFor, terminalKeys) } : {}),
+    ...(emptyRailKeys.length > 0 ? { "--board-tracks-open": boardTracks(stageKeys, "all", [...terminalKeys, ...emptyRailKeys]) } : {}),
+  } as CSSProperties;
 
   // Открытие переводит фокус на заголовок панели — и с карточки, и по адресу
   // (переход из «Сегодня»); закрытие возвращает его на карточку (`SidePanel`).
@@ -504,7 +515,7 @@ export function Pipeline({
             href={boardHref({ handed: "all" })}
             prefetch={false}
             scroll={false}
-            className="flex min-h-6 items-center px-1.5 t-item text-fg-2 underline underline-offset-4 hover:text-fg"
+            className="flex min-h-11 items-center px-1.5 t-item text-fg-2 underline underline-offset-4 hover:text-fg"
           >
             Показать все {inStage.length}
           </Link>
@@ -516,7 +527,7 @@ export function Pipeline({
             href={boardHref({ handed: null })}
             prefetch={false}
             scroll={false}
-            className="flex min-h-6 items-center px-1.5 t-item text-fg-2 underline underline-offset-4 hover:text-fg"
+            className="flex min-h-11 items-center px-1.5 t-item text-fg-2 underline underline-offset-4 hover:text-fg"
           >
             Показать последние {HANDED_VISIBLE_LIMIT}
           </Link>
@@ -572,6 +583,7 @@ export function Pipeline({
         className={cn(
           "flex min-w-0 flex-col gap-4 @6xl:grid @6xl:h-full @6xl:min-h-0 @6xl:flex-1 @6xl:grid-rows-[minmax(0,1fr)] @6xl:gap-2 @6xl:[grid-template-columns:var(--board-tracks)]",
           foldFor && BOARD_PANEL_FOLD.tracks,
+          emptyRailKeys.length > 0 && BOARD_PANEL_FOLD.openTracks,
         )}
         style={boardStyle}
       >
@@ -647,12 +659,13 @@ export function Pipeline({
           }
 
           const focused = focus === stage.key;
+          const railed = emptyRailKeys.includes(stage.key);
           return (
+            <Fragment key={stage.key}>
             <BoardColumn
-              key={stage.key}
               headingId={headingId}
               testId="v3-pipeline-column"
-              spread={focused || foldFor === stage.key}
+              spread={focused || foldFor === stage.key || (soleColumn && inStage.length > 0)}
               fold={foldFor && foldFor !== stage.key ? { title: stage.title, href: boardHref({ stage: stage.key, lead: null }) } : undefined}
               // Заголовок колонки — слово без точки фазы: у доски продаж одна фаза,
               // точка повторяла бы один цвет над каждой колонкой («колонки не подкрашиваются»).
@@ -679,11 +692,21 @@ export function Pipeline({
                 ) : null
               }
               emptyText={BOARD_EMPTY.leads}
-              className={inStage.length === 0 && !focused ? "hidden @6xl:flex" : "flex"}
+              className={inStage.length === 0 && !focused ? (railed ? BOARD_PANEL_FOLD.emptyColumn : "hidden @6xl:flex") : "flex"}
             >
               {renderCards(stage, visible)}
               {handedLinks(stage, inStage, visible)}
             </BoardColumn>
+            {railed ? (
+              <BoardRail
+                title={stage.title}
+                count={0}
+                href={boardHref({ stage: stage.key, lead: null })}
+                className={BOARD_PANEL_FOLD.emptyRail}
+                testId="v3-pipeline-rail"
+              />
+            ) : null}
+            </Fragment>
           );
         })}
       </div>

@@ -1398,7 +1398,6 @@ test("Sales and Admin persist the same canonical workflow through the real inter
   await expect(form).toBeVisible();
   await expect(form.getByTestId("v3-pipeline-stage")).toHaveValue("new");
   await expect(form.locator('input[name="expected_version"]')).toHaveValue("11");
-  await expect(form.getByText("Версия 11", { exact: true })).toBeVisible();
   await expect(form.getByTestId("v3-pipeline-owner")).not.toHaveValue("");
 
   await form.getByTestId("v3-pipeline-stage").selectOption("meeting_scheduled");
@@ -1412,7 +1411,6 @@ test("Sales and Admin persist the same canonical workflow through the real inter
   // The panel stays open; the refreshed form carries the next version.
   await expect(workflowForm().locator('input[name="expected_version"]')).toHaveValue("12");
   form = await openWorkflow();
-  await expect(form.getByText("Версия 12", { exact: true })).toBeVisible();
 
   await page.reload();
   form = await openWorkflow();
@@ -1441,7 +1439,6 @@ test("Sales and Admin persist the same canonical workflow through the real inter
   await form.getByTestId("v3-pipeline-submit").click();
   await expect(workflowForm().locator('input[name="expected_version"]')).toHaveValue("13");
   form = await openWorkflow();
-  await expect(form.getByText("Версия 13", { exact: true })).toBeVisible();
 
   await page.reload();
   form = await openWorkflow();

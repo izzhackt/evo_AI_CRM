@@ -383,7 +383,7 @@ test("rendered «Отчёт продаж»: stepper, plan headline, sums by curr
   assert.match(text(report), /Отчёт продаж Сентябрь 2026 Январь 2026 .*? Декабрь 2026 Весь 2026 год Добавить продажу/u);
   assert.doesNotMatch(report, /name="year"[^>]*type="number"|>Показать<\/button>|Найдено по фильтрам/u);
   // «N продаж из плана M» и тонкая полоса (Э1.3).
-  assert.match(text(report), /8 продаж из плана 35 по дате продажи за сентябрь 2026, без архива · осталось 27/u);
+  assert.match(text(report), /8 продаж из плана 35 по дате продажи, без архива · осталось 27/u);
   assert.match(report, /v3-progress-track/u);
   // Основа сумм названа рядом с заголовком: записи месяца отчёта, из них без даты продажи —
   // «8 продаж» (по дате продажи) и суммы по 9 записям не спорят молча.
@@ -396,7 +396,7 @@ test("rendered «Отчёт продаж»: stepper, plan headline, sums by curr
   // Сноска — одна строка.
   const money = report.slice(report.indexOf('data-testid="sales-money-summary"'), report.indexOf("</section>", report.indexOf('data-testid="sales-money-summary"')));
   assert.equal(money.match(/<p\b/gu)?.length, 2, "the basis line and one footnote");
-  assert.match(text(money), /USD → KGS — стоимость в USD, оплата в KGS без суммы в валюте договора \(1 запись\): остаток не считается\. Не вошли: без стоимости — 1 запись, оплата не указана — 1 запись\. Валюты не пересчитываются; это записи отчёта, не поступления за месяц\./u);
+  assert.match(text(money), /Остаток не считается, если оплата в другой валюте и нет суммы в валюте договора\. Не вошли: без стоимости — 1 запись, оплата не указана — 1 запись\. Валюты не пересчитываются; это записи отчёта, не поступления за месяц\./u);
   // Одна строка инструментов, выбор применяется ссылкой; «Нужно уточнить · N» — из чтения.
   assert.match(report, /data-testid="sales-review-toggle" href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;review=true">Нужно уточнить<span class="tabular-nums"> · 6<\/span><\/a>/u);
   assert.match(report, /href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;archived=true">Архив<\/a>/u);
@@ -416,8 +416,8 @@ test("rendered «Отчёт продаж»: stepper, plan headline, sums by curr
   assert.equal(menuItems(chosenMenu), "Все Айдана Макетова 3 Санжар Эскизов 5 Менеджеры в отчёте →");
   assert.match(chosenMenu, /<a aria-current="true"[^>]*href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;manager=%D1%81%D0%B0%D0%BD%D0%B6%D0%B0%D1%80\+%D1%8D%D1%81%D0%BA%D0%B8%D0%B7%D0%BE%D0%B2"/u);
   assert.match(chosenMenu, /href="\/v3\/main\?view=sales&amp;mode=managers&amp;year=2026&amp;month=9"/u);
-  // Под записями — рядом с «Перенос данных», тем же спокойным видом.
-  assert.match(chosen, /href="\/v3\/main\?view=sales[^"]*&amp;mode=import">Перенос данных<\/a><a class="[^"]*" href="\/v3\/main\?view=sales&amp;mode=managers&amp;year=2026&amp;month=9">Менеджеры в отчёте<\/a>/u);
+  // Под записями кнопок «Перенос данных» и «Менеджеры в отчёте» нет: перенос — в «Настройки → Платформа», менеджеры — пункт меню «Менеджер».
+  assert.doesNotMatch(chosen, />Перенос данных<|>Менеджеры в отчёте<\/a>/u);
   assert.equal(solidRed(chosen), 1);
   assert.deepEqual([...chosen.matchAll(/<p class="truncate t-meta text-fg-2">(?:<time[^>]*>[^<]*<\/time>|без даты) · ([^·<]+) ·/gu)].map((match) => match[1].trim()),
     ["Санжар Эскизов", "Санжар Эскизов", "Санжар Эскизов", "Санжар Эскизов", "Санжар Эскизов"]);
@@ -470,7 +470,7 @@ test("rendered «Отчёт продаж»: the record opens in the right panel 
   assert.doesNotMatch(page, /data-testid="sales-register-form"/u);
   const panel = text(page.slice(page.indexOf("<dialog"), page.indexOf("</dialog>")));
   // 307: рядом с «Исправить запись» стоит «Убрать» (его маленькое окно закрыто, но есть в разметке).
-  assert.match(panel, /Требует проверки: при переносе: статус оплаты не указан Исправить запись Убрать Убрать из продаж Оплатил частично Не оплатил Заметка Убрать Отмена Стоимость 1 500 USD Оплачено 600 USD Остаток 900 USD/u);
+  assert.match(panel, /Нужно уточнить: при переносе: статус оплаты не указан Исправить запись Убрать Убрать из продаж Оплатил частично Не оплатил Заметка Убрать Отмена Стоимость 1 500 USD Оплачено 600 USD Остаток 900 USD/u);
   // Написание в записи — опрятно (без пробелов по краям и двойных), без опечатки внутри кавычек.
   assert.match(panel, /Менеджер Санжар Эскизов в записи: «санжар эскизов»/u);
   assert.match(page, /<a class="[^"]*" data-testid="sales-record-edit" href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000002&amp;edit=true">Исправить запись<\/a>/u);
@@ -511,7 +511,7 @@ test("rendered «Отчёт продаж»: the record opens in the right panel 
 
   // Оплата в другой валюте без суммы в валюте договора: пометка словами, остатка нет — и почему.
   const cross = text(pages.get("report-panel-cross").slice(pages.get("report-panel-cross").indexOf("<dialog")));
-  assert.match(cross, /Требует проверки: нет суммы в валюте договора Исправить запись Убрать Убрать из продаж Оплатил частично Не оплатил Заметка Убрать Отмена Стоимость 1 800 USD Оплачено 45 000 KGS Оплачено в валюте договора не указано Остаток — Остатка нет: оплата в другой валюте без суммы в валюте договора\./u);
+  assert.match(cross, /Нужно уточнить: нет суммы в валюте договора Исправить запись Убрать Убрать из продаж Оплатил частично Не оплатил Заметка Убрать Отмена Стоимость 1 800 USD Оплачено 45 000 KGS Оплачено в валюте договора не указано Остаток — Остатка нет: оплата в другой валюте без суммы в валюте договора\./u);
   // Форма: «Оплачено в валюте договора» — под «Оплачено», в валюте стоимости.
   const crossEdit = pages.get("report-panel-cross-edit");
   const field = crossEdit.indexOf('data-testid="sales-contract-amount"');
@@ -521,7 +521,7 @@ test("rendered «Отчёт продаж»: the record opens in the right panel 
   // С суммой в валюте договора: остаток от неё, пометки нет; в списке — строка валюты стоимости, пары валют нет.
   const contract = text(pages.get("report-panel-contract").slice(pages.get("report-panel-contract").indexOf("<dialog")));
   assert.match(contract, /Руслан Прототипов Сведения из записи отчёта\. Исправить запись Убрать Убрать из продаж Оплатил частично Не оплатил Заметка Убрать Отмена Стоимость 1 800 USD Оплачено 45 000 KGS Оплачено в валюте договора 520 USD Остаток 1 280 USD/u);
-  assert.doesNotMatch(contract, /Требует проверки/u);
+  assert.doesNotMatch(contract, /Нужно уточнить:/u);
   const list = pages.get("report-panel-contract-list");
   assert.match(text(list), /Руслан Прототипов Малайзия · Бакалавриат Айдана Макетова 03\.09 1 800 USD 45 000 KGS остаток 1 280 USD Сверено/u);
   assert.match(list, /title="45\s000\sKGS; в валюте договора 520\sUSD">45\s000\sKGS<\/span>/u);
@@ -629,7 +629,7 @@ test("rendered «Отчёт продаж»: «Архив» shows how many record
 test("rendered «Отчёт продаж»: «Поступления и возвраты за месяц» keeps its read, words and states, below the records", () => {
   const page = pages.get("report-cash");
   const start = page.indexOf('data-testid="sales-cash-totals"');
-  assert.ok(start > page.indexOf('aria-label="Страницы отчёта"'), "below the records and their pages");
+  assert.ok(start > page.indexOf('aria-label="Записи продаж"'), "below the records");
   const cash = page.slice(start, page.indexOf("</section>", start));
   assert.match(text(cash), /Поступления и возвраты за месяц Подтверждённые финансовые события всей организации по дате операции, время Бишкека\. Фильтры строк продаж на этот блок не влияют\. Расходы третьих сторон не являются выручкой EVO\./u);
   assert.match(text(cash), /USD Получено 5 400,00 USD Возвращено 600,00 USD Итого 4 800,00 USD KGS Получено 50 000,00 KGS Возвращено 0,00 KGS Итого 50 000,00 KGS/u);

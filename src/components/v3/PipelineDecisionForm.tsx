@@ -30,7 +30,7 @@ const STATUS_COPY: Record<
 };
 
 const CONTROL_CLASS =
-  "mt-1 w-full rounded-ctl border border-control-edge bg-surface px-2.5 py-2 text-sm text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:bg-surface-2 disabled:text-fg-3";
+  "t-body-compact mt-1 min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-2.5 py-2 text-fg placeholder:text-fg-3 focus-visible:border-accent disabled:bg-surface-2 disabled:text-fg-3";
 
 type WorkflowStageOption = Readonly<{
   key: PlatformSalesStage;
@@ -87,6 +87,8 @@ export function PipelineDecisionForm({
     lead.nextActionDueDate ?? "",
   );
   const [reason, setReason] = useState("");
+  // Необязательная причина свёрнута; раскрытое поле не закрывается, когда текст стёрли.
+  const [noteOpen, setNoteOpen] = useState(false);
 
   // Один вызов на подтверждённое сохранение: новая функция `onSaved` от
   // родителя не перезапускает эффект и не повторяет обновление.
@@ -111,7 +113,6 @@ export function PipelineDecisionForm({
     (lead.nextActionText !== null && clearNextAction);
   const workflowVersion = result.version ?? lead.workflowVersion;
   const message = result.status === "idle" ? null : STATUS_COPY[result.status];
-  const controlId = `pipeline-decision-${lead.leadId}`;
 
   return (
     <section
@@ -199,7 +200,7 @@ export function PipelineDecisionForm({
             </p>
           ) : null}
 
-          <label className="t-body-compact flex items-start gap-2 text-fg-2">
+          <label className="t-body-compact flex min-h-11 items-center gap-2 text-fg-2">
             <input
               type="checkbox"
               checked={clearNextAction}
@@ -211,7 +212,7 @@ export function PipelineDecisionForm({
                   setNextActionDueDate("");
                 }
               }}
-              className="mt-0.5 size-4 shrink-0 accent-[var(--accent)]"
+              className="size-4 shrink-0 accent-[var(--accent)]"
             />
             Без следующего действия
           </label>
@@ -257,43 +258,56 @@ export function PipelineDecisionForm({
             </>
           )}
 
-          <label className="block t-label text-fg-2">
-            Причина{reasonRequired ? " · обязательна" : ""}
-            <textarea
-              name="reason"
-              value={reason}
-              onChange={(event) => {
-                setReason(event.target.value);
-              }}
-              required={reasonRequired}
-              maxLength={500}
-              rows={2}
-              aria-describedby={`${controlId}-reason`}
-              className={`${CONTROL_CLASS} resize-y`}
-              data-testid="v3-pipeline-reason"
-            />
-            <span
-              id={`${controlId}-reason`}
-              className="t-meta mt-1 block text-fg-3"
-            >
-              Нужна при смене ответственного или удалении действия.
-            </span>
-          </label>
+          {/* Причина обязательна при смене ответственного и снятии действия — тогда поле открыто.
+              В остальных случаях это необязательная заметка в журнал: она за «Добавить причину»,
+              а не постоянным полем. Закрытая заметка тоже уходит с формой (пустая — как раньше). */}
+          {reasonRequired ? (
+            <label className="block t-label text-fg-2">
+              Причина · обязательна
+              <textarea
+                name="reason"
+                value={reason}
+                onChange={(event) => {
+                  setReason(event.target.value);
+                }}
+                required
+                maxLength={500}
+                rows={2}
+                className={`${CONTROL_CLASS} resize-y`}
+                data-testid="v3-pipeline-reason"
+              />
+            </label>
+          ) : (
+            <details open={noteOpen || reason !== ""} onToggle={(event) => setNoteOpen(event.currentTarget.open)}>
+              <summary className="inline-flex min-h-11 cursor-pointer items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">
+                Добавить причину
+              </summary>
+              <label className="block t-label text-fg-2">
+                <span className="sr-only">Причина</span>
+                <textarea
+                  name="reason"
+                  value={reason}
+                  onChange={(event) => {
+                    setReason(event.target.value);
+                  }}
+                  maxLength={500}
+                  rows={2}
+                  className={`${CONTROL_CLASS} resize-y`}
+                  data-testid="v3-pipeline-reason"
+                />
+              </label>
+            </details>
+          )}
 
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            {/* Красный на доске один — «Добавить лида»; решение в панели —
-                тёмная нейтральная кнопка, недоступное состояние без opacity. */}
-            <button
-              type="submit"
-              className="inline-flex min-h-11 items-center rounded-ctl bg-fg px-4 text-sm font-semibold text-surface hover:bg-fg-2 disabled:cursor-wait disabled:bg-surface-2 disabled:text-fg-3"
-              data-testid="v3-pipeline-submit"
-            >
-              {pending ? "Сохраняем…" : "Сохранить решение"}
-            </button>
-            <span className="t-meta text-fg-3">
-              Версия {workflowVersion}
-            </span>
-          </div>
+          {/* Красный на доске один — «Добавить лида»; решение в панели —
+              тёмная нейтральная кнопка, недоступное состояние без opacity. */}
+          <button
+            type="submit"
+            className="inline-flex min-h-11 items-center rounded-ctl bg-fg px-4 t-label text-surface hover:bg-fg-2 disabled:cursor-wait disabled:bg-surface-2 disabled:text-fg-3"
+            data-testid="v3-pipeline-submit"
+          >
+            {pending ? "Сохраняем…" : "Сохранить решение"}
+          </button>
         </fieldset>
 
         <div
@@ -311,7 +325,7 @@ export function PipelineDecisionForm({
             <button
               type="button"
               onClick={() => router.refresh()}
-              className="ms-1 font-semibold underline underline-offset-2"
+              className="ms-1 inline-flex min-h-11 items-center t-label underline underline-offset-4"
             >
               Обновить
             </button>

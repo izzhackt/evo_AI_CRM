@@ -68,6 +68,7 @@ struct HomeView: View {
     let session: SessionRouter.PortalSession
     @ObservedObject var router: SessionRouter
     @Binding var selectedTab: PortalTab
+    @ObservedObject var aiConsent: AIConsentModel
     @StateObject private var model = HomeViewModel()
     @StateObject private var admission = AdmissionHubModel()
     @StateObject private var countryTimeline = CountryTimelineModel()
@@ -88,6 +89,9 @@ struct HomeView: View {
                     Text(session.authority.displayName).font(.title2.bold())
                         .motionStagger(index: 0, key: "home.greeting")
                 }
+                // Согласие на ИИ-помощников: карточка до решения на действующий
+                // текст, ничего не блокирует (правило App Store 5.1.2(i)).
+                AIConsentCardSection(model: aiConsent)
                 // «Путь поступления» (S4): у самостоятельного студента первым, у клиента после дела.
                 if session.accessTier == .approved { timelineSection }
                 if session.accessTier == .assisted && admissionNeedsAttention {
@@ -148,8 +152,10 @@ struct HomeView: View {
 
     private func refresh() async {
         async let path: () = loadPathAndCSCACard()
+        async let consent: () = aiConsent.load()
         await model.refresh(tier: session.accessTier, admission: admission)
         await path
+        await consent
     }
 
     /// Выбор страны, затем (только для Китая) главная CSCA: цепочка из двух

@@ -176,6 +176,10 @@ targets:
       - path: EVOAdmissions/Services/PostgresTimestamp.swift
       - path: EVOAdmissions/Services/FavoritesModels.swift
       - path: EVOAdmissions/Services/PortalProfileModels.swift
+      # Согласие на ИИ-помощников (25.10.2026): модели, правила и состояние
+      # без SwiftUI и Supabase SDK; вызовы RPC лежат в SupabaseService+AIConsent.swift.
+      - path: EVOAdmissions/Services/AIConsentModels.swift
+      - path: EVOAdmissions/Services/AIConsentModel.swift
       - path: EVOAdmissions/Services/ConsultationModels.swift
       - path: EVOAdmissions/Services/LearningModels.swift
       - path: EVOAdmissions/Services/LearningRunnerModels.swift

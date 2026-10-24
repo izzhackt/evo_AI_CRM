@@ -15189,6 +15189,240 @@
           }
         }
       }
+    },
+    "ai_consent_title" : {
+      "comment" : "Согласие на ИИ-помощников (контракт 25.10.2026, App Store 5.1.2(i)). KY: черновик, needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "EVO ЖИ-жардамчылары"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ИИ-помощники EVO"
+          }
+        }
+      }
+    },
+    "ai_consent_body" : {
+      "comment" : "Согласие на ИИ-помощников (контракт 25.10.2026, App Store 5.1.2(i)). KY: черновик, needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "EVO кызматкерлерине ЖИ-жардамчылар жардам берет: алар жооптарды даярдоо жана мөөнөттөрдү көзөмөлдөө үчүн EVO менен кат алышууңузду жана иштин документтерин окуйт. Маалыматты Anthropic (Claude, АКШ) жана Google (Gemini) иштетет. Иш боюнча чечимдерди EVO кызматкерлери кабыл алат. Уруксат бербесеңиз, жардамчылар документтериңизди жана кат алышууңузду окубайт — иш менен иштөө өзгөрбөйт."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сотрудникам EVO помогают ИИ-помощники: они читают вашу переписку с EVO и документы дела, чтобы готовить ответы и следить за сроками. Данные обрабатывают Anthropic (Claude, США) и Google (Gemini). Решения по делу принимают сотрудники EVO. Если не разрешите, помощники не будут читать ваши документы и переписку — работа с делом не изменится."
+          }
+        }
+      }
+    },
+    "ai_consent_allow" : {
+      "comment" : "Согласие на ИИ-помощников (контракт 25.10.2026, App Store 5.1.2(i)). KY: черновик, needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Уруксат берүү"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешить"
+          }
+        }
+      }
+    },
+    "ai_consent_decline" : {
+      "comment" : "Согласие на ИИ-помощников (контракт 25.10.2026, App Store 5.1.2(i)). KY: черновик, needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Уруксат бербөө"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не разрешать"
+          }
+        }
+      }
+    },
+    "ai_consent_revoke" : {
+      "comment" : "Согласие на ИИ-помощников (контракт 25.10.2026, App Store 5.1.2(i)). KY: черновик, needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Макулдукту кайтарып алуу"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отозвать согласие"
+          }
+        }
+      }
+    },
+    "ai_consent_row_title" : {
+      "comment" : "Согласие на ИИ-помощников (контракт 25.10.2026, App Store 5.1.2(i)). KY: черновик, needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "ЖИ-жардамчылар"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ИИ-помощники"
+          }
+        }
+      }
+    },
+    "ai_consent_state_granted" : {
+      "comment" : "Согласие на ИИ-помощников (контракт 25.10.2026, App Store 5.1.2(i)). KY: черновик, needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Уруксат берилген"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрешено"
+          }
+        }
+      }
+    },
+    "ai_consent_state_declined" : {
+      "comment" : "Согласие на ИИ-помощников (контракт 25.10.2026, App Store 5.1.2(i)). KY: черновик, needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Уруксат берилген эмес"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не разрешено"
+          }
+        }
+      }
+    },
+    "ai_consent_state_unset" : {
+      "comment" : "Согласие на ИИ-помощников (контракт 25.10.2026, App Store 5.1.2(i)). KY: черновик, needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тандалган эмес"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не выбрано"
+          }
+        }
+      }
+    },
+    "ai_consent_state_dated" : {
+      "comment" : "Согласие на ИИ-помощников (контракт 25.10.2026, App Store 5.1.2(i)). KY: черновик, needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "ai_consent_error" : {
+      "comment" : "Согласие на ИИ-помощников (контракт 25.10.2026, App Store 5.1.2(i)). KY: черновик, needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тандоо сакталган жок. Интернетти текшерип, кайталаңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить выбор. Проверьте интернет и повторите."
+          }
+        }
+      }
+    },
+    "ai_consent_unavailable" : {
+      "comment" : "Согласие на ИИ-помощников (контракт 25.10.2026, App Store 5.1.2(i)). KY: черновик, needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тандоо жүктөлгөн жок. Кайталаңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось загрузить выбор. Повторите."
+          }
+        }
+      }
+    },
+    "ai_consent_update_app" : {
+      "comment" : "Согласие на ИИ-помощников (контракт 25.10.2026, App Store 5.1.2(i)). KY: черновик, needs native proofreading.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Тандоо үчүн колдонмону жаңыртыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновите приложение, чтобы сделать выбор."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

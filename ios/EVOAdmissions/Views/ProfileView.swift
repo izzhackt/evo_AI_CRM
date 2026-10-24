@@ -83,6 +83,7 @@ final class ProfileViewModel: ObservableObject {
 struct ProfileView: View {
     let session: SessionRouter.PortalSession
     @ObservedObject var router: SessionRouter
+    @ObservedObject var aiConsent: AIConsentModel
 
     @StateObject private var model = ProfileViewModel()
     @State private var sessionEmail: String?
@@ -114,6 +115,7 @@ struct ProfileView: View {
             List {
                 dataSection
                 languageSection
+                AIConsentSettingsSection(model: aiConsent)
                 consultationSection
                 appSection
                 sessionSection
@@ -127,10 +129,12 @@ struct ProfileView: View {
                 sessionEmail = try? await SupabaseService.shared.client.auth.session.user.email
                 await model.load()
                 await deletion.load()
+                await aiConsent.load()
             }
             .refreshable {
                 await model.load()
                 await deletion.load()
+                await aiConsent.load()
             }
             .sheet(isPresented: $showsConsultationSheet, onDismiss: {
                 Task { await model.loadHistory() }

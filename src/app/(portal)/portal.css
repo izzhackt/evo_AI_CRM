@@ -1296,6 +1296,18 @@
   gap: 12px;
 }
 
+/*
+ * Слот карточки на «Моём поступлении» (/portal): отступ от шапки как у
+ * соседних блоков экрана; без карточки слот пуст и не оставляет зазора.
+ */
+.pt-consent-slot {
+  margin-top: 24px;
+}
+
+.pt-consent-slot:empty {
+  display: none;
+}
+
 .pt-consent {
   padding: 20px;
   border: 1px solid var(--pt-line);

@@ -201,6 +201,17 @@ test("the Russian text is the owner's wording, word for word", () => {
   assert.equal(ru.revoke, "Отозвать согласие");
 });
 
+test("the saved-choice lines report the fact only and promise nothing the code does not enforce", () => {
+  // Условие об отказе произносит утверждённое владельцем тело; подтверждение — только факт записи.
+  const { ru, ky } = PORTAL_DICTIONARIES.aiConsent;
+  assert.equal(ru.savedGranted, "Разрешение сохранено.");
+  assert.equal(ru.savedDeclined, "Отказ сохранён.");
+  assert.equal(ky.savedGranted, "Уруксат сакталды.");
+  assert.equal(ky.savedDeclined, "Баш тартуу сакталды.");
+  assert.doesNotMatch(ru.savedDeclined, /не будут читать|читать/u);
+  assert.doesNotMatch(ky.savedDeclined, /окубайт/u);
+});
+
 test("the Kyrgyz draft covers every key, keeps the names of the processors and is not marked as reviewed", () => {
   const { ru, ky } = PORTAL_DICTIONARIES.aiConsent;
   assert.deepEqual(Object.keys(ky).sort(), Object.keys(ru).sort());
@@ -219,7 +230,7 @@ test("the action is a server action that checks the student, then writes through
   assert.match(action, /^"use server";/u);
   assert.match(action, /await requireStudentPortalActor\(\);/u);
   assert.match(action, /writeAiConsentWith\(await createSupabaseServerClient\(\), status, requestId\)/u);
-  assert.match(action, /revalidatePath\("\/portal\/home"\);\s*revalidatePath\("\/portal\/profile"\);/u);
+  assert.match(action, /revalidatePath\("\/portal"\);\s*revalidatePath\("\/portal\/home"\);\s*revalidatePath\("\/portal\/profile"\);/u);
   // Версию и источник выбирает серверный модуль, а не аргументы из браузера.
   assert.match(action, /status: unknown,\s*requestId: unknown,/u);
   assert.doesNotMatch(action, /policyVersion|p_policy_version|portal_web|\.rpc\(/u);
@@ -246,6 +257,28 @@ test("the home card is read in the same wave and sits first in HomeView, without
   assert.ok(view.indexOf("{aiConsent}") > 0);
   assert.ok(view.indexOf("{aiConsent}") < view.indexOf('{tier === "assisted" ? null : journey}'), "first block of the home");
   assert.doesNotMatch(read("src/components/portal/consent/AiConsent.tsx"), /role="dialog"|aria-modal|createPortal|<dialog/u, "never a blocking modal");
+});
+
+test("the post-login screen /portal asks too: a sibling slot above the overview, hidden when the read fails", () => {
+  const page = read("src/app/(portal)/portal/page.tsx");
+  assert.match(page, /import \{ AiConsentSlot \} from "@\/components\/portal\/consent\/AiConsentSlot";/u);
+  // Слот стоит после шапки и перед обзором, как сосед: его чтение идёт одновременно с остальными.
+  const header = page.indexOf("</header>");
+  const slot = page.indexOf("<AiConsentSlot locale={locale} />");
+  const overview = page.indexOf("<AdmissionOverview actor={actor} locale={locale} />");
+  assert.ok(header > 0 && slot > header && overview > slot, "header, then the slot, then the overview");
+  assert.equal(page.match(/readOwnAiConsent/gu), null, "the page itself does not read; the slot does");
+  assert.doesNotMatch(page, /\.rpc\(|\.schema\(/u);
+  // Замороженные смоук-якоря production на месте.
+  assert.match(page, /<h1 className="pt-page-title">\{strings\.overviewTitle\}<\/h1>/u);
+  const slotSource = read("src/components/portal/consent/AiConsentSlot.tsx");
+  assert.doesNotMatch(slotSource, /^"use client"/mu, "the slot is a server component");
+  assert.match(slotSource, /const read = await readOwnAiConsent\(\);/u);
+  assert.match(slotSource, /read\.status === "ready" \? \(\s*<AiConsentHomeCard\s+initialConsent=\{read\.consent\}\s+strings=\{getPortalStrings\("aiConsent", locale\)\}/u);
+  assert.match(slotSource, /\) : null\}\s*<\/div>/u, "a failed read leaves an empty slot");
+  // Пустой слот не оставляет зазора.
+  const css = read("src/app/(portal)/portal.css");
+  assert.match(css, /\.pt-consent-slot \{\s*margin-top: 24px;\s*\}\s*\.pt-consent-slot:empty \{\s*display: none;\s*\}/u);
 });
 
 test("the settings row sits in the profile, with its own honest line when the read fails", () => {

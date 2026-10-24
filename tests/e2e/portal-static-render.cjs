@@ -61,7 +61,7 @@ Module._resolveFilename = function patchedResolve(request, ...rest) {
 };
 
 // --- реальные React и Next-контекст -----------------------------------------
-const { createElement } = require("react");
+const { createElement, Fragment } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime");
 
@@ -622,7 +622,17 @@ const surfaces = [
         admission.kickerCabinet,
         admission.overviewTitle,
         admission.overviewLead,
-        createElement(OverviewView, { overview: overviewFixture, pending: false, locale: "ru" }),
+        // Согласие на ИИ-помощников стоит над обзором (слот карточки на /portal).
+        createElement(
+          Fragment,
+          null,
+          createElement(
+            "div",
+            { className: "pt-consent-slot" },
+            createElement(AiConsentHomeCard, { initialConsent: aiConsentAsked, strings: aiConsentStrings }),
+          ),
+          createElement(OverviewView, { overview: overviewFixture, pending: false, locale: "ru" }),
+        ),
       ),
     ),
   },

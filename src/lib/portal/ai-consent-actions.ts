@@ -22,6 +22,7 @@ export async function setOwnAiConsentAction(
   try {
     const result = await writeAiConsentWith(await createSupabaseServerClient(), status, requestId);
     if (!result.ok) return result;
+    revalidatePath("/portal");
     revalidatePath("/portal/home");
     revalidatePath("/portal/profile");
     return result;

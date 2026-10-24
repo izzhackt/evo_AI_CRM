@@ -54,7 +54,7 @@ export function UniversityFormDecision({ catalogId, templateId, versionId, revis
       <p className="text-sm leading-6 text-fg-2">{metadata.explanation}</p></div>
     <form action={submit} aria-busy={pending} className="space-y-4">
       {Object.entries({ operation: decision.operation, template_id: templateId, request_id: requestId,
-        expected_revision: String(revision), reason: comment.trim() || metadata.reason,
+        expected_revision: String(revision), reason: (askComment ? comment.trim() : "") || metadata.reason,
         ...(decision.operation !== "archive" ? { mapping_id: decision.mapping.id, mapping_sha256: decision.mapping.sha256 } : {}),
         ...(decision.operation === "publish" ? { review_id: decision.mapping.review!.id } : {}),
       }).map(([key, value]) => <input key={key} type="hidden" name={key} value={value} />)}

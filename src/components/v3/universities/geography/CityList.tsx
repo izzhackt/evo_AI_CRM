@@ -55,7 +55,7 @@ export function CityList({ geography, country }: Readonly<{ geography: StaffGeog
     <div className="@container/cities space-y-4">
       <p className="t-body-compact text-fg-2" data-testid="cities-summary">
         Опубликовано <span className="tabular-nums">{publishedCities.size}</span> из <span className="tabular-nums">{geography.cities.length}</span>
-        {" · "}вузов в них <span className="tabular-nums">{linked}</span> из <span className="tabular-nums">{published}</span>
+        {" · "}вузов в них: <span className="tabular-nums">{linked}</span> из <span className="tabular-nums">{published}</span> опубликованных
         {kyPending ? <>{" · "}<span className="text-warn">кыргызский текст ждёт проверки носителем: <span className="tabular-nums">{kyPending}</span></span></> : null}
       </p>
       <QueueViewTabs label="Страна" tabs={tabs} />

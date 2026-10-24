@@ -60,7 +60,7 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
   const [exportOpen, setExportOpen] = useState<"scope" | "all" | "selected" | null>(null);
   // «Отменить» после «В корзину» / «Архивировать»: обратная команда по тем же материалам и их новым версиям.
   const [exportIds, setExportIds] = useState<string[]>([]);
-  const [undo, setUndo] = useState<{ readonly op: UndoOp; readonly items: KnowledgeItem[] } | null>(null);
+  const [undo, setUndo] = useState<{ readonly op: UndoOp; readonly items: KnowledgeItem[]; readonly message: string } | null>(null);
   const [importOpen, setImportOpen] = useState(false); const [importRunning, setImportRunning] = useState(false);
   const [dialog, setDialog] = useState<"folder" | "page" | "rename" | "move" | null>(null);
   const [name, setName] = useState(""); const [targetFolder, setTargetFolder] = useState("");
@@ -170,9 +170,11 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
     try {
       const done: KnowledgeItem[] = [];
       for (const item of chosen) done.push(await command({ op, id: item.id, expectedVersion: item.version }));
-      setStatus(op === "trash" ? "Перемещено в корзину" : op === "restore" ? "Восстановлено" : op === "archive" ? "Архивировано" : "Возвращено из архива");
+      const message = op === "trash" ? "Перемещено в корзину" : op === "restore" ? "Восстановлено" : op === "archive" ? "Архивировано" : "Возвращено из архива";
+      setStatus(message);
       // Отменить можно только то, что вернулось с новой версией: обратная команда проверяет её.
-      if ((op === "trash" || op === "archive") && done.every((item) => item && typeof item.version === "number")) setUndo({ op: op === "trash" ? "restore" : "unarchive", items: done });
+      // Кнопка живёт рядом с этим сообщением и пропадает, когда статус сменила другая операция (например, загрузка).
+      if ((op === "trash" || op === "archive") && done.every((item) => item && typeof item.version === "number")) setUndo({ op: op === "trash" ? "restore" : "unarchive", items: done, message });
       reload();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Действие не выполнено."); reload(); }
     finally { setBusy(false); }
@@ -200,7 +202,7 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
   }
   async function upload(files: FileList | null) {
     if (!files?.length) return;
-    setBusy(true); setError("");
+    setBusy(true); setError(""); setUndo(null);
     const folderCache = new Map<string, string>();
     try {
       for (const file of Array.from(files)) {
@@ -311,12 +313,13 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
         </div> : null}
         <div className="mt-3 space-y-3">
           {error && <div className={KB_ERROR} role="alert">{error}<button type="button" onClick={reload} className={QUEUE_SECONDARY}>Повторить</button></div>}
-          {status && <p role="status" aria-live="polite" className="flex flex-wrap items-center gap-x-3 t-body-compact text-fg-2">{status}{undo ? <button type="button" className={KB_QUIET} disabled={busy} onClick={() => void undoLast()}>Отменить</button> : null}</p>}
+          {status && <p role="status" aria-live="polite" className="flex flex-wrap items-center gap-x-3 t-body-compact text-fg-2">{status}{undo && status === undo.message ? <button type="button" className={KB_QUIET} disabled={busy} onClick={() => void undoLast()}>Отменить</button> : null}</p>}
           {search.trim() && scope === "all" && <KnowledgeCanonicalSearch key={search.trim()} search={search.trim()} onOpen={() => setSearch("")} />}
           {area === "clients" && !parentId && view === "list" && !(search.trim() && scope === "all") && <KnowledgeDossiers key={params.get("case") ?? "directory"} caseId={params.get("case")} tab={params.get("tab")} search={search} />}
           {selected.size > 0 && <div className="flex flex-wrap items-center gap-2 border-y border-border py-2" data-testid="knowledge-selection">
             <span className="me-1 t-item text-fg">Выбрано: <span className="tabular-nums">{selected.size}</span></span>
             {view === "trash" ? <button type="button" className={QUEUE_SECONDARY} disabled={busy} onClick={() => void mutate("restore")}>Восстановить</button> : <>
+              {view === "archive" ? <button type="button" className={QUEUE_SECONDARY} disabled={busy} onClick={() => void mutate("unarchive")}>Вернуть из архива</button> : null}
               <button type="button" className={QUEUE_SECONDARY} onClick={() => { setTargetFolder(""); setDialog("move"); }}>Переместить</button>
               <button type="button" className={QUEUE_SECONDARY} disabled={busy} onClick={() => void mutate("trash")}>В корзину</button>
             </>}
@@ -326,7 +329,7 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
               {(close) => <>
                 {view !== "trash" && selected.size === 1 && <button type="button" className={KB_MENU_ITEM} onClick={() => { close(); if (chosen[0]?.kind === "secret") { router.push(href({ area: "secrets", item: chosen[0].id })); return; } setName(chosen[0]?.title ?? ""); setDialog("rename"); }}>Переименовать</button>}
                 {view !== "trash" && chosen.every((item) => item.area === "clients" && !item.client_case_id && !item.archived_at) && <button type="button" className={KB_MENU_ITEM} disabled={busy || folderRevision !== refresh} onClick={() => { close(); setAssignCase(true); }}>Привязать к делу</button>}
-                {view !== "trash" && <button type="button" className={KB_MENU_ITEM} disabled={busy} onClick={() => { close(); void mutate(view === "archive" ? "unarchive" : "archive"); }}>{view === "archive" ? "Вернуть из архива" : "Архивировать"}</button>}
+                {view !== "trash" && view !== "archive" && <button type="button" className={KB_MENU_ITEM} disabled={busy} onClick={() => { close(); void mutate("archive"); }}>Архивировать</button>}
                 <button type="button" className={KB_MENU_ITEM} onClick={() => { close(); setExportIds([...selected]); setExportOpen("selected"); }}><Icon name="download" size={18} />Выгрузить выбранное</button>
               </>}
             </TopLayerMenu>

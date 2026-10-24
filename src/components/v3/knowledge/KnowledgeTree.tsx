@@ -128,7 +128,7 @@ export function KnowledgeTree({ folders, folderError = false, onRetryFolders, ar
     {/* Две подписанные группы: без подписей шесть ссылок читались вложенными в «Секреты и доступы», а «Входящие» совпадало с папкой того же имени. */}
     <nav aria-label="Разделы базы знаний" className="space-y-2 border-t border-border pt-1">
       <div>
-        <p className={GROUP_LABEL}>Разделы</p>
+        <p className={GROUP_LABEL}>Файлы и шаблоны</p>
         <ul className="space-y-0.5">
           <li><Link href="/v3/knowledge?section=documents" aria-current={section === "documents" ? "page" : undefined} onClick={onNavigate} className={VIEW_LINK}>Документы</Link></li>
           <li><Link href="/v3/knowledge?section=snippets" aria-current={section === "snippets" ? "page" : undefined} onClick={onNavigate} className={VIEW_LINK}>Шаблоны ответов</Link></li>

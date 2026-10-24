@@ -585,3 +585,9 @@ test("V3 documents client shows an honest retry for a failed read and a quiet li
   assert.equal(readOnly.unavailable.length, 0);
   assert.equal(readOnly.apply.length, 0);
 });
+
+test("the document add region stays open for an emptied checklist: no toggle, so it must not stay hidden", () => {
+  const client = source("src/components/v3/profile/ProfileDocumentsClient.tsx");
+  assert.match(client, /hidden=\{!\(addOpen \|\| checklistEmpty\)\}/u);
+  assert.match(client, /canChangeChecklist && !checklistEmpty \? \(\s*<button/u);
+});

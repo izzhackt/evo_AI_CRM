@@ -267,3 +267,10 @@ test("package commands retain exact intent, serialize busy work and ignore super
   assert.match(form, /!uncertain && \(invalid \|\| command.blocked\)/u, "uncertain prepare replays retained input despite refreshed selection");
 });
 }
+
+test("packets: the ZIP history refresh appears after a failed read and when a reply asks to refresh the data", () => {
+  const form = readFileSync(new URL("../src/components/v3/profile/CaseOperationsForms.tsx", import.meta.url), "utf8");
+  assert.match(form, /STALE_STATUSES: readonly string\[\] = \["source_changed", "package_not_ready", "invalid_request"\]/u);
+  assert.match(form, /\{readFailed \|\| stale \? <button[\s\S]*?\}\}>\{readFailed \? words\.retryRead : words\.refresh\}<\/button> : null\}/u);
+  for (const code of ["source_changed", "package_not_ready", "invalid_request"]) assert.match(wording.partnerPacketExport.errors[code], /[Оо]бновите/u, code);
+});

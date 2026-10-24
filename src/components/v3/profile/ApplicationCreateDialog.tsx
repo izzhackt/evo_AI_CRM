@@ -136,7 +136,7 @@ function ApplicationCreateDialogBody({
       <div className={styles.layout}>
         <header className={styles.header}>
           <h2 id={titleId}>Добавить вуз</h2>
-<button type="button" aria-label="Закрыть" className="grid size-11 shrink-0 place-items-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg" onClick={onClose}>
+          <button type="button" aria-label="Закрыть" className="grid size-11 shrink-0 place-items-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg" onClick={onClose}>
             <Icon name="x" size={18} />
           </button>
         </header>

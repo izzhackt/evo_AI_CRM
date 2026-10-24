@@ -561,7 +561,7 @@ test("rendered pages: Lead 360 strip, the report headline and the board funnel t
   const gateSection = money.slice(money.indexOf('<section id="handoff-confirm"'));
   assert.match(gateSection, /^<section id="handoff-confirm" aria-labelledby="handoff-confirm-title" class="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate"><h2 id="handoff-confirm-title" class="t-section text-fg">Подтверждение вручную<\/h2>/u);
   assert.match(gateSection, /<h3 class="t-item text-fg">Договор<\/h3>.*?data-testid="v3-gate-contract-form"/u);
-  assert.match(gateSection, /<details class="group py-1"><summary[^>]*>.*?Исключение Admin<\/summary>/u);
+  assert.match(gateSection, /<details class="group\/override py-1"><summary[^>]*>Исключение Admin<svg[^>]*group-open\/override:rotate-180[^>]*>.*?<\/summary>/u);
   // У лида без дела пустого «Все обязательства по делу» нет; сплошной красный — только главное действие.
   assert.doesNotMatch(money, /Все обязательства по делу|Обязательств пока нет/u);
   assert.match(money, /aria-current="page" class="v3-choice inline-flex min-h-11 [^"]*" href="[^"]*tab=money">Договор и оплата<\/a>/u);

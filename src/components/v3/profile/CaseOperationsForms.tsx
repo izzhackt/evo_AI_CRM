@@ -146,6 +146,8 @@ export function PreparePartnerPacketForm({ caseId, workspace, applications, acti
   </form>;
 }
 
+const STALE_STATUSES: readonly string[] = ["source_changed", "package_not_ready", "invalid_request"];
+
 export function PartnerPacketWorkspace({ caseId, active, applications, workspace, initialApplicationId = null }: {
   caseId: string; active: boolean; applications: PacketApplications; workspace: PacketWorkspace;
   initialApplicationId?: string | null;
@@ -230,6 +232,8 @@ export function PartnerPacketWorkspace({ caseId, active, applications, workspace
     finally { end(); }
   }
   const message = words.errors[status] ?? studentProfileFileMessage(status);
+  // Состав на странице устарел: сообщение просит «обновить данные», кнопка делает это на месте.
+  const stale = STALE_STATUSES.includes(status);
   return <div className="space-y-5" aria-busy={busy}>
     <p className="text-sm leading-6 text-fg-2">{words.cap}</p>
     <PreparePartnerPacketForm caseId={caseId} workspace={workspace} applications={applications} active={active}
@@ -250,8 +254,8 @@ export function PartnerPacketWorkspace({ caseId, active, applications, workspace
       {message ? <p role="status" className="text-sm leading-6 text-fg-2">{message}</p> : null}
       {unresolved ? <button type="button" className={QUEUE_CONFIRM} disabled={busy || unresolved.caseId !== caseId} onClick={() => { if (unresolved.caseId === caseId) void execute(unresolved.command); }}>{words.retryCreate}</button> : null}
       {pending ? <p className="text-sm leading-6 text-fg-2">{words.pending}</p> : null}
-      {/* История читается при открытии и обновляется после каждой команды: «Обновить» нужен только после сбоя чтения. */}
-      {readFailed ? <button type="button" className={SECONDARY} disabled={busy || Boolean(unresolved) || prepareUncertain || uncertainReconciles.length > 0} onClick={() => { setReadVersion(version => version + 1); router.refresh(); }}>{words.retryRead}</button> : null}
+      {/* История читается при открытии и обновляется после каждой команды: кнопка нужна после сбоя чтения и когда ответ просит обновить данные. */}
+      {readFailed || stale ? <button type="button" className={SECONDARY} disabled={busy || Boolean(unresolved) || prepareUncertain || uncertainReconciles.length > 0} onClick={() => { setStatus("idle"); setReadVersion(version => version + 1); router.refresh(); }}>{readFailed ? words.retryRead : words.refresh}</button> : null}
       {!loading && !readFailed ? artifacts.length ? <StudentProfileExportList artifacts={artifacts} busy={busy || Boolean(unresolved) || prepareUncertain} uncertainReconciles={uncertainReconciles} onDownload={artifact => { void download(artifact); }} onReconcile={artifact => { void reconcile(artifact); }} /> : <p className="text-sm text-fg-3">{words.emptyHistory}</p> : null}
     </div>
   </div>;

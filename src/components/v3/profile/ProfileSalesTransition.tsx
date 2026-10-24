@@ -393,10 +393,10 @@ export function HandoffGateForms({
       ) : null}
       {canOverride ? (
         // Редкий инструмент Admin — свёрнут: он не должен занимать карточку каждого лида.
-        <details className={bare ? "group py-1" : "group border-t border-border px-4 py-1"}>
-          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-nav t-item text-fg [&::-webkit-details-marker]:hidden">
-            <Icon name="chevron-right" size={16} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-90 motion-reduce:transition-none" />
+        <details className={bare ? "group/override py-1" : "group/override border-t border-border px-4 py-1"}>
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-nav t-item text-fg [&::-webkit-details-marker]:hidden">
             Исключение Admin
+            <Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-open/override:rotate-180 motion-reduce:transition-none" />
           </summary>
           <div className="pb-3">
             <GateActionForm key={`override:${gate.gateVersion}`} actionName="override_gate" gate={gate} requestId={requestIds.override} />

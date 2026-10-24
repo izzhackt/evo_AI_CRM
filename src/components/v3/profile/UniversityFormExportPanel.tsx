@@ -80,6 +80,9 @@ export function UniversityFormExportPanel(props: Props) {
   const controlsBlocked = props.busy || props.unresolved || !canExport;
   const failure = catalogResult && !catalog ? studentProfileFileMessage(catalogResult.status) ?? words.loadFailed
     : formResult && !workspace ? studentProfileFileMessage(formResult.status) ?? words.loadFailed : null;
+  // Сообщения «обновите список» (нет каталога, нет бланков, публикация изменилась) получают кнопку на месте.
+  const listStale = catalog !== null && (!forms || forms.items.length === 0
+    || Boolean(workspace && workspace.unavailable_reason !== "profile_missing" && !publicationMatches));
   const selectionMessage = workspace ? workspace.unavailable_reason === "profile_missing" ? words.profileMissing
     : !publicationMatches ? words.mappingChanged : !profileMatches ? words.profileChanged : words.ready : null;
   const message = !canExport ? studentProfileFileMessage("unavailable_access") : props.unresolved ? words.uncertain
@@ -120,7 +123,7 @@ export function UniversityFormExportPanel(props: Props) {
         {afterId ? <button type="button" className={BUTTON} disabled={controlsBlocked || catalogLoading} onClick={() => page()}>{words.first}</button> : null}
         {forms?.next_after_id ? <button type="button" className={BUTTON} disabled={controlsBlocked || catalogLoading}
           onClick={() => page(forms.next_after_id!)}>{words.next}</button> : null}
-        {failure ? <button type="button" className={BUTTON} disabled={controlsBlocked || catalogLoading || formLoading} onClick={refresh}>{words.retry}</button> : null}
+        {failure || listStale ? <button type="button" className={BUTTON} disabled={controlsBlocked || catalogLoading || formLoading} onClick={refresh}>{failure ? words.retry : words.refresh}</button> : null}
       </div>
     </> : null}
     {message ? <p role="status" aria-live="polite" className="text-sm leading-6 text-fg-2">{message}</p> : null}

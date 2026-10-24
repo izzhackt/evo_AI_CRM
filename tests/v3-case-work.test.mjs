@@ -214,8 +214,8 @@ test("Admin: sales forms and portal access are collapsed groups under «Свед
   const salesData = html.slice(html.indexOf('id="sales-data"'));
   assert.equal((salesData.match(/bg-accent (?:px|text)/gu) ?? []).length, 0, "no solid red inside «Данные продажи»");
   assert.equal((salesData.match(/>(?:Сохранить|Сохранить условия)<\/button>/gu) ?? []).length, 4);
-  assert.match(read("src/components/v3/profile/CaseWorkParts.tsx"), /<SalesOverview [^>]*requestIds=\{input\.requestIds\} quiet \/>/u);
-  assert.match(text, /Оплата 40% оплачено · остаток 900 \$ Портал|Оплата 40% оплачено · остаток 900 \$/u);
+  assert.match(read("src/components/v3/profile/CaseWorkParts.tsx"), /<SalesOverview [^>]*requestIds=\{input\.requestIds\} quiet groups \/>/u);
+  assert.match(text, /Оплата 40% оплачено · остаток 900 \$/u);
   assert.match(html, /<details name="case-edit" id="portal-access" data-lead-group="" data-testid="v3-case-portal"[^>]*>/u);
   assert.match(text, /Доступ к порталу анкета одобрена/u);
   assert.match(text, /Сведения Направление Китай Сменить направление Куратор АО Айгүл Осмонова Сменить куратора Передал Эрмек Токтосунов · 30\.08 12:00 Передано в поступление Контакты \+996 000 000 001 student@example\.invalid Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026/u);
@@ -259,6 +259,8 @@ test("the page: name as h1, «Дело студента» tab title, back to the
   // Полоса вкладок прокручивается и обрезала бы внешнюю рамку фокуса — у её вкладок рамка внутри
   // (Э8.4: ряд вкладок очередей `QueueTabStrip`, `focusable` — `tabIndex` и `data-tab-strip`).
   assert.match(profile, /<QueueTabStrip label="Разделы профиля" focusable testId="v3-profile-tabs">/u);
+  // Одна вкладка («Обзор» у лида без содержимого) — ряда нет.
+  assert.match(profile, /\{tabs\.length > 1 \? \(\s*<QueueTabStrip/u);
   assert.match(read("src/components/v3/queue/QueueTabStrip.tsx"), /tabIndex=\{focusable \? 0 : undefined\}\n\s+data-tab-strip=\{focusable \? "" : undefined\}/u);
   assert.match(read("src/app/(v3)/v3.css"), /\.v3-world \[data-tab-strip\] \.v3-choice:focus-visible \{\n {2}outline-offset: -2px;\n\}/u);
   // Прежний «Обзор» лида рисует ту же часть продажи, что «Данные продажи» дела.
@@ -784,4 +786,11 @@ test("every select of the lead-card forms has an accessible name, and the budget
   // Подпись — видимое слово, как у соседнего «Период» и у валют сделки; сырых ключей нет.
   assert.match(card, /<label>\s*<span className=\{fieldLabelCls\}>Валюта<\/span>\s*<select\s+value=\{budgetCurrency\}/u);
   assert.match(card, /<option value="">Не указана<\/option>\s*\{SALE_CONDITION_CURRENCIES\.map/u);
+});
+
+test("Student 360 «Данные продажи» keeps the lead's linked WhatsApp conversation, gated by messaging.read", () => {
+  const tabs = read("src/components/v3/profile/tabs.tsx");
+  assert.match(tabs, /staffPresentationCan\(actor, "messaging\.read"\)/u);
+  assert.match(tabs, /data-testid="v3-sales-groups">\s*<LinkedConversationLinks sales=\{sales\} actor=\{actor\}/u);
+  assert.match(tabs, /<LinkedConversationLinks sales=\{sales\} actor=\{actor\} className="flex flex-col gap-1 border-t/u);
 });

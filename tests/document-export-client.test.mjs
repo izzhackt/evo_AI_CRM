@@ -296,3 +296,10 @@ test("actual empty/busy history SSR and shared editor guard remain explicit; no 
   assert.match(source, /commandInFlightRef.current = true/);
   assert.match(read("src/components/v3/profile/StudentProfileFields.tsx"), /commandInFlightRef=\{commandInFlight\}/);
 });
+
+test("university form panel: «обновите список» messages get an in-place refresh, not only a failure retry", () => {
+  const src = read("src/components/v3/profile/UniversityFormExportPanel.tsx");
+  assert.match(src, /const listStale = catalog !== null && \(!forms \|\| forms\.items\.length === 0/u);
+  assert.match(src, /\{failure \|\| listStale \? <button[^>]*onClick=\{refresh\}>\{failure \? words\.retry : words\.refresh\}<\/button> : null\}/u);
+  for (const key of ["noCatalog", "noMoreForms", "mappingChanged"]) assert.match(wording.universityFormExport[key], /[Оо]бновит/u, key);
+});

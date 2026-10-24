@@ -488,7 +488,7 @@ export function DocumentRow({
           <CaseLinkSummary item={item} />
           {current && !current.downloadReady ? (
             <p className="t-meta text-fg-2" role="status">
-              {deciding ? "Идёт проверка файла." : "Файл загружается."}
+              {deciding ? "Идёт проверка файла." : "Файл пока недоступен для просмотра."}
             </p>
           ) : null}
         </div>

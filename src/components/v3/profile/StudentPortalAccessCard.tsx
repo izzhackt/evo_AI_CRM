@@ -108,7 +108,7 @@ export function StudentPortalAccessControls({
   return (
     <div className={quiet ? "space-y-3 text-sm text-fg-2" : "space-y-4 p-4 text-sm text-fg-2"} data-testid="student-portal-access-controls">
       <p className="max-w-prose">
-        Приглашение уйдёт на email студента; действующее повторно не отправляется.
+        Если приглашение нужно, оно уйдёт на email студента; действующее повторно не отправляется.
       </p>
       {cabinetPending ? (
         <p>

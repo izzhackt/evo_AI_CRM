@@ -139,12 +139,46 @@ export function PlatformAccessCard({ application, requestId, readOnly, leadId, l
 }
 
 /**
+ * Card ↔ chat link (plan §4/§12): only when a linked conversation already
+ * exists, and only for actors who can actually open Inbox (`messaging.read` —
+ * the route's own gate, symmetric with v3InboxProfileHref's reverse-direction
+ * check on the inbox page). The lead read already carries this (see types.ts).
+ */
+function LinkedConversationLinks({ sales, actor, className }: {
+  sales: ProfileSalesSnapshot;
+  actor: ActivePlatformActor;
+  className: string;
+}) {
+  if (sales.linkedConversations.length === 0 || !staffPresentationCan(actor, "messaging.read")) return null;
+  return (
+    <div className={className}>
+      {sales.linkedConversations.map((conversation) => (
+        <Link
+          key={conversation.conversationId}
+          href={buildV3InboxHref({
+            conversationId: conversation.conversationId,
+            filters: { query: null, sort: "newest" },
+          })}
+          className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg"
+        >
+          {sales.linkedConversations.length > 1
+            ? `Открыть переписку WhatsApp — ${conversation.subject}`
+            : "Открыть переписку WhatsApp"}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Продажа на карточке: менеджер и действие продаж, проверка договора и
  * первого платежа («Договор и оплата») и четыре блока условий продажи. Одна
  * часть для обоих видов: на карточке лида — в «Обзоре» как раньше, на деле
  * студента — в свёрнутом разделе «Данные продажи» (решение владельца 26.09).
- * `quiet` (дело): «Сохранить» четырёх блоков условий — спокойные кнопки,
- * сплошной красный остаётся одному главному действию страницы.
+ * `quiet` — «Сохранить» четырёх блоков условий спокойные кнопки, сплошной
+ * красный остаётся одному главному действию страницы. `groups` (дело) —
+ * те же группы, что у Lead 360, вместо карточки «Продажи»: менеджер и шаг
+ * продаж стоят в «Сведениях» дела.
  */
 export function SalesOverview({
   profile,
@@ -153,6 +187,7 @@ export function SalesOverview({
   actor,
   requestIds,
   quiet = false,
+  groups = false,
 }: {
   profile: PersonProfile;
   sales: ProfileSalesSnapshot;
@@ -160,6 +195,7 @@ export function SalesOverview({
   actor: ActivePlatformActor;
   requestIds: ProfileSalesRequestIds;
   quiet?: boolean;
+  groups?: boolean;
 }) {
   // Этап — по одному правилу доски (Э2, 26.09.2026): переданный лид —
   // «Переданы», закрытый — не рабочий. Без чтения полосы этапа не показываем:
@@ -168,13 +204,14 @@ export function SalesOverview({
     ? handoffStripView(sales.strip.strip, { now: new Date() })
     : null;
   const saleConditionsReadOnly = isStaffPreview(actor) || !staffHasPermission(actor, "lead.sales.workflow.manage");
-  if (quiet) {
+  if (groups) {
     // Дело студента: те же группы и названия, что у Lead 360 («Данные лида»), по одной. Менеджер и шаг продаж —
-    // в «Сведениях» дела, поэтому отдельной карточки «Продажи» нет.
+    // в «Сведениях» дела, поэтому отдельной карточки «Продажи» нет; переписка WhatsApp лида осталась ссылкой здесь.
     const conditions = draft.saleConditions;
     const summaries = conditions ? leadGroupSummaries(conditions) : null;
     return (
       <div className="min-w-0 ps-3" data-testid="v3-sales-groups">
+        <LinkedConversationLinks sales={sales} actor={actor} className="flex flex-col gap-1 border-b border-border" />
         <EditGroup title="Передача" summary={null} testId="v3-case-group-handoff">
           <HandoffStripBlock gate={sales.gate} view={strip} className="space-y-3" />
           <HandoffGateForms actor={actor} gate={sales.gate} requestIds={requestIds} bare />
@@ -222,31 +259,8 @@ export function SalesOverview({
             { label: "Срок", value: profile.nextActionAt },
           ]}
         />
-        {/*
-         * Card ↔ chat link (plan §4/§12): only when a linked conversation
-         * already exists, and only for actors who can actually open
-         * Inbox (messaging.read — the route's own gate, symmetric with
-         * v3InboxProfileHref's reverse-direction check on the inbox
-         * page). The lead read already carries this (see types.ts).
-         */}
-        {sales.linkedConversations.length > 0 && staffPresentationCan(actor, "messaging.read") ? (
-          <div className="flex flex-col gap-1 border-t border-border px-4 py-2.5">
-            {sales.linkedConversations.map((conversation) => (
-              <Link
-                key={conversation.conversationId}
-                href={buildV3InboxHref({
-                  conversationId: conversation.conversationId,
-                  filters: { query: null, sort: "newest" },
-                })}
-                className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg"
-              >
-                {sales.linkedConversations.length > 1
-                  ? `Открыть переписку WhatsApp — ${conversation.subject}`
-                  : "Открыть переписку WhatsApp"}
-              </Link>
-            ))}
-          </div>
-        ) : null}
+        {/* Card ↔ chat link (plan §4/§12): см. LinkedConversationLinks. */}
+        <LinkedConversationLinks sales={sales} actor={actor} className="flex flex-col gap-1 border-t border-border px-4 py-2.5" />
       </Card>
 
       <ProfileSalesTransition

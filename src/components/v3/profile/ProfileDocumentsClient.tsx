@@ -484,7 +484,7 @@ export function ProfileDocumentsClient({
       ) : null}
 
       {canChangeChecklist && studentCaseId && createRequestId ? (
-        <div id={ADD_REGION_ID} hidden={!addOpen} className="space-y-4 border-y border-border py-4" data-testid="v3-document-add">
+        <div id={ADD_REGION_ID} hidden={!(addOpen || checklistEmpty)} className="space-y-4 border-y border-border py-4" data-testid="v3-document-add">
           {baseline}
           <CreateChecklistItem
             key={createRequestId}

@@ -177,22 +177,25 @@ export function Profile({
           Э8.4): 44 px, не переносится, лишнее прокручивается вбок без полосы
           прокрутки, у края с продолжением ряд гаснет, текущая вкладка видна.
           Прокрутка обрезает внешнюю рамку фокуса — `focusable` рисует её
-          внутри вкладки (v3.css). */}
-      <QueueTabStrip label="Разделы профиля" focusable testId="v3-profile-tabs">
-        <ul className="flex min-w-max items-center gap-1 border-b border-border pb-2">
-          {tabs.map((entry) => (
-            <li key={entry.key}>
-              <Link
-                href={hrefFor(entry.key)}
-                aria-current={entry.key === current ? "page" : undefined}
-                className="v3-choice inline-flex min-h-11 items-center whitespace-nowrap rounded-nav px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
-              >
-                {entry.title}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </QueueTabStrip>
+          внутри вкладки (v3.css). Одна вкладка («Обзор» у лида без содержимого) —
+          ряда нет. */}
+      {tabs.length > 1 ? (
+        <QueueTabStrip label="Разделы профиля" focusable testId="v3-profile-tabs">
+          <ul className="flex min-w-max items-center gap-1 border-b border-border pb-2">
+            {tabs.map((entry) => (
+              <li key={entry.key}>
+                <Link
+                  href={hrefFor(entry.key)}
+                  aria-current={entry.key === current ? "page" : undefined}
+                  className="v3-choice inline-flex min-h-11 items-center whitespace-nowrap rounded-nav px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
+                >
+                  {entry.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </QueueTabStrip>
+      ) : null}
 
       {current === "route" ? universityProgramsTab : null}
       {current === "overview" && caseOverview ? caseOverview : null}

@@ -23,18 +23,25 @@ export function composerDeadlineChoice(day: Day, defaultDay: Day | null): Choice
  * календаря — выбранный день (Э7). Быстрые варианты — «Сегодня», «Завтра»,
  * ближайшая пятница, «Дата…» (день и, если нужно, время по Бишкеку) и «Без
  * срока». Поля формы — те же, что принимают команды создания:
- * `deadline_kind`, `due_on`, `due_at`.
+ * `deadline_kind`, `due_on`, `due_at`. Тот же редактор — в панели задачи
+ * (`current` — срок задачи сейчас): один способ задать срок везде.
  */
-export function ComposerDeadlineField({ day, defaultDay = null, disabled = false }: Readonly<{
+export function ComposerDeadlineField({ day, defaultDay = null, current = null, disabled = false }: Readonly<{
   /** Сегодня в Бишкеке. */
   day: Day;
   /** День срока по умолчанию; null — сегодня. */
   defaultDay?: Day | null;
+  /** Срок задачи сейчас (по Бишкеку): день и минуты от полуночи; `day === null` — без срока. */
+  current?: Readonly<{ day: Day | null; minutes: number | null }> | null;
   disabled?: boolean;
 }>) {
-  const [choice, setChoice] = useState<Choice>(() => composerDeadlineChoice(day, defaultDay));
-  const [date, setDate] = useState(defaultDay ?? day);
-  const [time, setTime] = useState("");
+  const [choice, setChoice] = useState<Choice>(() => current
+    ? current.day === null ? "none" : current.minutes !== null ? "date" : composerDeadlineChoice(day, current.day)
+    : composerDeadlineChoice(day, defaultDay));
+  const [date, setDate] = useState(current?.day ?? defaultDay ?? day);
+  const [time, setTime] = useState(() => current?.day != null && current.minutes !== null
+    ? `${String(Math.floor(current.minutes / 60)).padStart(2, "0")}:${String(current.minutes % 60).padStart(2, "0")}`
+    : "");
   const friday = nextFriday(day);
   const quickDay = choice === "today" ? day : choice === "tomorrow" ? shiftDay(day, 1) : choice === "friday" ? friday : null;
   const kind = choice === "none" ? "none" : choice === "date" && time ? "timed" : "all_day";

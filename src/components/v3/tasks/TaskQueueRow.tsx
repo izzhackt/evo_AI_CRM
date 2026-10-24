@@ -16,7 +16,7 @@ import { Initials } from "../blocks/Initials";
 import { StatusChip } from "../blocks/StatusChip";
 import { dueWordOf, queueDue } from "../queue/due-bucket";
 import { shortPersonName } from "../queue/person-name";
-import { PHONE_HIDDEN, RowSelect } from "../queue/Bulk";
+import { RowSelect } from "../queue/Bulk";
 import { QueueFieldPopover } from "../queue/QueueFieldPopover";
 import { useAnchoredPopover } from "../queue/useAnchoredPopover";
 import { CASE_ERROR_COPY, STAFF_ERROR_COPY, caseChangeForm, dueTomorrow, staffEditForm, staffStatusForm, tomorrowDeadline } from "./task-commands";
@@ -63,15 +63,20 @@ export function taskRowAbilities(task: QueueTask, permissions: TaskRowPermission
 }
 
 /**
- * Колонка выбора (Э7): у списка с массовыми действиями первая колонка шире —
- * отметка и круг выполнения рядом. Строка, которую сотрудник не может
- * править, держит место пустым: колонки остаются ровными. На телефоне
- * отметок нет, пока не нажато «Выбрать» (`revealed`): круг выполнения не
- * соседствует с отметкой, название не теряет 44 px.
+ * Колонка выбора (Э7): у списка с массовыми действиями отметок нет, пока не
+ * нажато «Выбрать» или клавиша «x» (`revealed`): круг выполнения не соседствует
+ * с отметкой ни на телефоне, ни на компьютере. С отметками первая колонка шире —
+ * отметка и круг рядом; строка, которую сотрудник не может править, держит место
+ * пустым: колонки остаются ровными.
  */
 export type TaskRowSelect = Readonly<{ available: boolean; checked: boolean; onToggle: () => void; revealed: boolean }>;
 
 const ROW_BUTTON = "relative z-10 grid size-11 shrink-0 place-items-center rounded-full";
+/**
+ * Точка между частями строки — только от 32rem, где строка не переносится. На узкой строке части переносятся целиком
+ * и держатся отступом: точка осталась бы одна в конце или в начале строки.
+ */
+const SEP = <span aria-hidden="true" className="@max-[32rem]:hidden">·{" "}</span>;
 const MENU_ITEM = "flex min-h-11 w-full items-center rounded-nav px-3 text-start t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
 
 /** Слово состояния — только исключение: заблокирована, отменена; выполненная — в открытом виде. */
@@ -95,6 +100,7 @@ export function TaskQueueRow({
   announce,
   select = null,
   leadRef = null,
+  hideKind = false,
 }: Readonly<{
   task: QueueTask;
   href: string;
@@ -118,6 +124,8 @@ export function TaskQueueRow({
   select?: TaskRowSelect | null;
   /** Лид рабочей задачи («Перезвонить клиенту»): имя клиента вместо слова «Рабочая»; null — у задачи лида нет. */
   leadRef?: Readonly<{ name: string; href: string }> | null;
+  /** Список только рабочих задач: слово «Рабочая» в каждой строке ничего не различает. */
+  hideKind?: boolean;
 }>) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -194,13 +202,13 @@ export function TaskQueueRow({
   // Срок — своя колонка сразу перед названием (не у правого края): дата и
   // задача читаются вместе при любой ширине. Исполнитель — колонкой от 48rem.
   // С колонкой выбора ширина первой колонки — переменная `--row-lead`: 5.5rem
-  // (отметка и круг), на телефоне без «Выбрать» — 2.75rem (только круг).
-  const phoneHidden = select !== null && !select.revealed;
+  // (отметка и круг), без «Выбрать» — 2.75rem (только круг).
+  const selectHidden = select !== null && !select.revealed;
   const layout = showAssignee
     ? select ? "@3xl:grid-cols-[var(--row-lead)_7rem_minmax(0,1fr)_minmax(0,11rem)_2.75rem]" : "@3xl:grid-cols-[2.75rem_7rem_minmax(0,1fr)_minmax(0,11rem)_2.75rem]"
     : "";
   const [narrow, wide] = select
-    ? [`${phoneHidden ? "[--row-lead:5.5rem] max-sm:[--row-lead:2.75rem]" : "[--row-lead:5.5rem]"} grid-cols-[var(--row-lead)_minmax(0,1fr)_2.75rem]`, "@min-[32rem]:grid-cols-[var(--row-lead)_7rem_minmax(0,1fr)_2.75rem]"]
+    ? [`${selectHidden ? "[--row-lead:2.75rem]" : "[--row-lead:5.5rem]"} grid-cols-[var(--row-lead)_minmax(0,1fr)_2.75rem]`, "@min-[32rem]:grid-cols-[var(--row-lead)_7rem_minmax(0,1fr)_2.75rem]"]
     : ["grid-cols-[2.75rem_minmax(0,1fr)_2.75rem]", "@min-[32rem]:grid-cols-[2.75rem_7rem_minmax(0,1fr)_2.75rem]"];
   // Без имени студента после срока на узкой строке идут только «дело закрыто» и слово-исключение.
   const tail = task.caseState === "closed" || word !== null;
@@ -214,8 +222,9 @@ export function TaskQueueRow({
     >
       <div className="flex">
         {select ? (select.available && !done
-          ? <RowSelect label={task.title} checked={select.checked} onToggle={select.onToggle} phoneHidden={phoneHidden} />
-          : <span aria-hidden="true" className={`size-11 shrink-0${phoneHidden ? ` ${PHONE_HIDDEN}` : ""}`} />) : null}
+          // Отметка остаётся в разметке и скрытой: клавиша «x» отмечает строку, и после неё отметки показываются.
+          ? <span className={selectHidden ? "hidden" : "contents"}><RowSelect label={task.title} checked={select.checked} onToggle={select.onToggle} /></span>
+          : <span aria-hidden="true" className={`size-11 shrink-0${selectHidden ? " hidden" : ""}`} />) : null}
         {done ? (
           <span className={`${ROW_BUTTON} text-ok`}><Icon name="circle-check" size={22} /></span>
         ) : can.complete && task.kind === "staff" ? (
@@ -267,16 +276,15 @@ export function TaskQueueRow({
             Завершено
           </p>
         ) : (
-          <p className="flex min-h-6 min-w-0 items-center gap-x-1 overflow-hidden whitespace-nowrap t-meta text-fg-2 @min-[32rem]:overflow-visible">
-            {/* Узкая строка: срок первым, как колонка срока на широкой. Срок и
-                слово-исключение не сжимаются; имя студента, «Рабочая» и «из чата»
-                сокращаются многоточием. Крайний случай обрезается у края: на узкой
-                ширине в строке нет ссылок, и рамке фокуса обрезаться нечему. */}
+          <p className="flex min-h-6 min-w-0 flex-wrap items-center gap-x-2 t-meta text-fg-2 @min-[32rem]:gap-x-1">
+            {/* Узкая строка: срок первым, как колонка срока на широкой. Части строки
+                переносятся целиком: имя студента и «Рабочая» не превращаются в «Р…».
+                Одна часть, не помещающаяся в строку, сокращается многоточием. */}
             {due ? (
               <span className="shrink-0 @min-[32rem]:hidden">
                 <span>
                   {due.caption ? `${due.caption} ` : null}<time dateTime={due.dateTime} className="font-mono tabular-nums">{due.text}</time>{dueWord ? <> <DueWord view={dueWord} /></> : null}
-                </span>{hideStudent && !tail ? null : " ·"}
+                </span>
               </span>
             ) : null}
             {hideStudent ? null : task.kind === "case" && task.studentCaseId ? <>
@@ -296,13 +304,13 @@ export function TaskQueueRow({
                 <span className="truncate">{leadRef.name}</span>
               </Link>
               <span className="min-w-0 truncate md:pointer-fine:hidden">{leadRef.name}</span>
-              {task.fromChat ? <span className="min-w-0 shrink-[2] truncate">· из чата</span> : null}
+              {task.fromChat ? <span className="min-w-0 shrink-[2] truncate">{SEP}из чата</span> : null}
             </> : <>
-              <span className="min-w-0 truncate">Рабочая</span>
-              {task.fromChat ? <span className="min-w-0 shrink-[2] truncate">· из чата</span> : null}
+              {hideKind ? null : <span className="min-w-0 truncate">Рабочая</span>}
+              {task.fromChat ? <span className="min-w-0 shrink-[2] truncate">{hideKind ? null : SEP}из чата</span> : null}
             </>}
-            {task.caseState === "closed" ? <span className="min-w-0 truncate">{hideStudent ? "" : "· "}дело закрыто</span> : null}
-            {word ? <span className="shrink-0">{hideStudent && task.caseState !== "closed" ? "" : "· "}<StatusChip label={word} tone={task.status === "blocked" ? "warn" : "neutral"} /></span> : null}
+            {task.caseState === "closed" ? <span className="min-w-0 truncate">{hideStudent ? null : SEP}дело закрыто</span> : null}
+            {word ? <span className="shrink-0">{hideStudent && task.caseState !== "closed" ? null : SEP}<StatusChip label={word} tone={task.status === "blocked" ? "warn" : "neutral"} /></span> : null}
             {/* Без своей колонки (32–48rem: панель открыта рядом) исполнитель
                 помечен «исп.» и сокращён — его не спутать со студентом или
                 источником; сжимается медленнее имени студента. */}
@@ -348,7 +356,7 @@ export function TaskQueueRow({
         </> : <span aria-hidden="true" className="size-11" />}
       </div>
 
-      {error ? <p role="alert" className={`col-span-full pb-2 t-body-compact text-danger ${select ? phoneHidden ? "ps-[6rem] max-sm:ps-[3.25rem]" : "ps-[6rem]" : "ps-[3.25rem]"}`}>{error}</p> : null}
+      {error ? <p role="alert" className={`col-span-full pb-2 t-body-compact text-danger ${select ? selectHidden ? "ps-[3.25rem]" : "ps-[6rem]" : "ps-[3.25rem]"}`}>{error}</p> : null}
 
       {task.kind === "case" && can.complete ? (
         <QueueFieldPopover

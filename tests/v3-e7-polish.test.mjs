@@ -272,9 +272,9 @@ test("without staff.task.create the case search is open and cannot be folded awa
   assert.match(caseOnly, /data-composer-mode="case"/u);
   assert.match(caseOnly, /<div class="grid gap-3 sm:grid-cols-2" data-composer-context="case-search">/u);
   assert.match(caseOnly, /<select id="[^"]+" name="student_case_id" required=""/u);
-  assert.doesNotMatch(caseOnly, /<summary[^>]*>Студент\/дело/u, "a required case is not an optional, foldable section");
+  assert.doesNotMatch(caseOnly, /<summary[^>]*>Студент или дело/u, "a required case is not an optional, foldable section");
   // С правом на рабочую задачу дело — необязательный раздел, как прежде.
-  assert.match(renderComposer({}), /<summary[^>]*>Студент\/дело · необязательно/u);
+  assert.match(renderComposer({}), /<summary[^>]*>Студент или дело/u);
 });
 
 test("the browser draft store tolerates a blocked or corrupt localStorage", () => {
@@ -338,16 +338,16 @@ test("the composer is prefilled by its entry point: case, page case, lead, calen
   // «+ Задача» дела: дело входа, без поиска и без «Без дела».
   const caseEntry = renderComposer({ staffAllowed: false, initialCase: CASE, initialCaseAssignees: [{ membershipId: ME, displayName: "Сотрудник А" }] });
   assert.match(caseEntry, /data-composer-mode="case"/u);
-  assert.match(caseEntry, /Студент\/дело: <\/span>Синтетический студент/u);
+  assert.match(caseEntry, /Студент: <\/span>Синтетический студент/u);
   assert.doesNotMatch(caseEntry, /Без дела|name="student_case_id"/u);
   // Кнопка меню на странице дела: дело из страницы, его можно убрать и поставить рабочую задачу.
   const pageCase = renderComposer({ initialCase: CASE, caseRemovable: true });
-  assert.match(pageCase, /Студент\/дело: <\/span>Синтетический студент[\s\S]*>Без дела<\/button>/u);
+  assert.match(pageCase, /Студент: <\/span>Синтетический студент[\s\S]*>Без дела<\/button>/u);
   // Lead 360: рабочая задача по лиду, дело не предлагается.
   const lead = renderComposer({ caseAllowed: false, sourceLeadId: LEAD.id, sourceLeadVersion: LEAD.version, sourceLeadName: LEAD.name });
   assert.match(lead, /data-composer-mode="staff"/u);
   assert.match(lead, /data-composer-context="lead"><span class="text-fg-2">Лид: <\/span>Синтетический лид/u);
-  assert.doesNotMatch(lead, /Студент\/дело/u);
+  assert.doesNotMatch(lead, /Студент или дело/u);
   // Календарь: срок по умолчанию — выбранный день, не сегодня.
   const calendar = renderComposer({ defaultDueDay: "2026-09-29" });
   assert.match(calendar, /<input type="hidden" name="due_on" value="2026-09-29"\/>/u);
@@ -434,6 +434,44 @@ test("«Перенести срок» sends each task through its existing comma
   // Выбрать можно только то, что сотрудник может править (та же подсказка, что у «⋯» строки).
   const list = read("src/components/v3/tasks/TaskQueueList.tsx");
   assert.match(list, /taskRowAbilities\(task, permissions, open, now\)\.edit/u);
+});
+
+test("«Завершить» выбранных sends each task through the command of its row circle: a staff task by status, a case task with the result as its reason", async () => {
+  const staff = recorder("mutateStaffTaskAction", [
+    { status: "saved", requestId: "r", taskId: "t", version: "4" },
+    { status: "unavailable", requestId: "r", taskId: null, version: null },
+  ]);
+  const caseAction = recorder("changePlatformAdmissionsTaskAction", [{ status: "saved", requestId: "r", caseTaskId: "c", version: "6", changedAt: null }]);
+  const tasksBulk = compile("src/components/v3/tasks/TaskBulkActions.tsx", (id) => {
+    if (id === "@/lib/platform-staff-task-actions") return { mutateStaffTaskAction: staff.action };
+    if (id === "@/lib/platform-admissions-task-actions") return { changePlatformAdmissionsTaskAction: caseAction.action };
+    if (id === "@/lib/platform-task-deadline") return taskDeadline;
+    if (id === "../queue/Bulk") return bulk;
+    if (id === "../queue/queue-buttons") return queueButtons;
+    if (id === "./task-commands") return taskCommands;
+    return require(id);
+  });
+  const staffTask = { kind: "staff", key: "staff:1", id: "40000000-0000-4000-8000-000000000001", title: "Перезвонить клиенту", description: null, status: "open",
+    priority: "normal", dueOn: "2026-09-22", dueAt: null, version: "3", assigneeMembershipId: ME, assigneeDisplayName: "А",
+    creatorMembershipId: ME, studentCaseId: null, studentDisplayName: null, caseState: null, studentVisible: null, fromChat: false, updatedAt: "x" };
+  assert.deepEqual(await tasksBulk.completeTask(staffTask, "Не дозвонились", "50000000-0000-4000-8000-000000000011"), { error: null, unconfirmed: false });
+  assert.deepEqual(
+    [staff.calls[0].operation, staff.calls[0].status, staff.calls[0].completion_note, staff.calls[0].expected_version, staff.calls[0].task_id, staff.calls[0].request_id],
+    ["status", "done", "Не дозвонились", "3", staffTask.id, "50000000-0000-4000-8000-000000000011"],
+  );
+  const unconfirmed = await tasksBulk.completeTask(staffTask, "", "50000000-0000-4000-8000-000000000012");
+  assert.equal(unconfirmed.unconfirmed, true, "an unknown outcome keeps the request key for a repeat");
+  assert.equal(staff.calls[1].completion_note, "");
+  const caseTask = { ...staffTask, kind: "case", key: "case:1", id: "60000000-0000-4000-8000-000000000001", version: "5",
+    studentCaseId: CASE.id, studentDisplayName: CASE.name, caseState: "active", studentVisible: false, creatorMembershipId: null };
+  assert.deepEqual(await tasksBulk.completeTask(caseTask, "Документы приняты", "50000000-0000-4000-8000-000000000013"), { error: null, unconfirmed: false });
+  assert.deepEqual(
+    [caseAction.calls[0].case_task_id, caseAction.calls[0].status, caseAction.calls[0].reason, caseAction.calls[0].expected_version, caseAction.calls[0].request_id],
+    [caseTask.id, "done", "Документы приняты", "5", "50000000-0000-4000-8000-000000000013"],
+  );
+  // Завершает тот, кто может завершить строкой: список считает это тем же `taskRowAbilities().complete`, а не правом правки.
+  const list = read("src/components/v3/tasks/TaskQueueList.tsx");
+  assert.match(list, /taskRowAbilities\(selectable\.get\(key\)!, permissions, open, now\)\.complete/u);
 });
 
 test("«Назначить куратора» and «Изменить срок шага» use the single-case commands with their own checks", async () => {
@@ -629,7 +667,7 @@ test("the composer keeps «Создать задачу» in a pinned footer and 
   const withPicker = renderComposer({ staffAllowed: false });
   for (const markup of [html, withCase, withPicker]) assert.doesNotMatch(markup, /\btext-(?:sm|xs)\b/u);
   assert.match(html, /<label class="block t-label text-fg">Название/u);
-  assert.match(withPicker, /class="t-label text-fg-2">Найти активное дело студента<\/label>/u);
+  assert.match(withPicker, /class="t-label text-fg-2">Студент<\/label>/u);
 });
 
 test("one create button per calendar screen: the shell opens the composer with the day and the cases already read", () => {
@@ -684,11 +722,11 @@ test("phone: no checkbox beside the completion circle until «Выбрать»; 
   const source = read("src/components/v3/queue/Bulk.tsx");
   assert.match(source, /clear: \(\) => \{ setSelected\(\[\]\); setPicking\(false\); \}/u);
   assert.match(source, /revealed: picking \|\| live\.length > 0/u);
-  // Обе очереди: «Выбрать» над списком, строки знают, видны ли отметки на телефоне.
-  assert.match(read("src/components/v3/tasks/TaskQueueList.tsx"), /\{bulk \? <BulkPickToggle selection=\{selection\} \/> : null\}/u);
+  // «Студенты»: «Выбрать» над списком. «Задачи»: своя кнопка в строке заголовка первой группы и отметки, скрытые на любой ширине, пока не нажато «Выбрать».
+  assert.match(read("src/components/v3/tasks/TaskQueueList.tsx"), /data-testid="queue-bulk-pick"[\s\S]*?\{selection\.revealed \? "Отмена" : "Выбрать"\}/u);
   assert.match(read("src/components/v3/tasks/TaskQueueList.tsx"), /revealed: selection\.revealed \}/u);
   assert.match(read("src/components/v3/students/StudentsQueueBody.tsx"), /\{bulk && !empty \? <BulkPickToggle selection=\{selection\} \/> : null\}/u);
-  assert.match(read("src/components/v3/tasks/TaskQueueRow.tsx"), /"\[--row-lead:5\.5rem\] max-sm:\[--row-lead:2\.75rem\]"/u);
+  assert.match(read("src/components/v3/tasks/TaskQueueRow.tsx"), /selectHidden \? "\[--row-lead:2\.75rem\]" : "\[--row-lead:5\.5rem\]"/u);
 });
 
 test("after a full success focus goes to a sent row still on the page, then the first row — never body", () => {

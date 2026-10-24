@@ -10,13 +10,13 @@ import type { StaffParticipant, StaffTask } from "@/lib/platform-staff-task-cont
 import { projectPlatformTaskDeadline } from "@/lib/platform-task-deadline";
 import { DIAL_TOUCH_HINT } from "@/lib/v3/telephony-dial";
 import { taskStatus } from "@/lib/v3/wording";
-import { DeadlineFields } from "../calendar/TaskControls";
 import type { CalendarCaseTask, CalendarTaskCapabilities, Day } from "../calendar/types";
 import { queueDue } from "../queue/due-bucket";
 import { QUEUE_CONFIRM, QUEUE_FIELD, QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { queueRowReturn } from "../panel/side-panel";
 import { SidePanel } from "../panel/SidePanel";
 import { DialButton } from "../telephony/DialButton";
+import { ComposerDeadlineField } from "./ComposerDeadlineField";
 import { CASE_ERROR_COPY, STAFF_ERROR_COPY, caseChangeForm, staffEditForm, staffStatusForm, type DeadlineFieldValues } from "./task-commands";
 
 type StaffTaskExtra = Readonly<{
@@ -197,7 +197,7 @@ export function TaskDetailPanel({
         {!isDone && !readOnly ? (
           <form onSubmit={complete} className="space-y-3 border-t border-border pt-4">
             {data.kind === "staff"
-              ? <label className="block t-label text-fg-2">Результат работы · необязательно
+              ? <label className="block t-label text-fg-2">Результат
                   <textarea value={completionNote} onChange={(event) => setCompletionNote(event.target.value)} maxLength={4000} rows={2} disabled={pending}
                     className={`${QUEUE_FIELD} h-auto min-h-20 py-2`} placeholder="Что сделано и какой следующий шаг" />
                 </label>
@@ -237,7 +237,7 @@ export function TaskDetailPanel({
           {data.kind === "staff" && data.extra?.sourceHref ? <Link href={data.extra.sourceHref} className={LINK}>Открыть исходное обсуждение</Link> : null}
         </div>
         {data.kind === "staff" && data.extra && !data.extra.sourceHref && data.extra.sourceUnavailable
-          ? <p className="t-body-compact text-fg-3">Исходное обсуждение недоступно для вашей роли или обновите страницу.</p> : null}
+          ? <p className="t-body-compact text-fg-3">Обсуждение недоступно.</p> : null}
 
         {/* Per the current rule (migration 156_platform_scoped_staff_consumers.sql,
             e.g. :925-931's task.assign/task.manage split; mirrored live by
@@ -263,11 +263,8 @@ export function TaskDetailPanel({
                       {assigneeOptions.map((person) => <option key={person.membershipId} value={person.membershipId}>{person.displayName}</option>)}
                     </select>}
               </label>
-              {/* Одна колонка, как форма «Изменить задачу» календаря: поля 16 px
-                  в две колонки (~185 px) обрезали минуты «Точного времени». */}
-              <div className="grid gap-3">
-                <DeadlineFields day={day} task={{ dueOn, dueAt, day: projection.day, minutes: projection.minutes }} defaultKind="none" />
-              </div>
+              {/* Срок — тот же редактор, что в диалоге «Новая задача»: «Сегодня», «Завтра», «Дата…», «Без срока». */}
+              <ComposerDeadlineField day={day} current={{ day: projection.day, minutes: projection.minutes }} disabled={pending} />
               {data.kind === "case" ? <label className="block t-label text-fg-2">Причина изменения
                 <input value={editReason} onChange={(event) => setEditReason(event.target.value)} required maxLength={1000} disabled={pending} className={QUEUE_FIELD} />
               </label> : null}

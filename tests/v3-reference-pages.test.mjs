@@ -273,7 +273,12 @@ test("«Настройки»: every staff view has one section heading — no hi
 
 test("«Настройки»: open on «Сотрудники», one section list, no «админ» marks, one integrations table", () => {
   const staff = page("settings-staff");
-  const nav = staff.match(/<nav aria-label="Разделы настроек"[\s\S]*?<\/nav>/u)[0];
+  const navAll = staff.match(/<nav aria-label="Разделы настроек"[\s\S]*?<\/nav>/u)[0];
+  // Узкий экран — текущий раздел одной кнопкой со списком (`details`), от 56rem — столбец; ссылки в обоих те же.
+  assert.match(navAll, /^<nav [^>]*><details class="group @4xl:hidden"[^>]*><summary [^>]*>Сотрудники<svg/u);
+  const nav = navAll.slice(navAll.indexOf('<ul class="hidden gap-1 @4xl:flex @4xl:flex-col">'));
+  assert.deepEqual([...navAll.slice(0, navAll.indexOf('<ul class="hidden')).matchAll(/<a\b[^>]*>([^<]+)<\/a>/gu)].map((match) => match[1]),
+    ["Сотрудники", "Роли и доступ", "Отделы", "Интеграции", "Телефония", "Журнал действий", "Запросы на удаление", "Документы и передача", "Платформа"]);
   assert.deepEqual([...nav.matchAll(/<a\b[^>]*>([^<]+)<\/a>/gu)].map((match) => match[1]),
     ["Сотрудники", "Роли и доступ", "Отделы", "Интеграции", "Телефония", "Журнал действий", "Запросы на удаление", "Документы и передача", "Платформа"]);
   // «Телефония» (T4b, 17.10.2026): раздел «Настройки → Телефония» стоит сразу после «Интеграций».
@@ -283,7 +288,8 @@ test("«Настройки»: open on «Сотрудники», one section list
   // Search, «Отдел» and «Доступ» in one toolbar row above the list and the card (review #1079).
   const toolbar = staff.match(/<div role="search" aria-label="Поиск сотрудников" class="flex flex-wrap items-center gap-2">[\s\S]*?<\/div>/u)?.[0] ?? assert.fail("staff toolbar row");
   assert.equal([...toolbar.matchAll(/<input type="search"|<select /gu)].length, 3);
-  assert.match(toolbar, /Показано <span class="tabular-nums">5<\/span> из <span class="tabular-nums">5<\/span>/u);
+  // «Показано N из M» — только когда отбор что-то скрыл.
+  assert.doesNotMatch(toolbar, /Показано/u);
   assert.ok(staff.indexOf('aria-label="Поиск сотрудников"') < staff.indexOf('aria-label="Список сотрудников"'), "the row stands above the list");
 
   const integrations = page("settings-integrations");
@@ -291,8 +297,9 @@ test("«Настройки»: open on «Сотрудники», one section list
   assert.deepEqual([...integrations.matchAll(/data-integration="([a-z]+)"/gu)].map((match) => match[1]), ["whatsapp", "amocrm", "gemini"]);
   assert.doesNotMatch(integrations, /data-testid="v3-settings-blocking"/u, "production facts are not a warning");
   assert.doesNotMatch(integrations, /Требует внимания|v3-edge-|border-s-2/u);
-  assert.match(text(integrations), /WhatsApp не подключён Последняя проверка: нет данных Что не работает: Входящие WhatsApp не приходят в CRM, ответить отсюда нельзя Что сделать: Подключить WhatsApp/u);
-  assert.match(integrations, /<a class="inline-flex min-h-11[^"]*" href="\/v3\/settings\?section=integrations#whatsapp-connect">Подключить WhatsApp<\/a>/u);
+  assert.match(text(integrations), /WhatsApp не подключён Последняя проверка: нет данных Что не работает: Входящие WhatsApp не приходят в CRM, ответить отсюда нельзя/u);
+  // Блок «Подключение WhatsApp» стоит под таблицей, поэтому ссылка на него из строки не нужна: путь один — кнопка «Подключить» в блоке.
+  assert.doesNotMatch(integrations, /<a class="inline-flex min-h-11[^"]*" href="\/v3\/settings\?section=integrations#whatsapp-connect">Подключить WhatsApp<\/a>/u);
 
   // «Подключение WhatsApp» (20.10.2026): блок под таблицей, у Администратора. Состояния WAHA нет — слова состояния нет,
   // только честное «определить не удалось»; кнопки «Подключить» и «Получить код» есть, «Отключить» и «Выйти» нет.
@@ -311,8 +318,11 @@ test("«Настройки»: open on «Сотрудники», one section list
   assert.doesNotMatch(blocked, /data-status=|SCAN_QR_CODE/u, "the provider word never reaches the page");
   assert.match(text(blocked), /Подключение WhatsApp Ожидает подключения/u);
   assert.match(blocked, /<span class="v3-chip t-caption" data-tone="warn"[^>]*>Ожидает подключения<\/span>/u);
-  assert.equal([...blocked.matchAll(/data-testid="v3-settings-blocking"/gu)].length, 1, "one warning on top");
-  assert.match(text(blocked), /Не работают: WhatsApp — требуется подключение WhatsApp по QR-коду; amoCRM — доступ к аккаунту amoCRM не подтверждён\./u);
+  // На самих «Интеграциях» то же стоит в таблице, поэтому предупреждения над ней нет; над остальными разделами оно есть (v3-truthful-state).
+  assert.equal([...blocked.matchAll(/data-testid="v3-settings-blocking"/gu)].length, 0, "the table already says it");
+  assert.doesNotMatch(text(blocked), /Не работают:/u);
+  assert.match(text(blocked), /WhatsApp заблокирован Требуется подключение WhatsApp по QR-коду\./u);
+  assert.match(text(blocked), /amoCRM заблокирована Доступ к аккаунту amoCRM не подтверждён\./u);
   assert.match(blocked, /<time dateTime="2026-09-26T08:15:00.000Z" class="font-mono tabular-nums text-fg">26\.09 14:15<\/time>/u);
 });
 

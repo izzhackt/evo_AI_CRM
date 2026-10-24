@@ -19,7 +19,7 @@ import { isTeamChatChannel, staffCanAccessChatChannel, type TeamChatMessage } fr
 import { readTeamChatPage, TeamChatReadError } from "@/lib/server/platform-team-chat-repository";
 import { readStaffTaskChatSource, readStaffTaskContext, readStaffTaskLeadContext, readLeadTaskLinks, type StaffTaskContext } from "@/lib/server/platform-staff-task-repository";
 import { readDialOptions } from "@/lib/v3/telephony-dial-source";
-import { readLeadRef, type TaskLeadRef } from "@/lib/v3/telephony-task-leads-source";
+import { readLeadRef, readQueueTaskLeads, type TaskLeadRef } from "@/lib/v3/telephony-task-leads-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Задачи" };
@@ -124,6 +124,8 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   // Панель — часть адреса списка: закрытие возвращает те же вид, фильтры и поиск.
   const closeHref = listHref();
   const canReadTaskQueue = workspace.canReadStaffTasks || workspace.canReadCaseTasks;
+  // Задачи-перезвоны называют клиента в строке; чтение не удалось — строка остаётся «Рабочая».
+  const taskLeads = canReadTaskQueue && workspace.canReadStaffTasks ? await readQueueTaskLeads(actor, queue.bands.flatMap((band) => band.rows)) : {};
   const staffAllowed = !preview && staffHasPermission(actor, "staff.task.create") && !sourceLeadId;
   const composerProps = {
     participants: workspace.assignees, actorMembershipId: actor.membershipId, actor, day, staffAllowed,
@@ -151,7 +153,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   }} /> : null;
 
   return <>
-    <PartShell title="Задачи" count={canReadTaskQueue && queue.complete && !sourceLead ? queue.rows.length : null}>
+    <PartShell title="Задачи" count={canReadTaskQueue && queue.complete && !sourceLead && !workspace.canReadStaffTasks && !access.teamView ? queue.rows.length : null}>
     {sourceLead ? <section className="mb-5 space-y-3 border-y border-border py-4" aria-label="Задачи по лиду">
       <h2 className="t-section">{callerDisplayName(sourceLead.clientDisplayName ?? "Имя клиента не указано")}</h2>
       <p className="t-body-compact text-fg-2">Следующее действие воронки: {sourceLead.nextActionText ?? "Не назначено"}{sourceLead.nextActionDueDate ? ` · ${sourceLead.nextActionDueDate}` : ""}</p>
@@ -160,14 +162,14 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         openIntent={openIntent ?? single(params, "create") ?? null} triggerLabel="Новая задача по лиду"
         triggerClassName="inline-flex min-h-11 items-center rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg" />
       <h3 className="t-item">Связанные рабочие задачи</h3>
-      {leadTasks?.rows.length ? <ul className="divide-y divide-border">{leadTasks.rows.map((task) => <li key={task.id}><Link href={`/v3/tasks?task=${task.id}`} className="flex min-h-11 flex-wrap items-center justify-between gap-2 py-2 t-body-compact"><span className="break-words underline">{task.title}</span><Badge value={task.status} label={taskStatus(task.status) ?? task.status} /></Link></li>)}</ul> : <EmptyState text="Нет доступных связанных задач. Можно создать первую выше." />}
-      {leadTasks?.truncated ? <p className="t-body-compact text-fg-2">Показаны последние 50 задач. Остальные доступны в общем списке.</p> : null}
-      <Link href="/v3/tasks" className="inline-flex min-h-11 items-center t-label underline">Все мои задачи →</Link>
+      {leadTasks?.rows.length ? <ul className="divide-y divide-border">{leadTasks.rows.map((task) => <li key={task.id}><Link href={`/v3/tasks?task=${task.id}`} className="flex min-h-11 flex-wrap items-center justify-between gap-2 py-2 t-body-compact"><span className="break-words underline">{task.title}</span><Badge value={task.status} label={taskStatus(task.status) ?? task.status} /></Link></li>)}</ul> : <EmptyState text="Связанных задач нет." />}
+      {leadTasks?.truncated ? <p className="t-body-compact text-fg-2">Показаны последние 50.</p> : null}
+      <Link href="/v3/tasks" className="inline-flex min-h-11 items-center t-label underline">Все мои задачи</Link>
     </section> : <>
     {sourceMessage ? <section className="mb-4 space-y-2 border-y border-border py-4" aria-label="Исходное сообщение">
       <p className="t-item">Задача из сообщения · {sourceMessage.authorName}</p>
       <p className="whitespace-pre-wrap break-words t-body-compact">{sourceMessage.body}</p>
-      <p className="t-body-compact text-fg-3">Проверьте название и исполнителя перед сохранением. Доступ к закрытому каналу не расширяется.</p>
+      <p className="t-body-compact text-fg-3">Проверьте название и исполнителя. Доступ к каналу не меняется.</p>
       <Link href={`/v3/team-chat?channel=${sourceMessage.channelKey}&message=${sourceMessage.id}`} className="inline-flex min-h-11 items-center t-label underline">Вернуться к сообщению</Link>
     </section> : null}
     <TasksWorkspace
@@ -190,6 +192,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
         caseManage: staffHasPermission(actor, "task.manage"), caseAssign: staffHasPermission(actor, "task.assign"),
       }}
       selectedKey={selectedKey}
+      taskLeads={taskLeads}
       panel={panel}
     />
     </>}

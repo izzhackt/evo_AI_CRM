@@ -63,6 +63,7 @@ export function TasksWorkspace({
   urlIntent,
   permissions,
   selectedKey,
+  taskLeads = null,
   panel,
 }: Readonly<{
   filters: TaskQueueFilters;
@@ -83,6 +84,8 @@ export function TasksWorkspace({
   urlIntent: string | null;
   permissions: TaskRowPermissions;
   selectedKey: string | null;
+  /** Клиенты задач-перезвонов по ключу строки: имя вместо слова «Рабочая». */
+  taskLeads?: Readonly<Record<string, Readonly<{ name: string; href: string }>>> | null;
   /** Панель выбранной задачи (читает страница) или null. */
   panel: ReactNode;
 }>) {
@@ -163,14 +166,14 @@ export function TasksWorkspace({
       */}
       {canReadTaskQueue && tabs.length > 1 ? <QueueViewTabs label="Чьи задачи" tabs={tabs} /> : null}
       {canReadTaskQueue ? <QueueToolbar
-        search={{ action: "/v3/tasks", name: "q", defaultValue: filters.query, placeholder: "Задача или студент", label: "Найти задачу",
+        search={{ action: "/v3/tasks", name: "q", defaultValue: filters.query, placeholder: "Задача, студент", label: "Найти задачу",
           hidden: { ...listParams, q: null } }}
         filters={filterMenus}
         activeCount={active}
-        resetHref={active ? listHref({ type: null, due: null, q: null, status: null, window: null }) : null}
+        resetHref={active > 1 || (active === 1 && filters.query) ? listHref({ type: null, due: null, q: null, status: null, window: null }) : null}
         keys={filters.state === "open" && !permissions.preview && (permissions.staffEdit || permissions.caseManage) ? [SELECT_KEY] : []}
       /> : null}
-      {createdExcludesCases ? <p className="t-body-compact text-fg-2">Здесь только рабочие задачи: автор задач по студентам в общем списке не читается.</p> : null}
+      {createdExcludesCases ? <p className="t-body-compact text-fg-2">Здесь только рабочие задачи: у задач по студентам автора в этом списке нет.</p> : null}
       <div className={sidePanelSplit(Boolean(panel))}>
         <div className="min-w-0 space-y-3">
           <div className="@container min-w-0">
@@ -189,11 +192,13 @@ export function TasksWorkspace({
               showAssignee={filters.view !== "mine"}
               nowIso={nowIso}
               permissions={permissions}
+              leads={taskLeads}
+              hideKind={filters.type === "staff"}
             />}
           </div>
           {/* Пустое неполное чтение уже сказало это в пустом состоянии. */}
           {canReadTaskQueue && !queue.complete && queue.rows.length > 0 ? <p role="status" className="flex flex-wrap items-center gap-x-4 t-body-compact text-fg-2">
-            Показаны не все задачи: список больше, чем читается за один раз, и числа скрыты.
+            Показаны не все задачи, числа скрыты.
             {readNext ? <Link href={readNext.href} scroll={false} className={QUEUE_QUIET_LINK}>{readNext.label}</Link> : null}
           </p> : null}
         </div>

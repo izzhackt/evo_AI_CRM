@@ -266,9 +266,14 @@ export function Calendar({
                 <span className="sr-only">{stepLabel(view, -1)}</span>
                 <Icon name="chevron-right" size={16} className="rotate-180" />
               </Link>
-              <Link href={href(view, today)} className={`${GHOST_BASE} px-1.5 md:px-3`}>
-                Сегодня
-              </Link>
+              {/* Уже на сегодняшнем дне — «Сегодня» никуда не ведёт и выглядит выключенным. */}
+              {day === today ? (
+                <span aria-disabled="true" className="inline-flex min-h-11 items-center justify-center px-1.5 t-label text-fg-3 md:px-3">Сегодня</span>
+              ) : (
+                <Link href={href(view, today)} className={`${GHOST_BASE} px-1.5 md:px-3`}>
+                  Сегодня
+                </Link>
+              )}
               <Link href={href(view, stepDay(view, day, 1))} className={`${GHOST_BASE} w-11`}>
                 <span className="sr-only">{stepLabel(view, 1)}</span>
                 <Icon name="chevron-right" size={16} />
@@ -417,7 +422,7 @@ export function Calendar({
             {unavailableTarget ? <div className="space-y-3">
               <p role="status" className="t-body-compact text-fg-2">Эта задача недоступна в вашем личном календаре.</p>
               <Link href={unavailableTarget.returnHref} className={PANEL_LINK}>Вернуться в календарь</Link>
-              <p><Link href="/v3/tasks" className={PANEL_LINK}>Открыть раздел «Задачи»</Link></p>
+              <p><Link href="/v3/tasks" className={PANEL_LINK}>Все задачи</Link></p>
             </div> : open ? (
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -439,17 +444,17 @@ export function Calendar({
                   {open.person ? ` · ${open.person}` : ""}
                 </p>
                 <p className="mt-1 t-meta text-fg-3">
-                  Ответственный: <span className="text-fg-2">{open.assigneeDisplayName}</span>
+                  Исполнитель: <span className="text-fg-2">{open.assigneeDisplayName}</span>
                 </p>
                 {open.kind === "case" && openCapabilities?.canReadCase ? <Link
                   href={`/v3/profile?case=${encodeURIComponent(open.studentCaseId)}`}
                   className={`mt-2 ${PANEL_LINK}`}
                 >
-                  Открыть раздел «Студенты»
+                  Открыть дело
                 </Link> : null}
                 {open.kind === "staff" ? (
                   <Link href={`/v3/tasks?type=staff&view=mine&status=all&task=${encodeURIComponent(open.id)}`} className={`mt-2 ${PANEL_LINK}`}>
-                    Открыть задачу и действия
+                    Открыть задачу
                   </Link>
                 ) : null}
                 {open.details ? <p className="mt-3 t-body-compact text-fg">{open.details}</p> : null}

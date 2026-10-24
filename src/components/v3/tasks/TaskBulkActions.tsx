@@ -10,7 +10,7 @@ import type { QueueTask } from "@/lib/v3/task-queue";
 
 import { BulkActionDialog, BulkBar, BulkDueField, bulkDueDay, useBulkRequestIds, type BulkDueChoice, type BulkSelection } from "../queue/Bulk";
 import { QUEUE_FIELD } from "../queue/queue-buttons";
-import { CASE_ERROR_COPY, STAFF_ERROR_COPY, caseChangeForm, movedDeadline, staffEditForm } from "./task-commands";
+import { CASE_ERROR_COPY, STAFF_ERROR_COPY, caseChangeForm, movedDeadline, staffEditForm, staffStatusForm } from "./task-commands";
 
 export const TASK_NOUN = { one: "задача", few: "задачи", many: "задач" } as const;
 
@@ -50,7 +50,39 @@ export async function rescheduleTask(
 }
 
 /**
- * «Перенести срок» выбранных задач (Э7). Выбирают только задачи, которые
+ * Одна строка завершения — существующая команда этой задачи, как у круга строки:
+ * рабочая — `mutate_staff_task` status (результат необязателен), по студенту —
+ * `change_case_task` с результатом как причиной. Своя ожидаемая версия, свой
+ * ключ запроса; ответ — причина отказа словами или null.
+ */
+export async function completeTask(
+  task: QueueTask,
+  result: string,
+  requestId: string,
+): Promise<Readonly<{ error: string | null; unconfirmed: boolean }>> {
+  if (task.kind === "staff") {
+    const form = staffStatusForm(task, "done", result);
+    form.set("request_id", requestId);
+    const state = await mutateStaffTaskAction({ status: "idle", requestId, taskId: null, version: null }, form);
+    return state.status === "saved"
+      ? { error: null, unconfirmed: false }
+      : { error: STAFF_ERROR_COPY[state.status] ?? "Не удалось сохранить.", unconfirmed: state.status === "unavailable" };
+  }
+  if (!task.studentCaseId || task.studentVisible === null) return { error: CASE_ERROR_COPY.invalid, unconfirmed: false };
+  const form = caseChangeForm({ ...task, studentCaseId: task.studentCaseId, studentVisible: task.studentVisible }, { status: "done", reason: result });
+  form.set("request_id", requestId);
+  const state = await changePlatformAdmissionsTaskAction(
+    { status: "idle", requestId, caseTaskId: null, version: null, changedAt: null }, form,
+  );
+  return state.status === "saved"
+    ? { error: null, unconfirmed: false }
+    : { error: CASE_ERROR_COPY[state.status] ?? "Не удалось сохранить.", unconfirmed: state.status === "unavailable" };
+}
+
+/**
+ * «Завершить» и «Перенести срок» выбранных задач (Э7). «Завершить» берёт те же
+ * задачи, что и круг строки (`taskRowAbilities().complete`, считает список):
+ * остальные названы в окне как «не подходят». Выбирают только задачи, которые
  * сотрудник может править (`taskRowAbilities`); сервер проверяет каждую сам.
  */
 export function TaskBulkActions({
@@ -58,16 +90,22 @@ export function TaskBulkActions({
   tasks,
   allKeys,
   nowIso,
+  completable: completableKeys,
 }: Readonly<{
   selection: BulkSelection;
   /** Выбираемые задачи страницы по ключу. */
   tasks: ReadonlyMap<string, QueueTask>;
   allKeys: readonly string[];
   nowIso: string;
+  /** Ключи задач, которые сотрудник может завершить (как круг строки). */
+  completable: ReadonlySet<string>;
 }>) {
   const router = useRouter();
   const requestIds = useBulkRequestIds();
+  const completeIds = useBulkRequestIds();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [completeOpen, setCompleteOpen] = useState(false);
+  const [outcome, setOutcome] = useState("");
   const [choice, setChoice] = useState<BulkDueChoice>("tomorrow");
   const [date, setDate] = useState("");
   const [reason, setReason] = useState("");
@@ -78,9 +116,37 @@ export function TaskBulkActions({
     return task ? [{ key, label: task.title, task }] : [];
   });
   const needsReason = items.some((item) => item.task.kind === "case");
+  const completable = items.filter((item) => completableKeys.has(item.key));
+  const notCompletable = items
+    .filter((item) => !completable.includes(item))
+    .map((item) => ({ key: item.key, label: item.label, reason: "завершает исполнитель" }));
+  const needsOutcome = completable.some((item) => item.task.kind === "case");
 
   return (
-    <BulkBar selection={selection} allKeys={allKeys} noun={TASK_NOUN} keep={dialogOpen}>
+    <BulkBar selection={selection} allKeys={allKeys} noun={TASK_NOUN} keep={dialogOpen || completeOpen}>
+      <BulkActionDialog<TaskItem>
+        title="Завершить"
+        triggerLabel="Завершить"
+        testId="task-bulk-complete"
+        items={completable}
+        skipped={notCompletable}
+        noun={TASK_NOUN}
+        selection={selection}
+        emptyReason="Завершает исполнитель"
+        onOpenChange={setCompleteOpen}
+        validate={() => needsOutcome && !outcome.trim() ? "Напишите результат: без него задача по студенту не завершается." : null}
+        command={async (item) => {
+          const result = await completeTask(item.task, outcome, completeIds.idFor(item.key));
+          completeIds.settle(item.key, result.unconfirmed);
+          return result.error;
+        }}
+        onFinished={() => { setOutcome(""); router.refresh(); }}
+      >
+        <label className="block t-label text-fg">
+          Результат
+          <input value={outcome} onChange={(event) => setOutcome(event.target.value)} maxLength={needsOutcome ? 1000 : 4000} placeholder="Что сделано" className={QUEUE_FIELD} />
+        </label>
+      </BulkActionDialog>
       <BulkActionDialog<TaskItem>
         title="Перенести срок"
         triggerLabel="Перенести срок"

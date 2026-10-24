@@ -461,7 +461,8 @@ test("P3 wiring: counts, labels, the email retry, the note rule and the Auth jou
   assert.match(section, /d\.status === "completed" && d\.confirmationEmailStatus === null/u, "UI-F2: the retry only while the status is not recorded");
   assert.match(section, /<AccountDeletionEmailRetry /u);
   assert.match(section, /d\.authLog === "not_erased"/u, "SQL-1: the warning");
-  assert.match(section, /Журнал входов Supabase Auth не очищен/u);
+  assert.match(section, /Журнал входов не очищен: его чистит технический администратор/u);
+  assert.doesNotMatch(section, /Порядок и кто что делает: инструкция|\(docs\/runbooks\/account-deletion\.md\)\.|мягким удалением Auth|\(инструкция docs\/runbooks/u, "no repository paths or database words in what the card says");
   assert.match(section, /d\.mode === "manual"\s*\n?\s*\? "Автоматическое удаление было начато, но у аккаунта появились связанные записи/u,
     "F3: a started request that stopped being simple is told apart from a retry");
   const retry = source("src/components/v3/settings/AccountDeletionEmailRetry.tsx");

@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 
-import { btnCls, btnGhostCls, cn, inputCls } from "@/components/ui";
+import { btnGhostCls, cn, inputCls } from "@/components/ui";
+import { QUEUE_CONFIRM } from "@/components/v3/queue/queue-buttons";
 import {
   ACCOUNT_DELETION_DONE_WORD,
   ACCOUNT_DELETION_NOTE_MAX,
@@ -88,7 +89,7 @@ export function AccountDeletionManualDone({
   if (!open) {
     return (
       <div className="flex flex-col items-start gap-2">
-        <button ref={startRef} type="button" className={btnCls} onClick={() => setOpen(true)} disabled={loginActive}
+        <button ref={startRef} type="button" className={btnGhostCls} onClick={() => setOpen(true)} disabled={loginActive}
           aria-describedby={loginActive ? hintId : undefined} data-testid="v3-deletion-manual-start">
           Отметить выполненным
         </button>
@@ -172,7 +173,7 @@ export function AccountDeletionManualDone({
         >
           Отмена
         </button>
-        <button type="submit" className={cn(btnCls, "whitespace-nowrap")} disabled={pending || !confirmed}
+        <button type="submit" className={cn(QUEUE_CONFIRM, "whitespace-nowrap")} disabled={pending || !confirmed}
           aria-describedby={blocker && !pending ? submitHintId : undefined} data-testid="v3-deletion-done-submit">
           {pending ? "Отмечаем…" : "Отметить выполненным"}
         </button>

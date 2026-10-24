@@ -4,6 +4,7 @@ import type { ActivePlatformActor } from "../platform-auth.ts";
 import { readStaffTaskContext, readStaffTaskLeadContext } from "../server/platform-staff-task-repository.ts";
 import { isCallbackTaskTitle } from "./telephony-dial.ts";
 import { callerDisplayName } from "./wording.ts";
+import type { QueueTask } from "./task-queue.ts";
 import type { TodayQueue } from "./today-queue.ts";
 
 /**
@@ -52,5 +53,20 @@ export async function readTodayTaskLeads(actor: ActivePlatformActor, queue: Toda
     .filter((item) => item.task?.kind === "staff" && item.task.key === item.key && isCallbackTaskTitle(item.task.title))
     .slice(0, TASK_LEAD_LIMIT);
   const refs = await Promise.all(tasks.map(async (item) => [item.key, await readTaskLeadRef(actor, item.task!.id)] as const));
+  return Object.freeze(Object.fromEntries(refs.filter((entry): entry is readonly [string, TaskLeadRef] => entry[1] !== null)));
+}
+
+/** Сколько задач списка «Задач» перечитывается за раз: первые по порядку списка; у остальных строка остаётся «Рабочая». */
+const QUEUE_LEAD_LIMIT = 24;
+
+/**
+ * Лиды задач-перезвонов в списке «Задач» по ключу строки (`staff:<id>`): строка называет клиента вместо слова
+ * «Рабочая», как на «Сегодня». Читаются только задачи самой телефонии (`isCallbackTaskTitle`), первые по порядку списка.
+ */
+export async function readQueueTaskLeads(actor: ActivePlatformActor, tasks: readonly QueueTask[]): Promise<Readonly<Record<string, TaskLeadRef>>> {
+  const callbacks = tasks
+    .filter((task) => task.kind === "staff" && isCallbackTaskTitle(task.title))
+    .slice(0, QUEUE_LEAD_LIMIT);
+  const refs = await Promise.all(callbacks.map(async (task) => [task.key, await readTaskLeadRef(actor, task.id)] as const));
   return Object.freeze(Object.fromEntries(refs.filter((entry): entry is readonly [string, TaskLeadRef] => entry[1] !== null)));
 }

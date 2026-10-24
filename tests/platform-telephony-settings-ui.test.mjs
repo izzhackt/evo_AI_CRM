@@ -190,8 +190,15 @@ test("«Ваша CRM»: the address to paste, and the intake key only as set/not
   }
   assert.match(text, /Ключ для авторизации в вашей CRM задан на сервере/u);
   assert.match(text, /заданы на сервере/u);
-  assert.match(text, /Значение здесь не показывается/u);
+  // Ключи и адрес АТС — только «задан / не задан»: ни значения, ни пояснения о том, кто его вносит.
+  assert.doesNotMatch(text, /Значение здесь не показывается|Их показывает сам кабинет/u);
   assert.match(text, /Для всех номеров/u);
+  // Ключи заданы, ВАТС отвечает: подключение сделано, значения нужны только тому, кто создаёт его заново — блок свёрнут; не задан ключ — открыт, с предупреждением о тихом времени.
+  assert.match(set, /<details class="group" data-testid="v3-telephony-connection-folded">/u);
+  assert.doesNotMatch(text, /Подключение создают в тихое время/u);
+  assert.doesNotMatch(view(SERVER_OFF), /v3-telephony-connection-folded/u);
+  assert.match(flat(view(SERVER_OFF)), /Подключение создают в тихое время, когда владелец рядом/u);
+  assert.doesNotMatch(text, /второй фазы|определяет сама/u, "no roadmap words in the guide");
   const unset = flat(view(SERVER_OFF));
   assert.match(unset, /Ключ для авторизации в вашей CRM не задан на сервере/u);
   assert.match(unset, /не заданы на сервере/u);
@@ -209,7 +216,7 @@ test("the mapping list: one row per PBX user, the state in words, a choice of st
   const markup = render(React.createElement(TelephonyExtensions, { extensions, staff, readOnly: false }));
   const text = flat(markup);
   assert.match(text, /Пользователи ВАТС и сотрудники/u);
-  assert.match(text, /Не сопоставлено: 1\./u, "one active PBX user is unmapped (the switched-off one does not count)");
+  assert.match(text, /Звонки пользователя без сопоставления сохраняются без сотрудника\. Сопоставление действует на новые звонки\./u);
   assert.equal([...markup.matchAll(/data-testid="v3-telephony-extension"/gu)].length, 3);
   assert.match(markup, /data-extension="u901"[^>]*data-mapped="yes"/u);
   assert.match(markup, /data-extension="u902"[^>]*data-mapped="no"/u);
@@ -218,7 +225,8 @@ test("the mapping list: one row per PBX user, the state in words, a choice of st
   assert.match(markup, /<span data-chip="neutral">Выключен в ВАТС<\/span>/u);
   assert.match(text, /внутр\. 901 · логин u901/u);
   assert.match(text, /Сотрудник: Staff A Изменить/u, "a mapped row says who and offers «Изменить» instead of a list");
-  assert.match(text, /Звонков без сотрудника: 3\. Они сотруднику не переносятся/u);
+  assert.match(text, /Звонков без сотрудника: 3/u);
+  assert.doesNotMatch(text, /Они сотруднику не переносятся/u, "said once in the section lead, not under every row");
   // Staff A is taken by u901: the other rows list them as taken and disabled; the owner row does not.
   const rows = markup.split('data-testid="v3-telephony-extension"').slice(1);
   assert.match(rows[1], /<option value="20000000-0000-4000-8000-000000000002" disabled="">Staff A · уже сопоставлен<\/option>/u);

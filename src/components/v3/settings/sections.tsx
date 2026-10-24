@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 
 import { Icon, type IconName } from "@/components/icons";
+import { btnCls } from "@/components/ui";
 import { Pill } from "@/components/v3/Pill";
 
 import type { IntegrationTone } from "@/lib/v3/settings-health";
@@ -11,6 +12,7 @@ import type { GateFacts, IntegrationRow, JournalEntry } from "./types";
 import { journalActor, journalEvent, journalEventText, journalObject } from "@/lib/v3/wording";
 import { journalNotice, type JournalStatus } from "@/lib/v3/settings-journal-contract";
 import { QUEUE_QUIET_LINK } from "@/components/v3/queue/QueueStates";
+import { WHATSAPP_CONNECT_ANCHOR } from "@/lib/v3/whatsapp-connect-contract";
 
 export function Card({
   title,
@@ -67,7 +69,7 @@ function StackLabel({ children }: { children: string }) {
   return <span className="t-caption me-1.5 text-fg-3 @min-[40rem]/integrations:sr-only">{children}:</span>;
 }
 
-export function IntegrationsSection({ rows }: { rows: readonly IntegrationRow[] }) {
+export function IntegrationsSection({ rows, connectCard = false }: { rows: readonly IntegrationRow[]; /** Блок «Подключение WhatsApp» стоит прямо под таблицей: ссылка на него из строки — второй путь туда же. */ connectCard?: boolean }) {
   return (
     <div className="@container/integrations">
       <table role="table" className="block w-full overflow-hidden rounded-card border border-border bg-surface" data-testid="v3-settings-integrations">
@@ -82,6 +84,8 @@ export function IntegrationsSection({ rows }: { rows: readonly IntegrationRow[] 
         <tbody role="rowgroup" className="block">
           {rows.map((row) => {
             const icon = TONE_ICON[row.tone];
+            const link = connectCard && row.action?.link?.href.endsWith(`#${WHATSAPP_CONNECT_ANCHOR}`) ? null : row.action?.link ?? null;
+            const action = row.action && (row.action.handoff || link) ? { handoff: row.action.handoff, link } : null;
             return (
               <tr key={row.key} role="row" data-integration={row.key} data-tone={row.tone} className={INTEGRATION_ROW}>
                 <th role="rowheader" scope="row" className="t-item min-w-0 text-start text-fg">{row.name}</th>
@@ -108,23 +112,23 @@ export function IntegrationsSection({ rows }: { rows: readonly IntegrationRow[] 
                 </td>
                 <td role="cell" className="min-w-0 t-body-compact">
                   {/* Кто делает работу на сервере, затем страница CRM по сервису: у действия всегда есть путь. */}
-                  {row.action ? (
+                  {action ? (
                     <>
                       <StackLabel>Что сделать</StackLabel>
-                      {row.action.handoff ? <span className="text-fg-2">{row.action.handoff}</span> : null}
-                      {row.action.link ? (
-                        <span className={row.action.handoff ? "block" : undefined}>
+                      {action.handoff ? <span className="text-fg-2">{action.handoff}</span> : null}
+                      {action.link ? (
+                        <span className={action.handoff ? "block" : undefined}>
                           <Link
-                            href={row.action.link.href}
-                            className={`inline-flex min-h-11 items-center font-medium text-fg underline underline-offset-4 hover:text-fg-2 ${row.action.handoff ? "" : "@min-[40rem]/integrations:-my-2.5"}`}
+                            href={action.link.href}
+                            className={`inline-flex min-h-11 items-center font-medium text-fg underline underline-offset-4 hover:text-fg-2 ${action.handoff ? "" : "@min-[40rem]/integrations:-my-2.5"}`}
                           >
-                            {row.action.link.label}
+                            {action.link.label}
                           </Link>
                         </span>
                       ) : null}
                     </>
                   ) : (
-                    <><span aria-hidden="true" className="text-fg-3 @max-[40rem]/integrations:hidden">—</span><span className="sr-only">ничего</span></>
+                    <><span aria-hidden="true" className="text-fg-3 @max-[40rem]/integrations:hidden">—</span><span className="sr-only">{row.action ? "подключение — в блоке ниже" : "ничего"}</span></>
                   )}
                 </td>
               </tr>
@@ -215,13 +219,13 @@ export function JournalSection({
   const exportEndAt = new Date();
   const exportStartAt = new Date(exportEndAt.getTime() - 30 * 24 * 60 * 60 * 1_000);
   const chip =
-    "v3-choice inline-flex min-h-8 items-center gap-1.5 rounded-nav border border-border bg-surface px-2.5 text-xs text-fg-2 hover:border-control-edge";
+    "v3-choice inline-flex min-h-11 items-center gap-1.5 rounded-nav border border-border bg-surface px-3 t-label text-fg-2 hover:border-control-edge";
 
   return (
     <div className="flex flex-col gap-4">
       {/* Фильтры — ссылки: адрес несёт выбор, поэтому отфильтрованный журнал
           можно переслать и вернуться назад кнопкой браузера. */}
-      <nav aria-label="Фильтры журнала" className="flex flex-col gap-2">
+      {facets.objectTypes.length > 0 ? <nav aria-label="Фильтры журнала" className="flex flex-col gap-2">
         <p className="t-caption text-fg-3">Тип записи</p>
         <ul className="flex flex-wrap gap-1.5">
           <li>
@@ -252,8 +256,7 @@ export function JournalSection({
             );
           })}
         </ul>
-
-      </nav>
+      </nav> : null}
 
       {exportEnabled ? (
         <Card title="Экспорт журнала">
@@ -272,17 +275,14 @@ export function JournalSection({
               <input type="hidden" name="resource_types" value={active.objectType} />
             ) : null}
 
-            <p id="v3-audit-export-scope" className="text-xs leading-5 text-fg-2">
+            <p id="v3-audit-export-scope" className="t-meta text-fg-2">
               Последние 30 дней ·{" "}
               {active.objectType
                 ? (journalObject(active.objectType) ?? "выбранный тип объекта")
                 : "все объекты"}{" "}
               · все участники
             </p>
-            <button
-              type="submit"
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-ctl bg-accent px-3 text-sm font-semibold text-on-accent hover:opacity-90"
-            >
+            <button type="submit" className={btnCls}>
               <Icon name="download" size={16} />
               Скачать CSV
             </button>
@@ -311,7 +311,7 @@ export function JournalSection({
                   key={entry.id}
                   className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5 last:border-b-0"
                 >
-                  <span className="min-w-0 flex-1 text-sm text-fg">
+                  <span className="t-item min-w-0 flex-1 font-normal text-fg">
                     {journalEventText(entry.transition, entry.directionChange)}
                   </span>
                   {actorWord !== null ? <Pill>{actorWord}</Pill> : null}
@@ -327,7 +327,7 @@ export function JournalSection({
                     {entry.profileHref ? (
                       <Link
                         href={entry.profileHref}
-                        className="inline-flex min-h-6 items-center font-medium text-accent hover:underline"
+                        className="inline-flex min-h-6 items-center text-fg-2 underline underline-offset-4 hover:text-fg"
                       >
                         открыть профиль
                       </Link>
@@ -344,7 +344,7 @@ export function JournalSection({
               >
                 <p
                   role={notice.retry ? "alert" : undefined}
-                  className={notice.retry ? "t-item text-danger" : status === "disabled" ? "t-item text-fg" : "text-sm text-fg-3"}
+                  className={notice.retry ? "t-item text-danger" : status === "disabled" ? "t-item text-fg" : "t-body-compact text-fg-3"}
                 >
                   {notice.text}
                 </p>
@@ -379,16 +379,18 @@ export function JournalSection({
                 cursorAt: nextPage.cursorCreatedAt,
                 cursorId: nextPage.cursorId,
               })}
-              className="inline-flex min-h-8 items-center rounded-nav border border-border bg-surface px-2.5 text-xs text-fg-2 hover:border-control-edge"
+              className="inline-flex min-h-11 items-center rounded-nav border border-border bg-surface px-3 t-label text-fg-2 hover:border-control-edge"
             >
               Следующие события
             </Link>
           </p>
         ) : null}
-        <Note>
-          Для событий указан тип участника: сотрудник, сервис или система.
-          Личные данные участников не показываются.
-        </Note>
+        {events.length > 0 ? (
+          <Note>
+            Для событий указан тип участника: сотрудник, сервис или система.
+            Личные данные участников не показываются.
+          </Note>
+        ) : null}
       </Card>
     </div>
   );
@@ -411,7 +413,7 @@ export function DocumentsSection({ gates }: { gates: GateFacts }) {
               className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5 last:border-b-0"
             >
               <span className="t-caption w-44 shrink-0 text-fg-3">{k}</span>
-              <span className="min-w-0 flex-1 text-sm text-fg">{v}</span>
+              <span className="t-body-compact min-w-0 flex-1 text-fg">{v}</span>
             </li>
           ))}
         </ul>
@@ -421,7 +423,7 @@ export function DocumentsSection({ gates }: { gates: GateFacts }) {
       </Card>
 
       <Card title="Условия передачи в приёмную">
-        <p className="px-4 py-3 text-sm leading-6 text-fg">
+        <p className="t-body-compact px-4 py-3 text-fg">
           Передать в приёмную можно после подтверждения договора <em>и</em> первого платежа.
           Исключение может подтвердить только администратор с указанием причины.
           Учитывается последнее подтверждение по лиду.
@@ -457,27 +459,25 @@ export function PlatformSection({ platform, salesImportHref, salesManagersHref }
         <dl>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5">
             <dt className="t-caption w-44 shrink-0 text-fg-3">База данных</dt>
-            <dd className="min-w-0 flex-1 text-sm text-fg">{platform}</dd>
+            <dd className="t-body-compact min-w-0 flex-1 text-fg">{platform}</dd>
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-0.5 px-4 py-2.5">
             <dt className="t-caption w-44 shrink-0 text-fg-3">Настройки окружения</dt>
-            <dd className="min-w-0 flex-1 text-sm text-fg">только для чтения</dd>
+            <dd className="t-body-compact min-w-0 flex-1 text-fg">только для чтения</dd>
           </div>
         </dl>
       </Card>
 
       {salesImportHref || salesManagersHref ? (
-        <div className="flex flex-wrap gap-x-6">
-          {[[salesImportHref, "Перенос данных отчёта продаж"], [salesManagersHref, "Менеджеры в отчёте продаж"]].map(([href, label]) => href ? (
-            <Link
-              key={label}
-              href={href}
-              className="inline-flex min-h-11 items-center self-start rounded-ctl text-sm font-medium text-accent underline underline-offset-4 hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
-            >
-              {label}
-            </Link>
-          ) : null)}
-        </div>
+        <Card title="Отчёт продаж">
+          <ul className="flex flex-wrap gap-x-6 px-4">
+            {[[salesImportHref, "Перенос данных"], [salesManagersHref, "Менеджеры в отчёте"]].map(([href, label]) => href ? (
+              <li key={label}>
+                <Link href={href} className={QUEUE_QUIET_LINK}>{label}</Link>
+              </li>
+            ) : null)}
+          </ul>
+        </Card>
       ) : null}
 
       {/* Факты эксплуатации (аудит 26.09), а не тревога: заголовок называет тему (Э6). */}
@@ -492,7 +492,7 @@ export function PlatformSection({ platform, salesImportHref, salesManagersHref }
               key={what}
               className="flex flex-wrap gap-x-3 gap-y-0.5 border-b border-border px-4 py-2.5 last:border-b-0"
             >
-              <span className="w-52 shrink-0 text-sm font-medium text-fg">{what}</span>
+              <span className="t-body-compact w-52 shrink-0 font-medium text-fg">{what}</span>
               <span className="t-body-compact min-w-0 flex-1 text-fg-2">{why}</span>
             </li>
           ))}

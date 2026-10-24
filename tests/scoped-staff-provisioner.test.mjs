@@ -461,7 +461,12 @@ function roleEditorBoundary({ failureAction, alterExistingAccess = false, clickH
   // The path keeps the role chain, so a renamed container or heading level
   // breaks the sequence instead of passing on the leaf name alone.
   const locator = (name = "", path = "") => ({
-    getByRole: (role, { name: roleName = "", level } = {}) => locator(roleName, `${path}/${role}${level ?? ""}:${roleName}`),
+    // Кнопка публикации называется «Опубликовать» (нет опубликованной версии) или «Опубликовать изменения»: прогон ищет её по /^Опубликовать/.
+    getByRole: (role, { name: given = "", level } = {}) => {
+      const roleName = given instanceof RegExp ? (selected?.bundleId ? "Опубликовать изменения" : "Опубликовать") : given;
+      if (given instanceof RegExp) assert.ok(given.test(roleName), "the pattern matches the label this screen renders");
+      return locator(roleName, `${path}/${role}${level ?? ""}:${roleName}`);
+    },
     getByLabel: (label) => locator(label),
     getByText: (text) => locator(text), locator: (selector) => locator(selector),
     filter: ({ hasText }) => locator(`select:${hasText}`),
@@ -663,6 +668,30 @@ test("role editor marker stays distinct and follows successful onboarding before
   assert.match(helper, /flag: "wx", mode: 0o600/);
   const editor = helper.slice(helper.indexOf("export async function verifyScopedStaffRoleEditor"), helper.indexOf("export async function verifyScopedStaffMemberEditor"));
   assert.doesNotMatch(editor, /inviteUserByEmail|signInWithPassword|staff_role_command|staff_role_publish|staff_role_assignments_save|storageState|addCookies/);
+});
+
+test("role editor drives only role-screen copy and buttons that the roles UI still renders", () => {
+  // Браузерный путь редактора ролей (Playwright) нельзя прогнать без локального Supabase, а тесты выше — на заглушках:
+  // слова, на которые он ждёт и нажимает, сверяются с самим экраном «Роли и доступ».
+  const helper = readFileSync(new URL("../scripts/lib/scoped-staff-provisioner.mjs", import.meta.url), "utf8");
+  const ui = readFileSync(new URL("../src/components/v3/settings/StaffRolesSection.tsx", import.meta.url), "utf8");
+  const editor = helper.slice(helper.indexOf("export async function verifyScopedStaffRoleEditor"), helper.indexOf("export async function verifyScopedStaffMemberEditor"));
+  // Пустая правая часть — одно слово «Выберите роль.»: ждёт и по нему, и в счётчике состояния.
+  const empty = [...editor.matchAll(/getByText\("(Выберите роль[^"]*)", \{ exact: true \}\)/g)].map((match) => match[1]);
+  assert.deepEqual([...new Set(empty)], ["Выберите роль."]);
+  assert.ok(ui.includes(': "Выберите роль."}'), "the empty detail pane says exactly that");
+  // «Публикация» стала «Опубликовать» / «Опубликовать изменения» и есть, только когда есть что публиковать (черновик ≠ опубликованному).
+  assert.match(editor, /details\(\)\.getByRole\("button", \{ name: \/\^Опубликовать\/ \}\)\.click\(\)/);
+  assert.doesNotMatch(editor, /name: "Публикация"/);
+  assert.match(ui, /role\.status === "active" && unpublished \? <button[\s\S]*?>\{role\.bundleId \? "Опубликовать изменения" : "Опубликовать"\}<\/button>/);
+  // В этот момент у роли есть черновик без публикации — кнопка на месте; формы публикации называются, как прежде.
+  assert.match(ui, /const unpublished = !role\.bundleId \|\|/);
+  assert.ok(ui.includes('label="Опубликовать роль"') && ui.includes("Проверить и опубликовать"));
+  // Остальные кнопки роли, которых касается прогон, не переименованы.
+  for (const label of ["Создать роль", "Изменить", "Скопировать", "Архивировать", "Восстановить"]) {
+    assert.ok(editor.includes(`name: "${label}"`), `the editor still drives «${label}»`);
+    assert.ok(ui.includes(`>${label}<`) || ui.includes(`"${label}"`), `the roles screen still renders «${label}»`);
+  }
 });
 
 // Public browser/RPC boundary only, not browser or database acceptance.

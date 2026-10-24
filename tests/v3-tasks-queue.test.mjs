@@ -330,7 +330,7 @@ test("a partial read never says there are no tasks: only the read part is empty"
   // At the limit: only a lever that shrinks the cut-off server read, or nothing.
   assert.match(surfaces.get("incomplete-limit"), /Показаны не все задачи[^<]*<a[^>]*href="\/v3\/tasks\?due=today&amp;window=4">Показать мои задачи на сегодня<\/a>/u);
   const mineLimit = surfaces.get("incomplete-limit-mine");
-  assert.match(mineLimit, /Показаны не все задачи: список больше, чем читается за один раз, и числа скрыты\.<\/p>/u);
+  assert.match(mineLimit, /Показаны не все задачи, числа скрыты\.<\/p>/u);
   assert.doesNotMatch(mineLimit, /Сузьте|Показать больше задач/u);
   assert.match(surfaces.get("incomplete-limit-empty"),
     /В прочитанной части списка ничего не найдено<\/p><a[^>]*href="\/v3\/tasks\?due=today&amp;q=%D1%81%D1%82%D1%83%D0%B4%D0%B5%D0%BD%D1%82&amp;window=4"[^>]*>Показать задачи на сегодня<\/a>/u);
@@ -364,7 +364,7 @@ test("the body groups rows under due bands and completes in the row", () => {
   assert.match(caseRow, /<time dateTime="2026-09-20" class="block font-mono tabular-nums text-fg">20\.09<\/time><span class="flex min-h-6 items-center"><span class="v3-due t-caption" data-due="overdue">прошёл 4 дн<\/span><\/span>/u);
   // The assignee column is hidden in «Мои» and the status word only marks exceptions.
   assert.doesNotMatch(html, /в работе/u);
-  assert.match(html, /· <span class="v3-chip t-caption" data-tone="warn">заблокирована<\/span>/u);
+  assert.match(html, /<span aria-hidden="true" class="@max-\[32rem\]:hidden">·\u0020<\/span><span class="v3-chip t-caption" data-tone="warn">заблокирована<\/span>/u);
   assert.match(html, /data-testid="task-quick-add"[\s\S]*placeholder="Новая задача…"/u);
   assert.doesNotMatch(html, /Сроки указаны по времени Бишкека/u);
   assert.doesNotMatch(html, /\bbg-accent\b/u, "the page itself has no solid red: «Создать задачу» lives in the shell menu");
@@ -375,13 +375,13 @@ test("«Срок» is its own column right before the title, not at the far edge
   const row = mine.slice(mine.indexOf('data-queue-row="case:cccccccc-6666-4666-8666-000000000001"'));
   // `.v3-queue-row`: ссылка строки покрывает строку — фокус клавиатуры рамкой всей строки (26.09.2026).
   // Э7: у того, кто правит задачи, первая колонка шире — отметка для массовых действий и круг рядом
-  // (`--row-lead` 5.5rem); на телефоне без «Выбрать» отметки нет и колонка — только круг (2.75rem).
-  assert.match(row, /^[^>]*class="v3-queue-row relative grid \[--row-lead:5\.5rem\] max-sm:\[--row-lead:2\.75rem\] grid-cols-\[var\(--row-lead\)_minmax\(0,1fr\)_2\.75rem\] [^"]*@min-\[32rem\]:grid-cols-\[var\(--row-lead\)_7rem_minmax\(0,1fr\)_2\.75rem\] hover:bg-surface/u);
-  assert.match(row, /^[^>]*><div class="flex"><label class="[^"]* max-sm:hidden"><input type="checkbox" data-queue-select=""[^>]*aria-label="Выбрать: Подтвердить подачу в UCSI"/u);
+  // (`--row-lead` 5.5rem) — но только после «Выбрать» или «x»: без них отметок нет на любой ширине и колонка — только круг (2.75rem).
+  assert.match(row, /^[^>]*class="v3-queue-row relative grid \[--row-lead:2\.75rem\] grid-cols-\[var\(--row-lead\)_minmax\(0,1fr\)_2\.75rem\] [^"]*@min-\[32rem\]:grid-cols-\[var\(--row-lead\)_7rem_minmax\(0,1fr\)_2\.75rem\] hover:bg-surface/u);
+  assert.match(row, /^[^>]*><div class="flex"><span class="hidden"><label class="[^"]*"><input type="checkbox" data-queue-select=""[^>]*aria-label="Выбрать: Подтвердить подачу в UCSI"/u);
   // DOM order = visual order: circle, date column, then the title link.
   assert.match(row, /^[^>]*><div class="flex">[\s\S]*?<\/div><p class="hidden self-start pt-1 t-body-compact @min-\[32rem\]:block"><time [^>]*>20\.09<\/time>[\s\S]*?<\/p><div class="min-w-0 py-0\.5"><a data-queue-open=""/u);
   // The narrow meta line leads with the same date.
-  assert.match(row, /<p class="flex min-h-6 min-w-0 items-center[^"]*"><span class="shrink-0 @min-\[32rem\]:hidden"><span><time dateTime="2026-09-20" class="font-mono tabular-nums">20\.09<\/time> <span class="v3-due t-caption" data-due="overdue">прошёл 4 дн<\/span><\/span> ·<\/span>/u);
+  assert.match(row, /<p class="flex min-h-6 min-w-0 flex-wrap items-center[^"]*"><span class="shrink-0 @min-\[32rem\]:hidden"><span><time dateTime="2026-09-20" class="font-mono tabular-nums">20\.09<\/time> <span class="v3-due t-caption" data-due="overdue">прошёл 4 дн<\/span><\/span><\/span>/u);
   const team = surfaces.get("team-view");
   assert.match(team, /@3xl:grid-cols-\[var\(--row-lead\)_7rem_minmax\(0,1fr\)_minmax\(0,11rem\)_2\.75rem\]/u);
   // Без права правки колонки выбора нет: прежняя сетка.
@@ -413,13 +413,13 @@ test("the student name links to the case only for a mouse on a wide screen", () 
 test("closed tasks label their bare date as «срок»", () => {
   const done = surfaces.get("done-view");
   assert.match(done, /<time dateTime="2026-09-19" class="block font-mono tabular-nums text-fg">19\.09<\/time><span class="flex min-h-6 items-center t-meta text-fg-3">срок<\/span>/u);
-  assert.match(done, /<span class="shrink-0 @min-\[32rem\]:hidden"><span>срок <time dateTime="2026-09-19" class="font-mono tabular-nums">19\.09<\/time><\/span> ·<\/span>/u);
+  assert.match(done, /<span class="shrink-0 @min-\[32rem\]:hidden"><span>срок <time dateTime="2026-09-19" class="font-mono tabular-nums">19\.09<\/time><\/span><\/span>/u);
   assert.doesNotMatch(done, /прошёл/u, "a closed task is never overdue");
 });
 
 test("the composer's optional sections use the drawn chevron, not the browser marker", () => {
   const summaries = [...surfaces.get("composer").matchAll(/<summary class="([^"]+)">([^<]+)<svg[^>]*class="([^"]+)"/gu)];
-  assert.deepEqual(summaries.map((match) => match[2]), ["Студент/дело · необязательно", "Описание и приоритет"]);
+  assert.deepEqual(summaries.map((match) => match[2]), ["Студент или дело", "Описание и приоритет"]);
   for (const [, summaryClass, , iconClass] of summaries) {
     assert.match(summaryClass, /\blist-none\b/u);
     assert.match(summaryClass, /\[&amp;::-webkit-details-marker\]:hidden/u);

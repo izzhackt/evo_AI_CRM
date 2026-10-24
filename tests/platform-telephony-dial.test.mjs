@@ -970,7 +970,9 @@ test("callback task: the Today row and the task panel name the client, and only 
   assert.match(row, /leadRef \? <>/u);
   assert.match(row, /<span className="min-w-0 truncate">Рабочая<\/span>/u, "a task without a lead still says «Рабочая»");
   const tasks = read("src/app/(v3)/v3/tasks/page.tsx");
-  assert.match(tasks, /if \(selected && taskContext\?\.leadId\) \{\s*const dial = await readDialOptions\(actor\);\s*if \(dial\.status === "ready"\)/u);
+  assert.match(tasks, /if \(selected && taskContext\?\.leadId\) \{\s*const dial = await dialOptions\(\);\s*if \(dial\.status === "ready"\)/u);
+  assert.match(tasks, /const dialOptions = \(\) => \(dialRead \?\?= readDialOptions\(actor\)\);/u, "the dial is read once for the panel and the list");
+  assert.match(tasks, /const taskLeads = !sourceLead && canReadTaskQueue && workspace\.canReadStaffTasks && \(await dialOptions\(\)\)\.status === "ready"\s*\? await readQueueTaskLeads\(actor, /u, "the list names clients only while dial is open to this employee, and never on the lead page");
   const panel = read("src/components/v3/tasks/TaskDetailPanel.tsx");
   assert.match(panel, /Клиент: <span className="break-words">\{data\.extra\.lead\.name\}<\/span>/u);
   assert.match(panel, /<DialButton leadId=\{data\.extra\.lead\.leadId\} mapped=\{data\.extra\.lead\.mapped\}/u);

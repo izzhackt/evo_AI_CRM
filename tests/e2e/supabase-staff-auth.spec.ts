@@ -1924,10 +1924,10 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .locator('input[name="title"]')
     .fill("P4 isolated Admissions task proof");
   // С правом на рабочие задачи дело — необязательный раздел; без него поиск дела открыт сразу.
-  const caseSection = createTask.locator("summary").filter({ hasText: /^Студент\/дело/ });
+  const caseSection = createTask.locator("summary").filter({ hasText: /^Студент или дело/ });
   if (await caseSection.count()) await caseSection.click();
   await createTask
-    .getByRole("combobox", { name: "Студент", exact: true })
+    .getByRole("combobox", { name: "Дело студента", exact: true })
     .selectOption(studentCaseId);
   await expect(createTask.locator('[name="student_case_id"]')).toHaveValue(studentCaseId);
   await expect(createTask.locator('input[name="deadline_kind"]')).toHaveValue("all_day");
@@ -1961,6 +1961,11 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
       .locator('input[name="assignee_membership_id"]')
       .inputValue(),
   );
+  // «Завершить» задачи по студенту просит «Результат»: кнопка выключена, пока поле пусто.
+  await page
+    .getByTestId("v3-calendar-task-done-form")
+    .locator('input[name="reason"]')
+    .fill("P4 isolated Admissions task result");
   await page
     .getByTestId("v3-calendar-task-done-form")
     .locator('button[type="submit"]')

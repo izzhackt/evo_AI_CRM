@@ -120,7 +120,11 @@ export function TaskChip({
   /** Нажатая карточка — туда вернётся фокус, когда панель закроется. */
   onSelect: (trigger: HTMLElement) => void;
 }) {
-  const pill = taskPill(task);
+  const overdue = taskStateKey(task) === "overdue";
+  // Просрочена — красное время и слово, без заливки: стена красных пилюль скрывала остальное. Пилюля — только
+  // у «выполнена», «отменена» и «заблокирована»; выполненная и отменённая стоят тихо.
+  const pill = overdue ? null : taskPill(task);
+  const quiet = task.state === "done" || task.state === "cancelled";
 
   return (
     <button
@@ -129,11 +133,11 @@ export function TaskChip({
       onClick={(event) => onSelect(event.currentTarget)}
       aria-expanded={selected}
       aria-controls={selected && panelId ? panelId : undefined}
-      className="v3-choice flex min-h-11 w-full flex-col items-start gap-0.5 rounded-nav border border-control-edge bg-surface-2 px-2 py-1 text-start hover:bg-surface-3"
+      className="v3-choice flex min-h-11 w-full flex-col items-start gap-0.5 rounded-nav border border-border bg-surface px-2 py-1 text-start hover:bg-surface-2"
     >
       <span
         className={`t-item line-clamp-2 w-full break-words ${
-          selected ? "" : "text-fg"
+          selected ? "" : quiet ? "text-fg-3" : "text-fg"
         } ${task.state === "done" ? "line-through" : ""}`}
       >
         {task.title}
@@ -151,8 +155,9 @@ export function TaskChip({
           ? <span>без срока</span>
           : task.minutes === null
             ? <span>весь день</span>
-            : <span className="font-mono">{clockLabel(task.minutes)}</span>}
+            : <span className={overdue ? "font-mono text-danger" : "font-mono"}>{clockLabel(task.minutes)}</span>}
         {task.person ? <span className="max-w-full truncate">{task.person}</span> : null}
+        {overdue ? <span className="text-danger">просрочена</span> : null}
         {pill ? <Pill tone={pill.tone}>{pill.word}</Pill> : null}
       </span>
     </button>
@@ -232,6 +237,44 @@ function DayLink({
   );
 }
 
+/**
+ * Карточки клетки не больше `limit`: остальные — «ещё N» со ссылкой на день, где они лежат по часам. Открытая в панели
+ * карточка остаётся видимой, даже если стоит дальше предела.
+ */
+function LimitedChips({
+  tasks,
+  limit,
+  chip,
+  moreHref,
+  moreLabel,
+}: {
+  tasks: readonly CalendarTask[];
+  limit: number;
+  chip: CalendarCellProps;
+  moreHref: string;
+  moreLabel: string;
+}) {
+  const selected = tasks.findIndex((task) => task.key === chip.selectedId);
+  const shown = selected >= limit ? [...tasks.slice(0, limit - 1), tasks[selected]] : tasks.slice(0, limit);
+  const rest = tasks.length - shown.length;
+  return (
+    <>
+      <Chips tasks={shown} chip={chip} />
+      {rest > 0 ? (
+        <Link
+          href={moreHref}
+          className="t-label inline-flex min-h-11 items-center rounded-nav px-1.5 text-fg-2 underline underline-offset-4 hover:bg-surface-2 hover:text-fg"
+        >
+          <span aria-hidden="true">ещё {rest}</span>
+          <span className="sr-only">
+            Ещё {taskCountLabel(rest)}, {moreLabel}
+          </span>
+        </Link>
+      ) : null}
+    </>
+  );
+}
+
 function Chips({
   tasks,
   chip,
@@ -260,6 +303,13 @@ function Chips({
 
 /* --------------------------------------------------------- сетка с часами */
 
+/**
+ * Сколько карточек помещается в клетку часа недели: в один час бывает по два десятка однотипных задач
+ * («Перезвонить клиенту»), и неделя вырастала на три экрана. Остальные — «ещё N» со ссылкой на день.
+ * У дня предела нет: он и есть место, где задачи лежат по часам.
+ */
+const HOUR_LIMIT = 3;
+
 export function TimeGrid({
   days,
   tasks,
@@ -280,7 +330,8 @@ export function TimeGrid({
   label: string;
   chip: CalendarCellProps;
 }) {
-  const columns = `56px repeat(${days.length}, minmax(0, 1fr))`;
+  // Столбец дня не уже 7.5rem: названия не рвутся посреди слова, неделя при нехватке места прокручивается.
+  const columns = `56px repeat(${days.length}, minmax(${days.length > 1 ? "7.5rem" : "0px"}, 1fr))`;
   const allDay = tasks.filter((task) => task.day !== null && task.minutes === null);
   const week = days.length > 1;
 
@@ -310,7 +361,7 @@ export function TimeGrid({
     );
 
   const grid = (
-    <div className={week ? "min-w-[820px]" : ""}>
+    <div className={week ? "min-w-[896px]" : ""}>
       <div className="grid" style={{ gridTemplateColumns: columns }}>
         {/* Шапка с днями — только у недели: у дня период назван в строке
             сверху, и второй раз повторять его незачем. «Пн 21» — одна ссылка
@@ -346,7 +397,9 @@ export function TimeGrid({
               // Клетка — блок, а не `span`: внутри лежит список карточек, и
               // блочное содержимое в строчном элементе разметке не разрешено.
               <div key={day} className="border-b border-s border-border p-1">
-                <Chips tasks={allDay.filter((task) => task.day === day)} chip={chip} />
+                {week
+                  ? <LimitedChips tasks={allDay.filter((task) => task.day === day)} limit={HOUR_LIMIT} chip={chip} moreHref={hrefForDay(day)} moreLabel={dayLabel(day)} />
+                  : <Chips tasks={allDay.filter((task) => task.day === day)} chip={chip} />}
               </div>
             ))}
           </>
@@ -365,7 +418,9 @@ export function TimeGrid({
               </span>
               {days.map((day) => (
                 <div key={day} className={`min-h-16 border-s border-border p-1 ${edge}`}>
-                  <Chips tasks={at(day, hour)} chip={chip} />
+                  {week
+                    ? <LimitedChips tasks={at(day, hour)} limit={HOUR_LIMIT} chip={chip} moreHref={hrefForDay(day)} moreLabel={dayLabel(day)} />
+                    : <Chips tasks={at(day, hour)} chip={chip} />}
                 </div>
               ))}
             </Fragment>
@@ -454,7 +509,6 @@ export function MonthGrid({
           {days.map((day, index) => {
             const last = index >= days.length - 7;
             const dayTasks = calendarTasksOfDay(tasks, day);
-            const rest = dayTasks.length - CELL_LIMIT;
             return (
               <div
                 key={day}
@@ -472,19 +526,8 @@ export function MonthGrid({
                   muted={!isSameMonth(day, anchor)}
                 />
                 <div className="w-full">
-                  <Chips tasks={dayTasks.slice(0, CELL_LIMIT)} chip={chip} />
+                  <LimitedChips tasks={dayTasks} limit={CELL_LIMIT} chip={chip} moreHref={hrefForDay(day)} moreLabel={dayLabel(day)} />
                 </div>
-                {rest > 0 ? (
-                  <Link
-                    href={hrefForDay(day)}
-                    className="t-label inline-flex min-h-11 items-center rounded-nav px-1.5 text-fg-2 underline underline-offset-4 hover:bg-surface-2 hover:text-fg"
-                  >
-                    <span aria-hidden="true">ещё {rest}</span>
-                    <span className="sr-only">
-                      Ещё {taskCountLabel(rest)}, {dayLabel(day)}
-                    </span>
-                  </Link>
-                ) : null}
               </div>
             );
           })}

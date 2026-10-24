@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useId, useState } from "react";
+import { Icon } from "@/components/icons";
 import { btnCls, btnGhostCls, inputCls } from "@/components/ui";
 import { staffRolesAction } from "@/lib/staff-roles-actions";
 import { selectStaffRolePreviewAction } from "@/lib/staff-auth-actions";
@@ -208,6 +209,8 @@ function RoleDetails({ role, workspace, onCopy }: { role: StaffEditableRole; wor
   const [publishing, setPublishing] = useState(false);
   const [archiving, setArchiving] = useState(false);
   if (editing) return <RoleEditor role={role} permissions={workspace.permissions} onClose={() => setEditing(false)} />;
+  // Публиковать нечего, пока набор разрешений черновика совпадает с опубликованным.
+  const unpublished = !role.bundleId || [...role.draftPermissionKeys].sort().join("|") !== [...role.permissionKeys].sort().join("|");
   return <div className="space-y-5">
     <Link className={`${btnGhostCls} @4xl:hidden`} href="/v3/settings?section=staff&view=roles">К списку ролей</Link>
     <div className="space-y-2"><h3 className="t-record-title break-words">{role.label}</h3>
@@ -215,9 +218,9 @@ function RoleDetails({ role, workspace, onCopy }: { role: StaffEditableRole; wor
       <p className="text-sm text-fg-3">{role.status === "archived" ? "В архиве" : role.bundleId ? "Опубликована" : "Черновик"} · сотрудников: {role.memberCount}</p>
     </div>
     <div className="flex flex-wrap gap-2">
-      {role.status === "active" ? <button type="button" className={btnCls} onClick={() => setEditing(true)}>Изменить</button> : null}
+      {role.status === "active" ? <button type="button" className={btnGhostCls} onClick={() => setEditing(true)}>Изменить</button> : null}
       <button type="button" className={btnGhostCls} onClick={onCopy}>Скопировать</button>
-      {role.status === "active" ? <button type="button" className={btnGhostCls} aria-expanded={publishing} onClick={() => setPublishing(!publishing)}>Публикация</button> : null}
+      {role.status === "active" && unpublished ? <button type="button" className={btnGhostCls} aria-expanded={publishing} onClick={() => setPublishing(!publishing)}>{role.bundleId ? "Опубликовать изменения" : "Опубликовать"}</button> : null}
     </div>
     {publishing ? <RolePublication key={role.id} role={role} workspace={workspace} /> : null}
     <section className="space-y-2"><h4 className="t-item">Действующие разрешения</h4>
@@ -242,12 +245,13 @@ export function StaffRolesSection({ workspace, selectedRoleId }: { workspace: St
   if (newRole) return <><h2 className="sr-only">Роли и доступ</h2><RoleEditor sourceRole={newRole === "new" ? undefined : newRole} permissions={workspace.permissions} onClose={() => setNewRole(null)} /></>;
   return <StaffRoleControls>
     <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="t-section">Роли и доступ</h2><button type="button" className={btnCls} onClick={() => setNewRole("new")}>Создать роль</button></div>
-    <p className="text-sm leading-6 text-fg-3">Роль задаёт действия. Область — свои записи, отдел или направление — выбирается при назначении сотруднику.</p>
-    <details className="border-b border-border pb-3" data-testid="staff-role-preview">
-      <summary className="min-h-11 cursor-pointer content-center rounded-nav px-2 py-2 text-sm font-medium text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
+    <p className="t-body-compact text-fg-3">Роль задаёт действия. Область — свои записи, отдел или направление — выбирается при назначении сотруднику.</p>
+    <details className="group border-b border-border pb-3" data-testid="staff-role-preview">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-nav px-2 py-2 t-label text-fg-2 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring [&::-webkit-details-marker]:hidden">
+        <Icon name="chevron-right" size={16} className="shrink-0 text-fg-3 group-open:rotate-90" />
         Посмотреть интерфейс роли
       </summary>
-      <p className="mt-2 text-sm leading-6 text-fg-3">Меняется только вид интерфейса. Вы остаётесь Администратором — это не вход за сотрудника.</p>
+      <p className="t-body-compact mt-2 text-fg-3">Меняется только вид. Вы остаётесь Администратором.</p>
       <form action={selectStaffRolePreviewAction} className="mt-3 flex flex-wrap gap-2" data-testid="admin-role-preview">
         {(["sales", "admissions"] as const).map((role) => <button key={role} type="submit" name="role" value={role}
           data-testid={`preview-role-${role}`} className={`${btnGhostCls} min-h-11`}>{roleTitle(role)}</button>)}
@@ -259,13 +263,13 @@ export function StaffRolesSection({ workspace, selectedRoleId }: { workspace: St
         <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" checked={archived} onChange={(event) => setArchived(event.target.checked)} />Показать архивные</label>
         <ul className="divide-y divide-border">{visible.map((role) => <li key={role.id}><Link href={roleHref(role.id)} aria-current={role.id === selectedRoleId ? "page" : undefined}
           className={`block min-h-11 rounded-nav px-3 py-3 text-sm transition-colors motion-reduce:transition-none ${role.id === selectedRoleId ? "bg-accent-weak text-accent" : "hover:bg-surface-2"}`}>
-          <span className="block font-medium break-words">{role.label}</span><span className="mt-1 block text-fg-3">Сотрудников: {role.memberCount}{role.status === "archived" ? " · в архиве" : !role.bundleId ? " · черновик" : ""}</span>
+          <span className="t-item block break-words">{role.label}</span><span className="t-body-compact mt-1 block text-fg-3">Сотрудников: {role.memberCount}{role.status === "archived" ? " · в архиве" : !role.bundleId ? " · черновик" : ""}</span>
         </Link></li>)}</ul>
         {!visible.length ? <p className="text-sm leading-6 text-fg-3">Ролей не найдено. Измените поиск или создайте новую.</p> : null}
       </section>
       <section aria-label="Выбранная роль" className={`${selectedRoleId ? "block" : "hidden @4xl:block"} min-w-0 @4xl:border-l @4xl:border-border @4xl:pl-6`}>
         {selected ? <RoleDetails key={selected.id} role={selected} workspace={workspace} onCopy={() => setNewRole(selected)} /> : <div className="space-y-3 py-5">
-          <p className="text-sm text-fg-3" role={selectedRoleId ? "alert" : undefined}>{selectedRoleId ? "Роль не найдена или больше недоступна." : "Выберите роль, чтобы посмотреть и изменить разрешения."}</p>
+          <p className="t-body-compact text-fg-3" role={selectedRoleId ? "alert" : undefined}>{selectedRoleId ? "Роль не найдена или больше недоступна." : "Выберите роль."}</p>
           {selectedRoleId ? <Link className={btnGhostCls} href="/v3/settings?section=staff&view=roles">К списку ролей</Link> : null}
         </div>}
       </section>

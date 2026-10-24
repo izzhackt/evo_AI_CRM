@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { Icon } from "@/components/icons";
 import { StaffSection } from "./StaffSection";
 import { AccountDeletionSection } from "./AccountDeletionSection";
 import { TelephonySection } from "./TelephonySection";
@@ -19,6 +20,22 @@ import {
 } from "./sections";
 import { SECTIONS, type GateFacts, type IntegrationRow, type JournalEntry, type SectionKey, type StaffView } from "./types";
 import type { JournalStatus } from "@/lib/v3/settings-journal-contract";
+
+/** Число не выполненных запросов на удаление (срок — 30 дней): круг со словами для чтения с экрана. */
+function DeletionCount({ open, testId }: Readonly<{ open: AccountDeletionOpenCount | null | undefined; testId?: string }>) {
+  if (!open || open.open <= 0) return null;
+  return (
+    <>
+      <span aria-hidden="true" data-testid={testId}
+        className="t-caption ms-2 min-w-5 rounded-full bg-fg px-1 text-center tabular-nums text-surface">
+        {open.open > 99 ? "99+" : open.open}
+      </span>
+      <span className="sr-only">
+        {`, не выполнено: ${open.open}${open.overdue > 0 ? `, просрочено: ${open.overdue}` : ""}`}
+      </span>
+    </>
+  );
+}
 
 /**
  * Настройки: список разделов слева, раздел справа.
@@ -111,47 +128,49 @@ export function Settings({
   // одинаковых заголовка (ревью #1079 — строгий режим Playwright у
   // scoped-staff-provisioner). Здесь h2 — у остальных разделов.
   const staffSection = current.key === "staff" && isAdmin && staff && staffRoles ? { staff, staffRoles } : null;
+  // Один список разделов — две раскладки по ширине: столбец слева от 56rem, на узком экране — текущий раздел одной
+  // кнопкой, остальные открываются списком (девять названий в четыре-пять строк съедали первый экран).
+  // Число на пункте «Запросы на удаление» — в обеих раскладках, но `data-testid` — у одной (у столбца слева).
+  const navLinks = (compact: boolean) => SECTIONS.map((entry) => (
+    <li key={`${entry.key}-${entry.view ?? ""}`}>
+      <Link
+        href={hrefFor(entry.key, entry.view)}
+        aria-current={entry === current ? "page" : undefined}
+        className="v3-choice inline-flex min-h-11 w-full items-center whitespace-nowrap rounded-nav px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
+      >
+        {entry.title}
+        {entry.key === "deletion" ? <DeletionCount open={deletionOpen} testId={compact ? undefined : "v3-settings-deletion-count"} /> : null}
+      </Link>
+    </li>
+  ));
 
   return (
     <>
-      {/* Одно предупреждение над всеми разделами — только когда настроенный сервис сломан. */}
-      <IntegrationsBanner rows={integrations} href={section === "integrations" ? null : hrefFor("integrations", null)} />
+      {/* Одно предупреждение над разделами — только когда настроенный сервис сломан. На самих «Интеграциях» то же
+          стоит в таблице ниже, второй раз его не повторяем. */}
+      {section === "integrations" ? null : <IntegrationsBanner rows={integrations} href={hrefFor("integrations", null)} />}
       <div className="grid gap-5 @4xl:grid-cols-[minmax(0,210px)_minmax(0,1fr)] lg:items-start">
-        {/* На узком экране список переносится строками: семь названий в
-            столбик съели бы первый экран, а в полосе с прокруткой текущий
-            раздел уходил за край (снимок 390 px, Э6). */}
         <nav aria-label="Разделы настроек" className="min-w-0">
-          <ul className="flex flex-wrap gap-1 @4xl:flex-col @4xl:flex-nowrap">
-            {SECTIONS.map((entry) => (
-              <li key={`${entry.key}-${entry.view ?? ""}`}>
-                <Link
-                  href={hrefFor(entry.key, entry.view)}
-                  aria-current={entry === current ? "page" : undefined}
-                  className="v3-choice inline-flex min-h-11 w-full items-center whitespace-nowrap rounded-nav px-3 text-sm text-fg-2 hover:bg-surface-2 hover:text-fg"
-                >
-                  {entry.title}
-                  {entry.key === "deletion" && deletionOpen && deletionOpen.open > 0 ? (
-                    <>
-                      <span aria-hidden="true" data-testid="v3-settings-deletion-count"
-                        className="t-caption ms-2 min-w-5 rounded-full bg-fg px-1 text-center tabular-nums text-surface">
-                        {deletionOpen.open > 99 ? "99+" : deletionOpen.open}
-                      </span>
-                      <span className="sr-only">
-                        {`, не выполнено: ${deletionOpen.open}${deletionOpen.overdue > 0 ? `, просрочено: ${deletionOpen.overdue}` : ""}`}
-                      </span>
-                    </>
-                  ) : null}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          {/* Ключ — раздел: после перехода список закрывается сам. */}
+          <details key={`${current.key}-${current.view ?? ""}`} className="group @4xl:hidden" data-testid="v3-settings-nav-compact">
+            <summary className="v3-raised flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg [&::-webkit-details-marker]:hidden">
+              <span className="flex min-w-0 items-center">
+                {current.title}
+                {/* Закрытый список не показывает пункты: число невыполненных запросов видно и на кнопке. */}
+                {current.key === "deletion" ? null : <DeletionCount open={deletionOpen} />}
+              </span>
+              <Icon name="chevron-down" size={16} className="shrink-0 text-fg-3 group-open:rotate-180" />
+            </summary>
+            <ul className="mt-1 space-y-0.5 rounded-ctl border border-border bg-surface p-1">{navLinks(true)}</ul>
+          </details>
+          <ul className="hidden gap-1 @4xl:flex @4xl:flex-col">{navLinks(false)}</ul>
         </nav>
 
         <div className="min-w-0">
           {staffSection ? <StaffSection data={staffSection.staff} roles={staffSection.staffRoles} organizationId={staffOrganizationId}
             view={staffView} selectedMemberId={selectedStaffMemberId} selectedRoleId={selectedStaffRoleId} />
             : <h2 className="t-section mb-3 text-fg">{current.title}</h2>}
-          {current.key === "integrations" ? <IntegrationsSection rows={integrations} /> : null}
+          {current.key === "integrations" ? <IntegrationsSection rows={integrations} connectCard={Boolean(whatsappConnect)} /> : null}
           {current.key === "integrations" && whatsappConnect ? (
             <WhatsAppConnectSection initialStatus={whatsappConnect.status} canConnect={whatsappConnect.canConnect} />
           ) : null}

@@ -112,7 +112,7 @@ function RequestRow({ request, workspace, organizationId }: { request: StaffAuth
     <p className="text-sm text-fg-3">{request.status === "completed" ? request.operation === "password" ? "Аккаунт создан; пароль повторно не показывается" : "Зарегистрировано в сервисе входа; доставка письма не подтверждена"
       : request.status === "rejected" ? `${staffAuthRejectionMessage(request.rejectionCode)} Изменений в Auth не обнаружено. Проверьте причину отказа перед новым запросом.`
       : "Требуется проверка результата; повторная отправка заблокирована"}</p>
-    <p className="text-xs text-fg-3">{new Date(request.createdAt).toLocaleString("ru-RU", { timeZone: "Asia/Dubai" })} (Dubai)</p>
+    <p className="t-meta text-fg-3">{new Date(request.createdAt).toLocaleString("ru-RU", { timeZone: "Asia/Dubai", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })} (Dubai)</p>
     {request.status !== "completed" && request.status !== "rejected" ? <form action={action}>
       <input type="hidden" name="operation" value="reconcile" /><input type="hidden" name="request_id" value={request.requestId} />
       <button className={`${btnGhostCls} min-h-11`} disabled={pending || operation === "prepare"}>{pending ? "Проверяем…" : "Проверить результат"}</button>
@@ -142,33 +142,34 @@ export function StaffSection({ data, roles, organizationId, view, selectedMember
     {view === "roles" ? <StaffRolesSection workspace={roles} selectedRoleId={selectedRoleId} /> : view === "departments" ? <DepartmentsSection departments={data.departments} /> : <>
       <div className="flex flex-wrap items-center justify-between gap-x-3">
         <h2 className="t-section">Сотрудники · {data.members.length}</h2>
-        <StaffDisclosure label="Создать аккаунт" className="w-full" buttonClassName="font-medium text-accent">
+        <StaffDisclosure label="Создать аккаунт" className="w-full" buttonClassName="t-label text-fg-2 hover:text-fg">
           <div className="pt-3"><StaffPasswordForm workspace={roles} organizationId={organizationId} /></div>
         </StaffDisclosure>
-        <StaffDisclosure label="Пригласить сотрудника" className="w-full" buttonClassName="font-medium text-accent">
+        <StaffDisclosure label="Пригласить сотрудника" className="w-full" buttonClassName="t-label text-fg-2 hover:text-fg">
           <div className="pt-3"><StaffInviteForm workspace={roles} organizationId={organizationId} /></div>
         </StaffDisclosure>
       </div>
       {/* Поиск и фильтры — одной строкой над списком и карточкой (StaffDirectoryList). */}
       <StaffDirectoryList members={data.members} accessMembers={roles.members} departments={data.departments} selectedMemberId={selectedMemberId}>
         {selectedMember ? <StaffMemberDetails key={selectedMember.membershipId} member={selectedMember} access={selectedAccess} departments={data.departments}>
-          <StaffDisclosure label="Доступ" className="border-t border-border pt-2" buttonClassName="font-semibold">
+          <StaffDisclosure label="Доступ" className="border-t border-border pt-2" buttonClassName="t-item">
             <div className="space-y-4 pt-2">
               {selectedAccess ? <StaffRoleAssignments member={selectedAccess} workspace={roles} organizationId={organizationId} />
                 : <p role="alert" className="text-sm text-danger">Права сотрудника недоступны. Обновите страницу.</p>}
               <StaffDangerZone member={selectedMember} /></div>
           </StaffDisclosure>
         </StaffMemberDetails> : <div className="space-y-3 py-5">
-          <p role={selectedMemberId ? "alert" : undefined} className="text-sm leading-6 text-fg-3">{selectedMemberId
-            ? "Сотрудник не найден или больше недоступен." : "Выберите сотрудника, чтобы посмотреть рабочие сведения и управление доступом."}</p>
+          <p role={selectedMemberId ? "alert" : undefined} className="t-body-compact text-fg-3">{selectedMemberId
+            ? "Сотрудник не найден или больше недоступен." : "Выберите сотрудника."}</p>
           {selectedMemberId ? <Link href="/v3/settings?section=staff&view=people" className={btnGhostCls}>К сотрудникам</Link> : null}
         </div>}
       </StaffDirectoryList>
     </>}
-    <StaffDisclosure label={`Журнал доступа · ${data.requests.length}`} className="border-t border-border pt-3" buttonClassName="font-semibold">
-      <p className="mt-2 text-sm leading-6 text-fg-3">Проверка сверяет результат с сервисом входа. Повторное создание аккаунта или отправка письма не выполняются.</p>
+    {/* Журнал — о созданных аккаунтах и приглашениях: у «Ролей» и «Отделов» ему нечего делать. */}
+    {view === "people" ? <StaffDisclosure label={`Журнал доступа · ${data.requests.length}`} className="border-t border-border pt-3" buttonClassName="t-item">
+      <p className="t-body-compact mt-2 text-fg-3">Проверка сверяет результат с сервисом входа и ничего не отправляет повторно.</p>
       {data.requests.length ? <ul>{data.requests.map((request) => <RequestRow key={request.requestId} request={request} workspace={roles} organizationId={organizationId} />)}</ul>
-        : <p className="mt-3 text-sm text-fg-3">Запросов доступа пока нет.</p>}
-    </StaffDisclosure>
+        : <p className="t-body-compact mt-3 text-fg-3">Запросов доступа пока нет.</p>}
+    </StaffDisclosure> : null}
   </div>;
 }

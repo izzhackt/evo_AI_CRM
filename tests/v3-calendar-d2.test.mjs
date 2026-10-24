@@ -403,7 +403,7 @@ test("Э8.8: calendar markup — one sheet, staff type roles, 44 px day links, n
   assert.match(calendar, /Срок новой задачи — /u);
   // «ещё N» — 44 px; карточка задачи — нейтральное наведение.
   assert.match(grids, /t-label inline-flex min-h-11 items-center rounded-nav px-1\.5 text-fg-2 underline/u);
-  assert.match(grids, /v3-choice flex min-h-11 w-full flex-col items-start gap-0\.5 rounded-nav border border-control-edge bg-surface-2 px-2 py-1 text-start hover:bg-surface-3"/u);
+  assert.match(grids, /v3-choice flex min-h-11 w-full flex-col items-start gap-0\.5 rounded-nav border border-border bg-surface px-2 py-1 text-start hover:bg-surface-2"/u);
   // Телефон: сетки от 768 px, ниже — список по дням с датами JetBrains Mono.
   assert.match(calendar, /<div className="hidden border-t border-border md:block">/u);
   assert.match(calendar, /<div className="border-t border-border md:hidden">\s*<DayList/u);

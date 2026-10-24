@@ -89,12 +89,12 @@ function DepartmentRow({ department, onArchived, onLockedChange }: {
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0 flex-1 space-y-1">
         <h3 className="t-item break-words">{department.name}</h3>
-        <p className="text-sm text-fg-3">{department.status === "archived" ? "В архиве" : "Действующий отдел"} · Сотрудников: {department.memberCount}</p>
+        <p className="t-body-compact text-fg-3">{department.status === "archived" ? "В архиве · " : ""}Сотрудников: {department.memberCount}</p>
         {department.description ? <p className="whitespace-pre-wrap break-words text-sm leading-6 text-fg-2">{department.description}</p> : null}
       </div>
       {!operation ? <div className="flex flex-wrap gap-2">
         {department.status === "active" ? <button ref={editButton} type="button" className={btnGhostCls} onClick={() => setOperation("update")}>Редактировать</button> : null}
-        <button ref={statusButton} type="button" className={btnGhostCls} onClick={() => setOperation(department.status === "active" ? "archive" : "restore")}>
+        <button ref={statusButton} type="button" className={department.status === "active" ? "inline-flex min-h-11 items-center px-2 t-label text-fg-2 underline underline-offset-4 hover:text-fg" : btnGhostCls} onClick={() => setOperation(department.status === "active" ? "archive" : "restore")}>
           {department.status === "active" ? "В архив" : "Восстановить"}
         </button>
       </div> : null}
@@ -122,10 +122,7 @@ export function DepartmentsSection({ departments }: { departments: readonly Staf
   }
   return <section className="min-w-0 space-y-4" aria-label="Отделы">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="space-y-1">
-        <h2 className="t-section">Отделы · {departments.length}</h2>
-        <p className="text-sm leading-6 text-fg-3">Структура команды и распределение сотрудников.</p>
-      </div>
+      <h2 className="t-section">Отделы · {departments.length}</h2>
       {!creating ? <button ref={addButton} type="button" className={btnCls} disabled={lockedForms.length > 0} onClick={() => setCreating(true)}>Добавить отдел</button> : null}
     </div>
     {creating ? <DepartmentForm operation="create" onClose={closeCreator} onLockedChange={reportCreatorLocked}

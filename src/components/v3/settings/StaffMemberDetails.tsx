@@ -98,8 +98,8 @@ function OrganizationalDetailsForm({ member, departments, onClose }: {
         {archivedNewSelection ? "Выбранный отдел перенесён в архив. Выберите действующий отдел или вариант «Без отдела»."
           : "Отдел в архиве. Можно сохранить текущую связь или выбрать действующий отдел."}
       </p> : null}
-      {!departments.some((department) => department.status === "active") ? <p className="text-sm leading-6 text-fg-3">
-        Добавить отдел можно на вкладке «Отделы».
+      {!departments.some((department) => department.status === "active") ? <p className="t-body-compact text-fg-3">
+        Добавить отдел можно в разделе <Link href="/v3/settings?section=staff&view=departments" className="underline underline-offset-4 hover:text-fg">«Отделы»</Link>.
       </p> : null}
       <fieldset className="space-y-1">
         <legend className="mb-1 text-sm font-medium">Направления работы</legend>
@@ -152,7 +152,7 @@ export function StaffMemberDetails({ member, access, departments, children }: {
         <h4 className="t-section">Рабочие сведения</h4>
         {!editing ? <button ref={editButton} type="button" className={btnGhostCls} onClick={() => setEditing(true)}>Редактировать</button> : null}
       </div>
-      <p className="text-sm leading-6 text-fg-3">Должность не даёт прав доступа. Назначения ролей меняются в разделе «Доступ».</p>
+      <p className="t-body-compact text-fg-3">Должность не даёт прав доступа.</p>
       {editing ? <OrganizationalDetailsForm member={member} departments={departments} onClose={closeEditor} />
         : <dl className="grid gap-4 text-sm">
           <div><dt className="text-fg-3">Должность</dt><dd className="mt-1 break-words leading-6">{member.metadata.jobTitle || "Не указана"}</dd></div>

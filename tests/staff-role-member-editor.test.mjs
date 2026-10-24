@@ -79,7 +79,7 @@ test("confirmed assignments and Admin changes explicitly restart with the latest
   const updated = { ...member, accessVersion: 8 };
   form = formOf(harness.render(props(updated)));
   assert.equal(field(form.children(false, {}), "expected_version"), 7, "props alone never remount a command");
-  click(form.onComplete(saved(8)), "Изменить доступ Admin");
+  click(form.onComplete(saved(8)), "Изменить доступ администратора");
   form = formOf(harness.render(props(updated)));
   assert.equal(field(form.children(false, {}), "expected_version"), 8);
   assert.equal(field(form.children(false, {}), "operation"), "admin");
@@ -139,7 +139,7 @@ test("switching unsent editor mode preserves draft assignments and never exposes
   let form = formOf(harness.render(props()));
   click(form.children(false, {}), "Убрать назначение");
   form = formOf(harness.render(props()));
-  click(form.children(false, {}), "Системный доступ администратора");
+  click(form.children(false, {}), "Доступ администратора");
   form = formOf(harness.render(props()));
   assert.equal(field(form.children(false, {}), "operation"), "admin");
   assert.equal(field(form.children(false, {}), "assignments"), undefined);

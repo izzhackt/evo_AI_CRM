@@ -53,6 +53,9 @@ function StatusRow({ line }: Readonly<{ line: StatusLines[number] }>) {
         {line.note ? <span className="t-meta block text-fg-2">{line.note}</span> : null}
         {/* Что не работает из-за строки и кто это чинит — рядом с ней, а не в другом месте страницы. */}
         {attention && line.without ? <span className="t-meta block text-fg-2" data-testid="v3-telephony-without">{line.without}.</span> : null}
+        {attention && line.id === "directory" ? (
+          <a href="#tel-extensions-title" className="mt-0.5 inline-flex min-h-11 items-center t-label text-fg underline underline-offset-4 hover:text-fg-2">Сопоставить</a>
+        ) : null}
         {attention && line.handoff ? (
           <span className={`t-meta mt-0.5 block font-medium ${line.tone === "blocked" ? "text-danger" : "text-fg"}`} data-testid="v3-telephony-handoff">{line.handoff}</span>
         ) : null}
@@ -106,12 +109,16 @@ function Field({ label, children }: Readonly<{ label: string; children: React.Re
  * форму кабинета; экран говорит лишь, задан ли он.
  */
 function ConnectionGuide({ server, inboundUrl }: Readonly<{ server: TelephonyServerFacts; inboundUrl: string }>) {
-  return (
-    <section aria-labelledby="tel-connection-title" className="@container/telephony" data-testid="v3-telephony-connection">
-      <h3 id="tel-connection-title" className="t-section mb-1 text-fg">Подключение «Ваша CRM» в кабинете ВАТС</h3>
+  // Ключи заданы и ВАТС отвечает: подключение сделано, значения нужны только тому, кто создаёт его заново — блок свёрнут.
+  const settled = server.crmKey === "configured" && server.pbx === "ready";
+  const heading = "Подключение «Ваша CRM» в кабинете ВАТС";
+  const body = (
+    <>
       <p className="mb-2 max-w-prose t-body-compact text-fg-2">
-        Эти значения вносят в форму «Интеграция с вашей CRM» в кабинете ВАТС. Подключение создают в тихое время, когда
-        владелец рядом: пока оно живо, каждый входящий звонок обращается к CRM.
+        Эти значения вносят в форму «Интеграция с вашей CRM» в кабинете ВАТС.
+        {settled
+          ? " Создавайте подключение в тихое время, когда владелец рядом."
+          : " Подключение создают в тихое время, когда владелец рядом: пока оно живо, каждый входящий звонок обращается к CRM."}
       </p>
       <dl className="divide-y divide-border rounded-card border border-border bg-surface">
         <Field label="Имя вашей CRM">EVO CRM</Field>
@@ -126,9 +133,6 @@ function ConnectionGuide({ server, inboundUrl }: Readonly<{ server: TelephonySer
             <Icon name={server.crmKey === "configured" ? "circle-check" : "circle"} size={16} className={`mt-0.5 shrink-0 ${server.crmKey === "configured" ? "text-ok" : "text-fg-3"}`} />
             <span>{server.crmKey === "configured" ? "задан на сервере" : "не задан на сервере"}</span>
           </span>
-          <span className="mt-1 block t-meta text-fg-3">
-            Значение здесь не показывается: его задаёт технический специалист в окружении сервера и вносит в форму кабинета.
-          </span>
         </Field>
         <Field label="Адрес АТС и ключ для авторизации в АТС">
           <span className="inline-flex items-start gap-1.5">
@@ -136,17 +140,32 @@ function ConnectionGuide({ server, inboundUrl }: Readonly<{ server: TelephonySer
               className={`mt-0.5 shrink-0 ${server.pbx === "ready" ? "text-ok" : server.pbx === "invalid" ? "text-danger" : "text-fg-3"}`} />
             <span>{server.pbx === "ready" ? "заданы на сервере" : server.pbx === "invalid" ? "заданы на сервере неверно" : "не заданы на сервере"}</span>
           </span>
-          <span className="mt-1 block t-meta text-fg-3">
-            Их показывает сам кабинет после сохранения подключения. Технический специалист переносит их на сервер; они нигде не публикуются.
-          </span>
         </Field>
         <Field label="Права доступа к управлению ВАТС">
-          Минимум, при котором чтение и звонок отвечают, а не «нет доступа». Права менять сотрудников, отделы, номера и ограничения не включайте.
+          Только чтение и звонки. Права менять сотрудников, отделы, номера и ограничения не включайте.
         </Field>
         <Field label="Сценарий">Для всех номеров</Field>
-        <Field label="Статус обработки пропущенного звонка в CRM">Выключено: перезвон CRM определяет сама</Field>
-        <Field label="Звонки клиентов ответственному менеджеру">Выключено до второй фазы</Field>
+        <Field label="Статус обработки пропущенного звонка в CRM">Выключено</Field>
+        <Field label="Звонки клиентов ответственному менеджеру">Выключено</Field>
       </dl>
+    </>
+  );
+  return (
+    <section aria-labelledby="tel-connection-title" className="@container/telephony" data-testid="v3-telephony-connection">
+      {settled ? (
+        <details className="group" data-testid="v3-telephony-connection-folded">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
+            <Icon name="chevron-right" size={16} className="shrink-0 text-fg-3 group-open:rotate-90" />
+            <h3 id="tel-connection-title" className="t-section text-fg">{heading}</h3>
+          </summary>
+          <div className="pt-1">{body}</div>
+        </details>
+      ) : (
+        <>
+          <h3 id="tel-connection-title" className="t-section mb-1 text-fg">{heading}</h3>
+          {body}
+        </>
+      )}
     </section>
   );
 }

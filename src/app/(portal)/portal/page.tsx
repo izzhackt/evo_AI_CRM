@@ -5,6 +5,7 @@ import { PreparationList } from "@/components/portal/admissionPreparations/Prepa
 import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
 
 import { OverviewView } from "@/components/portal/admission/OverviewView";
+import { AiConsentSlot } from "@/components/portal/consent/AiConsentSlot";
 import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
 import { readStudentPortalOverview } from "@/lib/v3/portal-source";
@@ -23,7 +24,10 @@ export async function generateMetadata(): Promise<Metadata> {
  * «Моё поступление» — байт-в-байт (PORT-6a: RU-значение живёт ключом
  * admission.overviewTitle, смоук-аккаунт — language=ru). CaseHelpWorkspace
  * (разовый вопрос-ответ) остаётся как есть — переписка живёт в
- * /portal/messages (PORT-5c).
+ * /portal/messages (PORT-5c). Согласие на ИИ-помощников (25.10.2026) стоит
+ * над обзором: после логина студент попадает сюда, не на «Главную»; карточка
+ * сама исчезает, когда для текущей версии текста есть решение. Самостоятельному
+ * студенту без дела на сопровождении (accessTier approved) её нет вовсе.
  */
 export default async function StudentPortalOverviewPage() {
   const [actor, locale] = await Promise.all([requireStudentPortalActor(), getLocale()]);
@@ -36,6 +40,7 @@ export default async function StudentPortalOverviewPage() {
         <h1 className="pt-page-title">{strings.overviewTitle}</h1>
         <p className="pt-page-lead">{strings.overviewLead}</p>
       </header>
+      <AiConsentSlot locale={locale} accessTier={actor.accessTier} />
       {/* Обзор с подготовками и обращения — соседние серверные компоненты:
           их чтения идут одновременно, а не одно после другого (план A). */}
       <AdmissionOverview actor={actor} locale={locale} />

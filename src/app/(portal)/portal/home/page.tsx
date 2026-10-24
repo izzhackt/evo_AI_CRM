@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 
+import { AiConsentHomeCard } from "@/components/portal/consent/AiConsent";
 import { CountryTimeline } from "@/components/portal/home/CountryTimeline";
 import { CscaHomeCard } from "@/components/portal/home/CscaHomeCard";
 import { HomeView } from "@/components/portal/home/HomeView";
 import { getLocale } from "@/lib/i18n";
+import { readOwnAiConsent } from "@/lib/portal/ai-consent-source";
 import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
 import {
   TIMELINE_UNDECIDED,
@@ -57,7 +59,11 @@ export default async function StudentPortalHomePage() {
   // Карточка CSCA (Q16) только для Китая: главная трека читается тут же, за
   // выбором, внутри той же волны (цепочка из двух чтений, как у избранного),
   // а студенту с другой страной лишнего чтения нет.
-  const [overviewResult, modules, assessments, favoritesResult, recentUniversities, choiceRead] = await Promise.all([
+  // Согласие на ИИ-помощников (25.10.2026) читается в той же волне: отдельного
+  // круга ожидания нет, а сбой чтения прячет карточку, не роняя «Главную».
+  // Только у клиента с делом на сопровождении (tier assisted, он уже известен
+  // из actor): самостоятельному студенту вопроса нет, и RPC не вызывается.
+  const [overviewResult, modules, assessments, favoritesResult, recentUniversities, choiceRead, aiConsentRead] = await Promise.all([
     tier === "assisted"
       ? readStudentPortalOverview()
         .then((value): { ok: true; value: StudentPortalOverview | null } => ({ ok: true, value }))
@@ -79,6 +85,7 @@ export default async function StudentPortalHomePage() {
       choice,
       cscaHome: cscaHomeCardVisible(choice) ? await readCscaHome().catch((): null => null) : null,
     })),
+    readOwnAiConsent(tier),
   ]);
   const { choice, cscaHome } = choiceRead;
   const now = new Date();
@@ -129,6 +136,12 @@ export default async function StudentPortalHomePage() {
           />
         )}
         csca={cscaCard ? <CscaHomeCard view={cscaCard} /> : null}
+        aiConsent={aiConsentRead.status === "ready" ? (
+          <AiConsentHomeCard
+            initialConsent={aiConsentRead.consent}
+            strings={getPortalStrings("aiConsent", locale)}
+          />
+        ) : null}
         locale={locale}
         now={now}
       />

@@ -175,14 +175,19 @@ export function PageHeader({
 export const inputCls =
   "h-11 w-full min-w-0 rounded-ctl border border-control-edge bg-surface px-3 text-base text-fg placeholder:text-fg-3 transition-[border-color,box-shadow,background-color] duration-150 ease-out hover:bg-surface-2 focus-visible:border-accent motion-reduce:transition-none";
 
+/**
+ * Кнопки staff CRM: 44 px, один шрифт 14 / 500 (роль `t-label`), недоступное состояние — токены
+ * поверхности, без прозрачности. Страницы входа и Student лежат вне `.v3-world`, где роли нет:
+ * основная кнопка там сохраняет прежний размер, а 14 / 500 включается только внутри staff-мира.
+ */
 export const btnCls =
-  "v3-raised inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-accent bg-accent px-4 text-base font-semibold text-on-accent transition-[background-color,border-color,transform] duration-150 ease-out hover:border-accent-2 hover:bg-accent-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
+  "v3-raised inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-accent bg-accent px-4 text-base font-semibold [.v3-world_&]:text-sm [.v3-world_&]:font-medium text-on-accent transition-[background-color,border-color,transform] duration-150 ease-out enabled:hover:border-accent-2 enabled:hover:bg-accent-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-2 disabled:text-fg-3 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
 
 export const btnGhostCls =
-  "v3-raised inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 text-sm font-semibold text-fg-2 transition-[background-color,border-color,color,transform] duration-150 ease-out hover:bg-surface-2 hover:text-fg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
+  "v3-raised inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 text-sm font-medium text-fg-2 transition-[background-color,border-color,color,transform] duration-150 ease-out enabled:hover:bg-surface-2 enabled:hover:text-fg active:scale-[0.98] disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-2 disabled:text-fg-3 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
 
 export const btnDangerGhostCls =
-  "v3-raised inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 text-sm font-semibold text-fg-2 transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-danger hover:bg-danger-weak hover:text-danger active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
+  "v3-raised inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 text-sm font-medium text-fg-2 transition-[background-color,border-color,color,transform] duration-150 ease-out enabled:hover:border-danger enabled:hover:bg-danger-weak enabled:hover:text-danger active:scale-[0.98] disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-2 disabled:text-fg-3 disabled:active:scale-100 motion-reduce:transition-none motion-reduce:active:scale-100";
 
 export const labelCls = "mb-1 block text-xs font-medium text-fg-2";
 

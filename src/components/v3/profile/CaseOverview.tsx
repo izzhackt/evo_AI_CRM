@@ -251,7 +251,7 @@ function ChatFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
     <Fact term="Переписка" testId="v3-case-chat">
       {chat.kind === "forbidden" ? <span className="text-fg-2">нет доступа</span>
         : chat.kind === "unavailable" ? <span className="text-fg-2">не прочитана</span>
-          : chat.awaitState === "needs_reply" ? <Pill tone="danger">{caseChatAwaitState("needs_reply")}</Pill>
+          : chat.awaitState === "needs_reply" ? <Pill tone="warn">{caseChatAwaitState("needs_reply")}</Pill>
             : chat.awaitState === "awaiting_student" ? <Pill>{caseChatAwaitState("awaiting_student")}</Pill>
               : <span className="text-fg-2">{chat.last === null ? "сообщений пока нет" : "ответа не ждёт"}</span>}
       {chat.kind !== "forbidden" ? <Link href={input.hrefs.messages} className={FACT_LINK}>Открыть переписку</Link> : null}

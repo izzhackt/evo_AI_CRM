@@ -759,7 +759,7 @@
 }
 .v3-world .v3-switch[aria-checked="true"] .v3-switch-track::after {
   translate: 16px 0;
-  background: var(--switch-thumb-on, #202020);
+  background: var(--switch-thumb-on, var(--surface));
 }
 .v3-world .v3-switch[aria-disabled="true"],
 .v3-world .v3-switch:disabled {

@@ -85,11 +85,14 @@ export function RowSelect({ label, checked, onToggle, phoneHidden = false }: Rea
 /**
  * «Выбрать» на телефоне: показывает колонку отметок (на компьютере она видна
  * всегда, есть и клавиша «x»). «Отмена» снимает выбор и прячет отметки.
- * Кнопка стоит на месте всё время — список под пальцем не прыгает.
+ * Кнопка стоит на месте всё время — список под пальцем не прыгает. С
+ * `onHeading` своей строки у неё нет: она лежит справа на заголовке первой
+ * группы (родитель — `relative`), как «Выбрать» в «Задачах»; заголовок
+ * оставляет ей место. Список без заголовка групп получает обычную строку.
  */
-export function BulkPickToggle({ selection }: Readonly<{ selection: BulkSelection }>) {
+export function BulkPickToggle({ selection, onHeading = false }: Readonly<{ selection: BulkSelection; onHeading?: boolean }>) {
   return (
-    <div className="flex justify-end sm:hidden">
+    <div className={onHeading ? "absolute end-0 -top-1.5 z-30 sm:hidden" : "flex justify-end sm:hidden"}>
       <button
         type="button"
         data-testid="queue-bulk-pick"

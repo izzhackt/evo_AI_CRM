@@ -160,8 +160,6 @@ test("solid red stays for the main action and every selection shares one accent-
   const filterSubmits = [
     "src/components/v3/Inbox.tsx",
     "src/components/v3/MainHeader.tsx",
-    // Both boards' search (Enter on desktop, «Найти» on the phone).
-    "src/components/v3/board/Board.tsx",
     // Э6: the catalogue applies its filters on change; «Найти» stays for a browser without scripts.
     "src/components/v3/universities/UniversityToolbar.tsx",
   ];
@@ -346,7 +344,8 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
   assert.match(caseTable, /className="line-clamp-2 break-words t-item text-fg before:absolute before:inset-0/u);
   assert.match(caseTable, /<span className="block truncate t-meta text-fg-2" title=\{meta\}>/u);
   // The due band is opaque over its full height and owns its hairline (25.09 finish review).
-  assert.match(caseTable, /className="flex flex-wrap items-baseline gap-x-1\.5 border-b border-border bg-bg py-1\.5 ps-3 text-start t-item"/u);
+  // С колонкой выбора заголовок оставляет справа место «Выбрать» на телефоне (`max-sm:pe-24`).
+  assert.match(caseTable, /className=\{`flex flex-wrap items-baseline gap-x-1\.5 border-b border-border bg-bg py-1\.5 ps-3 text-start t-item\$\{select \? " max-sm:pe-24" : ""\}`\}/u);
   assert.match(caseTable, /<span className="font-normal tabular-nums text-fg-3">· \{band\.count\}<\/span>/u);
   // Dates only — the due day and, when sorted by update, «обн. ДД.ММ» — share one mono constant.
   assert.equal(caseTable.match(/\bfont-mono\b/gu)?.length, 1, "one mono class for the row's dates");

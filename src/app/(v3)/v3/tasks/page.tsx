@@ -129,9 +129,11 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const canReadTaskQueue = workspace.canReadStaffTasks || workspace.canReadCaseTasks;
   // Задачи-перезвоны называют клиента в строке — только пока набор открыт этому сотруднику, как на «Сегодня»
   // (иначе список называл бы клиентов там, где панель не называет); у страницы «Задачи по лиду» списка нет.
-  // Чтение не удалось — строка остаётся «Рабочая».
+  // Чтение не удалось — строка остаётся без клиента.
   const taskLeads = !sourceLead && canReadTaskQueue && workspace.canReadStaffTasks && (await dialOptions()).status === "ready"
     ? await readQueueTaskLeads(actor, queue.bands.flatMap((band) => band.rows)) : {};
+  // Тот же набор, что назвал клиентов: «Позвонить» в строках — только при `ready` и только у строк с клиентом.
+  const listDial = Object.keys(taskLeads).length > 0 ? await dialOptions() : null;
   const staffAllowed = !preview && staffHasPermission(actor, "staff.task.create") && !sourceLeadId;
   const composerProps = {
     participants: workspace.assignees, actorMembershipId: actor.membershipId, actor, day, staffAllowed,
@@ -199,6 +201,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       }}
       selectedKey={selectedKey}
       taskLeads={taskLeads}
+      dial={listDial}
       panel={panel}
     />
     </>}

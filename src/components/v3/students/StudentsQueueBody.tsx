@@ -225,8 +225,8 @@ export function StudentsQueueBody({
       {head}
       <div className={sidePanelSplit(panel !== null)}>
         <div className="min-w-0 space-y-3">
-          {bulk && !empty ? <BulkPickToggle selection={selection} /> : null}
-          <div className="@container/students min-w-0" data-queue-list="">
+          <div className="@container/students relative min-w-0" data-queue-list="">
+            {bulk && !empty ? <BulkPickToggle selection={selection} onHeading={bands[0]?.label != null} /> : null}
             {empty ? (
               <QueueEmpty
                 title={empty.title}

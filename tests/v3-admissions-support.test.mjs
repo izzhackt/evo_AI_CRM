@@ -20,7 +20,7 @@ if (typeof React.useState !== "function") {
     });
     assert.ifError(execution.error);
     assert.equal(execution.status, 0, execution.stderr || execution.stdout);
-    for (const summary of ["tests 18", "pass 18", "fail 0", "cancelled 0", "skipped 0"]) {
+    for (const summary of ["tests 19", "pass 19", "fail 0", "cancelled 0", "skipped 0"]) {
       assert.ok(execution.stdout.includes(`# ${summary}\n`), execution.stdout);
     }
   });

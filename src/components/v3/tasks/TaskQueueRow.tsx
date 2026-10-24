@@ -8,12 +8,14 @@ import { Icon } from "@/components/icons";
 import { changePlatformAdmissionsTaskAction } from "@/lib/platform-admissions-task-actions";
 import type { PlatformCaseTaskStatus } from "@/lib/platform-admissions-task-contract";
 import { mutateStaffTaskAction } from "@/lib/platform-staff-task-actions";
+import type { DialOptions } from "@/lib/v3/telephony-dial";
 import type { QueueTask } from "@/lib/v3/task-queue";
 import { taskStatus } from "@/lib/v3/wording";
 
 import { DueWord } from "../blocks/DueWord";
 import { Initials } from "../blocks/Initials";
 import { StatusChip } from "../blocks/StatusChip";
+import { DialButton } from "../telephony/DialButton";
 import { dueWordOf, queueDue } from "../queue/due-bucket";
 import { shortPersonName } from "../queue/person-name";
 import { RowSelect } from "../queue/Bulk";
@@ -109,7 +111,8 @@ export function TaskQueueRow({
   announce,
   select = null,
   leadRef = null,
-  hideKind = false,
+  dial = null,
+  hideTodayWord = false,
 }: Readonly<{
   task: QueueTask;
   href: string;
@@ -131,10 +134,12 @@ export function TaskQueueRow({
   announce: (text: string) => void;
   /** Колонка выбора для массовых действий; null — у списка их нет. */
   select?: TaskRowSelect | null;
-  /** Лид рабочей задачи («Перезвонить клиенту»): имя клиента вместо слова «Рабочая»; null — у задачи лида нет. */
-  leadRef?: Readonly<{ name: string; href: string }> | null;
-  /** Список только рабочих задач: слово «Рабочая» в каждой строке ничего не различает. */
-  hideKind?: boolean;
+  /** Лид рабочей задачи («Перезвонить клиенту»): имя клиента в строке; null — у задачи лида нет. */
+  leadRef?: Readonly<{ leadId: string; name: string; href: string }> | null;
+  /** «Позвонить» у строки с лидом — только когда база открыла набор этому сотруднику (`DialButton`, T7); общая подсказка — у списка. */
+  dial?: DialOptions | null;
+  /** Строка стоит в группе «Сегодня»: красное слово «сегодня» в каждой строке повторяло бы заголовок группы. */
+  hideTodayWord?: boolean;
 }>) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -153,7 +158,10 @@ export function TaskQueueRow({
   const word = exceptionWord(task, open);
   const done = Boolean(recent);
   // Только что завершённая задача больше не «прошла» и не «сегодня»: слова срока нет.
-  const dueWord = !done ? dueWordOf(task, now, open) : null;
+  const rawDueWord = !done ? dueWordOf(task, now, open) : null;
+  const dueWord = hideTodayWord && rawDueWord?.tone === "today" ? null : rawDueWord;
+  // «Позвонить» — у открытой задачи с лидом; колонка действий шире на одну кнопку.
+  const dialLeadId = leadRef && dial?.status === "ready" && open && !done ? leadRef.leadId : null;
 
   async function completeStaff() {
     if (busy.current) return;
@@ -213,21 +221,31 @@ export function TaskQueueRow({
   // С колонкой выбора ширина первой колонки — переменная `--row-lead`: 5.5rem
   // (отметка и круг), без «Выбрать» — 2.75rem (только круг).
   const selectHidden = select !== null && !select.revealed;
+  // Последняя колонка — «⋯» (2.75rem); у строки с «Позвонить» шире на кнопку (`--row-tail`).
   const layout = showAssignee
-    ? select ? "@3xl:grid-cols-[var(--row-lead)_7rem_minmax(0,1fr)_minmax(0,11rem)_2.75rem]" : "@3xl:grid-cols-[2.75rem_7rem_minmax(0,1fr)_minmax(0,11rem)_2.75rem]"
+    ? select ? "@3xl:grid-cols-[var(--row-lead)_7rem_minmax(0,1fr)_minmax(0,11rem)_var(--row-tail)]" : "@3xl:grid-cols-[2.75rem_7rem_minmax(0,1fr)_minmax(0,11rem)_var(--row-tail)]"
     : "";
+  const tailVar = dialLeadId ? "[--row-tail:5.5rem]" : "[--row-tail:2.75rem]";
   const [narrow, wide] = select
-    ? [`${selectHidden ? "[--row-lead:2.75rem]" : "[--row-lead:5.5rem]"} grid-cols-[var(--row-lead)_minmax(0,1fr)_2.75rem]`, "@min-[32rem]:grid-cols-[var(--row-lead)_7rem_minmax(0,1fr)_2.75rem]"]
-    : ["grid-cols-[2.75rem_minmax(0,1fr)_2.75rem]", "@min-[32rem]:grid-cols-[2.75rem_7rem_minmax(0,1fr)_2.75rem]"];
+    ? [`${selectHidden ? "[--row-lead:2.75rem]" : "[--row-lead:5.5rem]"} grid-cols-[var(--row-lead)_minmax(0,1fr)_var(--row-tail)]`, "@min-[32rem]:grid-cols-[var(--row-lead)_7rem_minmax(0,1fr)_var(--row-tail)]"]
+    : ["grid-cols-[2.75rem_minmax(0,1fr)_var(--row-tail)]", "@min-[32rem]:grid-cols-[2.75rem_7rem_minmax(0,1fr)_var(--row-tail)]"];
+  // Части второй строки: имя (студент, клиент) и «из чата» — до них стоит разделитель; без них строка начинается со срока.
+  const person = !hideStudent && ((task.kind === "case" && Boolean(task.studentCaseId)) || leadRef !== null);
+  const chat = !hideStudent && task.fromChat && !(task.kind === "case" && task.studentCaseId);
+  const before = person || chat;
   // Без имени студента после срока на узкой строке идут только «дело закрыто» и слово-исключение.
   const tail = task.caseState === "closed" || word !== null;
+  // Вторая строка без частей не занимает высоты: у обычной рабочей задачи на широкой строке в ней пусто (срок — своя колонка).
+  const metaHidden = before || tail ? ""
+    : showAssignee ? (due ? " @3xl:hidden" : " @max-[32rem]:hidden @3xl:hidden")
+      : due ? " @min-[32rem]:hidden" : " hidden";
 
   return (
     <li
       data-queue-row={task.key}
       data-kind={task.kind}
       data-selected={select?.checked ? "" : undefined}
-      className={`v3-queue-row relative grid ${narrow} items-center gap-x-2 border-b border-border ${wide} ${layout}${layout ? " " : ""}${selected || select?.checked ? "bg-surface-2" : "hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface"}`}
+      className={`v3-queue-row relative grid ${tailVar} ${narrow} items-center gap-x-2 border-b border-border ${wide} ${layout}${layout ? " " : ""}${selected || select?.checked ? "bg-surface-2" : "hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface"}`}
     >
       <div className="flex">
         {select ? (select.available && !done
@@ -285,9 +303,9 @@ export function TaskQueueRow({
             Завершено
           </p>
         ) : (
-          <p className="flex min-h-6 min-w-0 flex-wrap items-center gap-x-2 t-meta text-fg-2 @min-[32rem]:gap-x-1">
+          <p className={`flex min-h-6 min-w-0 flex-wrap items-center gap-x-2 t-meta text-fg-2 @min-[32rem]:gap-x-1${metaHidden}`}>
             {/* Узкая строка: срок первым, как колонка срока на широкой. Части строки
-                переносятся целиком: имя студента и «Рабочая» не превращаются в «Р…».
+                переносятся целиком: имя студента не превращается в «Ив…».
                 Одна часть, не помещающаяся в строку, сокращается многоточием. */}
             {due ? (
               <span className="shrink-0 @min-[32rem]:hidden">
@@ -314,18 +332,15 @@ export function TaskQueueRow({
               </Link>
               <span className="min-w-0 truncate md:pointer-fine:hidden">{leadRef.name}</span>
               {task.fromChat ? <span className="min-w-0 shrink-[2] truncate">{SEP}из чата</span> : null}
-            </> : <>
-              {hideKind ? null : <span className="min-w-0 truncate">Рабочая</span>}
-              {task.fromChat ? <span className="min-w-0 shrink-[2] truncate">{hideKind ? null : SEP}из чата</span> : null}
-            </>}
-            {task.caseState === "closed" ? <span className="min-w-0 truncate">{hideStudent ? null : SEP}дело закрыто</span> : null}
-            {word ? <span className="shrink-0">{hideStudent && task.caseState !== "closed" ? null : SEP}<StatusChip label={word} tone={task.status === "blocked" ? "warn" : "neutral"} /></span> : null}
+            </> : task.fromChat ? <span className="min-w-0 truncate">из чата</span> : null}
+            {task.caseState === "closed" ? <span className="min-w-0 truncate">{before ? SEP : null}дело закрыто</span> : null}
+            {word ? <span className="shrink-0">{before || task.caseState === "closed" ? SEP : null}<StatusChip label={word} tone={task.status === "blocked" ? "warn" : "neutral"} /></span> : null}
             {/* Без своей колонки (32–48rem: панель открыта рядом) исполнитель
                 помечен «исп.» и сокращён — его не спутать со студентом или
                 источником; сжимается медленнее имени студента. */}
             {showAssignee ? (
               <span className="hidden min-w-0 shrink-[0.5] truncate @min-[32rem]:inline @3xl:hidden" title={`Исполнитель: ${task.assigneeDisplayName}`}>
-                {hideStudent && !tail ? null : "· "}<span aria-hidden="true">исп. {shortPersonName(task.assigneeDisplayName)}</span><span className="sr-only">исполнитель {task.assigneeDisplayName}</span>
+                {before || tail ? "· " : null}<span aria-hidden="true">исп. {shortPersonName(task.assigneeDisplayName)}</span><span className="sr-only">исполнитель {task.assigneeDisplayName}</span>
               </span>
             ) : null}
           </p>
@@ -346,6 +361,7 @@ export function TaskQueueRow({
       ) : null}
 
       <div className="flex justify-end">
+        {dialLeadId && dial?.status === "ready" ? <DialButton leadId={dialLeadId} mapped={dial.mapped} variant="row" subject={leadRef?.name ?? null} sharedHint /> : null}
         {!done && (can.postpone || can.transfer) ? <>
           <button id={menu.triggerId} type="button" popoverTarget={menu.popoverId} style={menu.triggerStyle}
             aria-label={`Действия: ${task.title}`} className={`${ROW_BUTTON} rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg`}>

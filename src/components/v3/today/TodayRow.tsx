@@ -105,7 +105,7 @@ export function TodayRow({ item, nowIso, dial = null, hideReason = false }: Read
 
       <div className="flex justify-end">
         {dialLeadId && dial?.status === "ready" ? (
-          <DialButton leadId={dialLeadId} mapped={dial.mapped} variant="row" subject={item.who?.name ?? item.title} />
+          <DialButton leadId={dialLeadId} mapped={dial.mapped} variant="row" subject={item.who?.name ?? item.title} sharedHint />
         ) : null}
         <IntentPrefetchLink
           href={item.openHref}

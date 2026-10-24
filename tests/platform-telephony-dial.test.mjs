@@ -844,7 +844,7 @@ test("rendered lead: the button sits in the header actions beside «Написа
   assert.match(button, /aria-disabled:text-fg-3/u, "the unmapped state has a style of its own");
   assert.equal(text(button), "Позвонить", "the word for the screen reader, visible from sm");
   assert.match(button, /<span class="sr-only sm:not-sr-only">Позвонить<\/span>/u);
-  assert.match(html, /<p class="hidden basis-full t-meta text-fg-2 max-sm:block pointer-coarse:block" data-testid="v3-dial-hint">«Позвонить» сначала звонит вам: возьмите трубку, и мы наберём клиента\.<\/p>/u,
+  assert.match(html, /<p class="hidden basis-full t-meta text-fg-2 max-sm:block pointer-coarse:block" data-testid="v3-dial-hint">Сначала звонит ваш телефон\.<\/p>/u,
     "a touch screen has no hover: the same fact stands as a quiet line under the actions");
   const actionsAt = html.indexOf('data-testid="v3-lead-actions"');
   assert.ok(actionsAt > 0 && html.indexOf('data-testid="v3-dial-button"') > actionsAt, "inside the header actions");
@@ -968,7 +968,9 @@ test("callback task: the Today row and the task panel name the client, and only 
   assert.match(main, /taskLeads=\{taskLeads\}/u);
   const row = read("src/components/v3/tasks/TaskQueueRow.tsx");
   assert.match(row, /leadRef \? <>/u);
-  assert.match(row, /<span className="min-w-0 truncate">Рабочая<\/span>/u, "a task without a lead still says «Рабочая»");
+  assert.doesNotMatch(row, /Рабочая/u, "an ordinary work task no longer carries a «Рабочая» kind word: its row says nothing the list does not already say");
+  assert.match(row, /dialLeadId = leadRef && dial\?\.status === "ready" && open && !done \? leadRef\.leadId : null;/u, "a call-back row dials its lead only while the base opened dial to this employee");
+  assert.match(row, /<DialButton leadId=\{dialLeadId\} mapped=\{dial\.mapped\} variant="row" subject=\{leadRef\?\.name \?\? null\} sharedHint \/>/u);
   const tasks = read("src/app/(v3)/v3/tasks/page.tsx");
   assert.match(tasks, /if \(selected && taskContext\?\.leadId\) \{\s*const dial = await dialOptions\(\);\s*if \(dial\.status === "ready"\)/u);
   assert.match(tasks, /const dialOptions = \(\) => \(dialRead \?\?= readDialOptions\(actor\)\);/u, "the dial is read once for the panel and the list");
@@ -991,6 +993,7 @@ test("«Заявки → Звонки»: the outcome and «Позвонить» 
   assert.match(source, /const REQUEST_CALLS_LIMIT = 20;/u);
   assert.match(source, /p_limit: 1,/u, "the newest call of the lead is enough");
   const view = read("src/components/v3/requests/RequestsQueueView.tsx");
-  assert.match(view, /<DialButton leadId=\{dialLeadId\} mapped=\{props\.dial\.mapped\} subject=\{name\} iconOnly \/>/u);
+  assert.match(view, /<DialButton leadId=\{dialLeadId\} mapped=\{props\.dial\.mapped\} subject=\{name\} iconOnly sharedHint \/>/u);
+  assert.match(view, /<DialListHint \/>/u, "one hidden description for the whole list, not one per row");
   assert.match(view, /!props\.readOnly \? leadId : null/u, "a role preview has no button");
 });

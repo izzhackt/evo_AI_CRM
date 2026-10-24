@@ -11,8 +11,8 @@ export const AIA_LINK_CONFIRM = `${QUEUE_CONFIRM} hover:border-fg-2 hover:bg-fg-
  * Главное действие страницы агента («Сохранить», «Сохранить настройки») — единственная
  * сплошная красная кнопка на странице. Размер и шрифт те же, что у кнопок очереди
  * (`QUEUE_CONFIRM`, `QUEUE_SECONDARY`), а недоступное состояние — токены поверхности,
- * без прозрачности (у общего `btnCls` недоступная кнопка — бледно-розовая и читается
- * как ошибка). Подтверждения, повторы и «Отмена» — кнопки очереди.
+ * без прозрачности (общий `btnCls` теперь тоже так; здесь остаётся `min-h-11` и `enabled:hover:`
+ * без анимации нажатия). Подтверждения, повторы и «Отмена» — кнопки очереди.
  */
 export const AIA_PRIMARY =
   "v3-raised inline-flex min-h-11 items-center justify-center gap-1.5 rounded-ctl border border-accent bg-accent px-4 t-label text-on-accent enabled:hover:border-accent-2 enabled:hover:bg-accent-2 disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-2 disabled:text-fg-3";

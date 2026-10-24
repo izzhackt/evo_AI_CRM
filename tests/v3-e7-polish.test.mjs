@@ -763,10 +763,11 @@ test("phone: no checkbox beside the completion circle until «Выбрать»; 
   const source = read("src/components/v3/queue/Bulk.tsx");
   assert.match(source, /clear: \(\) => \{ setSelected\(\[\]\); setPicking\(false\); \}/u);
   assert.match(source, /revealed: picking \|\| live\.length > 0/u);
-  // «Студенты»: «Выбрать» над списком. «Задачи»: своя кнопка в строке заголовка первой группы и отметки, скрытые на любой ширине, пока не нажато «Выбрать».
+  // «Студенты»: «Выбрать» на заголовке первой группы (без заголовка — строка над таблицей). «Задачи»: своя кнопка в строке заголовка первой группы и отметки, скрытые на любой ширине, пока не нажато «Выбрать».
   assert.match(read("src/components/v3/tasks/TaskQueueList.tsx"), /data-testid="queue-bulk-pick"[\s\S]*?\{selection\.revealed \? "Отмена" : "Выбрать"\}/u);
   assert.match(read("src/components/v3/tasks/TaskQueueList.tsx"), /revealed: selection\.revealed \}/u);
-  assert.match(read("src/components/v3/students/StudentsQueueBody.tsx"), /\{bulk && !empty \? <BulkPickToggle selection=\{selection\} \/> : null\}/u);
+  assert.match(read("src/components/v3/students/StudentsQueueBody.tsx"), /\{bulk && !empty \? <BulkPickToggle selection=\{selection\} onHeading=\{bands\[0\]\?\.label != null\} \/> : null\}/u);
+  assert.match(renderToStaticMarkup(createElement(bulk.BulkPickToggle, { selection: fakeSelection([], false), onHeading: true })), /^<div class="absolute end-0 -top-1\.5 z-30 sm:hidden"><button /u);
   assert.match(read("src/components/v3/tasks/TaskQueueRow.tsx"), /selectHidden \? "\[--row-lead:2\.75rem\]" : "\[--row-lead:5\.5rem\]"/u);
 });
 

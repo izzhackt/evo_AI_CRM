@@ -9,7 +9,7 @@ import { todayVisibleCount, type TodayQueue } from "./today-queue.ts";
 
 /**
  * Чей лид у рабочей задачи («Телефония Beeline KG», срез T8: задача «Перезвонить клиенту» несёт лид).
- * Строка «Сегодня» и панель задачи называют клиента и дают позвонить — вместо слова «Рабочая». Читает
+ * Строка «Сегодня» и «Задач» и панель задачи называют клиента и дают позвонить. Читает
  * те же `staff_task_context` и `staff_task_lead_context`, что страница «Задач», каждую под сессией
  * сотрудника: чужой лид или закрытая задача не отдают имени. Любой сбой — задача остаётся как была.
  */
@@ -58,12 +58,12 @@ export async function readTodayTaskLeads(actor: ActivePlatformActor, queue: Toda
   return Object.freeze(Object.fromEntries(refs.filter((entry): entry is readonly [string, TaskLeadRef] => entry[1] !== null)));
 }
 
-/** Сколько задач списка «Задач» перечитывается за раз: первые по порядку списка; у остальных строка остаётся «Рабочая». */
+/** Сколько задач списка «Задач» перечитывается за раз: первые по порядку списка; у остальных строка остаётся без клиента. */
 const QUEUE_LEAD_LIMIT = 24;
 
 /**
- * Лиды задач-перезвонов в списке «Задач» по ключу строки (`staff:<id>`): строка называет клиента вместо слова
- * «Рабочая», как на «Сегодня». Читаются только задачи самой телефонии (`isCallbackTaskTitle`), первые по порядку списка.
+ * Лиды задач-перезвонов в списке «Задач» по ключу строки (`staff:<id>`): строка называет клиента и даёт
+ * позвонить, как на «Сегодня». Читаются только задачи самой телефонии (`isCallbackTaskTitle`), первые по порядку списка.
  */
 export async function readQueueTaskLeads(actor: ActivePlatformActor, tasks: readonly QueueTask[]): Promise<Readonly<Record<string, TaskLeadRef>>> {
   const callbacks = tasks

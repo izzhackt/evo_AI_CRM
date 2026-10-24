@@ -3,6 +3,7 @@ import type { ComponentProps, ReactNode } from "react";
 
 import type { TaskQueue, TaskQueueFilters, TaskQueueKind } from "@/lib/v3/task-queue";
 import { taskQueueNarrowing, taskQueueParams, TASK_QUEUE_WINDOWS } from "@/lib/v3/task-queue";
+import type { DialOptions } from "@/lib/v3/telephony-dial";
 
 import { sidePanelSplit } from "../panel/side-panel";
 import { DUE_BUCKETS, DUE_FILTER_LABELS, dueBandLabel, type DueFilter } from "../queue/due-bucket";
@@ -64,6 +65,7 @@ export function TasksWorkspace({
   permissions,
   selectedKey,
   taskLeads = null,
+  dial = null,
   panel,
 }: Readonly<{
   filters: TaskQueueFilters;
@@ -84,8 +86,10 @@ export function TasksWorkspace({
   urlIntent: string | null;
   permissions: TaskRowPermissions;
   selectedKey: string | null;
-  /** Клиенты задач-перезвонов по ключу строки: имя вместо слова «Рабочая». */
-  taskLeads?: Readonly<Record<string, Readonly<{ name: string; href: string }>>> | null;
+  /** Клиенты задач-перезвонов по ключу строки: имя клиента и «Позвонить» в строке. */
+  taskLeads?: Readonly<Record<string, Readonly<{ leadId: string; name: string; href: string }>>> | null;
+  /** Решение базы о наборе для этого сотрудника (читает страница); нет — «Позвонить» в строках нет. */
+  dial?: DialOptions | null;
   /** Панель выбранной задачи (читает страница) или null. */
   panel: ReactNode;
 }>) {
@@ -193,7 +197,7 @@ export function TasksWorkspace({
               nowIso={nowIso}
               permissions={permissions}
               leads={taskLeads}
-              hideKind={filters.type === "staff"}
+              dial={dial}
             />}
           </div>
           {/* Пустое неполное чтение уже сказало это в пустом состоянии. */}

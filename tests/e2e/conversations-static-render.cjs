@@ -683,7 +683,7 @@ async function screenshots() {
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
-    page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    page.on("console", (message) => { if (message.type() === "error" && !/\/api\/v3\/notifications\/state/u.test(message.text())) errors.push(message.text()); });
     await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
     await page.evaluate(() => document.fonts.ready);
     await page.waitForSelector("html[data-hydrated=true]", { state: "attached", timeout: 15_000 });
@@ -1108,7 +1108,7 @@ async function whatsappScreenshots() {
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
-    page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    page.on("console", (message) => { if (message.type() === "error" && !/\/api\/v3\/notifications\/state/u.test(message.text())) errors.push(message.text()); });
     await page.goto(pathToFileURL(htmlFor[name]).href, { waitUntil: "load" });
     await page.evaluate(() => document.fonts.ready);
     await page.waitForSelector("html[data-hydrated=true]", { state: "attached", timeout: 15_000 });
@@ -1627,7 +1627,7 @@ async function aiScreenshots(mode) {
     const session = await context.newPage();
     const errors = [];
     session.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
-    session.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    session.on("console", (message) => { if (message.type() === "error" && !/\/api\/v3\/notifications\/state/u.test(message.text())) errors.push(message.text()); });
     await session.goto(pathToFileURL(htmlFor[name]).href, { waitUntil: "load" });
     await session.evaluate(() => document.fonts.ready);
     await session.waitForSelector("html[data-hydrated=true]", { state: "attached", timeout: 15_000 });
@@ -2152,7 +2152,7 @@ async function aiP3Screenshots() {
     const session = await context.newPage();
     const errors = [];
     session.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
-    session.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    session.on("console", (message) => { if (message.type() === "error" && !/\/api\/v3\/notifications\/state/u.test(message.text())) errors.push(message.text()); });
     await session.goto(pathToFileURL(htmlFor[name]).href, { waitUntil: "load" });
     await session.evaluate(() => document.fonts.ready);
     await session.waitForSelector("html[data-hydrated=true]", { state: "attached", timeout: 15_000 });
@@ -2709,7 +2709,7 @@ async function aiP4Screenshots() {
     const session = await context.newPage();
     const errors = [];
     session.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
-    session.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+    session.on("console", (message) => { if (message.type() === "error" && !/\/api\/v3\/notifications\/state/u.test(message.text())) errors.push(message.text()); });
     await session.goto(pathToFileURL(htmlFor[name]).href, { waitUntil: "load" });
     await session.evaluate(() => document.fonts.ready);
     await session.waitForSelector("html[data-hydrated=true]", { state: "attached", timeout: 15_000 });

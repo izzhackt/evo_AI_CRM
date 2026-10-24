@@ -334,7 +334,7 @@ export function StudentsQueueTable({
           <tbody key={band.key} role="rowgroup" aria-labelledby={band.label ? headingId : undefined} className="block">
             {band.label ? (
               <tr role="row" className="v3-sticky-band sticky top-0 z-20 block bg-bg @min-[30rem]/students:top-8">
-                <th role="rowheader" scope="rowgroup" colSpan={7} id={headingId} className="flex flex-wrap items-baseline gap-x-1.5 border-b border-border bg-bg py-1.5 ps-3 text-start t-item">
+                <th role="rowheader" scope="rowgroup" colSpan={7} id={headingId} className={`flex flex-wrap items-baseline gap-x-1.5 border-b border-border bg-bg py-1.5 ps-3 text-start t-item${select ? " max-sm:pe-24" : ""}`}>
                   <span className={band.tone === "danger" ? "text-danger" : band.tone === "warn" ? "text-warn" : "text-fg"}>{band.label}</span>
                   {band.count !== null ? <span className="font-normal tabular-nums text-fg-3">· {band.count}</span> : null}
                   {band.key === "no_step" && hint ? <span className="t-meta font-normal text-fg-2">— {hint}</span> : null}

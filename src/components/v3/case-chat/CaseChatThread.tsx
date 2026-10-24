@@ -746,7 +746,8 @@ function CaseChatThreadView({
         awaitState={awaitState ?? page.thread.awaitState} onSetAwait={changeAwait} awaitPending={awaitPending} />
       {failureNotice}
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <div ref={viewport} onScroll={onFeedScroll} className="min-h-0 flex-1 overflow-y-auto bg-bg px-3 py-2 @2xl:px-5" aria-label="История переписки">
+        {/* `relative`: абсолютные `sr-only` внутри ленты («Вы.») привязаны к ленте и обрезаются ею, а не к обёртке выше — иначе они растягивают страницу. */}
+        <div ref={viewport} onScroll={onFeedScroll} className="relative min-h-0 flex-1 overflow-y-auto bg-bg px-3 py-2 @2xl:px-5" aria-label="История переписки">
           {page.hasMore ? <div className="flex justify-center"><button type="button" disabled={busy || stale} onClick={() => void loadOlder()}
             className="my-2 inline-flex min-h-11 items-center rounded-ctl border border-border bg-surface px-3 t-label text-fg-2 hover:text-fg disabled:cursor-wait disabled:text-fg-3">
             {busy ? "Загружаем…" : "Показать более ранние"}

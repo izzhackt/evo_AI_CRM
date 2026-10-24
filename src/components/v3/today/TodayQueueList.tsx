@@ -6,6 +6,7 @@ import type { DialOptions } from "@/lib/v3/telephony-dial";
 import { todayVisibleCount, type TodayBandView, type TodayItem } from "@/lib/v3/today-queue";
 
 import { UndoToast } from "../blocks/UndoToast";
+import { DialListHint } from "../telephony/DialButton";
 import { DueBands } from "../queue/DueBands";
 import { QUEUE_QUIET_LINK } from "../queue/QueueStates";
 import { focusQueueRow, useQueueKeyboard } from "../queue/useQueueKeyboard";
@@ -53,8 +54,8 @@ export function TodayQueueList({
   permissions: TaskRowPermissions;
   /** «Позвонить» (Телефония, T7): у строк лидов и заявок, когда база открыла набор. */
   dial?: DialOptions | null;
-  /** Лид рабочей задачи по ключу строки (телефония): имя клиента вместо «Рабочая». */
-  taskLeads?: Readonly<Record<string, Readonly<{ name: string; href: string }>>> | null;
+  /** Лид рабочей задачи по ключу строки (телефония): имя клиента и «Позвонить» в строке. */
+  taskLeads?: Readonly<Record<string, Readonly<{ leadId: string; name: string; href: string }>>> | null;
 }>) {
   // Одна ссылка на группы, пока сервер не прислал новые: иначе завершения сбрасывались бы каждый рендер.
   const completionBands = useMemo<readonly CompletionBand<TodayItem>[]>(() => bands.map((band) => ({
@@ -70,6 +71,8 @@ export function TodayQueueList({
   return (
     <>
       <p role="status" aria-live="polite" className="sr-only">{message}</p>
+      {/* Одно описание на все кнопки «Позвонить» очереди: читалка не повторяет его в каждой строке. */}
+      {dial?.status === "ready" ? <DialListHint /> : null}
       <DueBands
         idPrefix="today-band"
         bands={shown.map((band) => {
@@ -96,6 +99,8 @@ export function TodayQueueList({
                 permissions={permissions}
                 recent={recent[item.key] ?? null}
                 leadRef={taskLeads?.[item.key] ?? null}
+                dial={dial}
+                hideTodayWord={band.key === "today"}
                 announce={announce}
                 onCompleted={(completion) => completed(item, band, index, completion)}
               />

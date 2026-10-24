@@ -240,7 +240,7 @@ export function BoardReset({ href }: Readonly<{ href: string }>) {
   );
 }
 
-/** Строка поиска доски: растягивается, Enter отправляет. */
+/** Строка поиска доски: растягивается; отправляет Enter, на телефоне — клавиша «Поиск» (`enterKeyHint`). */
 export function BoardSearch({
   action,
   name = "q",
@@ -273,13 +273,6 @@ export function BoardSearch({
           className="t-body-compact min-h-11 w-full min-w-0 rounded-ctl border border-control-edge bg-surface pe-2.5 ps-9 text-fg placeholder:text-fg-3"
         />
       </label>
-      {/* На desktop Enter отправляет поиск, кнопка нужна только телефону. */}
-      <button
-        type="submit"
-        className="t-label inline-flex h-11 min-w-11 shrink-0 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 text-fg-2 hover:bg-surface-2 hover:text-fg @2xl:hidden"
-      >
-        Найти
-      </button>
     </form>
   );
 }

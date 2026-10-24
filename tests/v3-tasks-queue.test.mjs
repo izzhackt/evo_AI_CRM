@@ -364,7 +364,10 @@ test("the body groups rows under due bands and completes in the row", () => {
   assert.match(caseRow, /<time dateTime="2026-09-20" class="block font-mono tabular-nums text-fg">20\.09<\/time><span class="flex min-h-6 items-center"><span class="v3-due t-caption" data-due="overdue">прошёл 4 дн<\/span><\/span>/u);
   // The assignee column is hidden in «Мои» and the status word only marks exceptions.
   assert.doesNotMatch(html, /в работе/u);
-  assert.match(html, /<span aria-hidden="true" class="@max-\[32rem\]:hidden">·\u0020<\/span><span class="v3-chip t-caption" data-tone="warn">заблокирована<\/span>/u);
+  // Рабочая задача без клиента и без «из чата» ничего не говорит о себе, кроме исключения: слово стоит первым, без висящей точки перед ним.
+  assert.match(html, /<span class="shrink-0"><span class="v3-chip t-caption" data-tone="warn">заблокирована<\/span><\/span>/u);
+  assert.doesNotMatch(html, /<span aria-hidden="true" class="@max-\[32rem\]:hidden">·\u0020<\/span><span class="v3-chip t-caption" data-tone="warn">заблокирована<\/span>/u);
+  assert.doesNotMatch(html, /Рабочая/u, "an ordinary work task carries no «Рабочая» kind word");
   assert.match(html, /data-testid="task-quick-add"[\s\S]*placeholder="Новая задача…"/u);
   assert.doesNotMatch(html, /Сроки указаны по времени Бишкека/u);
   assert.doesNotMatch(html, /\bbg-accent\b/u, "the page itself has no solid red: «Создать задачу» lives in the shell menu");
@@ -376,16 +379,40 @@ test("«Срок» is its own column right before the title, not at the far edge
   // `.v3-queue-row`: ссылка строки покрывает строку — фокус клавиатуры рамкой всей строки (26.09.2026).
   // Э7: у того, кто правит задачи, первая колонка шире — отметка для массовых действий и круг рядом
   // (`--row-lead` 5.5rem) — но только после «Выбрать» или «x»: без них отметок нет на любой ширине и колонка — только круг (2.75rem).
-  assert.match(row, /^[^>]*class="v3-queue-row relative grid \[--row-lead:2\.75rem\] grid-cols-\[var\(--row-lead\)_minmax\(0,1fr\)_2\.75rem\] [^"]*@min-\[32rem\]:grid-cols-\[var\(--row-lead\)_7rem_minmax\(0,1fr\)_2\.75rem\] hover:bg-surface/u);
+  // Последняя колонка — `--row-tail`: 2.75rem («⋯»), у строки с «Позвонить» 5.5rem (кнопка набора рядом с «⋯»).
+  assert.match(row, /^[^>]*class="v3-queue-row relative grid \[--row-tail:2\.75rem\] \[--row-lead:2\.75rem\] grid-cols-\[var\(--row-lead\)_minmax\(0,1fr\)_var\(--row-tail\)\] [^"]*@min-\[32rem\]:grid-cols-\[var\(--row-lead\)_7rem_minmax\(0,1fr\)_var\(--row-tail\)\] hover:bg-surface/u);
   assert.match(row, /^[^>]*><div class="flex"><span class="hidden"><label class="[^"]*"><input type="checkbox" data-queue-select=""[^>]*aria-label="Выбрать: Подтвердить подачу в UCSI"/u);
   // DOM order = visual order: circle, date column, then the title link.
   assert.match(row, /^[^>]*><div class="flex">[\s\S]*?<\/div><p class="hidden self-start pt-1 t-body-compact @min-\[32rem\]:block"><time [^>]*>20\.09<\/time>[\s\S]*?<\/p><div class="min-w-0 py-0\.5"><a data-queue-open=""/u);
   // The narrow meta line leads with the same date.
   assert.match(row, /<p class="flex min-h-6 min-w-0 flex-wrap items-center[^"]*"><span class="shrink-0 @min-\[32rem\]:hidden"><span><time dateTime="2026-09-20" class="font-mono tabular-nums">20\.09<\/time> <span class="v3-due t-caption" data-due="overdue">прошёл 4 дн<\/span><\/span><\/span>/u);
   const team = surfaces.get("team-view");
-  assert.match(team, /@3xl:grid-cols-\[var\(--row-lead\)_7rem_minmax\(0,1fr\)_minmax\(0,11rem\)_2\.75rem\]/u);
+  assert.match(team, /@3xl:grid-cols-\[var\(--row-lead\)_7rem_minmax\(0,1fr\)_minmax\(0,11rem\)_var\(--row-tail\)\]/u);
   // Без права правки колонки выбора нет: прежняя сетка.
-  assert.match(surfaces.get("done-view"), /class="v3-queue-row relative grid grid-cols-\[2\.75rem_minmax\(0,1fr\)_2\.75rem\] /u);
+  assert.match(surfaces.get("done-view"), /class="v3-queue-row relative grid \[--row-tail:2\.75rem\] grid-cols-\[2\.75rem_minmax\(0,1fr\)_var\(--row-tail\)\] /u);
+});
+
+test("call-back rows name the client and dial from the row: one hidden hint for the list, a wider last column only for them", () => {
+  const html = surfaces.get("callback-dial");
+  const rows = html.split('data-queue-row="').slice(1);
+  assert.equal(rows.length, 5);
+  const calls = rows.filter((row) => row.includes("Перезвонить клиенту"));
+  assert.equal(calls.length, 2);
+  for (const row of calls) {
+    assert.match(row, /\[--row-tail:5\.5rem\]/u, "room for the phone beside «⋯»");
+    assert.equal((row.match(/data-testid="v3-dial-button"/gu) ?? []).length, 1);
+    assert.match(row, /aria-describedby="v3-dial-list-hint"/u, "the description is the list's one hidden sentence");
+  }
+  assert.match(calls[0], /aria-label="Позвонить: Айдар Условный"/u);
+  assert.match(calls[1], /aria-label="Позвонить: Номер ••••4521"/u);
+  for (const row of rows.filter((candidate) => !candidate.includes("Перезвонить клиенту"))) {
+    assert.match(row, /\[--row-tail:2\.75rem\]/u);
+    assert.doesNotMatch(row, /v3-dial-button/u, "an ordinary task has no phone");
+  }
+  assert.equal((html.match(/id="v3-dial-list-hint"/gu) ?? []).length, 1, "one description for all the buttons");
+  assert.doesNotMatch(html, /Рабочая/u);
+  // Without a dial decision from the base (or without a client) no row carries a phone or the hint.
+  for (const name of ["mine-default", "team-view"]) assert.doesNotMatch(surfaces.get(name), /v3-dial-/u, name);
 });
 
 test("the assignee is marked wherever it has no column of its own", () => {

@@ -127,7 +127,7 @@ test("contract: words and the case address", () => {
   assert.match(parentPhoneRelationText("father"), /папы$/u);
   assert.match(parentPhoneRelationText("both"), /мамы и папы$/u);
   assert.equal(PARENT_PHONE_LOOKALIKES_WORDS.label, "Похоже на");
-  assert.match(PARENT_PHONE_LOOKALIKES_WORDS.note, /не объединены/u);
+  assert.match(PARENT_PHONE_LOOKALIKES_WORDS.note, /^Не объединены\. Проверьте вручную\.$/u);
   // The owner's words for the second level (18.10.2026), exactly.
   assert.equal(PARENT_PHONE_LOOKALIKES_WORDS.restricted, "Номер совпадает с телефоном родителя в другом деле. Уточните у руководителя поступления.");
   // The second level says nothing that could be a name, a number or a count.
@@ -211,14 +211,14 @@ test("component: names, links, relation words and the no-merge note; nothing for
   const pages = render();
   const one = pages.get("one");
   assert.match(one, /data-testid="v3-parent-phone-lookalikes"/u);
-  assert.match(text(one), /^Похоже на: Айдай Условная дело студента, номер записан в анкете как телефон мамы Карточки не объединены\. Проверьте вручную, тот ли это человек\.$/u);
+  assert.match(text(one), /^Похоже на: Айдай Условная дело студента, номер записан в анкете как телефон мамы Не объединены\. Проверьте вручную\.$/u);
   assert.ok(one.includes(`href="/v3/profile?case=${ID(1)}"`), "links to the case");
   assert.match(pages.get("father"), /как телефон папы/u);
   assert.match(pages.get("both"), /как телефон мамы и папы/u);
   const three = pages.get("three");
   assert.equal(three.match(/data-testid="v3-parent-phone-lookalike"/gu).length, 3);
   assert.equal(three.match(/Похоже на:/gu).length, 1, "one label for the list");
-  assert.equal(three.match(/Карточки не объединены/gu).length, 1, "one note for the list");
+  assert.equal(three.match(/Не объединены\. Проверьте вручную/gu).length, 1, "one note for the list");
   assert.equal(pages.get("empty"), "", "no match renders nothing");
   assert.match(pages.get("unavailable"), /role="status"/u);
   assert.equal(text(pages.get("unavailable")), PARENT_PHONE_LOOKALIKES_WORDS.unavailable);
@@ -230,7 +230,7 @@ test("component: the second level is one sentence with no name, case id, link or
   assert.equal(text(only), PARENT_PHONE_LOOKALIKES_WORDS.restricted, "exactly the owner's sentence");
   assert.match(only, /data-testid="v3-parent-phone-restricted"/u);
   assert.doesNotMatch(only, /<a[\s>]|href=|data-relation|v3-parent-phone-lookalike"|30600000-/u, "no link, no case id, no relation");
-  assert.doesNotMatch(only, /Похоже на:|Карточки не объединены/u, "no list label and no list note without a readable case");
+  assert.doesNotMatch(only, /Похоже на:|Не объединены\. Проверьте вручную/u, "no list label and no list note without a readable case");
   assert.doesNotMatch(text(only), /\d/u, "no digit in the words: no count");
   assert.equal(pages.get("empty"), "", "restricted = false with no match still renders nothing (no oracle)");
 });
@@ -239,7 +239,7 @@ test("component: a hidden match beside readable ones, and the cap of five", () =
   const pages = render();
   const beside = pages.get("restrictedBeside");
   assert.equal(beside.match(/data-testid="v3-parent-phone-lookalike"/gu).length, 1, "only the readable case is listed");
-  assert.match(text(beside), /Айдай Условная дело студента, номер записан в анкете как телефон мамы Номер совпадает с телефоном родителя и в другом деле\. Уточните у руководителя поступления\. Карточки не объединены/u);
+  assert.match(text(beside), /Айдай Условная дело студента, номер записан в анкете как телефон мамы Номер совпадает с телефоном родителя и в другом деле\. Уточните у руководителя поступления\. Не объединены/u);
   assert.equal(beside.match(/<a[\s>]/gu).length, 1, "one link: the hidden match has none");
   assert.doesNotMatch(pages.get("one"), /в другом деле/u, "no second-level line when nothing is hidden");
   const more = pages.get("more");
@@ -251,7 +251,7 @@ test("component: a hidden match beside readable ones, and the cap of five", () =
   const both = pages.get("moreAndRestricted");
   assert.match(both, /v3-parent-phone-more/u);
   assert.match(both, /v3-parent-phone-restricted-beside/u);
-  assert.equal(both.match(/Карточки не объединены/gu).length, 1, "one note for the list");
+  assert.equal(both.match(/Не объединены\. Проверьте вручную/gu).length, 1, "one note for the list");
 });
 
 test("component: calm look, big targets, no number, no dash in the words", () => {

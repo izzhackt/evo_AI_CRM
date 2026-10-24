@@ -1,8 +1,10 @@
 "use client";
 
+import type { DialOptions } from "@/lib/v3/telephony-dial";
 import type { QueueTask } from "@/lib/v3/task-queue";
 
 import { UndoToast } from "../blocks/UndoToast";
+import { DialListHint } from "../telephony/DialButton";
 import { useBulkSelection } from "../queue/Bulk";
 import { DueBands } from "../queue/DueBands";
 import { queueHref, type QueueParams } from "../queue/queue-url";
@@ -41,7 +43,7 @@ export function TaskQueueList({
   nowIso,
   permissions,
   leads = null,
-  hideKind = false,
+  dial = null,
 }: Readonly<{
   bands: readonly TaskQueueBandData[];
   open: boolean;
@@ -51,9 +53,9 @@ export function TaskQueueList({
   nowIso: string;
   permissions: TaskRowPermissions;
   /** Клиенты задач-перезвонов по ключу строки. */
-  leads?: Readonly<Record<string, Readonly<{ name: string; href: string }>>> | null;
-  /** Список только рабочих задач: слово «Рабочая» в строках не нужно. */
-  hideKind?: boolean;
+  leads?: Readonly<Record<string, Readonly<{ leadId: string; name: string; href: string }>>> | null;
+  /** «Позвонить» у строк с клиентом: решение базы для этого сотрудника; нет — кнопок нет. */
+  dial?: DialOptions | null;
 }>) {
   const { recent, message, announce, undo, completed, shown, hold } = useRecentCompletions(bands);
   const toasts = useUndoToasts(recent, undo);
@@ -80,6 +82,8 @@ export function TaskQueueList({
   return (
     <div className="relative">
       <p role="status" aria-live="polite" className="sr-only">{message}</p>
+      {/* Одно описание на все кнопки «Позвонить» списка: читалка не повторяет его в каждой строке. */}
+      {dial?.status === "ready" && leads && Object.keys(leads).length > 0 ? <DialListHint /> : null}
       {/* «Выбрать» стоит в строке заголовка первой группы, справа: отдельной строки над списком нет. */}
       {bulk ? (
         <button
@@ -111,7 +115,7 @@ export function TaskQueueList({
               select={bulk ? { available: selectable.has(task.key), checked: selection.has(task.key), onToggle: () => selection.toggle(task.key), revealed: selection.revealed } : null}
               recent={recent[task.key] ?? null}
               leadRef={leads?.[task.key] ?? null}
-              hideKind={hideKind}
+              dial={dial}
               announce={announce}
               onCompleted={(completion) => completed(task, band, index, completion)}
             />

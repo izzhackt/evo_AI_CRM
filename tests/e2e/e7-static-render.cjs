@@ -653,7 +653,8 @@ async function screenshots() {
           if (shot === "e8-calendar-week" && (facts.emptyLine !== "-" || facts.undated !== "Без срока — 1")) failures.push(`${file}: dated week reads «${facts.emptyLine}» / «${facts.undated}»`);
           if (shot === "e8-calendar-empty" && facts.undated !== "-") failures.push(`${file}: «Без срока» without open undated tasks`);
         }
-        const real = errors.filter((message) => !/server action .* is not available/u.test(message));
+        // Под file:// опрос уведомлений AppShell (`/api/v3/notifications/state`) не имеет сервера: это шум оболочки, не ошибка страницы.
+        const real = errors.filter((message) => !/server action .* is not available|\/api\/v3\/notifications\/state/u.test(message));
         if (real.length) failures.push(`${file}: browser errors: ${real.join(" | ")}`);
         await page.screenshot({ path: join(outDir, file), fullPage: false });
         process.stdout.write(`${file}: ${Object.entries(facts).filter(([, value]) => value !== null).map(([key, value]) => `${key}=${value}`).join(" ")}\n`);

@@ -99,7 +99,8 @@ test("authorized absence exposes one explicit initialization, while read-only mo
 test("61 fields live in six initially collapsed groups; editors are mounted only on demand", () => {
   const html = render(snapshot());
   for (const label of Object.values(registry.PROFILE_GROUP_LABELS)) assert.ok(html.includes(label), label);
-  assert.equal([...html.matchAll(/подтверждено<\/button>/g)].length, 6);
+  // Подпись группы — слово в кнопке-переключателе, шеврон справа (StaffDisclosure): по одной на группу.
+  assert.equal([...html.matchAll(/подтверждено<\/span><svg\b/g)].length, 6);
   // Вся строка поля — переключатель (отдельной «Проверить поле» у каждого из 61 полей нет).
   assert.equal([...html.matchAll(/aria-controls="profile-field-[a-z0-9_]+-editor"/g)].length, 61);
   assert.doesNotMatch(html, /Проверить поле/);

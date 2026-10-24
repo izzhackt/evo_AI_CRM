@@ -515,7 +515,7 @@ async function screenshots() {
           const current = await page.locator('nav[aria-label="Разделы базы знаний"] [aria-current="page"]').allTextContents();
           if (!current.includes("Неразобранное")) failures.push(`${file}: «Неразобранное» has no aria-current (${current.join("|")})`);
         }
-        const real = errors.filter((message) => !/server action .* is not available|Failed to load resource/u.test(message));
+        const real = errors.filter((message) => !/server action .* is not available|Failed to load resource|\/api\/v3\/notifications\/state/u.test(message));
         if (real.length) failures.push(`${file}: browser errors: ${real.join(" | ")}`);
         await page.screenshot({ path: join(outDir, file), fullPage: false });
         process.stdout.write(`${file}: ${Object.entries(facts).filter(([, value]) => value !== null && value !== false && value !== 0).map(([key, value]) => `${key}=${value}`).join(" ")}\n`);

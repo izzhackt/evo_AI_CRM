@@ -23,6 +23,7 @@ import {
   type AiAgentConversationRow,
   type AiAgentsActionState,
   type ChatItem,
+  AI_AGENT_AMBIGUOUS_RUN_ERRORS,
 } from "@/lib/v3/ai-agents-view";
 
 import { AgentComposer } from "./AgentComposer";
@@ -348,7 +349,9 @@ export function Console({
   // «Повторить» под ошибкой: то же последнее сообщение сотрудника уходит ещё раз. Только когда ошибка — последнее в хронике и писать можно.
   const lastUser = items.findLast((item) => item.kind === "user");
   const lastUserText = lastUser && "text" in lastUser ? lastUser.text : null;
-  const retry = canRun && !working && !sending && lastUserText && items[items.length - 1]?.kind === "error" ? () => void send(lastUserText) : undefined;
+  const lastItem = items[items.length - 1];
+  const retry = canRun && !working && !sending && lastUserText && lastItem?.kind === "error" && !AI_AGENT_AMBIGUOUS_RUN_ERRORS.has(lastItem.code)
+    ? () => void send(lastUserText) : undefined;
 
   return (
     <section aria-labelledby={headingId} className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="v3-aia-console">

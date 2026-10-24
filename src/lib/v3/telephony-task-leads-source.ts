@@ -58,8 +58,11 @@ export async function readTodayTaskLeads(actor: ActivePlatformActor, queue: Toda
   return Object.freeze(Object.fromEntries(refs.filter((entry): entry is readonly [string, TaskLeadRef] => entry[1] !== null)));
 }
 
-/** Сколько задач списка «Задач» перечитывается за раз: первые по порядку списка; у остальных строка остаётся без клиента. */
-const QUEUE_LEAD_LIMIT = 24;
+/**
+ * Сколько задач списка «Задач» перечитывается за раз: первые по порядку списка; у остальных строка остаётся без клиента.
+ * Как у «Сегодня» (`TODAY_TASK_LEAD_CAP`): каждое чтение — два запроса к базе, больше 15 замедляет страницу.
+ */
+const QUEUE_LEAD_LIMIT = TODAY_TASK_LEAD_CAP;
 
 /**
  * Лиды задач-перезвонов в списке «Задач» по ключу строки (`staff:<id>`): строка называет клиента и даёт

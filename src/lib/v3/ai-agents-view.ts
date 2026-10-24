@@ -1035,6 +1035,12 @@ const RUN_ERROR_WORDS: Readonly<Record<string, string>> = {
 /** Коды, у которых текст из строки запуска точнее общего слова (приложение пишет его само, без данных клиентов). */
 const RUN_ERROR_MESSAGE_FIRST: ReadonlySet<string> = new Set(["session_unlinked", "deployment_paused"]);
 
+/**
+ * Сбои с неизвестным исходом: сессия в Claude могла начаться (ответ на создание потерян, запуск не записан, связь
+ * оборвалась при старте). Повтор одним нажатием здесь не предлагаем — сначала проверить, не работает ли агент.
+ */
+export const AI_AGENT_AMBIGUOUS_RUN_ERRORS: ReadonlySet<string> = new Set(["start_lost", "create_unconfirmed", "session_unlinked"]);
+
 export function runErrorWords(code: string | null, message?: string | null): string {
   const own = message?.trim();
   if (code && own && RUN_ERROR_MESSAGE_FIRST.has(code)) return clip(own, 300);

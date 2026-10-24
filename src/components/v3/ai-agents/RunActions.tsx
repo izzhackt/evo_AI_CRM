@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/icons";
 import { QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
-import { aiAgentRunIsActive, aiAgentHref } from "@/lib/v3/ai-agents-view";
+import { aiAgentRunIsActive, aiAgentHref, AI_AGENT_AMBIGUOUS_RUN_ERRORS } from "@/lib/v3/ai-agents-view";
 import type { AiAgentKey, AiAgentRunRow } from "@/lib/ai-agents/contract";
 import { interruptAiAgentRunAction, startAiAgentRunAction } from "@/lib/platform-ai-agents-actions";
 
@@ -53,7 +53,8 @@ export function RunActions({
 
   const prompt = run.promptPreview?.trim() ?? "";
   const active = aiAgentRunIsActive(run.status);
-  const canRepeat = ownCommand && canAct && canRun && run.status === "failed" && prompt !== "" && prompt.length < PROMPT_PREVIEW_CAP;
+  const canRepeat = ownCommand && canAct && canRun && run.status === "failed" && !AI_AGENT_AMBIGUOUS_RUN_ERRORS.has(run.errorCode ?? "")
+    && prompt !== "" && prompt.length < PROMPT_PREVIEW_CAP;
   const summary = run.summary?.trim() ?? "";
   const canStop = active && canAct && (ownCommand || canStopAny);
   if (!ownCommand && !canStop && !summary) return null;

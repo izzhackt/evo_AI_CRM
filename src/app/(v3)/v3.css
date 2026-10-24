@@ -262,6 +262,14 @@
   box-shadow: inset 0 8px 8px -6px rgb(0 0 0 / 0.16);
 }
 
+/* Полоса прокрутки списка меню — тонкая и цветом рамки: раскрытый отдел сужает строки меню
+   на несколько пикселей, а не на 15. Место под неё заранее не резервируется: в рейке 64 px
+   пункты не должны стать уже 44 px, когда прокрутки нет. */
+.v3-world[data-surface="staff"] [data-shell-scroll] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
 .v3-world [data-shell-scroll][data-more-below]::after {
   content: "";
   position: sticky;

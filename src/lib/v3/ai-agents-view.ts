@@ -8,6 +8,7 @@ import {
   AI_AGENT_SYNC_STATUSES,
   AI_AGENT_TOOL_LABELS,
   AI_AGENT_TRIGGER_KINDS,
+  AI_AGENT_TRIGGER_LABELS,
   AI_AGENT_DIRECTIONS,
   isAiAgentModelId,
   type AiAgentActionRow,
@@ -273,6 +274,29 @@ export function aiAgentStateChip(input: Readonly<{
   if (input.syncStatus === "error") return { label: "Ошибка синхронизации", tone: "danger" };
   if (input.syncStatus !== "ok" || input.needsSync) return { label: "Нужна синхронизация", tone: "warn" };
   return { label: "Включён", tone: "ok" };
+}
+
+/** Следующий шаг до первого поручения: написать инструкцию → включить → синхронизировать (включение отправляет в Claude само). */
+export type AiAgentSetupStep = "instructions" | "enable" | "sync";
+
+/**
+ * Какой шаг осталось сделать системному администратору, чтобы агент заработал; `null` — шагов нет
+ * (агент готов или причина не в настройке агента: ключ Claude, просмотр роли, ограничение Директора,
+ * не администратор). Первый несделанный шаг — единственное действие в запертом «Поручить» и на «Обзоре».
+ */
+export function aiAgentNextStep(input: Readonly<{
+  canEdit: boolean;
+  runtimeConfigured: boolean;
+  preview: boolean;
+  hasInstructions: boolean;
+  enabled: boolean;
+  synced: boolean;
+}>): AiAgentSetupStep | null {
+  if (!input.canEdit || input.preview || !input.runtimeConfigured) return null;
+  if (!input.hasInstructions) return "instructions";
+  if (!input.enabled) return "enable";
+  if (!input.synced) return "sync";
+  return null;
 }
 
 /**
@@ -894,23 +918,98 @@ export function answerTaskTitle(markdown: string, max = 120): string {
   return "";
 }
 
+/**
+ * Однострочный текст из Markdown для списков: заголовки, списки, цитаты, выделение,
+ * ссылки и кодовые блоки теряют разметку, строка таблицы читается «Ячейка · Ячейка»,
+ * линейки и разделители таблиц пропускаются. Пусто — в тексте нет слов.
+ */
+export function plainPreview(markdown: string | null | undefined, max = 200): string {
+  if (!markdown) return "";
+  const parts: string[] = [];
+  let fenced = false;
+  for (const raw of markdown.split(/\r?\n/u)) {
+    const line = raw.trim();
+    if (/^(```|~~~)/u.test(line)) { fenced = !fenced; continue; }
+    if (fenced || !line) continue;
+    if (/^([-*_]\s*){3,}$/u.test(line) || (/^[\s|:-]+$/u.test(line) && line.includes("-"))) continue;
+    let text = line;
+    if (text.startsWith("|")) text = text.replace(/^\||\|$/gu, "").split("|").map((cell) => cell.trim()).filter(Boolean).join(" · ");
+    const plain = text
+      .replace(/^#{1,6}\s+/u, "")
+      .replace(/^>\s?/u, "")
+      .replace(/^(?:[-*+]|\d{1,3}[.)])\s+/u, "")
+      .replace(/!?\[([^\]]*)\]\([^)]*\)/gu, "$1")
+      .replace(/\*\*(.+?)\*\*|__(.+?)__/gu, "$1$2")
+      .replace(/\*(.+?)\*|(?<![\p{L}\p{N}])_(.+?)_(?![\p{L}\p{N}])/gu, "$1$2")
+      .replace(/`([^`]*)`/gu, "$1")
+      .replace(/\s+/gu, " ")
+      .trim();
+    if (plain) parts.push(plain);
+    if (parts.join(" ").length > max) break;
+  }
+  return clip(parts.join(" "), max);
+}
+
+/** Роль агента без состояния: в сиде есть хвост «: инструкции пока нет, агент выключен» — состояние показывают чипы, а не описание. */
+export const aiAgentRoleLine = (roleLine: string): string => roleLine.replace(/:\s*инструкции пока нет, агент выключен\.?$/iu, "");
+
+/** Кто запустил: своё поручение — «Вы», чужое — имя, остальное — повод запуска («По расписанию», «Новая заявка с сайта»). */
+export function runOriginLabel(run: Pick<AiAgentRunRow, "triggerKind" | "startedByName">, viewerName?: string | null): string {
+  if (run.triggerKind !== "command") return AI_AGENT_TRIGGER_LABELS[run.triggerKind];
+  if (!run.startedByName) return "Сотрудник";
+  return viewerName && run.startedByName === viewerName ? "Вы" : run.startedByName;
+}
+
+/** Время в ряду действий запуска: в тот же день, что и начало, — только «12:35», иначе дата и время. */
+export function formatClockRu(iso: string | null, referenceIso: string): string {
+  const at = iso ? zoned(iso) : null;
+  const ref = zoned(referenceIso);
+  if (!at) return "—";
+  if (ref && ref.y === at.y && ref.mo === at.mo && ref.d === at.d) return `${two(at.h)}:${two(at.mi)}`;
+  return formatDateTimeRu(iso);
+}
+
+/** Слова для кодов ошибок инструментов (`error_code` в журнале действий): без `not_found` и `invalid_arguments` на экране. */
+export const AI_AGENT_TOOL_ERROR_WORDS: Readonly<Record<string, string>> = {
+  invalid_arguments: "неверные данные",
+  not_found: "не найдено",
+  forbidden: "нет доступа",
+  agent_disabled: "агент выключен",
+  rate_limited: "лимит запросов",
+  conflict: "данные изменились",
+  whatsapp_unavailable: "WhatsApp не подключён",
+  conversation_moved_on: "клиент написал ещё",
+  conversation_closed: "диалог закрыт",
+  target_not_found: "адресат не найден",
+  text_invalid: "неверный текст",
+  no_inbound_message: "нет входящего сообщения",
+  too_large: "слишком большой ответ",
+  unavailable: "сервис недоступен",
+  internal_error: "внутренняя ошибка",
+};
+export const toolErrorWords = (code: string): string => AI_AGENT_TOOL_ERROR_WORDS[code] ?? "ошибка";
+
+/** Запрос действия для людей: служебный `dedupe_key` (ключ защиты от повтора) не показывается. */
+export function actionArgsWords(summary: string | null | undefined): string {
+  if (!summary) return "";
+  return summary.split(/;\s*/u).filter((part) => part && !/^dedupe_key=/u.test(part)).join("; ");
+}
+
 /** Готовые первые поручения во вкладке «Поручить»: подставляются в поле, отправляет сотрудник. */
 export const AI_AGENT_STARTERS: Readonly<Record<AiAgentKey, readonly string[]>> = {
   director: [
-    "Покажи свои настройки",
     "Подготовь недельный отчёт за прошлую неделю",
     "Сколько заявок пришло за последние 7 дней и откуда?",
   ],
   sales: [
-    "Покажи свои настройки",
     "Покажи неотвеченные чаты WhatsApp и подготовь ответы",
     "Разбери новые заявки с сайта за сегодня",
   ],
-  "curator-cn": ["Покажи свои настройки", "У каких студентов просрочены документы или задачи?"],
-  "curator-my": ["Покажи свои настройки", "У каких студентов просрочены документы или задачи?"],
-  "curator-eu": ["Покажи свои настройки"],
-  "curator-ae": ["Покажи свои настройки"],
-  "curator-tr": ["Покажи свои настройки"],
+  "curator-cn": ["У каких студентов просрочены документы или задачи?"],
+  "curator-my": ["У каких студентов просрочены документы или задачи?"],
+  "curator-eu": ["У каких студентов просрочены документы или задачи?"],
+  "curator-ae": ["У каких студентов просрочены документы или задачи?"],
+  "curator-tr": ["У каких студентов просрочены документы или задачи?"],
 };
 
 /* ----------------------------------------------------------------- слова ошибок */
@@ -935,6 +1034,12 @@ const RUN_ERROR_WORDS: Readonly<Record<string, string>> = {
 
 /** Коды, у которых текст из строки запуска точнее общего слова (приложение пишет его само, без данных клиентов). */
 const RUN_ERROR_MESSAGE_FIRST: ReadonlySet<string> = new Set(["session_unlinked", "deployment_paused"]);
+
+/**
+ * Сбои с неизвестным исходом: сессия в Claude могла начаться (ответ на создание потерян, запуск не записан, связь
+ * оборвалась при старте). Повтор одним нажатием здесь не предлагаем — сначала проверить, не работает ли агент.
+ */
+export const AI_AGENT_AMBIGUOUS_RUN_ERRORS: ReadonlySet<string> = new Set(["start_lost", "create_unconfirmed", "session_unlinked"]);
 
 export function runErrorWords(code: string | null, message?: string | null): string {
   const own = message?.trim();

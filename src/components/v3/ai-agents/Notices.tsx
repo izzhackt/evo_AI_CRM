@@ -13,16 +13,27 @@ export function InfoLine({
   children,
   testId,
   role,
-}: Readonly<{ tone: "warn" | "muted"; children: ReactNode; testId?: string; role?: "status" | "alert" }>) {
+  action,
+}: Readonly<{
+  tone: "warn" | "muted";
+  children: ReactNode;
+  testId?: string;
+  role?: "status" | "alert";
+  /** Действие в конце строки (тёмная кнопка очереди): текст и кнопка в одной строке, без второго красного. */
+  action?: ReactNode;
+}>) {
   return (
-    <p
-      role={role}
+    <div
       data-testid={testId}
-      className={`flex items-start gap-2 rounded-card border px-4 py-3 t-body-compact ${tone === "warn" ? "border-transparent bg-warn-weak text-warn" : "border-border bg-surface text-fg-2"}`}
+      className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-card border px-4 py-3 t-body-compact ${tone === "warn" ? "border-transparent bg-warn-weak text-warn" : "border-border bg-surface text-fg-2"}`}
     >
-      <Icon name={tone === "warn" ? "alert" : "settings"} size={16} className="mt-0.5 shrink-0" />
-      <span className="min-w-0">{children}</span>
-    </p>
+      {/* Читалка зачитывает только слова: кнопка в конце строки в «живой регион» не входит. */}
+      <span role={role} className="flex min-w-0 flex-[1_1_16rem] items-start gap-2">
+        {tone === "warn" ? <Icon name="alert" size={16} className="mt-0.5 shrink-0" /> : null}
+        <span className="min-w-0">{children}</span>
+      </span>
+      {action}
+    </div>
   );
 }
 
@@ -41,7 +52,7 @@ export function NotReady() {
     <section className="rounded-card border border-border bg-surface px-5 py-6" data-testid="v3-aia-not-ready" aria-labelledby="aia-not-ready">
       <h2 id="aia-not-ready" className="t-section text-fg">Раздел готовится</h2>
       <p className="mt-1 max-w-[60ch] t-body-compact text-fg-2">
-        База ещё не обновлена: агенты появятся здесь, как только обновление будет применено. Ничего делать не нужно.
+        База ещё не обновлена: агенты появятся здесь, как только обновление будет применено.
       </p>
     </section>
   );
@@ -50,7 +61,7 @@ export function NotReady() {
 export function Unavailable({ what, retryHref, denied = false }: Readonly<{ what: string; retryHref: string; denied?: boolean }>) {
   return (
     <p role="alert" className="t-body-compact text-fg-2" data-testid="v3-aia-unavailable">
-      {denied ? `Нет доступа: ${what}.` : `Не удалось загрузить ${what}.`}{" "}
+      {denied ? "Нет доступа к этому разделу." : `Не удалось загрузить ${what}.`}{" "}
       {denied ? null : <a href={retryHref} className="inline-flex min-h-11 items-center underline underline-offset-4">Повторить</a>}
     </p>
   );

@@ -286,7 +286,7 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
           </Group>
 
           <Group title="Родитель">
-            <Field label="Кто" htmlFor={ids.parentRelation}>
+            <Field label="Кем приходится" htmlFor={ids.parentRelation}>
               <select {...fieldProps("parentRelation")} name="parentRelation" className={SELECT_CLS}
                 value={draft.parentRelation} onChange={(e) => set("parentRelation", e.target.value)}>
                 <option value="">Не выбрано</option>
@@ -405,7 +405,7 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
                 </select>
               </div>
               {errorText("costAmount") ?? errorText("costCurrency")
-                ?? (costPrefilled ? <span className="mt-1 block t-meta text-fg-2">Для Китая по умолчанию 1 500 USD. Можно изменить.</span> : null)}
+                ?? (costPrefilled ? <span className="mt-1 block t-meta text-fg-2">По умолчанию для Китая.</span> : null)}
             </div>
             <Field label="Дата договора" htmlFor={ids.signedOn}>
               <input {...fieldProps("signedOn")} name="signedOn" type="date" max={bishkekToday()} className={FIELD_CLS}

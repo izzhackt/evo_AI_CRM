@@ -181,6 +181,8 @@ const SCENARIOS = {
   "sales-unscheduled": { page: "sales", search: "due=unscheduled" },
   "sales-search": { page: "sales", search: "q=%D0%A2%D0%B8%D0%BC%D1%83%D1%80" },
   "sales-volume": { page: "sales", search: "", rows: "volume" },
+  // Все лиды в одном этапе и открытая панель: пустые рабочие этапы — рейки, имена не режутся.
+  "sales-panel-lopsided": { page: "sales", search: `lead=${leadId(100)}`, rows: "lopsided" },
   "sales-loading": { page: "sales", search: "", loading: true },
   // «Закрытые лиды» (246): список закрытых с причиной, датой и «Вернуть в работу».
   "sales-closed": { page: "sales", search: "view=closed" },
@@ -356,6 +358,7 @@ async function screenshots() {
     ["sales-handed", ["1280"]],
     ["sales-search", ["1440", "390"]],
     ["sales-volume", ["1440"]],
+    ["sales-panel-lopsided", ["1280", "1440", "1920"]],
     ["sales-loading", ["1440"]],
     ["sales-closed", ["1440", "390"]],
     ["admissions", ["1280", "1440", "1920", "390", "360"]],
@@ -1309,7 +1312,7 @@ async function hydrateUndo() {
     await card(page, n).locator("a").first().focus();
     await page.keyboard.press("Tab");
     const trigger = await page.evaluate(() => document.activeElement?.getAttribute("aria-label"));
-    check(trigger === "Действия с делом", `${label}: Tab reaches «⋯» (${trigger})`);
+    check(trigger?.startsWith("Действия с делом"), `${label}: Tab reaches «⋯» (${trigger})`);
     await page.keyboard.press("Enter");
     await page.waitForSelector("[popover]:popover-open");
     for (let step = 0; step < 12; step += 1) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { isStaffPreview } from "@/lib/platform-access";
@@ -30,12 +30,15 @@ import { taskDeadlineInputDefaults } from "./types";
 // выпадающие списки одной высоты 44 px и стоят в ряд без ступеньки.
 const CONTROL =
   "mt-1 h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 t-body text-fg outline-none placeholder:text-fg-3 focus:border-accent focus:ring-2 focus:ring-accent/10 disabled:bg-surface-2 disabled:text-fg-3";
-const PRIMARY =
-  "inline-flex min-h-11 items-center justify-center rounded-ctl bg-accent px-4 t-label text-on-accent hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-55";
+const DISABLED = "disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-2 disabled:text-fg-3";
 const SECONDARY =
-  "inline-flex min-h-11 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-55";
-const DANGER =
-  "inline-flex min-h-11 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:border-danger hover:bg-danger-weak hover:text-danger disabled:cursor-not-allowed disabled:opacity-55";
+  `v3-raised inline-flex min-h-11 items-center justify-center rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 enabled:hover:bg-surface-2 enabled:hover:text-fg ${DISABLED}`;
+/** Подтверждение необратимого — тёмная нейтральная кнопка, не красная (красная — главное действие страницы). */
+const CONFIRM =
+  `v3-raised inline-flex min-h-11 items-center justify-center rounded-ctl border border-fg bg-fg px-4 t-label text-surface enabled:hover:border-fg-2 enabled:hover:bg-fg-2 ${DISABLED}`;
+/** Тихое раскрытие: подчёркнутый текст, как ссылки панели. */
+const QUIET_SUMMARY =
+  "min-h-11 cursor-pointer py-3 t-label text-fg-2 underline underline-offset-4 hover:text-fg";
 
 const PRIORITY_OPTIONS: readonly Readonly<{
   value: PlatformCaseTaskPriority;
@@ -66,9 +69,9 @@ const RESULT_COPY: Record<
   saved: "Изменение сохранено.",
   invalid: "Проверьте обязательные поля задачи.",
   forbidden: "У вашей роли нет прав на это изменение.",
-  stale: "Задача уже изменена. Обновите календарь перед повтором.",
-  request_conflict: "Команда уже использована. Подготовлен новый безопасный повтор.",
-  unavailable: "Не удалось подтвердить сохранение. Обновите календарь перед повтором.",
+  stale: "Задачу уже изменили. Обновите страницу.",
+  request_conflict: "Повторите сохранение.",
+  unavailable: "Не удалось сохранить. Обновите страницу и повторите.",
 };
 
 function Feedback({ state }: Readonly<{ state: PlatformAdmissionsTaskActionState }>) {
@@ -163,9 +166,6 @@ export function DeadlineFields({
         <>
           <input type="hidden" name="due_on" value="" />
           <input type="hidden" name="due_at" value="" />
-          <p className="self-end pb-2.5 t-meta text-fg-3">
-            Задача останется в разделе «Без срока».
-          </p>
         </>
       )}
     </>
@@ -194,6 +194,7 @@ function CanonicalTaskFields({
   status: PlatformCaseTaskStatus;
   requestId: string;
 }>) {
+  // Причину («Результат» или «Причина отмены») вводит сотрудник в поле `reason` самой формы.
   return (
     <>
       <input type="hidden" name="student_case_id" value={task.studentCaseId} />
@@ -211,11 +212,14 @@ function CanonicalTaskFields({
       <input type="hidden" name="student_visible" value={String(task.studentVisible)} />
       <input type="hidden" name="expected_version" value={task.version} />
       <input type="hidden" name="request_id" value={requestId} />
-      <input type="hidden" name="reason" value={requiredTaskStatusLabel(status)} />
     </>
   );
 }
 
+/**
+ * «Завершить» и «Отменить задачу» — те же правила, что у «Задач»: задача по студенту завершается с «Результатом»,
+ * а отмена необратима, поэтому лежит под раскрытием и просит причину и подтверждение.
+ */
 function CalendarTerminalTaskForm({
   task,
   requestId,
@@ -226,6 +230,7 @@ function CalendarTerminalTaskForm({
   status: "done" | "cancelled";
 }>) {
   const router = useRouter();
+  const [reason, setReason] = useState("");
   const [state, action, pending] = useActionState(
     changePlatformAdmissionsTaskAction,
     initialState(requestId, task),
@@ -235,23 +240,39 @@ function CalendarTerminalTaskForm({
     if (state.status === "saved" || state.status === "stale") router.refresh();
   }, [router, state.status, state.version]);
   const locked = pending || state.status === "saved" || state.status === "stale";
-
+  const done = status === "done";
+  const form = (
+    <form action={action} data-testid={`v3-calendar-task-${status}-form`} className="grid gap-3">
+      <CanonicalTaskFields task={task} status={status} requestId={state.requestId} />
+      <label className="t-label text-fg-2">
+        {done ? "Результат" : "Причина отмены"}
+        <input
+          name="reason"
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          required
+          maxLength={1000}
+          autoComplete="off"
+          placeholder={done ? "Что сделано" : undefined}
+          disabled={locked}
+          className={CONTROL}
+        />
+      </label>
+      <div>
+        <button type="submit" disabled={locked || !reason.trim()} className={CONFIRM}>
+          {pending ? "Сохраняем…" : done ? "Завершить" : "Отменить задачу"}
+        </button>
+      </div>
+    </form>
+  );
   return (
     <div className="space-y-2">
-      <form action={action} data-testid={`v3-calendar-task-${status}-form`}>
-        <CanonicalTaskFields task={task} status={status} requestId={state.requestId} />
-        <button
-          type="submit"
-          disabled={locked}
-          className={status === "cancelled" ? DANGER : SECONDARY}
-        >
-          {pending
-            ? "Сохраняем…"
-            : status === "done"
-              ? "Выполнить"
-              : "Отменить задачу"}
-        </button>
-      </form>
+      {done ? form : (
+        <details className="border-t border-border pt-1">
+          <summary className={QUIET_SUMMARY}>Отменить задачу</summary>
+          <div className="pt-1">{form}</div>
+        </details>
+      )}
       <Feedback state={state} />
     </div>
   );
@@ -273,7 +294,6 @@ function CalendarChangeTaskForm({
   requestId: string;
 }>) {
   const router = useRouter();
-  const detailsRef = useRef<HTMLDetailsElement>(null);
   // Controlled inputs survive a rejected Action's automatic form reset.
   // https://react.dev/reference/react/useActionState
   const [status, setStatus] = useState(task.state);
@@ -313,7 +333,7 @@ function CalendarChangeTaskForm({
       ];
 
   return (
-    <details ref={detailsRef} className="border-t border-border pt-3">
+    <details className="border-t border-border pt-3">
       {/* Раскрытие — текстовое действие: тёмный акцент, подчёркнут, как ссылки панели (DESIGN.md). */}
       <summary className="min-h-11 cursor-pointer py-3 t-label text-accent-text underline underline-offset-4 hover:text-fg">
         Изменить задачу
@@ -349,7 +369,7 @@ function CalendarChangeTaskForm({
 
         {canAssign ? (
           <label className="t-label text-fg-2">
-            Ответственный
+            Исполнитель
             <select
               name="assignee_membership_id"
               value={assigneeId}
@@ -411,14 +431,9 @@ function CalendarChangeTaskForm({
             required maxLength={1000} className={CONTROL} autoComplete="off"
           />
         </label>
-        <div className="flex flex-wrap items-end gap-2">
-          <button type="submit" disabled={locked} className={PRIMARY}>
+        <div>
+          <button type="submit" disabled={locked} className={SECONDARY}>
             {pending ? "Сохраняем…" : "Сохранить"}
-          </button>
-          <button type="button" className={SECONDARY}
-            onClick={() => { if (detailsRef.current) detailsRef.current.open = false; }}
-          >
-            Отмена
           </button>
         </div>
         </fieldset>
@@ -427,14 +442,13 @@ function CalendarChangeTaskForm({
           {state.status === "stale" && !staleAcknowledged ? (
             <div className="mt-3 space-y-2">
               <p className="t-body-compact text-fg-2">
-                Ваши поля сохранены в форме. Сверьте их с обновлённой задачей выше
-                перед повтором: повторное сохранение применит именно ваши значения.
+                Задачу уже изменили. Проверьте поля и сохраните ещё раз.
               </p>
               <button type="button" className={SECONDARY}
                 disabled={task.version === expectedVersion}
                 onClick={() => { setExpectedVersion(task.version); setStaleAcknowledged(true); }}
               >
-                Сверил изменения — продолжить
+                Продолжить
               </button>
             </div>
           ) : null}
@@ -461,18 +475,12 @@ export function CalendarTaskControls({
 }>) {
   return (
     <div className="mt-4 space-y-3" data-testid="v3-calendar-task-controls">
-      <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+      <div className="border-t border-border pt-4">
         <CalendarTerminalTaskForm
           key={`${task.id}:${task.version}:done`}
           task={task}
           requestId={requestIds.complete}
           status="done"
-        />
-        <CalendarTerminalTaskForm
-          key={`${task.id}:${task.version}:cancelled`}
-          task={task}
-          requestId={requestIds.cancel}
-          status="cancelled"
         />
       </div>
       <CalendarChangeTaskForm
@@ -482,6 +490,12 @@ export function CalendarTaskControls({
         actor={actor}
         capabilities={capabilities}
         requestId={requestIds.change}
+      />
+      <CalendarTerminalTaskForm
+        key={`${task.id}:${task.version}:cancelled`}
+        task={task}
+        requestId={requestIds.cancel}
+        status="cancelled"
       />
     </div>
   );

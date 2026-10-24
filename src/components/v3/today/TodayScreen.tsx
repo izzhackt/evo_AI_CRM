@@ -73,8 +73,8 @@ export function TodayScreen({
   mainAction: TodayLink | null;
   /** «Позвонить» (Телефония, T7): решение базы для этого сотрудника; нет — кнопок нет. */
   dial?: DialOptions | null;
-  /** Лид задачи по ключу строки: «Перезвонить клиенту» называет клиента вместо слова «Рабочая». */
-  taskLeads?: Readonly<Record<string, Readonly<{ name: string; href: string }>>> | null;
+  /** Лид задачи по ключу строки: «Перезвонить клиенту» называет клиента и звонит ему. */
+  taskLeads?: Readonly<Record<string, Readonly<{ leadId: string; name: string; href: string }>>> | null;
 }>) {
   const link = mainAction ? <IntentPrefetchLink href={mainAction.href} className={QUEUE_QUIET_LINK}>{mainAction.label}</IntentPrefetchLink> : null;
   const note = queue.emptyNote ? <p className="t-body-compact text-fg-2" data-today-empty-note="">{queue.emptyNote}</p> : null;

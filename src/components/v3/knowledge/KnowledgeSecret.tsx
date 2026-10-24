@@ -3,10 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import type { KnowledgeItem } from "@/lib/knowledge-library-contract";
 import { Icon } from "@/components/icons";
 import { btnCls } from "@/components/ui";
+import { TopLayerMenu } from "@/components/v3/board/TopLayerMenu";
 import { QUEUE_SECONDARY } from "../queue/queue-buttons";
 import { knowledgeFetch } from "./client";
 import { KnowledgeExport } from "./KnowledgeExport";
-import { KB_CHECK, KB_CHECK_ROW, KB_ERROR, KB_FIELD, KB_LABEL, KB_QUIET } from "./knowledge-look";
+import { KB_CHECK, KB_CHECK_ROW, KB_ERROR, KB_FIELD, KB_LABEL, KB_MENU, KB_MENU_ITEM, KB_QUIET } from "./knowledge-look";
 
 type Fields = { service: string; url: string; login: string; purpose: string; note: string; value: string };
 export function KnowledgeSecret({ item, parentId, onClose, onSaved }: {
@@ -16,6 +17,7 @@ export function KnowledgeSecret({ item, parentId, onClose, onSaved }: {
   const [value, setValue] = useState<string | null>(null); const [keepValue, setKeepValue] = useState(Boolean(item));
   const [ready, setReady] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   const [status, setStatus] = useState(""); const [version, setVersion] = useState(item?.version ?? 0);
+  const [exportOpen, setExportOpen] = useState(false);
   const id = useRef<string>(item?.id ?? ""); const request = useRef<{ id: string; fingerprint: string } | null>(null);
   useEffect(() => {
     let active = true;
@@ -63,7 +65,13 @@ export function KnowledgeSecret({ item, parentId, onClose, onSaved }: {
     <div className="flex flex-wrap items-center gap-2 border-b border-border pb-2">
       <button type="button" className={KB_QUIET} onClick={() => { setValue(null); onClose(); }}><Icon name="arrow-left" size={16} />К папке</button>
       <span className="me-auto" />
-      {item && <KnowledgeExport ids={[item.id]} label="Выгрузить зашифрованную запись" />}
+      {/* Выгрузка записи — редкое действие: в «⋯», как у страницы, а не вторая кнопка во всю ширину над названием. */}
+      {item && <>
+        <TopLayerMenu label="Ещё действия с доступом" trigger={<Icon name="more-horizontal" size={20} />} triggerClassName={`${QUEUE_SECONDARY} w-11 px-0`} triggerProps={{ id: "knowledge-secret-more" }} menuClassName={KB_MENU} testId="knowledge-secret-menu">
+          {(close) => <button type="button" className={KB_MENU_ITEM} onClick={() => { close(); setExportOpen(true); }}><Icon name="download" size={18} />Выгрузить зашифрованную запись</button>}
+        </TopLayerMenu>
+        <KnowledgeExport open={exportOpen} onOpenChange={(open) => { setExportOpen(open); if (!open) requestAnimationFrame(() => document.getElementById("knowledge-secret-more")?.focus()); }} ids={[item.id]} label="Выгрузить зашифрованную запись" />
+      </>}
     </div>
     <div className="mx-auto mt-5 max-w-[45rem] space-y-4">
       <h2 id="knowledge-secret-title" className="flex items-center gap-2 t-record-title [overflow-wrap:anywhere]"><Icon name="lock" size={20} className="shrink-0 text-fg-3" />{item ? item.title : "Новый доступ"}</h2>
@@ -83,7 +91,7 @@ export function KnowledgeSecret({ item, parentId, onClose, onSaved }: {
           </div>
           {value !== null && <output className="block select-all rounded-ctl border border-border bg-bg p-3 t-body-compact [overflow-wrap:anywhere]"><span className="font-mono">{value}</span></output>}
         </div>}
-        {version > 0 && <label className={KB_CHECK_ROW}><input type="checkbox" className={KB_CHECK} checked={keepValue} onChange={(e) => setKeepValue(e.target.checked)} />Сохранить текущее значение</label>}
+        {version > 0 && <label className={KB_CHECK_ROW}><input type="checkbox" className={KB_CHECK} checked={!keepValue} onChange={(e) => setKeepValue(!e.target.checked)} />Заменить значение</label>}
         {!keepValue && <label className={KB_LABEL}>Секретное значение<textarea name="secretValue" autoComplete="off" spellCheck={false} maxLength={65_536} value={fields.value}
           disabled={!ready || busy} className="block min-h-28 w-full resize-y rounded-ctl border border-control-edge bg-surface p-3 t-body text-fg focus-visible:border-accent disabled:bg-surface-2" onChange={(event) => setFields((current) => ({ ...current, value: event.target.value }))} /></label>}
         <div><button type="submit" className={btnCls} disabled={!ready || busy}>{busy ? "Сохранение…" : "Сохранить"}</button></div>

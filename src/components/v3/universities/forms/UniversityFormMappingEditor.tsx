@@ -10,6 +10,7 @@ import type { UniversityFormVersionMetadata } from "@/lib/university-form-regist
 import { universityTemplateSourceUrl } from "@/lib/university-template-upload-client";
 import { parseUniversityTemplateSourcePreview, type UniversityTemplateSourcePreview, type UniversityTemplatePreviewSlot } from "@/lib/university-template-preview";
 import { universityFormActionMessage, universityFormSourceLabel, universityFormManagement as words, universityFormWorkspace as shared } from "@/lib/v3/wording";
+import { FORM_PRIMARY, FORM_SECONDARY } from "./form-buttons";
 
 const control = "min-h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 py-2 text-base text-fg";
 const dates = new Set(["date_of_birth", "passport_expiry_date", "desired_start_date"]);
@@ -97,7 +98,7 @@ export function UniversityFormMappingEditor({ catalogId, templateId, revision, v
         mime_type: version.mime_type, mappings: JSON.stringify(mappings) }).map(([key, value]) => <input key={key} type="hidden" name={key} value={value} />) : null}
       {loading ? <p role="status" className="text-sm text-fg-2">{words.previewLoading}</p> : null}
       {readError ? <div className="space-y-2"><p role="alert" className="text-sm text-danger">{words.previewUnavailable}</p>
-        {!blocked ? <button type="button" className="min-h-11 px-3 text-sm text-fg" onClick={() => setRetry(value => value + 1)}>{words.retryPreview}</button> : null}</div> : null}
+        {!blocked ? <button type="button" className={FORM_SECONDARY} onClick={() => setRetry(value => value + 1)}>{words.retryPreview}</button> : null}</div> : null}
       {preview ? <div className="divide-y divide-border" aria-label={words.sourceExcerpt}>
         {preview.slots.map((slot, index) => {
           const field = mappings.find(row => row.slotId === slot.id);
@@ -118,7 +119,7 @@ export function UniversityFormMappingEditor({ catalogId, templateId, revision, v
                       {PROFILE_FIELDS.filter(item => item.group === group).map(item => <option key={item.key} value={item.key}>{universityFormSourceLabel(item.key)}</option>)}
                     </optgroup>)}</> : null}
                 </select></div>
-              {field ? <label className="flex min-h-11 items-center gap-2 self-end text-sm text-fg"><input type="checkbox" className="h-5 w-5 accent-accent" disabled={locked}
+              {field ? <label className="flex min-h-11 items-center gap-2 self-end text-sm text-fg"><input type="checkbox" className="h-5 w-5 accent-fg" disabled={locked}
                 checked={field.required} onChange={event => update(slot.id, { required: event.target.checked })} />{words.required}</label> : null}
             </div>
             {field?.sourceKey && dates.has(field.sourceKey) ? <div className="max-w-xs space-y-2">
@@ -139,8 +140,8 @@ export function UniversityFormMappingEditor({ catalogId, templateId, revision, v
       {saved ? <p role="status" className="text-sm text-fg">{words.mappingSaved}</p> : null}
       <div className="flex flex-wrap items-center gap-3">
         {!readOnly && !saved && !blocked ? <button type="submit" disabled={pending || !mappings.length || (!uncertain && (loading || readError))}
-          className="min-h-11 rounded-ctl bg-accent px-4 py-2 text-sm font-medium text-on-accent disabled:opacity-60">{pending ? words.saving : uncertain ? shared.retry : words.saveMapping}</button> : null}
-        {saved || blocked || uncertain ? <a href={base} className="inline-flex min-h-11 items-center px-3 text-sm font-medium text-fg-2">{saved ? words.next : shared.reload}</a> : null}
+          className={FORM_PRIMARY}>{pending ? words.saving : uncertain ? shared.retry : words.saveMapping}</button> : null}
+        {saved || blocked || uncertain ? <a href={base} className={FORM_SECONDARY}>{saved ? words.next : shared.reload}</a> : null}
       </div>
     </form>
   </section>;

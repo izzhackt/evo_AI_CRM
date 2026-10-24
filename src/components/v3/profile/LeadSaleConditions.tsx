@@ -137,7 +137,7 @@ export function LeadSaleConditions({
             {": "}
             <Link
               href={reportHref(conditions.linkedSalesRegister.reportMonth, conditions.linkedSalesRegister.id)}
-              className="font-semibold text-accent underline underline-offset-4"
+              className="text-fg underline underline-offset-4 hover:text-fg-2"
             >
               открыть запись
             </Link>

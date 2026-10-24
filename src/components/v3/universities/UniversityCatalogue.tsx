@@ -34,6 +34,13 @@ import { UniversityToolbar } from "./UniversityToolbar";
  */
 
 const DATE = "font-mono tabular-nums";
+/** Карточка, проверенная раньше, помечена в списке датой; свежая дата — только в самой карточке. */
+const STALE_CARD_DAYS = 45;
+const DAY_MS = 86_400_000;
+function cardIsStale(verifiedOn: string, today: string) {
+  const days = (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${verifiedOn}T00:00:00Z`)) / DAY_MS;
+  return Number.isFinite(days) && days > STALE_CARD_DAYS;
+}
 const QUIET_LINK = "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 underline underline-offset-4 hover:text-fg";
 
 /** Страны единого списка называются по `study-countries.json`; остальные карточки каталога (PL, CY и др.) по ICU. */
@@ -55,14 +62,15 @@ function Source({ href, children }: { href: string; children: React.ReactNode })
 
 /*
  * Раскладки по ширине своего контейнера (`@container/universities`): от 48rem
- * — строка таблицы (Университет 36 · Страна 11 · Программы 9 · Ближайший срок
- * 30 · Проверено 10); уже — стопка телефона: фото и название, под ними
- * «страна · программы», срок и дата проверки. Роли таблицы заданы явно: смена
+ * — строка таблицы (Университет 40 · Страна 12 · Программы 10 · Ближайший срок
+ * 38); уже — стопка телефона: фото и название, под ними «страна · программы»,
+ * срок. Дата проверки карточки — в самой карточке; в списке она появляется
+ * только у давно не проверенной (старше STALE_CARD_DAYS). Роли таблицы заданы явно: смена
  * display иначе стирает её семантику в части браузеров. Вся строка открывает
  * страницу университета (ссылка — название; её область — строка), фокус
  * клавиатуры — рамка всей строки (`.v3-queue-row`).
  */
-const WIDE = "@min-[48rem]/universities:grid-cols-[minmax(0,36fr)_minmax(0,11fr)_minmax(0,9fr)_minmax(0,30fr)_minmax(0,10fr)] @min-[48rem]/universities:items-center";
+const WIDE = "@min-[48rem]/universities:grid-cols-[minmax(0,40fr)_minmax(0,12fr)_minmax(0,10fr)_minmax(0,38fr)] @min-[48rem]/universities:items-center";
 const ROW = `grid grid-cols-1 gap-x-3 ${WIDE}`;
 const HEAD = "t-caption flex h-8 items-center px-2 text-start text-fg-2 first:ps-3";
 const CELL = "min-w-0 px-3 @min-[48rem]/universities:px-2";
@@ -116,6 +124,7 @@ function UniversityRow({ row, level, today }: { row: UniversityCatalogueRow; lev
           <span aria-hidden="true" className="block t-meta text-fg-2 @min-[48rem]/universities:hidden">
             {[country, content.city, `${programs} ${programsWord(programs)}`].filter(Boolean).join(" · ")}
           </span>
+          {cardIsStale(content.verifiedOn, today) ? <span className="block t-meta text-warn">Проверено <time dateTime={content.verifiedOn} className={DATE}>{formatCatalogueDay(content.verifiedOn, today)}</time></span> : null}
           {/* 282: страны вне единого списка (PL, CY и др.) остаются у сотрудников, студенты их не видят. */}
           {isStudyCountryCode(content.country) ? null : <span className="mt-1 block"><StatusChip label="Не показывается студентам" /></span>}
         </span>
@@ -123,10 +132,6 @@ function UniversityRow({ row, level, today }: { row: UniversityCatalogueRow; lev
       <td role="cell" className={`${CELL} sr-only t-body-compact text-fg @min-[48rem]/universities:not-sr-only`}>{country}</td>
       <td role="cell" className={`${CELL} sr-only t-body-compact tabular-nums text-fg @min-[48rem]/universities:not-sr-only`}>{programs}</td>
       <DeadlineCell row={row} />
-      <td role="cell" className={`${CELL} ${STACK_INDENT} t-meta text-fg-2`}>
-        <span className="@min-[48rem]/universities:sr-only">Проверено </span>
-        <time dateTime={content.verifiedOn} className={DATE}>{formatCatalogueDay(content.verifiedOn, today)}</time>
-      </td>
     </tr>
   );
 }
@@ -185,7 +190,7 @@ export function UniversityList({
     <div className="@container/universities space-y-3">
       <UniversityToolbar action={base} query={filters.query} country={filters.country} level={filters.level} countries={countryOptions} levels={levelOptions} />
       {page.order === "name" ? (
-        <p className="t-meta text-fg-2">Каталог больше, чем читается за один раз: порядок — по названию, по страницам.</p>
+        <p className="t-meta text-fg-2">Порядок — по названию.</p>
       ) : null}
       {!page.rows.length ? (
         <section className="rounded-card border border-border bg-surface px-5 py-8 text-center">
@@ -203,7 +208,7 @@ export function UniversityList({
           </caption>
           <thead role="rowgroup" className="sr-only @min-[48rem]/universities:not-sr-only @min-[48rem]/universities:block">
             <tr role="row" className={`${ROW} border-b border-border`}>
-              {["Университет", "Страна", "Программы", "Ближайший срок", "Проверено"].map((label) => (
+              {["Университет", "Страна", "Программы", "Ближайший срок"].map((label) => (
                 <th key={label} role="columnheader" scope="col" className={HEAD}>{label}</th>
               ))}
             </tr>

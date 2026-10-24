@@ -37,7 +37,7 @@ import { QueueKeyboard } from "../queue/QueueKeyboard";
 import { QUEUE_QUIET_LINK, QueueError } from "../queue/QueueStates";
 import { QueueViewTabs } from "../queue/QueueViewTabs";
 import { QUEUE_META_PIECE } from "../queue/meta-piece";
-import { DialButton } from "../telephony/DialButton";
+import { DialButton, DialListHint } from "../telephony/DialButton";
 import { PortalConsultationDetails } from "./PortalConsultations";
 import { TakeFeedback, TakeLeadButton, TakeStatus } from "./TakeLead";
 
@@ -169,7 +169,7 @@ function RequestRowView({ row, props, listHref, now }: Readonly<{
         <TriageCell row={row} triage={triage} props={props} listHref={listHref} />
         {/* Над ссылкой, покрывающей строку (`z-10`): перезвонить можно, не открывая заявку. */}
         {dialLeadId && props.dial?.status === "ready" ? (
-          <span className="relative z-10"><DialButton leadId={dialLeadId} mapped={props.dial.mapped} subject={name} iconOnly /></span>
+          <span className="relative z-10"><DialButton leadId={dialLeadId} mapped={props.dial.mapped} subject={name} iconOnly sharedHint /></span>
         ) : null}
       </div>
 
@@ -312,7 +312,8 @@ function RequestsEmpty({ queue, props, now }: Readonly<{
     );
   }
   const latest = requestLatestLine(queue.latestAt, now);
-  const what = requestEmptyWhat(queue, selection.source);
+  // «Что сюда приходит» нужно у «Все» (роль читает не всё); у своей вкладки её название уже ответ.
+  const what = selection.source === "all" ? requestEmptyWhat(queue, selection.source) : null;
   return (
     <div role="status" className="flex flex-col items-center gap-2 border-t border-border py-12 text-center" data-testid="queue-empty">
       <p className="t-item text-fg">{selection.status === "waiting" ? "Новых заявок нет" : "Заявок нет"}</p>
@@ -389,6 +390,8 @@ export function RequestsQueueView(props: ViewProps) {
               <TakeStatus />
               {read.queue.rows.length === 0 ? <RequestsEmpty queue={read.queue} props={props} now={now} /> : (
                 <div className="@container min-w-0">
+                  {/* Одно описание на все кнопки «Позвонить» списка: читалка не повторяет его в каждой строке. */}
+                  {props.dial?.status === "ready" && !props.readOnly ? <DialListHint /> : null}
                   <div aria-hidden="true" className={`hidden gap-x-3 border-b border-border py-2 ps-3 t-caption text-fg-3 @min-[56rem]:grid ${WIDE_COLUMNS}`}>
                     <span>{selectedKind === "application" ? "Анкета" : selectedKind === "consultation" ? "Консультация" : "Заявка"}</span>
                     <span>Источник</span>

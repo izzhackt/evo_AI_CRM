@@ -16,6 +16,7 @@ import {
 } from "@/lib/v3/telephony-report";
 
 import { MainHeader, type PeriodChoice } from "./MainHeader";
+import { reportPeriodChoices } from "./SalesDynamics";
 import { QUEUE_QUIET_LINK } from "./queue/QueueStates";
 
 /**
@@ -212,7 +213,7 @@ export function SalesCallsReport({
               {report ? ` · первый звонок и перезвон — в течение ${report.slaMinutes} мин рабочего времени` : ""}
             </p>
           </div>
-          <MainHeader choices={choices} range={range} action={formAction} hidden={carry} />
+          <MainHeader choices={reportPeriodChoices(choices)} range={range} action={formAction} hidden={carry} />
         </div>
 
         {report === null ? (

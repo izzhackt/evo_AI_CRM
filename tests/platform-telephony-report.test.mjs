@@ -427,7 +427,7 @@ test("rendered: the supervisor's block — the team, every manager, the unassign
   assert.match(html, /^<details id="sales-calls" open="" class="group mt-8 scroll-mt-4 border-t border-border pt-2" data-testid="v3-sales-calls">/u);
   const words = text(html);
   // Collapsed, the block already says the main thing, with its own period (it is not the month of the report above).
-  assert.match(words, /^Звонки 1 сен — 26 сен · 15 звонков · отвечено 40 % · без перезвона: 2 Звонки за период 1 сен — 26 сен · первый звонок и перезвон — в течение 15 мин рабочего времени Сегодня Вчера Неделя Месяц Период/u);
+  assert.match(words, /^Звонки 1 сен — 26 сен · 15 звонков · отвечено 40 % · без перезвона: 2 Звонки за период 1 сен — 26 сен · первый звонок и перезвон — в течение 15 мин рабочего времени Сегодня Вчера Неделя 30 дней Период/u);
   assert.match(words, /Вся команда Звонки 15 8 входящих · 7 исходящих Отвечено 40 % входящие 2 из 8 исходящие 4 из 7 Время разговора 7 мин 10 с в среднем 1 мин 12 с/u);
   assert.match(words, /До первого звонка 1 ч 12 мин новых лидов: 6 в срок 15 мин: 1 из 6 до разговора 3 ч 05 мин Пропущенные без перезвона 2 из 4 пропущенных входящих перезвонили в срок: 1 перезвонили позже срока: 1 Результат проставлен 50 % 2 из 4 отвеченных/u);
   const rows = html.match(/<li [^>]*data-calls-manager="[^"]+"[\s\S]*?<\/li>/gu) ?? [];
@@ -486,7 +486,8 @@ test("rendered: an empty period, a long list, calls still within their time, a f
   assert.match(failed, /role="alert"/u);
   assert.match(text(failed), /Не удалось загрузить звонки за выбранный период\. Повторить$/u);
   assert.match(failed, /href="\/v3\/main\?view=sales&amp;period=custom&amp;from=2026-09-01&amp;to=2026-09-26#sales-calls"/u, "retry returns to this block with the same period");
-  assert.doesNotMatch(text(failed), /Вся команда|0/u, "no zeros are drawn for a failed read");
+  // Метка периода «30 дней» сама содержит «0»: ноль считается нулём, только если он не часть числа.
+  assert.doesNotMatch(text(failed), /Вся команда|(?<!\d)0(?!\d)/u, "no zeros are drawn for a failed read");
 });
 
 test("rendered: the block is closed until a period is chosen, shares the period form and carries no red", () => {

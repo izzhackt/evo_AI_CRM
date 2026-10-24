@@ -31,15 +31,11 @@ export default async function AiAgentsPage() {
   const list = await readAiAgents(actor);
 
   return (
-    <PartShell
-      title="ИИ-агенты"
-      testId="v3-ai-agents"
-      description="Помощники отдела на Claude: считают, готовят ответы и ведут студентов. Здесь их включают, поручают работу и проверяют результат."
-    >
+    <PartShell title="ИИ-агенты" testId="v3-ai-agents">
       <div className="space-y-5">
         {preview ? <PreviewLine /> : null}
         {list.status === "available" ? (
-          <AgentsHub list={list.data} runtimeConfigured={runtime.configured} />
+          <AgentsHub list={list.data} runtimeConfigured={runtime.configured} preview={preview} />
         ) : list.status === "not_ready" ? (
           <NotReady />
         ) : (

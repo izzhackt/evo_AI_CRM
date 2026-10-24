@@ -151,9 +151,10 @@ export default async function PipelinePart({
   }));
   const responsibleValue = query.owner ?? query.assignment;
 
+  // Фокус этапа — представление, и у него свой выход («Все этапы» в заголовке колонки): отдельный
+  // «Сбросить» с тем же адресом не нужен, пока выбран один этап и нет других фильтров.
   const filtersActive =
     query.q !== null ||
-    query.stage !== "all" ||
     query.due !== "all" ||
     query.assignment !== "all" ||
     query.owner !== null;

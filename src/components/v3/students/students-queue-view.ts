@@ -366,7 +366,14 @@ export function studentsCountsView(params: StudentsQueueParams): StudentCaseQueu
 
 export type StudentsTab = Readonly<{ key: string; label: string; href: string; count: number | null; current: boolean }>;
 
-/** Вкладки-виды очереди: число — только из чтения чисел при тех же фильтрах. */
+/** Исключения очереди: пустая вкладка — не повод для кнопки; число 0 из чтения (не «неизвестно») её прячет. */
+const EXCEPTION_QUEUE_VIEWS: ReadonlySet<string> = new Set(["pending", "needs_curator"]);
+
+/**
+ * Вкладки-виды очереди: число — только из чтения чисел при тех же фильтрах.
+ * «Ожидает начала» и «Ждут куратора» без дел не показываются, пока человек не
+ * стоит на них сам (по ссылке или после последнего дела).
+ */
 export function studentsQueueTabs(
   params: StudentsQueueParams,
   counts: StudentCaseQueueCounts | null,
@@ -380,7 +387,8 @@ export function studentsQueueTabs(
       href: studentsListHref(params, { view }),
       count: view === "curators" || counts === null ? null : counts.views[view],
       current: params.view === view,
-    }));
+    }))
+    .filter((tab) => tab.current || tab.count !== 0 || !EXCEPTION_QUEUE_VIEWS.has(tab.key));
 }
 
 /** Какие очереди документов учётная запись читает: без чтения своей вкладки нет. */
@@ -394,11 +402,21 @@ function docsTabShown(view: StudentsDocsView, shown: DocsQueuesShown, current: S
 }
 
 /**
+ * Вкладки очередей, которые не прячутся при нуле. «Все» — не работа.
+ * «Документы программ» и «Комплекты» несут восстановление незавершённых
+ * решений (`DocsQueueRecovery`): оно читает браузер, а не сервер, поэтому
+ * число очереди 0 не повод убрать вкладку — решение, чей ответ потерян,
+ * иначе осталось бы без входа.
+ */
+const DOCS_TABS_KEPT_AT_ZERO: ReadonlySet<string> = new Set(["all", "program", "packages"]);
+
+/**
  * Вкладки EVO Docs: число «Все» — из чтения чисел; вкладки дел — только при
  * полном чтении страницы; «Документы программ» и «Комплекты» — только при
  * полном чтении своей очереди. Вкладок очередей программ и комплектов нет у
  * того, кто их не читает (нет `document.read.full` или просмотр роли), — как
- * ссылок на них в шапке доски поступления.
+ * ссылок на них в шапке доски поступления. Вкладка дел (`review`, `fix`,
+ * `missing`) с прочитанным нулём не показывается, пока на ней не стоят.
  */
 export function studentsDocsTabs(
   params: StudentsQueueParams,
@@ -411,7 +429,8 @@ export function studentsDocsTabs(
     href: studentsListHref(params, { view }),
     count: counts[view],
     current: params.view === view,
-  }));
+  // Пустая вкладка дел — не повод для кнопки: число 0 (а не «неизвестно») её прячет, пока на ней не стоят.
+  })).filter((tab) => tab.current || tab.count !== 0 || DOCS_TABS_KEPT_AT_ZERO.has(tab.key));
 }
 
 /**
@@ -626,7 +645,8 @@ export function docsWaiting(uploadedAt: string | null | undefined, today: string
 /**
  * Порядок строк очереди документов: «сначала дольше всех ждущие» — только
  * когда прочитано всё (иначе самые давние могли не попасть в прочитанную
- * часть, и порядок сервера остаётся — об этом говорит строка над таблицей).
+ * часть, и порядок сервера остаётся — об этом говорит одна короткая строка:
+ * у дел — над таблицей, у программ и комплектов — под ней).
  * Строка без времени ожидания оставляет порядок сервера целиком.
  */
 export function docsOldestFirst<Item>(
@@ -779,13 +799,13 @@ export function studentsRowSignals(
   }
   // Студент написал и ждёт ответа сотрудника — работа, которую видно только здесь и в «Сообщениях».
   if (row.needsReply) signals.push({ key: "reply", tone: "danger", text: "нужен ответ" });
-  if (options.overdueStep && row.dueBand === "overdue") signals.push({ key: "step", tone: "danger", text: "Шаг просрочен" });
+  if (options.overdueStep && row.dueBand === "overdue") signals.push({ key: "step", tone: "danger", text: "шаг просрочен" });
   const tasks = row.overdueTaskCount;
   if (tasks > 0) {
     signals.push({ key: "tasks", tone: "danger", text: `${tasks}${NBSP}${russianPlural(tasks, "задача просрочена", "задачи просрочены", "задач просрочено")}` });
   }
   if (row.attentionFlags.includes("overdue") && tasks === 0 && row.dueBand !== "overdue") {
-    signals.push({ key: "deadline", tone: "danger", text: "Просрочен дедлайн" });
+    signals.push({ key: "deadline", tone: "danger", text: "дедлайн просрочен" });
   }
   const documents = row.documents;
   if (documents) {
@@ -798,7 +818,7 @@ export function studentsRowSignals(
       signals.push({ key: "rejected", tone: "warn", text: `${count}${NBSP}${russianPlural(count, "документ отклонён", "документа отклонены", "документов отклонено")}` });
     }
   }
-  if (row.attentionFlags.includes("awaiting_partner")) signals.push({ key: "partner", tone: "muted", text: "Ждём партнёра" });
+  if (row.attentionFlags.includes("awaiting_partner")) signals.push({ key: "partner", tone: "muted", text: "ждём партнёра" });
   return signals;
 }
 

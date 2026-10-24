@@ -14,7 +14,7 @@ import {
 } from "react";
 
 import { Icon } from "@/components/icons";
-import { btnGhostCls, fieldLabelCls, inputCls } from "@/components/ui";
+import { fieldLabelCls, inputCls } from "@/components/ui";
 import { StatusChip } from "@/components/v3/blocks/StatusChip";
 import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import { useAnchoredPopover } from "@/components/v3/queue/useAnchoredPopover";
@@ -31,9 +31,9 @@ import type { PlatformDocumentReviewDecision, PlatformDocumentSlotStatus } from 
 
 import { caseMomentLabel } from "./case-work-view";
 import { ChecklistFeedback, useRefreshAfterSave } from "./DocumentChecklistFeedback";
-import { DocumentPreviewButton } from "./DocumentPreviewButton";
+import { DocumentPreviewButton, PREVIEW_LINK } from "./DocumentPreviewButton";
 import { DocumentRecognitionJobs } from "./DocumentRecognitionJobs";
-import { DOCUMENT_UPLOAD_HINT, DOCUMENT_UPLOAD_TYPES, type DocumentUploadState } from "./document-upload";
+import { DOCUMENT_UPLOAD_TYPES, type DocumentUploadState } from "./document-upload";
 import { documentStatusChip } from "./documents-view";
 import type {
   DocumentCaseLinkTarget,
@@ -488,9 +488,7 @@ export function DocumentRow({
           <CaseLinkSummary item={item} />
           {current && !current.downloadReady ? (
             <p className="t-meta text-fg-2" role="status">
-              {deciding
-                ? "Файл ещё проверяется: принять можно после проверки, вернуть студенту — уже сейчас."
-                : "Файл есть, но скачивание ещё не подтверждено хранилищем."}
+              {deciding ? "Идёт проверка файла." : "Файл пока недоступен для просмотра."}
             </p>
           ) : null}
         </div>
@@ -512,7 +510,7 @@ export function DocumentRow({
           ) : deciding ? (
             // Место «Просмотреть» держится, пока файл проверяется: «Принять» и «Вернуть…» — там же, где у соседних строк.
             <span aria-hidden="true" className="invisible hidden @min-[52rem]/documents:inline-flex" data-testid="v3-document-preview-slot">
-              <span className={`${btnGhostCls} min-h-11`}>Просмотреть</span>
+              <span className={PREVIEW_LINK}>Просмотреть</span>
             </span>
           ) : null}
           {deciding ? (
@@ -558,7 +556,6 @@ export function DocumentRow({
                 <Icon name="upload" size={16} className="shrink-0" />
                 {sending ? "Загружаем…" : "Загрузить файл"}
               </label>
-              <span className="t-meta text-fg-2">{DOCUMENT_UPLOAD_HINT}</span>
             </form>
           ) : null}
         </div>
@@ -585,7 +582,7 @@ export function DocumentRow({
 
       {uploadIdMissing ? (
         <p className="mt-2 t-body-compact text-danger" role="status">
-          Загрузка недоступна: сервер не выдал безопасный идентификатор команды.
+          Загрузка сейчас недоступна. Обновите страницу.
         </p>
       ) : null}
 
@@ -673,7 +670,7 @@ export function DocumentRow({
                   aria-describedby={`${reasonId}-help`}
                   onChange={(event) => setReason(event.target.value)}
                 />
-                <p id={`${reasonId}-help`} className="mt-1 t-meta text-fg-2">Причину увидит студент в кабинете. До 2000 символов.</p>
+                <p id={`${reasonId}-help`} className="mt-1 t-meta text-fg-2">Причину увидит студент.</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button type="submit" value="correction_required" className={QUEUE_CONFIRM} disabled={reviewLocked}>

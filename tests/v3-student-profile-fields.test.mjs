@@ -24,12 +24,18 @@ function compile(path, resolve = require) {
 }
 
 const disclosure = compile("src/components/v3/settings/StaffDisclosure.tsx");
+// Кнопки очереди (`QUEUE_CONFIRM`, `QUEUE_SECONDARY`), значок и чип состояния — как в сборке.
+const queueButtons = compile("src/components/v3/queue/queue-buttons.ts");
+const icons = compile("src/components/icons.tsx");
+const statusChip = compile("src/components/v3/blocks/StatusChip.tsx");
 const universityFormExport = compile("src/components/v3/profile/UniversityFormExportPanel.tsx", id => {
+  if (id === "../queue/queue-buttons") return queueButtons;
   if (id === "@/lib/document-export-client") return exportClient;
   if (id === "@/lib/v3/wording") return wording;
   return require(id);
 });
 const exportHistory = compile("src/components/v3/profile/StudentProfileExportHistory.tsx", id => {
+  if (id === "../queue/queue-buttons") return queueButtons;
   if (id === "@/lib/document-export-client") return exportClient;
   if (id === "@/lib/v3/wording") return wording;
   if (id === "../settings/StaffDisclosure") return disclosure;
@@ -40,6 +46,9 @@ const unavailableCommand = async () => { throw new Error("Component-only check n
 // Render the real component/React/disclosure. Network-bound action and preview
 // references are inert and throw if invoked: these are not persistence tests.
 const component = compile("src/components/v3/profile/StudentProfileFields.tsx", id => {
+  if (id === "../queue/queue-buttons") return queueButtons;
+  if (id === "@/components/icons") return icons;
+  if (id === "../blocks/StatusChip") return statusChip;
   if (id === "@/lib/student-profile-fields") return registry;
   if (id === "@/lib/v3/wording") return wording;
   if (id === "../settings/StaffDisclosure") return disclosure;
@@ -90,14 +99,17 @@ test("authorized absence exposes one explicit initialization, while read-only mo
 test("61 fields live in six initially collapsed groups; editors are mounted only on demand", () => {
   const html = render(snapshot());
   for (const label of Object.values(registry.PROFILE_GROUP_LABELS)) assert.ok(html.includes(label), label);
-  assert.equal([...html.matchAll(/подтверждено<\/button>/g)].length, 6);
-  assert.equal([...html.matchAll(/Проверить поле<\/button>/g)].length, 61);
+  // Подпись группы — слово в кнопке-переключателе, шеврон справа (StaffDisclosure): по одной на группу.
+  assert.equal([...html.matchAll(/подтверждено<\/span><svg\b/g)].length, 6);
+  // Вся строка поля — переключатель (отдельной «Проверить поле» у каждого из 61 полей нет).
+  assert.equal([...html.matchAll(/aria-controls="profile-field-[a-z0-9_]+-editor"/g)].length, 61);
+  assert.doesNotMatch(html, /Проверить поле/);
   assert.ok([...html.matchAll(/aria-expanded="false"/g)].length >= 6);
   assert.doesNotMatch(html, /aria-expanded="true"|<details\b/);
   assert.doesNotMatch(html, /<textarea\b|<form\b/);
   assert.ok(html.length < 100000, "initial workspace does not render 61 hidden editor forms");
   assert.match(html, /Черновик/);
-  assert.match(html, /Не заполнены обязательные поля: 9/);
+  assert.match(html, /Подтверждено 0 из 61 · не заполнены обязательные: 9/);
 });
 
 test("confirmed empty and conflict remain visible decisions and previews cannot mutate", () => {

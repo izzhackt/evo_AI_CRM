@@ -50,7 +50,7 @@ export async function CaseTasksPanel({
       initialCase={{ id: caseId, name: caseName }}
       initialCaseAssignees={workspace?.assignees.map(({ membershipId, displayName }) => ({ membershipId, displayName })) ?? []}
       triggerLabel="+ Задача"
-      triggerClassName="inline-flex min-h-11 items-center text-xs font-semibold text-accent hover:underline"
+      triggerClassName="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg"
     />
   ) : undefined;
 

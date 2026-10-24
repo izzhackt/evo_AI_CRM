@@ -28,20 +28,19 @@ export async function SalesManagerLabelsView({ actor, query }: { actor: ActivePl
   const labels = read.status === "ready" ? read.data.labels : [];
   const mapped = labels.filter((label) => label.mapping?.displayName).length;
 
-  return <main className="mx-auto w-full min-w-0 max-w-[1240px] px-4 py-8 sm:px-6">
+  return <main className="mx-auto w-full min-w-0 max-w-[1240px] px-4 py-8 sm:px-6 min-[1600px]:max-w-[1480px]">
     <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
       <h1 className="t-page-title text-fg">Менеджеры в отчёте</h1>
       <Link href={context.reportHref} className={`${btnGhostCls} min-h-11`}>Вернуться к отчёту</Link>
     </header>
     <p className="mt-2 max-w-3xl t-body-compact text-fg-2">
-      Написания, которые отличаются только регистром, пробелами и точкой в конце, — один менеджер. Имя в отчёте даёт владелец:
-      сотрудник CRM или человек без аккаунта. Система ничего не угадывает; пока имени нет, отчёт показывает самое частое написание.
+      Написания с разным регистром, пробелами и точкой в конце — один менеджер. Пока имени нет, отчёт показывает самое частое написание.
     </p>
     {read.status === "denied" ? <p role="status" className="mt-6 t-body-compact text-fg-2">Нет доступа: менеджеров сопоставляет тот, кто переносит данные отчёта.</p> : null}
     {read.status === "unavailable" ? <p role="alert" className="mt-6 t-body-compact text-fg-2">Не удалось загрузить написания менеджеров. Обновите страницу.</p> : null}
     {read.status === "ready" ? <>
       <p className="mt-4 t-meta text-fg-2" data-testid="sales-managers-count">
-        {labels.length ? `${labels.length} ${managersWord(labels.length)} по написаниям, с именем от владельца — ${mapped}.`
+        {labels.length ? `${labels.length} ${managersWord(labels.length)} по написаниям, с именем — ${mapped}.`
           : "В отчёте пока нет менеджеров."}
       </p>
       {labels.length ? <section aria-label="Написания менеджеров" className="mt-3 border-t border-border" data-testid="sales-managers">

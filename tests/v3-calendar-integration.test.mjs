@@ -294,7 +294,7 @@ test("V3 stale task edits retain their draft and explicitly rebase before retry"
   assert.match(controls, /state\.status === "stale" && !staleAcknowledged/);
   assert.match(controls, /disabled=\{task\.version === expectedVersion\}/);
   assert.match(controls, /setExpectedVersion\(task\.version\); setStaleAcknowledged\(true\)/);
-  assert.match(controls, /Ваши поля сохранены в форме/);
+  assert.match(controls, /Задачу уже изменили\. Проверьте поля и сохраните ещё раз/);
 });
 
 // Parser/order inputs only; these tests do not represent database task records.

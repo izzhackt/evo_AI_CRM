@@ -115,11 +115,13 @@ test("the notifications contract decodes the v2 enrichment fields", () => {
   assert.match(notificationsSource, /\.rpc\("staff_notifications_page_v2", \{/u);
 });
 
-test("'Прочитать всё' exists as one server action reachable from the panel menu, no per-row mark-read affordance beyond the click-through", () => {
+test("'Прочитать всё' exists as one server action reachable from the panel header, no per-row mark-read affordance beyond the click-through", () => {
   assert.match(notificationsActions, /export async function markAllStaffNotificationsReadAction/u);
   assert.match(notificationsSource, /\.rpc\("mark_all_staff_notifications_read", \{/u);
   assert.match(notificationsUi, /Прочитать всё/u);
-  assert.match(notificationsUi, /role="menu"/u);
+  // Одно действие — не меню: прямая кнопка в шапке панели и только когда есть непрочитанные.
+  assert.doesNotMatch(notificationsUi, /role="menu"|menuOpen|aria-haspopup="menu"/u);
+  assert.match(notificationsUi, /count && count !== "0" \? <button type="button" disabled=\{locked\} onClick=\{\(\) => void markAll\(\)\} className=\{QUIET\}>Прочитать всё<\/button> : null/u);
   // The always-visible "Обновить" was demoted: it must not sit in the
   // primary panel header any more, only as a retry after a real failure.
   assert.doesNotMatch(notificationsUi, />Обновить</u);

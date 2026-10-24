@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { createContext, useActionState, useContext, useId, useRef, useState } from "react";
 import { btnCls, inputCls, fieldLabelCls } from "@/components/ui";
+import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import { LEAD_CHANNEL_REQUIRED, LEAD_CHANNEL_UNKNOWN_HINT, LEAD_CHANNELS } from "@/lib/lead-channel-contract";
 import { createManualLeadAction } from "@/lib/platform-manual-lead-actions";
 import { LEAD_DIRECTIONS, MANUAL_LEAD_SOURCE_REQUIRED, MANUAL_LEAD_SOURCES, type ManualLeadState } from "@/lib/platform-manual-lead-contract";
@@ -44,20 +45,36 @@ export function ManualLeadTrigger({ quiet = false }: Readonly<{ quiet?: boolean 
 }
 
 /**
+ * «Отмена» и «Закрыть» убирают панель вместе с кнопкой, на которой стоял фокус: возвращаем его на
+ * видимую кнопку «Добавить лида», иначе клавиатура теряет место и фокус падает в начало страницы.
+ */
+function focusManualLeadTrigger() {
+  const triggers = Array.from(document.querySelectorAll<HTMLElement>('[aria-controls="manual-lead-panel"]'));
+  (triggers.find((trigger) => trigger.getClientRects().length > 0) ?? triggers[0])?.focus();
+}
+
+/**
  * `owners: null` — список ответственных не прочитан (сбой чтения): панель
  * вместо полей говорит, что список не загрузился, а не «нет доступного
  * ответственного» — это была бы неправда о доступе сотрудников.
  */
 export function ManualLeadForm(props: Readonly<{ requestId: string; ownerId: string; owners: readonly Readonly<{ id: string; displayName: string }>[] | null }>) {
-  const { open } = useManualLeadDisclosure();
+  const { open, toggle } = useManualLeadDisclosure();
   const [requestId, setRequestId] = useState(props.requestId);
+  // Закрытая панель отдаёт идентификатор запроса: сохранённый лид уже занял его, и новое открытие
+  // с другими данными получило бы `request_conflict`. Так же и при закрытии кнопкой в шапке.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (!open) setRequestId(crypto.randomUUID());
+  }
   if (!open) return null;
   return (
     <div id="manual-lead-panel" className="mt-5 rounded-card border border-border bg-surface p-4">
       {props.owners === null
-        ? <p role="status" className="text-sm text-fg-2">Список ответственных не загрузился, поэтому добавить лида сейчас нельзя. Обновите страницу.</p>
-        : props.owners.length ? <ManualLeadEditor key={requestId} {...props} owners={props.owners} requestId={requestId} onAnother={() => setRequestId(crypto.randomUUID())} />
-        : <p role="status" className="text-sm text-fg-2">Нет доступного ответственного. Лида можно назначить активному администратору или сотруднику продаж. Проверьте доступ сотрудников в настройках команды и обновите страницу.</p>}
+        ? <p role="status" className="t-body-compact text-fg-2">Список ответственных не загрузился, поэтому добавить лида сейчас нельзя. Обновите страницу.</p>
+        : props.owners.length ? <ManualLeadEditor key={requestId} {...props} owners={props.owners} requestId={requestId} onAnother={() => setRequestId(crypto.randomUUID())} onClose={() => { focusManualLeadTrigger(); toggle(); }} />
+        : <p role="status" className="t-body-compact text-fg-2">Нет доступного ответственного. Лида можно назначить активному администратору или сотруднику продаж. Проверьте доступ сотрудников в настройках команды и обновите страницу.</p>}
     </div>
   );
 }
@@ -81,7 +98,7 @@ function focusFirstInvalid(field: HTMLSelectElement) {
   if (field.form?.querySelector("input:invalid, select:invalid, textarea:invalid") === field) field.focus();
 }
 
-function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ requestId: string; ownerId: string; owners: readonly Readonly<{ id: string; displayName: string }>[]; onAnother: () => void }>) {
+function ManualLeadEditor({ requestId, ownerId, owners, onAnother, onClose }: Readonly<{ requestId: string; ownerId: string; owners: readonly Readonly<{ id: string; displayName: string }>[]; onAnother: () => void; onClose: () => void }>) {
   const frozen = useRef<FormData | null>(null);
   const [currentRequestId, setCurrentRequestId] = useState(requestId);
   // Источник не выбран — браузер не отправляет форму и говорит «Выберите
@@ -105,7 +122,9 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ 
   const locked = pending || ["saved", "unavailable"].includes(state.status)
     || (state.status === "request_conflict" && currentRequestId === state.requestId);
   const messages: Record<ManualLeadState["status"], string> = {
-    idle: "", saved: "Лид сохранён. Сообщения и приглашения не отправлялись.", duplicate: "Такой контакт уже есть. Откройте существующего лида; если ссылка недоступна, попросите Admin проверить контакт.",
+    idle: "", saved: "Лид сохранён.",
+    // Ссылка «Открыть лида» — путь к существующему; без неё остаётся только просьба к Admin.
+    duplicate: state.leadId ? "Такой контакт уже есть." : "Такой контакт уже есть, но открыть его вам нельзя. Попросите Admin проверить контакт.",
     invalid: "Проверьте имя, контакт и дату следующего действия.", source_required: `${MANUAL_LEAD_SOURCE_REQUIRED}.`, channel_required: `${LEAD_CHANNEL_REQUIRED}.`, forbidden: "Нет права на это действие. Обновите страницу после проверки доступа.",
     request_conflict: "Запрос уже использован с другими данными. Сначала проверьте воронку.", unavailable: "Результат пока неизвестен. Данные сохранены в форме; безопасно повторите тот же запрос.",
   };
@@ -145,17 +164,21 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother }: Readonly<{ 
         <label><span className={fieldLabelCls}>Ответственный</span><select name="owner_id" defaultValue={ownerId} required className={inputCls}>{owners.map(owner => <option key={owner.id} value={owner.id}>{owner.displayName}</option>)}</select></label>
         <label><span className={fieldLabelCls}>Направление</span><select name="direction" className={inputCls}><option value="">Пока не выбрано</option>{Object.entries(LEAD_DIRECTIONS).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label>
       </div>
-      <details><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">Следующее действие</summary><div className="grid gap-4 sm:grid-cols-2">
+      <details><summary className="t-label min-h-11 cursor-pointer py-3">Следующее действие</summary><div className="grid gap-4 sm:grid-cols-2">
         <label><span className={fieldLabelCls}>Что сделать</span><textarea name="next_action" maxLength={500} rows={2} className={inputCls} /></label>
         <label><span className={fieldLabelCls}>Срок</span><input name="due_date" type="date" className={inputCls} /></label>
       </div></details>
-      <button className={btnCls} disabled={locked}>{pending ? "Сохраняем…" : "Сохранить лида"}</button>
     </fieldset>
-    {state.status !== "idle" ? <p role={state.status === "saved" ? "status" : "alert"} className="text-sm leading-relaxed text-fg-2">{messages[state.status]}{touchNote(state)}</p> : null}
-    {state.leadId ? <Link className="inline-flex min-h-11 items-center text-accent-text underline" href={`/v3/profile?id=${state.leadId}`}>Открыть лида</Link> : null}
-    {state.status === "unavailable" ? <button type="submit" className={btnCls} disabled={pending}>Повторить тот же запрос</button> : null}
-    {state.status === "saved" ? <button type="button" className="min-h-11 text-sm underline" onClick={onAnother}>Добавить ещё одного</button> : null}
-    {state.status === "request_conflict" ? <div className="flex flex-wrap gap-3"><Link href="/v3/pipeline" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center underline">Проверить воронку в новой вкладке</Link>
-      {currentRequestId === state.requestId ? <button type="button" className="min-h-11 text-sm underline" onClick={() => setCurrentRequestId(crypto.randomUUID())}>Проверил, продолжить с моим вводом</button> : null}</div> : null}
+    {/* Вне `fieldset`: «Закрыть» нужен и после сохранения, когда поля уже заблокированы. */}
+    <div className="flex flex-wrap items-center gap-3">
+      <button className={QUEUE_CONFIRM} disabled={locked}>{pending ? "Сохраняем…" : "Сохранить лида"}</button>
+      <button type="button" className={QUEUE_SECONDARY} disabled={pending} onClick={onClose}>{state.status === "saved" ? "Закрыть" : "Отмена"}</button>
+    </div>
+    {state.status !== "idle" ? <p role={state.status === "saved" ? "status" : "alert"} className="t-body-compact text-fg-2">{messages[state.status]}{touchNote(state)}</p> : null}
+    {state.leadId ? <Link className="inline-flex min-h-11 items-center t-label text-fg underline underline-offset-4" href={`/v3/profile?id=${state.leadId}`}>Открыть лида</Link> : null}
+    {state.status === "unavailable" ? <button type="submit" className={QUEUE_CONFIRM} disabled={pending}>Повторить тот же запрос</button> : null}
+    {state.status === "saved" ? <button type="button" className="t-label inline-flex min-h-11 items-center underline underline-offset-4" onClick={onAnother}>Добавить ещё одного</button> : null}
+    {state.status === "request_conflict" ? <div className="flex flex-wrap gap-3"><Link href="/v3/pipeline" target="_blank" rel="noopener noreferrer" className="t-label inline-flex min-h-11 items-center underline underline-offset-4">Проверить воронку в новой вкладке</Link>
+      {currentRequestId === state.requestId ? <button type="button" className="t-label inline-flex min-h-11 items-center underline underline-offset-4" onClick={() => setCurrentRequestId(crypto.randomUUID())}>Проверил, продолжить с моим вводом</button> : null}</div> : null}
   </form>;
 }

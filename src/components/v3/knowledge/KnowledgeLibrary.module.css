@@ -4,9 +4,9 @@
  * названия страницы и текст статьи из Markdown. Только токены.
  */
 
-/* Название открытой страницы — роль имени записи (t-record-title): h1 экрана уже «База знаний».
+/* Название открытой страницы — роль имени записи (t-record-title): h1 экрана уже «База знаний». Поле — переносимая строка (textarea в одну строку, высота по тексту).
    !important у размера — против 16 px для полей на сенсорных экранах (globals.css). */
-.titleInput { display: block; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 4px 0; border: 0; background: transparent; color: var(--text); font-size: var(--type-record-title) !important; line-height: var(--type-record-title-leading); font-weight: 600; letter-spacing: var(--type-title-tracking); }
+.titleInput { display: block; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 4px 0; border: 0; background: transparent; resize: none; overflow: hidden; overflow-wrap: anywhere; color: var(--text); font-size: var(--type-record-title) !important; line-height: var(--type-record-title-leading); font-weight: 600; letter-spacing: var(--type-title-tracking); }
 .titleInput:focus-visible { outline-offset: 2px; }
 
 .markdown { font-size: var(--type-body); line-height: var(--type-body-leading); max-inline-size: var(--type-measure); overflow-wrap: anywhere; min-height: 30vh; padding: 16px 0; color: var(--text); }

@@ -45,8 +45,9 @@ test("the staff look: tokens, neutral selection, no pink, no red checkboxes, no 
   // Отметки — нейтральные (RowSelect очереди и accent-fg).
   assert.match(library, /<RowSelect /u);
   assert.match(source["knowledge-look.ts"], /accent-fg/u);
-  // Редактор: группа «Вставить» отделена от переключателя «Режим» линией.
-  assert.match(source["KnowledgeEditor.tsx"], /role="group" aria-label="Вставить" className="flex flex-wrap gap-2 border-s border-border ps-2"/u);
+  // Редактор: пять вставок — одно меню «Вставить ▾» рядом с переключателем «Режим», не пять кнопок в строке.
+  assert.match(source["KnowledgeEditor.tsx"], /<TopLayerMenu label="Вставить"/u);
+  for (const item of ["Заголовок", "Список", "Таблица", "Ссылка", "Вложение"]) assert.match(source["KnowledgeEditor.tsx"], new RegExp(`closeMenu\\(\\); [^\\n]*\\}\\}>${item}</button>`, "u"), `«Вставить» has ${item}`);
 });
 
 test("every CSS-module class the components use is defined", () => {
@@ -61,9 +62,17 @@ test("one toolbar: search first, then «Создать ▾», then «⋯»; the 
   const toolbar = library.slice(library.indexOf('data-testid="knowledge-toolbar"'), library.indexOf("</TopLayerMenu>", library.indexOf('label="Ещё действия с базой знаний"')));
   const order = ["Поиск по базе знаний", 'label="Создать"', 'label="Ещё действия с базой знаний"'].map((marker) => toolbar.indexOf(marker));
   assert.ok(order.every((index) => index >= 0) && order[0] < order[1] && order[1] < order[2], `toolbar order ${order}`);
-  for (const item of ["Загрузить файлы", "Загрузить папку", '"Выгрузить папку" : "Выгрузить раздел"', "Выгрузить всю базу", "Перенос локальной базы"]) {
-    assert.ok(toolbar.includes(item), `«⋯» has ${item}`);
+  // «Загрузить файлы» — самое частое действие — стоит в «Создать ▾»; в «⋯» остальное: папка, выгрузки, перенос.
+  const create = toolbar.slice(toolbar.indexOf('label="Создать"'), toolbar.indexOf('label="Ещё действия с базой знаний"'));
+  const more = toolbar.slice(toolbar.indexOf('label="Ещё действия с базой знаний"'));
+  assert.ok(create.includes("Загрузить файлы"), "«Создать» has «Загрузить файлы»");
+  assert.ok(!more.includes("Загрузить файлы"), "«⋯» does not repeat «Загрузить файлы»");
+  for (const item of ["Загрузить папку", '"Выгрузить папку" : "Выгрузить раздел"', "Выгрузить всю базу", "Перенос локальной базы"]) {
+    assert.ok(more.includes(item), `«⋯» has ${item}`);
   }
+  // «Создать» и загрузка — только в списке: в корзине, архиве и «На уточнении» они писали бы в корень раздела мимо открытого вида.
+  assert.match(toolbar, /\{view === "list" \? <TopLayerMenu label="Создать"/u);
+  assert.match(toolbar, /area !== "secrets" && view === "list" && <button[^>]*>.*Загрузить папку/u);
   assert.match(toolbar, /area === "secrets"\s*\? <button[^>]*>.*Доступ<\/button>/u, "«Создать» in the secrets area offers «Доступ»");
   assert.equal([...library.matchAll(/\bbtnCls\b/gu)].length, 2, "btnCls is imported once and used once (the «Создать» trigger)");
   for (const name of ["KnowledgeLibrary.tsx", "KnowledgeImport.tsx", "KnowledgeProtectedImport.tsx", "KnowledgeExport.tsx"]) {

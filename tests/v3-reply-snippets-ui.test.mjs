@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -234,7 +234,6 @@ test("Admissions presentation composes document and snippet readers", async () =
 test("picker and CRUD components keep insertion separate from sending", () => {
   const picker = source("src/components/v3/reply-snippets/ReplySnippetPicker.tsx");
   const section = source("src/components/v3/reply-snippets/KnowledgeReplySnippetSection.tsx");
-  const tabs = source("src/components/v3/reply-snippets/KnowledgeWorkspaceTabs.tsx");
   const page = source("src/app/(v3)/v3/knowledge/page.tsx");
   const snippets = source("src/components/v3/knowledge/KnowledgeSnippets.tsx");
 
@@ -253,7 +252,10 @@ test("picker and CRUD components keep insertion separate from sending", () => {
   assert.match(section, /name="expected_version"/u);
   assert.match(section, /name="request_id"/u);
   assert.match(section, /canManage && item\.canMutate/u);
-  assert.match(section, /Шаблон никогда не отправляется сам/u);
+  // Список — главное, форма открывается по «Новому шаблону»; архив — после вопроса в строке.
+  assert.match(section, /Новый шаблон/u);
+  assert.match(section, /Архивировать шаблон\?/u);
+  assert.doesNotMatch(section, /v3-edge-|border-s-2/u, "feedback is text-only: no side stripe");
 
   assert.match(page, /requireKnowledgeAdmin\(actor\)/u);
   assert.match(page, /KnowledgeLibrary/u);
@@ -266,11 +268,8 @@ test("picker and CRUD components keep insertion separate from sending", () => {
   assert.match(snippets, /v3CanMutateReplySnippet\(actor, snippet\)/u);
   assert.doesNotMatch(page, /Promise\.all\(\[\s*readCompanyKnowledge/u);
 
-  assert.match(tabs, /<nav/u);
-  assert.match(tabs, /<ul/u);
-  assert.match(tabs, /<li/u);
-  assert.match(tabs, /aria-current=\{active === id \? "page" : undefined\}/u);
-  assert.doesNotMatch(tabs, /role="tablist"|role="tab"|role="tabpanel"/u);
+  // Мёртвые вкладки «Документы | Шаблоны ответов» (`?tab=snippets` уже перенаправляет на раздел) удалены.
+  assert.equal(existsSync(new URL("../src/components/v3/reply-snippets/KnowledgeWorkspaceTabs.tsx", import.meta.url)), false);
 });
 
 test("fresh request IDs rotate the React form remount keys after refresh", () => {

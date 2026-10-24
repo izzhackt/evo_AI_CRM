@@ -71,8 +71,15 @@ test("Lead 360 (Э8.4): «Изменить» leads to the contract workflow only
 test("Lead 360 (Э8.4): «Договор и оплата» exists for whoever has the gate forms, without opening the case's finances", () => {
   const none = { documents: false, finance: false, studentProfile: false, contract: false };
   const keys = (student, access) => tabsFor(student, access, false).map((tab) => tab.key);
-  // Лид без дела — вкладка есть всегда (как раньше).
-  assert.ok(keys(false, profileTabAccess(none, { financeConfirm: false, gateForms: false })).includes("money"));
+  // Лид без дела: вкладка — только с формами подтверждения вручную; пустая вкладка с одной фразой «дела пока нет» не нужна.
+  assert.ok(!keys(false, profileTabAccess(none, { financeConfirm: false, gateForms: false })).includes("money"));
+  assert.ok(keys(false, profileTabAccess(none, { financeConfirm: false, gateForms: true })).includes("money"));
+  assert.equal(resolveTab("money", false, profileTabAccess(none, { financeConfirm: false, gateForms: false }), false), "overview");
+  // «История» — журнал дела: у лида без дела её нет (события лида — «Лента» на «Обзоре»); «Анкета» — только с содержимым.
+  assert.ok(!keys(false, profileTabAccess(none, { financeConfirm: false, gateForms: false })).includes("history"));
+  assert.ok(keys(true, profileTabAccess({ ...none, studentProfile: true }, { financeConfirm: false, gateForms: false })).includes("history"));
+  assert.ok(!tabsFor(false, none, false, false).some((tab) => tab.key === "anketa"));
+  assert.ok(tabsFor(false, none, false, true).some((tab) => tab.key === "anketa"));
   // Переданный лид (есть дело): без прав на финансы и договор вкладки нет, пока нет форм подтверждения.
   assert.ok(!keys(true, profileTabAccess(none, { financeConfirm: false, gateForms: false })).includes("money"));
   const withForms = profileTabAccess(none, { financeConfirm: false, gateForms: true });
@@ -255,8 +262,10 @@ test("rendered Lead 360: name as h1, stage and «Что дальше» in the he
   for (const page of [early, potential]) {
     assert.match(page, /<div id="lead-next-step" popover="auto" role="dialog" aria-labelledby="[^"]+" data-testid="v3-lead-step-drawer"/u);
     assert.match(page, /data-testid="v3-pipeline-workflow-form"/u);
-    assert.match(page, /<button type="button" popoverTarget="lead-next-step" aria-haspopup="dialog" class="[^"]*underline[^"]*">Изменить<\/button>/u);
   }
+  // Красная «Записать следующий шаг» открывает ту же панель: второго «Изменить» рядом с ней нет; у «Оформить продажу» он остаётся.
+  assert.doesNotMatch(early, /<button type="button" popoverTarget="lead-next-step" aria-haspopup="dialog" class="[^"]*underline[^"]*">/u);
+  assert.match(potential, /<button type="button" popoverTarget="lead-next-step" aria-haspopup="dialog" class="[^"]*underline[^"]*">Изменить<\/button>/u);
   assert.doesNotMatch(handed, /v3-lead-step-drawer|v3-pipeline-workflow-form/u);
   assert.match(text(handed), /Что дальше Передано 18\.09 · Айгерим Условная · принято 19\.09/u);
   assert.match(text(early), /Что дальше Позвонить после консультации с родителями 29\.09/u);
@@ -286,7 +295,7 @@ test("rendered Lead 360 (Э8.4): feed and groups in the work column, only facts 
   assert.match(text(page), /Лента Новая заметка Добавить заметку Встреча прошла.*? Санжар Эскизов · 23\.09 16:15 Назначили встречу.*? Квалифицирован:.*? Лид создан · сайт 05\.09 11:00/u);
   // Порядок чтения (и телефона), как у дела: «Сведения», «Передача», лента, группы правки.
   // Дата появления — «05.09» (этот год), без «.2026».
-  assert.match(text(page), /Сведения Ответственный СЭ Санжар Эскизов Источник сайт · с 05\.09 Контакты \+996 000 000 002 lead@example\.invalid Последний контакт 23\.09 16:15 · заметка Передача ничего не подтверждено Изменить Лента .*? Лид создан · сайт 05\.09 11:00 Данные лида/u);
+  assert.match(text(page), /Сведения Ответственный СЭ Санжар Эскизов Источник сайт · 05\.09 Контакты \+996 000 000 002 lead@example\.invalid Последний контакт 23\.09 16:15 · заметка Передача ничего не подтверждено Подтвердить Лента .*? Лид создан · сайт 05\.09 11:00 Данные лида/u);
   assert.doesNotMatch(page, /05\.09\.2026/u);
   assert.match(page, /<a href="tel:\+996000000002" class="flex min-h-11/u);
   // До первого доказательства «Передача» — одна строка, не пять прочерков; первый факт — полоса.
@@ -317,14 +326,15 @@ test("rendered Lead 360 (Э8.4): feed and groups in the work column, only facts 
   assert.match(edit, />Сохранить условия<\/button>/u);
   assert.equal(edit.match(/>Сохранить<\/button>/gu)?.length, 3, "Пожелания, Образование, Условия");
   // «Изменить» в «Передаче» — тихая ссылка 44 px к подтверждению вручную на вкладке «Договор и оплата».
-  assert.match(page, /<a class="inline-flex min-h-11 items-center t-label text-fg-2 underline [^"]*ms-auto" data-testid="v3-handoff-edit" aria-label="Изменить договор и оплату" href="\/v3\/profile\?id=[^"]+&amp;tab=money#handoff-confirm">Изменить<\/a>/u);
+  assert.match(page, /<a class="inline-flex min-h-11 items-center t-label text-fg-2 underline [^"]*ms-auto" data-testid="v3-handoff-edit" aria-label="Подтвердить договор и оплату" href="\/v3\/profile\?id=[^"]+&amp;tab=money#handoff-confirm">Подтвердить<\/a>/u);
   // «⋯»: только «Закрыть лид…» — «Доступ к порталу» живёт в своей группе.
   const menu = page.slice(page.indexOf('data-testid="v3-lead-actions-menu"'));
   assert.match(menu, /^data-testid="v3-lead-actions-menu"[^>]*><button type="button" class="[^"]*">Закрыть лид…<\/button>/u);
   assert.doesNotMatch(page.slice(page.indexOf('data-testid="v3-lead-actions"'), page.indexOf('data-testid="v3-lead-header"')), /Доступ к порталу/u);
-  // Переданный лид: закрыть нельзя, причина словами; строки передачи в «Сведениях» второй раз нет.
+  // Переданный лид: закрыть нельзя — «⋯» с единственным недоступным «Закрыть лид» нет вовсе (этап «Переданы» уже говорит об этом);
+  // строки передачи в «Сведениях» второй раз нет.
   const handed = pages.get("lead-handed");
-  assert.match(text(handed), /Закрыть лид Лид передан в поступление — это продажа\./u);
+  assert.doesNotMatch(handed, /v3-lead-actions-menu|Закрыть лид/u);
   assert.doesNotMatch(handed, /v3-handoff-summary/u);
   assert.doesNotMatch(handed, /v3-lead-group-contract/u);
   // Решение куратора уже в «Принято» — факта «Приём дела» без нового текста нет; «Оплата N%» — в полосе, не в «Сведениях».
@@ -354,7 +364,7 @@ test("rendered Lead 360 (Э8.4): contract and payment in one place — the strip
   // Вкладка «Договор и оплата» лида без дела: подтверждение вручную наверху, пустых обязательств нет.
   const money = pages.get("lead-money");
   assert.match(money, /<section id="handoff-confirm" aria-labelledby="handoff-confirm-title" class="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate">/u);
-  assert.match(text(money), /Подтверждение вручную Договор, затем первый платёж — доказательства передачи в поступление, если их нет в деле и в отчёте продаж\. Подтвердить договор/u);
+  assert.match(text(money), /Подтверждение вручную Доказательства передачи в поступление, если их нет в деле и в отчёте\. Договор /u);
   assert.match(money, /<label class="block"><span[^>]*>Доказательство<\/span>/u);
   assert.doesNotMatch(money, /Все обязательства по делу/u);
   assert.equal(solidRed(money), 1, "the confirmations are quiet; red stays the page's main action");
@@ -365,7 +375,8 @@ test("Lead 360 and Student 360 tabs (Э8.4): 44 px, the queue tab strip without 
   const strip = potential.slice(potential.indexOf('aria-label="Разделы профиля"') - 5, potential.indexOf("</nav>", potential.indexOf('aria-label="Разделы профиля"')));
   assert.match(strip, /^<nav aria-label="Разделы профиля" tabindex="0" data-tab-strip="" class="v3-tab-strip -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0" data-testid="v3-profile-tabs"><ul class="flex min-w-max items-center gap-1 border-b border-border pb-2">/u);
   const links = [...strip.matchAll(/<a [^>]*class="([^"]+)"[^>]*>([^<]+)<\/a>/gu)];
-  assert.deepEqual(links.map((match) => match[2]), ["Обзор", "Анкета", "Договор и оплата", "История"]);
+  // Лид без дела: «Анкета» и «История» не рисуются пустыми — события лида в «Ленте», направление в «Сведениях».
+  assert.deepEqual(links.map((match) => match[2]), ["Обзор", "Договор и оплата"]);
   assert.ok(links.every((match) => /(^| )min-h-11( |$)/u.test(match[1]) && /(^| )t-label( |$)/u.test(match[1])), "44 px, one type role");
   const profile = read("src/components/v3/profile/Profile.tsx");
   assert.match(profile, /<QueueTabStrip label="Разделы профиля" focusable testId="v3-profile-tabs">/u);
@@ -383,7 +394,7 @@ test("rendered «Отчёт продаж»: stepper, plan headline, sums by curr
   assert.match(text(report), /Отчёт продаж Сентябрь 2026 Январь 2026 .*? Декабрь 2026 Весь 2026 год Добавить продажу/u);
   assert.doesNotMatch(report, /name="year"[^>]*type="number"|>Показать<\/button>|Найдено по фильтрам/u);
   // «N продаж из плана M» и тонкая полоса (Э1.3).
-  assert.match(text(report), /8 продаж из плана 35 по дате продажи за сентябрь 2026, без архива · осталось 27/u);
+  assert.match(text(report), /8 продаж из плана 35 по дате продажи, без архива · осталось 27/u);
   assert.match(report, /v3-progress-track/u);
   // Основа сумм названа рядом с заголовком: записи месяца отчёта, из них без даты продажи —
   // «8 продаж» (по дате продажи) и суммы по 9 записям не спорят молча.
@@ -396,7 +407,7 @@ test("rendered «Отчёт продаж»: stepper, plan headline, sums by curr
   // Сноска — одна строка.
   const money = report.slice(report.indexOf('data-testid="sales-money-summary"'), report.indexOf("</section>", report.indexOf('data-testid="sales-money-summary"')));
   assert.equal(money.match(/<p\b/gu)?.length, 2, "the basis line and one footnote");
-  assert.match(text(money), /USD → KGS — стоимость в USD, оплата в KGS без суммы в валюте договора \(1 запись\): остаток не считается\. Не вошли: без стоимости — 1 запись, оплата не указана — 1 запись\. Валюты не пересчитываются; это записи отчёта, не поступления за месяц\./u);
+  assert.match(text(money), /Остаток не считается, если оплата в другой валюте и нет суммы в валюте договора\. Не вошли: без стоимости — 1 запись, оплата не указана — 1 запись\. Валюты не пересчитываются; это записи отчёта, не поступления за месяц\./u);
   // Одна строка инструментов, выбор применяется ссылкой; «Нужно уточнить · N» — из чтения.
   assert.match(report, /data-testid="sales-review-toggle" href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;review=true">Нужно уточнить<span class="tabular-nums"> · 6<\/span><\/a>/u);
   assert.match(report, /href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;archived=true">Архив<\/a>/u);
@@ -416,8 +427,8 @@ test("rendered «Отчёт продаж»: stepper, plan headline, sums by curr
   assert.equal(menuItems(chosenMenu), "Все Айдана Макетова 3 Санжар Эскизов 5 Менеджеры в отчёте →");
   assert.match(chosenMenu, /<a aria-current="true"[^>]*href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;manager=%D1%81%D0%B0%D0%BD%D0%B6%D0%B0%D1%80\+%D1%8D%D1%81%D0%BA%D0%B8%D0%B7%D0%BE%D0%B2"/u);
   assert.match(chosenMenu, /href="\/v3\/main\?view=sales&amp;mode=managers&amp;year=2026&amp;month=9"/u);
-  // Под записями — рядом с «Перенос данных», тем же спокойным видом.
-  assert.match(chosen, /href="\/v3\/main\?view=sales[^"]*&amp;mode=import">Перенос данных<\/a><a class="[^"]*" href="\/v3\/main\?view=sales&amp;mode=managers&amp;year=2026&amp;month=9">Менеджеры в отчёте<\/a>/u);
+  // Под записями кнопок «Перенос данных» и «Менеджеры в отчёте» нет: перенос — в «Настройки → Платформа», менеджеры — пункт меню «Менеджер».
+  assert.doesNotMatch(chosen, />Перенос данных<|>Менеджеры в отчёте<\/a>/u);
   assert.equal(solidRed(chosen), 1);
   assert.deepEqual([...chosen.matchAll(/<p class="truncate t-meta text-fg-2">(?:<time[^>]*>[^<]*<\/time>|без даты) · ([^·<]+) ·/gu)].map((match) => match[1].trim()),
     ["Санжар Эскизов", "Санжар Эскизов", "Санжар Эскизов", "Санжар Эскизов", "Санжар Эскизов"]);
@@ -470,7 +481,7 @@ test("rendered «Отчёт продаж»: the record opens in the right panel 
   assert.doesNotMatch(page, /data-testid="sales-register-form"/u);
   const panel = text(page.slice(page.indexOf("<dialog"), page.indexOf("</dialog>")));
   // 307: рядом с «Исправить запись» стоит «Убрать» (его маленькое окно закрыто, но есть в разметке).
-  assert.match(panel, /Требует проверки: при переносе: статус оплаты не указан Исправить запись Убрать Убрать из продаж Оплатил частично Не оплатил Заметка Убрать Отмена Стоимость 1 500 USD Оплачено 600 USD Остаток 900 USD/u);
+  assert.match(panel, /Нужно уточнить: при переносе: статус оплаты не указан Исправить запись Убрать Убрать из продаж Оплатил частично Не оплатил Заметка Убрать Отмена Стоимость 1 500 USD Оплачено 600 USD Остаток 900 USD/u);
   // Написание в записи — опрятно (без пробелов по краям и двойных), без опечатки внутри кавычек.
   assert.match(panel, /Менеджер Санжар Эскизов в записи: «санжар эскизов»/u);
   assert.match(page, /<a class="[^"]*" data-testid="sales-record-edit" href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9&amp;record=78787878-5555-4555-8555-000000000002&amp;edit=true">Исправить запись<\/a>/u);
@@ -511,7 +522,7 @@ test("rendered «Отчёт продаж»: the record opens in the right panel 
 
   // Оплата в другой валюте без суммы в валюте договора: пометка словами, остатка нет — и почему.
   const cross = text(pages.get("report-panel-cross").slice(pages.get("report-panel-cross").indexOf("<dialog")));
-  assert.match(cross, /Требует проверки: нет суммы в валюте договора Исправить запись Убрать Убрать из продаж Оплатил частично Не оплатил Заметка Убрать Отмена Стоимость 1 800 USD Оплачено 45 000 KGS Оплачено в валюте договора не указано Остаток — Остатка нет: оплата в другой валюте без суммы в валюте договора\./u);
+  assert.match(cross, /Нужно уточнить: нет суммы в валюте договора Исправить запись Убрать Убрать из продаж Оплатил частично Не оплатил Заметка Убрать Отмена Стоимость 1 800 USD Оплачено 45 000 KGS Оплачено в валюте договора не указано Остаток — Остатка нет: оплата в другой валюте без суммы в валюте договора\./u);
   // Форма: «Оплачено в валюте договора» — под «Оплачено», в валюте стоимости.
   const crossEdit = pages.get("report-panel-cross-edit");
   const field = crossEdit.indexOf('data-testid="sales-contract-amount"');
@@ -521,7 +532,7 @@ test("rendered «Отчёт продаж»: the record opens in the right panel 
   // С суммой в валюте договора: остаток от неё, пометки нет; в списке — строка валюты стоимости, пары валют нет.
   const contract = text(pages.get("report-panel-contract").slice(pages.get("report-panel-contract").indexOf("<dialog")));
   assert.match(contract, /Руслан Прототипов Сведения из записи отчёта\. Исправить запись Убрать Убрать из продаж Оплатил частично Не оплатил Заметка Убрать Отмена Стоимость 1 800 USD Оплачено 45 000 KGS Оплачено в валюте договора 520 USD Остаток 1 280 USD/u);
-  assert.doesNotMatch(contract, /Требует проверки/u);
+  assert.doesNotMatch(contract, /Нужно уточнить:/u);
   const list = pages.get("report-panel-contract-list");
   assert.match(text(list), /Руслан Прототипов Малайзия · Бакалавриат Айдана Макетова 03\.09 1 800 USD 45 000 KGS остаток 1 280 USD Сверено/u);
   assert.match(list, /title="45\s000\sKGS; в валюте договора 520\sUSD">45\s000\sKGS<\/span>/u);
@@ -629,7 +640,7 @@ test("rendered «Отчёт продаж»: «Архив» shows how many record
 test("rendered «Отчёт продаж»: «Поступления и возвраты за месяц» keeps its read, words and states, below the records", () => {
   const page = pages.get("report-cash");
   const start = page.indexOf('data-testid="sales-cash-totals"');
-  assert.ok(start > page.indexOf('aria-label="Страницы отчёта"'), "below the records and their pages");
+  assert.ok(start > page.indexOf('aria-label="Записи продаж"'), "below the records");
   const cash = page.slice(start, page.indexOf("</section>", start));
   assert.match(text(cash), /Поступления и возвраты за месяц Подтверждённые финансовые события всей организации по дате операции, время Бишкека\. Фильтры строк продаж на этот блок не влияют\. Расходы третьих сторон не являются выручкой EVO\./u);
   assert.match(text(cash), /USD Получено 5 400,00 USD Возвращено 600,00 USD Итого 4 800,00 USD KGS Получено 50 000,00 KGS Возвращено 0,00 KGS Итого 50 000,00 KGS/u);

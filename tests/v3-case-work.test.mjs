@@ -142,7 +142,8 @@ test("the case view (Student 360, Э4): stage and «Что дальше» under 
   const text = texts(html);
   // Шапка: этап — дорожка со словами «Воронки» и фазой · «Что дальше» — шаг, срок словом и «Изменить» · состояние.
   assert.match(text, /Этап Новые, пройден .*? Прибыл, впереди Документы Поступление Что дальше Собрать апостиль на аттестат 20\.09 прошёл 3 дн Изменить/u);
-  assert.match(text, /Состояние ждёт принятия/u);
+  // «Принять дело» у заголовка уже говорит, что дело ждёт принятия: второй раз «Состояние ждёт принятия» под ней нет.
+  assert.doesNotMatch(text, /Состояние ждёт принятия/u);
   assert.match(html, /<button id="queue-trigger-[^"]+" type="button" popovertarget="queue-popover-[^"]+"[^>]*aria-haspopup="dialog"[^>]*>Изменить<\/button>/iu);
   assert.match(html, /popover="auto"[^>]*role="dialog"[^>]*><h2[^>]*>Следующий шаг<\/h2>[\s\S]*?data-testid="v3-next-step-editor"/u);
   // «Обзор» по порядку: Задачи → Сведения → Лента (на телефоне — так же; от 1280 px «Сведения» справа).
@@ -165,10 +166,11 @@ test("the case view (Student 360, Э4): stage and «Что дальше» under 
   assert.doesNotMatch(texts(html.slice(html.indexOf('data-testid="v3-case-tasks"'))).split("Показать ещё")[0], /Айдана Сыдыкова/u);
   // Документы, заявки, переписка — факты из прочитанных данных, со ссылками на вкладки.
   // «N из M принято» — полоса из прочитанных чисел, остальное — чипы со словом (Э1.3).
-  assert.match(text, /Документы 7 из 12 принято 2 на проверке 1 исправить 2 не загружено Документы дела/u);
+  // Ссылок «Документы дела», «Вузы и программы», «Договор и оплата» в «Сведениях» нет: те же названия стоят вкладками прямо над ними.
+  assert.match(text, /Документы 7 из 12 принято 2 на проверке 1 исправить 2 не загружено Заявки/u);
   assert.match(text, /Переписка Нужен ответ Открыть переписку/u);
   assert.match(html, /href="\/v3\/messages\?case=cccccccc-2222-4222-8222-000000000001"/u);
-  assert.match(text, /Шанхайский университет · Международная торговля — готовится · основной вариант · дедлайн 30\.11/u);
+  assert.match(text, /Шанхайский университет · Международная торговля — готовится · основной вариант · срок подачи 30\.11/u);
   // Последнее сообщение переписки — в ленте.
   assert.match(text, /Лента .*Переписка · Айдана Сыдыкова 22\.09 14:14 Здравствуйте!/u);
   // Прежние дубли ушли: ссылка дела на само себя, «Коротко», вторая «Создать задачу по студенту».
@@ -212,11 +214,11 @@ test("Admin: sales forms and portal access are collapsed groups under «Свед
   const salesData = html.slice(html.indexOf('id="sales-data"'));
   assert.equal((salesData.match(/bg-accent (?:px|text)/gu) ?? []).length, 0, "no solid red inside «Данные продажи»");
   assert.equal((salesData.match(/>(?:Сохранить|Сохранить условия)<\/button>/gu) ?? []).length, 4);
-  assert.match(read("src/components/v3/profile/CaseWorkParts.tsx"), /<SalesOverview [^>]*requestIds=\{input\.requestIds\} quiet \/>/u);
-  assert.match(text, /Оплата 40% оплачено · остаток 900 \$ Договор и оплата/u);
+  assert.match(read("src/components/v3/profile/CaseWorkParts.tsx"), /<SalesOverview [^>]*requestIds=\{input\.requestIds\} quiet groups \/>/u);
+  assert.match(text, /Оплата 40% оплачено · остаток 900 \$/u);
   assert.match(html, /<details name="case-edit" id="portal-access" data-lead-group="" data-testid="v3-case-portal"[^>]*>/u);
   assert.match(text, /Доступ к порталу анкета одобрена/u);
-  assert.match(text, /Сведения Направление Китай Сменить направление Куратор АО Айгүл Осмонова Нагрузка кураторов Передал Эрмек Токтосунов · 30\.08 12:00 Продажа Эрмек Токтосунов Передано в поступление Контакты \+996 000 000 001 student@example\.invalid Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026/u);
+  assert.match(text, /Сведения Направление Китай Сменить направление Куратор АО Айгүл Осмонова Сменить куратора Передал Эрмек Токтосунов · 30\.08 12:00 Передано в поступление Контакты \+996 000 000 001 student@example\.invalid Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026/u);
   assert.match(html, /href="tel:\+996000000001"/u);
   assert.match(html, /href="\/v3\/profile\?view=curators&amp;coverage_curator=aaaaaaaa-1111-4111-8111-000000000001&amp;coverage_case=cccccccc-2222-4222-8222-000000000001#curator-coverage"/u);
 });
@@ -242,7 +244,8 @@ test("the page: name as h1, «Дело студента» tab title, back to the
   assert.match(page, /if \(typeof caseParam === "string" && leadParam === undefined\) return \{ title: "Дело студента" \};/u);
   // Закрытый лид (246) — его имя, как у дела.
   // Лид (Э4) — тоже по имени: `leadParts` — Lead 360 как рабочая карточка.
-  assert.match(page, /<PartShell title=\{\(caseParts \|\| leadParts\) && view \? view\.profile\.person : docsMode \? "EVO Docs" : view \? "Профиль"\n\s+: closedLead \? closedLead\.name \?\? "Лид без имени" : "Студенты"\}/u);
+  // Даже запасная страница (роль без чтения продаж) называется по имени, а не «Профиль»: имя — единственный h1.
+  assert.match(page, /<PartShell title=\{view \? leadDisplayName\(view\.profile\.source, view\.profile\.person\) : docsMode \? "EVO Docs"\n\s+: closedLead \? closedLead\.name \?\? "Лид без имени" : "Студенты"\}/u);
   assert.match(page, /<Link href=\{requestsReturnTo \?\? directoryHref\}[^>]*>\s*<Icon name="arrow-left" size=\{16\} \/>\s*\{requestsReturnTo \? "Заявки" : docsMode \? "EVO Docs" : "Студенты"\}/u);
   assert.match(page, /const caseTarget = view\?\.details\.routeTarget\.studentCaseId && view\.details\.admissions/u);
   assert.match(page, /caseOverview=\{caseParts\?\.overview \?\? leadParts\?\.overview \?\? undefined\}/u);
@@ -256,10 +259,12 @@ test("the page: name as h1, «Дело студента» tab title, back to the
   // Полоса вкладок прокручивается и обрезала бы внешнюю рамку фокуса — у её вкладок рамка внутри
   // (Э8.4: ряд вкладок очередей `QueueTabStrip`, `focusable` — `tabIndex` и `data-tab-strip`).
   assert.match(profile, /<QueueTabStrip label="Разделы профиля" focusable testId="v3-profile-tabs">/u);
+  // Одна вкладка («Обзор» у лида без содержимого) — ряда нет.
+  assert.match(profile, /\{tabs\.length > 1 \? \(\s*<QueueTabStrip/u);
   assert.match(read("src/components/v3/queue/QueueTabStrip.tsx"), /tabIndex=\{focusable \? 0 : undefined\}\n\s+data-tab-strip=\{focusable \? "" : undefined\}/u);
   assert.match(read("src/app/(v3)/v3.css"), /\.v3-world \[data-tab-strip\] \.v3-choice:focus-visible \{\n {2}outline-offset: -2px;\n\}/u);
   // Прежний «Обзор» лида рисует ту же часть продажи, что «Данные продажи» дела.
-  assert.match(read("src/components/v3/profile/tabs.tsx"), /<SalesOverview profile=\{profile\} sales=\{sales\} draft=\{draft\} actor=\{actor\} requestIds=\{requestIds\} \/>/u);
+  assert.match(read("src/components/v3/profile/tabs.tsx"), /<SalesOverview profile=\{profile\} sales=\{sales\} draft=\{draft\} actor=\{actor\} requestIds=\{requestIds\} quiet \/>/u);
   // Строка очереди дела — то же чтение 241, выбранная по id; не нашлась — null, а не выдумка.
   const source = read("src/lib/v3/case-work-source.ts");
   assert.match(source, /view: target\.state, sort: "due", pageSize: STUDENT_CASE_QUEUE_PAGE_SIZE_MAX, query,/u);
@@ -277,7 +282,7 @@ test("direct case: «Контакты» come from the анкета fields with o
   assert.match(text, /Сведения Направление Малайзия Сменить направление Куратор .* Контакты \+996 000 000 002 student-2@example\.invalid не подтверждено Документы/u);
   assert.doesNotMatch(text, /Направление Китай/u);
   // «Доступ к порталу» по-прежнему ждёт подтверждённую почту клиента: неподтверждённое поле анкеты его не заполняет.
-  assert.match(text, /Сначала добавьте студенту подтверждённый рабочий email/u);
+  assert.match(text, /Нет рабочего email — добавьте его/u);
   assert.doesNotMatch(html, /name="email" value="student-2@example\.invalid"/u);
   // Одна подпись на оба значения, а не по подписи у каждого.
   assert.equal((text.match(/не подтверждено/gu) ?? []).length, 1);
@@ -781,4 +786,11 @@ test("every select of the lead-card forms has an accessible name, and the budget
   // Подпись — видимое слово, как у соседнего «Период» и у валют сделки; сырых ключей нет.
   assert.match(card, /<label>\s*<span className=\{fieldLabelCls\}>Валюта<\/span>\s*<select\s+value=\{budgetCurrency\}/u);
   assert.match(card, /<option value="">Не указана<\/option>\s*\{SALE_CONDITION_CURRENCIES\.map/u);
+});
+
+test("Student 360 «Данные продажи» keeps the lead's linked WhatsApp conversation, gated by messaging.read", () => {
+  const tabs = read("src/components/v3/profile/tabs.tsx");
+  assert.match(tabs, /staffPresentationCan\(actor, "messaging\.read"\)/u);
+  assert.match(tabs, /data-testid="v3-sales-groups">\s*<LinkedConversationLinks sales=\{sales\} actor=\{actor\}/u);
+  assert.match(tabs, /<LinkedConversationLinks sales=\{sales\} actor=\{actor\} className="flex flex-col gap-1 border-t/u);
 });

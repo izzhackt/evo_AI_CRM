@@ -94,7 +94,7 @@ test("actual scoped Admissions dialog renders no visibility selector and the com
   assert.match(html, /data-testid="v3-task-composer-dialog"/);
   assert.match(html, /data-composer-mode="case"/);
   assert.doesNotMatch(html, /name="student_visible"/);
-  assert.match(html, /Студент\/дело: <\/span>Synthetic student/);
+  assert.match(html, /Студент: <\/span>Synthetic student/);
   // The command form is built by the dialog itself: hidden unless the grant is held.
   assert.match(read("src/components/v3/tasks/TaskComposerDialog.tsx"),
     /form\.set\("student_visible", canChangeVisibility && studentVisible \? "true" : "false"\);/);

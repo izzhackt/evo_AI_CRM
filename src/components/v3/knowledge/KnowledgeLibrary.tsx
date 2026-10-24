@@ -22,9 +22,10 @@ import { KnowledgeRowsSkeleton } from "./KnowledgeSkeleton";
 import { KnowledgeTree, type KnowledgeView as View } from "./KnowledgeTree";
 import { KB_DIALOG, KB_DIALOG_BODY, KB_DIALOG_HEAD, KB_ERROR, KB_FIELD, KB_LABEL, KB_MENU, KB_MENU_ITEM, KB_QUIET, knowledgeDay } from "./knowledge-look";
 
+type UndoOp = "restore" | "unarchive";
 const kindNames = { folder: "Папка", page: "Страница", file: "Файл", secret: "Доступ" };
 const kindIcons = { folder: "folder", page: "file-text", file: "file-check", secret: "lock" } as const;
-const viewNames: Record<Exclude<View, "list">, string> = { inbox: "Входящие", review: "На уточнении", archive: "Архив", trash: "Корзина" };
+const viewNames: Record<Exclude<View, "list">, string> = { inbox: "Неразобранное", review: "На уточнении", archive: "Архив", trash: "Корзина" };
 const CHOICE = "v3-choice inline-flex min-h-11 items-center rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
 
 /**
@@ -56,7 +57,10 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
   const [newSecret, setNewSecret] = useState(false);
   const [assignCase, setAssignCase] = useState(false);
   const [treeOpen, setTreeOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState<"scope" | "all" | null>(null);
+  const [exportOpen, setExportOpen] = useState<"scope" | "all" | "selected" | null>(null);
+  // «Отменить» после «В корзину» / «Архивировать»: обратная команда по тем же материалам и их новым версиям.
+  const [exportIds, setExportIds] = useState<string[]>([]);
+  const [undo, setUndo] = useState<{ readonly op: UndoOp; readonly items: KnowledgeItem[]; readonly message: string } | null>(null);
   const [importOpen, setImportOpen] = useState(false); const [importRunning, setImportRunning] = useState(false);
   const [dialog, setDialog] = useState<"folder" | "page" | "rename" | "move" | null>(null);
   const [name, setName] = useState(""); const [targetFolder, setTargetFolder] = useState("");
@@ -126,6 +130,29 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
   const parent = folders.find((folder) => folder.id === parentId);
   const breadcrumb: KnowledgeItem[] = [];
   for (let current = parent; current && !breadcrumb.some((item) => item.id === current?.id); current = folders.find((folder) => folder.id === current?.parent_id)) breadcrumb.unshift(current);
+  const folderById = new Map(folders.map((folder) => [folder.id, folder] as const));
+  /** «Страны и направления / Китай / Пекин» — путь папки в её разделе (для списка выбора и строк корзины). */
+  function folderPathLabel(folder: KnowledgeItem) {
+    const parts = [folder.title]; const seen = new Set([folder.id]);
+    for (let id = folder.parent_id; id && !seen.has(id);) {
+      const up = folderById.get(id); if (!up) break;
+      seen.add(id); parts.unshift(up.title); id = up.parent_id;
+    }
+    return parts.join(" / ");
+  }
+  /**
+   * Где лежит материал: папки над ним; раздел — только в поиске по всей базе (в корзине и архиве раздел один — в пути вверху).
+   * «…» там, где папка уже не читается (например, лежит в корзине). Корень раздела без папок — пустая строка: показывать нечего.
+   */
+  function itemPathLabel(item: KnowledgeItem) {
+    const parts: string[] = []; const seen = new Set<string>(); let broken = false;
+    for (let id = item.parent_id; id && !seen.has(id);) {
+      seen.add(id); const up = folderById.get(id);
+      if (!up) { broken = true; break; }
+      parts.unshift(up.title); id = up.parent_id;
+    }
+    return [...(searchAll ? [KNOWLEDGE_AREA_NAMES[item.area]] : []), ...(broken ? ["…"] : []), ...parts].join(" / ");
+  }
   function reload() { setRefresh((value) => value + 1); }
   /** Окно, открытое из «⋯», закрылось: фокус — обратно на «⋯» (пункт меню уже скрыт). */
   function returnFocus() { requestAnimationFrame(() => document.getElementById(moreId)?.focus()); }
@@ -139,11 +166,26 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
     finally { setLoading(false); }
   }
   async function mutate(op: "trash" | "restore" | "archive" | "unarchive") {
+    setBusy(true); setError(""); setUndo(null);
+    try {
+      const done: KnowledgeItem[] = [];
+      for (const item of chosen) done.push(await command({ op, id: item.id, expectedVersion: item.version }));
+      const message = op === "trash" ? "Перемещено в корзину" : op === "restore" ? "Восстановлено" : op === "archive" ? "Архивировано" : "Возвращено из архива";
+      setStatus(message);
+      // Отменить можно только то, что вернулось с новой версией: обратная команда проверяет её.
+      // Кнопка живёт рядом с этим сообщением и пропадает, когда статус сменила другая операция (например, загрузка).
+      if ((op === "trash" || op === "archive") && done.every((item) => item && typeof item.version === "number")) setUndo({ op: op === "trash" ? "restore" : "unarchive", items: done, message });
+      reload();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Действие не выполнено."); reload(); }
+    finally { setBusy(false); }
+  }
+  async function undoLast() {
+    if (!undo) return;
     setBusy(true); setError("");
     try {
-      for (const item of chosen) await command({ op, id: item.id, expectedVersion: item.version });
-      setStatus(op === "trash" ? "Перемещено в корзину" : op === "restore" ? "Восстановлено" : op === "archive" ? "Архивировано" : "Возвращено из архива"); reload();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Действие не выполнено."); reload(); }
+      for (const item of undo.items) await command({ op: undo.op, id: item.id, expectedVersion: item.version });
+      setStatus(undo.op === "restore" ? "Восстановлено" : "Возвращено из архива"); setUndo(null); reload();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Не удалось отменить."); reload(); }
     finally { setBusy(false); }
   }
   async function submitDialog(event: React.FormEvent) {
@@ -160,7 +202,7 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
   }
   async function upload(files: FileList | null) {
     if (!files?.length) return;
-    setBusy(true); setError("");
+    setBusy(true); setError(""); setUndo(null);
     const folderCache = new Map<string, string>();
     try {
       for (const file of Array.from(files)) {
@@ -200,6 +242,12 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
     ...(view !== "list" ? [{ key: "view", label: viewNames[view], href: null }] : []),
   ];
 
+  // Над основной таблицей стоит группа со своим заголовком («Материалы CRM» при поиске по всей базе, «Клиенты» в клиентской базе).
+  const canonicalAbove = Boolean(search.trim()) && scope === "all";
+  const headedAbove = canonicalAbove || (area === "clients" && !parentId && view === "list");
+  // В корзине, архиве и поиске строка без пути не отличает две одноимённые папки: путь — второй строкой.
+  const showPath = view !== "list" || Boolean(search.trim());
+  const searchAll = Boolean(search.trim()) && scope === "all";
   const secretOpen = Boolean(itemId && selectedItem?.id === itemId && selectedItem.kind === "secret");
   const itemOpen = Boolean(itemId && selectedItem?.id === itemId);
   let main: ReactNode;
@@ -238,20 +286,19 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
             <input type="search" maxLength={240} aria-label="Поиск по базе знаний" placeholder="Найти материал" value={search} onChange={(event) => setSearch(event.target.value)} className={`${KB_FIELD} ps-10`} />
           </div>
           {foldersButton}
-          <TopLayerMenu label="Создать" trigger={<>Создать<Icon name="chevron-down" size={16} /></>} triggerClassName={`${btnCls} ms-auto @md/kbl:ms-0`} menuClassName={KB_MENU} testId="knowledge-create-menu">
+          {/* «Создать» — только в списке: в корзине, архиве и «На уточнении» оно создавало бы запись в корне раздела, мимо того, что открыто. */}
+          {view === "list" ? <TopLayerMenu label="Создать" trigger={<>Создать<Icon name="chevron-down" size={16} /></>} triggerClassName={`${btnCls} ms-auto @md/kbl:ms-0`} menuClassName={KB_MENU} testId="knowledge-create-menu">
             {(close) => <>
               <button type="button" className={KB_MENU_ITEM} onClick={() => { close(); openDialog("folder"); }}><Icon name="folder" size={18} />Папку</button>
               {area === "secrets"
                 ? <button type="button" className={KB_MENU_ITEM} onClick={() => { close(); setNewSecret(true); }}><Icon name="lock" size={18} />Доступ</button>
                 : <button type="button" className={KB_MENU_ITEM} onClick={() => { close(); openDialog("page"); }}><Icon name="file-text" size={18} />Страницу</button>}
+              {area !== "secrets" && <button type="button" className={KB_MENU_ITEM} disabled={busy} onClick={() => { close(); fileRef.current?.click(); }}><Icon name="upload" size={18} />Загрузить файлы</button>}
             </>}
-          </TopLayerMenu>
-          <TopLayerMenu label="Ещё действия с базой знаний" trigger={<Icon name="more-horizontal" size={20} />} triggerClassName={`${QUEUE_SECONDARY} w-11 px-0`} triggerProps={{ id: moreId }} menuClassName={KB_MENU} testId="knowledge-more-menu">
+          </TopLayerMenu> : null}
+          <TopLayerMenu label="Ещё действия с базой знаний" trigger={<Icon name="more-horizontal" size={20} />} triggerClassName={`${QUEUE_SECONDARY} w-11 px-0 ${view === "list" ? "" : "ms-auto @md/kbl:ms-0"}`} triggerProps={{ id: moreId }} menuClassName={KB_MENU} testId="knowledge-more-menu">
             {(close) => <>
-              {area !== "secrets" && <>
-                <button type="button" className={KB_MENU_ITEM} disabled={busy} onClick={() => { close(); fileRef.current?.click(); }}><Icon name="upload" size={18} />Загрузить файлы</button>
-                <button type="button" className={KB_MENU_ITEM} disabled={busy} onClick={() => { close(); directoryRef.current?.click(); }}><Icon name="upload" size={18} />Загрузить папку</button>
-              </>}
+              {area !== "secrets" && view === "list" && <button type="button" className={KB_MENU_ITEM} disabled={busy} onClick={() => { close(); directoryRef.current?.click(); }}><Icon name="upload" size={18} />Загрузить папку</button>}
               <button type="button" className={KB_MENU_ITEM} onClick={() => { close(); setExportOpen("scope"); }}><Icon name="download" size={18} />{parentId ? "Выгрузить папку" : "Выгрузить раздел"}</button>
               <button type="button" className={KB_MENU_ITEM} onClick={() => { close(); setExportOpen("all"); }}><Icon name="download" size={18} />Выгрузить всю базу</button>
               <div role="separator" className="my-1 h-px bg-border" />
@@ -266,24 +313,32 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
         </div> : null}
         <div className="mt-3 space-y-3">
           {error && <div className={KB_ERROR} role="alert">{error}<button type="button" onClick={reload} className={QUEUE_SECONDARY}>Повторить</button></div>}
-          {status && <p role="status" aria-live="polite" className="t-body-compact text-fg-2">{status}</p>}
+          {status && <p role="status" aria-live="polite" className="flex flex-wrap items-center gap-x-3 t-body-compact text-fg-2">{status}{undo && status === undo.message ? <button type="button" className={KB_QUIET} disabled={busy} onClick={() => void undoLast()}>Отменить</button> : null}</p>}
           {search.trim() && scope === "all" && <KnowledgeCanonicalSearch key={search.trim()} search={search.trim()} onOpen={() => setSearch("")} />}
-          {area === "clients" && !parentId && view === "list" && !(search.trim() && scope === "all") && <KnowledgeDossiers key={params.get("case") ?? "directory"} caseId={params.get("case")} search={search} />}
+          {area === "clients" && !parentId && view === "list" && !(search.trim() && scope === "all") && <KnowledgeDossiers key={params.get("case") ?? "directory"} caseId={params.get("case")} tab={params.get("tab")} search={search} />}
           {selected.size > 0 && <div className="flex flex-wrap items-center gap-2 border-y border-border py-2" data-testid="knowledge-selection">
             <span className="me-1 t-item text-fg">Выбрано: <span className="tabular-nums">{selected.size}</span></span>
-            <KnowledgeExport ids={[...selected]} label="Выгрузить выбранное" />
             {view === "trash" ? <button type="button" className={QUEUE_SECONDARY} disabled={busy} onClick={() => void mutate("restore")}>Восстановить</button> : <>
-              {selected.size === 1 && <button type="button" className={QUEUE_SECONDARY} onClick={() => { if (chosen[0]?.kind === "secret") { router.push(href({ area: "secrets", item: chosen[0].id })); return; } setName(chosen[0]?.title ?? ""); setDialog("rename"); }}>Переименовать</button>}
+              {view === "archive" ? <button type="button" className={QUEUE_SECONDARY} disabled={busy} onClick={() => void mutate("unarchive")}>Вернуть из архива</button> : null}
               <button type="button" className={QUEUE_SECONDARY} onClick={() => { setTargetFolder(""); setDialog("move"); }}>Переместить</button>
-              {chosen.every((item) => item.area === "clients" && !item.client_case_id && !item.archived_at) && <button type="button" className={QUEUE_SECONDARY} disabled={busy || folderRevision !== refresh} onClick={() => setAssignCase(true)}>Привязать к делу</button>}
-              <button type="button" className={QUEUE_SECONDARY} disabled={busy} onClick={() => void mutate(view === "archive" ? "unarchive" : "archive")}>{view === "archive" ? "Вернуть из архива" : "Архивировать"}</button>
               <button type="button" className={QUEUE_SECONDARY} disabled={busy} onClick={() => void mutate("trash")}>В корзину</button>
             </>}
             <button type="button" className={KB_QUIET} onClick={() => setSelected(new Set())}>Снять выбор</button>
+            {/* Редкое — в «⋯»: семь равных кнопок занимали три строки на телефоне. */}
+            <TopLayerMenu label="Ещё действия с выбранным" trigger={<Icon name="more-horizontal" size={20} />} triggerClassName={`${QUEUE_SECONDARY} w-11 px-0`} menuClassName={KB_MENU} testId="knowledge-selection-menu">
+              {(close) => <>
+                {view !== "trash" && selected.size === 1 && <button type="button" className={KB_MENU_ITEM} onClick={() => { close(); if (chosen[0]?.kind === "secret") { router.push(href({ area: "secrets", item: chosen[0].id })); return; } setName(chosen[0]?.title ?? ""); setDialog("rename"); }}>Переименовать</button>}
+                {view !== "trash" && chosen.every((item) => item.area === "clients" && !item.client_case_id && !item.archived_at) && <button type="button" className={KB_MENU_ITEM} disabled={busy || folderRevision !== refresh} onClick={() => { close(); setAssignCase(true); }}>Привязать к делу</button>}
+                {view !== "trash" && view !== "archive" && <button type="button" className={KB_MENU_ITEM} disabled={busy} onClick={() => { close(); void mutate("archive"); }}>Архивировать</button>}
+                <button type="button" className={KB_MENU_ITEM} onClick={() => { close(); setExportIds([...selected]); setExportOpen("selected"); }}><Icon name="download" size={18} />Выгрузить выбранное</button>
+              </>}
+            </TopLayerMenu>
           </div>}
         </div>
+        {/* Над таблицей уже стоит группа с заголовком («Материалы CRM», «Клиенты»): у основного списка заголовок тоже есть. */}
+        {headedAbove ? <h2 className="mt-4 t-section text-fg">Папки и материалы</h2> : null}
         <div aria-busy={loading} className="mt-2">
-          <table className="w-full border-collapse t-body-compact" data-testid="knowledge-table">
+          {(!shown && !error) || rows.length > 0 ? <table className="w-full border-collapse t-body-compact" data-testid="knowledge-table">
             <caption className="sr-only">Материалы: {crumbs.map((crumb) => crumb.label).join(" / ")}</caption>
             <thead>
               <tr className="border-b border-border">
@@ -303,6 +358,7 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
               {!shown && !error ? <KnowledgeRowsSkeleton /> : rows.map((item) => {
                 const day = loadedAt ? knowledgeDay(item.updated_at, loadedAt) : null;
                 const checked = selected.has(item.id);
+                const pathLine = showPath ? itemPathLabel(item) : "";
                 return <tr key={item.id} data-selected={checked ? "" : undefined} className={`border-b border-border ${checked ? "bg-surface-2" : "hover:bg-bg"}`}>
                   <td className="w-11 p-0 align-top"><RowSelect label={item.title} checked={checked} onToggle={() => toggleRow(item.id)} /></td>
                   <td className="py-0 pe-3 align-top">
@@ -310,18 +366,17 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
                       <Icon name={kindIcons[item.kind]} size={18} className="mt-px shrink-0 text-fg-3" />
                       <span className="min-w-0 [overflow-wrap:anywhere]">{item.title}</span>
                     </Link>
-                    {item.review_question ? <span className="-mt-2 block pb-3 ps-[1.625rem]"><StatusChip label="На уточнении" tone="warn" /></span> : null}
+                    {pathLine ? <span className="-mt-2 block pb-3 ps-[1.625rem] t-meta text-fg-3 [overflow-wrap:anywhere]">{pathLine}</span> : null}
+                    {item.review_question ? <span className={`block pb-3 ps-[1.625rem] ${pathLine ? "-mt-1" : "-mt-2"}`}><StatusChip label="На уточнении" tone="warn" /></span> : null}
                   </td>
                   <td className="hidden py-3 pe-3 align-top text-fg-2 @xl/kbl:table-cell">{kindNames[item.kind]}</td>
                   <td className="whitespace-nowrap py-3 ps-3 text-end align-top text-fg-2">{day ? <time dateTime={item.updated_at} className="font-mono tabular-nums">{day}</time> : null}</td>
                 </tr>;
               })}
             </tbody>
-          </table>
+          </table> : null}
           {!shown && !error ? <p role="status" className="sr-only">Загружаем материалы…</p> : null}
-          {shown && !loading && !error && !rows.length && <QueueEmpty
-            title={search ? "В материалах библиотеки ничего не найдено" : view === "trash" ? "Корзина пуста" : "Материалов пока нет"}
-            action={view === "list" && !search && area !== "secrets" ? <button type="button" className={QUEUE_SECONDARY} onClick={() => openDialog("page")}>Создать страницу</button> : null} />}
+          {shown && !loading && !error && !rows.length && <QueueEmpty title={search ? "В материалах библиотеки ничего не найдено" : view === "trash" ? "Корзина пуста" : "Материалов пока нет"} />}
           {shown && page?.hasMore && <div className="pt-2"><button type="button" className={KB_QUIET} disabled={loading} onClick={() => void more()}>{loading ? "Загружаем…" : "Показать ещё"}</button></div>}
         </div>
       </>}
@@ -336,6 +391,7 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
     <KnowledgeImport open={importOpen} onClose={() => { setImportOpen(false); returnFocus(); }} onChanged={reload} onRunningChange={setImportRunning} />
     <KnowledgeExport open={exportOpen === "scope"} onOpenChange={(open) => { if (!open) { setExportOpen(null); returnFocus(); } }} ids={parentId ? [parentId] : undefined} area={area} label={parentId ? "Выгрузить папку" : "Выгрузить раздел"} />
     <KnowledgeExport open={exportOpen === "all"} onOpenChange={(open) => { if (!open) { setExportOpen(null); returnFocus(); } }} label="Выгрузить всю базу" />
+    <KnowledgeExport open={exportOpen === "selected"} onOpenChange={(open) => { if (!open) { setExportOpen(null); returnFocus(); } }} ids={exportIds} label="Выгрузить выбранное" />
     {assignCase && folderRevision === refresh && <KnowledgeAssignCase items={chosen} folders={folders} onClose={() => setAssignCase(false)} onSaved={reload} />}
     <dialog ref={sheetRef} aria-labelledby={sheetTitleId} onClose={() => setTreeOpen(false)} data-testid="knowledge-tree-sheet"
       className="fixed inset-y-0 start-0 end-auto m-0 h-dvh max-h-none w-full max-w-[22rem] overflow-y-auto border-0 border-e border-border bg-surface p-0 text-fg shadow-evo-lg backdrop:bg-black/45">
@@ -352,7 +408,7 @@ export function KnowledgeLibrary({ commandScope, section = null, children }: { c
         <div className={KB_DIALOG_HEAD}><h2 id={dialogTitleId} className="t-section">{dialog === "move" ? "Переместить" : dialog === "rename" ? "Переименовать" : dialog === "folder" ? "Новая папка" : "Новая страница"}</h2></div>
         <div className={KB_DIALOG_BODY}>
           {dialog === "move"
-            ? <label className={KB_LABEL}>Папка<select value={targetFolder} onChange={(event) => setTargetFolder(event.target.value)} className={KB_FIELD}><option value="">Входящие</option>{folders.filter((folder) => folder.area === area && !selected.has(folder.id)).map((folder) => <option key={folder.id} value={folder.id}>{folder.title}</option>)}</select></label>
+            ? <label className={KB_LABEL}>Куда<select value={targetFolder} onChange={(event) => setTargetFolder(event.target.value)} className={KB_FIELD}><option value="">В корень: {KNOWLEDGE_AREA_NAMES[area]}</option>{folders.filter((folder) => folder.area === area && !selected.has(folder.id)).map((folder) => ({ folder, label: folderPathLabel(folder) })).sort((a, b) => a.label.localeCompare(b.label, "ru")).map(({ folder, label }) => <option key={folder.id} value={folder.id}>{label}</option>)}</select></label>
             : <label className={KB_LABEL}>Название<input autoFocus required maxLength={240} value={name} onChange={(event) => setName(event.target.value)} className={KB_FIELD} /></label>}
           {error && dialog && <p role="alert" className={KB_ERROR}>{error}</p>}
         </div>

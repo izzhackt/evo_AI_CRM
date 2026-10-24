@@ -202,7 +202,7 @@ test("C: the lead card offers the cabinet invite to Sales with the lead permissi
   assert.match(profile, /caseLink=\{staffPresentationCan\(actor, "admissions\.read"\)\}/u);
   const tabs = source("src/components/v3/profile/tabs.tsx");
   assert.match(tabs, /\{caseLink \? <>\{" "\}<Link [^>]*href=\{`\/v3\/profile\?case=\$\{encodeURIComponent\(leadCabinetCase\.studentCaseId\)\}&tab=anketa`\}>/u);
-  assert.match(tabs, /<PrepareLeadCabinetAction leadId=\{leadId\} requestId=\{prepareRequestId\} caseLink=\{caseLink\} quiet=\{bare\} \/>/u);
+  assert.match(tabs, /<PrepareLeadCabinetAction leadId=\{leadId\} requestId=\{prepareRequestId\} caseLink=\{caseLink\} quiet \/>/u);
   // Lead 360 (Э4): то же приглашение — в группе «Доступ к порталу», по тому же условию.
   const leadParts = source("src/components/v3/profile/LeadWorkParts.tsx");
   assert.match(leadParts, /: !preview && !draft\.admissions && draft\.leadCabinetCase\?\.cabinetInvite \? \([\s\S]*?<StudentPortalAccessControls[\s\S]*?studentCaseId=\{draft\.leadCabinetCase\.studentCaseId\}[\s\S]*?caseState="pending"\s+isCabinetCase[\s\S]*?\/>/u);

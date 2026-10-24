@@ -1,4 +1,4 @@
-import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
+import { isStaffPreview, staffCanAccessRoute, staffHasPermission } from "@/lib/platform-access";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -179,7 +179,7 @@ const PANEL_HEADING = "sale-panel-title";
  * записей нет: их сервер этой роли не отдаёт.
  */
 export function SalesDynamicsReport({ dynamics }: { dynamics: ReactNode }) {
-  return <main className="mx-auto min-w-0 w-full max-w-[1240px] px-4 py-8 sm:px-6">
+  return <main className="mx-auto min-w-0 w-full max-w-[1240px] px-4 py-8 sm:px-6 min-[1600px]:max-w-[1480px]">
     <header className="min-w-0">
       <h1 className="t-page-title text-fg">Отчёт продаж</h1>
       <p className="t-meta mt-1 text-fg-3">Записи продаж вашей роли недоступны: здесь лиды за период и доска продаж.</p>
@@ -297,9 +297,13 @@ function MoneySummary({ workspace, summary, basis, reason, filtered, yearOnly, f
     summary.paidMissing > 0 ? `оплата не указана — ${summary.paidMissing} ${recordsWord(summary.paidMissing)}` : null,
     summary.paidUnclear > 0 ? `оплата не разобрана — ${summary.paidUnclear} ${recordsWord(summary.paidUnclear)}` : null,
   ].filter(Boolean).join(", ") : "";
-  const cross = summary ? summary.cross.map((pair) => `${pair.costCurrency} → ${pair.paidCurrency} — стоимость в ${pair.costCurrency}, оплата в ${pair.paidCurrency} без суммы в валюте договора (${pair.count} ${recordsWord(pair.count)}): остаток не считается.`) : [];
+  // Пары валют названы в строках таблицы («USD → KGS», число записей — подсказкой и для чтения с экрана):
+  // сноска говорит правило один раз, а не пересказывает каждую строку.
+  const cross = summary && summary.cross.length > 0
+    ? "Остаток не считается, если оплата в другой валюте и нет суммы в валюте договора."
+    : null;
   const footnote = [
-    ...cross,
+    cross,
     summary ? null : reason === "too_many"
       ? `Остаток не посчитан: в выборке больше ${SALES_PAGE_SIZE * SALES_SUMMARY_MAX_PAGES} записей — сузьте период или фильтры.`
       : "Остаток не посчитан: не удалось прочитать все записи выборки — обновите страницу.",
@@ -339,7 +343,8 @@ function MoneySummary({ workspace, summary, basis, reason, filtered, yearOnly, f
             ))}
             {summary?.cross.map((pair) => (
               <tr key={`${pair.costCurrency}>${pair.paidCurrency}`} data-money-cross={`${pair.costCurrency}>${pair.paidCurrency}`}>
-                <th scope="row" className={`${label} whitespace-nowrap t-body-compact font-normal text-fg-2`}>
+                <th scope="row" title={`Стоимость в ${pair.costCurrency}, оплата в ${pair.paidCurrency} без суммы в валюте договора — ${pair.count} ${recordsWord(pair.count)}`}
+                  className={`${label} whitespace-nowrap t-body-compact font-normal text-fg-2`}>
                   {pair.costCurrency} → {pair.paidCurrency}
                   <span className="sr-only">: стоимость в {pair.costCurrency}, оплата в {pair.paidCurrency}, {pair.count} {recordsWord(pair.count)}</span>
                 </th>
@@ -600,6 +605,9 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
   const periodHref = (nextYear: number, nextMonth: number | undefined) => filterHref({ year: String(nextYear), month: nextMonth ? String(nextMonth) : "all" });
   const rowHref = (row: SalesRegisterRow) => href({ record: row.id });
   const managersHref = canImport ? salesManagersHref(query) : null;
+  // «Перенос данных» живёт в Настройки → Платформа. Держателю права `sales.register.import` без доступа к настройкам
+  // (право выдаётся и обычной роли) остаётся тихая ссылка здесь — иначе у него не было бы входа.
+  const importLinkHere = canImport && !staffCanAccessRoute(actor, "/v3/settings");
   const managerName = (row: SalesRegisterRow) => workspace?.managerOptions.find((option) => option.key === row.managerKey)?.name ?? tidy(row.managerLabel);
   const directionGroups = groupSalesLabels(directions ?? []);
   const selectedManager = query.manager || null;
@@ -614,13 +622,13 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
 
   const toolbar = workspace ? (
     <div role="group" aria-label="Поиск и фильтры" className="mt-4 flex flex-wrap items-center gap-2 first:mt-0" data-testid="sales-report-toolbar">
-      <form key={params.toString()} method="get" role="search" aria-label="Поиск по записям" className="min-w-48 flex-1 basis-48 md:max-w-xs">
+      <form key={params.toString()} method="get" role="search" aria-label="Поиск по записям" className="min-w-48 flex-1 basis-full md:basis-48 md:max-w-xs">
         {Object.entries(hidden).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
         <label className="relative block">
           <span className="sr-only">Имя, телефон или договор</span>
           <Icon name="search" size={18} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-fg-3" />
           <input name="q" type="search" defaultValue={searchQuery ?? (typeof query.q === "string" ? query.q : "")} maxLength={200}
-            placeholder="Имя, телефон или договор" enterKeyHint="search" autoComplete="off"
+            placeholder="Имя, телефон, договор" enterKeyHint="search" autoComplete="off"
             className="h-11 w-full min-w-0 rounded-ctl border border-control-edge bg-surface ps-10 pe-3 t-body text-fg placeholder:text-fg-3 hover:bg-surface-2 focus-visible:border-accent" />
         </label>
       </form>
@@ -667,7 +675,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
     </div>
   ) : null;
 
-  return <main className="mx-auto min-w-0 w-full max-w-[1240px] px-4 py-8 sm:px-6">
+  return <main className="mx-auto min-w-0 w-full max-w-[1240px] px-4 py-8 sm:px-6 min-[1600px]:max-w-[1480px]">
     {!creatingForm ? <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
       <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
         <h1 className="t-page-title text-fg">Отчёт продаж</h1>
@@ -694,8 +702,8 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
       {workspace && canManage ? <Link href={href({ new: "true" })} className={`${btnCls} min-h-11`}>Добавить продажу</Link> : null}
     </div> : null}
 
-    {writeAccess === "unavailable" ? <p role="alert" className="mt-4 text-sm text-fg-2">Не удалось проверить права на запись продажи. Обновите страницу перед добавлением или изменением.</p> : null}
-    {(creating || editingRecord) && writeAccess === "denied" ? <p role="status" className="mt-4 text-sm text-fg-2">Добавление и исправление продаж доступны Sales Manager.</p> : null}
+    {writeAccess === "unavailable" ? <p role="alert" className="mt-4 t-body-compact text-fg-2">Не удалось проверить права на запись продажи. Обновите страницу перед добавлением или изменением.</p> : null}
+    {(creating || editingRecord) && writeAccess === "denied" ? <p role="status" className="mt-4 t-body-compact text-fg-2">Добавление и исправление продаж доступны Sales Manager.</p> : null}
     {creatingForm ? <div className="max-w-[860px]">
       <SalesRegisterForm key="new" record={null} recordId={null} reportMonth={reportMonth} ownerOptions={workspace?.ownerOptions ?? []}
         canChooseOwner={canManage} requestId={randomUUID()} archiveRequestId={randomUUID()} backHref={backHref} readUnavailable={!workspace}
@@ -713,7 +721,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
           {saved.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(saved.leadId)}`} className={`${btnGhostCls} min-h-11`}>Открыть дело</Link> : null}
         </div>
       </section> : null}
-      {!workspace ? <div role="alert" className="mt-8 space-y-3 border-s-2 border-border ps-4 text-sm text-fg-2">
+      {!workspace ? <div role="alert" className="mt-8 space-y-3 border-s-2 border-border ps-4 t-body-compact text-fg-2">
         <p>{searchQuery === null ? "Введите поисковый запрос до 200 символов без переносов строк." : valid ? "Не удалось загрузить отчёт. Проверьте подключение и повторите загрузку." : "Проверьте год, месяц и номер страницы."}</p>
         <Link href="/v3/main?view=sales" className={`${btnGhostCls} min-h-11`}>Открыть текущий месяц</Link>
       </div> : <div className={sidePanelSplit(panelOpen, "mt-4")}>
@@ -736,7 +744,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
           <div className="mt-3">
           {workspace.rows.length === 0 ? <div className="space-y-2 border-t border-border py-12 text-center">
             <p className="text-base font-medium text-fg">{offset > 0 ? "На этой странице записей нет." : hasFilters ? "По выбранным фильтрам записей не найдено." : "В выбранном периоде записей нет."}</p>
-            <p className="text-sm text-fg-2">{offset > 0 ? "Вернитесь к началу списка с теми же фильтрами." : hasFilters ? "Измените или сбросьте фильтры. Выбранный период сохранится." : "Выберите другой месяц или весь год в переключателе выше."}</p>
+            <p className="t-body-compact text-fg-2">{offset > 0 ? "Вернитесь к началу списка с теми же фильтрами." : hasFilters ? "Измените или сбросьте фильтры. Выбранный период сохранится." : "Выберите другой месяц или весь год в переключателе выше."}</p>
             {offset > 0 ? <Link href={href({ offset: "0" })} className={`${btnGhostCls} min-h-11`}>К началу списка</Link>
               : hasFilters ? <Link href={clearFiltersHref} className={`${btnGhostCls} min-h-11`}>Сбросить фильтры</Link> : null}
           </div> : <div className="@container/sales-records">
@@ -778,11 +786,11 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
             </div>
           </div>}
           </div>
-          <nav aria-label="Страницы отчёта" className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          {offset > 0 || workspace.hasMore ? <nav aria-label="Страницы отчёта" className="mt-3 flex flex-wrap items-center justify-between gap-3">
             {offset > 0 ? <Link href={href({ offset: String(Math.max(0, offset - 50)) })} className={`${btnGhostCls} min-h-11`}>Назад</Link> : <span />}
             <span className="t-meta text-fg-3">{workspace.rows.length ? `${offset + 1}–${offset + workspace.rows.length} из ${workspace.totalCount}` : ""}</span>
             {workspace.hasMore ? <Link href={href({ offset: String(offset + 50) })} className={`${btnGhostCls} min-h-11`}>Далее</Link> : <span />}
-          </nav>
+          </nav> : null}
         </div>
         {panelOpen && panelHeader ? (
           <SidePanel key={`${query.record}:${editing ? "edit" : "view"}`} closeHref={href()} backLabel="К отчёту" headingId={PANEL_HEADING}
@@ -816,7 +824,7 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
       {workspace && cash && cash.status !== "not_allowed" && month ? <section aria-labelledby="sales-cash-totals" className="mt-8 border-t border-border pt-4" data-testid="sales-cash-totals">
         <h2 id="sales-cash-totals" className="t-section text-fg">Поступления и возвраты за месяц</h2>
         <p className="mt-1 t-meta text-fg-2">Подтверждённые финансовые события всей организации по дате операции, время Бишкека. Фильтры строк продаж на этот блок не влияют. Расходы третьих сторон не являются выручкой EVO.</p>
-        {cash.status === "unavailable" ? <p role="alert" className="mt-3 text-sm text-fg-2">Не удалось загрузить финансовую сводку. Обновите страницу, чтобы повторить.</p> : cash.totals.length === 0 ? <p className="mt-3 text-sm text-fg-2">В этом месяце подтверждённых финансовых событий нет.</p> : <ul className="mt-2 divide-y divide-border border-y border-border">{cash.totals.map(total => <li key={total.currency} className="grid grid-cols-[2.75rem_minmax(0,1fr)] items-baseline gap-x-2 py-2 t-body-compact text-fg-2">
+        {cash.status === "unavailable" ? <p role="alert" className="mt-3 t-body-compact text-fg-2">Не удалось загрузить финансовую сводку. Обновите страницу, чтобы повторить.</p> : cash.totals.length === 0 ? <p className="mt-3 t-body-compact text-fg-2">В этом месяце подтверждённых финансовых событий нет.</p> : <ul className="mt-2 divide-y divide-border border-y border-border">{cash.totals.map(total => <li key={total.currency} className="grid grid-cols-[2.75rem_minmax(0,1fr)] items-baseline gap-x-2 py-2 t-body-compact text-fg-2">
           <span className="t-item text-fg">{total.currency}</span>
           <dl className="flex flex-wrap gap-x-5 gap-y-0.5">
             <div className="flex gap-1"><dt>Получено</dt><dd className="tabular-nums text-fg">{financeMoney(total.paymentsMinor, total.currency)}</dd></div>
@@ -826,13 +834,10 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
         </li>)}</ul>}
       </section> : null}
       {dynamics}
-      {(showTargetForm && month && query.archived !== "true") || canImport || managementUnavailable ? <div className="mt-8 space-y-5 border-t border-border pt-5">
-        {managementUnavailable ? <p role="alert" className="text-sm text-fg-2">Не удалось проверить доступ к плану и переносу данных.</p> : null}
+      {(showTargetForm && month && query.archived !== "true") || importLinkHere || managementUnavailable ? <div className="mt-8 space-y-5 border-t border-border pt-5">
+        {managementUnavailable ? <p role="alert" className="t-body-compact text-fg-2">Не удалось проверить доступ к плану и переносу данных.</p> : null}
         {showTargetForm && month && query.archived !== "true" ? <details className="group"><summary className="flex min-h-12 w-fit cursor-pointer list-none items-center gap-2 rounded-nav t-item text-fg [&::-webkit-details-marker]:hidden">Изменить план месяца<Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" /></summary><SalesTargetForm key={reportMonth} reportMonth={reportMonth} target={target} requestId={randomUUID()} readUnavailable={!workspace || managementUnavailable} /></details> : null}
-        {canImport && managersHref ? <div className="flex flex-wrap gap-3">
-          <Link href={importHref} className={`${btnGhostCls} min-h-11`}>Перенос данных</Link>
-          <Link href={managersHref} className={`${btnGhostCls} min-h-11`}>Менеджеры в отчёте</Link>
-        </div> : null}
+        {importLinkHere ? <Link href={importHref} className="t-label inline-flex min-h-11 items-center text-fg-2 underline underline-offset-4 hover:text-fg">Перенос данных</Link> : null}
       </div> : null}
     </>}
   </main>;

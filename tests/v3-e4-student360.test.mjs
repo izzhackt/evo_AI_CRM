@@ -267,11 +267,11 @@ test("no capability is lost: every action of the case overview is still on the p
   for (const href of ["/v3/messages?case=cccccccc-2222-4222-8222-000000000001", "tab=documents", "tab=route", "tab=money"]) {
     assert.ok(admin.includes(href), href);
   }
-  // Ответ на передачу можно изменить; назначение куратора и «Нагрузка кураторов» — у того, кто назначает.
+  // Ответ на передачу можно изменить; назначение куратора и «Сменить куратора» (нагрузка кураторов по этому делу) — у того, кто назначает.
   assert.match(text(curator), /Изменить ответ/u);
   assert.match(text(pages.get("needs-curator")), /Назначить куратора/u);
   assert.match(text(pages.get("needs-curator")), /Куратор нужен куратор/u);
-  assert.match(text(admin), /Нагрузка кураторов/u);
+  assert.match(text(admin), /Сменить куратора/u);
   // Доступ к порталу и данные продажи — прежние формы в свёрнутых группах; закрытое дело — «Вернуть в работу».
   assert.match(admin, /id="portal-access"[\s\S]*?Проверить и подготовить доступ/u);
   assert.match(admin, /id="sales-data"[\s\S]*?id="sale-conditions"/u);
@@ -439,7 +439,7 @@ test("no invented progress: the documents bar is the read checklist, and there i
   const bar = pages.get("curator").match(/data-progress="(\d+)\/(\d+)"/u);
   assert.ok(bar, "the bar is drawn from the read counts");
   assert.deepEqual([Number(bar[1]), Number(bar[2])], [counts.approved, counts.total]);
-  assert.match(text(pages.get("curator")), /Документы 7 из 12 принято 2 на проверке 1 исправить 2 не загружено Документы дела/u);
+  assert.match(text(pages.get("curator")), /Документы 7 из 12 принято 2 на проверке 1 исправить 2 не загружено Заявки/u);
   // Нет права на документы — ни полосы, ни числа.
   assert.doesNotMatch(pages.get("unread"), /v3-progress|из \d+ принято/u);
   // Оплата — только тому, кому её отдаёт чтение; «Передал» — только у дела из продаж.

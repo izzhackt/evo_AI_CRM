@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 
 import { Icon } from "@/components/icons";
-import { DIAL_ABOUT, DIAL_COPY, dialAccessibleName, dialRouteAnswer } from "@/lib/v3/telephony-dial";
+import { DIAL_ABOUT, DIAL_COPY, DIAL_LIST_HINT_ID, dialAccessibleName, dialRouteAnswer } from "@/lib/v3/telephony-dial";
 
 /** Как у соседних вторичных действий заголовка карточки лида и чата: 44 px, рамка контрола, без красного. */
 const ACTION_CLASS = "inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:text-fg-3 aria-disabled:text-fg-3 aria-disabled:hover:bg-surface aria-disabled:hover:text-fg-3";
@@ -22,6 +22,11 @@ function newRequestId(): string {
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/** Общее скрытое описание списка кнопок: список кладёт его один раз, кнопки с `sharedHint` на него ссылаются. */
+export function DialListHint() {
+  return <span id={DIAL_LIST_HINT_ID} className="sr-only">{DIAL_ABOUT}</span>;
 }
 
 /**
@@ -47,6 +52,7 @@ export function DialButton({
   variant = "action",
   subject = null,
   iconOnly = false,
+  sharedHint = false,
 }: Readonly<{
   leadId: string;
   /** Сотрудник сопоставлен с пользователем ВАТС (иначе набор всё равно откажет). */
@@ -56,9 +62,12 @@ export function DialButton({
   subject?: string | null;
   /** Только значок и при ширине (строка очереди: рядом уже есть своя кнопка); имя для читалки остаётся. */
   iconOnly?: boolean;
+  /** Кнопка в длинном списке: описание — общее (`DialListHint` у списка), своей скрытой фразы у кнопки нет. */
+  sharedHint?: boolean;
 }>) {
-  const hintId = useId();
-  const anchorName = `--dial-anchor-${hintId.replace(/[^a-zA-Z0-9_-]/gu, "")}`;
+  const ownHintId = useId();
+  const hintId = sharedHint ? DIAL_LIST_HINT_ID : ownHintId;
+  const anchorName = `--dial-anchor-${ownHintId.replace(/[^a-zA-Z0-9_-]/gu, "")}`;
   const requestId = useRef<string | null>(null);
   const button = useRef<HTMLButtonElement>(null);
   const toast = useRef<HTMLDivElement>(null);
@@ -155,7 +164,7 @@ export function DialButton({
         <Icon name="phone" size={variant === "row" ? 20 : 18} className="shrink-0" />
         {variant === "action" ? <span className={iconOnly ? "sr-only" : "sr-only sm:not-sr-only"}>{label}</span> : null}
       </button>
-      <span id={hintId} className="sr-only">{DIAL_ABOUT}</span>
+      {sharedHint ? null : <span id={hintId} className="sr-only">{DIAL_ABOUT}</span>}
       <span role="status" aria-live="polite" className="sr-only">{note}</span>
       {note !== null ? (
         <div ref={toast} popover="manual" className="v3-toasts" data-edge="anchor" data-testid="v3-dial-toast"

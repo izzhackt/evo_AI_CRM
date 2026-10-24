@@ -80,7 +80,7 @@ export function SalesPeriodHeadline({ read, label, retryHref, filtered = false, 
         </span>
       ) : null}
       <p className="t-meta mt-1 text-fg-2">
-        по дате продажи за {label}, без архива{filtered ? " и без фильтров" : ""}
+        по дате продажи, без архива{filtered ? " и без фильтров" : ""}
         {target !== null ? sales >= target ? " · план выполнен" : ` · осталось ${(target - sales).toLocaleString("ru-RU")}` : null}
       </p>
       {notIn.length > 0 || filedElsewhere > 0 ? (

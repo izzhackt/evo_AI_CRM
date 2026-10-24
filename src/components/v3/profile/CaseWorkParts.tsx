@@ -199,6 +199,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
       curators={input.curators}
       assignCuratorRequestId={input.requestIds.assignCurator}
       closure={input.closure ?? null}
+      acceptShown={primary === "accept" && handoff !== null}
     />
   </>);
 
@@ -222,7 +223,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
   // (`converted`), условия приходят отдельным чтением дела (290) и видны только чтением, пустое не рисуется.
   const saleBlocks = salesVisible && sales ? [] : draft.saleConditions ? caseSaleBlocks(draft.saleConditions) : [];
   const salesData = salesVisible && sales
-    ? <SalesOverview profile={profile} sales={sales} draft={draft} actor={actor} requestIds={input.requestIds} quiet />
+    ? <SalesOverview profile={profile} sales={sales} draft={draft} actor={actor} requestIds={input.requestIds} quiet groups />
     : saleBlocks.length > 0 ? <CaseSaleData blocks={saleBlocks} />
       : draft.saleConditionsUnavailable === true ? <CaseSaleUnavailable /> : null;
   const salesDataSummary = salesVisible && sales

@@ -594,7 +594,7 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
       await rolesTab().click();
       // The list remains visible beside a selected role on desktop. Wait for
       // the destination's empty detail state before selecting the role again.
-      await details().getByText("Выберите роль, чтобы посмотреть и изменить разрешения.", { exact: true }).waitFor();
+      await details().getByText("Выберите роль.", { exact: true }).waitFor();
       const list = page.getByRole("region", { name: "Список ролей", exact: true });
       if (archived) await list.getByRole("checkbox", { name: "Показать архивные", exact: true }).check();
       await list.getByRole("link").filter({ hasText: label }).click();
@@ -638,7 +638,7 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
       status: "active", bundleId: null, bundleVersion: null, permissionKeys: [], draftPermissionKeys: keys });
     await openSavedRole(editedLabel);
     stage = "IMPACT";
-    await details().getByRole("button", { name: "Публикация", exact: true }).click();
+    await details().getByRole("button", { name: /^Опубликовать/ }).click();
     await page.getByRole("form", { name: "Проверить публикацию роли", exact: true })
       .getByRole("button", { name: "Проверить и опубликовать", exact: true }).click();
     await details().getByRole("heading", { name: "Изменение доступа", exact: true }).waitFor();
@@ -741,7 +741,7 @@ export async function verifyScopedStaffRoleEditor({ browser, adminClient, apiUrl
           createButtons: await page.getByRole("button", { name: "Создать роль", exact: true }).count(),
           archiveForms: await page.getByRole("form", { name: "Архивировать роль", exact: true }).count(),
           restoreForms: await page.getByRole("form", { name: "Восстановить роль", exact: true }).count(),
-          emptyDetails: await details.getByText("Выберите роль, чтобы посмотреть и изменить разрешения.", { exact: true }).count(),
+          emptyDetails: await details.getByText("Выберите роль.", { exact: true }).count(),
           createClickHandlerBefore,
           createClickHandlerAtFailure: await observeCreateClickHandler(),
           mainFrameNavigationsSinceCreateAttempt,

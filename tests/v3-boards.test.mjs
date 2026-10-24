@@ -159,7 +159,7 @@ test("rail hover hint does not loop: icon markup is one stable object and a repe
 
 test("the admissions case menu renders in the top layer and is placed inside the viewport", () => {
   const html = surfaces.get("admissions");
-  const triggers = [...html.matchAll(/<button type="button" popoverTarget="([^"]+)" aria-label="Действия с делом"/gu)].map((match) => match[1]);
+  const triggers = [...html.matchAll(/<button type="button" popoverTarget="([^"]+)" aria-label="Действия с делом: [^"]+"/gu)].map((match) => match[1]);
   assert.equal(triggers.length, 7, "one menu per case on «Поступление» (7 of 12 synthetic cases)");
   for (const id of triggers) {
     assert.match(html, new RegExp(`<div id="${id}" popover="auto" role="group" aria-label="Действия с делом" data-testid="v3-admissions-pipeline-move"`, "u"));
@@ -206,7 +206,7 @@ test("sales card: full-width name, owner beside the action, due word beside its 
   assert.match(lines("02")[2].body, /^<span class="v3-card-due"><time dateTime="\d{4}-\d{2}-\d{2}" class="font-mono tabular-nums">\d{2}\.\d{2}<\/time> <span class="v3-due t-caption" data-due="today">сегодня<\/span><\/span>/u);
   assert.doesNotMatch(cards.get("04"), /прошёл|сегодня/u, "a later date is neutral");
   assert.match(cards.get("04"), /data-due="upcoming">через \d+ дн</u);
-  assert.match(cards.get("03"), /Без следующего действия/u);
+  assert.match(cards.get("03"), /Без действия/u);
   for (const n of ["01", "02", "03", "04", "05", "06"]) assert.ok(lines(n).length <= 3, `card ${n} has at most 3 lines`);
   assert.doesNotMatch(read("src/components/v3/Pipeline.tsx"), /rounded-full|DUE_MARK/u);
   assert.doesNotMatch(tag(surfaces.get("sales-mine"), /<article data-testid="v3-pipeline-card"[\s\S]*?<\/article>/u), /v3-initials|<abbr/u, "no initials when only «Мои» are shown");
@@ -318,7 +318,7 @@ test("one solid red per board page: the shell «Создать задачу» is
     // sales board's: the solid red stays one per board page.
     assert.deepEqual(solid, name === "admissions" ? ["Добавить студента"] : ["Добавить лида"], name);
   }
-  assert.match(read("src/components/v3/PipelineDecisionForm.tsx"), /className="inline-flex min-h-11 items-center rounded-ctl bg-fg px-4 text-sm font-semibold text-surface/u);
+  assert.match(read("src/components/v3/PipelineDecisionForm.tsx"), /className="inline-flex min-h-11 items-center rounded-ctl bg-fg px-4 t-label text-surface/u);
 });
 
 test("one 44px toolbar: no «Стадия» chips, selects apply on change, «Срок» counts come from the read", () => {
@@ -380,7 +380,10 @@ test("admissions card shares the sales grammar: states are chips with words; cur
   // Queue links: one quiet wrapping line, also on a phone.
   const queues = tag(admissions, /<nav aria-label="Очереди на проверку"[^>]*>/u);
   assert.match(classOf(queues), /^flex flex-wrap items-center gap-x-2$/u);
-  assert.match(read("src/app/(v3)/v3/admissions-pipeline/page.tsx"), /const QUEUE_LINK_CLASS =\s*"t-meta inline-flex min-h-11 /u);
+  const boardPage = read("src/app/(v3)/v3/admissions-pipeline/page.tsx");
+  assert.match(boardPage, /const QUEUE_LINK_CLASS =\s*"t-meta inline-flex min-h-11 /u);
+  // The main action comes first in the markup (phone: above the links, Tab reaches it first); `sm:flex-row-reverse` keeps the desktop order.
+  assert.match(boardPage, /<div className="flex flex-col items-end [^"]*sm:flex-row-reverse[^"]*">\s*\{addStudent\}\s*\{queues\}\s*<\/div>/u);
 });
 
 test("rail mode has no top bar: the logo row hides in the 64px rail, the menu keeps its items", () => {

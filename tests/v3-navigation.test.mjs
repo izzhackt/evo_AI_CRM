@@ -435,13 +435,19 @@ test("every staff page uses the one «<Раздел> — EVO CRM» tab pattern",
     }
     const title = page.match(/export const metadata = \{ title: "([^"]+)" \};/u)?.[1];
     if (title === undefined) {
-      assert.match(page, /export async function generateMetadata\([\s\S]*?title: v3SectionTitle\("\/v3\/(?:main|profile)", await searchParams\)/u, file);
+      // Страница агента называет в вкладке самого агента, но слово раздела берёт у меню, как карточка лида.
+      const agentTab = /export async function generateMetadata\([\s\S]*?v3SectionTitle\(`\/v3\/ai-agents\/\$\{key\}`\)[\s\S]*?title: title \? `\$\{title\} — \$\{section\}` : section/u;
+      assert.ok(
+        /export async function generateMetadata\([\s\S]*?title: v3SectionTitle\("\/v3\/(?:main|profile)", await searchParams\)/u.test(page) || agentTab.test(page),
+        file,
+      );
       continue;
     }
     assert.doesNotMatch(title, /V3|EVO|·|\|/u, file);
     const route = file.match(/^src\/app\/\(v3\)(\/v3\/[^/]+)\//u)?.[1];
     if (route) assert.equal(title, v3SectionTitle(route), file);
   }
+  assert.equal(v3SectionTitle("/v3/ai-agents/director"), "ИИ-агенты", "the agent tab's section word is the sidebar item");
   const denied = source("src/app/(v3)/access-denied/page.tsx");
   for (const [, route, label] of denied.matchAll(/^  "(\/v3\/[^"]+)": "([^"]+)",$/gmu)) {
     assert.equal(label, v3SectionTitle(route), route);

@@ -131,7 +131,6 @@ test("solid red stays for the main action and every selection shares one accent-
     "src/components/v3/tasks/ComposerDeadlineField.tsx",
     "src/components/v3/MainHeader.tsx",
     "src/components/v3/profile/Profile.tsx",
-    "src/components/v3/reply-snippets/KnowledgeWorkspaceTabs.tsx",
     // «База знаний» (Э8.10, 28.09): дерево, «Вся база / Текущая папка», режим
     // редактора и вкладки досье — общий нейтральный выбор, без розового.
     "src/components/v3/knowledge/KnowledgeTree.tsx",
@@ -161,17 +160,21 @@ test("solid red stays for the main action and every selection shares one accent-
   const filterSubmits = [
     "src/components/v3/Inbox.tsx",
     "src/components/v3/MainHeader.tsx",
-    // Both boards' search (Enter on desktop, «Найти» on the phone).
-    "src/components/v3/board/Board.tsx",
     // Э6: the catalogue applies its filters on change; «Найти» stays for a browser without scripts.
     "src/components/v3/universities/UniversityToolbar.tsx",
   ];
   for (const path of filterSubmits) {
     const source = read(path);
-    const labels = [...source.matchAll(/(?:Найти|Показать)\s*<\/button>/gu)];
+    // «Найти» — текстом кнопки или именем знака-лупы в поле (Inbox: 44 px без отдельной рамки).
+    const labels = [...source.matchAll(/(?:Найти|Показать)\s*<\/button>|aria-label="Найти"/gu)];
     assert.ok(labels.length > 0, `${path} keeps its filter submit`);
     for (const label of labels) {
-      const button = source.slice(source.lastIndexOf("<button", label.index), label.index);
+      // Текстовая кнопка: от `<button` до подписи. Знак-лупа: подпись стоит внутри тега, а класс идёт за ней, —
+      // берём весь открывающий тег, иначе проверка пуста.
+      const isAriaLabel = label[0].startsWith("aria-label");
+      const end = isAriaLabel ? source.indexOf(">", label.index) + 1 : label.index;
+      const button = source.slice(source.lastIndexOf("<button", label.index), end);
+      assert.ok(button.length > 0 && (!isAriaLabel || /className=/u.test(button)), `${path}: the filter submit's opening tag is read`);
       assert.doesNotMatch(button, /\bbg-accent\b/u, `${path}: filter submit is secondary`);
     }
   }
@@ -189,7 +192,10 @@ test("solid red stays for the main action and every selection shares one accent-
   const notifications = read("src/components/v3/StaffNotifications.tsx");
   assert.doesNotMatch(notifications, /\bbg-accent\b/u);
   assert.match(notifications, /aria-label=\{count && count !== "0" \? `Уведомления: \$\{count\} непрочитанных` : "Уведомления"\}/u);
-  assert.match(read("src/components/v3/Pill.tsx"), /solid: "bg-fg text-surface",/u);
+  // Pill — тот же вид, что у StatusChip (`.v3-chip`): один чип на весь CRM, без своей палитры и без «solid».
+  const pill = read("src/components/v3/Pill.tsx");
+  assert.match(pill, /className="v3-chip t-caption shrink-0" data-tone=\{tone\}/u);
+  assert.doesNotMatch(pill, /solid|bg-fg|rounded-\[5px\]/u);
 });
 
 // Шрифтовые роли staff CRM (решение владельца 24.09.2026): Golos Text и
@@ -338,7 +344,8 @@ test("staff CRM sources use the role system: no text below 12px, no caps labels,
   assert.match(caseTable, /className="line-clamp-2 break-words t-item text-fg before:absolute before:inset-0/u);
   assert.match(caseTable, /<span className="block truncate t-meta text-fg-2" title=\{meta\}>/u);
   // The due band is opaque over its full height and owns its hairline (25.09 finish review).
-  assert.match(caseTable, /className="flex flex-wrap items-baseline gap-x-1\.5 border-b border-border bg-bg py-1\.5 ps-3 text-start t-item"/u);
+  // С колонкой выбора заголовок оставляет справа место «Выбрать» на телефоне (`max-sm:pe-24`).
+  assert.match(caseTable, /className=\{`flex flex-wrap items-baseline gap-x-1\.5 border-b border-border bg-bg py-1\.5 ps-3 text-start t-item\$\{select \? " max-sm:pe-24" : ""\}`\}/u);
   assert.match(caseTable, /<span className="font-normal tabular-nums text-fg-3">· \{band\.count\}<\/span>/u);
   // Dates only — the due day and, when sorted by update, «обн. ДД.ММ» — share one mono constant.
   assert.equal(caseTable.match(/\bfont-mono\b/gu)?.length, 1, "one mono class for the row's dates");

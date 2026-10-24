@@ -1118,7 +1118,7 @@ test("Sales reads the exact Supabase RLS queue and detail while Admissions is de
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
   await expect(
     page.getByText(
-      "Профиль не найден или недоступен вам. Найдите студента через поиск.",
+      "Профиль не найден или недоступен вам.",
     ),
   ).toBeVisible();
 });
@@ -1398,7 +1398,6 @@ test("Sales and Admin persist the same canonical workflow through the real inter
   await expect(form).toBeVisible();
   await expect(form.getByTestId("v3-pipeline-stage")).toHaveValue("new");
   await expect(form.locator('input[name="expected_version"]')).toHaveValue("11");
-  await expect(form.getByText("Версия 11", { exact: true })).toBeVisible();
   await expect(form.getByTestId("v3-pipeline-owner")).not.toHaveValue("");
 
   await form.getByTestId("v3-pipeline-stage").selectOption("meeting_scheduled");
@@ -1412,7 +1411,6 @@ test("Sales and Admin persist the same canonical workflow through the real inter
   // The panel stays open; the refreshed form carries the next version.
   await expect(workflowForm().locator('input[name="expected_version"]')).toHaveValue("12");
   form = await openWorkflow();
-  await expect(form.getByText("Версия 12", { exact: true })).toBeVisible();
 
   await page.reload();
   form = await openWorkflow();
@@ -1441,7 +1439,6 @@ test("Sales and Admin persist the same canonical workflow through the real inter
   await form.getByTestId("v3-pipeline-submit").click();
   await expect(workflowForm().locator('input[name="expected_version"]')).toHaveValue("13");
   form = await openWorkflow();
-  await expect(form.getByText("Версия 13", { exact: true })).toBeVisible();
 
   await page.reload();
   form = await openWorkflow();
@@ -1596,7 +1593,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   expect(expectObject((salesCaseView.payload as unknown[])[0]).access_mode).toBe("sales_summary");
   await page.goto(`/v3/profile?case=${studentCaseId}&tab=documents`);
   await expect(page.getByText(
-    "Профиль не найден или недоступен вам. Найдите студента через поиск.",
+    "Профиль не найден или недоступен вам.",
   )).toBeVisible();
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
 
@@ -1626,7 +1623,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
 
   await page.goto(`/v3/profile?id=${leadId}&case_q=${studentCaseId}`);
   await expect(page.getByText(
-    "Ссылка на профиль некорректна. Найдите студента через поиск.",
+    "Ссылка на профиль некорректна.",
   )).toBeVisible();
   await expect(page.getByTestId("v3-student-case-directory")).toHaveCount(0);
   await expect(page.getByTestId("v3-student-case-row")).toHaveCount(0);
@@ -1927,10 +1924,10 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
     .locator('input[name="title"]')
     .fill("P4 isolated Admissions task proof");
   // С правом на рабочие задачи дело — необязательный раздел; без него поиск дела открыт сразу.
-  const caseSection = createTask.locator("summary").filter({ hasText: /^Студент\/дело/ });
+  const caseSection = createTask.locator("summary").filter({ hasText: /^Студент или дело/ });
   if (await caseSection.count()) await caseSection.click();
   await createTask
-    .getByRole("combobox", { name: "Студент", exact: true })
+    .getByRole("combobox", { name: "Дело студента", exact: true })
     .selectOption(studentCaseId);
   await expect(createTask.locator('[name="student_case_id"]')).toHaveValue(studentCaseId);
   await expect(createTask.locator('input[name="deadline_kind"]')).toHaveValue("all_day");
@@ -1964,6 +1961,11 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
       .locator('input[name="assignee_membership_id"]')
       .inputValue(),
   );
+  // «Завершить» задачи по студенту просит «Результат»: кнопка выключена, пока поле пусто.
+  await page
+    .getByTestId("v3-calendar-task-done-form")
+    .locator('input[name="reason"]')
+    .fill("P4 isolated Admissions task result");
   await page
     .getByTestId("v3-calendar-task-done-form")
     .locator('button[type="submit"]')
@@ -2656,7 +2658,7 @@ test("real contract, payment and handoff open one Supabase Student 360 with role
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
   await expect(
     page.getByText(
-      "Профиль не найден или недоступен вам. Найдите студента через поиск.",
+      "Профиль не найден или недоступен вам.",
     ),
   ).toBeVisible();
   await expect(page.getByTestId("v3-document-upload-form")).toHaveCount(0);
@@ -2992,6 +2994,9 @@ test("Admissions manages one real private company file through V3", async ({
   await movedFileRow
     .getByRole("button", { name: "Удалить файл", exact: true })
     .click();
+  await movedFileRow
+    .getByRole("button", { name: "Да, удалить", exact: true })
+    .click();
   await expect(movedFileRow).toHaveCount(0);
 
   await folderLinks.filter({ hasText: folderName }).click();
@@ -3019,6 +3024,9 @@ test("Admissions manages one real private company file through V3", async ({
   await folderControls
     .getByRole("button", { name: "Удалить пустую папку", exact: true })
     .click();
+  await folderControls
+    .getByRole("button", { name: "Да, удалить", exact: true })
+    .click();
   await expect(folderLinks.filter({ hasText: folderName })).toHaveCount(0);
 
   await folderLinks.filter({ hasText: destinationFolderName }).click();
@@ -3030,6 +3038,9 @@ test("Admissions manages one real private company file through V3", async ({
     .click();
   await destinationFolderControls
     .getByRole("button", { name: "Удалить пустую папку", exact: true })
+    .click();
+  await destinationFolderControls
+    .getByRole("button", { name: "Да, удалить", exact: true })
     .click();
   await expect(folderLinks.filter({ hasText: destinationFolderName }))
     .toHaveCount(0);
@@ -3077,7 +3088,7 @@ test("Admin preview changes only the effective interface, not Supabase authority
   await expect(page.getByTestId("v3-profile")).toHaveCount(0);
   await expect(
     page.getByText(
-      "Профиль не найден или недоступен вам. Найдите студента через поиск.",
+      "Профиль не найден или недоступен вам.",
     ),
   ).toBeVisible();
   await page.getByTestId("preview-role-admin").click();

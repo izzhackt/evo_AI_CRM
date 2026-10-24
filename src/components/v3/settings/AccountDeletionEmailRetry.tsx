@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useId } from "react";
 
-import { btnCls } from "@/components/ui";
+import { btnGhostCls } from "@/components/ui";
 import {
   retryAccountDeletionEmailAction,
   type AccountDeletionActionState,
@@ -60,7 +60,7 @@ export function AccountDeletionEmailRetry({
         Статус письма об удалении не записан, адрес человека ещё хранится в запросе. Письмо уйдёт заново, статус запишется, а
         адрес после этого удалится.
       </p>
-      <button type="submit" className={btnCls} disabled={pending} aria-describedby={error ? errorId : undefined}>
+      <button type="submit" className={btnGhostCls} disabled={pending} aria-describedby={error ? errorId : undefined}>
         {pending ? "Отправляем…" : "Повторить письмо"}
       </button>
       {error ? <p id={errorId} role="alert" className="t-body-compact text-danger">{error}</p> : null}

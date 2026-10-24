@@ -251,15 +251,25 @@ const COMPONENT_FILES = {
   AiLaboratory: "src/components/v3/ai-agent/AiLaboratory.tsx",
   AiExamplesList: "src/components/v3/ai-agent/AiExamplesList.tsx",
 };
-const serverComponents = () => Object.fromEntries(Object.entries(COMPONENT_FILES).map(([name, file]) => [name, require(join(ROOT, file))[name]]));
+// Ссылка и знак встречаются в пропсах-элементах (`PartShell back`): их тоже называют по имени.
+const serverComponents = () => ({
+  ...Object.fromEntries(Object.entries(COMPONENT_FILES).map(([name, file]) => [name, require(join(ROOT, file))[name]])),
+  Link: require("next/link").default,
+  Icon: require(join(ROOT, "src/components/icons.tsx")).Icon,
+});
 
 function serialize(node, names) {
   if (node === null || node === undefined || typeof node === "boolean") return null;
   if (typeof node === "string" || typeof node === "number") return node;
   if (Array.isArray(node)) return node.map((child) => serialize(child, names));
   if (!isValidElement(node)) throw new Error("harness: unexpected node");
-  const { children, ...props } = node.props;
-  for (const [key, value] of Object.entries(props)) if (typeof value === "function") throw new Error(`harness: function prop ${key}`);
+  const { children, ...rawProps } = node.props;
+  const props = {};
+  for (const [key, value] of Object.entries(rawProps)) {
+    if (typeof value === "function") throw new Error(`harness: function prop ${key}`);
+    // Элемент в пропсе (`back` у PartShell) переезжает в браузер тем же деревом.
+    props[key] = isValidElement(value) ? { __element: serialize(value, names) } : value;
+  }
   const kids = children === undefined ? undefined : serialize(children, names);
   if (typeof node.type === "string") return { tag: node.type, key: node.key, props, children: kids };
   if (node.type === Fragment) return { tag: "#fragment", key: node.key, props: {}, children: kids };
@@ -272,7 +282,8 @@ function deserialize(node, components) {
   if (Array.isArray(node)) return node.map((child) => deserialize(child, components));
   const children = node.children === undefined ? undefined : deserialize(node.children, components);
   const type = node.component ? components[node.component] : node.tag === "#fragment" ? Fragment : node.tag;
-  const props = { ...node.props, key: node.key ?? undefined };
+  const props = { key: node.key ?? undefined };
+  for (const [name, value] of Object.entries(node.props)) props[name] = value && typeof value === "object" && value.__element ? deserialize(value.__element, components) : value;
   return children === undefined ? h(type, props) : Array.isArray(children) ? h(type, props, ...children) : h(type, props, children);
 }
 
@@ -333,6 +344,8 @@ const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 const { AppShell } = require("@/components/v3/AppShell");
 const components = {
   PartShell: require("@/components/v3/PartShell").PartShell,
+  Link: require("next/link"),
+  Icon: require("@/components/icons").Icon,
   ...(() => { const views = require("@/components/v3/ai-agent/AiAgentViews"); return { AiAgentNav: views.AiAgentNav, AiAgentNotice: views.AiAgentNotice, AiDocumentsView: views.AiDocumentsView, AiUnavailable: views.AiUnavailable }; })(),
   AiDocumentViewer: require("@/components/v3/ai-agent/AiDocumentViewer").AiDocumentViewer,
   AiReviewSheet: require("@/components/v3/ai-agent/AiReviewSheet").AiReviewSheet,
@@ -650,7 +663,8 @@ async function main() {
         name: "Прайс_2027_Малайзия.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: Buffer.alloc(48_213, 1),
       });
       // aria-disabled: кнопка в фокусе и нажимается — вместо отправки подсказка.
-      await session.page.locator('[data-testid="v3-ai-upload-submit"]').click({ force: true });
+      // (Нажатие событием: на телефоне кнопку может перекрывать нижняя панель вкладок, а force-щелчок мажет мимо.)
+      await session.page.locator('[data-testid="v3-ai-upload-submit"]').dispatchEvent("click");
       check((await session.page.locator('[data-testid="v3-ai-upload"] [role="alert"]').innerText()).includes("материал компании"), "upload: company material is required");
       await session.page.locator('[data-testid="v3-ai-upload-company"]').check();
       await session.page.locator('[data-testid="v3-ai-upload-client"]').check();

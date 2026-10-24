@@ -489,7 +489,7 @@ export function AiLaboratory({
         <div className="min-w-0 space-y-1">
           <h2 id="ai-lab-title" className="t-section text-fg">Проверка ответа</h2>
           <p className="max-w-[68ch] t-body-compact text-fg-2">
-            Спросите так, как спросил бы клиент. Если ответ неверный — напишите, что не так: агент предложит одну правку, применяете её вы.
+            Если ответ неверный — опишите, что не так: агент предложит одну правку, а применяете её вы.
           </p>
         </div>
         {started || finished ? (
@@ -503,7 +503,7 @@ export function AiLaboratory({
       {!featureOn ? (
         <p className="flex items-start gap-2 rounded-card border border-border bg-surface px-4 py-3 t-body-compact text-fg-2" data-testid="v3-ai-lab-off">
           <Icon name="lock" size={16} className="mt-0.5 shrink-0" />
-          ИИ-агент не подключён к CRM — Лаборатория не отвечает. Подключает администратор.
+          ИИ-агент не подключён на сервере. Подключает администратор.
         </p>
       ) : null}
       {errorAt("load")}
@@ -533,7 +533,6 @@ export function AiLaboratory({
                 <button type="submit" className={btnCls} disabled={!featureOn || asking} aria-disabled={!isAiLabText(question) || undefined} data-testid="v3-ai-lab-ask">
                   {asking ? "Готовлю ответ…" : "Спросить"}
                 </button>
-                <span className="t-meta text-fg-3">Ctrl + Enter</span>
               </div>
             </form>
           )}
@@ -587,7 +586,6 @@ export function AiLaboratory({
                   <button type="submit" className={QUEUE_CONFIRM} disabled={!featureOn} aria-disabled={!isAiLabText(finding) || undefined} data-testid="v3-ai-lab-critique">
                     Предложить правку
                   </button>
-                  <span className="t-meta text-fg-3">Ответ верный? Начните новую проверку.</span>
                 </div>
               </form>
             )}

@@ -38,7 +38,7 @@ import {
 
 const fieldCls = "h-11 min-w-0 rounded-ctl border border-control-edge bg-surface px-3 t-body text-fg placeholder:text-fg-3 hover:bg-surface-2 focus-visible:border-accent disabled:bg-surface-2 disabled:text-fg-3";
 /** Числа в строках одной ширины: подписи разной длины не сбивают сетку. */
-const NUMBER_GRID = "mt-3 grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] items-start gap-x-4 gap-y-3";
+const NUMBER_GRID = "mt-3 grid grid-cols-2 items-start gap-x-4 gap-y-3 @2xl:grid-cols-4";
 const SAVE_IDLE = "aria-disabled:cursor-not-allowed aria-disabled:border-border aria-disabled:bg-surface-2 aria-disabled:text-fg-3 aria-disabled:shadow-none aria-disabled:hover:border-border aria-disabled:hover:bg-surface-2 aria-disabled:active:scale-100";
 
 function Row({ title, hint, children, testId }: Readonly<{ title: string; hint?: ReactNode; children: ReactNode; testId?: string }>) {
@@ -131,7 +131,7 @@ export function TelephonySettingsForm({
       return;
     }
     if (opening.length > 0 && !understood) {
-      setResult({ tone: "error", text: "Отметьте, что понимаете, что откроют включённые пункты." });
+      setResult({ tone: "error", text: "Отметьте «Понимаю и подтверждаю» под списком." });
       requestAnimationFrame(() => statusRef.current?.focus());
       return;
     }
@@ -237,7 +237,7 @@ export function TelephonySettingsForm({
         <Row title="Рабочее время и перезвон" hint="По Бишкеку; от этого считается срок задачи «Перезвонить»" testId="v3-telephony-hours">
           <div role="group" aria-label="Рабочие дни" className="flex flex-wrap gap-1.5">
             {[1, 2, 3, 4, 5, 6, 7].map((day) => (
-              <label key={day} className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-2 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 has-[:checked]:border-fg has-[:checked]:bg-surface-2 has-[:checked]:text-fg">
+              <label key={day} className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-2 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 has-[:checked]:border-fg has-[:checked]:bg-accent-weak has-[:checked]:text-fg has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus-ring">
                 <input type="checkbox" className="sr-only" checked={draft.workingDays.includes(day)} onChange={() => toggleDay(day)} aria-label={TELEPHONY_DAY_NAME[day]} />
                 <span aria-hidden="true">{TELEPHONY_DAY_LABEL[day]}</span>
               </label>
@@ -262,7 +262,7 @@ export function TelephonySettingsForm({
           <FieldIssues messages={issuesFor(shown, "workFrom", "workTo")} />
         </Row>
 
-        <Row title="Набор из CRM" hint="Страны, куда можно звонить, и лимиты. ВАТС ограничивает направления и сама" testId="v3-telephony-dial">
+        <Row title="Набор из CRM" hint="Страны и лимиты набора из CRM; направления ограничивает и сама ВАТС" testId="v3-telephony-dial">
           <label htmlFor="tel-prefixes" className="t-label text-fg-2">Разрешённые коды стран</label>
           <input id="tel-prefixes" type="text" value={draft.prefixes} autoComplete="off" spellCheck={false} placeholder="+996, +7"
             aria-invalid={issuesFor(shown, "dialPrefixes").length > 0 || undefined}
@@ -279,7 +279,7 @@ export function TelephonySettingsForm({
           </div>
         </Row>
 
-        <Row title="Потолки автоматики" hint="Защита от лишних лидов и задач при утёкшем ключе: при превышении автоматика выключается сама" testId="v3-telephony-ceilings">
+        <Row title="Потолки автоматики" hint="Защита от лавины лидов и задач: при превышении автоматика выключается сама" testId="v3-telephony-ceilings">
           <div className={NUMBER_GRID}>
             {numberField("ceilingLeadsHour")}
             {numberField("ceilingLeadsDay")}
@@ -288,9 +288,9 @@ export function TelephonySettingsForm({
           </div>
         </Row>
 
-        <Row title="Эскалации" hint="Кому уходит то, у чего нет владельца. Только администратор или руководитель телефонии" testId="v3-telephony-escalation">
+        <Row title="Эскалации" hint="Получатель обращений без владельца: администратор или руководитель телефонии" testId="v3-telephony-escalation">
           <label htmlFor="tel-escalation" className="sr-only">Получатель эскалаций</label>
-          <select id="tel-escalation" value={draft.escalationMembershipId} className={`${fieldCls} w-72 max-w-full`}
+          <select id="tel-escalation" value={draft.escalationMembershipId} className={`${fieldCls} w-full max-w-sm`}
             onChange={(event) => update({ escalationMembershipId: event.target.value })}>
             <option value="">Не назначен: решает директор</option>
             {managers.map((option) => (
@@ -338,7 +338,7 @@ export function TelephonySettingsForm({
               className={`t-body-compact outline-none ${result?.tone === "error" || (tried && issues.length > 0) ? "text-danger" : "text-fg-2"}`}
               data-testid="v3-telephony-settings-status"
             >
-              {tried && issues.length > 0 ? "Проверьте отмеченные поля." : result ? result.text : dirty ? "Есть несохранённые изменения." : null}
+              {tried && issues.length > 0 ? "Проверьте отмеченные поля." : result ? result.text : dirty ? "Есть несохранённые изменения." : "Изменений нет."}
             </p>
           </div>
         </div>

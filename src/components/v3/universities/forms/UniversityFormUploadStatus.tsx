@@ -5,8 +5,9 @@ import type { UniversityFormVersionMetadata } from "@/lib/university-form-regist
 import type { UniversityTemplateIngressReceipt, UniversityTemplateInspectionMetadata } from "@/lib/university-template-ingress";
 import { readUniversityTemplateStatus, reconcileUniversityTemplateUpload, universityTemplateSourceUrl, UniversityTemplateRequestRejectedError } from "@/lib/university-template-upload-client";
 import { universityFormWorkspace as words, universityFormActionMessage, universityTemplateUploadFailure, universityTemplateUploadState } from "@/lib/v3/wording";
+import { FORM_SECONDARY } from "./form-buttons";
 
-const button = "inline-flex min-h-11 items-center justify-center rounded-ctl border border-border px-4 py-2 text-sm font-medium text-fg disabled:opacity-60";
+const button = FORM_SECONDARY;
 const active = (receipt: UniversityTemplateIngressReceipt | null) => receipt !== null && ["prepared", "processing", "sealed"].includes(receipt.state);
 type Intent = { request_id: string; expected_revision: number; reason: string };
 

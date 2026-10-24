@@ -43,8 +43,21 @@ function focusedRowIndex(links: readonly HTMLElement[]): number {
   const active = document.activeElement;
   const inRow = links.findIndex((link) => link.closest(QUEUE_ROW_SELECTOR)?.contains(active));
   if (inRow >= 0 || !(active instanceof HTMLElement)) return inRow;
+  // «Показать ещё» («Сегодня») стоит под последней строкой своей группы: j/k идут от этой строки, а не с начала страницы.
+  const more = active.closest<HTMLElement>("[data-today-more]");
+  if (more) {
+    const rows = more.closest("section")?.querySelectorAll<HTMLElement>(QUEUE_ROW_SELECTOR);
+    const last = rows?.length ? rows[rows.length - 1] : null;
+    if (last) return links.findIndex((link) => link.closest(QUEUE_ROW_SELECTOR) === last);
+  }
   const undoKey = active.closest<HTMLElement>("[data-undo-row]")?.dataset.undoRow;
   return undoKey === undefined ? -1 : links.findIndex((link) => link.closest<HTMLElement>(QUEUE_ROW_SELECTOR)?.dataset.queueRow === undoKey);
+}
+
+/** Фокус на ссылку строки по ключу: после «Показать ещё» клавиатура продолжает с первой открывшейся строки. */
+export function focusQueueRow(key: string): void {
+  const link = document.querySelector<HTMLElement>(`${QUEUE_ROW_SELECTOR}[data-queue-row="${CSS.escape(key)}"] ${QUEUE_OPEN_SELECTOR}`);
+  link?.focus();
 }
 
 /** Модальное окно поверх очереди (диалог создания задачи, панель на узком экране). */

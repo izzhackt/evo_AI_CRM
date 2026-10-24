@@ -228,7 +228,7 @@ test("V3 has Supabase staff auth and no sample business-data path", () => {
   assert.match(knowledgePage, /<KnowledgeDocuments actor=\{actor\} embedded \/>/);
   assert.match(
     knowledgeDocuments,
-    /\{!studentDocuments\.complete && <p role="alert">Откройте документы нужного клиента в его карточке: общий список не помещается на этом экране\.<\/p>\}/,
+    /\{!studentDocuments\.complete && <p role="alert" className="[^"]*">Откройте документы нужного клиента в его карточке: общий список не помещается на этом экране\.<\/p>\}/,
   );
   assert.equal(
     existsSync(new URL("../src/app/(v3)/v3/profile/sample.ts", import.meta.url)),
@@ -390,7 +390,7 @@ test("V3 pipeline links and document table remain keyboard-operable", () => {
   const pipeline = source("src/components/v3/Pipeline.tsx");
   const fileManager = source("src/components/v3/FileManager.tsx");
 
-  assert.match(pipeline, /className="flex min-h-6 items-center/);
+  assert.match(pipeline, /className="flex min-h-11 items-center/);
   assert.match(fileManager, /aria-label="Таблица документов"/);
   assert.match(fileManager, /tabIndex=\{0\}/);
 });

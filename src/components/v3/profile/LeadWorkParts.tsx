@@ -12,7 +12,7 @@ import { callRecordingItems, callbackDayBounds, type LeadCallsState } from "@/li
 import { DIAL_TOUCH_HINT, type DialOptions } from "@/lib/v3/telephony-dial";
 import { stageTrack } from "@/lib/v3/stages";
 import type { CaseAgreementReadResult } from "@/lib/v3/case-agreement-source";
-import { closureWords, source as sourceWord, sourceUnderLabel } from "@/lib/v3/wording";
+import { source as sourceWord, sourceUnderLabel } from "@/lib/v3/wording";
 
 import { DueWord } from "../blocks/DueWord";
 import { Initials } from "../blocks/Initials";
@@ -24,6 +24,7 @@ import { TaskComposerContextMark, type TaskComposerPageContext } from "../tasks/
 import { FeedCall, FeedEvent, FeedNote } from "./FeedRow";
 import { handoffFootnote, handoffStripView, stripCaseMoney, type StripCaseMoney, type StripText } from "./handoff-strip-view";
 import { LeadConditionsCard, LeadEducationCard, LeadWishesCard, SaleConditionsRevisionProvider } from "./LeadCardFieldsForm";
+import { EditGroup } from "./EditGroup";
 import { LeadEditGroups, LeadMoreMenu } from "./LeadEditGroups";
 import { LeadCallRecording } from "./LeadCallRecording";
 import { LeadCallsRetry } from "./LeadCallsRetry";
@@ -96,6 +97,8 @@ export type LeadWorkPartsInput = Readonly<{
   agreement?: CaseAgreementReadResult | null;
   /** «Откуда узнал» — своё чтение (`LeadChannelFact`); null — строка не рисуется. */
   channel?: ReactNode;
+  /** «Интересует» — своё чтение (`LeadInterestFact`: рисует строку `<div><dt>…` сам, пусто — ничего); null — не рисуется. */
+  interest?: ReactNode;
   /** «Заявки с сайта» — своё чтение (`WebsiteLeadSubmissions`); null — не показываются. */
   submissions: ReactNode;
   /**
@@ -137,29 +140,6 @@ function Fact({ term, children }: Readonly<{ term: string; children: ReactNode }
       <dt className="t-caption text-fg-2">{term}</dt>
       <dd className="mt-0.5 min-w-0 break-words t-body-compact text-fg">{children}</dd>
     </div>
-  );
-}
-
-/**
- * Группа правки: одна строка — название и что уже заполнено, раскрытие —
- * прежняя форма без своей карточки. `name` у всех групп один: открыта одна.
- */
-function EditGroup({ id, title, summary, testId, children }: Readonly<{
-  id?: string; title: string; summary: string | null; testId: string; children: ReactNode;
-}>) {
-  const shown = summary ?? "не заполнено";
-  return (
-    <details name="lead-edit" id={id} data-lead-group="" data-testid={testId} className="group scroll-mt-4 border-b border-border">
-      <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 rounded-nav py-1.5 [&::-webkit-details-marker]:hidden">
-        {/* Строка заполненного — рядом с названием, а если места меньше 7rem — под ним во всю ширину. */}
-        <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3">
-          <span className="t-item text-fg">{title}</span>
-          <span className={`min-w-28 flex-1 truncate t-meta ${summary ? "text-fg-2" : "text-fg-3"}`} title={shown}>{shown}</span>
-        </span>
-        <Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
-      </summary>
-      <div className="pb-4 pt-1">{children}</div>
-    </details>
   );
 }
 
@@ -268,7 +248,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
           {/* «Связать с лидом» (Э8.7): рядом с «Оформить продажу» — запись отчёта не
               заменяет продажу, только называет, что уже есть связанная запись. */}
           {strip?.linkedRecord ? (
-            <a href={strip.linkedRecord.href} className="t-meta text-fg-2 underline underline-offset-4 hover:text-fg" data-testid="v3-lead-linked-record">
+            <a href={strip.linkedRecord.href} className="inline-flex min-h-11 items-center t-meta text-fg-2 underline underline-offset-4 hover:text-fg" data-testid="v3-lead-linked-record">
               <StripLine text={strip.linkedRecord.text} />
               {" · "}{strip.linkedRecord.action}
             </a>
@@ -301,12 +281,12 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
         />
       </> : null}
       {/* «⋯» — только «Закрыть лид» (246); «Доступ к порталу» — своя группа в «Данных лида» (Э8.4). */}
-      {closable ? (
+      {closable && !sales.handoff.handedOffAt ? (
         <LeadMoreMenu
           leadId={leadId}
           name={profile.person}
           expectedVersion={sales.lead.workflowVersion}
-          blockedReason={sales.handoff.handedOffAt ? closureWords.lead.handedOff : null}
+          blockedReason={null}
         />
       ) : null}
       {/* На сенсорном экране у кнопки нет подсказки при наведении: что набор сначала звонит сотруднику, сказано строкой.
@@ -336,7 +316,8 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
           {dueWord ? <> <DueWord view={dueWord} /></> : null}
         </span>
       ) : null}
-      {stepEditable ? (
+      {/* Красная кнопка у заголовка открывает ту же панель: второе «Задать шаг» рядом с ней — дубль. */}
+      {stepEditable && primary?.kind !== "step" ? (
         <button type="button" popoverTarget={LEAD_STEP_DRAWER_ID} aria-haspopup="dialog" className={FACT_ACTION}>
           {sales.lead.nextActionText ? "Изменить" : "Задать шаг"}
         </button>
@@ -345,7 +326,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   );
   const trackStage = stripRead && stripRead.stage !== "closed" && stageTrack("sales", stripRead.stage) ? stripRead.stage : null;
   const header = (
-    <section className="flex flex-col gap-3" data-testid="v3-lead-header" aria-label="Сведения лида">
+    <section className="flex flex-col gap-3" data-testid="v3-lead-header" aria-label="Этап и следующий шаг">
       <dl className="grid grid-cols-1 border-y border-border sm:flex sm:flex-wrap">
         <HeaderFact term="Этап">
           {strip === null ? <span className="text-fg-2">не прочитан</span>
@@ -396,9 +377,10 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
         </Fact>
         <Fact term="Источник">
           {sourceUnderLabel(profile.source) ?? "неизвестно"}
-          {arrivedDay ? <span className="text-fg-2"> · с <time dateTime={sales.leadCreatedAt ?? undefined} className="font-mono tabular-nums">{arrivedDay}</time></span> : null}
+          {arrivedDay ? <span className="text-fg-2"> · <time dateTime={sales.leadCreatedAt ?? undefined} className="font-mono tabular-nums">{arrivedDay}</time></span> : null}
         </Fact>
         {input.channel ? <Fact term="Откуда узнал">{input.channel}</Fact> : null}
+        {input.interest ?? null}
         <Fact term="Контакты">
           {profile.phone || profile.email ? <>
             {profile.phone ? (
@@ -458,7 +440,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
         {handoffEmpty ? <p className="t-body-compact text-fg-2" data-testid="v3-handoff-empty">ничего не подтверждено</p> : null}
         {moneyHref ? (
           <Link href={moneyHref} className={`${QUIET_LINK} ms-auto`} data-testid="v3-handoff-edit"
-            aria-label="Изменить договор и оплату">Изменить</Link>
+            aria-label={handoffEmpty ? "Подтвердить договор и оплату" : "Изменить договор и оплату"}>{handoffEmpty ? "Подтвердить" : "Изменить"}</Link>
         ) : null}
       </div>
       {handoffEmpty ? null : <HandoffStripBlock gate={sales.gate} view={strip} className="mt-1 space-y-3" summary={!handedOff} />}
@@ -501,7 +483,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
           {/* Значок и слова — один блок: на узком экране значок не остаётся один в строке, слова рядом с ним переносятся внутри блока. */}
           <p className="flex min-w-0 flex-1 basis-64 items-start gap-x-2 py-2">
             <Icon name="alert" size={16} className="mt-[3px] shrink-0 text-warn" />
-            <span>Звонки не загрузились. Заметки и события ниже на месте.</span>
+            <span>Звонки не загрузились.</span>
           </p>
           <LeadCallsRetry className={`${QUIET_LINK} max-sm:ms-6`} />
         </div>

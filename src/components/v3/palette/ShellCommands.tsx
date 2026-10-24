@@ -73,3 +73,19 @@ export function PaletteButton({ className, shortcutClassName, labelClassName, hi
     </button>
   );
 }
+
+/** Поиск значком — в верхней строке телефона: слов и клавиш там нет, имя для читалки то же. */
+export function PaletteIconButton({ className }: Readonly<{ className: string }>) {
+  return (
+    <button
+      type="button"
+      aria-haspopup="dialog"
+      aria-label="Поиск и переход"
+      onClick={() => openCommandPalette()}
+      className={className}
+      data-testid="v3-palette-icon"
+    >
+      <Icon name="search" size={20} />
+    </button>
+  );
+}

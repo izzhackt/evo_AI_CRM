@@ -89,10 +89,12 @@ export function RowSelect({ label, checked, onToggle, phoneHidden = false }: Rea
  * `onHeading` своей строки у неё нет: она лежит справа на заголовке первой
  * группы (родитель — `relative`), как «Выбрать» в «Задачах»; заголовок
  * оставляет ей место. Список без заголовка групп получает обычную строку.
+ * Когда контейнер `students` шире 30rem, над группами встаёт липкая шапка колонок
+ * (32 px, выше по слою и позже в DOM) — кнопка опускается под неё (32 px − сдвиг 6 px).
  */
 export function BulkPickToggle({ selection, onHeading = false }: Readonly<{ selection: BulkSelection; onHeading?: boolean }>) {
   return (
-    <div className={onHeading ? "absolute end-0 -top-1.5 z-30 sm:hidden" : "flex justify-end sm:hidden"}>
+    <div className={onHeading ? "absolute end-0 -top-1.5 z-30 sm:hidden @min-[30rem]/students:top-[1.625rem]" : "flex justify-end sm:hidden"}>
       <button
         type="button"
         data-testid="queue-bulk-pick"

@@ -767,7 +767,7 @@ test("phone: no checkbox beside the completion circle until «Выбрать»; 
   assert.match(read("src/components/v3/tasks/TaskQueueList.tsx"), /data-testid="queue-bulk-pick"[\s\S]*?\{selection\.revealed \? "Отмена" : "Выбрать"\}/u);
   assert.match(read("src/components/v3/tasks/TaskQueueList.tsx"), /revealed: selection\.revealed \}/u);
   assert.match(read("src/components/v3/students/StudentsQueueBody.tsx"), /\{bulk && !empty \? <BulkPickToggle selection=\{selection\} onHeading=\{bands\[0\]\?\.label != null\} \/> : null\}/u);
-  assert.match(renderToStaticMarkup(createElement(bulk.BulkPickToggle, { selection: fakeSelection([], false), onHeading: true })), /^<div class="absolute end-0 -top-1\.5 z-30 sm:hidden"><button /u);
+  assert.match(renderToStaticMarkup(createElement(bulk.BulkPickToggle, { selection: fakeSelection([], false), onHeading: true })), /^<div class="absolute end-0 -top-1\.5 z-30 sm:hidden @min-\[30rem\]\/students:top-\[1\.625rem\]"><button /u);
   assert.match(read("src/components/v3/tasks/TaskQueueRow.tsx"), /selectHidden \? "\[--row-lead:2\.75rem\]" : "\[--row-lead:5\.5rem\]"/u);
 });
 

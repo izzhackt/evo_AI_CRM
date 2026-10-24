@@ -23,7 +23,7 @@ function revision(preview: CoveragePreview): string {
  */
 const DISABLED = "disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-2 disabled:text-fg-3 disabled:active:scale-100";
 const CONFIRM = `inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-ctl border border-fg bg-fg px-4 text-base font-semibold text-surface transition-[background-color,border-color,color,transform] duration-150 ease-out enabled:hover:border-fg-2 enabled:hover:bg-fg-2 enabled:active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100 ${DISABLED}`;
-const GHOST = `${btnGhostCls.replace("disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100", "")} ${DISABLED}`;
+const GHOST = btnGhostCls;
 
 const RESULTS: Record<Exclude<CaseCoverageActionState["status"], "idle">, string> = {
   saved: "Смена куратора и перенос выбранных задач подтверждены.",

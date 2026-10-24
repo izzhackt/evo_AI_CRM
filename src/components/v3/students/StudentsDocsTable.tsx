@@ -52,9 +52,10 @@ function DocumentsProgress({ row, lead, rest, waiting }: Readonly<{
  * одно действие «Открыть документы →» и «⋯». От 48rem своей ширины — таблица в
  * одну строку, уже — стопка. Статусов работы (срок, этап, «ждёт принятия»)
  * здесь нет. «Документы» начинаются с числа, которое определяет вкладку
- * (t-item), остальное — строкой ниже. Порядок строк назван над таблицей: на
- * «Документах дела» при полном чтении — сначала дольше всех ждущие проверки
- * (время загрузки — миграция 252), иначе — последнее изменение дела.
+ * (t-item), остальное — строкой ниже. Порядок строк: на «Документах дела» при
+ * полном чтении — сначала дольше всех ждущие проверки (время загрузки —
+ * миграция 252), иначе — последнее изменение дела; над таблицей он назван
+ * только при неполном чтении.
  * «N из M принято» — полоса прогресса только из прочитанных чисел чек-листа
  * (без них — строка итога словами), число вкладки — над ней, остальные слова
  * состояния — под ней.
@@ -89,9 +90,8 @@ export function StudentsDocsTable({
 }>) {
   return (
     <div className="@container/docs min-w-0 space-y-1" data-queue-list="">
-      <p className="t-meta text-fg-2">{order === "oldest" ? "Порядок: сначала дольше всех ждущие проверки"
-        : order === "partial" ? "Порядок: сначала недавно изменённые дела — прочитаны не все дела, поэтому не по ожиданию"
-          : "Порядок: сначала недавно изменённые дела"}</p>
+      {/* Порядок по умолчанию («ждёт N дн» у строки его видно) не пояснение; говорится только неполное чтение. */}
+      {order === "partial" ? <p className="t-meta text-fg-2">Прочитаны не все дела — порядок не по ожиданию.</p> : null}
       <table role="table" className="block w-full" data-testid="v3-student-case-table">
         <caption className="sr-only">{caption}</caption>
         <thead role="rowgroup" className="sr-only @min-[48rem]/docs:not-sr-only @min-[48rem]/docs:sticky @min-[48rem]/docs:top-0 @min-[48rem]/docs:z-30 @min-[48rem]/docs:block @min-[48rem]/docs:bg-bg">
@@ -117,7 +117,7 @@ export function StudentsDocsTable({
                 className={`v3-queue-row group relative ${ROW_GRID} border-b border-border py-2 hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface @min-[48rem]/docs:py-0`}
               >
                 <th role="rowheader" scope="row" className={`${CELL} [grid-area:student] self-center text-start font-normal @min-[48rem]/docs:ps-3`}>
-                  <span className="block truncate t-item text-fg" title={row.studentDisplayName}>{row.studentDisplayName}</span>
+                  <span className="block line-clamp-2 break-words t-item text-fg" title={row.studentDisplayName}>{row.studentDisplayName}</span>
                   <span className="block truncate t-meta text-fg-2" title={meta}>{meta}</span>
                 </th>
                 <td role="cell" className={`${CELL} [grid-area:documents] t-body-compact`}>

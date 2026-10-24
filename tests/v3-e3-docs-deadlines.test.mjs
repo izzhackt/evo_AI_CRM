@@ -106,7 +106,7 @@ test("«Не хватает» counts checklist slots without an uploaded documen
   assert.match(html, /<h1[^>]*>EVO Docs<\/h1>/u, "no number at the heading");
   const empty = surfaces.get("docs-missing-empty");
   assert.match(text(empty), /Незагруженных документов по чек-листам нет\. Документы программ: 4/u, "the empty tab names the next non-empty one");
-  assert.deepEqual(tabsOf(empty)[4], ["Не хватает", "0"], "a complete read with nothing missing is a true zero");
+  assert.deepEqual(tabsOf(empty).find(([label]) => label === "Не хватает"), ["Не хватает", "0"], "a complete read with nothing missing is a true zero — on the tab you are standing on");
 });
 
 test("«Комплекты» reuses the board's queue: number only without a next page, one row action into the case", () => {
@@ -116,14 +116,21 @@ test("«Комплекты» reuses the board's queue: number only without a nex
   for (const kind of ["hidden", "denied", "error"]) assert.equal(docsPackagesCount({ kind }), null, kind);
   // Not readable by this account (no document.read.full, or role preview): no queue tabs, as on the board.
   const params = parseStudentsQueueParams({ section: "docs" }, "docs", { admin: true, coverage: true }).params;
-  const counts = { review: 1, program: null, packages: null, fix: 0, missing: 2, all: 3 };
+  const counts = { review: 1, program: null, packages: null, fix: 1, missing: 2, all: 3 };
   assert.deepEqual(studentsDocsTabs(params, counts, { program: false, packages: false }).map((tab) => tab.key), ["review", "fix", "missing", "all"]);
   assert.deepEqual(studentsDocsTabs(params, counts, { program: true, packages: true }).map((tab) => tab.key), ["review", "program", "packages", "fix", "missing", "all"]);
   assert.deepEqual(tabsOf(surfaces.get("docs-no-packages")).map(([label]) => label), ["Документы дела", "Исправить", "Не хватает", "Все"]);
+  // A work tab with a read zero is not a button: only the tab you stand on and «Все» stay; unknown numbers hide nothing.
+  const none = { review: 0, program: 0, packages: 0, fix: 0, missing: 0, all: 5 };
+  const shownAll = { program: true, packages: true };
+  assert.deepEqual(studentsDocsTabs(params, none, shownAll).map((tab) => tab.key), ["review", "all"], "«Документы дела» is current, the rest are empty");
+  assert.deepEqual(studentsDocsTabs({ ...params, view: "all" }, none, shownAll).map((tab) => tab.key), ["all"]);
+  assert.deepEqual(studentsDocsTabs(params, { ...none, fix: null, packages: null }, shownAll).map((tab) => tab.key), ["review", "packages", "fix", "all"], "unknown is not zero");
 
   const html = surfaces.get("docs-packages");
   // The same state for every row is said once above the table, not in each row; a complete read waits oldest first.
-  assert.match(html, /Отправлены на проверку EVO, решения ещё нет\. Порядок: сначала дольше всех ждущие/u);
+  // A complete read waits oldest first — no caption: the wait is in every row. Nothing repeats the common state.
+  assert.doesNotMatch(html, /Отправлены на проверку EVO|Порядок:/u);
   assert.doesNotMatch(html, /data-testid="v3-student-package-row"[\s\S]*Отправлен на проверку EVO/u);
   // Case filters do not apply to packages: no toolbar on this tab.
   assert.doesNotMatch(html, /Студент или страна|>Направление<|>Куратор</u);
@@ -148,8 +155,9 @@ test("«Комплекты» reuses the board's queue: number only without a nex
   assert.deepEqual(tabsOf(more)[2], ["Комплекты", null], "3 pages read and still a next page — no number");
   assert.equal([...more.matchAll(/data-testid="v3-student-package-row"/gu)].length, 60);
   // Oldest items may be missing from a partial read: server order, said honestly; no board link any more.
-  assert.match(more, /Порядок: сначала недавно отправленные — прочитана не вся очередь/u);
-  assert.match(more, /Показаны последние 60 комплектов: очередь длиннее\. Проверенные уходят из очереди — после них здесь появятся следующие\./u);
+  assert.match(more, /Прочитана не вся очередь — порядок: сначала недавно отправленные\./u);
+  assert.match(more, /Показаны последние 60 комплектов: очередь длиннее\./u);
+  assert.doesNotMatch(more, /Проверенные уходят из очереди/u);
   assert.doesNotMatch(more, /admissions-pipeline/u);
   // Two pages that end: the whole queue is read — the number shows and no rest line.
   const pages = surfaces.get("docs-packages-pages");
@@ -235,10 +243,10 @@ test("package row: on a narrow row the student heads it; the university and prog
   const rows = [...html.matchAll(/data-testid="v3-student-package-row"[\s\S]*?<\/tr>/gu)].map((match) => match[0]);
   assert.equal(rows.length, 3);
   for (const row of rows) {
-    assert.match(row, /<span class="block truncate t-item text-fg" title="[^"]+">/u, "the student name is the row head");
+    assert.match(row, /<span class="block line-clamp-2 break-words t-item text-fg" title="[^"]+">/u, "the student name is the row head, two lines like «Студенты»");
     // Regular weight in the stack; the semibold weight only in the wide table's own column.
     assert.match(row, /<span class="line-clamp-2 break-words t-body-compact text-fg @min-\[48rem\]\/packages:font-semibold" title="[^"]+">/u);
-    assert.doesNotMatch(row, /line-clamp-2 break-words t-item/u);
+    assert.doesNotMatch(row, /<span class="line-clamp-2 break-words t-item/u, "the program text is not a second row head");
   }
 });
 
@@ -269,9 +277,9 @@ test("Э8.5: without a view EVO Docs opens the first tab with work; unknown numb
   assert.equal([...html.matchAll(/data-testid="v3-student-case-row"/gu)].length, 1);
   // The case entry returns to the tab that was open, not to «first non-empty» again.
   assert.match(html, /returnTo=%2Fv3%2Fprofile%3Fsection%3Ddocs%26view%3Dmissing/u);
-  for (const [label, view] of [["Документы дела", "review"], ["Документы программ", "program"], ["Комплекты", "packages"], ["Все", "all"]]) {
-    assert.match(html, new RegExp(`href="/v3/profile\\?section=docs&amp;view=${view}">${label}`, "u"), view);
-  }
+  // Empty work tabs are not buttons (Э8.5, 24.10): «Все» is the only other tab, and it writes its view too.
+  assert.deepEqual(tabsOf(html).map(([label]) => label), ["Не хватает", "Все"]);
+  assert.match(html, /href="\/v3\/profile\?section=docs&amp;view=all">Все/u);
 });
 
 test("Э8.5: a search never leaves «Документы дела» for a queue tab it does not narrow", () => {
@@ -322,7 +330,7 @@ test("Э8.5: «Документы программ» is the board's program queu
   assert.equal([...html.matchAll(/data-testid="v3-program-document-row"/gu)].length, 4);
   // Oldest first within the complete read: 21.09 (6 days), 23.09, 26.09, 27.09 (today).
   assert.deepEqual([...html.matchAll(/data-testid="v3-program-document-row" data-student-case-id="[^"]*(\d\d)"/gu)].map((match) => match[1]), ["02", "03", "05", "01"]);
-  assert.match(html, /Отправлены на проверку EVO, решения ещё нет\. Порядок: сначала дольше всех ждущие/u);
+  assert.doesNotMatch(html, /Отправлены на проверку EVO|Порядок:/u, "a complete queue read says nothing above the table");
   assert.match(html, /<time dateTime="2026-09-21T08:00:00.000Z" class="font-mono tabular-nums text-fg">21\.09<\/time><span class="text-fg-3"> · <\/span><span class="font-medium text-warn">ждёт 6 дн<\/span>/u);
   assert.match(html, /<span class="text-fg-2">ждёт 1 дн<\/span>/u, "a one-day wait is not a warning");
   assert.match(html, /<span class="font-medium text-warn">Прежнее требование<\/span>/u);
@@ -362,7 +370,7 @@ test("Э8.5: «Документы программ» is the board's program queu
   const more = surfaces.get("docs-program-more");
   assert.deepEqual(tabsOf(more)[1], ["Документы программ", null], "3 pages and a next one: no number");
   assert.equal([...more.matchAll(/data-testid="v3-program-document-row"/gu)].length, 60);
-  assert.match(more, /Порядок: сначала недавно отправленные — прочитана не вся очередь/u);
+  assert.match(more, /Прочитана не вся очередь — порядок: сначала недавно отправленные\./u);
   assert.match(more, /Показаны последние 60 документов: очередь длиннее\./u);
   assert.match(surfaces.get("docs-program-error"), /data-testid="queue-error"[\s\S]*Не удалось загрузить документы программ на проверку\./u);
 });
@@ -403,13 +411,13 @@ test("Э8.5: «ждёт N дн» from the latest upload by the Bishkek day; olde
   const review = surfaces.get("docs-review");
   const order = [...review.matchAll(/data-testid="v3-student-case-row" data-access="full" data-student-case-id="[^"]*(\d\d)"/gu)].map((match) => match[1]);
   assert.deepEqual(order, ["05", "01"], "oldest wait first, not the recently changed case");
-  assert.match(review, /Порядок: сначала дольше всех ждущие проверки/u);
+  assert.doesNotMatch(review, /Порядок:/u, "the wait words in the rows say the order");
   assert.match(review, /3 на проверке<\/span><\/span><span class="font-normal text-fg-3"> · <\/span><time dateTime="2026-09-20T04:10:00.000000Z" title="Загружен 20\.09" class="font-medium text-warn">ждёт 7 дн<\/time>/u);
   assert.match(review, /title="Загружен 26\.09" class="font-normal text-fg-2">ждёт 1 дн<\/time>/u);
   assert.match(review, /<h1[^>]*>EVO Docs<\/h1>/u);
-  // Other tabs keep the case order and say so; no wait words there.
+  // Other tabs keep the case order without a caption; no wait words there.
   const missing = surfaces.get("docs-missing");
-  assert.match(missing, /Порядок: сначала недавно изменённые дела<\/p>/u);
+  assert.doesNotMatch(missing, /Порядок:/u);
   assert.doesNotMatch(missing, /ждёт/u);
 });
 
@@ -417,8 +425,10 @@ test("Э8.5: the board hands its review queues to EVO Docs", () => {
   const page = read("src/app/(v3)/v3/admissions-pipeline/page.tsx");
   assert.match(page, /documents: "\/v3\/profile\?section=docs&view=program",\n  packages: "\/v3\/profile\?section=docs&view=packages",/u);
   assert.match(page, /if \(view !== undefined && view !== "documents" && view !== "packages"\) notFound\(\);\n  \/\/ [^\n]*\n  if \(view !== undefined\) redirect\(EVO_DOCS_QUEUE_HREF\[view\]\);/u);
-  assert.match(page, /href=\{EVO_DOCS_QUEUE_HREF\.documents\}>\n\s+Документы на проверку/u);
-  assert.match(page, /href=\{EVO_DOCS_QUEUE_HREF\.packages\}>\n\s+Комплекты на проверку/u);
+  assert.match(page, /label: "Документы на проверку", count: documentsCount, href: EVO_DOCS_QUEUE_HREF\.documents/u);
+  assert.match(page, /label: "Комплекты на проверку", count: packagesCount, href: EVO_DOCS_QUEUE_HREF\.packages/u);
+  // A queue with a read zero has no link; unknown (null) and «20+» keep it.
+  assert.match(page, /\.filter\(\(link\) => link\.count !== "0"\)/u);
   assert.doesNotMatch(page, /\bPackageQueue\b|ProgramDocumentQueue|Разделы поступления|viewHref/u, "no board subpages");
   for (const gone of ["src/components/v3/admissions/ProgramDocumentQueue.tsx", "src/components/portal/applicationPackages/PackageQueue.tsx"]) {
     assert.throws(() => read(gone), /ENOENT/u, gone);

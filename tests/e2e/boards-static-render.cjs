@@ -1309,7 +1309,7 @@ async function hydrateUndo() {
     await card(page, n).locator("a").first().focus();
     await page.keyboard.press("Tab");
     const trigger = await page.evaluate(() => document.activeElement?.getAttribute("aria-label"));
-    check(trigger === "Действия с делом", `${label}: Tab reaches «⋯» (${trigger})`);
+    check(trigger?.startsWith("Действия с делом"), `${label}: Tab reaches «⋯» (${trigger})`);
     await page.keyboard.press("Enter");
     await page.waitForSelector("[popover]:popover-open");
     for (let step = 0; step < 12; step += 1) {

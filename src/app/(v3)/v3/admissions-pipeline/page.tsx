@@ -146,19 +146,27 @@ export default async function AdmissionsPipelinePart({
     />
   ) : null;
 
-  const queues = canReadDocuments ? (
+  // Очередь без дел — не повод для ссылки: «0» в шапке ничего не говорит.
+  // Число не прочитано (null) или неполное («20+») — ссылка остаётся.
+  const queueLinks = canReadDocuments
+    ? ([
+      { key: "documents", label: "Документы на проверку", count: documentsCount, href: EVO_DOCS_QUEUE_HREF.documents },
+      { key: "packages", label: "Комплекты на проверку", count: packagesCount, href: EVO_DOCS_QUEUE_HREF.packages },
+    ] as const).filter((link) => link.count !== "0")
+    : [];
+  const queues = queueLinks.length > 0 ? (
     // Одна тихая строка и на телефоне: две ссылки столбиком отодвигали доску
     // на 180 px вниз.
     <nav aria-label="Очереди на проверку" className="flex flex-wrap items-center gap-x-2">
-      <Link className={QUEUE_LINK_CLASS} href={EVO_DOCS_QUEUE_HREF.documents}>
-        Документы на проверку
-        {documentsCount !== null ? <span className="tabular-nums text-fg-3">{documentsCount}</span> : null}
-      </Link>
-      <span aria-hidden="true" className="t-meta text-fg-3">·</span>
-      <Link className={QUEUE_LINK_CLASS} href={EVO_DOCS_QUEUE_HREF.packages}>
-        Комплекты на проверку
-        {packagesCount !== null ? <span className="tabular-nums text-fg-3">{packagesCount}</span> : null}
-      </Link>
+      {queueLinks.map((link, index) => (
+        <span key={link.key} className="inline-flex items-center gap-x-2">
+          {index > 0 ? <span aria-hidden="true" className="t-meta text-fg-3">·</span> : null}
+          <Link className={QUEUE_LINK_CLASS} href={link.href}>
+            {link.label}
+            {link.count !== null ? <span className="tabular-nums text-fg-3">{link.count}</span> : null}
+          </Link>
+        </span>
+      ))}
     </nav>
   ) : undefined;
 
@@ -184,7 +192,8 @@ export default async function AdmissionsPipelinePart({
       width="board"
       title="Воронка поступления"
       action={queues || addStudent ? (
-        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+        // Телефон: главное действие над ссылками очередей, не под ними.
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 max-sm:flex-col-reverse max-sm:flex-nowrap max-sm:items-end">
           {queues}
           {addStudent}
         </div>

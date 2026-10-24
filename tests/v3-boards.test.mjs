@@ -159,7 +159,7 @@ test("rail hover hint does not loop: icon markup is one stable object and a repe
 
 test("the admissions case menu renders in the top layer and is placed inside the viewport", () => {
   const html = surfaces.get("admissions");
-  const triggers = [...html.matchAll(/<button type="button" popoverTarget="([^"]+)" aria-label="Действия с делом"/gu)].map((match) => match[1]);
+  const triggers = [...html.matchAll(/<button type="button" popoverTarget="([^"]+)" aria-label="Действия с делом: [^"]+"/gu)].map((match) => match[1]);
   assert.equal(triggers.length, 7, "one menu per case on «Поступление» (7 of 12 synthetic cases)");
   for (const id of triggers) {
     assert.match(html, new RegExp(`<div id="${id}" popover="auto" role="group" aria-label="Действия с делом" data-testid="v3-admissions-pipeline-move"`, "u"));

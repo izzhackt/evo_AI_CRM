@@ -106,10 +106,12 @@ function rpcError(id: JsonRpcId, code: number, message: string, data?: unknown):
 /**
  * Версия протокола в заголовке `MCP-Protocol-Version` (spec 2025-11-25, basic/transports, «Protocol Version Header»):
  * клиент шлёт её на всех запросах после `initialize`. Заголовка нет — принимаем (прежние клиенты); есть, но версия
- * неизвестна — 400. `initialize` заголовка не требует: версия там ещё не согласована.
+ * неизвестна — 400. `initialize` заголовка не требует: версия там ещё не согласована. `server/discover` (зонд
+ * ревизии 2026-07-28) тоже: клиент Anthropic шлёт его первым с заголовком 2026-07-28 и, получив -32601, переходит
+ * на `initialize` (наблюдали в production 24.10.2026); 400 на зонд этот путь не гарантирует.
  */
-function isInitializeOnly(parsed: unknown): boolean {
-  return isObject(parsed) && parsed.method === "initialize";
+function isHandshakeProbe(parsed: unknown): boolean {
+  return isObject(parsed) && (parsed.method === "initialize" || parsed.method === "server/discover");
 }
 
 function rpcResult(id: JsonRpcId, result: unknown): JsonRpcResponse {
@@ -450,7 +452,7 @@ export function createAiAgentsMcpHandler(
 
     // 8. Версия протокола из заголовка (после `initialize`): неизвестная — 400 до любой работы.
     const declaredVersion = request.headers.get(AI_AGENTS_MCP_PROTOCOL_HEADER);
-    if (declaredVersion !== null && !isInitializeOnly(parsed)
+    if (declaredVersion !== null && !isHandshakeProbe(parsed)
       && !(AI_AGENTS_MCP_PROTOCOL_VERSIONS as readonly string[]).includes(declaredVersion.trim())) {
       context.method = "version";
       return finish(

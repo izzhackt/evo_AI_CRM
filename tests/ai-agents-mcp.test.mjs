@@ -963,6 +963,15 @@ test("MCP-Protocol-Version: initialize заголовок не проверяе�
   assert.equal(batch.response.status, 400);
 });
 
+test("MCP-Protocol-Version: зонд server/discover (2026-07-28) получает -32601, а не 400 — клиент Anthropic переходит на initialize", async () => {
+  const { handler } = harness({ rpc: rpcWith(() => ({ data: {}, error: null })) });
+  for (const headers of [{ "mcp-protocol-version": "2026-07-28" }, {}]) {
+    const { response, json } = await call(handler, rpcRequest("server/discover"), { headers });
+    assert.equal(response.status, 200, JSON.stringify(headers));
+    assert.equal(json.error.code, -32601);
+  }
+});
+
 test("MCP-Protocol-Version: порядок отказов — токен, затем тело, затем версия; Origin не проверяется", async () => {
   const { handler } = harness({ rpc: rpcWith(() => ({ data: {}, error: null })) });
   const noToken = await call(handler, rpcRequest("ping"), { token: OTHER_TOKEN, headers: { "mcp-protocol-version": "2099-01-01" } });

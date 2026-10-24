@@ -167,7 +167,7 @@ test("«Университеты»: one dense table of 30 rows with the photo, t
   const rows = [...html.matchAll(/<tr role="row" data-university-row="[^"]+"[\s\S]*?<\/tr>/gu)].map((match) => match[0]);
   assert.equal(rows.length, 30);
   assert.deepEqual(text(html.match(/<thead[\s\S]*?<\/thead>/u)[0]).trim().split(" ").filter(Boolean),
-    ["Университет", "Страна", "Программы", "Ближайший", "срок", "Проверено"]);
+    ["Университет", "Страна", "Программы", "Ближайший", "срок"]);
   // Deadlines first, in date order; the rest say so in words.
   const deadlines = rows.map((row) => row.match(/data-deadline="([^"]+)"/u)[1]);
   const dated = deadlines.filter((value) => value !== "none");

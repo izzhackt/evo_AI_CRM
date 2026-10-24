@@ -12,6 +12,7 @@ import {
 import { KnowledgeExport } from "@/components/v3/knowledge/KnowledgeExport";
 import type { KnowledgeCanonicalSelection } from "@/lib/knowledge-canonical-export-contract";
 import { Icon } from "@/components/icons";
+import { plural } from "@/components/v3/queue/bulk-run";
 import {
   btnCls,
   btnDangerGhostCls,
@@ -74,8 +75,8 @@ const ACTION_MESSAGE: Record<
   invalid: "Проверьте заполненные поля.",
   forbidden: "У вашей роли нет права на это изменение.",
   stale: "Запись уже изменилась. Обновите страницу и повторите.",
-  request_conflict: "Команда изменилась. Подготовлен новый безопасный повтор.",
-  unavailable: "Supabase не подтвердил изменение.",
+  request_conflict: "Данные изменились. Повторите.",
+  unavailable: "Не удалось сохранить. Повторите.",
 };
 
 type UploadOutcome =
@@ -145,10 +146,10 @@ function ActionFeedback({
     <p
       className={
         state.status === "saved"
-          ? "text-xs text-ok"
+          ? "t-body-compact text-ok"
           : state.status === "invalid" || state.status === "stale"
-            ? "text-xs text-warn"
-            : "text-xs text-danger"
+            ? "t-body-compact text-warn"
+            : "t-body-compact text-danger"
       }
       role="status"
       data-testid={testId}
@@ -176,6 +177,27 @@ function isDescendant(
     parentId = byId.get(parentId)?.parentId ?? null;
   }
   return false;
+}
+
+/**
+ * «Удалить»: переносит запись в архив и убирает её из списка. Нажатие сначала
+ * спрашивает, второе («Да, удалить») отправляет форму: раньше запись уходила от
+ * одного случайного нажатия, без вопроса и без возврата на этом экране.
+ */
+function ConfirmDelete({ label, subject, pending, disabled }: Readonly<{ label: string; subject: string; pending: boolean; disabled: boolean }>) {
+  const [asking, setAsking] = useState(false);
+  if (!asking && !pending) {
+    return <button type="button" className={btnDangerGhostCls} disabled={disabled} onClick={() => setAsking(true)}>{label}</button>;
+  }
+  return (
+    <div role="group" aria-label={label} className="grid gap-2">
+      <p className="t-body-compact text-fg">Удалить «{subject}»? Запись пропадёт из списка.</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" className={btnDangerGhostCls} disabled={pending || disabled}>{pending ? "Удаляем…" : "Да, удалить"}</button>
+        <button type="button" className={btnGhostCls} disabled={pending} onClick={() => setAsking(false)}>Отмена</button>
+      </div>
+    </div>
+  );
 }
 
 function CreateFolderForm({
@@ -307,7 +329,7 @@ function FolderControls({
       data-testid="v3-company-folder-controls"
       data-folder-id={folder.id}
     >
-      <summary className="flex min-h-10 cursor-pointer items-center text-sm font-semibold text-fg">
+      <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-fg">
         Управление папкой
       </summary>
       <div className="grid gap-4 border-t border-border py-4 lg:grid-cols-2">
@@ -361,15 +383,9 @@ function FolderControls({
           <input type="hidden" name="folder_id" value={folder.id} />
           <input type="hidden" name="expected_version" value={folder.version} />
           <input type="hidden" name="request_id" value={archiveState.requestId} />
-          <button
-            type="submit"
-            className={btnDangerGhostCls}
-            disabled={archiving || hasChildren || archiveState.status === "saved"}
-          >
-            {archiving ? "Удаляем…" : "Удалить пустую папку"}
-          </button>
+          <ConfirmDelete label="Удалить пустую папку" subject={folder.name} pending={archiving} disabled={hasChildren || archiveState.status === "saved"} />
           {hasChildren ? (
-            <p className="text-xs text-fg-3">Сначала переместите или удалите содержимое.</p>
+            <p className="t-body-compact text-fg-2">Сначала переместите или удалите содержимое.</p>
           ) : null}
           <ActionFeedback state={archiveState} testId="v3-company-folder-archive-status" />
         </form>
@@ -409,7 +425,7 @@ function CompanyFileUploadForm({ file }: Readonly<{ file: KnowledgeFile }>) {
     if (!(selected instanceof File) || selected.size < 1 || selected.size > MAX_FILE_BYTES) {
       setState({
         outcome: "invalid",
-        message: "Выберите поддерживаемый файл размером до 25 MiB.",
+        message: "Выберите поддерживаемый файл размером до 25 МБ.",
       });
       return;
     }
@@ -421,7 +437,7 @@ function CompanyFileUploadForm({ file }: Readonly<{ file: KnowledgeFile }>) {
       );
       const payload: unknown = await response.json().catch(() => null);
       if (response.ok && uploadConfirmed(payload, file)) {
-        setState({ outcome: "saved", message: "Файл сохранён в приватном хранилище." });
+        setState({ outcome: "saved", message: "Файл сохранён." });
         router.refresh();
         return;
       }
@@ -472,10 +488,10 @@ function CompanyFileUploadForm({ file }: Readonly<{ file: KnowledgeFile }>) {
         <p
           className={
             state.outcome === "saved"
-              ? "text-xs text-ok"
+              ? "t-body-compact text-ok"
               : state.outcome === "invalid"
-                ? "text-xs text-warn"
-                : "text-xs text-danger"
+                ? "t-body-compact text-warn"
+                : "t-body-compact text-danger"
           }
           role="status"
           data-testid="v3-company-file-upload-status"
@@ -525,7 +541,7 @@ function FileControls({
 
   return (
     <details data-testid="v3-company-file-controls" data-file-id={file.id}>
-      <summary className="flex min-h-9 cursor-pointer items-center text-xs font-semibold text-fg-2">
+      <summary className="flex min-h-11 cursor-pointer items-center t-label text-fg-2">
         Действия
       </summary>
       <div className="mt-2 grid min-w-[260px] gap-4 rounded-card border border-border bg-surface-2 p-3">
@@ -581,13 +597,7 @@ function FileControls({
           <input type="hidden" name="company_file_id" value={file.id} />
           <input type="hidden" name="expected_version" value={file.version} />
           <input type="hidden" name="request_id" value={archiveState.requestId} />
-          <button
-            type="submit"
-            className={btnDangerGhostCls}
-            disabled={archiving || archiveState.status === "saved"}
-          >
-            {archiving ? "Удаляем…" : "Удалить файл"}
-          </button>
+          <ConfirmDelete label="Удалить файл" subject={file.name} pending={archiving} disabled={archiveState.status === "saved"} />
           <ActionFeedback state={archiveState} testId="v3-company-file-archive-status" />
         </form>
       </div>
@@ -780,13 +790,14 @@ export function FileManager({
 
         <div className={embedded ? "min-w-0" : "min-w-0 p-4 sm:p-5"}>
           <div className="flex flex-col items-stretch gap-3 border-b border-border pb-4 sm:flex-row sm:flex-wrap sm:items-center">
-            <nav aria-label="Путь к папке" className="w-full min-w-0 sm:w-auto sm:flex-1">
+            {/* На корне встроенного раздела путь повторял бы заголовок «Документы» над ним. */}
+            {embedded && breadcrumbs.length === 0 ? <span aria-hidden="true" className="hidden sm:block sm:flex-1" /> : <nav aria-label="Путь к папке" className="w-full min-w-0 sm:w-auto sm:flex-1">
               <ol className="flex min-w-0 flex-wrap items-center gap-1 text-sm text-fg-2">
                 <li>
                   <button
                     type="button"
                     onClick={() => openFolder(null)}
-                    className="min-h-8 rounded-nav px-1 hover:text-fg"
+                    className="min-h-11 rounded-nav px-1 hover:text-fg"
                   >
                     {rootLabel}
                   </button>
@@ -797,14 +808,14 @@ export function FileManager({
                     <button
                       type="button"
                       onClick={() => openFolder(folder.id)}
-                      className="min-h-8 truncate rounded-nav px-1 hover:text-fg"
+                      className="min-h-11 truncate rounded-nav px-1 hover:text-fg"
                     >
                       {folder.name}
                     </button>
                   </li>
                 ))}
               </ol>
-            </nav>
+            </nav>}
             <label className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-ctl border border-control-edge bg-surface px-3 sm:w-auto sm:basis-60">
               <Icon name="search" size={15} className="shrink-0 text-fg-3" />
               <span className="sr-only">Поиск документов</span>
@@ -831,7 +842,7 @@ export function FileManager({
             <div className="grid gap-3 border-b border-border py-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <details className="rounded-card border border-border bg-surface-2 px-4 py-2">
-                  <summary className="flex min-h-10 cursor-pointer items-center text-sm font-semibold text-fg">
+                  <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-fg">
                     Новая папка
                   </summary>
                   <CreateFolderForm
@@ -841,7 +852,7 @@ export function FileManager({
                   />
                 </details>
                 <details className="rounded-card border border-border bg-surface-2 px-4 py-2">
-                  <summary className="flex min-h-10 cursor-pointer items-center text-sm font-semibold text-fg">
+                  <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-fg">
                     Новый файл
                   </summary>
                   <CreateFileForm
@@ -867,15 +878,15 @@ export function FileManager({
                   <button
                     type="button"
                     onClick={() => openFolder(folder.id)}
-                    className="flex min-h-20 w-full items-center gap-3 rounded-card border border-control-edge bg-surface-2 p-3 text-start hover:border-accent"
+                    className="flex min-h-14 w-full items-center gap-3 rounded-card border border-control-edge bg-surface px-3 py-2 text-start hover:bg-surface-2"
                   >
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-ctl bg-surface-3 text-fg-2">
-                      <Icon name="folder" size={19} />
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-ctl bg-surface-3 text-fg-2">
+                      <Icon name="folder" size={18} />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold text-fg">{folder.name}</span>
                       <span className="t-meta mt-0.5 block tabular-nums text-fg-3">
-                        {folderCount(folder.id)} записей
+                        {folderCount(folder.id)} {plural(folderCount(folder.id), { one: "запись", few: "записи", many: "записей" })}
                       </span>
                     </span>
                   </button>
@@ -884,7 +895,8 @@ export function FileManager({
             </ul>
           ) : null}
 
-          <div
+          {/* Пустая папка — одна строка «документов нет»: заголовки пустой таблицы над ней ничего не значили. */}
+          {visibleFiles.length > 0 ? <div
             role="region"
             aria-label="Таблица документов"
             tabIndex={0}
@@ -893,10 +905,12 @@ export function FileManager({
             <table className="w-full min-w-[560px] border-separate border-spacing-0 text-start">
               <thead>
                 <tr className="t-caption text-start text-fg-3">
-                  {allowKnowledgeExport && <th className="w-10 border-b border-border px-3 py-2">
-                    <input type="checkbox" aria-label="Выбрать документы на экране" disabled={!exportable.length}
-                      checked={exportable.length > 0 && exportable.every((file) => selectedVersions.has(file.currentVersionId!))}
-                      onChange={(event) => setSelectedVersions((old) => { const next = new Set(old); for (const file of exportable) { if (event.target.checked) next.add(file.currentVersionId!); else next.delete(file.currentVersionId!); } return next; })} />
+                  {allowKnowledgeExport && <th className="w-11 border-b border-border p-0">
+                    <label className="grid size-11 cursor-pointer place-items-center rounded-nav hover:bg-surface-2">
+                      <input type="checkbox" aria-label="Выбрать документы на экране" className="size-[18px] cursor-pointer accent-fg" disabled={!exportable.length}
+                        checked={exportable.length > 0 && exportable.every((file) => selectedVersions.has(file.currentVersionId!))}
+                        onChange={(event) => setSelectedVersions((old) => { const next = new Set(old); for (const file of exportable) { if (event.target.checked) next.add(file.currentVersionId!); else next.delete(file.currentVersionId!); } return next; })} />
+                    </label>
                   </th>}
                   <th className="border-b border-border px-3 py-2 text-start font-medium">Документ</th>
                   <th className="border-b border-border px-3 py-2 text-start font-medium">Размер</th>
@@ -911,10 +925,12 @@ export function FileManager({
                     data-testid={file.kind === "company" ? "v3-company-file-row" : undefined}
                     data-file-id={file.id}
                   >
-                    {allowKnowledgeExport && <td className="border-b border-border px-3 py-3">
-                      <input type="checkbox" aria-label={`Выбрать ${file.name}`} disabled={!file.currentVersionId || !file.downloadHref}
-                        checked={Boolean(file.currentVersionId && selectedVersions.has(file.currentVersionId))}
-                        onChange={(event) => setSelectedVersions((old) => { const next = new Set(old); if (event.target.checked) next.add(file.currentVersionId!); else next.delete(file.currentVersionId!); return next; })} />
+                    {allowKnowledgeExport && <td className="border-b border-border p-0 align-top">
+                      <label className="grid size-11 cursor-pointer place-items-center rounded-nav hover:bg-surface-2">
+                        <input type="checkbox" aria-label={`Выбрать ${file.name}`} className="size-[18px] cursor-pointer accent-fg" disabled={!file.currentVersionId || !file.downloadHref}
+                          checked={Boolean(file.currentVersionId && selectedVersions.has(file.currentVersionId))}
+                          onChange={(event) => setSelectedVersions((old) => { const next = new Set(old); if (event.target.checked) next.add(file.currentVersionId!); else next.delete(file.currentVersionId!); return next; })} />
+                      </label>
                     </td>}
                     <td className="border-b border-border px-3 py-3">
                       {file.downloadHref ? (
@@ -949,16 +965,16 @@ export function FileManager({
                           Скачать
                         </a>
                       ) : (
-                        <span className="text-xs text-fg-3">—</span>
+                        <span className="t-meta text-fg-3">—</span>
                       )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </div> : null}
 
-          {visibleFiles.length === 0 ? (
+          {visibleFiles.length === 0 && (normalizedQuery || children.length === 0) ? (
             <p className="py-12 text-center text-sm text-fg-3">
               {normalizedQuery ? "Документы не найдены." : "В этой папке документов нет."}
             </p>

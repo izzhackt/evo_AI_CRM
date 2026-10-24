@@ -60,7 +60,7 @@ export function KnowledgeProtectedImport({ onChanged, onRunningChange }: { onCha
     <p className="t-body-compact text-fg-2">Выберите подготовленную папку с зашифрованными источниками. Ключ в CRM не загружается.</p>
     <label className={KB_LABEL}>Папка защищённого переноса<input type="file" multiple {...{ webkitdirectory: "" }} disabled={busy} className={KB_FILE} onChange={(event) => void choose(Array.from(event.target.files ?? []))} /></label>
     {plan && <p className="t-body-compact text-fg-2">Источников: {plan.entries.filter((e) => e.kind === "file").length}. Записей доступа: {plan.entries.filter((e) => e.kind === "record").length}.</p>}
-    <div className="flex flex-wrap gap-2"><button type="button" className={QUEUE_CONFIRM} disabled={busy || !plan} onClick={() => void run()}>Начать / продолжить</button>{busy && <button type="button" className={QUEUE_SECONDARY} onClick={() => { stop.current = true; }}>Остановить после записи</button>}</div>
+    <div className="flex flex-wrap gap-2"><button type="button" className={QUEUE_CONFIRM} disabled={busy || !plan} onClick={() => void run()}>Начать защищённый перенос</button>{busy && <button type="button" className={QUEUE_SECONDARY} onClick={() => { stop.current = true; }}>Остановить после записи</button>}</div>
     {status && <p role="status" className="t-body-compact text-fg-2">{status}</p>}{error && <p role="alert" className={KB_ERROR}>{error}</p>}
   </section>;
 }

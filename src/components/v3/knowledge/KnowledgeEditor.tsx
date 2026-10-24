@@ -17,7 +17,8 @@ const TOOL = `${QUEUE_SECONDARY} px-2.5`;
 type Draft = { title: string; body: string; reviewQuestion: string };
 export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeItem; onClose: () => void; onSaved: (item: KnowledgeItem) => void }) {
   const [draft, setDraft] = useState<Draft>({ title: item.title, body: item.body ?? "", reviewQuestion: item.review_question });
-  const [state, setState] = useState("Сохранено");
+  // Слово о сохранении — только после действия: «Сохранено» на только что открытой странице ничего не подтверждало.
+  const [state, setState] = useState("");
   const [error, setError] = useState("");
   const [exitWarning, setExitWarning] = useState(false);
   const [mode, setMode] = useState<"edit" | "read">("read");
@@ -37,11 +38,17 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
   const restoreRequest = useRef<{ key: string; id: string } | null>(null);
   const pendingRef = useRef<{ id: string; draft: Draft } | null>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
   const attachmentRef = useRef<HTMLInputElement>(null);
   const dirty = JSON.stringify(draft) !== savedDraft;
   const editable = item.kind === "page" && !item.deleted_at;
   const canEditMetadata = (item.kind === "page" || item.kind === "file") && !item.deleted_at;
   useEffect(() => { draftRef.current = draft; }, [draft]);
+  // Название переносится по словам и растёт по высоте: на телефоне однострочное поле обрезало длинное имя.
+  useEffect(() => {
+    const field = titleRef.current; if (!field) return;
+    field.style.height = "auto"; field.style.height = `${field.scrollHeight}px`;
+  }, [draft.title, mode]);
   useEffect(() => installKnowledgeEditorExitGuard({
     blocked: () => JSON.stringify(draftRef.current) !== savedRef.current || busyRef.current,
     notify: () => setExitWarning(true),
@@ -135,21 +142,35 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
       </div>
     </div>}
     <div className="mx-auto mt-5 max-w-[51.25rem]">
-      {editable ? <input className={styles.titleInput} aria-label="Название страницы" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} maxLength={240} /> : <h2 className="t-record-title [overflow-wrap:anywhere]">{item.title}</h2>}
+      {editable && mode === "edit"
+        ? <textarea ref={titleRef} rows={1} className={styles.titleInput} aria-label="Название страницы" value={draft.title} maxLength={240}
+          onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault(); }}
+          onChange={(event) => setDraft({ ...draft, title: event.target.value.replace(/[\r\n]+/g, " ") })} />
+        : <h2 className="t-record-title [overflow-wrap:anywhere]">{editable ? draft.title : item.title}</h2>}
+      {/* Вопрос для уточнения виден сразу, а не под полотном текста: он и есть причина метки «На уточнении» в списке. */}
+      {draft.reviewQuestion.trim() ? <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card bg-warn-weak px-4 py-2.5 text-warn" data-testid="knowledge-review-question">
+        <p className="min-w-0 flex-1 t-body-compact [overflow-wrap:anywhere]"><span className="t-label">На уточнении: </span>{draft.reviewQuestion}</p>
+        {canEditMetadata ? <button type="button" className={QUEUE_SECONDARY} onClick={() => setDraft({ ...draft, reviewQuestion: "" })}>Вопрос решён</button> : null}
+      </div> : null}
       {item.kind === "page" ? <>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <div role="group" aria-label="Режим" className="flex gap-2">
             <button type="button" className={`v3-choice ${TOOL}`} aria-pressed={mode === "read"} onClick={() => setMode("read")}>Читать</button>
             {editable && <button type="button" className={`v3-choice ${TOOL}`} aria-pressed={mode === "edit"} onClick={() => setMode("edit")}>Редактировать</button>}
           </div>
-          {mode === "edit" && <div role="group" aria-label="Вставить" className="flex flex-wrap gap-2 border-s border-border ps-2">
-            <button type="button" className={TOOL} onClick={() => insert("\n## ")}>Заголовок</button>
-            <button type="button" className={TOOL} onClick={() => insert("\n- ")}>Список</button>
-            <button type="button" className={TOOL} onClick={() => insert("\n|  |  |\n| --- | --- |\n|  |  |\n")}>Таблица</button>
-            <button type="button" className={TOOL} onClick={() => insert("[Название](https://)")}>Ссылка</button>
-            <button type="button" className={TOOL} onClick={() => attachmentRef.current?.click()}>Вложение</button>
+          {/* Пять вставок — одно меню: в строке они занимали до трёх строк телефона над текстом. */}
+          {mode === "edit" && <>
+            <TopLayerMenu label="Вставить" trigger={<>Вставить<Icon name="chevron-down" size={16} /></>} triggerClassName={TOOL} menuClassName={KB_MENU} testId="knowledge-insert-menu">
+              {(closeMenu) => <>
+                <button type="button" className={KB_MENU_ITEM} onClick={() => { closeMenu(); insert("\n## "); }}>Заголовок</button>
+                <button type="button" className={KB_MENU_ITEM} onClick={() => { closeMenu(); insert("\n- "); }}>Список</button>
+                <button type="button" className={KB_MENU_ITEM} onClick={() => { closeMenu(); insert("\n|  |  |\n| --- | --- |\n|  |  |\n"); }}>Таблица</button>
+                <button type="button" className={KB_MENU_ITEM} onClick={() => { closeMenu(); insert("[Название](https://)"); }}>Ссылка</button>
+                <button type="button" className={KB_MENU_ITEM} onClick={() => { closeMenu(); attachmentRef.current?.click(); }}>Вложение</button>
+              </>}
+            </TopLayerMenu>
             <input ref={attachmentRef} type="file" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void attach(file); event.target.value = ""; }} />
-          </div>}
+          </>}
         </div>
         {mode === "edit" ? <textarea ref={textRef} className="mt-4 block min-h-[50vh] w-full resize-y rounded-ctl border border-control-edge bg-surface p-3 t-body text-fg focus-visible:border-accent" aria-label="Текст страницы" value={draft.body} onChange={(event) => setDraft({ ...draft, body: event.target.value })} />
           : <div className={styles.markdown}><Markdown remarkPlugins={[remarkGfm]} skipHtml components={{ a: (props) => <a {...props} rel="noreferrer" /> }}>{draft.body}</Markdown></div>}
@@ -157,15 +178,15 @@ export function KnowledgeEditor({ item, onClose, onSaved }: { item: KnowledgeIte
       </> : <>
         {["application/pdf", "image/png", "image/jpeg"].includes(item.mime_type) && item.area !== "raw" && item.area !== "secrets"
           ? <iframe title={item.title} sandbox="" className="mt-4 h-[65vh] w-full rounded-ctl border border-border" src={`/api/v3/knowledge/download/${item.id}?preview=1`} />
-          : <p className="mt-4 t-body text-fg-2">Предпросмотр этого формата недоступен. <a href={`/api/v3/knowledge/download/${item.id}`} className="underline underline-offset-4 hover:text-fg">Скачать файл</a></p>}
+          : <p className="mt-4 t-body text-fg-2">Предпросмотр этого формата недоступен.</p>}
       </>}
-      {(canEditMetadata || draft.reviewQuestion) && <label className={`${KB_LABEL} mt-8`}>Вопрос для уточнения
-        <input value={draft.reviewQuestion} readOnly={!canEditMetadata} onChange={(event) => setDraft({ ...draft, reviewQuestion: event.target.value })} maxLength={4000} className={KB_FIELD} />
-        {canEditMetadata && <span className="t-meta text-fg-3">Очистите поле, когда вопрос решён.</span>}
+      {canEditMetadata && <label className={`${KB_LABEL} mt-8`}>Вопрос для уточнения
+        <input value={draft.reviewQuestion} onChange={(event) => setDraft({ ...draft, reviewQuestion: event.target.value })} maxLength={4000} className={KB_FIELD} />
       </label>}
     </div>
     {history && <aside className="mx-auto mt-6 max-w-[51.25rem] border-t border-border pt-4" aria-label="История версий" data-testid="knowledge-history">
       <div className="flex items-center justify-between gap-2"><h3 className="t-item">История версий</h3><button type="button" className={QUEUE_SECONDARY} onClick={() => setHistory(false)}>Закрыть</button></div>
+      {dirty ? <p className="mt-2 t-body-compact text-fg-2">Восстановить версию можно после сохранения изменений.</p> : null}
       <ul className="mt-2 divide-y divide-border border-y border-border">{versions.map((version) => {
         const at = historyAt ? knowledgeMoment(version.created_at, historyAt) : null;
         return <li key={version.version}><details className="group">

@@ -513,7 +513,7 @@ async function screenshots() {
         if (shot === "kb-inbox") {
           // На телефоне дерево — в закрытом листе «Папки»: отметка стоит и в скрытой колонке.
           const current = await page.locator('nav[aria-label="Разделы базы знаний"] [aria-current="page"]').allTextContents();
-          if (!current.includes("Входящие")) failures.push(`${file}: «Входящие» has no aria-current (${current.join("|")})`);
+          if (!current.includes("Неразобранное")) failures.push(`${file}: «Неразобранное» has no aria-current (${current.join("|")})`);
         }
         const real = errors.filter((message) => !/server action .* is not available|Failed to load resource/u.test(message));
         if (real.length) failures.push(`${file}: browser errors: ${real.join(" | ")}`);

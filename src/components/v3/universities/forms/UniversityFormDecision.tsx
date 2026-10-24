@@ -5,6 +5,7 @@ import { useActionState, useId, useRef, useState } from "react";
 import type { UniversityFormAction, UniversityFormActionState } from "@/lib/university-form-ui";
 import type { UniversityFormMappingMetadata } from "@/lib/university-form-registry";
 import { universityFormActionMessage, universityFormManagement as words, universityFormWorkspace as shared } from "@/lib/v3/wording";
+import { FORM_PRIMARY, FORM_SECONDARY } from "./form-buttons";
 
 type Decision = { operation: "review_mapping" | "publish"; mapping: UniversityFormMappingMetadata }
   | { operation: "archive"; mapping?: never };
@@ -44,6 +45,9 @@ export function UniversityFormDecision({ catalogId, templateId, versionId, revis
       : { title: words.archive, explanation: words.archiveExplanation, confirm: words.archiveConfirm, reason: words.archiveReason, saved: words.archiveSaved };
   const base = returnUrl ?? `/v3/universities/${catalogId}/forms?template=${templateId}${versionId ? `&version=${versionId}` : ""}`;
   const feedback = universityFormActionMessage(state.status);
+  // Кнопка называет выбранный итог; комментарий нужен там, где решение надо объяснить: возврат на исправление и архив.
+  const submitLabel = decision.operation === "review_mapping" ? (reviewDecision === "approved" ? words.approve : words.reject) : metadata.title;
+  const askComment = decision.operation === "archive" || (decision.operation === "review_mapping" && reviewDecision === "rejected");
   if (decision.operation === "publish" && decision.mapping.review?.decision !== "approved") return null;
   return <section aria-labelledby={`${id}-title`} className="max-w-2xl space-y-4">
     <div className="space-y-2"><h3 id={`${id}-title`} className="t-section text-fg">{metadata.title}</h3>
@@ -60,20 +64,20 @@ export function UniversityFormDecision({ catalogId, templateId, versionId, revis
           <option value="approved">{words.approve}</option><option value="rejected">{words.reject}</option>
         </select>
       </div> : null}
-      <div className="space-y-2"><label htmlFor={`${id}-comment`} className="block text-sm font-medium text-fg">{words.comment}</label>
-        <input id={`${id}-comment`} value={comment} onChange={event => setComment(event.target.value)} readOnly={locked} maxLength={500} className={input} /></div>
+      {askComment ? <div className="space-y-2"><label htmlFor={`${id}-comment`} className="block text-sm font-medium text-fg">{words.comment}</label>
+        <input id={`${id}-comment`} value={comment} onChange={event => setComment(event.target.value)} readOnly={locked} maxLength={500} className={input} /></div> : null}
       <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm leading-6 text-fg">
         <input type="checkbox" name="confirmed" value="yes" checked={confirmed} disabled={locked}
-          onChange={event => setConfirmed(event.target.checked)} className="h-5 w-5 shrink-0 accent-accent" />{metadata.confirm}
+          onChange={event => setConfirmed(event.target.checked)} className="h-5 w-5 shrink-0 accent-fg" />{metadata.confirm}
       </label>
       {feedback ? <p role="alert" className="text-sm leading-6 text-danger">{feedback}</p> : null}
       {saved ? <p role="status" className="text-sm text-fg">{metadata.saved}</p> : null}
       <div className="flex flex-wrap items-center gap-3">
         {!saved && !blocked ? <button type="submit" disabled={pending || !confirmed}
-          className="min-h-11 rounded-ctl bg-accent px-4 py-2 text-sm font-medium text-on-accent disabled:opacity-60">
-          {pending ? words.saving : uncertain ? shared.retry : metadata.title}
+          className={decision.operation === "archive" ? FORM_SECONDARY : FORM_PRIMARY}>
+          {pending ? words.saving : uncertain ? shared.retry : submitLabel}
         </button> : null}
-        {saved || uncertain || blocked ? <a href={base} className="inline-flex min-h-11 items-center px-3 text-sm font-medium text-fg-2">{saved ? words.next : shared.reload}</a> : null}
+        {saved || uncertain || blocked ? <a href={base} className={FORM_SECONDARY}>{saved ? words.next : shared.reload}</a> : null}
       </div>
     </form>
   </section>;

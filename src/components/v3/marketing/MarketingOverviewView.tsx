@@ -9,6 +9,8 @@ const TH = "px-3 py-2 text-left t-caption font-medium text-fg-2";
 const TD = "px-3 py-2.5 align-top t-body-compact tabular-nums text-fg";
 const META = "block t-meta text-fg-2";
 const SECTION_TABLE = "min-w-[40rem] w-full border-collapse";
+/** Узко таблица прокручивается вбок: первый столбец (канал) остаётся на месте, область — подписанная и доступна с клавиатуры. */
+const STICKY = "sticky left-0 z-10 bg-bg";
 
 const n = (value: number) => value.toLocaleString("ru-RU");
 const BLOCK = "border-t border-border pt-8";
@@ -123,7 +125,7 @@ function ChannelMix({ overview }: Readonly<{ overview: MarketingOverview }>) {
   );
 }
 
-function CohortBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
+function CohortBlock({ overview, unknownHref }: Readonly<{ overview: MarketingOverview; unknownHref?: string }>) {
   const { cohort } = overview;
   const { unknown: unknownLeads, whole: unknownOf } = unknownSource(overview);
   return (
@@ -133,12 +135,12 @@ function CohortBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
         Заявок: <span className="tabular-nums">{n(cohort.total)}</span>, из них открыты <span className="tabular-nums" data-marketing-open={cohort.openCount}>{n(cohort.openCount)}</span>;
         {" "}источник «Сайт» — <span className="tabular-nums" data-testid="marketing-website-source">{n(cohort.sourceKeys.website ?? 0)}</span>.
       </p>
-      <div className="relative mt-3 overflow-x-auto">
+      <div className="relative mt-3 overflow-x-auto" role="region" aria-label="Таблица заявок по каналам" tabIndex={0}>
         <table className={SECTION_TABLE}>
           <caption className="sr-only">Заявки периода по каналам и то, что с ними стало на сегодня</caption>
           <thead>
             <tr className="border-b border-border">
-              <th scope="col" className={TH}>Откуда узнал</th>
+              <th scope="col" className={`${TH} ${STICKY}`}>Откуда узнал</th>
               <th scope="col" className={TH}>Заявки</th>
               <th scope="col" className={TH}>Квалифицированы</th>
               <th scope="col" className={TH}>Переданы</th>
@@ -149,7 +151,7 @@ function CohortBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
           <tbody>
             {cohort.channels.map((row) => (
               <tr key={row.channel} className="border-b border-border" data-channel={row.channel}>
-                <th scope="row" className={`${TD} text-left font-medium`}>
+                <th scope="row" className={`${TD} ${STICKY} text-left font-medium`}>
                   <ChannelLabel channel={row.channel}>{LEAD_CHANNELS[row.channel]}</ChannelLabel>
                   {channelBasisLine(row, cohort.cabinetForms) ? <span className={`${META} pl-4`}>{channelBasisLine(row, cohort.cabinetForms)}</span> : null}
                 </th>
@@ -160,7 +162,7 @@ function CohortBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
           </tbody>
           <tfoot>
             <tr>
-              <th scope="row" className={`${TD} text-left font-medium`}>Всего</th>
+              <th scope="row" className={`${TD} ${STICKY} text-left font-medium`}>Всего</th>
               <td className={`${TD} font-medium`}>{n(cohort.totals.leads)}</td>
               <CohortCells row={{ ...cohort.totals }} />
             </tr>
@@ -169,6 +171,7 @@ function CohortBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
       </div>
       <p className="mt-2 t-body-compact text-fg" data-testid="marketing-unknown-line">
         Источник не известен — <span className="tabular-nums">{shareText(unknownLeads, unknownOf)}</span>
+        {unknownHref && unknownLeads > 0 ? <> · <a href={unknownHref} className="inline-flex min-h-11 items-center underline underline-offset-4 hover:text-fg-2">Указать источник</a></> : null}
         {cohort.cabinetForms > 0 ? <span className={META}>Анкеты на платформе ({n(cohort.cabinetForms)}) в эту долю не входят: у них нет источника заявки.</span> : null}
       </p>
       <p className="mt-1 t-body-compact text-fg" data-testid="marketing-repeats">
@@ -182,7 +185,7 @@ function CohortBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
 function SalesRows({ rows }: Readonly<{ rows: readonly SalesChannelRow[] }>) {
   return <>{rows.map((row) => (
     <tr key={row.channel} className="border-b border-border" data-channel={row.channel}>
-      <th scope="row" className={`${TD} text-left font-medium`}>
+      <th scope="row" className={`${TD} ${STICKY} text-left font-medium`}>
         <ChannelLabel channel={row.channel}>{row.channel === "without_lead" ? "Без привязки к лиду" : LEAD_CHANNELS[row.channel]}</ChannelLabel>
       </th>
       <td className={TD}>{n(row.contracts)}
@@ -201,12 +204,12 @@ function SalesBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
   return (
     <section aria-labelledby="mk-sales" data-testid="marketing-sales" className={BLOCK}>
       <h2 id="mk-sales" className="t-section text-fg">Продажи периода — по дате договора</h2>
-      <div className="relative mt-3 overflow-x-auto">
+      <div className="relative mt-3 overflow-x-auto" role="region" aria-label="Таблица договоров по каналам" tabIndex={0}>
         <table className="min-w-[28rem] w-full border-collapse">
           <caption className="sr-only">Договоры периода по каналам</caption>
           <thead>
             <tr className="border-b border-border">
-              <th scope="col" className={TH}>Откуда узнал</th>
+              <th scope="col" className={`${TH} ${STICKY}`}>Откуда узнал</th>
               <th scope="col" className={TH}>Договоры</th>
               <th scope="col" className={TH}>Сумма договоров</th>
             </tr>
@@ -226,12 +229,13 @@ function SalesBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
 
 function CostBlock({ overview }: Readonly<{ overview: MarketingOverview }>) {
   const cost = costPerLead(overview);
+  // Расхода нет: «Расход за период не введён» уже сказано выше, второй заголовок с тем же смыслом не нужен.
+  if (cost.status === "no_spend") return null;
   return (
     <div className="mt-6" data-testid="marketing-cost">
       <h3 className="t-item text-fg"><ChannelLabel channel="instagram_ads">Цена заявки Instagram-рекламы</ChannelLabel></h3>
-      {cost.status === "no_spend" ? <p className="mt-1 t-body-compact text-fg-2">— Расход за период не введён.</p> : null}
       {cost.status === "mixed_currencies"
-        ? <p className="mt-1 t-body-compact text-fg-2">— Расход в разных валютах ({cost.currencies.join(", ")}): цена не считается, валюты не складываются.</p> : null}
+        ? <p className="mt-1 t-body-compact text-fg-2">Расход в разных валютах ({cost.currencies.join(", ")}): цена не считается, валюты не складываются.</p> : null}
       {cost.status === "single" ? (
         <ul className="mt-3 grid gap-x-8 gap-y-4 sm:grid-cols-3">
           {cost.levels.map((level) => (
@@ -267,11 +271,13 @@ function Signals({ signals }: Readonly<{ signals: readonly MarketingSignal[] }>)
  * «что с ними стало на сегодня») и продажи периода (дата договора) со сверкой с «Продажами» отчёта; ниже
  * расход, введённый вручную, и цена заявки. Сбой чтения — слова и «Повторить», а не ноль.
  */
-export function MarketingOverviewView({ read, recent, period, retryHref }: Readonly<{
+export function MarketingOverviewView({ read, recent, period, retryHref, unknownHref }: Readonly<{
   read: MarketingOverviewRead;
   recent: Readonly<{ leads: number; spendRows: number }> | null;
   period: Readonly<{ from: string; to: string }>;
   retryHref: string;
+  /** «Заявки» с отметкой «Источник не известен» — единственный путь исправить его из обзора. */
+  unknownHref?: string;
 }>) {
   if (read.status === "denied") return <p role="alert" className="t-body-compact text-fg-2">Раздел доступен только администратору.</p>;
   if (read.status === "unavailable") return <Unavailable what="обзор маркетинга" retryHref={retryHref} />;
@@ -280,7 +286,7 @@ export function MarketingOverviewView({ read, recent, period, retryHref }: Reado
     <div className="space-y-8" data-testid="marketing-overview">
       <Signals signals={marketingSignals(overview, recent)} />
       <ChannelMix overview={overview} />
-      <CohortBlock overview={overview} />
+      <CohortBlock overview={overview} unknownHref={unknownHref} />
       <SalesBlock overview={overview} />
       <section aria-labelledby="mk-spend" data-testid="marketing-spend" className={BLOCK}>
         <h2 id="mk-spend" className="t-section text-fg">Расход периода</h2>

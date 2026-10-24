@@ -1,7 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound, redirect, unstable_rethrow } from "next/navigation";
+import { Icon } from "@/components/icons";
 import { PartShell } from "@/components/v3/PartShell";
+import { QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import { UniversityFormCreate } from "@/components/v3/universities/forms/UniversityFormCreate";
 import { UniversityFormUpload } from "@/components/v3/universities/forms/UniversityFormUpload";
 import { UniversityFormUploadStatus } from "@/components/v3/universities/forms/UniversityFormUploadStatus";
@@ -22,7 +24,12 @@ import { universityFormManagement as management, universityFormSourceLabel } fro
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Университеты" };
-const link = "inline-flex min-h-11 items-center rounded-ctl px-3 py-2 text-sm font-medium text-fg-2 hover:bg-surface-2";
+// Серверная страница: классы кнопок — свои строки (клиентские модули отдают серверу ссылки, не строки).
+const BACK = "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4";
+const PRIMARY_LINK = "v3-raised inline-flex h-11 items-center justify-center gap-1.5 rounded-ctl border border-accent bg-accent px-4 t-label text-on-accent hover:border-accent-2 hover:bg-accent-2";
+const link = QUEUE_SECONDARY;
+const quiet = "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
+const CHOICE_LINK = "v3-choice inline-flex min-h-11 items-center rounded-ctl px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
 type Query = Record<string, string | string[] | undefined>;
 function single(query: Query, key: string): string | undefined {
   const value = query[key]; if (Array.isArray(value)) notFound(); return value;
@@ -45,6 +52,7 @@ export default async function UniversityFormsPage({ params, searchParams }: {
   const create = single(query, "new") === "1", upload = single(query, "upload") === "1", edit = single(query, "edit") === "1";
   if ((create && (templateId || upload || edit)) || (upload && edit) || (mappingId && !versionId)
     || ((edit || upload || versionId || beforeVersion || beforeMapping || mappingId) && !templateId)) notFound();
+  const backLink = <Link href={`/v3/universities/${catalogId}`} className={BACK}><Icon name="arrow-left" size={16} />{words.back}</Link>;
   let data, university;
   try {
     const [catalogue, forms] = await Promise.all([readStaffUniversities(actor, undefined, catalogId),
@@ -52,9 +60,8 @@ export default async function UniversityFormsPage({ params, searchParams }: {
     university = catalogue.items[0] ?? notFound(); data = forms;
   } catch (error) {
     unstable_rethrow(error);
-    return <PartShell title={words.title}><div className="space-y-4">
-      <Link href={`/v3/universities/${catalogId}`} className={link}>{words.back}</Link>
-      <p role="alert" className="max-w-2xl text-sm leading-6 text-fg-2">{error instanceof PlatformUniversityFormError && error.code !== "unavailable" ? universityFormActionMessage(error.code) : words.readUnavailable}</p>
+    return <PartShell title={words.title} back={backLink}><div className="space-y-4">
+      <p role="alert" className="max-w-2xl t-body-compact text-fg-2">{error instanceof PlatformUniversityFormError && error.code !== "unavailable" ? universityFormActionMessage(error.code) : words.readUnavailable}</p>
       <a className={link} href={base}>{words.reload}</a>
     </div></PartShell>;
   }
@@ -65,30 +72,29 @@ export default async function UniversityFormsPage({ params, searchParams }: {
   if (mappingId && !mapping) notFound();
   const writable = workspace && workspace.can_manage && !workspace.template.archived && inspection?.source_current !== false;
   const mappingUrl = workspace && selected && mapping ? `${base}?template=${workspace.template.id}&version=${selected.id}${beforeMapping ? `&before_mapping=${beforeMapping}` : ""}&mapping=${mapping.id}` : undefined;
-  return <PartShell title={words.title}>
+  // Бланков нет: список слева был бы пустым, и «Бланков пока нет» читалось дважды. Тогда одна колонка с одним пустым состоянием и кнопкой.
+  const hasTemplates = templates.items.length > 0;
+  const addLink = !create ? <Link prefetch={false} href={`${base}?new=1`} className={hasTemplates ? link : PRIMARY_LINK}>{words.add}</Link> : null;
+  return <PartShell title={words.title} back={backLink} meta={university.content.name} action={hasTemplates ? addLink : undefined}>
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><Link href={`/v3/universities/${catalogId}`} className={link}>{words.back}</Link><p className="px-3 text-sm text-fg-2">{university.content.name}</p></div>
-        {!create ? <Link prefetch={false} href={`${base}?new=1`} className={`${link} border border-border`}>{words.add}</Link> : null}
-      </div>
-      <div className="grid gap-8 lg:grid-cols-[16rem_minmax(0,1fr)]">
-        <nav aria-label={words.title} className="space-y-4 border-b border-border pb-5 lg:border-b-0 lg:border-r lg:pr-5">
-          {templates.items.length ? <ul className="space-y-1">{templates.items.map(item => <li key={item.id}>
+      <div className={hasTemplates ? "grid gap-8 lg:grid-cols-[16rem_minmax(0,1fr)]" : "grid gap-8"}>
+        {hasTemplates ? <nav aria-label={words.title} className="space-y-4 border-b border-border pb-5 lg:border-b-0 lg:border-r lg:pr-5">
+          <ul className="space-y-1">{templates.items.map(item => <li key={item.id}>
             <Link prefetch={false} href={`${base}?template=${item.id}`} aria-current={templateId === item.id ? "page" : undefined}
               className="v3-choice block min-h-11 rounded-ctl border-l-2 border-transparent px-3 py-3 font-medium text-fg hover:bg-surface-2">
-              <span className="block break-words text-sm">{item.title}</span>
-              <span className="mt-1 block text-sm font-normal text-fg-2">{item.archived ? words.archived : item.publication ? words.published : words.draft}</span>
+              <span className="block break-words t-body-compact">{item.title}</span>
+              <span className="mt-1 block t-meta font-normal text-fg-2">{item.archived ? words.archived : item.publication ? words.published : words.draft}</span>
             </Link>
-          </li>)}</ul> : <p className="text-sm text-fg-2">{words.empty}</p>}
-          {templates.next_after_id ? <Link href={`${base}?after=${templates.next_after_id}`} className={link}>{words.more}</Link> : null}
-          {afterId ? <Link href={base} className={link}>{words.first}</Link> : null}
-        </nav>
+          </li>)}</ul>
+          {templates.next_after_id ? <Link href={`${base}?after=${templates.next_after_id}`} className={quiet}>{words.more}</Link> : null}
+          {afterId ? <Link href={base} className={quiet}>{words.first}</Link> : null}
+        </nav> : null}
         <div className="min-w-0 space-y-6">
           {create ? <UniversityFormCreate key="create" catalogId={catalogId} templateId={randomUUID()} requestId={randomUUID()} action={createUniversityFormAction} />
             : workspace ? <>
               <div className="space-y-2"><h2 className="t-record-title break-words text-fg">{workspace.template.title}</h2>
-                {workspace.template.archived ? <p className="text-sm text-fg-2">{words.archived}</p> : null}
-                {inspection?.source_current === false && !workspace.template.archived ? <p role="alert" className="text-sm text-fg-2">{words.sourceChanged}</p> : null}
+                {workspace.template.archived ? <p className="t-body-compact text-fg-2">{words.archived}</p> : null}
+                {inspection?.source_current === false && !workspace.template.archived ? <p role="alert" className="t-body-compact text-fg-2">{words.sourceChanged}</p> : null}
               </div>
               {writable && (upload || !selected || (inspection?.inspection === "pending" && !inspection.ingress)) ?
                 <UniversityFormUpload key={`${workspace.template.id}:${upload ? "new" : selected?.id ?? "first"}`}
@@ -96,7 +102,7 @@ export default async function UniversityFormsPage({ params, searchParams }: {
                   reserveRequestId={randomUUID()} uploadRequestId={randomUUID()} version={upload ? null : selected}
                   action={reserveUniversityFormVersionAction} />
                 : selected && !workspace.template.archived ? <UniversityFormUploadStatus key={selected.id} catalogId={catalogId} templateId={workspace.template.id} version={selected} initialInspection={inspection} /> : null}
-              {writable && selected && !upload ? <Link prefetch={false} href={`${base}?template=${workspace.template.id}&upload=1`} className={link}>{words.newVersion}</Link> : null}
+              {writable && selected && !upload ? <div><Link prefetch={false} href={`${base}?template=${workspace.template.id}&upload=1`} className={link}>{words.newVersion}</Link></div> : null}
               {writable && selected && inspection?.inspection === "verified" && inspection.manifest && !upload ?
                 !mapping || edit ? <MappingEditor key={`edit:${selected.id}:${mapping?.id ?? "new"}`}
                   catalogId={catalogId} templateId={workspace.template.id} revision={workspace.template.revision} version={selected}
@@ -129,11 +135,11 @@ export default async function UniversityFormsPage({ params, searchParams }: {
                 versionId={selected.id} mappings={workspace.mappings} selectedId={mapping?.id} before={beforeMapping} next={workspace.next_mapping_before} /> : null}
               {workspace.versions.length ? <details className="border-t border-border pt-4"><summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-fg">{words.versions}</summary>
                 <ul className="space-y-1">{workspace.versions.map(version => <li key={version.id}>
-                  <Link prefetch={false} href={`${base}?template=${workspace.template.id}&version=${version.id}`} className={`v3-choice ${link}`} aria-current={selected?.id === version.id ? "page" : undefined}>
+                  <Link prefetch={false} href={`${base}?template=${workspace.template.id}&version=${version.id}`} className={CHOICE_LINK} aria-current={selected?.id === version.id ? "page" : undefined}>
                     {words.version} {version.number} · {new Intl.DateTimeFormat("ru", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(version.created_at))}
                   </Link></li>)}</ul>
-                {workspace.next_version_before ? <Link href={`${base}?template=${workspace.template.id}&before_version=${workspace.next_version_before}`} className={link}>{words.olderVersions}</Link> : null}
-                {beforeVersion ? <Link href={`${base}?template=${workspace.template.id}`} className={link}>{words.currentVersion}</Link> : null}
+                {workspace.next_version_before ? <Link href={`${base}?template=${workspace.template.id}&before_version=${workspace.next_version_before}`} className={quiet}>{words.olderVersions}</Link> : null}
+                {beforeVersion ? <Link href={`${base}?template=${workspace.template.id}`} className={quiet}>{words.currentVersion}</Link> : null}
               </details> : null}
               {writable && !upload && !edit ? <details className="border-t border-border pt-4">
                 <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-fg-2">{management.archive}</summary>
@@ -141,8 +147,10 @@ export default async function UniversityFormsPage({ params, searchParams }: {
                   versionId={selected?.id ?? null} revision={workspace.template.revision} requestId={randomUUID()}
                   decision={{ operation: "archive" }} action={manageUniversityFormAction} />
               </details> : null}
-            </> : <div className="space-y-2"><h2 className="t-section text-fg">{templates.items.length ? words.choose : words.empty}</h2>
-              <p className="max-w-xl text-sm leading-6 text-fg-2">{templates.items.length ? words.chooseExplanation : words.emptyExplanation}</p></div>}
+            </> : hasTemplates ? <h2 className="t-section text-fg">{words.choose}</h2>
+              : <div className="space-y-3"><h2 className="t-section text-fg">{words.empty}</h2>
+                <p className="max-w-xl t-body-compact text-fg-2">{words.emptyExplanation}</p>
+                {addLink}</div>}
         </div>
       </div>
     </div>

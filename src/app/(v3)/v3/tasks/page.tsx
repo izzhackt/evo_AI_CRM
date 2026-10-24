@@ -95,10 +95,13 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     try { taskContext = await readStaffTaskContext(actor, selected.id); }
     catch { contextUnavailable = true; }
   }
+  // Набор читается один раз: от него зависит, называют ли панель и список клиента (как на «Сегодня»).
+  let dialRead: ReturnType<typeof readDialOptions> | null = null;
+  const dialOptions = () => (dialRead ??= readDialOptions(actor));
   // Задача «Перезвонить клиенту» несёт лид: пока набор открыт этому сотруднику, панель называет клиента и звонит.
   let taskLead: (TaskLeadRef & { mapped: boolean }) | null = null;
   if (selected && taskContext?.leadId) {
-    const dial = await readDialOptions(actor);
+    const dial = await dialOptions();
     if (dial.status === "ready") {
       const ref = await readLeadRef(actor, taskContext.leadId);
       if (ref) taskLead = { ...ref, mapped: dial.mapped };
@@ -124,8 +127,11 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   // Панель — часть адреса списка: закрытие возвращает те же вид, фильтры и поиск.
   const closeHref = listHref();
   const canReadTaskQueue = workspace.canReadStaffTasks || workspace.canReadCaseTasks;
-  // Задачи-перезвоны называют клиента в строке; чтение не удалось — строка остаётся «Рабочая».
-  const taskLeads = canReadTaskQueue && workspace.canReadStaffTasks ? await readQueueTaskLeads(actor, queue.bands.flatMap((band) => band.rows)) : {};
+  // Задачи-перезвоны называют клиента в строке — только пока набор открыт этому сотруднику, как на «Сегодня»
+  // (иначе список называл бы клиентов там, где панель не называет); у страницы «Задачи по лиду» списка нет.
+  // Чтение не удалось — строка остаётся «Рабочая».
+  const taskLeads = !sourceLead && canReadTaskQueue && workspace.canReadStaffTasks && (await dialOptions()).status === "ready"
+    ? await readQueueTaskLeads(actor, queue.bands.flatMap((band) => band.rows)) : {};
   const staffAllowed = !preview && staffHasPermission(actor, "staff.task.create") && !sourceLeadId;
   const composerProps = {
     participants: workspace.assignees, actorMembershipId: actor.membershipId, actor, day, staffAllowed,

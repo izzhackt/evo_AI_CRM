@@ -491,7 +491,11 @@ test("P3 wiring: counts, labels, the email retry, the note rule and the Auth jou
   const settingsPage = source("src/app/(v3)/v3/settings/page.tsx");
   assert.match(settingsPage, /readOpenAccountDeletionCount\(actor\)/u);
   assert.match(settingsPage, /deletionOpen=\{deletionOpen\}/u);
-  assert.match(source("src/components/v3/settings/Settings.tsx"), /entry\.key === "deletion" && deletionOpen && deletionOpen\.open > 0/u);
+  const settingsView = source("src/components/v3/settings/Settings.tsx");
+  assert.match(settingsView, /if \(!open \|\| open\.open <= 0\) return null;/u, "no counter at zero");
+  assert.match(settingsView, /entry\.key === "deletion" \? <DeletionCount open=\{deletionOpen\}/u, "the list item carries the count");
+  assert.match(settingsView, /current\.key === "deletion" \? null : <DeletionCount open=\{deletionOpen\} \/>/u, "the folded phone list still shows the count on its button");
+  assert.match(settingsView, /просрочено: \$\{open\.overdue\}/u, "overdue is spoken");
   const reader = source("src/lib/v3/account-deletion-source.ts");
   const open = reader.slice(reader.indexOf("export async function readOpenAccountDeletionCount"));
   assert.ok(open.indexOf('actor.systemRole !== "admin" || isStaffPreview(actor)') < open.indexOf("createSupabaseServerClient()"),

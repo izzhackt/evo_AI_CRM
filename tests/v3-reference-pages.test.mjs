@@ -275,7 +275,7 @@ test("«Настройки»: open on «Сотрудники», one section list
   const staff = page("settings-staff");
   const navAll = staff.match(/<nav aria-label="Разделы настроек"[\s\S]*?<\/nav>/u)[0];
   // Узкий экран — текущий раздел одной кнопкой со списком (`details`), от 56rem — столбец; ссылки в обоих те же.
-  assert.match(navAll, /^<nav [^>]*><details class="group @4xl:hidden"[^>]*><summary [^>]*>Сотрудники<svg/u);
+  assert.match(navAll, /^<nav [^>]*><details class="group @4xl:hidden"[^>]*><summary [^>]*><span class="flex min-w-0 items-center">Сотрудники<\/span><svg/u);
   const nav = navAll.slice(navAll.indexOf('<ul class="hidden gap-1 @4xl:flex @4xl:flex-col">'));
   assert.deepEqual([...navAll.slice(0, navAll.indexOf('<ul class="hidden')).matchAll(/<a\b[^>]*>([^<]+)<\/a>/gu)].map((match) => match[1]),
     ["Сотрудники", "Роли и доступ", "Отделы", "Интеграции", "Телефония", "Журнал действий", "Запросы на удаление", "Документы и передача", "Платформа"]);

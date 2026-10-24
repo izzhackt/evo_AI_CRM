@@ -63,6 +63,15 @@ export function taskRowAbilities(task: QueueTask, permissions: TaskRowPermission
 }
 
 /**
+ * Почему выбранная задача не подходит массовому действию: называется настоящая причина (права или роль в задаче),
+ * а не одно слово на все случаи. Подходит ли задача, решает `taskRowAbilities`; сервер проверяет каждую сам.
+ */
+export function taskBulkSkipReason(task: QueueTask, permissions: TaskRowPermissions, action: "complete" | "edit"): string {
+  if (action === "complete") return task.kind === "staff" && permissions.staffComplete ? "завершает исполнитель" : "нет права завершать";
+  return task.kind === "staff" && permissions.staffEdit ? "меняет автор" : "нет права менять";
+}
+
+/**
  * Колонка выбора (Э7): у списка с массовыми действиями отметок нет, пока не
  * нажато «Выбрать» или клавиша «x» (`revealed`): круг выполнения не соседствует
  * с отметкой ни на телефоне, ни на компьютере. С отметками первая колонка шире —

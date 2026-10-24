@@ -174,6 +174,32 @@ test("settings: the warning above the sections exists only when work stops, and 
   assert.doesNotMatch(source("src/components/v3/settings/Settings.tsx"), /виден только администратору|>\s*админ\s*</u);
 });
 
+test("settings journal: the type filter is hidden only when there is nothing to filter and nothing active — an active type keeps «Все»", () => {
+  const { JournalSection } = compile("src/components/v3/settings/sections.tsx", (id) => {
+    if (id === "next/link") return { default: function Link() { return null; } };
+    if (id === "@/components/icons") return { Icon: () => null };
+    if (id === "@/components/ui") return { btnGhostCls: "", btnCls: "", Card: function Card() { return null; } };
+    if (id === "@/lib/v3/whatsapp-connect-contract") return { WHATSAPP_CONNECT_ANCHOR: "whatsapp-connect" };
+    if (id === "@/components/v3/Pill") return { Pill: function Pill() { return null; } };
+    if (id === "@/lib/v3/wording") return { journalActor: String, journalEvent: () => null, journalEventText: String, journalObject: String };
+    if (id === "@/lib/v3/settings-journal-contract") return { journalNotice: () => null };
+    if (id === "@/components/v3/queue/QueueStates") return { QUEUE_QUIET_LINK: "" };
+    return undefined;
+  });
+  const props = (facets, active) => ({
+    entries: [], status: "ready", exportEnabled: false, facets: { objectTypes: facets }, active,
+    hrefFor: (next) => (next.objectType ? `/journal?type=${next.objectType}` : "/journal"),
+  });
+  const nav = (facets, active) => findElements(JournalSection(props(facets, active)), (node) => node.props?.["aria-label"] === "Фильтры журнала");
+  assert.equal(nav([], {}).length, 0, "no types and no filter: a lone «Все» chip is noise");
+  assert.equal(nav([{ key: "lead", count: 3 }], {}).length, 1, "types to filter by");
+  const kept = nav([], { objectType: "lead" });
+  assert.equal(kept.length, 1, "a filter from the address needs a visible way back");
+  const links = findElements(kept[0], (node) => node.type?.name === "Link");
+  assert.equal(links.length, 1);
+  assert.equal(links[0].props.href, "/journal", "«Все» clears the filter");
+});
+
 test("settings: a working WhatsApp session with intake switched off says so plainly instead of «подключён»", () => {
   const working = { display: "ready", sessionStatus: "WORKING", observedAt: "2026-09-27T03:59:00.000Z" };
   const off = byKey(settingsIntegrations({ ...PRODUCTION_26_09, waha: { ...working, ingressEnabled: false } }, NOW)).whatsapp;

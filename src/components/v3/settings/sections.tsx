@@ -225,7 +225,8 @@ export function JournalSection({
     <div className="flex flex-col gap-4">
       {/* Фильтры — ссылки: адрес несёт выбор, поэтому отфильтрованный журнал
           можно переслать и вернуться назад кнопкой браузера. */}
-      {facets.objectTypes.length > 0 ? <nav aria-label="Фильтры журнала" className="flex flex-col gap-2">
+      {/* Выбранный тип остаётся с «Все»: список типов не читается (пуст), а сбросить фильтр из адреса нужно. */}
+      {facets.objectTypes.length > 0 || active.objectType ? <nav aria-label="Фильтры журнала" className="flex flex-col gap-2">
         <p className="t-caption text-fg-3">Тип записи</p>
         <ul className="flex flex-wrap gap-1.5">
           <li>

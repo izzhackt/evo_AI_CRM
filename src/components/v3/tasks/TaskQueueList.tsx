@@ -8,7 +8,7 @@ import { DueBands } from "../queue/DueBands";
 import { queueHref, type QueueParams } from "../queue/queue-url";
 import { useQueueKeyboard } from "../queue/useQueueKeyboard";
 import { TaskBulkActions } from "./TaskBulkActions";
-import { TaskQueueRow, taskRowAbilities, type TaskRowPermissions } from "./TaskQueueRow";
+import { TaskQueueRow, taskBulkSkipReason, taskRowAbilities, type TaskRowPermissions } from "./TaskQueueRow";
 import { useRecentCompletions, useUndoToasts } from "./useRecentCompletions";
 
 export type TaskQueueBandData = Readonly<{
@@ -59,15 +59,21 @@ export function TaskQueueList({
   const toasts = useUndoToasts(recent, undo);
   useQueueKeyboard({ openKey });
 
-  // Массовые действия (Э7): выбрать можно задачи, которые сотрудник может
-  // править, — открытые и не только что завершённые. Нет таких — нет колонки.
+  // Массовые действия (Э7): выбрать можно задачу, которую сотрудник может завершить (круг строки) или править
+  // («⋯» строки), — открытую и не только что завершённую. «Завершить» берёт первые, «Перенести срок» — вторые;
+  // остальным выбранным окно называет причину (`skip`). Нет таких задач — нет колонки.
   const now = new Date(nowIso);
-  const selectable = new Map(shown.flatMap((band) => band.rows)
-    .filter((task) => !recent[task.key] && taskRowAbilities(task, permissions, open, now).edit)
-    .map((task) => [task.key, task] as const));
+  const selectable = new Map<string, QueueTask>();
+  const skip = { complete: new Map<string, string>(), edit: new Map<string, string>() };
+  for (const task of shown.flatMap((band) => band.rows)) {
+    if (recent[task.key]) continue;
+    const can = taskRowAbilities(task, permissions, open, now);
+    if (!can.edit && !can.complete) continue;
+    selectable.set(task.key, task);
+    if (!can.complete) skip.complete.set(task.key, taskBulkSkipReason(task, permissions, "complete"));
+    if (!can.edit) skip.edit.set(task.key, taskBulkSkipReason(task, permissions, "edit"));
+  }
   const selectableKeys = [...selectable.keys()];
-  // «Завершить» выбранных — только то, что завершает и круг строки.
-  const completable = new Set(selectableKeys.filter((key) => taskRowAbilities(selectable.get(key)!, permissions, open, now).complete));
   const selection = useBulkSelection(selectableKeys);
   const bulk = selectable.size > 0;
 
@@ -112,7 +118,7 @@ export function TaskQueueList({
           )),
         }))}
       />
-      {bulk ? <TaskBulkActions selection={selection} tasks={selectable} allKeys={selectableKeys} nowIso={nowIso} completable={completable} /> : null}
+      {bulk ? <TaskBulkActions selection={selection} tasks={selectable} allKeys={selectableKeys} nowIso={nowIso} skip={skip} /> : null}
       {/* «Отменить» строкой в верхнем слое (Э1.3). */}
       <UndoToast items={toasts} onHold={hold} />
     </div>

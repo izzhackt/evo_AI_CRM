@@ -21,6 +21,22 @@ import {
 import { SECTIONS, type GateFacts, type IntegrationRow, type JournalEntry, type SectionKey, type StaffView } from "./types";
 import type { JournalStatus } from "@/lib/v3/settings-journal-contract";
 
+/** Число не выполненных запросов на удаление (срок — 30 дней): круг со словами для чтения с экрана. */
+function DeletionCount({ open, testId }: Readonly<{ open: AccountDeletionOpenCount | null | undefined; testId?: string }>) {
+  if (!open || open.open <= 0) return null;
+  return (
+    <>
+      <span aria-hidden="true" data-testid={testId}
+        className="t-caption ms-2 min-w-5 rounded-full bg-fg px-1 text-center tabular-nums text-surface">
+        {open.open > 99 ? "99+" : open.open}
+      </span>
+      <span className="sr-only">
+        {`, не выполнено: ${open.open}${open.overdue > 0 ? `, просрочено: ${open.overdue}` : ""}`}
+      </span>
+    </>
+  );
+}
+
 /**
  * Настройки: список разделов слева, раздел справа.
  *
@@ -114,7 +130,8 @@ export function Settings({
   const staffSection = current.key === "staff" && isAdmin && staff && staffRoles ? { staff, staffRoles } : null;
   // Один список разделов — две раскладки по ширине: столбец слева от 56rem, на узком экране — текущий раздел одной
   // кнопкой, остальные открываются списком (девять названий в четыре-пять строк съедали первый экран).
-  const navLinks = SECTIONS.map((entry) => (
+  // Число на пункте «Запросы на удаление» — в обеих раскладках, но `data-testid` — у одной (у столбца слева).
+  const navLinks = (compact: boolean) => SECTIONS.map((entry) => (
     <li key={`${entry.key}-${entry.view ?? ""}`}>
       <Link
         href={hrefFor(entry.key, entry.view)}
@@ -122,17 +139,7 @@ export function Settings({
         className="v3-choice inline-flex min-h-11 w-full items-center whitespace-nowrap rounded-nav px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
       >
         {entry.title}
-        {entry.key === "deletion" && deletionOpen && deletionOpen.open > 0 ? (
-          <>
-            <span aria-hidden="true" data-testid="v3-settings-deletion-count"
-              className="t-caption ms-2 min-w-5 rounded-full bg-fg px-1 text-center tabular-nums text-surface">
-              {deletionOpen.open > 99 ? "99+" : deletionOpen.open}
-            </span>
-            <span className="sr-only">
-              {`, не выполнено: ${deletionOpen.open}${deletionOpen.overdue > 0 ? `, просрочено: ${deletionOpen.overdue}` : ""}`}
-            </span>
-          </>
-        ) : null}
+        {entry.key === "deletion" ? <DeletionCount open={deletionOpen} testId={compact ? undefined : "v3-settings-deletion-count"} /> : null}
       </Link>
     </li>
   ));
@@ -147,12 +154,16 @@ export function Settings({
           {/* Ключ — раздел: после перехода список закрывается сам. */}
           <details key={`${current.key}-${current.view ?? ""}`} className="group @4xl:hidden" data-testid="v3-settings-nav-compact">
             <summary className="v3-raised flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg [&::-webkit-details-marker]:hidden">
-              {current.title}
+              <span className="flex min-w-0 items-center">
+                {current.title}
+                {/* Закрытый список не показывает пункты: число невыполненных запросов видно и на кнопке. */}
+                {current.key === "deletion" ? null : <DeletionCount open={deletionOpen} />}
+              </span>
               <Icon name="chevron-down" size={16} className="shrink-0 text-fg-3 group-open:rotate-180" />
             </summary>
-            <ul className="mt-1 space-y-0.5 rounded-ctl border border-border bg-surface p-1">{navLinks}</ul>
+            <ul className="mt-1 space-y-0.5 rounded-ctl border border-border bg-surface p-1">{navLinks(true)}</ul>
           </details>
-          <ul className="hidden gap-1 @4xl:flex @4xl:flex-col">{navLinks}</ul>
+          <ul className="hidden gap-1 @4xl:flex @4xl:flex-col">{navLinks(false)}</ul>
         </nav>
 
         <div className="min-w-0">

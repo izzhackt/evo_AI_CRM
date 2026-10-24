@@ -264,7 +264,7 @@ export function TaskDetailPanel({
                     </select>}
               </label>
               {/* Срок — тот же редактор, что в диалоге «Новая задача»: «Сегодня», «Завтра», «Дата…», «Без срока». */}
-              <ComposerDeadlineField day={day} current={{ day: projection.day, minutes: projection.minutes }} disabled={pending} />
+              <ComposerDeadlineField day={day} current={{ day: projection.day, minutes: projection.minutes, dueAt }} disabled={pending} />
               {data.kind === "case" ? <label className="block t-label text-fg-2">Причина изменения
                 <input value={editReason} onChange={(event) => setEditReason(event.target.value)} required maxLength={1000} disabled={pending} className={QUEUE_FIELD} />
               </label> : null}

@@ -81,24 +81,24 @@ export async function completeTask(
 
 /**
  * «Завершить» и «Перенести срок» выбранных задач (Э7). «Завершить» берёт те же
- * задачи, что и круг строки (`taskRowAbilities().complete`, считает список):
- * остальные названы в окне как «не подходят». Выбирают только задачи, которые
- * сотрудник может править (`taskRowAbilities`); сервер проверяет каждую сам.
+ * задачи, что и круг строки, «Перенести срок» — те, что строка позволяет править
+ * (`taskRowAbilities`, считает список); остальные названы в окне как «не подходят»,
+ * с причиной из `skip`. Сервер проверяет каждую задачу сам.
  */
 export function TaskBulkActions({
   selection,
   tasks,
   allKeys,
   nowIso,
-  completable: completableKeys,
+  skip,
 }: Readonly<{
   selection: BulkSelection;
   /** Выбираемые задачи страницы по ключу. */
   tasks: ReadonlyMap<string, QueueTask>;
   allKeys: readonly string[];
   nowIso: string;
-  /** Ключи задач, которые сотрудник может завершить (как круг строки). */
-  completable: ReadonlySet<string>;
+  /** Ключ задачи → причина, по которой её нельзя завершить / перенести (нет ключа — можно). */
+  skip: Readonly<{ complete: ReadonlyMap<string, string>; edit: ReadonlyMap<string, string> }>;
 }>) {
   const router = useRouter();
   const requestIds = useBulkRequestIds();
@@ -115,12 +115,16 @@ export function TaskBulkActions({
     const task = tasks.get(key);
     return task ? [{ key, label: task.title, task }] : [];
   });
-  const needsReason = items.some((item) => item.task.kind === "case");
-  const completable = items.filter((item) => completableKeys.has(item.key));
-  const notCompletable = items
-    .filter((item) => !completable.includes(item))
-    .map((item) => ({ key: item.key, label: item.label, reason: "завершает исполнитель" }));
-  const needsOutcome = completable.some((item) => item.task.kind === "case");
+  const split = (blocked: ReadonlyMap<string, string>) => ({
+    fit: items.filter((item) => !blocked.has(item.key)),
+    skipped: items.filter((item) => blocked.has(item.key)).map((item) => ({ key: item.key, label: item.label, reason: blocked.get(item.key)! })),
+  });
+  const complete = split(skip.complete);
+  const edit = split(skip.edit);
+  const needsReason = edit.fit.some((item) => item.task.kind === "case");
+  const needsOutcome = complete.fit.some((item) => item.task.kind === "case");
+  // Не подходит ни одной выбранной — причина словами рядом с кнопкой (первая из названных).
+  const sentence = (rows: readonly Readonly<{ reason: string }>[]) => rows[0] ? rows[0].reason.charAt(0).toUpperCase() + rows[0].reason.slice(1) : null;
 
   return (
     <BulkBar selection={selection} allKeys={allKeys} noun={TASK_NOUN} keep={dialogOpen || completeOpen}>
@@ -128,11 +132,11 @@ export function TaskBulkActions({
         title="Завершить"
         triggerLabel="Завершить"
         testId="task-bulk-complete"
-        items={completable}
-        skipped={notCompletable}
+        items={complete.fit}
+        skipped={complete.skipped}
         noun={TASK_NOUN}
         selection={selection}
-        emptyReason="Завершает исполнитель"
+        emptyReason={sentence(complete.skipped)}
         onOpenChange={setCompleteOpen}
         validate={() => needsOutcome && !outcome.trim() ? "Напишите результат: без него задача по студенту не завершается." : null}
         command={async (item) => {
@@ -151,10 +155,11 @@ export function TaskBulkActions({
         title="Перенести срок"
         triggerLabel="Перенести срок"
         testId="task-bulk-reschedule"
-        items={items}
-        skipped={[]}
+        items={edit.fit}
+        skipped={edit.skipped}
         noun={TASK_NOUN}
         selection={selection}
+        emptyReason={sentence(edit.skipped)}
         onOpenChange={setDialogOpen}
         validate={() => {
           const day = bulkDueDay(choice, date, today);

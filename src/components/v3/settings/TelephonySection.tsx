@@ -116,7 +116,9 @@ function ConnectionGuide({ server, inboundUrl }: Readonly<{ server: TelephonySer
     <>
       <p className="mb-2 max-w-prose t-body-compact text-fg-2">
         Эти значения вносят в форму «Интеграция с вашей CRM» в кабинете ВАТС.
-        {settled ? "" : " Подключение создают в тихое время, когда владелец рядом: пока оно живо, каждый входящий звонок обращается к CRM."}
+        {settled
+          ? " Создавайте подключение в тихое время, когда владелец рядом."
+          : " Подключение создают в тихое время, когда владелец рядом: пока оно живо, каждый входящий звонок обращается к CRM."}
       </p>
       <dl className="divide-y divide-border rounded-card border border-border bg-surface">
         <Field label="Имя вашей CRM">EVO CRM</Field>

@@ -348,6 +348,7 @@ function work(fields = {}) {
     chat: fields.chat ?? CHAT.needsReply,
     activity: fields.activity ?? ACTIVITY,
     needsCurator: false, deletionRequested: fields.deletionRequested ?? false, today: TODAY, nowIso: NOW.toISOString(),
+    ...(fields.aiConsent === undefined ? {} : { aiConsent: fields.aiConsent }),
   };
 }
 
@@ -379,6 +380,15 @@ const SCENARIOS = {
   // «⋯» у заголовка — «Завершить дело» (246): сервер подсказал право.
   "curator": { actor: CURATOR, profile: profile(), draft: draft({ handoff: { ...HANDOFF_ACCEPTED, canRespond: true } }), sales: null, work: work(),
     closure: { studentCaseId: CASE_ID, state: "active", admissionsVersion: "4", closedAt: null, outcome: null, note: null, closedByName: null, canChange: true } },
+  // Чип «ИИ: ...» шапки (миграция 320): разрешено, не разрешено, не спрашивали (с кабинетом и без него).
+  "ai-consent-granted": { actor: CURATOR, profile: profile(), draft: draft({ handoff: { ...HANDOFF_ACCEPTED, canRespond: true } }), sales: null,
+    work: work({ aiConsent: { status: "granted", decidedAt: "2026-10-25T05:00:00.000000+00:00", aiAllowed: true } }) },
+  "ai-consent-declined": { actor: CURATOR, profile: profile(), draft: draft({ handoff: { ...HANDOFF_ACCEPTED, canRespond: true } }), sales: null,
+    work: work({ aiConsent: { status: "declined", decidedAt: "2026-10-25T06:30:00.000000+00:00", aiAllowed: false } }) },
+  "ai-consent-none": { actor: CURATOR, profile: profile(), draft: draft({ handoff: { ...HANDOFF_ACCEPTED, canRespond: true } }), sales: null,
+    work: work({ aiConsent: { status: null, decidedAt: null, aiAllowed: false } }) },
+  "ai-consent-none-no-portal": { actor: CURATOR, profile: profile(), draft: draft({ handoff: { ...HANDOFF_ACCEPTED, canRespond: true } }), sales: null,
+    work: work({ aiConsent: { status: null, decidedAt: null, aiAllowed: true } }) },
   // Admin по делу, связанному с лидом: контакты, доступ к порталу, продажа, оплата, «Данные продажи».
   "admin": { actor: ADMIN, profile: profile({ leadId: LEAD_ID, email: "student@example.invalid", phone: "+996 000 000 001" }),
     draft: draft({ finance: true, contract: true, paidPercent: 40, paid: "600 $", remaining: "900 $", saleConditions: SALE_CONDITIONS,

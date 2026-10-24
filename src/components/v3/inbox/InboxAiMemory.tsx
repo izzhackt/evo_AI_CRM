@@ -157,7 +157,11 @@ export function InboxAiMemory({ conversationId }: Readonly<{ conversationId: str
   const clampable = (summary?.length ?? 0) > AI_MEMORY_SUMMARY_CLAMP_FROM || (summary?.split("\n").length ?? 0) > 6;
   const meta = memory ? aiMemoryMeta(memory) : null;
   const canForget = !!memory && (!!memory.summary || !!memory.interest);
-  const running = state !== null && state !== "off" && state !== "paused";
+  const running = state !== null && state !== "off" && state !== "paused" && state !== "student";
+  // Студент не разрешил ИИ-помощников (320): новое не собирается, записанное раньше остаётся видимым.
+  const stored = state === "student" ? memory : null;
+  const showInterest = running || !!stored?.interest;
+  const showSummary = running || !!stored?.summary;
 
   return (
     <details className="v3-ai-memory" data-testid="v3-ai-memory" data-state={state ?? "loading"}>
@@ -189,45 +193,52 @@ export function InboxAiMemory({ conversationId }: Readonly<{ conversationId: str
             {state === "paused" ? (
               <p className="t-body-compact text-fg-2" data-testid="v3-ai-memory-paused">{AI_MEMORY_COPY.paused}</p>
             ) : null}
+            {state === "student" ? (
+              <p className="t-body-compact text-fg-2" data-testid="v3-ai-memory-student">{AI_MEMORY_COPY.student}</p>
+            ) : null}
             <dl className="space-y-2.5">
-              {running ? (
+              {showInterest || showSummary ? (
                 <>
-                  <div>
-                    <dt className="t-caption text-fg-3">Интерес</dt>
-                    <dd className={`mt-0.5 break-words t-body-compact ${memory?.interest ? "text-fg" : "text-fg-2"}`} data-testid="v3-ai-memory-interest">
-                      {memory?.interest ?? aiMemoryInterestState(view)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="t-caption text-fg-3">Сводка</dt>
-                    {summary ? (
-                      <dd className="mt-0.5">
-                        <p
-                          id={`${id}-summary`}
-                          className="v3-ai-memory-summary whitespace-pre-wrap break-words t-body-compact text-fg"
-                          data-clamped={(clampable && !whole) || undefined}
-                          data-testid="v3-ai-memory-summary"
-                        >
-                          {summary}
-                        </p>
-                        {clampable ? (
-                          <button
-                            type="button"
-                            className="v3-ai-link t-label"
-                            aria-expanded={whole}
-                            aria-controls={`${id}-summary`}
-                            onClick={() => setWhole((value) => !value)}
+                  {showInterest ? (
+                    <div>
+                      <dt className="t-caption text-fg-3">Интерес</dt>
+                      <dd className={`mt-0.5 break-words t-body-compact ${memory?.interest ? "text-fg" : "text-fg-2"}`} data-testid="v3-ai-memory-interest">
+                        {memory?.interest ?? aiMemoryInterestState(view)}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {showSummary ? (
+                    <div>
+                      <dt className="t-caption text-fg-3">Сводка</dt>
+                      {summary ? (
+                        <dd className="mt-0.5">
+                          <p
+                            id={`${id}-summary`}
+                            className="v3-ai-memory-summary whitespace-pre-wrap break-words t-body-compact text-fg"
+                            data-clamped={(clampable && !whole) || undefined}
+                            data-testid="v3-ai-memory-summary"
                           >
-                            {whole ? "Свернуть" : "Показать всё"}
-                          </button>
-                        ) : null}
-                      </dd>
-                    ) : (
-                      <dd className="mt-0.5 t-body-compact text-fg-2" data-testid="v3-ai-memory-summary-state">
-                        {state ? aiMemorySummaryState(state) : null}
-                      </dd>
-                    )}
-                  </div>
+                            {summary}
+                          </p>
+                          {clampable ? (
+                            <button
+                              type="button"
+                              className="v3-ai-link t-label"
+                              aria-expanded={whole}
+                              aria-controls={`${id}-summary`}
+                              onClick={() => setWhole((value) => !value)}
+                            >
+                              {whole ? "Свернуть" : "Показать всё"}
+                            </button>
+                          ) : null}
+                        </dd>
+                      ) : (
+                        <dd className="mt-0.5 t-body-compact text-fg-2" data-testid="v3-ai-memory-summary-state">
+                          {state ? aiMemorySummaryState(state) : null}
+                        </dd>
+                      )}
+                    </div>
+                  ) : null}
                 </>
               ) : null}
               <div>
@@ -251,7 +262,9 @@ export function InboxAiMemory({ conversationId }: Readonly<{ conversationId: str
 
             {canForget && confirming ? (
               <div className="v3-ai-memory-confirm" role="group" aria-labelledby={`${id}-confirm`} data-testid="v3-ai-memory-confirm">
-                <p id={`${id}-confirm`} className="t-body-compact text-fg">{AI_MEMORY_COPY.forgetConfirm}</p>
+                <p id={`${id}-confirm`} className="t-body-compact text-fg">
+                  {state === "student" ? AI_MEMORY_COPY.forgetConfirmStopped : AI_MEMORY_COPY.forgetConfirm}
+                </p>
                 <div className="flex flex-wrap items-center gap-x-4">
                   <button
                     ref={confirmRef}

@@ -84,6 +84,13 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // statuses and counts (no instruction text, message text or document content). They fall
 // through to the `action.startsWith("ai.")` branch of `expectedChangedFieldCodes`
 // (`["ai_status"]`), exactly like the server's `ai.%` branch of `p7a_changed_field_codes`.
+// Migration 320 («Согласие студента на ИИ-помощников», docs/PLAN_CHANGES.md «2026-10-25 · Согласие студента на
+// ИИ-помощников, база данных (миграция 320)») adds two actions, `ai.consent.grant` and `ai.consent.decline`
+// (written by `platform.portal_ai_consent_set_v1`: one row per change of the decision), and the resource type
+// `student_ai_consent`, by the same rename-and-union wrappers (`..._pre_student_ai_consent`). The rows name only
+// identifiers (the object is the consent row; the Auth id is in the actor principal, which the safe row never
+// shows): no text, no name. They fall through to the `action.startsWith("ai.")` branch of
+// `expectedChangedFieldCodes` (`["ai_status"]`), exactly like the server's `ai.%` branch.
 // `expectedChangedFieldCodes` below needed no new branch for 255's 71
 // actions: 9 `document.export.*` actions already hit the existing
 // `action.startsWith("document.")` branch (mirroring the server's
@@ -117,6 +124,8 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "ai.agent.token.rotate",
   "ai.agent.tool.read",
   "ai.agent.tool.write",
+  "ai.consent.decline",
+  "ai.consent.grant",
   "ai.control.set",
   "ai.draft.generate",
   "ai.draft.language.resolve",
@@ -399,6 +408,7 @@ export const PLATFORM_AUDIT_RESOURCE_TYPES = [
   "staff_role",
   "staff_task",
   "stop_factor",
+  "student_ai_consent",
   "student_case",
   "student_case_contract_draft",
   "student_case_update",

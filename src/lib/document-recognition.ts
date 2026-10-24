@@ -15,7 +15,7 @@ export const DOCUMENT_RECOGNITION_CLEANUP_STATES = Object.freeze([
 ] as const);
 export const DOCUMENT_RECOGNITION_REQUEST_ERROR_CODES = Object.freeze([
   "invalid_request", "unavailable", "profile_changed", "request_conflict", "equivalent_job_active",
-  "document_not_eligible", "profile_not_started", "budget_exhausted", "provider_not_configured",
+  "document_not_eligible", "profile_not_started", "budget_exhausted", "provider_not_configured", "ai_consent_missing",
 ] as const);
 export const DOCUMENT_RECOGNITION_FAILURE_CODES = Object.freeze([
   "document_not_eligible", "profile_not_started", "provider_not_configured", "budget_exhausted",

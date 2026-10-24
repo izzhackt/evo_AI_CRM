@@ -986,6 +986,7 @@ export const AI_AGENT_TOOL_ERROR_WORDS: Readonly<Record<string, string>> = {
   too_large: "слишком большой ответ",
   unavailable: "сервис недоступен",
   internal_error: "внутренняя ошибка",
+  ai_consent_missing: "нет согласия студента",
 };
 export const toolErrorWords = (code: string): string => AI_AGENT_TOOL_ERROR_WORDS[code] ?? "ошибка";
 

@@ -547,11 +547,14 @@ export const AI_AGENT_TOOL_LABELS: Readonly<Record<string, string>> = Object.fre
   Object.fromEntries(AI_AGENT_TOOLS.map((tool) => [tool.name, tool.title])),
 );
 
-/** Коды ошибок инструментов (`isError: true`, поле `error_code`). */
+/**
+ * Коды ошибок инструментов (`isError: true`, поле `error_code`). `ai_consent_missing` (миграция 320): студент дела не
+ * разрешил ИИ-помощников, переписка и файлы дела не выдаются.
+ */
 export const AI_AGENT_TOOL_ERROR_CODES = [
   "invalid_arguments", "not_found", "forbidden", "agent_disabled", "rate_limited", "conflict",
   "whatsapp_unavailable", "conversation_moved_on", "conversation_closed", "target_not_found",
-  "text_invalid", "no_inbound_message", "too_large", "unavailable", "internal_error",
+  "text_invalid", "no_inbound_message", "too_large", "unavailable", "internal_error", "ai_consent_missing",
 ] as const;
 export type AiAgentToolErrorCode = (typeof AI_AGENT_TOOL_ERROR_CODES)[number];
 

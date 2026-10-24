@@ -10,6 +10,7 @@
  * ночей проверки и подтверждённой строки о помощнике; паузу снимает только
  * человек. Здесь — форма данных, слова и проверки ввода до записи.
  */
+import { AI_CONSENT_MISSING_AUTOSEND_LINE } from "../ai-agents/consent.ts";
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "../platform-organization-time.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
@@ -283,6 +284,7 @@ export function aiAutosendPauseReason(pause: AiAutosendPause): string {
 export const AI_AUTOSEND_REASON_RU: Readonly<Record<string, string>> = Object.freeze({
   disabled: "Автоответчик выключен",
   no_consent: "Нет согласия на передачу текстов в Gemini",
+  ai_consent_missing: "Студент не дал согласия на ИИ-помощников",
   paused: "Автоответчик на паузе",
   shadow_mode: "Режим «Проверка без отправки»",
   not_sales: "Чат не в очереди продаж",
@@ -807,8 +809,13 @@ export function aiAutosendAnswersHere(chat: AiAutosendChat, serverOn: boolean): 
   return serverOn && chat.enabled && !chat.paused && !chat.excluded && (chat.mode === "live" || chat.liveTest);
 }
 
-/** Строка под переключателем «Автоответчик в этом чате». */
-export function aiAutosendChatLine(chat: AiAutosendChat, serverOn: boolean): string {
+/**
+ * Строка под переключателем «Автоответчик в этом чате». `studentAiAllowed: false` (окно ИИ знает это из чтения
+ * сохранённого ответа, миграция 320) — первое слово: база пропускает такой чат с `ai_consent_missing`, и строка
+ * «Ночью отвечает ...» была бы неправдой рядом с «Студент не дал согласия».
+ */
+export function aiAutosendChatLine(chat: AiAutosendChat, serverOn: boolean, studentAiAllowed = true): string {
+  if (!studentAiAllowed) return AI_CONSENT_MISSING_AUTOSEND_LINE;
   if (chat.excluded) return "Чат исключён — автоответчик сюда не пишет.";
   if (chat.paused) return "Автоответчик на паузе.";
   if (chat.mode === "shadow" && !chat.liveTest) return "Проверка без отправки — клиенту ничего не уходит.";

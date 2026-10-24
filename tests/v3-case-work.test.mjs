@@ -188,6 +188,35 @@ test("after acceptance the answer moves to «Сведения»; nothing on the 
   assert.match(texts(html), /Приём дела Дело принято куратором Согласованный контакт: 24\.09\.2026 Изменить ответ/u);
 });
 
+test("Student 360 header: the AI consent chip (320) says one of three words, quietly; only «не разрешено» warns; no chip when nothing was read", () => {
+  const chip = (name) => {
+    const html = surfaces.get(name);
+    assert.ok(html, name);
+    const found = [...html.matchAll(/<span class="v3-chip t-caption shrink-0" data-tone="([a-z]+)"><span title="([^"]*)" data-testid="v3-case-ai-consent">([^<]*)<\/span><\/span>/gu)];
+    return found.length === 0 ? null : { count: found.length, tone: found[0][1], title: found[0][2], label: found[0][3] };
+  };
+  assert.deepEqual([chip("ai-consent-granted").label, chip("ai-consent-declined").label, chip("ai-consent-none").label, chip("ai-consent-none-no-portal").label],
+    ["ИИ: разрешено", "ИИ: не разрешено", "ИИ: не спрашивали", "ИИ: не спрашивали"]);
+  assert.deepEqual([chip("ai-consent-granted").tone, chip("ai-consent-declined").tone, chip("ai-consent-none").tone, chip("ai-consent-none-no-portal").tone],
+    ["neutral", "warn", "neutral", "neutral"]);
+  // One chip per page, with its hint in words (no raw code, no number).
+  for (const name of ["ai-consent-granted", "ai-consent-declined", "ai-consent-none", "ai-consent-none-no-portal"]) {
+    assert.equal(chip(name).count, 1, name);
+    assert.match(chip(name).title, /[А-Яа-я]/u, name);
+    assert.doesNotMatch(chip(name).title + chip(name).label, /ai_consent|granted|declined|\d/u, name);
+  }
+  assert.match(chip("ai-consent-none").title, /пока он не разрешит/u);
+  assert.match(chip("ai-consent-none-no-portal").title, /нет кабинета/u);
+  // The chip sits in the header section, next to the other quiet state words, not in a red block.
+  const header = surfaces.get("ai-consent-declined").match(/<section id="case-header"[\s\S]*?<\/section>/u)?.[0] ?? "";
+  assert.ok(header.includes('data-testid="v3-case-ai-consent"'), "the chip is inside the case header");
+  assert.doesNotMatch(header, /data-tone="danger"/u, "a declined consent is never a red pill");
+  // Every other scenario (consent not read, no right, preview) draws no chip at all.
+  for (const name of ["curator", "admin", "unread", "assign-only", "closed", "preview-awaiting", "direct-case"]) {
+    assert.equal(chip(name), null, `${name}: no chip without a read`);
+  }
+});
+
 test("«Приём дела» in «Сведения» keeps the curator's answer for those who cannot respond: decision, reason, agreed contact", () => {
   // Admin не отвечает на назначение: причина отказа куратора — та же, что в прежней карточке «Приём дела».
   const declined = surfaces.get("admin-declined");

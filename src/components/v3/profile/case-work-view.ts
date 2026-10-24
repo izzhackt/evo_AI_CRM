@@ -4,6 +4,7 @@
  * «Обзора» из уже прочитанных данных. По ней работают страница, статический
  * рендер и unit-тест. Новых чтений и команд здесь нет.
  */
+import type { StaffAiConsent } from "../../../lib/ai-agents/consent.ts";
 import type { PlatformAdmissionsTask } from "../../../lib/platform-admissions-task-contract.ts";
 import type { PlatformApplicationQueueRow } from "../../../lib/platform-application-contract.ts";
 import type { CaseChatMessage, CaseChatPage } from "../../../lib/platform-case-chat-contract.ts";
@@ -79,6 +80,11 @@ export type CaseWorkRead = Readonly<{
   awaitingAck?: boolean | null;
   /** Открытый запрос удаления аккаунта из портала (чтение 196, только Admin). */
   deletionRequested: boolean;
+  /**
+   * Согласие студента на ИИ-помощников для чипа шапки (миграция 320, `staff_student_ai_consent_v1`). Нет поля или null —
+   * не читали, нет права или сбой: чип не рисуется.
+   */
+  aiConsent?: StaffAiConsent | null;
   /** Сегодня в Бишкеке. */
   today: string;
   /** Момент чтения: одинаковые сроки при рендере и гидрации. */

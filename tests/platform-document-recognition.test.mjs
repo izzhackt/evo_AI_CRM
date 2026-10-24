@@ -63,9 +63,14 @@ test("enqueue maps only the published SQLSTATE and fixed message pairs", async (
     ["22023", "profile_not_started", "profile_not_started"],
     ["54000", "budget_exhausted", "budget_exhausted"],
     ["55000", "provider_not_configured", "provider_not_configured"],
+    // Migration 320: the student of the case did not allow the AI helpers (SQLSTATE 42501 with the code as the text).
+    ["42501", "ai_consent_missing", "ai_consent_missing"],
     ["40001", "Serialization failure", "unavailable"],
     ["23505", "Database detail: request_conflict", "unavailable"],
     ["22023", "budget_exhausted", "unavailable"],
+    ["22023", "ai_consent_missing", "unavailable"],
+    ["23505", "ai_consent_missing", "unavailable"],
+    ["XX000", "ai_consent_missing", "unavailable"],
     ["XX000", "profile_changed", "unavailable"],
   ]) {
     await assert.rejects(enqueuePlatformDocumentRecognition(actor, CASE, request, sessionBoundary(async () => ({

@@ -543,6 +543,8 @@ test("tools/call: Postgres and PostgREST errors map to tool error codes (contrac
     [{ code: "PGRST000", message: "no connection" }, "unavailable"],
     [{ code: "57014", message: "canceling statement due to statement timeout" }, "unavailable"],
     [{ code: "XX000", message: "relation \"secret_table\" is broken" }, "internal_error"],
+    // Migration 320: the student of the case has not allowed the AI helpers (SQLSTATE 42501, the message is the code).
+    [{ code: "42501", message: "ai_consent_missing" }, "ai_consent_missing"],
   ];
   for (const [error, expected] of cases) {
     const { handler } = harness({ rpc: rpcWith(() => ({ data: null, error })) });
@@ -568,6 +570,29 @@ test("tools/call: a status line is 'denied' for forbidden and 'error' for the re
   await toolCall(broken.handler, "list_staff", {});
   assert.equal(broken.logCalls()[0].args.p_status, "error");
   assert.equal(broken.logCalls()[0].args.p_error_code, "internal_error");
+});
+
+test("tools/call: a refusal for a missing student consent (320) is its own code, 'denied' in the log, and never carries data", async () => {
+  // The three reads that return correspondence or a document file are the tools the database guards.
+  for (const tool of ["get_case_chat", "get_conversation", "get_document_file"]) {
+    const target = "77300000-0000-4000-8000-0000000000f1";
+    const args = tool === "get_case_chat" ? { case_id: target }
+      : tool === "get_conversation" ? { conversation_id: CONVERSATION } : { document_version_id: target };
+    const { handler, logCalls } = harness({
+      rpc: rpcWith(() => ({ data: null, error: { code: "42501", message: "ai_consent_missing" } })),
+    });
+    const { result, body } = await toolCall(handler, tool, args);
+    assert.equal(result.isError, true, tool);
+    assert.equal(body.error_code, "ai_consent_missing", tool);
+    assert.equal(body.message, "Студент не дал согласия на ИИ-помощников: его документы и переписку агент не читает.", tool);
+    assert.equal(body.reason_code, undefined, "the code is the message: no duplicate reason");
+    assert.equal(logCalls()[0].args.p_status, "denied", tool);
+    assert.equal(logCalls()[0].args.p_error_code, "ai_consent_missing", tool);
+    // No link is built for a refused document: the answer is the error and nothing else.
+    assert.equal(JSON.stringify(body).includes("http"), false, tool);
+  }
+  // An app that does not know the code yet (the migration is shipped first) still reads it as a refusal with a safe reason.
+  assert.deepEqual(classifyRpcError({ code: "42501", message: "some_other_denial" }), { code: "forbidden", detail: "some_other_denial" });
 });
 
 test("tools/call: a hung or throwing database call becomes 'unavailable'", async () => {

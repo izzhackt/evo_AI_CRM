@@ -9,7 +9,7 @@ import * as wording from "../src/lib/v3/wording.ts";
 import * as client from "../src/lib/document-recognition-client.ts";
 import * as deadline from "../src/lib/platform-task-deadline.ts";
 import * as caseWorkView from "../src/components/v3/profile/case-work-view.ts";
-import { DOCUMENT_RECOGNITION_STATES, DOCUMENT_RECOGNITION_CLEANUP_STATES } from "../src/lib/document-recognition.ts";
+import { DOCUMENT_RECOGNITION_STATES, DOCUMENT_RECOGNITION_CLEANUP_STATES, DOCUMENT_RECOGNITION_REQUEST_ERROR_CODES } from "../src/lib/document-recognition.ts";
 
 const require = createRequire(import.meta.url);
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -76,6 +76,15 @@ test("case history and absent profile expose no paid command", () => {
   assert.doesNotMatch(history, /Распознать поля|Подтвердить запуск/);
   const absent = renderToStaticMarkup(createElement(DocumentRecognitionJobs, { access: { ...access, profileRevision: null }, sourceVersionId: SOURCE, sourceReady: true }));
   assert.match(absent, /Сначала начните анкету/); assert.doesNotMatch(absent, /Распознать поля/);
+});
+
+test("the student's refusal of the AI helpers (migration 320) has its own staff-facing line and never reads as «нет доступа»", () => {
+  const line = wording.documentRecognitionError("ai_consent_missing");
+  assert.equal(line, "Студент не дал согласия на ИИ-помощников — документ не передаётся на распознавание.");
+  assert.notEqual(line, wording.documentRecognitionError("unavailable"));
+  assert.ok(DOCUMENT_RECOGNITION_REQUEST_ERROR_CODES.includes("ai_consent_missing"));
+  // The same code reaches a failed job (the claim maps the refusal to access_revoked) and a refused request alike.
+  assert.equal(wording.documentRecognitionError("access_revoked"), "Доступ изменился.");
 });
 
 test("the staff-facing word is «Распознавание», never «Извлечение»", () => {

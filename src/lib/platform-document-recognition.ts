@@ -31,6 +31,8 @@ function rpcErrorCode(error: unknown): DocumentRecognitionRequestErrorCode {
   if (code === "23505" && (message === "request_conflict" || message === "equivalent_job_active")) return message;
   if (code === "54000" && message === "budget_exhausted") return message;
   if (code === "55000" && message === "provider_not_configured") return message;
+  // Миграция 320: студент дела не разрешил ИИ-помощников - файл в Google не уходит.
+  if (code === "42501" && message === "ai_consent_missing") return message;
   return "unavailable";
 }
 

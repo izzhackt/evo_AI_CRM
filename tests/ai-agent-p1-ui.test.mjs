@@ -46,6 +46,7 @@ import {
   createAiAnswerReadHandler,
   createAiAnswerStreamHandler,
   readAiAgentStatus,
+  ticketRefusal,
 } from "../src/lib/server/ai-agent-route-handlers.ts";
 import { isConnectedPlatformApi, isConnectedPlatformPage } from "../src/lib/platform-route-contract.ts";
 import { staffCanAccessRoute } from "../src/lib/platform-access.ts";
@@ -238,7 +239,7 @@ test("stream: honest refusals before any agent call", async () => {
   const off = await counting({ config: () => null })(post(path, { intent: "reply" }), conversation());
   assert.equal(off.status, 503);
   assert.equal(await code(off), "ai_agent_off");
-  for (const [refusal, http] of [["consent_required", 412], ["rate_limited", 429], ["forbidden", 403], ["invalid_request", 400], ["unavailable", 503]]) {
+  for (const [refusal, http] of [["consent_required", 412], ["ai_consent_missing", 403], ["rate_limited", 429], ["forbidden", 403], ["invalid_request", 400], ["unavailable", 503]]) {
     const response = await counting({ issueTicket: async () => ({ status: "refused", code: refusal }) })(post(path, { intent: "reply" }), conversation());
     assert.equal(response.status, http, refusal);
     assert.equal(await code(response), refusal);
@@ -466,13 +467,19 @@ test("honest copy for every state of the window (plan §6.8)", () => {
 
 test("the chat window's unavailable states: one reason line, no consent, limit or spend pointers (owner, 08.10)", () => {
   // «давай без этого»: окно не отправляет к согласию, лимиту и расходам — только причина.
-  assert.deepEqual(Object.keys(AI_WINDOW_UNAVAILABLE).sort(), ["ai_agent_off", "budget_exhausted", "consent_required", "forbidden",
+  assert.deepEqual(Object.keys(AI_WINDOW_UNAVAILABLE).sort(), ["ai_agent_off", "ai_consent_missing", "budget_exhausted", "consent_required", "forbidden",
     "gemini_billing", "gemini_quota_day", "model_unpriced", "preview"]);
   for (const code of AI_BLOCKED_CODES) assert.ok(aiWindowUnavailable(code), code);
   for (const [code, text] of Object.entries(AI_WINDOW_UNAVAILABLE)) {
-    assert.doesNotMatch(text, /«|настройк|согласи|Google Cloud|поднять|пополните|администратор|раздел/iu, `${code}: ${text}`);
+    // 25.10: the STUDENT's refusal is a fact the window states, not a pointer to a consent section (migration 320).
+    if (code !== "ai_consent_missing") assert.doesNotMatch(text, /«|настройк|согласи|Google Cloud|поднять|пополните|администратор|раздел/iu, `${code}: ${text}`);
     assert.equal(aiErrorRetryable(code), false, `${code} has no «Попробовать снова»`);
   }
+  // Миграция 320 (решение владельца 25.10): студент чата не разрешил ИИ-помощников - одна честная строка, без повтора.
+  assert.equal(aiWindowUnavailable("ai_consent_missing"), "Студент не дал согласия на ИИ-помощников — помощник не читает эту переписку.");
+  assert.equal(AI_ERROR_COPY.ai_consent_missing, aiWindowUnavailable("ai_consent_missing"));
+  assert.equal(aiErrorBlocked("ai_consent_missing"), true);
+  assert.equal(aiErrorRetryable("ai_consent_missing"), false);
   assert.equal(aiWindowUnavailable("budget_exhausted"), "Месячный лимит расходов на ИИ исчерпан.");
   assert.equal(aiWindowUnavailable("gemini_billing"), "Закончился оплаченный баланс Gemini.");
   assert.equal(aiWindowUnavailable("agent_unavailable"), null, "a transient failure keeps «Попробовать снова»");
@@ -483,6 +490,35 @@ test("the chat window's unavailable states: one reason line, no consent, limit o
   assert.equal(aiWindowErrorReason("unavailable"), null);
   assert.equal(aiWindowErrorReason("invalid_request"), "Обновите страницу.");
   assert.equal(aiWindowErrorReason("strange_code", "Текст агента"), "Текст агента");
+});
+
+test("the student's refusal (migration 320) reaches the window as its own code and its own line, not as a generic error", async () => {
+  // The database refuses the ticket with 42501 whose text is the code; any other 42501 stays «forbidden».
+  assert.deepEqual(ticketRefusal({ code: "42501", message: "ai_consent_missing" }), { status: "refused", code: "ai_consent_missing" });
+  assert.deepEqual(ticketRefusal({ code: "42501", message: "ai_conversation_unavailable" }), { status: "refused", code: "forbidden" });
+  assert.deepEqual(ticketRefusal({ code: "42501" }), { status: "refused", code: "forbidden" });
+  assert.deepEqual(ticketRefusal({ code: "PT412", message: "ai_consent_required" }), { status: "refused", code: "consent_required" });
+  assert.deepEqual(ticketRefusal({ code: "PT429" }), { status: "refused", code: "rate_limited" });
+  assert.deepEqual(ticketRefusal({ code: "22023" }), { status: "refused", code: "invalid_request" });
+  // The saved-answer read says whether the student allows; a database without 320 (no key) behaves as before.
+  assert.equal(normalizeAiAnswerView({ ...VIEW, studentAiAllowed: false }).studentAiAllowed, false);
+  assert.equal(normalizeAiAnswerView({ ...VIEW, studentAiAllowed: true }).studentAiAllowed, true);
+  assert.equal(normalizeAiAnswerView(VIEW).studentAiAllowed, true);
+  // The window states the line on open (no ticket asked) and on a refused ticket, with no retry.
+  const assistant = read("src/components/v3/inbox/InboxAiAssistant.tsx");
+  assert.match(assistant, /if \(!view\.studentAiAllowed\) \{ setPhase\(\{ kind: "blocked", code: AI_CONSENT_MISSING_CODE \}\); return; \}/u);
+  assert.ok(assistant.indexOf("view.studentAiAllowed") < assistant.indexOf("view.answer && view.answer.current"), "the line comes before the saved answer");
+  assert.equal(aiWindowErrorReason("ai_consent_missing"), "Студент не дал согласия на ИИ-помощников — помощник не читает эту переписку.");
+  // End to end through the handler: a refused ticket is 403 with the code; the agent is never called.
+  const calls = [];
+  const handler = createAiAnswerStreamHandler(deps({
+    issueTicket: async () => ({ status: "refused", code: "ai_consent_missing" }),
+    fetch: async (...args) => { calls.push(args); throw new Error("the agent must not be called"); },
+  }));
+  const response = await handler(post(`/api/v3/ai-agent/conversations/${ID(1)}/answer`, { intent: "reply" }), conversation());
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), { error: { code: "ai_consent_missing" } });
+  assert.deepEqual(calls, []);
 });
 
 test("an unpriced model is a blocked state of its own, not the exhausted budget", () => {

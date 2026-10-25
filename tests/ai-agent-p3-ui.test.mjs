@@ -86,7 +86,11 @@ test("view: strict shape; interest is one line ≤ 140, summary ≤ 1500; lead k
     assert.throws(() => normalizeAiMemoryView(bad), /ai_agent_shape_invalid/u, JSON.stringify(bad));
   }
   assert.deepEqual(Object.keys(view()).sort(),
-    ["active", "canManage", "consentRecorded", "enabled", "interestDue", "lead", "memory", "messageCount", "summaryDue"]);
+    ["active", "canManage", "consentRecorded", "enabled", "interestDue", "lead", "memory", "messageCount", "studentAiAllowed", "summaryDue"]);
+  // Миграция 320: нет ключа (база без 320) - студент разрешил; ложь - только если база так сказала.
+  assert.equal(view().studentAiAllowed, true);
+  assert.equal(view({ studentAiAllowed: true }).studentAiAllowed, true);
+  assert.equal(view({ studentAiAllowed: false, active: false }).studentAiAllowed, false);
   // «Пора» без работающей памяти не бывает.
   const paused = view({ active: false, summaryDue: true, interestDue: true });
   assert.equal(paused.summaryDue, false);
@@ -104,6 +108,13 @@ test("states follow 274: off, paused (no consent), short, waiting (21–25), due
   // Окно (08.10, «давай без этого»): пауза одной строкой, без слов о согласии на Gemini.
   assert.equal(AI_MEMORY_COPY.paused, "Память на паузе: сводка и интерес не собираются.");
   assert.equal(aiMemorySummaryState("paused"), null);
+  // Студент не разрешил ИИ-помощников (320): состояние своё, раньше «выключено» и «на паузе»; записанное остаётся в данных.
+  const student = view({ studentAiAllowed: false, active: false, memory: RAW.memory });
+  assert.equal(aiMemoryState(student), "student");
+  assert.equal(aiMemoryHint(student), "Студент не дал согласия");
+  assert.equal(aiMemoryState(view({ studentAiAllowed: false, enabled: false, active: false, memory: null })), "student");
+  assert.equal(student.memory.interest, view().memory.interest);
+  assert.equal(aiMemorySummaryState("student"), null);
   // ≤ 20 сообщений — сводка не нужна.
   assert.equal(aiMemoryState(view({ messageCount: AI_MEMORY_WINDOW, memory: null })), "short");
   assert.equal(aiMemoryHint(view({ messageCount: 12, memory: null })), "Вся переписка на виду у ИИ");
@@ -404,9 +415,15 @@ test("UI window: a collapsed «Что ИИ знает о клиенте» under 
   assert.doesNotMatch(memoryCode, /<Link\b|href=|AI_MEMORY_SETTINGS_COPY|Gemini|согласи/u);
   assert.match(memory, /data-testid="v3-ai-memory-off">\{AI_MEMORY_COPY\.off\}<\/p>/u);
   assert.match(memory, /data-testid="v3-ai-memory-paused">\{AI_MEMORY_COPY\.paused\}<\/p>/u);
-  for (const text of Object.values(AI_MEMORY_COPY)) assert.doesNotMatch(text, /Gemini|согласи|Включить/u, text);
-  // Интерес и сводка — только пока память работает (не off и не paused).
-  assert.match(memory, /const running = state !== null && state !== "off" && state !== "paused";/u);
+  // Миграция 320 (решение владельца 25.10): единственная строка о согласии - студента, а не организации; остальные тексты - без слов о согласии.
+  for (const [key, text] of Object.entries(AI_MEMORY_COPY)) {
+    if (key === "student") assert.equal(text, "Студент не дал согласия на ИИ-помощников — помощник не читает эту переписку.");
+    else assert.doesNotMatch(text, /Gemini|согласи|Включить/u, text);
+  }
+  assert.match(memory, /data-testid="v3-ai-memory-student">\{AI_MEMORY_COPY\.student\}<\/p>/u);
+  // Интерес и сводка — только пока память работает (не off, не paused, студент не отказал); записанное раньше при отказе остаётся.
+  assert.match(memory, /const running = state !== null && state !== "off" && state !== "paused" && state !== "student";/u);
+  assert.match(memory, /const stored = state === "student" \? memory : null;/u);
   // Окончательный отказ (400/401/403/404) — без «Повторить» и без role=alert.
   assert.match(memory, /const FINAL_STATUSES = new Set\(\[400, 401, 403, 404\]\);/u);
   // Раскрыто — строка интереса под заголовком скрыта (не повторяет «Интерес»).

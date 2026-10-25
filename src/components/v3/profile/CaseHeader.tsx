@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { aiConsentChip } from "@/lib/ai-agents/consent";
 import { admissionsPipelineStage } from "@/lib/v3/wording";
 
 import type { CaseClosure } from "@/lib/platform-closure-contract";
@@ -57,6 +58,8 @@ export function CaseHeader(input: CaseHeaderInput) {
   const stage = row ? admissionsPipelineStage(row.pipelineStage) : null;
   const awaiting = (row?.attentionFlags.includes("awaiting_ack") ?? false) && input.acceptShown !== true;
   const closed = input.state === "closed" && input.closure?.state === "closed" ? input.closure : null;
+  // Согласие студента на ИИ-помощников (миграция 320): тихий чип; предупреждение только у «не разрешено».
+  const consent = work.aiConsent ? aiConsentChip(work.aiConsent) : null;
   const stateWords = [
     input.state === "closed" && !closed ? "Дело закрыто" : null,
     input.state === "pending" ? "Ожидает начала" : null,
@@ -84,10 +87,15 @@ export function CaseHeader(input: CaseHeaderInput) {
           </Fact>
         ) : null}
       </dl>
-      {input.financeStop || work.deletionRequested ? (
+      {input.financeStop || work.deletionRequested || consent ? (
         <p className="flex flex-wrap items-center gap-2">
           {input.financeStop ? <Pill tone="danger">финансовый стоп</Pill> : null}
           {work.deletionRequested ? <Pill tone="warn">запросил удаление аккаунта</Pill> : null}
+          {consent ? (
+            <Pill tone={consent.tone}>
+              <span title={consent.title} data-testid="v3-case-ai-consent">{consent.label}</span>
+            </Pill>
+          ) : null}
         </p>
       ) : null}
       {input.coverage && work.needsCurator ? (

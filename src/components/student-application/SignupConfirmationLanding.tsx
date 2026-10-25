@@ -40,7 +40,7 @@ export function SignupConfirmationLanding({ locale, csrfToken }: { locale: Local
       <button disabled={busy} className="min-h-12 w-full rounded-ctl bg-accent px-4 py-3 font-semibold text-on-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:opacity-60">{busy ? strings.confirming : strings.confirm}</button>
     </form>}
     <Link href="/login" className="mt-4 inline-flex min-h-11 items-center text-accent-text underline">{strings.login}</Link>
-    {message && <a href="mailto:evo@evoadmissions.com" className="ml-6 mt-4 inline-flex min-h-11 items-center text-accent-text underline">{strings.support}</a>}
+    {message && <a href="mailto:evoadmissions@gmail.com" className="ml-6 mt-4 inline-flex min-h-11 items-center text-accent-text underline">{strings.support}</a>}
     <noscript><p>{strings.noScript}</p></noscript>
   </section>;
 }

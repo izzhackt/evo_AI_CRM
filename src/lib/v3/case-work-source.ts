@@ -4,6 +4,7 @@ import type { CaseWorkActivity, CaseWorkChat, CaseWorkRead, CaseWorkRow, CaseWor
 import { caseChatWork, caseOpenTasks } from "@/components/v3/profile/case-work-view";
 
 import { hasOpenAccountDeletionRequestForCase } from "../platform-account-deletion";
+import { readCaseAiConsent } from "./ai-consent-source";
 import { readCaseAttentionFlags } from "../platform-admissions";
 import type { AdmissionsAttention } from "../platform-admissions-playbook-contract";
 import { getPlatformAdmissionsTaskWorkspace } from "../platform-admissions-workspace";
@@ -105,12 +106,14 @@ export async function readCaseWork(
 ): Promise<CaseWorkRead> {
   const now = new Date();
   const assignOnly = options.assignOnly === true;
-  const [row, tasks, chat, activity, deletionRequested] = await Promise.all([
+  const [row, tasks, chat, activity, deletionRequested, aiConsent] = await Promise.all([
     readCaseQueueRow(actor, target),
     assignOnly ? FORBIDDEN : options.overview ? readCaseTasks(actor, target) : NOT_READ,
     assignOnly ? FORBIDDEN : options.overview ? readCaseChat(actor, target) : NOT_READ,
     assignOnly ? FORBIDDEN : options.overview && options.feed ? readCaseActivity(actor, target) : ACTIVITY_NOT_READ,
     hasOpenAccountDeletionRequestForCase(actor, target.studentCaseId),
+    // Чип «ИИ: ...» шапки (миграция 320): тому же читателю, что видит дело целиком; без права - без чипа.
+    assignOnly ? null : readCaseAiConsent(actor, target.studentCaseId),
   ]);
   // «Нужен куратор» — флаг строки очереди (как в списке); без строки тот, кто назначает
   // кураторов (Admin и `case.curator.assign`, миграция 248), читает его отдельно (182).
@@ -120,7 +123,7 @@ export async function readCaseWork(
       : false;
   const awaitingAck = row ? row.attentionFlags.includes("awaiting_ack") : null;
   return Object.freeze({
-    row, tasks, chat, activity, needsCurator, awaitingAck, deletionRequested,
+    row, tasks, chat, activity, needsCurator, awaitingAck, deletionRequested, aiConsent,
     today: dayInOrganizationTimezone(now),
     nowIso: now.toISOString(),
   });

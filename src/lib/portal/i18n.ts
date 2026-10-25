@@ -2714,6 +2714,61 @@ const accountDeletionKy: Readonly<Record<AccountDeletionKey, string>> = {
   unavailable: "Өчүрүү сурамын текшерүү мүмкүн болгон жок. Баракты жаңыртыңыз.",
 };
 
+/**
+ * Согласие на ИИ-помощников (решение владельца 25.10.2026, Apple 5.1.2(i)):
+ * карточка на «Главной» и строка в «Профиле» говорят одним текстом. Русский
+ * текст — слово в слово по решению; версия текста — `AI_CONSENT_POLICY_VERSION`
+ * в `ai-consent.ts`: правка смысла требует новой версии, иначе старые решения
+ * останутся привязаны к другому тексту. Политика конфиденциальности — одна
+ * (русская) для обеих локалей. Отказ не блокирует работу с делом, поэтому ни
+ * одна строка не давит и не обещает последствий, которых код не держит: условие
+ * об отказе произносит только утверждённое владельцем тело, а подтверждение
+ * сохранения (`savedDeclined`) сообщает лишь факт записи.
+ */
+const aiConsentRu = {
+  title: "ИИ-помощники EVO",
+  body: "Сотрудникам EVO помогают ИИ-помощники: они читают вашу переписку с EVO и документы дела, чтобы готовить ответы и следить за сроками. Данные обрабатывают Anthropic (Claude, США) и Google (Gemini). Решения по делу принимают сотрудники EVO. Если не разрешите, помощники не будут читать ваши документы и переписку — работа с делом не изменится.",
+  allow: "Разрешить",
+  decline: "Не разрешать",
+  policyLink: "Политика конфиденциальности",
+  saving: "Сохраняем выбор",
+  savedGranted: "Разрешение сохранено.",
+  savedDeclined: "Отказ сохранён.",
+  changeInProfile: "Изменить в профиле",
+  error: "Не удалось сохранить выбор. Проверьте соединение и повторите.",
+  unavailable: "Не удалось проверить выбор. Обновите страницу.",
+  rowHeading: "ИИ-помощники",
+  stateGranted: "Разрешено",
+  stateDeclined: "Не разрешено",
+  stateUndecided: "Не выбрано",
+  revoke: "Отозвать согласие",
+  policyUpdated: "Условия обновились. Подтвердите свой выбор ещё раз.",
+} as const;
+
+type AiConsentKey = keyof typeof aiConsentRu;
+
+// KY: черновик в тоне русского текста; вычитка носителем владельца ожидается,
+// ни одна строка не отмечена как проверенная.
+const aiConsentKy: Readonly<Record<AiConsentKey, string>> = {
+  title: "EVO ЖИ-жардамчылары",
+  body: "EVO кызматкерлерине ЖИ-жардамчылар жардам берет: алар жооп даярдоо жана мөөнөттөрдү көзөмөлдөө үчүн сиздин EVO менен кат алышууңузду жана ишиңиздин документтерин окуйт. Маалыматты Anthropic (Claude, АКШ) жана Google (Gemini) иштетет. Иш боюнча чечимдерди EVO кызматкерлери кабыл алат. Уруксат бербесеңиз, жардамчылар документтериңизди жана кат алышууңузду окубайт — иш менен иштөө өзгөрбөйт.",
+  allow: "Уруксат берүү",
+  decline: "Уруксат бербөө",
+  policyLink: "Купуялык саясаты",
+  saving: "Тандоо сакталууда",
+  savedGranted: "Уруксат сакталды.",
+  savedDeclined: "Баш тартуу сакталды.",
+  changeInProfile: "Профилден өзгөртүү",
+  error: "Тандоо сакталган жок. Байланышты текшерип, кайра аракет кылыңыз.",
+  unavailable: "Тандоо текшерилген жок. Баракты жаңыртыңыз.",
+  rowHeading: "ЖИ-жардамчылар",
+  stateGranted: "Уруксат берилген",
+  stateDeclined: "Уруксат берилген эмес",
+  stateUndecided: "Тандалган жок",
+  revoke: "Макулдукту кайтарып алуу",
+  policyUpdated: "Шарттар жаңыланды. Тандооңузду кайра ырастаңыз.",
+};
+
 export const PORTAL_DICTIONARIES = {
   programDocuments: { ru: programDocumentsRu, ky: programDocumentsKy },
   preparations: { ru: preparationsRu, ky: preparationsKy },
@@ -2732,6 +2787,7 @@ export const PORTAL_DICTIONARIES = {
   tests: { ru: testsRu, ky: testsKy },
   apply: { ru: applyRu, ky: applyKy },
   accountDeletion: { ru: accountDeletionRu, ky: accountDeletionKy },
+  aiConsent: { ru: aiConsentRu, ky: aiConsentKy },
 } as const;
 
 export type PortalNamespace = keyof typeof PORTAL_DICTIONARIES;

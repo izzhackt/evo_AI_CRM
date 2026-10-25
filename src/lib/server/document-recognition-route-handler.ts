@@ -14,7 +14,7 @@ const HEADERS = { "cache-control": "private, no-store", "x-content-type-options"
 const STATUS: Record<DocumentRecognitionRequestErrorCode, number> = {
   invalid_request: 400, unavailable: 403, profile_changed: 409, request_conflict: 409,
   equivalent_job_active: 409, document_not_eligible: 422, profile_not_started: 422,
-  budget_exhausted: 429, provider_not_configured: 503,
+  budget_exhausted: 429, provider_not_configured: 503, ai_consent_missing: 403,
 };
 type Context = Readonly<{ params: Promise<{ studentCaseId: string }> }>;
 export type DocumentRecognitionRouteDependencies = Readonly<{

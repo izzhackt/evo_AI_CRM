@@ -953,6 +953,9 @@ const JOURNAL_EVENT_WORD: Readonly<Record<string, string>> = {
   "ai.agent.draft.decide": "Решение по сообщению ИИ-агента",
   "ai.agent.message.send": "ИИ-агент отправил сообщение",
   "ai.agent.document.read": "ИИ-агент открыл документ студента",
+  // Согласие студента на ИИ-помощников (миграция 320). В записи только состояние и версия текста, без имени.
+  "ai.consent.grant": "Студент разрешил ИИ-помощников",
+  "ai.consent.decline": "Студент не разрешил ИИ-помощников",
 } satisfies Readonly<Record<PlatformAuditAction, string>>;
 
 const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
@@ -1046,6 +1049,9 @@ const JOURNAL_OBJECT_WORD: Readonly<Record<string, string>> = {
   ai_agent: "ИИ-агент",
   ai_agent_run: "Запуск ИИ-агента",
   ai_agent_draft: "Сообщение ИИ-агента",
+
+  // Согласие студента на ИИ-помощников (миграция 320).
+  student_ai_consent: "Согласие на ИИ-помощников",
 } satisfies Readonly<Record<PlatformAuditResourceType, string>>;
 
 /**
@@ -1191,6 +1197,7 @@ export function documentRecognitionError(value: string): string | null {
     equivalent_job_active: "Для этой версии уже есть задание. Проверьте историю.",
     document_not_eligible: "Документ не подходит для распознавания.", profile_not_started: "Сначала начните анкету.",
     budget_exhausted: "Бюджет обработки исчерпан.", provider_not_configured: "Обработка документов ещё не настроена.",
+    ai_consent_missing: "Студент не дал согласия на ИИ-помощников — документ не передаётся на распознавание.",
     access_revoked: "Доступ изменился.", source_changed: "Исходная версия изменилась.", source_unavailable: "Исходный файл недоступен.",
     provider_rejected: "Провайдер отклонил обработку.", provider_unavailable: "Провайдер недоступен.",
     invalid_result: "Результат не прошёл проверку.", upload_unknown: "Исход передачи неизвестен.",

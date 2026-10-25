@@ -23,6 +23,7 @@ test("known rejection is not accepted; a lost or malformed receipt remains uncer
   for (const [response, code, uncertain] of [
     [Response.json({ error: "profile_changed" }, { status: 409 }), "profile_changed", false],
     [Response.json({ error: "provider_not_configured" }, { status: 503 }), "provider_not_configured", false],
+    [Response.json({ error: "ai_consent_missing" }, { status: 403 }), "ai_consent_missing", false],
     [Response.json({ error: "unavailable" }, { status: 503 }), "unavailable", true],
     [Response.json({ ...receipt, provider_uri: "not public" }, { status: 202 }), "unavailable", true],
     [new Response("", { status: 202 }), "unavailable", true],

@@ -282,6 +282,7 @@ const ERROR_MESSAGES: Readonly<Record<AiAgentToolErrorCode, string>> = {
   too_large: "Данные слишком большие: сузьте запрос.",
   unavailable: "Сервис временно недоступен: повторите позже.",
   internal_error: "Внутренняя ошибка: повторите позже или сообщите сотруднику.",
+  ai_consent_missing: "Студент не дал согласия на ИИ-помощников: его документы и переписку агент не читает.",
 };
 
 const ERROR_CODE_SET: ReadonlySet<string> = new Set(AI_AGENT_TOOL_ERROR_CODES);
@@ -334,7 +335,9 @@ export function toolErrorResult(code: AiAgentToolErrorCode, extra: Readonly<Reco
 }
 
 function statusForError(code: AiAgentToolErrorCode): McpToolLogStatus {
-  return code === "forbidden" || code === "agent_disabled" || code === "rate_limited" ? "denied" : "error";
+  return code === "forbidden" || code === "agent_disabled" || code === "rate_limited" || code === "ai_consent_missing"
+    ? "denied"
+    : "error";
 }
 
 /* ---------------------------------------------------------- размер ответа */

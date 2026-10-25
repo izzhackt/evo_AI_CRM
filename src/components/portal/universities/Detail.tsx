@@ -250,6 +250,9 @@ export function UniversityDetailView({
         <h2 id="portal-university-programs" className="pt-section-title">
           {strings.programsHeading}
         </h2>
+        {selection && !selection.canSelect && selection.bindings !== null ? (
+          <p className="pt-prep-note">{selection.strings.caseIneligible}</p>
+        ) : null}
         <div className="pt-program-list">
           {content.programs.map((program) => (
             <Program

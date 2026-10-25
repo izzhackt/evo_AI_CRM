@@ -2446,6 +2446,13 @@ label.cs-option:active {
   font-size: var(--pt-size-caption);
 }
 
+/* Подсказка про клавиши A–D и Enter нужна только с мышью и клавиатурой, не на телефоне. */
+@media (hover: none), (pointer: coarse) {
+  .cs-item-hint-keys {
+    display: none;
+  }
+}
+
 .cs-review-outcome {
   margin: 0;
   font-weight: 500;

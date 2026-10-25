@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { packageStrings } from "@/components/portal/applicationPackages/strings";
+import { PendingPackagesLink } from "@/components/portal/applicationPackages/PendingPackagesLink";
 import type { Metadata } from "next";
 import { PreparationList } from "@/components/portal/admissionPreparations/PreparationList";
 import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
@@ -44,7 +44,7 @@ export default async function StudentPortalOverviewPage() {
       {/* Обзор с подготовками и обращения — соседние серверные компоненты:
           их чтения идут одновременно, а не одно после другого (план A). */}
       <AdmissionOverview actor={actor} locale={locale} />
-      <Link className="pt-btn-ghost" href="/portal/package-recovery">{packageStrings(locale).pendingTitle}</Link>
+      <PendingPackagesLink owner={{ organizationId: actor.organizationId, membershipId: actor.membershipId }} label={packageStrings(locale).pendingTitle} />
       {/* Якорь #case-help — у самой панели (CaseHelpPanel); на обёртке id нет (#1115). */}
       <div className="pt-adm-case-help"><CaseHelpWorkspace actor={actor} caseId={actor.studentCaseId} student /></div>
     </main>
@@ -63,7 +63,7 @@ async function AdmissionOverview({ actor, locale }: Readonly<{
   return (
     <>
       {overview === undefined ? <p className="pt-prep-error" role="status">{preparationStrings.overviewUnavailable}</p> : <OverviewView overview={overview} pending={actor.caseState === "pending"} locale={locale} />}
-      <PreparationList items={preparations} strings={preparationStrings} />
+      <PreparationList items={preparations} strings={preparationStrings} canSelect={actor.caseState === "active" && Boolean(actor.portalActivatedAt)} />
     </>
   );
 }

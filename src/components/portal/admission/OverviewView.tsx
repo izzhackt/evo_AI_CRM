@@ -67,7 +67,7 @@ function ActionRow({ action, strings }: { action: StudentPortalAction; strings: 
         </dl>
       </div>
       <Link href={actionHref(action)} className="pt-btn-ghost pt-adm-row-action">
-        {action.kind === "payment" ? strings.openPayment : strings.openDocument} <span aria-hidden="true">↗</span>
+        {action.kind === "payment" ? strings.openPayment : strings.openDocument} <span aria-hidden="true">→</span>
       </Link>
     </li>
   );
@@ -105,7 +105,7 @@ export function OverviewView({ overview, pending = false, locale }: { overview: 
           {primary ? (
             <div className="pt-adm-hero">
               <div className="pt-adm-hero-head">
-                <span aria-hidden="true" className="pt-adm-hero-icon">↗</span>
+                <span aria-hidden="true" className="pt-adm-hero-icon">→</span>
                 <h3 className="pt-adm-hero-title">{actionTitle(primary, strings)}</h3>
               </div>
               <p className="pt-adm-hero-lead">
@@ -132,7 +132,7 @@ export function OverviewView({ overview, pending = false, locale }: { overview: 
                 </div>
               </dl>
               <Link href={actionHref(primary)} className="pt-btn pt-adm-hero-cta">
-                {primary.kind === "payment" ? strings.heroPaymentCta : strings.openDocument} <span aria-hidden="true">↗</span>
+                {primary.kind === "payment" ? strings.heroPaymentCta : strings.openDocument} <span aria-hidden="true">→</span>
               </Link>
             </div>
           ) : (
@@ -172,10 +172,10 @@ export function OverviewView({ overview, pending = false, locale }: { overview: 
 
           <nav aria-label={strings.footerNavAria} className="pt-adm-footer-links">
             <Link href="/portal/documents" className="pt-link">
-              {strings.allDocuments} <span aria-hidden="true">↗</span>
+              {strings.allDocuments} <span aria-hidden="true">→</span>
             </Link>
             <Link href="/portal/payments" className="pt-link">
-              {strings.allPayments} <span aria-hidden="true">↗</span>
+              {strings.allPayments} <span aria-hidden="true">→</span>
             </Link>
           </nav>
         </section>
@@ -217,22 +217,30 @@ export function OverviewView({ overview, pending = false, locale }: { overview: 
             <h3 className="pt-adm-aside-card-title">{strings.pendingApplicationHeading}</h3>
             <p className="pt-adm-aside-card-text">{strings.pendingApplicationHint}</p>
             <Link href="/apply/status" className="pt-link">
-              {strings.pendingApplicationLink} <span aria-hidden="true">↗</span>
+              {strings.pendingApplicationLink} <span aria-hidden="true">→</span>
             </Link>
           </div>
         ) : null}
 
         <div className="pt-adm-aside-card">
           <h3 className="pt-adm-aside-card-title">{strings.helpHeading}</h3>
-          <p className="pt-adm-aside-card-text">{strings.helpText}</p>
-          <Link href="#case-help" className="pt-link">
-            {strings.helpLink} <span aria-hidden="true">↗</span>
-          </Link>
-          {pending ? null : (
+          {pending ? (
             <>
+              <p className="pt-adm-aside-card-text">{strings.helpText}</p>
+              <Link href="#case-help" className="pt-link">
+                {strings.helpLink} <span aria-hidden="true">→</span>
+              </Link>
+            </>
+          ) : (
+            <>
+              {/* Главный вход один — «Сообщения»; ответы на разовые обращения идут вторым шагом. */}
               <p className="pt-adm-aside-card-text">{strings.messagesNote}</p>
               <Link href="/portal/messages" className="pt-link">
-                {strings.messagesLink} <span aria-hidden="true">↗</span>
+                {strings.messagesLink} <span aria-hidden="true">→</span>
+              </Link>
+              <p className="pt-adm-aside-card-text">{strings.helpTextAlso}</p>
+              <Link href="#case-help" className="pt-link">
+                {strings.helpLink} <span aria-hidden="true">→</span>
               </Link>
             </>
           )}

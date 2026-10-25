@@ -10,7 +10,7 @@ export default async function PackageRecoveryPage() {
   const [actor, locale] = await Promise.all([requireStudentPortalActor(), getLocale()]);
   const strings = packageStrings(locale);
   return <main className="pt-page"><Link className="pt-link" href="/portal">{strings.backPrograms}</Link>
-    <header className="pt-page-header"><h1 className="pt-page-title">{strings.pendingTitle}</h1></header>
+    <header className="pt-page-header"><h1 className="pt-page-title">{strings.pendingTitle}</h1><p className="pt-page-lead">{strings.pendingIntro}</p></header>
     <div className={`${styles.root} ${styles.portal}`}><PackageOwnerRecovery owner={{ organizationId: actor.organizationId, membershipId: actor.membershipId }} audience="student" strings={strings} showEmpty /></div>
   </main>;
 }

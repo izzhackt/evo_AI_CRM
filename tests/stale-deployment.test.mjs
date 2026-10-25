@@ -1055,6 +1055,9 @@ test("case chat still reports an ordinary failure", async () => {
   }
 });
 
+// Портальные границы берут язык из <html lang> (useBoundaryStrings); в тесте — настоящий RU-словарь.
+const portalBoundaryStub = { useBoundaryStrings: () => compile("src/lib/portal/boundary-i18n.ts", () => undefined).getBoundaryStrings("ru") };
+
 test("error boundaries reload instead of reset() for a stale action and keep reset() otherwise", async () => {
   for (const path of ["src/app/(v3)/error.tsx", "src/app/(portal)/portal/error.tsx", "src/app/(portal)/portal/tests/error.tsx", "src/app/apply/error.tsx"]) {
     const browser = fakeBrowser();
@@ -1064,6 +1067,7 @@ test("error boundaries reload instead of reset() for a stale action and keep res
       const { store, shared } = await staleModules(runtime);
       const Boundary = compile(path, (id) => shared(id) ?? ({
         "next/link": { default: () => null },
+        "@/components/portal/useBoundaryLocale": portalBoundaryStub,
         "@/lib/v3/wording": { chromeWords: { error: { staffTitle: "t", staffText: "s", retry: "Попробовать снова", staffAction: "a", staleTitle: "Вышла новая версия", staleText: "x", staleAction: "Обновить страницу" } } },
       })[id]).default;
       const resets = [];
@@ -1079,6 +1083,7 @@ test("error boundaries reload instead of reset() for a stale action and keep res
       const { store: staleStore, shared: staleShared } = await staleModules(staleRuntime);
       const StaleBoundary = compile(path, (id) => staleShared(id) ?? ({
         "next/link": { default: () => null },
+        "@/components/portal/useBoundaryLocale": portalBoundaryStub,
         "@/lib/v3/wording": { chromeWords: { error: { staffTitle: "t", staffText: "s", retry: "Попробовать снова", staffAction: "a", staleTitle: "Вышла новая версия", staleText: "x", staleAction: "Обновить страницу" } } },
       })[id]).default;
       const stale = staleRuntime.render(StaleBoundary, { error: staleActionError(), reset });

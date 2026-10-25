@@ -4,7 +4,11 @@
  * содержимое была спокойнее. data-pt-loading включает в portal.css мягкое
  * проявление заглушки; она не пульсирует, ничего не зацикливается.
  */
-export default function StudentPortalLoading() {
+import { getLocale } from "@/lib/i18n";
+import { getBoundaryStrings, boundaryLocale } from "@/lib/portal/boundary-i18n";
+
+export default async function StudentPortalLoading() {
+  const t = getBoundaryStrings(boundaryLocale(await getLocale()));
   // Скелет на портальных токенах (--pt-skeleton): в тёмной теме не светлые
   // v3-блоки на тёмном фоне, в светлой — тон бумаги, а не холодный серый.
   return (
@@ -12,7 +16,7 @@ export default function StudentPortalLoading() {
       className="pt-boundary pt-page"
       data-pt-loading=""
       aria-busy="true"
-      aria-label="Загружаем кабинет студента"
+      aria-label={t.portalLoadingAria}
     >
       <div className="pt-page-header" aria-hidden="true">
         <span className="pt-skeleton pt-skeleton-kicker" />
@@ -24,7 +28,7 @@ export default function StudentPortalLoading() {
         <span className="pt-skeleton pt-skeleton-card" />
         <span className="pt-skeleton pt-skeleton-card" />
       </div>
-      <p role="status" className="pt-page-lead">Загружаем данные… Можно перейти в другой раздел.</p>
+      <p role="status" className="pt-page-lead">{t.portalLoadingText}</p>
     </main>
   );
 }

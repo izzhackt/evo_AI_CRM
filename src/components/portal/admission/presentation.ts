@@ -59,12 +59,22 @@ export function formatPortalTimestamp(value: string | null): string | null {
   return Number.isFinite(date.valueOf()) ? BISHKEK_DATE_TIME.format(date) : null;
 }
 
+/**
+ * Сумма для студента: целые суммы без «,00», а сомы — словом «сом», а не кодом
+ * KGS (одно и то же слово в русском и кыргызском). Остальные валюты — как раньше.
+ */
 export function formatPortalMoney(amountMinor: number, currency: string): string {
+  const major = amountMinor / 100;
+  const minimumFractionDigits = Number.isInteger(major) ? 0 : 2;
+  if (currency === "KGS") {
+    return `${new Intl.NumberFormat("ru-RU", { minimumFractionDigits, maximumFractionDigits: 2 }).format(major)}\u00A0сом`;
+  }
   return new Intl.NumberFormat("ru-RU", {
     style: "currency",
     currency,
+    minimumFractionDigits,
     maximumFractionDigits: 2,
-  }).format(amountMinor / 100);
+  }).format(major);
 }
 
 export function documentProgress(documents: readonly Pick<StudentPortalDocument, "status">[]) {

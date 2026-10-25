@@ -82,7 +82,12 @@ export function DocumentsView({
       <ul className="pt-adm-list">
         {documents.map((document) => {
           const status = documentStatus(document, strings);
-          const reviewLabel = documentReviewLabel(document, strings);
+          const decisionLabel = documentReviewLabel(document, strings);
+          // «Нужно исправить» в плашке и «нужно исправить» в строке «Решение» — одно и то же.
+          const reviewLabel = decisionLabel !== null
+            && decisionLabel.toLocaleLowerCase() === status.label.toLocaleLowerCase()
+            ? null
+            : decisionLabel;
           const deadlineLabel = formatPortalTimestamp(document.deadline);
           const submittedLabel = formatPortalTimestamp(document.submittedAt);
 

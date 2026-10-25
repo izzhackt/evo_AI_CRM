@@ -18,8 +18,8 @@ const MESSAGES: Record<Exclude<SalesRegisterActionState["status"], "idle">, stri
   saved: "Сохранено в платформе.", invalid: "Проверьте поля, суммы, валюту и причину изменения.",
   forbidden: "Нет доступа к этому действию или сотруднику.",
   stale: "Запись изменил другой сотрудник. Ваш ввод сохранён. Обновите данные и сравните изменения.",
-  request_conflict: "Этот запрос уже использован. Проверьте запись перед повтором.",
-  unavailable: "Сохранение не подтверждено. Проверьте подключение и актуальную запись перед повтором.",
+  request_conflict: "Это уже сохранялось. Откройте запись и проверьте, всё ли на месте.",
+  unavailable: "Не удалось сохранить. Проверьте подключение и запись, затем повторите.",
   already_transferred: "Этот студент уже передан куратору. Откройте существующую продажу в отчёте.",
   conditions_missing: "В карточке лида не заполнены условия продажи. Заполните их в карточке и повторите сохранение.",
 };
@@ -142,9 +142,11 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
     if (!recordId && state.status === "saved" && state.recordId && state.reportMonth) {
       const params = new URLSearchParams({ view: "sales", year: state.reportMonth.slice(0, 4),
         month: String(Number(state.reportMonth.slice(5, 7))), saved: state.recordId });
+      // Дело студента открыла сама продажа: отчёт ведёт в него, а не только в карточку лида.
+      if (state.studentCaseId) params.set("case", state.studentCaseId);
       router.push(`/v3/main?${params.toString()}#saved-sale`);
     }
-  }, [recordId, router, state.status, state.recordId, state.reportMonth]);
+  }, [recordId, router, state.status, state.recordId, state.reportMonth, state.studentCaseId]);
   const status = state.submittedVersion === base.version ? state.status : "idle";
   const fresh = fields(record, reportMonth, ownMembershipId, ownLabel);
   const displayValue = (key: string, value: string) => {
@@ -258,6 +260,7 @@ function SalesDraft({ record, recordId, reportMonth, ownerOptions, canChooseOwne
           <label className="block max-w-md"><span className={fieldLabelCls}>Куратор</span><select value={curatorId} required onChange={e => setCuratorId(e.target.value)} className={`${inputCls} min-h-11 w-full`}>
             <option value="">Выберите куратора</option>{intakeOptions?.curators.map(curator => <option value={curator.id} key={curator.id}>{curator.label}</option>)}
           </select></label>
+          <p className="t-meta text-fg-2">После сохранения продажа попадёт в отчёт, а дело студента откроется у выбранного куратора.</p>
           {intakeOptions && intakeOptions.curators.length === 0 ? <p role="alert" className="t-body-compact text-fg-2">Нет доступного куратора. Администратор может назначить роль сотруднику в настройках команды.</p> : null}
           {!intakeOptions ? <p role="alert" className="t-body-compact text-fg-2">Не удалось загрузить кураторов. Обновите страницу перед сохранением.</p> : null}
           {leadId ? <div className="border-t border-border pt-4">

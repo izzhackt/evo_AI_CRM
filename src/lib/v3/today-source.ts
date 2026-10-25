@@ -199,7 +199,15 @@ export type TodayRead = Readonly<{
  */
 export async function readTodayQueue(
   actor: ActivePlatformActor,
-  options: Readonly<{ now: Date; readers?: TodayReaders }>,
+  options: Readonly<{
+    now: Date;
+    readers?: TodayReaders;
+    /**
+     * Читается ли вкладка «Звонки» в «Заявках» (телефония включена для сотрудников): тогда звонок с неизвестного
+     * номера открывает её, а не панель доски. Чтение начато страницей заранее, не отказывает; по умолчанию — нет.
+     */
+    callsTab?: Promise<boolean>;
+  }>,
 ): Promise<TodayRead> {
   const access = todayAccess(actor);
   const readers = options.readers ?? await productionReaders();
@@ -235,10 +243,13 @@ export async function readTodayQueue(
       case "requests": {
         // Проекция передач отказывает просмотру роли: лиды он не видит, это не сбой.
         if (access.preview) return { source, state: "preview" };
-        const board = await readers.readLeads(actor, source === "leads" ? "mine" : "unassigned");
+        const [board, callsTab] = await Promise.all([
+          readers.readLeads(actor, source === "leads" ? "mine" : "unassigned"),
+          source === "requests" && options.callsTab ? options.callsTab.catch(() => false) : Promise.resolve(false),
+        ]);
         return {
           source, state: board.truncated ? "partial" : "complete",
-          items: source === "leads" ? todayLeadItems(board.leads, today) : todayRequestItems(board.leads),
+          items: source === "leads" ? todayLeadItems(board.leads, today) : todayRequestItems(board.leads, { callsTab }),
         };
       }
       case "chats": {

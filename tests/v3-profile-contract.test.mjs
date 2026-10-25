@@ -98,7 +98,7 @@ test("V3 contract context preserves handoff override and fail-closed amoCRM stat
   assert.match(amocrm, /actorRole: actor\.systemRole === "admin" \? "admin" : "admissions"/u);
   assert.match(amocrm, /status: blockingAttempt\.status as "prepared" \| "unknown"/u);
   assert.match(amocrm, /PlatformAmoCrmCommandRpcError/u);
-  assert.match(amocrm, /старый или запасной путь/u);
+  assert.match(amocrm, /Передача в amoCRM сейчас недоступна\. Ничего не записано\./u);
   assert.doesNotMatch(amocrm, /better-sqlite3|drizzle-orm|\/clients\//iu);
   assert.doesNotMatch(amocrm, /from\s+["'][^"']*legacy[^"']*["']/iu);
 });

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 
+import { Icon } from "@/components/icons";
 import { CanonicalAmoCrmCommandPanel } from "@/components/platform/amocrm/CanonicalAmoCrmCommandPanel";
 import { getT } from "@/lib/i18n";
 import { readCanonicalAmoCrmCommandAvailability } from "@/lib/server/canonical-amocrm-command-actions";
@@ -71,13 +72,13 @@ export async function ProfileAmoCrmCommandSection({
     if (error instanceof PlatformAmoCrmCommandRpcError) {
       return (
         <section
-          className="v3-edge-danger rounded-card border border-border border-s-2 bg-surface px-4 py-4 text-sm text-fg"
+          className="flex items-start gap-2 rounded-card border border-border bg-surface px-4 py-4 text-sm text-fg"
           data-testid="v3-profile-amocrm-command-section"
           data-status="unavailable"
           role="status"
         >
-          Команда amoCRM пока недоступна для этого Supabase-кейса. EVO не
-          выполняет запись через старый или запасной путь.
+          <Icon name="alert" size={16} className="mt-0.5 shrink-0 text-danger" />
+          <p>Передача в amoCRM сейчас недоступна. Ничего не записано. Сообщите администратору.</p>
         </section>
       );
     }

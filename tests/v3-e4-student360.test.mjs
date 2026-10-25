@@ -439,7 +439,7 @@ test("no invented progress: the documents bar is the read checklist, and there i
   const bar = pages.get("curator").match(/data-progress="(\d+)\/(\d+)"/u);
   assert.ok(bar, "the bar is drawn from the read counts");
   assert.deepEqual([Number(bar[1]), Number(bar[2])], [counts.approved, counts.total]);
-  assert.match(text(pages.get("curator")), /Документы 7 из 12 принято 2 на проверке 1 исправить 2 не загружено Заявки/u);
+  assert.match(text(pages.get("curator")), /Документы 7 из 12 принято 2 на проверке 1 исправить 2 не загружено Открыть документы Заявки/u);
   // Нет права на документы — ни полосы, ни числа.
   assert.doesNotMatch(pages.get("unread"), /v3-progress|из \d+ принято/u);
   // Оплата — только тому, кому её отдаёт чтение; «Передал» — только у дела из продаж.

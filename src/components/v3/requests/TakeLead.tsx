@@ -43,11 +43,11 @@ export function TakeStatus() {
 }
 
 const MESSAGES: Readonly<Record<Exclude<PlatformSalesWorkflowActionState["status"], "idle" | "saved">, string>> = {
-  invalid: "Лид уже не взять: его данные изменились. Обновите список.",
+  invalid: "Этого лида уже нельзя взять: его только что изменили. Обновите список.",
   forbidden: "У вашей роли нет права взять этот лид.",
   stale: "Лид уже изменён. Обновите список.",
-  request_conflict: "Команда уже использована. Нажмите ещё раз.",
-  unavailable: "Не подтверждено. Повторите.",
+  request_conflict: "Не получилось с первого раза. Нажмите ещё раз.",
+  unavailable: "Нет ответа, неизвестно, взят ли лид. Обновите список и проверьте.",
 };
 
 /**

@@ -72,7 +72,7 @@ test("«Добавить лида»: the source opens on «Не выбрано»
   assert.equal(MANUAL_LEAD_SOURCES.instagram, "Instagram Direct");
   assert.equal(MANUAL_LEAD_SOURCES.whatsapp_manual, "WhatsApp (вручную)");
   assert.equal(Object.hasOwn(MANUAL_LEAD_SOURCES, "whatsapp"), false);
-  assert.equal(MANUAL_LEAD_SOURCE_REQUIRED, "Выберите источник");
+  assert.equal(MANUAL_LEAD_SOURCE_REQUIRED, "Выберите, как обратился клиент");
   const form = read("src/components/v3/ManualLeadForm.tsx");
   assert.match(form, /<select name="source" required defaultValue=""/u);
   assert.match(form, /<option value="">Не выбрано<\/option>\{Object\.entries\(MANUAL_LEAD_SOURCES\)\.map/u);
@@ -129,7 +129,7 @@ function manualLeadAction() {
   return { createManualLeadAction: action.createManualLeadAction, created, touches, setLeadId: (id) => { leadId = id; } };
 }
 
-test("«Добавить лида» on the server: no source is «Выберите источник», an unknown key stays invalid, a chosen key is saved as is", async () => {
+test("«Добавить лида» on the server: no source is «Выберите, как обратился клиент», an unknown key stays invalid, a chosen key is saved as is", async () => {
   const { createManualLeadAction, created, touches, setLeadId } = manualLeadAction();
   const requestId = "11111111-2222-4333-8444-555555555555";
   const form = (source, channel = "unknown") => {

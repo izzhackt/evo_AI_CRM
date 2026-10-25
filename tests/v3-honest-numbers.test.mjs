@@ -556,7 +556,7 @@ test("rendered pages: Lead 360 strip, the report headline and the board funnel t
   assert.match(working, /<span class="sr-only">Квалифицирован, текущий этап, Продажи<\/span>/u);
   assert.doesNotMatch(working, /v3-handoff-summary|v3-handoff-warnings/u);
   assert.doesNotMatch(working, /v3-lead-group-contract|v3-gate-contract-form|Подтверждение договора и платежа/u);
-  assert.match(working, /<a class="inline-flex min-h-11 [^"]*ms-auto" data-testid="v3-handoff-edit" aria-label="Подтвердить договор и оплату" href="\/v3\/profile\?id=[^"]+&amp;tab=money#handoff-confirm">Подтвердить<\/a>/u);
+  assert.match(working, /<a class="inline-flex min-h-11 [^"]*ms-auto" data-testid="v3-handoff-edit" aria-label="Подтвердить договор и оплату" href="\/v3\/profile\?id=[^"]+&amp;tab=money#handoff-confirm">Подтвердить договор и оплату<\/a>/u);
   const money = pages.get("lead-working-money");
   const gateSection = money.slice(money.indexOf('<section id="handoff-confirm"'));
   assert.match(gateSection, /^<section id="handoff-confirm" aria-labelledby="handoff-confirm-title" class="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate"><h2 id="handoff-confirm-title" class="t-section text-fg">Подтверждение вручную<\/h2>/u);

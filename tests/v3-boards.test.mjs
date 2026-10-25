@@ -296,7 +296,7 @@ test("a sales card opens the right panel with the existing decision form; the ca
   assert.match(aside, /data-lead-id="dddddddd-3333-4333-8333-000000000005" data-testid="v3-pipeline-decision"/u);
   assert.match(aside, /<input type="hidden" name="expected_version" value="3"\/>/u);
   assert.match(aside, /Родители просят сравнить/u, "latest note");
-  assert.match(aside, />Задачи по лиду<\/a>/u);
+  assert.match(aside, />Задача по лиду<\/a>/u);
   // The lead card returns to this board state (audit 26.09: the back link read
   // «К списку студентов»): the open panel is part of that state.
   assert.match(aside, /href="\/v3\/profile\?id=dddddddd-3333-4333-8333-000000000005&amp;returnTo=%2Fv3%2Fpipeline%3Flead%3Ddddddddd-3333-4333-8333-000000000005">Открыть карточку лида/u);
@@ -399,8 +399,8 @@ test("error copy names no provider and the admissions route has a board skeleton
   }
   // `unavailable` can follow a committed write whose receipt was lost: the copy
   // says «не подтверждено», never «не сохранено».
-  assert.match(read("src/components/v3/AdmissionsPipelineBoard.tsx"), /unavailable: "Перемещение не подтверждено\. Обновите страницу и проверьте этап\."/u);
-  assert.match(read("src/components/v3/PipelineDecisionForm.tsx"), /unavailable: "Изменение не подтверждено\. Повторите\."/u);
+  assert.match(read("src/components/v3/AdmissionsPipelineBoard.tsx"), /unavailable: "Не удалось подтвердить перемещение\. Обновите страницу и проверьте этап\."/u);
+  assert.match(read("src/components/v3/PipelineDecisionForm.tsx"), /unavailable: "Не удалось подтвердить сохранение\. Проверьте связь и повторите\."/u);
   for (const path of ["src/components/v3/AdmissionsPipelineBoard.tsx", "src/components/v3/PipelineDecisionForm.tsx"]) {
     assert.doesNotMatch(read(path), /не сохранено/u, path);
   }

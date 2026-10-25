@@ -189,7 +189,7 @@ export function CaseAgreementTrancheEditor({
   studentCaseId: string;
   tranche: CaseAgreementTranche | null;
   canArchive: boolean;
-  /** Подпись новой записи: «Разбить на транши», пока траншей нет. */
+  /** Подпись новой записи: «Разбить на части», пока траншей нет. */
   addLabel?: string;
 }>) {
   const router = useRouter();

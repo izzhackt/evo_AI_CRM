@@ -240,7 +240,7 @@ export function CaseAgreementView({
         </ul>
         {canWrite ? (
           <CaseAgreementTrancheEditor studentCaseId={studentCaseId} tranche={null} canArchive={false}
-            addLabel={agreement.tranches.length === 0 ? "Разбить на транши" : "Добавить транш"} />
+            addLabel={agreement.tranches.length === 0 ? "Разбить на части" : "Добавить транш"} />
         ) : null}
       </section>
 

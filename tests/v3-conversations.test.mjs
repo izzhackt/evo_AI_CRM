@@ -200,7 +200,7 @@ test("each page highlights its own item and names its own tab; old addresses and
   assert.equal(existsSync(new URL("../src/app/(v3)/v3/conversations", import.meta.url)), false);
   assert.equal(v3SectionTitle("/v3/conversations"), undefined);
   assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /const allowed = new Set\(\[\s*"q",\s*"waiting",\s*"sort",\s*"conversation",/u, "no ?channel= on WhatsApp");
-  // «Сегодня» («Ждут ответа») и уведомления о сообщении по делу — на «Переписку».
+  // «Сегодня» («Ждут вас») и уведомления о сообщении по делу — на «Переписку».
   const [chat] = todayChatItems([{ studentCaseId: caseId(1), studentDisplayName: "Студент (синтетика)", lastMessageSnippet: "текст",
     lastMessageAt: "2026-09-27T05:00:00.000Z", lastMessageAuthorMembershipId: STUDENT, awaitState: "needs_reply", unread: true }]);
   assert.equal(chat.band, "waiting");

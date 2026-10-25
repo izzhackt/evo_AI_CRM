@@ -126,7 +126,7 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother, onClose }: Re
     // Ссылка «Открыть лида» — путь к существующему; без неё остаётся только просьба к Admin.
     duplicate: state.leadId ? "Такой контакт уже есть." : "Такой контакт уже есть, но открыть его вам нельзя. Попросите Admin проверить контакт.",
     invalid: "Проверьте имя, контакт и дату следующего действия.", source_required: `${MANUAL_LEAD_SOURCE_REQUIRED}.`, channel_required: `${LEAD_CHANNEL_REQUIRED}.`, forbidden: "Нет права на это действие. Обновите страницу после проверки доступа.",
-    request_conflict: "Запрос уже использован с другими данными. Сначала проверьте воронку.", unavailable: "Результат пока неизвестен. Данные сохранены в форме; безопасно повторите тот же запрос.",
+    request_conflict: "Это уже отправлялось с другими данными. Сначала проверьте воронку.", unavailable: "Не удалось узнать результат. Ваши данные остались в форме — нажмите «Повторить тот же запрос», дубль не создастся.",
   };
   return <form action={action} className="max-w-3xl space-y-4" aria-busy={pending}>
     <input type="hidden" name="request_id" value={currentRequestId} />
@@ -135,7 +135,7 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother, onClose }: Re
         <label><span className={fieldLabelCls}>Имя</span><input name="name" required maxLength={300} className={inputCls} /></label>
         <label><span className={fieldLabelCls}>Телефон</span><input name="phone" type="tel" maxLength={50} className={inputCls} /></label>
         <label><span className={fieldLabelCls}>Email, если телефона нет</span><input name="email" type="email" maxLength={320} className={inputCls} /></label>
-        <label><span className={fieldLabelCls}>Источник</span><select name="source" required defaultValue=""
+        <label><span className={fieldLabelCls}>Как обратился</span><select name="source" required defaultValue=""
           aria-invalid={sourceMissing || undefined} aria-describedby={sourceMissing ? sourceErrorId : undefined}
           onInvalid={(event) => {
             // Одно сообщение — строка под полем, без всплывающей подсказки браузера поверх неё.
@@ -148,7 +148,7 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother, onClose }: Re
           className={`${inputCls} aria-[invalid=true]:border-danger`}>
           <option value="">Не выбрано</option>{Object.entries(MANUAL_LEAD_SOURCES).map(([key, value]) => <option key={key} value={key}>{value}</option>)}
         </select>{sourceMissing ? <span id={sourceErrorId} role="alert" className="mt-1 block t-body-compact text-danger">{MANUAL_LEAD_SOURCE_REQUIRED}</span> : null}</label>
-        <label><span className={fieldLabelCls}>Откуда узнал</span><select name="channel" required defaultValue=""
+        <label><span className={fieldLabelCls}>Откуда узнал о нас</span><select name="channel" required defaultValue=""
           aria-invalid={channelMissing || undefined} aria-describedby={channelMissing ? channelErrorId : channelUnknown ? channelHintId : undefined}
           onInvalid={(event) => {
             event.preventDefault();

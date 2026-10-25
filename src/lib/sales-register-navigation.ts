@@ -7,6 +7,8 @@ export type SalesReportQuery = Readonly<{
   sale?: string;
   /** С `new=true`: «Оформить продажу» из Lead 360 — лид, которого форма ищет сама (Э4). */
   lead?: string;
+  /** С `saved=`: дело студента, которое открыла только что сохранённая продажа, — «Открыть дело» ведёт в него. */
+  case?: string;
 }>;
 
 /**

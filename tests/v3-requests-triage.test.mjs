@@ -263,7 +263,7 @@ test("switching records gives the panel a new instance: no draft, conflict or ta
   assert.match(take, /aria-label=\{inPanel \? undefined : `\$\{label\}: \$\{personName\}`\}[^>]*>\s*\{label\}\s*<\/button>/u);
 });
 
-test("«Сегодня»: website and WhatsApp requests open «Заявки», other unowned leads keep the board panel", () => {
+test("«Сегодня»: website and WhatsApp requests open «Заявки», a phone call does so only while the «Звонки» tab is readable, other unowned leads keep the board panel", () => {
   const lead = (n, source) => ({
     id: `ffffffff-2222-4222-8222-${String(n).padStart(12, "0")}`, name: `Лид ${n}`, stageKey: "new", source, nextAction: null, nextActionAt: null,
     due: "none", stageAgeDays: 0, latestNote: null, href: "",
@@ -274,6 +274,10 @@ test("«Сегодня»: website and WhatsApp requests open «Заявки», o
   assert.deepEqual(items.map((item) => item.openHref), [
     `/v3/requests?source=website&open=lead%3A${lead(1).id}`, `/v3/requests?source=whatsapp&open=lead%3A${lead(2).id}`, `/v3/pipeline?lead=${lead(3).id}`,
   ]);
+  // Телефония включена для сотрудников: звонок с неизвестного номера открывает вкладку «Звонки», где его берут себе.
+  assert.deepEqual(todayRequestItems([lead(3, "phone_call")], { callsTab: true }).map((item) => item.openHref),
+    [`/v3/requests?source=phone_call&open=lead%3A${lead(3).id}`]);
+  assert.deepEqual(todayRequestItems([lead(3, "phone_call")], { callsTab: false }).map((item) => item.openHref), [`/v3/pipeline?lead=${lead(3).id}`]);
   // Тот же адрес, что у «Открыть» строки «Заявок»: панель этого лида.
   assert.equal(items[0].openHref, requestsHref(parseRequestSelection({ source: "website" }), `lead:${lead(1).id}`));
   const queue = buildTodayQueue([{ source: "requests", state: "partial", items }], NOW);

@@ -437,10 +437,13 @@ export function todayLeadItems(leads: readonly PipelineLead[], today: string): r
  * без ответственного, поэтому слова срока у него нет. Заявка с сайта и из
  * WhatsApp открывает «Заявки» (Э3, 27.09): вкладку своего источника в
  * «Ждут разбора» с панелью этого лида (`open=lead:<id>`), где его берут себе;
- * лид не на первой странице — открыт список без панели. Лид из других
- * источников в «Заявки» не входит и открывается, как раньше, в панели доски.
+ * лид не на первой странице — открыт список без панели. Звонок с неизвестного
+ * номера (`phone_call`) так же открывает вкладку «Звонки» — когда телефония
+ * включена для сотрудников (`callsTab`, T9): без неё вкладки нет и звонок
+ * открывается, как раньше, в панели доски. Лид из других источников в «Заявки»
+ * не входит и тоже открывается в панели доски.
  */
-export function todayRequestItems(leads: readonly PipelineLead[]): readonly TodayItem[] {
+export function todayRequestItems(leads: readonly PipelineLead[], options: Readonly<{ callsTab?: boolean }> = {}): readonly TodayItem[] {
   const items: TodayItem[] = [];
   for (const lead of leads) {
     if (lead.stageKey === "handed_off" || lead.workflow.currentOwnerMembershipId !== null) continue;
@@ -458,7 +461,7 @@ export function todayRequestItems(leads: readonly PipelineLead[]): readonly Toda
       due: null,
       since: null,
       waitingDays: lead.stageKey === "new" ? lead.stageAgeDays : null,
-      openHref: lead.source === "website" || lead.source === "whatsapp"
+      openHref: lead.source === "website" || lead.source === "whatsapp" || (lead.source === "phone_call" && options.callsTab === true)
         ? queueHref(TODAY_REQUESTS_PATH, { source: lead.source, open: `lead:${lead.id}` })
         : queueHref("/v3/pipeline", { lead: lead.id }),
       task: null,
@@ -549,7 +552,7 @@ export function todayBandLabel(band: TodayBand, today: string): string {
   switch (band) {
     case "overdue": return dueBandLabel("overdue", today);
     case "today": return dueBandLabel("today", today);
-    case "waiting": return "Ждут ответа";
+    case "waiting": return "Ждут вас";
     case "no_step": return "Без следующего шага";
     case "upcoming": return `Ближайшие ${TODAY_HORIZON_DAYS} дней`;
   }

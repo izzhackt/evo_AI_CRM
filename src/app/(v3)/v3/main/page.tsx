@@ -127,7 +127,12 @@ export default async function MainPart({
 
   const now = new Date();
   // «Позвонить» (Телефония, T7) читается рядом с очередью: сбой или выключенный набор — просто без кнопок.
-  const [{ access, reads }, dial] = await Promise.all([readTodayQueue(actor, { now }), readDialOptions(actor)]);
+  // Набор открыт — значит, телефония включена для сотрудников и вкладка «Звонки» в «Заявках» читается: звонок с неизвестного номера открывает её.
+  const dialRead = readDialOptions(actor);
+  const [{ access, reads }, dial] = await Promise.all([
+    readTodayQueue(actor, { now, callsTab: dialRead.then((options) => options.status === "ready") }),
+    dialRead,
+  ]);
   const queue = buildTodayQueue(reads, now);
   // Задача «Перезвонить клиенту» несёт лид: строка называет клиента, пока набор открыт этому сотруднику (иначе — как раньше).
   const taskLeads = dial.status === "ready" ? await readTodayTaskLeads(actor, queue) : null;

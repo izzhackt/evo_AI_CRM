@@ -52,6 +52,7 @@ import { v3SectionTitle } from "@/lib/v3/navigation";
 import { PIPELINE_PATH, isClosedLeadsReturn, parsePipelineReturnTo } from "@/lib/v3/pipeline-return";
 import { parseProfileActivityCursor } from "@/lib/v3/profile-activity-source";
 import { readLeadCalls } from "@/lib/v3/telephony-lead-calls-source";
+import { readLeadTaskLinks } from "@/lib/server/platform-staff-task-repository";
 import { readDialOptions } from "@/lib/v3/telephony-dial-source";
 import { leadCallsWindow } from "@/lib/v3/telephony-lead-calls";
 import {
@@ -402,7 +403,12 @@ export default async function ProfilePart({
   // «Позвонить» («Телефония Beeline KG», T7): база сама решает, открыт ли набор этому сотруднику
   // (флаги, право, пауза) и сопоставлен ли он в ВАТС; нет права или сбой — кнопки нет, лид читается.
   const leadDialRead = leadSales && view && view.details.routeTarget.leadId ? readDialOptions(actor) : null;
-  const [curatorOptions, queuePage, caseWork, caseClosureRead, leadOwners, leadAgreement, leadCalls, leadDial] = await Promise.all([
+  // Открытая задача по лиду (например «Перезвонить клиенту» после звонка): пока шага воронки нет, «Что дальше» называет
+  // её, а не «Шаг не задан». Тот же `lead_staff_task_links`, что у «Задач по лиду»; сбой — как раньше, без неё.
+  const leadTasksRead = leadSales && tab === "overview" && view && view.details.routeTarget.leadId && !leadSales.lead.nextActionText
+    && !isStaffPreview(actor) && staffHasPermission(actor, "staff.task.read")
+    ? readLeadTaskLinks(actor, view.details.routeTarget.leadId).then((links) => links.rows, () => null) : null;
+  const [curatorOptions, queuePage, caseWork, caseClosureRead, leadOwners, leadAgreement, leadCalls, leadDial, leadTasks] = await Promise.all([
     curatorsRead,
     queueParse ? studentsQueuePage(actor, queueParse, params, curatorsRead.then((read) => read.curators)) : null,
     // Лента Student 360 (Э4): журнал дела — только на «Обзоре» и первой странице заметок.
@@ -418,6 +424,7 @@ export default async function ProfilePart({
     leadAgreementCaseId ? readCaseAgreement(actor, leadAgreementCaseId).catch(() => ({ status: "unavailable" as const })) : null,
     leadCallsRead,
     leadDialRead,
+    leadTasksRead,
   ]);
   const caseClosure = previewClosure(actor, caseClosureRead);
   const studentPortalCurators = curatorOptions.curators;
@@ -484,6 +491,7 @@ export default async function ProfilePart({
     agreement: leadAgreement,
     calls: leadCalls,
     dial: leadDial,
+    openTasks: leadTasks,
     channel: (
       <Suspense fallback={<span role="status" className="text-fg-2">Загружаем…</span>}>
         <LeadChannelFact actor={actor} leadId={view.details.routeTarget.leadId} requestId={randomUUID()} />

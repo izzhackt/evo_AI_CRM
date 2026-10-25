@@ -79,6 +79,30 @@ final class LocalizationKeysTests: XCTestCase {
         recoveryKeys.forEach { assertTranslated($0, in: strings) }
     }
 
+    /// Ключи, которые код берёт строкой через `Bundle` или `String(localized:)`
+    /// и которых не видит сканер литералов `Text("…")`: подсказки при сбое
+    /// связи, сообщения последнего шага анкеты, подпись загрузки по виду
+    /// пункта и приветствие «Главной».
+    func testKeysUsedThroughBundleLookupAreTranslated() throws {
+        let strings = try catalog()
+        let keys = [
+            "error_hint_offline", "error_hint_retry", "error_server_unavailable",
+            "apply_validation_name", "apply_validation_phone", "apply_validation_consent",
+            "apply_validation_review", "apply_email_invalid", "apply_server_password",
+            "apply_server_unavailable",
+            "adm_upload_button", "adm_upload_replace_button",
+            "home_greeting", "home_greeting_plain", "favorites_empty_action",
+        ]
+        keys.forEach { assertTranslated($0, in: strings) }
+        // Приветствие подставляет имя: формат есть в обоих языках.
+        for language in ["ru", "ky"] {
+            XCTAssertTrue(
+                strings["home_greeting"]?.localizations?[language]?.stringUnit?.value.contains("%@") == true,
+                "home_greeting: нет %@ в \(language)"
+            )
+        }
+    }
+
     func testStatusKeysKeepTheirWireNames() {
         // Ключ строится из того же значения, что приходит с сервера, поэтому
         // перевод не теряется при добавлении нового статуса в каталог.

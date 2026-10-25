@@ -500,13 +500,13 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Сохранение файла не отправляет пакет. Пакет отправляется куратору EVO для проверки и не является подачей в университет."
+            "value": "Пока вы только сохраняете файлы. Куратор EVO получит пакет, когда вы нажмёте «Отправить пакет на проверку». Это ещё не подача в университет."
           }
         },
         "ky": {
           "stringUnit": {
-            "state": "translated",
-            "value": "Файлды сактоо топтомду жөнөтпөйт. Топтом EVO кураторуна текшерүүгө жөнөтүлөт жана университетке арыз берүү болуп саналбайт."
+            "state": "needs_review",
+            "value": "Азырынча файлдарды гана сактайсыз. «Топтомду текшерүүгө жөнөтүү» басылганда топтом EVO кураторуна барат. Бул университетке арыз берүү эмес."
           }
         }
       }
@@ -980,13 +980,13 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Незавершённые отправки пакетов"
+            "value": "Отправки, которые ещё не подтвердились"
           }
         },
         "ky": {
           "stringUnit": {
-            "state": "translated",
-            "value": "Аяктабаган топтом жөнөтүүлөрү"
+            "state": "needs_review",
+            "value": "Дагы ырастала элек жөнөтүүлөр"
           }
         }
       }
@@ -1204,13 +1204,13 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Результат запроса пока не подтверждён. Проверьте статус в незавершённых отправках."
+            "value": "Пока не ясно, дошла ли отправка. Откройте «Отправки, которые ещё не подтвердились» и проверьте."
           }
         },
         "ky": {
           "stringUnit": {
-            "state": "translated",
-            "value": "Суроонун жыйынтыгы азырынча ырастала элек. Аяктабаган жөнөтүүлөрдөн абалын текшериңиз."
+            "state": "needs_review",
+            "value": "Жөнөтүү жеткенин азырынча билбейбиз. «Дагы ырастала элек жөнөтүүлөр» бөлүмүн ачып текшериңиз."
           }
         }
       }
@@ -2308,7 +2308,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Все документы дела"
+            "value" : "Все документы"
           }
         },
         "ky" : {
@@ -2420,7 +2420,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Этот пункт сейчас не найден. Остальные документы дела остаются доступны."
+            "value" : "Этот пункт сейчас не найден. Остальные документы остаются доступны."
           }
         },
         "ky" : {
@@ -2532,7 +2532,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Подготовка недоступна. Проверьте доступ к своему делу."
+            "value" : "Подготовка пока недоступна. Проверьте доступ к кабинету."
           }
         },
         "ky" : {
@@ -2580,13 +2580,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Файл технически доступен"
+            "value" : "Файл на месте"
           }
         },
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Файл техникалык жактан жеткиликтүү"
+            "state" : "needs_review",
+            "value" : "Файл жайында"
           }
         }
       }
@@ -2628,13 +2628,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Связь документа с программой нужно уточнить."
+            "value" : "Куратор уточнит, к какой программе относится документ."
           }
         },
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Документтин программа менен байланышын тактоо керек."
+            "state" : "needs_review",
+            "value" : "Куратор документ кайсы программага тиешелүү экенин тактайт."
           }
         }
       }
@@ -2692,13 +2692,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Проверяется целостность файла"
+            "value" : "Проверяем файл"
           }
         },
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Файлдын бүтүндүгү текшерилүүдө"
+            "state" : "needs_review",
+            "value" : "Файлды текшерип жатабыз"
           }
         }
       }
@@ -2708,13 +2708,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Файл не прошёл проверку целостности"
+            "value" : "Файл повреждён: загрузите заново"
           }
         },
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Файл бүтүндүк текшерүүсүнөн өткөн жок"
+            "state" : "needs_review",
+            "value" : "Файл бузулган: кайра жүктөңүз"
           }
         }
       }
@@ -3044,13 +3044,47 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ближайшие действия по делу"
+            "value" : "Что сделать сейчас"
           }
         },
         "ky" : {
           "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Азыр эмне кылуу керек"
+          }
+        }
+      }
+    },
+    "home_greeting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Салам, %@!"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
             "state" : "translated",
-            "value" : "Иш боюнча жакынкы аракеттер"
+            "value" : "Привет, %@!"
+          }
+        }
+      }
+    },
+    "home_greeting_plain" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Салам!"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Привет!"
           }
         }
       }
@@ -3060,13 +3094,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Открыть «Моё поступление»"
+            "value" : "Открыть «Поступление»"
           }
         },
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "«Менин кабыл алынышым» бөлүмүн ачуу"
+            "state" : "needs_review",
+            "value" : "«Тапшыруу» бөлүмүн ачуу"
           }
         }
       }
@@ -3576,7 +3610,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Страна из вашего дела."
+            "value" : "Страна из вашего поступления."
           }
         }
       }
@@ -3658,13 +3692,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Этап сопровождения"
+            "value" : "Сейчас"
           }
         },
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Коштоо этабы"
+            "state" : "needs_review",
+            "value" : "Азыр"
           }
         }
       }
@@ -3674,13 +3708,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "индивидуальный этап сопровождения"
+            "value" : "Индивидуальный этап сопровождения"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "коштоонун жеке этабы"
+            "value" : "Коштоонун жеке этабы"
           }
         }
       }
@@ -3690,13 +3724,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "договор подтверждён"
+            "value" : "Договор подтверждён"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "келишим ырасталды"
+            "value" : "Келишим ырасталды"
           }
         }
       }
@@ -3706,13 +3740,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "передано в приёмную"
+            "value" : "Передано в приёмную"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "кабыл алуу тобуна өткөрүлдү"
+            "value" : "Кабыл алуу тобуна өткөрүлдү"
           }
         }
       }
@@ -3722,13 +3756,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "приём дела"
+            "value" : "Приём в работу"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ишти кабыл алуу"
+            "value" : "Ишти кабыл алуу"
           }
         }
       }
@@ -3738,13 +3772,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "выбор программы"
+            "value" : "Выбор программы"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "программаны тандоо"
+            "value" : "Программаны тандоо"
           }
         }
       }
@@ -3754,13 +3788,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "сбор документов"
+            "value" : "Сбор документов"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "документтерди чогултуу"
+            "value" : "Документтерди чогултуу"
           }
         }
       }
@@ -3770,13 +3804,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "подача через партнёра"
+            "value" : "Подача через партнёра"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "өнөктөш аркылуу тапшыруу"
+            "value" : "Өнөктөш аркылуу тапшыруу"
           }
         }
       }
@@ -3786,13 +3820,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "решения университетов"
+            "value" : "Решения университетов"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "университеттердин чечимдери"
+            "value" : "Университеттердин чечимдери"
           }
         }
       }
@@ -3802,13 +3836,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "виза и подготовка к отъезду"
+            "value" : "Виза и подготовка к отъезду"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "виза жана жол сапарга даярдык"
+            "value" : "Виза жана жол сапарга даярдык"
           }
         }
       }
@@ -3818,13 +3852,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "поездка и прибытие"
+            "value" : "Поездка и прибытие"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "сапар жана келүү"
+            "value" : "Сапар жана келүү"
           }
         }
       }
@@ -3834,13 +3868,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "поступление завершено"
+            "value" : "Поступление завершено"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "тапшыруу аяктады"
+            "value" : "Тапшыруу аяктады"
           }
         }
       }
@@ -3850,13 +3884,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "дело закрыто"
+            "value" : "Поступление закрыто"
           }
         },
         "ky" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "иш жабылды"
+            "value" : "Иш жабылды"
           }
         }
       }
@@ -3866,14 +3900,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Бир аздан кийин жаңыртып көрүңүз."
+            "state" : "needs_review",
+            "value" : "Бул убактылуу болушу мүмкүн. Бир мүнөттөн кийин жаңыртыңыз; ачылбаса, EVOга жазыңыз."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Попробуйте обновить через некоторое время."
+            "value" : "Возможно, это ненадолго. Обновите через минуту; если не откроется, напишите в EVO."
           }
         }
       }
@@ -3883,14 +3917,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Мүмкүнчүлүк даярдалып жатат же чечим күтүлүүдө"
+            "state" : "needs_review",
+            "value" : "Кабинет азырынча жеткиликсиз"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Доступ готовится или ожидает решения"
+            "value" : "Кабинет пока недоступен"
           }
         }
       }
@@ -3900,14 +3934,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "EVO командасы текшергенден кийин"
+            "state" : "needs_review",
+            "value" : "Документ EVO текшергенден кийин кабыл алынды деп эсептелет."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "После проверки командой EVO"
+            "value" : "Документ считается принятым после проверки в EVO."
           }
         }
       }
@@ -3985,14 +4019,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Документти алмаштырыңыз"
+            "state" : "needs_review",
+            "value" : "Жаңы файл жүктөңүз"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Замените документ"
+            "value" : "Загрузите новый файл"
           }
         }
       }
@@ -4070,14 +4104,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Тапшыруу планы азырынча жарыялана элек"
+            "state" : "needs_review",
+            "value" : "Тапшыруу планы даярдалып жатат"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "План поступления пока не опубликован"
+            "value" : "План поступления пока готовится"
           }
         }
       }
@@ -4563,14 +4597,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "EVO файлдын сакталганын ырастай алган жок. Кийинчерээк аракет кылыңыз."
+            "state" : "needs_review",
+            "value" : "Файл сакталганын ырастоо мүмкүн болгон жок. Дагы бир жолу жүктөңүз."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "EVO не смог подтвердить сохранение файла. Попробуйте позже."
+            "value" : "Не удалось убедиться, что файл сохранился. Загрузите его ещё раз."
           }
         }
       }
@@ -4580,14 +4614,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Файл коопсуздук текшерүүсүнөн өткөн жок."
+            "state" : "needs_review",
+            "value" : "Файл коопсуздук текшерүүсүнөн өткөн жок. Башка файл байкап көрүңүз."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Файл отклонён проверкой безопасности."
+            "value" : "Файл не прошёл проверку безопасности. Попробуйте другой файл."
           }
         }
       }
@@ -4648,14 +4682,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "EVO командасынын жарыяланган тапшырмасы жок."
+            "state" : "needs_review",
+            "value" : "Азырынча EVO тапшырмалары жок."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Нет опубликованной задачи команды EVO."
+            "value" : "Пока задач от команды EVO нет."
           }
         }
       }
@@ -5379,14 +5413,31 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Жаңы файл жүктөө"
+            "state" : "needs_review",
+            "value" : "Файл жүктөө"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Загрузить новый файл"
+            "value" : "Загрузить файл"
+          }
+        }
+      }
+    },
+    "adm_upload_replace_button" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Башка файл жүктөө"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузить другой файл"
           }
         }
       }
@@ -6008,14 +6059,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@: %2$@ (студенттин айтуусу боюнча)"
+            "state" : "needs_review",
+            "value" : "%1$@: %2$@ (өз сөзүңүз боюнча)"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@: %2$@ (со слов студента)"
+            "value" : "%1$@: %2$@ (по вашим словам)"
           }
         }
       }
@@ -6049,7 +6100,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Нет, пока не сдавал"
+            "value" : "Нет, ещё не сдавал(а)"
           }
         }
       }
@@ -6535,14 +6586,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Набор"
+            "state" : "needs_review",
+            "value" : "Мезгил"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Набор"
+            "value" : "Сезон"
           }
         }
       }
@@ -6552,14 +6603,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Шилтеме ырасталды, бирок чакырууну кабыл алуу аяктаган жок. Кайталаңыз."
+            "state" : "needs_review",
+            "value" : "Шилтеме иштеди, бирок чакыруу кабыл алына элек. «Кайталоо» баскычын басыңыз."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ссылка подтверждена, но приём приглашения не завершился. Повторите."
+            "value" : "Ссылка сработала, но приглашение ещё не принято. Нажмите «Повторить»."
           }
         }
       }
@@ -6671,14 +6722,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Чакыруу катындагы шилтемени же андагы кодду коюңуз. Баскыч басылганга чейин шилтеме аккаунтуңузду өзгөртпөйт."
+            "state" : "needs_review",
+            "value" : "Чакыруу катындагы шилтемени коюңуз. «Улантуу» баскычын баспайынча эч нерсе өзгөрбөйт."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Вставьте ссылку из письма-приглашения или код из неё. До нажатия кнопки ссылка не изменяет вашу учётную запись."
+            "value" : "Вставьте ссылку из письма с приглашением. Пока вы не нажмёте «Продолжить», ничего не изменится."
           }
         }
       }
@@ -6739,8 +6790,8 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Кирүү үчүн сырсөз ойлоп табыңыз. Кеминде 12 белги."
+            "state" : "needs_review",
+            "value" : "Кирүү үчүн сырсөз түзүңүз. Кеминде 12 белги."
           }
         },
         "ru" : {
@@ -7409,7 +7460,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Окончил школу"
+            "value" : "Школа окончена"
           }
         }
       }
@@ -7681,7 +7732,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Пока не определился"
+            "value" : "Пока не определился(ась)"
           }
         }
       }
@@ -8235,14 +8286,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Төмөндөгү себепти караңыз. Анкетаны оңдоп, кайра жөнөтсөңүз болот."
+            "state" : "needs_review",
+            "value" : "Себеби төмөндө. Анкетаны оңдоп, кайра жөнөтсөңүз болот."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Посмотрите причину ниже. Вы можете исправить анкету и отправить её повторно."
+            "value" : "Причина ниже. Можно исправить анкету и отправить её ещё раз."
           }
         }
       }
@@ -8252,14 +8303,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Өтүнмө четке кагылды"
+            "state" : "needs_review",
+            "value" : "Анкета жактырылган жок"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Заявка отклонена"
+            "value" : "Анкета не одобрена"
           }
         }
       }
@@ -8575,14 +8626,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Наборду жана жылды тандаңыз."
+            "state" : "needs_review",
+            "value" : "Мезгилди жана жылды тандаңыз."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Выберите набор и год."
+            "value" : "Выберите сезон и год."
           }
         }
       }
@@ -8600,6 +8651,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Выберите хотя бы одну ступень обучения."
+          }
+        }
+      }
+    },
+    "apply_validation_name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Атыңызды жана фамилияңызды жазыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Укажите имя и фамилию."
+          }
+        }
+      }
+    },
+    "apply_validation_phone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Телефонду текшериңиз: өлкө коду менен жазыңыз, мисалы +996…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверьте телефон: нужен номер с кодом страны, например +996…"
+          }
+        }
+      }
+    },
+    "apply_validation_consent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Улантуу үчүн макулдукту белгилеңиз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отметьте согласие, чтобы продолжить."
           }
         }
       }
@@ -8626,14 +8728,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Анкетаны текшерип, макулдукту ырастаңыз."
+            "state" : "needs_review",
+            "value" : "Анкетаны текшериңиз: жоопторунун бирин оңдоо керек."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Проверьте анкету и подтвердите согласие."
+            "value" : "Проверьте анкету: один из ответов нужно исправить."
           }
         }
       }
@@ -10496,14 +10598,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Аракеттин долбоору: %2$ld ичинен %1$ld жооп берилди."
+            "state" : "needs_review",
+            "value" : "%2$ld тапшырманын %1$ld-сын бүттүңүз — улантсаңыз болот."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Черновик попытки: отвечено %1$ld из %2$ld."
+            "value" : "Вы остановились на %1$ld из %2$ld заданий — можно продолжить."
           }
         }
       }
@@ -10513,14 +10615,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Текшерилген модуль жарыялангандан кийин ушул жерде чыгат."
+            "state" : "needs_review",
+            "value" : "Алгачкы сабактар жакында ушул жерде чыгат."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Когда проверенный модуль будет опубликован, он появится здесь."
+            "value" : "Первые уроки скоро появятся здесь."
           }
         }
       }
@@ -10887,14 +10989,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Жергиликтүү киргизүү сакталган аракет менен алмаштырылат"
+            "state" : "needs_review",
+            "value" : "Экрандагы жооптор сакталгандар менен алмашат"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Локальный ввод будет заменён сохранённой попыткой"
+            "value" : "Ответы на экране заменятся сохранёнными"
           }
         }
       }
@@ -11545,6 +11647,23 @@
         }
       }
     },
+    "favorites_empty_action" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Университет издөө"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Найти университет"
+          }
+        }
+      }
+    },
     "favorites_hidden_count" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11949,6 +12068,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Не удалось подключиться"
+          }
+        }
+      }
+    },
+    "error_hint_offline" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Интернетти текшерип, кайра аракет кылыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Проверьте интернет и повторите."
+          }
+        }
+      }
+    },
+    "error_hint_retry" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Бир аздан кийин кайра аракет кылыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Попробуйте ещё раз чуть позже."
+          }
+        }
+      }
+    },
+    "error_server_unavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ky" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Сервер азыр жеткиликсиз. Бир аздан кийин кайра аракет кылыңыз."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сервер сейчас недоступен. Попробуйте ещё раз чуть позже."
           }
         }
       }
@@ -12417,14 +12587,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Мүмкүнчүлүк"
+            "state" : "needs_review",
+            "value" : "Абал"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Доступ"
+            "value" : "Статус"
           }
         }
       }
@@ -12570,14 +12740,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Тил сакталды. Колдонмо кайра иштетилгенден кийин толук которулат."
+            "state" : "needs_review",
+            "value" : "Тил сакталды. Колдонмону жаап, кайра ачыңыз: тил толук алмашат."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Язык сохранён. Приложение полностью переключится после перезапуска."
+            "value" : "Язык сохранён. Закройте приложение и откройте снова: язык сменится полностью."
           }
         }
       }
@@ -12740,14 +12910,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Жыйынтыкты кантип окуу керек жана анын чектөөлөрү"
+            "state" : "needs_review",
+            "value" : "Бул жыйынтык эмнени билдирет"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Как читать результат и его ограничения"
+            "value" : "Что значит этот результат"
           }
         }
       }
@@ -13046,14 +13216,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Жаңыртуу"
+            "state" : "needs_review",
+            "value" : "Кайталоо"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Обновить"
+            "value" : "Повторить"
           }
         }
       }
@@ -13165,14 +13335,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Сервер сурамды кабыл алган жок. Сакталган аракетти жүктөп, улантыңыз."
+            "state" : "needs_review",
+            "value" : "Сакталган жок. Сакталган жоопторду жүктөп, улантыңыз."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Сервер не принял запрос. Загрузите сохранённую попытку и продолжите."
+            "value" : "Не удалось сохранить. Загрузите сохранённые ответы и продолжите."
           }
         }
       }
@@ -13624,14 +13794,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Менин кабыл алынышым"
+            "state" : "needs_review",
+            "value" : "Тапшыруу"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Моё поступление"
+            "value" : "Поступление"
           }
         }
       }
@@ -13930,14 +14100,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Жарыяланган карточкалар азырынча жок"
+            "state" : "needs_review",
+            "value" : "Бул жерде азырынча университеттер жок"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Опубликованных карточек пока нет"
+            "value" : "Здесь пока нет университетов"
           }
         }
       }
@@ -14168,14 +14338,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Каталог жүктөлгөн жок. Бул жарыяланган университеттер жок дегенди билдирбейт."
+            "state" : "needs_review",
+            "value" : "Университеттердин тизмеси жүктөлгөн жок."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Не удалось загрузить каталог. Это не означает, что опубликованных университетов нет."
+            "value" : "Не получилось загрузить список университетов."
           }
         }
       }
@@ -14406,14 +14576,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Датаны тактоо керек"
+            "state" : "needs_review",
+            "value" : "Дата дагы тактала элек"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Дату нужно подтвердить"
+            "value" : "Дата ещё уточняется"
           }
         }
       }
@@ -14440,14 +14610,14 @@
       "localizations" : {
         "ky" : {
           "stringUnit" : {
-            "state" : "translated",
-            "value" : "Кабыл алуу шарттарын тактоо керек"
+            "state" : "needs_review",
+            "value" : "Кабыл алуу шарттары такталууда"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Условия набора требуют уточнения"
+            "value" : "Условия приёма уточняются"
           }
         }
       }
@@ -14781,13 +14951,13 @@
         "ky" : {
           "stringUnit" : {
             "state" : "needs_review",
-            "value" : "Email же сырсөз туура эмес."
+            "value" : "Email же сырсөз туура эмес. Сырсөздү унуттуңуз беле? Жогорудагы «Сырсөздү унуттуңузбу?» баскычын басыңыз."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Неверный email или пароль."
+            "value" : "Неверный email или пароль. Если забыли пароль, нажмите «Забыли пароль?» выше."
           }
         }
       }

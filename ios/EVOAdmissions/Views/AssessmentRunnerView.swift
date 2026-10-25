@@ -94,7 +94,7 @@ final class AssessmentRunnerModel: ObservableObject {
             let loaded = try await service.studentAssessmentAttempt(id: attemptId)
             adopt(loaded)
         } catch {
-            loadFailedMessage = error.localizedDescription
+            loadFailedMessage = ConnectionFailure.hint(for: error)
         }
     }
 
@@ -109,7 +109,7 @@ final class AssessmentRunnerModel: ObservableObject {
             )
             adopt(started)
         } catch {
-            loadFailedMessage = error.localizedDescription
+            loadFailedMessage = ConnectionFailure.hint(for: error)
         }
         isStarting = false
     }

@@ -298,7 +298,7 @@ struct AdmissionDocumentsView: View {
                     .foregroundStyle(.secondaryText)
                 }
 
-                ForEach(model.documents) { document in
+                ForEach(AdmissionDocumentProgress.displayOrder(model.documents)) { document in
                     Section {
                         DocumentSlotRow(
                             document: document,
@@ -419,13 +419,15 @@ private struct DocumentSlotRow: View {
             facts
 
             if let reworkReason = document.reworkReason {
-                VStack(alignment: .leading, spacing: 2) {
+                // Причина доработки - главное в этой карточке: обычным
+                // размером текста, а не мелким caption.
+                VStack(alignment: .leading, spacing: 4) {
                     Text("adm_rework_title")
-                        .font(.caption.weight(.semibold))
+                        .font(.subheadline.weight(.semibold))
                     Text(reworkReason)
-                        .font(.caption)
+                        .font(.body)
                 }
-                .padding(8)
+                .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
                 .accessibilityElement(children: .combine)
@@ -513,7 +515,11 @@ private struct DocumentSlotRow: View {
         return parts.joined(separator: " · ")
     }
 
+    /// «Решение EVO» показывается, только если оно говорит что-то сверх метки
+    /// статуса: «Нужно исправить» рядом с «Решение EVO: нужно исправить» -
+    /// одно и то же дважды.
     private var reviewDecisionText: String? {
+        if document.reviewDecision == document.slotStatus { return nil }
         switch document.reviewDecision {
         case "approved": return String(localized: "adm_review_approved")
         case "correction_required": return String(localized: "adm_review_correction_required")
@@ -544,6 +550,8 @@ private struct DocumentSlotRow: View {
             }
 
             if document.documentVersionId != nil {
+                // Скачивание - второстепенное действие: текстовая кнопка, чтобы
+                // главной на карточке была загрузка, когда она нужна.
                 Button {
                     onDownload()
                 } label: {
@@ -556,8 +564,9 @@ private struct DocumentSlotRow: View {
                         Label("adm_download_button", systemImage: "arrow.down.doc")
                     }
                 }
-                .accentBordered()
-                .controlSize(.large)
+                .buttonStyle(.borderless)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
                 .disabled(isDownloading)
                 // Имя для VoiceOver начинается с видимой фразы кнопки
                 // (WCAG 2.5.3), затем имя файла.
@@ -595,7 +604,7 @@ private struct DocumentSlotRow: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.green)
-                pickButton
+                pickButton(prominent: false)
             }
         case .failed(let failure):
             VStack(alignment: .leading, spacing: 4) {
@@ -609,29 +618,42 @@ private struct DocumentSlotRow: View {
                         Button("adm_retry_upload") { onRetryUpload() }
                             .accentProminent()
                     }
-                    pickButton
+                    pickButton(prominent: !canRetry)
                 }
             }
         case .idle:
             VStack(alignment: .leading, spacing: 4) {
-                pickButton
+                pickButton(prominent: true)
                 Text("adm_upload_hint")
-                    .font(.caption2)
+                    .font(.caption)
                     .foregroundStyle(.secondaryText)
             }
         }
     }
 
-    private var pickButton: some View {
-        Button {
+    /// Подпись по делу: без файла - «Загрузить файл», с файлом - «Загрузить
+    /// другой файл» (раньше всегда «Загрузить новый файл», даже у пустого
+    /// пункта). Главной кнопкой (залитой) загрузка становится там, где от
+    /// студента ждут действия.
+    private var pickKey: LocalizedStringKey {
+        document.documentVersionId == nil ? "adm_upload_button" : "adm_upload_replace_button"
+    }
+
+    @ViewBuilder
+    private func pickButton(prominent: Bool) -> some View {
+        let button = Button {
             onPickFile()
         } label: {
-            Label("adm_upload_button", systemImage: "square.and.arrow.up")
+            Label(pickKey, systemImage: "square.and.arrow.up")
         }
-        .accentBordered()
         .controlSize(.large)
         .disabled(uploadState == .uploading)
-        .accessibilityLabel(Text("adm_upload_button") + Text(verbatim: ", " + document.requirementLabel))
+        .accessibilityLabel(Text(pickKey) + Text(verbatim: ", " + document.requirementLabel))
+        if prominent && AdmissionDocumentProgress.needsAction(document) {
+            button.accentProminent()
+        } else {
+            button.accentBordered()
+        }
     }
 
     private func failureKey(_ failure: PortalDocumentTransfer.UploadFailure) -> LocalizedStringKey {

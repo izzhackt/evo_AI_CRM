@@ -216,6 +216,16 @@ final class AdmissionDecodingTests: XCTestCase {
         )
         XCTAssertTrue(correction.allowsUpload)
 
+        // Что требует действия студента: «Не загружен» и «Нужно исправить».
+        XCTAssertFalse(AdmissionDocumentProgress.needsAction(approved))
+        XCTAssertTrue(AdmissionDocumentProgress.needsAction(required))
+        XCTAssertTrue(AdmissionDocumentProgress.needsAction(correction))
+        // Порядок на экране: сначала дела студента (в порядке чеклиста), принятое в конце.
+        XCTAssertEqual(
+            AdmissionDocumentProgress.displayOrder(documents).map(\.slotStatus),
+            ["required", "correction_required", "approved"]
+        )
+
         // Progress counters (web documentProgress semantics).
         XCTAssertEqual(AdmissionDocumentProgress.approvedCount(documents), 1)
         XCTAssertEqual(AdmissionDocumentProgress.missingCount(documents), 1)

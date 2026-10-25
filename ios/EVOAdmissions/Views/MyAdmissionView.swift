@@ -60,6 +60,16 @@ struct MyAdmissionView: View {
         }
     }
 
+    /// Два «следующих шага» на одном экране (карточка статуса и блок «Ваш
+    /// следующий шаг») говорили разное. Очередь действий надёжнее и ведёт в
+    /// раздел, поэтому свободный текст сотрудника показывается, только когда
+    /// очереди нет (или она не загрузилась).
+    private var showsFreeTextNextAction: Bool {
+        guard let text = session.portalCase.nextAction, !text.isEmpty else { return false }
+        if model.isLoaded { return model.primaryAction == nil }
+        return model.loadFailed
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -81,7 +91,7 @@ struct MyAdmissionView: View {
                             }
                             .accessibilityElement(children: .combine)
                         }
-                        if let nextAction = session.portalCase.nextAction, !nextAction.isEmpty {
+                        if showsFreeTextNextAction, let nextAction = session.portalCase.nextAction {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("home_next_action_label")
                                     .font(.caption)
@@ -95,10 +105,6 @@ struct MyAdmissionView: View {
                 }
 
                 nextStepSection
-
-                ProgramPreparationListSection()
-
-                evoSection
 
                 Section {
                     Group {
@@ -124,10 +130,11 @@ struct MyAdmissionView: View {
                         }
                     }
                     .motionStagger(index: 2, key: "admission.links")
-                } footer: {
-                    Text("messages_section_note")
-                        .foregroundStyle(.secondaryText)
                 }
+
+                ProgramPreparationListSection()
+
+                evoSection
             }
             .navigationTitle("tab_my_admission")
             .refreshable {
@@ -177,6 +184,8 @@ struct MyAdmissionView: View {
                             Task { await model.load() }
                         }
                         .font(.subheadline)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                     }
                 } else {
                     ProgressView()
@@ -187,13 +196,6 @@ struct MyAdmissionView: View {
         } header: {
             Text("adm_next_step_heading")
                 .foregroundStyle(.secondaryText)
-        } footer: {
-            Group {
-                if model.isLoaded, model.primaryAction != nil {
-                    Text("adm_next_step_note")
-                }
-            }
-            .foregroundStyle(.secondaryText)
         }
     }
 
@@ -261,7 +263,7 @@ struct MyAdmissionView: View {
     /// evoActionDueLabel в вебе (presentation.ts:85-89).
     private func evoDueLabel(_ action: EvoAction) -> String? {
         if let dueOn = action.dueOn {
-            return CatalogDate.dayLabel(from: dueOn, locale: AppLocale.current)
+            return AdmissionTimestamp.dayLabel(from: dueOn)
         }
         return AdmissionTimestamp.label(from: action.dueAt)
     }

@@ -256,6 +256,29 @@ enum AdmissionDocumentProgress {
     static func missingCount(_ documents: [StudentPortalDocumentRow]) -> Int {
         documents.filter { $0.slotStatus == "required" }.count
     }
+
+    /// От студента ждут действия: файл не загружен, его нужно исправить или
+    /// он отклонён. «На проверке» и «Принят» действия не требуют.
+    static func needsAction(_ document: StudentPortalDocumentRow) -> Bool {
+        ["required", "correction_required", "rejected"].contains(document.slotStatus)
+    }
+
+    /// Порядок на экране «Документы»: сначала то, что нужно сделать студенту,
+    /// потом «на проверке», в конце принятые. Раньше шёл порядок чеклиста, и
+    /// документ с причиной доработки оказывался третьим, под принятым паспортом.
+    /// Внутри группы порядок чеклиста сохраняется.
+    static func displayOrder(_ documents: [StudentPortalDocumentRow]) -> [StudentPortalDocumentRow] {
+        func group(_ document: StudentPortalDocumentRow) -> Int {
+            if needsAction(document) { return 0 }
+            return document.slotStatus == "approved" ? 2 : 1
+        }
+        return documents.enumerated()
+            .sorted { left, right in
+                let (a, b) = (group(left.element), group(right.element))
+                return a == b ? left.offset < right.offset : a < b
+            }
+            .map(\.element)
+    }
 }
 
 // MARK: - Finance (127:472-485; 189 null semantics)
@@ -480,5 +503,21 @@ enum AdmissionTimestamp {
         formatter.timeZone = TimeZone(identifier: "Asia/Bishkek")
         formatter.dateFormat = "dd.MM.yyyy, HH:mm"
         return formatter.string(from: date)
+    }
+
+    /// Срок-ДАТА (`due_on`, весь день) в том же виде `dd.MM.yyyy`, что и срок
+    /// со временем выше: на одном экране не должно быть «30.09.2026, 15:00»
+    /// рядом с «1 октября 2026 г.». Дата берётся как есть, без часовых поясов.
+    static func dayLabel(from raw: String) -> String? {
+        let input = DateFormatter()
+        input.locale = Locale(identifier: "en_US_POSIX")
+        input.timeZone = TimeZone(identifier: "UTC")
+        input.dateFormat = "yyyy-MM-dd"
+        guard let date = input.date(from: raw) else { return nil }
+        let output = DateFormatter()
+        output.locale = Locale(identifier: "ru_RU")
+        output.timeZone = TimeZone(identifier: "UTC")
+        output.dateFormat = "dd.MM.yyyy"
+        return output.string(from: date)
     }
 }

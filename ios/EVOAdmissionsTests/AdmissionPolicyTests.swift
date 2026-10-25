@@ -106,6 +106,10 @@ final class AdmissionPolicyTests: XCTestCase {
     }
 
     func testUnparseableDueTimestampRendersNothingNotAFabricatedDate() {
+        // Срок-дата и срок со временем выглядят одинаково: dd.MM.yyyy.
+        XCTAssertEqual(AdmissionTimestamp.dayLabel(from: "2026-10-01"), "01.10.2026")
+        XCTAssertNil(AdmissionTimestamp.dayLabel(from: "01.10.2026"))
+        XCTAssertNil(AdmissionTimestamp.dayLabel(from: ""))
         XCTAssertNil(AdmissionTimestamp.label(from: "not-a-timestamp"))
         XCTAssertNil(AdmissionTimestamp.label(from: nil))
         // Sanity: a real timestamptz renders in the fixed Bishkek zone

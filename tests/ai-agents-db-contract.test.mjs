@@ -17,6 +17,12 @@ import {
   AI_AGENT_DIGEST_KINDS,
   AI_AGENT_TOOL_ERROR_CODES,
 } from "../src/lib/ai-agents/contract.ts";
+import {
+  AI_AGENT_CAP_OPEN_RUN_WINDOW_MINUTES,
+  AI_AGENT_CAP_TIME_ZONE,
+  AI_AGENT_DAILY_BUDGET_REACHED_CODE,
+  AI_AGENT_DAILY_SPEND_RPC,
+} from "../src/lib/ai-agents/daily-cap.ts";
 import { AI_AUTOSEND_REASON_RU } from "../src/lib/v3/ai-agent-autosend.ts";
 import { AI_WINDOW_UNAVAILABLE } from "../src/lib/v3/ai-agent.ts";
 import {
@@ -46,6 +52,9 @@ const SOURCE_280 = readFileSync(new URL("../supabase/migrations/280_platform_acc
 const SOURCE_315 = readFileSync(new URL("../supabase/migrations/315_platform_account_deletion_p3.sql", import.meta.url), "utf8");
 const SOURCE_320 = readFileSync(new URL("../supabase/migrations/320_platform_student_ai_consent.sql", import.meta.url), "utf8");
 const SUITE_320 = readFileSync(new URL("../supabase/tests/platform_student_ai_consent.sql", import.meta.url), "utf8");
+// Migration 322 (written as 321, renumbered at merge; daily spend of an agent for the WhatsApp limit, 26.10.2026) adds one read-only runtime function and replaces nothing.
+const SOURCE_322 = readFileSync(new URL("../supabase/migrations/322_platform_ai_agents_daily_spend.sql", import.meta.url), "utf8");
+const SUITE_322 = readFileSync(new URL("../supabase/tests/platform_ai_agents_daily_spend.sql", import.meta.url), "utf8");
 const TEST_SCRIPT = readFileSync(new URL("../scripts/test-postgres-authorization.sh", import.meta.url), "utf8");
 
 test("the tool schema table is the contract's registry, row for row", () => {
@@ -634,4 +643,70 @@ test("320 and its suite hold no secret, no address and no real person; the suite
   assert.equal(tampered.length, 19);
   assert.deepEqual([...tampered].map((signature) => signature.slice(1, -1)).sort(),
     [...SOURCE_320.matchAll(/\('((?:platform|platform_private|platform_ai_agent)\.[a-z0-9_]+\([a-z0-9_.,[\]]*\))', '[0-9a-f]{32}'\)/gu)].map(([, signature]) => signature).sort());
+});
+
+/* ----------------------------------------------------------------------------------------- 322 */
+
+test("322 adds exactly one function, the one the app calls, closed to everyone but service_role, and changes nothing that exists", () => {
+  const created = [...SOURCE_322.matchAll(/CREATE (?:OR REPLACE )?FUNCTION ([a-z_]+\.[a-z0-9_]+)\(/gu)].map(([, name]) => name);
+  assert.deepEqual(created, [`platform.${AI_AGENT_DAILY_SPEND_RPC}`], "one new function; nothing replaced");
+  assert.doesNotMatch(SOURCE_322, /CREATE TABLE|ALTER TABLE|DROP |CREATE OR REPLACE|CREATE TRIGGER|INSERT INTO|UPDATE platform|DELETE FROM/u, "forward-only, read-only");
+  assert.match(SOURCE_322, /SECURITY DEFINER SET search_path = ''/u);
+  assert.match(SOURCE_322, /PERFORM platform_private\.require_p2g_service\(\)/u, "the shared service guard comes first");
+  assert.match(SOURCE_322, /REVOKE ALL ON FUNCTION platform\.ai_agent_runtime_daily_spend_v1\(uuid, text, timestamp with time zone, integer\)\s+FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin, evo_ai_agent/u);
+  assert.match(SOURCE_322, /GRANT EXECUTE ON FUNCTION platform\.ai_agent_runtime_daily_spend_v1\(uuid, text, timestamp with time zone, integer\)\s+TO service_role;/u);
+  assert.doesNotMatch(SOURCE_322, /GRANT[^;]*(authenticated|anon)/u);
+  // The re-run refusal comes before anything is created.
+  assert.ok(SOURCE_322.indexOf("a322_already_applied") < SOURCE_322.indexOf("CREATE FUNCTION"));
+  assert.match(SOURCE_322, /NOTIFY pgrst, 'reload schema';\s+COMMIT;/u);
+});
+
+test("322 and the app agree: the same time zone, the same open-run window, the same record code, the same function name", () => {
+  assert.equal(AI_AGENT_CAP_TIME_ZONE, "Asia/Bishkek");
+  assert.equal([...SOURCE_322.matchAll(/'Asia\/Bishkek'/gu)].length, 3, "day, start and end of the day are all Bishkek");
+  assert.match(SOURCE_322, new RegExp(`p_open_minutes INTEGER DEFAULT ${AI_AGENT_CAP_OPEN_RUN_WINDOW_MINUTES}\\)`, "u"), "the SQL default window is the app's");
+  assert.match(SOURCE_322, /least\(greatest\(COALESCE\(p_open_minutes, 60\), 1\), 1440\)/u);
+  assert.equal(AI_AGENT_DAILY_BUDGET_REACHED_CODE, "daily_budget_reached");
+  assert.ok(AI_AGENT_DAILY_BUDGET_REACHED_CODE.length <= 64, "fits error_code");
+  // The suite proves the same code and day key through the real reserve / update path.
+  assert.match(SUITE_322, /daily_budget_reached/u);
+  assert.match(SUITE_322, /wacap:2026-10-26/u);
+  // The run statuses the function counts as "in work" exist in the contract.
+  for (const status of ["starting", "running"]) assert.ok(AI_AGENT_RUN_STATUSES.includes(status), status);
+  assert.ok(AI_AGENT_RUN_STATUSES.includes("budget_reached"), "the record uses the existing stopped-by-limit status");
+  // Nothing of the frozen contract was edited for this: the function is not one of its names.
+  assert.ok(!Object.values(AI_AGENT_RUNTIME_RPC).includes(AI_AGENT_DAILY_SPEND_RPC));
+});
+
+test("322 adds up every status and trigger of the asked agent in the Bishkek day, and lists only starting / running runs of that agent", () => {
+  const body = functionBody(SOURCE_322, "CREATE FUNCTION platform.ai_agent_runtime_daily_spend_v1(");
+  assert.match(body, /v_day := \(v_now AT TIME ZONE 'Asia\/Bishkek'\)::DATE;/u);
+  assert.match(body, /v_from := v_day::TIMESTAMP AT TIME ZONE 'Asia\/Bishkek';/u);
+  assert.match(body, /v_to := \(v_day \+ 1\)::TIMESTAMP AT TIME ZONE 'Asia\/Bishkek';/u);
+  assert.match(body, /r\.started_at >= v_from AND r\.started_at < v_to/u, "[00:00; next 00:00) - the edge at 00:00:00 is the new day");
+  const spend = body.slice(body.indexOf("SELECT COALESCE(sum(r.cost_cents)"), body.indexOf("SELECT COALESCE(jsonb_agg"));
+  assert.doesNotMatch(spend, /status|trigger_kind/u, "no status or trigger filter on the spend: the limit is the agent's");
+  assert.match(spend, /r\.organization_id = p_organization_id AND r\.agent_key = p_key/u);
+  const open = body.slice(body.indexOf("SELECT COALESCE(jsonb_agg"));
+  assert.match(open, /x\.organization_id = p_organization_id AND x\.agent_key = p_key AND x\.status IN \('starting', 'running'\)/u);
+  assert.match(open, /LIMIT 50/u);
+  // A run in work holds its reserve whatever its age: its cost is written only at closing, so an age cut-off from "now"
+  // would let a late closing open the cap. The window counts back from the start of the Bishkek day, and the kind is listed.
+  assert.match(open, /x\.started_at >= v_from - make_interval\(mins => v_minutes\)/u);
+  assert.doesNotMatch(open, /v_now - make_interval|clock_timestamp|interval '/iu, "no age cut-off measured from the moment of the call");
+  assert.match(open, /'triggerKind', o\.trigger_kind/u);
+  assert.match(SOURCE_322, /any age|ЛЮБОГО возраста/u, "the header states the rule");
+});
+
+test("322 and its suite hold no secret, no address and no real person; the suite is hooked into the Postgres script", () => {
+  assert.doesNotMatch(SOURCE_322, /sk-ant-|Bearer [A-Za-z0-9]|\+996\d{6,}|@gmail\.|@mail\./u);
+  assert.doesNotMatch(SUITE_322, /sk-ant-|Bearer [A-Za-z0-9]|\+996\d{6,}|@gmail\.|@mail\.|@[a-z0-9-]+\.[a-z]/u);
+  assert.match(SUITE_322, /A322_AI_AGENTS_DAILY_SPEND_SUITE_PASSED/u);
+  assert.match(SUITE_322, /ROLLBACK;\s*$/u, "the suite leaves nothing behind");
+  assert.match(TEST_SCRIPT, /\*_platform_ai_agents_daily_spend\.sql/u);
+  assert.match(TEST_SCRIPT, /a322_already_applied/u);
+  assert.match(TEST_SCRIPT, /platform_ai_agents_daily_spend\.sql[\s\S]*A322_AI_AGENTS_DAILY_SPEND_SUITE_PASSED/u);
+  // The suite and the hook sit after 320's and inside the migration loop.
+  assert.ok(TEST_SCRIPT.indexOf("*_platform_ai_agents_daily_spend.sql") > TEST_SCRIPT.indexOf("A320_STUDENT_AI_CONSENT_SUITE_PASSED"));
+  assert.ok(TEST_SCRIPT.indexOf("*_platform_ai_agents_daily_spend.sql") < TEST_SCRIPT.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
 });

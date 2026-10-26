@@ -328,7 +328,8 @@ test('during a one-tap send the stored submit intent is that send\'s own, not an
   const item = read('src/components/portal/admissionPreparations/ProgramDocumentItem.tsx');
   assert.match(item, /const sendAfterSave = oneTapRun \?\? \(audience === "student"/u, 'the tap-time view holds while the run lasts');
   assert.match(item, /onSendingChange=\{onOneTapRun\}[^\n]*\/>\n\s*<\/details> : <ProgramDocumentUpload[^\n]*\n[^\n]*onSendingChange=\{onOneTapRun\}/u, 'both upload forms report the run');
-  assert.match(item, /suppressed=\{oneTapRun !== null\}/u);
+  assert.match(item, /const sending = oneTapRun !== null \|\| standaloneSending;/u);
+  assert.match(item, /suppressed=\{sending\}/u);
   const controls = read('src/components/portal/admissionPreparations/ProgramDocumentControls.tsx');
   assert.match(controls, /const retained = !suppressed && pending\.intent && "selection" in pending\.intent/u, 'no «Проверить результат» for the running send');
   assert.match(controls, /if \(sending\.current \|\| suppressed \|\|/u);
@@ -339,7 +340,7 @@ test('during a one-tap send the stored submit intent is that send\'s own, not an
   assert.ok(started > 0 && started < runs && runs < ended && ended < refreshed, 'reported before the run, released before the refresh');
   assert.match(save, /const run = oneTap && sendAfterSave \? \{ previousSubmissionId: sendAfterSave\.previousSubmissionId \} : null;/u, 'a fresh run object per tap');
   assert.match(item, /setOneTapRun\(current => nextOneTapRun\(current, run, active\)\)/u, 'only the run that started the view ends it');
-  assert.match(item, /itemSending=\{oneTapRun !== null\}[^\n]*\/>\n\s*<\/details> : <ProgramDocumentUpload[^\n]*\n[^\n]*itemSending=\{oneTapRun !== null\}/u, 'both upload forms know a send runs');
+  assert.match(item, /itemSending=\{sending\}[^\n]*\/>\n\s*<\/details> : <ProgramDocumentUpload[^\n]*\n[^\n]*itemSending=\{sending\}/u, 'both upload forms know a send runs');
   // A form remounted during the send waits for it; the upload this form itself is making is not shown as unfinished.
   assert.match(controls, /const elsewhere = itemSending && !busy;/u);
   assert.match(controls, /const shownRetained = busy \|\| elsewhere \? null : retained;/u);
@@ -367,6 +368,15 @@ test('a standalone send keeps its confirmation through the refresh, for students
   assert.ok(sentAt > 0 && sentAt < refreshAt, 'kept before the refresh remounts the control');
   const item = read('src/components/portal/admissionPreparations/ProgramDocumentItem.tsx');
   assert.match(item, /onSent=\{audience === "student" \? \(versionId, text\) => onNotice\(\{ tone: "success", text, versionId \}\) : undefined\}/u, 'staff copy and behaviour stay as they were');
+  // While the student's own «Отправить на проверку» runs, its stored intent does not flip the one-tap view or show «Не уверены…».
+  assert.match(item, /onBusyChange=\{audience === "student" \? onStandaloneSending : undefined\}/u, 'staff sends report nothing');
+  const busyOn = submitBody.indexOf('onBusyChange?.(true)'), call = submitBody.indexOf('runApplicationDocumentSubmit('), busyOff = submitBody.indexOf('onBusyChange?.(false)');
+  assert.ok(busyOn > 0 && busyOn < call && call < busyOff, 'reported before the send, released in finally');
+  // A replayed send («Проверить результат» after a lost reply) changes nothing, so the item's kept line is visible at once: one line, not two.
+  assert.match(item, /confirmationShown=\{noticeShown && notice\.tone === "success"\}/u);
+  assert.match(submitBody, /const shownMessage = message && !\(succeeded && confirmationShown\) \? message : null;/u);
+  assert.match(submitBody, /\{shownMessage \? <p className=\{succeeded \? styles\.note : styles\.error\}/u);
+  assert.match(submitBody, /!busy && !shownMessage\) return null;/u, 'an emptied control hides for the student instead of leaving a bare disabled button');
   // The kept «sent» line shows only once the refreshed item has that very version as its submission.
   assert.equal(applicationDocumentNoticeVisible({ tone: 'success', text: 'x', versionId: id(30) }, { submittedVersionId: id(30), reviewed: false, unsentDraftVersionId: null }), true);
   assert.equal(applicationDocumentNoticeVisible({ tone: 'success', text: 'x', versionId: id(30) }, { submittedVersionId: id(31), reviewed: false, unsentDraftVersionId: null }), false);
@@ -377,7 +387,7 @@ test('screens wire the one tap for students who may submit and keep staff two-st
   // The real behaviour is exercised in the browser QA stream.
   const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
   const item = read('src/components/portal/admissionPreparations/ProgramDocumentItem.tsx');
-  assert.match(item, /audience === "student" && item\.canSubmit && !submitPending\.intent && !submitPending\.blocked/u);
+  assert.match(item, /audience === "student" && item\.canSubmit && \(!submitPending\.intent \|\| standaloneSending\) && !submitPending\.blocked/u);
   assert.match(item, /hideWhenIdle=\{audience === "student"\}/u);
   assert.match(item, /applicationDocumentNoticeVisible\(notice,/u);
   const controls = read('src/components/portal/admissionPreparations/ProgramDocumentControls.tsx');

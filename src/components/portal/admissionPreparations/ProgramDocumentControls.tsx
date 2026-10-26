@@ -164,7 +164,7 @@ export function ProgramDocumentUpload({ scope, target, audience, strings, onSave
   </form>;
 }
 
-export function ProgramDocumentSubmit({ scope, target, audience, selection, previousSubmissionId, strings, onSaved, onAttempt, onSent, hideWhenIdle = false, suppressed = false, disabled = false }: {
+export function ProgramDocumentSubmit({ scope, target, audience, selection, previousSubmissionId, strings, onSaved, onAttempt, onSent, onBusyChange, confirmationShown = false, hideWhenIdle = false, suppressed = false, disabled = false }: {
   scope: ProgramDocumentScope;
   target: ApplicationDocumentItemTarget;
   audience: "student" | "staff";
@@ -176,6 +176,10 @@ export function ProgramDocumentSubmit({ scope, target, audience, selection, prev
   onAttempt?: () => void;
   /** Receives the confirmation that must stay visible after the refresh remounts this control. */
   onSent?: (documentVersionId: string, text: string) => void;
+  /** Reports this send while it lasts: the intent it stores is its own, not an unfinished earlier one. */
+  onBusyChange?: (busy: boolean) => void;
+  /** The item already shows the kept «sent» line; this control does not repeat it. */
+  confirmationShown?: boolean;
   /** Student: show nothing while there is no saved file to send and no unfinished send. */
   hideWhenIdle?: boolean;
   /** This item's one-tap send is running: the submit intent it stored is not a retained one, and nothing is sent beside it. */
@@ -193,6 +197,7 @@ export function ProgramDocumentSubmit({ scope, target, audience, selection, prev
     if (sending.current || suppressed || pending.blocked || (!retained && (disabled || !selection))) return;
     sending.current = true; setBusy(true); setMessage(null); setSucceeded(false);
     try { onAttempt?.(); } catch { /* Display only. */ }
+    try { onBusyChange?.(true); } catch { /* Display only. */ }
     // A retained intent is resent as it was stored; otherwise the current choice is sent.
     const sentVersionId = (retained?.selection ?? selection)?.documentVersionId ?? null;
     try {
@@ -214,16 +219,21 @@ export function ProgramDocumentSubmit({ scope, target, audience, selection, prev
         default: break;
       }
     } catch { setMessage(strings.unavailable); }
-    finally { sending.current = false; setBusy(false); }
+    finally {
+      sending.current = false; setBusy(false);
+      try { onBusyChange?.(false); } catch { /* Display only. */ }
+    }
   }
-  if (hideWhenIdle && !retained && !selection && !pending.blocked && !busy && !message) return null;
+  // A replayed send leaves the item unchanged, so nothing remounts and the item's kept line is already visible.
+  const shownMessage = message && !(succeeded && confirmationShown) ? message : null;
+  if (hideWhenIdle && !retained && !selection && !pending.blocked && !busy && !shownMessage) return null;
   return <div className={styles.section} aria-busy={busy}>
     {retained && !succeeded ? <p className={styles.note}>{strings.pending}</p> : null}
     {pending.blocked ? <p className={styles.error} role="alert">{strings.storageUnavailable}</p> : null}
     <button type="button" className={styles.button} disabled={!hydrated || busy || suppressed || pending.blocked || (!retained && (disabled || !selection))} onClick={() => void submit()}>
       {busy ? strings.sending : retained ? strings.retry : strings.send}
     </button>
-    {message ? <p className={succeeded ? styles.note : styles.error} role={succeeded ? "status" : "alert"}>{message}</p> : null}
+    {shownMessage ? <p className={succeeded ? styles.note : styles.error} role={succeeded ? "status" : "alert"}>{shownMessage}</p> : null}
   </div>;
 }
 

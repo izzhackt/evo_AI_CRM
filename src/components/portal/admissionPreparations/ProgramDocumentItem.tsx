@@ -28,12 +28,16 @@ export function ProgramDocumentItem(props: ItemProps) {
   // A running one-tap send, kept here so a remount during it cannot show its own intent as an unfinished one.
   const [oneTapRun, setOneTapRun] = useState<ProgramDocumentSendAfterSave | null>(null);
   const onOneTapRun = (run: ProgramDocumentSendAfterSave, active: boolean) => setOneTapRun(current => nextOneTapRun(current, run, active));
-  return <ProgramDocumentItemSnapshot key={key} {...props} notice={notice} onNotice={setNotice} oneTapRun={oneTapRun} onOneTapRun={onOneTapRun} />;
+  // The student's «Отправить на проверку» send, for the same reason: its own stored intent is not an unfinished one.
+  const [standaloneSending, setStandaloneSending] = useState(false);
+  return <ProgramDocumentItemSnapshot key={key} {...props} notice={notice} onNotice={setNotice} oneTapRun={oneTapRun} onOneTapRun={onOneTapRun}
+    standaloneSending={standaloneSending} onStandaloneSending={setStandaloneSending} />;
 }
 
-function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, canReview = false, onSaved, historyEpoch = 0, notice, onNotice, oneTapRun, onOneTapRun }: ItemProps & {
+function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, canReview = false, onSaved, historyEpoch = 0, notice, onNotice, oneTapRun, onOneTapRun, standaloneSending, onStandaloneSending }: ItemProps & {
   notice: ApplicationDocumentNotice | null; onNotice: (notice: ApplicationDocumentNotice | null) => void;
   oneTapRun: ProgramDocumentSendAfterSave | null; onOneTapRun: (run: ProgramDocumentSendAfterSave, active: boolean) => void;
+  standaloneSending: boolean; onStandaloneSending: (busy: boolean) => void;
 }) {
   const id = useId();
   const [versions, setVersions] = useState(item.reusableVersions);
@@ -51,8 +55,9 @@ function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, c
   const selectionAvailable = (chosen?.file ?? (unsubmittedDraft ? draft.file : null))?.technicalAvailability === "available";
   // Student who may submit: saving the file also sends it. An unfinished earlier send is finished by its own button first.
   const submitPending = useProgramDocumentPending(scope, "submit", target.requirementItemId);
-  // While a one-tap send runs, the intent it stored is its own: the item keeps the view it had at the tap.
-  const sendAfterSave = oneTapRun ?? (audience === "student" && item.canSubmit && !submitPending.intent && !submitPending.blocked
+  // While a one-tap or «Отправить на проверку» send runs, the intent it stored is its own: the item keeps its view.
+  const sending = oneTapRun !== null || standaloneSending;
+  const sendAfterSave = oneTapRun ?? (audience === "student" && item.canSubmit && (!submitPending.intent || standaloneSending) && !submitPending.blocked
     ? { previousSubmissionId: item.submission?.submissionId ?? null } : undefined);
   const noticeShown = notice !== null && applicationDocumentNoticeVisible(notice, {
     submittedVersionId: item.submission?.file.documentVersionId ?? null, reviewed: Boolean(item.submission?.review),
@@ -82,9 +87,9 @@ function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, c
       <summary className={styles.summary}>{item.submission?.review && item.submission.review.decision !== "approved" ? strings.correctFile : draft || item.submission ? strings.replaceFile : strings.chooseFile}</summary>
       <p className={styles.note}>{sendAfterSave ? strings.saveHintOneTap : strings.saveHint}</p>
       <ProgramDocumentUpload scope={scope} target={target} audience={audience} strings={strings} onSaved={onSaved}
-        sendAfterSave={sendAfterSave} onNotice={onNotice} onSendingChange={onOneTapRun} itemSending={oneTapRun !== null} quiet={selection !== null} />
+        sendAfterSave={sendAfterSave} onNotice={onNotice} onSendingChange={onOneTapRun} itemSending={sending} quiet={selection !== null} />
     </details> : <ProgramDocumentUpload scope={scope} target={target} audience={audience} strings={strings} onSaved={onSaved}
-      sendAfterSave={sendAfterSave} onNotice={onNotice} onSendingChange={onOneTapRun} itemSending={oneTapRun !== null} quiet={selection !== null} disabled />}
+      sendAfterSave={sendAfterSave} onNotice={onNotice} onSendingChange={onOneTapRun} itemSending={sending} quiet={selection !== null} disabled />}
 
     {selectableVersions.length || cursor ? <details className={styles.details}>
       <summary className={styles.summary}>{strings.otherFile}</summary>
@@ -104,8 +109,9 @@ function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, c
     {noticeShown ? <p className={notice.tone === "success" ? styles.note : styles.error} role={notice.tone === "success" ? "status" : "alert"}>{notice.text}</p> : null}
     <ProgramDocumentSubmit scope={scope} target={target} audience={audience} strings={strings} selection={selection}
       previousSubmissionId={item.submission?.submissionId ?? null} disabled={!item.canSubmit || !selectionAvailable} onSaved={onSaved}
-      hideWhenIdle={audience === "student"} suppressed={oneTapRun !== null} onAttempt={() => onNotice(null)}
-      onSent={audience === "student" ? (versionId, text) => onNotice({ tone: "success", text, versionId }) : undefined} />
+      hideWhenIdle={audience === "student"} suppressed={sending} onAttempt={() => onNotice(null)}
+      onSent={audience === "student" ? (versionId, text) => onNotice({ tone: "success", text, versionId }) : undefined}
+      onBusyChange={audience === "student" ? onStandaloneSending : undefined} confirmationShown={noticeShown && notice.tone === "success"} />
     {item.submission ? <>
       <ProgramSubmissionEvidence submission={item.submission} target={target} audience={audience} strings={strings} />
       {audience === "staff" ? <ProgramDocumentReview scope={scope} submission={item.submission} strings={strings} canReview={canReview} onSaved={onSaved} /> : null}

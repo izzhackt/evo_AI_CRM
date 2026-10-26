@@ -2529,6 +2529,7 @@ const programDocumentsRu = {
   saving: "Сохраняем и проверяем файл…",
   saved: "Файл сохранён. Теперь его можно отправить на проверку.",
   savedNotSent: "Файл сохранён, но не отправлен. {reason}",
+  savedSendBusy: "Файл сохранён, но не отправлен: этот документ сейчас отправляется в другой вкладке. Дождитесь результата и отправьте файл, если он не ушёл.",
   required: "Обязательно",
   optional: "Необязательно",
   deadline: "Срок документа",
@@ -2609,7 +2610,8 @@ const programDocumentsKy: Readonly<Record<keyof typeof programDocumentsRu, strin
   replaceFile: "Башка файл жүктөө",
   correctFile: "Оңдолгон файл жүктөө",
   saveHint: "Сактагандан кийин файлды өзүнчө баскыч менен текшерүүгө жөнөтүңүз.",
-  // KY «одним нажатием» (26.10.2026): без носителя языка, нужна вычитка (ky_review: pending).
+  // KY «одним нажатием» (26.10.2026): saveHintOneTap, uploadAndSend, uploading, savedNotSent, savedSendBusy
+  // написаны без носителя языка, нужна вычитка (ky_review: pending).
   saveHintOneTap: "Файл дароо EVO текшерүүсүнө жөнөтүлөт.",
   uploadAndSend: "Жүктөп, текшерүүгө жөнөтүү",
   formats: "PDF, JPG же PNG, 25 МБ чейин.",
@@ -2617,6 +2619,7 @@ const programDocumentsKy: Readonly<Record<keyof typeof programDocumentsRu, strin
   saving: "Файл сакталып, текшерилип жатат…",
   saved: "Файл сакталды. Эми аны текшерүүгө жөнөтсөңүз болот.",
   savedNotSent: "Файл сакталды, бирок жөнөтүлгөн жок. {reason}",
+  savedSendBusy: "Файл сакталды, бирок жөнөтүлгөн жок: бул документ азыр башка өтмөктө жөнөтүлүп жатат. Жыйынтыкты күтүңүз, файл кетпесе кайра жөнөтүңүз.",
   required: "Милдеттүү",
   optional: "Милдеттүү эмес",
   deadline: "Документтин мөөнөтү",

@@ -11,6 +11,7 @@ import {
   applicationDocumentPendingKey, persistApplicationDocumentPending, readApplicationDocumentPending,
 } from '../src/lib/portal/application-documents-pending.ts';
 import { freezeApplicationDocumentUploadIntent } from '../src/lib/portal/application-documents-upload.ts';
+import { applicationDocumentNoticeVisible, studentDocumentPageHint } from '../src/lib/portal/application-documents-one-tap.ts';
 import { PORTAL_DICTIONARIES } from '../src/lib/portal/i18n.ts';
 
 const id = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -257,29 +258,73 @@ test('new copy exists in Russian and Kyrgyz; the old two-step hint stays for sta
   assert.equal(ru.saveHint, 'После сохранения отправьте файл на проверку отдельной кнопкой.');
   assert.equal(ru.uploading, 'Загружаем…');
   assert.equal(ru.sending, 'Отправляем…');
-  for (const key of ['uploadAndSend', 'saveHintOneTap', 'uploading', 'savedNotSent']) {
+  for (const key of ['uploadAndSend', 'saveHintOneTap', 'uploading', 'savedNotSent', 'savedSendBusy']) {
     assert.ok(ru[key].trim() && ky[key].trim(), key);
   }
   assert.match(ru.savedNotSent, /^Файл сохранён, но не отправлен\. \{reason\}$/u);
   assert.match(ky.savedNotSent, /\{reason\}/u);
+  // Busy submit lock: the text says the file is saved, and does not point at a «Проверить результат» button that may not exist.
+  assert.match(ru.savedSendBusy, /^Файл сохранён, но не отправлен/u);
+  assert.doesNotMatch(ru.savedSendBusy, /Проверить результат/u);
+  assert.doesNotMatch(ru.savedSendBusy, /\{reason\}/u);
   assert.equal(ru.saved, 'Файл сохранён. Теперь его можно отправить на проверку.', 'upload-only copy is unchanged');
   assert.equal('uploadCopy' in PORTAL_DICTIONARIES.preparations.ru, false, 'the contrast sentence about a missing send button is gone');
   assert.equal('uploadCopy' in PORTAL_DICTIONARIES.preparations.ky, false);
 });
 
+const draftVersion = id(8);
+const view = (over = {}) => ({ submittedVersionId: null, reviewed: false, unsentDraftVersionId: null, ...over });
+const sent = { tone: 'success', text: 'Документ отправлен на проверку EVO.', versionId: draftVersion };
+const notSent = { tone: 'error', text: 'Файл сохранён, но не отправлен. …', versionId: draftVersion };
+
+test('success notice survives the remount and shows only for the version that was sent', () => {
+  assert.equal(applicationDocumentNoticeVisible(null, view()), false);
+  // Before the refresh brings the new submission the form still shows its own message, so the item stays quiet.
+  assert.equal(applicationDocumentNoticeVisible(sent, view()), false);
+  assert.equal(applicationDocumentNoticeVisible(sent, view({ submittedVersionId: draftVersion })), true);
+  assert.equal(applicationDocumentNoticeVisible(sent, view({ submittedVersionId: id(9) })), false, 'another version is the current submission');
+  assert.equal(applicationDocumentNoticeVisible(sent, view({ submittedVersionId: draftVersion, reviewed: true })), false, 'a staff decision replaces «sent»');
+});
+
+test('«saved, not sent» notice shows while that file waits and goes once it is sent or replaced', () => {
+  assert.equal(applicationDocumentNoticeVisible(notSent, view()), true, 'right after the failure, before the refresh');
+  assert.equal(applicationDocumentNoticeVisible(notSent, view({ unsentDraftVersionId: draftVersion })), true);
+  assert.equal(applicationDocumentNoticeVisible(notSent, view({ unsentDraftVersionId: id(9) })), false, 'a newer unsent file replaces it');
+  assert.equal(applicationDocumentNoticeVisible(notSent, view({ submittedVersionId: draftVersion })), false, 'it was sent afterwards');
+  assert.equal(applicationDocumentNoticeVisible(notSent, view({ submittedVersionId: id(9), unsentDraftVersionId: draftVersion })), true, 'an older submission does not hide it');
+});
+
+test('page hint claims one tap or two steps only when it is true for every uploadable document', () => {
+  const doc = (canUpload, canSubmit) => ({ canUpload, canSubmit });
+  assert.equal(studentDocumentPageHint(undefined), null, 'nothing loaded: no claim, no flicker');
+  assert.equal(studentDocumentPageHint(null), null);
+  assert.equal(studentDocumentPageHint([]), null);
+  assert.equal(studentDocumentPageHint([doc(true, true), doc(true, true)]), 'one_tap');
+  assert.equal(studentDocumentPageHint([doc(true, false), doc(true, false)]), 'two_step');
+  assert.equal(studentDocumentPageHint([doc(true, true), doc(true, false)]), null, 'mixed page: each document speaks for itself');
+  assert.equal(studentDocumentPageHint([doc(true, true), doc(false, false)]), 'one_tap', 'a document that cannot be uploaded is not part of the claim');
+  assert.equal(studentDocumentPageHint([doc(false, true)]), null);
+});
+
 test('screens wire the one tap for students who may submit and keep staff two-step', () => {
+  // Source-pattern checks: the components cannot be rendered in this runner, so the wiring is pinned by text.
+  // The real behaviour is exercised in the browser QA stream.
   const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
   const item = read('src/components/portal/admissionPreparations/ProgramDocumentItem.tsx');
   assert.match(item, /audience === "student" && item\.canSubmit && !submitPending\.intent && !submitPending\.blocked/u);
   assert.match(item, /hideWhenIdle=\{audience === "student"\}/u);
+  assert.match(item, /applicationDocumentNoticeVisible\(notice,/u);
   const controls = read('src/components/portal/admissionPreparations/ProgramDocumentControls.tsx');
   assert.match(controls, /runApplicationDocumentUploadAndSubmit/u);
   assert.match(controls, /runApplicationDocumentSubmit/u);
+  assert.match(controls, /outcome\.reason === "busy" \? strings\.savedSendBusy/u);
+  assert.match(controls, /tone: "success"/u);
   assert.doesNotMatch(controls, /persistApplicationDocumentPending|withApplicationDocumentLock/u, 'components reuse the shared commands instead of forking them');
   const staff = read('src/components/v3/profile/StaffPreparationPanel.tsx');
   assert.doesNotMatch(staff, /sendAfterSave/u);
   const recovery = read('src/components/portal/admissionPreparations/ProgramDocumentRecovery.tsx');
   assert.doesNotMatch(recovery, /sendAfterSave/u);
   const page = read('src/components/portal/admissionPreparations/ApplicationRequirementsUI.tsx');
-  assert.match(page, /some\(item => item\.canSubmit\) \? documentStrings\.saveHintOneTap : documentStrings\.saveHint/u);
+  assert.match(page, /studentDocumentPageHint\(documents\?\.documentItems\)/u);
+  assert.doesNotMatch(page, /some\(item => item\.canSubmit\)/u, 'one uploadable document must not decide the whole page');
 });

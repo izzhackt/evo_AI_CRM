@@ -9,6 +9,7 @@ import { submitStudentApplicationDocumentAction, submitStaffApplicationDocumentA
 import {
   runApplicationDocumentSubmit, runApplicationDocumentUploadAndSubmit, type ApplicationDocumentUploadAndSubmitOutcome,
 } from "@/lib/portal/application-documents-commands";
+import type { ApplicationDocumentNotice } from "@/lib/portal/application-documents-one-tap";
 import { APPLICATION_DOCUMENT_PENDING_EVENT, readApplicationDocumentPending } from "@/lib/portal/application-documents-pending";
 import { formatPortalString } from "@/lib/portal/i18n";
 import type { ProgramDocumentStrings } from "./ProgramDocumentEvidence";
@@ -43,9 +44,6 @@ export function documentActionMessage(reason: string, strings: ProgramDocumentSt
   return strings.unavailable;
 }
 
-/** A failure that must outlive the item's remount after the refresh that shows the saved draft. */
-export type ProgramDocumentNotice = Readonly<{ text: string; versionId: string }>;
-
 type UploadFailure = Extract<ApplicationDocumentUploadAndSubmitOutcome, { stage: "upload" }>["upload"];
 type SendStep = Extract<ApplicationDocumentUploadAndSubmitOutcome, { stage: "done" }>["submit"];
 
@@ -65,7 +63,8 @@ function sendFailureMessage(outcome: SendStep, strings: ProgramDocumentStrings):
     case "unknown": return strings.unavailable;
     case "rejected": return outcome.reason === "unavailable" && outcome.resolution === "retain"
       ? strings.unavailable : notSent(documentActionMessage(outcome.reason, strings));
-    case "locked": return outcome.reason === "busy" ? strings.pending : notSent(strings.storageUnavailable);
+    // This tab never started the send: the file is saved and another tab is sending this document.
+    case "locked": return outcome.reason === "busy" ? strings.savedSendBusy : notSent(strings.storageUnavailable);
     default: return null;
   }
 }
@@ -76,8 +75,8 @@ export function ProgramDocumentUpload({ scope, target, audience, strings, onSave
   audience: "student" | "staff";
   strings: ProgramDocumentStrings;
   onSaved: () => void;
-  /** Receives a send failure that must stay visible after the refresh remounts this form. */
-  onNotice?: (notice: ProgramDocumentNotice | null) => void;
+  /** Receives the one-tap result that must stay visible after the refresh remounts this form. */
+  onNotice?: (notice: ApplicationDocumentNotice | null) => void;
   /** Student who may submit: one tap saves the file and sends exactly that version for review. */
   sendAfterSave?: Readonly<{ previousSubmissionId: string | null }>;
   /** Another action (sending a saved file) is the main one right now. */
@@ -115,12 +114,15 @@ export function ProgramDocumentUpload({ scope, target, audience, strings, onSave
       const failure = sendFailureMessage(submit, strings);
       if (failure !== null) {
         // The file is saved; the refresh below shows it with the ordinary send button.
-        if (onNotice) onNotice({ text: failure, versionId: upload.receipt.documentVersionId }); else setMessage(failure);
+        if (onNotice) onNotice({ tone: "error", text: failure, versionId: upload.receipt.documentVersionId }); else setMessage(failure);
       } else {
         const sent = submit.status === "sent";
         const cleaned = upload.cleared && (submit.status !== "sent" || submit.cleared);
+        const text = `${sent ? strings.sent : strings.saved}${cleaned ? "" : ` ${strings.cleanupFailed}`}`;
         setSucceeded(true);
-        setMessage(`${sent ? strings.sent : strings.saved}${cleaned ? "" : ` ${strings.cleanupFailed}`}`);
+        setMessage(text);
+        // The refresh below remounts this form and drops the message above; the item keeps the confirmation.
+        if (sent) { try { onNotice?.({ tone: "success", text, versionId: upload.receipt.documentVersionId }); } catch { /* Display only. */ } }
       }
     } catch { setMessage(strings.unavailable); }
     finally {

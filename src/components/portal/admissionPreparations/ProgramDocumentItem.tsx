@@ -3,9 +3,10 @@
 import { useId, useRef, useState } from "react";
 import type { ApplicationDocumentItemTarget, ApplicationDocumentSelection } from "@/lib/portal/application-documents";
 import { readApplicationDocumentReusableVersionsAction } from "@/lib/portal/application-documents-actions";
+import { applicationDocumentNoticeVisible, type ApplicationDocumentNotice } from "@/lib/portal/application-documents-one-tap";
 import {
   ProgramDocumentSubmit, ProgramDocumentUpload, useProgramDocumentPending,
-  type ProgramDocumentItem as Item, type ProgramDocumentNotice, type ProgramDocumentScope,
+  type ProgramDocumentItem as Item, type ProgramDocumentScope,
 } from "./ProgramDocumentControls";
 import { ProgramFileEvidence, ProgramSubmissionEvidence, type ProgramDocumentStrings } from "./ProgramDocumentEvidence";
 import { ProgramDocumentHistory, ProgramHistoryEvidence } from "./ProgramDocumentHistory";
@@ -22,13 +23,13 @@ export function ProgramDocumentItem(props: ItemProps) {
   // A new server snapshot invalidates locally paginated choices. Pending writes
   // live outside this component and retain their original immutable intent.
   const key = JSON.stringify([props.target, props.item.savedDraft, props.item.submission, props.item.reusableVersions, props.item.previousEvidence]);
-  // «Saved, not sent» must survive the remount that the refresh after the save causes.
-  const [notice, setNotice] = useState<ProgramDocumentNotice | null>(null);
+  // «Sent» and «saved, not sent» must survive the remount that the refresh after the save causes.
+  const [notice, setNotice] = useState<ApplicationDocumentNotice | null>(null);
   return <ProgramDocumentItemSnapshot key={key} {...props} notice={notice} onNotice={setNotice} />;
 }
 
 function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, canReview = false, onSaved, historyEpoch = 0, notice, onNotice }: ItemProps & {
-  notice: ProgramDocumentNotice | null; onNotice: (notice: ProgramDocumentNotice | null) => void;
+  notice: ApplicationDocumentNotice | null; onNotice: (notice: ApplicationDocumentNotice | null) => void;
 }) {
   const id = useId();
   const [versions, setVersions] = useState(item.reusableVersions);
@@ -48,8 +49,10 @@ function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, c
   const submitPending = useProgramDocumentPending(scope, "submit", target.requirementItemId);
   const sendAfterSave = audience === "student" && item.canSubmit && !submitPending.intent && !submitPending.blocked
     ? { previousSubmissionId: item.submission?.submissionId ?? null } : undefined;
-  const noticeShown = notice !== null && item.submission?.file.documentVersionId !== notice.versionId
-    && (!unsubmittedDraft || draft.file.documentVersionId === notice.versionId);
+  const noticeShown = notice !== null && applicationDocumentNoticeVisible(notice, {
+    submittedVersionId: item.submission?.file.documentVersionId ?? null, reviewed: Boolean(item.submission?.review),
+    unsentDraftVersionId: unsubmittedDraft ? draft.file.documentVersionId : null,
+  });
   async function moreVersions() {
     if (lock.current || !cursor) return;
     lock.current = true; setLoading(true); setFailed(false);
@@ -93,7 +96,7 @@ function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, c
       {failed ? <p className={styles.error} role="alert">{strings.historyUnavailable}</p> : null}
     </details> : null}
 
-    {noticeShown ? <p className={styles.error} role="alert">{notice.text}</p> : null}
+    {noticeShown ? <p className={notice.tone === "success" ? styles.note : styles.error} role={notice.tone === "success" ? "status" : "alert"}>{notice.text}</p> : null}
     <ProgramDocumentSubmit scope={scope} target={target} audience={audience} strings={strings} selection={selection}
       previousSubmissionId={item.submission?.submissionId ?? null} disabled={!item.canSubmit || !selectionAvailable} onSaved={onSaved}
       hideWhenIdle={audience === "student"} onAttempt={() => onNotice(null)} />

@@ -17220,3 +17220,7 @@ append-only [`PLAN_CHANGES.md`](PLAN_CHANGES.md), в профильных пла
   общего репозитория `izzhackt/EVO`) и «45–50 — исключены» в ведомости пунктов 1–36
   ([`EVO_ITEMS_1_36_STATUS_2026-09-21.md`](EVO_ITEMS_1_36_STATUS_2026-09-21.md)). Пункты
   остаются открытыми как приёмка, но агент заявку не отправляет и в свой чеклист не возвращает.
+
+## 2026-10-27 — указатель: три плана (Wazzup, ONLYOFFICE, Looker Studio)
+
+Решения владельца 26.10.2026 и контракты реализации — в `docs/PLAN_CHANGES.md` (запись 2026-10-27) и в файлах `docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md`, `docs/EVO_AGENT_RULES_ONLYOFFICE_PLAN_2026-10-27.md`, `docs/EVO_LOOKER_REPORTS_PLAN_2026-10-27.md`.

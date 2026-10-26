@@ -819,6 +819,70 @@ SQL
     done
   fi
 
+  # «WhatsApp продаж через Wazzup: приём и запрет отправки» (миграция 325, план этапа 1 EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27,
+  # срез W1). Matched by name, not number. IMMEDIATELY BEFORE the ordinary apply the migration must refuse with
+  # a325_anchor_drift, inside a transaction that the failure rolls back, for each of the twenty-five functions it replaces
+  # (the six send paths, the two agent reads, the six Gemini paths with the reason words and the two legacy U9
+  # proposals, the five connection-alert
+  # functions of 321, the chat-list contact helper of 278 and the two cards of the client and the lead) when that function
+  # is edited after its own migration (the md5 pre-image anchors). The edit is a comment placed right after the body's
+  # opening delimiter, so it works for SQL and PL/pgSQL functions alike. A second apply of the finished migration must
+  # refuse with a325_already_applied (below).
+  if [[ "$(basename "$migration")" == *_platform_wazzup_intake.sql ]]; then
+    for t325_pinned in \
+      'platform.ai_agent_tool_send_message_v1(uuid,text,jsonb)' \
+      'platform.ai_agent_runtime_whatsapp_authorize_v1(uuid,uuid,uuid,text,uuid)' \
+      'platform.ai_agent_runtime_draft_mark_v1(uuid,uuid,text,text,uuid,jsonb)' \
+      'platform_private.ai_autosend_check(platform_private.ai_autosend_log,text,text,bigint[])' \
+      'platform.request_manual_whatsapp_send_with_authorization(uuid,uuid,uuid,uuid,text,text,text,uuid)' \
+      'platform.claim_manual_whatsapp_send_item(uuid,uuid,integer,text,uuid)' \
+      'platform.ai_agent_tool_get_conversation_v1(uuid,text,jsonb)' \
+      'platform.ai_agent_tool_list_conversations_v1(uuid,text,jsonb)' \
+      'platform_ai_agent.inbound_since_v1(timestamptz,uuid,integer)' \
+      'platform_private.ai_memory_poke(uuid,boolean,integer)' \
+      'platform_ai_agent.memory_context_v1(uuid,text,integer)' \
+      'platform_ai_agent.autosend_summary_context_v1(uuid,text,integer)' \
+      'platform.ai_agent_ticket_v1(uuid,text,uuid,uuid)' \
+      'platform_private.ai_ticket_allowed(platform_private.ai_tickets)' \
+      'platform_private.ai_autosend_reason_ru(text)' \
+      'platform.request_gemini_proposal(uuid,uuid,uuid,uuid,text,integer,text,text)' \
+      'platform.begin_gemini_proposal(uuid,uuid,uuid,uuid,text,integer,text)' \
+      'platform_private.whatsapp_health_guard(uuid,text)' \
+      'platform.whatsapp_health_read_v1(uuid,text)' \
+      'platform.whatsapp_health_open_v1(uuid,text,text,text,uuid)' \
+      'platform.whatsapp_health_resolve_v1(uuid,text,text,text)' \
+      'platform_private.whatsapp_health_make_task(uuid,uuid,uuid,text,text)' \
+      'platform_private.waha_conversation_contact(uuid,uuid)' \
+      'platform.staff_canonical_client_detail(uuid)' \
+      'platform.staff_canonical_lead_detail(uuid)'; do
+      t325_tamper_log="$(mktemp -t evo-t325-anchor.XXXXXX)"
+      if docker exec -i "$container_name" \
+        psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+        -v "pinned_function=$t325_pinned" \
+        -v "migration_file=/workspace/$migration" \
+        >"$t325_tamper_log" 2>&1 <<'SQL'
+BEGIN;
+SELECT replace(
+  pg_get_functiondef(:'pinned_function'::regprocedure),
+  '$function$',
+  '$function$ /* tampered after its own migration */'
+) AS tampered_definition \gset
+:tampered_definition ;
+\i :migration_file
+SQL
+      then
+        echo "migration 325 accepted an edited $t325_pinned" >&2
+        exit 1
+      fi
+      if ! grep -Fq "a325_anchor_drift" "$t325_tamper_log"; then
+        echo "migration 325 failed for the wrong pre-image reason ($t325_pinned)" >&2
+        sed -n '1,60p' "$t325_tamper_log" >&2
+        exit 1
+      fi
+      rm -f "$t325_tamper_log"
+    done
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -4715,6 +4779,64 @@ SQL
     printf '%s\n' "$report_links_log"
     if ! grep -q 'A323_REPORT_LINKS_SUITE_PASSED' <<<"$report_links_log"; then
       echo "platform_report_links.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «WhatsApp продаж через Wazzup: значение провайдера» (migration 324, план этапа 1 EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27).
+  # Matched by name, not number. The migration only adds the value `wazzup` to the provider enum, so it has no function
+  # to tamper with: right after it a second apply refuses (a324_already_applied). What uses the value is proven by the
+  # suite of migration 325 (below).
+  if [[ "$(basename "$migration")" == *_platform_wazzup_provider.sql ]]; then
+    t324_again_log="$(mktemp -t evo-t324-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t324_again_log" 2>&1; then
+      echo "migration 324 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a324_already_applied" "$t324_again_log"; then
+      echo "a second apply of migration 324 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t324_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t324_again_log"
+  fi
+  # «WhatsApp продаж через Wazzup: приём и запрет отправки» (migration 325, план этапа 1, срез W1). Matched by name, not
+  # number. Right after the migration: a second apply refuses (a325_already_applied), then the suite, insisting on its
+  # marker. The suite proves: the posture (eight closed tables, nine service functions for service_role only, the staff
+  # read for authenticated only, the helpers for nobody, every other role refused); the model (the wazzup shapes of the
+  # webhook events and the unchanged WAHA / kommo ones, one transport per conversation, the immutable channel, append-only
+  # bindings, a message without its exact binding refused at commit); the operator commands (channel, transport, key in
+  # Vault, state); the intake write (nothing unless the transport is wazzup, dedupe by message id, the variants of edits,
+  # deletions and channel states, 150 elements in two portions, an unparsed element, another channel and other chat types
+  # only counted, no QR code stored, a failing element not stopping the rest); the projection (a new number: conversation
+  # and client without a lead, seller replies, automatic echoes left out, a reply before the conversation backfilled, the
+  # 259 media marks, edits ignored, deletions hidden from the agent, the sweep order / retries / age, a curator
+  # conversation); the identity (rule 316, number match with a single open lead, imports, two clients on a number,
+  # the student who declined the AI helpers); the send gates on all six paths, with the real WAHA chain on the other
+  # side and a control for each; the Gemini gates and their switch; what the agent reads; the connection alert of
+  # the wazzup session, the gap kind and the new reasons, the transport switch closing the alerts; the chat-list
+  # name and number; the staff transport read; the hidden origin of Wazzup traces.
+  if [[ "$(basename "$migration")" == *_platform_wazzup_intake.sql ]]; then
+    t325_again_log="$(mktemp -t evo-t325-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t325_again_log" 2>&1; then
+      echo "migration 325 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a325_already_applied" "$t325_again_log"; then
+      echo "a second apply of migration 325 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t325_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t325_again_log"
+    wazzup_intake_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_wazzup_intake.sql </dev/null)"
+    printf '%s\n' "$wazzup_intake_log"
+    if ! grep -q 'A325_WAZZUP_INTAKE_SUITE_PASSED' <<<"$wazzup_intake_log"; then
+      echo "platform_wazzup_intake.sql did not reach its PASSED marker" >&2
       exit 1
     fi
   fi

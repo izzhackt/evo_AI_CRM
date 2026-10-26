@@ -498,7 +498,7 @@ test("toolbar: search «/», filters with counts inside menus, sort visible, «�
   assert.match(toolbarSource, /<\/QueueFilterDisclosure>\s+<\/div>\s+<QueueKeyboardHelp extra=\{keys\} \/>/u);
   // The view tabs never wrap: they scroll inside their own row, the current tab is brought into view, edges fade.
   const tabs = read("src/components/v3/queue/QueueViewTabs.tsx");
-  assert.match(tabs, /<ul className="flex min-w-max items-center gap-1 border-b border-border pb-2">/u);
+  assert.match(tabs, /className=\{bare \? "flex min-w-max items-center gap-1" : "flex min-w-max items-center gap-1 border-b border-border pb-2"\}/u);
   assert.doesNotMatch(tabs, /flex-wrap/u);
   const strip = read("src/components/v3/queue/QueueTabStrip.tsx");
   assert.match(strip, /querySelector<HTMLElement>\('\[aria-current="page"\]'\)/u);

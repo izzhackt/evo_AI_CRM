@@ -41,7 +41,7 @@ export function staffPresentationCan(actor: ActivePlatformActor, capability: Fix
     ? fixedRoleCan(actor.presentationRole, capability) : staffCan(actor, capability);
 }
 export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRoleRoute): boolean {
-  if (route === "/v3/knowledge" || route === "/v3/marketing") return actor.systemRole === "admin" && !isStaffPreview(actor);
+  if (route === "/v3/knowledge" || route === "/v3/marketing" || route === "/v3/finance") return actor.systemRole === "admin" && !isStaffPreview(actor);
   if (isStaffPreview(actor) && actor.presentationRole !== null) return fixedRoleCanAccessRoute(actor.presentationRole, route);
   if (route === "/v3/documents") return staffHasPermission(actor, "document.read.full") || staffHasPermission(actor, "company.file.read");
   // «ИИ-агент» (план ИИ-агента §12.2, §13): право ai.agent.use — у всех
@@ -70,6 +70,7 @@ export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRole
     "/v3/universities": ["catalog.read"],
     "/v3/knowledge": ["knowledge.read", "documents.read", "snippets.read"],
     "/v3/marketing": ["admin.preview"],
+    "/v3/finance": ["admin.preview"],
     "/v3/ai-agent": ["admin.preview"],
     "/v3/ai-agents": ["admin.preview"],
     "/v3/documents": ["documents.read"],

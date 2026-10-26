@@ -91,7 +91,7 @@ export function SyncPanel({
       {!runtimeConfigured ? <p className="mt-1 t-body-compact text-warn">Ключ Claude API не задан в CRM: синхронизация недоступна.</p> : null}
       {canEdit && runtimeConfigured && !hasInstructions ? (
         <p className="mt-1 t-body-compact text-fg-2">
-          Сначала напишите <Link href={aiAgentHref(agentKey, { tab: "instructions" })} className="text-fg underline underline-offset-4">инструкцию</Link>: без неё агента в Claude не создать.
+          Сначала напишите <Link href={aiAgentHref(agentKey, { tab: "instructions" })} className="text-fg underline underline-offset-4">правила</Link>: без них агента в Claude не создать.
         </p>
       ) : null}
 

@@ -42,7 +42,7 @@ export function SetupAction({
   if (step === "instructions") {
     return (
       <Link href={aiAgentHref(agentKey, { tab: "instructions" })} className={AIA_LINK_CONFIRM} data-testid="v3-aia-setup-instructions">
-        Написать инструкцию
+        Написать правила
       </Link>
     );
   }
@@ -57,7 +57,7 @@ const STEP_TITLES: Readonly<Record<AiAgentSetupStep, string>> = {
   sync: "Агент не отправлен в Claude",
 };
 const STEP_LABELS: Readonly<Record<AiAgentSetupStep, string>> = {
-  instructions: "Инструкция",
+  instructions: "Правила агента",
   enable: "Включение",
   sync: "Отправка в Claude",
 };

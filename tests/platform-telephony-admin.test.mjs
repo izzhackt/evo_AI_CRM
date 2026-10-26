@@ -802,7 +802,7 @@ test("the settings page opens for the Admin and for a telephony.manage holder, f
     assert.equal(staffCanAccessRoute({ ...ADMIN, presentationRole: role }, "/v3/settings"), false, role);
   }
   // The right opens nothing else.
-  for (const route of ["/v3/knowledge", "/v3/marketing", "/v3/main", "/v3/requests", "/v3/profile"]) {
+  for (const route of ["/v3/knowledge", "/v3/marketing", "/v3/finance", "/v3/main", "/v3/requests", "/v3/profile"]) {
     assert.equal(staffCanAccessRoute(staff("telephony.manage"), route), false, route);
   }
 });
@@ -812,7 +812,7 @@ test("navigation shows «Настройки» to the holder and to nobody withou
   assert.equal(nav(["telephony.manage"]).settings?.href, "/v3/settings");
   assert.equal(nav(["telephony.call.dial"]).settings, null);
   assert.equal(nav([], "admin").settings?.href, "/v3/settings");
-  assert.deepEqual([nav(["telephony.manage"]).home, ...nav(["telephony.manage"]).groups, ...nav(["telephony.manage"]).common].filter(Boolean), []);
+  assert.deepEqual([nav(["telephony.manage"]).home, ...nav(["telephony.manage"]).groups, ...nav(["telephony.manage"]).sections, ...nav(["telephony.manage"]).common].filter(Boolean), []);
 });
 
 test("the two commands are exact connected staff APIs; everything near them stays closed", () => {

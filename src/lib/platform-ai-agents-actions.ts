@@ -207,7 +207,7 @@ export async function updateAiAgentAction(_previous: AiAgentsActionState, form: 
   }
 }
 
-/** «Сохранить» / «Сбросить на стандартную» во вкладке «Инструкция»: тот же `update`, одно поле. */
+/** «Сохранить» / «Сбросить на стандартные» во вкладке «Правила агента»: тот же `update`, одно поле. */
 export async function saveAiAgentInstructionsAction(_previous: AiAgentsActionState, form: FormData): Promise<AiAgentsActionState> {
   let requestId: string | null = null;
   try {

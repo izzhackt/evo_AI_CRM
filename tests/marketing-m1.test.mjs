@@ -159,6 +159,36 @@ test("the section opens only for the real Admin: role preview, sales, admissions
   assert.doesNotMatch(read("src/components/v3/marketing/MarketingLeadsTable.tsx"), /csv|download|Экспорт|Скачать/iu);
 });
 
+// «Финансы» (26.10.2026): раздел верхнего уровня рядом с «Маркетингом» с теми же правами; пока честная заготовка.
+test("«Финансы» opens for the real Admin only, like «Маркетинг»; the page is a calm empty state with nothing invented", async () => {
+  assert.ok(FIXED_ROLE_ROUTES.includes("/v3/finance"));
+  assert.equal(fixedRoleCanAccessRoute("admin", "/v3/finance"), true);
+  assert.equal(fixedRoleCanAccessRoute("sales", "/v3/finance"), false);
+  assert.equal(fixedRoleCanAccessRoute("admissions", "/v3/finance"), false);
+  assert.equal(isConnectedPlatformPage("/v3/finance"), true, "the staff proxy lets the page through");
+  assert.equal(isConnectedPlatformPage("/v3/finance/extra"), false);
+  assert.equal(staffCanAccessRoute(admin, "/v3/finance"), true);
+  for (const presentationRole of ["admin", "sales", "admissions"]) {
+    assert.equal(staffCanAccessRoute({ ...admin, presentationRole }, "/v3/finance"), false, `preview ${presentationRole}`);
+  }
+  const keys = ["lead.read", "lead.sales.workflow.manage", "sales.register.read", "finance.read.full", "finance.manage", "admin.preview"];
+  for (const systemRole of ["sales", "admissions", null]) {
+    assert.equal(staffCanAccessRoute({ ...admin, systemRole, permissionKeys: keys }, "/v3/finance"), false, String(systemRole));
+  }
+  const source = read("src/app/(v3)/v3/finance/page.tsx");
+  assert.match(source, /await requireV3PageActor\("\/v3\/finance"\);/u, "the same guard as «Маркетинг»: everyone else goes to «Нет доступа»");
+  const guards = [];
+  const load = loader({ "@/lib/platform-guards": { requireV3PageActor: async (route) => { guards.push(route); return admin; } } });
+  const html = renderToStaticMarkup(await load("src/app/(v3)/v3/finance/page.tsx").default());
+  assert.deepEqual(guards, ["/v3/finance"]);
+  assert.match(html, /<h1 class="t-page-title[^>]*>Финансы<\/h1>/u);
+  assert.match(html, /Здесь будут доходы, расходы и расчёты EVO\./u);
+  // Ничего выдуманного: ни цифр, ни кнопок, ни ссылок, ни форм, ни таблиц.
+  const text = html.replace(/<[^>]+>/gu, " ");
+  assert.doesNotMatch(text, /\d/u, "no numbers");
+  assert.doesNotMatch(html, /<(?:button|a|form|input|select|table|svg|canvas)\b/u);
+});
+
 test("a refused role never reaches the database: denied, not an empty or zero read", async () => {
   const { readMarketingOverview, readMarketingLeads, addMarketingSpend, cancelMarketingSpend, rpcs } = marketingSource(() => assert.fail("no RPC for a refused role"));
   for (const actor of [{ ...admin, presentationRole: "sales" }, { ...admin, systemRole: "sales" }]) {

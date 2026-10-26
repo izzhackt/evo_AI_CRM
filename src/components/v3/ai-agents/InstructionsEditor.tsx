@@ -19,7 +19,7 @@ const COUNTER_FROM_SHARE = 0.9;
  * Вкладка «Инструкция» (контракт §D.4, п. 5): действующая инструкция агента —
  * своя или стандартная из репозитория. Правит только системный администратор;
  * остальные читают. Сохранение отправляет изменение в Claude само (если агент
- * там уже есть), «Сбросить на стандартную» — с подтверждением на месте.
+ * там уже есть), «Сбросить на стандартные» — с подтверждением на месте.
  */
 export function InstructionsEditor({
   agentKey,
@@ -50,7 +50,7 @@ export function InstructionsEditor({
 
   const hasDefault = defaultText.trim() !== "";
   // Пустую инструкцию называет строка ниже, а не второй чип с теми же словами.
-  const label = isOverride ? "Своя инструкция" : "Стандартная инструкция EVO";
+  const label = isOverride ? "Свои правила" : "Стандартные правила EVO";
   const tone = isOverride ? "info" : "neutral";
   const changed = value !== current;
   useDirtyGuard(changed && canEdit);
@@ -60,13 +60,13 @@ export function InstructionsEditor({
   return (
     <section aria-labelledby={`aia-instr-${agentKey}`} className="space-y-4" data-testid="v3-aia-instructions">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 id={`aia-instr-${agentKey}`} className="t-section text-fg">Инструкция</h2>
+        <h2 id={`aia-instr-${agentKey}`} className="t-section text-fg">Правила агента</h2>
         {hasDefault || isOverride ? <StatusChip label={label} tone={tone} /> : null}
       </div>
 
       {!hasDefault && !isOverride ? (
         <p className="max-w-[62ch] rounded-card border border-border bg-surface px-4 py-3 t-body-compact text-fg-2" data-testid="v3-aia-no-instructions">
-          {canEdit ? "Инструкции нет. Без неё агента не включить." : "Инструкции нет — её пишет системный администратор."}
+          {canEdit ? "Правил нет. Без них агента не включить." : "Правил нет — их пишет системный администратор."}
         </p>
       ) : null}
 
@@ -76,7 +76,7 @@ export function InstructionsEditor({
           onSubmit={(event) => { event.preventDefault(); if (changed && !pending) save("save"); }}
         >
           <div>
-            <label htmlFor={`aia-instr-text-${agentKey}`} className="sr-only">Текст инструкции агента</label>
+            <label htmlFor={`aia-instr-text-${agentKey}`} className="sr-only">Текст правил агента</label>
             <textarea
               id={`aia-instr-text-${agentKey}`}
               value={value}
@@ -100,14 +100,14 @@ export function InstructionsEditor({
               {pending ? "Сохраняю…" : "Сохранить"}
             </button>
             {isOverride && hasDefault ? (
-              <button type="button" className={QUEUE_SECONDARY} disabled={pending} onClick={() => setConfirmReset(true)}>Сбросить на стандартную</button>
+              <button type="button" className={QUEUE_SECONDARY} disabled={pending} onClick={() => setConfirmReset(true)}>Сбросить на стандартные</button>
             ) : null}
           </div>
           {confirmReset ? (
             <div role="group" aria-label="Подтверждение сброса" className="rounded-card border border-border bg-surface-2/60 p-3">
-              <p className="max-w-[60ch] t-body-compact text-fg">Своя инструкция будет удалена, агент вернётся к стандартной инструкции EVO. Сбросить?</p>
+              <p className="max-w-[60ch] t-body-compact text-fg">Свои правила будут удалены, агент вернётся к стандартным правилам EVO. Сбросить?</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" className={QUEUE_CONFIRM} disabled={pending} onClick={() => { setConfirmReset(false); save("reset"); }}>Сбросить на стандартную</button>
+                <button type="button" className={QUEUE_CONFIRM} disabled={pending} onClick={() => { setConfirmReset(false); save("reset"); }}>Сбросить на стандартные</button>
                 <button type="button" className={QUEUE_SECONDARY} onClick={() => setConfirmReset(false)}>Отмена</button>
               </div>
             </div>
@@ -116,14 +116,14 @@ export function InstructionsEditor({
           <ActionMessage state={state} testId="v3-aia-instructions-message" />
         </form>
       ) : (
-        <div className="max-h-[60vh] overflow-auto rounded-card border border-border bg-surface p-4" tabIndex={0} role="region" aria-label="Текст инструкции агента">
+        <div className="max-h-[60vh] overflow-auto rounded-card border border-border bg-surface p-4" tabIndex={0} role="region" aria-label="Текст правил агента">
           {current.trim() ? <p className="whitespace-pre-wrap break-words t-body text-fg">{current}</p> : <p className="t-body-compact text-fg-2">Текста пока нет.</p>}
         </div>
       )}
 
       {hasDefault ? (
         <details className="rounded-card border border-border bg-surface px-4">
-          <summary className="cursor-pointer t-label text-fg-2">Показать стандартную инструкцию</summary>
+          <summary className="cursor-pointer t-label text-fg-2">Показать стандартные правила</summary>
           <p className="max-h-96 overflow-auto whitespace-pre-wrap break-words pb-4 t-body-compact text-fg-2">{defaultText}</p>
         </details>
       ) : null}

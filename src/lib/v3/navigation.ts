@@ -23,6 +23,7 @@ export type V3NavigationLinkId =
   | "reply-snippets"
   | "knowledge"
   | "marketing"
+  | "finance"
   | "ai-agents"
   | "settings";
 
@@ -126,8 +127,16 @@ const COMMON: readonly V3NavigationLink[] = [
   // стал его карточкой, а не отдельным пунктом. Все сотрудники (Q9), маршрут —
   // ai.agent.use.
   { id: "ai-agents", href: "/v3/ai-agents", route: "/v3/ai-agents", label: "ИИ-агенты" },
-  // Только настоящий администратор, не просмотр роли: маршрут закрыт тем же правилом, что «База знаний».
+];
+// Разделы верхнего уровня (решение владельца 26.10.2026): стоят после «Продаж»
+// и «Поступления» на том же уровне, что их заголовки, но это одно место
+// назначения без подпунктов — не отдел и не пункт «Общего». Только настоящий
+// администратор, не просмотр роли: маршруты закрыты тем же правилом, что «База
+// знаний». «Финансы» — заготовка под доходы, расходы и расчёты (бухгалтерию
+// подключат позже).
+const SECTIONS: readonly V3NavigationLink[] = [
   { id: "marketing", href: "/v3/marketing", route: "/v3/marketing", label: "Маркетинг" },
+  { id: "finance", href: "/v3/finance", route: "/v3/finance", label: "Финансы" },
 ];
 
 function isSingleValue(query: NavigationQuery, name: string, value: string) {
@@ -145,7 +154,7 @@ function isLeadProfile(query: NavigationQuery): boolean {
   return ids.length === 1 && ids[0] !== "" && !query.has("case");
 }
 
-const ALL_LINKS: readonly V3NavigationLink[] = [HOME, ...GROUPS.flatMap((group) => group.links), ...COMMON, SETTINGS];
+const ALL_LINKS: readonly V3NavigationLink[] = [HOME, ...GROUPS.flatMap((group) => group.links), ...SECTIONS, ...COMMON, SETTINGS];
 
 /**
  * Раздел для вкладки браузера у страниц, чей пункт меню зависит от адреса
@@ -227,6 +236,7 @@ export function buildV3Navigation(
     ...group,
     links: group.links.filter((link) => allowed(link) && inGroup(group, link)),
   })).filter((group) => group.links.length > 0);
+  const sections = SECTIONS.filter((link) => allowed(link));
   // «Документы» и «Шаблоны ответов» у того, кому открыта «База знаний», —
   // внутри неё: пункт скрыт, а не задвоен.
   const common = COMMON.filter((link) => allowed(link)
@@ -234,6 +244,7 @@ export function buildV3Navigation(
   const links = [
     ...(home ? [home] : []),
     ...visibleGroups.flatMap((group) => group.links),
+    ...sections,
     ...common,
     ...(settings ? [settings] : []),
   ];
@@ -266,6 +277,7 @@ export function buildV3Navigation(
   return {
     home,
     groups,
+    sections,
     common,
     settings,
     activeId,

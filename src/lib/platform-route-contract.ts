@@ -23,6 +23,7 @@ const PLATFORM_STAFF_PAGE_ALLOWLIST = new Set([
   "/v3/settings",
   "/v3/knowledge",
   "/v3/marketing",
+  "/v3/finance",
   // «ИИ-агент» (план ИИ-агента §12.2): подразделы — `?section=`.
   "/v3/ai-agent",
   // «ИИ-агенты» (решение владельца 22.10.2026): хаб; страница агента — ниже по ключу каталога.

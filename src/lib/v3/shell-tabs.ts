@@ -37,6 +37,8 @@ export const LINK_ICONS = {
   "reply-snippets": "message-square-text",
   knowledge: "book-open",
   marketing: "megaphone",
+  // «Финансы» (26.10.2026): банкнота — свой знак; кошелёк занят отделом «Продажи».
+  finance: "banknote",
   "ai-agents": "sparkles",
   settings: "settings",
 } as const satisfies Record<V3NavigationLinkId, IconName>;
@@ -87,13 +89,14 @@ export type ShellTabs = Readonly<{
   currentInMore: boolean;
 }>;
 
-type NavigationLists = Pick<V3Navigation, "home" | "groups" | "common" | "settings" | "activeId">;
+type NavigationLists = Pick<V3Navigation, "home" | "groups" | "sections" | "common" | "settings" | "activeId">;
 
 /** Все пункты меню в порядке меню — ровно то, что роль видит. */
 export function visibleNavigationLinks(navigation: NavigationLists): V3NavigationLink[] {
   return [
     ...(navigation.home ? [navigation.home] : []),
     ...navigation.groups.flatMap((group) => group.links),
+    ...navigation.sections,
     ...navigation.common,
     ...(navigation.settings ? [navigation.settings] : []),
   ];

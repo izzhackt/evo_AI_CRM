@@ -277,13 +277,14 @@ test("one shell: no top bar; menu holds create, bell, preview exit and account; 
 // не меняются (EXPECTED_TABS выше).
 const MENU_BY_ROLE = {
   // «ИИ-агент» (план ИИ-агента §12.2): после «Базы знаний» у всех, кому открыт маршрут (ai.agent.use).
-  admin: { sales: ["/v3/requests", "/v3/pipeline", "/v3/inbox", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/knowledge", "/v3/ai-agents", "/v3/marketing"] },
+  // «Маркетинг» и «Финансы» (решение владельца 26.10.2026) — разделы верхнего уровня после «Поступления», а не пункты «Общего».
+  admin: { sales: ["/v3/requests", "/v3/pipeline", "/v3/inbox", "/v3/main?view=sales"], sections: ["/v3/marketing", "/v3/finance"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/knowledge", "/v3/ai-agents"] },
   // Просмотр «Приёмной»: у фиксированной роли нет sales.read — ни доски, ни «Заявок», как и раньше;
   // WhatsApp у неё с 06.10.2026 («нет, все могут»): единственный пункт «Продаж».
-  admissions: { sales: ["/v3/inbox"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets", "/v3/ai-agents"] },
+  admissions: { sales: ["/v3/inbox"], sections: [], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets", "/v3/ai-agents"] },
   // Куратор с lead.read: правило D скрывает доску, «Заявки» и «Отчёт продаж» остаются, а WhatsApp с 06.10.2026 виден (communication.read.full).
-  "admissions-staff": { sales: ["/v3/requests", "/v3/inbox", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets"] },
-  sales: { sales: ["/v3/requests", "/v3/pipeline", "/v3/inbox", "/v3/main?view=sales"], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/reply-snippets"] },
+  "admissions-staff": { sales: ["/v3/requests", "/v3/inbox", "/v3/main?view=sales"], sections: [], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/documents", "/v3/reply-snippets"] },
+  sales: { sales: ["/v3/requests", "/v3/pipeline", "/v3/inbox", "/v3/main?view=sales"], sections: [], common: ["/v3/tasks", "/v3/team-chat", "/v3/calendar", "/v3/reply-snippets"] },
 };
 function menuOf(html) {
   const list = html.slice(html.indexOf('<ul aria-label="Навигация по разделам"'), html.indexOf('<section aria-label="Общее"'));
@@ -297,11 +298,13 @@ function menuOf(html) {
     if (rail !== undefined) assert.deepEqual(hrefs(rail), hrefs(items), `${label}: rail list`);
     return hrefs(items);
   };
+  // Разделы верхнего уровня — ссылки с подписью заголовка отдела (`t-label`), не раскрытия.
+  const sections = [...list.matchAll(/<a class="v3-choice[^"]*\bt-label\b[^"]*" href="(\/v3\/[^"]*)"/gu)].map((match) => match[1]);
   const common = html.match(/<section aria-label="Общее"[\s\S]*?<\/section>/u)?.[0] ?? "";
-  return { sales: group("Продажи"), common: hrefs(common), rail: /role="group" aria-label="Продажи"/u.test(list) };
+  return { sales: group("Продажи"), sections, common: hrefs(common), rail: /role="group" aria-label="Продажи"/u.test(list) };
 }
 
-test("menu per role: «Заявки» lead «Продажи» wherever the role may open them, «Общее» starts with «Задачи»", () => {
+test("menu per role: «Заявки» lead «Продажи» wherever the role may open them, «Общее» starts with «Задачи», «Маркетинг» and «Финансы» stand between", () => {
   for (const { name, role, html } of surfaces) {
     const { rail, ...menu } = menuOf(html);
     assert.deepEqual(menu, MENU_BY_ROLE[role], name);
@@ -311,6 +314,34 @@ test("menu per role: «Заявки» lead «Продажи» wherever the role 
   }
   // Рейка досок ниже 1536 px показывает те же пункты отдела в верхнем слое.
   assert.ok(menuOf(surface("board-admin")).rail, "board surfaces render the rail list");
+});
+
+// Решение владельца 26.10.2026: «Маркетинг» и «Финансы» — разделы верхнего уровня на уровне заголовков
+// «Продажи»/«Поступление», но одно место назначения каждый: ссылка той же строки, без раскрытия и без стрелки.
+test("«Маркетинг» and «Финансы» are one-link sections at the level of the department headings, with no disclosure", () => {
+  const html = surface("home-admin");
+  const list = html.slice(html.indexOf('<ul aria-label="Навигация по разделам"'), html.indexOf('<section aria-label="Общее"'));
+  const headings = [...list.matchAll(/<button type="button" aria-expanded="[^"]+" aria-controls="[^"]+" class="flex min-h-11 w-full items-center gap-3 rounded-nav px-3 py-2 [^"]*"><svg[\s\S]*?<span class="min-w-0 flex-1">([^<]+)<\/span>/gu)].map((match) => match[1]);
+  assert.deepEqual(headings, ["Продажи", "Поступление"], "only the two departments are disclosures");
+  const anchors = [...list.matchAll(/<a class="(v3-choice[^"]*\bt-label\b[^"]*)" href="(\/v3\/[^"]*)">([\s\S]*?)<\/a>/gu)];
+  assert.deepEqual(anchors.map((match) => match[2]), ["/v3/marketing", "/v3/finance"]);
+  const lastDepartment = list.lastIndexOf("Университеты");
+  for (const [, classes, , body] of anchors) {
+    // Строка как у заголовка отдела: тот же отступ и 44 px, подпись `t-label`; значок один, стрелки нет.
+    assert.match(classes, /\bmin-h-11\b[^"]*\bgap-3\b[^"]*\brounded-nav\b[^"]*\bpx-3\b[^"]*\bt-label\b/u);
+    assert.equal(count(body, /<svg\b/gu), 1, "one glyph, no chevron");
+    assert.ok(list.indexOf(body) > lastDepartment, "after the last department item");
+  }
+  assert.doesNotMatch(anchors.map((match) => match[0]).join(""), /aria-expanded|aria-controls|<ul\b|\shidden[=>]/u, "no disclosure, no sub-list");
+  // Лист «Ещё» (`flat`): подписей отделов над строками раздела нет, поэтому первая строка раздела отделена
+  // той же волосяной линией, что «Общее», — иначе «Маркетинг» читался бы продолжением «Поступления».
+  assert.match(read("src/components/v3/AppShell.tsx"), /navigation\.sections\.map\(\(link, index\) => \(\s*<li key=\{link\.id\} className=\{cn\(flat && index === 0 && "mt-2 border-t border-border pt-2"\)\}>\s*<MenuLink link=\{link\} activeId=\{navigation\.activeId\} section rail=\{rail\}/u);
+  // Тот же пункт — и в рейке досок: значок с подписью-подсказкой, как «Сегодня».
+  const rail = surface("board-admin");
+  assert.match(rail, /href="\/v3\/marketing"[^>]*>(?:(?!<\/a>).)*<span class="min-w-0 md:max-2xl:sr-only">Маркетинг<\/span>/u);
+  assert.match(rail, /href="\/v3\/finance"[^>]*>(?:(?!<\/a>).)*<span class="min-w-0 md:max-2xl:sr-only">Финансы<\/span>/u);
+  // Роли без прав их не получают, а «Общее» не теряет и не приобретает пункты.
+  for (const name of ["home-admissions", "home-sales", "home-admissions-staff"]) assert.doesNotMatch(surface(name), /href="\/v3\/(?:marketing|finance)"/u, name);
 });
 
 test("the sheet is a modal dialog while open: inert page, Escape and «Закрыть» return focus to «Ещё», focus trapped", () => {

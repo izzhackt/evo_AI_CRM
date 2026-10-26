@@ -28,7 +28,7 @@ export function DraftsTab({
   const all = Object.values(counts).reduce((sum, value) => sum + value, 0);
   return (
     <section className="space-y-4" aria-labelledby="aia-drafts" data-testid="v3-aia-drafts">
-      <h2 id="aia-drafts" className="sr-only">Черновики</h2>
+      <h2 id="aia-drafts" className="sr-only">На одобрение</h2>
       {all > 0 ? (
         <QueueViewTabs
           label="Какие черновики показать"

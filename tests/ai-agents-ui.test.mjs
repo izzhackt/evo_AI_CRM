@@ -170,7 +170,7 @@ test("состояние агента одним словом; «нужна си
   const chip = (over) => aiAgentStateChip({ enabled: true, hasInstructions: true, syncStatus: "ok", needsSync: false, ...over });
   assert.deepEqual(chip({}), { label: "Включён", tone: "ok" });
   assert.deepEqual(chip({ enabled: false }), { label: "Выключен", tone: "neutral" });
-  assert.deepEqual(chip({ hasInstructions: false }), { label: "Инструкции пока нет", tone: "neutral" });
+  assert.deepEqual(chip({ hasInstructions: false }), { label: "Правил пока нет", tone: "neutral" });
   assert.deepEqual(chip({ syncStatus: "error" }), { label: "Ошибка синхронизации", tone: "danger" });
   assert.deepEqual(chip({ syncStatus: "never" }), { label: "Нужна синхронизация", tone: "warn" });
   assert.deepEqual(chip({ needsSync: true }), { label: "Нужна синхронизация", tone: "warn" });
@@ -271,7 +271,7 @@ test("ошибки: сообщения базы → коды → русские 
   assert.equal(mapAiAgentsDbError({ code: "P0002", message: "ai_agent_not_found" }), "not_found");
   assert.equal(mapAiAgentsDbError({ code: "XX000", message: "boom" }), "unavailable");
 
-  assert.deepEqual(parseAiAgentRoute({}), { tab: "overview", runId: null, runsLimit: 30, draftsFilter: "pending", fresh: false });
+  assert.deepEqual(parseAiAgentRoute({}), { tab: "command", runId: null, runsLimit: 30, draftsFilter: "pending", fresh: false });
   assert.equal(parseAiAgentRoute({ tab: "command", new: "1" })?.fresh, true, "?new=1 — «Новый разговор»");
   assert.equal(parseAiAgentRoute({ tab: "drafts", show: "all" })?.draftsFilter, "all");
   assert.equal(parseAiAgentRoute({ tab: "runs", run: "11111111-1111-4111-8111-111111111111" })?.runId, "11111111-1111-4111-8111-111111111111");
@@ -280,8 +280,9 @@ test("ошибки: сообщения базы → коды → русские 
   assert.equal(aiAgentHref("director"), "/v3/ai-agents/director");
   assert.equal(aiAgentHref("sales", { tab: "drafts", show: "all" }), "/v3/ai-agents/sales?tab=drafts&show=all");
   assert.equal(aiAgentHref("sales", { tab: "runs", run: "r1" }), "/v3/ai-agents/sales?tab=runs&run=r1");
-  assert.equal(aiAgentHref("sales", { tab: "command", fresh: true }), "/v3/ai-agents/sales?tab=command&new=1");
-  assert.equal(aiAgentHref("sales", { tab: "command", run: "r1" }), "/v3/ai-agents/sales?tab=command&run=r1");
+  assert.equal(aiAgentHref("sales", { tab: "command", fresh: true }), "/v3/ai-agents/sales?new=1");
+  assert.equal(aiAgentHref("sales", { tab: "overview" }), "/v3/ai-agents/sales?tab=overview", "агент открывается на «Чате» (решение владельца 26.10.2026), «Обзор» — по адресу");
+  assert.equal(aiAgentHref("sales", { tab: "command", run: "r1" }), "/v3/ai-agents/sales?run=r1");
 
   assert.deepEqual(draftStatusWords({ status: "pending", failureCode: "whatsapp_unavailable", sentByAgent: false }), { label: "Ждёт решения", tone: "warn", note: "Остаётся в очереди: WhatsApp сейчас не подключён" });
   assert.equal(draftStatusWords({ status: "failed", failureCode: "conversation_moved_on", sentByAgent: false }).note, "Не отправлено: клиент написал ещё — ответ устарел");
@@ -448,9 +449,9 @@ test("хаб, нормальное состояние: три группы по 
   assert.doesNotMatch(html, /Sonnet 5\.5/u, "модель — в «Настройках», не на карточке");
   assert.match(html, /Ошибка синхронизации/u);
   assert.match(html, /Не настроены:[\s\S]*Куратор Европа[\s\S]*Куратор ОАЭ[\s\S]*Куратор Турция/u, "агенты без инструкции — одной строкой со ссылками");
-  assert.doesNotMatch(html, /Инструкции пока нет|агент выключен/u, "состояние не повторяется описанием роли");
+  assert.doesNotMatch(html, /Правил пока нет|агент выключен/u, "состояние не повторяется описанием роли");
   // «Поручить →» — у агентов, которым можно поручать (не у Директора для не-админа и не у ненастроенных); очередь черновиков — ссылка
-  assert.match(html, /<a[^>]*data-testid="v3-aia-ask-curator-cn"[^>]*href="\/v3\/ai-agents\/curator-cn\?tab=command"[^>]*>Поручить →<\/a>/u);
+  assert.match(html, /<a[^>]*data-testid="v3-aia-ask-curator-cn"[^>]*href="\/v3\/ai-agents\/curator-cn"[^>]*>Поручить →<\/a>/u);
   assert.doesNotMatch(html, /v3-aia-ask-curator-eu/u);
   assert.match(html, /<a[^>]*data-testid="v3-aia-drafts-director"[^>]*href="\/v3\/ai-agents\/director\?tab=drafts"[^>]*>3 черновика ждут решения/u);
   // Очередей несколько (у каждого настроенного агента по 3): общее число — не ссылка в одну из них, ссылки — на карточках.
@@ -501,8 +502,10 @@ test("страница агента, «Обзор»: показатели, тр�
   assert.doesNotMatch(html, /href="javascript:/u);
   assert.match(html, /href="https:\/\/crm\.example\/x"[^>]*rel="noopener noreferrer nofollow"/u);
   // вкладки — настоящие ссылки, текущая отмечена
-  for (const tab of ["command", "runs", "drafts", "instructions", "settings"]) assert.match(html, new RegExp(`href="/v3/ai-agents/director\\?tab=${tab}"`, "u"), tab);
-  assert.match(html, /<a aria-current="page"[^>]*href="\/v3\/ai-agents\/director">Обзор<\/a>/u);
+  for (const tab of ["runs", "drafts", "instructions", "settings"]) assert.match(html, new RegExp(`href="/v3/ai-agents/director\\?tab=${tab}"`, "u"), tab);
+  // «Чат» — вкладка по умолчанию (решение владельца 26.10.2026): без `?tab=`, первым в ряду; «Обзор» — по адресу.
+  assert.match(html, /href="\/v3\/ai-agents\/director">Чат<\/a>[\s\S]*Обзор/u);
+  assert.match(html, /<a aria-current="page"[^>]*href="\/v3\/ai-agents\/director\?tab=overview">Обзор<\/a>/u);
 });
 
 test("страница агента, пустое состояние: слова вместо нулей и ссылка на «Поручить»", async () => {
@@ -511,7 +514,7 @@ test("страница агента, пустое состояние: слова
     charts: { runsPerDay: [], spendPerDay: [], actionsByTool: [] }, lastDigest: null };
   const html = body(bodyProps({ detail: empty, digests: { status: "available", data: { digests: [] } } }));
   // Агент, который ещё не работал: одно слово и одна кнопка вместо десяти пустых блоков.
-  assert.match(html, /data-testid="v3-aia-first-run"[\s\S]*Запусков ещё не было[\s\S]*href="\/v3\/ai-agents\/director\?tab=command"[^>]*>Поручить первую задачу/u);
+  assert.match(html, /data-testid="v3-aia-first-run"[\s\S]*Запусков ещё не было[\s\S]*href="\/v3\/ai-agents\/director"[^>]*>Поручить первую задачу/u);
   assert.doesNotMatch(html, /За 30 дней запусков не было|Расхода за 30 дней нет|Агент пока не вызывал инструменты|Отчётов пока нет|нет запусков/u);
   assert.doesNotMatch(html, /Запусков за 7 дней|v3-aia-day-bars/u, "нулевые плитки и графики не рисуются");
 });
@@ -625,9 +628,11 @@ test("вкладки «Поручить», «Запуски», «Чернови�
   // «Мои разговоры»: колонка со ссылкой на «Запуски» и пустым словом; «Поручить» — рабочая область окна
   assert.match(command, /<nav aria-label="Мои разговоры с агентом"[^>]*data-testid="v3-aia-conversations"/u);
   assert.match(command, /Здесь появятся ваши разговоры с агентом\./u);
-  assert.match(command, /href="\/v3\/ai-agents\/director\?tab=runs"[^>]*>Все запуски|data-testid="v3-aia-all-runs" href="\/v3\/ai-agents\/director\?tab=runs"/u);
+  assert.match(command, /href="\/v3\/ai-agents\/director\?tab=runs"[^>]*>Вся история работы|data-testid="v3-aia-all-runs" href="\/v3\/ai-agents\/director\?tab=runs"/u);
   assert.match(command, /data-aia-workspace/u);
-  assert.match(command, /<h2[^>]*class="sr-only">Поручить: Директор \/ Аналитик<\/h2>/u, "заголовок раздела остаётся для читалки");
+  assert.doesNotMatch(command, /aria-label="Разделы агента/u, "на «Поручить» вкладки стоят в строке шапки страницы (`AgentChatShell`), второго ряда в содержимом нет");
+  assert.match(body(bodyProps({ tab: "runs", runs: { status: "available", data: { runs: [], hasMore: false } } })), /<nav[^>]*aria-label="Разделы агента «Директор \/ Аналитик»"/u, "остальные вкладки — ряд над содержимым, как был");
+  assert.match(command, /<h2[^>]*class="sr-only">Чат: Директор \/ Аналитик<\/h2>/u, "заголовок раздела остаётся для читалки");
   assert.doesNotMatch(command, /<h2[^>]*class="t-section text-fg">Поручить<\/h2>/u, "видимого «Поручить» над полем больше нет");
   assert.doesNotMatch(command, /Считает продажи, воронку и поступление/u, "строка роли — один раз, под заголовком страницы, а не ещё раз в пустом чате");
   assert.match(command, /data-testid="v3-aia-new"[^>]*>[\s\S]*?Новый<\/button>/u, "«Новый разговор» — компактная кнопка, а не во всю ширину");
@@ -644,10 +649,10 @@ test("вкладки «Поручить», «Запуски», «Чернови�
   assert.match(runs, /<span class="mt-0\.5 block t-meta text-fg-3">По расписанию<\/span>/u, "повод запуска — один раз, под датой");
   const empty = body(bodyProps({ tab: "runs", runs: { status: "available", data: { runs: [], hasMore: false } } }));
   assert.match(empty, /Запусков ещё не было/u);
-  assert.match(empty, /href="\/v3\/ai-agents\/director\?tab=command"[^>]*>Поручить<\/a>/u, "пустые «Запуски» ведут к «Поручить»");
+  assert.match(empty, /href="\/v3\/ai-agents\/director"[^>]*>Поручить<\/a>/u, "пустая «История работы» ведёт в «Чат»");
   assert.doesNotMatch(empty, /Запуск появляется, когда/u);
   const detail = body(bodyProps({ tab: "runs", runId: run.id, run: { status: "available", data: { run: { ...run, status: "completed", errorCode: null, summary: "Готово: **48**" }, actions: [{ id: "1", agentKey: "director", runId: run.id, tool: "sales_report", argsSummary: "from_month=2026-09", resultStatus: "ok", errorCode: null, durationMs: 5, at: NOW }], drafts: [] } } }));
-  assert.doesNotMatch(detail, /Все запуски/u, "вкладка «Запуски» уже ведёт к списку: второй «Назад» не нужен");
+  assert.doesNotMatch(detail, /Все запуски|Вся история работы/u, "вкладка «История работы» уже ведёт к списку: второй «Назад» не нужен");
   assert.match(detail, /Отчёт продаж/u);
   assert.match(detail, /Показать переписку</u);
   assert.match(detail, /data-testid="v3-aia-run-meta-line"[^>]*>[^<]*· 8 с · 0,00\u00A0\$ · По расписанию</u, "факты запуска — одной строкой");
@@ -667,7 +672,7 @@ test("вкладки «Поручить», «Запуски», «Чернови�
   assert.match(drafts, /Подключите WhatsApp в[\s\S]*Настройки → Интеграции/u);
   assert.match(drafts, /href="\/v3\/inbox\?conversation=5d3b1a2c-1111-4222-8333-444455556666"/u);
   assert.doesNotMatch(body(bodyProps({ tab: "drafts", canManage: false, drafts: { status: "available", data: { drafts: [draft], counts: { pending: 1, approved: 0, sending: 0, sent: 0, discarded: 0, failed: 0, expired: 0 } } } })), /Одобрить и отправить/u);
-  assert.match(drafts, /<h2[^>]*class="sr-only">Черновики<\/h2>/u, "заголовок вкладки — только для читалки");
+  assert.match(drafts, /<h2[^>]*class="sr-only">На одобрение<\/h2>/u, "заголовок вкладки — только для читалки");
   assert.doesNotMatch(drafts, /Они уходят только после вашего одобрения|можно поправить перед отправкой|Текст агента без правок/u);
   assert.doesNotMatch(drafts, /действует до/u, "срок называется, только когда он близок");
   const readonlyDrafts = body(bodyProps({ tab: "drafts", canManage: false, drafts: { status: "available", data: { drafts: [draft], counts: { pending: 1, approved: 0, sending: 0, sent: 0, discarded: 0, failed: 0, expired: 0 } } } }));
@@ -678,7 +683,7 @@ test("вкладки «Поручить», «Запуски», «Чернови�
 
   const instructions = body(bodyProps({ tab: "instructions", detail: { ...DETAIL, instructionsOverride: "Своя инструкция", hasInstructionsOverride: true } }));
   assert.match(instructions, /Своя инструкция/u);
-  assert.match(instructions, /Сбросить на стандартную|v3-aia-instructions-text/u);
+  assert.match(instructions, /Сбросить на стандартные|v3-aia-instructions-text/u);
   assert.doesNotMatch(instructions, /из 60\s?000|>Сохранено</u, "счётчик — только у предела, «Сохранено» не пишется постоянно");
   const longInstructions = body(bodyProps({ tab: "instructions", detail: { ...DETAIL, instructionsOverride: "я".repeat(55_000), hasInstructionsOverride: true } }));
   assert.match(longInstructions, /55\s?000 из 60\s?000/u, "у предела счётчик появляется");
@@ -963,7 +968,7 @@ test("«Поручить» при открытии на запуске: разм
   const locked = body(bodyProps({ tab: "command", runtimeConfigured: false, resume: { runId: RESUME_RUN_ID, sendAuthority: false, run: resumeRun() }, conversations: [resumeRun()] }));
   assert.doesNotMatch(locked, /v3-aia-progress|Покажи студентов с просроченными/u);
   assert.doesNotMatch(locked, /v3-aia-conversations|v3-aia-new/u, "заперто — списка разговоров и поля нет, только объяснение");
-  assert.match(locked, /<a[^>]*data-testid="v3-aia-back" href="\/v3\/ai-agents\/director">[\s\S]*К разделам агента<\/a>/u, "на телефоне шапки страницы нет: у запертого состояния остаётся выход к разделам агента");
+  assert.match(locked, /<a[^>]*data-testid="v3-aia-back" href="\/v3\/ai-agents\/director\?tab=overview">[\s\S]*К разделам агента<\/a>/u, "на телефоне шапки страницы нет: у запертого состояния остаётся выход к разделам агента");
   const fresh = body(bodyProps({ tab: "command" }));
   assert.doesNotMatch(fresh, /v3-aia-progress/u);
   assert.match(fresh, /placeholder="Что поручить\?"/u);
@@ -1015,12 +1020,14 @@ test("исходники «Поручить»: ключ чата — у рабо
   assert.match(pageSource, /run: mine \}/u);
   assert.match(pageSource, /!route\.runId && !route\.fresh/u, "?new=1 пропускает автоподхват");
   assert.match(pageSource, /ownCommandRuns\(conversationsRead\.data\.runs, actor\.displayName/u);
-  assert.match(pageSource, /fill=\{tab === "command"\}/u);
+  // «Поручить» — своя рамка на всю рабочую область (решение владельца 26.10.2026), а не `PartShell` в колонке 1240 px.
+  assert.match(pageSource, /if \(tab === "command"\) \{\s*return \(\s*<AgentChatShell/u);
+  assert.doesNotMatch(pageSource, /fill=\{tab === "command"\}/u);
   const consoleSource = read("src/components/v3/ai-agents/Console.tsx");
   assert.match(consoleSource, /useLayoutEffect\(\(\) => \{\s*const typed = input\.current\?\.value/u, "текст из поля, набранный до гидратации, попадает в состояние");
   assert.doesNotMatch(consoleSource, /setWorking\(true\);\s*schedule\(/u, "«работает» следует статусу запуска, а не тому, что опрос не закончился");
   assert.match(consoleSource, /setWorking\(aiAgentRunIsActive\(poll\.run\.status\)\)|setWorking\(active\)/u);
-  assert.match(read("src/lib/v3/board-layout.ts"), /tab === "command"/u);
+  assert.match(read("src/lib/v3/board-layout.ts"), /\(tab \?\? AI_AGENT_SHELL_DEFAULT_TAB\) === "command"/u);
 });
 
 /* Настоящий React в Chromium: серверная разметка гидратируется, как на странице (без Next). Серверные действия — записанные
@@ -1203,7 +1210,7 @@ test("браузер: перезагрузка во время поручени�
     assert.doesNotMatch(fresh, /Итог: у троих|Другой итог/u, "«Новый разговор» остался новым после перерисовки сервером");
     assert.equal(await page.getAttribute("[data-testid=v3-aia-input]", "placeholder"), "Что поручить?");
     assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("data-testid")), "v3-aia-input", "после «Нового разговора» фокус в поле");
-    assert.match(new URL(page.url()).search, /^\?tab=command&new=1$/u, "адрес обновился на месте");
+    assert.match(new URL(page.url()).search, /^\?new=1$/u, "адрес обновился на месте");
   } finally { await context.close(); }
 });
 
@@ -1277,7 +1284,7 @@ test("браузер: пример кладёт текст в поле и не �
     assert.equal(await item.count(), 1);
     assert.match(await item.innerText(), /первая строка\s+вторая[\s\S]*Идёт/u);
     assert.equal(await item.getAttribute("aria-current"), "true");
-    assert.equal(new URL(page.url()).search, `?tab=command&run=${NEW_RUN_ID}`);
+    assert.equal(new URL(page.url()).search, `?run=${NEW_RUN_ID}`);
     assert.match(await page.locator("[data-testid=v3-aia-steps] > summary").innerText(), /^Ход работы · шаг 1 · ищет клиента…/u);
     assert.match(await page.locator("[data-testid=v3-aia-progress]").innerText(), /· 0:0\d/u, "время хода идёт");
 
@@ -1344,7 +1351,7 @@ test("браузер: выбор разговора в списке и лист 
     await page.waitForFunction(() => document.querySelector("[data-testid=v3-aia-console]").innerText.includes("Вчерашний итог"), null, { timeout: 5000 });
     const consoleNow = await consoleText(page);
     assert.doesNotMatch(consoleNow, /Сегодняшний итог/u, "в чате — выбранный разговор, а не прежний");
-    assert.equal(new URL(page.url()).search, `?tab=command&run=${other.id}`);
+    assert.equal(new URL(page.url()).search, `?run=${other.id}`);
     assert.equal(await page.locator("aside [data-testid=v3-aia-conversation-item][aria-current=true]").innerText().then((text) => text.includes("Вчерашнее поручение")), true, "выделена выбранная строка");
     // Сервер перерисовал страницу с другим «последним» разговором: выбор вкладки не меняется.
     await page.evaluate((resume) => window.__rerender({ resume }), { runId: RESUME_RUN_ID, sendAuthority: false, run: current });
@@ -1647,7 +1654,7 @@ test("шапка агента: переключатели — единствен
 
   const locked = switches({ ...base, agentKey: "curator-eu", enabled: false, hasInstructions: false });
   assert.match(locked, /<button[^>]*role="switch"[^>]*aria-checked="false"[^>]*aria-disabled="true"[^>]*data-testid="v3-aia-switch-enabled"/u, "нажатие, которое заведомо кончится отказом, не предлагается");
-  assert.match(locked, /<a[^>]*data-testid="v3-aia-switch-needs-instructions" href="\/v3\/ai-agents\/curator-eu\?tab=instructions">Сначала напишите инструкцию<\/a>/u);
+  assert.match(locked, /<a[^>]*data-testid="v3-aia-switch-needs-instructions" href="\/v3\/ai-agents\/curator-eu\?tab=instructions">Сначала напишите правила<\/a>/u);
   assert.doesNotMatch(switches({ ...base, enabled: true }), /v3-aia-switch-needs-instructions/u);
 
   const staff = switches({ ...base, canEdit: false, autoSend: true });
@@ -1670,13 +1677,13 @@ const unsetDetail = (over = {}) => ({
 test("ненастроенный агент: «Обзор» — три шага и одна кнопка, «Поручить» — причина и та же кнопка; не админу — слова без кнопок", async () => {
   const { body } = await views();
   const overview = body(bodyProps({ detail: unsetDetail(), digests: { status: "available", data: { digests: [] } } }));
-  assert.match(overview, /data-testid="v3-aia-setup"[\s\S]*Агент не настроен[\s\S]*Инструкция[\s\S]*Написать инструкцию[\s\S]*Включение[\s\S]*Отправка в Claude/u);
-  assert.match(overview, /<a[^>]*data-testid="v3-aia-setup-instructions" href="\/v3\/ai-agents\/curator-eu\?tab=instructions">Написать инструкцию<\/a>/u);
+  assert.match(overview, /data-testid="v3-aia-setup"[\s\S]*Агент не настроен[\s\S]*Правила агента[\s\S]*Написать правила[\s\S]*Включение[\s\S]*Отправка в Claude/u);
+  assert.match(overview, /<a[^>]*data-testid="v3-aia-setup-instructions" href="\/v3\/ai-agents\/curator-eu\?tab=instructions">Написать правила<\/a>/u);
   assert.doesNotMatch(overview, /Запусков ещё не было|Поручите агенту первую задачу|v3-aia-first-run/u, "«Поручить» не предлагается, пока оно заперто (раньше два экрана противоречили друг другу)");
   assert.doesNotMatch(overview, /Запусков за 7 дней|v3-aia-day-bars|Отчётов пока нет/u, "десяти пустых блоков нет");
 
   const chat = body(bodyProps({ tab: "command", detail: unsetDetail() }));
-  assert.match(chat, /Писать агенту пока нельзя[\s\S]*У агента нет инструкции\. Без неё его не включить\.[\s\S]*Написать инструкцию/u);
+  assert.match(chat, /Писать агенту пока нельзя[\s\S]*У агента нет правил\. Без них его не включить\.[\s\S]*Написать правила/u);
   assert.doesNotMatch(chat, /data-testid="v3-aia-input"|Включает его системный администратор переключателем/u);
   assert.doesNotMatch(chat, /<h3[^>]*>Куратор Европа<\/h3>|Европа \(Италия, Чехия\)/u, "название и роль под заголовком страницы не повторяются");
 
@@ -1688,19 +1695,19 @@ test("ненастроенный агент: «Обзор» — три шага 
   assert.match(body(bodyProps({ tab: "command", detail: { ...off, enabled: true } })), /data-testid="v3-aia-sync-now"/u);
 
   const staffOverview = body(bodyProps({ canEdit: false, detail: unsetDetail(), digests: { status: "available", data: { digests: [] } } }));
-  assert.match(staffOverview, /data-testid="v3-aia-blocked-note"[^>]*>[\s\S]*У агента нет инструкции — её пишет системный администратор\./u);
+  assert.match(staffOverview, /data-testid="v3-aia-blocked-note"[^>]*>[\s\S]*У агента нет правил — их пишет системный администратор\./u);
   assert.doesNotMatch(staffOverview, /v3-aia-setup|v3-aia-enable-now|v3-aia-sync-now|v3-aia-setup-instructions/u, "не администратору кнопок шагов нет");
   const staffChat = body(bodyProps({ canEdit: false, tab: "command", detail: unsetDetail() }));
-  assert.match(staffChat, /Писать агенту пока нельзя[\s\S]*У агента нет инструкции — её пишет системный администратор\./u);
+  assert.match(staffChat, /Писать агенту пока нельзя[\s\S]*У агента нет правил — их пишет системный администратор\./u);
   assert.doesNotMatch(staffChat, /v3-aia-setup-instructions|v3-aia-enable-now/u);
   // Инструкции нет: в «Инструкции» одно слово об этом, а не чип и абзац с тем же; про загрузку, которой нет, ничего
   const instructions = body(bodyProps({ tab: "instructions", detail: unsetDetail() }));
-  assert.match(instructions, /Инструкции нет\. Без неё агента не включить\./u);
-  assert.doesNotMatch(instructions, /загрузите|Инструкции пока нет/u);
+  assert.match(instructions, /Правил нет\. Без них агента не включить\./u);
+  assert.doesNotMatch(instructions, /загрузите|Правил пока нет/u);
   // «Синхронизировать» без инструкции заперта и объясняет причину ссылкой
   const settings = body(bodyProps({ tab: "settings", detail: unsetDetail() }));
   assert.match(settings, /<button[^>]*disabled=""[^>]*data-testid="v3-aia-sync"/u);
-  assert.match(settings, /Сначала напишите <a[^>]*href="\/v3\/ai-agents\/curator-eu\?tab=instructions">инструкцию<\/a>/u);
+  assert.match(settings, /Сначала напишите <a[^>]*href="\/v3\/ai-agents\/curator-eu\?tab=instructions">правила<\/a>/u);
 });
 
 test("запуск: ошибки действий словами, неудавшиеся выше, «Готово» при ошибках говорит об этом, действия — над своим поручением", async () => {
@@ -1721,7 +1728,7 @@ test("запуск: ошибки действий словами, неудавш
   assert.match(html, /Действия агента <span[^>]*>2 · 1 с ошибкой<\/span>/u);
   assert.match(html, /<td[^>]*>16:31<\/td>/u, "время в тот же день — без даты: «22 окт» девять раз подряд — шум");
   assert.match(html, /data-testid="v3-aia-run-meta-line"[^>]*>[^<]*· 42 с · 0,17 \$ · Вы</u, "факты — одной строкой, свой запуск подписан «Вы»");
-  assert.match(html, /<a[^>]*data-testid="v3-aia-run-open-chat" href="\/v3\/ai-agents\/director\?tab=command&amp;run=33333333-3333-4333-8333-333333333333"[^>]*>[\s\S]*Открыть в чате<\/a>/u);
+  assert.match(html, /<a[^>]*data-testid="v3-aia-run-open-chat" href="\/v3\/ai-agents\/director\?run=33333333-3333-4333-8333-333333333333"[^>]*>[\s\S]*Открыть в чате<\/a>/u);
   assert.match(html, /data-testid="v3-aia-run-copy"/u);
   assert.doesNotMatch(html, /data-testid="v3-aia-run-stop"|data-testid="v3-aia-run-repeat"/u, "готовый запуск не останавливают и не повторяют");
   assert.match(html, /<div data-testid="v3-aia-markdown">/u, "ширину таблицы не зажимает «72ch» текста");

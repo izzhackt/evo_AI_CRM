@@ -127,7 +127,7 @@ export function AgentSwitches({
         </button>
         {locked ? (
           <Link href={aiAgentHref(agentKey, { tab: "instructions" })} className="inline-flex min-h-11 items-center rounded-nav t-meta text-fg underline underline-offset-4" data-testid="v3-aia-switch-needs-instructions">
-            Сначала напишите инструкцию
+            Сначала напишите правила
           </Link>
         ) : null}
       </div>

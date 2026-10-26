@@ -3,10 +3,8 @@ import Link from "next/link";
 import { AI_AGENT_DEFAULTS, AI_AGENT_PREAMBLE } from "@/content/ai-agents";
 import { type AiAgentDetail, type AiAgentDigestsListResult, type AiAgentDraftsListResult, type AiAgentRunGetResult, type AiAgentRunsListResult } from "@/lib/ai-agents/contract";
 import { spentTodayCents } from "@/lib/ai-agents/daily-cap";
-import { QueueViewTabs } from "@/components/v3/queue/QueueViewTabs";
 import {
   AI_AGENT_STARTERS,
-  AI_AGENT_TABS,
   aiAgentHref,
   aiAgentIsRunnable,
   aiAgentNextStep,
@@ -16,6 +14,7 @@ import {
 } from "@/lib/v3/ai-agents-view";
 
 import { AgentSetup, SetupAction } from "./AgentSetup";
+import { AgentTabs } from "./AgentTabs";
 import { CommandWorkspace } from "./CommandWorkspace";
 import { DraftsTab } from "./DraftsTab";
 import { InstructionsEditor } from "./InstructionsEditor";
@@ -72,8 +71,9 @@ function tabFailure(read: TabRead<unknown>, what: string, retryHref: string) {
 
 /**
  * Содержимое страницы агента под шапкой: плашки о том, что требует внимания (ключ Claude, синхронизация),
- * вкладки и выбранная вкладка. Строки состояния «Включён · Авто · модель · расписание» здесь нет: она
- * повторяла переключатели шапки, «Настройки» и «Обзор» — состояние говорит то, что отличается от нормы.
+ * вкладки (на «Поручить» они стоят в строке шапки, `AgentChatShell`) и выбранная вкладка. Строки состояния
+ * «Включён · Авто · модель · расписание» здесь нет: она повторяла переключатели шапки, «Настройки» и
+ * «Обзор» — состояние говорит то, что отличается от нормы.
  */
 export function AgentBody(props: AgentBodyProps) {
   const { detail, tab, now, canEdit, canManage, preview, runtimeConfigured, needsSync } = props;
@@ -92,7 +92,7 @@ export function AgentBody(props: AgentBodyProps) {
   const blockedNote = preview ? "В просмотре роли писать агенту нельзя."
     : directorLocked ? "Директору поручает только системный администратор: он читает данные организации целиком."
     : !runtimeConfigured ? "Ключ Claude API не задан в CRM — его добавляет администратор."
-      : !hasInstructions ? (canEdit ? "У агента нет инструкции. Без неё его не включить." : "У агента нет инструкции — её пишет системный администратор.")
+      : !hasInstructions ? (canEdit ? "У агента нет правил. Без них его не включить." : "У агента нет правил — их пишет системный администратор.")
         : !detail.enabled ? (canEdit ? "Агент выключен." : "Агент выключен — включает системный администратор.")
           : !synced ? (canEdit ? "Агент ещё не синхронизирован с Claude." : "Агент ещё не синхронизирован с Claude — синхронизирует системный администратор.")
             : null;
@@ -154,7 +154,7 @@ export function AgentBody(props: AgentBodyProps) {
           : read.status === "available" ? <RunDetail agentKey={detail.key} agentTitle={detail.title} data={read.data} now={now} viewerName={props.viewerName} canAct={!preview} canStopAny={canEdit} canRun={canRun} />
             : read.status === "missing" ? (
               <p className="t-body-compact text-fg-2" data-testid="v3-aia-run-missing">
-                Такого запуска нет. <Link href={here("runs")} className="text-fg underline underline-offset-4">Все запуски</Link>
+                Такого запуска нет. <Link href={here("runs")} className="text-fg underline underline-offset-4">Вся история работы</Link>
               </p>
             )
               : tabFailure(read, "запуск", retry);
@@ -211,9 +211,9 @@ export function AgentBody(props: AgentBodyProps) {
   }
 
   return (
-    // «Поручить» — чат во всю высоту окна: шапка вверху не сжимается, рабочая область забирает остаток. На телефоне
+    // «Поручить» — чат во всю высоту окна: плашки вверху не сжимаются, рабочая область забирает остаток. На телефоне
     // шапка скрыта, и чат занимает экран между строкой логотипа и вкладками (v3.css).
-    <div className={chat ? "flex min-h-0 flex-1 flex-col gap-4 [&>:not(:last-child)]:shrink-0" : "space-y-4"} data-testid="v3-aia-agent" data-tab={tab} data-aia-chat={chat ? "" : undefined}>
+    <div className={chat ? "flex min-h-0 flex-1 flex-col gap-3 [&>:not(:last-child)]:shrink-0" : "space-y-4"} data-testid="v3-aia-agent" data-tab={tab} data-aia-chat={chat ? "" : undefined}>
       {preview ? <PreviewLine /> : null}
       {runtimeConfigured ? null : <ApiKeyMissingLine />}
       {/* О синхронизации на «Настройках» говорит их блок «Синхронизация с Claude» — второй раз та же фраза не нужна. */}
@@ -227,16 +227,8 @@ export function AgentBody(props: AgentBodyProps) {
         </div>
       ) : null}
 
-      <QueueViewTabs
-        label={`Разделы агента «${detail.title}»`}
-        tabs={AI_AGENT_TABS.map((one) => ({
-          key: one.key,
-          label: one.label,
-          count: one.key === "drafts" && detail.stats.draftsPending > 0 ? detail.stats.draftsPending : null,
-          current: one.key === tab,
-          href: here(one.key),
-        }))}
-      />
+      {/* «Поручить»: вкладки стоят в строке шапки страницы (`AgentChatShell`), здесь второго ряда нет. */}
+      {chat ? null : <AgentTabs agentKey={detail.key} title={detail.title} tab={tab} draftsPending={detail.stats.draftsPending} />}
       <div className={chat ? "flex min-h-0 flex-1 flex-col" : undefined}>{content}</div>
     </div>
   );

@@ -22,7 +22,7 @@ final class EnglishViewModel: ObservableObject {
         do {
             modules = try await service.learningModules().modules
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = ConnectionFailure.hint(for: error)
         }
         isLoading = false
     }

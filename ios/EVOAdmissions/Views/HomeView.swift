@@ -86,17 +86,22 @@ struct HomeView: View {
         NavigationStack(path: $path) {
             List {
                 Section {
-                    Text(session.authority.displayName).font(.title2.bold())
+                    Text(greeting).font(.title2.bold())
                         .motionStagger(index: 0, key: "home.greeting")
+                }
+                // Когда по делу есть что сделать, это первый блок под приветствием:
+                // длинная карточка согласия не должна занимать весь первый экран.
+                if session.accessTier == .assisted && admissionNeedsAttention {
+                    admissionSection
                 }
                 // Согласие на ИИ-помощников: только студенту с делом EVO, карточка
                 // до решения на действующий текст, ничего не блокирует
-                // (правило App Store 5.1.2(i)).
+                // (правило App Store 5.1.2(i)). Текст не сокращается: он дословно
+                // из контракта владельца и показывается целиком.
                 AIConsentCardSection(model: aiConsent, tier: session.accessTier)
                 // «Путь поступления» (S4): у самостоятельного студента первым, у клиента после дела.
                 if session.accessTier == .approved { timelineSection }
                 if session.accessTier == .assisted && admissionNeedsAttention {
-                    admissionSection
                     timelineSection
                 }
                 // Карточка CSCA (Q16) открывает «Продолжить»; только для студента с Китаем.
@@ -145,6 +150,15 @@ struct HomeView: View {
                 AssessmentRunnerView(context: context)
             }
         }
+    }
+
+    /// «Привет, Айдана Иванова!»: полное имя из аккаунта, потому что порядок
+    /// слов в нём задаёт сотрудник и «имя» из него выделить нельзя. Пустое имя
+    /// не даёт «Привет, !».
+    private var greeting: String {
+        let name = session.authority.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return String(localized: "home_greeting_plain") }
+        return String(format: String(localized: "home_greeting"), name)
     }
 
     private var timelineSection: some View {
@@ -325,7 +339,8 @@ struct HomeView: View {
                 case .loaded(let items):
                     if items.isEmpty {
                         Text("favorites_empty_title").foregroundStyle(.secondaryText)
-                        Button("tab_universities") { selectedTab = .universities }
+                        Button("favorites_empty_action") { selectedTab = .universities }
+                            .accentBordered()
                     }
                     ForEach(items) { item in
                         NavigationLink {
@@ -354,6 +369,7 @@ struct HomeView: View {
             Text(key).foregroundStyle(.secondaryText)
             Button("retry_button") { Task { await retry() } }
                 .frame(minHeight: 44)
+                .contentShape(Rectangle())
         }
     }
 

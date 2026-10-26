@@ -216,6 +216,32 @@ final class AdmissionDecodingTests: XCTestCase {
         )
         XCTAssertTrue(correction.allowsUpload)
 
+        // Что требует действия студента: «Не загружен» и «Нужно исправить».
+        XCTAssertFalse(AdmissionDocumentProgress.needsAction(approved))
+        XCTAssertTrue(AdmissionDocumentProgress.needsAction(required))
+        XCTAssertTrue(AdmissionDocumentProgress.needsAction(correction))
+        // Порядок на экране: сначала дела студента (в порядке чеклиста), принятое в конце.
+        XCTAssertEqual(
+            AdmissionDocumentProgress.displayOrder(documents).map(\.slotStatus),
+            ["required", "correction_required", "approved"]
+        )
+        // После загрузки файла данные перечитываются, но карточка остаётся на
+        // своём месте: порядок берётся из прежней сортировки, а не пересчитывается.
+        let shownOrder = AdmissionDocumentProgress.displayOrder(documents).map(\.documentSlotId)
+        XCTAssertEqual(
+            AdmissionDocumentProgress.keepingOrder(documents, order: shownOrder).map(\.slotStatus),
+            ["required", "correction_required", "approved"]
+        )
+        let previousOrder = [approved.documentSlotId, required.documentSlotId]
+        XCTAssertEqual(
+            AdmissionDocumentProgress.keepingOrder(documents, order: previousOrder).map(\.slotStatus),
+            ["approved", "required", "correction_required"]
+        )
+        XCTAssertEqual(
+            AdmissionDocumentProgress.keepingOrder(documents, order: []).map(\.slotStatus),
+            ["required", "correction_required", "approved"]
+        )
+
         // Progress counters (web documentProgress semantics).
         XCTAssertEqual(AdmissionDocumentProgress.approvedCount(documents), 1)
         XCTAssertEqual(AdmissionDocumentProgress.missingCount(documents), 1)

@@ -46,6 +46,8 @@ struct AccessPendingView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondaryText)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
 
             // 280: удалить аккаунт можно и до готовности доступа.
             Button("account_deletion_action") {

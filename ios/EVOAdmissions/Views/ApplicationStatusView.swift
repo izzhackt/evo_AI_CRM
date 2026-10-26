@@ -117,6 +117,8 @@ struct ApplicationStatusView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondaryText)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
             .accessibilityLabel(Text("apply_logout"))
             // 280: анкета без одобрения тоже может удалить аккаунт.
             Button("account_deletion_action") {

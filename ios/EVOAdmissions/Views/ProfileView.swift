@@ -114,6 +114,7 @@ struct ProfileView: View {
         NavigationStack {
             List {
                 dataSection
+                testsSection
                 languageSection
                 AIConsentSettingsSection(model: aiConsent, tier: session.accessTier)
                 consultationSection
@@ -164,11 +165,6 @@ struct ProfileView: View {
             } label: {
                 Text("profile_access_label")
             }
-            NavigationLink {
-                TestsContentView()
-            } label: {
-                Text("profile_tests_link")
-            }
         } footer: {
             Group {
                 if model.profileLoadFailed {
@@ -176,6 +172,18 @@ struct ProfileView: View {
                 }
             }
             .foregroundStyle(.secondaryText)
+        }
+    }
+
+    /// Личные результаты тестов - переход, а не данные аккаунта, поэтому
+    /// отдельной строкой, а не внутри карточки с именем и почтой.
+    private var testsSection: some View {
+        Section {
+            NavigationLink {
+                TestsContentView()
+            } label: {
+                Text("profile_tests_link")
+            }
         }
     }
 
@@ -220,10 +228,9 @@ struct ProfileView: View {
             case .idle, .saving:
                 EmptyView()
             }
-        } header: {
-            Text("profile_language_heading")
-                .foregroundStyle(.secondaryText)
         } footer: {
+            // Заголовок секции совпадал с подписью строки («Язык портала»
+            // дважды подряд), поэтому остаётся только подпись у выбора.
             Text("profile_language_hint")
                 .foregroundStyle(.secondaryText)
         }
@@ -279,7 +286,8 @@ struct ProfileView: View {
     }
 
     // Выход ничего не удаляет, поэтому кнопка без роли .destructive (аудит
-    // UX/UI 2026-10): цвет даёт акцент, а не системный красный 3,57:1.
+    // UX/UI 2026-10) и нейтрального цвета: брендовый красный читался так же,
+    // как «Удалить аккаунт» ниже.
     private var sessionSection: some View {
         Section {
             Button {
@@ -297,6 +305,7 @@ struct ProfileView: View {
                     Text("sign_out_button")
                 }
             }
+            .foregroundStyle(.primary)
             .disabled(isSigningOut)
             // A11y (9b): во время выхода label — ProgressView.
             .accessibilityLabel(Text("sign_out_button"))

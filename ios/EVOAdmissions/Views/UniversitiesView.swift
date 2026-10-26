@@ -74,7 +74,8 @@ final class UniversitiesViewModel: ObservableObject {
                     self.errorMessage = nil
                 }
             } catch {
-                return { self.errorMessage = error.localizedDescription }
+                let hint = ConnectionFailure.hint(for: error)
+                return { self.errorMessage = hint }
             }
         }
         isLoading = false

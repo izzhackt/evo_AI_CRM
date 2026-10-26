@@ -19,7 +19,7 @@ final class TestsViewModel: ObservableObject {
         do {
             catalog = try await service.studentAssessments()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = ConnectionFailure.hint(for: error)
         }
         isLoading = false
     }
@@ -266,7 +266,7 @@ struct AssessmentResultScreen: View {
         do {
             attempt = try await SupabaseService.shared.studentAssessmentAttempt(id: attemptId)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = ConnectionFailure.hint(for: error)
         }
         isLoading = false
     }

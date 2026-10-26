@@ -236,8 +236,8 @@ final class SessionRouter: ObservableObject {
                 await resolveApplicationFlow()
             }
         } catch {
-            if isTransportError(error) {
-                state = .networkError(message: error.localizedDescription)
+            if let message = Self.networkErrorMessage(for: error) {
+                state = .networkError(message: message)
             } else {
                 await routeAccessPending()
             }
@@ -292,8 +292,8 @@ final class SessionRouter: ObservableObject {
                 ))
             }
         } catch {
-            if isTransportError(error) {
-                state = .networkError(message: error.localizedDescription)
+            if let message = Self.networkErrorMessage(for: error) {
+                state = .networkError(message: message)
             } else {
                 await routeAccessPending()
             }
@@ -316,8 +316,8 @@ final class SessionRouter: ObservableObject {
             try? await service.clearStudentApplicationMetadataDraft()
             state = .applicationStatus(application)
         } catch {
-            if isTransportError(error) {
-                state = .networkError(message: error.localizedDescription)
+            if let message = Self.networkErrorMessage(for: error) {
+                state = .networkError(message: message)
                 return
             }
             // A conflict means an application already exists (the web's
@@ -349,14 +349,20 @@ final class SessionRouter: ObservableObject {
         state = .signedOut
     }
 
-    private func isTransportError(_ error: Error) -> Bool {
-        guard let urlError = error as? URLError else { return false }
-        switch urlError.code {
-        case .notConnectedToInternet, .networkConnectionLost, .timedOut,
-             .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed:
-            return true
-        default:
-            return false
+    /// Текст экрана «Не удалось подключиться» или `nil`, если ошибка не про
+    /// связь. Системный текст ошибки на экран не выводится (он на языке
+    /// телефона и технический). Сбой самого сервера (5xx) тоже честно
+    /// «нет связи», а не «Кабинет пока недоступен»: «ожидает решения»
+    /// говорится только про настоящее ожидание.
+    private static func networkErrorMessage(for error: Error) -> String? {
+        let key: String
+        if ConnectionFailure.isTransport(error) {
+            key = "sign_in_error_network"
+        } else if let http = error as? HTTPError, http.response.statusCode >= 500 {
+            key = "error_server_unavailable"
+        } else {
+            return nil
         }
+        return Bundle.main.localizedString(forKey: key, value: key, table: nil)
     }
 }

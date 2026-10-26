@@ -82,7 +82,7 @@ final class ProfessionsViewModel: ObservableObject {
         do {
             cards = try await service.professionCards().cards
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = ConnectionFailure.hint(for: error)
         }
         isLoading = false
     }

@@ -60,6 +60,23 @@ struct MyAdmissionView: View {
         }
     }
 
+    /// Текст следующего шага, написанный сотрудником. Никогда не скрывается:
+    /// он стоит вторичной строкой под пунктом очереди действий (и пока очередь
+    /// грузится), чтобы студент видел и ссылку в раздел, и слова сотрудника.
+    private var staffNextAction: String? {
+        guard let text = session.portalCase.nextAction, !text.isEmpty else { return nil }
+        return text
+    }
+
+    @ViewBuilder
+    private var staffNextActionLine: some View {
+        if let text = staffNextAction {
+            Text(text)
+                .font(.footnote)
+                .foregroundStyle(.secondaryText)
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -81,24 +98,11 @@ struct MyAdmissionView: View {
                             }
                             .accessibilityElement(children: .combine)
                         }
-                        if let nextAction = session.portalCase.nextAction, !nextAction.isEmpty {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("home_next_action_label")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondaryText)
-                                Text(nextAction)
-                                    .font(.subheadline)
-                            }
-                        }
                     }
                     .motionStagger(index: 0, key: "admission.status")
                 }
 
                 nextStepSection
-
-                ProgramPreparationListSection()
-
-                evoSection
 
                 Section {
                     Group {
@@ -124,10 +128,11 @@ struct MyAdmissionView: View {
                         }
                     }
                     .motionStagger(index: 2, key: "admission.links")
-                } footer: {
-                    Text("messages_section_note")
-                        .foregroundStyle(.secondaryText)
                 }
+
+                ProgramPreparationListSection()
+
+                evoSection
             }
             .navigationTitle("tab_my_admission")
             .refreshable {
@@ -165,6 +170,7 @@ struct MyAdmissionView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondaryText)
                     }
+                    staffNextActionLine
                     ForEach(Array(model.remainingActions.enumerated()), id: \.offset) { _, action in
                         AdmissionActionRow(action: action, isPrimary: false)
                     }
@@ -177,9 +183,13 @@ struct MyAdmissionView: View {
                             Task { await model.load() }
                         }
                         .font(.subheadline)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                     }
+                    staffNextActionLine
                 } else {
                     ProgressView()
+                    staffNextActionLine
                 }
             }
             .motionStagger(index: 1, key: "admission.next.\(nextStepPhase)")
@@ -187,13 +197,6 @@ struct MyAdmissionView: View {
         } header: {
             Text("adm_next_step_heading")
                 .foregroundStyle(.secondaryText)
-        } footer: {
-            Group {
-                if model.isLoaded, model.primaryAction != nil {
-                    Text("adm_next_step_note")
-                }
-            }
-            .foregroundStyle(.secondaryText)
         }
     }
 
@@ -261,7 +264,7 @@ struct MyAdmissionView: View {
     /// evoActionDueLabel в вебе (presentation.ts:85-89).
     private func evoDueLabel(_ action: EvoAction) -> String? {
         if let dueOn = action.dueOn {
-            return CatalogDate.dayLabel(from: dueOn, locale: AppLocale.current)
+            return AdmissionTimestamp.dayLabel(from: dueOn)
         }
         return AdmissionTimestamp.label(from: action.dueAt)
     }

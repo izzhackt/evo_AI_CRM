@@ -196,6 +196,8 @@ targets:
       - path: EVOAdmissions/Services/LocalizationKeys.swift
       - path: EVOAdmissions/Services/ServerUUID.swift
       - path: EVOAdmissions/Services/AuthMessagePolicy.swift
+      # Какой текст показать при сбое запроса (без текста системы на экране).
+      - path: EVOAdmissions/Services/ConnectionFailure.swift
       - path: EVOAdmissions/Services/CatalogPreparationModels.swift
       - path: EVOAdmissions/Services/ApplicationRequirementsModels.swift
       - path: EVOAdmissions/Services/ApplicationRequirementsV2Models.swift

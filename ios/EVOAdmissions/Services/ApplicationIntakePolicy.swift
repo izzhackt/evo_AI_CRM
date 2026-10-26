@@ -167,9 +167,36 @@ enum ApplicationWizardPolicy {
             return values.tuitionBudget.isEmpty || values.fundingSource.isEmpty
                 ? "apply_validation_budget" : nil
         case .account:
-            return ApplicationDraftValidator.isValid(values.draft(requestId: requestId))
-                ? nil : "apply_validation_review"
+            return accountStepKey(values: values, requestId: requestId, credentials: nil)
         }
+    }
+
+    /// Последний шаг: поля проверяются в том порядке, в каком они стоят на
+    /// экране, и каждое даёт своё сообщение (раньше при пустых полях и
+    /// снятой галочке было одно «Проверьте анкету и подтвердите согласие»,
+    /// а email и пароль проверялись только после него). `credentials` есть у
+    /// анонимной регистрации: email и пароль идут после телефона и до
+    /// согласия. Общее «Проверьте анкету» остаётся для случая, когда
+    /// ошибка не в этих полях (устаревший черновик).
+    static func accountStepKey(
+        values: ApplicationWizardValues,
+        requestId: String,
+        credentials: (email: String, password: String)?
+    ) -> String? {
+        let draft = values.draft(requestId: requestId)
+        if !ApplicationDraftValidator.isBoundedText(draft.firstName, max: 60)
+            || !ApplicationDraftValidator.isBoundedText(draft.lastName, max: 60) {
+            return "apply_validation_name"
+        }
+        if !ApplicationDraftValidator.isValidPhone(draft.phone) {
+            return "apply_validation_phone"
+        }
+        if let credentials {
+            if !isValidEmail(credentials.email) { return "apply_email_invalid" }
+            if let issue = passwordIssueKey(credentials.password) { return issue }
+        }
+        if !draft.consent { return "apply_validation_consent" }
+        return ApplicationDraftValidator.isValid(draft) ? nil : "apply_validation_review"
     }
 
     /// Final-step field gates the web enforces via required form controls

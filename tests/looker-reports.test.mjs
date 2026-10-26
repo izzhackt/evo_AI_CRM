@@ -722,6 +722,39 @@ test("the window: the server never draws the iframe; on a wide screen the client
   assert.match(read("src/components/v3/reports/LookerFrame.tsx"), /sandbox=\{LOOKER_FRAME_SANDBOX\}/u);
 });
 
+test("the window: «Отчёт загружается…» shows under a transparent frame and goes away on the frame's load", () => {
+  const jsxRuntime = require("react/jsx-runtime");
+  const frames = [];
+  const runtime = {
+    ...jsxRuntime,
+    jsx: (type, props, key) => { if (type === "iframe") frames.push(props); return jsxRuntime.jsx(type, props, key); },
+    jsxs: (type, props, key) => { if (type === "iframe") frames.push(props); return jsxRuntime.jsxs(type, props, key); },
+  };
+  const render = (loaded, setLoaded = () => {}) => {
+    frames.length = 0;
+    const stub = { ...require("react"), useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot(), useState: () => [loaded, setLoaded] };
+    globalThis.window = { matchMedia: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }) };
+    try {
+      const { LookerFrame } = loader({ react: stub, "react/jsx-runtime": runtime })("src/components/v3/reports/LookerFrame.tsx");
+      return renderToStaticMarkup(createElement(LookerFrame, { src: EMBED(REPORT, PAGE), title: "Отчёт Looker Studio: Финансы", openUrl: OPEN(REPORT, PAGE) }));
+    } finally { delete globalThis.window; }
+  };
+  const loading = render(false);
+  assert.match(loading, /Отчёт загружается…/u, "before the frame's load the caption is in the window");
+  const iframe = /<iframe\b[^>]*>/u.exec(loading)?.[0] ?? assert.fail("a wide screen draws the window");
+  assert.ok(loading.indexOf("Отчёт загружается…") < loading.indexOf("<iframe"), "the caption stands first and the frame is drawn over it");
+  assert.doesNotMatch(iframe, /\bbg-/u, "an opaque frame background would paint over the caption, drawn earlier in the same layer");
+  const settings = [];
+  render(false, (value) => settings.push(value));
+  assert.equal(frames.length, 1);
+  assert.equal(typeof frames[0].onLoad, "function", "the frame reports its load");
+  frames[0].onLoad();
+  assert.deepEqual(settings, [true], "the load marks the window as loaded");
+  const loaded = render(true);
+  assert.doesNotMatch(loaded, /Отчёт загружается…/u, "after the load the caption is gone: it does not linger behind a transparent report");
+  assert.match(loaded, /<iframe\b/u, "the frame itself stays");
+});
+
 /* ------------------------------------------------------------------ меню в layout */
 
 test("the layout computes `financeSection` next to the existing reads and hands it to the shell; a failed read hides the item", async () => {

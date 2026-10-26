@@ -18,15 +18,17 @@ export type QueueTab = Readonly<{
  * переносится (высота шапки не меняется, когда рядом открыта панель): лишнее
  * прокручивается вбок внутри ряда, текущая вкладка видна (`QueueTabStrip`).
  */
-export function QueueViewTabs({ label, tabs, id }: Readonly<{
+export function QueueViewTabs({ label, tabs, id, bare = false }: Readonly<{
   label: string;
   tabs: readonly QueueTab[];
   /** Якорь ряда вкладок (например, прежний адрес `#admissions-summary`). */
   id?: string;
+  /** Без линии под рядом: вкладки стоят в строке шапки рядом с названием (чат «Поручить»), а не над содержимым. */
+  bare?: boolean;
 }>) {
   return (
     <QueueTabStrip id={id} label={label}>
-      <ul className="flex min-w-max items-center gap-1 border-b border-border pb-2">
+      <ul className={bare ? "flex min-w-max items-center gap-1" : "flex min-w-max items-center gap-1 border-b border-border pb-2"}>
         {tabs.map((tab) => (
           <li key={tab.key}>
             <Link

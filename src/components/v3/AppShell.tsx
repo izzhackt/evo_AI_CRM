@@ -418,17 +418,23 @@ export function AppShell({
   actor,
   initialNotifications,
   deletionRequests = null,
+  financeSection,
 }: {
   children: ReactNode;
   actor: ActivePlatformActor;
   initialNotifications: StaffNotificationPage | null;
   /** Не выполненные запросы на удаление аккаунта: число у «Настроек» (только Admin; ревью 280, UI-F6). */
   deletionRequests?: AccountDeletionOpenCount | null;
+  /**
+   * Пункт «Финансы» в меню и палитре: точная проверка «Полный просмотр финансов на всю организацию» (план внешних
+   * отчётов §6.2), её считает layout. Без значения пункт только у настоящего администратора.
+   */
+  financeSection?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const query = useSearchParams();
-  const navigation = buildV3Navigation(actor, pathname, query);
+  const navigation = buildV3Navigation(actor, pathname, query, { financeSection });
   const tabs = shellTabs(navigation);
   const previewing = isStaffPreview(actor);
   const canCreateTask = !previewing && staffHasPermission(actor, "staff.task.create");

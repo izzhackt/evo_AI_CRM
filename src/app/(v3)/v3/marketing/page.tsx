@@ -2,11 +2,13 @@ import { MarketingLeadsView } from "@/components/v3/marketing/MarketingLeadsView
 import { MarketingNav } from "@/components/v3/marketing/MarketingNav";
 import { MarketingOverviewView } from "@/components/v3/marketing/MarketingOverviewView";
 import { PartShell } from "@/components/v3/PartShell";
+import { LookerReport } from "@/components/v3/reports/LookerReport";
 import { NO_MARKETING_FILTERS, parseMarketingLeadFilters } from "@/lib/marketing-contract";
 import { marketingHref, parseMarketingView, RECENT_DAYS_FOR_SIGNAL, shiftIsoDate } from "@/lib/marketing-view";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { periodLabel, resolvePeriod } from "@/lib/v3/funnel-source";
 import { readMarketingLeads, readMarketingOverview, readMarketingRecent, requireMarketingAdmin } from "@/lib/v3/marketing-source";
+import { readReportLink } from "@/lib/v3/report-links-source";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Маркетинг" };
@@ -17,7 +19,9 @@ const one = (value: string | string[] | undefined) => (typeof value === "string"
 /**
  * «Маркетинг» (М1): только настоящий администратор, не просмотр роли. `?view=overview` (по умолчанию) —
  * когорта заявок и продажи периода двумя блоками, расход; `?view=leads` — заявки с именами. Период —
- * `resolvePeriod`, время Бишкека; имён и телефонов в адресе нет.
+ * `resolvePeriod`, время Бишкека; имён и телефонов в адресе нет. `?view=reports` — отчёт Looker Studio
+ * (миграция 323, Meta Ads и Instagram через Windsor.ai): вкладка «Отчёты» рисуется только при подключённой ссылке,
+ * на этом виде не читаются ни обзор, ни заявки и нет периода.
  */
 export default async function MarketingPage({ searchParams }: { searchParams: Promise<Query> }) {
   const actor = await requireV3PageActor("/v3/marketing");
@@ -30,9 +34,33 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
   const retryHref = marketingHref({ view, period: hrefPeriod, filters });
   const range = { from: period.from, to: period.to };
 
-  const content = view === "leads"
-    ? <MarketingLeadsView read={await readMarketingLeads(actor, range, filters, null)} period={period} filters={filters} retryHref={retryHref} />
-    : await (async () => {
+  // Ссылка на отчёт читается на любом виде и рядом с остальными чтениями: от неё зависит, рисовать ли вкладку «Отчёты»
+  // (ошибка чтения — вкладки нет).
+  const reportRead = readReportLink(actor, "marketing");
+  const reportsTab = (read: Awaited<typeof reportRead>) => read.status === "available" && read.link.configured;
+
+  if (view === "reports") {
+    const report = await reportRead;
+    return (
+      <PartShell title="Маркетинг" testId="v3-marketing">
+        <div className="space-y-6">
+          <MarketingNav view={view} period={period} filters={filters} reports={reportsTab(report)} />
+          <LookerReport
+            reportKey="marketing"
+            read={report}
+            source="Данные Meta Ads и Instagram приходят из Windsor.ai. Цена заявки и договора — во вкладке «Обзор»."
+            canManage
+            retryHref={marketingHref({ view: "reports", period: hrefPeriod })}
+          />
+        </div>
+      </PartShell>
+    );
+  }
+
+  const contentRead = view === "leads"
+    ? readMarketingLeads(actor, range, filters, null)
+      .then((read) => <MarketingLeadsView read={read} period={period} filters={filters} retryHref={retryHref} />)
+    : (async () => {
       // Узкий период сигнала («расход есть, заявок нет») — тот же обзор, читается рядом с основным.
       const [read, recent] = await Promise.all([
         readMarketingOverview(actor, range),
@@ -41,11 +69,12 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
       const unknownHref = marketingHref({ view: "leads", period: hrefPeriod, filters: { ...NO_MARKETING_FILTERS, unknownOnly: true } });
       return <MarketingOverviewView read={read} recent={recent} period={range} retryHref={retryHref} unknownHref={unknownHref} />;
     })();
+  const [report, content] = await Promise.all([reportRead, contentRead]);
 
   return (
     <PartShell title="Маркетинг" meta={periodLabel(period)} testId="v3-marketing">
       <div className="space-y-6">
-        <MarketingNav view={view} period={period} filters={filters} />
+        <MarketingNav view={view} period={period} filters={filters} reports={reportsTab(report)} />
         {content}
       </div>
     </PartShell>

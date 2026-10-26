@@ -130,10 +130,14 @@ const COMMON: readonly V3NavigationLink[] = [
 ];
 // Разделы верхнего уровня (решение владельца 26.10.2026): стоят после «Продаж»
 // и «Поступления» на том же уровне, что их заголовки, но это одно место
-// назначения без подпунктов — не отдел и не пункт «Общего». Только настоящий
-// администратор, не просмотр роли: маршруты закрыты тем же правилом, что «База
-// знаний». «Финансы» — заготовка под доходы, расходы и расчёты (бухгалтерию
-// подключат позже).
+// назначения без подпунктов — не отдел и не пункт «Общего». «Маркетинг» —
+// только настоящий администратор, не просмотр роли (как «База знаний»).
+// «Финансы» — «Админы + бухгалтер» (решение владельца 26.10.2026, отчёт Looker
+// Studio): администратор или держатель «Полного просмотра финансов» на ВСЮ
+// организацию. Меню синхронное и знает только снимок, а область права видит
+// лишь база, поэтому пункт «Финансы» решает `options.financeSection` (layout
+// читает его через `readFinanceSectionAccess`); без аргумента пункт, как раньше,
+// только у настоящего администратора (закрыто по умолчанию).
 const SECTIONS: readonly V3NavigationLink[] = [
   { id: "marketing", href: "/v3/marketing", route: "/v3/marketing", label: "Маркетинг" },
   { id: "finance", href: "/v3/finance", route: "/v3/finance", label: "Финансы" },
@@ -201,17 +205,24 @@ function salesWorkspace(actor: ActivePlatformActor): boolean {
     : staffHasPermission(actor, "lead.sales.workflow.manage") || staffHasPermission(actor, "sales.register.read");
 }
 
-/** Presentation-only navigation. Server route guards remain the authority. */
+/**
+ * Presentation-only navigation. Server route guards remain the authority.
+ * `options.financeSection` — точная проверка пункта «Финансы» (право на всю организацию; план отчётов Looker §6.2):
+ * без неё пункт только у настоящего администратора, просмотр роли его не видит ни при каком значении.
+ */
 export function buildV3Navigation(
   actor: ActivePlatformActor,
   pathname: string,
   query: NavigationQuery,
+  options: Readonly<{ financeSection?: boolean }> = {},
 ) {
+  const financeSection = options.financeSection ?? (actor.systemRole === "admin" && !isStaffPreview(actor));
   // «Отчёт продаж» — записи отчёта или (Э3, 26.09.2026) раздел «Динамика по
   // дням» для роли, которая читает лиды без записей: графики и воронка ушли
   // сюда с прежней Главной, где она их видела. Просмотр роли — по sales.read.
   const allowed = (link: V3NavigationLink) =>
     staffCanAccessRoute(actor, link.route)
+    && (link.id !== "finance" || financeSection)
     && (link.id !== "sales-report"
       || staffPresentationCan(actor, "sales.read") || (!isStaffPreview(actor) && staffCan(actor, "sales.report.read")))
     && (link.id !== "evo-docs" || isStaffPreview(actor) || staffHasPermission(actor, "profile.read.full"))

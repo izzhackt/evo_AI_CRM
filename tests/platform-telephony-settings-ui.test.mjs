@@ -417,10 +417,10 @@ test("the page keeps the Admin sections as they were and gives a non-Admin holde
   assert.match(page, /section === "telephony" \|\| section === "integrations" \? readTelephonyAdmin\(actor\)/u, "the read happens only for the two sections that show it");
 });
 
-test("the sections list gets «Телефония» right after «Интеграции»; the list is otherwise as before", () => {
+test("the sections list gets «Телефония» right after «Интеграции»; the list is otherwise as before (plus «Отчёты», 323, after «Телефонии»)", () => {
   const types = source("src/components/v3/settings/types.ts");
   const keys = [...types.matchAll(/\{ key: "([a-z]+)", view: (?:"[a-z]+"|null), title: "([^"]+)" \}/gu)].map((match) => `${match[1]}:${match[2]}`);
-  assert.deepEqual(keys, ["staff:Сотрудники", "staff:Роли и доступ", "staff:Отделы", "integrations:Интеграции", "telephony:Телефония", "journal:Журнал действий",
+  assert.deepEqual(keys, ["staff:Сотрудники", "staff:Роли и доступ", "staff:Отделы", "integrations:Интеграции", "telephony:Телефония", "reports:Отчёты", "journal:Журнал действий",
     "deletion:Запросы на удаление", "documents:Документы и передача", "platform:Платформа"]);
   const settings = source("src/components/v3/settings/Settings.tsx");
   assert.match(settings, /current\.key === "telephony" \? <TelephonySection read=\{telephony \?\? null\} readOnly=\{telephonyReadOnly \?\? false\}/u);

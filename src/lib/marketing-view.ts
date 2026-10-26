@@ -125,13 +125,18 @@ export function shiftIsoDate(iso: string, days: number): string {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
-export type MarketingView = "overview" | "leads";
+export type MarketingView = "overview" | "leads" | "reports";
+/**
+ * Вкладки раздела. «Отчёты» (миграция 323: отчёт Looker Studio) рисуется только при подключённой ссылке — «Вкладки без
+ * данных не рисуются» (план «Маркетинга» §…, 06.10.2026); решает страница, а не этот список.
+ */
 export const MARKETING_VIEWS: readonly Readonly<{ key: MarketingView; title: string }>[] = [
   { key: "overview", title: "Обзор" },
   { key: "leads", title: "Заявки" },
+  { key: "reports", title: "Отчёты" },
 ];
 export function parseMarketingView(value: unknown): MarketingView {
-  return value === "leads" ? "leads" : "overview";
+  return value === "leads" ? "leads" : value === "reports" ? "reports" : "overview";
 }
 
 /**
@@ -143,6 +148,8 @@ export function marketingHref(input: Readonly<{
   period: Readonly<{ key: string; from?: string; to?: string }>;
   filters?: MarketingLeadFilters;
 }>): string {
+  // Вид «Отчёты» — окно Looker Studio: ни периода, ни фильтров (даты выбираются внутри отчёта).
+  if (input.view === "reports") return "/v3/marketing?view=reports";
   const query = new URLSearchParams();
   if (input.view === "leads") query.set("view", "leads");
   if (input.period.key !== "month") query.set("period", input.period.key);

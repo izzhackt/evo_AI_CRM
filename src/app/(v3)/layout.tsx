@@ -7,6 +7,7 @@ import { AppShell } from "@/components/v3/AppShell";
 import { requirePlatformStaffActor } from "@/lib/platform-guards";
 import { readReleaseMetadata } from "@/lib/release-metadata";
 import { readOpenAccountDeletionCount } from "@/lib/v3/account-deletion-source";
+import { readFinanceSectionAccess } from "@/lib/v3/report-links-source";
 import { readStaffNotificationsForActor } from "@/lib/v3/staff-notification-source";
 
 import "./v3.css";
@@ -39,16 +40,19 @@ export const metadata: Metadata = {
 export default async function V3Layout({ children }: { children: ReactNode }) {
   const actor = await requirePlatformStaffActor();
   const release = readReleaseMetadata();
-  // Уведомления и счётчик запросов на удаление читаются вместе; счётчик есть только у Admin и без
-  // просмотра роли (иначе `null`), любой сбой чтения — «нет счётчика», а не ошибка страницы.
-  const [notifications, deletionRequests] = await Promise.all([
+  // Уведомления, счётчик запросов на удаление и пункт «Финансы» читаются вместе; счётчик есть только у Admin и без
+  // просмотра роли (иначе `null`), любой сбой чтения — «нет счётчика», а не ошибка страницы. «Финансы» — точная
+  // проверка права на всю организацию (план внешних отчётов §6.2): просмотр роли, настоящий Admin и сотрудник без
+  // finance.read.full решаются без чтения, держатель права — одним лёгким чтением; ошибка — пункта нет.
+  const [notifications, deletionRequests, financeSection] = await Promise.all([
     !isStaffPreview(actor) ? readStaffNotificationsForActor(actor).catch(() => null) : Promise.resolve(null),
     readOpenAccountDeletionCount(actor),
+    readFinanceSectionAccess(actor).catch(() => false),
   ]);
 
   return (
     <div className="v3-world" data-surface="staff">
-      <AppShell actor={actor} initialNotifications={notifications} deletionRequests={deletionRequests}>
+      <AppShell actor={actor} initialNotifications={notifications} deletionRequests={deletionRequests} financeSection={financeSection}>
         {children}
       </AppShell>
       <ServerReleaseMark release={release.status === "available" ? release.revision : null} />

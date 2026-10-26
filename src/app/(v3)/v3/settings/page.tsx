@@ -5,6 +5,7 @@ import { isSectionKey, staffViewOf, type SectionKey, type StaffView } from "@/co
 import { isStaffPreview } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { readTelephonyAdmin, telephonyIntegrationFactsFrom } from "@/lib/server/platform-telephony-admin";
+import { readReportLink } from "@/lib/v3/report-links-source";
 import { redirect } from "next/navigation";
 
 import { normalizeJournalFilters } from "@/lib/v3/settings-journal-contract";
@@ -70,7 +71,11 @@ export default async function SettingsPart({
   const telephonyRead = section === "telephony" || section === "integrations" ? readTelephonyAdmin(actor) : Promise.resolve(null);
 
   const deletionSelected = isAdmin && section === "deletion" && typeof params.request === "string" ? params.request : null;
-  const [integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement, deletionQueue, deletionDetail, deletionOpen, telephony, whatsappConnection] = await Promise.all([
+  // «Отчёты» (миграция 323): обе ссылки читаются только в своём разделе; в просмотре роли тоже — строки состояния.
+  const reportsRead = section === "reports"
+    ? Promise.all([readReportLink(actor, "marketing"), readReportLink(actor, "finance")]).then(([marketing, finance]) => ({ marketing, finance }))
+    : Promise.resolve(undefined);
+  const [integrations, journalRead, journalFacets, gates, platform, staff, staffRoles, salesManagement, deletionQueue, deletionDetail, deletionOpen, telephony, whatsappConnection, reports] = await Promise.all([
     telephonyRead.then((read) => readIntegrations(actor, new Date(), telephonyIntegrationFactsFrom(read))),
     isAdmin
       ? readJournal(actor, journalFilters, {
@@ -95,6 +100,7 @@ export default async function SettingsPart({
     telephonyRead,
     // «Подключение WhatsApp» (20.10.2026): то же живое слово WAHA, что у таблицы выше (одно чтение).
     section === "integrations" ? readWhatsAppConnection(actor) : Promise.resolve(undefined),
+    reportsRead,
   ]);
 
   // Протухший курсор из адреса читается первой страницей; адрес при этом
@@ -166,6 +172,9 @@ export default async function SettingsPart({
         telephony={telephony}
         // Просмотр роли виден, но не меняет настройки телефонии.
         telephonyReadOnly={isStaffPreview(actor)}
+        reports={reports}
+        // Просмотр роли виден, но ссылок не меняет (действие отказывает само, до обращения к базе).
+        reportsReadOnly={isStaffPreview(actor)}
         // Просмотр роли блок видит, но подключить не может; сервер проверяет это ещё раз.
         whatsappConnect={whatsappConnection ? { status: whatsappConnection.status, canConnect: isAdmin } : undefined}
       />

@@ -65,7 +65,9 @@ export type IconName =
   | "message-square-text"
   // «На весь экран» чата «Поручить» (решение владельца 26.10.2026) и «Свернуть».
   | "maximize"
-  | "minimize";
+  | "minimize"
+  // «Открыть в новой вкладке» у встроенного отчёта Looker Studio (миграция 323): ссылка уводит из CRM.
+  | "external-link";
 
 const PATHS: Record<IconName, string> = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -136,6 +138,8 @@ const PATHS: Record<IconName, string> = {
   // lucide «maximize-2» и «minimize-2» (ISC): две стрелки от угла к углу и к центру.
   maximize: '<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" x2="14" y1="3" y2="10"/><line x1="3" x2="10" y1="21" y2="14"/>',
   minimize: '<polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" x2="21" y1="10" y2="3"/><line x1="3" x2="10" y1="21" y2="14"/>',
+  // lucide «external-link» (ISC).
+  "external-link": '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
   x: '<path d="m18 6-12 12"/><path d="m6 6 12 12"/>',
   circle: '<circle cx="12" cy="12" r="9"/>',
   "circle-check": '<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9.5"/>',

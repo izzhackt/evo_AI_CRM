@@ -13,7 +13,9 @@ export type {
  * «Отделы» — пункты этого же списка с прежними адресами
  * `?section=staff&view=…`: второго уровня вкладок нет. Страница открывается
  * на «Сотрудниках». Прежний раздел «Состояние» стал таблицей «Интеграции»
- * (`?section=state` ведёт туда).
+ * (`?section=state` ведёт туда). «Отчёты» (миграция 323, 27.10.2026) — ссылки на
+ * отчёты Looker Studio для «Маркетинга» и «Финансов», стоят после «Телефонии»:
+ * «Телефония» остаётся сразу после «Интеграций».
  */
 export type StaffView = "people" | "roles" | "departments";
 
@@ -23,6 +25,7 @@ export const SECTIONS = [
   { key: "staff", view: "departments", title: "Отделы" },
   { key: "integrations", view: null, title: "Интеграции" },
   { key: "telephony", view: null, title: "Телефония" },
+  { key: "reports", view: null, title: "Отчёты" },
   { key: "journal", view: null, title: "Журнал действий" },
   { key: "deletion", view: null, title: "Запросы на удаление" },
   { key: "documents", view: null, title: "Документы и передача" },

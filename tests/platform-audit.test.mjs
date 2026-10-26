@@ -93,6 +93,8 @@ const P7A_WRAPPER_MIGRATIONS = [
   ["317_platform_ai_agents_managed.sql", "ai_agents_managed"],
   // Согласие студента на ИИ-помощников: два действия ai.consent.* и тип объекта student_ai_consent.
   ["320_platform_student_ai_consent.sql", "student_ai_consent"],
+  // «Отчёты Looker Studio»: одно действие report.link.change, объект organization (нового типа нет).
+  ["323_platform_report_links.sql", "report_links"],
 ].map(([file, slug]) => ({
   slug,
   source: readFileSync(new URL(`../supabase/migrations/${file}`, import.meta.url), "utf8"),
@@ -286,6 +288,7 @@ test("browser-safe allowlists match the SQL authority plus bounded extensions", 
     "pilot.cohort.member.included",
     "prompt.artifact.publish",
     "prompt.artifact.retire",
+    "report.link.change",
     "sales.register.archive",
     "sales.register.create",
     "sales.register.import",
@@ -584,6 +587,29 @@ test("whatsapp.connect.* journal actions are allowlisted and worded in Russian",
   const [row] = normalizePlatformAuditSearchResult({
     ...DIRECTION_PAGE_BASE,
     rows: [{ ...SAFE_ROW, action: "whatsapp.connect.qr", resource_type: "organization", actor_display_label: "Staff", changed_field_codes: ["record_status"] }],
+  }).rows;
+  assert.equal(row.recognized, true);
+  assert.deepEqual(row.changedFieldCodes, ["record_status"]);
+});
+
+// «Отчёты Looker Studio» (миграция 323): действие report.link.change, которое пишет
+// platform.organization_report_link_save_v1, видно в «Журнале действий» словами; тип объекта organization уже в списке,
+// нового нет; в подписи нет ни ключа отчёта, ни идентификатора, ни адреса; неизвестное значение слова не получает.
+test("report.link.change journal action is allowlisted and worded in Russian", () => {
+  assert.deepEqual(PLATFORM_AUDIT_ACTIONS.filter((action) => action.startsWith("report.")), ["report.link.change"]);
+  assert.equal(journalEvent("report.link.change"), "Ссылка на отчёт Looker Studio изменена");
+  const word = journalEvent("report.link.change");
+  assert.match(word, /[А-Яа-я]/u);
+  assert.equal(word.includes("report."), false, "wording shows a raw code");
+  assert.equal(/\d|https?:|google\./iu.test(word), false, "wording carries an identifier or an address");
+  assert.equal(journalEvent("report.link"), null);
+  assert.equal(journalEvent("report.link.changed"), null);
+  assert.equal(PLATFORM_AUDIT_RESOURCE_TYPES.some((type) => type.startsWith("report")), false, "no new resource type");
+  assert.equal(journalObject("organization"), "Организация");
+  // The row is recognized with the default field code and no extra key.
+  const [row] = normalizePlatformAuditSearchResult({
+    ...DIRECTION_PAGE_BASE,
+    rows: [{ ...SAFE_ROW, action: "report.link.change", resource_type: "organization", actor_display_label: "Staff", changed_field_codes: ["record_status"] }],
   }).rows;
   assert.equal(row.recognized, true);
   assert.deepEqual(row.changedFieldCodes, ["record_status"]);

@@ -91,6 +91,13 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // identifiers (the object is the consent row; the Auth id is in the actor principal, which the safe row never
 // shows): no text, no name. They fall through to the `action.startsWith("ai.")` branch of
 // `expectedChangedFieldCodes` (`["ai_status"]`), exactly like the server's `ai.%` branch.
+// Migration 323 («Отчёты Looker Studio», docs/PLAN_CHANGES.md «2026-10-27 · Отчёты Looker Studio: реализация
+// (миграция 323)») adds one action, `report.link.change` (written by
+// `platform.organization_report_link_save_v1`: one row per real change of the «Маркетинг» or «Финансы» report link),
+// by the same rename-and-union wrapper (`..._pre_report_links`). Its object is the existing `organization` type, so no
+// resource type is added; the row's states hold the report and page identifiers (never an address) and never reach the
+// journal screen. It falls through to the `["record_status"]` default of `expectedChangedFieldCodes`, exactly like the
+// server's `ELSE`.
 // `expectedChangedFieldCodes` below needed no new branch for 255's 71
 // actions: 9 `document.export.*` actions already hit the existing
 // `action.startsWith("document.")` branch (mirroring the server's
@@ -278,6 +285,7 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "prompt.artifact.publish",
   "prompt.artifact.retire",
   "rbac.bundle.upgrade",
+  "report.link.change",
   "sales.register.archive",
   "sales.register.create",
   "sales.register.import",

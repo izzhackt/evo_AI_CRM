@@ -63,6 +63,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "profile-route-load.ts",
     "profile-source.ts",
     "reply-snippets-source.ts",
+    "report-links-source.ts", // «Отчёты Looker Studio» (323, 27.10.2026): platform.organization_report_link_v1 / _save_v1, session
     "requests-queue-source.ts",
     "requests-source.ts",
     "requests-view.ts",
@@ -150,6 +151,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "profile-activity-source.ts",
     "profile-source.ts",
     "reply-snippets-source.ts",
+    "report-links-source.ts", // «Отчёты Looker Studio» (323, 27.10.2026): platform.organization_report_link_v1 / _save_v1, session
     "requests-queue-source.ts",
     "requests-source.ts",
     // requests-view.ts is excluded here on purpose: it does not end in

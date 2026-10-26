@@ -4,7 +4,9 @@ import { Icon } from "@/components/icons";
 import { StaffSection } from "./StaffSection";
 import { AccountDeletionSection } from "./AccountDeletionSection";
 import { TelephonySection } from "./TelephonySection";
+import { ReportLinksSection } from "./ReportLinksSection";
 import { WhatsAppConnectSection } from "./WhatsAppConnectSection";
+import type { ReportKey, ReportLinkRead } from "@/lib/report-link-contract";
 import type { TelephonyAdminRead } from "@/lib/server/platform-telephony-admin";
 import type { AccountDeletionOpenCount } from "@/lib/account-deletion-contract";
 import type { AccountDeletionDetailRead, AccountDeletionQueueRead } from "@/lib/v3/account-deletion-source";
@@ -81,6 +83,8 @@ export function Settings({
   deletionOpen,
   telephony,
   telephonyReadOnly,
+  reports,
+  reportsReadOnly,
   whatsappConnect,
 }: {
   section: SectionKey;
@@ -116,6 +120,10 @@ export function Settings({
   telephony?: TelephonyAdminRead | null;
   /** Просмотр роли: экран виден, настройки не меняются. */
   telephonyReadOnly?: boolean;
+  /** «Отчёты» (миграция 323): чтение двух ссылок; `undefined` — раздел не открыт. */
+  reports?: Readonly<Record<ReportKey, ReportLinkRead>>;
+  /** Просмотр роли: видны только строки состояния. */
+  reportsReadOnly?: boolean;
   /**
    * «Подключение WhatsApp» (20.10.2026): слово WAHA и право подключать. Блок стоит под
    * таблицей «Интеграции», только у Администратора; нет данных — блока нет.
@@ -175,6 +183,7 @@ export function Settings({
             <WhatsAppConnectSection initialStatus={whatsappConnect.status} canConnect={whatsappConnect.canConnect} />
           ) : null}
           {current.key === "telephony" ? <TelephonySection read={telephony ?? null} readOnly={telephonyReadOnly ?? false} now={new Date()} /> : null}
+          {current.key === "reports" && reports ? <ReportLinksSection reads={reports} readOnly={reportsReadOnly ?? false} /> : null}
           {current.key === "journal" ? (
             <JournalSection
               entries={journal}

@@ -41,7 +41,11 @@ export function staffPresentationCan(actor: ActivePlatformActor, capability: Fix
     ? fixedRoleCan(actor.presentationRole, capability) : staffCan(actor, capability);
 }
 export function staffCanAccessRoute(actor: ActivePlatformActor, route: FixedRoleRoute): boolean {
-  if (route === "/v3/knowledge" || route === "/v3/marketing" || route === "/v3/finance") return actor.systemRole === "admin" && !isStaffPreview(actor);
+  // «Финансы» (решение владельца 26.10.2026 «Админы + бухгалтер»): настоящий Admin без просмотра роли или держатель
+  // finance.read.full. Это подсказка раздела: область «вся организация» проверяет база (RPC отчёта) и сборка меню
+  // (`readFinanceSectionAccess` в layout). Просмотр роли отказан первой же строкой, как у «Маркетинга».
+  if (route === "/v3/finance") return !isStaffPreview(actor) && staffHasPermission(actor, "finance.read.full");
+  if (route === "/v3/knowledge" || route === "/v3/marketing") return actor.systemRole === "admin" && !isStaffPreview(actor);
   if (isStaffPreview(actor) && actor.presentationRole !== null) return fixedRoleCanAccessRoute(actor.presentationRole, route);
   if (route === "/v3/documents") return staffHasPermission(actor, "document.read.full") || staffHasPermission(actor, "company.file.read");
   // «ИИ-агент» (план ИИ-агента §12.2, §13): право ai.agent.use — у всех

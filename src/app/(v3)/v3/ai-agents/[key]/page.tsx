@@ -15,7 +15,7 @@ import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { v3SectionTitle } from "@/lib/v3/navigation";
 import { computeAiAgentConfigHash, resolveAiAgentsMcpUrl } from "@/lib/server/ai-agents/config-hash";
-import { aiAgentsRuntimeAvailability, reconcileAiAgentRuns } from "@/lib/server/ai-agents/runtime";
+import { aiAgentsRuntimeAvailability, aiAgentsWhatsappDailyCapCents, reconcileAiAgentRuns } from "@/lib/server/ai-agents/runtime";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   aiAgentHref,
@@ -173,6 +173,7 @@ export default async function AiAgentPage({
         conversations={conversations}
         canMakeTasks={taskAccess.staff || taskAccess.case}
         viewerName={actor.displayName}
+        whatsappDailyCapCents={aiAgentsWhatsappDailyCapCents()}
       />
     </PartShell>
   );

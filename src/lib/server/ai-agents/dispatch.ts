@@ -3,6 +3,8 @@ import "server-only";
 import type { AiAgentEventKind } from "../../ai-agents/contract.ts";
 import { AI_AGENT_LIMITS, AI_AGENT_RUNTIME_RPC } from "../../ai-agents/contract.ts";
 import { callRpc, isRecord, numberOr, resolveDeps, stringOrNull, truncate, type AiAgentsRuntimeDeps } from "./deps.ts";
+import { readWhatsappDailyBudgetCents } from "../../ai-agents/daily-cap.ts";
+import { gateWhatsappDailyCap, recordWhatsappDailyCapReached } from "./daily-cap.ts";
 import { readOrganizationId } from "./env.ts";
 import {
   anthropicFailure,
@@ -19,7 +21,9 @@ import {
  * `scheduleAiAgentEvent` и никогда не ждут: `dispatchAiAgentEvent` не бросает и
  * сама глотает любую ошибку. Работает только для включённых и синхронизированных
  * агентов с нужным триггером (решает БД: `dispatch_targets_v1`), только при
- * заданном ключе Claude API.
+ * заданном ключе Claude API. Запуски по входящему WhatsApp, кроме того, стоят за дневным лимитом расхода агента
+ * ($10 по умолчанию, сутки по Бишкеку; `daily-cap.ts`): исчерпан — запуск не стартует, а в «Запусках» агента
+ * появляется строка с причиной `daily_budget_reached`. Заявки сайта этим лимитом не останавливаются.
  */
 
 export type AiAgentEvent = Readonly<{ kind: AiAgentEventKind; ref: string | null }>;
@@ -56,6 +60,7 @@ export async function dispatchAiAgentEvent(
   let targets = 0;
   let skipped = 0;
   let failed = 0;
+  let capped = 0;
   const deps = resolveDeps(overrides);
   try {
     const anthropic = deps.anthropic();
@@ -71,6 +76,8 @@ export async function dispatchAiAgentEvent(
     targets = list.length;
     const dedupeKey = eventDedupeKey(event, deps.now());
     const text = EVENT_PROMPTS[event.kind](event.ref);
+    // Дневной лимит касается только входящего WhatsApp: заявки сайта, расписание и поручения его не читают.
+    const dailyCapCents = event.kind === "whatsapp_inbound" ? readWhatsappDailyBudgetCents(deps.env()) : 0;
 
     for (const raw of list) {
       if (!isRecord(raw)) continue;
@@ -81,6 +88,44 @@ export async function dispatchAiAgentEvent(
       if (!key || !agentId || !environmentId || !vaultId) { skipped += 1; continue; }
       const version = numberOr(raw.agentVersion, NaN);
       try {
+        if (event.kind === "whatsapp_inbound") {
+          const gate = await gateWhatsappDailyCap({
+            client,
+            organizationId,
+            agentKey: key,
+            runBudgetUsd: numberOr(raw.runBudgetUsd, AI_AGENT_LIMITS.defaultRunBudgetUsd),
+            capCents: dailyCapCents,
+            deps,
+          });
+          if (!gate.ok) {
+            // Расход прочитать не удалось: лимит не проверить, значит, запуск не начинаем (журнал — только код).
+            failed += 1;
+            deps.log({ op: "dispatch_cap", status: "error", agent: key, event: event.kind, code: gate.code });
+            continue;
+          }
+          if (gate.decision.blocked) {
+            capped += 1;
+            skipped += 1;
+            const decision = gate.decision;
+            let record = "none";
+            // Строка в «Запусках» — когда расход действительно дошёл до лимита; остановка только из-за резерва
+            // под идущий запуск ничего не пишет (после него решение примется по настоящему расходу).
+            if (decision.reason === "daily_budget_reached") {
+              record = await recordWhatsappDailyCapReached({
+                client,
+                organizationId,
+                target: { key, model: stringOrNull(raw.model), agentVersion: Number.isFinite(version) && version > 0 ? Math.floor(version) : null },
+                capCents: dailyCapCents,
+                deps,
+              });
+            }
+            deps.log({
+              op: "dispatch_cap", status: "ok", agent: key, event: event.kind, reason: decision.reason, record,
+              cap_cents: decision.capCents, spent_cents: decision.spentCents, reserved_cents: decision.reservedCents,
+            });
+            continue;
+          }
+        }
         const reserve = () => callRpc(client, AI_AGENT_RUNTIME_RPC.runReserve, {
           p_organization_id: organizationId,
           p_key: key,
@@ -140,7 +185,7 @@ export async function dispatchAiAgentEvent(
     failed += 1;
   }
   try {
-    deps.log({ op: "dispatch", status: failed > 0 ? "error" : "ok", event: event.kind, targets, started, skipped, failed });
+    deps.log({ op: "dispatch", status: failed > 0 ? "error" : "ok", event: event.kind, targets, started, skipped, failed, capped });
   } catch {
     // журнал не должен ломать приём
   }

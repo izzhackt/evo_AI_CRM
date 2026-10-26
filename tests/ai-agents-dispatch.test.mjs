@@ -25,9 +25,14 @@ const TARGET = {
   autoSend: false,
 };
 
+// Дневной лимит WhatsApp (миграция 321): до запуска по WhatsApp читается расход агента; здесь он нулевой, сам лимит
+// проверяет tests/ai-agents-daily-cap.test.mjs.
+const NO_SPEND = () => ({ data: { day: "2026-10-22", dayStart: "2026-10-21T18:00:00+00:00", spentCents: 0, open: [] } });
+
 function setup({ targets = [TARGET], reserve, sessions, env, update, events } = {}) {
   const service = fakeRpc({
     ai_agent_runtime_dispatch_targets_v1: () => ({ data: targets }),
+    ai_agent_runtime_daily_spend_v1: NO_SPEND,
     ai_agent_runtime_run_reserve_v1: reserve ?? (() => ({ data: { reserved: true, runId: RUN } })),
     ai_agent_runtime_run_update_v1: update ?? (() => ({ data: { ok: true } })),
   });
@@ -108,6 +113,7 @@ test("dispatch: прошлый запуск по событию закончил
   let reserveCalls = 0;
   const service = fakeRpc({
     ai_agent_runtime_dispatch_targets_v1: () => ({ data: [TARGET] }),
+    ai_agent_runtime_daily_spend_v1: NO_SPEND,
     ai_agent_runtime_run_reserve_v1: () => {
       reserveCalls += 1;
       return { data: reserveCalls === 1 ? { reserved: false, reason: "run_in_progress", existingRunId: RUN_OLD } : { reserved: true, runId: RUN } };

@@ -11,6 +11,7 @@ import {
   type AiAgentRunGetResult,
   type AiAgentRunRow,
 } from "@/lib/ai-agents/contract";
+import { AI_AGENT_DAILY_BUDGET_REACHED_CODE } from "@/lib/ai-agents/daily-cap";
 import {
   AI_AGENT_RUNS_MAX,
   AI_AGENT_RUNS_STEP,
@@ -64,7 +65,10 @@ export function RunsList({
       <ul className="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface">
         {runs.map((run) => {
           const prompt = plainPreview(run.promptPreview, 160);
-          const outcome = run.status === "failed" ? runErrorWords(run.errorCode, run.errorMessage) : plainPreview(run.summary, 220);
+          // Дневной лимит WhatsApp: строка «Остановлен по лимиту» говорит причину словами, а не пустым итогом.
+          const outcome = run.status === "failed" || run.errorCode === AI_AGENT_DAILY_BUDGET_REACHED_CODE
+            ? runErrorWords(run.errorCode, run.errorMessage)
+            : plainPreview(run.summary, 220);
           const primary = prompt || outcome;
           const secondary = prompt ? outcome : "";
           return (
@@ -155,7 +159,12 @@ export function RunDetail({
             {failedActions} {pluralRu(failedActions, ["действие не выполнено", "действия не выполнены", "действий не выполнено"])}
           </p>
         ) : null}
-        {run.status === "failed" || run.errorCode ? (
+        {run.errorCode === AI_AGENT_DAILY_BUDGET_REACHED_CODE ? (
+          // Остановка по дневному лимиту — задуманное поведение, не поломка: спокойный тон, не красный.
+          <p role="status" className="mt-3 rounded-card bg-warn-weak px-3 py-2 t-body-compact text-warn" data-testid="v3-aia-run-cap">
+            {runErrorWords(run.errorCode, run.errorMessage)}
+          </p>
+        ) : run.status === "failed" || run.errorCode ? (
           <p role="alert" className="mt-3 rounded-card bg-danger-weak px-3 py-2 t-body-compact text-danger" data-testid="v3-aia-run-error">
             {runErrorWords(run.errorCode, run.errorMessage)}
           </p>

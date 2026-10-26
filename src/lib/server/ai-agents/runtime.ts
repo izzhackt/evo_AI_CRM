@@ -9,6 +9,7 @@ import type {
   AiAgentSyncResult,
   AiAgentUiEvent,
 } from "../../ai-agents/contract.ts";
+import { readWhatsappDailyBudgetCents } from "../../ai-agents/daily-cap.ts";
 import { type AiAgentsRuntimeDeps, type AiAgentsStaffContext } from "./deps.ts";
 import { decideAiAgentDraftImpl, type DecideDraftExtras } from "./drafts.ts";
 import { readAnthropicApiKey } from "./env.ts";
@@ -42,6 +43,13 @@ export function aiAgentsRuntimeAvailability(
   return readAnthropicApiKey(env) !== null
     ? { configured: true, reason: null }
     : { configured: false, reason: "api_key_missing" };
+}
+
+/** Дневной лимит запусков агента по входящему WhatsApp, центы: `EVO_AI_AGENT_WHATSAPP_DAILY_BUDGET_USD` или $10. Только для строки в «Настройках». */
+export function aiAgentsWhatsappDailyCapCents(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): number {
+  return readWhatsappDailyBudgetCents(env);
 }
 
 /** Создаёт или обновляет агента, среду, хранилище, расписание в Claude; `rotateToken` выпускает новый токен MCP. Только системный администратор. */

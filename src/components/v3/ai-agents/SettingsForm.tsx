@@ -6,6 +6,7 @@ import { useState } from "react";
 import { fieldLabelCls, inputCls } from "@/components/ui";
 import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import { AI_AGENT_MODELS, type AiAgentDetail, type AiAgentModelId } from "@/lib/ai-agents/contract";
+import { dailyCapLine, dailyCapValue } from "@/lib/ai-agents/daily-cap";
 import { startAiAgentRunAction, updateAiAgentAction } from "@/lib/platform-ai-agents-actions";
 import {
   SCHEDULE_TIMEZONES,
@@ -63,6 +64,7 @@ export function SettingsForm({
   canEdit,
   canRunNow,
   runNowNote,
+  whatsappCap = null,
 }: Readonly<{
   detail: AiAgentDetail;
   /** Поручение расписания из репозитория; null — для агента расписание не предусмотрено. */
@@ -71,6 +73,8 @@ export function SettingsForm({
   /** Агент включён, синхронизирован, ключ задан. */
   canRunNow: boolean;
   runNowNote: string | null;
+  /** Дневной лимит на WhatsApp (центы) и расход агента за сегодняшние сутки по Бишкеку; null — строки нет. Только чтение. */
+  whatsappCap?: Readonly<{ capCents: number; spentTodayCents: number }> | null;
 }>) {
   const base = initial(detail);
   const [form, setForm] = useState(base);
@@ -104,12 +108,15 @@ export function SettingsForm({
   const effectivePrompt = (detail.schedulePromptOverride ?? defaultSchedulePrompt ?? "").trim();
   const timezones = SCHEDULE_TIMEZONES.includes(form.tz) ? SCHEDULE_TIMEZONES : [form.tz, ...SCHEDULE_TIMEZONES];
 
+  const showCap = whatsappCap !== null && detail.triggerWhatsappInbound;
+
   if (!canEdit) {
     const rows: readonly (readonly [string, string])[] = [
       ["Модель", AI_AGENT_MODELS.find((model) => model.id === detail.model)?.label ?? detail.model],
       ["Расписание", describeSchedule(detail.scheduleCron, detail.scheduleTz)],
       ["Реагирует на", [detail.triggerWebsiteLead ? "новую заявку с сайта" : null, detail.triggerWhatsappInbound ? "новое сообщение в WhatsApp" : null].filter(Boolean).join(", ") || "ничего"],
       ["Потолок расхода на запуск", detail.runBudgetUsd === 0 ? "без потолка" : formatUsd(detail.runBudgetUsd)],
+      ...(showCap ? [["Лимит на WhatsApp", dailyCapValue(whatsappCap.capCents, whatsappCap.spentTodayCents)] as const] : []),
     ];
     return (
       <section className="rounded-card border border-border bg-surface p-4" aria-labelledby="aia-settings-read" data-testid="v3-aia-settings-read">
@@ -153,6 +160,7 @@ export function SettingsForm({
           <label htmlFor="aia-budget" className={fieldLabelCls}>Потолок расхода на один запуск, $</label>
           <input id="aia-budget" inputMode="decimal" className={`${inputCls} max-w-[10rem]`} value={form.budget} onChange={(event) => set("budget", event.target.value)} />
           <p className="mt-1 t-meta text-fg-3">0 — без потолка.</p>
+          {showCap ? <p className="mt-2 t-meta text-fg-3" data-testid="v3-aia-wa-cap">{dailyCapLine(whatsappCap.capCents, whatsappCap.spentTodayCents)}</p> : null}
         </div>
       </fieldset>
 

@@ -3,7 +3,10 @@
 import { useId, useRef, useState } from "react";
 import type { ApplicationDocumentItemTarget, ApplicationDocumentSelection } from "@/lib/portal/application-documents";
 import { readApplicationDocumentReusableVersionsAction } from "@/lib/portal/application-documents-actions";
-import { ProgramDocumentSubmit, ProgramDocumentUpload, type ProgramDocumentItem as Item, type ProgramDocumentScope } from "./ProgramDocumentControls";
+import {
+  ProgramDocumentSubmit, ProgramDocumentUpload, useProgramDocumentPending,
+  type ProgramDocumentItem as Item, type ProgramDocumentNotice, type ProgramDocumentScope,
+} from "./ProgramDocumentControls";
 import { ProgramFileEvidence, ProgramSubmissionEvidence, type ProgramDocumentStrings } from "./ProgramDocumentEvidence";
 import { ProgramDocumentHistory, ProgramHistoryEvidence } from "./ProgramDocumentHistory";
 import { ProgramDocumentReview } from "./ProgramDocumentReview";
@@ -19,10 +22,14 @@ export function ProgramDocumentItem(props: ItemProps) {
   // A new server snapshot invalidates locally paginated choices. Pending writes
   // live outside this component and retain their original immutable intent.
   const key = JSON.stringify([props.target, props.item.savedDraft, props.item.submission, props.item.reusableVersions, props.item.previousEvidence]);
-  return <ProgramDocumentItemSnapshot key={key} {...props} />;
+  // «Saved, not sent» must survive the remount that the refresh after the save causes.
+  const [notice, setNotice] = useState<ProgramDocumentNotice | null>(null);
+  return <ProgramDocumentItemSnapshot key={key} {...props} notice={notice} onNotice={setNotice} />;
 }
 
-function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, canReview = false, onSaved, historyEpoch = 0 }: ItemProps) {
+function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, canReview = false, onSaved, historyEpoch = 0, notice, onNotice }: ItemProps & {
+  notice: ProgramDocumentNotice | null; onNotice: (notice: ProgramDocumentNotice | null) => void;
+}) {
   const id = useId();
   const [versions, setVersions] = useState(item.reusableVersions);
   const [cursor, setCursor] = useState(item.reusableVersionsNextCursor);
@@ -37,6 +44,12 @@ function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, c
   const selection: ApplicationDocumentSelection | null = chosen ? chosen.selection
     : unsubmittedDraft ? { kind: "program_upload", uploadContextId: draft.uploadContextId, documentVersionId: draft.file.documentVersionId } : null;
   const selectionAvailable = (chosen?.file ?? (unsubmittedDraft ? draft.file : null))?.technicalAvailability === "available";
+  // Student who may submit: saving the file also sends it. An unfinished earlier send is finished by its own button first.
+  const submitPending = useProgramDocumentPending(scope, "submit", target.requirementItemId);
+  const sendAfterSave = audience === "student" && item.canSubmit && !submitPending.intent && !submitPending.blocked
+    ? { previousSubmissionId: item.submission?.submissionId ?? null } : undefined;
+  const noticeShown = notice !== null && item.submission?.file.documentVersionId !== notice.versionId
+    && (!unsubmittedDraft || draft.file.documentVersionId === notice.versionId);
   async function moreVersions() {
     if (lock.current || !cursor) return;
     lock.current = true; setLoading(true); setFailed(false);
@@ -59,9 +72,11 @@ function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, c
 
     {item.canUpload ? <details className={styles.details} open={!draft && !item.submission ? true : undefined}>
       <summary className={styles.summary}>{item.submission?.review && item.submission.review.decision !== "approved" ? strings.correctFile : draft || item.submission ? strings.replaceFile : strings.chooseFile}</summary>
-      <p className={styles.note}>{strings.saveHint}</p>
-      <ProgramDocumentUpload scope={scope} target={target} audience={audience} strings={strings} onSaved={onSaved} />
-    </details> : <ProgramDocumentUpload scope={scope} target={target} audience={audience} strings={strings} onSaved={onSaved} disabled />}
+      <p className={styles.note}>{sendAfterSave ? strings.saveHintOneTap : strings.saveHint}</p>
+      <ProgramDocumentUpload scope={scope} target={target} audience={audience} strings={strings} onSaved={onSaved}
+        sendAfterSave={sendAfterSave} onNotice={onNotice} quiet={selection !== null} />
+    </details> : <ProgramDocumentUpload scope={scope} target={target} audience={audience} strings={strings} onSaved={onSaved}
+      sendAfterSave={sendAfterSave} onNotice={onNotice} quiet={selection !== null} disabled />}
 
     {selectableVersions.length || cursor ? <details className={styles.details}>
       <summary className={styles.summary}>{strings.otherFile}</summary>
@@ -78,8 +93,10 @@ function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, c
       {failed ? <p className={styles.error} role="alert">{strings.historyUnavailable}</p> : null}
     </details> : null}
 
+    {noticeShown ? <p className={styles.error} role="alert">{notice.text}</p> : null}
     <ProgramDocumentSubmit scope={scope} target={target} audience={audience} strings={strings} selection={selection}
-      previousSubmissionId={item.submission?.submissionId ?? null} disabled={!item.canSubmit || !selectionAvailable} onSaved={onSaved} />
+      previousSubmissionId={item.submission?.submissionId ?? null} disabled={!item.canSubmit || !selectionAvailable} onSaved={onSaved}
+      hideWhenIdle={audience === "student"} onAttempt={() => onNotice(null)} />
     {item.submission ? <>
       <ProgramSubmissionEvidence submission={item.submission} target={target} audience={audience} strings={strings} />
       {audience === "staff" ? <ProgramDocumentReview scope={scope} submission={item.submission} strings={strings} canReview={canReview} onSaved={onSaved} /> : null}

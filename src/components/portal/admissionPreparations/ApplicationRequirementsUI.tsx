@@ -134,7 +134,7 @@ export function ApplicationRequirementsUI({ scope, applicationId, initial, canIn
     <ProgramDocumentHistory key={historyEpoch} scope={documentScope} target={{ studentCaseId: scope.studentCaseId, applicationId }} requirementItemId={null}
       audience="student" strings={documentStrings} onSaved={() => void update(false)} />
     {error ? <p className="pt-prep-error" role="alert">{error}</p> : null}
-    <p className="pt-prep-note">{documentStrings.saveHint}</p>
+    <p className="pt-prep-note">{documents?.documentItems.some(item => item.canSubmit) ? documentStrings.saveHintOneTap : documentStrings.saveHint}</p>
     <div className="pt-prep-actions"><Link className="pt-btn-ghost" href="/portal/documents">{strings.allDocuments}</Link><Link className="pt-link" href="/portal#case-help">{strings.help}</Link></div>
   </section>;
 }

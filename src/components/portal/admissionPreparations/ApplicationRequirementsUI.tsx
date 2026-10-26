@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import type { ApplicationRequirementItemV2 } from "@/lib/portal/application-requirements-v2";
 import type { ApplicationDocumentItemState } from "@/lib/portal/application-documents";
+import { studentDocumentPageHint } from "@/lib/portal/application-documents-one-tap";
 import type { PortalStrings } from "@/lib/portal/i18n";
 import { clearPreparationIntent, persistPreparationIntent, readPendingRequirements, type StudentPreparationScope } from "@/lib/portal/student-preparation-pending";
 import { initializeStudentPreparationUIAction } from "@/lib/portal/student-preparation-ui-actions";
@@ -58,6 +59,7 @@ export function ApplicationRequirementsUI({ scope, applicationId, initial, canIn
   const [documents, setDocuments] = useState(initial);
   const [historyEpoch, setHistoryEpoch] = useState(0);
   const current = documents?.requirements ?? null;
+  const pageHint = studentDocumentPageHint(documents?.documentItems);
   const documentScope = { ...scope, applicationId };
   const [eligible, setEligible] = useState(canInitialize);
   const [busy, setBusy] = useState<"read" | "initialize" | null>(null);
@@ -134,7 +136,7 @@ export function ApplicationRequirementsUI({ scope, applicationId, initial, canIn
     <ProgramDocumentHistory key={historyEpoch} scope={documentScope} target={{ studentCaseId: scope.studentCaseId, applicationId }} requirementItemId={null}
       audience="student" strings={documentStrings} onSaved={() => void update(false)} />
     {error ? <p className="pt-prep-error" role="alert">{error}</p> : null}
-    <p className="pt-prep-note">{documentStrings.saveHint}</p>
+    {pageHint === "two_step" ? <p className="pt-prep-note">{documentStrings.saveHint}</p> : null}
     <div className="pt-prep-actions"><Link className="pt-btn-ghost" href="/portal/documents">{strings.allDocuments}</Link><Link className="pt-link" href="/portal#case-help">{strings.help}</Link></div>
   </section>;
 }

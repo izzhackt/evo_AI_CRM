@@ -44,6 +44,8 @@ export function documentActionMessage(reason: string, strings: ProgramDocumentSt
   return strings.unavailable;
 }
 
+/** Student one tap: the send that follows a confirmed save, with the values taken at tap time. */
+export type ProgramDocumentSendAfterSave = Readonly<{ previousSubmissionId: string | null }>;
 type UploadFailure = Extract<ApplicationDocumentUploadAndSubmitOutcome, { stage: "upload" }>["upload"];
 type SendStep = Extract<ApplicationDocumentUploadAndSubmitOutcome, { stage: "done" }>["submit"];
 
@@ -69,7 +71,7 @@ function sendFailureMessage(outcome: SendStep, strings: ProgramDocumentStrings):
   }
 }
 
-export function ProgramDocumentUpload({ scope, target, audience, strings, onSaved, onNotice, sendAfterSave, quiet = false, disabled = false }: {
+export function ProgramDocumentUpload({ scope, target, audience, strings, onSaved, onNotice, onSendingChange, sendAfterSave, quiet = false, disabled = false }: {
   scope: ProgramDocumentScope;
   target: ApplicationDocumentItemTarget;
   audience: "student" | "staff";
@@ -78,7 +80,9 @@ export function ProgramDocumentUpload({ scope, target, audience, strings, onSave
   /** Receives the one-tap result that must stay visible after the refresh remounts this form. */
   onNotice?: (notice: ApplicationDocumentNotice | null) => void;
   /** Student who may submit: one tap saves the file and sends exactly that version for review. */
-  sendAfterSave?: Readonly<{ previousSubmissionId: string | null }>;
+  sendAfterSave?: ProgramDocumentSendAfterSave;
+  /** Reports the one-tap run while it lasts (its tap-time values), then null: its own submit intent is not a retained one. */
+  onSendingChange?: (run: ProgramDocumentSendAfterSave | null) => void;
   /** Another action (sending a saved file) is the main one right now. */
   quiet?: boolean;
   disabled?: boolean;
@@ -101,11 +105,13 @@ export function ProgramDocumentUpload({ scope, target, audience, strings, onSave
     if (!file) { setMessage(retained ? strings.reselectFile : strings.fileInvalid); return; }
     sending.current = true; setStage("upload"); setMessage(null); setSucceeded(false);
     try { onNotice?.(null); } catch { /* Display only. */ }
+    const run = oneTap ? sendAfterSave ?? null : null;
+    if (run) { try { onSendingChange?.(run); } catch { /* Display only. */ } }
     let saved = false;
     try {
       const outcome = await runApplicationDocumentUploadAndSubmit({
         scope, audience, target, file, onStage: setStage,
-        sendAfterUpload: sendAfterSave ? { previousSubmissionId: sendAfterSave.previousSubmissionId, submit: submitStudentApplicationDocumentAction } : null,
+        sendAfterUpload: run ? { previousSubmissionId: run.previousSubmissionId, submit: submitStudentApplicationDocumentAction } : null,
       });
       if (outcome.stage === "upload") { setMessage(uploadFailureMessage(outcome.upload, strings)); return; }
       saved = true;
@@ -127,6 +133,7 @@ export function ProgramDocumentUpload({ scope, target, audience, strings, onSave
     } catch { setMessage(strings.unavailable); }
     finally {
       sending.current = false; setStage(null);
+      if (run) { try { onSendingChange?.(null); } catch { /* Display only. */ } }
       // One refresh after the whole sequence: a remount mid-send would drop this form while it still works.
       if (saved) { try { onSaved(); } catch { /* A confirmed receipt remains confirmed if refresh fails. */ } }
     }
@@ -150,7 +157,7 @@ export function ProgramDocumentUpload({ scope, target, audience, strings, onSave
   </form>;
 }
 
-export function ProgramDocumentSubmit({ scope, target, audience, selection, previousSubmissionId, strings, onSaved, onAttempt, hideWhenIdle = false, disabled = false }: {
+export function ProgramDocumentSubmit({ scope, target, audience, selection, previousSubmissionId, strings, onSaved, onAttempt, hideWhenIdle = false, suppressed = false, disabled = false }: {
   scope: ProgramDocumentScope;
   target: ApplicationDocumentItemTarget;
   audience: "student" | "staff";
@@ -162,6 +169,8 @@ export function ProgramDocumentSubmit({ scope, target, audience, selection, prev
   onAttempt?: () => void;
   /** Student: show nothing while there is no saved file to send and no unfinished send. */
   hideWhenIdle?: boolean;
+  /** This item's one-tap send is running: the submit intent it stored is not a retained one, and nothing is sent beside it. */
+  suppressed?: boolean;
   disabled?: boolean;
 }) {
   const pending = useProgramDocumentPending(scope, "submit", target.requirementItemId);
@@ -170,9 +179,9 @@ export function ProgramDocumentSubmit({ scope, target, audience, selection, prev
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [succeeded, setSucceeded] = useState(false);
-  const retained = pending.intent && "selection" in pending.intent ? pending.intent as ApplicationDocumentSubmitIntent : null;
+  const retained = !suppressed && pending.intent && "selection" in pending.intent ? pending.intent as ApplicationDocumentSubmitIntent : null;
   async function submit() {
-    if (sending.current || pending.blocked || (!retained && (disabled || !selection))) return;
+    if (sending.current || suppressed || pending.blocked || (!retained && (disabled || !selection))) return;
     sending.current = true; setBusy(true); setMessage(null); setSucceeded(false);
     try { onAttempt?.(); } catch { /* Display only. */ }
     try {
@@ -197,7 +206,7 @@ export function ProgramDocumentSubmit({ scope, target, audience, selection, prev
   return <div className={styles.section} aria-busy={busy}>
     {retained && !succeeded ? <p className={styles.note}>{strings.pending}</p> : null}
     {pending.blocked ? <p className={styles.error} role="alert">{strings.storageUnavailable}</p> : null}
-    <button type="button" className={styles.button} disabled={!hydrated || busy || pending.blocked || (!retained && (disabled || !selection))} onClick={() => void submit()}>
+    <button type="button" className={styles.button} disabled={!hydrated || busy || suppressed || pending.blocked || (!retained && (disabled || !selection))} onClick={() => void submit()}>
       {busy ? strings.sending : retained ? strings.retry : strings.send}
     </button>
     {message ? <p className={succeeded ? styles.note : styles.error} role={succeeded ? "status" : "alert"}>{message}</p> : null}

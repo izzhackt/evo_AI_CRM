@@ -294,16 +294,49 @@ test('«saved, not sent» notice shows while that file waits and goes once it is
   assert.equal(applicationDocumentNoticeVisible(notSent, view({ submittedVersionId: id(9), unsentDraftVersionId: draftVersion })), true, 'an older submission does not hide it');
 });
 
-test('page hint claims one tap or two steps only when it is true for every uploadable document', () => {
+test('page hint claims two steps only when it is true for every uploadable document, and never claims one tap', () => {
   const doc = (canUpload, canSubmit) => ({ canUpload, canSubmit });
   assert.equal(studentDocumentPageHint(undefined), null, 'nothing loaded: no claim, no flicker');
   assert.equal(studentDocumentPageHint(null), null);
   assert.equal(studentDocumentPageHint([]), null);
-  assert.equal(studentDocumentPageHint([doc(true, true), doc(true, true)]), 'one_tap');
+  // A document with an unfinished earlier send on this device falls back to two steps; server flags cannot see that.
+  assert.equal(studentDocumentPageHint([doc(true, true), doc(true, true)]), null, 'one tap is left to each document');
   assert.equal(studentDocumentPageHint([doc(true, false), doc(true, false)]), 'two_step');
   assert.equal(studentDocumentPageHint([doc(true, true), doc(true, false)]), null, 'mixed page: each document speaks for itself');
-  assert.equal(studentDocumentPageHint([doc(true, true), doc(false, false)]), 'one_tap', 'a document that cannot be uploaded is not part of the claim');
+  assert.equal(studentDocumentPageHint([doc(true, false), doc(false, true)]), 'two_step', 'a document that cannot be uploaded is not part of the claim');
   assert.equal(studentDocumentPageHint([doc(false, true)]), null);
+});
+
+test('during a one-tap send the stored submit intent is that send\'s own, not an unfinished earlier one', async () => {
+  // While the server action runs, the submit intent is on the device and a second press is refused by the lock.
+  // The item therefore keeps the tap-time view and the standalone control stays quiet until the run ends.
+  const w = world(); let seen = null; let second = null;
+  const submit = async (_scope, intent) => {
+    seen = readApplicationDocumentPending(scope, 'submit', id(4), w.storage).intent;
+    second = await runApplicationDocumentSubmit({ scope, target, selection: null, previousSubmissionId: null, submit, whenRetained: 'resend', env: w.env });
+    return { ok: true, receipt: { requestId: intent.requestId } };
+  };
+  const upload = async ({ intent }) => ({ ok: true, receipt: receiptFor(intent) });
+  const outcome = await runApplicationDocumentUploadAndSubmit({ scope, audience: 'student', target, file, upload, env: w.env,
+    newRequestId: () => submitRequestId, sendAfterUpload: { previousSubmissionId: null, submit } });
+  assert.equal(seen?.requestId, submitRequestId, 'the intent seen mid-send is the running one');
+  assert.deepEqual(second, { status: 'locked', reason: 'busy' }, 'a press beside the running send sends nothing');
+  assert.equal(outcome.submit.status, 'sent');
+  assert.equal(readApplicationDocumentPending(scope, 'submit', id(4), w.storage).intent, null);
+
+  const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+  const item = read('src/components/portal/admissionPreparations/ProgramDocumentItem.tsx');
+  assert.match(item, /const sendAfterSave = oneTapRun \?\? \(audience === "student"/u, 'the tap-time view holds while the run lasts');
+  assert.match(item, /onSendingChange=\{onOneTapRun\}[^\n]*\/>\n\s*<\/details> : <ProgramDocumentUpload[^\n]*\n[^\n]*onSendingChange=\{onOneTapRun\}/u, 'both upload forms report the run');
+  assert.match(item, /suppressed=\{oneTapRun !== null\}/u);
+  const controls = read('src/components/portal/admissionPreparations/ProgramDocumentControls.tsx');
+  assert.match(controls, /const retained = !suppressed && pending\.intent && "selection" in pending\.intent/u, 'no «Проверить результат» for the running send');
+  assert.match(controls, /if \(sending\.current \|\| suppressed \|\|/u);
+  assert.match(controls, /disabled=\{!hydrated \|\| busy \|\| suppressed \|\|/u);
+  const save = controls.slice(controls.indexOf('async function save('), controls.indexOf('if (disabled && !retained && !pending.blocked) return null;'));
+  const started = save.indexOf('onSendingChange?.(run)'), runs = save.indexOf('runApplicationDocumentUploadAndSubmit('),
+    ended = save.indexOf('onSendingChange?.(null)'), refreshed = save.indexOf('onSaved()');
+  assert.ok(started > 0 && started < runs && runs < ended && ended < refreshed, 'reported before the run, released before the refresh');
 });
 
 test('screens wire the one tap for students who may submit and keep staff two-step', () => {
@@ -326,5 +359,6 @@ test('screens wire the one tap for students who may submit and keep staff two-st
   assert.doesNotMatch(recovery, /sendAfterSave/u);
   const page = read('src/components/portal/admissionPreparations/ApplicationRequirementsUI.tsx');
   assert.match(page, /studentDocumentPageHint\(documents\?\.documentItems\)/u);
+  assert.doesNotMatch(page, /saveHintOneTap/u, 'the page never promises one tap for every document');
   assert.doesNotMatch(page, /some\(item => item\.canSubmit\)/u, 'one uploadable document must not decide the whole page');
 });

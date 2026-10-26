@@ -37,12 +37,11 @@ export function applicationDocumentNoticeVisible(notice: ApplicationDocumentNoti
 
 /**
  * The page-level hint under the document list. It may only claim what is true for
- * every document the student can upload to: one tap everywhere, or two steps
- * everywhere. On a mixed page each document's own hint speaks, and the page says nothing.
+ * every document the student can upload to. Two steps are certain only when no such
+ * document may be sent. One tap is never claimed here: a document whose earlier send is
+ * still unfinished on this device falls back to two steps, so each document's own hint speaks.
  */
-export function studentDocumentPageHint(items: readonly Readonly<{ canUpload: boolean; canSubmit: boolean }>[] | null | undefined): "one_tap" | "two_step" | null {
+export function studentDocumentPageHint(items: readonly Readonly<{ canUpload: boolean; canSubmit: boolean }>[] | null | undefined): "two_step" | null {
   const uploadable = (items ?? []).filter(item => item.canUpload);
-  if (!uploadable.length) return null;
-  if (uploadable.every(item => item.canSubmit)) return "one_tap";
-  return uploadable.some(item => item.canSubmit) ? null : "two_step";
+  return uploadable.length && !uploadable.some(item => item.canSubmit) ? "two_step" : null;
 }

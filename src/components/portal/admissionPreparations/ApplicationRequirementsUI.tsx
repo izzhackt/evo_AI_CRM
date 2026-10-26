@@ -136,7 +136,7 @@ export function ApplicationRequirementsUI({ scope, applicationId, initial, canIn
     <ProgramDocumentHistory key={historyEpoch} scope={documentScope} target={{ studentCaseId: scope.studentCaseId, applicationId }} requirementItemId={null}
       audience="student" strings={documentStrings} onSaved={() => void update(false)} />
     {error ? <p className="pt-prep-error" role="alert">{error}</p> : null}
-    {pageHint ? <p className="pt-prep-note">{pageHint === "one_tap" ? documentStrings.saveHintOneTap : documentStrings.saveHint}</p> : null}
+    {pageHint === "two_step" ? <p className="pt-prep-note">{documentStrings.saveHint}</p> : null}
     <div className="pt-prep-actions"><Link className="pt-btn-ghost" href="/portal/documents">{strings.allDocuments}</Link><Link className="pt-link" href="/portal#case-help">{strings.help}</Link></div>
   </section>;
 }

@@ -154,7 +154,7 @@ export function AgentBody(props: AgentBodyProps) {
           : read.status === "available" ? <RunDetail agentKey={detail.key} agentTitle={detail.title} data={read.data} now={now} viewerName={props.viewerName} canAct={!preview} canStopAny={canEdit} canRun={canRun} />
             : read.status === "missing" ? (
               <p className="t-body-compact text-fg-2" data-testid="v3-aia-run-missing">
-                Такого запуска нет. <Link href={here("runs")} className="text-fg underline underline-offset-4">Все запуски</Link>
+                Такого запуска нет. <Link href={here("runs")} className="text-fg underline underline-offset-4">Вся история работы</Link>
               </p>
             )
               : tabFailure(read, "запуск", retry);

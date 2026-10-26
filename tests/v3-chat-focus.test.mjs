@@ -13,7 +13,8 @@ import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
-import { isAiAgentChatRoute, isFillRoute } from "../src/lib/v3/board-layout.ts";
+import { AI_AGENT_SHELL_DEFAULT_TAB, isAiAgentChatRoute, isFillRoute } from "../src/lib/v3/board-layout.ts";
+import { AI_AGENT_DEFAULT_TAB, parseAiAgentRoute } from "../src/lib/v3/ai-agents-view.ts";
 import {
   CHAT_FOCUS_STORAGE_KEY,
   chatFocusEscapeExits,
@@ -29,10 +30,16 @@ const read = (path) => readFileSync(root(path), "utf8");
 
 /* ------------------------------------------------------------------ маршрут */
 
-test("режим есть только у чата «Поручить»; высота окна у досок, WhatsApp и чата — как была", () => {
+test("режим есть только у «Чата»; высота окна у досок, WhatsApp и чата — как была", () => {
   assert.equal(isAiAgentChatRoute("/v3/ai-agents/director", "command"), true);
   assert.equal(isAiAgentChatRoute("/v3/ai-agents/curator-cn", "command"), true);
-  for (const tab of [null, undefined, "runs", "overview", "drafts", "settings", "instructions", ""]) {
+  // «Чат» — вкладка по умолчанию (решение владельца 26.10.2026): адрес без `?tab=` — тоже чат,
+  // и оболочка думает о вкладке по умолчанию так же, как страница агента.
+  assert.equal(AI_AGENT_SHELL_DEFAULT_TAB, AI_AGENT_DEFAULT_TAB);
+  assert.equal(parseAiAgentRoute({})?.tab, AI_AGENT_SHELL_DEFAULT_TAB);
+  for (const tab of [null, undefined]) assert.equal(isAiAgentChatRoute("/v3/ai-agents/director", tab), true, `без ?tab= (${tab})`);
+  assert.equal(isFillRoute("/v3/ai-agents/director"), true, "чат по умолчанию — во всё окно");
+  for (const tab of ["runs", "overview", "drafts", "settings", "instructions", ""]) {
     assert.equal(isAiAgentChatRoute("/v3/ai-agents/director", tab), false, `вкладка ${tab}`);
   }
   for (const path of ["/v3/ai-agents", "/v3/ai-agents/director/x", "/v3/pipeline", "/v3/inbox", "/v3/tasks", null, undefined]) {
@@ -217,7 +224,7 @@ test("исходники: «Поручить» — рамка без потол�
 
   const body = read("src/components/v3/ai-agents/AgentBody.tsx");
   assert.match(body, /\{chat \? null : <AgentTabs /u, "на «Поручить» вкладки стоят в шапке, второго ряда нет");
-  assert.match(read("src/lib/v3/board-layout.ts"), /tab === "command"/u);
+  assert.match(read("src/lib/v3/board-layout.ts"), /\(tab \?\? AI_AGENT_SHELL_DEFAULT_TAB\) === "command"/u);
 });
 
 /* ----------------------------------------------------------- настоящий браузер */
@@ -261,9 +268,11 @@ const ACTOR = {
   membershipId: "aaaaaaaa-1111-4111-8111-000000000001", organizationId: "eeeeeeee-4444-4444-8444-000000000000", platformAccessVersion: 1,
   email: "synthetic@example.invalid", assignments: [], permissionKeys: [], displayName: "Администратор (синтетический)", systemRole: "admin", presentationRole: null,
 };
-function Page({ search }) {
+function Page({ search, pathname }) {
   const params = new URLSearchParams(search);
-  const tab = params.get("tab") ?? "overview";
+  // Страница агента без ?tab= — «Чат» (вкладка по умолчанию); другие страницы — не чат.
+  const agentPage = pathname.startsWith("/v3/ai-agents/") && !pathname.slice("/v3/ai-agents/".length).includes("/");
+  const tab = agentPage ? params.get("tab") ?? "command" : null;
   // «broken» — страница чата без рамки, как экран «агент недоступен»: адрес чата, а кнопки нет.
   if (tab !== "command" || params.get("broken")) return <main data-testid="other-tab"><h1>Запуски</h1></main>;
   return (
@@ -289,7 +298,7 @@ export function App({ initial }) {
         <SearchParamsContext.Provider value={new URLSearchParams(loc.search)}>
           <ImageConfigContext.Provider value={{ ...imageConfigDefault, unoptimized: true }}>
             <div className="v3-world" data-surface="staff">
-              <AppShell actor={ACTOR} initialNotifications={null}><Page search={loc.search} /></AppShell>
+              <AppShell actor={ACTOR} initialNotifications={null}><Page search={loc.search} pathname={loc.pathname} /></AppShell>
             </div>
           </ImageConfigContext.Provider>
         </SearchParamsContext.Provider>
@@ -386,7 +395,7 @@ function browserKit() {
   })();
   return browserKitPromise;
 }
-const COMMAND = "/v3/ai-agents/director?tab=command";
+const COMMAND = "/v3/ai-agents/director";
 const menuShown = (page) => page.evaluate(() => getComputedStyle(document.querySelector("[data-shell-menu]")).display !== "none");
 
 test("браузер: серверная разметка с меню, кнопка прячет его и возвращает, выбор переживает перезагрузку", async (t) => {
@@ -451,7 +460,13 @@ test("браузер: запомненный выбор применяется �
     assert.equal(await page.evaluate((key) => localStorage.getItem(key), CHAT_FOCUS_STORAGE_KEY), "1", "выбор не потерян");
     await page.evaluate(() => window.__go("/v3/ai-agents/director?tab=command"));
     await page.waitForSelector("[data-testid=v3-aia-focus-toggle]");
-    assert.equal(await menuShown(page), false, "вернулись в «Поручить» — снова на весь экран");
+    assert.equal(await menuShown(page), false, "вернулись в «Чат» по старой ссылке ?tab=command — снова на весь экран");
+    // Адреса чата после отправки и «Нового разговора» — без `?tab=`: режим не выключается посреди разговора.
+    for (const path of ["/v3/ai-agents/director?run=33333333-3333-4333-8333-333333333333", "/v3/ai-agents/director?new=1", "/v3/ai-agents/director"]) {
+      await page.evaluate((to) => window.__go(to), path);
+      await page.waitForSelector("[data-testid=v3-aia-focus-toggle]");
+      assert.equal(await menuShown(page), false, `${path} — по-прежнему на весь экран`);
+    }
 
     // Адрес чата, но кнопки на экране нет (агент недоступен, не найден): выбор не оставляет сотрудника без меню.
     await page.evaluate(() => window.__go("/v3/ai-agents/director?tab=command&broken=1"));

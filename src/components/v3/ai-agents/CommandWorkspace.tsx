@@ -232,7 +232,7 @@ export function CommandWorkspace({
             // Чат закрыт, а шапка страницы на телефоне скрыта (v3.css): без этой строки выхода к разделам агента нет.
             <div className="flex shrink-0 items-center border-b border-border bg-surface px-2 md:hidden">
               <Link
-                href={aiAgentHref(agentKey)}
+                href={aiAgentHref(agentKey, { tab: "overview" })}
                 className="inline-flex min-h-11 items-center gap-2 rounded-ctl px-2.5 t-label text-fg-2 hover:bg-surface-2 hover:text-fg"
                 data-testid="v3-aia-back"
               >
@@ -244,7 +244,7 @@ export function CommandWorkspace({
             <div className="flex shrink-0 items-center gap-1 border-b border-border bg-surface px-2 @4xl:hidden">
               {/* На телефоне шапка страницы скрыта (v3.css): отсюда можно вернуться к разделам агента. */}
               <Link
-                href={aiAgentHref(agentKey)}
+                href={aiAgentHref(agentKey, { tab: "overview" })}
                 aria-label="К разделам агента"
                 title="К разделам агента"
                 className="inline-flex size-11 shrink-0 items-center justify-center rounded-ctl text-fg-2 hover:bg-surface-2 hover:text-fg md:hidden"

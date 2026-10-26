@@ -19,7 +19,7 @@ const COUNTER_FROM_SHARE = 0.9;
  * Вкладка «Инструкция» (контракт §D.4, п. 5): действующая инструкция агента —
  * своя или стандартная из репозитория. Правит только системный администратор;
  * остальные читают. Сохранение отправляет изменение в Claude само (если агент
- * там уже есть), «Сбросить на стандартную» — с подтверждением на месте.
+ * там уже есть), «Сбросить на стандартные» — с подтверждением на месте.
  */
 export function InstructionsEditor({
   agentKey,
@@ -100,14 +100,14 @@ export function InstructionsEditor({
               {pending ? "Сохраняю…" : "Сохранить"}
             </button>
             {isOverride && hasDefault ? (
-              <button type="button" className={QUEUE_SECONDARY} disabled={pending} onClick={() => setConfirmReset(true)}>Сбросить на стандартную</button>
+              <button type="button" className={QUEUE_SECONDARY} disabled={pending} onClick={() => setConfirmReset(true)}>Сбросить на стандартные</button>
             ) : null}
           </div>
           {confirmReset ? (
             <div role="group" aria-label="Подтверждение сброса" className="rounded-card border border-border bg-surface-2/60 p-3">
               <p className="max-w-[60ch] t-body-compact text-fg">Свои правила будут удалены, агент вернётся к стандартным правилам EVO. Сбросить?</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" className={QUEUE_CONFIRM} disabled={pending} onClick={() => { setConfirmReset(false); save("reset"); }}>Сбросить на стандартную</button>
+                <button type="button" className={QUEUE_CONFIRM} disabled={pending} onClick={() => { setConfirmReset(false); save("reset"); }}>Сбросить на стандартные</button>
                 <button type="button" className={QUEUE_SECONDARY} onClick={() => setConfirmReset(false)}>Отмена</button>
               </div>
             </div>

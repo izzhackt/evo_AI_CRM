@@ -140,11 +140,13 @@ export type PaletteDestination = Readonly<{ id: string; label: string; group: st
  * Разделы меню, которые роль открывает, — те же ссылки, что в меню
  * (`buildV3Navigation`), с названием отдела для различения.
  */
-export function paletteDestinations(navigation: Pick<V3Navigation, "home" | "groups" | "common" | "settings">): readonly PaletteDestination[] {
+export function paletteDestinations(navigation: Pick<V3Navigation, "home" | "groups" | "sections" | "common" | "settings">): readonly PaletteDestination[] {
   const entry = (group: string) => (link: V3NavigationLink): PaletteDestination => ({ id: link.id, label: link.label, group, href: link.href });
   return [
     ...(navigation.home ? [entry("")(navigation.home)] : []),
     ...navigation.groups.flatMap((group) => group.links.map(entry(group.label))),
+    // Разделы верхнего уровня без отдела, как «Сегодня» и «Настройки».
+    ...navigation.sections.map(entry("")),
     ...navigation.common.map(entry("Общее")),
     ...(navigation.settings ? [entry("")(navigation.settings)] : []),
   ];

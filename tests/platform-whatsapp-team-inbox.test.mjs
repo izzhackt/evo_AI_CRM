@@ -27,7 +27,7 @@ const preview = (role) => ({
 const menu = (actor, href = "/v3/main") => {
   const url = new URL(href, "https://team-inbox.test");
   const model = buildV3Navigation(actor, url.pathname, url.searchParams);
-  const every = [...(model.home ? [model.home] : []), ...model.groups.flatMap((group) => group.links), ...model.common];
+  const every = [...(model.home ? [model.home] : []), ...model.groups.flatMap((group) => group.links), ...model.sections, ...model.common];
   return {
     model,
     every,

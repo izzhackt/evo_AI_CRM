@@ -69,6 +69,12 @@ const RAIL_MEDIA = "(width >= 48rem) and (width < 96rem)";
 const DESKTOP_MEDIA = "(width >= 48rem)";
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
 const ITEM = `v3-choice flex min-h-11 min-w-0 items-center gap-3 rounded-nav px-3 py-2 t-body-compact text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
+/**
+ * Раздел верхнего уровня без подпунктов («Маркетинг», «Финансы»): та же строка,
+ * что заголовок отдела («Продажи»), — подпись `t-label`, как у него, — но
+ * ссылка, а не раскрытие: без стрелки и без пустой группы.
+ */
+const SECTION_ITEM = ITEM.replace("t-body-compact", "t-label");
 /** Нейтральная кнопка оболочки: красным остаётся только главное действие страницы. */
 const SHELL_BUTTON = `v3-raised inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
 /** Ctrl+K для мыши и телефона — строка меню «Поиск» (Э7), как пункт, без рамки. */
@@ -102,6 +108,7 @@ type MenuBadge = Readonly<{ count: number; name: string }>;
 function MenuLink({
   link,
   activeId,
+  section = false,
   rail = false,
   hint = {},
   badge = null,
@@ -109,6 +116,8 @@ function MenuLink({
 }: {
   link: V3NavigationLink;
   activeId: V3NavigationLinkId | null;
+  /** Раздел верхнего уровня: подпись как у заголовка отдела. */
+  section?: boolean;
   rail?: boolean;
   hint?: HintHandlers;
   badge?: MenuBadge | null;
@@ -120,7 +129,7 @@ function MenuLink({
       aria-current={activeId === link.id ? "page" : undefined}
       aria-label={badge ? `${link.label}: ${badge.name}` : undefined}
       onNavigate={onNavigate}
-      className={cn(ITEM, rail && "md:max-2xl:justify-center md:max-2xl:px-0")}
+      className={cn(section ? SECTION_ITEM : ITEM, rail && "md:max-2xl:justify-center md:max-2xl:px-0")}
       {...hint}
     >
       {badge ? (
@@ -287,6 +296,14 @@ function MenuLists({
             hint={hint}
             onNavigate={onNavigate}
           />
+        ))}
+        {/* «Маркетинг» и «Финансы» — на уровне заголовков отделов, одной ссылкой каждый. В листе
+            «Ещё» заголовков отделов нет (подписи над пунктами), и строки раздела читались бы
+            продолжением «Поступления»: волосяная линия, как перед «Общим», отделяет их. */}
+        {navigation.sections.map((link, index) => (
+          <li key={link.id} className={cn(flat && index === 0 && "mt-2 border-t border-border pt-2")}>
+            <MenuLink link={link} activeId={navigation.activeId} section rail={rail} hint={hint(link.label)} onNavigate={onNavigate} />
+          </li>
         ))}
       </ul>
       {navigation.common.length ? (

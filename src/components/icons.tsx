@@ -54,6 +54,8 @@ export type IconName =
   | "file-text"
   // «Маркетинг» (М1): своего знака у раздела не было.
   | "megaphone"
+  // «Финансы» (26.10.2026): кошелёк занят отделом «Продажи».
+  | "banknote"
   // «ИИ-агент» (план ИИ-агента §12): раздел и капсула «Помочь с ответом».
   | "sparkles"
   // «Поручить» (чат с ИИ-агентом): «Скопировать» под ответом агента.
@@ -120,6 +122,8 @@ const PATHS: Record<IconName, string> = {
   "file-text":
     '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
   megaphone: '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
+  // lucide «banknote» (ISC).
+  banknote: '<rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>',
   // lucide «sparkles» (ISC).
   sparkles: '<path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.14 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
   // lucide «copy» (ISC).

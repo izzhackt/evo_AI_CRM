@@ -81,7 +81,7 @@ test("the V3 shell renders assigned permissions and a protected Admin preview", 
   for (const example of examples) {
     const actor = { ...example, platformAccessVersion: 1 };
     const navigation = buildV3Navigation(actor, "/v3/profile", new URLSearchParams());
-    const links = [navigation.home, ...navigation.groups.flatMap((group) => group.links), ...navigation.common, navigation.settings].filter(Boolean);
+    const links = [navigation.home, ...navigation.groups.flatMap((group) => group.links), ...navigation.sections, ...navigation.common, navigation.settings].filter(Boolean);
     for (const link of links) assert.ok(staffCanAccessRoute(actor, link.route), `${actor.systemRole}: ${link.href}`);
     assert.equal(Boolean(navigation.settings), example.settings);
     // The summary is part of «Студенты» since 2026-09-24; `summary` records

@@ -194,7 +194,7 @@ export function HomeView({
                     {primary.kind === "payment" ? admission.openPayment : admission.openDocument}
                   </IntentPrefetchLink>
                   {remaining > 0 ? (
-                    <span className="pt-home-case-more pt-data">
+                    <span className="pt-home-case-more">
                       {formatPortalString(strings.caseMore, { count: String(remaining) })}
                     </span>
                   ) : null}

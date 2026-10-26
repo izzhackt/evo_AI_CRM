@@ -34,32 +34,25 @@ const ACTION_MESSAGES: Record<
   saved: "Сохранено.",
   invalid: "Проверьте обязательные поля и формат значений.",
   forbidden: "У вашей роли нет права на это действие.",
-  gate_blocked: "Текущее состояние проверки не разрешает это действие.",
-  stale: "Данные уже изменились. Обновляем актуальное состояние.",
-  request_conflict: "Этот запрос уже использован с другими данными. Повторите действие.",
+  gate_blocked: "Пока нельзя: нужны подтверждённые договор и первый платёж, либо исключение.",
+  stale: "Данные только что изменились. Обновляем страницу.",
+  request_conflict: "С прошлой попытки данные изменились. Проверьте поля и отправьте снова.",
   unavailable: "Данные сейчас недоступны. Ничего не сохранено.",
 };
 
-function actionEdge(status: PlatformStudentHandoffActionStatus): string {
-  if (status === "saved") return "v3-edge-ok";
-  if (status === "stale" || status === "request_conflict") return "v3-edge-warn";
-  return "v3-edge-danger";
-}
-
 function ActionResult({ status }: { status: PlatformStudentHandoffActionStatus }) {
   if (status === "idle") return null;
+  const tone = status === "saved" ? "text-ok" : status === "stale" || status === "request_conflict" ? "text-warn" : "text-danger";
   return (
     <p
       role="status"
       aria-live="polite"
       aria-atomic="true"
-      className={cn(
-        "border-s-2 ps-3 text-sm leading-5 text-fg-2",
-        actionEdge(status),
-      )}
+      className="flex items-start gap-2 text-sm leading-5 text-fg-2"
       data-status={status}
     >
-      {ACTION_MESSAGES[status]}
+      <Icon name={status === "saved" ? "check" : "alert"} size={16} className={cn("mt-0.5 shrink-0", tone)} />
+      <span>{ACTION_MESSAGES[status]}</span>
     </p>
   );
 }
@@ -196,7 +189,7 @@ function GateActionForm({
         <input type="hidden" name="evidence_reference" value="" />
       ) : (
         <label className="block">
-          <span className={fieldLabelCls}>Доказательство</span>
+          <span className={fieldLabelCls}>{contract ? "Договор: номер или ссылка" : "Платёж: номер или ссылка"}</span>
           <input
             name="evidence_reference"
             required
@@ -613,7 +606,7 @@ export function ProfileHandoffAcknowledgement({ snapshot, onSaved, drawer }: {
               <input type="hidden" name="agreed_contact_date" value="" />
             ) : (
               <label className={fieldLabelCls}>
-                Согласованная дата контакта · необязательно
+                Когда свяжетесь со студентом · необязательно
                 <input type="date" name="agreed_contact_date" className={cn(inputCls, "mt-1 min-h-11")}
                   min="0001-01-01" max="9999-12-31" value={contactDate}
                   onChange={(event) => setContactDate(event.target.value)} disabled={pending} />

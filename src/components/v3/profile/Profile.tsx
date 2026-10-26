@@ -299,7 +299,7 @@ export function Profile({
         <section id={LEAD_GATE_ANCHOR} aria-labelledby={`${LEAD_GATE_ANCHOR}-title`} className="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate">
           <h2 id={`${LEAD_GATE_ANCHOR}-title`} className="t-section text-fg">Подтверждение вручную</h2>
           <p className="mt-1 t-body-compact text-fg-2">
-            Доказательства передачи в поступление, если их нет в деле и в отчёте.
+            Для передачи в поступление нужны договор и первый платёж. Подтвердите их здесь, если их нет ни в деле, ни в отчёте продаж.
           </p>
           <div className="mt-3 border-t border-border pt-3">
             <HandoffGateForms actor={actor} gate={leadGate} requestIds={requestIds} bare />

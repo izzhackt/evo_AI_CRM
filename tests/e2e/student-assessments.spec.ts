@@ -241,10 +241,10 @@ test("real competing tabs: stale save is visible and explicit reload recovers", 
   await expect(second.getByTestId("assessment-runner")).toBeVisible();
   await page.getByRole("radio").first().check(); await saved(page);
   await second.getByRole("radio").last().check();
-  await expect(second.getByTestId("assessment-runner").getByRole("alert")).toContainText("Ответы изменились в другой вкладке");
+  await expect(second.getByTestId("assessment-runner").getByRole("alert")).toContainText("Тест открыт в другой вкладке");
   await expect(second.getByRole("radio").last()).toBeChecked();
   second.once("dialog", dialog => dialog.accept());
-  await second.getByRole("button", { name: "Загрузить сохранённую попытку" }).click();
+  await second.getByRole("button", { name: "Показать сохранённые ответы" }).click();
   await expect(second.getByRole("radio").first()).toBeChecked(); await saved(second);
   await second.close();
 });

@@ -312,7 +312,7 @@ function LeadPanel({
       {!isStaffPreview(actor) && staffHasPermission(actor, "staff.task.read") ? (
         <p className="mt-2 flex flex-wrap gap-x-5">
           <Link href={`/v3/tasks?lead=${lead.workflow.leadId}&create=staff`} prefetch={false} className="t-item inline-flex min-h-11 items-center text-fg-2 underline underline-offset-4 hover:text-fg">
-            Задачи по лиду
+            Задача по лиду
           </Link>
         </p>
       ) : null}

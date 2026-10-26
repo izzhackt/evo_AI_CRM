@@ -151,7 +151,7 @@ test("one empty state: an empty checklist, and a filter without rows says which 
   const empty = rendered.get("empty");
   assert.doesNotMatch(empty, /из \d+ принято|data-testid="queue-view-tabs"/u, "no read numbers without a checklist");
   assert.equal((empty.match(/data-testid="v3-document-empty"/gu) ?? []).length, 1);
-  assert.match(empty, /Чек-лист пуст\. Добавьте документы вручную\./u);
+  assert.match(empty, /Чек-лист пока пуст\. Нажмите «Применить базовый чек-лист» или добавьте документы вручную — формы выше\./u);
   assert.doesNotMatch(empty, /v3-document-add-toggle|Шаблонов чек-листа/u, "the open forms need no toggle and no second empty sentence");
   assert.match(empty, /<div id="case-documents-add" class=/u, "an empty checklist opens the forms");
   assert.match(empty, /Применить базовый чек-лист/u);

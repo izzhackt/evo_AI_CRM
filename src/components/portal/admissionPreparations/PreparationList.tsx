@@ -2,16 +2,18 @@ import Link from "next/link";
 import type { CatalogPreparation } from "@/lib/portal/catalog-preparations";
 import type { PortalStrings } from "@/lib/portal/i18n";
 
-export function PreparationList({ items, strings }: {
+export function PreparationList({ items, strings, canSelect = true }: {
   items: readonly CatalogPreparation[] | null;
   strings: PortalStrings<"preparations">;
+  /** false — выбор программ закрыт для дела: вместо «выберите набор» зовём в каталог. */
+  canSelect?: boolean;
 }) {
   return <section className="pt-prep-list-section" aria-labelledby="selected-programs-title">
     <div className="pt-prep-section-heading"><h2 id="selected-programs-title" className="pt-section-title">{strings.title}</h2>
-      <Link className="pt-link" href="/portal/universities">{strings.catalog}</Link>
+      <Link className="pt-link" href="/portal/universities">{canSelect ? strings.catalog : strings.catalogBrowse}</Link>
     </div>
     <p className="pt-prep-note">{strings.lead}</p>
-    {items === null ? <p className="pt-prep-error" role="status">{strings.listUnavailable}</p> : items.length === 0 ? <p className="pt-prep-empty">{strings.empty}</p> :
+    {items === null ? <p className="pt-prep-error" role="status">{strings.listUnavailable}</p> : items.length === 0 ? <p className="pt-prep-empty">{canSelect ? strings.empty : strings.emptyBrowse}</p> :
       <ul className="pt-prep-list">{items.map((item) => {
         const program = item.content.programs.find((program) => program.id === item.programId);
         const intake = program?.intakes.find((intake) => intake.id === item.intakeId);

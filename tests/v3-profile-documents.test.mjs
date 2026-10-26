@@ -532,7 +532,7 @@ test("V3 documents client shows an honest retry for a failed read and a quiet li
   assert.equal(failedSlot.unavailable.length, 1);
   assert.equal(failedSlot.apply.length, 0);
   // One empty state for the checklist itself (Э8.1), whatever the baseline read did.
-  assert.match(textOf(failed), /Чек-лист пуст\. Добавьте документы вручную\./u);
+  assert.match(textOf(failed), /Чек-лист пока пуст\. Добавьте документы вручную в форме выше\./u);
 
   const notice = failedSlot.unavailable[0].type();
   const [alert] = findElements(notice, (node) => node.props.role === "alert");
@@ -552,7 +552,7 @@ test("V3 documents client shows an honest retry for a failed read and a quiet li
 
   // Read succeeded, nothing to apply and nothing applied: one quiet line
   // above the manual form, no alert, no danger colour.
-  // Пустой чек-лист говорит это сам («Чек-лист пуст…»): второй фразы про шаблоны нет.
+  // Пустой чек-лист говорит это сам («Чек-лист пока пуст…»): второй фразы про шаблоны нет.
   assert.equal(baselineSlot(ProfileDocumentsClient({ ...base, baselineTemplatesAbsent: true })).absent.length, 0);
   const absentTree = ProfileDocumentsClient({ ...base, checklistEmpty: false, baselineTemplatesAbsent: true });
   const absent = baselineSlot(absentTree);

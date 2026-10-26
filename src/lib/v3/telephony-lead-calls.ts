@@ -395,7 +395,7 @@ export function callOutcomeText(call: Pick<LeadCall, "direction" | "state" | "ou
   switch (call.outcome) {
     case "answered": return "разговор";
     case "missed": return call.direction === "in" ? "пропущен" : "не ответили";
-    case "cancelled": return "отменён";
+    case "cancelled": return "вызов отменён";
     case "busy": return "занято";
     case "unavailable": return "недоступен";
     case "not_found": return "номер не найден";

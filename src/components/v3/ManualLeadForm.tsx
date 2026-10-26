@@ -126,7 +126,7 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother, onClose }: Re
     // Ссылка «Открыть лида» — путь к существующему; без неё остаётся только просьба к Admin.
     duplicate: state.leadId ? "Такой контакт уже есть." : "Такой контакт уже есть, но открыть его вам нельзя. Попросите Admin проверить контакт.",
     invalid: "Проверьте имя, контакт и дату следующего действия.", source_required: `${MANUAL_LEAD_SOURCE_REQUIRED}.`, channel_required: `${LEAD_CHANNEL_REQUIRED}.`, forbidden: "Нет права на это действие. Обновите страницу после проверки доступа.",
-    request_conflict: "Запрос уже использован с другими данными. Сначала проверьте воронку.", unavailable: "Результат пока неизвестен. Данные сохранены в форме; безопасно повторите тот же запрос.",
+    request_conflict: "Это уже отправлялось с другими данными. Сначала проверьте воронку.", unavailable: "Не удалось узнать результат. Ваши данные остались в форме — нажмите «Повторить тот же запрос», дубль не создастся.",
   };
   return <form action={action} className="max-w-3xl space-y-4" aria-busy={pending}>
     <input type="hidden" name="request_id" value={currentRequestId} />

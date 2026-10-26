@@ -16,7 +16,7 @@ test("«Сегодня» is the one start page of every role and replaces the op
   // longer redirected to its board — and the release smoke finds the page
   // root by the same test id. The queue reads only existing sources.
   assert.match(main, /testId="v3-operational-dashboard"/u);
-  assert.match(main, /readTodayQueue\(actor, \{ now \}\)/u);
+  assert.match(main, /readTodayQueue\(actor, \{ now, callsTab: /u);
   assert.match(main, /<TodayScreen\b/u);
   assert.doesNotMatch(main, /redirect\("\/v3\/admissions-pipeline"\)/u);
   assert.doesNotMatch(main, /OperationsOverview|readV3OperationalDashboard|readCurrentSalesFunnel|TrendChart|MetricCard/u);

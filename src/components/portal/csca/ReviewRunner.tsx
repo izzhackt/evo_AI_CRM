@@ -168,7 +168,7 @@ export function ReviewRunner({
                   >
                     {busy ? strings.checking : strings.checkAnswer}
                   </button>
-                  <span className="cs-item-hint">{selected ? strings.keyboardHint : strings.chooseFirst}</span>
+                  <span className={selected ? "cs-item-hint cs-item-hint-keys" : "cs-item-hint"}>{selected ? strings.keyboardHint : strings.chooseFirst}</span>
                 </>
               )}
             </div>

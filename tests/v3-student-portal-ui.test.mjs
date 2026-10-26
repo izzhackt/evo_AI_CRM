@@ -260,7 +260,7 @@ test("the home screen continues real work, keeps the smoke root and omits invent
   assert.match(page, /readLearningModules\(\)\.catch\(/u);
   assert.match(page, /readStudentAssessments\(\)\.catch\(/u);
   assert.match(view, /overviewFailed/u);
-  assert.equal(homeRu.caseUnavailable, "Не удалось загрузить действия по делу. Обновите страницу.");
+  assert.equal(homeRu.caseUnavailable, "Не удалось загрузить, что нужно сделать. Обновите страницу.");
 
   // «Продолжить» — реальные состояния движка 198 и E2, не выдуманный прогресс.
   assert.match(view, /draftAttemptId/u);
@@ -801,7 +801,9 @@ test("portal includes honest empty, loading and failure states", () => {
   assert.equal(admissionRu.documentsEmptyTitle, "Список документов пока пуст");
   assert.match(loading, /aria-busy="true"/u);
   assert.match(error, /role="alert"/u);
-  assert.match(error, /Попробуйте ещё раз или откройте другой раздел через меню/u);
+  // Текст границы живёт в portal/boundary-i18n.ts (RU + KY), error.tsx берёт его по <html lang>.
+  assert.match(source("src/lib/portal/boundary-i18n.ts"), /Попробуйте ещё раз или откройте другой раздел через меню/u);
+  assert.match(error, /useBoundaryStrings/u);
 });
 
 // This is deliberately structural. The cumulative E5 integration gate must

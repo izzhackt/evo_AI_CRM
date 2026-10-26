@@ -165,19 +165,22 @@ struct MessagesThreadView: View {
 
     private var threadBody: some View {
         VStack(spacing: 0) {
+            // «Команда EVO ждёт вашего ответа» закреплена над перепиской: в
+            // длинной ленте она уезжала вверх и терялась.
+            if model.awaitState == "awaiting_student" {
+                Text("messages_awaiting_you")
+                    .font(.footnote.weight(.medium))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(
+                        Color("AccentColor").opacity(0.08),
+                        in: RoundedRectangle(cornerRadius: 10)
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+            }
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 10) {
-                    if model.awaitState == "awaiting_student" {
-                        Text("messages_awaiting_you")
-                            .font(.footnote.weight(.medium))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(10)
-                            .background(
-                                Color("AccentColor").opacity(0.08),
-                                in: RoundedRectangle(cornerRadius: 10)
-                            )
-                    }
-
                     if model.hasEarlier {
                         Button {
                             Task { await model.loadEarlier() }
@@ -225,6 +228,8 @@ struct MessagesThreadView: View {
                                 Task { await model.refreshLatest() }
                             }
                             .font(.footnote)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                         }
                     }
                 }
@@ -259,6 +264,8 @@ struct MessagesThreadView: View {
                         Task { await model.send() }
                     }
                     .font(.caption)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
             case .idle:
                 EmptyView()
@@ -288,18 +295,19 @@ struct MessagesThreadView: View {
                             .font(.title2)
                     }
                 }
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
                 .disabled(!model.canSend)
                 .accessibilityLabel(Text("messages_send"))
             }
 
-            if model.draft.count > PortalCaseChatPolicy.bodyLimit {
+            // Предел показываем, только когда он близко: «До 2000 символов.»
+            // под каждым коротким сообщением - шум.
+            if model.draft.count > PortalCaseChatPolicy.bodyLimit - 200 {
                 Text("messages_limit_hint")
-                    .font(.caption2)
-                    .foregroundStyle(.dangerText)
-            } else {
-                Text("messages_limit_hint")
-                    .font(.caption2)
-                    .foregroundStyle(.secondaryText)
+                    .font(.caption)
+                    .foregroundStyle(model.draft.count > PortalCaseChatPolicy.bodyLimit
+                                     ? Color.dangerText : Color.secondaryText)
             }
         }
         .padding(12)

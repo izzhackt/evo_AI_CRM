@@ -116,6 +116,9 @@ export function SelectionAction({ context, target, existingApplicationId, blocke
   }
 
   if (existingApplicationId) return <div className="pt-prep-selection"><Link className="pt-btn" href={`/portal/preparations/${existingApplicationId}`}>{strings.open}</Link></div>;
+  // Выбор закрыт для всего дела: одно объяснение стоит над списком программ
+  // (UniversityDetailView), на каждом наборе оно не повторяется.
+  if (!context.canSelect && context.bindings !== null) return null;
   const unavailable = context.bindings === null ? strings.listUnavailable
     : !context.canSelect ? strings.caseIneligible : blocked ? strings[blocked] : null;
   return <div className="pt-prep-selection">

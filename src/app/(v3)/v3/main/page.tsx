@@ -127,7 +127,14 @@ export default async function MainPart({
 
   const now = new Date();
   // «Позвонить» (Телефония, T7) читается рядом с очередью: сбой или выключенный набор — просто без кнопок.
-  const [{ access, reads }, dial] = await Promise.all([readTodayQueue(actor, { now }), readDialOptions(actor)]);
+  // Набор открыт этому сотруднику — значит, вкладка «Звонки» в «Заявках» точно читается: звонок с неизвестного номера открывает её.
+  // Это лишь часть случаев: вкладке хватает включённого интерфейса телефонии, а набору ещё нужны право звонить и отсутствие паузы,
+  // поэтому у сотрудника без набора звонок открывается, как раньше, в панели доски (там нет «Взять себе»).
+  const dialRead = readDialOptions(actor);
+  const [{ access, reads }, dial] = await Promise.all([
+    readTodayQueue(actor, { now, callsTab: dialRead.then((options) => options.status === "ready") }),
+    dialRead,
+  ]);
   const queue = buildTodayQueue(reads, now);
   // Задача «Перезвонить клиенту» несёт лид: строка называет клиента, пока набор открыт этому сотруднику (иначе — как раньше).
   const taskLeads = dial.status === "ready" ? await readTodayTaskLeads(actor, queue) : null;

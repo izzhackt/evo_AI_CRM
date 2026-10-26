@@ -33,7 +33,10 @@ function invitedNamePrefill(displayName: string | null): ApplicationNamePrefill 
 }
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: { absolute: "Начните поступление | EVO Admissions" }, description: "Расскажите о ваших планах и создайте личный аккаунт EVO." };
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("apply", await getLocale());
+  return { title: { absolute: `${strings.pageTitle} | EVO Admissions` }, description: strings.pageDescription };
+}
 
 export default async function ApplyPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   // PORT-8c: язык анкеты — существующий механизм cookie `locale` (getLocale —

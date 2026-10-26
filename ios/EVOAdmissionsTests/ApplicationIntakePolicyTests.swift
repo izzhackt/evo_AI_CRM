@@ -155,7 +155,9 @@ final class ApplicationIntakePolicyTests: XCTestCase {
             (.nationality, "apply_validation_nationality"),
             (.english, "apply_validation_english"),
             (.budget, "apply_validation_budget"),
-            (.account, "apply_validation_review"),
+            // Пустой последний шаг называет первое пустое поле (имя), а не
+            // общее «проверьте анкету».
+            (.account, "apply_validation_name"),
         ]
         for (step, key) in expected {
             XCTAssertEqual(
@@ -170,6 +172,48 @@ final class ApplicationIntakePolicyTests: XCTestCase {
         XCTAssertEqual(
             ApplicationWizardPolicy.validationKey(step: .english, values: exam, requestId: requestId),
             "apply_validation_english_score"
+        )
+    }
+
+    /// Последний шаг называет первое неверное поле в порядке экрана: имя,
+    /// телефон, (email, пароль), согласие. Раньше при пустых полях и снятой
+    /// галочке было одно «Проверьте анкету и подтвердите согласие».
+    func testAccountStepNamesTheFirstProblemInScreenOrder() {
+        let requestId = "9f6a1e9c-2b3d-4c5e-8f90-123456789abc"
+        var values = ApplicationWizardValues(draft: validDraft())
+        values.consent = false
+        let good = (email: "aidana.test@example.test", password: String(repeating: "x", count: 14))
+
+        func key(_ credentials: (email: String, password: String)?) -> String? {
+            ApplicationWizardPolicy.accountStepKey(values: values, requestId: requestId, credentials: credentials)
+        }
+
+        // Всё верно, кроме согласия.
+        XCTAssertEqual(key(good), "apply_validation_consent")
+        XCTAssertEqual(key(nil), "apply_validation_consent")
+        // Email и пароль идут раньше согласия.
+        XCTAssertEqual(key((email: "", password: good.password)), "apply_email_invalid")
+        XCTAssertEqual(key((email: "not-an-email", password: good.password)), "apply_email_invalid")
+        XCTAssertEqual(key((email: good.email, password: "short")), "apply_server_password")
+        XCTAssertEqual(
+            key((email: good.email, password: String(repeating: "я", count: 40))),
+            "apply_server_password_too_long"
+        )
+        // Телефон и имя идут раньше email.
+        values.phone = "12"
+        XCTAssertEqual(key((email: "", password: "")), "apply_validation_phone")
+        values.firstName = "  "
+        XCTAssertEqual(key((email: "", password: "")), "apply_validation_name")
+        // Всё заполнено: шаг проходит.
+        values = ApplicationWizardValues(draft: validDraft())
+        values.consent = true
+        XCTAssertNil(key(good))
+        XCTAssertNil(key(nil))
+        // Без анонимных данных шаг (приглашённый) проверяет только поля анкеты.
+        values.consent = false
+        XCTAssertEqual(
+            ApplicationWizardPolicy.validationKey(step: .account, values: values, requestId: requestId),
+            "apply_validation_consent"
         )
     }
 

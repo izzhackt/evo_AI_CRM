@@ -16,7 +16,10 @@ import { readOwnAccountDeletion } from "@/lib/account-deletion/own-source";
 import { ACCOUNT_DELETED_PATH, isDeletedAuthUserError } from "@/lib/account-deletion-contract";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: { absolute: "Моя заявка | EVO Admissions" }, robots: { index: false, follow: false } };
+export async function generateMetadata() {
+  const strings = getPortalStrings("apply", await getLocale());
+  return { title: { absolute: `${strings.myApplication} | EVO Admissions` }, robots: { index: false, follow: false } };
+}
 
 export default async function ApplicationStatusPage() {
   const client = await createSupabaseServerClient();

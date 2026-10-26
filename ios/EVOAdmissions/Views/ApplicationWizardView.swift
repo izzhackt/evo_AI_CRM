@@ -155,9 +155,20 @@ final class ApplicationWizardViewModel: ObservableObject {
     /// .tsx:135-149); на последнем шаге запускает отправку.
     func advance(router: SessionRouter) async {
         conflictHint = false
-        if let key = ApplicationWizardPolicy.validationKey(
-            step: step, values: values, requestId: requestId
-        ) {
+        let gateKey: String?
+        if step == .account, case .anonymous = mode {
+            // Анонимная регистрация: email и пароль проверяются здесь же, в
+            // порядке полей, а не только после остальных.
+            gateKey = ApplicationWizardPolicy.accountStepKey(
+                values: values, requestId: requestId,
+                credentials: (email: email, password: password)
+            )
+        } else {
+            gateKey = ApplicationWizardPolicy.validationKey(
+                step: step, values: values, requestId: requestId
+            )
+        }
+        if let key = gateKey {
             errorKey = key
             return
         }
@@ -184,7 +195,6 @@ final class ApplicationWizardViewModel: ObservableObject {
     /// Anonymous registration preserves the questionnaire while email confirmation
     /// is pending. Login is a separate explicit action after confirmation.
     private func registerAndSignIn(draft: StudentApplicationDraft, router: SessionRouter) async {
-        defer { password = "" }
         let normalizedEmail = email.trimmingCharacters(in: .whitespaces).lowercased()
         guard ApplicationWizardPolicy.isValidEmail(normalizedEmail) else {
             errorKey = "apply_email_invalid"
@@ -195,7 +205,11 @@ final class ApplicationWizardViewModel: ObservableObject {
             return
         }
         isSubmitting = true
-        defer { isSubmitting = false; password = "" }
+        // Пароль стирается после каждой отправки, кроме случая, когда запрос
+        // не ушёл с телефона: тогда ничего не создано, и студенту не нужно
+        // набирать пароль заново.
+        var keepPassword = false
+        defer { isSubmitting = false; if !keepPassword { password = "" } }
         do {
             let outcome = try await service.registerStudentAccount(
                 draft: draft, email: normalizedEmail, password: password
@@ -213,6 +227,13 @@ final class ApplicationWizardViewModel: ObservableObject {
             }
 
         } catch {
+            if ConnectionFailure.neverReachedServer(error) {
+                // Нет сети: запрос не дошёл до сервера, аккаунт не создан.
+                // Анкета на месте, можно отправить снова, когда связь вернётся.
+                keepPassword = true
+                errorKey = "apply_server_unavailable"
+                return
+            }
             // A lost registration response may follow a successful Auth creation.
             confirmationTerminal = true
             errorKey = "signup_confirmation_support"
@@ -340,33 +361,63 @@ struct ApplicationWizardView: View {
         return applyString(key)
     }
 
+    private var showsFooter: Bool { model.confirmation == nil && !model.confirmationTerminal }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                if model.confirmation != nil || model.confirmationTerminal {
-                    confirmationContent
-                        .motionEntrance()
-                } else {
-                    wizardBlock
-                }
-                if let errorText {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(errorText)
-                            .font(.footnote)
-                            .foregroundStyle(.dangerText)
-                        if model.conflictHint {
-                            Button("apply_go_to_login", action: returnToSignIn)
-                            .font(.footnote)
-                        }
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Color.clear.frame(height: 0).id("wizard-top")
+                    if !showsFooter {
+                        confirmationContent
+                            .motionEntrance()
+                    } else {
+                        wizardBlock
                     }
-                    .accessibilityElement(children: .combine)
+                    // Без закреплённой панели (экран подтверждения) сообщение
+                    // остаётся в прокрутке.
+                    if !showsFooter { errorBlock }
                 }
-                if model.confirmation == nil && !model.confirmationTerminal { footer }
+                .padding(20)
             }
-            .padding(20)
+            .scrollDismissesKeyboard(.interactively)
+            // Новый шаг открывается сверху, а не на смещении прошлого.
+            .onChange(of: model.step) { proxy.scrollTo("wizard-top", anchor: .top) }
         }
-        .scrollDismissesKeyboard(.interactively)
+        // «Назад» и «Продолжить» закреплены внизу: на длинных шагах (12 строк
+        // направлений, список стран) кнопка раньше была двумя экранами ниже.
+        // Сообщение об ошибке стоит над кнопками, у места действия.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if showsFooter {
+                VStack(alignment: .leading, spacing: 10) {
+                    errorBlock
+                    footer
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.bar)
+                .overlay(alignment: .top) { Divider() }
+            }
+        }
         .onChange(of: model.values) { model.persistDraft() }
+    }
+
+    @ViewBuilder private var errorBlock: some View {
+        if let errorText {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(errorText)
+                    .font(.footnote)
+                    .foregroundStyle(.dangerText)
+                if model.conflictHint {
+                    Button("apply_go_to_login", action: returnToSignIn)
+                        .font(.footnote)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+            }
+            .accessibilityElement(children: .contain)
+        }
     }
 
     private var confirmationContent: some View {
@@ -724,6 +775,8 @@ struct ApplicationWizardView: View {
                         } label: {
                             Text(model.showPassword ? "apply_hide_password" : "apply_show_password")
                                 .font(.footnote)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
                         }
                         .accessibilityLabel(Text(model.showPassword ? "apply_hide_password" : "apply_show_password"))
                     }
@@ -798,6 +851,8 @@ struct ApplicationWizardView: View {
         HStack {
             if model.step != .countries {
                 Button("apply_back") { model.goBack() }
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
                     .disabled(model.isSubmitting)
                     .accessibilityLabel(Text("apply_back"))
             }
@@ -817,8 +872,8 @@ struct ApplicationWizardView: View {
                 .frame(minWidth: 140)
             }
             .accentProminent()
+            .controlSize(.large)
             .disabled(model.isSubmitting)
         }
-        .padding(.top, 8)
     }
 }

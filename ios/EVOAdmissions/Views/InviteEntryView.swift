@@ -221,6 +221,8 @@ struct InviteEntryView: View {
             } label: {
                 Text(model.showPassword ? "apply_hide_password" : "apply_show_password")
                     .font(.footnote)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .accessibilityLabel(Text(model.showPassword ? "apply_hide_password" : "apply_show_password"))
             Button {

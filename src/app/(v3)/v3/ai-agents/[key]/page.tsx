@@ -5,7 +5,9 @@ import { notFound } from "next/navigation";
 
 import { AI_AGENT_DEFAULTS } from "@/content/ai-agents";
 import { AgentBody } from "@/components/v3/ai-agents/AgentBody";
+import { AgentChatShell } from "@/components/v3/ai-agents/AgentChatShell";
 import { AgentSwitches } from "@/components/v3/ai-agents/AgentSwitches";
+import { AgentTabs } from "@/components/v3/ai-agents/AgentTabs";
 import { NotReady, Unavailable } from "@/components/v3/ai-agents/Notices";
 import { Icon } from "@/components/icons";
 import { PartShell } from "@/components/v3/PartShell";
@@ -58,8 +60,9 @@ const TWELVE_HOURS = 12 * 60 * 60 * 1000;
  * (меняет только системный администратор), шесть вкладок настоящими ссылками
  * `?tab=`: Обзор · Поручить · Запуски · Черновики · Инструкция · Настройки.
  * Читается только то, что нужно выбранной вкладке; хеш «нужна синхронизация»
- * считает сервер. Неизвестный ключ или вкладка — 404. «Поручить» занимает
- * высоту окна (`fill`) и получает собственные разговоры сотрудника.
+ * считает сервер. Неизвестный ключ или вкладка — 404. «Поручить» — чат на
+ * всю рабочую область (`AgentChatShell`: тонкая шапка в одну строку, без
+ * потолка 1240 px, высота окна) и получает собственные разговоры сотрудника.
  */
 export default async function AiAgentPage({
   params,
@@ -138,48 +141,59 @@ export default async function AiAgentPage({
     ? await readAiAgentWhatsappCap({ staffClient: await createSupabaseServerClient(), actor }, { key, runBudgetUsd: detail.runBudgetUsd })
     : null;
 
+  const switches = (
+    <AgentSwitches
+      agentKey={key}
+      enabled={detail.enabled}
+      autoSend={detail.autoSend}
+      configVersion={detail.configVersion}
+      hasInstructions={hasInstructions}
+      canEdit={canEdit}
+    />
+  );
+  const content = (
+    <AgentBody
+      detail={detail}
+      tab={tab}
+      now={now}
+      canEdit={canEdit}
+      canManage={canManage}
+      preview={preview}
+      runtimeConfigured={runtime.configured}
+      needsSync={needsSync}
+      digests={digestsRead}
+      runs={runsRead}
+      runsLimit={route.runsLimit}
+      run={runRead}
+      runId={route.runId}
+      drafts={draftsRead}
+      draftsFilter={route.draftsFilter}
+      resume={resume}
+      conversations={conversations}
+      canMakeTasks={taskAccess.staff || taskAccess.case}
+      viewerName={actor.displayName}
+      whatsappDailyCapCents={aiAgentsWhatsappDailyCapCents()}
+      whatsappCapState={whatsappCapState}
+    />
+  );
+
+  // «Поручить» — чат на всю рабочую область (оболочка отдаёт колонку высотой в окно по `isFillRoute`).
+  if (tab === "command") {
+    return (
+      <AgentChatShell
+        testId="v3-ai-agent-page"
+        title={detail.title}
+        roleLine={aiAgentRoleLine(detail.roleLine)}
+        tabs={<AgentTabs bare agentKey={key} title={detail.title} tab={tab} draftsPending={detail.stats.draftsPending} />}
+        switches={switches}
+      >
+        {content}
+      </AgentChatShell>
+    );
+  }
   return (
-    <PartShell
-      title={detail.title}
-      testId="v3-ai-agent-page"
-      back={back}
-      // «Поручить» — чат во всю высоту окна (оболочка отдаёт страницу целиком по `isFillRoute`).
-      fill={tab === "command"}
-      meta={aiAgentRoleLine(detail.roleLine)}
-      action={
-        <AgentSwitches
-          agentKey={key}
-          enabled={detail.enabled}
-          autoSend={detail.autoSend}
-          configVersion={detail.configVersion}
-          hasInstructions={hasInstructions}
-          canEdit={canEdit}
-        />
-      }
-    >
-      <AgentBody
-        detail={detail}
-        tab={tab}
-        now={now}
-        canEdit={canEdit}
-        canManage={canManage}
-        preview={preview}
-        runtimeConfigured={runtime.configured}
-        needsSync={needsSync}
-        digests={digestsRead}
-        runs={runsRead}
-        runsLimit={route.runsLimit}
-        run={runRead}
-        runId={route.runId}
-        drafts={draftsRead}
-        draftsFilter={route.draftsFilter}
-        resume={resume}
-        conversations={conversations}
-        canMakeTasks={taskAccess.staff || taskAccess.case}
-        viewerName={actor.displayName}
-        whatsappDailyCapCents={aiAgentsWhatsappDailyCapCents()}
-        whatsappCapState={whatsappCapState}
-      />
+    <PartShell title={detail.title} testId="v3-ai-agent-page" back={back} meta={aiAgentRoleLine(detail.roleLine)} action={switches}>
+      {content}
     </PartShell>
   );
 }

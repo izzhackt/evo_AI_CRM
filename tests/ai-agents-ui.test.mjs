@@ -627,6 +627,8 @@ test("вкладки «Поручить», «Запуски», «Чернови�
   assert.match(command, /Здесь появятся ваши разговоры с агентом\./u);
   assert.match(command, /href="\/v3\/ai-agents\/director\?tab=runs"[^>]*>Все запуски|data-testid="v3-aia-all-runs" href="\/v3\/ai-agents\/director\?tab=runs"/u);
   assert.match(command, /data-aia-workspace/u);
+  assert.doesNotMatch(command, /aria-label="Разделы агента/u, "на «Поручить» вкладки стоят в строке шапки страницы (`AgentChatShell`), второго ряда в содержимом нет");
+  assert.match(body(bodyProps({ tab: "runs", runs: { status: "available", data: { runs: [], hasMore: false } } })), /<nav[^>]*aria-label="Разделы агента «Директор \/ Аналитик»"/u, "остальные вкладки — ряд над содержимым, как был");
   assert.match(command, /<h2[^>]*class="sr-only">Поручить: Директор \/ Аналитик<\/h2>/u, "заголовок раздела остаётся для читалки");
   assert.doesNotMatch(command, /<h2[^>]*class="t-section text-fg">Поручить<\/h2>/u, "видимого «Поручить» над полем больше нет");
   assert.doesNotMatch(command, /Считает продажи, воронку и поступление/u, "строка роли — один раз, под заголовком страницы, а не ещё раз в пустом чате");
@@ -1015,7 +1017,9 @@ test("исходники «Поручить»: ключ чата — у рабо
   assert.match(pageSource, /run: mine \}/u);
   assert.match(pageSource, /!route\.runId && !route\.fresh/u, "?new=1 пропускает автоподхват");
   assert.match(pageSource, /ownCommandRuns\(conversationsRead\.data\.runs, actor\.displayName/u);
-  assert.match(pageSource, /fill=\{tab === "command"\}/u);
+  // «Поручить» — своя рамка на всю рабочую область (решение владельца 26.10.2026), а не `PartShell` в колонке 1240 px.
+  assert.match(pageSource, /if \(tab === "command"\) \{\s*return \(\s*<AgentChatShell/u);
+  assert.doesNotMatch(pageSource, /fill=\{tab === "command"\}/u);
   const consoleSource = read("src/components/v3/ai-agents/Console.tsx");
   assert.match(consoleSource, /useLayoutEffect\(\(\) => \{\s*const typed = input\.current\?\.value/u, "текст из поля, набранный до гидратации, попадает в состояние");
   assert.doesNotMatch(consoleSource, /setWorking\(true\);\s*schedule\(/u, "«работает» следует статусу запуска, а не тому, что опрос не закончился");

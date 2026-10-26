@@ -22,10 +22,11 @@ import { logoutStaffAction, selectStaffRolePreviewAction } from "@/lib/staff-aut
 import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import { Icon } from "@/components/icons";
 import { cn } from "@/components/ui";
+import { ChatFocusProvider, useChatFocusController } from "@/components/v3/ChatFocus";
 import { StaffNotifications } from "@/components/v3/StaffNotifications";
 import { StaleDeploymentNotice } from "@/components/v3/StaleDeploymentNotice";
 import { TopLayerMenu } from "@/components/v3/board/TopLayerMenu";
-import { isBoardRoute, isFillRoute } from "@/lib/v3/board-layout";
+import { isAiAgentChatRoute, isBoardRoute, isFillRoute } from "@/lib/v3/board-layout";
 import {
   buildV3Navigation,
   type V3Navigation,
@@ -54,7 +55,8 @@ import { onCreateTaskClick, PaletteButton, PaletteIconButton, ShellCommands } fr
  *   роли и аккаунт — в боковом меню; прокручивается список разделов (у краёв
  *   списка, за которыми есть ещё пункты, — тень), аккаунт с «Выйти»
  *   закреплён внизу. Отделы открываются по одному. На досках до 1536 px —
- *   рейка 64 px.
+ *   рейка 64 px. В чате «Поручить» ИИ-агента кнопка «На весь экран» прячет
+ *   меню совсем (`ChatFocus.tsx`, решение владельца 26.10.2026).
  * - Телефон (<768 px): сверху одна строка с логотипом, снизу панель вкладок
  *   (`shellTabs`), «Ещё» открывает то же боковое меню листом с семантикой
  *   диалога. У листа те же строка сверху и панель вкладок внизу: на месте
@@ -435,6 +437,8 @@ export function AppShell({
   // Высота окна от 768 px: доски, переписка WhatsApp и «Поручить» ИИ-агента
   // (`isFillRoute`, аудит 26.09); рейка — только у досок.
   const fill = isFillRoute(pathname, query.get("tab"));
+  // «На весь экран» в чате «Поручить»: меню прячется, пока выбрано и на экране есть кнопка, которая его возвращает.
+  const chatFocus = useChatFocusController(isAiAgentChatRoute(pathname, query.get("tab")));
   const contentId = useId();
   const menuId = useId();
   const headingId = useId();
@@ -537,9 +541,10 @@ export function AppShell({
 
   return (
     <div
-      className="flex min-h-dvh flex-col md:flex-row"
+      className="group/shell flex min-h-dvh flex-col md:flex-row"
       data-testid="v3-shell"
       data-shell-layout={board ? "board" : "page"}
+      data-chat-focus={chatFocus.active ? "" : undefined}
       data-system-role={actor.systemRole}
       data-presentation-role={actor.presentationRole ?? "actual"}
     >
@@ -586,7 +591,9 @@ export function AppShell({
         aria-labelledby={sheetOpen ? headingId : undefined}
         onKeyDown={onMenuKeyDown}
         className={cn(
-          "z-30 flex-col bg-surface md:sticky md:top-0 md:flex md:h-dvh md:shrink-0 md:border-e md:border-border",
+          "z-30 flex-col bg-surface md:sticky md:top-0 md:h-dvh md:shrink-0 md:border-e md:border-border",
+          // Меню остаётся в DOM (уведомления и их опрос не пропадают); «На весь экран» только скрывает его от 768 px.
+          chatFocus.active ? "md:hidden" : "md:flex",
           rail ? "md:w-16 2xl:w-[260px]" : "md:w-[260px]",
           sheetOpen ? "flex max-md:fixed max-md:inset-0 max-md:z-50" : "hidden",
         )}
@@ -779,7 +786,7 @@ export function AppShell({
           data-shell-content=""
           className={cn("min-w-0 outline-none", fill && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto")}
         >
-          {children}
+          <ChatFocusProvider value={chatFocus.value}>{children}</ChatFocusProvider>
         </div>
       </div>
 

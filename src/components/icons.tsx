@@ -62,7 +62,10 @@ export type IconName =
   | "copy"
   // «Шаблоны ответов» (решение владельца 24.10.2026): `quote` теперь только
   // «Ответить с цитатой», `file-text` — «Документы», поэтому у шаблонов свой знак.
-  | "message-square-text";
+  | "message-square-text"
+  // «На весь экран» чата «Поручить» (решение владельца 26.10.2026) и «Свернуть».
+  | "maximize"
+  | "minimize";
 
 const PATHS: Record<IconName, string> = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
@@ -130,6 +133,9 @@ const PATHS: Record<IconName, string> = {
   copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   // lucide «message-square-text» (ISC): пузырь переписки со строками текста.
   "message-square-text": '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 8h6"/><path d="M7 12h10"/>',
+  // lucide «maximize-2» и «minimize-2» (ISC): две стрелки от угла к углу и к центру.
+  maximize: '<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" x2="14" y1="3" y2="10"/><line x1="3" x2="10" y1="21" y2="14"/>',
+  minimize: '<polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" x2="21" y1="10" y2="3"/><line x1="3" x2="10" y1="21" y2="14"/>',
   x: '<path d="m18 6-12 12"/><path d="m6 6 12 12"/>',
   circle: '<circle cx="12" cy="12" r="9"/>',
   "circle-check": '<circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.8 2.8L16.5 9.5"/>',

@@ -188,7 +188,7 @@ test("words: direction, outcome, talk time, people, recording and result are pla
   assert.equal(callDuration(-5), nb("0 с"));
   const outcomes = (direction, outcomeSource = "webhook") => ["answered", "missed", "cancelled", "busy", "unavailable", "not_found", "not_allowed", "no_answer_unknown"]
     .map((outcome) => callOutcomeText({ direction, state: "ended", outcome, outcomeSource }));
-  assert.deepEqual(outcomes("in", "webhook"), ["разговор", "пропущен", "отменён", "занято", "недоступен", "номер не найден", "направление закрыто", "без ответа"]);
+  assert.deepEqual(outcomes("in", "webhook"), ["разговор", "пропущен", "вызов отменён", "занято", "недоступен", "номер не найден", "направление закрыто", "без ответа"]);
   assert.equal(callOutcomeText({ direction: "out", state: "ended", outcome: "missed", outcomeSource: "webhook" }), "не ответили");
   // An outcome from reconciliation is inexact: the words do not claim «занято» or «пропущен».
   assert.deepEqual(outcomes("in", "pull").slice(1), Array(7).fill("без ответа"));

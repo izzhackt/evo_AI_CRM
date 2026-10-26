@@ -30,7 +30,7 @@ export const REQUEST_TAB_LABELS: Readonly<Record<RequestSourceFilter, string>> =
 export function requestDisplayName(row: Pick<RequestRow, "source" | "personName">): string {
   return leadDisplayName(row.source, row.personName);
 }
-export const REQUEST_STATUS_LABELS: Readonly<Record<RequestStatusFilter, string>> = { waiting: "Ждут разбора", all: "Все" };
+export const REQUEST_STATUS_LABELS: Readonly<Record<RequestStatusFilter, string>> = { waiting: "Ждут разбора", all: "Включая разобранные" };
 export const REQUEST_SOURCE_WORDS: Readonly<Record<RequestRow["source"], string>> = {
   website: "Сайт", whatsapp: "WhatsApp", phone_call: "Звонок", platform_application: "Анкета", portal_consultation: "Консультация",
 };

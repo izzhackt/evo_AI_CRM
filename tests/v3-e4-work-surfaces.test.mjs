@@ -253,6 +253,48 @@ const pages = new Map(JSON.parse(execFileSync(process.execPath,
   [fileURLToPath(new URL("./e2e/numbers-static-render.cjs", import.meta.url)), "--json-e4"],
   { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 })).map((page) => [page.name, page.html]));
 
+test("the report after «Оформить продажу»: the saved sale says the student's case was created and opens it; without the case id the old answer stays", () => {
+  const saved = pages.get("report-saved-case");
+  const banner = text(saved.slice(saved.indexOf('id="saved-sale-title"') - 80, saved.indexOf('id="saved-sale-title"') + 700));
+  assert.match(banner, /Продажа добавлена Дело студента создано и передано куратору\. Айжан Примерова/u);
+  assert.match(saved, /<a [^>]*href="\/v3\/profile\?case=15151515-5555-4555-8555-000000000001"[^>]*>Открыть дело<\/a>/u);
+  // Роль без права читать дела (Sales): «Дело создано» остаётся, но «Открыть дело» ведёт в лид — карточка дела ей «не найдена».
+  const sales = pages.get("report-saved-case-sales");
+  assert.match(text(sales), /Продажа добавлена Дело студента создано и передано куратору\./u);
+  assert.doesNotMatch(sales, /href="\/v3\/profile\?case=/u);
+  assert.match(sales, /<a [^>]*href="\/v3\/profile\?id=[0-9a-f-]+"[^>]*>Открыть дело<\/a>/u);
+  // Адрес без дела (прежняя ссылка) о деле ничего не обещает.
+  assert.doesNotMatch(text(pages.get("report-saved")), /Дело студента создано/u);
+  // Форма кладёт дело в адрес после сохранения и предупреждает о нём до него.
+  const forms = read("src/components/v3/SalesRegisterForms.tsx");
+  assert.match(forms, /if \(state\.studentCaseId\) params\.set\("case", state\.studentCaseId\);/u);
+  assert.match(forms, /После сохранения продажа попадёт в отчёт, а дело студента откроется у выбранного куратора\./u);
+});
+
+test("rendered Lead 360: without a funnel step «Что дальше» names the open lead task, and the step drawer opens on the step field", () => {
+  const withTask = pages.get("lead-open-task");
+  // Открытые задачи по лиду (перезвон после звонка и др.) — первая и «и ещё N»; выполненная не считается.
+  assert.match(text(withTask), /Что дальше Перезвонить клиенту · открытая задача и ещё 1 /u);
+  const taskLink = withTask.match(/<a [^>]*href="\/v3\/tasks\?task=[0-9a-f-]+"[^>]*>Перезвонить клиенту<\/a>/u);
+  assert.ok(taskLink, "the open task is a link to the task");
+  assert.match(taskLink[0], /min-h-11/u, "the link is a 44 px touch target");
+  // «Что дальше» стоит над всеми вкладками, поэтому открытая задача читается на любой, а не только на «Обзоре».
+  const profilePage = read("src/app/(v3)/v3/profile/page.tsx");
+  const taskRead = profilePage.slice(profilePage.indexOf("const leadTasksRead ="), profilePage.indexOf("readLeadTaskLinks(", profilePage.indexOf("const leadTasksRead =")));
+  assert.match(taskRead, /staff\.task\.read/u);
+  assert.doesNotMatch(taskRead, /tab === "overview"/u);
+  assert.doesNotMatch(text(withTask), /Старая задача|Шаг не задан/u);
+  const none = pages.get("lead-no-step");
+  assert.match(text(none), /Что дальше Шаг не задан /u);
+  // «Записать следующий шаг» открывает форму с полем шага: «Без следующего действия» не отмечено заранее.
+  for (const page of [withTask, none]) {
+    const drawer = page.slice(page.indexOf('data-testid="v3-lead-step-drawer"'));
+    const form = drawer.slice(0, drawer.indexOf('data-testid="v3-pipeline-submit"'));
+    assert.match(form, /<textarea[^>]*name="next_action_text"/u);
+    assert.doesNotMatch(form, /type="checkbox"[^>]*checked/u);
+  }
+});
+
 test("rendered Lead 360: name as h1, stage and «Что дальше» in the header, one solid red", () => {
   const early = pages.get("lead-early");
   const potential = pages.get("lead-potential");
@@ -307,12 +349,12 @@ test("rendered Lead 360 (Э8.4): feed and groups in the work column, only facts 
   assert.match(text(page), /Лента Новая заметка Добавить заметку Встреча прошла.*? Санжар Эскизов · 23\.09 16:15 Назначили встречу.*? Квалифицирован:.*? Лид создан · сайт 05\.09 11:00/u);
   // Порядок чтения (и телефона), как у дела: «Сведения», «Передача», лента, группы правки.
   // Дата появления — «05.09» (этот год), без «.2026».
-  assert.match(text(page), /Сведения Ответственный СЭ Санжар Эскизов Источник сайт · 05\.09 Контакты \+996 000 000 002 lead@example\.invalid Последний контакт 23\.09 16:15 · заметка Передача ничего не подтверждено Подтвердить Лента .*? Лид создан · сайт 05\.09 11:00 Данные лида/u);
+  assert.match(text(page), /Сведения Ответственный СЭ Санжар Эскизов Источник сайт · 05\.09 Контакты \+996 000 000 002 lead@example\.invalid Последний контакт 23\.09 16:15 · заметка Передача договор и первый платёж не подтверждены Подтвердить договор и оплату Лента .*? Лид создан · сайт 05\.09 11:00 Данные лида/u);
   assert.doesNotMatch(page, /05\.09\.2026/u);
   assert.match(page, /<a href="tel:\+996000000002" class="flex min-h-11/u);
   // До первого доказательства «Передача» — одна строка, не пять прочерков; первый факт — полоса.
   assert.doesNotMatch(page, /data-handoff-item="/u);
-  assert.match(page, /data-testid="v3-handoff-empty">ничего не подтверждено</u);
+  assert.match(page, /data-testid="v3-handoff-empty">договор и первый платёж не подтверждены</u);
   assert.equal((pages.get("lead-handed").match(/data-handoff-item="/gu) ?? []).length, 5);
   // От 1280 px справа за волосяной линией во весь рост — «Сведения» и «Передача»; слева — лента и группы.
   assert.match(page, /data-testid="v3-lead-overview"><div class="flex min-w-0 flex-col gap-6 xl:col-start-2 xl:row-start-1 xl:border-s xl:border-border xl:ps-6" data-testid="v3-lead-side"><aside class="@container min-w-0" aria-labelledby="lead-facts-title" data-testid="v3-lead-facts">/u);
@@ -338,7 +380,7 @@ test("rendered Lead 360 (Э8.4): feed and groups in the work column, only facts 
   assert.match(edit, />Сохранить условия<\/button>/u);
   assert.equal(edit.match(/>Сохранить<\/button>/gu)?.length, 3, "Пожелания, Образование, Условия");
   // «Изменить» в «Передаче» — тихая ссылка 44 px к подтверждению вручную на вкладке «Договор и оплата».
-  assert.match(page, /<a class="inline-flex min-h-11 items-center t-label text-fg-2 underline [^"]*ms-auto" data-testid="v3-handoff-edit" aria-label="Подтвердить договор и оплату" href="\/v3\/profile\?id=[^"]+&amp;tab=money#handoff-confirm">Подтвердить<\/a>/u);
+  assert.match(page, /<a class="inline-flex min-h-11 items-center t-label text-fg-2 underline [^"]*ms-auto" data-testid="v3-handoff-edit" aria-label="Подтвердить договор и оплату" href="\/v3\/profile\?id=[^"]+&amp;tab=money#handoff-confirm">Подтвердить договор и оплату<\/a>/u);
   // «⋯»: только «Закрыть лид…» — «Доступ к порталу» живёт в своей группе.
   const menu = page.slice(page.indexOf('data-testid="v3-lead-actions-menu"'));
   assert.match(menu, /^data-testid="v3-lead-actions-menu"[^>]*><button type="button" class="[^"]*">Закрыть лид…<\/button>/u);
@@ -376,8 +418,8 @@ test("rendered Lead 360 (Э8.4): contract and payment in one place — the strip
   // Вкладка «Договор и оплата» лида без дела: подтверждение вручную наверху, пустых обязательств нет.
   const money = pages.get("lead-money");
   assert.match(money, /<section id="handoff-confirm" aria-labelledby="handoff-confirm-title" class="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate">/u);
-  assert.match(text(money), /Подтверждение вручную Доказательства передачи в поступление, если их нет в деле и в отчёте\. Договор /u);
-  assert.match(money, /<label class="block"><span[^>]*>Доказательство<\/span>/u);
+  assert.match(text(money), /Подтверждение вручную Для передачи в поступление нужны договор и первый платёж\. Подтвердите их здесь, если их нет ни в деле, ни в отчёте продаж\. Договор /u);
+  assert.match(money, /<label class="block"><span[^>]*>Договор: номер или ссылка<\/span>/u);
   assert.doesNotMatch(money, /Все обязательства по делу/u);
   assert.equal(solidRed(money), 1, "the confirmations are quiet; red stays the page's main action");
 });
@@ -705,4 +747,25 @@ test("the page wires Lead 360 through the board's reads and «Оформить �
   assert.match(forms, /const lead = result\.leads\.find\(item => item\.id === wanted\.id\) \?\? null;\s+if \(lead\) chooseLead\(lead\);/u);
   // Главная рисует отчёт без признака облика: облик один (Э1.5).
   assert.match(read("src/app/(v3)/v3/main/page.tsx"), /<SalesRegisterView actor=\{actor\} query=\{query\} dynamics=\{section\} \/>/u);
+});
+
+test("failure and vocabulary copy after review: nothing claims an outcome the code does not know, one wording per concept", () => {
+  // Исход неизвестен — текст не называет его провалом и не обещает «ничего не записано».
+  assert.match(read("src/components/v3/SalesRegisterForms.tsx"), /unavailable: "Не удалось подтвердить сохранение\. Проверьте запись и повторите\."/u);
+  assert.match(read("src/components/v3/requests/TakeLead.tsx"), /request_conflict: "Это уже отправлялось\. Обновите список и проверьте, взят ли лид\."/u);
+  // `gate_blocked` — три ответа базы (`gate_incomplete`, `contract_required`, `gate_handoff_blocked`): текст общий, не «сначала договор и платёж».
+  assert.match(read("src/components/v3/profile/ProfileSalesTransition.tsx"), /gate_blocked: "Пока нельзя: нужны подтверждённые договор и первый платёж, либо исключение\."/u);
+  const amo = read("src/components/v3/profile/ProfileAmoCrmCommandSection.tsx");
+  assert.match(amo, /AMOCRM_UNAVAILABLE\[locale\]/u);
+  assert.match(amo, /ky: "amoCRM абалын текшерүү мүмкүн болгон жок\./u);
+  assert.doesNotMatch(amo, /Ничего не записано|Передача в amoCRM/u);
+  // Кнопка из отменённой «Рассрочки» не возвращается под другим именем: у блока заголовок «Транши», и кнопка — про транши.
+  const agreement = read("src/components/v3/profile/CaseAgreementBlock.tsx");
+  assert.match(agreement, /"Разбить на транши"/u);
+  assert.doesNotMatch(agreement, /Разбить на части/u);
+  // «Источник» / «Откуда узнал» в форме те же, что в «Сведениях» Lead 360 и в «Маркетинге».
+  const manual = read("src/components/v3/ManualLeadForm.tsx");
+  assert.match(manual, /<span className=\{fieldLabelCls\}>Источник<\/span>/u);
+  assert.match(manual, /<span className=\{fieldLabelCls\}>Откуда узнал<\/span>/u);
+  assert.match(read("src/lib/v3/requests-view.ts"), /all: "Включая разобранные"/u);
 });

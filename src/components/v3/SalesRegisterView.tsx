@@ -1,4 +1,4 @@
-import { isStaffPreview, staffCanAccessRoute, staffHasPermission } from "@/lib/platform-access";
+import { isStaffPreview, staffCanAccessRoute, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -565,6 +565,10 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
   // Во «Весь год» и в срезе «записаны в другой месяц отчёта» у строк разные месяцы отчёта — его видно в строке.
   const showReportMonth = month === undefined || saleSlice === "filed_elsewhere";
   const saved = !creatingForm && !viewingRecord && query.saved && workspace?.selected?.id === query.saved ? workspace.selected : null;
+  // Дело, которое открыла эта продажа: адрес приходит из формы после сохранения, в нём только идентификатор.
+  const savedCaseId = saved && typeof query.case === "string" ? parseSalesUuid(query.case) : null;
+  // Карточку дела читает только тот, у кого есть право на дела (admissions.read); у Sales его нет — им остаётся карточка лида.
+  const canOpenSavedCase = savedCaseId !== null && staffPresentationCan(actor, "admissions.read");
   const target = management.status === "ready" ? management.data.target : null;
   const backHref = viewingRecord && workspace?.selected ? `${href()}#sale-${workspace.selected.id}` : href();
   const panelOpen = viewingRecord && !creatingForm;
@@ -717,10 +721,12 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
       </div> : null}
       {saved ? <section id="saved-sale" aria-labelledby="saved-sale-title" className="mt-4 scroll-mt-4 border-y border-border py-3">
         <h2 id="saved-sale-title" className="t-item text-fg">Продажа добавлена</h2>
+        {savedCaseId ? <p className="mt-0.5 t-body-compact text-fg-2">Дело студента создано и передано куратору.</p> : null}
         <div className="mt-1 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <p className="min-w-0 t-body-compact text-fg"><span className="break-words font-medium">{saved.applicantName}</span>
             <span className="text-fg-2"> · {dateLabel(saved.signingDate)} · {money(saved.serviceCostMinor, saved.serviceCostCurrency) ?? "Не уточнено"}</span></p>
-          {saved.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(saved.leadId)}`} className={`${btnGhostCls} min-h-11`}>Открыть дело</Link> : null}
+          {canOpenSavedCase && savedCaseId ? <Link href={`/v3/profile?case=${encodeURIComponent(savedCaseId)}`} className={`${btnGhostCls} min-h-11`}>Открыть дело</Link>
+            : saved.leadId ? <Link href={`/v3/profile?id=${encodeURIComponent(saved.leadId)}`} className={`${btnGhostCls} min-h-11`}>Открыть дело</Link> : null}
         </div>
       </section> : null}
       {!workspace ? <div role="alert" className="mt-8 space-y-3 border-s-2 border-border ps-4 t-body-compact text-fg-2">

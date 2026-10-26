@@ -202,7 +202,8 @@ function ContactsFact({ contacts }: Readonly<{ contacts: CaseContacts }>) {
 }
 
 function DocumentsFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
-  const line = studentsDocumentsLine(input.documents);
+  const { documents } = input;
+  const line = studentsDocumentsLine(documents);
   return (
     <Fact term="Документы" testId="v3-case-documents">
       {input.documentsAwaitCurator ? (
@@ -220,6 +221,10 @@ function DocumentsFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
           ) : null}
         </div>
       ) : <span className="text-fg-2">нет доступа</span>}
+      {/* Ссылка — только там, где есть что делать (чек-лист не собран или принято не всё); при полном комплекте
+          тот же переход — вкладка «Документы» прямо над «Сведениями», второй ссылки не нужно. */}
+      {input.hrefs.documents && !input.documentsAwaitCurator && documents && (documents.total === 0 || documents.approved < documents.total)
+        ? <Link href={input.hrefs.documents} className={FACT_LINK}>Открыть документы</Link> : null}
     </Fact>
   );
 }
@@ -241,6 +246,8 @@ function ApplicationsFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
           ))}
         </ul>
       )}
+      {/* Пока заявок нет, следующий шаг — «Вузы и программы»; когда они есть, названия вузов говорят сами. */}
+      {input.applications.length === 0 && input.hrefs.route ? <Link href={input.hrefs.route} className={FACT_LINK}>Открыть вузы и программы</Link> : null}
     </Fact>
   );
 }
@@ -339,6 +346,7 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
               <><span className="font-semibold tabular-nums">{payment.percent}%</span> оплачено{payment.remaining ? <span className="text-fg-2"> · остаток <span className="tabular-nums">{payment.remaining}</span></span> : null}</>
             )}
             {payment.financeStop ? <span className="block text-danger">Финансовый стоп: {payment.financeStop}</span> : null}
+            {payment.percent === null && input.hrefs.money ? <Link href={input.hrefs.money} className={FACT_LINK}>Открыть договор и оплату</Link> : null}
           </Fact>
         ) : null}
         {input.portal && !input.portal.settings ? (

@@ -24,9 +24,9 @@ const STATUS_COPY: Record<
   saved: "Решение сохранено.",
   invalid: "Проверьте этап, действие, срок и причину.",
   forbidden: "У вашей роли нет прав на это изменение.",
-  stale: "Лид уже изменён. Обновите данные перед повтором.",
-  request_conflict: "Команда уже использована. Подготовлен новый безопасный повтор.",
-  unavailable: "Изменение не подтверждено. Повторите.",
+  stale: "Лида только что изменили. Нажмите «Обновить» и повторите.",
+  request_conflict: "Это уже отправлялось. Нажмите «Сохранить решение» ещё раз.",
+  unavailable: "Не удалось подтвердить сохранение. Проверьте связь и повторите.",
 };
 
 const CONTROL_CLASS =
@@ -50,6 +50,7 @@ export function PipelineDecisionForm({
   actor,
   requestId,
   onSaved,
+  stepFirst = false,
 }: Readonly<{
   lead: PlatformSalesWorkflowLead;
   stages: readonly WorkflowStageOption[];
@@ -60,6 +61,12 @@ export function PipelineDecisionForm({
   requestId: string;
   /** Сервер подтвердил сохранение: панель показывает итог после обновления. */
   onSaved?: () => void;
+  /**
+   * Форму открыли, чтобы записать шаг (кнопка «Записать следующий шаг» у Lead 360): у лида без шага поле
+   * шага сразу открыто, а не спрятано за уже отмеченным «Без следующего действия». На доске, где чаще
+   * меняют этап или ответственного, по-прежнему отмечено «Без следующего действия».
+   */
+  stepFirst?: boolean;
 }>) {
   const router = useRouter();
   const initialState: PlatformSalesWorkflowActionState = {
@@ -78,7 +85,7 @@ export function PipelineDecisionForm({
     lead.currentOwnerMembershipId ?? "",
   );
   const [clearNextAction, setClearNextAction] = useState(
-    lead.nextActionText === null,
+    lead.nextActionText === null && !stepFirst,
   );
   const [nextActionText, setNextActionText] = useState(
     lead.nextActionText ?? "",

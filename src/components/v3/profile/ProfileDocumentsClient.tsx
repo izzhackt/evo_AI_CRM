@@ -302,6 +302,16 @@ function CreateChecklistItem({
 }
 
 /**
+ * Пустой чек-лист говорит, что делать, а не повторяет форму над собой: есть базовый чек-лист — применить его, шаблонов
+ * для дела нет — добавить документы вручную; чтение шаблонов не сказало «нет» — просто добавить вручную.
+ */
+function emptyChecklistText(hasBaseline: boolean, templatesAbsent: boolean): string {
+  if (hasBaseline) return "Чек-лист пока пуст. Нажмите «Применить базовый чек-лист» или добавьте документы вручную — формы выше.";
+  if (templatesAbsent) return "Чек-лист пуст, готовых шаблонов нет. Добавьте документы вручную в форме выше.";
+  return "Чек-лист пока пуст. Добавьте документы вручную в форме выше.";
+}
+
+/**
  * Вкладка «Документы» дела (Э8.1). Сверху — «N из M принято» и фильтр по
  * состоянию (их рисует сервер из того же чтения); «+ Документ» — тихая
  * кнопка, раскрывающая формы пункта и базового чек-листа (сплошной красный на
@@ -502,7 +512,7 @@ export function ProfileDocumentsClient({
 
       {groups.length === 0 ? (
         <p className="py-4 t-body-compact text-fg-2" data-testid="v3-document-empty">
-          {emptyText ?? (checklistEmpty && canChangeChecklist ? "Чек-лист пуст. Добавьте документы вручную." : "В чек-листе пока нет документов.")}
+          {emptyText ?? (checklistEmpty && canChangeChecklist ? emptyChecklistText(baselineOptions.length > 0, baselineTemplatesAbsent) : "В чек-листе пока нет документов.")}
         </p>
       ) : (
         <ul className="@container/documents min-w-0">

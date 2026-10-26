@@ -566,7 +566,9 @@ function shell(actor, title, body) {
 // Как `profile/page.tsx` для `?id=`: имя — h1, возврат «Воронка продаж» над ним,
 // действия у заголовка, шапка «Этап · Что дальше» и «Обзор» из `leadWorkParts`.
 function leadPage(name, tab = "overview", extra = {}) {
-  const scenario = LEAD_SCENARIOS[name] ?? E4_LEADS[name];
+  const base = LEAD_SCENARIOS[name] ?? E4_LEADS[name];
+  // `next`/`due` — лид без шага воронки; `openTasks` — задачи по лиду, которые читает страница (`lead_staff_task_links`).
+  const scenario = "next" in extra ? { ...base, next: extra.next, due: extra.due ?? null } : base;
   const { Profile } = require(join(ROOT, "src/components/v3/profile/Profile.tsx"));
   const { buildV3ProfileHref } = require(join(ROOT, "src/components/v3/profile/types.ts"));
   const { leadWorkParts } = require(join(ROOT, "src/components/v3/profile/LeadWorkParts.tsx"));
@@ -601,7 +603,8 @@ function leadPage(name, tab = "overview", extra = {}) {
     requestIds: { ...requestIds, portal: "", cabinetPortal: "" },
     stages: ["new", "contacting", "qualified", "meeting_scheduled", "meeting_completed", "potential"].map((key) => ({ key, title: wording.salesStage(key) })),
     ownerOptions: [{ membershipId: ME, displayLabel: "Санжар Эскизов" }], ownerOptionsHaveMore: false, curators: [], curatorsAvailable: true,
-    agreement: scenario.agreement ?? null, submissions: null, calls: extra.calls ?? null, dial: extra.dial ?? null, hrefFor,
+    agreement: scenario.agreement ?? null, submissions: null, calls: extra.calls ?? null, dial: extra.dial ?? null,
+    openTasks: extra.openTasks ?? null, hrefFor,
     now: new Date("2026-09-27T06:00:00.000Z"),
   });
   const body = createElement(Profile, {
@@ -625,11 +628,11 @@ async function managersPage() {
   return renderToStaticMarkup(withContexts(shell(ADMIN, null, element), "/v3/main", new URLSearchParams(query).toString()));
 }
 
-async function reportPage(extra = {}) {
+async function reportPage(extra = {}, actor = ADMIN) {
   const { SalesRegisterView } = require(join(ROOT, "src/components/v3/SalesRegisterView.tsx"));
   const query = { view: "sales", year: "2026", month: "9", ...extra };
-  const element = await SalesRegisterView({ actor: ADMIN, query });
-  return renderToStaticMarkup(withContexts(shell(ADMIN, null, element), "/v3/main", new URLSearchParams(query).toString()));
+  const element = await SalesRegisterView({ actor, query });
+  return renderToStaticMarkup(withContexts(shell(actor, null, element), "/v3/main", new URLSearchParams(query).toString()));
 }
 
 // --- «Динамика по дням»: когорта, «Продажи» периода и воронка по доске ----------
@@ -828,6 +831,13 @@ async function e4Pages() {
     { name: "lead-potential", html: leadPage("potential") },
     // Э8.7 (254): запись отчёта просто связана с этим лидом — «Оформить продажу» рядом с «Запись в отчёте — связана».
     { name: "lead-linked", html: leadPage("linked") },
+    // Лид без шага воронки: «Что дальше» называет открытую задачу по лиду (перезвон), а не «Шаг не задан»; без задач — «Шаг не задан».
+    { name: "lead-open-task", html: leadPage("early", "overview", { next: null, openTasks: [
+      { id: uuid("14141414", 1), title: "Перезвонить клиенту", status: "open" },
+      { id: uuid("14141414", 2), title: "Отправить подборку вузов", status: "in_progress" },
+      { id: uuid("14141414", 3), title: "Старая задача", status: "done" },
+    ] }) },
+    { name: "lead-no-step", html: leadPage("early", "overview", { next: null }) },
     { name: "lead-handed", html: leadPage("handed") },
     // Э8.4: договор и оплата дела в полосе; передача без записи отчёта и без куратора;
     // вкладка «Договор и оплата» лида без дела — подтверждение вручную наверху.
@@ -837,6 +847,20 @@ async function e4Pages() {
     { name: "report", html: await reportPage({}) },
     // Строка открывает запись просмотром (Э8.6); правка — «Исправить запись» (`edit=true`).
     { name: "report-panel", html: await reportPage({ record: E4_ROWS[1].id }) },
+    // Только что добавленная продажа: форма вернула дело студента — отчёт говорит, что дело создано, и ведёт в него; без дела — прежний ответ.
+    { name: "report-saved-case", html: await reportPage({ saved: E4_ROWS[1].id, case: uuid("15151515", 1) }) },
+    { name: "report-saved", html: await reportPage({ saved: E4_ROWS[1].id }) },
+    // Роль «Продажи» (здесь — просмотр роли у администратора) не читает дело студента: «Открыть дело» остаётся ссылкой на лид, иначе — «Профиль не найден».
+    // У записи есть лид (продажа оформлена из Lead 360), поэтому ссылка остаётся на карточку лида.
+    { name: "report-saved-case-sales", html: await (async () => {
+      const before = REPORT.rows;
+      REPORT.rows = before.map((row) => row.id === E4_ROWS[1].id ? { ...row, leadId: LEAD_ID } : row);
+      try {
+        return await reportPage({ saved: E4_ROWS[1].id, case: uuid("15151515", 1) }, { ...ADMIN, presentationRole: "sales" });
+      } finally {
+        REPORT.rows = before;
+      }
+    })() },
     { name: "report-panel-edit", html: await reportPage({ record: E4_ROWS[1].id, edit: "true" }) },
     // Э8.7 (254): запись связана с лидом — имя ссылкой и «Отвязать от лида» в «⋯».
     { name: "report-panel-linked", html: await (async () => {

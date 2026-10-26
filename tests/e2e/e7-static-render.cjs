@@ -818,7 +818,7 @@ async function retryKeyProbe(browser, outDir, expect) {
     return { keys: await page.evaluate((name) => window.__keys[name], kind), notes };
   };
   const check = (label, { keys, notes }) => {
-    expect(`${label}: «не подтверждено» is shown`, notes[0] === "Сохранение пока не подтверждено. Повторите отправку.", { notes });
+    expect(`${label}: «не подтверждено» is shown`, notes[0] === "Не удалось подтвердить сохранение. Проверьте список задач и повторите.", { notes });
     expect(`${label}: a retry after «не подтверждено» sends the same request_id`, keys.length === 4 && keys[0] === keys[1] && keys[1] === keys[2], { keys });
     expect(`${label}: only request_conflict gives the next attempt a new request_id`, keys[3] !== keys[2] && /^[0-9a-f-]{36}$/u.test(keys[3] ?? ""), { keys });
     return keys.length === 4 && keys[0] === keys[1] && keys[1] === keys[2] && keys[3] !== keys[2];

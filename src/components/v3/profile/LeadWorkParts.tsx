@@ -112,6 +112,11 @@ export type LeadWorkPartsInput = Readonly<{
    * решены базой, `mapped` — сопоставлен ли сотрудник в ВАТС); `off` и отсутствие — кнопки нет.
    */
   dial?: DialOptions | null;
+  /**
+   * Задачи, связанные с лидом (`lead_staff_task_links`), читаются, пока шага воронки нет: «Что дальше» называет открытую
+   * задачу вместо «Шаг не задан». null и отсутствие — не читались или не прочитались.
+   */
+  openTasks?: readonly Readonly<{ id: string; title: string; status: string }>[] | null;
   hrefFor: (tab: string) => string;
   now: Date;
 }>;
@@ -301,6 +306,9 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
   const dueDate = sales.lead.nextActionText ? sales.lead.nextActionDueDate : null;
   // Срок словом (`DueWord`, Э1.3).
   const dueWord = dueDate ? dueWordOf({ dueOn: dueDate, dueAt: null }, new Date(`${today}T06:00:00.000Z`)) : null;
+  // Шага воронки нет, но по лиду есть открытая задача (перезвон после звонка и др.): её и называем.
+  const openTasks = (input.openTasks ?? []).filter((task) => task.status === "open" || task.status === "in_progress" || task.status === "blocked");
+  const openTask = openTasks[0] ?? null;
   const nextStep = handedOff ? (
     <p className="t-body-compact text-fg" data-testid="v3-lead-next-step">
       {strip?.summary ? <DatedText text={strip.summary} /> : "Передано в поступление"}
@@ -309,7 +317,12 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
     <p className="flex min-w-0 flex-wrap items-baseline gap-x-2 t-body-compact text-fg" data-testid="v3-lead-next-step">
       {sales.lead.nextActionText
         ? <span className="min-w-0 break-words">{sales.lead.nextActionText}</span>
-        : <span className="text-fg-2">Шаг не задан</span>}
+        : openTask ? (
+          <span className="min-w-0 break-words">
+            <Link href={`/v3/tasks?task=${encodeURIComponent(openTask.id)}`} className="-my-3 inline-flex min-h-11 items-center text-fg underline underline-offset-4 hover:text-fg-2">{openTask.title}</Link>
+            <span className="text-fg-2"> · открытая задача{openTasks.length > 1 ? ` и ещё ${openTasks.length - 1}` : ""}</span>
+          </span>
+        ) : <span className="text-fg-2">Шаг не задан</span>}
       {dueDate ? (
         <span className="text-fg-2">
           <time dateTime={dueDate} className="font-mono tabular-nums">{leadDay(dueDate, today)}</time>
@@ -437,10 +450,10 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
     <section aria-labelledby="lead-handoff-title" className="@container min-w-0 border-t border-border pt-3" data-testid="v3-lead-handoff">
       <div className="flex flex-wrap items-center gap-x-2">
         <h2 id="lead-handoff-title" className="t-item text-fg">Передача</h2>
-        {handoffEmpty ? <p className="t-body-compact text-fg-2" data-testid="v3-handoff-empty">ничего не подтверждено</p> : null}
+        {handoffEmpty ? <p className="t-body-compact text-fg-2" data-testid="v3-handoff-empty">договор и первый платёж не подтверждены</p> : null}
         {moneyHref ? (
           <Link href={moneyHref} className={`${QUIET_LINK} ms-auto`} data-testid="v3-handoff-edit"
-            aria-label={handoffEmpty ? "Подтвердить договор и оплату" : "Изменить договор и оплату"}>{handoffEmpty ? "Подтвердить" : "Изменить"}</Link>
+            aria-label={handoffEmpty ? "Подтвердить договор и оплату" : "Изменить договор и оплату"}>{handoffEmpty ? "Подтвердить договор и оплату" : "Изменить"}</Link>
         ) : null}
       </div>
       {handoffEmpty ? null : <HandoffStripBlock gate={sales.gate} view={strip} className="mt-1 space-y-3" summary={!handedOff} />}

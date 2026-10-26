@@ -419,7 +419,7 @@ test("«Перенести срок» sends each task through its existing comma
   const stale = await tasksBulk.rescheduleTask(timed, "2026-09-25", "", "50000000-0000-4000-8000-000000000002", now);
   assert.deepEqual(staff.calls[1].deadline_kind + " " + staff.calls[1].due_at + " " + staff.calls[1].expected_version, "timed 2026-09-25T15:00 8");
   assert.equal(stale.unconfirmed, false);
-  assert.match(stale.error, /Задача уже изменена/u);
+  assert.match(stale.error, /Задачу только что изменили/u);
   // «Не подтверждено»: ключ запроса держится для повтора того же запроса.
   assert.equal((await tasksBulk.rescheduleTask(staffTask, null, "", "50000000-0000-4000-8000-000000000003", now)).unconfirmed, true);
   assert.equal(staff.calls[2].deadline_kind, "none");

@@ -267,7 +267,7 @@ test("no invented numbers: a band counts only when every read writing into it is
   assert.equal(complete.complete, true);
   assert.deepEqual(complete.notices, []);
 
-  // Неполные задачи гасят числа только своих групп; «Ждут ответа» остаётся с числом.
+  // Неполные задачи гасят числа только своих групп; «Ждут вас» остаётся с числом.
   const partial = buildTodayQueue([read("tasks", tasks, "partial"), read("requests", requests)], NOW);
   assert.deepEqual(partial.bands.map((band) => [band.band, band.count]), [["overdue", null], ["today", null], ["waiting", 1]]);
   assert.equal(partial.complete, false);
@@ -311,7 +311,7 @@ test("merged rows: a partial read hides the numbers of every band its missing ro
   assert.deepEqual(handoffsPartial.bands.map((band) => [band.band, band.count, band.items.length]), [["no_step", null, 2]]);
 
   // Случай 2: «Мои» прочитаны не полностью, а дело на самом деле просрочено. Строка «ждёт принятия» —
-  // в «Ждут ответа», но её место — «Просрочено»: у «Ждут ответа» числа нет.
+  // в «Ждут вас», но её место — «Просрочено»: у «Ждут вас» числа нет.
   const studentsPartial = buildTodayQueue([read("students", [], "partial"), read("handoffs", handoffs)], NOW);
   assert.deepEqual(studentsPartial.bands.map((band) => [band.band, band.count, band.items.length]), [["waiting", null, 1]]);
   const studentsFailed = buildTodayQueue([{ source: "students", state: "error" }, read("handoffs", handoffs)], NOW);
@@ -548,7 +548,7 @@ test("static render: the page root, the dated heading and one queue for Admin", 
   assert.match(html, /<h1 class="t-page-title[^"]*">Сегодня<\/h1><p class="t-meta mt-1 text-fg-3"><time dateTime="2026-09-26">Суббота, 26 сентября<\/time><\/p>/u);
   assert.doesNotMatch(html, /Главная|Рабочий обзор|Лиды за период|data-dashboard-card/u);
   const headers = [...html.matchAll(/<h2 id="today-band-[a-z_]+"[^>]*>(.*?)<\/h2>/gu)].map((match) => text(match[1]).trim());
-  assert.deepEqual(headers, ["Просрочено · 5", "Сегодня · сб 26.09 · 4", "Ждут ответа", "Без следующего шага · 2", "Ближайшие 14 дней · 4"]);
+  assert.deepEqual(headers, ["Просрочено · 5", "Сегодня · сб 26.09 · 4", "Ждут вас", "Без следующего шага · 2", "Ближайшие 14 дней · 4"]);
   assert.match(html, /<\/h2><p class="[^"]*t-meta[^"]*">Числа нет: часть переписок могла получить ответ\.<\/p>/u);
   // Две доски: на телефоне короткие имена в строке заголовка, шире — полные; видимое слово и есть имя ссылки.
   assert.match(html, /aria-label="Доски"[\s\S]*href="\/v3\/pipeline"[^>]*><span class="sm:hidden">Продажи<\/span><span class="hidden sm:inline">Воронка продаж<\/span><\/a>[\s\S]*href="\/v3\/admissions-pipeline"[^>]*><span class="sm:hidden">Поступление<\/span><span class="hidden sm:inline">Воронка поступления<\/span><\/a>/u);
@@ -601,9 +601,9 @@ test("static render: a failed source is named in place and only the bands that d
   assert.match(html, /data-today-notice="error" data-today-source="chats"[^>]*><span class="text-danger">Сообщения не загрузились\.<\/span><a [^>]*href="\/v3\/main"[^>]*>Повторить<\/a>/u);
   assert.match(html, /data-today-notice="partial" data-today-source="handoffs"[\s\S]*?href="\/v3\/profile\?view=needs_action"[^>]*>Требуют действия<\/a>/u);
   // Неполное «Требуют действия» гасит группы, куда его строка могла бы забрать дело из «Моих»;
-  // «Просрочено» и «Сегодня» срочнее «Ждут ответа» и число сохраняют.
+  // «Просрочено» и «Сегодня» срочнее «Ждут вас» и число сохраняют.
   const headers = [...html.matchAll(/<h2 id="today-band-[a-z_]+"[^>]*>(.*?)<\/h2>/gu)].map((match) => text(match[1]).trim());
-  assert.deepEqual(headers, ["Просрочено · 4", "Сегодня · сб 26.09 · 3", "Ждут ответа", "Без следующего шага", "Ближайшие 14 дней"]);
+  assert.deepEqual(headers, ["Просрочено · 4", "Сегодня · сб 26.09 · 3", "Ждут вас", "Без следующего шага", "Ближайшие 14 дней"]);
   assert.doesNotMatch(html, /data-queue-row="chat:/u, "the failed source draws no rows");
   assert.doesNotMatch(html, /На сегодня всё/u);
 });
@@ -686,9 +686,9 @@ test("a long group shows the first TODAY_WINDOW rows; a group within the slack s
   assert.doesNotMatch(leads, /TASK_LEAD_LIMIT/u);
 });
 
-test("the one reason of a whole «Ждут ответа» group stands once under the heading, not on every row", () => {
+test("the one reason of a whole «Ждут вас» group stands once under the heading, not on every row", () => {
   const list = sourceText("src/components/v3/today/TodayQueueList.tsx");
-  assert.match(list, /band\.band !== "waiting" \|\| band\.note !== null \|\| band\.items\.length < SHARED_REASON_ROWS/u, "only «Ждут ответа» without its own note");
+  assert.match(list, /band\.band !== "waiting" \|\| band\.note !== null \|\| band\.items\.length < SHARED_REASON_ROWS/u, "only «Ждут вас» without its own note");
   assert.match(list, /band\.items\.some\(\(item\) => item\.task \|\| item\.reason !== reason\)/u, "every row must share it, and none is a task");
   assert.match(sourceText("src/components/v3/today/TodayRow.tsx"), /\(hideReason \? \[\] : item\.reason\.split\(" · "\)\)/u);
 });

@@ -225,6 +225,22 @@ final class AdmissionDecodingTests: XCTestCase {
             AdmissionDocumentProgress.displayOrder(documents).map(\.slotStatus),
             ["required", "correction_required", "approved"]
         )
+        // После загрузки файла данные перечитываются, но карточка остаётся на
+        // своём месте: порядок берётся из прежней сортировки, а не пересчитывается.
+        let shownOrder = AdmissionDocumentProgress.displayOrder(documents).map(\.documentSlotId)
+        XCTAssertEqual(
+            AdmissionDocumentProgress.keepingOrder(documents, order: shownOrder).map(\.slotStatus),
+            ["required", "correction_required", "approved"]
+        )
+        let previousOrder = [approved.documentSlotId, required.documentSlotId]
+        XCTAssertEqual(
+            AdmissionDocumentProgress.keepingOrder(documents, order: previousOrder).map(\.slotStatus),
+            ["approved", "required", "correction_required"]
+        )
+        XCTAssertEqual(
+            AdmissionDocumentProgress.keepingOrder(documents, order: []).map(\.slotStatus),
+            ["required", "correction_required", "approved"]
+        )
 
         // Progress counters (web documentProgress semantics).
         XCTAssertEqual(AdmissionDocumentProgress.approvedCount(documents), 1)

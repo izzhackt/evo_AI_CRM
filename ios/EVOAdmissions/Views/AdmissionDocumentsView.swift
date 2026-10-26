@@ -38,6 +38,7 @@ final class AdmissionDocumentsModel: ObservableObject {
     @Published private(set) var downloadFailedVersionId: UUID?
     @Published var previewFileURL: URL?
 
+    private var slotOrder: [UUID] = []
     private var idempotency: [UUID: DocumentUploadIdempotency] = [:]
     private var pickedFiles: [UUID: PickedFile] = [:]
 
@@ -59,14 +60,27 @@ final class AdmissionDocumentsModel: ObservableObject {
         return false
     }
 
-    func load() async {
+    /// `resort: false` — перечитать данные, не двигая карточки: так после
+    /// успешной загрузки файла карточка остаётся на месте, и зелёная строка
+    /// «файл загружен» не уходит с экрана. Первая загрузка и «потяни, чтобы
+    /// обновить» сортируют заново (сначала то, что нужно сделать студенту).
+    func load(resort: Bool = true) async {
         loadFailed = false
         do {
-            documents = try await service.studentPortalDocuments()
+            let rows = try await service.studentPortalDocuments()
+            documents = rows
+            if resort || slotOrder.isEmpty {
+                slotOrder = AdmissionDocumentProgress.displayOrder(rows).map(\.documentSlotId)
+            }
             isLoaded = true
         } catch {
             loadFailed = true
         }
+    }
+
+    /// Документы в том порядке, в каком их показывает экран.
+    var displayDocuments: [StudentPortalDocumentRow] {
+        AdmissionDocumentProgress.keepingOrder(documents, order: slotOrder)
     }
 
     // MARK: - Upload (bearer contract, PORT-8a)
@@ -145,7 +159,7 @@ final class AdmissionDocumentsModel: ObservableObject {
             idempotency[slotId]?.uploadSucceeded()
             pickedFiles[slotId] = nil
             uploadStates[slotId] = .success(filename: receipt.document.originalFilename)
-            await load()
+            await load(resort: false)
         } catch {
             uploadStates[slotId] = .failed(.network)
         }
@@ -298,7 +312,7 @@ struct AdmissionDocumentsView: View {
                     .foregroundStyle(.secondaryText)
                 }
 
-                ForEach(AdmissionDocumentProgress.displayOrder(model.documents)) { document in
+                ForEach(model.displayDocuments) { document in
                     Section {
                         DocumentSlotRow(
                             document: document,

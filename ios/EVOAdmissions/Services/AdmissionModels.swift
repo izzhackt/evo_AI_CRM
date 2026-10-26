@@ -279,6 +279,24 @@ enum AdmissionDocumentProgress {
             }
             .map(\.element)
     }
+
+    /// Порядок слотов, зафиксированный при последней сортировке (`displayOrder`).
+    /// Нужен, чтобы карточка не прыгала по экрану после успешной загрузки файла:
+    /// статус слота меняется на «На проверке», а место он сохраняет до ручного
+    /// обновления. Слоты, которых нет в `order`, идут в конце в порядке `displayOrder`.
+    static func keepingOrder(
+        _ documents: [StudentPortalDocumentRow],
+        order: [UUID]
+    ) -> [StudentPortalDocumentRow] {
+        let position = Dictionary(
+            order.enumerated().map { ($0.element, $0.offset) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let known = documents.filter { position[$0.documentSlotId] != nil }
+            .sorted { position[$0.documentSlotId]! < position[$1.documentSlotId]! }
+        let unknown = documents.filter { position[$0.documentSlotId] == nil }
+        return known + displayOrder(unknown)
+    }
 }
 
 // MARK: - Finance (127:472-485; 189 null semantics)

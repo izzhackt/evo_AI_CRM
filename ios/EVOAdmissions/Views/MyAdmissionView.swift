@@ -60,14 +60,21 @@ struct MyAdmissionView: View {
         }
     }
 
-    /// Два «следующих шага» на одном экране (карточка статуса и блок «Ваш
-    /// следующий шаг») говорили разное. Очередь действий надёжнее и ведёт в
-    /// раздел, поэтому свободный текст сотрудника показывается, только когда
-    /// очереди нет (или она не загрузилась).
-    private var showsFreeTextNextAction: Bool {
-        guard let text = session.portalCase.nextAction, !text.isEmpty else { return false }
-        if model.isLoaded { return model.primaryAction == nil }
-        return model.loadFailed
+    /// Текст следующего шага, написанный сотрудником. Никогда не скрывается:
+    /// он стоит вторичной строкой под пунктом очереди действий (и пока очередь
+    /// грузится), чтобы студент видел и ссылку в раздел, и слова сотрудника.
+    private var staffNextAction: String? {
+        guard let text = session.portalCase.nextAction, !text.isEmpty else { return nil }
+        return text
+    }
+
+    @ViewBuilder
+    private var staffNextActionLine: some View {
+        if let text = staffNextAction {
+            Text(text)
+                .font(.footnote)
+                .foregroundStyle(.secondaryText)
+        }
     }
 
     var body: some View {
@@ -90,15 +97,6 @@ struct MyAdmissionView: View {
                                     .font(.headline)
                             }
                             .accessibilityElement(children: .combine)
-                        }
-                        if showsFreeTextNextAction, let nextAction = session.portalCase.nextAction {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("home_next_action_label")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondaryText)
-                                Text(nextAction)
-                                    .font(.subheadline)
-                            }
                         }
                     }
                     .motionStagger(index: 0, key: "admission.status")
@@ -172,6 +170,7 @@ struct MyAdmissionView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondaryText)
                     }
+                    staffNextActionLine
                     ForEach(Array(model.remainingActions.enumerated()), id: \.offset) { _, action in
                         AdmissionActionRow(action: action, isPrimary: false)
                     }
@@ -187,8 +186,10 @@ struct MyAdmissionView: View {
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                     }
+                    staffNextActionLine
                 } else {
                     ProgressView()
+                    staffNextActionLine
                 }
             }
             .motionStagger(index: 1, key: "admission.next.\(nextStepPhase)")

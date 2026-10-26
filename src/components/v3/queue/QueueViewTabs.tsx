@@ -23,12 +23,18 @@ export function QueueViewTabs({ label, tabs, id, bare = false }: Readonly<{
   tabs: readonly QueueTab[];
   /** Якорь ряда вкладок (например, прежний адрес `#admissions-summary`). */
   id?: string;
-  /** Без линии под рядом: вкладки стоят в строке шапки рядом с названием (чат «Поручить»), а не над содержимым. */
+  /**
+   * Без линии под рядом: вкладки стоят в строке шапки рядом с названием (чат «Поручить»), а не над содержимым.
+   * Ряд тогда ровно по высоте вкладки и обрезает рамку фокуса снаружи — она рисуется внутри (`data-tab-ring`, v3.css).
+   */
   bare?: boolean;
 }>) {
   return (
     <QueueTabStrip id={id} label={label}>
-      <ul className={bare ? "flex min-w-max items-center gap-1" : "flex min-w-max items-center gap-1 border-b border-border pb-2"}>
+      <ul
+        className={bare ? "flex min-w-max items-center gap-1" : "flex min-w-max items-center gap-1 border-b border-border pb-2"}
+        data-tab-ring={bare ? "inset" : undefined}
+      >
         {tabs.map((tab) => (
           <li key={tab.key}>
             <Link

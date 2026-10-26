@@ -43,10 +43,12 @@ export function useChatFocusController(chatRoute: boolean): Readonly<{ active: b
 }
 
 /**
- * Кнопка в шапке чата: «На весь экран» ↔ «Свернуть». Нажатая — режим включён;
- * подпись и состояние меняются вместе, поэтому имя кнопки всегда совпадает с
- * видимой подписью. Esc тоже сворачивает, если фокус не в поле ввода. На
- * телефоне (<768 px) чат и так занимает экран — кнопки там нет.
+ * Кнопка в шапке чата: «На весь экран» ↔ «Свернуть». Обычная кнопка без
+ * `aria-pressed`: подпись называет действие, которое она выполнит, и совпадает с
+ * именем для чтеца экрана. Кнопка-переключатель с `aria-pressed` не меняет имя
+ * вместе с состоянием (WAI-ARIA APG) — иначе чтец скажет «Свернуть, нажата»,
+ * будто включено «свёрнуто». Esc тоже сворачивает, если фокус не в поле ввода.
+ * На телефоне (<768 px) чат и так занимает экран — кнопки там нет.
  */
 export function ChatFocusToggle({ className }: Readonly<{ className?: string }>) {
   const focus = useContext(ChatFocusContext);
@@ -72,7 +74,6 @@ export function ChatFocusToggle({ className }: Readonly<{ className?: string }>)
   return (
     <button
       type="button"
-      aria-pressed={on}
       onClick={focus.toggle}
       data-testid="v3-aia-focus-toggle"
       className={cn("v3-choice", QUEUE_SECONDARY, "max-md:hidden", className)}

@@ -184,7 +184,7 @@ test("исходники: меню только скрывается, кнопк
   assert.match(focus, /on && chatRoute && buttons > 0/u, "меню прячется, только пока на экране кнопка");
   assert.match(focus, /useSyncExternalStore\(subscribeChatFocus, readChatFocus, \(\) => false\)/u, "сервер и первая отрисовка — «выключено»");
   assert.match(focus, /useLayoutEffect\(\(\) => attach\?\.\(\), \[attach\]\)/u);
-  assert.match(focus, /aria-pressed=\{on\}/u);
+  assert.doesNotMatch(focus, /aria-pressed=/u, "имя кнопки меняется с состоянием — состояние не дублируется aria-pressed («Свернуть, нажата» читается наоборот)");
   assert.match(focus, /"max-md:hidden"/u, "на телефоне кнопки нет");
   assert.match(focus, /\{on \? "Свернуть" : "На весь экран"\}/u);
   assert.match(focus, /data-testid="v3-aia-focus-toggle"/u);
@@ -202,6 +202,13 @@ test("исходники: «Поручить» — рамка без потол�
   assert.match(chat, /aria-label="Все ИИ-агенты"/u, "стрелка к списку агентов называет себя");
   assert.match(chat, /group-data-\[chat-focus\]\/shell:px-3/u, "поля вокруг чата тоньше при «На весь экран»");
   assert.match(chat, /md:min-h-0 md:flex-1/u, "колонка оболочки высотой в окно отдаёт странице всю высоту");
+  assert.doesNotMatch(chat, /order-last/u, "вкладки не прыгают вверх-вниз для клавиатуры: порядок Tab идёт по строкам шапки");
+  assert.match(chat, /<h1[\s\S]*\{switches\}\s*<ChatFocusToggle \/>[\s\S]*\{tabs\}/u, "в разметке вкладки последние: название, переключатели, «На весь экран», вкладки");
+  assert.match(chat, /@\[81rem\]:order-2[\s\S]*@\[81rem\]:order-1/u, "в широкой строке вкладки рисуются между названием и переключателями");
+
+  const tabs = read("src/components/v3/queue/QueueViewTabs.tsx");
+  assert.match(tabs, /data-tab-ring=\{bare \? "inset" : undefined\}/u);
+  assert.match(read("src/app/(v3)/v3.css"), /\.v3-world \[data-tab-ring="inset"\] \.v3-choice:focus-visible \{\n {2}outline-offset: -2px;\n\}/u, "ряд вкладок в шапке ровно по высоте вкладки — рамка фокуса внутри, а не обрезана");
 
   const page = read("src/app/(v3)/v3/ai-agents/[key]/page.tsx");
   assert.match(page, /if \(tab === "command"\) \{\s*return \(\s*<AgentChatShell/u);
@@ -391,7 +398,7 @@ test("браузер: серверная разметка с меню, кноп�
     assert.match(server, /data-shell-menu/u);
     assert.match(server, /md:flex/u, "до выбора разметка сервера — с меню");
     assert.doesNotMatch(server, /md:hidden[^"]*"[^>]*data-shell-menu|data-chat-focus/u);
-    assert.match(server, /aria-pressed="false"[^>]*data-testid="v3-aia-focus-toggle"|data-testid="v3-aia-focus-toggle"[^>]*aria-pressed="false"/u);
+    assert.doesNotMatch(server, /aria-pressed/u, "кнопка без aria-pressed: состояние говорит её имя");
     assert.deepEqual(await page.evaluate(() => window.__errors), [], "гидратация без ошибок");
     const toggle = page.locator("[data-testid=v3-aia-focus-toggle]");
     assert.equal(await menuShown(page), true);
@@ -401,7 +408,7 @@ test("браузер: серверная разметка с меню, кноп�
 
     await toggle.click();
     assert.equal(await menuShown(page), false, "меню спрятано");
-    assert.equal(await toggle.getAttribute("aria-pressed"), "true");
+    assert.equal(await toggle.getAttribute("aria-pressed"), null);
     assert.equal((await toggle.innerText()).trim(), "Свернуть");
     assert.equal(await page.evaluate(() => document.querySelector("[data-testid=v3-shell]").hasAttribute("data-chat-focus")), true);
     assert.equal(await page.evaluate((key) => localStorage.getItem(key), CHAT_FOCUS_STORAGE_KEY), "1");
@@ -413,7 +420,7 @@ test("браузер: серверная разметка с меню, кноп�
     await page.evaluate(() => document.activeElement?.blur());
     await page.keyboard.press("Escape");
     assert.equal(await menuShown(page), true);
-    assert.equal(await toggle.getAttribute("aria-pressed"), "false");
+    assert.equal((await toggle.innerText()).trim(), "На весь экран");
     assert.equal(await page.evaluate((key) => localStorage.getItem(key), CHAT_FOCUS_STORAGE_KEY), null);
 
     // С клавиатуры: Enter и Пробел.
@@ -434,7 +441,7 @@ test("браузер: запомненный выбор применяется �
     // Сервер ничего не знает о выборе: разметка с меню, и гидратация с ней согласна.
     assert.equal(await page.evaluate(() => window.__errors.length), 0, "серверная и первая клиентская отрисовка совпали");
     await page.waitForFunction(() => getComputedStyle(document.querySelector("[data-shell-menu]")).display === "none");
-    assert.equal(await page.locator("[data-testid=v3-aia-focus-toggle]").getAttribute("aria-pressed"), "true");
+    assert.equal((await page.locator("[data-testid=v3-aia-focus-toggle]").innerText()).trim(), "Свернуть");
 
     // «Запуски» — меню на месте, кнопки нет; выбор помнится и возвращается вместе с «Поручить».
     await page.evaluate(() => window.__go("/v3/ai-agents/director?tab=runs"));

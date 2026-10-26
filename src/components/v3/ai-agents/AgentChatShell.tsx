@@ -23,7 +23,10 @@ import { AI_AGENTS_HUB_HREF } from "@/lib/v3/ai-agents-view";
  * второй строкой, остальное остаётся сверху. Широкая строка переносится сама, если
  * её что-то раздвинуло (под «Авто» раскрылось подтверждение): вкладки не сжимаются
  * до прокрутки, а переключатели уходят на вторую строку. Всё прижато к верху
- * строки: название и кнопка не уезжают с места, когда шапка растёт вниз. При «На весь экран» поля вокруг чата
+ * строки: название и кнопка не уезжают с места, когда шапка растёт вниз.
+ * Порядок Tab идёт по видимой двухстрочной шапке: в разметке вкладки стоят
+ * последними (стрелка, название, переключатели и «На весь экран», вкладки), а в
+ * широкой строке `order-*` рисует их между названием и переключателями. При «На весь экран» поля вокруг чата
  * тоньше (`data-chat-focus` оболочки). На телефоне шапка — только для читалки
  * (v3.css, `main:has([data-aia-workspace])`): чат занимает экран между строкой
  * логотипа и вкладками, к разделам агента ведёт стрелка над чатом.
@@ -64,11 +67,11 @@ export function AgentChatShell({
             </Link>
             <h1 className="t-page-title min-w-0 truncate text-fg" title={roleLine}>{title}</h1>
           </div>
-          <div className="order-last w-full min-w-0 @[81rem]:order-none @[81rem]:w-auto @[81rem]:flex-[1_1_37rem]">{tabs}</div>
-          <div className="ms-auto flex flex-wrap items-start justify-end gap-x-4 gap-y-1">
+          <div className="ms-auto flex flex-wrap items-start justify-end gap-x-4 gap-y-1 @[81rem]:order-2">
             {switches}
             <ChatFocusToggle />
           </div>
+          <div className="w-full min-w-0 @[81rem]:order-1 @[81rem]:w-auto @[81rem]:flex-[1_1_37rem]">{tabs}</div>
         </div>
       </header>
       <div className="mt-3 flex min-h-0 flex-1 flex-col">{children}</div>

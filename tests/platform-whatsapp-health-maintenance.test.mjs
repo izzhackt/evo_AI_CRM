@@ -10,6 +10,7 @@ import {
 } from "../src/lib/server/platform-whatsapp-health-maintenance.ts";
 import {
   PLATFORM_WAHA_UNREACHABLE_STATUS,
+  probePlatformWahaSessionForAlertUncached,
   probePlatformWahaSessionLiveUncached,
   resetPlatformWahaLiveProbeCacheForTests,
 } from "../src/lib/server/platform-waha-live-health.ts";
@@ -63,7 +64,16 @@ const fail = (message = "boom") => ({ data: null, error: { message, code: "XX000
 function state({ now, monitor = null, disconnected = null, silent = null, lastInboundAt = null }) {
   return {
     now: iso(now),
-    monitor: monitor === null ? null : { lastStatus: monitor.lastStatus, lastSeenAt: iso(monitor.lastSeenAt), sinceAt: iso(monitor.sinceAt) },
+    monitor:
+      monitor === null
+        ? null
+        : {
+            lastStatus: monitor.lastStatus,
+            lastSeenAt: iso(monitor.lastSeenAt),
+            sinceAt: iso(monitor.sinceAt),
+            // The silence baseline; unless a test sets it, it is the run start.
+            workingSinceAt: iso(monitor.workingSinceAt ?? monitor.sinceAt),
+          },
     disconnected: disconnected === null ? null : { id: ALERT_ID, openedAt: iso(disconnected) },
     silent: silent === null ? null : { id: ALERT_ID, openedAt: iso(silent) },
     lastInboundAt: lastInboundAt === null ? null : iso(lastInboundAt),
@@ -87,7 +97,7 @@ function run(db, { status = "WORKING", env = environment(), probe, rpcDeadlineMs
 
 const baseHandlers = (readData, extra = {}) => ({
   whatsapp_health_read_v1: () => ok(readData),
-  whatsapp_health_observe_v1: () => ok({ sinceAt: iso(0), lastSeenAt: iso(0) }),
+  whatsapp_health_observe_v1: () => ok({ sinceAt: iso(0), lastSeenAt: iso(0), workingSinceAt: iso(0) }),
   whatsapp_health_open_v1: () => ok({ opened: true, alertId: ALERT_ID, tasks: 3 }),
   whatsapp_health_resolve_v1: () => ok({ resolved: true, tasksClosed: 2, alertId: ALERT_ID }),
   ...extra,
@@ -140,7 +150,7 @@ test("switched on without a usable backend: a clear failure with exit code 1 and
   assert.equal(refused.log.reason, "backend_not_configured");
 });
 
-test("a probe that cannot answer (no binding, key refused, unknown session) writes nothing and raises nothing", async () => {
+test("a probe that cannot answer (no binding, an unusable reply) writes nothing and raises nothing", async () => {
   const now = at("2026-10-26T14:00:00");
   const db = database(baseHandlers(state({ now, monitor: { lastStatus: "FAILED", lastSeenAt: now - 5 * MIN, sinceAt: now - HOUR } })));
   const { report } = await run(db, { probe: async () => null });
@@ -178,6 +188,7 @@ test("the first not-working pass only starts the run: nothing is raised before t
     p_session: "crm_primary",
     p_status: "FAILED",
     p_restart: true,
+    p_working_restart: true,
   });
   assert.equal(report.log.verdict, "down_pending");
   assert.equal(report.log.session_status, "FAILED");
@@ -194,6 +205,7 @@ test("not working for ten minutes opens one alert with the sales head as an extr
   assert.equal(report.exitCode, 0);
   assert.deepEqual(db.names(), ["whatsapp_health_read_v1", "whatsapp_health_observe_v1", "whatsapp_health_open_v1"]);
   assert.equal(db.calls[1].args.p_restart, false);
+  assert.equal(db.calls[1].args.p_working_restart, false);
   assert.deepEqual(db.calls[2].args, {
     p_organization_id: ORGANIZATION_ID,
     p_session: "crm_primary",
@@ -275,7 +287,8 @@ test("an unreachable WAHA is a not-working session: the real probe maps it to UN
   assert.equal(report.exitCode, 0);
   assert.equal(report.log.session_status, "UNREACHABLE");
   assert.equal(db.calls.find((call) => call.fn === "whatsapp_health_open_v1").args.p_status, "UNREACHABLE");
-  // A 5xx from WAHA is the same; a refused key or an unknown session is "cannot say".
+  // A 5xx from WAHA is the same. For the SHARED probe a refused key or an unknown session is "cannot say"
+  // (the job uses the alert probe, which names them: see the 404/401 test below).
   resetPlatformWahaLiveProbeCacheForTests();
   const status = async (code, body = {}) =>
     probePlatformWahaSessionLiveUncached(ORGANIZATION_ID, {
@@ -305,6 +318,7 @@ test("a recovery closes the disconnected alert and starts the working run", asyn
   const { report } = await run(db, { status: "WORKING" });
   assert.deepEqual(db.names(), ["whatsapp_health_read_v1", "whatsapp_health_observe_v1", "whatsapp_health_resolve_v1"]);
   assert.equal(db.calls[1].args.p_restart, true);
+  assert.equal(db.calls[1].args.p_working_restart, true, "a real outage is over: the silence baseline moves to now");
   assert.deepEqual(db.calls[2].args, {
     p_organization_id: ORGANIZATION_ID,
     p_session: "crm_primary",
@@ -374,7 +388,7 @@ test("database trouble ends the pass with exit code 1 and a fixed word, never a 
   assert.deepEqual(first.report.log, { event: "whatsapp_health_maintenance", status: "failed", reason: "database" });
   assert.deepEqual(readFails.names(), ["whatsapp_health_read_v1"]);
   // The read answers nonsense.
-  for (const data of [null, "x", [], { now: "not a date" }, { ...state({ now }), monitor: { lastStatus: "failed", lastSeenAt: iso(now), sinceAt: iso(now) } }, { ...state({ now }), disconnected: { id: "no", openedAt: iso(now) } }, { ...state({ now }), lastInboundAt: "soon" }]) {
+  for (const data of [null, "x", [], { now: "not a date" }, { ...state({ now }), monitor: { lastStatus: "failed", lastSeenAt: iso(now), sinceAt: iso(now), workingSinceAt: iso(now) } }, { ...state({ now }), monitor: { lastStatus: "FAILED", lastSeenAt: iso(now), sinceAt: iso(now) } }, { ...state({ now }), monitor: { lastStatus: "FAILED", lastSeenAt: iso(now), sinceAt: iso(now), workingSinceAt: "never" } }, { ...state({ now }), disconnected: { id: "no", openedAt: iso(now) } }, { ...state({ now }), lastInboundAt: "soon" }]) {
     const db = database(baseHandlers(data));
     const { report } = await run(db, { status: "FAILED" });
     assert.equal(report.exitCode, 1, JSON.stringify(data));
@@ -400,6 +414,85 @@ test("database trouble ends the pass with exit code 1 and a fixed word, never a 
   assert.equal(partial.report.log.reason, "database");
   assert.equal(partial.report.log.resolved, 0);
   assert.deepEqual(writeFails.names(), ["whatsapp_health_read_v1", "whatsapp_health_observe_v1", "whatsapp_health_resolve_v1"]);
+});
+
+test("WAHA answered 404 or 401: the alert probe names it and the job raises the alert instead of staying silent", async () => {
+  // Review finding: with the receive path on and a binding present, a lost sessions volume (404) or a key that no
+  // longer matches (401) used to read as «cannot say» for ever - no alert, no silence check.
+  const answering = (code) => async (organizationId) => {
+    const health = await probePlatformWahaSessionForAlertUncached(organizationId, {
+      resolveRuntime: async () => ({
+        wahaSessionName: "crm_primary",
+        wahaBaseUrl: "http://evo-crm-waha:3000",
+        wahaApiKey: "k".repeat(24),
+        bindingVersion: 1n,
+      }),
+      fetch: async () => new Response("{}", { status: code, headers: { "content-type": "application/json" } }),
+      createTimeoutSignal: () => new AbortController().signal,
+    });
+    return health === null ? null : health.status;
+  };
+  const now = at("2026-10-26T14:00:00");
+  for (const [code, word] of [
+    [404, "SESSION_MISSING"],
+    [401, "UNAUTHORIZED"],
+    [403, "UNAUTHORIZED"],
+  ]) {
+    // First pass: the run starts, nothing is raised before ten minutes.
+    const first = database(baseHandlers(state({ now, monitor: { lastStatus: "WORKING", lastSeenAt: now - 5 * MIN, sinceAt: now - 3 * HOUR } })));
+    const started = await run(first, { probe: answering(code) });
+    assert.equal(started.report.exitCode, 0, word);
+    assert.equal(started.report.log.session_status, word);
+    assert.equal(started.report.log.verdict, "down_pending");
+    assert.deepEqual(first.names(), ["whatsapp_health_read_v1", "whatsapp_health_observe_v1"]);
+    assert.equal(first.calls[1].args.p_status, word);
+    assert.equal(first.calls[1].args.p_restart, true);
+    assert.equal(first.calls[1].args.p_working_restart, false, "a refusal is no reconnection");
+    // Ten minutes later: one alert with the word.
+    const later = database(
+      baseHandlers(state({ now, monitor: { lastStatus: word, lastSeenAt: now - 5 * MIN, sinceAt: now - 10 * MIN, workingSinceAt: now - 3 * HOUR } })),
+    );
+    const raised = await run(later, { probe: answering(code) });
+    assert.equal(raised.report.exitCode, 0);
+    assert.equal(raised.report.log.verdict, "down");
+    assert.equal(raised.report.log.opened_kinds, "disconnected");
+    const opened = later.calls.find((call) => call.fn === "whatsapp_health_open_v1");
+    assert.equal(opened.args.p_kind, "disconnected");
+    assert.equal(opened.args.p_status, word);
+  }
+  // Other refusals and no binding at all (WhatsApp intentionally off) stay quiet.
+  for (const probe of [answering(400), answering(429), async () => null]) {
+    const quiet = database(baseHandlers(state({ now, monitor: { lastStatus: "WORKING", lastSeenAt: now - 5 * MIN, sinceAt: now - HOUR } })));
+    const result = await run(quiet, { probe });
+    assert.equal(result.report.log.probe, "unknown");
+    assert.deepEqual(quiet.names(), ["whatsapp_health_read_v1"]);
+  }
+  // The job asks WAHA with the alert probe, not the shared one.
+  const source = readFileSync(new URL("../src/lib/server/platform-whatsapp-health-maintenance.ts", import.meta.url), "utf8");
+  assert.match(source, /probePlatformWahaSessionForAlertUncached\(organizationId\)/u);
+  assert.ok(!/probePlatformWahaSessionLiveUncached/u.test(source));
+});
+
+test("a blip then WORKING again: the job writes the run restart without moving the silence baseline and closes nothing", async () => {
+  const openedAt = at("2026-10-27T13:00:00");
+  const now = at("2026-10-27T13:30:00");
+  const db = database(
+    baseHandlers(
+      state({
+        now,
+        monitor: { lastStatus: "UNREACHABLE", lastSeenAt: now - 5 * MIN, sinceAt: now - 5 * MIN, workingSinceAt: at("2026-10-20T08:00:00") },
+        silent: openedAt,
+        lastInboundAt: at("2026-10-27T10:00:00"),
+      }),
+    ),
+  );
+  const { report } = await run(db, { status: "WORKING" });
+  assert.equal(report.exitCode, 0);
+  assert.deepEqual(db.names(), ["whatsapp_health_read_v1", "whatsapp_health_observe_v1"]);
+  assert.equal(db.calls[1].args.p_restart, true);
+  assert.equal(db.calls[1].args.p_working_restart, false);
+  assert.equal(report.log.verdict, "silent");
+  assert.equal(report.log.resolved, 0);
 });
 
 test("the log carries counters and fixed words only: no key, no organization, no member, no message", async () => {

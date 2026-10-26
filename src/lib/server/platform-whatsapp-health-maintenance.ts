@@ -17,7 +17,7 @@ import {
 } from "./platform-messaging-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
 import { isPlatformWahaIngressEnabled } from "./platform-waha-ingress-config.ts";
-import { probePlatformWahaSessionLiveUncached } from "./platform-waha-live-health.ts";
+import { probePlatformWahaSessionForAlertUncached } from "./platform-waha-live-health.ts";
 
 /**
  * Тревога о связи WhatsApp продаж (миграция 321, runbook docs/runbooks/whatsapp-go-live.md, раздел «Тревога об
@@ -28,9 +28,11 @@ import { probePlatformWahaSessionLiveUncached } from "./platform-waha-live-healt
  *  1. приём WhatsApp выключен (`EVO_PLATFORM_WAHA_INGRESS_ENABLED` не ровно `1`) - ничего не делает: WhatsApp
  *     намеренно выключен, тревог нет;
  *  2. спрашивает WAHA о статусе `crm_primary` тем же живым опросом, что и «Настройки» (без кэша, ключ из Vault не
- *     покидает опрос). Ответ «сказать нельзя» (нет привязки ключа, ключ отвергнут, сессии нет, непонятный ответ) -
- *     не тревога и не меняет ничего: WhatsApp может быть выключен намеренно. WAHA не отвечает совсем - статус
- *     `UNREACHABLE`;
+ *     покидает опрос), но с одним отличием: ответ WAHA «сессии нет» (404) - слово `SESSION_MISSING`, «ключ не принят»
+ *     (401/403) - `UNAUTHORIZED`; оба считаются «не работает» и через 10 минут дают тревогу (приём включён и привязка
+ *     есть, значит WhatsApp выключен не намеренно). Ответ «сказать нельзя» (нет привязки ключа или настройки бэкенда,
+ *     непонятный ответ) - не тревога и не меняет ничего: WhatsApp может быть выключен намеренно. WAHA не отвечает
+ *     совсем или отвечает 5xx - статус `UNREACHABLE`;
  *  3. читает из базы серию наблюдений, открытые тревоги и последнее входящее клиента; часы - базы;
  *  4. решает чистыми правилами (`src/lib/platform-whatsapp-health.ts`): отключён ≥ 10 минут - тревога
  *     «отключён»; «работает», но нет входящих ≥ 3 рабочих часов - «молчит»; связь вернулась - обе закрываются;
@@ -68,7 +70,7 @@ export function defaultWhatsAppHealthMaintenanceDependencies(): WhatsAppHealthMa
     environment: process.env,
     createServiceClient: createPlatformSupabaseServiceClient,
     async probe(organizationId) {
-      const health = await probePlatformWahaSessionLiveUncached(organizationId);
+      const health = await probePlatformWahaSessionForAlertUncached(organizationId);
       return health === null ? null : health.status;
     },
     rpcDeadlineMs: DEFAULT_RPC_DEADLINE_MS,
@@ -110,8 +112,11 @@ function monitorState(value: unknown): WhatsAppHealthMonitor | null {
   const lastStatus = whatsAppHealthStatusWord(value.lastStatus);
   const lastSeenAt = timestampMs(value.lastSeenAt);
   const sinceAt = timestampMs(value.sinceAt);
-  if (lastStatus === null || lastSeenAt === null || sinceAt === null) throw new WhatsAppHealthDatabaseError();
-  return Object.freeze({ lastStatus, lastSeenAt, sinceAt });
+  const workingSinceAt = timestampMs(value.workingSinceAt);
+  if (lastStatus === null || lastSeenAt === null || sinceAt === null || workingSinceAt === null) {
+    throw new WhatsAppHealthDatabaseError();
+  }
+  return Object.freeze({ lastStatus, lastSeenAt, sinceAt, workingSinceAt });
 }
 
 type DatabaseState = Readonly<{
@@ -255,6 +260,7 @@ export async function runWhatsAppHealthMaintenance(
           p_session: WHATSAPP_HEALTH_SESSION,
           p_status: plan.observe.status,
           p_restart: plan.observe.restart,
+          p_working_restart: plan.observe.workingRestart,
         });
       } catch (error) {
         fail(error);

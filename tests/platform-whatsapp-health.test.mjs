@@ -78,7 +78,13 @@ test("only well-formed WAHA status words pass", () => {
 const NOW = at("2026-10-26T14:00:00"); // Monday, inside working time
 const working = { kind: "status", status: "WORKING" };
 const failed = { kind: "status", status: "FAILED" };
-const monitor = (lastStatus, sinceAt, lastSeenAt = NOW - 5 * MIN) => ({ lastStatus, lastSeenAt, sinceAt });
+// `workingSinceAt` is the silence baseline; unless a test says otherwise it is the start of the run.
+const monitor = (lastStatus, sinceAt, lastSeenAt = NOW - 5 * MIN, workingSinceAt = sinceAt) => ({
+  lastStatus,
+  lastSeenAt,
+  sinceAt,
+  workingSinceAt,
+});
 const plan = (overrides) =>
   planWhatsAppHealth({
     now: NOW,
@@ -105,12 +111,12 @@ test("a probe that cannot answer changes nothing and raises nothing", () => {
 
 test("not working for less than ten minutes only starts the run, nothing is raised", () => {
   const first = plan({ observation: failed, monitor: null });
-  assert.deepEqual(first.observe, { status: "FAILED", restart: true });
+  assert.deepEqual(first.observe, { status: "FAILED", restart: true, workingRestart: true });
   assert.deepEqual([...first.open], []);
   assert.equal(first.verdict, "down_pending");
 
   const second = plan({ observation: failed, monitor: monitor("FAILED", NOW - 5 * MIN) });
-  assert.deepEqual(second.observe, { status: "FAILED", restart: false });
+  assert.deepEqual(second.observe, { status: "FAILED", restart: false, workingRestart: false });
   assert.deepEqual([...second.open], []);
   assert.equal(second.downMinutes, 5);
 
@@ -150,7 +156,7 @@ test("a gap between passes, or a clock that went backwards, restarts the run", (
     observation: failed,
     monitor: monitor("FAILED", NOW - 3 * HOUR, NOW - WHATSAPP_HEALTH_TICK_GAP_MS - 1),
   });
-  assert.deepEqual(gap.observe, { status: "FAILED", restart: true });
+  assert.deepEqual(gap.observe, { status: "FAILED", restart: true, workingRestart: false });
   assert.deepEqual([...gap.open], [], "nothing is known about the gap");
   const withinGap = plan({
     observation: failed,
@@ -169,7 +175,7 @@ test("a recovery resolves the disconnected alert at the first WORKING pass and s
     disconnected: { id: "open-1", openedAt: NOW - HOUR },
   });
   assert.deepEqual([...result.resolve], [{ kind: "disconnected", reason: "working_again" }]);
-  assert.deepEqual(result.observe, { status: "WORKING", restart: true });
+  assert.deepEqual(result.observe, { status: "WORKING", restart: true, workingRestart: true });
   assert.deepEqual([...result.open], []);
   // No alert open: nothing to resolve.
   const quiet = plan({ observation: working, monitor: monitor("FAILED", NOW - 5 * MIN) });
@@ -205,7 +211,7 @@ test("silence is not raised after hours or on Sunday, even when the working hour
   const evening = planWhatsAppHealth({
     now: at("2026-10-26T20:30:00"),
     observation: working,
-    monitor: { lastStatus: "WORKING", lastSeenAt: at("2026-10-26T20:25:00"), sinceAt: since },
+    monitor: { lastStatus: "WORKING", lastSeenAt: at("2026-10-26T20:25:00"), sinceAt: since, workingSinceAt: since },
     disconnected: null,
     silent: null,
     lastInboundAt,
@@ -215,7 +221,7 @@ test("silence is not raised after hours or on Sunday, even when the working hour
   const sunday = planWhatsAppHealth({
     now: at("2026-11-01T12:00:00"),
     observation: working,
-    monitor: { lastStatus: "WORKING", lastSeenAt: at("2026-11-01T11:55:00"), sinceAt: since },
+    monitor: { lastStatus: "WORKING", lastSeenAt: at("2026-11-01T11:55:00"), sinceAt: since, workingSinceAt: since },
     disconnected: null,
     silent: null,
     lastInboundAt: at("2026-10-31T10:00:00"),
@@ -225,7 +231,7 @@ test("silence is not raised after hours or on Sunday, even when the working hour
   const monday = planWhatsAppHealth({
     now: at("2026-11-02T10:30:00"),
     observation: working,
-    monitor: { lastStatus: "WORKING", lastSeenAt: at("2026-11-02T10:25:00"), sinceAt: since },
+    monitor: { lastStatus: "WORKING", lastSeenAt: at("2026-11-02T10:25:00"), sinceAt: since, workingSinceAt: since },
     disconnected: null,
     silent: null,
     lastInboundAt: at("2026-10-31T19:00:00"),
@@ -236,7 +242,7 @@ test("silence is not raised after hours or on Sunday, even when the working hour
   const noon = planWhatsAppHealth({
     now: at("2026-11-02T12:00:00"),
     observation: working,
-    monitor: { lastStatus: "WORKING", lastSeenAt: at("2026-11-02T11:55:00"), sinceAt: since },
+    monitor: { lastStatus: "WORKING", lastSeenAt: at("2026-11-02T11:55:00"), sinceAt: since, workingSinceAt: since },
     disconnected: null,
     silent: null,
     lastInboundAt: at("2026-10-31T19:00:00"),
@@ -255,7 +261,7 @@ test("a fresh reconnection does not read as silence: the clock starts with the w
   // The very first pass ever (no run yet) behaves the same.
   const first = plan({ monitor: null, lastInboundAt: at("2026-10-16T12:00:00") });
   assert.deepEqual([...first.open], []);
-  assert.deepEqual(first.observe, { status: "WORKING", restart: true });
+  assert.deepEqual(first.observe, { status: "WORKING", restart: true, workingRestart: true });
   // No message ever recorded: silence counts from the start of the run.
   const never = plan({ monitor: monitor("WORKING", NOW - 4 * HOUR), lastInboundAt: null });
   assert.deepEqual([...never.open], [{ kind: "silent", status: "WORKING" }]);
@@ -292,7 +298,12 @@ test("the silent alert resolves when a message arrives, or when the session was 
   const night = planWhatsAppHealth({
     now: at("2026-10-26T22:00:00"),
     observation: working,
-    monitor: { lastStatus: "WORKING", lastSeenAt: at("2026-10-26T21:55:00"), sinceAt: at("2026-10-26T09:00:00") },
+    monitor: {
+      lastStatus: "WORKING",
+      lastSeenAt: at("2026-10-26T21:55:00"),
+      sinceAt: at("2026-10-26T09:00:00"),
+      workingSinceAt: at("2026-10-26T09:00:00"),
+    },
     disconnected: null,
     silent: { id: "s1", openedAt: at("2026-10-26T18:00:00") },
     lastInboundAt: at("2026-10-26T21:50:00"),
@@ -322,4 +333,129 @@ test("a simultaneous disconnected resolve and silent open cannot happen for the 
   });
   assert.deepEqual([...recovery.resolve], [{ kind: "disconnected", reason: "working_again" }]);
   assert.deepEqual([...recovery.open], []);
+});
+
+// --- Measurement breaks are not connection events (review of the first version: a slow probe or a stopped timer
+// used to restart the silence clock and close an open «молчит» alert as «reconnected»). ---
+
+const TUESDAY = at("2026-10-27T13:30:00");
+const TUE_RUN_START = at("2026-10-20T08:00:00"); // the WORKING run is old
+/** A pass on Tuesday with the silence started at 10:00 (last inbound) and the alert opened at 13:00. */
+const tuesdayPass = (overrides) =>
+  planWhatsAppHealth({
+    now: TUESDAY,
+    observation: working,
+    monitor: monitor("WORKING", TUE_RUN_START, TUESDAY - 5 * MIN),
+    disconnected: null,
+    silent: { id: "s1", openedAt: at("2026-10-27T13:00:00") },
+    lastInboundAt: at("2026-10-27T10:00:00"),
+    ...overrides,
+  });
+
+test("one slow probe between two WORKING passes does not close an open silent alert", () => {
+  // 13:25: the probe times out - UNREACHABLE. Only the run restarts; the silence baseline stays and nothing resolves.
+  const blip = tuesdayPass({
+    now: at("2026-10-27T13:25:00"),
+    observation: { kind: "status", status: "UNREACHABLE" },
+    monitor: monitor("WORKING", TUE_RUN_START, at("2026-10-27T13:20:00")),
+  });
+  assert.deepEqual(blip.observe, { status: "UNREACHABLE", restart: true, workingRestart: false });
+  assert.deepEqual([...blip.resolve], []);
+  assert.deepEqual([...blip.open], []);
+  assert.equal(blip.verdict, "down_pending");
+  // 13:30: WORKING again. The blip lasted nothing, so this is no reconnection: the alert stays, the baseline stays.
+  const back = tuesdayPass({
+    monitor: { lastStatus: "UNREACHABLE", lastSeenAt: at("2026-10-27T13:25:00"), sinceAt: at("2026-10-27T13:25:00"), workingSinceAt: TUE_RUN_START },
+  });
+  assert.deepEqual([...back.resolve], []);
+  assert.deepEqual([...back.open], []);
+  assert.equal(back.verdict, "silent");
+  assert.deepEqual(back.observe, { status: "WORKING", restart: true, workingRestart: false });
+  // A real message after the alert opened still closes it, blip or not.
+  const message = tuesdayPass({
+    monitor: { lastStatus: "UNREACHABLE", lastSeenAt: at("2026-10-27T13:25:00"), sinceAt: at("2026-10-27T13:25:00"), workingSinceAt: TUE_RUN_START },
+    lastInboundAt: at("2026-10-27T13:28:00"),
+  });
+  assert.deepEqual([...message.resolve], [{ kind: "silent", reason: "messages_arrived" }]);
+});
+
+test("passes without an answer (a gap of more than twenty minutes) restart the run but never close a silent alert", () => {
+  // Alert opened at 13:00; the probe could not answer for 25 minutes (nothing was recorded), then WORKING at 13:30.
+  const afterGap = tuesdayPass({ monitor: monitor("WORKING", TUE_RUN_START, TUESDAY - WHATSAPP_HEALTH_TICK_GAP_MS - 5 * MIN) });
+  assert.deepEqual(afterGap.observe, { status: "WORKING", restart: true, workingRestart: false });
+  assert.deepEqual([...afterGap.resolve], []);
+  assert.equal(afterGap.verdict, "silent");
+  // The same gap without an alert: the silence is still counted from the last message, so it opens when it reaches
+  // three working hours (here 10:00 -> 13:30 is 3.5 h).
+  const opens = tuesdayPass({
+    silent: null,
+    monitor: monitor("WORKING", TUE_RUN_START, TUESDAY - WHATSAPP_HEALTH_TICK_GAP_MS - 5 * MIN),
+  });
+  assert.deepEqual([...opens.open], [{ kind: "silent", status: "WORKING" }]);
+  assert.equal(opens.silentWorkingMinutes, 210);
+});
+
+test("a blip does not restart the silence clock: three working hours after the last message still raise «молчит»", () => {
+  // Last message 11:00. At 13:55 one probe reads UNREACHABLE; at 14:00 WORKING. Before the fix the clock restarted at 14:00.
+  const lastInboundAt = at("2026-10-27T11:00:00");
+  const now = at("2026-10-27T14:00:00");
+  const result = planWhatsAppHealth({
+    now,
+    observation: working,
+    monitor: { lastStatus: "UNREACHABLE", lastSeenAt: now - 5 * MIN, sinceAt: now - 5 * MIN, workingSinceAt: TUE_RUN_START },
+    disconnected: null,
+    silent: null,
+    lastInboundAt,
+  });
+  assert.deepEqual([...result.open], [{ kind: "silent", status: "WORKING" }]);
+  assert.equal(result.silentWorkingMinutes, 180);
+  assert.deepEqual(result.observe, { status: "WORKING", restart: true, workingRestart: false });
+});
+
+test("a real outage moves the silence baseline: the spell itself lasted ten minutes, or an alert was open", () => {
+  const openedAt = at("2026-10-27T13:00:00");
+  // Down for 25 recorded minutes (the disconnected alert could not be opened, say): a real reconnection.
+  const spell = tuesdayPass({
+    monitor: monitor("FAILED", TUESDAY - 30 * MIN, TUESDAY - 5 * MIN, TUE_RUN_START),
+    silent: { id: "s1", openedAt },
+  });
+  assert.deepEqual(spell.observe, { status: "WORKING", restart: true, workingRestart: true });
+  assert.deepEqual([...spell.resolve], [{ kind: "silent", reason: "reconnected" }]);
+  // Exactly ten recorded minutes counts; one minute less does not.
+  const exact = tuesdayPass({ monitor: monitor("FAILED", TUESDAY - 15 * MIN, TUESDAY - 5 * MIN, TUE_RUN_START) });
+  assert.equal(exact.observe.workingRestart, true);
+  assert.deepEqual([...exact.resolve], [{ kind: "silent", reason: "reconnected" }]);
+  const short = tuesdayPass({ monitor: monitor("FAILED", TUESDAY - 15 * MIN + MIN, TUESDAY - 5 * MIN, TUE_RUN_START) });
+  assert.equal(short.observe.workingRestart, false);
+  assert.deepEqual([...short.resolve], []);
+  // An open «отключён» alert is a real outage whatever the recorded spell says (a gap restarted the run).
+  const alerted = tuesdayPass({
+    monitor: monitor("FAILED", TUESDAY - 5 * MIN, TUESDAY - 5 * MIN, TUE_RUN_START),
+    disconnected: { id: "d1", openedAt: TUESDAY - 2 * HOUR },
+  });
+  assert.equal(alerted.observe.workingRestart, true);
+  assert.deepEqual(
+    alerted.resolve.map((item) => item.kind).sort(),
+    ["disconnected", "silent"],
+  );
+  // A reconnection does not raise «молчит» right away: the baseline is now.
+  const fresh = tuesdayPass({
+    silent: null,
+    monitor: monitor("FAILED", TUESDAY - 30 * MIN, TUESDAY - 5 * MIN, TUE_RUN_START),
+    lastInboundAt: at("2026-10-20T12:00:00"),
+  });
+  assert.deepEqual([...fresh.open], []);
+  assert.equal(fresh.silentWorkingMinutes, 0);
+});
+
+test("the first pass ever, and a baseline from the future, start the silence clock now", () => {
+  const first = tuesdayPass({ monitor: null, silent: null, lastInboundAt: null });
+  assert.deepEqual(first.observe, { status: "WORKING", restart: true, workingRestart: true });
+  assert.equal(first.silentWorkingMinutes, 0);
+  const future = tuesdayPass({
+    silent: null,
+    monitor: monitor("WORKING", TUESDAY - HOUR, TUESDAY - 5 * MIN, TUESDAY + HOUR),
+    lastInboundAt: null,
+  });
+  assert.equal(future.observe.workingRestart, true);
 });

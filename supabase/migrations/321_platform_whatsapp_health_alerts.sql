@@ -13,8 +13,12 @@
 --
 -- Что нового (ничего существующего не заменяется и не удаляется; повторный запуск целой миграции отказывает):
 --  a) `platform_private.whatsapp_health_monitor` — ОДНА строка на (организация, сессия): последнее слово статуса, когда
---     его видели и с какого прохода идёт нынешняя серия «работает» / «не работает». Без серии нельзя узнать «не работает
---     уже 10 минут»: запись вебхуков `session.status` приходит только при смене и теряется при перезагрузке.
+--     его видели, с какого прохода идёт нынешняя серия «работает» / «не работает» и — отдельной отметкой
+--     `working_since_at` — с какого момента сессия считается подключённой (отсчёт тишины). Без серии нельзя узнать «не
+--     работает уже 10 минут»: запись вебхуков `session.status` приходит только при смене и теряется при перезагрузке.
+--     Отметка отсчёта тишины двигается только при настоящем возврате связи (приложение решает, см. `p_working_restart`),
+--     а не при каждом сбое измерения (одна медленная проба, пропуск проходов): иначе такой сбой начинал бы отсчёт
+--     «молчит» заново и закрывал открытую тревогу «молчит» как «связь вернулась».
 --  b) `platform_private.whatsapp_health_alerts` — журнал тревог. Не больше ОДНОЙ открытой тревоги вида
 --     (`disconnected` — не работает ≥ 10 минут; `silent` — «работает», но нет входящих ≥ 3 рабочих часов) на сессию:
 --     частичный уникальный индекс, поэтому один случай — одна тревога, сколько бы раз ни тикал таймер и даже при
@@ -29,12 +33,15 @@
 --     строкой журнала system; задачу, которую человек уже закрыл или отменил, не трогаем. Закрытая тревога не мешает
 --     следующей: новый случай — новая запись.
 --  e) Четыре функции схемы `platform` — ТОЛЬКО для service_role (JWT-роль проверяется в теле): `whatsapp_health_read_v1`
---     (серия, открытые тревоги, последнее входящее клиента по вебхукам `message.any` с `fromMe = false` за 30 суток,
---     часы базы), `whatsapp_health_observe_v1` (запись серии), `whatsapp_health_open_v1`, `whatsapp_health_resolve_v1`.
+--     (серия с отсчётом тишины, открытые тревоги, последнее входящее клиента по вебхукам `message.any` с
+--     `fromMe = false` за 30 суток, часы базы), `whatsapp_health_observe_v1` (запись серии), `whatsapp_health_open_v1`,
+--     `whatsapp_health_resolve_v1`.
 --     Помощники `platform_private.whatsapp_health_*` без грантов.
 -- Решения (пороги 10 минут и 3 рабочих часа, рабочее время пн-сб 10:00-20:00 Asia/Bishkek, тишина считается от
--- последнего входящего или от начала серии «работает») живут в приложении, `src/lib/platform-whatsapp-health.ts`, и
--- проверяются там; база их не дублирует.
+-- последнего входящего или от отсчёта тишины) живут в приложении, `src/lib/platform-whatsapp-health.ts`, и проверяются
+-- там; база их не дублирует. Слова статуса, кроме слов WAHA, — `UNREACHABLE` (сервис не отвечает или 5xx), `SESSION_MISSING`
+-- (WAHA ответил «такой сессии нет») и `UNAUTHORIZED` (WAHA не принял ключ): для сотрудника это «не работает» с особым
+-- текстом; текст этих трёх слов не говорит, что телефон не отвязан, и не обещает закрыться, пока сессия не `WORKING`.
 --
 -- Порядок выката. Миграция без приложения безвредна: ничто не вызывает новые функции. Приложение без миграции:
 -- задача записывает `failed / database` в журнал таймера (exit 1) и ничего не создаёт. Таймер на хосте ставится
@@ -64,7 +71,7 @@ BEGIN
   IF to_regclass('platform_private.whatsapp_health_monitor') IS NOT NULL
     OR to_regclass('platform_private.whatsapp_health_alerts') IS NOT NULL
     OR to_regprocedure('platform.whatsapp_health_read_v1(uuid,text)') IS NOT NULL
-    OR to_regprocedure('platform.whatsapp_health_observe_v1(uuid,text,text,boolean)') IS NOT NULL
+    OR to_regprocedure('platform.whatsapp_health_observe_v1(uuid,text,text,boolean,boolean)') IS NOT NULL
     OR to_regprocedure('platform.whatsapp_health_open_v1(uuid,text,text,text,uuid)') IS NOT NULL
     OR to_regprocedure('platform.whatsapp_health_resolve_v1(uuid,text,text,text)') IS NOT NULL
   THEN
@@ -82,13 +89,14 @@ CREATE TABLE platform_private.whatsapp_health_monitor (
   last_status TEXT NOT NULL,
   last_seen_at TIMESTAMPTZ NOT NULL,
   since_at TIMESTAMPTZ NOT NULL,
+  working_since_at TIMESTAMPTZ NOT NULL,
   CONSTRAINT whatsapp_health_monitor_pkey PRIMARY KEY (organization_id, session_name),
   CONSTRAINT whatsapp_health_monitor_session_check CHECK (session_name = 'crm_primary'),
   CONSTRAINT whatsapp_health_monitor_status_check CHECK (last_status ~ '^[A-Z][A-Z0-9_]{0,63}$'),
-  CONSTRAINT whatsapp_health_monitor_order_check CHECK (since_at <= last_seen_at)
+  CONSTRAINT whatsapp_health_monitor_order_check CHECK (since_at <= last_seen_at AND working_since_at <= last_seen_at)
 );
 COMMENT ON TABLE platform_private.whatsapp_health_monitor IS
-  '321: the current run of WAHA session observations (status word, last seen, run start); one row per organization and session.';
+  '321: the current run of WAHA session observations (status word, last seen, run start, and the silence baseline that moves only on a real reconnect); one row per organization and session.';
 
 -- ---------------------------------------------------------------------------
 -- b) Журнал тревог. Одна открытая тревога вида на сессию.
@@ -162,7 +170,8 @@ CREATE FUNCTION platform_private.whatsapp_health_title(p_kind TEXT, p_status TEX
 RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
   SELECT CASE
     WHEN p_kind = 'silent' THEN 'WhatsApp молчит 3 часа в рабочее время — проверьте подключение'
-    WHEN p_status = 'UNREACHABLE' THEN 'WhatsApp: сервис не отвечает — сообщите техническому администратору'
+    WHEN p_status IN ('UNREACHABLE', 'UNAUTHORIZED', 'SESSION_MISSING')
+      THEN 'WhatsApp не на связи — проверьте подключение и сообщите техническому администратору'
     ELSE 'WhatsApp отключён — переподключите'
   END
 $$;
@@ -176,9 +185,15 @@ RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
       || '(рабочее время: пн–сб, 10:00–20:00 по Бишкеку). Проверьте подключение: Настройки → Интеграции → Подключение WhatsApp; '
       || 'если там всё в порядке, напишите на номер отдела продаж с другого телефона и убедитесь, что сообщение пришло в CRM. '
       || 'Задача закроется сама, когда придёт сообщение.'
-    WHEN p_status = 'UNREACHABLE' THEN
-      'Сервис WhatsApp (WAHA) не отвечает уже больше 10 минут, сообщения клиентов в CRM не приходят. Это не отвязка телефона: '
-      || 'сообщите техническому администратору. Задача закроется сама, когда сервис ответит.'
+    WHEN p_status IN ('UNREACHABLE', 'UNAUTHORIZED', 'SESSION_MISSING') THEN
+      'Когда задача открылась, ' || CASE p_status
+        WHEN 'UNREACHABLE' THEN 'сервис WhatsApp (WAHA) не отвечал'
+        WHEN 'UNAUTHORIZED' THEN 'сервис WhatsApp (WAHA) не принимал ключ доступа CRM'
+        ELSE 'сервис WhatsApp (WAHA) не находил сессию отдела продаж (её нужно создать заново на стороне сервиса)'
+      END
+      || ' уже больше 10 минут, сообщения клиентов в CRM не приходят. Сообщите техническому администратору. Затем откройте '
+      || 'Настройки → Интеграции → Подключение WhatsApp: если там просят отсканировать QR-код или показывают ошибку, '
+      || 'переподключите телефон (отвязка на телефоне выглядит так же). Задача закроется сама, когда сессия снова заработает.'
     ELSE
       'Сессия WhatsApp отдела продаж не работает уже больше 10 минут ('
       || CASE p_status
@@ -275,7 +290,7 @@ BEGIN
   RETURN jsonb_build_object(
     'now', v_now,
     'monitor', CASE WHEN v_has_monitor THEN jsonb_build_object('lastStatus', m.last_status,
-      'lastSeenAt', m.last_seen_at, 'sinceAt', m.since_at) END,
+      'lastSeenAt', m.last_seen_at, 'sinceAt', m.since_at, 'workingSinceAt', m.working_since_at) END,
     'disconnected', CASE WHEN v_has_disconnected THEN jsonb_build_object('id', v_disconnected.id,
       'openedAt', v_disconnected.opened_at) END,
     'silent', CASE WHEN v_has_silent THEN jsonb_build_object('id', v_silent.id, 'openedAt', v_silent.opened_at) END,
@@ -283,23 +298,27 @@ BEGIN
 END
 $$;
 
--- Запись серии: слово статуса и время прохода - по часам базы; `p_restart` начинает серию заново.
+-- Запись серии: слово статуса и время прохода - по часам базы; `p_restart` начинает серию заново, `p_working_restart`
+-- двигает отсчёт тишины на «сейчас» (приложение просит об этом только при настоящем возврате связи; первая строка
+-- серии всегда начинает отсчёт).
 CREATE FUNCTION platform.whatsapp_health_observe_v1(p_organization_id UUID, p_session TEXT, p_status TEXT,
-  p_restart BOOLEAN)
+  p_restart BOOLEAN, p_working_restart BOOLEAN)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_now TIMESTAMPTZ := clock_timestamp(); v_since TIMESTAMPTZ;
+DECLARE v_now TIMESTAMPTZ := clock_timestamp(); v_since TIMESTAMPTZ; v_working_since TIMESTAMPTZ;
 BEGIN
   PERFORM platform_private.whatsapp_health_guard(p_organization_id, p_session);
-  IF p_status IS NULL OR p_status !~ '^[A-Z][A-Z0-9_]{0,63}$' OR p_restart IS NULL THEN
+  IF p_status IS NULL OR p_status !~ '^[A-Z][A-Z0-9_]{0,63}$' OR p_restart IS NULL OR p_working_restart IS NULL THEN
     RAISE EXCEPTION 'whatsapp_health_invalid_request' USING ERRCODE = '22023';
   END IF;
-  INSERT INTO platform_private.whatsapp_health_monitor AS x (organization_id, session_name, last_status, last_seen_at, since_at)
-  VALUES (p_organization_id, p_session, p_status, v_now, v_now)
+  INSERT INTO platform_private.whatsapp_health_monitor AS x (organization_id, session_name, last_status, last_seen_at,
+    since_at, working_since_at)
+  VALUES (p_organization_id, p_session, p_status, v_now, v_now, v_now)
   ON CONFLICT (organization_id, session_name) DO UPDATE SET
     last_status = EXCLUDED.last_status, last_seen_at = EXCLUDED.last_seen_at,
-    since_at = CASE WHEN p_restart THEN EXCLUDED.since_at ELSE x.since_at END
-  RETURNING since_at INTO v_since;
-  RETURN jsonb_build_object('sinceAt', v_since, 'lastSeenAt', v_now);
+    since_at = CASE WHEN p_restart THEN EXCLUDED.since_at ELSE x.since_at END,
+    working_since_at = CASE WHEN p_working_restart THEN EXCLUDED.working_since_at ELSE x.working_since_at END
+  RETURNING since_at, working_since_at INTO v_since, v_working_since;
+  RETURN jsonb_build_object('sinceAt', v_since, 'lastSeenAt', v_now, 'workingSinceAt', v_working_since);
 END
 $$;
 
@@ -409,9 +428,9 @@ END
 $wh321_private_acl$;
 
 COMMENT ON FUNCTION platform.whatsapp_health_read_v1(UUID, TEXT) IS
-  '321: service-only read for the WhatsApp health job: run of observations, open alerts, last customer inbound webhook, database clock.';
-COMMENT ON FUNCTION platform.whatsapp_health_observe_v1(UUID, TEXT, TEXT, BOOLEAN) IS
-  '321: service-only write of one observation of the WAHA session status; p_restart starts a new run.';
+  '321: service-only read for the WhatsApp health job: run of observations with the silence baseline, open alerts, last customer inbound webhook, database clock.';
+COMMENT ON FUNCTION platform.whatsapp_health_observe_v1(UUID, TEXT, TEXT, BOOLEAN, BOOLEAN) IS
+  '321: service-only write of one observation of the WAHA session status; p_restart starts a new run, p_working_restart moves the silence baseline to now.';
 COMMENT ON FUNCTION platform.whatsapp_health_open_v1(UUID, TEXT, TEXT, TEXT, UUID) IS
   '321: service-only; opens at most one alert per kind and session and gives a staff task to every active system admin who can receive tasks (plus the optional sales head).';
 COMMENT ON FUNCTION platform.whatsapp_health_resolve_v1(UUID, TEXT, TEXT, TEXT) IS

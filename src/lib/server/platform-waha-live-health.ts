@@ -25,6 +25,13 @@ import { createPlatformSupabaseServiceClient } from "./platform-supabase-service
 
 /** A status the live probe invents when WAHA cannot be reached at all. */
 export const PLATFORM_WAHA_UNREACHABLE_STATUS = "UNREACHABLE" as const;
+/**
+ * Words only the alert job's probe invents (`probePlatformWahaSessionForAlertUncached`): WAHA answered, but it
+ * does not know the session (404) or refused the key (401/403). Neither is a WAHA session status, and no other
+ * caller ever sees them.
+ */
+export const PLATFORM_WAHA_SESSION_MISSING_STATUS = "SESSION_MISSING" as const;
+export const PLATFORM_WAHA_UNAUTHORIZED_STATUS = "UNAUTHORIZED" as const;
 
 export const PLATFORM_WAHA_LIVE_PROBE_TIMEOUT_MS = 2_500;
 export const PLATFORM_WAHA_LIVE_PROBE_TTL_MS = 10_000;
@@ -64,6 +71,7 @@ async function readBoundedJson(response: Response): Promise<unknown> {
 async function probe(
   organizationId: string,
   dependencies: LiveProbeDependencies,
+  reportRefusal = false,
 ): Promise<PlatformWahaSessionHealth | null> {
   const now = dependencies.now ?? (() => new Date());
   let runtime: PlatformManualSendWahaRuntime;
@@ -109,8 +117,26 @@ async function probe(
 
   // The service answered but refused or does not know the session (a rejected
   // key, no such session): that is not proof about the connection either way.
+  // The alert job asks for these answers by name (`reportRefusal`): with the
+  // receive path on and a binding in place, "WAHA says no" is an outage staff
+  // must hear about, not "nothing can be said".
   if (response.status >= 500) return unreachable();
-  if (!response.ok) return null;
+  if (!response.ok) {
+    if (!reportRefusal) return null;
+    const word =
+      response.status === 401 || response.status === 403
+        ? PLATFORM_WAHA_UNAUTHORIZED_STATUS
+        : response.status === 404
+          ? PLATFORM_WAHA_SESSION_MISSING_STATUS
+          : null;
+    return word === null
+      ? null
+      : Object.freeze({
+          sessionName: PLATFORM_WAHA_SESSION_NAME,
+          status: word,
+          observedAt: now().toISOString(),
+        });
+  }
 
   let body: unknown;
   try {
@@ -170,6 +196,23 @@ export function probePlatformWahaSessionLiveUncached(
   dependencies: LiveProbeDependencies = {},
 ): Promise<PlatformWahaSessionHealth | null> {
   return probe(organizationId, dependencies);
+}
+
+/**
+ * The same live, uncached probe for the WhatsApp connection alert
+ * (`platform-whatsapp-health-maintenance.ts`). It differs in one thing: a 404
+ * (no such session, for example after the sessions volume was lost) is reported
+ * as `SESSION_MISSING` and a 401/403 (the key no longer matches) as
+ * `UNAUTHORIZED`, so the alert can open instead of staying silent for good.
+ * Other callers keep `probePlatformWahaSessionLiveUncached`, where those
+ * answers still read as "cannot say". No binding or backend configuration is
+ * still null: WhatsApp may be off on purpose.
+ */
+export function probePlatformWahaSessionForAlertUncached(
+  organizationId: string,
+  dependencies: LiveProbeDependencies = {},
+): Promise<PlatformWahaSessionHealth | null> {
+  return probe(organizationId, dependencies, true);
 }
 
 /**

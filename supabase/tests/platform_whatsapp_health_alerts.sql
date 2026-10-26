@@ -14,8 +14,10 @@
 --  2. read: an empty state; the database clock; the last customer inbound is the newest VERIFIED `message.any` webhook
 --     of the session with fromMe = false inside 30 days - not an own message, not a rejected delivery, not a session
 --     status or an ack, not another session, not another organization, not older than 30 days;
---  3. observe: the first call creates the run, a call without restart keeps the run start and moves the last seen,
---     restart starts a new run; the order since <= last seen holds;
+--  3. observe: the first call creates the run and the silence baseline, a call without restart keeps the run start and
+--     moves the last seen, restart starts a new run WITHOUT moving the silence baseline (a measurement blip must not
+--     reset the silence clock), working restart moves the baseline; the order since <= last seen and
+--     working since <= last seen holds;
 --  4. open: one staff task per active system admin who can receive tasks (a suspended admin is skipped) plus the optional
 --     sales head if assignable (a student, an unknown id and an admin who is already a recipient add nothing); each
 --     task with its event, receipt, notification and system journal row, creator = assignee, priority, Bishkek due date,
@@ -76,9 +78,10 @@ $$;
 CREATE FUNCTION pg_temp.a321_read(p_org INTEGER) RETURNS JSONB LANGUAGE SQL AS $$
   SELECT pg_temp.a321_svc(format('SELECT platform.whatsapp_health_read_v1(%L, ''crm_primary'')', pg_temp.a321_id(p_org)))
 $$;
-CREATE FUNCTION pg_temp.a321_observe(p_org INTEGER, p_status TEXT, p_restart BOOLEAN) RETURNS JSONB LANGUAGE SQL AS $$
-  SELECT pg_temp.a321_svc(format('SELECT platform.whatsapp_health_observe_v1(%L, ''crm_primary'', %L, %L)',
-    pg_temp.a321_id(p_org), p_status, p_restart))
+CREATE FUNCTION pg_temp.a321_observe(p_org INTEGER, p_status TEXT, p_restart BOOLEAN, p_working_restart BOOLEAN DEFAULT FALSE)
+RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a321_svc(format('SELECT platform.whatsapp_health_observe_v1(%L, ''crm_primary'', %L, %L, %L)',
+    pg_temp.a321_id(p_org), p_status, p_restart, p_working_restart))
 $$;
 CREATE FUNCTION pg_temp.a321_open(p_org INTEGER, p_kind TEXT, p_status TEXT, p_extra UUID DEFAULT NULL) RETURNS JSONB LANGUAGE SQL AS $$
   SELECT pg_temp.a321_svc(format('SELECT platform.whatsapp_health_open_v1(%L, ''crm_primary'', %L, %L, %L)',
@@ -219,7 +222,7 @@ SELECT pg_temp.a321_assert(
   AND pg_temp.a321_as('evo_ai_agent', '{"role":"service_role"}', format('SELECT platform.whatsapp_health_read_v1(%L)', pg_temp.a321_id(1))) = '42501'
   AND pg_temp.a321_as('authenticated', '{"role":"service_role"}', format('SELECT platform.whatsapp_health_open_v1(%L, ''crm_primary'', ''silent'', ''WORKING'')', pg_temp.a321_id(1))) = '42501'
   AND pg_temp.a321_as('service_role', '{"role":"authenticated"}', format('SELECT platform.whatsapp_health_read_v1(%L)', pg_temp.a321_id(1))) = '42501'
-  AND pg_temp.a321_as('service_role', '', format('SELECT platform.whatsapp_health_observe_v1(%L, ''crm_primary'', ''WORKING'', FALSE)', pg_temp.a321_id(1))) = '42501'
+  AND pg_temp.a321_as('service_role', '', format('SELECT platform.whatsapp_health_observe_v1(%L, ''crm_primary'', ''WORKING'', FALSE, FALSE)', pg_temp.a321_id(1))) = '42501'
   AND pg_temp.a321_as('service_role', '{"role":"authenticated"}', format('SELECT platform.whatsapp_health_resolve_v1(%L, ''crm_primary'', ''silent'', ''messages_arrived'')', pg_temp.a321_id(1))) = '42501'
   AND pg_temp.a321_as('service_role', '{"role":"service_role"}', format('SELECT platform_private.whatsapp_health_guard(%L, ''crm_primary'')', pg_temp.a321_id(1))) = '42501',
   'refused: anon, authenticated, supabase_auth_admin, the AI agent role, service_role without the service claim, an empty claim, and the closed helper');
@@ -230,7 +233,8 @@ SELECT pg_temp.a321_assert(
   AND pg_temp.a321_svc(format('SELECT platform.whatsapp_health_read_v1(%L, ''crm_primary'')', pg_temp.a321_id(99))) ->> 'error' LIKE '22023:%'
   AND pg_temp.a321_observe(1, 'working', FALSE) ->> 'error' LIKE '22023:%'
   AND pg_temp.a321_observe(1, 'WORKING; DROP', FALSE) ->> 'error' LIKE '22023:%'
-  AND pg_temp.a321_svc(format('SELECT platform.whatsapp_health_observe_v1(%L, ''crm_primary'', ''WORKING'', NULL)', pg_temp.a321_id(1))) ->> 'error' LIKE '22023:%'
+  AND pg_temp.a321_svc(format('SELECT platform.whatsapp_health_observe_v1(%L, ''crm_primary'', ''WORKING'', NULL, FALSE)', pg_temp.a321_id(1))) ->> 'error' LIKE '22023:%'
+  AND pg_temp.a321_svc(format('SELECT platform.whatsapp_health_observe_v1(%L, ''crm_primary'', ''WORKING'', FALSE, NULL)', pg_temp.a321_id(1))) ->> 'error' LIKE '22023:%'
   AND pg_temp.a321_open(1, 'sleepy', 'FAILED') ->> 'error' LIKE '22023:%'
   AND pg_temp.a321_open(1, 'silent', 'failed') ->> 'error' LIKE '22023:%'
   AND pg_temp.a321_open(1, NULL, 'FAILED') ->> 'error' LIKE '22023:%'
@@ -285,30 +289,46 @@ SELECT pg_temp.a321_assert(
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.a321_observe(1, 'FAILED', FALSE) AS a321_obs1 \gset
 SELECT pg_temp.a321_assert(
-  (SELECT m.last_status = 'FAILED' AND m.since_at = m.last_seen_at FROM platform_private.whatsapp_health_monitor m
-    WHERE m.organization_id = pg_temp.a321_id(1)) AND (:'a321_obs1'::JSONB ->> 'sinceAt') = (:'a321_obs1'::JSONB ->> 'lastSeenAt'),
-  'observe: the first call creates the run: ' || :'a321_obs1');
+  (SELECT m.last_status = 'FAILED' AND m.since_at = m.last_seen_at AND m.working_since_at = m.last_seen_at
+    FROM platform_private.whatsapp_health_monitor m WHERE m.organization_id = pg_temp.a321_id(1))
+  AND (:'a321_obs1'::JSONB ->> 'sinceAt') = (:'a321_obs1'::JSONB ->> 'lastSeenAt')
+  AND (:'a321_obs1'::JSONB ->> 'workingSinceAt') = (:'a321_obs1'::JSONB ->> 'lastSeenAt'),
+  'observe: the first call creates the run and the silence baseline at the same moment: ' || :'a321_obs1');
 SELECT pg_sleep(0.02);
 SELECT pg_temp.a321_observe(1, 'STARTING', FALSE) AS a321_obs2 \gset
 SELECT pg_temp.a321_assert(
   (:'a321_obs2'::JSONB ->> 'sinceAt') = (:'a321_obs1'::JSONB ->> 'sinceAt')
+  AND (:'a321_obs2'::JSONB ->> 'workingSinceAt') = (:'a321_obs1'::JSONB ->> 'workingSinceAt')
   AND (:'a321_obs2'::JSONB ->> 'lastSeenAt')::TIMESTAMPTZ > (:'a321_obs1'::JSONB ->> 'lastSeenAt')::TIMESTAMPTZ
   AND (SELECT m.last_status FROM platform_private.whatsapp_health_monitor m WHERE m.organization_id = pg_temp.a321_id(1)) = 'STARTING',
-  'observe: without restart the run start is kept, the last seen and the status move: ' || :'a321_obs2');
+  'observe: without restart the run start and the baseline are kept, the last seen and the status move: ' || :'a321_obs2');
 SELECT pg_sleep(0.02);
-SELECT pg_temp.a321_observe(1, 'WORKING', TRUE) AS a321_obs3 \gset
+-- A new run that is only a measurement blip: the run restarts, the silence baseline stays.
+SELECT pg_temp.a321_observe(1, 'WORKING', TRUE, FALSE) AS a321_obs2b \gset
 SELECT pg_temp.a321_assert(
-  (:'a321_obs3'::JSONB ->> 'sinceAt')::TIMESTAMPTZ > (:'a321_obs2'::JSONB ->> 'sinceAt')::TIMESTAMPTZ
-  AND (:'a321_obs3'::JSONB ->> 'sinceAt') = (:'a321_obs3'::JSONB ->> 'lastSeenAt')
+  (:'a321_obs2b'::JSONB ->> 'sinceAt')::TIMESTAMPTZ > (:'a321_obs2'::JSONB ->> 'sinceAt')::TIMESTAMPTZ
+  AND (:'a321_obs2b'::JSONB ->> 'sinceAt') = (:'a321_obs2b'::JSONB ->> 'lastSeenAt')
+  AND (:'a321_obs2b'::JSONB ->> 'workingSinceAt') = (:'a321_obs1'::JSONB ->> 'workingSinceAt')
   AND (SELECT count(*) = 1 FROM platform_private.whatsapp_health_monitor m WHERE m.organization_id = pg_temp.a321_id(1)),
-  'observe: restart starts a new run, still one row: ' || :'a321_obs3');
+  'observe: restart starts a new run but does not move the silence baseline, still one row: ' || :'a321_obs2b');
+SELECT pg_sleep(0.02);
+SELECT pg_temp.a321_observe(1, 'WORKING', FALSE, TRUE) AS a321_obs3 \gset
+SELECT pg_temp.a321_assert(
+  (:'a321_obs3'::JSONB ->> 'sinceAt') = (:'a321_obs2b'::JSONB ->> 'sinceAt')
+  AND (:'a321_obs3'::JSONB ->> 'workingSinceAt') = (:'a321_obs3'::JSONB ->> 'lastSeenAt')
+  AND (:'a321_obs3'::JSONB ->> 'workingSinceAt')::TIMESTAMPTZ > (:'a321_obs2b'::JSONB ->> 'workingSinceAt')::TIMESTAMPTZ
+  AND (SELECT count(*) = 1 FROM platform_private.whatsapp_health_monitor m WHERE m.organization_id = pg_temp.a321_id(1)),
+  'observe: working restart moves only the silence baseline: ' || :'a321_obs3');
 SELECT pg_temp.a321_read(1) -> 'monitor' AS a321_monitor \gset
 SELECT pg_temp.a321_assert(
-  (:'a321_monitor'::JSONB ->> 'lastStatus') = 'WORKING' AND (:'a321_monitor'::JSONB ->> 'sinceAt') = (:'a321_obs3'::JSONB ->> 'sinceAt'),
-  'read: returns the run: ' || :'a321_monitor');
+  (:'a321_monitor'::JSONB ->> 'lastStatus') = 'WORKING' AND (:'a321_monitor'::JSONB ->> 'sinceAt') = (:'a321_obs3'::JSONB ->> 'sinceAt')
+  AND (:'a321_monitor'::JSONB ->> 'workingSinceAt') = (:'a321_obs3'::JSONB ->> 'workingSinceAt')
+  AND (:'a321_monitor'::JSONB ->> 'lastSeenAt') = (:'a321_obs3'::JSONB ->> 'lastSeenAt'),
+  'read: returns the run with the silence baseline: ' || :'a321_monitor');
 SELECT pg_temp.a321_assert(
-  pg_temp.a321_as('postgres', '', $q$UPDATE platform_private.whatsapp_health_monitor SET since_at = last_seen_at + INTERVAL '1 second'$q$) = '23514',
-  'the run start cannot be later than the last seen');
+  pg_temp.a321_as('postgres', '', $q$UPDATE platform_private.whatsapp_health_monitor SET since_at = last_seen_at + INTERVAL '1 second'$q$) = '23514'
+  AND pg_temp.a321_as('postgres', '', $q$UPDATE platform_private.whatsapp_health_monitor SET working_since_at = last_seen_at + INTERVAL '1 second'$q$) = '23514',
+  'the run start and the silence baseline cannot be later than the last seen');
 
 -- ---------------------------------------------------------------------------
 -- 4. Open.
@@ -389,9 +409,20 @@ SELECT pg_temp.a321_assert(
   AND platform_private.whatsapp_health_text('disconnected', 'PASSKEY_REQUIRED') LIKE '%ключом доступа%'
   AND platform_private.whatsapp_health_text('disconnected', 'PASSKEY_CONFIRMATION_REQUIRED') LIKE '%ключом доступа%'
   AND platform_private.whatsapp_health_text('disconnected', 'SOMETHING_NEW') LIKE '%статус сессии: SOMETHING_NEW%'
-  AND platform_private.whatsapp_health_text('disconnected', 'UNREACHABLE') LIKE '%сообщите техническому администратору%'
-  AND platform_private.whatsapp_health_text('disconnected', 'UNREACHABLE') NOT LIKE '%Подключение WhatsApp%'
-  AND platform_private.whatsapp_health_title('disconnected', 'UNREACHABLE') = 'WhatsApp: сервис не отвечает — сообщите техническому администратору'
+  AND platform_private.whatsapp_health_text('disconnected', 'UNREACHABLE') LIKE '%сервис WhatsApp (WAHA) не отвечал%'
+  AND platform_private.whatsapp_health_text('disconnected', 'UNAUTHORIZED') LIKE '%не принимал ключ доступа%'
+  AND platform_private.whatsapp_health_text('disconnected', 'SESSION_MISSING') LIKE '%не находил сессию%'
+  -- The service-side copy is true whenever the session comes back: it names the moment it opened, keeps the way to
+  -- re-link, does not rule out a phone unlink and promises to close only when the session works again.
+  AND (SELECT bool_and(platform_private.whatsapp_health_text('disconnected', w) LIKE '%Когда задача открылась%'
+      AND platform_private.whatsapp_health_text('disconnected', w) LIKE '%Сообщите техническому администратору%'
+      AND platform_private.whatsapp_health_text('disconnected', w) LIKE '%Настройки → Интеграции → Подключение WhatsApp%'
+      AND platform_private.whatsapp_health_text('disconnected', w) LIKE '%отсканировать QR-код%'
+      AND platform_private.whatsapp_health_text('disconnected', w) LIKE '%Задача закроется сама, когда сессия снова заработает%'
+      AND platform_private.whatsapp_health_text('disconnected', w) NOT LIKE '%Это не отвязка%'
+      AND platform_private.whatsapp_health_text('disconnected', w) NOT LIKE '%когда сервис ответит%'
+      AND platform_private.whatsapp_health_title('disconnected', w) = 'WhatsApp не на связи — проверьте подключение и сообщите техническому администратору')
+    FROM unnest(ARRAY['UNREACHABLE', 'UNAUTHORIZED', 'SESSION_MISSING']) AS w)
   AND platform_private.whatsapp_health_title('disconnected', 'SCAN_QR_CODE') = 'WhatsApp отключён — переподключите',
   'copy: the words for each WAHA status, and the unreachable service variant');
 
@@ -476,7 +507,7 @@ SELECT pg_temp.a321_assert(
   AND (SELECT count(*) = 1 FROM platform_private.whatsapp_health_alerts a WHERE a.organization_id = pg_temp.a321_id(1)
     AND a.kind = 'disconnected' AND a.resolved_at IS NULL)
   AND (SELECT count(*) = 3 FROM platform.staff_tasks t WHERE t.organization_id = pg_temp.a321_id(1)
-    AND t.title = 'WhatsApp: сервис не отвечает — сообщите техническому администратору' AND t.status = 'open'),
+    AND t.title = 'WhatsApp не на связи — проверьте подключение и сообщите техническому администратору' AND t.status = 'open'),
   'resolve: the next case is a new alert (unreachable copy), one open: ' || :'a321_open9');
 
 -- The silent alert: resolved by messages; the request id of the close is unique per task version.

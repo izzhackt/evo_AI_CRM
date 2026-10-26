@@ -14,8 +14,11 @@ What one run does, in short:
 - asks WAHA for the status of `crm_primary` (one `GET`, the key comes from the
   Vault binding); it never starts, stops, restarts, logs out or re-pairs the
   session and sends no message to anyone;
-- status other than `WORKING`, or WAHA not answering, for 10 minutes: one task
-  «WhatsApp отключён — переподключите» for every active system admin (and the
+- status other than `WORKING`, or WAHA not answering, not knowing the session
+  (404) or refusing the key (401/403), for 10 minutes: one task
+  «WhatsApp отключён — переподключите» (or «WhatsApp не на связи — проверьте
+  подключение и сообщите техническому администратору» when the service itself
+  is the problem) for every active system admin (and the
   intake sales head named by `EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID`);
 - `WORKING` but no incoming customer message for 3 working hours (Mon-Sat,
   10:00-20:00 Asia/Bishkek): one task «WhatsApp молчит 3 часа в рабочее время»;

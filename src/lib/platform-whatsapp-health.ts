@@ -5,13 +5,20 @@
  * а эти функции отвечают, что записать и какие тревоги открыть или закрыть.
  *
  * Две тревоги, по одной на случай (дедуп держит база: одна открытая тревога вида на сессию):
- *  - `disconnected` — статус сессии не `WORKING` (или сервис WAHA не отвечает) непрерывно не меньше 10 минут;
+ *  - `disconnected` — статус сессии не `WORKING` (или сервис WAHA не отвечает, не знает сессию, не принял ключ:
+ *    слова `UNREACHABLE`, `SESSION_MISSING`, `UNAUTHORIZED`) непрерывно не меньше 10 минут;
  *  - `silent` — статус `WORKING`, но входящих сообщений клиентов нет не меньше 3 РАБОЧИХ часов; считаются
  *    только часы внутри рабочего времени (пн–сб, 10:00–20:00 по Бишкеку), открывается тревога только внутри
  *    рабочего времени. Отсчёт тишины идёт от последнего входящего или от момента, когда «работает» впервые
- *    увидели после перерыва (переподключение не должно сразу давать «молчит»).
+ *    увидели после НАСТОЯЩЕГО перерыва (переподключение не должно сразу давать «молчит»).
  * Обе закрываются сами: `disconnected` — как только сессия снова `WORKING`; `silent` — как только пришло
  * сообщение или связь пересоздана после открытия тревоги.
+ *
+ * Сбой измерения - не событие связи. Одно «не работает» (медленный ответ пробы = `UNREACHABLE`) или пропуск
+ * проходов без ответа (проба «сказать нельзя», таймер стоял) начинают серию «не работает» / «работает» заново, но
+ * отсчёт тишины не сдвигают и «молчит» не закрывают: для этого есть отдельная отметка `workingSinceAt`, она
+ * двигается только при настоящем возврате связи - после перерыва «не работает», который сам длился не меньше
+ * порога (или при открытой тревоге «отключён»).
  */
 
 export const WHATSAPP_HEALTH_SESSION = "crm_primary" as const;
@@ -92,8 +99,17 @@ export type WhatsAppHealthObservation =
   | Readonly<{ kind: "status"; status: string }>
   | Readonly<{ kind: "unknown" }>;
 
-/** Серия наблюдений из базы: последнее слово, время последнего прохода и начало текущей серии (мс от эпохи). */
-export type WhatsAppHealthMonitor = Readonly<{ lastStatus: string; lastSeenAt: number; sinceAt: number }>;
+/**
+ * Серия наблюдений из базы (мс от эпохи): последнее слово, время последнего прохода, начало текущей серии
+ * («работает» или «не работает») и отсчёт тишины - с какого момента сессия считается подключённой (двигается только
+ * при настоящем возврате связи, не при сбое измерения).
+ */
+export type WhatsAppHealthMonitor = Readonly<{
+  lastStatus: string;
+  lastSeenAt: number;
+  sinceAt: number;
+  workingSinceAt: number;
+}>;
 
 export type WhatsAppHealthOpenAlert = Readonly<{ id: string; openedAt: number }>;
 
@@ -109,8 +125,11 @@ export type WhatsAppHealthPlanInput = Readonly<{
 }>;
 
 export type WhatsAppHealthPlan = Readonly<{
-  /** Что записать в серию наблюдений; null — ничего (проба не смогла ответить). */
-  observe: Readonly<{ status: string; restart: boolean }> | null;
+  /**
+   * Что записать в серию наблюдений; null — ничего (проба не смогла ответить). `restart` начинает серию заново,
+   * `workingRestart` двигает отсчёт тишины на «сейчас» (только настоящий возврат связи и самый первый проход).
+   */
+  observe: Readonly<{ status: string; restart: boolean; workingRestart: boolean }> | null;
   open: readonly Readonly<{ kind: WhatsAppHealthAlertKind; status: string }>[];
   resolve: readonly Readonly<{ kind: WhatsAppHealthAlertKind; reason: WhatsAppHealthResolveReason }>[];
   /** Одно фиксированное слово для журнала. */
@@ -149,7 +168,17 @@ export function planWhatsAppHealth(input: WhatsAppHealthPlanInput): WhatsAppHeal
     now - monitor.lastSeenAt > WHATSAPP_HEALTH_TICK_GAP_MS;
   const restart = hasGap || previousWorking !== working;
   const sinceAt = restart || monitor === null ? now : monitor.sinceAt;
-  const observe = Object.freeze({ status, restart });
+  // Настоящий возврат связи: прошлый проход видел «не работает», и эта серия сама длилась не меньше порога (по
+  // записанным проходам, без промежутка после последнего) или по ней уже открыта тревога «отключён». Одно «не
+  // работает» между двумя «работает» и пропуск проходов - сбой измерения: отсчёт тишины и открытая «молчит» целы.
+  const reconnected =
+    working &&
+    monitor !== null &&
+    !previousWorking &&
+    (disconnected !== null || Math.max(0, monitor.lastSeenAt - monitor.sinceAt) >= WHATSAPP_DOWN_THRESHOLD_MS);
+  const workingRestart = monitor === null || monitor.workingSinceAt > now || reconnected;
+  const workingSinceAt = monitor === null || workingRestart ? now : monitor.workingSinceAt;
+  const observe = Object.freeze({ status, restart, workingRestart });
 
   const open: { kind: WhatsAppHealthAlertKind; status: string }[] = [];
   const resolve: { kind: WhatsAppHealthAlertKind; reason: WhatsAppHealthResolveReason }[] = [];
@@ -170,17 +199,16 @@ export function planWhatsAppHealth(input: WhatsAppHealthPlanInput): WhatsAppHeal
 
   if (disconnected !== null) resolve.push({ kind: "disconnected", reason: "working_again" });
 
-  // Тишина считается от последнего входящего, но не раньше начала нынешней серии «работает».
-  const baseline = lastInboundAt === null ? sinceAt : Math.max(sinceAt, lastInboundAt);
+  // Тишина считается от последнего входящего, но не раньше отсчёта тишины (первый проход / настоящий возврат связи).
+  const baseline = lastInboundAt === null ? workingSinceAt : Math.max(workingSinceAt, lastInboundAt);
   const silentFor = whatsAppWorkingElapsedMs(baseline, now, WHATSAPP_SILENT_THRESHOLD_MS);
   const reached = silentFor >= WHATSAPP_SILENT_THRESHOLD_MS;
   let verdict: WhatsAppHealthPlan["verdict"] = "working";
   if (silent !== null) {
-    if (baseline > silent.openedAt) {
-      resolve.push({
-        kind: "silent",
-        reason: lastInboundAt !== null && lastInboundAt > silent.openedAt ? "messages_arrived" : "reconnected",
-      });
+    // «Молчит» закрывается, только если пришло сообщение после её открытия или связь по-настоящему вернулась.
+    const arrived = lastInboundAt !== null && lastInboundAt > silent.openedAt;
+    if (arrived || workingSinceAt > silent.openedAt) {
+      resolve.push({ kind: "silent", reason: arrived ? "messages_arrived" : "reconnected" });
     } else {
       verdict = "silent";
     }

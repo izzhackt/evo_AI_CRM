@@ -133,6 +133,13 @@ test("migration 321 exists, is additive, and its copy matches the rules in the a
   assert.match(sql, /пн–сб, 10:00–20:00 по Бишкеку/u);
   // Where the staff is sent, as the spec words it.
   assert.match(sql, /Настройки → Интеграции → Подключение WhatsApp/u);
+  // The words the alert probe invents for a WAHA that answered 404 / 401, and the silence baseline the planner moves.
+  for (const word of ["UNREACHABLE", "UNAUTHORIZED", "SESSION_MISSING"]) assert.match(sql, new RegExp(word, "u"));
+  assert.match(sql, /working_since_at/u);
+  assert.match(sql, /p_working_restart/u);
+  // The service-side copy is true whenever the session comes back: no «это не отвязка», no «когда сервис ответит».
+  assert.ok(!/Это не отвязка/u.test(sql));
+  assert.ok(!/когда сервис ответит/u.test(sql));
   // The SQL suite is hooked into the authorization harness by file name and insists on its marker.
   const harness = read("scripts/test-postgres-authorization.sh");
   assert.match(harness, /\*_platform_whatsapp_health_alerts\.sql/u);

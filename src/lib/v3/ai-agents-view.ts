@@ -41,14 +41,19 @@ import {
 
 /* ------------------------------------------------------------------ маршруты */
 
+// Названия и порядок — решение владельца 26.10.2026: агент открывается на «Чате»;
+// «Запуски» → «История работы», «Черновики» → «На одобрение», «Инструкция» → «Правила агента».
+// Ключи вкладок в адресе (`?tab=`) прежние.
 export const AI_AGENT_TABS = [
+  { key: "command", label: "Чат" },
   { key: "overview", label: "Обзор" },
-  { key: "command", label: "Поручить" },
-  { key: "runs", label: "Запуски" },
-  { key: "drafts", label: "Черновики" },
-  { key: "instructions", label: "Инструкция" },
+  { key: "runs", label: "История работы" },
+  { key: "drafts", label: "На одобрение" },
+  { key: "instructions", label: "Правила агента" },
   { key: "settings", label: "Настройки" },
 ] as const;
+/** Вкладка без `?tab=` в адресе. */
+export const AI_AGENT_DEFAULT_TAB = "command" satisfies AiAgentTab;
 export type AiAgentTab = (typeof AI_AGENT_TABS)[number]["key"];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -84,7 +89,7 @@ export function parseAiAgentRoute(query: Query): AiAgentPageRoute | null {
   const show = single(query, "show");
   const fresh = single(query, "new");
   if (tab === null || run === null || limit === null || show === null || fresh === null) return null;
-  const known = tab === undefined ? "overview" : AI_AGENT_TABS.find((one) => one.key === tab)?.key;
+  const known = tab === undefined ? AI_AGENT_DEFAULT_TAB : AI_AGENT_TABS.find((one) => one.key === tab)?.key;
   if (!known) return null;
   if (run !== undefined && !isAiAgentUuid(run)) return null;
   let runsLimit = AI_AGENT_RUNS_STEP;
@@ -104,7 +109,7 @@ export function aiAgentHref(
   options: Readonly<{ tab?: AiAgentTab; run?: string | null; limit?: number | null; show?: "all" | null; fresh?: boolean }> = {},
 ): string {
   const params = new URLSearchParams();
-  if (options.tab && options.tab !== "overview") params.set("tab", options.tab);
+  if (options.tab && options.tab !== AI_AGENT_DEFAULT_TAB) params.set("tab", options.tab);
   if (options.run) params.set("run", options.run);
   if (options.limit && options.limit > AI_AGENT_RUNS_STEP) params.set("limit", String(options.limit));
   if (options.show === "all") params.set("show", "all");
@@ -269,7 +274,7 @@ export function aiAgentStateChip(input: Readonly<{
   syncStatus: AiAgentSyncInfo["status"];
   needsSync: boolean;
 }>): AiAgentStateChip {
-  if (!input.hasInstructions) return { label: "Инструкции пока нет", tone: "neutral" };
+  if (!input.hasInstructions) return { label: "Правил пока нет", tone: "neutral" };
   if (!input.enabled) return { label: "Выключен", tone: "neutral" };
   if (input.syncStatus === "error") return { label: "Ошибка синхронизации", tone: "danger" };
   if (input.syncStatus !== "ok" || input.needsSync) return { label: "Нужна синхронизация", tone: "warn" };
@@ -1066,9 +1071,9 @@ export const AI_AGENTS_ERROR_COPY: Readonly<Record<string, string>> = {
   anthropic_error: "Claude ответил ошибкой — попробуйте позже.",
   rate_limited: "Claude временно ограничил запросы — повторите через минуту.",
   unavailable: "Результат пока неизвестен — безопасно повторите.",
-  session_unlinked: "Сессия Claude создана, но запуск не записан в CRM. Проверьте раздел «Запуски» и повторите поручение.",
-  create_unconfirmed: "Claude не подтвердил создание сессии — она могла запуститься. Проверьте раздел «Запуски» и повторите позже.",
-  instructions_empty: "Инструкции пока нет — напишите её во вкладке «Инструкция».",
+  session_unlinked: "Сессия Claude создана, но запуск не записан в CRM. Проверьте «Историю работы» и повторите поручение.",
+  create_unconfirmed: "Claude не подтвердил создание сессии — она могла запуститься. Проверьте «Историю работы» и повторите позже.",
+  instructions_empty: "Правил пока нет — напишите их во вкладке «Правила агента».",
   not_pending: "Черновик уже обработан или устарел.",
   version_conflict: "Настройки уже изменились — обновите страницу.",
   request_conflict: "Запрос уже выполнен с другими данными — обновите страницу.",

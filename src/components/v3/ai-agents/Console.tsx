@@ -355,7 +355,7 @@ export function Console({
 
   return (
     <section aria-labelledby={headingId} className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="v3-aia-console">
-      <h2 id={headingId} className="sr-only">Поручить: {agentTitle}</h2>
+      <h2 id={headingId} className="sr-only">Чат: {agentTitle}</h2>
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true" data-testid="v3-aia-announce">{announce}</p>
 
       <div className="relative flex min-h-0 flex-1 flex-col">

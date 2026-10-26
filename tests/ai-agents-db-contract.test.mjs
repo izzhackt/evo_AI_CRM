@@ -690,6 +690,12 @@ test("321 adds up every status and trigger of the asked agent in the Bishkek day
   const open = body.slice(body.indexOf("SELECT COALESCE(jsonb_agg"));
   assert.match(open, /x\.organization_id = p_organization_id AND x\.agent_key = p_key AND x\.status IN \('starting', 'running'\)/u);
   assert.match(open, /LIMIT 50/u);
+  // A run in work holds its reserve whatever its age: its cost is written only at closing, so an age cut-off from "now"
+  // would let a late closing open the cap. The window counts back from the start of the Bishkek day, and the kind is listed.
+  assert.match(open, /x\.started_at >= v_from - make_interval\(mins => v_minutes\)/u);
+  assert.doesNotMatch(open, /v_now - make_interval|clock_timestamp|interval '/iu, "no age cut-off measured from the moment of the call");
+  assert.match(open, /'triggerKind', o\.trigger_kind/u);
+  assert.match(SOURCE_321, /any age|ЛЮБОГО возраста/u, "the header states the rule");
 });
 
 test("321 and its suite hold no secret, no address and no real person; the suite is hooked into the Postgres script", () => {

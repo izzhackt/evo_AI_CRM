@@ -15,7 +15,7 @@ import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { v3SectionTitle } from "@/lib/v3/navigation";
 import { computeAiAgentConfigHash, resolveAiAgentsMcpUrl } from "@/lib/server/ai-agents/config-hash";
-import { aiAgentsRuntimeAvailability, aiAgentsWhatsappDailyCapCents, reconcileAiAgentRuns } from "@/lib/server/ai-agents/runtime";
+import { aiAgentsRuntimeAvailability, aiAgentsWhatsappDailyCapCents, readAiAgentWhatsappCap, reconcileAiAgentRuns } from "@/lib/server/ai-agents/runtime";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   aiAgentHref,
@@ -133,6 +133,10 @@ export default async function AiAgentPage({
     }
   }
   const taskAccess = taskComposerAccess(actor);
+  // Строка лимита на «Настройках»: расход и резерв из базы (то, что решает приём события); не прочиталось — расход из графика.
+  const whatsappCapState = tab === "settings" && runtime.configured && !preview
+    ? await readAiAgentWhatsappCap({ staffClient: await createSupabaseServerClient(), actor }, { key, runBudgetUsd: detail.runBudgetUsd })
+    : null;
 
   return (
     <PartShell
@@ -174,6 +178,7 @@ export default async function AiAgentPage({
         canMakeTasks={taskAccess.staff || taskAccess.case}
         viewerName={actor.displayName}
         whatsappDailyCapCents={aiAgentsWhatsappDailyCapCents()}
+        whatsappCapState={whatsappCapState}
       />
     </PartShell>
   );

@@ -10,6 +10,7 @@ import type {
   AiAgentUiEvent,
 } from "../../ai-agents/contract.ts";
 import { readWhatsappDailyBudgetCents } from "../../ai-agents/daily-cap.ts";
+import { readWhatsappDailyCapState, type WhatsappCapState } from "./daily-cap.ts";
 import { type AiAgentsRuntimeDeps, type AiAgentsStaffContext } from "./deps.ts";
 import { decideAiAgentDraftImpl, type DecideDraftExtras } from "./drafts.ts";
 import { readAnthropicApiKey } from "./env.ts";
@@ -50,6 +51,18 @@ export function aiAgentsWhatsappDailyCapCents(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): number {
   return readWhatsappDailyBudgetCents(env);
+}
+
+/**
+ * Расход агента за сутки по Бишкеку и резерв под запуски по WhatsApp в работе — для строки лимита в «Настройках»
+ * (организация из актора страницы, которая уже прочитала агента). Не бросает; null — прочитать не удалось.
+ */
+export async function readAiAgentWhatsappCap(
+  ctx: AiAgentsStaffContext,
+  input: Readonly<{ key: AiAgentKey; runBudgetUsd: number }>,
+  deps?: Partial<AiAgentsRuntimeDeps>,
+): Promise<WhatsappCapState | null> {
+  return readWhatsappDailyCapState({ organizationId: ctx.actor.organizationId, agentKey: input.key, runBudgetUsd: input.runBudgetUsd }, deps);
 }
 
 /** Создаёт или обновляет агента, среду, хранилище, расписание в Claude; `rotateToken` выпускает новый токен MCP. Только системный администратор. */

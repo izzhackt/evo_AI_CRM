@@ -61,6 +61,8 @@ export type AgentBodyProps = Readonly<{
   viewerName?: string;
   /** Дневной лимит запусков по WhatsApp, центы (из окружения сервера); строка в «Настройках» — только чтение. Нет — строки нет. */
   whatsappDailyCapCents?: number | null;
+  /** Расход и резерв по данным базы на сейчас (то, что решает приём события). Нет — расход берётся из графика, о резерве молчим. */
+  whatsappCapState?: Readonly<{ spentCents: number; reservedCents: number }> | null;
 }>;
 
 function tabFailure(read: TabRead<unknown>, what: string, retryHref: string) {
@@ -196,7 +198,11 @@ export function AgentBody(props: AgentBodyProps) {
             canEdit={canEdit}
             canRunNow={canRun}
             runNowNote={blockedNote}
-            whatsappCap={props.whatsappDailyCapCents ? { capCents: props.whatsappDailyCapCents, spentTodayCents: spentTodayCents(detail.charts.spendPerDay, Date.parse(now)) } : null}
+            whatsappCap={props.whatsappDailyCapCents ? {
+              capCents: props.whatsappDailyCapCents,
+              spentTodayCents: props.whatsappCapState?.spentCents ?? spentTodayCents(detail.charts.spendPerDay, Date.parse(now)),
+              reservedCents: props.whatsappCapState?.reservedCents ?? 0,
+            } : null}
           />
           <SyncPanel agentKey={detail.key} sync={detail.sync} needsSync={needsSync} runtimeConfigured={runtimeConfigured} hasInstructions={hasInstructions} canEdit={canEdit && !preview} now={now} />
         </div>

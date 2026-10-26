@@ -73,8 +73,12 @@ export function SettingsForm({
   /** Агент включён, синхронизирован, ключ задан. */
   canRunNow: boolean;
   runNowNote: string | null;
-  /** Дневной лимит на WhatsApp (центы) и расход агента за сегодняшние сутки по Бишкеку; null — строки нет. Только чтение. */
-  whatsappCap?: Readonly<{ capCents: number; spentTodayCents: number }> | null;
+  /**
+   * Дневной лимит на WhatsApp (центы), расход агента за сегодняшние сутки по Бишкеку и резерв под идущие запуски по
+   * WhatsApp (центы, если известен); null — строки нет. Только чтение. Строка видна и при выключенном триггере WhatsApp:
+   * лимит нужно увидеть до включения.
+   */
+  whatsappCap?: Readonly<{ capCents: number; spentTodayCents: number; reservedCents?: number }> | null;
 }>) {
   const base = initial(detail);
   const [form, setForm] = useState(base);
@@ -108,7 +112,7 @@ export function SettingsForm({
   const effectivePrompt = (detail.schedulePromptOverride ?? defaultSchedulePrompt ?? "").trim();
   const timezones = SCHEDULE_TIMEZONES.includes(form.tz) ? SCHEDULE_TIMEZONES : [form.tz, ...SCHEDULE_TIMEZONES];
 
-  const showCap = whatsappCap !== null && detail.triggerWhatsappInbound;
+  const capState = { whatsappOn: detail.triggerWhatsappInbound, reservedCents: whatsappCap?.reservedCents ?? 0 };
 
   if (!canEdit) {
     const rows: readonly (readonly [string, string])[] = [
@@ -116,7 +120,7 @@ export function SettingsForm({
       ["Расписание", describeSchedule(detail.scheduleCron, detail.scheduleTz)],
       ["Реагирует на", [detail.triggerWebsiteLead ? "новую заявку с сайта" : null, detail.triggerWhatsappInbound ? "новое сообщение в WhatsApp" : null].filter(Boolean).join(", ") || "ничего"],
       ["Потолок расхода на запуск", detail.runBudgetUsd === 0 ? "без потолка" : formatUsd(detail.runBudgetUsd)],
-      ...(showCap ? [["Лимит на WhatsApp", dailyCapValue(whatsappCap.capCents, whatsappCap.spentTodayCents)] as const] : []),
+      ...(whatsappCap ? [["Лимит на WhatsApp", dailyCapValue(whatsappCap.capCents, whatsappCap.spentTodayCents, capState)] as const] : []),
     ];
     return (
       <section className="rounded-card border border-border bg-surface p-4" aria-labelledby="aia-settings-read" data-testid="v3-aia-settings-read">
@@ -160,7 +164,7 @@ export function SettingsForm({
           <label htmlFor="aia-budget" className={fieldLabelCls}>Потолок расхода на один запуск, $</label>
           <input id="aia-budget" inputMode="decimal" className={`${inputCls} max-w-[10rem]`} value={form.budget} onChange={(event) => set("budget", event.target.value)} />
           <p className="mt-1 t-meta text-fg-3">0 — без потолка.</p>
-          {showCap ? <p className="mt-2 t-meta text-fg-3" data-testid="v3-aia-wa-cap">{dailyCapLine(whatsappCap.capCents, whatsappCap.spentTodayCents)}</p> : null}
+          {whatsappCap ? <p className="mt-2 t-meta text-fg-3" data-testid="v3-aia-wa-cap">{dailyCapLine(whatsappCap.capCents, whatsappCap.spentTodayCents, capState)}</p> : null}
         </div>
       </fieldset>
 

@@ -4626,8 +4626,8 @@ SQL
   # (a321_already_applied), then the suite, insisting on its marker. The suite proves: the posture of the one new
   # runtime function (definer, empty search_path, service_role only, the family counts), the input rules, that the
   # day is the Bishkek calendar day (the 23:59:59.999 / 00:00:00 edges, dayStart), what is added up (every status and
-  # trigger kind of the asked agent, no leak from another agent or organization), the open list (window, order,
-  # cap of 50), that the read writes nothing, and the "limit reached" record through the existing reserve / update
+  # trigger kind of the asked agent, no leak from another agent or organization), the open list (runs in work of any
+  # age, the look-back before the start of the day, kind, order, cap of 50), that the read writes nothing, and the "limit reached" record through the existing reserve / update
   # path (one visible row per agent and day).
   if [[ "$(basename "$migration")" == *_platform_ai_agents_daily_spend.sql ]]; then
     t321_again_log="$(mktemp -t evo-t321-again.XXXXXX)"

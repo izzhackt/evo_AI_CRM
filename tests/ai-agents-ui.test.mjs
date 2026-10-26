@@ -740,7 +740,7 @@ test("дневной лимит WhatsApp: строка «Остановлен п
   const stopDetail = body(bodyProps({ tab: "runs", runId: claudeStop.id, run: { status: "available", data: { run: claudeStop, actions: [], drafts: [] } } }));
   assert.doesNotMatch(stopDetail, /v3-aia-run-cap|v3-aia-run-error/u);
 
-  // «Настройки»: лимит на WhatsApp только строкой, когда агент реагирует на WhatsApp; расход — за сегодняшние сутки по Бишкеку.
+  // «Настройки»: лимит на WhatsApp только строкой (поля нет); расход — за сегодняшние сутки по Бишкеку.
   const withWhatsapp = { ...DETAIL, triggerWhatsappInbound: true };
   const edit = body(bodyProps({ tab: "settings", detail: withWhatsapp, whatsappDailyCapCents: 1000 }));
   assert.match(edit, /data-testid="v3-aia-wa-cap">Лимит на WhatsApp: \$10 в день, сегодня потрачено \$0,87</u);
@@ -748,10 +748,27 @@ test("дневной лимит WhatsApp: строка «Остановлен п
   assert.doesNotMatch(edit, /<input[^>]*aria-label="Лимит на WhatsApp"|id="aia-wa-cap"/u, "только чтение: поля нет");
   const read = body(bodyProps({ tab: "settings", detail: withWhatsapp, canEdit: false, whatsappDailyCapCents: 750 }));
   assert.match(read, /<dt[^>]*>Лимит на WhatsApp<\/dt><dd[^>]*>\$7,50 в день, сегодня потрачено \$0,87<\/dd>/u);
-  // Нет WhatsApp-триггера или лимит не передан — строки нет.
-  assert.doesNotMatch(body(bodyProps({ tab: "settings", whatsappDailyCapCents: 1000 })), /Лимит на WhatsApp/u);
+  // Триггер WhatsApp выключен (так прод на паузе): строка всё равно видна и говорит об этом, чтобы владелец увидел
+  // лимит ДО включения триггера (порядок выката в runbook). В обоих видах.
+  const offEdit = body(bodyProps({ tab: "settings", whatsappDailyCapCents: 1000 }));
+  assert.match(offEdit, /data-testid="v3-aia-wa-cap">Лимит на WhatsApp: \$10 в день, сегодня потрачено \$0,87 \(сейчас не реагирует на WhatsApp\)</u);
+  const offRead = body(bodyProps({ tab: "settings", canEdit: false, whatsappDailyCapCents: 1000 }));
+  assert.match(offRead, /<dt[^>]*>Лимит на WhatsApp<\/dt><dd[^>]*>\$10 в день, сегодня потрачено \$0,87 \(сейчас не реагирует на WhatsApp\)<\/dd>/u);
+  // Включённый триггер - без пояснения. Лимит не передан - строки нет совсем.
+  assert.doesNotMatch(edit, /не реагирует на WhatsApp/u);
   assert.doesNotMatch(body(bodyProps({ tab: "settings", detail: withWhatsapp })), /Лимит на WhatsApp/u);
   assert.doesNotMatch(body(bodyProps({ tab: "settings", detail: withWhatsapp, canEdit: false })), /Лимит на WhatsApp/u);
+  assert.doesNotMatch(body(bodyProps({ tab: "settings" })), /Лимит на WhatsApp/u);
+  // Расход и резерв по данным базы (то, что решает приём события): расход берётся из них, а не из графика.
+  const fromDb = body(bodyProps({ tab: "settings", detail: withWhatsapp, whatsappDailyCapCents: 1000, whatsappCapState: { spentCents: 640, reservedCents: 0 } }));
+  assert.match(fromDb, /data-testid="v3-aia-wa-cap">Лимит на WhatsApp: \$10 в день, сегодня потрачено \$6,40</u);
+  // Лимит держит только идущий запуск по WhatsApp: сотрудник видит, почему агент ждёт, а не молчаливую остановку.
+  const held = body(bodyProps({ tab: "settings", detail: withWhatsapp, whatsappDailyCapCents: 1000, whatsappCapState: { spentCents: 600, reservedCents: 500 } }));
+  assert.match(held, /data-testid="v3-aia-wa-cap">Лимит на WhatsApp: \$10 в день, сегодня потрачено \$6 \(идёт запуск по WhatsApp — новые ждут его окончания\)</u);
+  const heldRead = body(bodyProps({ tab: "settings", detail: withWhatsapp, canEdit: false, whatsappDailyCapCents: 1000, whatsappCapState: { spentCents: 600, reservedCents: 500 } }));
+  assert.match(heldRead, /<dd[^>]*>\$10 в день, сегодня потрачено \$6 \(идёт запуск по WhatsApp — новые ждут его окончания\)<\/dd>/u);
+  // Запуск идёт, но лимит не держит (расход + резерв ниже лимита), - молчим.
+  assert.doesNotMatch(body(bodyProps({ tab: "settings", detail: withWhatsapp, whatsappDailyCapCents: 1000, whatsappCapState: { spentCents: 300, reservedCents: 500 } })), /идёт запуск/u);
   // После полуночи по Бишкеку расход сегодняшних суток — ноль.
   const nextDay = body(bodyProps({ tab: "settings", detail: withWhatsapp, whatsappDailyCapCents: 1000, now: "2026-10-22T18:00:00.000Z" }));
   assert.match(nextDay, /сегодня потрачено \$0</u);

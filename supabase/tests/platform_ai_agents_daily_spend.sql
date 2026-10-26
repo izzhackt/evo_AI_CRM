@@ -15,8 +15,10 @@
 --     the exact 00:00 Bishkek instant, and only that day's runs are added up (yesterday's and tomorrow's are not);
 --  4. what is added up: every status and every trigger kind of the asked agent; another agent and another
 --     organization do not leak in; a run with zero cost adds zero;
---  5. the open list: only starting / running runs of the asked agent inside the window (with their recorded cost),
---     ordered by start, at most 50; finished, needs_attention, older and foreign runs are absent;
+--  5. the open list: only starting / running runs of the asked agent, of ANY age (a run nobody closed keeps its
+--     place: its cost is written only at closing), counted back from 00:00 Bishkek by the window (a run begun the
+--     evening before and still going stays), with kind and recorded cost, ordered by start, at most 50; finished,
+--     needs_attention, foreign and earlier-than-the-look-back runs are absent;
 --  6. read-only: the call writes no run row and no audit event;
 --  7. the "daily limit reached" record with the existing run path: reserve with the daily key and update to
 --     budget_reached with the code and the Russian text gives ONE visible row (the same JSON the staff list
@@ -170,36 +172,69 @@ SELECT pg_temp.a321_assert(
   'another agent and another organization do not leak in; an empty day is 0');
 
 -- ---------------------------------------------------------------------------
--- 5. The open list. Moment 2026-10-26 14:00:00+06; the window is counted back from it.
+-- 5. The open list. Moment 2026-10-26 14:00:00+06. A run in work holds its reserve WHATEVER ITS AGE: its cost is
+--    written only when it is closed (an open row always shows 0), so a run that nobody closed must not drop out of
+--    the list as it gets older. The window only says how far before the start of the Bishkek day (00:00) to still
+--    look (a run begun before midnight and still going stays listed).
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.a321_run(1, 'sales', 'running', 'whatsapp_inbound', 20, '2026-10-26 13:50:00+06');
 SELECT pg_temp.a321_run(1, 'sales', 'starting', 'website_lead', 0, '2026-10-26 13:01:00+06');
 SELECT pg_temp.a321_run(1, 'sales', 'running', 'command', 5, '2026-10-26 12:59:00+06');
+-- The stale one: still 'running' eleven hours after it began, nothing recorded (the closing is late).
+SELECT pg_temp.a321_run(1, 'sales', 'running', 'whatsapp_inbound', 0, '2026-10-26 03:00:00+06');
+-- Begun the evening before: 30 minutes before the start of the day (inside the default look-back) and 4 hours before it (outside).
+SELECT pg_temp.a321_run(1, 'sales', 'running', 'whatsapp_inbound', 0, '2026-10-25 23:30:00+06');
+SELECT pg_temp.a321_run(1, 'sales', 'running', 'whatsapp_inbound', 0, '2026-10-25 20:00:00+06');
 SELECT pg_temp.a321_run(1, 'sales', 'completed', 'whatsapp_inbound', 40, '2026-10-26 13:55:00+06');
 SELECT pg_temp.a321_run(1, 'sales', 'needs_attention', 'command', 3, '2026-10-26 13:56:00+06');
 SELECT pg_temp.a321_run(1, 'curator-cn', 'running', 'command', 11, '2026-10-26 13:58:00+06');
 SELECT pg_temp.a321_run(2, 'sales', 'running', 'command', 12, '2026-10-26 13:58:00+06');
 SELECT pg_temp.a321_spend(1, 'sales', '2026-10-26 14:00:00+06') AS a321_open \gset
--- Default window 60 minutes: 13:50 (20 cents) and 13:01 (0 cents) are inside; 12:59 is one minute outside; finished
--- runs, another agent and another organization are absent. Ordered by start.
-SELECT pg_temp.a321_assert(jsonb_array_length(:'a321_open'::JSONB -> 'open') = 2
-  AND (:'a321_open'::JSONB -> 'open' -> 0 ->> 'costCents') = '0' AND (:'a321_open'::JSONB -> 'open' -> 1 ->> 'costCents') = '20'
-  AND (:'a321_open'::JSONB -> 'open' -> 0 ->> 'startedAt')::TIMESTAMPTZ = TIMESTAMPTZ '2026-10-26 13:01:00+06'
-  AND (:'a321_open'::JSONB -> 'open' -> 1 ->> 'startedAt')::TIMESTAMPTZ = TIMESTAMPTZ '2026-10-26 13:50:00+06',
-  'the open list: starting / running of this agent inside 60 minutes, ordered by start, with the recorded cost');
--- The recorded cost of an open run started today is also in spentCents (everything started today is).
-SELECT pg_temp.a321_assert((:'a321_open'::JSONB ->> 'spentCents')::INTEGER = 21507 + 20 + 0 + 5 + 40 + 3,
-  'spentCents includes the recorded cost of the open and the just-finished runs of today');
--- The window is the caller's: 5 minutes sees only the 13:50 run; 1 is the minimum (0 and negative clamp to 1);
--- an absurd value clamps to 1440 minutes (all three open runs, 12:59 included).
+-- Default look-back 60 minutes before 00:00 Bishkek: everything open that began today is listed, the stale 03:00 run
+-- included, plus the 23:30 run of the evening before; the 20:00 run (4 hours before the day) is outside; finished
+-- runs, another agent and another organization are absent. Ordered by start, with the kind and the recorded cost.
+SELECT pg_temp.a321_assert(jsonb_array_length(:'a321_open'::JSONB -> 'open') = 5
+  AND (SELECT jsonb_agg(e ->> 'costCents' ORDER BY ord) FROM jsonb_array_elements(:'a321_open'::JSONB -> 'open') WITH ORDINALITY AS t(e, ord))
+    = '["0", "0", "5", "0", "20"]'::JSONB
+  AND (SELECT jsonb_agg(e ->> 'triggerKind' ORDER BY ord) FROM jsonb_array_elements(:'a321_open'::JSONB -> 'open') WITH ORDINALITY AS t(e, ord))
+    = '["whatsapp_inbound", "whatsapp_inbound", "command", "website_lead", "whatsapp_inbound"]'::JSONB
+  AND (:'a321_open'::JSONB -> 'open' -> 0 ->> 'startedAt')::TIMESTAMPTZ = TIMESTAMPTZ '2026-10-25 23:30:00+06'
+  AND (:'a321_open'::JSONB -> 'open' -> 1 ->> 'startedAt')::TIMESTAMPTZ = TIMESTAMPTZ '2026-10-26 03:00:00+06'
+  AND (:'a321_open'::JSONB -> 'open' -> 4 ->> 'startedAt')::TIMESTAMPTZ = TIMESTAMPTZ '2026-10-26 13:50:00+06',
+  'the open list: starting / running of this agent, any age since 60 minutes before the day, ordered by start, with kind and recorded cost');
+-- The recorded cost of an open run started today is also in spentCents (everything started today is); the runs of the
+-- evening before belong to the day before.
+SELECT pg_temp.a321_assert((:'a321_open'::JSONB ->> 'spentCents')::INTEGER = 21507 + 20 + 0 + 5 + 0 + 40 + 3,
+  'spentCents includes the recorded cost of the open and the just-finished runs of today, not those begun the evening before');
+-- Age does not matter: the same runs are listed a minute later and at the very end of the same Bishkek day,
+-- the 11-hour-old 03:00 run included.
 SELECT pg_temp.a321_assert(
-  jsonb_array_length(pg_temp.a321_spend(1, 'sales', '2026-10-26 14:00:00+06', '15') -> 'open') = 1
-  AND jsonb_array_length(pg_temp.a321_spend(1, 'sales', '2026-10-26 14:00:00+06', '5') -> 'open') = 0
-  AND jsonb_array_length(pg_temp.a321_spend(1, 'sales', '2026-10-26 13:50:30+06', '0') -> 'open') = 1
-  AND jsonb_array_length(pg_temp.a321_spend(1, 'sales', '2026-10-26 14:00:00+06', '-7') -> 'open') = 0
-  AND jsonb_array_length(pg_temp.a321_spend(1, 'sales', '2026-10-26 14:00:00+06', '99999') -> 'open') = 3
-  AND jsonb_array_length(pg_temp.a321_spend(1, 'sales', '2026-10-26 14:00:00+06', 'NULL') -> 'open') = 2,
-  'the window: 15 -> 1 run, 5 -> 0, 0 and -7 clamp to 1 minute, 99999 clamps to 1440 (3 runs), NULL -> 60');
+  jsonb_array_length(pg_temp.a321_spend(1, 'sales', '2026-10-26 14:01:00+06') -> 'open') = 5
+  AND jsonb_array_length(pg_temp.a321_spend(1, 'sales', '2026-10-26 23:59:00+06') -> 'open') = 5
+  AND (pg_temp.a321_spend(1, 'sales', '2026-10-26 23:59:00+06') -> 'open' -> 1 ->> 'startedAt')::TIMESTAMPTZ = TIMESTAMPTZ '2026-10-26 03:00:00+06',
+  'a run open for eleven hours is still listed late in the day');
+-- The 61-minute case of the review: $9 recorded today and a WhatsApp run still running 61 minutes after it began.
+SELECT pg_temp.a321_run(1, 'curator-my', 'completed', 'whatsapp_inbound', 900, '2026-10-26 09:00:00+06');
+SELECT pg_temp.a321_run(1, 'curator-my', 'running', 'whatsapp_inbound', 0, '2026-10-26 12:59:00+06');
+SELECT pg_temp.a321_spend(1, 'curator-my', '2026-10-26 14:00:00+06') AS a321_stale \gset
+SELECT pg_temp.a321_assert((:'a321_stale'::JSONB ->> 'spentCents')::INTEGER = 900
+  AND jsonb_array_length(:'a321_stale'::JSONB -> 'open') = 1
+  AND (:'a321_stale'::JSONB -> 'open' -> 0 ->> 'costCents') = '0'
+  AND (:'a321_stale'::JSONB -> 'open' -> 0 ->> 'triggerKind') = 'whatsapp_inbound',
+  'a WhatsApp run open 61 minutes with nothing recorded still shows (the old 60-minute cut-off returned an empty list here)');
+-- The look-back is the caller's and counts back from 00:00 Bishkek: 15 or 5 minutes lose the 23:30 run of the evening
+-- before but never a run of today; 1 is the minimum (0 and negative clamp to 1); an absurd value clamps to 1440
+-- minutes (the 20:00 run joins); NULL -> 60.
+SELECT pg_temp.a321_assert(
+  jsonb_array_length(pg_temp.a321_spend(1, 'sales', '2026-10-26 14:00:00+06', '15') -> 'open') = 4
+  AND jsonb_array_length(pg_temp.a321_spend(1, 'sales', '2026-10-26 14:00:00+06', '5') -> 'open') = 4
+  AND jsonb_array_length(pg_temp.a321_spend(1, 'sales', '2026-10-26 13:50:30+06', '0') -> 'open') = 4
+  AND jsonb_array_length(pg_temp.a321_spend(1, 'sales', '2026-10-26 14:00:00+06', '-7') -> 'open') = 4
+  AND jsonb_array_length(pg_temp.a321_spend(1, 'sales', '2026-10-26 14:00:00+06', '30') -> 'open') = 5
+  AND jsonb_array_length(pg_temp.a321_spend(1, 'sales', '2026-10-26 14:00:00+06', '29') -> 'open') = 4
+  AND jsonb_array_length(pg_temp.a321_spend(1, 'sales', '2026-10-26 14:00:00+06', '99999') -> 'open') = 6
+  AND jsonb_array_length(pg_temp.a321_spend(1, 'sales', '2026-10-26 14:00:00+06', 'NULL') -> 'open') = 5,
+  'the look-back before 00:00: 30 -> includes the 23:30 run, 29/15/5/0/-7 -> not, 99999 clamps to 1440 (6 runs), NULL -> 60');
 -- At most 50 are listed, oldest first.
 INSERT INTO platform_private.ai_agent_runs(organization_id, agent_key, trigger_kind, status, cost_cents, started_at)
 SELECT pg_temp.a321_id(1), 'director', 'command', 'running', n, TIMESTAMPTZ '2026-10-26 13:00:00+06' + n * INTERVAL '10 seconds'

@@ -9,9 +9,10 @@ import {
   dailyCapReachedMessage,
   evaluateWhatsappDailyCap,
   parseDailySpendFacts,
+  readWhatsappDailyBudgetCents,
   type DailyCapDecision,
 } from "../../ai-agents/daily-cap.ts";
-import { callRpc, isRecord, stringOrNull, type AiAgentsRuntimeDeps, type ServiceClient } from "./deps.ts";
+import { callRpc, isRecord, resolveDeps, stringOrNull, type AiAgentsRuntimeDeps, type ServiceClient } from "./deps.ts";
 
 /*
  * Дневной лимит расхода на запуски по входящему WhatsApp (решение владельца 26.10.2026, `$10` в день).
@@ -48,6 +49,36 @@ export async function gateWhatsappDailyCap(args: Readonly<{
   const facts = parseDailySpendFacts(outcome.data);
   if (!facts) return { ok: false, code: "bad_shape" };
   return { ok: true, decision: evaluateWhatsappDailyCap({ capCents: args.capCents, runBudgetUsd: args.runBudgetUsd, facts }) };
+}
+
+/** Расход и резерв агента на сейчас — то, что видит сотрудник в строке лимита «Настроек». */
+export type WhatsappCapState = Readonly<{ spentCents: number; reservedCents: number }>;
+
+/**
+ * Состояние лимита для страницы агента (только чтение, тем же вопросом, что решает приём события). Организация — из
+ * проверенного актора страницы. Любой сбой (нет функции, база, форма ответа) — null: строка лимита тогда берёт
+ * расход из графика и ничего не обещает про резерв. Не бросает.
+ */
+export async function readWhatsappDailyCapState(args: Readonly<{
+  organizationId: string;
+  agentKey: string;
+  runBudgetUsd: number;
+}>, overrides?: Partial<AiAgentsRuntimeDeps>): Promise<WhatsappCapState | null> {
+  try {
+    const deps = resolveDeps(overrides);
+    const client = await deps.serviceClient();
+    const gate = await gateWhatsappDailyCap({
+      client,
+      organizationId: args.organizationId,
+      agentKey: args.agentKey,
+      runBudgetUsd: args.runBudgetUsd,
+      capCents: readWhatsappDailyBudgetCents(deps.env()),
+      deps,
+    });
+    return gate.ok ? { spentCents: gate.decision.spentCents, reservedCents: gate.decision.reservedCents } : null;
+  } catch {
+    return null;
+  }
 }
 
 export type DailyCapRecord = "recorded" | "known" | "skipped";

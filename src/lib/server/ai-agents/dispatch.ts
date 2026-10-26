@@ -23,7 +23,10 @@ import {
  * агентов с нужным триггером (решает БД: `dispatch_targets_v1`), только при
  * заданном ключе Claude API. Запуски по входящему WhatsApp, кроме того, стоят за дневным лимитом расхода агента
  * ($10 по умолчанию, сутки по Бишкеку; `daily-cap.ts`): исчерпан — запуск не стартует, а в «Запусках» агента
- * появляется строка с причиной `daily_budget_reached`. Заявки сайта этим лимитом не останавливаются.
+ * появляется строка с причиной `daily_budget_reached`. Если лимит держит только резерв под запуск по WhatsApp в
+ * работе (`daily_budget_reserved`), приём сначала закрывает по сессиям открытые запуски агента — тот, что уже кончился
+ * в Claude, отдаёт настоящий расход и снимает резерв, — и проверяет лимит ещё раз (как с `run_in_progress` ниже).
+ * Заявки сайта этим лимитом не останавливаются.
  */
 
 export type AiAgentEvent = Readonly<{ kind: AiAgentEventKind; ref: string | null }>;
@@ -89,14 +92,22 @@ export async function dispatchAiAgentEvent(
       const version = numberOr(raw.agentVersion, NaN);
       try {
         if (event.kind === "whatsapp_inbound") {
-          const gate = await gateWhatsappDailyCap({
+          const gateArgs = {
             client,
             organizationId,
             agentKey: key,
             runBudgetUsd: numberOr(raw.runBudgetUsd, AI_AGENT_LIMITS.defaultRunBudgetUsd),
             capCents: dailyCapCents,
             deps,
-          });
+          };
+          let gate = await gateWhatsappDailyCap(gateArgs);
+          // Лимит держит только резерв: прошлый запуск мог закончиться в Claude, пока строка ещё «в работе» (сверка раз в
+          // ~5 минут). Закрываем открытые запуски агента по сессиям (записывается настоящий расход) и решаем заново: иначе
+          // событие терялось бы без следа в промежутке между концом сессии и ближайшей сверкой.
+          if (gate.ok && gate.decision.blocked && gate.decision.reason === "daily_budget_reserved") {
+            await closeOpenAiAgentRuns(anthropic, client, organizationId, key, deps);
+            gate = await gateWhatsappDailyCap(gateArgs);
+          }
           if (!gate.ok) {
             // Расход прочитать не удалось: лимит не проверить, значит, запуск не начинаем (журнал — только код).
             failed += 1;

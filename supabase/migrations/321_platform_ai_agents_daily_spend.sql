@@ -21,8 +21,11 @@
 --     spentCents  записанный `cost_cents` ВСЕХ запусков агента, начатых в эти сутки, в любом статусе и любого вида
 --                 (лимит про агента, а не про один вид запуска; сами запуски по заявке, расписанию и поручению им не
 --                 останавливаются);
---     open        запуски агента в работе (`starting` / `running`), начатые не раньше окна (по умолчанию 60 минут,
---                 от 1 до 1440): `[{costCents, startedAt}]`, не больше 50. Под них приложение держит резерв.
+--     open        запуски агента в работе (`starting` / `running`), начатые не раньше чем за окно до начала этих
+--                 суток (по умолчанию 60 минут, от 1 до 1440), ЛЮБОГО возраста: `[{costCents, startedAt, triggerKind}]`,
+--                 не больше 50. Расход запуска записывается только при его закрытии, поэтому открытая строка всегда
+--                 показывает 0, и давний запуск в работе не отбрасывается: иначе при отставшей сверке (таймер или
+--                 Claude недоступны) лимит открылся бы сам. Под запуски по WhatsApp приложение держит резерв.
 --   Ошибки: `ai_agent_not_found` (P0002) для неизвестного ключа или пустой организации; не service_role — отказ
 --   общего стража `require_p2g_service`. Чужая организация видна как нулевой расход: чтение ограничено
 --   `organization_id` в каждом запросе.
@@ -70,11 +73,13 @@ BEGIN
   SELECT COALESCE(sum(r.cost_cents), 0) INTO v_spent
   FROM platform_private.ai_agent_runs r
   WHERE r.organization_id = p_organization_id AND r.agent_key = p_key AND r.started_at >= v_from AND r.started_at < v_to;
-  SELECT COALESCE(jsonb_agg(jsonb_build_object('costCents', o.cost_cents, 'startedAt', o.started_at)
+  -- Запуск в работе держит резерв, пока не закрыт, любого возраста: окно отсчитывается назад от начала суток, а не от
+  -- «сейчас», чтобы запуск, начатый перед полуночью и ещё идущий, не пропал, а зависшая давняя строка не копилась вечно.
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('costCents', o.cost_cents, 'startedAt', o.started_at, 'triggerKind', o.trigger_kind)
       ORDER BY o.started_at, o.id), '[]'::JSONB) INTO v_open
-  FROM (SELECT x.id, x.cost_cents, x.started_at FROM platform_private.ai_agent_runs x
+  FROM (SELECT x.id, x.cost_cents, x.started_at, x.trigger_kind FROM platform_private.ai_agent_runs x
     WHERE x.organization_id = p_organization_id AND x.agent_key = p_key AND x.status IN ('starting', 'running')
-      AND x.started_at > v_now - make_interval(mins => v_minutes)
+      AND x.started_at >= v_from - make_interval(mins => v_minutes)
     ORDER BY x.started_at, x.id LIMIT 50) o;
   RETURN jsonb_build_object('day', to_char(v_day, 'YYYY-MM-DD'), 'dayStart', v_from, 'spentCents', v_spent, 'open', v_open);
 END

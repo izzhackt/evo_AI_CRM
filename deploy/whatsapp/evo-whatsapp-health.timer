@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the EVO WhatsApp health alert every 5 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=5min
+Persistent=true
+Unit=evo-whatsapp-health.service
+
+[Install]
+WantedBy=timers.target

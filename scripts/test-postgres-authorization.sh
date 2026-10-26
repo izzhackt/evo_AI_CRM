@@ -4621,6 +4621,39 @@ SQL
       exit 1
     fi
   fi
+  # «Тревога о связи WhatsApp продаж» (migration 321, PLAN_CHANGES 26.10.2026). Matched by name, not number.
+  # Additive migration: it replaces nothing, so there are no pre-image anchors to tamper with. Right after the
+  # migration: a second apply refuses (a321_already_applied), then the suite, insisting on its marker. The suite
+  # proves: the posture (two closed tables, four definer functions for service_role only, five closed helpers, every
+  # other role and a missing service claim refused, argument errors 22023); the read (the last customer inbound is the
+  # newest verified message.any with fromMe = false inside 30 days of the same organization); the run of observations;
+  # the open (one task per active system admin who can receive tasks plus the optional sales head, event / receipt /
+  # notification / system journal row, copy by kind and status, no phone number, one open alert per kind, no recipient
+  # is an error that leaves nothing); and the resolve (open tasks done with event and journal row, human-closed tasks
+  # untouched, the reason recorded, a second resolve finds nothing, the next case is a new alert, isolation).
+  if [[ "$(basename "$migration")" == *_platform_whatsapp_health_alerts.sql ]]; then
+    t321_again_log="$(mktemp -t evo-t321-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t321_again_log" 2>&1; then
+      echo "migration 321 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a321_already_applied" "$t321_again_log"; then
+      echo "a second apply of migration 321 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t321_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t321_again_log"
+    whatsapp_health_alerts_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_whatsapp_health_alerts.sql </dev/null)"
+    printf '%s\n' "$whatsapp_health_alerts_log"
+    if ! grep -q 'A321_WHATSAPP_HEALTH_ALERTS_SUITE_PASSED' <<<"$whatsapp_health_alerts_log"; then
+      echo "platform_whatsapp_health_alerts.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

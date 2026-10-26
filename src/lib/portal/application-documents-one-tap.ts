@@ -45,3 +45,12 @@ export function studentDocumentPageHint(items: readonly Readonly<{ canUpload: bo
   const uploadable = (items ?? []).filter(item => item.canUpload);
   return uploadable.length && !uploadable.some(item => item.canSubmit) ? "two_step" : null;
 }
+
+/**
+ * The item's running one-tap send. Only the run that started it may end it: a form remounted
+ * during a send is inert, but a late or failed second run must never lift the first run's view.
+ */
+export function nextOneTapRun<T extends object>(current: T | null, run: T, active: boolean): T | null {
+  if (active) return run;
+  return current === run ? null : current;
+}

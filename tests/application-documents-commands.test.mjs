@@ -11,7 +11,7 @@ import {
   applicationDocumentPendingKey, persistApplicationDocumentPending, readApplicationDocumentPending,
 } from '../src/lib/portal/application-documents-pending.ts';
 import { freezeApplicationDocumentUploadIntent } from '../src/lib/portal/application-documents-upload.ts';
-import { applicationDocumentNoticeVisible, studentDocumentPageHint } from '../src/lib/portal/application-documents-one-tap.ts';
+import { applicationDocumentNoticeVisible, nextOneTapRun, studentDocumentPageHint } from '../src/lib/portal/application-documents-one-tap.ts';
 import { PORTAL_DICTIONARIES } from '../src/lib/portal/i18n.ts';
 
 const id = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -334,9 +334,42 @@ test('during a one-tap send the stored submit intent is that send\'s own, not an
   assert.match(controls, /if \(sending\.current \|\| suppressed \|\|/u);
   assert.match(controls, /disabled=\{!hydrated \|\| busy \|\| suppressed \|\|/u);
   const save = controls.slice(controls.indexOf('async function save('), controls.indexOf('if (disabled && !retained && !pending.blocked) return null;'));
-  const started = save.indexOf('onSendingChange?.(run)'), runs = save.indexOf('runApplicationDocumentUploadAndSubmit('),
-    ended = save.indexOf('onSendingChange?.(null)'), refreshed = save.indexOf('onSaved()');
+  const started = save.indexOf('onSendingChange?.(run, true)'), runs = save.indexOf('runApplicationDocumentUploadAndSubmit('),
+    ended = save.indexOf('onSendingChange?.(run, false)'), refreshed = save.indexOf('onSaved()');
   assert.ok(started > 0 && started < runs && runs < ended && ended < refreshed, 'reported before the run, released before the refresh');
+  assert.match(save, /const run = oneTap && sendAfterSave \? \{ previousSubmissionId: sendAfterSave\.previousSubmissionId \} : null;/u, 'a fresh run object per tap');
+  assert.match(item, /setOneTapRun\(current => nextOneTapRun\(current, run, active\)\)/u, 'only the run that started the view ends it');
+  assert.match(item, /itemSending=\{oneTapRun !== null\}[^\n]*\/>\n\s*<\/details> : <ProgramDocumentUpload[^\n]*\n[^\n]*itemSending=\{oneTapRun !== null\}/u, 'both upload forms know a send runs');
+  // A form remounted during the send waits for it; the upload this form itself is making is not shown as unfinished.
+  assert.match(controls, /const elsewhere = itemSending && !busy;/u);
+  assert.match(controls, /const shownRetained = busy \|\| elsewhere \? null : retained;/u);
+  assert.match(controls, /if \(sending\.current \|\| elsewhere \|\|/u);
+  assert.match(controls, /const inert = !hydrated \|\| busy \|\| elsewhere \|\|/u);
+  assert.match(controls, /\{shownRetained && !succeeded \? <p className=\{styles\.note\}>\{strings\.pending\}/u);
+  assert.match(controls, /\{shownRetained \? strings\.reselectFile : strings\.chooseFile\}/u);
+});
+
+test('only the one-tap run that started the item\'s «sending» view can end it', () => {
+  const first = { previousSubmissionId: null }, second = { previousSubmissionId: null };
+  assert.equal(nextOneTapRun(null, first, true), first);
+  assert.equal(nextOneTapRun(first, first, false), null, 'the run ends its own view');
+  assert.equal(nextOneTapRun(first, second, false), first, 'a second run that fails fast does not lift the first run\'s view');
+  assert.equal(nextOneTapRun(second, first, false), second, 'a late first run does not end a newer one');
+  assert.equal(nextOneTapRun(null, first, false), null);
+});
+
+test('a standalone send keeps its confirmation through the refresh, for students only', () => {
+  const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+  const controls = read('src/components/portal/admissionPreparations/ProgramDocumentControls.tsx');
+  const submitBody = controls.slice(controls.indexOf('export function ProgramDocumentSubmit('));
+  assert.match(submitBody, /const sentVersionId = \(retained\?\.selection \?\? selection\)\?\.documentVersionId \?\? null;/u, 'the confirmation names the version that was actually sent');
+  const sentAt = submitBody.indexOf('onSent?.(sentVersionId, text)'), refreshAt = submitBody.indexOf('onSaved()', sentAt);
+  assert.ok(sentAt > 0 && sentAt < refreshAt, 'kept before the refresh remounts the control');
+  const item = read('src/components/portal/admissionPreparations/ProgramDocumentItem.tsx');
+  assert.match(item, /onSent=\{audience === "student" \? \(versionId, text\) => onNotice\(\{ tone: "success", text, versionId \}\) : undefined\}/u, 'staff copy and behaviour stay as they were');
+  // The kept «sent» line shows only once the refreshed item has that very version as its submission.
+  assert.equal(applicationDocumentNoticeVisible({ tone: 'success', text: 'x', versionId: id(30) }, { submittedVersionId: id(30), reviewed: false, unsentDraftVersionId: null }), true);
+  assert.equal(applicationDocumentNoticeVisible({ tone: 'success', text: 'x', versionId: id(30) }, { submittedVersionId: id(31), reviewed: false, unsentDraftVersionId: null }), false);
 });
 
 test('screens wire the one tap for students who may submit and keep staff two-step', () => {

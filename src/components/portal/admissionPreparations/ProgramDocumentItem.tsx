@@ -3,7 +3,7 @@
 import { useId, useRef, useState } from "react";
 import type { ApplicationDocumentItemTarget, ApplicationDocumentSelection } from "@/lib/portal/application-documents";
 import { readApplicationDocumentReusableVersionsAction } from "@/lib/portal/application-documents-actions";
-import { applicationDocumentNoticeVisible, type ApplicationDocumentNotice } from "@/lib/portal/application-documents-one-tap";
+import { applicationDocumentNoticeVisible, nextOneTapRun, type ApplicationDocumentNotice } from "@/lib/portal/application-documents-one-tap";
 import {
   ProgramDocumentSubmit, ProgramDocumentUpload, useProgramDocumentPending,
   type ProgramDocumentItem as Item, type ProgramDocumentScope, type ProgramDocumentSendAfterSave,
@@ -27,12 +27,13 @@ export function ProgramDocumentItem(props: ItemProps) {
   const [notice, setNotice] = useState<ApplicationDocumentNotice | null>(null);
   // A running one-tap send, kept here so a remount during it cannot show its own intent as an unfinished one.
   const [oneTapRun, setOneTapRun] = useState<ProgramDocumentSendAfterSave | null>(null);
-  return <ProgramDocumentItemSnapshot key={key} {...props} notice={notice} onNotice={setNotice} oneTapRun={oneTapRun} onOneTapRun={setOneTapRun} />;
+  const onOneTapRun = (run: ProgramDocumentSendAfterSave, active: boolean) => setOneTapRun(current => nextOneTapRun(current, run, active));
+  return <ProgramDocumentItemSnapshot key={key} {...props} notice={notice} onNotice={setNotice} oneTapRun={oneTapRun} onOneTapRun={onOneTapRun} />;
 }
 
 function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, canReview = false, onSaved, historyEpoch = 0, notice, onNotice, oneTapRun, onOneTapRun }: ItemProps & {
   notice: ApplicationDocumentNotice | null; onNotice: (notice: ApplicationDocumentNotice | null) => void;
-  oneTapRun: ProgramDocumentSendAfterSave | null; onOneTapRun: (run: ProgramDocumentSendAfterSave | null) => void;
+  oneTapRun: ProgramDocumentSendAfterSave | null; onOneTapRun: (run: ProgramDocumentSendAfterSave, active: boolean) => void;
 }) {
   const id = useId();
   const [versions, setVersions] = useState(item.reusableVersions);
@@ -81,9 +82,9 @@ function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, c
       <summary className={styles.summary}>{item.submission?.review && item.submission.review.decision !== "approved" ? strings.correctFile : draft || item.submission ? strings.replaceFile : strings.chooseFile}</summary>
       <p className={styles.note}>{sendAfterSave ? strings.saveHintOneTap : strings.saveHint}</p>
       <ProgramDocumentUpload scope={scope} target={target} audience={audience} strings={strings} onSaved={onSaved}
-        sendAfterSave={sendAfterSave} onNotice={onNotice} onSendingChange={onOneTapRun} quiet={selection !== null} />
+        sendAfterSave={sendAfterSave} onNotice={onNotice} onSendingChange={onOneTapRun} itemSending={oneTapRun !== null} quiet={selection !== null} />
     </details> : <ProgramDocumentUpload scope={scope} target={target} audience={audience} strings={strings} onSaved={onSaved}
-      sendAfterSave={sendAfterSave} onNotice={onNotice} onSendingChange={onOneTapRun} quiet={selection !== null} disabled />}
+      sendAfterSave={sendAfterSave} onNotice={onNotice} onSendingChange={onOneTapRun} itemSending={oneTapRun !== null} quiet={selection !== null} disabled />}
 
     {selectableVersions.length || cursor ? <details className={styles.details}>
       <summary className={styles.summary}>{strings.otherFile}</summary>
@@ -103,7 +104,8 @@ function ProgramDocumentItemSnapshot({ item, target, scope, audience, strings, c
     {noticeShown ? <p className={notice.tone === "success" ? styles.note : styles.error} role={notice.tone === "success" ? "status" : "alert"}>{notice.text}</p> : null}
     <ProgramDocumentSubmit scope={scope} target={target} audience={audience} strings={strings} selection={selection}
       previousSubmissionId={item.submission?.submissionId ?? null} disabled={!item.canSubmit || !selectionAvailable} onSaved={onSaved}
-      hideWhenIdle={audience === "student"} suppressed={oneTapRun !== null} onAttempt={() => onNotice(null)} />
+      hideWhenIdle={audience === "student"} suppressed={oneTapRun !== null} onAttempt={() => onNotice(null)}
+      onSent={audience === "student" ? (versionId, text) => onNotice({ tone: "success", text, versionId }) : undefined} />
     {item.submission ? <>
       <ProgramSubmissionEvidence submission={item.submission} target={target} audience={audience} strings={strings} />
       {audience === "staff" ? <ProgramDocumentReview scope={scope} submission={item.submission} strings={strings} canReview={canReview} onSaved={onSaved} /> : null}

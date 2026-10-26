@@ -628,11 +628,11 @@ async function managersPage() {
   return renderToStaticMarkup(withContexts(shell(ADMIN, null, element), "/v3/main", new URLSearchParams(query).toString()));
 }
 
-async function reportPage(extra = {}) {
+async function reportPage(extra = {}, actor = ADMIN) {
   const { SalesRegisterView } = require(join(ROOT, "src/components/v3/SalesRegisterView.tsx"));
   const query = { view: "sales", year: "2026", month: "9", ...extra };
-  const element = await SalesRegisterView({ actor: ADMIN, query });
-  return renderToStaticMarkup(withContexts(shell(ADMIN, null, element), "/v3/main", new URLSearchParams(query).toString()));
+  const element = await SalesRegisterView({ actor, query });
+  return renderToStaticMarkup(withContexts(shell(actor, null, element), "/v3/main", new URLSearchParams(query).toString()));
 }
 
 // --- «Динамика по дням»: когорта, «Продажи» периода и воронка по доске ----------
@@ -850,6 +850,17 @@ async function e4Pages() {
     // Только что добавленная продажа: форма вернула дело студента — отчёт говорит, что дело создано, и ведёт в него; без дела — прежний ответ.
     { name: "report-saved-case", html: await reportPage({ saved: E4_ROWS[1].id, case: uuid("15151515", 1) }) },
     { name: "report-saved", html: await reportPage({ saved: E4_ROWS[1].id }) },
+    // Роль «Продажи» (здесь — просмотр роли у администратора) не читает дело студента: «Открыть дело» остаётся ссылкой на лид, иначе — «Профиль не найден».
+    // У записи есть лид (продажа оформлена из Lead 360), поэтому ссылка остаётся на карточку лида.
+    { name: "report-saved-case-sales", html: await (async () => {
+      const before = REPORT.rows;
+      REPORT.rows = before.map((row) => row.id === E4_ROWS[1].id ? { ...row, leadId: LEAD_ID } : row);
+      try {
+        return await reportPage({ saved: E4_ROWS[1].id, case: uuid("15151515", 1) }, { ...ADMIN, presentationRole: "sales" });
+      } finally {
+        REPORT.rows = before;
+      }
+    })() },
     { name: "report-panel-edit", html: await reportPage({ record: E4_ROWS[1].id, edit: "true" }) },
     // Э8.7 (254): запись связана с лидом — имя ссылкой и «Отвязать от лида» в «⋯».
     { name: "report-panel-linked", html: await (async () => {

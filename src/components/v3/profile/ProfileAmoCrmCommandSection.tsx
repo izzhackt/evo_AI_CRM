@@ -13,6 +13,16 @@ import type { PlatformStudentCaseHandoffContext } from "@/lib/platform-student-h
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
+ * Сбой чтения не доказывает, что попытки нет: подготовленная или неизвестная могла остаться. Поэтому текст
+ * говорит только о том, что верно всегда, — эта страница ничего не отправляла, — и не обещает «ничего не записано».
+ */
+const AMOCRM_UNAVAILABLE = {
+  ru: "Не удалось проверить состояние amoCRM. С этой страницы ничего не отправлено. Сообщите администратору.",
+  ky: "amoCRM абалын текшерүү мүмкүн болгон жок. Бул беттен эч нерсе жөнөтүлгөн жок. Администраторго кабарлаңыз.",
+  en: "Could not check the amoCRM state. Nothing was sent from this page. Tell your administrator.",
+} as const;
+
+/**
  * The sole V3 Admissions amoCRM command surface.
  *
  * Canonical case/person/lead identities come from the verified handoff
@@ -78,7 +88,7 @@ export async function ProfileAmoCrmCommandSection({
           role="status"
         >
           <Icon name="alert" size={16} className="mt-0.5 shrink-0 text-danger" />
-          <p>Передача в amoCRM сейчас недоступна. Ничего не записано. Сообщите администратору.</p>
+          <p>{AMOCRM_UNAVAILABLE[locale]}</p>
         </section>
       );
     }

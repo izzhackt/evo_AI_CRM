@@ -135,7 +135,7 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother, onClose }: Re
         <label><span className={fieldLabelCls}>Имя</span><input name="name" required maxLength={300} className={inputCls} /></label>
         <label><span className={fieldLabelCls}>Телефон</span><input name="phone" type="tel" maxLength={50} className={inputCls} /></label>
         <label><span className={fieldLabelCls}>Email, если телефона нет</span><input name="email" type="email" maxLength={320} className={inputCls} /></label>
-        <label><span className={fieldLabelCls}>Как обратился</span><select name="source" required defaultValue=""
+        <label><span className={fieldLabelCls}>Источник</span><select name="source" required defaultValue=""
           aria-invalid={sourceMissing || undefined} aria-describedby={sourceMissing ? sourceErrorId : undefined}
           onInvalid={(event) => {
             // Одно сообщение — строка под полем, без всплывающей подсказки браузера поверх неё.
@@ -148,7 +148,7 @@ function ManualLeadEditor({ requestId, ownerId, owners, onAnother, onClose }: Re
           className={`${inputCls} aria-[invalid=true]:border-danger`}>
           <option value="">Не выбрано</option>{Object.entries(MANUAL_LEAD_SOURCES).map(([key, value]) => <option key={key} value={key}>{value}</option>)}
         </select>{sourceMissing ? <span id={sourceErrorId} role="alert" className="mt-1 block t-body-compact text-danger">{MANUAL_LEAD_SOURCE_REQUIRED}</span> : null}</label>
-        <label><span className={fieldLabelCls}>Откуда узнал о нас</span><select name="channel" required defaultValue=""
+        <label><span className={fieldLabelCls}>Откуда узнал</span><select name="channel" required defaultValue=""
           aria-invalid={channelMissing || undefined} aria-describedby={channelMissing ? channelErrorId : channelUnknown ? channelHintId : undefined}
           onInvalid={(event) => {
             event.preventDefault();

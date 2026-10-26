@@ -35,7 +35,7 @@
  *   node tests/e2e/requests-static-render.cjs --manual-lead-form [outDir]
  *     → форма «Добавить лида» в Chromium (Э8.11): источник по умолчанию
  *       «Не выбрано», без него браузер форму не отправляет и говорит
- *       «Выберите, как обратился клиент» под полем; с выбранным источником уходит его
+ *       «Выберите источник» под полем; с выбранным источником уходит его
  *       ключ. Серверное действие — заглушка, записывает поля и ничего не
  *       сохраняет. Снимки `e811-manual-lead-*.png` на 1440 и 390.
  *   node tests/e2e/requests-static-render.cjs --channel-spend-forms [outDir]
@@ -820,8 +820,8 @@ async function manualLeadForm() {
       await tab.waitForTimeout(150);
       const blocked = { ...(await field()), sent: await tab.evaluate(() => (globalThis.__manualLeads ?? []).length) };
       const channelBlocked = await channelField();
-      expect(`${width}: without a source nothing is sent; the source says «Выберите, как обратился клиент» and keeps focus as the first invalid field`,
-        blocked.sent === 0 && blocked.invalid === "true" && blocked.message === "Выберите, как обратился клиент" && blocked.error === "Выберите, как обратился клиент" && blocked.focused, blocked);
+      expect(`${width}: without a source nothing is sent; the source says «Выберите источник» and keeps focus as the first invalid field`,
+        blocked.sent === 0 && blocked.invalid === "true" && blocked.message === "Выберите источник" && blocked.error === "Выберите источник" && blocked.focused, blocked);
       expect(`${width}: the empty «Откуда узнал» says «Выберите, откуда узнал клиент» without taking focus`,
         channelBlocked.invalid === "true" && channelBlocked.message === "Выберите, откуда узнал клиент" && channelBlocked.error === "Выберите, откуда узнал клиент" && !channelBlocked.focused, channelBlocked);
       await tab.screenshot({ path: join(outDir, `e811-manual-lead-required-${width}.png`), fullPage: true });

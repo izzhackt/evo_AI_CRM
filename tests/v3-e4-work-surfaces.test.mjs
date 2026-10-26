@@ -258,6 +258,11 @@ test("the report after «Оформить продажу»: the saved sale says 
   const banner = text(saved.slice(saved.indexOf('id="saved-sale-title"') - 80, saved.indexOf('id="saved-sale-title"') + 700));
   assert.match(banner, /Продажа добавлена Дело студента создано и передано куратору\. Айжан Примерова/u);
   assert.match(saved, /<a [^>]*href="\/v3\/profile\?case=15151515-5555-4555-8555-000000000001"[^>]*>Открыть дело<\/a>/u);
+  // Роль без права читать дела (Sales): «Дело создано» остаётся, но «Открыть дело» ведёт в лид — карточка дела ей «не найдена».
+  const sales = pages.get("report-saved-case-sales");
+  assert.match(text(sales), /Продажа добавлена Дело студента создано и передано куратору\./u);
+  assert.doesNotMatch(sales, /href="\/v3\/profile\?case=/u);
+  assert.match(sales, /<a [^>]*href="\/v3\/profile\?id=[0-9a-f-]+"[^>]*>Открыть дело<\/a>/u);
   // Адрес без дела (прежняя ссылка) о деле ничего не обещает.
   assert.doesNotMatch(text(pages.get("report-saved")), /Дело студента создано/u);
   // Форма кладёт дело в адрес после сохранения и предупреждает о нём до него.
@@ -270,7 +275,14 @@ test("rendered Lead 360: without a funnel step «Что дальше» names the
   const withTask = pages.get("lead-open-task");
   // Открытые задачи по лиду (перезвон после звонка и др.) — первая и «и ещё N»; выполненная не считается.
   assert.match(text(withTask), /Что дальше Перезвонить клиенту · открытая задача и ещё 1 /u);
-  assert.match(withTask, /<a [^>]*href="\/v3\/tasks\?task=[0-9a-f-]+"[^>]*>Перезвонить клиенту<\/a>/u);
+  const taskLink = withTask.match(/<a [^>]*href="\/v3\/tasks\?task=[0-9a-f-]+"[^>]*>Перезвонить клиенту<\/a>/u);
+  assert.ok(taskLink, "the open task is a link to the task");
+  assert.match(taskLink[0], /min-h-11/u, "the link is a 44 px touch target");
+  // «Что дальше» стоит над всеми вкладками, поэтому открытая задача читается на любой, а не только на «Обзоре».
+  const profilePage = read("src/app/(v3)/v3/profile/page.tsx");
+  const taskRead = profilePage.slice(profilePage.indexOf("const leadTasksRead ="), profilePage.indexOf("readLeadTaskLinks(", profilePage.indexOf("const leadTasksRead =")));
+  assert.match(taskRead, /staff\.task\.read/u);
+  assert.doesNotMatch(taskRead, /tab === "overview"/u);
   assert.doesNotMatch(text(withTask), /Старая задача|Шаг не задан/u);
   const none = pages.get("lead-no-step");
   assert.match(text(none), /Что дальше Шаг не задан /u);
@@ -735,4 +747,25 @@ test("the page wires Lead 360 through the board's reads and «Оформить �
   assert.match(forms, /const lead = result\.leads\.find\(item => item\.id === wanted\.id\) \?\? null;\s+if \(lead\) chooseLead\(lead\);/u);
   // Главная рисует отчёт без признака облика: облик один (Э1.5).
   assert.match(read("src/app/(v3)/v3/main/page.tsx"), /<SalesRegisterView actor=\{actor\} query=\{query\} dynamics=\{section\} \/>/u);
+});
+
+test("failure and vocabulary copy after review: nothing claims an outcome the code does not know, one wording per concept", () => {
+  // Исход неизвестен — текст не называет его провалом и не обещает «ничего не записано».
+  assert.match(read("src/components/v3/SalesRegisterForms.tsx"), /unavailable: "Не удалось подтвердить сохранение\. Проверьте запись и повторите\."/u);
+  assert.match(read("src/components/v3/requests/TakeLead.tsx"), /request_conflict: "Это уже отправлялось\. Обновите список и проверьте, взят ли лид\."/u);
+  // `gate_blocked` — три ответа базы (`gate_incomplete`, `contract_required`, `gate_handoff_blocked`): текст общий, не «сначала договор и платёж».
+  assert.match(read("src/components/v3/profile/ProfileSalesTransition.tsx"), /gate_blocked: "Пока нельзя: нужны подтверждённые договор и первый платёж, либо исключение\."/u);
+  const amo = read("src/components/v3/profile/ProfileAmoCrmCommandSection.tsx");
+  assert.match(amo, /AMOCRM_UNAVAILABLE\[locale\]/u);
+  assert.match(amo, /ky: "amoCRM абалын текшерүү мүмкүн болгон жок\./u);
+  assert.doesNotMatch(amo, /Ничего не записано|Передача в amoCRM/u);
+  // Кнопка из отменённой «Рассрочки» не возвращается под другим именем: у блока заголовок «Транши», и кнопка — про транши.
+  const agreement = read("src/components/v3/profile/CaseAgreementBlock.tsx");
+  assert.match(agreement, /"Разбить на транши"/u);
+  assert.doesNotMatch(agreement, /Разбить на части/u);
+  // «Источник» / «Откуда узнал» в форме те же, что в «Сведениях» Lead 360 и в «Маркетинге».
+  const manual = read("src/components/v3/ManualLeadForm.tsx");
+  assert.match(manual, /<span className=\{fieldLabelCls\}>Источник<\/span>/u);
+  assert.match(manual, /<span className=\{fieldLabelCls\}>Откуда узнал<\/span>/u);
+  assert.match(read("src/lib/v3/requests-view.ts"), /all: "Включая разобранные"/u);
 });

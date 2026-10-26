@@ -405,7 +405,8 @@ export default async function ProfilePart({
   const leadDialRead = leadSales && view && view.details.routeTarget.leadId ? readDialOptions(actor) : null;
   // Открытая задача по лиду (например «Перезвонить клиенту» после звонка): пока шага воронки нет, «Что дальше» называет
   // её, а не «Шаг не задан». Тот же `lead_staff_task_links`, что у «Задач по лиду»; сбой — как раньше, без неё.
-  const leadTasksRead = leadSales && tab === "overview" && view && view.details.routeTarget.leadId && !leadSales.lead.nextActionText
+  // Шапка «Что дальше» стоит над всеми вкладками, поэтому задачу читаем на любой, а не только на «Обзоре».
+  const leadTasksRead = leadSales && view && view.details.routeTarget.leadId && !leadSales.lead.nextActionText
     && !isStaffPreview(actor) && staffHasPermission(actor, "staff.task.read")
     ? readLeadTaskLinks(actor, view.details.routeTarget.leadId).then((links) => links.rows, () => null) : null;
   const [curatorOptions, queuePage, caseWork, caseClosureRead, leadOwners, leadAgreement, leadCalls, leadDial, leadTasks] = await Promise.all([

@@ -11,7 +11,7 @@ export const MANUAL_LEAD_SOURCES = {
  * берёт только `website` и `whatsapp`, новые ключи в неё не попадают, а сам
  * `whatsapp` в ручной список не добавляется.
  */
-export const MANUAL_LEAD_SOURCE_REQUIRED = "Выберите, как обратился клиент";
+export const MANUAL_LEAD_SOURCE_REQUIRED = "Выберите источник";
 export const LEAD_DIRECTIONS = { CN: "Китай", MY: "Малайзия", EU: "Европа", AE: "ОАЭ", TR: "Турция" } as const;
 export type ManualLeadInput = Readonly<{
   requestId: string; name: string; phone: string | null; email: string | null;

@@ -319,7 +319,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
         ? <span className="min-w-0 break-words">{sales.lead.nextActionText}</span>
         : openTask ? (
           <span className="min-w-0 break-words">
-            <Link href={`/v3/tasks?task=${encodeURIComponent(openTask.id)}`} className="text-fg underline underline-offset-4 hover:text-fg-2">{openTask.title}</Link>
+            <Link href={`/v3/tasks?task=${encodeURIComponent(openTask.id)}`} className="-my-3 inline-flex min-h-11 items-center text-fg underline underline-offset-4 hover:text-fg-2">{openTask.title}</Link>
             <span className="text-fg-2"> · открытая задача{openTasks.length > 1 ? ` и ещё ${openTasks.length - 1}` : ""}</span>
           </span>
         ) : <span className="text-fg-2">Шаг не задан</span>}

@@ -23,6 +23,7 @@ import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import { Icon } from "@/components/icons";
 import { cn } from "@/components/ui";
 import { ChatFocusProvider, useChatFocusController } from "@/components/v3/ChatFocus";
+import { NextUiToggle } from "@/components/v3/NextUiToggle";
 import { StaffNotifications } from "@/components/v3/StaffNotifications";
 import { StaleDeploymentNotice } from "@/components/v3/StaleDeploymentNotice";
 import { TopLayerMenu } from "@/components/v3/board/TopLayerMenu";
@@ -418,12 +419,15 @@ export function AppShell({
   actor,
   initialNotifications,
   deletionRequests = null,
+  nextUi = null,
 }: {
   children: ReactNode;
   actor: ActivePlatformActor;
   initialNotifications: StaffNotificationPage | null;
   /** Не выполненные запросы на удаление аккаунта: число у «Настроек» (только Admin; ревью 280, UI-F6). */
   deletionRequests?: AccountDeletionOpenCount | null;
+  /** Переключатель «Новый вид»: только настоящему администратору (`canUseNextUi`), иначе `null` — строки нет. */
+  nextUi?: Readonly<{ enabled: boolean }> | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -725,6 +729,20 @@ export function AppShell({
                 </button>
               </form>
             </div>
+            {nextUi ? (
+              <div className={cn("px-3 pt-1", rail && "md:max-2xl:px-2")}>
+                <NextUiToggle enabled={nextUi.enabled} rail={rail} hint={hint("Новый вид")} />
+                {nextUi.enabled ? (
+                  <IntentPrefetchLink
+                    href="/v3/ui-kit"
+                    onNavigate={closeAfterNavigation}
+                    className={cn(ITEM, "py-1 t-meta", rail && "md:max-2xl:sr-only")}
+                  >
+                    Набор виджетов
+                  </IntentPrefetchLink>
+                ) : null}
+              </div>
+            ) : null}
             {/* Имя и роль — во всю ширину строки (от края логотипа), каждая в одну строку; целиком — в подсказке. */}
             <p className={cn("min-w-0 px-5 pb-3 pt-1", rail && "md:max-2xl:sr-only")}>
               <span className="t-item block truncate text-fg" title={displayName}>{displayName}</span>

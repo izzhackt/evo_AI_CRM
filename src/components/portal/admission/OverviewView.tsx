@@ -228,7 +228,7 @@ export function OverviewView({ overview, pending = false, locale }: { overview: 
             <>
               <p className="pt-adm-aside-card-text">{strings.helpText}</p>
               <Link href="#case-help" className="pt-link">
-                {strings.helpLink} <span aria-hidden="true">→</span>
+                {strings.helpLinkPending} <span aria-hidden="true">→</span>
               </Link>
             </>
           ) : (

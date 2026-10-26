@@ -1031,7 +1031,7 @@ const RUN_ERROR_WORDS: Readonly<Record<string, string>> = {
   anthropic_error: "Claude ответил ошибкой.",
   api_key_missing: "Ключ Claude API не задан в CRM.",
   interrupted: "Запуск остановлен сотрудником.",
-  // Дневной лимит на WhatsApp (миграция 321): сумма в тексте строки запуска, это слова на случай, когда её нет.
+  // Дневной лимит на WhatsApp (миграция 322): сумма в тексте строки запуска, это слова на случай, когда её нет.
   daily_budget_reached: "Дневной лимит на WhatsApp исчерпан — до завтра агент не запускается.",
 };
 

@@ -105,7 +105,7 @@ const TELEPHONY_PBX_HOST =
 //    либо `off` (временный обход фильтра).
 //  - EVO_AI_AGENTS_RUN_BUDGET_USD: потолок расхода на запуск, число 0..100.
 //  - EVO_AI_AGENT_WHATSAPP_DAILY_BUDGET_USD: дневной лимит расхода агента на запуски по входящему
-//    WhatsApp, USD, число больше 0 и не больше 1000 (миграция 321, PLAN_CHANGES 26.10.2026). Пусто — $10.
+//    WhatsApp, USD, число больше 0 и не больше 1000 (миграция 322, PLAN_CHANGES 26.10.2026). Пусто — $10.
 //    Ноль, минус и мусор не принимаются: «без лимита» этим именем не включается.
 const AI_AGENTS_KEY_NAME = "EVO_ANTHROPIC_API_KEY";
 const AI_AGENTS_BASE_URL_NAME = "EVO_ANTHROPIC_API_BASE_URL";

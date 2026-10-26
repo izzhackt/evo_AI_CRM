@@ -33,7 +33,7 @@ const server = createServer((request, response) => {
     const answers = {
       receive_website_lead: { status: "accepted", request_id: REQUEST_ID },
       ai_agent_runtime_dispatch_targets_v1: [TARGET],
-      // Дневной лимит WhatsApp (миграция 321): расход агента за сутки; здесь нулевой.
+      // Дневной лимит WhatsApp (миграция 322): расход агента за сутки; здесь нулевой.
       ai_agent_runtime_daily_spend_v1: { day: "2026-10-22", dayStart: "2026-10-21T18:00:00+00:00", spentCents: 0, open: [] },
       ai_agent_runtime_run_reserve_v1: { reserved: true, runId: RUN },
       ai_agent_runtime_run_update_v1: { ok: true },

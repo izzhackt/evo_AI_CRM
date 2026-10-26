@@ -25,7 +25,7 @@ const TARGET = {
   autoSend: false,
 };
 
-// Дневной лимит WhatsApp (миграция 321): до запуска по WhatsApp читается расход агента; здесь он нулевой, сам лимит
+// Дневной лимит WhatsApp (миграция 322): до запуска по WhatsApp читается расход агента; здесь он нулевой, сам лимит
 // проверяет tests/ai-agents-daily-cap.test.mjs.
 const NO_SPEND = () => ({ data: { day: "2026-10-22", dayStart: "2026-10-21T18:00:00+00:00", spentCents: 0, open: [] } });
 

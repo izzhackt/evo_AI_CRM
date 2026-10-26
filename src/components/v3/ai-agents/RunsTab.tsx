@@ -61,7 +61,7 @@ export function RunsList({
   const nextLimit = Math.min(AI_AGENT_RUNS_MAX, limit + AI_AGENT_RUNS_STEP);
   return (
     <section aria-labelledby="aia-runs" data-testid="v3-aia-runs">
-      <h2 id="aia-runs" className="sr-only">Запуски агента</h2>
+      <h2 id="aia-runs" className="sr-only">История работы агента</h2>
       <ul className="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface">
         {runs.map((run) => {
           const prompt = plainPreview(run.promptPreview, 160);

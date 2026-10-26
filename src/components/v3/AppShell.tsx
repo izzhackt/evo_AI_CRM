@@ -22,10 +22,11 @@ import { logoutStaffAction, selectStaffRolePreviewAction } from "@/lib/staff-aut
 import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import { Icon } from "@/components/icons";
 import { cn } from "@/components/ui";
+import { ChatFocusProvider, useChatFocusController } from "@/components/v3/ChatFocus";
 import { StaffNotifications } from "@/components/v3/StaffNotifications";
 import { StaleDeploymentNotice } from "@/components/v3/StaleDeploymentNotice";
 import { TopLayerMenu } from "@/components/v3/board/TopLayerMenu";
-import { isBoardRoute, isFillRoute } from "@/lib/v3/board-layout";
+import { isAiAgentChatRoute, isBoardRoute, isFillRoute } from "@/lib/v3/board-layout";
 import {
   buildV3Navigation,
   type V3Navigation,
@@ -54,7 +55,8 @@ import { onCreateTaskClick, PaletteButton, PaletteIconButton, ShellCommands } fr
  *   роли и аккаунт — в боковом меню; прокручивается список разделов (у краёв
  *   списка, за которыми есть ещё пункты, — тень), аккаунт с «Выйти»
  *   закреплён внизу. Отделы открываются по одному. На досках до 1536 px —
- *   рейка 64 px.
+ *   рейка 64 px. В чате «Поручить» ИИ-агента кнопка «На весь экран» прячет
+ *   меню совсем (`ChatFocus.tsx`, решение владельца 26.10.2026).
  * - Телефон (<768 px): сверху одна строка с логотипом, снизу панель вкладок
  *   (`shellTabs`), «Ещё» открывает то же боковое меню листом с семантикой
  *   диалога. У листа те же строка сверху и панель вкладок внизу: на месте
@@ -69,6 +71,12 @@ const RAIL_MEDIA = "(width >= 48rem) and (width < 96rem)";
 const DESKTOP_MEDIA = "(width >= 48rem)";
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
 const ITEM = `v3-choice flex min-h-11 min-w-0 items-center gap-3 rounded-nav px-3 py-2 t-body-compact text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
+/**
+ * Раздел верхнего уровня без подпунктов («Маркетинг», «Финансы»): та же строка,
+ * что заголовок отдела («Продажи»), — подпись `t-label`, как у него, — но
+ * ссылка, а не раскрытие: без стрелки и без пустой группы.
+ */
+const SECTION_ITEM = ITEM.replace("t-body-compact", "t-label");
 /** Нейтральная кнопка оболочки: красным остаётся только главное действие страницы. */
 const SHELL_BUTTON = `v3-raised inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 transition-colors hover:bg-surface-2 hover:text-fg ${FOCUS}`;
 /** Ctrl+K для мыши и телефона — строка меню «Поиск» (Э7), как пункт, без рамки. */
@@ -102,6 +110,7 @@ type MenuBadge = Readonly<{ count: number; name: string }>;
 function MenuLink({
   link,
   activeId,
+  section = false,
   rail = false,
   hint = {},
   badge = null,
@@ -109,6 +118,8 @@ function MenuLink({
 }: {
   link: V3NavigationLink;
   activeId: V3NavigationLinkId | null;
+  /** Раздел верхнего уровня: подпись как у заголовка отдела. */
+  section?: boolean;
   rail?: boolean;
   hint?: HintHandlers;
   badge?: MenuBadge | null;
@@ -120,7 +131,7 @@ function MenuLink({
       aria-current={activeId === link.id ? "page" : undefined}
       aria-label={badge ? `${link.label}: ${badge.name}` : undefined}
       onNavigate={onNavigate}
-      className={cn(ITEM, rail && "md:max-2xl:justify-center md:max-2xl:px-0")}
+      className={cn(section ? SECTION_ITEM : ITEM, rail && "md:max-2xl:justify-center md:max-2xl:px-0")}
       {...hint}
     >
       {badge ? (
@@ -288,6 +299,14 @@ function MenuLists({
             onNavigate={onNavigate}
           />
         ))}
+        {/* «Маркетинг» и «Финансы» — на уровне заголовков отделов, одной ссылкой каждый. В листе
+            «Ещё» заголовков отделов нет (подписи над пунктами), и строки раздела читались бы
+            продолжением «Поступления»: волосяная линия, как перед «Общим», отделяет их. */}
+        {navigation.sections.map((link, index) => (
+          <li key={link.id} className={cn(flat && index === 0 && "mt-2 border-t border-border pt-2")}>
+            <MenuLink link={link} activeId={navigation.activeId} section rail={rail} hint={hint(link.label)} onNavigate={onNavigate} />
+          </li>
+        ))}
       </ul>
       {navigation.common.length ? (
         <section aria-label="Общее" className={cn("mx-3 border-t border-border pb-2 pt-2", rail && "md:max-2xl:mx-2")}>
@@ -418,6 +437,8 @@ export function AppShell({
   // Высота окна от 768 px: доски, переписка WhatsApp и «Поручить» ИИ-агента
   // (`isFillRoute`, аудит 26.09); рейка — только у досок.
   const fill = isFillRoute(pathname, query.get("tab"));
+  // «На весь экран» в чате «Поручить»: меню прячется, пока выбрано и на экране есть кнопка, которая его возвращает.
+  const chatFocus = useChatFocusController(isAiAgentChatRoute(pathname, query.get("tab")));
   const contentId = useId();
   const menuId = useId();
   const headingId = useId();
@@ -520,9 +541,10 @@ export function AppShell({
 
   return (
     <div
-      className="flex min-h-dvh flex-col md:flex-row"
+      className="group/shell flex min-h-dvh flex-col md:flex-row"
       data-testid="v3-shell"
       data-shell-layout={board ? "board" : "page"}
+      data-chat-focus={chatFocus.active ? "" : undefined}
       data-system-role={actor.systemRole}
       data-presentation-role={actor.presentationRole ?? "actual"}
     >
@@ -569,7 +591,9 @@ export function AppShell({
         aria-labelledby={sheetOpen ? headingId : undefined}
         onKeyDown={onMenuKeyDown}
         className={cn(
-          "z-30 flex-col bg-surface md:sticky md:top-0 md:flex md:h-dvh md:shrink-0 md:border-e md:border-border",
+          "z-30 flex-col bg-surface md:sticky md:top-0 md:h-dvh md:shrink-0 md:border-e md:border-border",
+          // Меню остаётся в DOM (уведомления и их опрос не пропадают); «На весь экран» только скрывает его от 768 px.
+          chatFocus.active ? "md:hidden" : "md:flex",
           rail ? "md:w-16 2xl:w-[260px]" : "md:w-[260px]",
           sheetOpen ? "flex max-md:fixed max-md:inset-0 max-md:z-50" : "hidden",
         )}
@@ -762,7 +786,7 @@ export function AppShell({
           data-shell-content=""
           className={cn("min-w-0 outline-none", fill && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto")}
         >
-          {children}
+          <ChatFocusProvider value={chatFocus.value}>{children}</ChatFocusProvider>
         </div>
       </div>
 

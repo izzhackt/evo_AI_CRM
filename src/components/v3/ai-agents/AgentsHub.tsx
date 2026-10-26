@@ -138,7 +138,7 @@ export function AgentsHub({
                 </ul>
               ) : null}
               {unset.length > 0 ? (
-                <ul className={`${ready.length > 0 ? "mt-3 " : ""}flex flex-wrap items-center gap-2`} aria-label="Агенты без инструкции">
+                <ul className={`${ready.length > 0 ? "mt-3 " : ""}flex flex-wrap items-center gap-2`} aria-label="Агенты без правил">
                   <li className="pe-1 t-meta text-fg-3">Не настроены:</li>
                   {unset.map((agent) => (
                     <li key={agent.key} data-testid={`v3-aia-card-${agent.key}`}>

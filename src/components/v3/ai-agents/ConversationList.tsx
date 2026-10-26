@@ -98,7 +98,7 @@ export function ConversationList({
       </nav>
       <div className="shrink-0 border-t border-border px-3">
         <Link href={runsHref} className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 underline underline-offset-4 hover:text-fg" data-testid="v3-aia-all-runs">
-          Все запуски
+          Вся история работы
           <Icon name="arrow-right" size={16} className="shrink-0" />
         </Link>
       </div>

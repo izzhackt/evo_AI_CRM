@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { AI_AGENT_DEFAULTS, AI_AGENT_PREAMBLE } from "@/content/ai-agents";
 import { type AiAgentDetail, type AiAgentDigestsListResult, type AiAgentDraftsListResult, type AiAgentRunGetResult, type AiAgentRunsListResult } from "@/lib/ai-agents/contract";
+import { spentTodayCents } from "@/lib/ai-agents/daily-cap";
 import { QueueViewTabs } from "@/components/v3/queue/QueueViewTabs";
 import {
   AI_AGENT_STARTERS,
@@ -58,6 +59,10 @@ export type AgentBodyProps = Readonly<{
   canMakeTasks?: boolean;
   /** Имя сотрудника: свои поручения в «Запусках» подписаны «Вы», а «Открыть в чате» и «Повторить» есть только у них. */
   viewerName?: string;
+  /** Дневной лимит запусков по WhatsApp, центы (из окружения сервера); строка в «Настройках» — только чтение. Нет — строки нет. */
+  whatsappDailyCapCents?: number | null;
+  /** Расход и резерв по данным базы на сейчас (то, что решает приём события). Нет — расход берётся из графика, о резерве молчим. */
+  whatsappCapState?: Readonly<{ spentCents: number; reservedCents: number }> | null;
 }>;
 
 function tabFailure(read: TabRead<unknown>, what: string, retryHref: string) {
@@ -193,6 +198,11 @@ export function AgentBody(props: AgentBodyProps) {
             canEdit={canEdit}
             canRunNow={canRun}
             runNowNote={blockedNote}
+            whatsappCap={props.whatsappDailyCapCents ? {
+              capCents: props.whatsappDailyCapCents,
+              spentTodayCents: props.whatsappCapState?.spentCents ?? spentTodayCents(detail.charts.spendPerDay, Date.parse(now)),
+              reservedCents: props.whatsappCapState?.reservedCents ?? 0,
+            } : null}
           />
           <SyncPanel agentKey={detail.key} sync={detail.sync} needsSync={needsSync} runtimeConfigured={runtimeConfigured} hasInstructions={hasInstructions} canEdit={canEdit && !preview} now={now} />
         </div>

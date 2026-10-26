@@ -1056,6 +1056,7 @@ const AI_AGENTS_NAMES = [
   "EVO_AI_AGENTS_MCP_URL",
   "EVO_AI_AGENTS_MCP_IP_ALLOWLIST",
   "EVO_AI_AGENTS_RUN_BUDGET_USD",
+  "EVO_AI_AGENT_WHATSAPP_DAILY_BUDGET_USD",
 ];
 const AI_AGENTS_KEY = "sk-ant-synthetic-key-0000000000000001";
 
@@ -1091,6 +1092,9 @@ test("ai agents env: well-formed values are accepted", () => {
   for (const budget of ["0", "5", "12.5", "99.99", "100"]) {
     assert.deepEqual(check(text({ EVO_AI_AGENTS_RUN_BUDGET_USD: budget })), valid, budget);
   }
+  for (const daily of ["10", "7.5", "0.5", "25.25", "100", "1000"]) {
+    assert.deepEqual(check(text({ EVO_AI_AGENT_WHATSAPP_DAILY_BUDGET_USD: daily })), valid, daily);
+  }
   assert.deepEqual(
     check(text({
       EVO_ANTHROPIC_API_KEY: AI_AGENTS_KEY,
@@ -1098,6 +1102,7 @@ test("ai agents env: well-formed values are accepted", () => {
       EVO_AI_AGENTS_MCP_URL: "https://crm.evoadmissions.com/api/mcp/v1",
       EVO_AI_AGENTS_MCP_IP_ALLOWLIST: "160.79.104.0/21",
       EVO_AI_AGENTS_RUN_BUDGET_USD: "5",
+      EVO_AI_AGENT_WHATSAPP_DAILY_BUDGET_USD: "10",
     })),
     valid,
   );
@@ -1134,6 +1139,15 @@ test("ai agents env: garbage values are rejected by name", () => {
     ["EVO_AI_AGENTS_RUN_BUDGET_USD", "1e2"],
     ["EVO_AI_AGENTS_RUN_BUDGET_USD", "5.555"],
     ["EVO_AI_AGENTS_RUN_BUDGET_USD", "много"],
+    // The daily WhatsApp limit never means "unlimited": zero, negative, exponent and text are refused at release.
+    ["EVO_AI_AGENT_WHATSAPP_DAILY_BUDGET_USD", "0"],
+    ["EVO_AI_AGENT_WHATSAPP_DAILY_BUDGET_USD", "0.00"],
+    ["EVO_AI_AGENT_WHATSAPP_DAILY_BUDGET_USD", "-10"],
+    ["EVO_AI_AGENT_WHATSAPP_DAILY_BUDGET_USD", "1e2"],
+    ["EVO_AI_AGENT_WHATSAPP_DAILY_BUDGET_USD", "10.555"],
+    ["EVO_AI_AGENT_WHATSAPP_DAILY_BUDGET_USD", "1000.01"],
+    ["EVO_AI_AGENT_WHATSAPP_DAILY_BUDGET_USD", "10,5"],
+    ["EVO_AI_AGENT_WHATSAPP_DAILY_BUDGET_USD", "много"],
   ];
   for (const [name, value] of bad) {
     assert.throws(() => check(text({ [name]: value })), /optional_feature_configuration_invalid/u, `${name}=${value}`);

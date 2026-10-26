@@ -4621,6 +4621,70 @@ SQL
       exit 1
     fi
   fi
+  # «Тревога о связи WhatsApp продаж» (migration 321, PLAN_CHANGES 26.10.2026). Matched by name, not number.
+  # Additive migration: it replaces nothing, so there are no pre-image anchors to tamper with. Right after the
+  # migration: a second apply refuses (a321_already_applied), then the suite, insisting on its marker. The suite
+  # proves: the posture (two closed tables, four definer functions for service_role only, five closed helpers, every
+  # other role and a missing service claim refused, argument errors 22023); the read (the last customer inbound is the
+  # newest verified message.any with fromMe = false inside 30 days of the same organization); the run of observations;
+  # the open (one task per active system admin who can receive tasks plus the optional sales head, event / receipt /
+  # notification / system journal row, copy by kind and status, no phone number, one open alert per kind, no recipient
+  # is an error that leaves nothing); and the resolve (open tasks done with event and journal row, human-closed tasks
+  # untouched, the reason recorded, a second resolve finds nothing, the next case is a new alert, isolation).
+  if [[ "$(basename "$migration")" == *_platform_whatsapp_health_alerts.sql ]]; then
+    t321_again_log="$(mktemp -t evo-t321-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t321_again_log" 2>&1; then
+      echo "migration 321 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a321_already_applied" "$t321_again_log"; then
+      echo "a second apply of migration 321 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t321_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t321_again_log"
+    whatsapp_health_alerts_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_whatsapp_health_alerts.sql </dev/null)"
+    printf '%s\n' "$whatsapp_health_alerts_log"
+    if ! grep -q 'A321_WHATSAPP_HEALTH_ALERTS_SUITE_PASSED' <<<"$whatsapp_health_alerts_log"; then
+      echo "platform_whatsapp_health_alerts.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «ИИ-агенты»: расход агента за сутки по Бишкеку для дневного лимита на WhatsApp (migration 322, PLAN_CHANGES
+  # 26.10.2026). Matched by name, not number. Right after the migration: a second apply refuses
+  # (a322_already_applied), then the suite, insisting on its marker. The suite proves: the posture of the one new
+  # runtime function (definer, empty search_path, service_role only, the family counts), the input rules, that the
+  # day is the Bishkek calendar day (the 23:59:59.999 / 00:00:00 edges, dayStart), what is added up (every status and
+  # trigger kind of the asked agent, no leak from another agent or organization), the open list (runs in work of any
+  # age, the look-back before the start of the day, kind, order, cap of 50), that the read writes nothing, and the "limit reached" record through the existing reserve / update
+  # path (one visible row per agent and day).
+  if [[ "$(basename "$migration")" == *_platform_ai_agents_daily_spend.sql ]]; then
+    t322_again_log="$(mktemp -t evo-t322-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t322_again_log" 2>&1; then
+      echo "migration 322 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a322_already_applied" "$t322_again_log"; then
+      echo "a second apply of migration 322 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t322_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t322_again_log"
+    ai_agents_daily_spend_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_ai_agents_daily_spend.sql </dev/null)"
+    printf '%s\n' "$ai_agents_daily_spend_log"
+    if ! grep -q 'A322_AI_AGENTS_DAILY_SPEND_SUITE_PASSED' <<<"$ai_agents_daily_spend_log"; then
+      echo "platform_ai_agents_daily_spend.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
 done < <(
   cd "$repo_root"
   find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort

@@ -104,21 +104,29 @@ const TELEPHONY_PBX_HOST =
 //  - EVO_AI_AGENTS_MCP_IP_ALLOWLIST: через запятую CIDR/адреса IPv4 и IPv6
 //    либо `off` (временный обход фильтра).
 //  - EVO_AI_AGENTS_RUN_BUDGET_USD: потолок расхода на запуск, число 0..100.
+//  - EVO_AI_AGENT_WHATSAPP_DAILY_BUDGET_USD: дневной лимит расхода агента на запуски по входящему
+//    WhatsApp, USD, число больше 0 и не больше 1000 (миграция 322, PLAN_CHANGES 26.10.2026). Пусто — $10.
+//    Ноль, минус и мусор не принимаются: «без лимита» этим именем не включается.
 const AI_AGENTS_KEY_NAME = "EVO_ANTHROPIC_API_KEY";
 const AI_AGENTS_BASE_URL_NAME = "EVO_ANTHROPIC_API_BASE_URL";
 const AI_AGENTS_MCP_URL_NAME = "EVO_AI_AGENTS_MCP_URL";
 const AI_AGENTS_MCP_IP_NAME = "EVO_AI_AGENTS_MCP_IP_ALLOWLIST";
 const AI_AGENTS_BUDGET_NAME = "EVO_AI_AGENTS_RUN_BUDGET_USD";
+const AI_AGENTS_WHATSAPP_DAILY_BUDGET_NAME = "EVO_AI_AGENT_WHATSAPP_DAILY_BUDGET_USD";
 const OPTIONAL_AI_AGENTS_NAMES = Object.freeze([
   AI_AGENTS_KEY_NAME,
   AI_AGENTS_BASE_URL_NAME,
   AI_AGENTS_MCP_URL_NAME,
   AI_AGENTS_MCP_IP_NAME,
   AI_AGENTS_BUDGET_NAME,
+  AI_AGENTS_WHATSAPP_DAILY_BUDGET_NAME,
 ]);
 const AI_AGENTS_API_KEY = /^[\x21-\x7e]{20,300}$/u;
 const AI_AGENTS_MCP_PATH = "/api/mcp/v1";
 const AI_AGENTS_BUDGET = /^(?:0|[1-9]\d{0,2})(?:\.\d{1,2})?$/u;
+// Дневной лимит WhatsApp: те же две цифры после точки, но строго больше нуля и не больше 1000 (как в приложении:
+// src/lib/ai-agents/daily-cap.ts не принимает ноль и мусор, а откатывается на $10).
+const AI_AGENTS_DAILY_BUDGET = /^(?:0|[1-9]\d{0,3})(?:\.\d{1,2})?$/u;
 const FORBIDDEN_SUCCESSOR_RUNTIME_VALUES = Object.freeze([
   "AUTH_SECRET",
   "EVO_SECRET_ENCRYPTION_KEY",
@@ -528,6 +536,14 @@ function validateAiAgentsConfiguration(entries) {
 
   const budget = value(AI_AGENTS_BUDGET_NAME);
   if (budget !== "" && (!AI_AGENTS_BUDGET.test(budget) || Number(budget) > 100)) {
+    fail("optional_feature_configuration_invalid");
+  }
+
+  const dailyBudget = value(AI_AGENTS_WHATSAPP_DAILY_BUDGET_NAME);
+  if (
+    dailyBudget !== "" &&
+    (!AI_AGENTS_DAILY_BUDGET.test(dailyBudget) || Number(dailyBudget) <= 0 || Number(dailyBudget) > 1000)
+  ) {
     fail("optional_feature_configuration_invalid");
   }
 }

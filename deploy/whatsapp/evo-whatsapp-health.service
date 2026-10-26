@@ -1,0 +1,13 @@
+[Unit]
+Description=EVO WhatsApp health alert (disconnect and silence check of the sales session)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+# The script does nothing unless EVO_PLATFORM_WAHA_INGRESS_ENABLED=1 in the app
+# container. It only asks WAHA for the session status and writes staff tasks in the
+# CRM; it never touches the session and sends no message. A oneshot unit never
+# overlaps itself: the timer waits for it to end.
+ExecStart=/usr/bin/docker exec evo-crm-app-1 node /app/whatsapp-health-maintenance.mjs
+TimeoutStartSec=120

@@ -8,8 +8,12 @@ import { platformWahaHealthDisplayStatus } from "../src/lib/server/platform-prov
 import {
   PLATFORM_WAHA_LIVE_PROBE_TIMEOUT_MS,
   PLATFORM_WAHA_LIVE_PROBE_TTL_MS,
+  PLATFORM_WAHA_SESSION_MISSING_STATUS,
+  PLATFORM_WAHA_UNAUTHORIZED_STATUS,
   PLATFORM_WAHA_UNREACHABLE_STATUS,
+  probePlatformWahaSessionForAlertUncached,
   probePlatformWahaSessionLive,
+  probePlatformWahaSessionLiveUncached,
   resetPlatformWahaLiveProbeCacheForTests,
   withLivePlatformWahaHealth,
 } from "../src/lib/server/platform-waha-live-health.ts";
@@ -180,6 +184,107 @@ test("live probe: when it cannot say, it claims nothing and the recorded status 
       `${label}: no record stays «not connected»`,
     );
   }
+});
+
+test("alert probe: a refused key and an unknown session are named, everything else answers as the shared probe does", async () => {
+  // The WhatsApp connection alert asks for these two answers by name; no other caller does.
+  assert.equal(PLATFORM_WAHA_UNAUTHORIZED_STATUS, "UNAUTHORIZED");
+  assert.equal(PLATFORM_WAHA_SESSION_MISSING_STATUS, "SESSION_MISSING");
+  for (const [code, word] of [
+    [401, "UNAUTHORIZED"],
+    [403, "UNAUTHORIZED"],
+    [404, "SESSION_MISSING"],
+  ]) {
+    const result = await probePlatformWahaSessionForAlertUncached(
+      ORGANIZATION_ID,
+      dependencies(async () => new Response("{}", { status: code })),
+    );
+    assert.deepEqual(result, { sessionName: "crm_primary", status: word, observedAt: NOW.toISOString() }, String(code));
+    assert.ok(!JSON.stringify(result).includes(SYNTHETIC_HEADER));
+    // The shared probe (settings page, night send) is unchanged: these answers stay «cannot say».
+    assert.equal(
+      await probePlatformWahaSessionLiveUncached(
+        ORGANIZATION_ID,
+        dependencies(async () => new Response("{}", { status: code })),
+      ),
+      null,
+      `shared probe ${code}`,
+    );
+  }
+  // Other refusals prove nothing about the connection; an unreachable or failing service is UNREACHABLE.
+  for (const code of [400, 408, 409, 429]) {
+    assert.equal(
+      await probePlatformWahaSessionForAlertUncached(
+        ORGANIZATION_ID,
+        dependencies(async () => new Response("{}", { status: code })),
+      ),
+      null,
+      String(code),
+    );
+  }
+  for (const code of [500, 502, 503]) {
+    const result = await probePlatformWahaSessionForAlertUncached(
+      ORGANIZATION_ID,
+      dependencies(async () => new Response("{}", { status: code })),
+    );
+    assert.equal(result?.status, PLATFORM_WAHA_UNREACHABLE_STATUS, String(code));
+  }
+  assert.equal(
+    (
+      await probePlatformWahaSessionForAlertUncached(
+        ORGANIZATION_ID,
+        dependencies(async () => {
+          throw new TypeError("fetch failed");
+        }),
+      )
+    )?.status,
+    PLATFORM_WAHA_UNREACHABLE_STATUS,
+  );
+  // An answer is an answer: WORKING stays WORKING; a reply about another session or a malformed one is «cannot say»;
+  // no runtime binding (WhatsApp may be off on purpose) asks nothing and says nothing.
+  assert.equal(
+    (await probePlatformWahaSessionForAlertUncached(ORGANIZATION_ID, dependencies(async () => sessionResponse("FAILED"))))?.status,
+    "FAILED",
+  );
+  assert.equal(
+    await probePlatformWahaSessionForAlertUncached(
+      ORGANIZATION_ID,
+      dependencies(async () => sessionResponse("WORKING", { name: "default" })),
+    ),
+    null,
+  );
+  assert.equal(
+    await probePlatformWahaSessionForAlertUncached(
+      ORGANIZATION_ID,
+      dependencies(async () => new Response("not json", { status: 200 })),
+    ),
+    null,
+  );
+  assert.equal(
+    await probePlatformWahaSessionForAlertUncached(
+      ORGANIZATION_ID,
+      dependencies(
+        async () => {
+          throw new Error("fetch must not run");
+        },
+        {
+          resolveRuntime: async () => {
+            throw new Error("Platform provider workflow is unavailable.");
+          },
+        },
+      ),
+    ),
+    null,
+  );
+  // Never shared through the render cache: every call asks WAHA.
+  let fetches = 0;
+  const counting = dependencies(async () => {
+    fetches += 1;
+    return sessionResponse("WORKING");
+  });
+  await probePlatformWahaSessionForAlertUncached(ORGANIZATION_ID, counting);
+  await probePlatformWahaSessionForAlertUncached(ORGANIZATION_ID, counting);
+  assert.equal(fetches, 2);
 });
 
 test("live probe: a fresh answer wins over a stale recorded WORKING and over a missing record", async () => {

@@ -197,7 +197,9 @@ export function ProgramDocumentSubmit({ scope, target, audience, selection, prev
     if (sending.current || suppressed || pending.blocked || (!retained && (disabled || !selection))) return;
     sending.current = true; setBusy(true); setMessage(null); setSucceeded(false);
     try { onAttempt?.(); } catch { /* Display only. */ }
-    try { onBusyChange?.(true); } catch { /* Display only. */ }
+    // A «Проверить результат» resend finishes an intent that was already there: the item keeps its two-step view.
+    const reportBusy = !retained;
+    if (reportBusy) { try { onBusyChange?.(true); } catch { /* Display only. */ } }
     // A retained intent is resent as it was stored; otherwise the current choice is sent.
     const sentVersionId = (retained?.selection ?? selection)?.documentVersionId ?? null;
     try {
@@ -221,7 +223,7 @@ export function ProgramDocumentSubmit({ scope, target, audience, selection, prev
     } catch { setMessage(strings.unavailable); }
     finally {
       sending.current = false; setBusy(false);
-      try { onBusyChange?.(false); } catch { /* Display only. */ }
+      if (reportBusy) { try { onBusyChange?.(false); } catch { /* Display only. */ } }
     }
   }
   // A replayed send leaves the item unchanged, so nothing remounts and the item's kept line is already visible.

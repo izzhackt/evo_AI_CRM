@@ -372,6 +372,9 @@ test('a standalone send keeps its confirmation through the refresh, for students
   assert.match(item, /onBusyChange=\{audience === "student" \? onStandaloneSending : undefined\}/u, 'staff sends report nothing');
   const busyOn = submitBody.indexOf('onBusyChange?.(true)'), call = submitBody.indexOf('runApplicationDocumentSubmit('), busyOff = submitBody.indexOf('onBusyChange?.(false)');
   assert.ok(busyOn > 0 && busyOn < call && call < busyOff, 'reported before the send, released in finally');
+  // A «Проверить результат» resend finishes an intent that already existed, so the item stays in its two-step view.
+  assert.match(submitBody, /const reportBusy = !retained;\n\s*if \(reportBusy\) \{ try \{ onBusyChange\?\.\(true\); \}/u);
+  assert.match(submitBody, /if \(reportBusy\) \{ try \{ onBusyChange\?\.\(false\); \}/u);
   // A replayed send («Проверить результат» after a lost reply) changes nothing, so the item's kept line is visible at once: one line, not two.
   assert.match(item, /confirmationShown=\{noticeShown && notice\.tone === "success"\}/u);
   assert.match(submitBody, /const shownMessage = message && !\(succeeded && confirmationShown\) \? message : null;/u);

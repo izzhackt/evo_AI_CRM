@@ -7,9 +7,10 @@
  * настоящем браузере (Playwright Chromium, `react-dom/client`) под границей ошибок вроде `(v3)/error.tsx`: уже нарисованная
  * страница не должна заменяться экраном ошибки из-за необязательного куска («?», «Ещё N», обращения, вкладки), а вход экрана
  * показывает строку и кнопку, которая перезагружает страницу. Ошибка при этом не глотается: каждый отказ записан в
- * `console.error` один раз (иначе ошибка в коде куска осталась бы совсем незаметной). Код куска «не приходит»: модуль при
- * загрузке бросает ошибку, `import()` отклоняется так же, как сетевой сбой. Данные синтетические. Серверную сторону (ошибка
- * уходит выше, как на `main`) закрепляет `tests/ui-next-lazy.test.mjs`.
+ * `console.error` один раз. Код куска «не приходит» (режим по умолчанию): модуль при загрузке бросает ошибку с именем
+ * `ChunkLoadError`, `import()` отклоняется так же, как сетевой сбой. Ошибка в коде куска (`fault=bug`: обычная ошибка при
+ * загрузке модуля) не обрыв связи: она не прячется за заглушкой, а доходит до границы ошибок (`error.tsx`), записи помощника
+ * нет. Данные синтетические. Серверную сторону закрепляет `tests/ui-next-lazy.test.mjs`.
  *
  *   node tests/e2e/lazy-failure-client.cjs [outDir]
  *     → JSON-строки проверок (при нарушении код 1); по умолчанию outDir — .impeccable/review (не коммитится).
@@ -24,6 +25,8 @@ const FAILING = /[\\/](HelpTipImpl|FeedOverflowImpl|CaseHelpCardImpl|SectionTabs
 
 /** Запись помощника отказа в `console.error`: приставка и сама ошибка (в тексте записи Chromium — её сообщение). */
 const isLazyLog = (text) => /Новый вид/u.test(text) && /ChunkLoadError/u.test(text);
+/** Любая запись помощника отказа: при ошибке в коде куска её быть не должно. */
+const isHelperLog = (text) => /Новый вид/u.test(text);
 
 const ENTRY = `
 const React = require("react");
@@ -42,12 +45,12 @@ class Boundary extends React.Component {
   render() { return this.state.error ? h("div", { id: "boundary" }, "Не удалось открыть экран: " + this.state.error.message) : this.props.children; }
 }
 const mode = new URLSearchParams(location.search).get("mode");
+const screens = { today: h(TodayNextLazy, {}), requests: h(RequestsNextLazy, {}) };
 const widgets = h("main", { id: "page" }, h("p", { id: "alive" }, "Страница нарисована"),
   h(HelpTip, { label: "Пояснение: Тест" }, "Текст пояснения"),
   h(FeedOverflow, { count: 3, title: "Лента" }, h("li", null, "строка")),
   h(CaseHelpCard, { initialPage: {} }),
   h(SectionTabsInPlace, { label: "Вкладки", tabs: [{ key: "a", label: "А", content: "один" }] }));
-const screens = { today: h(TodayNextLazy, {}), requests: h(RequestsNextLazy, {}) };
 createRoot(document.getElementById("root")).render(
   h(Boundary, null, h(React.Suspense, { fallback: h("p", { id: "suspense" }, "Загрузка") }, mode === "widgets" ? widgets : screens[mode])));
 setTimeout(() => { document.documentElement.dataset.ready = "true"; }, 1200);
@@ -66,7 +69,11 @@ async function buildBundle(outFile) {
         build.onResolve({ filter: /^server-only$/ }, () => ({ path: "server-only", namespace: "empty" }));
         build.onLoad({ filter: /.*/, namespace: "empty" }, () => ({ contents: "", loader: "js" }));
         build.onResolve({ filter: /^next\/dynamic$/ }, () => ({ path: join(ROOT, "node_modules/next/dist/shared/lib/app-dynamic.js") }));
-        build.onLoad({ filter: FAILING }, () => ({ contents: 'throw new Error("ChunkLoadError: Failed to load chunk");', loader: "js" }));
+        // Вид отказа выбирает адрес страницы: по умолчанию не пришёл код (`ChunkLoadError`), `fault=bug` — ошибка в коде куска.
+        build.onLoad({ filter: FAILING }, () => ({
+          contents: 'const bug = new URLSearchParams(location.search).get("fault") === "bug"; const error = new Error(bug ? "ошибка в коде куска" : "Failed to load chunk"); if (!bug) error.name = "ChunkLoadError"; throw error;',
+          loader: "js",
+        }));
         build.onLoad({ filter: /\.css$/ }, () => ({ contents: "", loader: "js" }));
       },
     }],
@@ -83,13 +90,13 @@ async function main() {
   const browser = await chromium.launch();
   let failed = false;
   const report = (check, ok, detail) => { if (!ok) failed = true; console.log(JSON.stringify({ check, ok, detail })); };
-  const open = async (mode) => {
+  const open = async (mode, fault = "chunk") => {
     const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
     const errors = [];
     const logged = [];
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (message) => { if (message.type() === "error") logged.push(message.text()); });
-    await page.goto(`${pathToFileURL(html).href}?mode=${mode}`, { waitUntil: "load" });
+    await page.goto(`${pathToFileURL(html).href}?mode=${mode}&fault=${fault}`, { waitUntil: "load" });
     await page.waitForSelector("html[data-ready=true]", { state: "attached" });
     return { page, errors, logged };
   };
@@ -113,6 +120,14 @@ async function main() {
     const navigated = page.waitForEvent("framenavigated", { timeout: 5000 }).then(() => true, () => false);
     await page.getByRole("button", { name: "Обновить страницу" }).click();
     report(`${mode}: the button reloads the page`, await navigated, null);
+    await page.context().close();
+  }
+  // Ошибка в коде куска: не «проверьте связь», а граница ошибок; помощник молчит.
+  for (const mode of ["widgets", "today", "requests"]) {
+    const { page, logged } = await open(mode, "bug");
+    report(`bug ${mode}: the error reaches the error boundary`, (await page.locator("#boundary").count()) === 1 && /ошибка в коде куска/u.test((await page.locator("#boundary").allTextContents()).join("")), await page.locator("#boundary").allTextContents());
+    report(`bug ${mode}: no load-failed row and no stub`, (await page.locator("[data-testid=v3-load-failed]").count()) === 0 && (await page.locator("#alive").count()) === 0, null);
+    report(`bug ${mode}: the helper writes nothing to console.error`, logged.filter(isHelperLog).length === 0, logged);
     await page.context().close();
   }
   await browser.close();

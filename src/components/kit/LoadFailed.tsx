@@ -8,7 +8,7 @@ import { OUTLINE_BUTTON } from "@/components/kit/outline-button";
  * Без этого ошибка загрузки уходит в границу ошибок `(v3)/error.tsx`, а её «Попробовать снова» (`reset()`) новой загрузки не
  * делает: `next/dynamic` помнит отклонённое обещание до перезагрузки страницы. Здесь кнопка перезагружает страницу. Файл подключают
  * входы всех экранов, поэтому он не тянет `Button` (`cva`, `tailwind-merge`): кнопка — тот же вид классами (`OUTLINE_BUTTON`).
- * Это для браузера; на сервере отказ входа — ошибка в коде, и она уходит выше (`onLazyFailed`).
+ * Это только для не пришедшего кода (`ChunkLoadError`); ошибка в коде экрана уходит выше (`onLazyFailed`).
  */
 export function LoadFailed() {
   return (
@@ -19,5 +19,5 @@ export function LoadFailed() {
   );
 }
 
-/** `.catch(onScreenLoadFailed)` у ленивого входа экрана: в браузере вместо ошибки загрузки — `LoadFailed` (и `console.error`), на сервере — ошибка выше. */
+/** `.catch(onScreenLoadFailed)` у ленивого входа экрана: в браузере при `ChunkLoadError` — `LoadFailed` (и `console.error`), любая другая ошибка и ошибки сервера — выше. */
 export const onScreenLoadFailed = onLazyFailed(LoadFailed);

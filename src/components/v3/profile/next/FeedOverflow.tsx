@@ -10,7 +10,7 @@ export type FeedOverflowProps = Readonly<{ count: number; title: string; childre
 // Выезжающая панель (Radix Dialog, прокрутка) — сотни килобайт кода не для каждой отдачи страницы: прежний вид профиля
 // и кабинет её не показывают. Подгружается, когда лента «Нового вида» рисуется (`lazy`: см. `HelpTip`).
 // Не пришёл код панели: остаётся та же кнопка (панель не откроется), а не ошибка на весь экран; ошибка записана в
-// `console.error`. На сервере отказ — ошибка в коде: она уходит выше (`onLazyFailed`).
+// `console.error`. Ошибка в коде куска — не обрыв связи: она уходит выше (`onLazyFailed`).
 const FeedOverflowImpl = lazy(() => import("./FeedOverflowImpl").then((module) => ({ default: module.FeedOverflowImpl })).catch(onLazyFailed({ default: FeedOverflowStatic })));
 
 /** Та же кнопка «Ещё N», что у настоящей (`OUTLINE_BUTTON`): имя, `data-testid` и вид одни; нет только панели. */

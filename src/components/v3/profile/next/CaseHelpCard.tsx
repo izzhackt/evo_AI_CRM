@@ -7,7 +7,7 @@ import type { CaseHelpPage } from "@/lib/platform-admissions-support-contract";
 
 // Карточка тянет склейку классов и Radix нового вида; страница профиля у остальных сотрудников её не показывает (`lazy`: см. `HelpTip`).
 // Не пришёл код карточки: строка о том, что обращения не загрузились, а не ошибка на весь профиль; ошибка записана в
-// `console.error`. На сервере отказ — ошибка в коде: она уходит выше (`onLazyFailed`).
+// `console.error`. Ошибка в коде куска — не обрыв связи: она уходит выше (`onLazyFailed`).
 const CaseHelpCardImpl = lazy(() => import("./CaseHelpCardImpl").then((module) => ({ default: module.CaseHelpCardImpl })).catch(onLazyFailed({ default: CaseHelpCardFailed })));
 
 function CaseHelpCardFailed() {

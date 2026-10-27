@@ -1,14 +1,17 @@
-// «Новый вид» (решение владельца 27.10.2026): ленивые куски. Проверяется, что в браузере не пришедший код куска (обрыв связи) не
-// снимает с экрана уже нарисованную страницу: «?», «Ещё N», карточка обращений и вкладки на месте остаются заглушкой, а входы
-// экранов показывают строку с кнопкой «Обновить страницу» — и ошибка при этом попадает в `console.error`, а не глотается; что на
-// сервере (`typeof window === "undefined"`) та же ошибка уходит дальше — в `(v3)/error.tsx` и журнал сервера, как на `main`: на
-// сервере `import()` отклоняется только из-за ошибки в коде (бросок при загрузке модуля), и заглушка скрыла бы её под ответом 200;
-// и что заглушка «Ещё N» выглядит как настоящая кнопка. Код куска «не приходит»: модуль, который грузит `lazy` или `next/dynamic`,
-// при загрузке бросает ошибку (как отклонённый `import()` в браузере).
+// «Новый вид» (решение владельца 27.10.2026): ленивые куски. Проверяется, что в браузере не пришедший код куска (обрыв связи,
+// ошибка с именем `ChunkLoadError`) не снимает с экрана уже нарисованную страницу: «?», «Ещё N», карточка обращений и вкладки на
+// месте остаются заглушкой, а входы экранов показывают строку с кнопкой «Обновить страницу» — и ошибка при этом попадает в
+// `console.error`, а не глотается; что любая другая ошибка (бросок при загрузке модуля, то есть ошибка в коде куска) уходит выше как
+// есть и в браузере, и на сервере: заглушка «проверьте связь» скрыла бы её. Дальше она идёт так: на сервере у настоящих маршрутов
+// есть `loading.tsx`, то есть над входом экрана стоит `Suspense`, поэтому сервер слышит её (`onError`, журнал), отвечает 200 и отдаёт
+// границу браузеру на дорисовку (`<!--$!-->`), а браузер уже ловит её своей границей ошибок (`(v3)/error.tsx`). Оболочку (ответ 500)
+// ошибка роняет, только если над входом нет `Suspense`; такой случай тоже смоделирован, но он не про настоящие маршруты. Код куска
+// «не приходит»: модуль, который грузит `lazy` или `next/dynamic`, при загрузке бросает ошибку (как отклонённый `import()`
+// в браузере): `ChunkLoadError` (вид `chunk`) или обычную ошибку кода (вид `bug`). Заглушка «Ещё N» выглядит как настоящая кнопка.
 //
 //   node --experimental-strip-types --test tests/ui-next-lazy.test.mjs
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,7 +26,7 @@ const read = (path) => readFileSync(root(path), "utf8");
 const FAILING = /[\\/](HelpTipImpl|FeedOverflowImpl|CaseHelpCardImpl|SectionTabsInPlaceImpl|TodayNextPage|RequestsNextPage|TasksNext|TasksNextFailure|NextAgentsView|NextAgentPage|NextAgentUnavailable)\.tsx$/;
 
 const ENTRY = `
-import { createElement as h } from "react";
+import { createElement as h, Suspense } from "react";
 import { Writable } from "node:stream";
 import { renderToPipeableStream, renderToStaticMarkup } from "react-dom/server";
 import { HelpTip } from "@/components/kit/HelpTip";
@@ -56,7 +59,7 @@ async function settle(node) {
 }
 /**
  * Рисует потоком, как сервер Next: ждёт код ленивых кусков и отдаёт то, что услышал onError (он пишет в журнал сервера) и
- * onShellError (ошибка вне границы Suspense уходит в error.tsx). Ошибка внутри Suspense не бросается: граница отдаётся
+ * onShellError (ошибка вне границы Suspense роняет оболочку). Ошибка внутри Suspense оболочку не роняет: граница отдаётся
  * браузеру на дорисовку (маркер "$!"), а onError её слышит.
  */
 const serve = (node) => new Promise((resolve) => {
@@ -76,6 +79,8 @@ const nodes = {
   caseHelp: () => h(CaseHelpCard, { initialPage: {} }),
   tabs: () => h("div", { id: "around" }, "до", h(SectionTabsInPlace, { label: "Вкладки", tabs: [{ key: "a", label: "А", content: "один" }] }), "после"),
 };
+/** То, что стоит над входом экрана на настоящем маршруте: файл loading.tsx — это граница Suspense. */
+const underLoading = (node) => h(Suspense, { fallback: h("p", { id: "route-loading" }, "Загрузка маршрута") }, node);
 const entries = { TodayNextLazy, RequestsNextLazy, RequestsNextInvalidLazy, TasksNextLazy, TasksNextFailureLazy, NextAgentsViewLazy, NextAgentPageLazy, NextAgentUnavailableLazy };
 export const render = {
   ...Object.fromEntries(Object.entries(nodes).map(([name, node]) => [name, () => settle(node())])),
@@ -83,13 +88,14 @@ export const render = {
   served: {
     ...Object.fromEntries(Object.entries(nodes).map(([name, node]) => [name, () => serve(node())])),
     screens: Object.fromEntries(Object.entries(entries).map(([name, Screen]) => [name, () => serve(h(Screen, {}))])),
+    routed: Object.fromEntries(Object.entries(entries).map(([name, Screen]) => [name, () => serve(underLoading(h(Screen, {})))])),
   },
   loadFailed: LoadFailed,
   outline: { constant: OUTLINE_BUTTON, real: cn(buttonVariants({ variant: "outline", size: "default", className: "w-fit" })), markup: renderToStaticMarkup(h(Button, { variant: "outline", className: "w-fit" }, "x")) },
 };
 `;
 
-async function views() {
+async function views(kind = "chunk") {
   const dir = mkdtempSync(join(tmpdir(), "ui-next-lazy-"));
   try {
     const outfile = join(dir, "out.cjs");
@@ -105,7 +111,7 @@ async function views() {
           b.onLoad({ filter: /.*/, namespace: "empty" }, () => ({ contents: "", loader: "js" }));
           // Вне сборки Next `next/dynamic` — версия для pages router; сборка берёт версию для App Router, её берём и мы.
           b.onResolve({ filter: /^next\/dynamic$/ }, () => ({ path: root("node_modules/next/dist/shared/lib/app-dynamic.js") }));
-          b.onLoad({ filter: FAILING }, () => ({ contents: 'throw new Error("ChunkLoadError: Failed to load chunk");', loader: "js" }));
+          b.onLoad({ filter: FAILING }, () => ({ contents: FAULTS[kind], loader: "js" }));
           b.onLoad({ filter: /\.css$/ }, () => ({ contents: "", loader: "js" }));
         },
       }],
@@ -116,26 +122,37 @@ async function views() {
   }
 }
 
-const CHUNK_ERROR = /ChunkLoadError/u;
+/** Как отклоняет загрузку Turbopack (и webpack): ошибка с именем `ChunkLoadError`; или обычная ошибка при загрузке модуля. */
+const CHUNK_FAULT = 'const error = new Error("Failed to load chunk"); error.name = "ChunkLoadError"; throw error;';
+const BUG_FAULT = 'throw new Error("ошибка в коде куска");';
+const FAULTS = { chunk: CHUNK_FAULT, bug: BUG_FAULT };
+const isChunkError = (value) => value instanceof Error && value.name === "ChunkLoadError";
+const isBugError = (value) => value instanceof Error && value.name === "Error" && value.message === "ошибка в коде куска";
+const isHelperLog = (args) => typeof args[0] === "string" && args[0].startsWith("[Новый вид]");
 
 /**
  * Рисует «в браузере»: `window` есть (как у `LoadFailed`), `console.error` перехвачен. Помощник ленивого куска решает по
  * `typeof window` при отказе, поэтому `window` держим, пока отрисовка не устоялась. Пакет (`views()`) собирают до этого: при
- * заданном `window` модули Next при загрузке ждут `document`.
+ * заданном `window` модули Next при загрузке ждут `document`. `errors` — записи об ошибке `ChunkLoadError`, `helper` — все записи
+ * помощника («[Новый вид] …»); `thrown` — ошибка, ушедшая выше (только у `inBrowserCatching`).
  */
-async function inBrowser(run) {
+async function browserRun(run, catching) {
   const logged = [];
   const original = console.error;
   globalThis.window = { location: { reload() {} } };
   console.error = (...args) => { logged.push(args); };
   try {
-    const result = await run();
-    return { result, errors: logged.filter((args) => args.some((arg) => arg instanceof Error && CHUNK_ERROR.test(arg.message))) };
+    let result = null;
+    let thrown = null;
+    try { result = await run(); } catch (error) { if (!catching) throw error; thrown = error; }
+    return { result, thrown, helper: logged.filter(isHelperLog), errors: logged.filter((args) => args.some(isChunkError)) };
   } finally {
     console.error = original;
     delete globalThis.window;
   }
 }
+const inBrowser = (run) => browserRun(run, false);
+const inBrowserCatching = (run) => browserRun(run, true);
 
 /** Значение `class` первого элемента разметки (React экранирует `&` и `\'`). */
 const classOf = (markup) => markup.match(/ class="([^"]*)"/u)[1].replaceAll("&amp;", "&").replaceAll("&#x27;", "'");
@@ -183,32 +200,90 @@ test("на сервере не пришедший код куска не гло�
     const { errors, markup, shellFailed } = await served[name]();
     assert.equal(shellFailed, false, `${name}: Suspense держит страницу`);
     assert.equal(errors.length, 1, `${name}: исходная ошибка дошла до журнала сервера`);
-    assert.match(errors[0].message, CHUNK_ERROR, name);
+    assert.equal(isChunkError(errors[0]), true, name);
     assert.match(markup, /<!--\$!-->/u, `${name}: граница отдана браузеру на дорисовку, а не закрыта заглушкой с ответом 200`);
   }
 });
 
-test("на сервере не пришёл код экрана: каждый из восьми входов роняет оболочку исходной ошибкой (в `error.tsx` и журнал), а не отдаёт `LoadFailed` с ответом 200", async () => {
+test("на сервере код экрана не пришёл, а над входом нет `Suspense` (маршрут без `loading.tsx`): ошибка выходит из входа как есть и роняет оболочку; это модель такого маршрута, настоящие маршруты нового вида — в следующем тесте", async () => {
   const { served } = await views();
   assert.equal(Object.keys(served.screens).length, 8);
   for (const [name, render] of Object.entries(served.screens)) {
     const { errors, markup, shellFailed } = await render();
     assert.equal(shellFailed, true, name);
     assert.equal(errors.length, 1, name);
-    assert.match(errors[0].message, CHUNK_ERROR, name);
+    assert.equal(isChunkError(errors[0]), true, name);
     assert.doesNotMatch(markup, /v3-load-failed|Не удалось загрузить экран/u, name);
   }
 });
 
-test("помощник отказа: на сервере бросает исходную ошибку как есть, в браузере пишет её в `console.error` и отдаёт заглушку; без тяжёлых зависимостей", async () => {
+test("у каждого маршрута, что рисует вход экрана нового вида, есть `loading.tsx` (граница `Suspense` над входом), и все восемь входов разобраны по маршрутам", () => {
+  const routes = {
+    main: ["TodayNextLazy"],
+    requests: ["RequestsNextLazy", "RequestsNextInvalidLazy"],
+    tasks: ["TasksNextLazy", "TasksNextFailureLazy"],
+    "ai-agents": ["NextAgentsViewLazy"],
+    "ai-agents/[key]": ["NextAgentPageLazy", "NextAgentUnavailableLazy"],
+  };
+  for (const [route, names] of Object.entries(routes)) {
+    const dir = `src/app/(v3)/v3/${route}`;
+    assert.ok(existsSync(root(`${dir}/loading.tsx`)), `${route}: есть loading.tsx`);
+    for (const name of names) assert.match(read(`${dir}/page.tsx`), new RegExp(`<${name}\\b`, "u"), `${route}: страница рисует ${name}`);
+  }
+  assert.equal(Object.values(routes).flat().length, 8, "восемь входов экранов");
+});
+
+test("на сервере код экрана не пришёл, над входом `Suspense` из `loading.tsx` (как на настоящих маршрутах): исходная ошибка слышна серверу (`onError`), оболочка цела (ответ 200), граница уходит браузеру на дорисовку, заглушки `LoadFailed` нет", async () => {
+  const { served } = await views();
+  assert.equal(Object.keys(served.routed).length, 8);
+  for (const [name, render] of Object.entries(served.routed)) {
+    const { errors, markup, shellFailed } = await render();
+    assert.equal(shellFailed, false, `${name}: оболочку держит Suspense маршрута`);
+    assert.equal(errors.length, 1, `${name}: исходная ошибка дошла до журнала сервера`);
+    assert.equal(isChunkError(errors[0]), true, name);
+    assert.match(markup, /<!--\$!-->/u, `${name}: граница отдана браузеру на дорисовку`);
+    assert.match(markup, /Загрузка маршрута/u, `${name}: пока браузер дорисовывает, виден скелет маршрута`);
+    assert.doesNotMatch(markup, /v3-load-failed|Не удалось загрузить экран/u, `${name}: на сервере заглушка не рисуется`);
+  }
+});
+
+test("на сервере ошибка в коде куска (не `ChunkLoadError`) идёт тем же путём: слышна серверу как есть, оболочка цела", async () => {
+  const { served } = await views("bug");
+  for (const [name, render] of Object.entries(served.routed)) {
+    const { errors, shellFailed } = await render();
+    assert.equal(shellFailed, false, name);
+    assert.equal(errors.length, 1, name);
+    assert.equal(isBugError(errors[0]), true, `${name}: сама ошибка, не обёртка`);
+  }
+});
+
+test("в браузере ошибка в коде куска не прячется за «проверьте связь»: вход экрана отдаёт её выше (в границу ошибок `error.tsx`), заглушки `LoadFailed` и записи помощника нет", async () => {
+  const { screens } = await views("bug");
+  assert.equal(Object.keys(screens).length, 8);
+  for (const [name, render] of Object.entries(screens)) {
+    const { thrown, helper, result } = await inBrowserCatching(render);
+    assert.equal(isBugError(thrown), true, `${name}: исходная ошибка ушла выше`);
+    assert.equal(result, null, `${name}: ни заглушки, ни разметки`);
+    assert.equal(helper.length, 0, `${name}: помощник не писал «не загрузился ленивый кусок», это не обрыв связи`);
+  }
+});
+
+test("помощник отказа: на сервере бросает любую ошибку как есть; в браузере заглушка и `console.error` только при `ChunkLoadError`, остальное бросает как есть; без тяжёлых зависимостей", async () => {
   const { onLazyFailed } = await import(pathToFileURL(root("src/components/kit/lazy-failure.ts")).href);
-  const cause = new Error("ChunkLoadError: проверка помощника");
+  const lost = Object.assign(new Error("Failed to load chunk"), { name: "ChunkLoadError" });
+  const bug = new TypeError("x is not a function");
   const fallback = { default: () => null };
-  assert.throws(() => onLazyFailed(fallback)(cause), (thrown) => thrown === cause, "сервер: та же ошибка, не обёртка");
-  const browser = await inBrowser(async () => onLazyFailed(fallback)(cause));
-  assert.equal(browser.result, fallback, "браузер: заглушка");
-  assert.equal(browser.errors.length, 1, "браузер: ошибка записана в console.error");
-  assert.equal(browser.errors[0].includes(cause), true, "в записи — сама ошибка, со стеком");
+  for (const cause of [lost, bug, null, "строка"]) assert.throws(() => onLazyFailed(fallback)(cause), (thrown) => thrown === cause, "сервер: та же ошибка, не обёртка и не заглушка");
+  const browser = await inBrowser(async () => onLazyFailed(fallback)(lost));
+  assert.equal(browser.result, fallback, "браузер: заглушка, когда код куска не пришёл");
+  assert.equal(browser.helper.length, 1, "браузер: одна запись в console.error");
+  assert.equal(browser.helper[0].includes(lost), true, "в записи — сама ошибка, со стеком");
+  for (const cause of [bug, new Error("ChunkLoadError: похоже на обрыв, но имя другое"), null, undefined, "ChunkLoadError"]) {
+    const other = await inBrowserCatching(async () => onLazyFailed(fallback)(cause));
+    assert.equal(other.result, null, "браузер: заглушки нет");
+    assert.equal(other.thrown, cause, "браузер: ошибка в коде уходит выше как есть (в `(v3)/error.tsx`)");
+    assert.equal(other.helper.length, 0, "браузер: записи помощника нет");
+  }
   const source = read("src/components/kit/lazy-failure.ts");
   assert.doesNotMatch(source, /^\s*import\s/mu, "файл без импортов: `HelpTip` остаётся лёгким");
   assert.ok(source.split("\n").length <= 150, "файл набора до 150 строк");

@@ -114,6 +114,12 @@ function makeFixtures(catalog) {
   /** Что отдаёт сервер для вкладки «Ждут решения» (только ждущие) и «Все»; счётчики одни и те же. */
   const draftsFor = (filter) => (filter === "all" ? DRAFTS_ALL : { ...DRAFTS_ALL, drafts: DRAFTS_ALL.drafts.filter((row) => row.status === "pending") });
   const DRAFTS = draftsFor("pending");
+  // Wazzup (WhatsApp подключён только на чтение, план Wazzup §7): база оставила черновики WhatsApp с кодом receive_only - продавец
+  // отправит их вне EVO. Третий - кабинет студента: у него такого кода не бывает, и «Скопировать текст» ему не положен.
+  const DRAFTS_RECEIVE_ONLY = {
+    drafts: [draft(1, { failureCode: "receive_only" }), draft(2, { failureCode: "receive_only" }), draft(3, { failureCode: "receive_only" })],
+    counts: { pending: 3, approved: 0, sending: 0, sent: 0, discarded: 0, failed: 0, expired: 0 },
+  };
 
   const conversations = RUNS.slice(0, 4).filter((row) => row.triggerKind === "command" || row.id === uuid(1)).map((row) => ({
     id: row.id, status: row.status, startedAt: row.startedAt, endedAt: row.endedAt, durationSeconds: row.durationSeconds, promptPreview: row.promptPreview,
@@ -133,7 +139,7 @@ function makeFixtures(catalog) {
     whatsappCapState: { spentCents: 230, reservedCents: 0 },
     ...over,
   });
-  return { NOW, ACTOR, LIST, detail, DIGESTS, RUNS, RUNS_MANY, RUN_DETAIL, DRAFTS, DRAFTS_ALL, draftsFor, conversations, bodyProps, available, sync, stats };
+  return { NOW, ACTOR, LIST, detail, DIGESTS, RUNS, RUNS_MANY, RUN_DETAIL, DRAFTS, DRAFTS_ALL, DRAFTS_RECEIVE_ONLY, draftsFor, conversations, bodyProps, available, sync, stats };
 }
 
 module.exports = { makeFixtures, NOW, ACTOR };

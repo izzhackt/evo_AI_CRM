@@ -1,10 +1,11 @@
 // WhatsApp через Wazzup, срез W3 (интерфейс сотрудника): строгие разборы принимают строки Wazzup, а прежние строки
 // WAHA читаются как раньше; чаты Wazzup в «Продажи → WhatsApp» только для чтения; подпись эха продавца; «Скопировать
-// текст» у черновиков агента; «Настройки» говорят о канале Wazzup и не показывают кнопку подключения WAHA.
+// текст» у черновиков агента (в том числе в панели «Нового вида»); «Настройки» говорят о канале Wazzup и не показывают кнопку
+// подключения WAHA.
 // Все номера, идентификаторы и тексты ниже выдуманы. Что считает база, проверяют её наборы (325); здесь - значения и
 // исходники приложения.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -34,6 +35,7 @@ import {
   WAZZUP_STATE_MAX_AGE_MS,
   capitalizeRu,
   isFreshWazzupState,
+  isReceiveOnlyDraft,
   wazzupCardRows,
   wazzupChannelWords,
   wazzupInboxChannelState,
@@ -435,7 +437,7 @@ test("the sales chat reads the way once, probes WAHA only on the WAHA path and g
 
 test("agent drafts: «Скопировать текст» appears for a draft the base kept with receive_only; the send stays", () => {
   const card = read("src/components/v3/ai-agents/DraftCard.tsx");
-  assert.match(card, /const receiveOnly = draft\.channel === "whatsapp" && failure === "receive_only" && effective;/u);
+  assert.match(card, /const receiveOnly = isReceiveOnlyDraft\(draft\.channel, failure\) && effective;/u);
   assert.match(card, /<CopyTextButton text=\{canManage \? text : draft\.editedText \?\? draft\.text\} \/>/u, "the edited text is what is copied");
   assert.match(card, /className=\{receiveOnly \? QUEUE_SECONDARY : QUEUE_CONFIRM\}/u);
   assert.match(card, /data-testid="v3-aia-approve"/u);
@@ -446,6 +448,51 @@ test("agent drafts: «Скопировать текст» appears for a draft th
   assert.match(button, /"Не скопировалось — выделите текст вручную"/u);
   assert.match(button, /role="status"/u);
   assert.match(read("src/lib/v3/ai-agents-view.ts"), /receive_only: "WhatsApp подключён только на чтение/u);
+});
+
+test("agent drafts: one rule for «only reading» - WhatsApp channel and the base's receive_only code, nothing else", () => {
+  assert.equal(isReceiveOnlyDraft("whatsapp", "receive_only"), true);
+  assert.equal(isReceiveOnlyDraft("whatsapp", null), false);
+  assert.equal(isReceiveOnlyDraft("whatsapp", undefined), false);
+  assert.equal(isReceiveOnlyDraft("whatsapp", "whatsapp_unavailable"), false, "a connection failure is not a read-only channel");
+  assert.equal(isReceiveOnlyDraft("portal", "receive_only"), false, "the student cabinet has no such code");
+});
+
+/** Все файлы .ts/.tsx каталога, рекурсивно. */
+function sourcesUnder(dir) {
+  return readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true }).flatMap((entry) => {
+    const path = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) return sourcesUnder(path);
+    return /\.(ts|tsx)$/u.test(entry.name) ? [path] : [];
+  });
+}
+
+test("«Новый вид»: WhatsApp из EVO уходит только теми же воротами - карточкой черновика и серверным решением; своего пути отправки нет", () => {
+  const newViewDirs = ["src/components/v3/ai-agents-next", "src/components/v3/profile/next", "src/components/v3/requests-next", "src/components/v3/tasks/next", "src/components/kit"];
+  const files = newViewDirs.flatMap(sourcesUnder);
+  assert.ok(files.length > 60, "the scan sees the new view");
+  const draftCardUsers = [];
+  for (const file of files) {
+    const text = read(file);
+    // Ни поля ответа чата, ни действия отправки WhatsApp, ни прямого вызова провайдера.
+    assert.doesNotMatch(text, /InboxChat|sendPlatformWhatsAppMessageAction|reconcilePlatformWhatsAppSendAction|platform-provider-actions|platform-wazzup|platform-waha|WhatsAppTransportCard/u, file);
+    // Решение по черновику принимает действие `decideAiAgentDraftAction` и только карточка черновика.
+    assert.doesNotMatch(text, /decideAiAgentDraftAction/u, file);
+    if (/@\/components\/v3\/ai-agents\/DraftCard/u.test(text)) draftCardUsers.push(file);
+  }
+  assert.deepEqual(draftCardUsers, ["src/components/v3/ai-agents-next/NextDrafts.tsx"], "the queue panel reuses the one card with the receive_only rule");
+  const drafts = read("src/components/v3/ai-agents-next/NextDrafts.tsx");
+  assert.match(drafts, /<DraftCard key=\{current\.id\} draft=\{current\} canManage=\{canManage\} now=\{now\} bare \/>/u);
+  // Строка очереди читает то же правило, что карточка.
+  assert.match(drafts, /isReceiveOnlyDraft\(draft\.channel, draft\.failureCode\)/u);
+  assert.match(drafts, /receiveOnly \? WAZZUP_READ_ONLY_LINE :/u);
+  const card = read("src/components/v3/ai-agents/DraftCard.tsx");
+  assert.match(card, /decideAiAgentDraftAction/u, "the one decision action stays in the card");
+  assert.match(card, /bare = false/u, "the new view's panel flag survives next to the receive_only rule");
+  assert.match(card, /\{receiveOnly \? <CopyTextButton text=\{canManage \? text : draft\.editedText \?\? draft\.text\} \/> : null\}/u);
+  // Единственное место отправки из интерфейса - чат «Продажи → WhatsApp», закрытый для Wazzup.
+  const senders = ["src/components", "src/app"].flatMap(sourcesUnder).filter((file) => /sendPlatformWhatsAppMessageAction/u.test(read(file)));
+  assert.deepEqual(senders, ["src/components/v3/inbox/InboxChat.tsx"], `unexpected WhatsApp senders: ${senders.join(", ")}`);
 });
 
 test("new UI files stay within 150 lines and carry no key, address or number", () => {

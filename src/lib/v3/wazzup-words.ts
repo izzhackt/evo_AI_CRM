@@ -15,6 +15,15 @@ export const WAZZUP_READ_ONLY_LINE = "Только чтение: отвечай�
 export const WAZZUP_FALLBACK_LINE = "Запасной путь WAHA выключен, пока работает Wazzup.";
 export const WAZZUP_TITLE = "WhatsApp продаж через Wazzup";
 
+/**
+ * Черновик WhatsApp, который база оставила с кодом `receive_only` (путь Wazzup: EVO не отправляет, ответ уходит от продавца
+ * вне EVO). Одно правило для карточки черновика (прежний и «Новый вид») и строки очереди «Нового вида»: «ждёт решения»
+ * проверяет вызывающий, потому что карточка берёт код ещё и из ответа на «Одобрить».
+ */
+export function isReceiveOnlyDraft(channel: string, failureCode: string | null | undefined): boolean {
+  return channel === "whatsapp" && failureCode === "receive_only";
+}
+
 /** Слово серии 321 -> слово на экране (строчными: так читается в таблице) и тон. */
 const STATE_WORDS: Readonly<Record<string, readonly [string, WazzupTone]>> = Object.freeze({
   WORKING: ["подключён", "ok"],

@@ -490,6 +490,50 @@ test("карточка черновика в панели: без рамки и 
   assert.match(bare, /data-testid="v3-aia-approve"/u, "решение — теми же кнопками");
 });
 
+test("Wazzup (только чтение): черновик с `receive_only` в «Новом виде» говорит то же, что прежняя карточка, и копируется; строка очереди - ту же фразу", async () => {
+  const { draftCard, nextPage } = await views();
+  const [whatsapp, , portal] = F.DRAFTS_RECEIVE_ONLY.drafts;
+  const props = { draft: whatsapp, canManage: true, now: F.NOW };
+  const legacy = strip(draftCard(props));
+  const bare = strip(draftCard({ ...props, bare: true }));
+  const READ_ONLY = /data-testid="v3-aia-draft-readonly"[^>]*>Только чтение: отвечайте в amoCRM или Wazzup\.</u;
+  const COPY = /<button[^>]*data-testid="v3-aia-copy-text"[^>]*>Скопировать текст</u;
+  for (const [name, html] of [["прежняя карточка", legacy], ["карточка в панели", bare]]) {
+    assert.match(html, READ_ONLY, `${name}: отказ словами`);
+    assert.match(html, COPY, `${name}: кнопка копирования`);
+    assert.doesNotMatch(html, /Остаётся в очереди|Подключите WhatsApp/u, `${name}: это не сбой подключения`);
+    assert.match(html, /data-testid="v3-aia-approve"[\s\S]*data-testid="v3-aia-discard"/u, `${name}: решение теми же кнопками`);
+  }
+  // Всё, что ниже заголовка, у обоих видов одно и то же: панель «Нового вида» не придумывает своего отказа.
+  const tail = (html) => html.slice(html.indexOf('data-testid="v3-aia-draft-readonly"'));
+  assert.equal(tail(bare), tail(legacy));
+  // Главное действие - копирование (как у обычного «Одобрить»), «Одобрить» остаётся вторичной кнопкой.
+  const cls = (html, id) => html.match(new RegExp(`<button[^>]*class="([^"]*)"[^>]*data-testid="${id}"`, "u"))?.[1];
+  const ordinary = strip(draftCard({ ...props, bare: true, draft: F.DRAFTS_ALL.drafts[0] }));
+  assert.equal(cls(bare, "v3-aia-copy-text"), cls(ordinary, "v3-aia-approve"));
+  assert.notEqual(cls(bare, "v3-aia-approve"), cls(ordinary, "v3-aia-approve"));
+  assert.doesNotMatch(ordinary, /v3-aia-copy-text|v3-aia-draft-readonly/u, "обычный черновик копирования не получает");
+  // Без права решать: слова и копирование остаются (продавцу надо отправить текст), решающих кнопок и поля нет.
+  const viewer = strip(draftCard({ ...props, bare: true, canManage: false }));
+  assert.match(viewer, READ_ONLY);
+  assert.match(viewer, COPY);
+  assert.doesNotMatch(viewer, /v3-aia-approve|v3-aia-discard|<textarea/u);
+  // Решённый черновик и черновик кабинета студента копирования не получают.
+  for (const draft of [{ ...whatsapp, status: "sent", sentAt: F.NOW, decidedAt: F.NOW }, { ...whatsapp, status: "discarded", decidedAt: F.NOW }, portal]) {
+    assert.doesNotMatch(strip(draftCard({ ...props, bare: true, draft })), /v3-aia-copy-text|v3-aia-draft-readonly/u, `${draft.status}/${draft.channel}`);
+  }
+  // Строка очереди: две строки WhatsApp говорят ту же фразу спокойным цветом; кабинет студента - прежние слова.
+  const page = strip(nextPage(F.bodyProps("drafts", { drafts: F.available(F.DRAFTS_RECEIVE_ONLY) })));
+  const rows = page.match(/<tbody[\s\S]*?<\/tbody>/u)[0].match(/<tr[\s\S]*?<\/tr>/gu);
+  assert.equal(rows.length, 3);
+  for (const row of rows.slice(0, 2)) {
+    assert.match(row, /class="t-meta text-fg-2" data-testid="v3-aia-draft-note">Только чтение: отвечайте в amoCRM или Wazzup\.</u);
+    assert.doesNotMatch(row, /Остаётся в очереди/u);
+  }
+  assert.doesNotMatch(rows[2], /Только чтение: отвечайте/u);
+  assert.match(rows[2], /data-testid="v3-aia-draft-note"/u, "у чужого канала слова прежние");
+});
+
 test("рамка страницы агента — `PageShell` набора со слотом `back`; ключевые утилиты переключателя запертого вида в наборе", async () => {
   const { nextPage } = await views();
   const page = strip(nextPage(F.bodyProps("overview")));

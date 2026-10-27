@@ -8,7 +8,7 @@ import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "@/components/v3/queue/queue-butt
 import { AI_AGENT_DRAFT_CHANNEL_LABELS, AI_AGENT_LIMITS, type AiAgentDraftRow } from "@/lib/ai-agents/contract";
 import { decideAiAgentDraftAction } from "@/lib/platform-ai-agents-actions";
 import { draftStatusWords, draftTargetHref, formatDateTimeRu, relativeTimeRu } from "@/lib/v3/ai-agents-view";
-import { WAZZUP_READ_ONLY_LINE } from "@/lib/v3/wazzup-words";
+import { WAZZUP_READ_ONLY_LINE, isReceiveOnlyDraft } from "@/lib/v3/wazzup-words";
 
 import { CopyTextButton } from "./CopyTextButton";
 import { ActionMessage } from "./Notices";
@@ -50,7 +50,7 @@ export function DraftCard({
   useDirtyGuard(effective && canManage && edited);
   const failure = state.failureCode ?? (draft.status === "pending" ? draft.failureCode : null);
   // WhatsApp только на чтение (Wazzup, 325): база оставила черновик с этим кодом - отправит продавец вне EVO.
-  const receiveOnly = draft.channel === "whatsapp" && failure === "receive_only" && effective;
+  const receiveOnly = isReceiveOnlyDraft(draft.channel, failure) && effective;
   const label = outcome
     ? draftStatusWords({ status: outcome, failureCode: state.failureCode ?? null, sentByAgent: false })
     : words;

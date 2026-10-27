@@ -37,6 +37,8 @@ export const FIXED_ROLE_ROUTES = [
   "/v3/marketing",
   // «Финансы» (решение владельца 26.10.2026): раздел верхнего уровня рядом с «Маркетингом»; пока заготовка под доходы, расходы и расчёты.
   "/v3/finance",
+  // Набор виджетов «Нового вида» (27.10.2026): страница для владельца, только настоящий Admin.
+  "/v3/ui-kit",
   "/v3/ai-agent",
   "/v3/ai-agents",
   "/v3/reply-snippets",
@@ -88,6 +90,7 @@ const ROUTE_CAPABILITY_ANY_OF = {
   "/v3/knowledge": ["admin.preview"],
   "/v3/marketing": ["admin.preview"],
   "/v3/finance": ["admin.preview"],
+  "/v3/ui-kit": ["admin.preview"],
   // «ИИ-агент» — все сотрудники (решение владельца Q9, «нет, все могут»).
   "/v3/ai-agent": ["dashboard.read"],
   // «ИИ-агенты» (отдел агентов Claude, 22.10.2026) — те же сотрудники.

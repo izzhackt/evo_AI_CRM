@@ -26,6 +26,7 @@ const ROUTE_LABELS: Record<FixedRoleRoute, string> = {
   "/v3/knowledge": "База знаний",
   "/v3/marketing": "Маркетинг",
   "/v3/finance": "Финансы",
+  "/v3/ui-kit": "Набор виджетов",
   "/v3/ai-agent": "ИИ-агент",
   "/v3/ai-agents": "ИИ-агенты",
   "/v3/documents": "Документы",

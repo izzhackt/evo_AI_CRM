@@ -6,6 +6,8 @@ import { ServerReleaseMark } from "@/components/ServerReleaseMark";
 import { AppShell } from "@/components/v3/AppShell";
 import { requirePlatformStaffActor } from "@/lib/platform-guards";
 import { readReleaseMetadata } from "@/lib/release-metadata";
+import { isNextUi } from "@/lib/ui-next";
+import { canUseNextUi } from "@/lib/ui-next-contract";
 import { readOpenAccountDeletionCount } from "@/lib/v3/account-deletion-source";
 import { readFinanceSectionAccess } from "@/lib/v3/report-links-source";
 import { readStaffNotificationsForActor } from "@/lib/v3/staff-notification-source";
@@ -44,6 +46,8 @@ export default async function V3Layout({ children }: { children: ReactNode }) {
   // просмотра роли (иначе `null`), любой сбой чтения — «нет счётчика», а не ошибка страницы. «Финансы» — точная
   // проверка права на всю организацию (план внешних отчётов §6.2): просмотр роли, настоящий Admin и сотрудник без
   // finance.read.full решаются без чтения, держатель права — одним лёгким чтением; ошибка — пункта нет.
+  // «Новый вид» (27.10.2026): переключатель и режим — только у настоящего администратора вне просмотра роли.
+  const nextUi = canUseNextUi(actor) ? { enabled: await isNextUi(actor) } : null;
   const [notifications, deletionRequests, financeSection] = await Promise.all([
     !isStaffPreview(actor) ? readStaffNotificationsForActor(actor).catch(() => null) : Promise.resolve(null),
     readOpenAccountDeletionCount(actor),
@@ -51,8 +55,8 @@ export default async function V3Layout({ children }: { children: ReactNode }) {
   ]);
 
   return (
-    <div className="v3-world" data-surface="staff">
-      <AppShell actor={actor} initialNotifications={notifications} deletionRequests={deletionRequests} financeSection={financeSection}>
+    <div className="v3-world" data-surface="staff" data-ui={nextUi?.enabled ? "next" : undefined}>
+      <AppShell actor={actor} initialNotifications={notifications} deletionRequests={deletionRequests} financeSection={financeSection} nextUi={nextUi}>
         {children}
       </AppShell>
       <ServerReleaseMark release={release.status === "available" ? release.revision : null} />

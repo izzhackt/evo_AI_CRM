@@ -23,6 +23,7 @@ import { EvoLogo } from "@/components/platform/brand/EvoLogo";
 import { Icon } from "@/components/icons";
 import { cn } from "@/components/ui";
 import { ChatFocusProvider, useChatFocusController } from "@/components/v3/ChatFocus";
+import { NextUiToggle } from "@/components/v3/NextUiToggle";
 import { StaffNotifications } from "@/components/v3/StaffNotifications";
 import { StaleDeploymentNotice } from "@/components/v3/StaleDeploymentNotice";
 import { TopLayerMenu } from "@/components/v3/board/TopLayerMenu";
@@ -419,6 +420,7 @@ export function AppShell({
   initialNotifications,
   deletionRequests = null,
   financeSection,
+  nextUi = null,
 }: {
   children: ReactNode;
   actor: ActivePlatformActor;
@@ -430,6 +432,8 @@ export function AppShell({
    * отчётов §6.2), её считает layout. Без значения пункт только у настоящего администратора.
    */
   financeSection?: boolean;
+  /** Переключатель «Новый вид»: только настоящему администратору (`canUseNextUi`), иначе `null` — строки нет. */
+  nextUi?: Readonly<{ enabled: boolean }> | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -731,6 +735,20 @@ export function AppShell({
                 </button>
               </form>
             </div>
+            {nextUi ? (
+              <div className={cn("px-3 pt-1", rail && "md:max-2xl:px-2")}>
+                <NextUiToggle enabled={nextUi.enabled} rail={rail} hint={hint("Новый вид")} />
+                {nextUi.enabled ? (
+                  <IntentPrefetchLink
+                    href="/v3/ui-kit"
+                    onNavigate={closeAfterNavigation}
+                    className={cn(ITEM, "py-1 t-meta", rail && "md:max-2xl:hidden")}
+                  >
+                    Набор виджетов
+                  </IntentPrefetchLink>
+                ) : null}
+              </div>
+            ) : null}
             {/* Имя и роль — во всю ширину строки (от края логотипа), каждая в одну строку; целиком — в подсказке. */}
             <p className={cn("min-w-0 px-5 pb-3 pt-1", rail && "md:max-2xl:sr-only")}>
               <span className="t-item block truncate text-fg" title={displayName}>{displayName}</span>

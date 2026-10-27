@@ -1,5 +1,75 @@
 # EVO Admissions — контракт интерфейса
 
+## Новый вид: набор виджетов — решение владельца 27.10.2026
+
+Экраны CRM собираются из готовых блоков, а не рисуются заново (CLAUDE.md, «Интерфейс CRM: правила
+архитектуры»). Фундамент: примитивы shadcn/ui в `src/components/ui/<имя>`, набор виджетов EVO в
+`src/components/kit/` (`import { … } from "@/components/kit"`), таблицы — TanStack Table v9. Прежний набор
+`@/components/ui` (файл `ui.tsx`) остаётся для прежних экранов; каталога-индекса `ui/index` нет, чтобы этот
+импорт не менял смысл. Страница для просмотра — `/v3/ui-kit` («Набор виджетов»), только администратор.
+
+**Переключатель «Новый вид».** Экран рисует новый вид, когда `await isNextUi(actor)` (`src/lib/ui-next.ts`):
+настоящий администратор (`systemRole === "admin"`), не в просмотре роли, с cookie `evo_ui=next`. Иначе —
+прежний вид, байт в байт; сотрудникам cookie ничего не даёт. Переключатель — строка «Новый вид» в меню аккаунта
+оболочки (внизу слева), видна только администратору; нажатие вызывает `setNextUiAction(enabled, returnTo)`
+(`src/lib/ui-next-actions.ts`), которое пишет cookie (httpOnly, 180 дней) и возвращает на ту же страницу.
+Корень staff CRM получает `data-ui="next"` только при включённом виде: от него зависят токены нового вида
+(`src/app/ui-next.css`) и портал окон. Правило — `src/lib/ui-next-contract.ts` (`canUseNextUi`, `isNextUiFor`).
+Данные, права, серверные действия и адреса экрана от переключателя не зависят: меняется только вид.
+
+**Токены.** Роли shadcn (`primary` = красный EVO, `card`, `popover`, `secondary`, `muted`, `destructive`,
+`input` = `--control-edge`, `ring`, `chart-1…5`, `radius`) заданы один раз в `src/app/ui-next.css` через токены
+EVO под `.v3-world[data-surface="staff"][data-ui="next"]`; шрифт — Golos Text, как везде. Роль shadcn `accent`
+не заводится: в EVO `--accent` — красный и `bg-accent` значит «главное действие». Наведение и фокус пунктов —
+`bg-surface-2`/`text-fg`. Окна, панели и меню рисуются внутрь корня staff CRM (`useUiPortalContainer`), а не в `body`.
+
+**Что брать для чего**
+
+| Задача | Виджет |
+|---|---|
+| Рамка страницы (ширина, отступы, ритм) | `PageShell` |
+| Заголовок, одна группа действий, «?» | `PageHeader` |
+| Пояснение, которое было на экране | `HelpTip` |
+| Блок страницы с заголовком | `WidgetCard` |
+| Одно число с подписью | `StatTile` |
+| Ключевые данные карточки (≤4 в строке) | `KeyFacts` |
+| Список записей | `DataTable` |
+| Запись, журнал, сканы, длинный список | `DetailSheet` |
+| Разделы карточки | `SectionTabs` |
+| Состояние словом | `StatusBadge` |
+| Ничего нет | `EmptyState` |
+
+**Виджеты и их свойства**
+
+- `PageShell({ title, count?, meta?, help?, helpLabel?, actions?, testId?, width?: "wide" | "narrow", children })`
+- `PageHeader({ title, count?, meta?, help?, helpLabel?, actions?, className? })` — `h1.t-page-title` стоит
+  там же, где у прежней шапки: на это опираются отступ и телефонные правила оболочки (v3.css).
+- `HelpTip({ children, label?, align?, className? })` — «?» открывает пояснение нажатием; не для ошибок и рисков.
+- `WidgetCard({ title?, help?, helpLabel?, actions?, footer?, size?: "default" | "sm", headingLevel?: 2 | 3, id?, className?, bodyClassName?, children? })`
+- `StatTile({ label, value: string | number | null, hint?, tone?: "neutral" | "ok" | "warn" | "danger", href?, className? })` —
+  `null` рисует «—»; цвет только у числа.
+- `KeyFacts({ facts: { label, value: ReactNode }[], columns?: 1 | 2 | 3 | 4, className? })` — пустые значения не рисуются.
+- `DataTable<T>({ label, data, columns: DataTableColumn<T>[], getRowId?, onRowClick?, searchPlaceholder?, pageSize?: 10 | 25 | 50, loading?, empty?, toolbar?, columnMenu?, className? })` —
+  колонка TanStack (`accessorKey`/`accessorFn`, `header`, `cell`, `enableHiding`) с `meta: { label?, mobile?: "title" | "hide", align?: "end" }`;
+  сортировка по заголовку, общий поиск, меню колонок, страницы, прилипшая шапка, пустое и загрузка; меньше 768 px — карточки
+  (заголовок карточки — колонка с `mobile: "title"`, под ним до трёх данных). `label` — имя прокручиваемой области.
+- `DetailSheet({ title, description?, help?, helpLabel?, trigger?, open?, onOpenChange?, footer?, side?: "right" | "bottom", children })` —
+  существующие формы и серверные действия вкладываются внутрь как есть.
+- `SectionTabs({ label, tabs: { key, label, count?, href?, content? }[], value?, defaultValue?, onValueChange?, className? })` —
+  у всех вкладок есть `href` — ряд ссылок `?tab=` с `aria-current` (как прежние вкладки профиля); иначе вкладки на месте.
+- `StatusBadge({ label, tone?: "neutral" | "ok" | "warn" | "danger" | "info", title?, wrap?, className? })` — те же тона, что у `StatusChip`.
+- `EmptyState({ title, description?, icon?, action?, tone?: "neutral" | "danger", className? })`.
+
+**Правила сборки.** Файл виджета — до 150 строк; страница — `PageShell` и виджеты. Текст на экране — заголовки, данные и
+кнопки; пояснение уходит в `HelpTip`, предупреждения об ошибках и рисках остаются на виду. Красная кнопка — одно главное
+действие страницы. Нажимаемое — не меньше 44 px. Чего нет в данных, того нет на экране (`null` не рисуется).
+
+**Новые блоки из реестров.** `npx shadcn@4.22.1 add <имя>` (стиль `radix-nova`, `components.json` в корне), затем
+`node scripts/ui/adapt-shadcn.mjs` (импорт `cn`, убирает `dark:`, роль `accent`) и ручная правка по списку замечаний:
+радиусы `rounded-card`/`rounded-ctl`/`rounded-nav`, высоты 44 px, роли шрифта `t-*`, фокус рисует globals.css. CLI тянет пакет
+`cn` — после `add` его убирают (`npm uninstall cn`), у нас `src/lib/utils.ts`. Проверка вида: `node tests/e2e/ui-kit-static-render.cjs
+--screenshots <папка>` (снимки 1440, 1280, 390; фокус, 44 px, axe).
+
 ## Э1.5 — новый облик для всех — 27.09.2026
 
 Решение владельца 27.09 ([план редизайна](docs/EVO_CRM_REDESIGN_PLAN_2026-09-25.md),

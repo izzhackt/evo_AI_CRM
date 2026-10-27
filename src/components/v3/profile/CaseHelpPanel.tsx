@@ -4,23 +4,17 @@ import { Icon } from "@/components/icons";
 import { loadCaseHelpAction } from "@/lib/platform-admissions-support-actions";
 import type { CaseHelpPage } from "@/lib/platform-admissions-support-contract";
 import { AnswerCaseHelpForm, CreateCaseHelpForm } from "./CaseOperationsForms";
-import { NamedCard } from "./next/NamedCard";
 
 /**
  * Обращения дела. Студент (`student`, кабинет — свой облик) видит «Мои обращения и ответы» в рамке;
  * сотрудник — «Обращения студента» строкой-раскрытием, как остальные группы «Обзора»: со счётом в строке,
  * без своей рамки на плоской странице. Файл общий с кабинетом, поэтому роли `t-*` здесь не используются.
- * `card` («Новый вид», сотрудник): та же панель карточкой с заголовком, как соседние виджеты - счёт и «ждут ответа»
- * у заголовка, обращения без своей шапки; без ожидающих ответа список свёрнут.
  */
-export function CaseHelpPanel({ initialPage, student, card = false }: { initialPage: CaseHelpPage; student: boolean; card?: boolean }) {
+export function CaseHelpPanel({ initialPage, student }: { initialPage: CaseHelpPage; student: boolean }) {
   const [older, setOlder] = useState<CaseHelpPage | null>(null); const [error, setError] = useState(""); const [pending, transition] = useTransition();
   const page = older ?? initialPage;
   const openCount = page.items.filter(item => item.status === "open").length;
-  const top = card ? "" : "mt-3 ";
-  // В карточке «Нового вида» заголовок обращения идёт сразу под заголовком карточки (h2): уровень h3, а не h4 (порядок заголовков).
-  const Subject = card ? "h3" : "h4";
-  const items = !page.items.length ? <p className={`${top}text-sm text-fg-3`}>Обращений пока нет.</p> : <ul className={`${top}divide-y divide-border`}>{page.items.map(request => <li key={request.id} className={card ? "py-4 first:pt-0" : "py-4"}><Subject className="break-words font-semibold text-fg">{request.subject}</Subject>
+  const items = !page.items.length ? <p className="mt-3 text-sm text-fg-3">Обращений пока нет.</p> : <ul className="mt-3 divide-y divide-border">{page.items.map(request => <li key={request.id} className="py-4"><h4 className="break-words font-semibold text-fg">{request.subject}</h4>
         <p className="mt-1 text-xs text-fg-3">{request.status === "open" ? "Ожидает ответа" : "Ответ получен"} · {new Date(request.createdAt).toLocaleString("ru-RU", { timeZone: "Asia/Bishkek" })}</p>
         <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-fg">{request.body}</p>
         {request.answer ? <div className="mt-3 border-s-2 border-accent ps-3"><p className="text-xs font-semibold text-fg-2">Ответ EVO</p><p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-fg">{request.answer}</p></div> : null}
@@ -34,19 +28,6 @@ export function CaseHelpPanel({ initialPage, student, card = false }: { initialP
         if (result.ok) setOlder(result.page); else setError("Не удалось прочитать обращения. Проверьте доступ и повторите.");
       })}>{pending ? "Загружаем…" : "Более ранние обращения"}</button> : null}</div>
   </>;
-  if (!student && card) {
-    return <NamedCard
-      title="Обращения студента" id="case-help" testId="v3-case-help" count={page.items.length || null}
-      actions={openCount > 0 ? <span className="text-xs font-medium text-warn">ждут ответа: {openCount}</span> : null}
-    >
-      {openCount > 0 || !page.items.length ? <>{items}{more}</> : (
-        <details>
-          <summary className="flex min-h-11 w-fit cursor-pointer list-none items-center text-sm font-medium text-fg-2 underline underline-offset-4 hover:text-fg [&::-webkit-details-marker]:hidden">Показать обращения</summary>
-          {items}{more}
-        </details>
-      )}
-    </NamedCard>;
-  }
   if (!student) {
     return <section id="case-help" aria-label="Обращения студента">
       <details className="group border-y border-border" open={openCount > 0}>

@@ -23,6 +23,7 @@
 const { mkdirSync, writeFileSync } = require("node:fs");
 const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
+const { lazySettled } = require("./lazy-settled.cjs");
 
 // Модули-сценарии ставят require-hook для .ts/.tsx и подмену `@/`; они же отдают синтетику дела и лида.
 const cases = require("./case-static-render.cjs");
@@ -89,8 +90,9 @@ function caseScenario(name) {
   const { item, parts, hrefFor } = cases.buildParts(withHelp ? "admin" : name);
   const { caseNextParts } = src("components/v3/profile/next/CaseNext.tsx");
   if (withHelp) {
-    const { CaseHelpPanel } = src("components/v3/profile/CaseHelpPanel.tsx");
-    parts.next = { ...parts.next, overview: { ...parts.next.overview, help: createElement(CaseHelpPanel, { initialPage: HELP_PAGE, student: false, card: true }) } };
+    // Настоящая страница подгружает карточку лениво (`CaseHelpCard`); статический рендер берёт её саму.
+    const { CaseHelpCardImpl } = src("components/v3/profile/next/CaseHelpCardImpl.tsx");
+    parts.next = { ...parts.next, overview: { ...parts.next.overview, help: createElement(CaseHelpCardImpl, { initialPage: HELP_PAGE }) } };
   }
   const next = caseNextParts(parts.next, parts.actions);
   return { name: `case-${name}`, actor: item.actor, pathname: "/v3/profile", search: `case=${cases.CASE_ID}&tab=overview`, title: cases.NAME,
@@ -337,6 +339,7 @@ async function screenshots() {
       page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
       await page.goto(pathToFileURL(bundlePath).href, { waitUntil: "load" });
       await page.waitForSelector("html[data-ready=true]", { state: "attached", timeout: 15_000 });
+      await lazySettled(page);
       const shown = await page.locator("[data-testid=feed-items] > li").count();
       const trigger = page.getByTestId("v3-feed-overflow");
       report(`overflow @${key}: five rows on the page, button says how many are left`, shown === 5 && (await trigger.textContent()) === "Ещё 3", { shown });
@@ -352,6 +355,7 @@ async function screenshots() {
       await page.screenshot({ path: join(outDir, `card-next-overflow-${key}.png`) });
       await page.keyboard.press("Escape");
       await page.getByRole("dialog").waitFor({ state: "detached" });
+      await page.waitForTimeout(80); // Radix возвращает фокус отложенным вызовом уже после снятия панели
       report(`overflow @${key}: Esc closes, focus returns to the button`, await trigger.evaluate((element) => element === document.activeElement), null);
       // Ссылка строки на место этой же страницы закрывает панель, и страница остаётся у цели (фокус не тянет её назад к кнопке).
       await trigger.click();

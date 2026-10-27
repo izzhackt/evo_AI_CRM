@@ -102,6 +102,7 @@ export function TasksTable({
           columns={columns}
           getRowId={(row) => row.key}
           onRowClick={(row) => router.push(panelHref(row.task), { scroll: false })}
+          getRowLabel={(row) => row.task.title}
           searchPlaceholder="Задача, студент"
           pageSize={PAGE_SIZE}
           onVisibleIdsChange={setVisible}

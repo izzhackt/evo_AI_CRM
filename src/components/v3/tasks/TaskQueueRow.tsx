@@ -17,6 +17,7 @@ import { Initials } from "../blocks/Initials";
 import { StatusChip } from "../blocks/StatusChip";
 import { DialButton } from "../telephony/DialButton";
 import { dueWordOf, queueDue } from "../queue/due-bucket";
+import { joinClasses } from "../queue/join-classes";
 import { shortPersonName } from "../queue/person-name";
 import { RowSelect } from "../queue/Bulk";
 import { QueueFieldPopover } from "../queue/QueueFieldPopover";
@@ -287,7 +288,7 @@ export function TaskQueueRow({
       </div>
 
       {/* Первая строка даты стоит на одной линии с названием, слово — с «студент · …». */}
-      <p className={`hidden self-start pt-1 t-body-compact${w(" @min-[32rem]:block")}`}>
+      <p className={joinClasses("hidden self-start pt-1 t-body-compact", w("@min-[32rem]:block"))}>
         {due ? <>
           {/* «24.09 14:30» помещается в 7rem; редкое «03.01.27 14:00» переносит время, а не наезжает на название. */}
           <time dateTime={due.dateTime} className="block font-mono tabular-nums text-fg">{due.text}</time>
@@ -304,7 +305,7 @@ export function TaskQueueRow({
           data-queue-open=""
           aria-current={selected ? "true" : undefined}
           title={task.title}
-          className={`line-clamp-2 break-words py-0.5 t-item before:absolute before:inset-0 before:content-[''] hover:underline${w(" @min-[32rem]:line-clamp-1")} ${done ? "text-fg-3 line-through" : "text-fg"}`}
+          className={joinClasses("line-clamp-2 break-words py-0.5 t-item before:absolute before:inset-0 before:content-[''] hover:underline", w("@min-[32rem]:line-clamp-1"), done ? "text-fg-3 line-through" : "text-fg")}
         >
           {task.title}
         </Link>
@@ -314,12 +315,12 @@ export function TaskQueueRow({
             Завершено
           </p>
         ) : (
-          <p className={`flex min-h-6 min-w-0 flex-wrap items-center gap-x-2 t-meta text-fg-2${w(" @min-[32rem]:gap-x-1")}${metaHidden}`}>
+          <p className={joinClasses("flex min-h-6 min-w-0 flex-wrap items-center gap-x-2 t-meta text-fg-2", metaHidden.trim())}>
             {/* Узкая строка: срок первым, как колонка срока на широкой. Части строки
                 переносятся целиком: имя студента не превращается в «Ив…».
                 Одна часть, не помещающаяся в строку, сокращается многоточием. */}
             {due ? (
-              <span className={`shrink-0${w(" @min-[32rem]:hidden")}`}>
+              <span className={joinClasses("shrink-0", w("@min-[32rem]:hidden"))}>
                 <span>
                   {due.caption ? `${due.caption} ` : null}<time dateTime={due.dateTime} className="font-mono tabular-nums">{due.text}</time>{dueWord ? <> <DueWord view={dueWord} /></> : null}
                 </span>
@@ -358,7 +359,7 @@ export function TaskQueueRow({
         )}
         {/* Телефон: строке «срок · студент» не хватает места — исполнитель своей строкой, полным именем. */}
         {showAssignee && !done ? (
-          <p className={`truncate pb-1 t-meta text-fg-2${w(" @min-[32rem]:hidden")}`} title={`Исполнитель: ${task.assigneeDisplayName}`}>
+          <p className={joinClasses("truncate pb-1 t-meta text-fg-2", w("@min-[32rem]:hidden"))} title={`Исполнитель: ${task.assigneeDisplayName}`}>
             <span aria-hidden="true">исп.</span><span className="sr-only">исполнитель</span> {task.assigneeDisplayName}
           </p>
         ) : null}

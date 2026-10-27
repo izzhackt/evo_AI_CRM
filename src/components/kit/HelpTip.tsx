@@ -1,9 +1,13 @@
 "use client";
 
-import { useId } from "react";
+import { lazy, Suspense } from "react";
 
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { HELP_TIP_BUTTON, type HelpTipProps } from "@/components/kit/help-tip-button";
+
+// Окно пояснения — Radix Popover и Popper (около 30 КБ gzip). Его граф страница не должна нести в первой загрузке у тех,
+// кто «?» не видит: у сотрудников с прежним видом и у кабинета студента. Подгружается, когда «?» рисуется. `lazy`, а не
+// `next/dynamic`: вне сборки Next (тесты, стенды на Node) `next/dynamic` молча рисует пустоту, а `lazy` — заглушку ниже.
+const HelpTipImpl = lazy(() => import("./HelpTipImpl").then((module) => ({ default: module.HelpTipImpl })));
 
 /**
  * Значок «?» — сюда уезжают пояснения с экрана (решение владельца 27.10.2026): на экране остаются
@@ -13,37 +17,20 @@ import { cn } from "@/lib/utils";
  * названия — «Пояснение: Таблица», — чтобы на странице не было десятка одинаковых кнопок. Отдельный «?» без
  * хозяина получает `label` вручную. Предупреждения об ошибках и рисках
  * сюда не прячут — они остаются на виду.
+ *
+ * Пока окно подгружается, на месте стоит та же кнопка (имя и вид те же); на сервере окно приходит в той же отдачи.
  */
-export function HelpTip({
-  children,
-  label = "Пояснение",
-  align = "start",
-  className,
-}: Readonly<{
-  children: React.ReactNode;
-  /** Имя кнопки для читалки; у хозяина с заголовком — «Пояснение: <заголовок>». */
-  label?: string;
-  align?: "start" | "center" | "end";
-  className?: string;
-}>) {
-  const textId = useId();
+export function HelpTip(props: HelpTipProps) {
+  const { label = "Пояснение", className } = props;
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label={label}
-          className={cn(
-            "relative inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-input bg-surface t-caption text-fg-2 transition-colors after:absolute after:-inset-2.5 hover:bg-surface-2 hover:text-fg aria-expanded:bg-surface-2 aria-expanded:text-fg motion-reduce:transition-none",
-            className,
-          )}
-        >
+    <Suspense
+      fallback={
+        <button type="button" aria-label={label} aria-haspopup="dialog" aria-expanded="false" className={className ? `${HELP_TIP_BUTTON} ${className}` : HELP_TIP_BUTTON}>
           <span aria-hidden="true">?</span>
         </button>
-      </PopoverTrigger>
-      <PopoverContent align={align} aria-label={label} aria-describedby={textId} className="w-80">
-        <div id={textId} className="text-fg-2">{children}</div>
-      </PopoverContent>
-    </Popover>
+      }
+    >
+      <HelpTipImpl {...props} />
+    </Suspense>
   );
 }

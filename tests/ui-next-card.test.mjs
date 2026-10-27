@@ -162,6 +162,9 @@ test("новый вид не читает и не пишет сам: в видж
     const source = read(`${dir}/${file}`);
     const imports = [...source.matchAll(/from "([^"]+)"/gu)].map((match) => match[1]);
     for (const path of imports) {
+      // «Обращения студента» — то же чтение и то же действие, что у прежнего `CaseHelpWorkspace` / `CaseHelpPanel`; свои файлы карточки
+      // нового вида нужны, чтобы общий с кабинетом студента `CaseHelpPanel` не тянул в кабинет карточку набора (+33 КБ gzip).
+      if ((file === "CaseHelpCardImpl.tsx" && path === "@/lib/platform-admissions-support-actions") || (file === "CaseHelpCardWorkspace.tsx" && path === "@/lib/v3/case-operations-source")) continue;
       assert.doesNotMatch(path, /supabase|-actions$|\/server\/|repository|platform-guards/u, `${file}: ${path}`);
       // Единственное чтение — «Интересует», прежним читателем прежней строки.
       if (/-source$|LeadInterestFact$/u.test(path)) assert.ok(file === "LeadSideFacts.tsx" && path === "../LeadInterestFact", `${file}: ${path}`);
@@ -170,6 +173,22 @@ test("новый вид не читает и не пишет сам: в видж
     // Файл UI — до 150 строк (CLAUDE.md, «Интерфейс CRM: правила архитектуры», п. 4).
     assert.ok(source.split("\n").length <= 150, `${file}: ${source.split("\n").length} строк`);
   }
+});
+
+test("«Обращения студента»: общий с кабинетом студента CaseHelpPanel не знает про новый вид; карточка — свои файлы и тот же читатель", () => {
+  for (const file of ["src/components/v3/profile/CaseHelpPanel.tsx", "src/components/v3/profile/CaseHelpWorkspace.tsx"]) {
+    const source = read(file);
+    assert.doesNotMatch(source, /NamedCard|\bcard\s*=\s*false|\bcard\?:|\bcard=\{|from "\.\/next\//u, `${file}: ни NamedCard, ни свойства card, ни импортов из next/`);
+  }
+  const workspace = read("src/components/v3/profile/next/CaseHelpCardWorkspace.tsx");
+  assert.match(workspace, /readCaseHelp\(actor, caseId\)\.catch\(\(\) => null\)/u, "то же чтение, что у CaseHelpWorkspace");
+  assert.match(read("src/components/v3/profile/CaseHelpWorkspace.tsx"), /readCaseHelp\(actor, caseId\)\.catch\(\(\) => null\)/u);
+  assert.match(read("src/components/v3/profile/next/CaseHelpCardImpl.tsx"), /loadCaseHelpAction\(page\.caseId, page\.nextCursor, false\)/u, "то же действие «Более ранние обращения», как у сотрудника в CaseHelpPanel");
+  const page = read("src/app/(v3)/v3/profile/page.tsx");
+  assert.match(page, /\{nextUi\s*\? <CaseHelpCardWorkspace actor=\{actor\} caseId=\{caseTarget\.studentCaseId\} \/>\s*: <CaseHelpWorkspace actor=\{actor\} caseId=\{caseTarget\.studentCaseId\} \/>\}/u);
+  const card = read("src/components/v3/profile/next/CaseHelpCard.tsx");
+  assert.match(card, /lazy\(\(\) => import\("\.\/CaseHelpCardImpl"\)/u, "карточка подгружается лениво: её склейка классов и Radix не идут в первую загрузку профиля");
+  assert.doesNotMatch(card, /NamedCard|@\/lib\/utils/u);
 });
 
 test("прежний вид не тронут признаком: вкладки профиля, шапка дела и «Лента» лида без `nextUi` рисуются как раньше", () => {
@@ -213,7 +232,12 @@ test("замечания ревью: «Передача» считает кол�
 });
 
 test("«Ещё N»: ссылка строки на место страницы закрывает панель и не возвращает фокус на кнопку; вкладки профиля берут `focusable`", () => {
-  const overflow = read("src/components/v3/profile/next/FeedOverflow.tsx");
+  // «Ещё N» подгружается лениво: `FeedOverflow` — заглушка с той же кнопкой, настоящая панель — в `FeedOverflowImpl`.
+  const facade = read("src/components/v3/profile/next/FeedOverflow.tsx");
+  assert.match(facade, /lazy\(\(\) => import\("\.\/FeedOverflowImpl"\)/u);
+  assert.match(facade, /aria-label=\{`Ещё \$\{props\.count\} в ленте`\} data-testid="v3-feed-overflow"/u, "заглушка называется и находится так же, как настоящая кнопка");
+  assert.doesNotMatch(facade, /DetailSheet|ui\/button/u, "панель и Radix Dialog не импортируются статически");
+  const overflow = read("src/components/v3/profile/next/FeedOverflowImpl.tsx");
   assert.match(overflow, /open=\{open\}/u);
   assert.match(overflow, /closest\('a\[href\^="#"\]'\)/u);
   assert.match(overflow, /onCloseAutoFocus=\{\(event\) => \{\s*if \(!toAnchor\.current\) return;/u);

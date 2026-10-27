@@ -20,6 +20,8 @@
 const { mkdirSync, readFileSync, writeFileSync } = require("node:fs");
 const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
+const { rowA11yProblems } = require("./row-a11y-probe.cjs");
+const { lazySettled } = require("./lazy-settled.cjs");
 
 const ROOT = resolve(__dirname, "../..");
 const LOGO_URL = pathToFileURL(join(ROOT, "public/brand/evo-logo.png")).href;
@@ -161,6 +163,7 @@ async function main() {
     page.on("console", (message) => { if (message.type() === "error" && !/notifications\/state/u.test(message.text())) errors.push(message.text()); });
     await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
     await page.waitForSelector("html[data-ready=true]", { state: "attached", timeout: 15_000 });
+    await lazySettled(page);
     await page.evaluate(() => document.fonts.ready);
     return { context, page, errors };
   }
@@ -220,8 +223,14 @@ async function main() {
     const table = page.locator("[data-slot=data-table]");
     await table.scrollIntoViewIfNeeded();
     // Строка таблицы (1280) и кнопка карточки (390) открывают панель; на нажатие в «пустое» место, не на ссылку или кнопку ячейки.
-    const opener = key === "d1280" ? page.getByRole("row").nth(1) : page.locator("[data-slot=data-table-cards] > li > button").first();
-    if (key === "d1280") await opener.locator("td").nth(2).click(); else await opener.click({ position: { x: 8, y: 8 } });
+    const opener = key === "d1280" ? page.getByRole("button", { name: /^Открыть: / }).first() : page.locator("[data-slot=data-table-cards] > li > button").first();
+    if (key === "d1280") {
+      // Строка не остановка клавиатуры; у каждого фокусируемого элемента в ней есть роль и имя; её кнопка названа по записи.
+      const { problems, rows, controls } = await rowA11yProblems(page);
+      report(`${key}: rows are not tab stops and every focusable element in them has a role and a name`, problems.length === 0 && rows > 1 && controls > 0, { problems, rows, controls });
+      report(`${key}: the row button is named after the record`, /^Открыть: .+/u.test((await opener.getAttribute("aria-label")) ?? ""), await opener.getAttribute("aria-label"));
+      await page.getByRole("row").nth(1).locator("td").nth(2).click(); // мышь: нажатие на ячейку тоже открывает
+    } else await opener.click({ position: { x: 8, y: 8 } });
     await page.getByRole("dialog").waitFor();
     await expectOverlay(page, key, "sheet", "[data-slot=sheet-content]");
     await shot(page, `sheet-${key}`);
@@ -231,14 +240,17 @@ async function main() {
     await page.keyboard.press("Escape");
     await page.getByRole("dialog").waitFor({ state: "detached" });
     report(`${key}: sheet closed by Esc`, true, null);
-    report(`${key}: focus returns to the ${key === "d1280" ? "row" : "card"} after Esc`, await opener.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
+    await page.waitForTimeout(80); // Radix возвращает фокус отложенным вызовом уже после снятия панели
+    if (key === "m390") report(`${key}: focus returns to the card after Esc`, await opener.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
     if (key === "d1280") {
       await opener.focus();
       await page.keyboard.press("Enter");
       await page.getByRole("dialog").waitFor();
+      report(`${key}: keyboard open puts focus on the sheet title`, await page.evaluate(() => document.activeElement?.getAttribute("data-slot") === "sheet-title"), await page.evaluate(() => document.activeElement?.tagName));
       await page.getByRole("button", { name: "Закрыть" }).first().click();
       await page.getByRole("dialog").waitFor({ state: "detached" });
-      report(`${key}: focus returns to the row after Enter + close button`, await opener.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
+      await page.waitForTimeout(80);
+      report(`${key}: focus returns to the row button after Enter + close button`, await opener.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
     } else {
       // Ссылка и кнопка внутри карточки действуют сами и не открывают запись (раньше карточка-кнопка вызывала оба действия).
       const card = page.locator("[data-slot=data-table-cards] > li").nth(1);

@@ -79,6 +79,7 @@ export function RequestsNextTable({
         columns={COLUMNS}
         getRowId={(row) => row.key}
         onRowClick={(row) => go(row.key, row.openHref)}
+        getRowLabel={(row) => row.name}
         paginate={false}
         searchPlaceholder="Найти на странице"
         toolbar={toolbar}

@@ -18,6 +18,8 @@
  */
 
 const { mkdirSync, readFileSync, writeFileSync } = require("node:fs");
+const { rowA11yProblems } = require("./row-a11y-probe.cjs");
+const { lazySettled } = require("./lazy-settled.cjs");
 const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
 
@@ -241,6 +243,7 @@ async function main() {
     if (options.dialogs) page.on("dialog", (dialog) => options.dialogs(dialog));
     await page.goto(pathToFileURL(pages[name]).href, { waitUntil: "load" });
     await page.waitForSelector("html[data-ready=true]", { state: "attached", timeout: 15_000 });
+    await lazySettled(page);
     await page.evaluate(() => document.fonts.ready);
     return { context, page, errors };
   }
@@ -303,11 +306,18 @@ async function main() {
     await context.close();
   }
 
-  // 3. «История работы»: строка → панель запуска → Esc → фокус на строке; поиск.
+  // 3. «История работы»: строка → панель запуска → Esc; с клавиатуры — кнопка «Открыть: …» в строке, фокус на название панели и назад.
   for (const key of ["d1280", "m390"]) {
     const { context, page, errors } = await open("runs", key);
-    const opener = key === "d1280" ? page.getByRole("row").nth(1) : page.locator("[data-slot=data-table-cards] > li > button").first();
-    if (key === "d1280") await opener.locator("td").nth(1).click(); else await opener.click({ position: { x: 8, y: 8 } });
+    // Строка не берёт фокус сама; у каждого фокусируемого элемента в ней есть роль и имя (дерево доступности, не только axe).
+    if (key === "d1280") {
+      const { problems, rows, controls } = await rowA11yProblems(page);
+      report(`${key}/runs: rows are not tab stops and every focusable element in them has a role and a name`, problems.length === 0 && rows > 1 && controls > 0, { problems, rows, controls });
+    }
+    const opener = key === "d1280" ? page.getByRole("button", { name: /^Открыть: / }).first() : page.locator("[data-slot=data-table-cards] > li > button").first();
+    report(`${key}/runs: the open control is a button named «Открыть: <поручение>»`, /^Открыть: .{3,}/u.test((await opener.getAttribute("aria-label")) ?? ""), await opener.getAttribute("aria-label"));
+    // Мышь: нажатие на ячейку строки открывает панель (удобство, не единственный путь).
+    if (key === "d1280") await page.getByRole("row").nth(1).locator("td").nth(1).click(); else await opener.click({ position: { x: 8, y: 8 } });
     const dialog = page.getByRole("dialog");
     await dialog.waitFor();
     await expectOverlay(page, `${key}/runs: run sheet`, "[data-slot=sheet-content]");
@@ -316,7 +326,20 @@ async function main() {
     report(`${key}/runs: own command can be reopened in chat and copied`, (await dialog.getByRole("link", { name: "Открыть в чате" }).count()) === 1 && (await dialog.getByRole("button", { name: "Скопировать итог" }).count()) === 1, null);
     await page.keyboard.press("Escape");
     await dialog.waitFor({ state: "detached" });
-    report(`${key}/runs: focus returns to the ${key === "d1280" ? "row" : "card"} after Esc`, await opener.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
+    // Клавиатура: Enter на кнопке открывает панель, фокус — на её названии (не на рамке вокруг всего тела), Esc возвращает его на кнопку.
+    await opener.focus();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    report(`${key}/runs: Tab reaches the open button`, await opener.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
+    await shot(page, `agents-runs-keyboard-${key}`);
+    await page.keyboard.press("Enter");
+    await dialog.waitFor();
+    await shot(page, `agents-runsheet-keyboard-${key}`);
+    const landed = await page.evaluate(() => ({ tag: document.activeElement?.tagName, slot: document.activeElement?.getAttribute("data-slot"), region: document.activeElement?.getAttribute("role") }));
+    report(`${key}/runs: opening from the keyboard puts focus on the sheet title, not the scroll region`, landed.slot === "sheet-title" && landed.region !== "region", landed);
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "detached" });
+    report(`${key}/runs: focus returns to the ${key === "d1280" ? "open button" : "card button"} after Esc`, await opener.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
     await page.getByPlaceholder("Поиск по поручениям").fill("Малайзии");
     report(`${key}/runs: search narrows the list`, (await page.locator(key === "d1280" ? "tbody tr" : "[data-slot=data-table-cards] > li").count()) === 1, null);
     report(`${key}/runs: console clean`, errors.length === 0, errors);
@@ -360,6 +383,10 @@ async function main() {
     // Риск виден в строке, не открывая её: черновик остался в очереди после неудачной отправки; срок близок. Здоровый — без строк.
     const list = page.locator(key === "d1280" ? "tbody tr" : "[data-slot=data-table-cards] > li");
     report(`${key}/drafts: only pending drafts under «Ждут решения»`, (await list.count()) === 3, await list.count());
+    if (key === "d1280") {
+      const { problems, rows, controls } = await rowA11yProblems(page);
+      report(`${key}/drafts: rows are not tab stops and every focusable element in them has a role and a name`, problems.length === 0 && rows > 1 && controls >= 3, { problems, rows, controls });
+    }
     report(`${key}/drafts: failed-send note sits in the row`, /Остаётся в очереди: WhatsApp сейчас не подключён/u.test(await list.nth(1).innerText()) && (await list.nth(0).locator("[data-testid=v3-aia-draft-note]").count()) === 0, await list.nth(1).innerText());
     report(`${key}/drafts: «действует до» sits in the row of a draft that expires within a day`, /действует до/u.test(await list.nth(2).innerText()) && (await list.nth(0).locator("[data-testid=v3-aia-draft-expires]").count()) === 0, null);
     if (key === "m390") {

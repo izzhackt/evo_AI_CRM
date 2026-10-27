@@ -14,6 +14,7 @@ import { CaseHelpWorkspace } from "@/components/v3/profile/CaseHelpWorkspace";
 import { caseWorkParts } from "@/components/v3/profile/CaseWorkParts";
 import { leadWorkParts } from "@/components/v3/profile/LeadWorkParts";
 import { caseNextParts } from "@/components/v3/profile/next/CaseNext";
+import { CaseHelpCardWorkspace } from "@/components/v3/profile/next/CaseHelpCardWorkspace";
 import { leadNextParts } from "@/components/v3/profile/next/LeadNext";
 import { ProfileNextShell } from "@/components/v3/profile/next/ProfileNextShell";
 import { LeadChannelFact } from "@/components/v3/profile/LeadChannelFact";
@@ -469,7 +470,9 @@ export default async function ProfilePart({
       salesDataOpen: singleSearchParam(params.panel) === "sales",
       help: actor.presentationRole !== "sales" ? (
         <Suspense fallback={<p role="status" className="t-body-compact text-fg-2">Загружаем обращения студента…</p>}>
-          <CaseHelpWorkspace actor={actor} caseId={caseTarget.studentCaseId} card={nextUi} />
+          {nextUi
+            ? <CaseHelpCardWorkspace actor={actor} caseId={caseTarget.studentCaseId} />
+            : <CaseHelpWorkspace actor={actor} caseId={caseTarget.studentCaseId} />}
         </Suspense>
       ) : null,
     });

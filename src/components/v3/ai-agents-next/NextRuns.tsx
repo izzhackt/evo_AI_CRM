@@ -28,7 +28,7 @@ function columnsFor(now: string, viewerName?: string): DataTableColumn<AiAgentRu
       cell: ({ row }) => {
         const { primary, secondary } = words(row.original);
         return (
-          <span className="block min-w-0 max-w-[34rem]">
+          <span className="block min-w-[16rem] max-w-[34rem]">
             <span className="line-clamp-1 break-words text-fg">{primary || "—"}</span>
             {secondary ? <span className="line-clamp-1 break-words t-meta text-fg-3">{secondary}</span> : null}
           </span>
@@ -36,7 +36,7 @@ function columnsFor(now: string, viewerName?: string): DataTableColumn<AiAgentRu
       },
     },
     { id: "status", header: "Состояние", accessorFn: (run) => AI_AGENT_RUN_STATUS_LABELS[run.status], cell: ({ row }) => <StatusBadge label={AI_AGENT_RUN_STATUS_LABELS[row.original.status]} tone={runStatusTone(row.original.status)} />, meta: { label: "Состояние" } },
-    { id: "origin", header: "Кто запустил", accessorFn: (run) => runOriginLabel(run, viewerName), meta: { label: "Кто запустил", mobile: "hide" } },
+    { id: "origin", header: "Кто запустил", accessorFn: (run) => runOriginLabel(run, viewerName), meta: { label: "Кто запустил", mobile: "hide", wide: true } },
     { id: "cost", header: "Время и расход", accessorFn: (run) => run.costCents, cell: ({ row }) => <span className="whitespace-nowrap tabular-nums">{durationWords(row.original.durationSeconds)} · {formatUsdCents(row.original.costCents)}</span>, meta: { label: "Время и расход", align: "end" } },
     {
       id: "steps", header: "Действия", accessorFn: (run) => run.actionsCount, meta: { label: "Действия", mobile: "hide", align: "end" },
@@ -65,7 +65,7 @@ export function NextRuns({
   );
   return (
     <div data-testid="v3-aia-runs" className="grid min-w-0 gap-3">
-      <DataTable label="История работы агента" data={runs} columns={columns} getRowId={(run) => run.id} onRowClick={(run) => { setCurrent(run); setOpen(true); }} searchPlaceholder={hasMore ? "Поиск среди показанных" : "Поиск по поручениям"} paginate={false} empty={empty} />
+      <DataTable label="История работы агента" data={runs} columns={columns} getRowId={(run) => run.id} onRowClick={(run) => { setCurrent(run); setOpen(true); }} getRowLabel={(run) => words(run).primary || "Запуск"} searchPlaceholder={hasMore ? "Поиск среди показанных" : "Поиск по поручениям"} paginate={false} empty={empty} />
       {hasMore ? (
         <div className="flex flex-wrap items-center gap-3" data-testid="v3-aia-runs-more">
           {limit < AI_AGENT_RUNS_MAX ? <Button variant="outline" asChild><Link href={aiAgentHref(agentKey, { tab: "runs", limit: nextLimit })} scroll={false}>Показать ещё</Link></Button> : null}

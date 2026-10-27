@@ -22,6 +22,7 @@ const root = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 const read = (path) => readFileSync(root(path), "utf8");
 const require = createRequire(import.meta.url);
 const { makeFixtures, ACTOR } = require("./e2e/ai-agents-next-fixtures.cjs");
+const { assertFlightProps } = require("./e2e/flight-props.cjs");
 const F = makeFixtures(AI_AGENT_CATALOG);
 
 /* ------------------------------------------------------------------ сборка страниц */
@@ -69,9 +70,24 @@ import { NextSettings } from "@/components/v3/ai-agents-next/NextSettings";
 import { NextRunSheetBody } from "@/components/v3/ai-agents-next/NextRunSheet";
 import { DraftCard } from "@/components/v3/ai-agents/DraftCard";
 import { agentGate } from "@/components/v3/ai-agents-next/agent-gate";
+// Новый вид страницы подгружают лениво (\`NextAgentsViewLazy\`, \`NextAgentPageLazy\`): модуль приходит асинхронно, поэтому рисуем, пока
+// разметка не устоится (две отдачи подряд совпали); у прежнего вида это те же две отдачи.
+const settle = async (render) => {
+  let previous = null;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    let markup = null;
+    try { markup = render(); } catch (error) { if (!/suspended while responding to synchronous input/u.test(String(error?.message))) throw error; }
+    if (markup !== null && markup === previous) return markup;
+    previous = markup;
+    await new Promise((resolve) => setTimeout(resolve, 15));
+  }
+  throw new Error("разметка не устоялась");
+};
 export const html = {
-  hubPage: async (world) => { globalThis.__world = world; return renderToStaticMarkup(await HubPage()); },
-  agentPage: async (world, key, search = {}) => { globalThis.__world = world; return renderToStaticMarkup(await AgentPage({ params: Promise.resolve({ key }), searchParams: Promise.resolve(search) })); },
+  hubPage: async (world) => { globalThis.__world = world; const element = await HubPage(); return settle(() => renderToStaticMarkup(element)); },
+  hubElement: async (world) => { globalThis.__world = world; return HubPage(); },
+  agentPage: async (world, key, search = {}) => { globalThis.__world = world; const element = await AgentPage({ params: Promise.resolve({ key }), searchParams: Promise.resolve(search) }); return settle(() => renderToStaticMarkup(element)); },
+  agentElement: async (world, key, search = {}) => { globalThis.__world = world; return AgentPage({ params: Promise.resolve({ key }), searchParams: Promise.resolve(search) }); },
   legacyBody: (props) => renderToStaticMarkup(<AgentBody {...props} />),
   legacyHub: (list, runtimeConfigured, preview) => renderToStaticMarkup(<AgentsHub list={list} runtimeConfigured={runtimeConfigured} preview={preview} />),
   nextPage: (props) => renderToStaticMarkup(<NextAgentPage {...props} />),
@@ -102,6 +118,8 @@ async function views() {
         setup(b) {
           b.onResolve({ filter: /^server-only$/ }, () => ({ path: "server-only", namespace: "empty" }));
           b.onLoad({ filter: /.*/, namespace: "empty" }, () => ({ contents: "", loader: "js" }));
+          // Вне сборки Next `next/dynamic` — версия для pages router (рисует пустоту); сборка берёт версию для App Router, её берём и мы.
+          b.onResolve({ filter: /^next\/dynamic$/ }, () => ({ path: root("node_modules/next/dist/shared/lib/app-dynamic.js") }));
           b.onResolve({ filter: /^next\/link$/ }, () => ({ path: "next-link", namespace: "link" }));
           b.onLoad({ filter: /.*/, namespace: "link" }, () => ({ contents: LINK_SHIM, resolveDir: base, loader: "js" }));
           b.onResolve({ filter: /^@\/lib\/platform-ai-agents-actions$/ }, () => ({ path: "actions-stub", namespace: "actions" }));
@@ -128,8 +146,10 @@ const strip = (markup) => markup.replace(/<!-- -->/gu, "");
 /* ------------------------------------------------------------------ переключатель: прежний вид — всем, кроме администратора с cookie */
 
 test("хаб: новый вид только настоящему администратору с cookie, остальные — прежний вид, один и тот же", async () => {
-  const { hubPage } = await views();
+  const { hubPage, hubElement } = await views();
   const on = strip(await hubPage(world(ADMIN, "next")));
+  // Свойства, которые страница отдаёт ленивому входу, проходят границу сервер → клиент: данные, не функции и не объекты классов.
+  assertFlightProps((await hubElement(world(ADMIN, "next"))).props, "NextAgentsViewLazy");
   const legacy = [
     strip(await hubPage(world(ADMIN, undefined))),
     strip(await hubPage(world(ADMIN, "legacy"))),
@@ -150,12 +170,13 @@ test("хаб: новый вид только настоящему админис
 });
 
 test("страница агента: на каждой вкладке новый вид только у администратора с cookie; чтения и права те же", async () => {
-  const { agentPage } = await views();
+  const { agentPage, agentElement } = await views();
   for (const [search, marker] of [
     [{ tab: "overview" }, "v3-aia-overview"], [{ tab: "runs" }, "v3-aia-runs"], [{ tab: "drafts" }, "v3-aia-drafts"],
     [{ tab: "instructions" }, "v3-aia-instructions"], [{ tab: "settings" }, "v3-aia-settings"], [{}, "v3-aia-workspace"],
   ]) {
     const on = strip(await agentPage(world(ADMIN, "next"), "director", search));
+    assertFlightProps((await agentElement(world(ADMIN, "next"), "director", search)).props, `NextAgentPageLazy ${JSON.stringify(search)}`);
     const off = strip(await agentPage(world(ADMIN, undefined), "director", search));
     const staff = strip(await agentPage(world(STAFF, "next"), "director", search));
     const preview = strip(await agentPage(world(PREVIEW, "next"), "director", search));
@@ -530,7 +551,14 @@ test("исходники: каждый файл нового вида ≤150 с�
     assert.match(page, /isNextUi\(actor\)/u, "вид выбирает настоящий `isNextUi`");
     assert.match(page, /@\/lib\/ui-next"/u);
   }
-  assert.match(agentPage, /<NextAgentPage \{\.\.\.bodyProps\} \/>/u, "новый вид получает те же свойства, что `AgentBody`");
+  assert.match(agentPage, /<NextAgentPageLazy \{\.\.\.bodyProps\} \/>/u, "новый вид получает те же свойства, что `AgentBody`");
+  // Новый вид — ленивый вход: в первую загрузку страниц у остальных сотрудников его таблицы, панели и Radix не входят.
+  assert.match(hubPage, /import \{ NextAgentsViewLazy \} from "@\/components\/v3\/ai-agents-next\/NextAgentsLazy";/u);
+  assert.match(agentPage, /import \{ NextAgentPageLazy, NextAgentUnavailableLazy \} from "@\/components\/v3\/ai-agents-next\/NextAgentsLazy";/u);
+  for (const page of [hubPage, agentPage]) assert.doesNotMatch(page, /from "@\/components\/v3\/ai-agents-next\/Next(AgentsView|AgentPage|AgentUnavailable)"/u, "новый вид не импортируется статически");
+  const lazy = read(`${dir}/NextAgentsLazy.tsx`);
+  assert.match(lazy, /^"use client";/u);
+  for (const name of ["NextAgentsView", "NextAgentPage", "NextAgentUnavailable"]) assert.match(lazy, new RegExp(`import\\("\\./${name}"\\)\\.then\\(\\(module\\) => module\\.${name}\\)`, "u"));
   assert.match(agentPage, /<AgentBody \{\.\.\.bodyProps\} \/>/u);
   assert.match(agentPage, /if \(tab === "command"\) \{\s*return \(\s*<AgentChatShell/u, "прежняя рамка чата на месте");
 });

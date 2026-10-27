@@ -42,7 +42,7 @@ export function KitTable() {
       help="Поиск, сортировка по заголовку, видимость колонок, страницы. Строка открывает панель записи. Меньше 768 px таблица становится списком карточек."
       actions={<Button variant="outline" onClick={() => setLoading((value) => !value)} aria-pressed={loading}>Загрузка</Button>}
     >
-      <DataTable label="Заявки (пример)" data={SAMPLE_REQUESTS} columns={columns} getRowId={(row) => row.id} onRowClick={(row) => { setCurrent(row); setOpen(true); }} loading={loading} pageSize={10} searchPlaceholder="Поиск по заявкам" />
+      <DataTable label="Заявки (пример)" data={SAMPLE_REQUESTS} columns={columns} getRowId={(row) => row.id} onRowClick={(row) => { setCurrent(row); setOpen(true); }} getRowLabel={(row) => row.name} loading={loading} pageSize={10} searchPlaceholder="Поиск по заявкам" />
       <DetailSheet
         open={open}
         onOpenChange={setOpen}

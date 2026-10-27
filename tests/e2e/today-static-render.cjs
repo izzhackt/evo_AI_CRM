@@ -34,6 +34,9 @@
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
 const Module = require("node:module");
+require("./next-dynamic-alias.cjs");
+const { renderSettled } = require("./render-settled.cjs");
+const { assertFlightProps } = require("./flight-props.cjs");
 const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
 const ts = require("typescript");
@@ -89,9 +92,7 @@ const { staffRoleKeys } = require("./staff-role-templates.cjs");
 const { buildTodayQueue, todayDateLabel } = require(join(ROOT, "src/lib/v3/today-queue.ts"));
 const { TodayBoardLinks, TodayScreen } = require(join(ROOT, "src/components/v3/today/TodayScreen.tsx"));
 const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
-const { PageShell } = require(join(ROOT, "src/components/kit/PageShell.tsx"));
-const { TodayBoards } = require(join(ROOT, "src/components/v3/today-next/TodayBoards.tsx"));
-const { TodayNext } = require(join(ROOT, "src/components/v3/today-next/TodayNext.tsx"));
+const { TodayNextPage } = require(join(ROOT, "src/components/v3/today-next/TodayNextPage.tsx"));
 
 // --- синтетические данные ---------------------------------------------------
 // «Сейчас» — суббота 26.09.2026, 10:00 по Бишкеку (04:00 UTC).
@@ -335,9 +336,9 @@ async function buildPage(name) {
 }
 
 /**
- * «Новый вид» (27.10.2026): та же очередь и те же права, что у `buildPage`, но страница — `PageShell` с досками в шапке и
- * `TodayNext` (плитки и виджеты групп). Сборка повторяет ветку `isNextUi` в `main/page.tsx`; саму страницу с cookie и без
- * неё гоняет `--page-json` (настоящий `main/page.tsx`).
+ * «Новый вид» (27.10.2026): та же очередь и те же права, что у `buildPage`, но страница — `TodayNextPage` (`PageShell` с
+ * досками в шапке и `TodayNext`: плитки и виджеты групп). Сборка повторяет ветку `isNextUi` в `main/page.tsx`; саму страницу
+ * с cookie и без неё гоняет `--page-json` (настоящий `main/page.tsx`).
  */
 async function buildNextPage(name) {
   const scenario = SCENARIOS[name];
@@ -352,12 +353,8 @@ async function buildNextPage(name) {
     caseManage: has("task.manage"), caseAssign: has("task.assign"),
   };
   const props = { queue, nowIso: NOW.toISOString(), permissions, mainAction };
-  const node = createElement(PageShell, {
-    title: "Сегодня",
-    testId: "v3-operational-dashboard",
-    meta: createElement("time", { dateTime: queue.today }, todayDateLabel(queue.today)),
-    actions: createElement(TodayBoards, { links: boards }),
-  }, createElement(TodayNext, props));
+  // `TodayNextPage` — то, что страница подгружает лениво (`TodayNextLazy`): рамка и виджеты одним куском.
+  const node = createElement(TodayNextPage, { boards, ...props });
   return { who, node, props };
 }
 
@@ -519,7 +516,7 @@ async function renderNextFullPage(name) {
     { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
     createElement(AppShell, { actor: who, initialNotifications: null }, node),
   );
-  return renderToStaticMarkup(withContexts(page, ""));
+  return renderSettled(withContexts(page, ""));
 }
 
 /**
@@ -685,7 +682,9 @@ async function pageJson() {
       guards.requireV3PageActor = async () => who;
       todaySource.readTodayQueue = Object.assign((actor, options) => original(actor, { ...options, readers: readers(SCENARIOS[scenario].data) }), { harnessOriginal: original });
       const element = await MainPart({ searchParams: Promise.resolve({}) });
-      out.push({ name, html: renderToStaticMarkup(withContexts(element)) });
+      // Администратору с cookie страница отдаёт ленивый вход: его свойства пересекают границу сервер → клиент.
+      if (cookie && who.systemRole === "admin" && !who.presentationRole) assertFlightProps(element.props, `${name}: TodayNextLazy`);
+      out.push({ name, html: await renderSettled(withContexts(element)) });
     }
   } finally {
     globalThis.Date = RealDate;
@@ -706,7 +705,7 @@ async function nextJson() {
   const out = [];
   for (const name of Object.keys(SCENARIOS)) {
     const { node } = await buildNextPage(name);
-    out.push({ name: `next-${name}`, html: renderToStaticMarkup(withContexts(node)) });
+    out.push({ name: `next-${name}`, html: await renderSettled(withContexts(node)) });
   }
   process.stdout.write(JSON.stringify(out));
 }
@@ -729,6 +728,8 @@ async function nextScreenshots() {
   const { chromium } = require("playwright");
   const browser = await chromium.launch();
   const wanted = process.argv.includes("--only") ? process.argv[process.argv.indexOf("--only") + 1].split(",") : Object.keys(SCENARIOS);
+  // Боковая прокрутка страницы — отказ, а не строка в отчёте: плитка без числа раздвигала страницу на телефоне на 287 px.
+  const sideways = [];
   try {
     for (const name of wanted) {
       // `--legacy` — те же сценарии прежним видом (для «до / после»).
@@ -774,6 +775,7 @@ async function nextScreenshots() {
           });
           await tab.screenshot({ path: join(outDir, file), fullPage });
           if (!fullPage) process.stdout.write(`${file}: ${Object.entries(metrics).filter(([, value]) => value !== null).map(([key, value]) => `${key}=${value}`).join(" ")}\n`);
+          if (!fullPage && !legacy && metrics.overflow > 0) sideways.push(`${file}: overflow=${metrics.overflow}`);
           await browserContext.close();
         }
       }
@@ -781,6 +783,7 @@ async function nextScreenshots() {
   } finally {
     await browser.close();
   }
+  if (sideways.length) throw new Error(`страница шире окна:\n${sideways.join("\n")}`);
 }
 
 async function json() {

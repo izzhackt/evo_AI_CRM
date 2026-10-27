@@ -8,8 +8,7 @@ import { AgentBody } from "@/components/v3/ai-agents/AgentBody";
 import { AgentChatShell } from "@/components/v3/ai-agents/AgentChatShell";
 import { AgentSwitches } from "@/components/v3/ai-agents/AgentSwitches";
 import { AgentTabs } from "@/components/v3/ai-agents/AgentTabs";
-import { NextAgentPage } from "@/components/v3/ai-agents-next/NextAgentPage";
-import { NextAgentUnavailable } from "@/components/v3/ai-agents-next/NextAgentUnavailable";
+import { NextAgentPageLazy, NextAgentUnavailableLazy } from "@/components/v3/ai-agents-next/NextAgentsLazy";
 import { NotReady, Unavailable } from "@/components/v3/ai-agents/Notices";
 import { Icon } from "@/components/icons";
 import { PartShell } from "@/components/v3/PartShell";
@@ -87,7 +86,7 @@ export default async function AiAgentPage({
   const read = await readAiAgent(actor, key);
   if (read.status === "missing") notFound();
   const nextUi = await isNextUi(actor);
-  if (nextUi && read.status !== "available") return <NextAgentUnavailable agentKey={key} status={read.status} />;
+  if (nextUi && read.status !== "available") return <NextAgentUnavailableLazy agentKey={key} status={read.status} />;
   const back = (
     <Link href={AI_AGENTS_HUB_HREF} className="mb-3 inline-flex min-h-11 items-center gap-1.5 rounded-nav t-label text-fg-2 hover:text-fg">
       <Icon name="arrow-left" size={16} /> Все ИИ-агенты
@@ -171,7 +170,7 @@ export default async function AiAgentPage({
     whatsappDailyCapCents: aiAgentsWhatsappDailyCapCents(),
     whatsappCapState,
   };
-  if (nextUi) return <NextAgentPage {...bodyProps} />;
+  if (nextUi) return <NextAgentPageLazy {...bodyProps} />;
 
   const switches = (
     <AgentSwitches

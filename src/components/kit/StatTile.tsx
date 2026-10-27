@@ -8,7 +8,8 @@ const VALUE_TONE = { neutral: "text-fg", ok: "text-ok", warn: "text-warn", dange
 /**
  * Одно число с подписью. Нет значения (`null`) — «—», без выдуманного роста и процентов: сравнивать не с чем,
  * так и пишем. Цвет только у самого числа и только по смыслу (красный — проблема). `href` делает плитку
- * ссылкой на то, что за числом стоит.
+ * ссылкой на то, что за числом стоит. Корень плитки — `relative`: скрытая подпись «нет данных» (`sr-only`, абсолютная) иначе
+ * не обрезается прокруткой ряда плиток и на телефоне раздвигает всю страницу вбок.
  */
 export function StatTile({
   label,
@@ -37,11 +38,11 @@ export function StatTile({
     </Card>
   );
   return href ? (
-    <Link href={href} className="group block h-full rounded-card" data-slot="stat-tile">
+    <Link href={href} className="group relative block h-full rounded-card" data-slot="stat-tile">
       {tile}
     </Link>
   ) : (
-    <div data-slot="stat-tile" className="h-full">
+    <div data-slot="stat-tile" className="relative h-full">
       {tile}
     </div>
   );

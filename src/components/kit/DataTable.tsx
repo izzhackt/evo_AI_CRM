@@ -4,7 +4,7 @@ import { useTable, type RowData } from "@tanstack/react-table";
 import { SearchXIcon } from "lucide-react";
 
 import { DataTableCards, type CardRow } from "@/components/kit/DataTableCards";
-import { DataTableHeadCell, DataTableRow } from "@/components/kit/DataTableParts";
+import { DataTableBodyRow, DataTableHeadCell, rowLabelOf } from "@/components/kit/DataTableParts";
 import { DataTablePagination } from "@/components/kit/DataTablePagination";
 import { DataTableToolbar } from "@/components/kit/DataTableToolbar";
 import { dataTableFeatures, type DataTableColumn } from "@/components/kit/data-table-core";
@@ -24,6 +24,9 @@ import { cn } from "@/lib/utils";
  * ограничил («последние 30») или разбил на страницы своими ссылками («Следующая страница»); экран не называет общим
  * числом то, что получил, не ставит второй листатель и не сбрасывает номер страницы при каждой новой выдаче сервера.
  * `onVisibleIdsChange` — строки на экране после поиска и страницы («все на странице» считают их); `partial` — данные неполные.
+ * `onRowClick` — строка нажимается мышью; с клавиатуры и для читалки запись открывает кнопка «Открыть: …» в ячейке-заголовке
+ * (колонка с `meta.mobile = "title"`; у колонки с `meta.opensRow` — её собственная ссылка), сама строка фокус не берёт.
+ * `getRowLabel` — название записи для имени этой кнопки и кнопки карточки телефона; без него — значение колонки-заголовка.
  */
 export function DataTable<T extends RowData>({
   label,
@@ -31,6 +34,7 @@ export function DataTable<T extends RowData>({
   columns,
   getRowId,
   onRowClick,
+  getRowLabel,
   searchPlaceholder = "Поиск",
   pageSize = 10,
   paginate = true,
@@ -47,6 +51,8 @@ export function DataTable<T extends RowData>({
   columns: DataTableColumn<T>[];
   getRowId?: (row: T) => string;
   onRowClick?: (row: T) => void;
+  /** Название записи для имени перехода «Открыть: …» (таблица и карточка); без него — значение колонки-заголовка. */
+  getRowLabel?: (row: T) => string;
   searchPlaceholder?: string;
   pageSize?: 10 | 25 | 50;
   /** `false` — своих страниц нет, показаны все присланные строки (сервер ограничил или разбил список). Поиск и сортировка — по ним. */
@@ -71,11 +77,12 @@ export function DataTable<T extends RowData>({
   const rows = table.getRowModel().rows;
   useReportVisibleIds(rows.map((row) => row.id), onVisibleIdsChange);
   const matches = table.getPrePaginatedRowModel().rows.length;
-  const open = onRowClick ? (row: T) => onRowClick(row) : undefined;
+  const labelOf = (row: (typeof rows)[number]) => rowLabelOf(row.getVisibleCells(), getRowLabel?.(row.original));
   const cards: CardRow[] = rows.map((row) => ({
     id: row.id,
+    label: labelOf(row),
     cells: row.getVisibleCells().map((cell) => ({ id: cell.id, column: cell.column, render: () => <table.FlexRender cell={cell} /> })),
-    onOpen: open ? () => open(row.original) : undefined,
+    onOpen: onRowClick ? () => onRowClick(row.original) : undefined,
   }));
 
   let body: React.ReactNode;
@@ -103,6 +110,7 @@ export function DataTable<T extends RowData>({
                       canSort={header.column.getCanSort()}
                       onSort={header.column.getToggleSortingHandler()}
                       end={header.column.columnDef.meta?.align === "end"}
+                      wide={header.column.columnDef.meta?.wide}
                     >
                       {header.isPlaceholder ? null : <table.FlexRender header={header} />}
                     </DataTableHeadCell>
@@ -120,13 +128,7 @@ export function DataTable<T extends RowData>({
                     </TableRow>
                   ))
                 : rows.map((row) => (
-                    <DataTableRow key={row.id} onOpen={open ? () => open(row.original) : undefined}>
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id} className={cell.column.columnDef.meta?.align === "end" ? "text-right" : undefined}>
-                          <table.FlexRender cell={cell} />
-                        </TableCell>
-                      ))}
-                    </DataTableRow>
+                    <DataTableBodyRow key={row.id} cells={row.getVisibleCells()} label={labelOf(row)} onOpen={onRowClick ? () => onRowClick(row.original) : undefined} renderCell={(cell) => <table.FlexRender cell={cell} />} />
                   ))}
             </TableBody>
           </Table>
@@ -140,7 +142,7 @@ export function DataTable<T extends RowData>({
   }
 
   return (
-    <div className={cn("flex min-w-0 flex-col gap-3", className)} data-slot="data-table">
+    <div className={cn("@container flex min-w-0 flex-col gap-3", className)} data-slot="data-table">
       <DataTableToolbar search={search} onSearch={(value) => table.setGlobalFilter(value)} placeholder={searchPlaceholder} columns={columnMenu ? table.getAllLeafColumns() : undefined} extra={toolbar} />
       {body}
     </div>

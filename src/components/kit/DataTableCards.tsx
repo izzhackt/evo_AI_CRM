@@ -1,5 +1,6 @@
 import { useId } from "react";
 
+import { openLabel } from "@/components/kit/DataTableParts";
 import type { DataTableColumnMeta } from "@/components/kit/data-table-core";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -9,7 +10,7 @@ type CardCell = {
   column: { columnDef: { header?: unknown; meta?: DataTableColumnMeta } };
   render: () => React.ReactNode;
 };
-export type CardRow = { id: string; cells: readonly CardCell[]; onOpen?: () => void };
+export type CardRow = { id: string; cells: readonly CardCell[]; onOpen?: () => void; label?: string };
 
 /**
  * Содержимое карточки лежит поверх невидимой кнопки на всю карточку и пропускает касания к ней
@@ -28,7 +29,8 @@ const labelOf = (cell: CardCell) => {
  * Список карточек вместо таблицы на телефоне (<768 px). Заголовок карточки — колонка с `meta.mobile = "title"`
  * (иначе первая), под ним не больше трёх данных «подпись — значение»; колонки с `mobile = "hide"` не рисуются.
  * Карточка с `onOpen` открывается нажатием на свободное место и клавишей на невидимой кнопке (имя — заголовок
- * карточки); ссылки и кнопки внутри ячеек работают сами по себе.
+ * карточки); ссылки и кнопки внутри ячеек работают сами по себе. Имя кнопки — «Открыть: <название записи>» (`label`): имя
+ * по всей ячейке-заголовку читало бы и кнопку «Завершить» в ней, и название дважды.
  */
 export function DataTableCards({ rows, loading = false }: Readonly<{ rows: readonly CardRow[]; loading?: boolean }>) {
   const baseId = useId();
@@ -65,7 +67,7 @@ export function DataTableCards({ rows, loading = false }: Readonly<{ rows: reado
         );
         return (
           <li key={row.id} className={cn("relative min-h-11 rounded-card border border-border bg-surface", row.onOpen && "hover:bg-surface-2")}>
-            {row.onOpen ? <button type="button" onClick={row.onOpen} aria-labelledby={titleId} className="absolute inset-0 rounded-card" /> : null}
+            {row.onOpen ? <button type="button" onClick={row.onOpen} {...(row.label ? { "aria-label": openLabel(row.label) } : { "aria-labelledby": titleId })} className="absolute inset-0 rounded-card" /> : null}
             <div className={cn("p-4", row.onOpen && cn("pointer-events-none relative", INTERACTIVE_AUTO))}>{body}</div>
           </li>
         );

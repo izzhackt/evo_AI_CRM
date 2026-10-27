@@ -16,6 +16,11 @@ import { cn } from "@/lib/utils";
  * который был в фокусе в момент открытия (запоминается здесь: у Radix без `trigger` вернуть фокус некуда и он
  * уходил бы в начало страницы).
  *
+ * Фокус при открытии: на название панели (`tabIndex=-1`; рамки у неё нет: это не элемент управления), а не на первый попавшийся элемент. Первым в панели
+ * стоит прокручиваемая область (`tabIndex=0`), и при открытии с клавиатуры рамка фокуса охватывала бы всё тело панели, обрезанная
+ * её краем. Читалка так сразу зачитывает название и описание. Кто уже поставил фокус внутрь панели сам, того не трогаем.
+ * Область принимает фокус клавишей Tab, рамка у неё внутри (снаружи её срезает край панели).
+ *
  * Запись в панели не очищают в `onOpenChange(false)`: 200 мс закрытия панель ещё видна, и пустая шапка мигала
  * бы. Держат последнюю выбранную запись в состоянии, а открыта ли панель — отдельным флагом (`KitTable`).
  */
@@ -49,6 +54,7 @@ export function DetailSheet({
   children: React.ReactNode;
 }>) {
   const opener = useRef<HTMLElement | null>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
   const hasTrigger = Boolean(trigger);
   // Слой, а не обычный эффект: фокус уходит в панель в эффектах Radix, раньше него нужно успеть запомнить, откуда.
   useLayoutEffect(() => {
@@ -62,6 +68,12 @@ export function DetailSheet({
       <SheetContent
         side={side}
         {...(description ? {} : { "aria-describedby": undefined })}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          const panel = event.currentTarget;
+          if (panel instanceof Node && panel.contains(document.activeElement)) return;
+          heading.current?.focus({ preventScroll: true });
+        }}
         onCloseAutoFocus={(event) => {
           onCloseAutoFocus?.(event);
           const target = opener.current;
@@ -76,12 +88,12 @@ export function DetailSheet({
       >
         <SheetHeader>
           <div className="flex min-w-0 items-center gap-2">
-            <SheetTitle className="min-w-0">{title}</SheetTitle>
+            <SheetTitle ref={heading} tabIndex={-1} className="min-w-0 focus-visible:outline-none!">{title}</SheetTitle>
             {help ? <HelpTip label={helpLabel ?? `Пояснение: ${title}`}>{help}</HelpTip> : null}
           </div>
           {description ? <SheetDescription>{description}</SheetDescription> : null}
         </SheetHeader>
-        <ScrollArea className="flex-1" viewportProps={{ tabIndex: 0, role: "region", "aria-label": title }}>
+        <ScrollArea className="flex-1" viewportProps={{ tabIndex: 0, role: "region", "aria-label": title, className: "focus-visible:-outline-offset-2! focus-visible:shadow-none!" }}>
           <div className="px-5 py-4">{children}</div>
         </ScrollArea>
         {footer ? <SheetFooter>{footer}</SheetFooter> : null}

@@ -22,6 +22,8 @@ const nextRequests = spawnJson("requests-static-render.cjs", "--next-json");
 const legacyToday = spawnJson("today-static-render.cjs", "--json");
 const nextToday = spawnJson("today-static-render.cjs", "--next-json");
 const pageToday = spawnJson("today-static-render.cjs", "--page-json");
+// `--next-props` настоящей страницы «Заявок» бросает, если свойства `RequestsNextLazy` не сериализуются (`assertFlightProps`).
+const requestsNextPropsChecked = Object.keys(JSON.parse(execFileSync(process.execPath, [fileURLToPath(new URL("./e2e/requests-static-render.cjs", import.meta.url)), "--next-props"], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }))).length === 3;
 
 const count = (html, pattern) => [...html.matchAll(pattern)].length;
 const all = (html, pattern) => [...html.matchAll(pattern)].map((match) => match[1]);
@@ -35,6 +37,8 @@ const NEW_FILES = [
   "src/components/v3/requests-next/RequestsNextView.tsx", "src/components/v3/requests-next/RequestsNextTable.tsx",
   "src/components/v3/requests-next/RequestSheetBody.tsx", "src/components/v3/requests-next/requests-next-rows.tsx",
   "src/components/v3/requests-next/RequestsNextEmpty.tsx",
+  "src/components/v3/today-next/TodayNextPage.tsx", "src/components/v3/today-next/TodayNextLazy.tsx",
+  "src/components/v3/requests-next/RequestsNextPage.tsx", "src/components/v3/requests-next/RequestsNextLazy.tsx",
 ];
 
 /* ---------------------------------------------------------------- выбор вида: переключатель и только администратор */
@@ -200,15 +204,32 @@ test("новые файлы короче 150 строк, собраны из н�
 test("страницы спрашивают isNextUi, читают и проверяют права как прежде; прежняя ветка осталась", () => {
   const main = read("src/app/(v3)/v3/main/page.tsx");
   assert.match(main, /import \{ isNextUi \} from "@\/lib\/ui-next";/u);
-  assert.match(main, /if \(await isNextUi\(actor\)\) \{[\s\S]*?<PageShell[\s\S]*?<TodayNext /u);
+  // Новый вид подгружается лениво: страница отдаёт его только настоящему администратору и не импортирует статически.
+  assert.match(main, /if \(await isNextUi\(actor\)\) \{\s*return <TodayNextLazy boards=\{boards\} queue=\{queue\} nowIso=\{now\.toISOString\(\)\} mainAction=\{mainAction\} dial=\{dial\} taskLeads=\{taskLeads\} permissions=\{permissions\} \/>;/u);
+  assert.doesNotMatch(main, /from "@\/components\/v3\/today-next\/Today(Next|Boards|Dashboard)"|from "@\/components\/kit"/u, "виджеты нового вида в первую загрузку страницы не входят");
   assert.match(main, /<PartShell\s+title="Сегодня"[\s\S]*?<TodayScreen/u, "прежний вид на месте");
   assert.match(main, /const taskLeads = dial\.status === "ready" \? await readTodayTaskLeads\(actor, queue\) : null;/u, "чтения прежние");
   const requests = read("src/app/(v3)/v3/requests/page.tsx");
   assert.match(requests, /const next = await isNextUi\(actor\);/u);
-  assert.match(requests, /if \(next\) \{\s*return \(\s*<ManualLeadDisclosure>\s*<PageShell/u);
+  assert.match(requests, /if \(next\) \{\s*return \(\s*<ManualLeadDisclosure>\s*<RequestsNextLazy/u);
+  assert.match(requests, /if \(next\) return <RequestsNextInvalidLazy \/>;/u);
+  assert.doesNotMatch(requests, /from "@\/components\/v3\/requests-next\/RequestsNext(View|Page)"|from "@\/components\/kit"/u, "очередь нового вида в первую загрузку страницы не входит");
   assert.match(requests, /<PartShell title="Заявки" dense testId="v3-requests"/u, "прежний вид на месте");
   assert.match(requests, /const \[read, owners, dial\] = await Promise\.all\(\[/u, "чтения прежние");
   for (const page of [main, requests]) assert.ok(page.indexOf("isNextUi(actor)") < page.indexOf("<PartShell"), "выбор вида до прежней разметки");
+});
+
+test("ленивые входы нового вида: «use client» и подгрузка настоящего вида, свойства страницы доходят целиком", () => {
+  const today = read("src/components/v3/today-next/TodayNextLazy.tsx");
+  assert.match(today, /^"use client";/u);
+  assert.match(today, /dynamic\(\(\) => import\("\.\/TodayNextPage"\)\.then\(\(module\) => module\.TodayNextPage\)\)/u);
+  const requests = read("src/components/v3/requests-next/RequestsNextLazy.tsx");
+  assert.match(requests, /^"use client";/u);
+  assert.match(requests, /import\("\.\/RequestsNextPage"\)\.then\(\(module\) => module\.RequestsNextPage\)/u);
+  assert.match(requests, /import\("\.\/RequestsNextPage"\)\.then\(\(module\) => module\.RequestsNextInvalid\)/u);
+  // Свойства, которые страница отдаёт ленивому входу, проходят границу сервер → клиент: данные, а не функции и объекты классов.
+  // Это проверяет сам стенд на настоящей странице (`tests/e2e/flight-props.cjs`): он бросает, а не пропускает.
+  assert.ok(pageToday.has("admin-cookie") && requestsNextPropsChecked, "стенды проверили свойства ленивых входов");
 });
 
 test("список карточек телефона занимает одну колонку: длинное слово не раздвигает карточки за экран", () => {

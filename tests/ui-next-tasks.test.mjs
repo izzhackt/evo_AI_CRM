@@ -58,7 +58,10 @@ const link = { __esModule: true, default: ({ href, children, ...props }) => {
 const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} };
 const navigation = { useRouter: () => router, usePathname: () => "/v3/tasks", useSearchParams: () => new URLSearchParams(), notFound: () => { throw new Error("NEXT_NOT_FOUND"); } };
 const serverActions = new Proxy({}, { get: (_target, name) => (name === "__esModule" ? false : async () => ({ status: "unavailable" })) });
-const browserStubs = { "next/link": link, "next/navigation": navigation, "next/image": { __esModule: true, default: () => null } };
+// `next/dynamic` вне сборки Next — версия для pages router (рисует пустоту); сборка подставляет версию для App Router, её и берём.
+const browserStubs = { "next/link": link, "next/navigation": navigation, "next/image": { __esModule: true, default: () => null }, "next/dynamic": require("next/dist/shared/lib/app-dynamic") };
+const { renderSettled } = require("./e2e/render-settled.cjs");
+const { assertFlightProps } = require("./e2e/flight-props.cjs");
 
 /* ---------------------------------------------------------------- данные */
 
@@ -398,8 +401,10 @@ const page = (cookie, who, params = {}, overrides = {}) => {
     "src/lib/v3/task-case-actions.ts": serverActions, "src/lib/v3/task-composer-actions.ts": serverActions, ...overrides,
   };
   const load = loader(stubs);
-  const run = async () => renderToStaticMarkup(await load("src/app/(v3)/v3/tasks/page.tsx").default({ searchParams: Promise.resolve(params) }));
-  return { run, seen };
+  const element = () => load("src/app/(v3)/v3/tasks/page.tsx").default({ searchParams: Promise.resolve(params) });
+  // Новый вид страница подгружает лениво (`TasksNextLazy`): рисуем, пока разметка не устоится.
+  const run = async () => renderSettled(await element());
+  return { run, seen, element };
 };
 
 const ADMIN = actorOf();
@@ -410,6 +415,8 @@ test("страница «Задачи»: «Новый вид» только на
   const on = await page("next", ADMIN).run();
   assert.match(on, /data-testid="v3-tasks-next"/);
   assert.match(on, /data-slot="data-table"/);
+  // Свойства, которые страница отдаёт ленивому входу, проходят границу сервер → клиент: данные, не функции и не объекты классов.
+  assertFlightProps((await page("next", ADMIN).element()).props, "TasksNextLazy");
   assert.doesNotMatch(on, /data-testid="task-queue"/, "прежней очереди нет");
 
   const off = await page(undefined, ADMIN).run();
@@ -494,6 +501,22 @@ test("в странице прежний вид остаётся прежним 
   assert.match(source, /permissions=\{permissions\}/);
   assert.match(source, /count=\{headerCount\}/);
   assert.match(source, /staffAllowed = !preview && staffHasPermission\(actor, "staff\.task\.create"\) && !sourceLeadId;/);
+  // Новый вид — ленивый вход: в первую загрузку страницы у остальных сотрудников его таблица, панель и Radix не входят.
+  assert.match(source, /import \{ TasksNextFailureLazy, TasksNextLazy \} from "@\/components\/v3\/tasks\/next\/TasksNextLazy";/);
+  assert.match(source, /return <TasksNextLazy\s/);
+  assert.doesNotMatch(source, /from "@\/components\/v3\/tasks\/next\/TasksNext(Failure)?"/, "новый вид не импортируется статически");
+  assert.doesNotMatch(source, /from "@\/components\/kit/, "и набор виджетов тоже");
+  const lazy = read(`${NEXT_DIR}/TasksNextLazy.tsx`);
+  assert.match(lazy, /^"use client";/);
+  assert.match(lazy, /dynamic\(\(\) => import\("\.\/TasksNext"\)\.then\(\(module\) => module\.TasksNext\)\)/);
+  assert.match(lazy, /dynamic\(\(\) => import\("\.\/TasksNextFailure"\)\.then\(\(module\) => module\.TasksNextFailure\)\)/);
+});
+
+test("таблица «Задач»: открывает панель ссылка-название (opensRow), строка не остановка клавиатуры; карточка называет кнопку «Открыть: <задача>»", () => {
+  assert.match(read(`${NEXT_DIR}/task-columns.tsx`), /meta: \{ label: "Задача", mobile: "title", opensRow: true \}/);
+  assert.match(read(`${NEXT_DIR}/TasksTable.tsx`), /getRowLabel=\{\(row\) => row\.task\.title\}/);
+  const columns = loader(browserStubs)(`${NEXT_DIR}/task-columns.tsx`).taskColumns(true);
+  assert.equal(columns.find((column) => column.id === "task").meta.opensRow, true);
 });
 
 test("новые копирайты: на экране только заголовки, данные и кнопки; пояснения собраны в «?», предупреждения остаются на виду", () => {

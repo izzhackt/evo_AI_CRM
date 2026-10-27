@@ -8,8 +8,7 @@ import { queueHref } from "@/components/v3/queue/queue-url";
 import { TaskComposerDialog } from "@/components/v3/tasks/TaskComposerDialog";
 import { TaskDetailPanel } from "@/components/v3/tasks/TaskDetailPanel";
 import { TasksWorkspace } from "@/components/v3/tasks/TasksWorkspace";
-import { TasksNext } from "@/components/v3/tasks/next/TasksNext";
-import { TasksNextFailure } from "@/components/v3/tasks/next/TasksNextFailure";
+import { TasksNextFailureLazy, TasksNextLazy } from "@/components/v3/tasks/next/TasksNextLazy";
 import { caseSheetData, staffSheetData } from "@/components/v3/tasks/next/task-sheet-data";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { isNextUi } from "@/lib/ui-next";
@@ -36,7 +35,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   // «Новый вид» (27.10.2026): только настоящему администратору с переключателем; данные, права и действия те же.
   const nextUi = await isNextUi(actor);
   const failure = (text: string, retryHref: string) => nextUi
-    ? <TasksNextFailure text={text} retryHref={retryHref} />
+    ? <TasksNextFailureLazy text={text} retryHref={retryHref} />
     : <PartShell title="Задачи"><QueueError text={text} retryHref={retryHref} /></PartShell>;
   const access = taskQueueAccess(actor);
   const preview = isStaffPreview(actor);
@@ -169,7 +168,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       task: caseTaskTarget.task, caseId: selectedCaseId!, assignees: caseTaskTarget.assignees, capabilities: caseTaskTarget.capabilities,
       day, nowIso: now.toISOString(),
     }) : null;
-    return <TasksNext
+    return <TasksNextLazy
       filters={filters} queue={queue} cutOff={workspace.queue.cutOff} day={day} nowIso={now.toISOString()}
       canReadStaffTasks={workspace.canReadStaffTasks} canReadCaseTasks={workspace.canReadCaseTasks} teamView={access.teamView}
       createdExcludesCases={workspace.createdExcludesCases} composer={composerProps} composerKey={sourceMessage?.id ?? "standalone"}

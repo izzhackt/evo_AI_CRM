@@ -216,6 +216,15 @@ test("the safe environment example is a known runtime configuration contract", (
   assert.deepEqual(result.unknown_paths, []);
 });
 
+test("the shadcn CLI config is known code with lint but not a production build input", () => {
+  const result = classifyNameStatus(nul("A", "components.json"));
+  assert.equal(result.code, true);
+  assert.equal(result.lint, true);
+  assert.equal(result.build, false);
+  assert.equal(result.unknown, false);
+  assert.deepEqual(result.unknown_paths, []);
+});
+
 test("the shared EVO edge Caddy source is a known infrastructure path", () => {
   const result = classifyNameStatus(nul(
     "M",

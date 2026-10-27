@@ -28,6 +28,8 @@ const { pathToFileURL } = require("node:url");
 
 const ROOT = resolve(__dirname, "../..");
 const probe = require("./side-panel-probe.cjs");
+const { rowA11yProblems } = require("./row-a11y-probe.cjs");
+const { lazySettled } = require("./lazy-settled.cjs");
 
 const IDS = `
 let serial = 0;
@@ -145,6 +147,8 @@ const harness = (script) => JSON.parse(execFileSync(process.execPath, [join(__di
 const VIEWPORTS = {
   d1440: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
   m390: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  m360: { viewport: { width: 360, height: 800 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  m320: { viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
 };
 
 async function main() {
@@ -199,6 +203,7 @@ async function main() {
     page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
     await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
     await page.waitForSelector("html[data-ready=true]", { state: "attached", timeout: 15_000 });
+    await lazySettled(page);
     await page.evaluate(() => document.fonts.ready);
     return { context, page, errors };
   };
@@ -264,7 +269,8 @@ async function main() {
     await closeBy("esc");
     const lastPush = await page.evaluate(() => window.__pushes.at(-1) ?? "");
     report(`${key}: Esc pushes the list address`, lastPush.startsWith("/v3/requests") && !lastPush.includes("open="), lastPush);
-    if (wide) report(`${key}: focus returns to the row after Esc`, await leadRow.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
+    // Нажатие мышью фокуса строке не даёт (строка не остановка клавиатуры): возврат фокуса проверяет блок «Клавиатура» ниже.
+    report(`${key}: the clicked row is not a tab stop`, wide ? (await leadRow.getAttribute("tabindex")) === null : true, wide ? await leadRow.getAttribute("tabindex") : null);
 
     // Анкета: ответы и решение — та же форма с тем же request_id страницы.
     await openRow(`${application.application.questionnaire.firstName} ${application.application.questionnaire.lastName}`);
@@ -300,18 +306,38 @@ async function main() {
     await context.close();
   }
 
-  // Клавиатура: строка → Enter → панель → Esc → фокус на строке.
+  // Клавиатура: кнопка «Открыть: …» в строке → Enter → панель (фокус на названии) → Esc → фокус на кнопке. Строка сама фокус не берёт.
   {
     const { context, page, errors } = await open(pages.requests, "d1440");
+    const { problems, rows: rowCount, controls } = await rowA11yProblems(page);
+    report("d1440: rows are not tab stops and every focusable element in them has a role and a name", problems.length === 0 && rowCount === rows.length + 1 && controls > rows.length, { problems, rowCount, controls });
+    const opens = page.getByRole("button", { name: /^Открыть: / });
+    report("d1440: every row has one button named «Открыть: <имя>»", (await opens.count()) === rows.length, await opens.count());
+    // Анкета и консультация: путь по Tab идёт от кнопки к следующему настоящему элементу, не к безымянной строке.
+    const applicationName = `${application.application.questionnaire.firstName} ${application.application.questionnaire.lastName}`;
+    const walk = [];
+    for (const name of [applicationName, consultation.consultation.studentName]) {
+      const own = page.getByRole("button", { name: `Открыть: ${name}` });
+      report(`d1440: «${name}» row has its open button`, (await own.count()) === 1, await own.count());
+      await own.focus();
+      await page.keyboard.press("Tab");
+      walk.push(await page.evaluate(() => { const el = document.activeElement; return { tag: el?.tagName, name: el?.getAttribute("aria-label") || el?.textContent?.trim() || "" }; }));
+    }
+    report("d1440: Tab from a row's open button reaches a named control, never a bare row", walk.every((step) => /^(BUTTON|A|INPUT)$/u.test(step.tag ?? "") && step.name.length > 0), walk);
     const row = page.locator("[data-slot=table] tbody tr").first();
-    await row.focus();
+    const button = opens.first();
+    await button.focus();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    await shot(page, "rn-row-focus-d1440");
     await page.keyboard.press("Enter");
     await page.getByRole("dialog").waitFor();
-    report("d1440: focus is inside the panel", await page.evaluate(() => Boolean(document.activeElement && document.activeElement.closest("[role=dialog]"))), null);
+    report("d1440: focus is inside the panel, on its title", await page.evaluate(() => document.activeElement?.getAttribute("data-slot") === "sheet-title" && Boolean(document.activeElement.closest("[role=dialog]"))), await page.evaluate(() => document.activeElement && (document.activeElement.getAttribute("data-slot") || document.activeElement.tagName)));
     await page.keyboard.press("Escape");
     await page.getByRole("dialog").waitFor({ state: "detached" });
     await page.waitForTimeout(80);
-    report("d1440: focus returns to the row (keyboard)", await row.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
+    report("d1440: focus returns to the open button (keyboard)", await button.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
+    report("d1440: the first row stays untabbable", (await row.getAttribute("tabindex")) === null, await row.getAttribute("tabindex"));
     report("d1440: console clean (keyboard)", errors.length === 0, errors);
     await context.close();
   }
@@ -325,7 +351,8 @@ async function main() {
     report(`${key}: only the server link «Следующая страница» exists`, (await page.getByRole("link", { name: "Следующая страница" }).count()) === 1 && (await page.getByRole("button", { name: /страница/u }).count()) === 0, await page.getByRole("button", { name: /страница/u }).count());
     report(`${key}: no «из N» counter over the loaded rows`, !/\d+–\d+ из \d+/u.test(await page.locator("main").innerText()), null);
     const row = wide ? page.locator("[data-slot=table] tbody tr", { hasText: "Клон 21 Тестов" }) : page.locator("[data-slot=data-table-cards] > li", { hasText: "Клон 21 Тестов" });
-    if (wide) await row.locator("td").nth(1).click(); else await row.locator("button").first().click({ position: { x: 8, y: 8 } });
+    const rowButton = row.getByRole("button", { name: /^Открыть: / });
+    if (wide) { await rowButton.focus(); await page.keyboard.press("Enter"); } else await row.locator("button").first().click({ position: { x: 8, y: 8 } });
     await page.getByRole("dialog").waitFor();
     await page.waitForFunction(() => window.__pushes.length === 1);
     await page.waitForTimeout(200); // стенд перерисовал страницу новой выдачей: те же строки, новый массив
@@ -334,7 +361,7 @@ async function main() {
     await page.getByRole("dialog").waitFor({ state: "detached" });
     await page.waitForTimeout(300);
     report(`${key}: the opened row is still rendered after the panel closes`, (await row.count()) === 1 && (await visible.count()) === 30, await visible.count());
-    if (wide) report(`${key}: focus returns to the opened row (long page)`, await row.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
+    if (wide) report(`${key}: focus returns to the opened row's button (long page)`, await rowButton.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
     report(`${key}: console clean (long page)`, errors.length === 0, errors);
     await shot(page, `rn-long-${key}`);
     await context.close();
@@ -433,6 +460,22 @@ async function main() {
     await shot(page, `tn-page-${name}-d1440`);
     report(`d1440: console clean (${name})`, errors.length === 0, errors);
     await context.close();
+  }
+  // Телефон: ни «нет данных» в плитке без числа (скрытая подпись, абсолютная), ни ряд плиток не раздвигают страницу вбок.
+  // Частичное чтение — плитки без числа в самом ряду, который листается; обычный день — «Ждут вас» без числа.
+  for (const [name, props] of [["partial", today.partial], ["admin", longToday]]) {
+    const path = writePage(outDir, `ui-next-today-${name}-phone`, css, "ui-next-today-bundle.js", { props });
+    for (const key of ["m390", "m360", "m320"]) {
+      const { context, page, errors } = await open(path, key);
+      const facts = await page.evaluate(() => {
+        const root = document.documentElement;
+        const bar = document.querySelector("[data-testid=v3-bottom-tabs], nav.fixed");
+        return { overflow: root.scrollWidth - root.clientWidth, bar: bar ? Math.round(bar.getBoundingClientRect().width) : null, viewport: root.clientWidth };
+      });
+      report(`${key}: ${name} read has no sideways page scroll`, facts.overflow <= 0 && (facts.bar === null || facts.bar <= facts.viewport), facts);
+      report(`${key}: console clean (${name} phone)`, errors.length === 0, errors);
+      await context.close();
+    }
   }
   await browser.close();
   if (failed) process.exit(1);

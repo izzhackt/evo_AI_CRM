@@ -1,5 +1,5 @@
+import { SectionTabsInPlace } from "@/components/kit/SectionTabsInPlace";
 import { QueueViewTabs } from "@/components/v3/queue/QueueViewTabs";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
 export type SectionTab = Readonly<{
@@ -50,21 +50,5 @@ export function SectionTabs({
       </div>
     );
   }
-  return (
-    <Tabs value={value} defaultValue={value === undefined ? (defaultValue ?? tabs[0]?.key) : undefined} onValueChange={onValueChange} className={className}>
-      <TabsList aria-label={label}>
-        {tabs.map((tab) => (
-          <TabsTrigger key={tab.key} value={tab.key}>
-            {tab.label}
-            {typeof tab.count === "number" ? <span className="tabular-nums text-fg-3">{tab.count}</span> : null}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-      {tabs.map((tab) => (
-        <TabsContent key={tab.key} value={tab.key}>
-          {tab.content}
-        </TabsContent>
-      ))}
-    </Tabs>
-  );
+  return <SectionTabsInPlace tabs={tabs} label={label} value={value} defaultValue={defaultValue} onValueChange={onValueChange} className={className} />;
 }

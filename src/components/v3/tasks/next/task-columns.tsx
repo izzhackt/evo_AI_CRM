@@ -7,14 +7,15 @@ import type { TaskRow } from "./task-table-model";
 /**
  * Колонки таблицы «Задач». Это одни и те же функции для всех строк: состояние (завершённые на месте, выбор, права)
  * ячейки читают из `TaskTableContext`. «Задача» — заголовок карточки на телефоне; под ним до трёх данных: срок и
- * исполнитель. «Исполнитель» есть только там, где в списке не только мои задачи. «⋯» и «Позвонить» на телефоне
+ * исполнитель; в её ячейке уже есть ссылка-название, которая открывает панель (`opensRow`: второй кнопки таблица не добавляет).
+ * «Исполнитель» есть только там, где в списке не только мои задачи. «⋯» и «Позвонить» на телефоне
  * уходят в панель задачи.
  */
 export function taskColumns(showAssignee: boolean): DataTableColumn<TaskRow>[] {
   return [
     {
       id: "task", header: "Задача", accessorFn: (row) => row.search, enableHiding: false, sortFn: "text",
-      meta: { label: "Задача", mobile: "title" }, cell: ({ row }) => <TaskTitleCell row={row.original} />,
+      meta: { label: "Задача", mobile: "title", opensRow: true }, cell: ({ row }) => <TaskTitleCell row={row.original} />,
     },
     {
       id: "due", header: "Срок", accessorFn: (row) => row.task.dueAt ?? row.task.dueOn ?? "", enableGlobalFilter: false,

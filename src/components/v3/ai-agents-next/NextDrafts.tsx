@@ -94,6 +94,7 @@ export function NextDrafts({
         columns={columns}
         getRowId={(draft) => draft.id}
         onRowClick={(draft) => { setCurrent(draft); setOpen(true); }}
+        getRowLabel={target}
         searchPlaceholder={capped ? "Поиск среди показанных" : "Поиск по черновикам"}
         paginate={false}
         columnMenu={false}

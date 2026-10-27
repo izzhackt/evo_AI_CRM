@@ -61,6 +61,9 @@
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
 const Module = require("node:module");
+require("./next-dynamic-alias.cjs");
+const { renderSettled } = require("./render-settled.cjs");
+const { assertFlightProps } = require("./flight-props.cjs");
 const nodeCrypto = require("node:crypto");
 const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
@@ -379,7 +382,8 @@ async function renderScenario(name) {
     const nextRoot = current.ui === "next" && current.actor === "admin";
     const tree = createElement("div", { className: "v3-world", "data-surface": "staff", "data-ui": nextRoot ? "next" : undefined },
       createElement(AppShell, { actor: ACTORS[current.actor], initialNotifications: null }, content));
-    return renderToStaticMarkup(withContexts(tree, current.search));
+    // Новый вид страница подгружает лениво (`RequestsNextLazy`): рисуем, пока разметка не устоится.
+    return nextRoot ? await renderSettled(withContexts(tree, current.search)) : renderToStaticMarkup(withContexts(tree, current.search));
   } finally {
     nodeCrypto.randomUUID = originalUuid;
     globalThis.Date = RealDate;
@@ -476,11 +480,11 @@ async function json() {
 
 
 /**
- * «Новый вид»: свойства `RequestsNextView` настоящей страницы по сценариям — для tests/e2e/ui-next-today-client.cjs, который
+ * «Новый вид»: свойства `RequestsNextView` (их передаёт страница в `RequestsNextLazy`) по сценариям — для tests/e2e/ui-next-today-client.cjs, который
  * собирает тот же компонент esbuild'ом и гоняет в Chromium (панель записи, действия, клавиатура).
  */
 async function nextProps() {
-  const { RequestsNextView } = require(join(ROOT, "src/components/v3/requests-next/RequestsNextView.tsx"));
+  const { RequestsNextLazy } = require(join(ROOT, "src/components/v3/requests-next/RequestsNextLazy.tsx"));
   const page = require(join(ROOT, "src/app/(v3)/v3/requests/page.tsx")).default;
   const out = {};
   for (const name of ["next-populated", "next-calls-dial", "next-waiting"]) {
@@ -494,9 +498,13 @@ async function nextProps() {
     };
     try {
       const content = await page({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(current.search))) });
-      const view = findElement(content, (element) => element.type === RequestsNextView);
-      if (!view) throw new Error("the page renders no RequestsNextView");
-      out[name] = view.props;
+      const view = findElement(content, (element) => element.type === RequestsNextLazy);
+      if (!view) throw new Error("the page renders no RequestsNextLazy");
+      // Рамка страницы (`help`, `actions`, форма лида) приходит рядом со свойствами очереди: клиентскому стенду нужны только они.
+      assertFlightProps(view.props, `${name}: RequestsNextLazy`);
+      const viewProps = { ...view.props };
+      for (const key of ["help", "actions", "children"]) delete viewProps[key];
+      out[name] = viewProps;
     } finally {
       nodeCrypto.randomUUID = originalUuid;
       globalThis.Date = RealDate;

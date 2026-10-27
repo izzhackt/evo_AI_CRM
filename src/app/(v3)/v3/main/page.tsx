@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { Suspense, type ComponentProps } from "react";
 
 import type { PeriodChoice } from "@/components/v3/MainHeader";
-import { PageShell } from "@/components/kit";
 import { PartShell } from "@/components/v3/PartShell";
 import { SalesCallsReport } from "@/components/v3/SalesCallsReport";
 import { SalesDynamics } from "@/components/v3/SalesDynamics";
@@ -11,8 +10,7 @@ import { SalesManagerLabelsView } from "@/components/v3/SalesManagerLabelsView";
 import { SalesRegisterImportView } from "@/components/v3/SalesRegisterImportView";
 import { SalesDynamicsReport, SalesRegisterView, type SalesReportQuery } from "@/components/v3/SalesRegisterView";
 import { TodayBoardLinks, TodayScreen } from "@/components/v3/today/TodayScreen";
-import { TodayBoards } from "@/components/v3/today-next/TodayBoards";
-import { TodayNext } from "@/components/v3/today-next/TodayNext";
+import { TodayNextLazy } from "@/components/v3/today-next/TodayNextLazy";
 import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { isNextUi } from "@/lib/ui-next";
@@ -156,16 +154,7 @@ export default async function MainPart({
 
   // «Новый вид» (переключатель администратора): те же чтения и права, другая расстановка — виджеты вместо ленты.
   if (await isNextUi(actor)) {
-    return (
-      <PageShell
-        title="Сегодня"
-        testId="v3-operational-dashboard"
-        meta={<time dateTime={queue.today}>{todayDateLabel(queue.today)}</time>}
-        actions={<TodayBoards links={boards} />}
-      >
-        <TodayNext queue={queue} nowIso={now.toISOString()} mainAction={mainAction} dial={dial} taskLeads={taskLeads} permissions={permissions} />
-      </PageShell>
-    );
+    return <TodayNextLazy boards={boards} queue={queue} nowIso={now.toISOString()} mainAction={mainAction} dial={dial} taskLeads={taskLeads} permissions={permissions} />;
   }
 
   return (

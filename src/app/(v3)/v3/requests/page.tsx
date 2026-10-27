@@ -1,13 +1,10 @@
 import { randomUUID } from "node:crypto";
-import Link from "next/link";
 
-import { EmptyState, PageShell } from "@/components/kit";
-import { Button } from "@/components/ui/button";
 import { ManualLeadDisclosure, ManualLeadForm, ManualLeadTrigger } from "@/components/v3/ManualLeadForm";
 import { PartShell } from "@/components/v3/PartShell";
 import { QueueError } from "@/components/v3/queue/QueueStates";
 import { RequestsQueueView, type RequestsQueueRead } from "@/components/v3/requests/RequestsQueueView";
-import { RequestsNextView } from "@/components/v3/requests-next/RequestsNextView";
+import { RequestsNextInvalidLazy, RequestsNextLazy } from "@/components/v3/requests-next/RequestsNextLazy";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { isNextUi } from "@/lib/ui-next";
@@ -39,14 +36,7 @@ export default async function RequestsPage({ searchParams }: {
   let selection: RequestSelection;
   try { selection = parseRequestSelection(params); }
   catch {
-    if (next) {
-      return <PageShell title="Заявки" testId="v3-requests">
-        <div role="alert" className="rounded-card border border-border bg-surface" data-testid="queue-error">
-          <EmptyState tone="danger" title="Эта ссылка на очередь заявок неверна."
-            action={<Button variant="outline" asChild><Link href="/v3/requests">Повторить</Link></Button>} />
-        </div>
-      </PageShell>;
-    }
+    if (next) return <RequestsNextInvalidLazy />;
     return <PartShell title="Заявки" dense>
       <QueueError text="Эта ссылка на очередь заявок неверна." retryHref="/v3/requests" />
     </PartShell>;
@@ -74,32 +64,28 @@ export default async function RequestsPage({ searchParams }: {
   if (next) {
     return (
       <ManualLeadDisclosure>
-        <PageShell
-          title="Заявки"
-          testId="v3-requests"
+        <RequestsNextLazy
           help={[
             "Очередь разбора: кто пришёл, откуда и взял ли кто-нибудь. Поиск и сортировка работают по строкам этой страницы; остальные страницы — ссылками под таблицей.",
             // Что сюда приходит — только из видов, которые читает роль (прежде стояло в пустой очереди).
             read.status === "ready" ? requestEmptyWhat(read.queue, selection.source) : null,
           ].filter(Boolean).join(" ")}
           actions={canCreateLead ? <ManualLeadTrigger /> : undefined}
+          selection={selection}
+          read={read}
+          open={open}
+          actorMembershipId={actor.membershipId}
+          readOnly={readOnly}
+          canCreateLead={canCreateLead}
+          nowIso={new Date().toISOString()}
+          takeRequestIds={takeRequestIds}
+          dial={dial}
+          callLines={callLines}
+          decisionRequestId={randomUUID()}
         >
           {canCreateLead ? <ManualLeadForm requestId={randomUUID()} ownerId={actor.membershipId}
             owners={owners ? owners.rows.map((owner) => ({ id: owner.membershipId, displayName: owner.displayLabel })) : null} /> : null}
-          <RequestsNextView
-            selection={selection}
-            read={read}
-            open={open}
-            actorMembershipId={actor.membershipId}
-            readOnly={readOnly}
-            canCreateLead={canCreateLead}
-            nowIso={new Date().toISOString()}
-            takeRequestIds={takeRequestIds}
-            dial={dial}
-            callLines={callLines}
-            decisionRequestId={randomUUID()}
-          />
-        </PageShell>
+        </RequestsNextLazy>
       </ManualLeadDisclosure>
     );
   }

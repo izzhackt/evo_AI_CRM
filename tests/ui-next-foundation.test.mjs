@@ -303,9 +303,12 @@ test("WidgetCard и SectionTabs: заголовок h2, «?» только пр�
   assert.doesNotMatch(links, /role="tab"/);
   const spaced = renderToStaticMarkup(createElement(SectionTabs, { label: "Разделы", className: "mt-4", value: "a", tabs: [{ key: "a", label: "А", href: "?tab=a" }] }));
   assert.match(spaced, /^<div class="[^"]*\bmt-4\b[^"]*">/, "className применяется и у вкладок-ссылок");
-  const inPlace = renderToStaticMarkup(createElement(SectionTabs, { label: "На месте", tabs: [{ key: "a", label: "А", content: "один" }, { key: "b", label: "Б", content: "два" }] }));
+  // Вкладки на месте — Radix Tabs: страница получает их лениво (`SectionTabsInPlace`), настоящие вкладки — в `SectionTabsInPlaceImpl`.
+  const { SectionTabsInPlaceImpl } = loader()("src/components/kit/SectionTabsInPlaceImpl.tsx");
+  const inPlace = renderToStaticMarkup(createElement(SectionTabsInPlaceImpl, { label: "На месте", tabs: [{ key: "a", label: "А", content: "один" }, { key: "b", label: "Б", content: "два" }] }));
   assert.match(inPlace, /role="tablist"[^>]*aria-label="На месте"/);
   assert.match(inPlace, /один/);
+  assert.doesNotMatch(read("src/components/kit/SectionTabs.tsx"), /ui\/tabs/, "SectionTabs не подключает Radix Tabs статически: он не идёт в первую загрузку страниц со вкладками-ссылками");
 });
 
 test("DataTable: страницы, прилипшая шапка, карточки на телефоне, пустое и загрузка (настоящая таблица TanStack; сортировку, поиск и колонки на деле меряет ui-kit-static-render)", () => {
@@ -323,8 +326,8 @@ test("DataTable: страницы, прилипшая шапка, карточк
   assert.match(html, /aria-sort="none"/);
   assert.match(html, /sticky top-0/, "шапка прилипает");
   assert.match(html, /data-slot="data-table-cards"/);
-  assert.match(html, /<button type="button" aria-labelledby="[^"]+" class="absolute inset-0[^"]*"><\/button>/, "карточка телефона открывается пустой кнопкой поверх карточки: ячейки в неё не вложены");
-  assert.match(html, /id="([^"]+)" class="t-item[^"]*">Тест Синтетический 1</, "имя кнопки — заголовок карточки");
+  assert.match(html, /<button type="button" aria-label="Открыть: Тест Синтетический 1" class="absolute inset-0[^"]*"><\/button>/, "карточка телефона открывается пустой кнопкой поверх карточки: ячейки в неё не вложены; имя — «Открыть: <название>»");
+  assert.doesNotMatch(html, /aria-labelledby/, "имя кнопки карточки не берётся из всей ячейки-заголовка (в ней бывают и другие кнопки)");
   const cards = html.match(/<ul class="grid grid-cols-1 gap-2 md:hidden" data-slot="data-table-cards">[\s\S]*?<\/ul>/)[0];
   assert.doesNotMatch(cards, /<button[^>]*>(?:(?!<\/button>)[\s\S])+<\/button>/, "в карточках нет кнопки с содержимым — нет вложенных интерактивных элементов");
   assert.match(cards, /pointer-events-none relative/);
@@ -344,6 +347,94 @@ test("DataTable: страницы, прилипшая шапка, карточк
   assert.match(loading, /aria-busy="true"/);
   assert.doesNotMatch(loading, /1–10 из/, "пока грузится, страниц нет");
   assert.ok((loading.match(/animate-pulse/g) ?? []).length >= 4);
+});
+
+test("DataTable: строка не остановка клавиатуры; запись открывает кнопка «Открыть: …» в ячейке-заголовке, у колонки с opensRow — её собственная ссылка", () => {
+  const { DataTable } = kit();
+  const rows = [{ id: "a", name: "Эльмира Формова", who: "Вы" }, { id: "b", name: "Тимур Демонстров", who: "Бекболот" }];
+  const base = [
+    { accessorKey: "name", header: "Имя", meta: { mobile: "title" }, enableHiding: false },
+    { accessorKey: "who", header: "Кто", meta: { wide: true } },
+  ];
+  const html = renderToStaticMarkup(createElement(DataTable, { label: "Заявки", data: rows, columns: base, getRowId: (row) => row.id, onRowClick: () => {}, getRowLabel: (row) => `${row.name} (заявка)` }));
+  const body = html.match(/<tbody[\s\S]*<\/tbody>/)[0];
+  assert.doesNotMatch(body, /<tr[^>]*tabindex/, "строка таблицы не принимает фокус: безымянной остановки с клавиатуры нет");
+  assert.doesNotMatch(body, /<tr[^>]*role=/, "и не получает свою роль");
+  const buttons = [...body.matchAll(/<button type="button" data-row-open="" aria-label="([^"]+)" class="([^"]*)"><\/button>/gu)];
+  assert.deepEqual(buttons.map((match) => match[1]), ["Открыть: Эльмира Формова (заявка)", "Открыть: Тимур Демонстров (заявка)"], "по кнопке на строку, имя из getRowLabel");
+  assert.match(buttons[0][2], /pointer-events-none absolute inset-0/, "кнопка прозрачна и не ловит мышь: текст выделяется, ссылки в ячейке работают");
+  assert.match(buttons[0][2], /focus-visible:-outline-offset-2!/, "рамка фокуса внутри ячейки, а не снаружи (её срезали бы прокрутка и прилипшая шапка)");
+  assert.match(body, /has-\[:is\(\[data-row-open\],\[data-queue-open\]\):focus-visible\]:bg-surface-2/, "строка подсвечивается, когда кнопка в фокусе");
+  assert.match(body, /<td[^>]*relative"><button type="button" data-row-open=""/, "кнопка стоит в ячейке-заголовке (mobile: title), её рамка — по ячейке");
+  assert.equal((body.match(/data-row-open=""/g) ?? []).length, 2, "в остальных ячейках кнопок нет");
+  // Без getRowLabel имя — значение колонки-заголовка.
+  const unnamed = renderToStaticMarkup(createElement(DataTable, { label: "Заявки", data: rows, columns: base, getRowId: (row) => row.id, onRowClick: () => {} }));
+  assert.match(unnamed, /aria-label="Открыть: Эльмира Формова"/);
+  assert.match(unnamed, /<button type="button" aria-label="Открыть: Эльмира Формова" class="absolute inset-0/, "кнопка карточки телефона названа так же");
+  // Колонка второго плана рисуется только от 64rem блока таблицы; у корня таблицы — контейнер для этого.
+  assert.match(html, /<div class="@container flex min-w-0 flex-col gap-3" data-slot="data-table">/);
+  assert.match(html, /<th[^>]*hidden @5xl:table-cell"[^>]*>[\s\S]*?Кто/, "заголовок колонки wide");
+  assert.equal((body.match(/hidden @5xl:table-cell/g) ?? []).length, 2, "и её ячейки");
+  // Своя ссылка в ячейке-заголовке (`Задачи`): второй кнопки таблица не добавляет.
+  const own = renderToStaticMarkup(createElement(DataTable, {
+    label: "Задачи", data: rows, getRowId: (row) => row.id, onRowClick: () => {}, getRowLabel: (row) => row.name,
+    columns: [{ accessorKey: "name", header: "Задача", meta: { mobile: "title", opensRow: true }, enableHiding: false, cell: ({ row }) => createElement("a", { href: `#${row.original.id}`, "data-queue-open": "" }, row.original.name) }],
+  }));
+  assert.doesNotMatch(own.match(/<tbody[\s\S]*<\/tbody>/)[0], /data-row-open=""/, "opensRow: в таблице нет второго перехода");
+  assert.match(own, /<button type="button" aria-label="Открыть: Эльмира Формова" class="absolute inset-0/, "карточка телефона всё равно называет свою кнопку");
+  // Без onRowClick строки не нажимаются и кнопок нет.
+  const plain = renderToStaticMarkup(createElement(DataTable, { label: "Только чтение", data: rows, columns: base, getRowId: (row) => row.id }));
+  assert.doesNotMatch(plain, /data-row-open=""|cursor-pointer/);
+  assert.equal((plain.match(/aria-label="Открыть/g) ?? []).length, 0);
+});
+
+test("StatTile: корень плитки — containing block для скрытой подписи «нет данных» (иначе на телефоне страница ползёт вбок)", () => {
+  const { StatTile } = kit();
+  for (const props of [{ label: "Оплаты", value: null }, { label: "Оплаты", value: null, href: "#x" }]) {
+    const html = renderToStaticMarkup(createElement(StatTile, props));
+    assert.match(html, /^<(?:div|a) [^>]*class="[^"]*\brelative\b[^"]*"[^>]*data-slot="stat-tile"|^<(?:div|a) data-slot="stat-tile"[^>]*class="[^"]*\brelative\b/u, "корень data-slot=stat-tile — relative");
+    assert.match(html, /sr-only">нет данных/);
+  }
+});
+
+test("DetailSheet: фокус при открытии — на название, рамка области внутри; DESIGN.md называет итоговые свойства набора", () => {
+  const sheet = read("src/components/kit/DetailSheet.tsx");
+  assert.match(sheet, /onOpenAutoFocus=\{\(event\) => \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?heading\.current\?\.focus\(\{ preventScroll: true \}\)/, "фокус уходит на название, а не на область с tabIndex=0");
+  assert.match(sheet, /<SheetTitle ref=\{heading\} tabIndex=\{-1\}[^>]*focus-visible:outline-none!/, "название принимает фокус скриптом и рамки не рисует");
+  assert.match(sheet, /className: "focus-visible:-outline-offset-2! focus-visible:shadow-none!"/, "рамка прокручиваемой области — внутри панели");
+  assert.match(sheet, /panel\.contains\(document\.activeElement\)\) return;/, "кто уже поставил фокус внутрь панели, того не трогаем");
+  const design = read("DESIGN.md");
+  assert.match(design, /DetailSheet\(\{[^\n]*onOpenChange\?, onCloseAutoFocus\?, footer\?/, "DESIGN.md: onCloseAutoFocus у DetailSheet");
+  assert.match(design, /`event\.preventDefault\(\)` оставляет фокус и прокрутку на месте/);
+  assert.match(design, /SectionTabs\(\{[^\n]*className\?, focusable\? \}\)/, "DESIGN.md: focusable у SectionTabs");
+  assert.match(design, /`focusable` \(только для ряда ссылок\)/);
+  assert.match(design, /DataTable<T>\(\{[^\n]*onRowClick\?, getRowLabel\?,/, "DESIGN.md: getRowLabel у DataTable");
+  assert.match(design, /`meta\.opensRow: true`/);
+  assert.match(design, /`meta\.wide`/);
+});
+
+test("прежние строки очередей: каждый класс — целое слово, а не обрывок шаблона вплотную к ${…} (Tailwind читает только целые слова)", () => {
+  const { Scanner } = createRequire(import.meta.url)("@tailwindcss/oxide");
+  const candidates = (file) => {
+    const base = new URL(`../${dirname(file)}`, import.meta.url).pathname;
+    return new Set(new Scanner({ sources: [{ base, pattern: file.split("/").pop(), negated: false }] }).scan());
+  };
+  for (const file of ["src/components/v3/today/TodayRow.tsx", "src/components/v3/tasks/TaskQueueRow.tsx"]) {
+    assert.doesNotMatch(read(file), /[A-Za-z0-9_\]\)-]\$\{\s*(?:w|wide)\(/u, `${file}: класс вплотную к интерполяции`);
+    assert.match(read(file), /joinClasses\(/u, `${file}: классы собирает joinClasses`);
+  }
+  // `.basis-0` была только здесь: без неё у «кто» прежней строки «Сегодня» flex-basis считался бы 0%, а не 0px.
+  assert.ok(candidates("src/components/v3/today/TodayRow.tsx").has("basis-0"), "TodayRow: basis-0 читается сборщиком");
+  assert.ok(candidates("src/components/v3/today/TodayRow.tsx").has("@min-[32rem]:order-1"));
+  // У прежней строки задач класс `gap-x-1` для широкого варианта никогда не попадал в CSS (он был приклеен к `${metaHidden}`): зазор строки —
+  // Tailwind v4 читает весь репозиторий (код, тесты, документы), и комментарии тоже: правило для широкого варианта этого `gap-x-1`
+  // не должно появиться нигде. Сам класс здесь собран из частей: написанный целиком, он породил бы правило из этого файла.
+  const wide = ["@min-[32rem]", "gap-x-1"].join(":");
+  const repo = new URL("..", import.meta.url).pathname;
+  const sources = ["src", "tests", "docs", "scripts"].map((dir) => ({ base: join(repo, dir), pattern: "**/*", negated: false }))
+    .concat({ base: repo, pattern: "*.md", negated: false });
+  assert.ok(!new Set(new Scanner({ sources }).scan()).has(wide), "широкая строка задач сохраняет gap-x-2, как на main: в CSS нет правила для широкого gap-x-1");
+  assert.doesNotMatch(read("src/components/v3/tasks/TaskQueueRow.tsx"), /gap-x-1\b/);
 });
 
 test("DetailSheet, HelpTip и примитивы: портал внутри корня нового вида, подписи и размеры целей", () => {

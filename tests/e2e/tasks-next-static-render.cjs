@@ -19,6 +19,8 @@
 const { mkdirSync, readFileSync, writeFileSync } = require("node:fs");
 const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
+const { rowA11yProblems } = require("./row-a11y-probe.cjs");
+const { lazySettled } = require("./lazy-settled.cjs");
 
 const ROOT = resolve(__dirname, "../..");
 const LOGO_URL = pathToFileURL(join(ROOT, "public/brand/evo-logo.png")).href;
@@ -330,6 +332,7 @@ async function main() {
     page.on("console", (message) => { if (message.type() === "error" && !/notifications\/state/u.test(message.text())) errors.push(message.text()); });
     await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
     await page.waitForSelector("html[data-ready=true]", { state: "attached", timeout: 15_000 });
+    await lazySettled(page);
     await page.evaluate(() => document.fonts.ready);
     return { context, page, errors };
   }
@@ -419,7 +422,8 @@ async function main() {
     await page.keyboard.press("Escape");
     await page.getByRole("dialog").waitFor({ state: "detached" });
     report(`${key}: panel closed by Esc and the address returns to the list`, (await pushes(page)).at(-1) === "/v3/tasks", await pushes(page));
-    report(`${key}: focus returns to the row after Esc`, await page.evaluate(() => { const active = document.activeElement; return Boolean(active && (active.closest("tr, li")?.textContent ?? "").includes("Согласовать шаблон письма")); }), await page.evaluate(() => document.activeElement?.tagName));
+    // Нажатие мышью по ячейке строки фокуса не даёт (строка не остановка клавиатуры); на телефоне нажата кнопка карточки, и фокус вернётся на неё.
+    if (key === "m390") report(`${key}: focus returns to the card after Esc`, await page.evaluate(() => { const active = document.activeElement; return Boolean(active && (active.closest("tr, li")?.textContent ?? "").includes("Согласовать шаблон письма")); }), await page.evaluate(() => document.activeElement?.tagName));
 
     // Задача по студенту: круг открывает панель, без результата не завершается.
     const caseTitle = "Записать на визу X1";
@@ -458,6 +462,42 @@ async function main() {
       report(`${key}: focus returns after the close button`, await page.evaluate(() => Boolean(document.activeElement && document.activeElement !== document.body)), await page.evaluate(() => document.activeElement?.tagName));
     }
     report(`${key}: panel flow console clean`, errors.length === 0, errors);
+    await context.close();
+  }
+
+  // 2b. Клавиатура и читалка: строка не остановка и не безымянный элемент; открывает запись ссылка-название; карточка телефона
+  // называет кнопку «Открыть: …», а не «Завершить …».
+  {
+    const { context, page, errors } = await open(pages.list, "d1280");
+    const { problems, rows, controls } = await rowA11yProblems(page);
+    report("d1280: rows are not tab stops and every focusable element in them has a role and a name", problems.length === 0 && rows > 1 && controls > 0, { problems, rows, controls });
+    report("d1280: no second open button next to the title link (the cell already has its own control)", (await page.locator("tbody [data-row-open]").count()) === 0 && (await page.locator("tbody tr[tabindex]").count()) === 0, await page.locator("tbody [data-row-open]").count());
+    const link = rowOf(page, "d1280", "Согласовать шаблон письма").getByRole("link", { name: "Согласовать шаблон письма" });
+    await link.focus();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    await shot(page, "row-focus-d1280");
+    await page.keyboard.press("Enter");
+    await page.getByRole("dialog").waitFor();
+    const landed = await page.evaluate(() => ({ slot: document.activeElement?.getAttribute("data-slot"), region: document.activeElement?.getAttribute("role") }));
+    report("d1280: opening from the keyboard puts focus on the panel title, not on a frame around its body", landed.slot === "sheet-title" && landed.region !== "region", landed);
+    await shot(page, "sheet-keyboard-d1280");
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+    await page.waitForTimeout(80);
+    report("d1280: focus returns to the title link after Esc", await link.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement?.tagName));
+    report("d1280: keyboard flow console clean", errors.length === 0, errors);
+    await context.close();
+  }
+  {
+    const { context, page, errors } = await open(pages.list, "m390");
+    const names = await page.evaluate(() => [...document.querySelectorAll("[data-slot=data-table-cards] > li")].filter((card) => card.getClientRects().length > 0).map((card) => [...card.querySelectorAll("button, a")].map((control) => control.getAttribute("aria-label") || control.textContent.trim())));
+    const opens = names.map((list) => list.filter((name) => name.startsWith("Открыть: ")));
+    report("m390: every card has exactly one button named «Открыть: <задача>»", names.length > 0 && opens.every((list) => list.length === 1), opens);
+    const twice = names.flatMap((list) => list).filter((name) => /^Открыть: /u.test(name)).filter((name) => { const title = name.slice("Открыть: ".length); return name.split(title).length > 2; });
+    report("m390: the open name says the title once and carries no completion wording", twice.length === 0 && opens.flat().every((name) => !/Завершить/u.test(name)), { twice, opens: opens.flat().slice(0, 3) });
+    report("m390: the completion buttons keep their own names", names.every((list) => list.filter((name) => /^Завершить/u.test(name)).length <= 1), names.slice(0, 3));
+    report("m390: console clean (card names)", errors.length === 0, errors);
     await context.close();
   }
 

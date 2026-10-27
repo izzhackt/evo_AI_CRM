@@ -1,7 +1,7 @@
 import "../../ai-agents.css";
 
 import { AgentsHub } from "@/components/v3/ai-agents/AgentsHub";
-import { NextAgentsView } from "@/components/v3/ai-agents-next/NextAgentsView";
+import { NextAgentsViewLazy } from "@/components/v3/ai-agents-next/NextAgentsLazy";
 import { NotReady, PreviewLine, Unavailable } from "@/components/v3/ai-agents/Notices";
 import { PartShell } from "@/components/v3/PartShell";
 import { isStaffPreview } from "@/lib/platform-access";
@@ -32,7 +32,7 @@ export default async function AiAgentsPage() {
     try { await reconcileAiAgentRuns({ staffClient: await createSupabaseServerClient(), actor }, {}); } catch { /* сверка ленивая */ }
   }
   const list = await readAiAgents(actor);
-  if (await isNextUi(actor)) return <NextAgentsView read={list} runtimeConfigured={runtime.configured} preview={preview} />;
+  if (await isNextUi(actor)) return <NextAgentsViewLazy read={list} runtimeConfigured={runtime.configured} preview={preview} />;
 
   return (
     <PartShell title="ИИ-агенты" testId="v3-ai-agents">

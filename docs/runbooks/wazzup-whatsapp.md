@@ -149,22 +149,24 @@ env-файл, задачи EVO и скриншоты не отправлять; 
 **Номера событий для A6 — это события A2 и A5, а не «последние в таблице».** После `webhooks-patch --on` на номер продаж идёт
 живой трафик (около 850 входящих в сутки и ответы продавцов): два самых новых события — чаты настоящих клиентов, а A2 с A5
 (текст, фото, голосовое) дают не меньше трёх событий. Повтор чужих событий в приём — это запись настоящих клиентских чатов в
-production-приём, и при сломанном дедупе (именно его проверяет A6) в чатах появились бы дубли. Поэтому номера выбираются по беседе
-**тестового клиента** и окну времени отправки A2–A5, только входящие (ответы продавцов — `staff_echo` — не нужны), и печатаются только
-идентификаторы (ни текстов, ни номеров чатов):
+production-приём, и при сломанном дедупе (именно его проверяет A6) в чатах появились бы дубли. Поэтому номера выбираются по **беседе**
+тестового клиента и окну времени отправки A2–A5, только входящие (ответы продавцов — `staff_echo` — не нужны), и печатаются только
+идентификаторы (ни текстов, ни номеров чатов). Номер беседы виден оператору в адресе Inbox: после A2 открыть этот чат в «WhatsApp»
+(проверить по имени тестового клиента, шаг 7 раздела 5), в адресе `/v3/inbox?conversation=<id>` — нужный `<id>`. **Не брать число из адреса
+карточки** (`/v3/profile?id=…` — это номер лида, не беседы и не клиента): с ним запрос не найдёт ничего, и счёт ниже покажет `0`.
 
 ```bash
-CLIENT=<id тестового клиента из шага 7 раздела 5 (из адреса его карточки)>
+CONV=<id беседы тестового клиента: значение conversation= из адреса /v3/inbox?conversation=…>
 T0='<UTC, до отправки «EVO тест 1», например 2026-10-27T10:00:00Z>'
 T1='<UTC, после голосового из A5>'
 IDS=$(docker exec -i evo-supabase-db psql -U supabase_admin -d postgres -X -A -t -v ON_ERROR_STOP=1 \
-  -v test_client="$CLIENT" -v window_from="$T0" -v window_to="$T1" <<'SQL'
+  -v test_conversation="$CONV" -v window_from="$T0" -v window_to="$T1" <<'SQL'
 -- A6_EVENT_IDS_BEGIN
 select distinct b.source_webhook_event_id
   from platform.communication_conversations c
   join platform.communication_messages m on m.organization_id = c.organization_id and m.conversation_id = c.id
   join platform_private.wazzup_message_bindings b on b.organization_id = m.organization_id and b.communication_message_id = m.id
- where c.canonical_client_id = :'test_client'::uuid
+ where c.id = :'test_conversation'::uuid
    and c.wazzup_channel_id is not null
    and b.kind = 'inbound'
    and m.created_at >= :'window_from'::timestamptz and m.created_at < :'window_to'::timestamptz
@@ -173,7 +175,7 @@ select distinct b.source_webhook_event_id
 ;
 SQL
 )
-printf '%s\n' "$IDS" | grep -c .       # не меньше трёх (A2 + фото и голосовое A5); меньше - клиент или окно неверны: не продолжать
+printf '%s\n' "$IDS" | grep -c .       # не меньше трёх (A2 + фото и голосовое A5); меньше - беседа или окно неверны: не продолжать
 ```
 
 Все найденные номера подставляются в команду, ни один не отбрасывается и ни один чужой не добавляется:
@@ -428,18 +430,20 @@ Wazzup — `transport_inactive`. Если прочитать путь не
 - **Аварийный стоп:** выпуск в окне с `EVO_PLATFORM_WAZZUP_INGRESS_ENABLED=0` (процедура **Р**).
 - **Edge** (правка раздела 6 прошла, но `reload` дал сбой маршрутизации, смоук разошёлся или запись оборвалась): вернуть бэкап в тот
   же inode, `validate`, `reload`, смоук. Блок самодостаточен (новая ssh-сессия не мешает), ничего не пишет, пока `BK` не указывает на
-  непустой бэкап с хостом `crm.evoadmissions.com` (нужный `BK` — файл, созданный в п. 3 раздела 6, тот же, что напечатал блок «бэкап:»);
+  непустой бэкап с хостом `crm.evoadmissions.com` (нужный `BK` — файл, созданный в п. 3 раздела 6, тот же, что напечатал блок «бэкап:»),
+  и не делает `reload`, пока этот же запуск не дал «validate: OK» на восстановленном файле (`RESTORED` обнуляется в начале блока, так что
+  значение от прежнего запуска не считается; без `BK` блок печатает «СТОП» и reload не вызывает);
   `wz_smoke` и `edge-smoke.wazzup.before` — из раздела 6 (в новой ssh-сессии сначала снова вставить определение `wz_smoke` из п. 2):
   ```bash
-  E=evo-edge-caddy; B=/root/evo-config-backups
+  E=evo-edge-caddy; B=/root/evo-config-backups; RESTORED=
   LIVE=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/etc/caddy/Caddyfile"}}{{.Source}}{{end}}{{end}}' "$E" 2>/dev/null)
   [ -n "${BK:-}" ] || { echo "BK не задан; бэкапы (новые сверху):"; ls -1t "$B"/Caddyfile.evo-edge.* 2>/dev/null | head -5; echo "задать BK=<нужный файл> и повторить блок"; }
   [ -n "$LIVE" ] && [ -f "$LIVE" ] && [ -n "${BK:-}" ] && [ -s "$BK" ] && grep -q 'crm[.]evoadmissions[.]com' "$BK" \
    && cp "$BK" "$LIVE" && cmp -s "$BK" "$LIVE" && echo "файл восстановлен из $BK" \
-   && docker exec "$E" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 && echo "validate: OK" \
-   || echo "СТОП: восстановление не выполнено или validate не прошёл - ничего больше не делать вслепую, сообщить владельцу (общий edge)"
-  docker exec "$E" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1 | tail -n 3
-  [ "${PIPESTATUS[0]}" = 0 ] || echo "СТОП: reload не прошёл - прежний конфиг продолжает работать"
+   && docker exec "$E" caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1 && RESTORED=1 && echo "validate: OK" \
+   || echo "СТОП: восстановление не выполнено или validate не прошёл - reload НЕ выполнять, ничего больше не делать вслепую, сообщить владельцу (общий edge)"
+  [ -n "$RESTORED" ] && docker exec "$E" caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1 | tail -n 3
+  [ "${PIPESTATUS[0]}" = 0 ] || echo "СТОП: reload не выполнен (нет восстановления с validate: OK в этом запуске) или не прошёл - работает прежний загруженный конфиг; задать верный BK и повторить блок"
   wz_smoke | diff /root/evo-golive/edge-smoke.wazzup.before -        # без различий
   ```
   Без обработчика маршрут Wazzup идёт через общий прокси: нет предела 1 МиБ на edge, нет удержания на время выпуска и **токен снова

@@ -9,6 +9,7 @@ import { DataTablePagination } from "@/components/kit/DataTablePagination";
 import { DataTableToolbar } from "@/components/kit/DataTableToolbar";
 import { dataTableFeatures, type DataTableColumn } from "@/components/kit/data-table-core";
 import { EmptyState } from "@/components/kit/EmptyState";
+import { useReportVisibleIds } from "@/components/kit/useReportVisibleIds";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
@@ -22,6 +23,7 @@ import { cn } from "@/lib/utils";
  * `paginate={false}` — все присланные строки сразу, без полосы страниц и без «из N»: для списка, который сервер уже
  * ограничил («последние 30») или разбил на страницы своими ссылками («Следующая страница»); экран не называет общим
  * числом то, что получил, не ставит второй листатель и не сбрасывает номер страницы при каждой новой выдаче сервера.
+ * `onVisibleIdsChange` — строки на экране после поиска и страницы («все на странице» считают их); `partial` — данные неполные.
  */
 export function DataTable<T extends RowData>({
   label,
@@ -36,6 +38,8 @@ export function DataTable<T extends RowData>({
   empty,
   toolbar,
   columnMenu = true,
+  onVisibleIdsChange,
+  partial = false,
   className,
 }: Readonly<{
   label: string;
@@ -53,6 +57,10 @@ export function DataTable<T extends RowData>({
   toolbar?: React.ReactNode;
   /** Меню «Колонки» (скрыть/показать); у таблицы из двух-трёх колонок оно лишнее. */
   columnMenu?: boolean;
+  /** Ключи (`getRowId`) строк на экране, в порядке показа; зовётся, когда набор изменился. Функция должна быть устойчивой. */
+  onVisibleIdsChange?: (ids: readonly string[]) => void;
+  /** Данные — неполная выборка: «1–25» без «из N», чтобы не выдать неполное число за итог. */
+  partial?: boolean;
   className?: string;
 }>) {
   const table = useTable(
@@ -61,6 +69,7 @@ export function DataTable<T extends RowData>({
   );
   const search = String(table.state.globalFilter ?? "");
   const rows = table.getRowModel().rows;
+  useReportVisibleIds(rows.map((row) => row.id), onVisibleIdsChange);
   const matches = table.getPrePaginatedRowModel().rows.length;
   const open = onRowClick ? (row: T) => onRowClick(row) : undefined;
   const cards: CardRow[] = rows.map((row) => ({
@@ -124,7 +133,7 @@ export function DataTable<T extends RowData>({
         </div>
         <DataTableCards rows={cards} loading={loading} />
         {loading || !paginate ? null : (
-          <DataTablePagination total={matches} pageIndex={table.state.pagination.pageIndex} pageSize={table.state.pagination.pageSize} pageCount={table.getPageCount()} onPageSize={(size) => table.setPageSize(size)} onPrevious={() => table.previousPage()} onNext={() => table.nextPage()} />
+          <DataTablePagination total={matches} totalKnown={!partial} pageIndex={table.state.pagination.pageIndex} pageSize={table.state.pagination.pageSize} pageCount={table.getPageCount()} onPageSize={(size) => table.setPageSize(size)} onPrevious={() => table.previousPage()} onNext={() => table.nextPage()} />
         )}
       </>
     );

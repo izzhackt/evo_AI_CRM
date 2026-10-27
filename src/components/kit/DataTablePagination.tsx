@@ -6,9 +6,13 @@ import { PAGE_SIZES } from "@/components/kit/data-table-core";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-/** «11–20 из 57», размер страницы и стрелки. Одна страница — полосы нет (нечего листать). */
+/**
+ * «11–20 из 57», размер страницы и стрелки. Одна страница — полосы нет (нечего листать). Общее число неизвестно
+ * (`totalKnown = false`, данные неполные) — «11–20» без «из N».
+ */
 export function DataTablePagination({
   total,
+  totalKnown = true,
   pageIndex,
   pageSize,
   pageCount,
@@ -17,6 +21,7 @@ export function DataTablePagination({
   onNext,
 }: Readonly<{
   total: number;
+  totalKnown?: boolean;
   pageIndex: number;
   pageSize: number;
   pageCount: number;
@@ -30,7 +35,7 @@ export function DataTablePagination({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3" data-slot="data-table-pagination">
       <p className="t-body-compact tabular-nums text-fg-2" aria-live="polite">
-        {from}–{to} из {total}
+        {from}–{to}{totalKnown ? ` из ${total}` : ""}
       </p>
       <div className="flex items-center gap-2">
         <Select value={String(pageSize)} onValueChange={(value) => onPageSize(Number(value))}>

@@ -51,7 +51,7 @@ EVO под `.v3-world[data-surface="staff"][data-ui="next"]`; шрифт — Gol
   `null` рисует «—»; цвет только у числа.
 - `KeyFacts({ facts: { label, value: ReactNode }[], columns?: 1 | 2 | 3 | 4, className? })` — пустые значения не рисуются;
   две колонки — от 28rem блока (в панели на телефоне значения идут столбцом: почта не рвётся посреди домена).
-- `DataTable<T>({ label, data, columns: DataTableColumn<T>[], getRowId?, onRowClick?, searchPlaceholder?, pageSize?: 10 | 25 | 50, paginate?: boolean, loading?, empty?, toolbar?, columnMenu?, className? })` —
+- `DataTable<T>({ label, data, columns: DataTableColumn<T>[], getRowId?, onRowClick?, searchPlaceholder?, pageSize?: 10 | 25 | 50, paginate?: boolean, loading?, empty?, toolbar?, columnMenu?, onVisibleIdsChange?, partial?, className? })` —
   колонка TanStack (`accessorKey`/`accessorFn`, `header`, `cell`, `enableHiding`) с `meta: { label?, mobile?: "title" | "hide", align?: "end" }`;
   сортировка по заголовку, общий поиск, меню колонок, страницы, прилипшая шапка, пустое и загрузка; меньше 768 px — карточки
   (заголовок карточки — колонка с `mobile: "title"`, под ним до трёх данных). `label` — имя прокручиваемой области.
@@ -59,6 +59,9 @@ EVO под `.v3-world[data-surface="staff"][data-ui="next"]`; шрифт — Gol
   рядом пишут «Показаны последние N» и называют поиск поиском среди показанных) или уже разбил на страницы своими ссылками
   («Предыдущая/Следующая страница»; иначе две «Следующая страница» и ложное «1–50 из 50»). Ответ длинного текста на телефоне —
   вторая строка составной ячейки-заголовка (`md:hidden`), а не правый столбец «подпись — значение».
+  Таблица рисует каждую строку дважды (таблица и карточки, виден один вариант): клавиши очереди и фокус берут видимую копию (`isRendered`).
+  `onVisibleIdsChange(ids)` — какие строки на экране после поиска и страницы (устойчивая функция): «все на странице» и массовый выбор считают их,
+  а не все данные. `partial` — чтение неполное: «1–25» без «из N» (честные числа).
 - `DetailSheet({ title, description?, help?, helpLabel?, trigger?, open?, onOpenChange?, footer?, side?: "right" | "bottom", children })` —
   существующие формы и серверные действия вкладываются внутрь как есть.
 - `SectionTabs({ label, tabs: { key, label, count?, href?, content? }[], value?, defaultValue?, onValueChange?, className? })` —

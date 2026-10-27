@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { mutateStaffTaskAction } from "@/lib/platform-staff-task-actions";
 
 import type { UndoToastItem } from "../blocks/UndoToast";
-import { queueFocusAfterRemoval } from "../queue/queue-navigation";
+import { isRendered, queueFocusAfterRemoval } from "../queue/queue-navigation";
 import { STAFF_ERROR_COPY, staffStatusForm } from "./task-commands";
 import type { RecentCompletion } from "./TaskQueueRow";
 import { resumedUndoDeadline } from "./undo-deadline";
@@ -40,7 +40,7 @@ export type RecentEntry<Row> = Readonly<RecentCompletion & { row: Row; band: str
 function keepFocusInList(gone: ReadonlySet<string>, expiring: ReadonlySet<string>) {
   const active = document.activeElement;
   const undo = active instanceof HTMLElement && active.matches("[data-queue-undo]") ? active : null;
-  const rows = [...document.querySelectorAll<HTMLElement>("[data-queue-row]")];
+  const rows = [...document.querySelectorAll<HTMLElement>("[data-queue-row]")].filter(isRendered);
   const row = undo ? rows.find((element) => element.dataset.queueRow === undo.dataset.undoRow) ?? null : null;
   const current = row?.dataset.queueRow;
   if (!row || !current || !expiring.has(current)) return;
@@ -192,8 +192,8 @@ export function useUndoToasts<Row>(
           setUndoState((current) => ({ ...current, [key]: { completedAt, pending: false, error: failure } }));
           // Задача снова открыта: фокус — на её круг выполнения.
           if (!failure) {
-            requestAnimationFrame(() => document.querySelector<HTMLElement>(
-              `[data-queue-row="${CSS.escape(key)}"] button[aria-label^="Завершить"]`)?.focus());
+            requestAnimationFrame(() => [...document.querySelectorAll<HTMLElement>(
+              `[data-queue-row="${CSS.escape(key)}"] button[aria-label^="Завершить"]`)].find(isRendered)?.focus());
           }
         });
       },

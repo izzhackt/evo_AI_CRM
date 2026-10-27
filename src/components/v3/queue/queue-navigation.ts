@@ -15,6 +15,15 @@ export function nextQueueIndex(count: number, current: number, selected: number,
   return Math.min(count - 1, Math.max(0, from + step));
 }
 
+/**
+ * Элемент сейчас на экране: у скрытого (`display: none`, в том числе предком) нет прямоугольников. Таблица «Нового
+ * вида» рисует каждую строку дважды — таблицей и карточкой телефона, и виден один вариант: клавиши очереди, возврат
+ * фокуса и выбор строки работают только с видимым.
+ */
+export function isRendered(element: Readonly<{ getClientRects(): ArrayLike<unknown> }>): boolean {
+  return element.getClientRects().length > 0;
+}
+
 /** Липкий заголовок группы закрывает верх окна: строка под ним не считается видимой. */
 export const QUEUE_REVEAL_TOP_PX = 48;
 

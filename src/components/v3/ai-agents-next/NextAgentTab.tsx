@@ -18,7 +18,6 @@ import { NextRules } from "./NextRules";
 import { NextRunDetail } from "./NextRunDetail";
 import { NextRuns } from "./NextRuns";
 import { NextSettings } from "./NextSettings";
-import { NextSyncCard } from "./NextSyncCard";
 
 function failure(read: TabRead<unknown>, what: string, retryHref: string) {
   return read.status === "not_ready" ? <NextNotReady /> : <NextUnavailable what={what} retryHref={retryHref} denied={read.status === "denied"} />;
@@ -96,7 +95,7 @@ export function NextAgentTab({ props, gate }: Readonly<{ props: AgentBodyProps; 
             spentTodayCents: props.whatsappCapState?.spentCents ?? spentTodayCents(detail.charts.spendPerDay, Date.parse(now)),
             reservedCents: props.whatsappCapState?.reservedCents ?? 0,
           } : null}
-          extra={<NextSyncCard agentKey={key} sync={detail.sync} needsSync={needsSync} runtimeConfigured={runtimeConfigured} hasInstructions={hasInstructions} canEdit={canEdit && !preview} now={now} />}
+          sync={{ agentKey: key, sync: detail.sync, needsSync, runtimeConfigured, hasInstructions, canEdit: canEdit && !preview, now }}
         />
       );
   }

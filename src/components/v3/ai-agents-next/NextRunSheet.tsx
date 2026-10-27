@@ -47,8 +47,8 @@ export function NextRunSheetBody({
       ]} />
       {run.promptPreview ? (
         <section>
-          <h3 className="t-caption text-fg-3">Поручение</h3>
-          <p className="whitespace-pre-wrap break-words t-body-compact text-fg">{run.promptPreview}</p>
+          {run.triggerKind === "command" ? null : <h3 className="t-caption text-fg-3">Поручение</h3>}
+          <p className="whitespace-pre-wrap break-words t-body text-fg">{run.promptPreview}</p>
         </section>
       ) : null}
       {run.summary ? (

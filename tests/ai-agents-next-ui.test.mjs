@@ -66,6 +66,8 @@ import { NextAgentsView } from "@/components/v3/ai-agents-next/NextAgentsView";
 import { NextAgentSwitches } from "@/components/v3/ai-agents-next/NextAgentSwitches";
 import { NextOverview } from "@/components/v3/ai-agents-next/NextOverview";
 import { NextSettings } from "@/components/v3/ai-agents-next/NextSettings";
+import { NextRunSheetBody } from "@/components/v3/ai-agents-next/NextRunSheet";
+import { DraftCard } from "@/components/v3/ai-agents/DraftCard";
 import { agentGate } from "@/components/v3/ai-agents-next/agent-gate";
 export const html = {
   hubPage: async (world) => { globalThis.__world = world; return renderToStaticMarkup(await HubPage()); },
@@ -77,6 +79,8 @@ export const html = {
   switches: (props) => renderToStaticMarkup(<NextAgentSwitches {...props} />),
   overview: (props) => renderToStaticMarkup(<NextOverview {...props} />),
   settings: (props) => renderToStaticMarkup(<NextSettings {...props} />),
+  runSheet: (props) => renderToStaticMarkup(<NextRunSheetBody {...props} />),
+  draftCard: (props) => renderToStaticMarkup(<DraftCard {...props} />),
   agentGate,
 };
 `;
@@ -303,11 +307,28 @@ test("«Обзор»: плитки, последний отчёт, график�
   assert.match(never, /Запусков ещё не было/u);
   assert.match(never, /Поручить первую задачу/u);
   assert.equal((never.match(/data-slot="stat-tile"/gu) ?? []).length, 0, "у не работавшего агента нет четырёх нулевых плиток");
+  assert.doesNotMatch(page, /Что делает агент\s*<span/u, "на кнопке нет числа без единицы: вызовы за 30 дней названы в панели");
+  assert.match(read("src/components/v3/ai-agents-next/NextOverviewSheets.tsx"), /Вызовы инструментов за 30 дней: \$\{total\}/u, "единица и период — в описании панели, а не на кнопке");
+});
+
+test("«Работа агента»: выключенный агент — одно предупреждение, а не по одному под каждым фактом; один факт занимает всю ширину", async () => {
+  const { nextPage } = await views();
+  const off = F.detail("director", { enabled: false, triggerWebsiteLead: true, triggerWhatsappInbound: true });
+  const both = strip(nextPage(F.bodyProps("overview", { detail: off })));
+  assert.equal((both.match(/Агент выключен — не запускается\./gu) ?? []).length, 1, "расписание и события, а предупреждение одно");
+  assert.match(both, /Расписание[\s\S]*Реагирует на события[\s\S]*Агент выключен — не запускается\./u, "одна строка под обоими фактами");
+  assert.match(both, /<dl class="grid gap-x-4 gap-y-3 grid-cols-2"/u, "два факта — по половине");
+  const single = strip(nextPage(F.bodyProps("overview", { detail: F.detail("director", { enabled: false }) })));
+  assert.equal((single.match(/Агент выключен — не запускается\./gu) ?? []).length, 1);
+  assert.match(single, /<dl class="grid gap-x-4 gap-y-3 grid-cols-1"/u, "один факт (расписание) — на всю ширину, а не в половине");
+  const nothing = strip(nextPage(F.bodyProps("overview", { detail: F.detail("director", { enabled: false, scheduleCron: null }) })));
+  assert.doesNotMatch(nothing, /Агент выключен — не запускается\./u, "нечего не запускать — предупреждения нет");
+  assert.doesNotMatch(strip(nextPage(F.bodyProps("overview"))), /Агент выключен/u, "включённый — без предупреждения");
 });
 
 test("«История работы»: таблица запусков, строка открывает панель; карточки телефона; «Показать ещё» — прежним адресом", async () => {
   const { nextPage } = await views();
-  const page = strip(nextPage(F.bodyProps("runs")));
+  const page = strip(nextPage(F.bodyProps("runs", { runs: F.available({ runs: F.RUNS_MANY, hasMore: true }) })));
   assert.match(page, /data-slot="data-table"/u);
   assert.match(page, /role="region"[^>]*aria-label="История работы агента"/u);
   assert.match(page, /Подготовь недельный отчёт за прошлую неделю/u);
@@ -315,6 +336,17 @@ test("«История работы»: таблица запусков, стро
   assert.match(page, /Дневной лимит на WhatsApp исчерпан/u, "причина остановки — словами, а не пустой итог");
   assert.match(page, /href="\/v3\/ai-agents\/director\?tab=runs&amp;limit=60"/u, "тот же шаг чтения, что раньше");
   assert.match(page, /data-slot="data-table-cards"/u, "карточки для телефона рядом с таблицей");
+  // Сервер отдал «последние 30 и есть ещё»: один листатель, без «1–25 из 30», поиск назван поиском среди показанных.
+  assert.equal((page.match(/<tbody[\s\S]*?<\/tbody>/u)[0].match(/<tr/gu) ?? []).length, 30, "все загруженные запуски — без страниц таблицы");
+  assert.doesNotMatch(page, /data-slot="data-table-pagination"|\d+–\d+ из \d+/u, "общего числа и второго листателя нет");
+  assert.match(page, /data-testid="v3-aia-runs-more"[\s\S]*Показать ещё[\s\S]*Показаны последние 30 запусков/u);
+  assert.match(page, /placeholder="Поиск среди показанных"/u);
+  const whole = strip(nextPage(F.bodyProps("runs")));
+  assert.doesNotMatch(whole, /Показать ещё|Показаны последние|data-testid="v3-aia-runs-more"/u, "загружено всё — ни кнопки, ни оговорки");
+  assert.match(whole, /placeholder="Поиск по поручениям"/u);
+  const capped = strip(nextPage(F.bodyProps("runs", { runsLimit: 120, runs: F.available({ runs: F.RUNS_MANY, hasMore: true }) })));
+  assert.doesNotMatch(capped, /Показать ещё/u, "потолок чтения — кнопки нет");
+  assert.match(capped, /Показаны последние 30 запусков/u, "а оговорка остаётся: показано не всё");
   const empty = strip(nextPage(F.bodyProps("runs", { runs: F.available({ runs: [], hasMore: false }) })));
   assert.match(empty, /Запусков ещё не было/u);
   assert.match(empty, /href="\/v3\/ai-agents\/director"[^>]*>Поручить/u);
@@ -347,6 +379,23 @@ test("«На одобрение»: ряд «Ждут решения · Все»,
   assert.doesNotMatch(page, /data-testid="v3-aia-draft"/u, "карточка черновика — в панели, не в списке");
   assert.doesNotMatch(page, /data-testid="v3-aia-drafts-readonly"/u);
   assert.match(strip(nextPage(F.bodyProps("drafts", { canManage: false }))), /data-testid="v3-aia-drafts-readonly"[\s\S]*Решает сотрудник с правом управлять ИИ-агентами\./u);
+  // Риск виден в строке, не открывая её: здоровый черновик — слово «Ждёт решения», без строк; остался в очереди — с причиной; срок близок — с «действует до».
+  const rows = page.match(/<tbody[\s\S]*?<\/tbody>/u)[0].match(/<tr[\s\S]*?<\/tr>/gu);
+  assert.equal(rows.length, 3, "под «Ждут решения» — только ждущие, как отдаёт сервер");
+  assert.doesNotMatch(rows[0], /Остаётся в очереди|действует до/u);
+  assert.match(rows[1], /data-testid="v3-aia-draft-note"[^>]*>Остаётся в очереди: WhatsApp сейчас не подключён/u);
+  assert.match(rows[2], /data-testid="v3-aia-draft-expires"[^>]*>действует до /u);
+  assert.match(page, /placeholder="Поиск по черновикам"/u);
+  assert.doesNotMatch(page, /data-slot="data-table-pagination"|\d+–\d+ из \d+|v3-aia-drafts-capped/u, "список ограничен сервером: ни «из N», ни второго листателя");
+  assert.match(page.match(/<ul class="grid gap-2 md:hidden"[\s\S]*?<\/ul>/u)[0], /line-clamp-2 break-words t-meta text-fg-3 md:hidden">Здравствуйте!/u, "на телефоне ответ агента — вторая строка заголовка карточки");
+  const all = strip(nextPage(F.bodyProps("drafts", { draftsFilter: "all" })));
+  assert.match(all, /Отправлен<\/span>/u, "вкладка «Все» показывает и решённые");
+  // Сервер отдаёт последние 50: когда в очереди больше, экран так и говорит и не называет 50 общим числом.
+  const big = { drafts: F.DRAFTS.drafts, counts: { ...F.DRAFTS.counts, pending: 140 } };
+  const capped = strip(nextPage(F.bodyProps("drafts", { drafts: F.available(big) })));
+  assert.match(capped, /data-testid="v3-aia-drafts-capped"[^>]*>Показаны последние 3 из 140/u);
+  assert.match(capped, /placeholder="Поиск среди показанных"/u);
+  assert.match(capped, /Ждут решения<span[^>]*>140<\/span>/u, "число на вкладке — настоящее");
   const none = strip(nextPage(F.bodyProps("drafts", { drafts: F.available({ drafts: [], counts: { pending: 0, approved: 0, sending: 0, sent: 0, discarded: 0, failed: 0, expired: 0 } }) })));
   assert.match(none, /Нет черновиков, которые ждут решения\./u);
   assert.doesNotMatch(none, /Ждут решения<span/u, "ряда нет, пока черновиков не было вообще");
@@ -364,7 +413,9 @@ test("«Правила агента» и «Настройки»: карточк�
   assert.doesNotMatch(readOnly, /<textarea/u);
   assert.match(readOnly, /aria-label="Текст правил агента"/u);
   const settings = strip(nextPage(F.bodyProps("settings")));
-  for (const title of ["Модель и расход", "Расписание и события", "Агент в Claude", "Синхронизация с Claude"]) assert.match(settings, new RegExp(title, "u"), title);
+  for (const title of ["Модель и расход", "Расписание и события", "Синхронизация с Claude"]) assert.match(settings, new RegExp(title, "u"), title);
+  assert.equal((settings.match(/>Технические данные</gu) ?? []).length, 1, "одна кнопка «Технические данные»: ID агента правится в её панели, пустой карточки «Агент в Claude» нет");
+  assert.doesNotMatch(settings, /<h[23][^>]*>Агент в Claude</u);
   assert.match(settings, /Сохранить настройки/u);
   assert.match(settings, /Лимит на WhatsApp/u, "дневной лимит остаётся на виду");
   assert.doesNotMatch(settings, /0 — без потолка\./u, "пояснение к потолку — за «?»");
@@ -374,6 +425,56 @@ test("«Правила агента» и «Настройки»: карточк�
   assert.match(read, /Параметры агента/u);
   assert.doesNotMatch(read, /Параметры меняет системный администратор\./u, "пояснение — за «?»");
   assert.doesNotMatch(read, /data-testid="v3-aia-settings-save"/u);
+});
+
+test("«Своё расписание (cron)»: кнопка открывает поле, а когда расписание уже своё — поле стоит всегда и мёртвой кнопки нет", async () => {
+  const { nextPage } = await views();
+  const normal = strip(nextPage(F.bodyProps("settings")));
+  assert.match(normal, /aria-expanded="false"[^>]*>Своё расписание \(cron\)/u, "обычное расписание: кнопка есть и поле закрыто");
+  assert.doesNotMatch(normal, /id="aia-cron"/u);
+  const custom = strip(nextPage(F.bodyProps("settings", { detail: F.detail("director", { scheduleCron: "5 4 1 * *" }) })));
+  assert.match(custom, /id="aia-cron"/u, "своё расписание: поле на месте");
+  assert.doesNotMatch(custom, /Своё расписание \(cron\)/u, "кнопка, которая ничего не сворачивает, не рисуется");
+});
+
+test("панель запуска: у поручения нет подписи «Поручение» под заголовком «Поручение»; поручение и итог одного размера", async () => {
+  const { runSheet } = await views();
+  const props = { agentKey: "director", viewerName: F.ACTOR.displayName, canAct: true, canStopAny: true, canRun: true };
+  const command = strip(runSheet({ ...props, run: F.RUNS[0] }));
+  assert.doesNotMatch(command, /<h3[^>]*>Поручение<\/h3>/u, "для поручения подпись лишняя: заголовок панели уже «Поручение»");
+  assert.match(command, /<p class="[^"]*t-body text-fg">Подготовь недельный отчёт/u, "поручение — тем же кеглем, что итог агента");
+  assert.doesNotMatch(command, /t-body-compact text-fg">Подготовь/u);
+  const scheduled = strip(runSheet({ ...props, run: F.RUNS[1] }));
+  assert.match(scheduled, /<h3[^>]*>Поручение<\/h3>/u, "у запуска не по поручению заголовок панели другой, подпись остаётся");
+});
+
+test("карточка черновика в панели: без рамки и повторного заголовка, состояние и ссылка на переписку остаются; прежний вид не изменился", async () => {
+  const { draftCard } = await views();
+  const CONVERSATION = "11111111-1111-4111-8111-0000000000c2";
+  const draft = { ...F.DRAFTS_ALL.drafts[1], conversationId: CONVERSATION };
+  const props = { draft, canManage: true, now: F.NOW };
+  const legacy = strip(draftCard(props));
+  const bare = strip(draftCard({ ...props, bare: true }));
+  assert.match(legacy, /<article class="rounded-card border border-border bg-surface p-4"/u, "прежняя карточка — как была");
+  assert.match(legacy, /<h3 id="aia-draft-dr-2"[^>]*>WhatsApp · <a[^>]*>Клиент Синтетический 2<\/a><\/h3>/u);
+  assert.doesNotMatch(bare, /<article class=|<h3|Клиент Синтетический 2<\/a>/u, "ни рамки, ни заголовка с адресатом: он в заголовке панели");
+  assert.match(bare, /Ждёт решения/u, "слово состояния остаётся");
+  assert.match(bare, new RegExp(`href="/v3/inbox\\?conversation=${CONVERSATION}"[^>]*>Открыть чат`, "u"), "переписка по-прежнему в один шаг");
+  assert.match(bare, /Остаётся в очереди: WhatsApp сейчас не подключён/u, "причина — до того, как одобрять");
+  assert.match(bare, /Подключите WhatsApp/u);
+  assert.match(strip(draftCard({ ...props, bare: true, draft: F.DRAFTS_ALL.drafts[2] })), /действует до /u, "близкий срок остаётся в панели");
+  assert.match(bare, /data-testid="v3-aia-approve"/u, "решение — теми же кнопками");
+});
+
+test("рамка страницы агента — `PageShell` набора со слотом `back`; ключевые утилиты переключателя запертого вида в наборе", async () => {
+  const { nextPage } = await views();
+  const page = strip(nextPage(F.bodyProps("overview")));
+  assert.match(page, /<main data-testid="v3-ai-agent-page" class="mx-auto w-full px-4 py-8 sm:px-6 max-w-\[1240px\]"><a[^>]*href="\/v3\/ai-agents"[^>]*>[\s\S]*Все ИИ-агенты<\/a><div data-slot="page-header"/u, "возврат стоит над шапкой в той же рамке, что хаб");
+  assert.match(read("src/components/v3/ai-agents-next/NextAgentPage.tsx"), /<PageShell[^>]*back=\{<NextBackLink \/>\}/u);
+  assert.match(read("src/components/v3/ai-agents-next/NextAgentUnavailable.tsx"), /<PageShell[^>]*back=\{<NextBackLink \/>\}/u);
+  assert.doesNotMatch(read("src/components/v3/ai-agents-next/NextAgentPage.tsx") + read("src/components/v3/ai-agents-next/NextAgentUnavailable.tsx"), /<main\b/u, "своей рамки <main> у страниц нет");
+  const sw = read("src/components/ui/switch.tsx");
+  for (const cls of ["aria-disabled:cursor-not-allowed", "aria-disabled:border-border", "aria-disabled:bg-surface-2", "aria-disabled:data-checked:bg-fg-3"]) assert.ok(sw.includes(cls), `переключатель с aria-disabled выглядит запертым: ${cls}`);
 });
 
 test("«Чат»: прежний `CommandWorkspace` без изменений в рамке набора; шапка в одну строку с «?», переключателями и «На весь экран»", async () => {

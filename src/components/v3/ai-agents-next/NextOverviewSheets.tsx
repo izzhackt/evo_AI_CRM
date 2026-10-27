@@ -15,7 +15,7 @@ export function ToolsSheet({ rows }: Readonly<{ rows: readonly ChartHorizontalRo
       <DetailSheet
         title="Что делает агент"
         description={`Вызовы инструментов за 30 дней: ${total}`}
-        trigger={<Button variant="outline">Что делает агент <span className="tabular-nums text-fg-3">{total}</span></Button>}
+        trigger={<Button variant="outline">Что делает агент</Button>}
       >
         <ToolBars rows={rows} emptyText="" />
       </DetailSheet>

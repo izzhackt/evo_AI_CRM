@@ -1,14 +1,11 @@
-import Link from "next/link";
-import { ArrowLeftIcon } from "lucide-react";
-
-import { PageHeader, SectionTabs } from "@/components/kit";
-import { Button } from "@/components/ui/button";
-import { AI_AGENT_TABS, AI_AGENTS_HUB_HREF, aiAgentHref, aiAgentRoleLine } from "@/lib/v3/ai-agents-view";
+import { PageShell, SectionTabs } from "@/components/kit";
+import { AI_AGENT_TABS, aiAgentHref, aiAgentRoleLine } from "@/lib/v3/ai-agents-view";
 
 import type { AgentBodyProps } from "@/components/v3/ai-agents/AgentBody";
 import { AgentTabs } from "@/components/v3/ai-agents/AgentTabs";
 import { SyncNowButton } from "@/components/v3/ai-agents/SyncPanel";
 import { agentGate } from "./agent-gate";
+import { NextBackLink } from "./NextBackLink";
 import { NextAgentSwitches } from "./NextAgentSwitches";
 import { NextAgentTab } from "./NextAgentTab";
 import { NextChatShell } from "./NextChatShell";
@@ -54,10 +51,8 @@ export function NextAgentPage(props: AgentBodyProps) {
     );
   }
   return (
-    <main data-testid="v3-ai-agent-page" className="mx-auto w-full max-w-[1240px] px-4 py-8 sm:px-6">
-      <Button variant="ghost" asChild className="-ms-3 mb-2"><Link href={AI_AGENTS_HUB_HREF}><ArrowLeftIcon aria-hidden="true" /> Все ИИ-агенты</Link></Button>
-      <PageHeader title={detail.title} help={roleLine} actions={switches} />
-      <div className="mt-6 grid min-w-0 gap-4" data-testid="v3-aia-agent" data-tab={tab}>
+    <PageShell title={detail.title} help={roleLine} actions={switches} testId="v3-ai-agent-page" back={<NextBackLink />}>
+      <div className="grid min-w-0 gap-4" data-testid="v3-aia-agent" data-tab={tab}>
         {alerts}
         <SectionTabs
           label={`Разделы агента «${detail.title}»`}
@@ -66,6 +61,6 @@ export function NextAgentPage(props: AgentBodyProps) {
         />
         {body}
       </div>
-    </main>
+    </PageShell>
   );
 }

@@ -78,6 +78,12 @@ function makeFixtures(catalog) {
     run(7, 7000, { triggerKind: "website_lead", startedByName: null, promptPreview: "Новая заявка с сайта: Клиент Синтетический 2", draftsCount: 2 }),
     run(8, 9000, { status: "running", endedAt: null, durationSeconds: null, summary: null, costCents: 0, actionsCount: 1 }),
   ];
+  /** 30 записей и «есть ещё»: сервер отдаёт «последние 30», а таблица не должна называть 30 общим числом. */
+  const RUNS_MANY = Array.from({ length: 30 }, (_, i) => {
+    if (i < RUNS.length) return RUNS[i];
+    const base = RUNS[i % RUNS.length];
+    return { ...base, id: uuid(100 + i), startedAt: ago(9000 + i * 400), endedAt: base.endedAt ? ago(8998 + i * 400) : null };
+  });
   const action = (n, tool, ok = true) => ({ id: `a${n}`, agentKey: "director", runId: uuid(1), tool, argsSummary: n % 2 ? "period=week" : "", resultStatus: ok ? "ok" : "error", errorCode: ok ? null : "rate_limited", durationMs: 800, at: ago(24 - n) });
   const RUN_DETAIL = {
     run: RUNS[0],
@@ -92,14 +98,22 @@ function makeFixtures(catalog) {
   const draft = (n, over = {}) => ({
     id: `dr-${n}`, agentKey: "sales", runId: uuid(4), channel: n % 3 === 0 ? "portal" : "whatsapp", status: "pending",
     text: `Здравствуйте! Подтверждаю, что документы можно подать до конца ноября. Если нужно, пришлю список. (${n})`, editedText: null,
-    targetLabel: `Клиент Синтетический ${n}`, conversationId: `cv-${n}`, studentCaseId: null, leadId: null, reason: "Клиент спросил о сроках подачи.",
+    targetLabel: `Клиент Синтетический ${n}`, conversationId: uuid(200 + n), studentCaseId: null, leadId: null, reason: "Клиент спросил о сроках подачи.",
     failureCode: null, sourceMessage: { text: "Добрый день, до какого числа можно подать документы?", at: ago(60 + n) },
     createdAt: ago(40 + n * 10), expiresAt: ago(-2000), decidedByName: null, decidedAt: null, sentAt: null, sentByAgent: false, ...over,
   });
-  const DRAFTS = {
-    drafts: [draft(1), draft(2), draft(3), draft(4, { status: "sent", decidedByName: "Менеджер Синтетический", decidedAt: ago(100), sentAt: ago(99) }), draft(5, { status: "discarded", decidedByName: "Менеджер Синтетический", decidedAt: ago(200) })],
+  // Второй черновик остался в очереди после неудачной отправки, третий скоро истекает: строка таблицы должна сказать об этом сама.
+  const DRAFTS_ALL = {
+    drafts: [
+      draft(1), draft(2, { failureCode: "whatsapp_unavailable" }), draft(3, { expiresAt: ago(-600) }),
+      draft(4, { status: "sent", decidedByName: "Менеджер Синтетический", decidedAt: ago(100), sentAt: ago(99) }),
+      draft(5, { status: "discarded", decidedByName: "Менеджер Синтетический", decidedAt: ago(200) }),
+    ],
     counts: { pending: 3, approved: 0, sending: 0, sent: 1, discarded: 1, failed: 0, expired: 0 },
   };
+  /** Что отдаёт сервер для вкладки «Ждут решения» (только ждущие) и «Все»; счётчики одни и те же. */
+  const draftsFor = (filter) => (filter === "all" ? DRAFTS_ALL : { ...DRAFTS_ALL, drafts: DRAFTS_ALL.drafts.filter((row) => row.status === "pending") });
+  const DRAFTS = draftsFor("pending");
 
   const conversations = RUNS.slice(0, 4).filter((row) => row.triggerKind === "command" || row.id === uuid(1)).map((row) => ({
     id: row.id, status: row.status, startedAt: row.startedAt, endedAt: row.endedAt, durationSeconds: row.durationSeconds, promptPreview: row.promptPreview,
@@ -111,15 +125,15 @@ function makeFixtures(catalog) {
   const bodyProps = (tab, over = {}) => ({
     detail: detail("director"), tab, now: NOW, canEdit: true, canManage: true, preview: false, runtimeConfigured: true, needsSync: false,
     digests: available({ digests: DIGESTS }),
-    runs: tab === "runs" ? available({ runs: RUNS, hasMore: true }) : null, runsLimit: 30,
+    runs: tab === "runs" ? available({ runs: RUNS, hasMore: false }) : null, runsLimit: 30,
     run: null, runId: null,
-    drafts: tab === "drafts" ? available(DRAFTS) : null, draftsFilter: "pending",
+    drafts: tab === "drafts" ? available(draftsFor(over.draftsFilter ?? "pending")) : null, draftsFilter: "pending",
     resume: tab === "command" ? { runId: conversations[0].id, sendAuthority: false, run: conversations[0] } : { runId: null, sendAuthority: false },
     conversations, canMakeTasks: true, viewerName: ACTOR.displayName, whatsappDailyCapCents: 1000,
     whatsappCapState: { spentCents: 230, reservedCents: 0 },
     ...over,
   });
-  return { NOW, ACTOR, LIST, detail, DIGESTS, RUNS, RUN_DETAIL, DRAFTS, conversations, bodyProps, available, sync, stats };
+  return { NOW, ACTOR, LIST, detail, DIGESTS, RUNS, RUNS_MANY, RUN_DETAIL, DRAFTS, DRAFTS_ALL, draftsFor, conversations, bodyProps, available, sync, stats };
 }
 
 module.exports = { makeFixtures, NOW, ACTOR };

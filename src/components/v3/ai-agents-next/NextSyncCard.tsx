@@ -19,10 +19,11 @@ const SYNC_TONE: Readonly<Record<AiAgentSyncInfo["status"], "neutral" | "warn" |
  * «Синхронизация с Claude» в «Новом виде»: слово состояния, одна строка о нём и кнопка (только администратор). Служебные
  * номера и токен — в панели «Технические данные»; обновление токена просит подтверждения на месте. Предупреждения о
  * неотправленных изменениях и отсутствии ключа остаются на виду. Серверное действие то же (`syncAiAgentAction`).
+ * `idField` — поле «ID агента в Claude» от «Настроек» (его значение — часть их формы): стоит первым в панели на месте строки «Агент в Claude».
  */
-export function NextSyncCard({
-  agentKey, sync, needsSync, runtimeConfigured, hasInstructions, canEdit, now,
-}: Readonly<{ agentKey: AiAgentKey; sync: AiAgentSyncInfo; needsSync: boolean; runtimeConfigured: boolean; hasInstructions: boolean; canEdit: boolean; now: string }>) {
+export type NextSyncCardProps = Readonly<{ agentKey: AiAgentKey; sync: AiAgentSyncInfo; needsSync: boolean; runtimeConfigured: boolean; hasInstructions: boolean; canEdit: boolean; now: string; idField?: React.ReactNode }>;
+
+export function NextSyncCard({ agentKey, sync, needsSync, runtimeConfigured, hasInstructions, canEdit, now, idField }: NextSyncCardProps) {
   const run = useAgentsAction(syncAiAgentAction);
   const [confirmRotate, setConfirmRotate] = useState(false);
   const blocked = !runtimeConfigured || !hasInstructions || !canEdit || run.pending || !run.ready;
@@ -41,8 +42,9 @@ export function NextSyncCard({
               </Button>
             ) : <p className="t-meta text-fg-3">Синхронизирует системный администратор.</p>}
             <DetailSheet title="Технические данные" trigger={<Button type="button" variant="outline">Технические данные</Button>}>
+              {idField ? <div className="mb-4">{idField}</div> : null}
               <KeyFacts columns={1} facts={[
-                { label: "Агент в Claude", value: sync.claudeAgentId ?? "—" },
+                { label: "Агент в Claude", value: idField ? null : sync.claudeAgentId ?? "—" },
                 { label: "Среда", value: sync.environmentId ?? "—" },
                 { label: "Хранилище токена", value: sync.vaultId ?? "—" },
                 { label: "Расписание", value: sync.deploymentId ?? "—" },

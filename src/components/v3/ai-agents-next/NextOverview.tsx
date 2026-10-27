@@ -31,7 +31,9 @@ export function NextOverview({
   const older = digests.filter((digest) => digest.id !== last?.id);
   const triggers = [detail.triggerWebsiteLead ? "новая заявка с сайта" : null, detail.triggerWhatsappInbound ? "новое сообщение в WhatsApp" : null].filter(Boolean);
   const hasSchedule = detail.scheduleCron !== null;
-  const off = detail.enabled ? null : <span className="block t-meta text-warn">Агент выключен — не запускается.</span>;
+  // Выключенный агент не запускается ни по расписанию, ни по событиям: одна строка под обоими фактами, а не по одной под каждым.
+  const off = !detail.enabled && (hasSchedule || triggers.length > 0) ? <p className="t-meta text-warn" data-testid="v3-aia-off">Агент выключен — не запускается.</p> : null;
+  const facts = [hasSchedule, triggers.length > 0].filter(Boolean).length;
   const hasWork = hasSchedule || triggers.length > 0 || toolRows.length > 0 || older.length > 0;
   const work = hasWork ? (
     <WidgetCard
@@ -43,10 +45,14 @@ export function NextOverview({
         </div>
       ) : undefined}
     >
-      <KeyFacts columns={2} facts={[
-        { label: "Расписание", value: hasSchedule ? <>{describeSchedule(detail.scheduleCron, detail.scheduleTz)}{off}</> : null },
-        { label: "Реагирует на события", value: triggers.length > 0 ? <>{triggers.join(", ")}{off}</> : null },
-      ]} />
+      <div className="grid gap-3">
+        {/* Один факт занимает всю ширину, два — по половине: пустая половина на телефоне не нужна. */}
+        <KeyFacts columns={facts > 1 ? 2 : 1} facts={[
+          { label: "Расписание", value: hasSchedule ? describeSchedule(detail.scheduleCron, detail.scheduleTz) : null },
+          { label: "Реагирует на события", value: triggers.length > 0 ? triggers.join(", ") : null },
+        ]} />
+        {off}
+      </div>
     </WidgetCard>
   ) : null;
 

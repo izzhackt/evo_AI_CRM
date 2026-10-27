@@ -80,7 +80,8 @@ export function NextScheduleCard({
           ) : null}
         </div>
         <div className="grid gap-2">
-          <div><Button type="button" variant="outline" aria-expanded={showCron} onClick={() => setCronOpen((value) => !value)}>Своё расписание (cron)</Button></div>
+          {/* Своё расписание уже выбрано: поле стоит всегда, кнопка «открыть» ничего не открывала бы. Вернуться — выбором «Как часто». */}
+          {form.kind === "custom" ? null : <div><Button type="button" variant="outline" aria-expanded={showCron} onClick={() => setCronOpen((value) => !value)}>Своё расписание (cron)</Button></div>}
           {showCron ? (
             <Field id="aia-cron" label="Минута, час, день, месяц, день недели">
               <Input id="aia-cron" className="max-w-xs font-mono" value={form.cron} placeholder="0 9 * * 1" onChange={(event) => { set("cron", event.target.value); set("kind", "custom"); }} />

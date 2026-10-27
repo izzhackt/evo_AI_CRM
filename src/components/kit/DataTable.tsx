@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
  * сортировка по заголовку, общий поиск, видимость колонок, страницы, нажатие на строку, пустое состояние и
  * загрузка, прилипшая шапка. Меньше 768 px таблица заменяется карточками (`meta.mobile` в колонке).
  * `label` — имя прокручиваемой области для читалки; `toolbar` — свои фильтры страницы рядом с поиском.
+ * `paginate={false}` — все переданные строки сразу, без полосы страниц и без «из N»: для списка, который сервер уже
+ * ограничил («последние 30»), чтобы экран не называл общим числом то, что он получил, и не ставил второй листатель.
  */
 export function DataTable<T extends RowData>({
   label,
@@ -28,6 +30,7 @@ export function DataTable<T extends RowData>({
   onRowClick,
   searchPlaceholder = "Поиск",
   pageSize = 10,
+  paginate = true,
   loading = false,
   empty,
   toolbar,
@@ -41,6 +44,8 @@ export function DataTable<T extends RowData>({
   onRowClick?: (row: T) => void;
   searchPlaceholder?: string;
   pageSize?: 10 | 25 | 50;
+  /** `false` — страниц нет, показаны все строки (список уже ограничен сервером). Поиск и сортировка — по этим строкам. */
+  paginate?: boolean;
   loading?: boolean;
   /** Что показать, когда записей нет совсем; по умолчанию «Пока пусто». */
   empty?: React.ReactNode;
@@ -50,7 +55,7 @@ export function DataTable<T extends RowData>({
   className?: string;
 }>) {
   const table = useTable(
-    { features: dataTableFeatures, columns, data: data as T[], getRowId, initialState: { pagination: { pageIndex: 0, pageSize } }, globalFilterFn: "includesString" },
+    { features: dataTableFeatures, columns, data: data as T[], getRowId, initialState: { pagination: { pageIndex: 0, pageSize } }, manualPagination: !paginate, globalFilterFn: "includesString" },
     (state) => state,
   );
   const search = String(table.state.globalFilter ?? "");
@@ -117,7 +122,7 @@ export function DataTable<T extends RowData>({
           </Table>
         </div>
         <DataTableCards rows={cards} loading={loading} />
-        {loading ? null : (
+        {loading || !paginate ? null : (
           <DataTablePagination total={matches} pageIndex={table.state.pagination.pageIndex} pageSize={table.state.pagination.pageSize} pageCount={table.getPageCount()} onPageSize={(size) => table.setPageSize(size)} onPrevious={() => table.previousPage()} onNext={() => table.nextPage()} />
         )}
       </>

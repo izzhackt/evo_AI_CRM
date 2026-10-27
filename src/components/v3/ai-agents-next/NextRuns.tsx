@@ -48,7 +48,9 @@ function columnsFor(now: string, viewerName?: string): DataTableColumn<AiAgentRu
 /**
  * «История работы» в «Новом виде»: таблица запусков (поиск, сортировка, страницы; на телефоне — карточки). Строка
  * открывает панель запуска; полная хроника и действия агента — по ссылке в панели (адрес `?run=` прежний).
- * «Показать ещё» — тот же шаг чтения по адресу `?limit=`, что и раньше.
+ * «Показать ещё» — тот же шаг чтения по адресу `?limit=`, что и раньше. Страницы таблицы выключены: сервер уже отдал
+ * «последние N», и второй листатель с «из N» назвал бы общим числом то, что просто загружено; пока есть ещё, экран так и
+ * говорит («Показаны последние 30 запусков»), а поиск назван поиском среди показанных.
  */
 export function NextRuns({
   agentKey, runs, hasMore, limit, now, viewerName, canRun = false, canAct = false, canStopAny = false,
@@ -63,9 +65,12 @@ export function NextRuns({
   );
   return (
     <div data-testid="v3-aia-runs" className="grid min-w-0 gap-3">
-      <DataTable label="История работы агента" data={runs} columns={columns} getRowId={(run) => run.id} onRowClick={(run) => { setCurrent(run); setOpen(true); }} searchPlaceholder="Поиск по поручениям" pageSize={25} empty={empty} />
-      {hasMore && limit < AI_AGENT_RUNS_MAX ? (
-        <div><Button variant="outline" asChild><Link href={aiAgentHref(agentKey, { tab: "runs", limit: nextLimit })} scroll={false}>Показать ещё</Link></Button></div>
+      <DataTable label="История работы агента" data={runs} columns={columns} getRowId={(run) => run.id} onRowClick={(run) => { setCurrent(run); setOpen(true); }} searchPlaceholder={hasMore ? "Поиск среди показанных" : "Поиск по поручениям"} paginate={false} empty={empty} />
+      {hasMore ? (
+        <div className="flex flex-wrap items-center gap-3" data-testid="v3-aia-runs-more">
+          {limit < AI_AGENT_RUNS_MAX ? <Button variant="outline" asChild><Link href={aiAgentHref(agentKey, { tab: "runs", limit: nextLimit })} scroll={false}>Показать ещё</Link></Button> : null}
+          <p className="t-meta text-fg-3">Показаны последние {runs.length} {pluralRu(runs.length, ["запуск", "запуска", "запусков"])}</p>
+        </div>
       ) : null}
       <DetailSheet open={open} onOpenChange={setOpen} title={current ? runSheetTitle(current) : "Запуск"} description={current ? `${formatDateTimeRu(current.startedAt, now)} · ${runOriginLabel(current, viewerName)}` : undefined}>
         {current ? <NextRunSheetBody agentKey={agentKey} run={current} viewerName={viewerName} canAct={canAct} canStopAny={canStopAny} canRun={canRun} /> : null}

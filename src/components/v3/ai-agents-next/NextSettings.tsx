@@ -19,25 +19,24 @@ import { initialSettings, settingsPatch, settingsProblems, type SettingsValues }
 import { NextModelCard } from "./NextModelCard";
 import { NextRunNow } from "./NextRunNow";
 import { NextScheduleCard } from "./NextScheduleCard";
+import { NextSyncCard, type NextSyncCardProps } from "./NextSyncCard";
 
 type WhatsappCap = Readonly<{ capCents: number; spentTodayCents: number; reservedCents?: number }>;
 
 /**
- * «Настройки» агента в «Новом виде»: сгруппированные карточки (модель и расход, расписание и события, привязка к Claude)
- * и одна панель «Сохранить настройки» — уходит один патч, только изменённые поля, то же `ai_agents_update_v1`. Не
- * администратор видит те же значения карточкой «Параметры агента». Форма возвращается к значениям сервера только когда
- * версия настроек сменилась (запись прошла), а не при каждой перерисовке страницы.
+ * «Настройки» агента в «Новом виде»: сгруппированные карточки (модель и расход, расписание и события, синхронизация с
+ * Claude) и одна панель «Сохранить настройки» — уходит один патч, только изменённые поля, то же `ai_agents_update_v1`.
+ * ID агента в Claude правится в панели «Технические данные» карточки синхронизации (одна кнопка, без пустой карточки);
+ * правка уходит тем же патчем. Не администратор видит те же значения карточкой «Параметры агента». Форма возвращается к
+ * значениям сервера только когда версия настроек сменилась (запись прошла), а не при каждой перерисовке страницы.
  */
 export function NextSettings({
-  detail, defaultSchedulePrompt, canEdit, canRunNow, runNowNote, whatsappCap = null, extra,
-}: Readonly<{ detail: AiAgentDetail; defaultSchedulePrompt: string | null; canEdit: boolean; canRunNow: boolean; runNowNote: string | null; whatsappCap?: WhatsappCap | null; /** Ещё один блок страницы (синхронизация): стоит перед панелью «Сохранить настройки». */ extra?: React.ReactNode }>) {
+  detail, defaultSchedulePrompt, canEdit, canRunNow, runNowNote, whatsappCap = null, sync,
+}: Readonly<{ detail: AiAgentDetail; defaultSchedulePrompt: string | null; canEdit: boolean; canRunNow: boolean; runNowNote: string | null; whatsappCap?: WhatsappCap | null; /** Карточка синхронизации: стоит перед панелью «Сохранить настройки». */ sync: Omit<NextSyncCardProps, "idField"> }>) {
   const base = initialSettings(detail);
   const [form, setForm] = useState(base);
   const [seenVersion, setSeenVersion] = useState(detail.configVersion);
   if (seenVersion !== detail.configVersion) { setSeenVersion(detail.configVersion); setForm(initialSettings(detail)); }
-  const [techOpen, setTechOpen] = useState(false);
-  // Правка ID открывает раздел сама: несохранённое изменение не прячется за кнопкой.
-  const techShown = techOpen || form.claudeId.trim() !== base.claudeId;
   const save = useAgentsAction(updateAiAgentAction);
   const run = useAgentsAction(startAiAgentRunAction);
   const set = <K extends keyof SettingsValues>(name: K, value: SettingsValues[K]) => setForm((previous) => ({ ...previous, [name]: value }));
@@ -63,10 +62,24 @@ export function NextSettings({
             { label: "Лимит на WhatsApp", value: whatsappCap ? dailyCapValue(whatsappCap.capCents, whatsappCap.spentTodayCents, capState) : null },
           ]} />
         </WidgetCard>
-        {extra}
+        <NextSyncCard {...sync} />
       </div>
     );
   }
+
+  const idProblem = problems.find((problem) => problem.startsWith("ID агента"));
+  // ID агента правится в панели «Технические данные»: несохранённая правка поднимает панель «Сохранить настройки» под карточками.
+  const idField = (
+    <div className="grid gap-1.5" data-testid="v3-aia-claude-id">
+      <div className="flex items-center gap-1.5">
+        <Label htmlFor="aia-claude-id">ID агента в Claude</Label>
+        <HelpTip label="Пояснение: ID агента в Claude">Пусто — синхронизация подключит уже созданного агента EVO или создаст нового. Чтобы получить нового, сначала архивируйте прежнего в Claude Console.</HelpTip>
+      </div>
+      <Input id="aia-claude-id" className="font-mono" value={form.claudeId} placeholder="agent_…" aria-invalid={idProblem ? true : undefined} onChange={(event) => set("claudeId", event.target.value)} />
+      <p className="t-meta text-warn">Смена ID привязывает другого агента Claude.</p>
+      {idProblem ? <p className="t-meta text-danger">{idProblem}</p> : null}
+    </div>
+  );
 
   return (
     <form
@@ -76,19 +89,7 @@ export function NextSettings({
     >
       <NextModelCard form={form} set={set} capLine={whatsappCap ? dailyCapLine(whatsappCap.capCents, whatsappCap.spentTodayCents, capState) : null} />
       <NextScheduleCard form={form} set={set} defaultPrompt={defaultSchedulePrompt} footer={effectivePrompt ? runNow : undefined} />
-      <WidgetCard title="Агент в Claude" actions={<Button type="button" variant="outline" aria-expanded={techShown} onClick={() => setTechOpen((value) => !value)}>Технические данные</Button>}>
-        {techShown ? (
-          <div className="grid gap-1.5">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="aia-claude-id">ID агента в Claude</Label>
-              <HelpTip label="Пояснение: ID агента в Claude">Пусто — синхронизация подключит уже созданного агента EVO или создаст нового. Чтобы получить нового, сначала архивируйте прежнего в Claude Console.</HelpTip>
-            </div>
-            <Input id="aia-claude-id" className="max-w-xl font-mono" value={form.claudeId} placeholder="agent_…" onChange={(event) => set("claudeId", event.target.value)} />
-            <p className="t-meta text-warn">Смена ID привязывает другого агента Claude.</p>
-          </div>
-        ) : undefined}
-      </WidgetCard>
-      {extra}
+      <NextSyncCard {...sync} idField={idField} />
       {problems.length > 0 ? (
         <ul role="alert" className="grid gap-0.5 t-body-compact text-danger" data-testid="v3-aia-settings-problems">
           {problems.map((problem) => <li key={problem}>{problem}</li>)}

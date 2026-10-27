@@ -33,8 +33,10 @@ const SCENES = [
   { name: "chat", path: "/v3/ai-agents/director", search: "" },
   { name: "overview", path: "/v3/ai-agents/director", search: "tab=overview" },
   { name: "runs", path: "/v3/ai-agents/director", search: "tab=runs" },
+  { name: "runs-more", path: "/v3/ai-agents/director", search: "tab=runs" },
   { name: "run", path: "/v3/ai-agents/director", search: "tab=runs&run=11111111-1111-4111-8111-000000000001" },
   { name: "drafts", path: "/v3/ai-agents/director", search: "tab=drafts" },
+  { name: "drafts-all", path: "/v3/ai-agents/director", search: "tab=drafts&show=all" },
   { name: "instructions", path: "/v3/ai-agents/director", search: "tab=instructions" },
   { name: "settings", path: "/v3/ai-agents/director", search: "tab=settings" },
 ];
@@ -116,12 +118,14 @@ const router = { push: (href) => window.__harness.pushes.push(href), replace() {
 const params = new URLSearchParams(fixture.search);
 const tab = params.get("tab") ?? "command";
 const runId = params.get("run");
+// Данные сцены: запуск целиком; «последние 30 и есть ещё»; вкладка «Все» черновиков (по умолчанию — только ждущие, как отдаёт сервер).
+const over = runId ? { runId, run: F.available(F.RUN_DETAIL), runs: null } : fixture.name === "runs-more" ? { runs: F.available({ runs: F.RUNS_MANY, hasMore: true }) } : params.get("show") === "all" ? { draftsFilter: "all" } : {};
 let page;
 if (fixture.legacy) {
   // Прежний вид (снимки «до»): те же страницы, что собирают ai-agents/page.tsx и [key]/page.tsx без переключателя.
   if (fixture.name === "hub") page = h(PartShell, { title: "ИИ-агенты", testId: "v3-ai-agents" }, h("div", { className: "space-y-5" }, h(AgentsHub, { list: F.LIST, runtimeConfigured: true, preview: false })));
   else {
-    const props = F.bodyProps(tab, runId ? { runId, run: F.available(F.RUN_DETAIL), runs: null } : {});
+    const props = F.bodyProps(tab, over);
     const d = props.detail;
     const switches = h(AgentSwitches, { agentKey: d.key, enabled: d.enabled, autoSend: d.autoSend, configVersion: d.configVersion, hasInstructions: true, canEdit: true });
     const content = h(AgentBody, props);
@@ -130,7 +134,7 @@ if (fixture.legacy) {
       : h(PartShell, { title: d.title, testId: "v3-ai-agent-page", back: h("a", { href: AI_AGENTS_HUB_HREF, className: "mb-3 inline-flex min-h-11 items-center gap-1.5 rounded-nav t-label text-fg-2" }, "Все ИИ-агенты"), meta: aiAgentRoleLine(d.roleLine), action: switches }, content);
   }
 } else if (fixture.name === "hub") page = h(NextAgentsView, { read: F.available(F.LIST), runtimeConfigured: true, preview: false });
-else page = h(NextAgentPage, F.bodyProps(tab, runId ? { runId, run: F.available(F.RUN_DETAIL), runs: null } : {}));
+else page = h(NextAgentPage, F.bodyProps(tab, over));
 createRoot(document.getElementById("root")).render(
   h(AppRouterContext.Provider, { value: router },
     h(PathnameContext.Provider, { value: fixture.path },
@@ -319,6 +323,18 @@ async function main() {
     await context.close();
   }
 
+  // 3b. «Последние 30 и есть ещё»: один листатель («Показать ещё»), без «1–25 из 30», поиск назван поиском среди показанных.
+  for (const key of ["d1280", "m390"]) {
+    const { context, page, errors } = await open("runs-more", key);
+    const rows = await page.locator(key === "d1280" ? "tbody tr" : "[data-slot=data-table-cards] > li").count();
+    report(`${key}/runs-more: all 30 loaded runs are listed, no second pager`, rows === 30 && (await page.locator("[data-slot=data-table-pagination]").count()) === 0 && !/\d+–\d+ из \d+/u.test(await page.locator("[data-testid=v3-aia-runs]").innerText()), rows);
+    const more = page.locator("[data-testid=v3-aia-runs-more]");
+    report(`${key}/runs-more: «Показать ещё» and the honest «последние 30»`, (await more.getByRole("link", { name: "Показать ещё" }).getAttribute("href")) === "/v3/ai-agents/director?tab=runs&limit=60" && /Показаны последние 30 запусков/u.test(await more.innerText()), await more.innerText());
+    report(`${key}/runs-more: search says it covers the shown runs only`, (await page.getByPlaceholder("Поиск среди показанных").count()) === 1 && (await page.getByPlaceholder("Поиск по поручениям").count()) === 0, null);
+    report(`${key}/runs-more: console clean`, errors.length === 0, errors);
+    await context.close();
+  }
+
   // 4. Запуск целиком: ошибочное действие первым, «Показать переписку» зовёт то же действие, «Технические данные» в панели.
   {
     const { context, page, errors } = await open("run", "d1280");
@@ -341,11 +357,23 @@ async function main() {
     let answer = "dismiss";
     const asked = [];
     const { context, page, errors } = await open("drafts", key, { dialogs: (dialog) => { asked.push(dialog.message()); return answer === "dismiss" ? dialog.dismiss() : dialog.accept(); } });
+    // Риск виден в строке, не открывая её: черновик остался в очереди после неудачной отправки; срок близок. Здоровый — без строк.
+    const list = page.locator(key === "d1280" ? "tbody tr" : "[data-slot=data-table-cards] > li");
+    report(`${key}/drafts: only pending drafts under «Ждут решения»`, (await list.count()) === 3, await list.count());
+    report(`${key}/drafts: failed-send note sits in the row`, /Остаётся в очереди: WhatsApp сейчас не подключён/u.test(await list.nth(1).innerText()) && (await list.nth(0).locator("[data-testid=v3-aia-draft-note]").count()) === 0, await list.nth(1).innerText());
+    report(`${key}/drafts: «действует до» sits in the row of a draft that expires within a day`, /действует до/u.test(await list.nth(2).innerText()) && (await list.nth(0).locator("[data-testid=v3-aia-draft-expires]").count()) === 0, null);
+    if (key === "m390") {
+      const titleBox = await page.evaluate(() => { const title = document.querySelector("[data-slot=data-table-cards] > li span.t-item"); const box = title.getBoundingClientRect(); const preview = title.querySelector("span.line-clamp-2"); return { align: getComputedStyle(preview).textAlign, text: preview.textContent.slice(0, 24), left: Math.round(preview.getBoundingClientRect().left - box.left) }; });
+      report("m390/drafts: the reply preview is the card's left-aligned second line", /^(left|start)$/u.test(titleBox.align) && titleBox.left <= 1 && /Здравствуйте/u.test(titleBox.text), titleBox);
+    }
     const opener = key === "d1280" ? page.getByRole("row").nth(2) : page.locator("[data-slot=data-table-cards] > li > button").nth(1);
     if (key === "d1280") await opener.locator("td").nth(1).click(); else await opener.click({ position: { x: 8, y: 8 } });
     const dialog = page.getByRole("dialog");
     await dialog.waitFor();
     await expectOverlay(page, `${key}/drafts: draft sheet`, "[data-slot=sheet-content]");
+    const bare = await dialog.evaluate((element) => { const article = element.querySelector("[data-testid=v3-aia-draft]"); return { border: getComputedStyle(article).borderTopWidth, h3: article.querySelectorAll("h3").length, title: element.querySelectorAll("[data-slot=sheet-title]").length }; });
+    report(`${key}/drafts: the sheet holds the draft body, not a second card with a repeated header`, bare.border === "0px" && bare.h3 === 0 && bare.title === 1, bare);
+    report(`${key}/drafts: the failed-send hint stays in the sheet before approving`, /Подключите WhatsApp/u.test(await dialog.innerText()) && (await dialog.getByRole("link", { name: "Открыть чат" }).count()) === 1, null);
     await shot(page, `agents-draftsheet-${key}`);
     const field = dialog.getByRole("textbox", { name: "Ответ агента" });
     await field.fill(`${await field.inputValue()} Правка.`);
@@ -384,6 +412,26 @@ async function main() {
     await page.getByRole("switch", { name: "Включён" }).click();
     await page.waitForFunction(() => window.__harness.calls.filter((call) => call.name === "update").length === 2);
     report("d1280/switches: «Включён» sends {enabled:false}", (await calls(page)).filter((call) => call.name === "update")[1].fields.patch === '{"enabled":false}', null);
+    report("d1280/overview: the tools button carries no bare number", (await page.getByRole("button", { name: "Что делает агент", exact: true }).count()) === 1, null);
+    // Заперто — выглядит запертым: бледная дорожка и курсор «нельзя» (`aria-disabled` у переключателя набора), включённый — серой дорожкой.
+    // Запись ещё идёт: переключатель в этот миг сам `aria-disabled` — ждём конца, чтобы «живой» вид был живым.
+    await page.waitForFunction(() => !document.querySelector("[data-testid=v3-aia-switch-auto]").hasAttribute("aria-disabled") && !document.querySelector("[data-testid=v3-aia-switch-enabled]").hasAttribute("aria-disabled"));
+    const locked = await page.evaluate(() => {
+      const probe = (variable) => { const node = document.createElement("div"); node.style.background = `var(${variable})`; document.querySelector(".v3-world").append(node); const color = getComputedStyle(node).backgroundColor; node.remove(); return color; };
+      const read = (testId) => {
+        const node = document.querySelector(`[data-testid=${testId}]`);
+        node.style.transition = "none";
+        const live = { bg: getComputedStyle(node).backgroundColor, cursor: getComputedStyle(node).cursor };
+        node.setAttribute("aria-disabled", "true");
+        const after = getComputedStyle(node);
+        const out = { checked: node.getAttribute("aria-checked"), live, locked: { bg: after.backgroundColor, cursor: after.cursor, border: after.borderTopColor } };
+        node.removeAttribute("aria-disabled");
+        node.style.transition = "";
+        return out;
+      };
+      return { enabled: read("v3-aia-switch-enabled"), auto: read("v3-aia-switch-auto"), surface2: probe("--surface-2"), text3: probe("--text-3"), border: probe("--border") };
+    });
+    report("d1280/switches: aria-disabled switch looks locked (pale track, not-allowed cursor), unchecked and checked", locked.enabled.checked === "false" && locked.auto.checked === "true" && [locked.enabled, locked.auto].every((one) => one.locked.cursor === "not-allowed" && one.live.cursor !== "not-allowed" && one.locked.border === locked.border) && locked.enabled.locked.bg === locked.surface2 && locked.auto.locked.bg === locked.text3, locked);
     await page.getByRole("button", { name: "Что делает агент" }).click();
     const tools = page.getByRole("dialog");
     await tools.waitFor();
@@ -421,14 +469,26 @@ async function main() {
     await page.getByRole("button", { name: "Синхронизировать с Claude" }).click();
     await page.waitForFunction(() => window.__harness.calls.some((call) => call.name === "sync"));
     report(`${key}/settings: sync calls the existing action`, (await calls(page)).find((call) => call.name === "sync").fields.rotate_token === "0", null);
-    await page.getByRole("button", { name: "Технические данные" }).last().click();
+    report(`${key}/settings: one «Технические данные» button and no separate empty «Агент в Claude» card`, (await page.getByRole("button", { name: "Технические данные" }).count()) === 1 && (await page.getByRole("heading", { name: "Агент в Claude" }).count()) === 0, null);
+    await page.getByRole("button", { name: "Технические данные" }).click();
     const tech = page.getByRole("dialog");
     await tech.waitFor();
     await tech.getByRole("button", { name: "Обновить токен" }).click();
     await tech.getByRole("button", { name: "Обновить токен" }).last().click();
     await page.waitForFunction(() => window.__harness.calls.some((call) => call.name === "sync" && call.fields.rotate_token === "1"));
     report(`${key}/settings: token rotation asks and sends rotate_token=1`, true, null);
+    // ID агента в Claude правится здесь же, в панели: неверный — называется, верный поднимает «Сохранить» и уходит тем же патчем.
+    const idInput = tech.locator("#aia-claude-id");
+    report(`${key}/settings: the Claude ID field lives in the sheet with the saved value`, (await idInput.inputValue()) === "agent_01AbCdEfGh", null);
+    await idInput.fill("abc");
+    report(`${key}/settings: a wrong Claude ID is named in the sheet`, /ID агента в Claude начинается с «agent_»/u.test(await tech.innerText()), null);
+    await idInput.fill("agent_01NewAgentXyz1");
     await page.keyboard.press("Escape");
+    await tech.waitFor({ state: "detached" });
+    await save.click();
+    await page.waitForFunction(() => window.__harness.calls.filter((call) => call.name === "update").length >= 2);
+    const idUpdate = (await calls(page)).filter((call) => call.name === "update").at(-1);
+    report(`${key}/settings: the Claude ID goes out in the same patch`, JSON.parse(idUpdate.fields.patch).claudeAgentId === "agent_01NewAgentXyz1", idUpdate);
     report(`${key}/settings: console clean`, errors.length === 0, errors);
     await context.close();
   }

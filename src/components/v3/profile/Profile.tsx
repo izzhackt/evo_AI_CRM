@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import Link from "next/link";
 
-import { HelpTip } from "@/components/kit/HelpTip";
+import { NamedCard } from "./next/NamedCard";
 import { SectionTabs } from "@/components/kit/SectionTabs";
 import { Pill } from "@/components/v3/Pill";
 import { TaskComposerDialog } from "@/components/v3/tasks/TaskComposerDialog";
@@ -287,7 +287,7 @@ export function Profile({
           />
         </div>
       ) : null}
-      {current === "anketa" ? <Anketa profile={profile} draft={draft}
+      {current === "anketa" ? <Anketa profile={profile} draft={draft} nextUi={nextUi}
         fieldsRequestId={randomUUID()}
         fieldsReadOnly={isStaffPreview(actor) || !staffHasPermission(actor, "profile.manage")}
         documentsHref={draft.access.documents ? hrefFor("documents") : null}
@@ -300,6 +300,7 @@ export function Profile({
           actor={actor}
           filter={documentsFilter}
           tabHref={hrefFor("documents")}
+          nextUi={nextUi}
           recognition={!isStaffPreview(actor) && ["admin", "staff"].includes(actor.systemRole)
             && draft.admissions && ["case.read.full", "profile.read.full", "document.read.full"].every(key => staffHasPermission(actor, key))
             ? { studentCaseId: draft.admissions.studentCaseId, profileRevision: draft.profileFields?.profile?.revision ?? null,
@@ -311,27 +312,26 @@ export function Profile({
       {current === "money" && leadGate ? (
         // Подтверждение вручную (Э8.4) — одно место для договора и оплаты лида
         // вместе с полосой «Передача»: туда ведёт её «Изменить».
+        nextUi ? (
+          // «Новый вид»: карточка набора, пояснение - за «?» её заголовка.
+          <NamedCard title="Подтверждение вручную" id={LEAD_GATE_ANCHOR} testId="v3-lead-gate"
+            help="Для передачи в поступление нужны договор и первый платёж. Подтвердите их здесь, если их нет ни в деле, ни в отчёте продаж.">
+            <HandoffGateForms actor={actor} gate={leadGate} requestIds={requestIds} bare />
+          </NamedCard>
+        ) : (
         <section id={LEAD_GATE_ANCHOR} aria-labelledby={`${LEAD_GATE_ANCHOR}-title`} className="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate">
-          {nextUi ? (
-            <div className="flex items-center gap-1.5">
-              <h2 id={`${LEAD_GATE_ANCHOR}-title`} className="t-section text-fg">Подтверждение вручную</h2>
-              <HelpTip label="Пояснение: Подтверждение вручную">
-                Для передачи в поступление нужны договор и первый платёж. Подтвердите их здесь, если их нет ни в деле, ни в отчёте продаж.
-              </HelpTip>
-            </div>
-          ) : (<>
-            <h2 id={`${LEAD_GATE_ANCHOR}-title`} className="t-section text-fg">Подтверждение вручную</h2>
-            <p className="mt-1 t-body-compact text-fg-2">
-              Для передачи в поступление нужны договор и первый платёж. Подтвердите их здесь, если их нет ни в деле, ни в отчёте продаж.
-            </p>
-          </>)}
+          <h2 id={`${LEAD_GATE_ANCHOR}-title`} className="t-section text-fg">Подтверждение вручную</h2>
+          <p className="mt-1 t-body-compact text-fg-2">
+            Для передачи в поступление нужны договор и первый платёж. Подтвердите их здесь, если их нет ни в деле, ни в отчёте продаж.
+          </p>
           <div className="mt-3 border-t border-border pt-3">
             <HandoffGateForms actor={actor} gate={leadGate} requestIds={requestIds} bare />
           </div>
         </section>
+        )
       ) : null}
       {current === "money" && !leadWithoutCase ? (
-        <Money profile={profile} draft={draft} actor={actor} salesCaseId={sales?.handoff.caseId}
+        <Money profile={profile} draft={draft} actor={actor} salesCaseId={sales?.handoff.caseId} nextUi={nextUi}
           // На деле студента условия продажи лежат в свёрнутом разделе «Данные продажи»: `panel=sales` раскрывает его.
           // В Lead 360 (Э4) якорь `#sale-conditions` раскрывает свою группу правки сам.
           saleConditionsHref={draft.saleConditions ? `${hrefFor("overview")}${caseOverview && draft.routeTarget.studentCaseId ? "&panel=sales" : ""}#sale-conditions` : null}
@@ -346,7 +346,7 @@ export function Profile({
             />
           ) : null} />
       ) : null}
-      {current === "history" ? <History profile={profile} /> : null}
+      {current === "history" ? <History profile={profile} nextUi={nextUi} /> : null}
     </div>
   );
 }

@@ -149,7 +149,9 @@ test("«Новый вид» страницы включается только �
   assert.match(source, /const nextParts = nextUi\s*\? caseParts\?\.next \? caseNextParts\(caseParts\.next, caseParts\.actions\) : leadParts \? leadNextParts\(leadParts\.next\) : null\s*: null;/u);
   assert.match(source, /nextUi=\{nextParts !== null\}/u);
   // Прежняя рамка остаётся единственной при выключенном виде.
-  assert.match(source, /return nextParts \? \(\s*<ProfileNextShell[^>]*>\{content\}<\/ProfileNextShell>\s*\) : \(\s*<PartShell title=\{title\}/u);
+  // «Новый вид» рисует рамку и у закрытого лида и «не найден» (поток «card-tabs»); без переключателя `nextCard` пуст и рамка прежняя.
+  assert.match(source, /const nextCard = nextParts !== null \|\| \(nextUi && \(closedLead !== null \|\| invalidIdentityShape \|\| missing\)\);/u);
+  assert.match(source, /return nextCard \? \(\s*<ProfileNextShell[^>]*>\{content\}<\/ProfileNextShell>\s*\) : \(\s*<PartShell title=\{title\}/u);
   assert.match(source, /caseHeader=\{nextParts\?\.header \?\? caseParts\?\.header \?\? leadParts\?\.header \?\? undefined\}/u);
   // Данные страницы читаются теми же вызовами: в странице не добавилось ни одного чтения.
   const reads = [...source.matchAll(/\b(read[A-Z]\w+|loadV3ProfileRoute|loadStudentsCoverage|listStudentPortalActiveCurators)\(/gu)].map((match) => match[1]);
@@ -197,8 +199,9 @@ test("прежний вид не тронут признаком: вкладки
   assert.match(profile, /nextUi = false,/u);
   assert.match(profile, /tabs\.length > 1 && nextUi \? \(\s*<SectionTabs/u);
   // Пояснение «Подтверждение вручную» — абзацем в прежнем виде и за «?» в новом.
-  assert.match(profile, /\) : \(<>\s*<h2 id=\{`\$\{LEAD_GATE_ANCHOR\}-title`\} className="t-section text-fg">Подтверждение вручную<\/h2>\s*<p className="mt-1 t-body-compact text-fg-2">/u);
-  assert.match(profile, /<HelpTip label="Пояснение: Подтверждение вручную">/u);
+  // В «Новом виде» (поток «card-tabs») это карточка набора с пояснением за «?»; прежний раздел - тот же текст, что был.
+  assert.match(profile, /<section id=\{LEAD_GATE_ANCHOR\} aria-labelledby=\{`\$\{LEAD_GATE_ANCHOR\}-title`\} className="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate">\s*<h2 id=\{`\$\{LEAD_GATE_ANCHOR\}-title`\} className="t-section text-fg">Подтверждение вручную<\/h2>\s*<p className="mt-1 t-body-compact text-fg-2">/u);
+  assert.match(profile, /<NamedCard title="Подтверждение вручную" id=\{LEAD_GATE_ANCHOR\} testId="v3-lead-gate"\s*help="Для передачи в поступление/u);
   // Шапка дела: без `bare` линии сверху и снизу ряда прежние.
   assert.match(read("src/components/v3/profile/CaseHeader.tsx"), /input\.bare \? "grid grid-cols-1 sm:flex sm:flex-wrap" : "grid grid-cols-1 border-y border-border sm:flex sm:flex-wrap"/u);
 });

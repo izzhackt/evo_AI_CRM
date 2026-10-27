@@ -25,6 +25,8 @@ type Props = Readonly<{
   commandInFlightRef: RefObject<boolean>; onBusyChange(value: boolean): void; onRefreshProfile(): void;
   applications?: readonly Pick<ProfileApplication, "id" | "institution" | "program">[];
   routeHref?: string | null;
+  /** «Новый вид»: классы карточки набора вместо прежних линий сверху и снизу (их передаёт `StudentProfileFields`, у него `cardClass`). */
+  frame?: string;
   children?: ReactNode;
 }>;
 
@@ -184,8 +186,8 @@ export function StudentProfileExportHistory(props: Props) {
   }
   function refresh() { setStatus("idle"); setReadVersion(current => current + 1); }
 
-  return <div className="space-y-3 border-y border-border py-4" aria-label={words.title}>
-    <h4 className="text-sm font-semibold">{words.title}</h4>
+  return <div className={props.frame ? `${props.frame} px-5` : "space-y-3 border-y border-border py-4"} aria-label={words.title}>
+    {props.frame ? <h3 className="text-sm font-semibold">{words.title}</h3> : <h4 className="text-sm font-semibold">{words.title}</h4>}
     <p className={`text-sm font-semibold ${props.ready ? "text-ok" : "text-fg"}`}>{props.ready ? words.ready : words.notReady}</p>
     <div className="flex flex-wrap gap-2">
       <button type="button" className={PRIMARY} disabled={creationBlocked || Boolean(props.finalBlocker)} onClick={() => void generate("final")}>{words.createFinal}</button>

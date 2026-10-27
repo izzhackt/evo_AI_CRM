@@ -11,17 +11,19 @@ import { partnerPacketExport as words } from "@/lib/v3/wording";
  * выбрана в форме (`initialApplicationId`). `<details id="partner-packets">`
  * с `summary` первым ребёнком — адрес проверки пакетов в браузере.
  */
-export function PartnerPacketsPanel({ caseId, active, applications, workspace, initiallyOpen = false, initialApplicationId = null }: {
+export function PartnerPacketsPanel({ caseId, active, applications, workspace, initiallyOpen = false, initialApplicationId = null, nextUi = false }: {
   caseId: string;
   active: boolean;
   applications: readonly { id: string; name: string }[];
   workspace: PacketWorkspace | null;
   initiallyOpen?: boolean;
   initialApplicationId?: string | null;
+  /** «Новый вид»: само раскрытие - карточка набора (рамка, заголовок `t-section`), без нижней линии. */
+  nextUi?: boolean;
 }) {
-  return <details className="group scroll-mt-4 border-b border-border" id="partner-packets" open={initiallyOpen}>
+  return <details className={nextUi ? "group scroll-mt-4 rounded-card border border-border bg-card px-5" : "group scroll-mt-4 border-b border-border"} id="partner-packets" open={initiallyOpen}>
     <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 rounded-nav py-1.5 [&::-webkit-details-marker]:hidden">
-      <span className="min-w-0 flex-1 t-item text-fg">{words.title}</span>
+      <span className={nextUi ? "min-w-0 flex-1 t-section text-fg" : "min-w-0 flex-1 t-item text-fg"}>{words.title}</span>
       <Icon name="chevron-down" size={18} className="shrink-0 text-fg-3 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
     </summary>
     <div className="pb-4 pt-1">

@@ -42,6 +42,7 @@ export async function Documents({
   recognition = null,
   filter = "all",
   tabHref,
+  nextUi = false,
 }: Readonly<{
   groups: readonly DocumentGroup[];
   uploadAccess: DocumentUploadAccess;
@@ -50,6 +51,8 @@ export async function Documents({
   recognition?: DocumentRecognitionAccess | null;
   filter?: DocumentStateFilter;
   tabHref: string;
+  /** «Новый вид»: те же чтения и права, другая раскладка. */
+  nextUi?: boolean;
 }>) {
   const activeGroups = groups.filter(
     (group): group is ActiveDocumentGroup => group.kind === "active",
@@ -105,5 +108,6 @@ export async function Documents({
     baselineOptionsUnavailable,
     baselineTemplatesAbsent,
     baselineChecklistRequestId,
+    nextUi,
   });
 }

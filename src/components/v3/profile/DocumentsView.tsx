@@ -38,6 +38,8 @@ export type DocumentsViewInput = Readonly<{
   baselineOptionsUnavailable: boolean;
   baselineTemplatesAbsent: boolean;
   baselineChecklistRequestId: string | null;
+  /** «Новый вид»: карточки набора вместо прежней раскладки (`DocumentsNextLayout`); те же данные и команды. */
+  nextUi?: boolean;
 }>;
 
 /**
@@ -89,6 +91,7 @@ export function documentsView(input: DocumentsViewInput): ReactElement {
       )}
       checklistEmpty={checklistEmpty}
       emptyText={emptyText}
+      nextUi={input.nextUi}
     />
   );
 }

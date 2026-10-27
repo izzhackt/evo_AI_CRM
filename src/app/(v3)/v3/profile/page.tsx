@@ -23,6 +23,8 @@ import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmi
 import { ParentPhoneLookalikes } from "@/components/v3/profile/ParentPhoneLookalikes";
 import type { ParentPhoneSubject } from "@/lib/parent-phone-lookalikes-contract";
 import { ClosedLeadView } from "@/components/v3/closure/ClosedLeadView";
+import { ClosedLeadNext } from "@/components/v3/profile/next/tabs/ClosedLeadNext";
+import { EmptyState } from "@/components/kit/EmptyState";
 import { withDocsSection } from "@/components/v3/profile/admissions-view";
 import { buildStudentsQueueScreen } from "@/components/v3/students/StudentsQueueScreen";
 import { StudentsDirectoryFallback } from "@/components/v3/students/StudentsDirectoryFallback";
@@ -564,8 +566,10 @@ export default async function ProfilePart({
 
   const title = view ? leadDisplayName(view.profile.source, view.profile.person) : docsMode ? "EVO Docs"
     : closedLead ? closedLead.name ?? "Лид без имени" : "Студенты";
+  // «Новый вид» рисует и закрытый лид, и «не найден» вокруг карточки (явный адрес лида или дела), не только живую карточку.
+  const nextCard = nextParts !== null || (nextUi && (closedLead !== null || invalidIdentityShape || missing));
   const content = (
-    <div className={nextParts ? "space-y-4" : "space-y-6"}>
+    <div className={nextCard ? "space-y-4" : "space-y-6"}>
       {queuePage?.content ?? null}
       {directory ? (
         <StudentsDirectoryFallback directory={directory} params={directoryParams} docsMode={docsMode} />
@@ -590,7 +594,7 @@ export default async function ProfilePart({
             profile={view.profile}
             universityProgramsTab={tab === "route" ? <UniversityProgramsTab actor={actor} draft={view.details} routeHref={hrefFor("route")}
               packetsInitiallyOpen={singleSearchParam(params.panel) === "packets"}
-              packetApplicationId={singleSearchParam(params.packet_application) ?? null} /> : undefined}
+              packetApplicationId={singleSearchParam(params.packet_application) ?? null} nextUi={nextParts !== null} /> : undefined}
             caseHeader={nextParts?.header ?? caseParts?.header ?? leadParts?.header ?? undefined}
             caseOverview={nextParts?.overview ?? caseParts?.overview ?? leadParts?.overview ?? undefined}
             nextUi={nextParts !== null}
@@ -613,7 +617,15 @@ export default async function ProfilePart({
           />
         </>
       ) : closedLead ? (
-        <ClosedLeadView row={closedLead} readOnly={isStaffPreview(actor)} />
+        nextUi ? <ClosedLeadNext row={closedLead} readOnly={isStaffPreview(actor)} /> : <ClosedLeadView row={closedLead} readOnly={isStaffPreview(actor)} />
+      ) : (invalidIdentityShape || missing) && nextUi ? (
+        <EmptyState
+          tone="danger"
+          title={invalidIdentityShape ? "Ссылка на профиль некорректна." : "Профиль не найден или недоступен вам."}
+          action={<Link href={requestsReturnTo ?? directoryHref} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">
+            {requestsReturnTo ? "К списку заявок" : "К списку"}
+          </Link>}
+        />
       ) : invalidIdentityShape || missing ? (
         <div className="border-t border-border py-5">
           <p className="t-body text-fg-2">
@@ -626,8 +638,8 @@ export default async function ProfilePart({
       ) : null}
     </div>
   );
-  return nextParts ? (
-    <ProfileNextShell title={title} actions={nextParts.actions} back={caseBack ?? leadBack}>{content}</ProfileNextShell>
+  return nextCard ? (
+    <ProfileNextShell title={title} actions={nextParts?.actions} back={caseBack ?? leadBack ?? closedLeadBack}>{content}</ProfileNextShell>
   ) : (
     <PartShell title={title}
       count={queuePage?.count ?? null} action={docsAction ?? caseParts?.actions ?? leadParts?.actions} dense={queuePage !== null || caseParts !== null || leadParts !== null}

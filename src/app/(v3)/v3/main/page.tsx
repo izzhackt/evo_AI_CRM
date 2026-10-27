@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Suspense, type ComponentProps } from "react";
 
 import type { PeriodChoice } from "@/components/v3/MainHeader";
+import { PageShell } from "@/components/kit";
 import { PartShell } from "@/components/v3/PartShell";
 import { SalesCallsReport } from "@/components/v3/SalesCallsReport";
 import { SalesDynamics } from "@/components/v3/SalesDynamics";
@@ -10,8 +11,11 @@ import { SalesManagerLabelsView } from "@/components/v3/SalesManagerLabelsView";
 import { SalesRegisterImportView } from "@/components/v3/SalesRegisterImportView";
 import { SalesDynamicsReport, SalesRegisterView, type SalesReportQuery } from "@/components/v3/SalesRegisterView";
 import { TodayBoardLinks, TodayScreen } from "@/components/v3/today/TodayScreen";
+import { TodayBoards } from "@/components/v3/today-next/TodayBoards";
+import { TodayNext } from "@/components/v3/today-next/TodayNext";
 import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { isNextUi } from "@/lib/ui-next";
 import { isSalesImportQuery, isSalesManagersQuery, SALES_CALLS_ANCHOR, SALES_DYNAMICS_ANCHOR, salesDynamicsCarry, salesDynamicsHref } from "@/lib/sales-register-navigation";
 import { PERIODS, periodLabel, resolvePeriod } from "@/lib/v3/funnel-source";
 import { v3SectionTitle } from "@/lib/v3/navigation";
@@ -140,6 +144,29 @@ export default async function MainPart({
   const taskLeads = dial.status === "ready" ? await readTodayTaskLeads(actor, queue) : null;
   const preview = isStaffPreview(actor);
   const { boards, mainAction } = todayLinks(actor, access, { canReadReport });
+  const permissions = {
+    actorMembershipId: actor.membershipId,
+    admin: actor.systemRole === "admin" && !preview,
+    preview,
+    staffComplete: staffHasPermission(actor, "staff.task.complete"),
+    staffEdit: staffHasPermission(actor, "staff.task.edit"),
+    caseManage: staffHasPermission(actor, "task.manage"),
+    caseAssign: staffHasPermission(actor, "task.assign"),
+  };
+
+  // «Новый вид» (переключатель администратора): те же чтения и права, другая расстановка — виджеты вместо ленты.
+  if (await isNextUi(actor)) {
+    return (
+      <PageShell
+        title="Сегодня"
+        testId="v3-operational-dashboard"
+        meta={<time dateTime={queue.today}>{todayDateLabel(queue.today)}</time>}
+        actions={<TodayBoards links={boards} />}
+      >
+        <TodayNext queue={queue} nowIso={now.toISOString()} mainAction={mainAction} dial={dial} taskLeads={taskLeads} permissions={permissions} />
+      </PageShell>
+    );
+  }
 
   return (
     <PartShell
@@ -154,15 +181,7 @@ export default async function MainPart({
         mainAction={mainAction}
         dial={dial}
         taskLeads={taskLeads}
-        permissions={{
-          actorMembershipId: actor.membershipId,
-          admin: actor.systemRole === "admin" && !preview,
-          preview,
-          staffComplete: staffHasPermission(actor, "staff.task.complete"),
-          staffEdit: staffHasPermission(actor, "staff.task.edit"),
-          caseManage: staffHasPermission(actor, "task.manage"),
-          caseAssign: staffHasPermission(actor, "task.assign"),
-        }}
+        permissions={permissions}
       />
     </PartShell>
   );

@@ -42,7 +42,7 @@ export function DataTableCards({ rows, loading = false }: Readonly<{ rows: reado
     );
   }
   return (
-    <ul className="grid gap-2 md:hidden" data-slot="data-table-cards">
+    <ul className="grid grid-cols-1 gap-2 md:hidden" data-slot="data-table-cards">
       {rows.map((row, index) => {
         const titleId = `${baseId}-${index}`;
         const shown = row.cells.filter((cell) => cell.column.columnDef.meta?.mobile !== "hide");

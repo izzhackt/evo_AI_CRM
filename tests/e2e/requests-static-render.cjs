@@ -250,6 +250,20 @@ const SCENARIOS = {
   error: { actor: "admin", search: "", rows: ALL_ROWS, states: { lead: "ready", application: "ready", consultation: "ready" }, fail: "unavailable" },
 };
 
+/**
+ * «Новый вид» (27.10.2026): те же синтетические данные, что у прежних сценариев, но с cookie `evo_ui=next`. Администратор получает
+ * таблицу и панель; сотрудник и просмотр роли с тем же cookie — прежний вид (`next-sales-cookie`, `next-preview` должны совпасть
+ * с `sales-empty` и `preview` байт в байт). `next-error`, `next-invalid` — сбой чтения и неверная ссылка.
+ */
+const NEXT_BASES = ["empty", "populated", "waiting", "drawer", "drawer-lead", "sales-empty", "sales-untakeable", "preview", "calls", "calls-dial", "calls-off-link", "error"];
+const NEXT_SCENARIOS = {
+  ...Object.fromEntries(NEXT_BASES.map((name) => [`next-${name}`, { ...SCENARIOS[name], ui: "next" }])),
+  "next-sales-cookie": { ...SCENARIOS["sales-empty"], ui: "next" },
+  "next-invalid": { actor: "admin", search: "source=nonsense", rows: [], states: { lead: "ready", application: "ready", consultation: "ready" }, ui: "next" },
+  // Без cookie администратор видит прежнее: тот же сценарий, что и `waiting` (контроль «переключатель выключен»).
+  "next-off": { ...SCENARIOS.waiting },
+};
+
 let current = null;
 
 class RequestsQueueSourceError extends Error {
@@ -318,6 +332,12 @@ Module._resolveFilename = function patchedResolve(request, ...rest) {
   return originalResolve.call(this, request, ...rest);
 };
 
+// Страница спрашивает `isNextUi` (cookie «Нового вида»): вне запроса `cookies()` не работает. Сценарий с `ui: "next"` приносит
+// cookie `evo_ui=next`; без него cookie нет — прежний вид, как и было (разметку проверяют тесты).
+require("next/headers").cookies = async () => ({
+  get: (name) => (name === "evo_ui" && current && current.ui === "next" ? { name, value: "next" } : undefined),
+});
+
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime");
@@ -341,7 +361,7 @@ function syntheticUuids() {
 
 /** Настоящая страница в настоящей оболочке; «сейчас» и `randomUUID` предсказуемы. */
 async function renderScenario(name) {
-  current = SCENARIOS[name];
+  current = SCENARIOS[name] ?? NEXT_SCENARIOS[name];
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const page = require(join(ROOT, "src/app/(v3)/v3/requests/page.tsx")).default;
   const originalUuid = nodeCrypto.randomUUID;
@@ -354,7 +374,10 @@ async function renderScenario(name) {
   };
   try {
     const content = await page({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(current.search))) });
-    const tree = createElement("div", { className: "v3-world", "data-surface": "staff" },
+    // `data-ui="next"` ставит layout `(v3)` только настоящему администратору с cookie; здесь — по сценарию страницы,
+    // где это решила настоящая `isNextUi` (стенд не знает правила: он смотрит, что нарисовала страница).
+    const nextRoot = current.ui === "next" && current.actor === "admin";
+    const tree = createElement("div", { className: "v3-world", "data-surface": "staff", "data-ui": nextRoot ? "next" : undefined },
       createElement(AppShell, { actor: ACTORS[current.actor], initialNotifications: null }, content));
     return renderToStaticMarkup(withContexts(tree, current.search));
   } finally {
@@ -448,6 +471,116 @@ async function json() {
   const out = [];
   for (const name of Object.keys(SCENARIOS)) out.push({ name, html: await renderScenario(name) });
   process.stdout.write(JSON.stringify(out));
+}
+
+
+
+/**
+ * «Новый вид»: свойства `RequestsNextView` настоящей страницы по сценариям — для tests/e2e/ui-next-today-client.cjs, который
+ * собирает тот же компонент esbuild'ом и гоняет в Chromium (панель записи, действия, клавиатура).
+ */
+async function nextProps() {
+  const { RequestsNextView } = require(join(ROOT, "src/components/v3/requests-next/RequestsNextView.tsx"));
+  const page = require(join(ROOT, "src/app/(v3)/v3/requests/page.tsx")).default;
+  const out = {};
+  for (const name of ["next-populated", "next-calls-dial", "next-waiting"]) {
+    current = NEXT_SCENARIOS[name];
+    const originalUuid = nodeCrypto.randomUUID;
+    nodeCrypto.randomUUID = syntheticUuids();
+    const RealDate = Date;
+    globalThis.Date = class extends RealDate {
+      constructor(...args) { if (args.length) super(...args); else super(NOW.getTime()); }
+      static now() { return NOW.getTime(); }
+    };
+    try {
+      const content = await page({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(current.search))) });
+      const view = findElement(content, (element) => element.type === RequestsNextView);
+      if (!view) throw new Error("the page renders no RequestsNextView");
+      out[name] = view.props;
+    } finally {
+      nodeCrypto.randomUUID = originalUuid;
+      globalThis.Date = RealDate;
+    }
+  }
+  process.stdout.write(JSON.stringify(out));
+}
+
+/** «Новый вид»: разметка всех сценариев `NEXT_SCENARIOS` (для tests/ui-next-today.test.mjs). */
+async function nextJson() {
+  const out = [];
+  for (const name of Object.keys(NEXT_SCENARIOS)) out.push({ name, html: await renderScenario(name) });
+  process.stdout.write(JSON.stringify(out));
+}
+
+/**
+ * «Новый вид»: снимки сценариев нового вида на 1440×900, 1280×800 и 390×844 и измерения — переполнение, мелкий текст,
+ * цели нажатия, сплошной красный, число строк таблицы.
+ *   node tests/e2e/requests-static-render.cjs --next [outDir]
+ */
+async function nextScreenshots() {
+  const outIndex = process.argv.indexOf("--next") + 1;
+  const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
+  mkdirSync(outDir, { recursive: true });
+  const WIDTHS = [
+    ["1440", { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 }],
+    ["1280", { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 }],
+    ["390", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }],
+  ];
+  const css = await compileCss();
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const wanted = process.argv.includes("--only") ? process.argv[process.argv.indexOf("--only") + 1].split(",") : Object.keys(NEXT_SCENARIOS);
+  try {
+    for (const name of wanted) {
+      const html = await renderScenario(name);
+      const htmlPath = join(outDir, `rq-${name}.html`);
+      // Имена прежних сценариев (`--only populated,waiting`) рисуют прежний вид тем же кодом: «до / после».
+      writeFileSync(htmlPath, [
+        "<!DOCTYPE html>",
+        '<html lang="ru" data-theme="light" class="h-full antialiased">',
+        `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Заявки — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
+        `<body class="min-h-full">${html}</body></html>`,
+      ].join(""));
+      for (const [width, context] of WIDTHS) {
+        const file = `rq-${name}-${width}.png`;
+        const browserContext = await browser.newContext(context);
+        const tab = await browserContext.newPage();
+        const errors = [];
+        tab.on("pageerror", (error) => errors.push(error.message));
+        await tab.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
+        await tab.evaluate(() => document.fonts.ready);
+        await tab.waitForFunction(() => [...document.images].every((image) => image.complete || image.getClientRects().length === 0));
+        if (errors.length) throw new Error(`${file}: browser errors:\n${errors.join("\n")}`);
+        const metrics = await tab.evaluate(() => {
+          const visible = (element) => {
+            const style = getComputedStyle(element);
+            const box = element.getBoundingClientRect();
+            return style.display !== "none" && style.visibility !== "hidden" && box.width > 0 && box.height > 0;
+          };
+          const main = document.querySelector('[data-testid="v3-requests"]') ?? document.querySelector("main");
+          const small = [...(main?.querySelectorAll("*") ?? [])].filter((element) => [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim()) && visible(element) && parseFloat(getComputedStyle(element).fontSize) < 12).length;
+          const targets = [...(main?.querySelectorAll("a, button, [role=button], tr[tabindex]") ?? [])].filter((element) => visible(element) && !element.closest("[popover]")
+            && element.getBoundingClientRect().height < 40 && !element.matches("a:not([class]), [data-slot=sheet-close]")).map((element) => `${element.tagName}:${(element.textContent || element.getAttribute("aria-label") || "").trim().slice(0, 24)}`);
+          return {
+            overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            h1: document.querySelectorAll("h1").length,
+            tableRows: [...document.querySelectorAll("[data-slot=table] tbody tr")].filter(visible).length,
+            cards: [...document.querySelectorAll("[data-slot=data-table-cards] > li")].filter(visible).length,
+            textUnder12: small,
+            solidRed: [...(main?.querySelectorAll("a, button") ?? [])].filter((element) => visible(element) && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").map((element) => element.textContent.trim()).join("|") || "none",
+            smallTargets: targets.slice(0, 6).join(" | ") || null,
+            tabs: [...(main?.querySelectorAll('[data-testid="queue-view-tabs"] a') ?? [])].map((link) => link.textContent.trim()).join(" · "),
+            pageHeight: document.documentElement.scrollHeight,
+          };
+        });
+        await tab.screenshot({ path: join(outDir, file), fullPage: process.argv.includes("--full") });
+        process.stdout.write(`${file}: ${Object.entries(metrics).filter(([, value]) => value !== null).map(([key, value]) => `${key}=${value}`).join(" ")}\n`);
+        await browserContext.close();
+      }
+    }
+  } finally {
+    await browser.close();
+  }
 }
 
 // --- смена записи в правой панели (ревью PR #1084) ---------------------------
@@ -1128,7 +1261,13 @@ async function f1() {
   if (failures.length) throw new Error(`side panel (requests): ${failures.length} failed:\n${failures.join("\n")}`);
 }
 
-if (process.argv.includes("--json")) {
+if (process.argv.includes("--next-props")) {
+  nextProps().catch((error) => { console.error(error); process.exit(1); });
+} else if (process.argv.includes("--next-json")) {
+  nextJson().catch((error) => { console.error(error); process.exit(1); });
+} else if (process.argv.includes("--next")) {
+  nextScreenshots().catch((error) => { console.error(error); process.exit(1); });
+} else if (process.argv.includes("--json")) {
   json().catch((error) => { console.error(error); process.exit(1); });
 } else if (process.argv.includes("--f1")) {
   f1().catch((error) => { console.error(error); process.exit(1); });

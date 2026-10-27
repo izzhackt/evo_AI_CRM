@@ -53,6 +53,80 @@ export function wazzupStateHealthWord(state: string): string {
   return STATUS_WORD.test(converted) ? converted : "UNKNOWN_STATE";
 }
 
+/** Действующий путь WhatsApp в базе (`whatsapp_transport_state.active_transport`; нет строки = `none`). */
+export type WazzupDatabaseTransport = "none" | "waha" | "wazzup";
+
+/** Ответ `platform.whatsapp_transport_read_v1` (миграция 326), сведённый к тому, что нужно таймеру. */
+export type WazzupTransportRead = Readonly<{
+  transport: WazzupDatabaseTransport;
+  aiTriggerEnabled: boolean;
+  geminiEnabled: boolean;
+  /** Привязанный канал приёма (`wazzup_channels.channel_id`) или null, когда канал не привязан. */
+  channelId: string | null;
+}>;
+
+const CHANNEL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+
+/**
+ * Строгий разбор ответа чтения пути: слово пути из закрытого списка, два выключателя - булевы, канал - null или объект
+ * с идентификатором канала. Любое другое - null (вызывающий считает это сбоем базы, а не «пути нет»). Ключей, номера и
+ * хеша в ответе нет, и здесь они не читаются.
+ */
+export function parseWazzupTransportRead(value: unknown): WazzupTransportRead | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const transport = record.transport;
+  if (transport !== "none" && transport !== "waha" && transport !== "wazzup") return null;
+  if (typeof record.aiTriggerEnabled !== "boolean" || typeof record.geminiEnabled !== "boolean") return null;
+  if (!Object.hasOwn(record, "channel")) return null;
+  let channelId: string | null = null;
+  if (record.channel !== null) {
+    const channel = record.channel;
+    if (typeof channel !== "object" || Array.isArray(channel)) return null;
+    const id = (channel as Record<string, unknown>).channelId;
+    if (typeof id !== "string" || !CHANNEL_UUID.test(id)) return null;
+    channelId = id;
+  }
+  return Object.freeze({ transport, aiTriggerEnabled: record.aiTriggerEnabled, geminiEnabled: record.geminiEnabled, channelId });
+}
+
+/**
+ * Расхождение переключателей env и пути в базе (план §9, таблица состояний). Слова:
+ *  - `env_wazzup_on_db_waha` - env Wazzup `1`, путь `waha` (строка 3 таблицы): маршрут Wazzup отвечает 503
+ *    `transport_inactive`, а приём WAHA по контракту env выключен - не принимает никто;
+ *  - `env_wazzup_off_db_wazzup` - аварийный стоп закрыт, путь `wazzup` (строка 4): маршрут отвечает 503, канал может быть
+ *    рабочим, ответы остаются закрытыми;
+ *  - `env_waha_off_db_waha` - путь `waha`, а приём WAHA в env выключен: не принимает никто;
+ *  - `env_waha_on_db_wazzup` - путь `wazzup`, а приём WAHA в env включён: два приёма на один номер (контракт env такой
+ *    выпуск не допускает; слово ловит ручную правку env).
+ * Путь `none` расхождением не считается (норма до переключения и после быстрого отката, строка 2). null - всё сходится.
+ */
+export type WazzupTransportMismatch =
+  | "env_wazzup_on_db_waha"
+  | "env_wazzup_off_db_wazzup"
+  | "env_waha_off_db_waha"
+  | "env_waha_on_db_wazzup";
+
+export function wazzupTransportMismatch(input: Readonly<{
+  transport: WazzupDatabaseTransport;
+  /** `EVO_PLATFORM_WAZZUP_INGRESS_ENABLED === "1"`. */
+  wazzupIntakeOn: boolean;
+  /** `EVO_PLATFORM_WAHA_INGRESS_ENABLED === "1"`. */
+  wahaIntakeOn: boolean;
+}>): WazzupTransportMismatch | null {
+  if (input.transport === "waha") {
+    if (input.wazzupIntakeOn) return "env_wazzup_on_db_waha";
+    if (!input.wahaIntakeOn) return "env_waha_off_db_waha";
+    return null;
+  }
+  if (input.transport === "wazzup") {
+    if (!input.wazzupIntakeOn) return "env_wazzup_off_db_wazzup";
+    if (input.wahaIntakeOn) return "env_waha_on_db_wazzup";
+    return null;
+  }
+  return null;
+}
+
 /** Допуск суточной сверки: max(3, 2 % от числа amoCRM) (§5.4 в). */
 export function wazzupReconciliationTolerance(amoCount: number): number {
   return Math.max(3, Math.ceil(amoCount * 0.02));

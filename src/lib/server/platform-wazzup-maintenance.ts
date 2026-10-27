@@ -1,7 +1,5 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
-
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { planWhatsAppHealth, type WhatsAppHealthObservation } from "../platform-whatsapp-health.ts";
@@ -11,15 +9,19 @@ import {
   WAZZUP_HEALTH_SESSION,
   WAZZUP_KEY_REJECTED_WORD,
   WAZZUP_UNREACHABLE_WORD,
+  parseWazzupTransportRead,
   wazzupReconciliationVerdict,
   wazzupReconciliationWindow,
   wazzupStateHealthWord,
+  wazzupTransportMismatch,
+  type WazzupDatabaseTransport,
 } from "../platform-wazzup-health.ts";
 import {
   getPlatformMessagingBackendConfig,
   type PlatformMessagingBackendConfig,
 } from "./platform-messaging-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
+import { isPlatformWahaIngressEnabled } from "./platform-waha-ingress-config.ts";
 import {
   parseWhatsAppHealthState,
   salesHeadMembership,
@@ -53,18 +55,18 @@ import {
  *    (`platform.wazzup_daily_counts_v1`) и сравнивает с числом amoCRM, если чтение amoCRM настроено; расхождение больше
  *    max(3, 2 %) - тревога вида `gap`, сошлось - закрывается `counts_match`.
  *
- * Действующий путь (`whatsapp_transport_state.active_transport`) читать из service_role нечем: у миграции 325 нет
- * читающей функции. Шаги узнают его одним вызовом `wazzup_webhook_persist_v1` с пустой порцией: это единственная функция,
- * которая без записи отвечает и «путь Wazzup?», и номером привязанного канала (тот же вызов с пустой порцией делает
- * маршрут приёма для пакета из одних статусов). Не Wazzup - шаг пишет `transport_inactive` и ничего не опрашивает.
- * Слова пути (`none` или `waha`) вызов не отдаёт, поэтому «расхождение» плана §9 (env `1`, путь `waha`) блок не называет:
- * известное отклонение, docs/runbooks/wazzup-whatsapp.md §10 п. 7.
+ * Действующий путь (`whatsapp_transport_state.active_transport`: `none`, `waha` или `wazzup`) и привязанный канал проход
+ * читает ОДНИМ вызовом `platform.whatsapp_transport_read_v1` (миграция 326, только service_role, ничего не пишет) - общим
+ * для всех шагов. Не Wazzup - шаги пишут `transport_inactive` и ничего не опрашивают. Слово пути идёт в журнал
+ * (`transport`) и в сравнение с переключателями env: расхождение плана §9 (env Wazzup `1`, а путь `waha`; стоп закрыт, а
+ * путь `wazzup`; путь `waha`, а приём WAHA выключен; путь `wazzup`, а приём WAHA включён) - `status: degraded`, `reason:
+ * transport_mismatch` и слово расхождения (`transport_mismatch`). Путь `none` - норма и расхождением не считается.
  *
  * Аварийный стоп (`EVO_PLATFORM_WAZZUP_INGRESS_ENABLED` не "1") и в env нет токена вебхука (настройки Wazzup не
  * начаты) - ничего не делает и в базу не ходит. Стоп закрыт, но токен задан (настройка начата или приём остановлен
- * аварийно): один безопасный вызов узнаёт путь; путь не Wazzup - блок молчит; путь Wazzup - это «деградация»
- * (`ingress_off_transport_wazzup`): догрузка и сверка пропускаются (приём остановлен), шаг здоровья идёт, чтобы
- * «молчит» сработало (план §9, таблица состояний). Ничего не отправляет клиентам; у Wazzup только `GET /v3/channels`.
+ * аварийно): путь читается; нет расхождения - блок молчит; путь `wazzup` - это «расхождение» (`env_wazzup_off_db_wazzup`,
+ * «деградация»): догрузка и сверка пропускаются (приём остановлен), шаг здоровья идёт, чтобы «молчит» сработало (план §9,
+ * таблица состояний). Ничего не отправляет клиентам; у Wazzup только `GET /v3/channels`.
  * В журнале (одна JSON-строка) - слова и счётчики: ни номера, ни ключа, ни токена, ни текста.
  */
 
@@ -76,8 +78,6 @@ const DEFAULT_SWEEP_BUDGET_MS = 40_000;
 const DEFAULT_AI_DISPATCH_DEADLINE_MS = 15_000;
 /** Весь блок: хард-стоп скрипта 100 с, шаг WAHA до него тоже тратит время. */
 const DEFAULT_TOTAL_BUDGET_MS = 70_000;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
-const PROBE_BATCH_SHA256 = createHash("sha256").update("evo:wazzup:transport-probe", "utf8").digest("hex");
 
 type RpcClient = Pick<SupabaseClient, "schema">;
 type JsonObject = Record<string, unknown>;
@@ -206,39 +206,51 @@ export async function runWazzupMaintenance(
     }
   }
 
-  // Действующий путь и привязанный канал: один вызов на проход, общий для шагов б) и в).
-  let transport: Promise<Readonly<{ active: boolean; channelId: string | null }>> | null = null;
-  const transportOf = (): Promise<Readonly<{ active: boolean; channelId: string | null }>> => {
+  // Действующий путь и привязанный канал: один чтящий вызов на проход (миграция 326), общий для всех шагов.
+  type TransportView = Readonly<{ transport: WazzupDatabaseTransport; active: boolean; channelId: string | null }>;
+  let transport: Promise<TransportView> | null = null;
+  const transportOf = (): Promise<TransportView> => {
     transport ??= (async () => {
-      const data = await rpc("wazzup_webhook_persist_v1", {
-        p_organization_id: organizationId,
-        p_batch_sha256: PROBE_BATCH_SHA256,
-        p_token_slot: "current",
-        p_elements: [],
-        p_counters: {},
+      const read = parseWazzupTransportRead(await rpc("whatsapp_transport_read_v1", { p_organization_id: organizationId }));
+      if (read === null) throw new WhatsAppHealthDatabaseError();
+      return Object.freeze({
+        transport: read.transport,
+        // Путь Wazzup без привязанного канала не бывает (команда `transport` его не примет), но «активен» требует и канал.
+        active: read.transport === "wazzup" && read.channelId !== null,
+        channelId: read.channelId,
       });
-      if (!isObject(data) || typeof data.transportActive !== "boolean") throw new WhatsAppHealthDatabaseError();
-      const channelId = typeof data.channelId === "string" && UUID_PATTERN.test(data.channelId) ? data.channelId : null;
-      return Object.freeze({ active: data.transportActive, channelId });
     })();
     return transport;
   };
 
-  // Приём остановлен аварийно (или настройка начата), а путь в базе всё ещё Wazzup: вебхуки закрыты, канал может быть
-  // рабочим. Блок молчит, пока путь не Wazzup; иначе идёт дальше «деградацией» без догрузки и сверки.
-  if (!intakeOpen) {
-    try {
-      if (!(await transportOf()).active) {
-        log.status = "disabled";
-        log.reason = "ingress_off";
-        return done(0);
-      }
-    } catch (error) {
+  // Путь читается сразу: он нужен для расхождения с env и решает, молчит ли блок при закрытом стопе. Сбой чтения при
+  // закрытом стопе - громкий (молчать о неизвестном нельзя); при открытом стопе его назовёт каждый шаг, которому путь нужен
+  // (догрузка от пути не зависит и идёт сама: событие нельзя терять из-за недоступного чтения).
+  let view: TransportView | null = null;
+  try {
+    view = await transportOf();
+  } catch (error) {
+    if (!intakeOpen) {
       log.status = "failed";
       log.reason = error instanceof WhatsAppHealthDatabaseError ? error.word : "database";
       return done(1);
     }
-    log.reason = "ingress_off_transport_wazzup";
+  }
+  const mismatch = view === null ? null : wazzupTransportMismatch({
+    transport: view.transport,
+    wazzupIntakeOn: intakeOpen,
+    wahaIntakeOn: isPlatformWahaIngressEnabled(dependencies.environment),
+  });
+  // Стоп закрыт, токен задан, а расхождения нет (путь `none`, либо `waha` при включённом приёме WAHA): блок молчит.
+  if (!intakeOpen && mismatch === null) {
+    log.status = "disabled";
+    log.reason = "ingress_off";
+    return done(0);
+  }
+  if (view !== null) log.transport = view.transport;
+  if (mismatch !== null) {
+    log.reason = "transport_mismatch";
+    log.transport_mismatch = mismatch;
   }
 
   let failures = 0;
@@ -262,6 +274,9 @@ export async function runWazzupMaintenance(
       failures += 1;
       log.sweep_status = "failed";
       log.sweep_reason = "owner_missing";
+    } else if (view !== null && !view.active) {
+      // Путь прочитан и он не Wazzup: проецировать нечего, база тоже ответила бы `transportActive: false`.
+      log.sweep_status = "transport_inactive";
     } else {
       const started = dependencies.now();
       let rounds = 0;
@@ -540,7 +555,7 @@ export async function runWazzupMaintenance(
     return done(1);
   }
   // «Пропущено» - не «в порядке»: шаг, который не бежал из-за бюджета, или запуск ИИ, не уложившийся в срок.
-  const degraded = !intakeOpen || log.backlog === "degraded" || log.health_status === "skipped"
+  const degraded = mismatch !== null || log.backlog === "degraded" || log.health_status === "skipped"
     || log.reconcile_status === "skipped" || log.sweep_ai_dispatch === "deadline";
   log.status = degraded ? "degraded" : "ok";
   return done(0);

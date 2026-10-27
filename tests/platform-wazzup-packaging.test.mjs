@@ -126,8 +126,12 @@ test("the ops bundle: a probe typed as an argument is refused without being read
     assert.equal(malformed.status, 1);
     assert.deepEqual(JSON.parse(malformed.stdout), { ok: false, error: "key_shape_invalid" });
     assert.ok(!malformed.stdout.includes("short"));
-    // Replay without a token never reads the batch.
-    const noToken = run(ops, ["replay"], {}, '{"messages":[]}');
+    // Replay takes event ids only: no ids is a usage error whatever arrives on stdin, and with ids but no token nothing is read or sent.
+    const bare = run(ops, ["replay"], {}, '{"messages":[]}');
+    assert.equal(bare.status, 2);
+    assert.deepEqual(JSON.parse(bare.stdout), { ok: false, error: "event_ids_required" });
+    const noToken = run(ops, ["replay", "77700000-0000-4000-8000-0000000000e1"], {}, '{"messages":[]}');
+    assert.equal(noToken.status, 1);
     assert.deepEqual(JSON.parse(noToken.stdout), { ok: false, error: "token_unavailable" });
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -202,7 +206,14 @@ test("the runbook carries the rules an operator needs: the key on stdin only, co
     "transport_conflict",
     "receive_only",
     "`409 transport_wazzup`",
-    "ingress_off_transport_wazzup",
+    "transport_mismatch",
+    "env_wazzup_on_db_waha",
+    "env_wazzup_off_db_wazzup",
+    "env_waha_off_db_waha",
+    "env_waha_on_db_wazzup",
+    "whatsapp_transport_read_v1",
+    "whatsapp_intake_events_read_v1",
+    "event_ids_required",
     "COUNTS_GAP",
     "counts_match",
     "oldest_pending_seconds",
@@ -232,15 +243,21 @@ test("the rollback rule is in the release procedure and the timer note describes
   assert.match(release, /the rollback is\s+forbidden/u);
   assert.match(release, /wazzup-ops transport none/u);
   const timer = read("deploy/whatsapp/README.md");
-  for (const phrase of ["`sweep`", "`health`", "`reconcile`", "transport_inactive", "transport_conflict", "GET /v3/channels"]) assert.ok(timer.includes(phrase), phrase);
+  for (const phrase of ["`sweep`", "`health`", "`reconcile`", "transport_inactive", "transport_conflict", "GET /v3/channels", "whatsapp_transport_read_v1", "transport_mismatch"]) assert.ok(timer.includes(phrase), phrase);
   // The unit itself did not change: still the same oneshot docker exec.
   assert.match(read("deploy/whatsapp/evo-whatsapp-health.service"), /^ExecStart=\/usr\/bin\/docker exec evo-crm-app-1 node \/app\/whatsapp-health-maintenance\.mjs$/mu);
 });
 
-test("this slice adds no migration, no plan file and no direct amoCRM call; migrations 324-325 are the ones it stands on", () => {
+test("the app stands on migrations 324-326 (the follow-ups 326 carry the two service reads the timer and `replay` call), adds no plan file and no direct amoCRM call", () => {
   assert.ok(existsSync(join(root, "supabase/migrations/324_platform_wazzup_provider.sql")));
   assert.ok(existsSync(join(root, "supabase/migrations/325_platform_wazzup_intake.sql")));
+  const followups = read("supabase/migrations/326_platform_wazzup_followups.sql");
+  // The two functions the app calls by name exist in 326, and the app calls nothing else of it.
+  for (const name of ["platform.whatsapp_transport_read_v1", "platform.whatsapp_intake_events_read_v1"]) assert.ok(followups.includes(`CREATE FUNCTION ${name}(`), name);
+  assert.match(read("src/lib/server/platform-wazzup-maintenance.ts"), /rpc\("whatsapp_transport_read_v1"/u);
+  assert.match(read("src/lib/server/platform-wazzup-ops.ts"), /rpc\("whatsapp_intake_events_read_v1"/u);
   assert.ok(!existsSync(join(root, "supabase/migrations/326_platform_wazzup_app.sql")));
+  assert.ok(existsSync(join(root, "docs/adr/0036-receive-sales-whatsapp-via-wazzup-sidecar.md")));
   for (const file of NEW_FILES.filter((item) => item.startsWith("src/") || item.startsWith("scripts/"))) {
     assert.ok(!/amocrm\.(?:ru|com)|kommo\.com/iu.test(read(file)), `${file}: the timer calls no amoCRM host`);
   }

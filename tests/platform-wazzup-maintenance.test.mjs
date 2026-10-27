@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { parseWazzupTransportRead, wazzupTransportMismatch } from "../src/lib/platform-wazzup-health.ts";
 import { runWazzupMaintenance } from "../src/lib/server/platform-wazzup-maintenance.ts";
 import { WazzupApiError } from "../src/lib/server/platform-wazzup-client.ts";
 
@@ -54,7 +55,16 @@ function database(handlers) {
   return { calls, client, names: () => calls.map((call) => call.fn), of: (fn) => calls.filter((call) => call.fn === fn) };
 }
 
-const transportActive = { transportActive: true, channelId: CHANNEL_ID, results: [], counts: {} };
+/** What `whatsapp_transport_read_v1` (migration 326) returns: the path word, both switches and the bound channel. */
+const transportRead = (transport = "wazzup", extra = {}) => ({
+  transport,
+  aiTriggerEnabled: false,
+  geminiEnabled: false,
+  channel: { channelId: CHANNEL_ID, transport: "whatsapp", last4: "0001", state: "active", observedAt: null },
+  ...extra,
+});
+const transportActive = transportRead("wazzup");
+const transportNone = transportRead("none", { channel: null });
 const sweepIdle = { transportActive: true, processed: 0, busy: 0, outcomes: {}, newInbound: 0, oldestPendingSeconds: null, failedExhausted: 0, aiTriggerEnabled: false };
 
 /** What `whatsapp_health_read_v1` returns. */
@@ -78,7 +88,7 @@ function healthState({ now, monitor = null, disconnected = null, silent = null, 
 function quiet(extra = {}) {
   const NOW = at("2026-10-27T14:00:00");
   return database({
-    wazzup_webhook_persist_v1: () => ok(transportActive),
+    whatsapp_transport_read_v1: () => ok(transportActive),
     wazzup_projection_sweep_v1: () => ok(sweepIdle),
     wazzup_api_key_resolve_v1: () => ok({ ready: true, reasonCode: "ready", apiKey: SYNTH_KEY, apiKeySha256: "ab".repeat(32), bindingVersion: 1 }),
     wazzup_channel_observe_v1: () => ok({ updated: true }),
@@ -144,19 +154,27 @@ test("with the emergency stop closed the Wazzup part does nothing at all: no bac
   }
 });
 
-test("emergency stop closed with a staged token: while the database path is not Wazzup the part stays silent after one write-free probe", async () => {
+test("emergency stop closed with a staged token: while the database path is none (or waha with the WAHA intake on) the part stays silent after one read", async () => {
   const staged = environment({ EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: "0123456789abcdef".repeat(4), EVO_PLATFORM_WAZZUP_INGRESS_ENABLED: "0" });
-  const db = quiet({ wazzup_webhook_persist_v1: () => ok({ transportActive: false, results: [] }) });
+  const db = quiet({ whatsapp_transport_read_v1: () => ok(transportNone) });
   const { report, wazzup } = await run(db, { env: staged });
   assert.deepEqual(report.log, { status: "disabled", reason: "ingress_off" });
   assert.equal(report.exitCode, 0);
-  assert.deepEqual(db.names(), ["wazzup_webhook_persist_v1"]);
+  assert.deepEqual(db.names(), ["whatsapp_transport_read_v1"]);
   assert.deepEqual(wazzup.state.keys, []);
-  // A probe that cannot be answered is a loud failure, not silence.
-  const broken = quiet({ wazzup_webhook_persist_v1: () => fail() });
-  const second = await run(broken, { env: staged });
-  assert.deepEqual(second.report.log, { status: "failed", reason: "database" });
-  assert.equal(second.report.exitCode, 1);
+  // The path waha with the WAHA intake on is the ordinary old arrangement: silent as well.
+  const waha = quiet({ whatsapp_transport_read_v1: () => ok(transportRead("waha")) });
+  const second = await run(waha, { env: { ...staged, EVO_PLATFORM_WAHA_INGRESS_ENABLED: "1" } });
+  assert.deepEqual(second.report.log, { status: "disabled", reason: "ingress_off" });
+  assert.deepEqual(waha.names(), ["whatsapp_transport_read_v1"]);
+  // A read that cannot be answered is a loud failure, not silence.
+  const broken = quiet({ whatsapp_transport_read_v1: () => fail() });
+  const third = await run(broken, { env: staged });
+  assert.deepEqual(third.report.log, { status: "failed", reason: "database" });
+  assert.equal(third.report.exitCode, 1);
+  // So is an answer of a shape the read does not have.
+  const odd = quiet({ whatsapp_transport_read_v1: () => ok({ transport: "telegram", aiTriggerEnabled: false, geminiEnabled: false, channel: null }) });
+  assert.deepEqual((await run(odd, { env: staged })).report.log, { status: "failed", reason: "database" });
 });
 
 test("emergency stop closed while the database path is still Wazzup: degraded, no sweep and no reconciliation, but the health step keeps watching (so `silent` can still fire)", async () => {
@@ -167,7 +185,9 @@ test("emergency stop closed while the database path is still Wazzup: degraded, n
   });
   const { report, wazzup } = await run(db, { env: staged, now: NOW, amo: 300 });
   assert.equal(report.log.status, "degraded");
-  assert.equal(report.log.reason, "ingress_off_transport_wazzup");
+  assert.equal(report.log.reason, "transport_mismatch");
+  assert.equal(report.log.transport_mismatch, "env_wazzup_off_db_wazzup");
+  assert.equal(report.log.transport, "wazzup");
   assert.equal(report.log.sweep_status, "skipped");
   assert.equal(report.log.sweep_reason, "ingress_off");
   assert.equal(report.log.reconcile_status, "skipped");
@@ -175,7 +195,7 @@ test("emergency stop closed while the database path is still Wazzup: degraded, n
   assert.equal(report.exitCode, 0);
   assert.equal(db.of("wazzup_projection_sweep_v1").length, 0, "nothing is projected while intake is stopped");
   assert.equal(db.of("wazzup_daily_counts_v1").length, 0);
-  assert.equal(db.of("wazzup_webhook_persist_v1").length, 1, "one shared probe");
+  assert.equal(db.of("whatsapp_transport_read_v1").length, 1, "one shared read of the path");
   assert.equal(db.of("whatsapp_health_observe_v1").length, 1);
   assert.deepEqual(wazzup.state.keys, [SYNTH_KEY]);
 });
@@ -190,7 +210,7 @@ test("switched on without a backend: a clear failure, no stack, no secret", asyn
 
 test("when the transport is not Wazzup every step says transport_inactive, Wazzup is never called and no series is written", async () => {
   const db = quiet({
-    wazzup_webhook_persist_v1: () => ok({ transportActive: false, results: [] }),
+    whatsapp_transport_read_v1: () => ok(transportNone),
     wazzup_projection_sweep_v1: () => ok({ transportActive: false }),
   });
   const { report, wazzup } = await run(db, { now: at("2026-10-27T00:30:00") });
@@ -199,19 +219,112 @@ test("when the transport is not Wazzup every step says transport_inactive, Wazzu
   assert.equal(report.log.sweep_status, "transport_inactive");
   assert.equal(report.log.health_status, "transport_inactive");
   assert.equal(report.log.reconcile_status, "transport_inactive");
+  assert.equal(report.log.transport, "none");
+  assert.equal(report.log.transport_mismatch, undefined, "none is the ordinary state before the switch and after a quick rollback");
+  assert.equal(db.of("wazzup_projection_sweep_v1").length, 0, "a known-inactive path is not swept");
   assert.deepEqual(wazzup.state.keys, []);
   assert.deepEqual(db.names().filter((name) => name.startsWith("whatsapp_health")), []);
   assert.deepEqual(db.names().filter((name) => name === "wazzup_api_key_resolve_v1" || name === "wazzup_daily_counts_v1" || name === "wazzup_channel_observe_v1"), []);
 });
 
-test("the transport probe is a write-free call: an empty portion with no counters, once per pass", async () => {
+test("the transport read is one call per pass with only the organization; nothing is probed through the write function any more", async () => {
   const db = quiet();
   await run(db, { now: at("2026-10-27T00:30:00") });
-  const probes = db.of("wazzup_webhook_persist_v1");
-  assert.equal(probes.length, 1, "shared by the health and reconciliation steps");
-  assert.deepEqual(probes[0].args.p_elements, []);
-  assert.deepEqual(probes[0].args.p_counters, {});
-  assert.equal(probes[0].args.p_organization_id, ORGANIZATION_ID);
+  const reads = db.of("whatsapp_transport_read_v1");
+  assert.equal(reads.length, 1, "shared by every step");
+  assert.deepEqual(reads[0].args, { p_organization_id: ORGANIZATION_ID });
+  assert.ok(!db.names().includes("wazzup_webhook_persist_v1"), "the empty-portion probe of the persist function is gone");
+});
+
+// ---------------------------------------------------------------- transport and env disagree (plan §9)
+
+test("pure rule: the four disagreements of the env switches and the database path, in both directions; none and the agreeing pairs are not one", () => {
+  const rule = (transport, wazzupIntakeOn, wahaIntakeOn) => wazzupTransportMismatch({ transport, wazzupIntakeOn, wahaIntakeOn });
+  // path waha
+  assert.equal(rule("waha", true, false), "env_wazzup_on_db_waha");
+  assert.equal(rule("waha", false, false), "env_waha_off_db_waha");
+  assert.equal(rule("waha", false, true), null, "the old arrangement: WAHA receives");
+  // path wazzup
+  assert.equal(rule("wazzup", false, false), "env_wazzup_off_db_wazzup");
+  assert.equal(rule("wazzup", false, true), "env_wazzup_off_db_wazzup");
+  assert.equal(rule("wazzup", true, true), "env_waha_on_db_wazzup");
+  assert.equal(rule("wazzup", true, false), null, "the working state");
+  // path none: normal in every combination
+  for (const [wazzup, waha] of [[true, false], [false, false], [false, true], [true, true]]) assert.equal(rule("none", wazzup, waha), null, `${wazzup} ${waha}`);
+});
+
+test("pure parser of the transport read: the closed words, two booleans and the channel id - anything else is not an answer", () => {
+  assert.deepEqual(parseWazzupTransportRead(transportRead("wazzup")), { transport: "wazzup", aiTriggerEnabled: false, geminiEnabled: false, channelId: CHANNEL_ID });
+  assert.deepEqual(parseWazzupTransportRead(transportNone), { transport: "none", aiTriggerEnabled: false, geminiEnabled: false, channelId: null });
+  assert.equal(parseWazzupTransportRead(transportRead("waha")).transport, "waha");
+  for (const bad of [null, undefined, [], "wazzup", 7,
+    { ...transportRead(), transport: "telegram" }, { ...transportRead(), transport: undefined },
+    { ...transportRead(), aiTriggerEnabled: "false" }, { ...transportRead(), geminiEnabled: undefined },
+    (() => { const withoutChannel = { ...transportRead() }; delete withoutChannel.channel; return withoutChannel; })(),
+    { ...transportRead(), channel: [] }, { ...transportRead(), channel: "x" },
+    { ...transportRead(), channel: { channelId: "not-a-uuid" } }, { ...transportRead(), channel: { transport: "whatsapp" } }]) {
+    assert.equal(parseWazzupTransportRead(bad), null, JSON.stringify(bad));
+  }
+});
+
+test("env Wazzup on, path waha: `degraded` with transport_mismatch (the plan's «расхождение»), exit 0, nothing swept or polled, no series written", async () => {
+  const db = quiet({ whatsapp_transport_read_v1: () => ok(transportRead("waha")) });
+  const { report, wazzup } = await run(db, { now: at("2026-10-27T00:30:00") });
+  assert.equal(report.log.status, "degraded");
+  assert.equal(report.log.reason, "transport_mismatch");
+  assert.equal(report.log.transport_mismatch, "env_wazzup_on_db_waha");
+  assert.equal(report.log.transport, "waha");
+  assert.equal(report.log.sweep_status, "transport_inactive");
+  assert.equal(report.log.health_status, "transport_inactive");
+  assert.equal(report.log.reconcile_status, "transport_inactive");
+  assert.equal(report.exitCode, 0);
+  assert.deepEqual(wazzup.state.keys, []);
+  assert.deepEqual(db.names().filter((name) => name.startsWith("whatsapp_health")), []);
+});
+
+test("path waha and the WAHA intake switched off (stop closed or open): nobody receives - `degraded`, transport_mismatch env_waha_off_db_waha", async () => {
+  const staged = environment({ EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: "0123456789abcdef".repeat(4), EVO_PLATFORM_WAZZUP_INGRESS_ENABLED: "0" });
+  const db = quiet({ whatsapp_transport_read_v1: () => ok(transportRead("waha")) });
+  const { report } = await run(db, { env: staged });
+  assert.equal(report.log.status, "degraded");
+  assert.equal(report.log.transport_mismatch, "env_waha_off_db_waha");
+  assert.equal(report.log.sweep_status, "skipped");
+  assert.equal(report.log.health_status, "transport_inactive");
+  assert.equal(report.exitCode, 0);
+  assert.deepEqual(db.names(), ["whatsapp_transport_read_v1"]);
+});
+
+test("path wazzup with the WAHA intake on: two receivers - `degraded`, transport_mismatch env_waha_on_db_wazzup, and the steps still run", async () => {
+  const db = quiet();
+  const { report } = await run(db, { env: environment({ EVO_PLATFORM_WAHA_INGRESS_ENABLED: "1" }) });
+  assert.equal(report.log.status, "degraded");
+  assert.equal(report.log.reason, "transport_mismatch");
+  assert.equal(report.log.transport_mismatch, "env_waha_on_db_wazzup");
+  assert.equal(report.log.sweep_status, "ok");
+  assert.equal(report.log.health_status, "ok");
+  assert.equal(report.exitCode, 0);
+});
+
+test("the agreeing states carry the path word and no mismatch: wazzup + env 1, none + env 1", async () => {
+  const working = await run(quiet());
+  assert.equal(working.report.log.transport, "wazzup");
+  assert.equal(working.report.log.transport_mismatch, undefined);
+  assert.equal(working.report.log.reason, undefined);
+  assert.equal(working.report.log.status, "ok");
+  const none = await run(quiet({ whatsapp_transport_read_v1: () => ok(transportNone) }));
+  assert.equal(none.report.log.transport, "none");
+  assert.equal(none.report.log.status, "ok");
+});
+
+test("the read of the path failing with the intake open: the sweep still runs, the steps that need the path say `failed`, exit 1", async () => {
+  const db = quiet({ whatsapp_transport_read_v1: () => fail() });
+  const { report, wazzup } = await run(db);
+  assert.equal(report.log.sweep_status, "ok", "projection does not wait for the path read");
+  assert.equal(report.log.health_status, "failed");
+  assert.equal(report.log.transport, undefined);
+  assert.equal(report.log.transport_mismatch, undefined);
+  assert.equal(report.exitCode, 1);
+  assert.deepEqual(wazzup.state.keys, []);
 });
 
 // ---------------------------------------------------------------- a) sweep
@@ -497,9 +610,9 @@ test("health: a failing channel-state write does not fail the pass; a failing pr
   assert.equal(report.log.health_status, "ok");
   assert.equal(report.log.health_observe, "failed");
 
-  const probeDown = quiet({ wazzup_webhook_persist_v1: () => fail() });
+  const probeDown = quiet({ whatsapp_transport_read_v1: () => fail() });
   const second = await run(probeDown, { now: at("2026-10-27T00:30:00") });
-  assert.equal(second.report.log.sweep_status, "ok", "the sweep does not depend on the probe");
+  assert.equal(second.report.log.sweep_status, "ok", "the sweep does not depend on the read of the path");
   assert.equal(second.report.log.health_status, "failed");
   assert.equal(second.report.log.reconcile_status, "failed");
   assert.equal(second.report.exitCode, 1);

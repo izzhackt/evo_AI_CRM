@@ -44,9 +44,14 @@ independent Wazzup steps (nested under `wazzup` in the JSON line):
   in EVO and, where an amoCRM read is configured, compares them (more than
   `max(3, 2 %)` missing in EVO opens a `gap` task, a matching count closes it).
 
-Each step says `transport_inactive` while the database transport is not Wazzup (the
-timer cannot tell `none` from `waha`: with Wazzup env `1` and database path `waha` it
-still says `ok`, see the runbook, section 10, item 7). The AI start for new inbound
+Each step says `transport_inactive` while the database transport is not Wazzup. The path
+(`none`, `waha` or `wazzup`) is read once per run by `platform.whatsapp_transport_read_v1`
+(migration 326, service role only, writes nothing) and printed as `transport`. When the
+env switches and the path disagree - Wazzup intake on with path `waha`, intake stopped
+with path `wazzup`, path `waha` with the WAHA intake off, path `wazzup` with the WAHA
+intake on - the run says `degraded` with `reason: transport_mismatch` and the word in
+`transport_mismatch` (runbook, section 8); path `none` is the normal state before the
+switch and not a mismatch. The AI start for new inbound
 messages runs after the three steps with a 15 s deadline; a skipped step or a missed
 deadline makes the run `degraded`. The WAHA part is unchanged; with both receive switches on it fails with
 `transport_conflict`. The Wazzup part never sends anything to a customer and calls

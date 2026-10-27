@@ -41,7 +41,7 @@ function environment(overrides = {}) {
  * A harness around `runWazzupOps`. `webhooks` is the address state the fake Wazzup holds (and PATCH changes);
  * `rpc` maps a function name to a handler; everything printed and every call is recorded.
  */
-function harness({ env = environment(), channels, webhooks, rpc = {}, key = SYNTH_KEY, secret, batch = "{}", local, patchError, listError } = {}) {
+function harness({ env = environment(), channels, webhooks, rpc = {}, key = SYNTH_KEY, secret, local, patchError, listError } = {}) {
   const state = {
     prints: [],
     rpcCalls: [],
@@ -49,7 +49,6 @@ function harness({ env = environment(), channels, webhooks, rpc = {}, key = SYNT
     patches: [],
     local: [],
     secretReads: 0,
-    batchReads: 0,
     webhooks: webhooks ?? { webhooksUri: null, subscriptions: { ...OFF } },
   };
   const defaultChannels = [{ channelId: CHANNEL_ID, transport: "whatsapp", plainId: PLAIN_ID, state: "active" }];
@@ -92,10 +91,6 @@ function harness({ env = environment(), channels, webhooks, rpc = {}, key = SYNT
     readSecret: async () => {
       state.secretReads += 1;
       return secret ?? key;
-    },
-    readBatch: async () => {
-      state.batchReads += 1;
-      return batch;
     },
     postLocal: async (request) => {
       state.local.push(request);
@@ -474,10 +469,31 @@ test("transport: bad values are usage errors; a database refusal is reported by 
 
 // ---------------------------------------------------------------- replay
 
-test("replay: the batch comes from stdin; it is posted to the loopback with the right Host, the token only in the request path, and only the counters are printed", async () => {
-  const batch = JSON.stringify({ messages: [{ messageId: "msg-1", text: "synthetic private text", chatId: PLAIN_ID }], channelsUpdates: [] });
-  const { run, state } = harness({ batch });
-  assert.equal(await run(["replay"]), 0);
+const EVENT_1 = "77700000-0000-4000-8000-0000000000e1";
+const EVENT_2 = "77700000-0000-4000-8000-0000000000e2";
+const EVENT_3 = "77700000-0000-4000-8000-0000000000e3";
+const EVENT_4 = "77700000-0000-4000-8000-0000000000e4";
+const eventsAnswer = (events, missing = 0) => ({ data: { events, missing }, error: null });
+const storedMessage = (eventId, element, eventType = "message") => ({ eventId, eventType, kind: "message", element });
+const PRIVATE_ELEMENT = { messageId: "msg-1", text: "synthetic private text", chatId: PLAIN_ID, channelId: CHANNEL_ID, isEcho: false };
+
+test("replay: the stored events come from the database by id; they are posted to the loopback with the right Host, the token only in the request path, and only counters are printed", async () => {
+  const channelUpdate = { channelId: CHANNEL_ID, state: "active", timestamp: 5 };
+  const { run, state } = harness({
+    rpc: {
+      whatsapp_intake_events_read_v1: () => eventsAnswer([
+        storedMessage(EVENT_1, PRIVATE_ELEMENT),
+        { eventId: EVENT_2, eventType: "channel.state", kind: "channel", element: channelUpdate },
+        storedMessage(EVENT_3, { ...PRIVATE_ELEMENT, messageId: "msg-2", isEdited: true }, "message.edited"),
+      ]),
+    },
+    local: { status: 200, body: JSON.stringify({ ok: true, stored: 0, deduplicated: 3, unparsed: 0, filtered: 0, failed: 0, projected: 0, deferred: 0 }) },
+  });
+  assert.equal(await run(["replay", EVENT_1.toUpperCase(), EVENT_2, EVENT_3, EVENT_1]), 0);
+  // The database is asked once, with the lower-cased ids, each once, and only this organization.
+  const reads = state.rpcCalls.filter((call) => call.fn === "whatsapp_intake_events_read_v1");
+  assert.equal(reads.length, 1);
+  assert.deepEqual(reads[0].args, { p_organization_id: ORGANIZATION_ID, p_event_ids: [EVENT_1, EVENT_2, EVENT_3] });
   assert.equal(state.local.length, 1);
   const [request] = state.local;
   assert.equal(request.path, `/api/v2/whatsapp/wazzup/inbound?token=${HOOK_TOKEN}`);
@@ -485,46 +501,135 @@ test("replay: the batch comes from stdin; it is posted to the loopback with the 
   assert.equal(request.headers["content-type"], "application/json");
   assert.equal(request.headers["x-evo-wazzup-ip"], "127.0.0.1");
   assert.equal(request.headers["content-length"], String(Buffer.byteLength(request.body)));
-  assert.deepEqual(JSON.parse(request.body), JSON.parse(batch));
-  assert.deepEqual(state.prints, [{ ok: true, command: "replay", status: 200, result: { ok: true, stored: 0, deduplicated: 2, projected: 0 } }]);
-  assertNoSecrets(state, ["synthetic private text", "msg-1"]);
+  assert.deepEqual(JSON.parse(request.body), {
+    messages: [PRIVATE_ELEMENT, { ...PRIVATE_ELEMENT, messageId: "msg-2", isEdited: true }],
+    channelsUpdates: [channelUpdate],
+  });
+  assert.deepEqual(state.prints, [{
+    ok: true, command: "replay", status: 200, events: 3, missing: 0, unrepeatable: 0, requests: 1,
+    result: { ok: true, stored: 0, deduplicated: 3, unparsed: 0, filtered: 0, failed: 0, projected: 0, deferred: 0 },
+  }]);
+  assertNoSecrets(state, ["synthetic private text", "msg-1", "msg-2", EVENT_1, CHANNEL_ID]);
 });
 
-test("replay: --token next posts with the rotation token; a non-200 answer is a failure; unreadable answers print only the status", async () => {
-  const rotation = harness({ env: environment({ EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN_NEXT: NEXT_TOKEN }), batch: '{"messages":[]}' });
-  assert.equal(await rotation.run(["replay", "--token", "next"]), 0);
+test("replay: the id list is the only input - no stdin batch is read, no stdin reader exists, and a hand-made batch cannot be injected", async () => {
+  const { deps, run, state } = harness({ rpc: { whatsapp_intake_events_read_v1: () => eventsAnswer([storedMessage(EVENT_1, PRIVATE_ELEMENT)]) } });
+  assert.equal("readBatch" in deps, false, "the stdin batch reader is gone");
+  assert.equal(await run(["replay", EVENT_1]), 0);
+  assert.equal(state.secretReads, 0);
+  // With no ids there is nothing to do - no stdin fallback.
+  const bare = harness();
+  assert.equal(await bare.run(["replay"]), 2);
+  assert.equal(bare.state.prints[0].error, "event_ids_required");
+  assert.equal(bare.state.rpcCalls.length, 0);
+  assert.equal(bare.state.local.length, 0);
+  // The post body is built from what the database returned, never from anything the caller typed.
+  for (const flag of ["--batch", "--stdin", "--file"]) {
+    const other = harness();
+    assert.equal(await other.run(["replay", EVENT_1, flag, "x"]), 2, flag);
+    assert.equal(other.state.prints[0].error, "unknown_flag");
+    assert.equal(other.state.rpcCalls.length, 0);
+  }
+});
+
+test("replay: --token next posts with the rotation token; a non-200 answer is a failure and stops the rest; unreadable answers print only the status", async () => {
+  const read = { whatsapp_intake_events_read_v1: () => eventsAnswer([storedMessage(EVENT_1, PRIVATE_ELEMENT)]) };
+  const rotation = harness({ env: environment({ EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN_NEXT: NEXT_TOKEN }), rpc: read });
+  assert.equal(await rotation.run(["replay", EVENT_1, "--token", "next"]), 0);
   assert.ok(rotation.state.local[0].path.endsWith(`token=${NEXT_TOKEN}`));
   assertNoSecrets(rotation.state);
 
-  const refused = harness({ batch: '{"messages":[]}', local: { status: 503, body: JSON.stringify({ error: "transport_inactive" }) } });
-  assert.equal(await refused.run(["replay"]), 1);
-  assert.deepEqual(refused.state.prints, [{ ok: false, command: "replay", status: 503, result: { error: "transport_inactive" } }]);
+  const refused = harness({ rpc: read, local: { status: 503, body: JSON.stringify({ error: "transport_inactive" }) } });
+  assert.equal(await refused.run(["replay", EVENT_1]), 1);
+  assert.deepEqual(refused.state.prints, [{ ok: false, command: "replay", status: 503, events: 1, missing: 0, unrepeatable: 0, requests: 1, result: { error: "transport_inactive" } }]);
 
-  const html = harness({ batch: '{"messages":[]}', local: { status: 502, body: `<html>${HOOK_TOKEN}</html>` } });
-  assert.equal(await html.run(["replay"]), 1);
-  assert.deepEqual(html.state.prints, [{ ok: false, command: "replay", status: 502, result: {} }]);
+  const html = harness({ rpc: read, local: { status: 502, body: `<html>${HOOK_TOKEN}</html>` } });
+  assert.equal(await html.run(["replay", EVENT_1]), 1);
+  assert.deepEqual(html.state.prints, [{ ok: false, command: "replay", status: 502, events: 1, missing: 0, unrepeatable: 0, requests: 1, result: {} }]);
   assertNoSecrets(html.state);
 });
 
-test("replay: only a batch of messages / channelsUpdates arrays is sent; event ids in the arguments are refused; no token, no send", async () => {
-  for (const batch of ["", "not json", "[]", "{}", '{"statuses":[]}', '{"messages":"x"}', '{"messages":[],"createDeal":{}}', '{"messages":[],"test":true}']) {
-    const { run, state } = harness({ batch });
-    assert.equal(await run(["replay"]), 1, JSON.stringify(batch));
-    assert.equal(state.prints[0].error, "batch_invalid");
+test("replay: unrepeatable (unparsed) and missing events are counted and left out; nothing to send is a refusal without a POST", async () => {
+  const mixed = harness({
+    rpc: {
+      whatsapp_intake_events_read_v1: () => eventsAnswer([
+        storedMessage(EVENT_1, PRIVATE_ELEMENT),
+        { eventId: EVENT_2, eventType: "unparsed", kind: null, element: null },
+      ], 2),
+    },
+  });
+  assert.equal(await mixed.run(["replay", EVENT_1, EVENT_2, EVENT_3, EVENT_4]), 0);
+  assert.equal(mixed.state.local.length, 1);
+  assert.deepEqual(JSON.parse(mixed.state.local[0].body), { messages: [PRIVATE_ELEMENT] });
+  assert.equal(mixed.state.prints[0].events, 1);
+  assert.equal(mixed.state.prints[0].missing, 2);
+  assert.equal(mixed.state.prints[0].unrepeatable, 1);
+
+  const none = harness({ rpc: { whatsapp_intake_events_read_v1: () => eventsAnswer([{ eventId: EVENT_2, eventType: "unparsed", kind: null, element: null }], 1) } });
+  assert.equal(await none.run(["replay", EVENT_2, EVENT_3]), 1);
+  assert.deepEqual(none.state.prints, [{ ok: false, error: "no_events_to_replay", events: 0, missing: 1, unrepeatable: 1 }]);
+  assert.equal(none.state.local.length, 0);
+
+  const nothing = harness({ rpc: { whatsapp_intake_events_read_v1: () => eventsAnswer([], 1) } });
+  assert.equal(await nothing.run(["replay", EVENT_3]), 1);
+  assert.equal(nothing.state.prints[0].error, "no_events_to_replay");
+  assert.equal(nothing.state.local.length, 0);
+});
+
+test("replay: many events go in POSTs of at most 50 elements and the answers are added up; the first refusal stops the rest", async () => {
+  const many = Array.from({ length: 120 }, (_, index) => storedMessage(`77700000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, { ...PRIVATE_ELEMENT, messageId: `msg-${index}` }));
+  const ids = many.map((item) => item.eventId);
+  const { run, state } = harness({
+    rpc: { whatsapp_intake_events_read_v1: () => eventsAnswer(many.slice(0, 100)) },
+    local: { status: 200, body: JSON.stringify({ ok: true, stored: 0, deduplicated: 50, failed: 0 }) },
+  });
+  assert.equal(await run(["replay", ...ids.slice(0, 100)]), 0);
+  assert.deepEqual(state.local.map((request) => JSON.parse(request.body).messages.length), [50, 50]);
+  assert.deepEqual(state.prints[0].result, { ok: true, stored: 0, deduplicated: 100, failed: 0 });
+  assert.equal(state.prints[0].requests, 2);
+  // More than 100 ids: a usage error before anything is asked.
+  const over = harness();
+  assert.equal(await over.run(["replay", ...ids]), 2);
+  assert.equal(over.state.prints[0].error, "too_many_event_ids");
+  assert.equal(over.state.rpcCalls.length, 0);
+  // The first refusal stops the next POST.
+  const answers = [{ status: 200, body: JSON.stringify({ ok: true, deduplicated: 50 }) }, { status: 503, body: JSON.stringify({ error: "wazzup_webhook_unavailable" }) }];
+  let call = 0;
+  const flaky = harness({ rpc: { whatsapp_intake_events_read_v1: () => eventsAnswer(many.slice(0, 100)) } });
+  flaky.deps.postLocal = async (request) => { flaky.state.local.push(request); return answers[call++] ?? answers[1]; };
+  assert.equal(await flaky.run(["replay", ...ids.slice(0, 100)]), 1);
+  assert.equal(flaky.state.local.length, 2);
+  assert.equal(flaky.state.prints[0].status, 503);
+  assert.equal(flaky.state.prints[0].ok, false);
+});
+
+test("replay: bad ids, a missing token and a database that cannot answer all stop before any POST; the ids are never echoed", async () => {
+  for (const bad of ["not-a-uuid", "77700000-0000-4000-8000-0000000000e", `${EVENT_1}0`, HOOK_TOKEN, "' OR 1=1 --"]) {
+    const { run, state } = harness();
+    assert.equal(await run(["replay", EVENT_1, bad]), 2, bad);
+    assert.equal(state.prints[0].error, "event_id_invalid");
+    assert.equal(state.rpcCalls.length, 0);
     assert.equal(state.local.length, 0);
+    assert.ok(!output(state).includes(bad), "a bad argument is not echoed");
   }
-  const ids = harness();
-  assert.equal(await ids.run(["replay", "77700000-0000-4000-8000-0000000000e1"]), 2);
-  assert.equal(ids.state.prints[0].error, "replay_reads_batch_from_stdin");
-  assert.equal(ids.state.batchReads, 0);
-  const tooBig = harness({ batch: null });
-  assert.equal(await tooBig.run(["replay"]), 1);
-  assert.equal(tooBig.state.prints[0].error, "batch_too_large");
-  const noToken = harness({ env: environment({ EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: undefined }), batch: '{"messages":[]}' });
-  assert.equal(await noToken.run(["replay"]), 1);
+  const noToken = harness({ env: environment({ EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: undefined }) });
+  assert.equal(await noToken.run(["replay", EVENT_1]), 1);
   assert.equal(noToken.state.prints[0].error, "token_unavailable");
-  assert.equal(noToken.state.batchReads, 0, "the batch is not even read without a token");
+  assert.equal(noToken.state.rpcCalls.length, 0, "no token, no database read either");
   assert.equal(noToken.state.local.length, 0);
+
+  for (const rpcAnswer of [
+    () => ({ data: null, error: { message: "boom", code: "XX000" } }),
+    () => ({ data: { events: "nope", missing: 0 }, error: null }),
+    () => ({ data: { events: [], missing: "x" }, error: null }),
+    () => ({ data: { events: [null], missing: 0 }, error: null }),
+  ]) {
+    const down = harness({ rpc: { whatsapp_intake_events_read_v1: rpcAnswer } });
+    assert.equal(await down.run(["replay", EVENT_1]), 1);
+    assert.equal(down.state.prints[0].error, "events_not_read");
+    assert.equal(down.state.local.length, 0);
+    assertNoSecrets(down.state);
+  }
 });
 
 // ---------------------------------------------------------------- the whole surface
@@ -535,15 +640,16 @@ test("across every command nothing printed ever contains the key, the tokens, th
     wazzup_api_key_provision_v1: () => ({ data: { ready: true, apiKeySha256: sha256(SYNTH_KEY), changed: false }, error: null }),
     wazzup_channel_bind_v1: () => ({ data: { channelId: CHANNEL_ID, replayed: true }, error: null }),
     whatsapp_transport_configure_v1: () => ({ data: { transport: "wazzup", aiTriggerEnabled: true, geminiEnabled: false, sendEnabled: false, version: 2, closedAlerts: 0 }, error: null }),
+    whatsapp_intake_events_read_v1: () => eventsAnswer([storedMessage(EVENT_1, PRIVATE_ELEMENT)]),
   };
   const all = [
     ["set-key"], ["channels"], ["webhooks-get"], ["webhooks-patch", "--on"], ["webhooks-patch", "--off", "--token", "next"],
-    ["bind-channel", CHANNEL_ID], ["bind-channel", CHANNEL_ID, "--confirm-last4", "1234"], ["transport", "wazzup", "--ai-trigger", "on"], ["replay"],
+    ["bind-channel", CHANNEL_ID], ["bind-channel", CHANNEL_ID, "--confirm-last4", "1234"], ["transport", "wazzup", "--ai-trigger", "on"], ["replay", EVENT_1],
   ];
   for (const argv of all) {
-    const { run, state } = harness({ env, rpc, batch: '{"messages":[]}', webhooks: { webhooksUri: WEBHOOK_URI(HOOK_TOKEN), subscriptions: { ...ON } } });
+    const { run, state } = harness({ env, rpc, webhooks: { webhooksUri: WEBHOOK_URI(HOOK_TOKEN), subscriptions: { ...ON } } });
     await run(argv);
-    assertNoSecrets(state);
+    assertNoSecrets(state, ["synthetic private text", "msg-1"]);
     for (const line of state.prints) assert.ok(typeof line.ok === "boolean" && Object.values(line).every((value) => value === null || ["string", "number", "boolean", "object"].includes(typeof value)));
   }
   // Failure paths as well: every thrown error is turned into a fixed word.
@@ -563,7 +669,7 @@ function runModule(code, input) {
   );
 }
 
-test("the stdin readers: a piped key loses exactly one trailing newline; the batch reader refuses more than its limit", () => {
+test("the stdin reader: a piped key loses exactly one trailing newline and an absurdly long one is refused", () => {
   const read = `
     const { defaultWazzupOpsDependencies } = await import("./src/lib/server/platform-wazzup-ops.ts");
     const deps = defaultWazzupOpsDependencies();
@@ -577,12 +683,4 @@ test("the stdin readers: a piped key loses exactly one trailing newline; the bat
   const tooLong = runModule(read, "k".repeat(9000));
   assert.notEqual(tooLong.status, 0, "an absurdly long stdin is refused");
   assert.ok(!tooLong.stderr.includes("kkkkkkkk") || tooLong.stderr.length < 4000);
-
-  const batch = `
-    const { defaultWazzupOpsDependencies } = await import("./src/lib/server/platform-wazzup-ops.ts");
-    const deps = defaultWazzupOpsDependencies();
-    process.stdout.write(JSON.stringify({ value: await deps.readBatch(10) }));
-  `;
-  assert.deepEqual(JSON.parse(runModule(batch, "0123456789").stdout), { value: "0123456789" });
-  assert.deepEqual(JSON.parse(runModule(batch, "01234567890").stdout), { value: null });
 });

@@ -2,10 +2,12 @@ import type { PlatformActor } from "./platform-auth.ts";
 
 /**
  * Действующий путь WhatsApp для сотрудника (`platform.staff_whatsapp_transport_v1`, миграция 325, право
- * `communication.read.full`): какой путь включён, можно ли отвечать, состояние канала Wazzup. Ключа, адреса вебхука и
- * номера в ответе нет. Здесь только строгий разбор и чтение; решения («закрыть маршрут подключения WAHA», строка в
- * «Настройках») принимают вызывающие. Функция чтения - единственное, что даёт сессии администратора узнать путь
- * (у service_role читающей функции нет), поэтому ответ разбирается по точному набору ключей.
+ * `communication.read.full`): какой путь включён, можно ли отвечать, состояние канала Wazzup и последние четыре цифры
+ * номера канала (с миграции 326). Ключа, адреса вебхука, SHA-256 и полного номера в ответе нет. Здесь только строгий
+ * разбор и чтение; решения («закрыть маршрут подключения WAHA», строка в «Настройках») принимают вызывающие. Эта функция -
+ * то, что даёт СЕССИИ администратора узнать путь; задача таймера и команды оператора читают путь своей служебной функцией
+ * `whatsapp_transport_read_v1` (миграция 326, только service_role), разбор которой лежит в `platform-wazzup-health.ts`.
+ * Ответ разбирается по точному набору ключей.
  */
 
 export type PlatformWhatsAppActiveTransport = "none" | "waha" | "wazzup";
@@ -18,7 +20,7 @@ export type PlatformWhatsAppTransport = Readonly<{
     transport: "whatsapp" | "wapi";
     state: string | null;
     observedAt: string | null;
-    /** Последние четыре цифры номера канала, если функция чтения их отдаёт (в 325 пока нет: поля нет); весь номер сюда не приходит. */
+    /** Последние четыре цифры номера канала (отдаёт функция чтения с миграции 326; в ответе 325 поля нет, и разбор принимает обе формы); весь номер сюда не приходит. */
     last4?: string;
   }> | null;
   lastInboundAt: string | null;
@@ -57,7 +59,7 @@ export function parsePlatformWhatsAppTransport(value: unknown): PlatformWhatsApp
   if (lastInboundAt === undefined) return null;
   let channel: PlatformWhatsAppTransport["channel"] = null;
   if (value.channel !== null) {
-    // `last4` - необязательный пятый ключ: прежняя форма 325 (три ключа) и форма с четырьмя цифрами годятся, иное - нет.
+    // `last4` - необязательный четвёртый ключ канала: форма 325 (три ключа) и форма 326 (с четырьмя цифрами) годятся, иное - нет.
     const withLast4 = isObject(value.channel) && Object.hasOwn(value.channel, "last4");
     if (!isObject(value.channel) || !exactKeys(value.channel, withLast4 ? [...CHANNEL_KEYS, "last4"] : CHANNEL_KEYS)) return null;
     const last4 = withLast4 ? value.channel.last4 : undefined;

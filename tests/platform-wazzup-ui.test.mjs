@@ -180,6 +180,29 @@ test("the transport read: the 325 answer (three channel keys) is unchanged; four
   assert.equal(parsePlatformWhatsAppTransport(transport(null)).channel, null);
 });
 
+test("the transport read after migration 326: the exact answer shape (last4 inside the channel) parses, also for a channel nobody has observed yet, and the card shows the masked number", () => {
+  const format = () => null;
+  // The shape platform.staff_whatsapp_transport_v1 returns since 326 (the SQL suite pins these keys).
+  const observed = parsePlatformWhatsAppTransport({
+    activeTransport: "wazzup", canReply: false, replyMode: "receive_only", lastInboundAt: null,
+    channel: { transport: "whatsapp", last4: "0042", state: "active", observedAt: "2026-10-27T10:00:00+00:00" },
+  });
+  assert.equal(observed.channel.last4, "0042");
+  assert.deepEqual(wazzupCardRows(observed, true, format).find((row) => row.label === "Номер"), { label: "Номер", value: "••••0042" });
+  const fresh = parsePlatformWhatsAppTransport({
+    activeTransport: "none", canReply: true, replyMode: "waha", lastInboundAt: null,
+    channel: { transport: "whatsapp", last4: "0042", state: null, observedAt: null },
+  });
+  assert.notEqual(fresh, null, "a bound channel with no state yet is a valid answer");
+  assert.deepEqual(fresh.channel, { transport: "whatsapp", state: null, observedAt: null, last4: "0042" });
+  assert.deepEqual(wazzupCardRows(fresh, false, format).find((row) => row.label === "Номер"), { label: "Номер", value: "••••0042" });
+  // Nothing but four digits ever reaches the screen: the key set is closed, a longer number is not an answer.
+  assert.equal(parsePlatformWhatsAppTransport({
+    activeTransport: "wazzup", canReply: false, replyMode: "receive_only", lastInboundAt: null,
+    channel: { transport: "whatsapp", last4: "996000000042", state: "active", observedAt: "2026-10-27T10:00:00+00:00" },
+  }), null);
+});
+
 // ---------------------------------------------------------------- только чтение
 
 const base = { role: "allowed", sessionName: "crm_primary", receiveOnly: false, open: true, hasClientMessage: true, channelState: "ready" };

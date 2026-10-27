@@ -41,7 +41,8 @@ import {
  *
  * Команды: set-key, channels, webhooks-get, webhooks-patch --on|--off [--token current|next], bind-channel <channelId>
  * [--confirm-last4 NNNN], transport <none|waha|wazzup> [--ai-trigger on|off] [--gemini on|off --owner-approved],
- * replay [--token current|next] (JSON пакета со stdin).
+ * replay <id события>… [--token current|next] (проверка A6: сохранённые события по их идентификаторам; идентификаторы -
+ * не секрет, пакет собирает база функцией `platform.whatsapp_intake_events_read_v1`, миграция 326).
  */
 
 type RpcClient = Pick<SupabaseClient, "schema">;
@@ -53,8 +54,6 @@ export type WazzupOpsDependencies = Readonly<{
   createWazzupClient(apiKey: string): WazzupClient;
   /** Ключ со stdin: терминал - скрытый ввод, конвейер - весь stdin без одного завершающего перевода строки. */
   readSecret(): Promise<string>;
-  /** Тело пакета для `replay` со stdin; null - больше предела. */
-  readBatch(limitBytes: number): Promise<string | null>;
   /** POST на этот же сервер (loopback): путь с токеном и заголовки; ответ - статус и тело. */
   postLocal(input: Readonly<{ path: string; headers: Readonly<Record<string, string>>; body: string }>): Promise<Readonly<{ status: number; body: string }>>;
   print(line: Readonly<Record<string, unknown>>): void;
@@ -74,6 +73,10 @@ const usage = (error: string): OpsExit => new OpsExit(2, error);
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const COMMANDS: readonly string[] = ["set-key", "channels", "webhooks-get", "webhooks-patch", "bind-channel", "transport", "replay"];
+/** Столько событий за одну команду `replay` (предел чтения базы `whatsapp_intake_events_read_v1`). */
+const REPLAY_MAX_EVENTS = 100;
+/** Элементов в одном POST повтора: тело пакета остаётся далеко под пределом маршрута (1 МиБ). */
+const REPLAY_CHUNK = 50;
 
 function sha256Hex(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
@@ -183,6 +186,31 @@ function noArguments(args: readonly string[]): void {
   if (args.length > 0) throw usage("no_arguments_accepted");
 }
 
+/** Из ответа маршрута - только числа, булевы и короткие слова (`[a-z_]`); всё прочее (тело, HTML, адрес) отбрасывается. */
+function summarizeAnswer(text: string): Json {
+  const summary: Json = {};
+  try {
+    const answer: unknown = JSON.parse(text);
+    if (isObject(answer)) {
+      for (const [name, value] of Object.entries(answer)) {
+        if (/^[a-zA-Z]{1,24}$/u.test(name) && (typeof value === "number" || typeof value === "boolean"
+          || (typeof value === "string" && /^[a-z_]{1,40}$/u.test(value)))) summary[name] = value;
+      }
+    }
+  } catch {
+    // Не JSON: остаётся только статус.
+  }
+  return summary;
+}
+
+/** Числа ответов нескольких POST складываются, остальное (булевы, слова) - последнее значение. */
+function mergeAnswer(total: Json, answer: Json): void {
+  for (const [name, value] of Object.entries(answer)) {
+    const previous = total[name];
+    total[name] = typeof value === "number" && typeof previous === "number" ? previous + value : value;
+  }
+}
+
 /** Слово причины из ошибки базы: фиксированный набор, без текста сообщения. */
 function databaseCode(error: unknown): string {
   const text = isObject(error) ? `${String(error.message ?? "")} ${String(error.code ?? "")}` : "";
@@ -200,7 +228,6 @@ export function defaultWazzupOpsDependencies(): WazzupOpsDependencies {
     createServiceClient: createPlatformSupabaseServiceClient,
     createWazzupClient: (apiKey) => createWazzupClient({ apiKey }),
     readSecret: readSecretFromStdin,
-    readBatch: readBatchFromStdin,
     postLocal: postToLocalServer,
     print: (line) => console.log(JSON.stringify(line)),
   };
@@ -249,18 +276,6 @@ async function readSecretFromStdin(): Promise<string> {
     chunks.push(buffer);
   }
   return Buffer.concat(chunks).toString("utf8").replace(/\r?\n$/u, "");
-}
-
-async function readBatchFromStdin(limitBytes: number): Promise<string | null> {
-  const chunks: Buffer[] = [];
-  let received = 0;
-  for await (const chunk of process.stdin) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    received += buffer.byteLength;
-    if (received > limitBytes) return null;
-    chunks.push(buffer);
-  }
-  return Buffer.concat(chunks).toString("utf8");
 }
 
 function postToLocalServer(
@@ -485,50 +500,72 @@ export async function runWazzupOps(
 
       case "replay": {
         const parsed = parseArguments(args, ["token"], []);
-        // Проверка A6 (§12). Сырые события в `platform_private` сервисной роли недоступны, поэтому пакет приходит со stdin:
-        // оператор собирает его из `raw_payload` нужных событий (runbook). Номера идентификаторов событий в argv не нужны.
-        if (parsed.positional.length > 0) throw usage("replay_reads_batch_from_stdin");
+        // Проверка A6 (§12): сохранённые события по их идентификаторам (UUID - не секрет). Пакет собирает база
+        // (`whatsapp_intake_events_read_v1`, миграция 326): сервисной роли закрытые таблицы не читаются, а пакет со stdin
+        // принимал бы любое содержимое и мог бы занести в приём выдуманные «проверенные» события. Здесь повторяется только то,
+        // что уже сохранено: дедуп ничего не пишет и не считает; отфильтрованные элементы не сохраняются и повтору не подлежат.
+        if (parsed.positional.length === 0) throw usage("event_ids_required");
+        const ids: string[] = [];
+        for (const raw of parsed.positional) {
+          const id = raw.toLowerCase();
+          if (!UUID_PATTERN.test(id)) throw usage("event_id_invalid");
+          if (!ids.includes(id)) ids.push(id);
+        }
+        if (ids.length > REPLAY_MAX_EVENTS) throw usage("too_many_event_ids");
         const token = tokensFrom(deps.environment)[tokenSlot(parsed)];
         if (token === null) throw new OpsExit(1, "token_unavailable");
-        const text = await deps.readBatch(WAZZUP_MAX_BODY_BYTES);
-        if (text === null) throw new OpsExit(1, "batch_too_large");
-        let batch: unknown;
-        try {
-          batch = JSON.parse(text);
-        } catch {
-          throw new OpsExit(1, "batch_invalid");
-        }
-        if (!isObject(batch) || Object.keys(batch).length === 0
-          || Object.keys(batch).some((key) => key !== "messages" && key !== "channelsUpdates")
-          || Object.values(batch).some((value) => !Array.isArray(value))) {
-          throw new OpsExit(1, "batch_invalid");
-        }
-        const body = JSON.stringify(batch);
-        const response = await deps.postLocal({
-          path: `${WAZZUP_WEBHOOK_PATH}?token=${token}`,
-          headers: {
-            host: WAZZUP_WEBHOOK_HOST,
-            "content-type": "application/json",
-            "content-length": String(Buffer.byteLength(body)),
-            "x-evo-wazzup-ip": "127.0.0.1",
-          },
-          body,
+        const read = await service().client.schema("platform").rpc("whatsapp_intake_events_read_v1", {
+          p_organization_id: service().config.organizationId,
+          p_event_ids: ids,
         });
-        // Печатаются только числа и слова ответа маршрута: ни тела пакета, ни адреса, ни токена.
-        const summary: Json = {};
-        try {
-          const parsedResponse: unknown = JSON.parse(response.body);
-          if (isObject(parsedResponse)) {
-            for (const [name, value] of Object.entries(parsedResponse)) {
-              if (/^[a-zA-Z]{1,24}$/u.test(name) && (typeof value === "number" || typeof value === "boolean"
-                || (typeof value === "string" && /^[a-z_]{1,40}$/u.test(value)))) summary[name] = value;
-            }
-          }
-        } catch {
-          // Не JSON: остаётся только статус.
+        const stored = read.error ? null : read.data;
+        if (!isObject(stored) || !Array.isArray(stored.events) || typeof stored.missing !== "number") {
+          throw new OpsExit(1, "events_not_read", { reason: databaseCode(read.error) });
         }
-        deps.print({ ok: response.status === 200, command, status: response.status, result: summary });
-        return response.status === 200 ? 0 : 1;
+        const elements: { kind: "message" | "channel"; element: unknown }[] = [];
+        let unrepeatable = 0;
+        for (const item of stored.events as unknown[]) {
+          if (!isObject(item)) throw new OpsExit(1, "events_not_read", { reason: "database_error" });
+          if ((item.kind === "message" || item.kind === "channel") && item.element !== null && item.element !== undefined) {
+            elements.push({ kind: item.kind, element: item.element });
+          } else {
+            // Событие `unparsed`: его форма неизвестна, повторять нечего.
+            unrepeatable += 1;
+          }
+        }
+        const counts = { events: elements.length, missing: stored.missing, unrepeatable };
+        if (elements.length === 0) throw new OpsExit(1, "no_events_to_replay", counts);
+        // Порции не больше предела тела маршрута; каждая - обычный пакет `{messages, channelsUpdates}`.
+        const result: Json = {};
+        let status = 200;
+        let requests = 0;
+        for (let from = 0; from < elements.length; from += REPLAY_CHUNK) {
+          const chunk = elements.slice(from, from + REPLAY_CHUNK);
+          const batch: Json = {};
+          const messages = chunk.filter((item) => item.kind === "message").map((item) => item.element);
+          const channels = chunk.filter((item) => item.kind === "channel").map((item) => item.element);
+          if (messages.length > 0) batch.messages = messages;
+          if (channels.length > 0) batch.channelsUpdates = channels;
+          const body = JSON.stringify(batch);
+          if (Buffer.byteLength(body) > WAZZUP_MAX_BODY_BYTES) throw new OpsExit(1, "batch_too_large", counts);
+          const response = await deps.postLocal({
+            path: `${WAZZUP_WEBHOOK_PATH}?token=${token}`,
+            headers: {
+              host: WAZZUP_WEBHOOK_HOST,
+              "content-type": "application/json",
+              "content-length": String(Buffer.byteLength(body)),
+              "x-evo-wazzup-ip": "127.0.0.1",
+            },
+            body,
+          });
+          requests += 1;
+          status = response.status;
+          mergeAnswer(result, summarizeAnswer(response.body));
+          if (response.status !== 200) break;
+        }
+        // Печатаются только числа и слова ответа маршрута: ни тела пакета, ни адреса, ни токена, ни идентификаторов чатов.
+        deps.print({ ok: status === 200, command, status, ...counts, requests, result });
+        return status === 200 ? 0 : 1;
       }
     }
     throw usage("unknown_command");

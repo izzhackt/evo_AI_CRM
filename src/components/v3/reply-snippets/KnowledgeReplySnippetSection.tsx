@@ -26,13 +26,13 @@ import type {
   PlatformReplySnippetAudience,
 } from "@/lib/platform-reply-snippets";
 
-const AUDIENCE_LABELS: Record<PlatformReplySnippetAudience, string> = {
+export const AUDIENCE_LABELS: Record<PlatformReplySnippetAudience, string> = {
   sales: "Продажи",
   admissions: "Поступление",
   all: "Все роли",
 };
 
-const ACTION_MESSAGES: Record<
+export const ACTION_MESSAGES: Record<
   Exclude<PlatformReplySnippetActionState["status"], "idle">,
   string
 > = {
@@ -58,7 +58,7 @@ export type KnowledgeReplySnippetSectionProps = Readonly<{
   createRequestId: string;
 }>;
 
-function initialState(
+export function initialState(
   requestId: string,
   replySnippetId: string | null = null,
 ): PlatformReplySnippetActionState {
@@ -90,7 +90,7 @@ function ActionFeedback({ state }: Readonly<{ state: PlatformReplySnippetActionS
   );
 }
 
-function useCanonicalRefresh(state: PlatformReplySnippetActionState) {
+export function useCanonicalRefresh(state: PlatformReplySnippetActionState) {
   const router = useRouter();
   useEffect(() => {
     if (state.status === "saved" || state.status === "stale") router.refresh();

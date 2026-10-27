@@ -52,10 +52,12 @@ function teamChatDay(value: string, currentYear: string): string {
   return YEAR.format(date) === currentYear ? DAY.format(date) : DAY_WITH_YEAR.format(date);
 }
 
-export function TeamChat({ initial, channel, organizationId, membershipId, canModerate, realtimeConfig, initialMessageId = null, showChannelsInitially = false }: {
+export function TeamChat({ initial, channel, organizationId, membershipId, canModerate, realtimeConfig, initialMessageId = null, showChannelsInitially = false, frame = "page" }: {
   initial: TeamChatFeedSnapshot; channel: TeamChatChannelKey; organizationId: string;
   realtimeConfig: SupabasePublicConfig; membershipId: string; canModerate: boolean;
   initialMessageId?: string | null; showChannelsInitially?: boolean;
+  /** `card` — «Новый вид»: заголовок страницы и рамку рисует страница, внутри остаются каналы и переписка (движок тот же). */
+  frame?: "page" | "card";
 }) {
   const [feed, setFeed] = useState<Feed>(() => ({ store: mergeTeamChatFeedPage(emptyTeamChatFeed(), initial.page), range: teamChatFeedRange(initial.page) }));
   const current = useRef(feed);
@@ -431,9 +433,9 @@ export function TeamChat({ initial, channel, organizationId, membershipId, canMo
   // Чтения прошлой сборки не уйдут: кнопки чтения не обещают того, что не случится.
   const locked = busy || stale;
 
-  return <div ref={workspace} className={styles.workspace} data-panel={panel} aria-busy={busy}>
+  return <div ref={workspace} className={styles.workspace} data-panel={panel} data-frame={frame === "card" ? "card" : undefined} aria-busy={busy}>
     <nav className={styles.channels} aria-label="Каналы команды">
-      <h1 className={`t-page-title ${styles.channelTitle}`}>Командный чат</h1>
+      {frame === "card" ? null : <h1 className={`t-page-title ${styles.channelTitle}`}>Командный чат</h1>}
       {forbidden ? <div className={`${styles.channelFeedback} ${styles.error}`} role="alert">
         <p>{transportLabel}</p>
         <a className={styles.secondary} href="/login">Войти снова</a>

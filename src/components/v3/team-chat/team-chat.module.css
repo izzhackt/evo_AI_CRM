@@ -10,6 +10,8 @@
 /* Размер, вес и разрядку заголовка задаёт роль t-page-title из v3.css; верх
    заголовка — на `--shell-page-top`, как у других страниц. */
 .channelTitle { margin: 0 8px 22px; }
+/* «Новый вид»: заголовок страницы стоит над рамкой чата, поэтому список каналов начинается без отступа под него. */
+.workspace[data-frame="card"] .channels { padding-top: 12px; }
 .channelFeedback { display: none; }
 /* Выбранный канал — общий вид «выбрано» (`v3-choice` + aria-current). */
 .channel { display: flex; align-items: center; gap: 12px; min-height: 78px; border-radius: 10px; padding: 12px; margin: 4px 0; color: var(--text); text-decoration: none; }

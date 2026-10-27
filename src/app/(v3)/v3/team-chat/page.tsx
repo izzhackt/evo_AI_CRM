@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { Card } from "@/components/ui";
 import { PartShell } from "@/components/v3/PartShell";
 import { TeamChat } from "@/components/v3/team-chat/TeamChat";
+import { TeamChatNextFailureLazy, TeamChatNextLazy } from "@/components/v3/team-chat/next/TeamChatNextLazy";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { isNextUi } from "@/lib/ui-next";
 import { TEAM_CHAT_FAILURE_COPY, isTeamChatChannel, teamChatUuid } from "@/lib/platform-team-chat";
 import { TeamChatReadError } from "@/lib/server/platform-team-chat-repository";
 import { readV3TeamChatFeed } from "@/lib/v3/team-chat-source";
@@ -26,7 +28,10 @@ export default async function TeamChatPage({ searchParams }: {
   let failure: keyof typeof TEAM_CHAT_FAILURE_COPY = "unavailable";
   try { initial = await readV3TeamChatFeed(actor, messageId ? { channel, mode: "context", messageId } : { channel, mode: "latest" }); }
   catch (error) { failure = error instanceof TeamChatReadError || error instanceof TeamChatV2Error ? error.status : "unavailable"; }
+  // «Новый вид» (переключатель администратора): те же чтения и права, другая рамка страницы; движок чата тот же.
+  const next = await isNextUi(actor);
   if (!initial) {
+    if (next) return <TeamChatNextFailureLazy text={TEAM_CHAT_FAILURE_COPY[failure]} retryHref={`/v3/team-chat?channel=${channel}`} />;
     return <PartShell title="Командный чат"><Card>
       <p role="alert">{TEAM_CHAT_FAILURE_COPY[failure]}</p>
       <a className="mt-4 inline-flex min-h-11 items-center text-accent-text underline" href={`/v3/team-chat?channel=${channel}`}>Обновить канал</a>
@@ -35,6 +40,12 @@ export default async function TeamChatPage({ searchParams }: {
   // The promoted image has no build-time Supabase config. Serialize only the
   // validated public fields from this authenticated runtime request.
   const realtimeConfig = getSupabasePublicConfig();
+  if (next) {
+    return <TeamChatNextLazy key={`${actor.membershipId}:${channel}:${messageId ?? "latest"}`}
+      initial={initial} channel={channel} organizationId={actor.organizationId} membershipId={actor.membershipId}
+      realtimeConfig={realtimeConfig}
+      canModerate={!isStaffPreview(actor) && staffHasPermission(actor, "team.chat.moderate")} initialMessageId={messageId} showChannelsInitially={params.channel === undefined} />;
+  }
   return <main className="flex h-[calc(100dvh-150px)] min-h-0 flex-col md:h-[calc(100dvh-64px)]" aria-label="Командный чат"><TeamChat key={`${actor.membershipId}:${channel}:${messageId ?? "latest"}`}
     initial={initial} channel={channel} organizationId={actor.organizationId} membershipId={actor.membershipId}
     realtimeConfig={realtimeConfig}

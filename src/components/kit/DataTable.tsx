@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
  * Таблица списка записей. Данные приходят готовыми (чтения и права остаются у страницы), здесь только вид: сортировка по
  * заголовку, общий поиск, видимость колонок, страницы, нажатие на строку, пустое состояние и загрузка, прилипшая шапка.
  * Меньше 768 px таблица заменяется карточками (`meta.mobile` в колонке). `label` — имя прокручиваемой области для читалки;
- * `toolbar` — свои фильтры страницы рядом с поиском. `paginate={false}` — все присланные строки сразу, без полосы страниц и
+ * `toolbar` — свои фильтры страницы рядом с поиском; `searchPlaceholder={null}` — общего поиска нет (ищет сама страница, например сервер). `paginate={false}` — все присланные строки сразу, без полосы страниц и
  * без «из N»: для списка, который сервер уже ограничил («последние 30») или разбил на страницы своими ссылками; `partial` —
  * данные неполные («1–25» без «из N»). `onVisibleIdsChange` — строки на экране после поиска и страницы («все на странице»).
  * `onRowClick` — строка нажимается мышью (фокус встаёт на кнопку записи); с клавиатуры и для читалки запись открывает кнопка
@@ -108,8 +108,7 @@ export function DataTable<T extends RowData>({
                       sorted={header.column.getIsSorted()}
                       canSort={header.column.getCanSort()}
                       onSort={header.column.getToggleSortingHandler()}
-                      end={header.column.columnDef.meta?.align === "end"}
-                      wide={header.column.columnDef.meta?.wide}
+                      meta={header.column.columnDef.meta}
                     >
                       {header.isPlaceholder ? null : <table.FlexRender header={header} />}
                     </DataTableHeadCell>

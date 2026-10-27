@@ -291,15 +291,12 @@ type RpcClientLike = {
   schema(name: string): { rpc(name: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }> };
 };
 
-export async function resolveWazzupApiKey(client: RpcClientLike, organizationId: string): Promise<WazzupKeyResolution> {
-  let outcome: { data: unknown; error: unknown };
-  try {
-    outcome = await client.schema("platform").rpc("wazzup_api_key_resolve_v1", { p_organization_id: organizationId });
-  } catch {
-    return { ready: false, reason: "database_unavailable" };
-  }
-  const data = outcome.data;
-  if (outcome.error || !isObject(data)) return { ready: false, reason: "database_unavailable" };
+/**
+ * Разбор ответа `platform.wazzup_api_key_resolve_v1` (чистая функция): готовый ключ с отпечатком либо слово причины.
+ * Таймер читает ключ через свой `rpc` с общим сроком и разбирает ответ здесь же, `wazzup-ops` - через `resolveWazzupApiKey`.
+ */
+export function parseWazzupKeyResolution(data: unknown): WazzupKeyResolution {
+  if (!isObject(data)) return { ready: false, reason: "database_unavailable" };
   if (data.ready !== true) {
     const reason = typeof data.reasonCode === "string" && /^[a-z][a-z_]{0,40}$/u.test(data.reasonCode) ? data.reasonCode : "unavailable";
     return { ready: false, reason };
@@ -309,4 +306,15 @@ export async function resolveWazzupApiKey(client: RpcClientLike, organizationId:
     return { ready: false, reason: "secret_invalid" };
   }
   return { ready: true, apiKey: data.apiKey, fingerprint: data.apiKeySha256.slice(0, 8) };
+}
+
+export async function resolveWazzupApiKey(client: RpcClientLike, organizationId: string): Promise<WazzupKeyResolution> {
+  let outcome: { data: unknown; error: unknown };
+  try {
+    outcome = await client.schema("platform").rpc("wazzup_api_key_resolve_v1", { p_organization_id: organizationId });
+  } catch {
+    return { ready: false, reason: "database_unavailable" };
+  }
+  if (outcome.error) return { ready: false, reason: "database_unavailable" };
+  return parseWazzupKeyResolution(outcome.data);
 }

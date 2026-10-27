@@ -2,7 +2,7 @@ import type { PlatformComponentStatus } from "../platform-observability.ts";
 import type { ProviderDisplayStatus } from "../provider-display-status.ts";
 import { telephonyIntegrationRow, type TelephonyIntegrationFacts } from "./telephony-health.ts";
 import { WHATSAPP_CONNECT_ANCHOR } from "./whatsapp-connect-contract.ts";
-import { WAZZUP_INTAKE_OFF_LINE, isUnconfirmedWazzupState, wazzupChannelWords } from "./wazzup-words.ts";
+import { isUnconfirmedWazzupState, wazzupChannelWords } from "./wazzup-words.ts";
 import { settingsBlockedWahaDetail, settingsStatusWords } from "./wording.ts";
 
 /**
@@ -195,8 +195,9 @@ function wazzupRow(wazzup: NonNullable<SettingsIntegrationFacts["wazzup"]>, now:
     };
   }
   if (!wazzup.intakeEnabled) {
+    // Без пояснения: состояние, «что не работает» и действие уже говорят это; строка «Приём: выключен на сервере» есть в карточке канала.
     return {
-      ...base, state: "приём выключен", tone: "warn", detail: WAZZUP_INTAKE_OFF_LINE, without,
+      ...base, state: "приём выключен", tone: "warn", detail: null, without,
       action: { ...handoff("включить приём сообщений на сервере"), link: OPEN_WHATSAPP }, blocksWork: false,
     };
   }

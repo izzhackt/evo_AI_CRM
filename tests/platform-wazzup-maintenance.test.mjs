@@ -227,6 +227,28 @@ test("when the transport is not Wazzup every step says transport_inactive, Wazzu
   assert.deepEqual(db.names().filter((name) => name === "wazzup_api_key_resolve_v1" || name === "wazzup_daily_counts_v1" || name === "wazzup_channel_observe_v1"), []);
 });
 
+test("when the transport is not Wazzup outside the reconciliation window: sweep and health say transport_inactive, the reconciliation says not_due (the window is checked before the path)", async () => {
+  for (const local of ["2026-10-27T14:00:00", "2026-10-27T22:30:00", "2026-10-27T00:09:00", "2026-10-27T06:00:00"]) {
+    const db = quiet({
+      whatsapp_transport_read_v1: () => ok(transportNone),
+      wazzup_projection_sweep_v1: () => ok({ transportActive: false }),
+    });
+    const { report } = await run(db, { now: at(local) });
+    assert.equal(report.log.sweep_status, "transport_inactive", local);
+    assert.equal(report.log.health_status, "transport_inactive", local);
+    assert.equal(report.log.reconcile_status, "not_due", local);
+    assert.equal(report.log.status, "ok", local);
+    assert.equal(report.exitCode, 0);
+    assert.equal(db.of("wazzup_daily_counts_v1").length, 0);
+  }
+  // Inside the window the path is what stops the step.
+  for (const local of ["2026-10-27T00:10:00", "2026-10-27T05:59:00"]) {
+    const db = quiet({ whatsapp_transport_read_v1: () => ok(transportNone), wazzup_projection_sweep_v1: () => ok({ transportActive: false }) });
+    const { report } = await run(db, { now: at(local) });
+    assert.equal(report.log.reconcile_status, "transport_inactive", local);
+  }
+});
+
 test("the transport read is one call per pass with only the organization; nothing is probed through the write function any more", async () => {
   const db = quiet();
   await run(db, { now: at("2026-10-27T00:30:00") });
@@ -581,6 +603,35 @@ test("health: when Wazzup cannot say (rate limit, unreadable answer, no key in t
   assert.equal(report.log.health_key, "missing_binding");
   assert.deepEqual(wazzup.state.keys, [], "no client without a key");
   assert.deepEqual(noKey.names().filter((name) => name.startsWith("whatsapp_health")), []);
+});
+
+test("health: the key read from the Vault has the same deadline as every other call - a hang or an error is `failed` / `database`, and the reconciliation still runs", async () => {
+  // The Vault read never answers: it is cut at the deadline instead of waiting for the 100 s hard stop of the script.
+  const hang = quiet({ wazzup_api_key_resolve_v1: () => new Promise(() => {}) });
+  const startedAt = Date.now();
+  const stuck = await run(hang, { now: at("2026-10-27T00:30:00"), overrides: { rpcDeadlineMs: 25 } });
+  assert.ok(Date.now() - startedAt < 1_500, "the pass did not wait for the hung read");
+  assert.equal(stuck.report.log.health_status, "failed");
+  assert.equal(stuck.report.log.health_reason, "database");
+  assert.equal(stuck.report.log.health_key, undefined, "a hung read is a failure, not a missing key");
+  assert.equal(stuck.report.log.status, "failed");
+  assert.equal(stuck.report.exitCode, 1);
+  assert.deepEqual(stuck.wazzup.state.keys, [], "no Wazzup client without a key");
+  assert.deepEqual(hang.names().filter((name) => name.startsWith("whatsapp_health")), [], "the series is left alone");
+  // The steps are independent: the nightly count was still taken and reported in the same line.
+  assert.equal(stuck.report.log.reconcile_status, "evo_only");
+  assert.equal(stuck.report.log.reconcile_evo, 300);
+  assert.equal(hang.of("wazzup_daily_counts_v1").length, 1);
+  assert.equal(stuck.report.log.sweep_status, "ok");
+
+  // The same word when the read fails outright (before: a quiet `unknown` that looked like a missing key).
+  const broken = quiet({ wazzup_api_key_resolve_v1: () => fail() });
+  const second = await run(broken, { now: at("2026-10-27T00:30:00") });
+  assert.equal(second.report.log.health_status, "failed");
+  assert.equal(second.report.log.health_reason, "database");
+  assert.equal(second.report.exitCode, 1);
+  assert.equal(second.report.log.reconcile_status, "evo_only");
+  assert.deepEqual(second.wazzup.state.keys, []);
 });
 
 test("health: a failing write is a failed pass (exit 1) but the other writes of the pass still happen", async () => {

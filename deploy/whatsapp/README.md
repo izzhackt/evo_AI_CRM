@@ -9,8 +9,10 @@ image; migration 321 holds its state. Runbook:
 
 What one run does, in short:
 
-- does nothing unless `EVO_PLATFORM_WAHA_INGRESS_ENABLED=1` in the app
-  container (WhatsApp intentionally off means no alerts);
+- the WAHA part does nothing unless `EVO_PLATFORM_WAHA_INGRESS_ENABLED=1` in the
+  app container (WhatsApp intentionally off means no alerts); the Wazzup part
+  (below) has its own gate: `EVO_PLATFORM_WAZZUP_INGRESS_ENABLED=1` or a staged
+  webhook token;
 - asks WAHA for the status of `crm_primary` (one `GET`, the key comes from the
   Vault binding); it never starts, stops, restarts, logs out or re-pairs the
   session and sends no message to anyone;
@@ -44,7 +46,10 @@ independent Wazzup steps (nested under `wazzup` in the JSON line):
   in EVO and, where an amoCRM read is configured, compares them (more than
   `max(3, 2 %)` missing in EVO opens a `gap` task, a matching count closes it).
 
-Each step says `transport_inactive` while the database transport is not Wazzup. The path
+While the database transport is not Wazzup, `sweep` and `health` say `transport_inactive`
+and `reconcile` says `not_due` outside its 00:10-06:00 window (the window is checked before
+the path, so in an evening release window it is always `not_due`) and `transport_inactive`
+inside it. The path
 (`none`, `waha` or `wazzup`) is read once per run by `platform.whatsapp_transport_read_v1`
 (migration 326, service role only, writes nothing) and printed as `transport`. When the
 env switches and the path disagree - Wazzup intake on with path `waha`, intake stopped

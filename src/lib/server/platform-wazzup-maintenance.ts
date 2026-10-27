@@ -29,7 +29,7 @@ import {
 } from "./platform-whatsapp-health-maintenance.ts";
 import {
   createWazzupClient,
-  resolveWazzupApiKey,
+  parseWazzupKeyResolution,
   WazzupApiError,
   type WazzupClient,
 } from "./platform-wazzup-client.ts";
@@ -49,7 +49,8 @@ import {
  *    действующий путь - Wazzup, и не зависит от опроса Wazzup. Возраст старше 30 минут - слово `degraded` в отчёте.
  *    Новое входящее при включённом в базе запуске ИИ - один запуск агентов за проход, но не здесь: он идёт после шага в)
  *    и ограничен сроком `aiDispatchDeadlineMs` (медленный Claude API не должен отнимать время у здоровья и сверки).
- *  - **б) здоровье** (`health`): `GET /v3/channels` (таймаут 10 с, ключ из Vault) -> слово состояния -> серия 321 сессии
+ *  - **б) здоровье** (`health`): `GET /v3/channels` (таймаут 10 с, ключ из Vault - чтение с тем же сроком, что у всех вызовов базы;
+ *    зависло или не удалось - `health_status: failed`, `health_reason: database`, сверка идёт дальше) -> слово состояния -> серия 321 сессии
  *    `wazzup` теми же правилами, что у WAHA (`planWhatsAppHealth`). Серию пишет только этот шаг, один раз за проход.
  *  - **в) сверка** (`reconcile`): в окне [00:10, 06:00) по Бишкеку считает входящие за прошлые сутки в EVO
  *    (`platform.wazzup_daily_counts_v1`) и сравнивает с числом amoCRM, если чтение amoCRM настроено; расхождение больше
@@ -57,7 +58,8 @@ import {
  *
  * Действующий путь (`whatsapp_transport_state.active_transport`: `none`, `waha` или `wazzup`) и привязанный канал проход
  * читает ОДНИМ вызовом `platform.whatsapp_transport_read_v1` (миграция 326, только service_role, ничего не пишет) - общим
- * для всех шагов. Не Wazzup - шаги пишут `transport_inactive` и ничего не опрашивают. Слово пути идёт в журнал
+ * для всех шагов. Не Wazzup - шаги пишут `transport_inactive` и ничего не опрашивают (у сверки окно 00:10-06:00 проверяется раньше пути:
+ * вне окна она `not_due`, в окне - `transport_inactive`). Слово пути идёт в журнал
  * (`transport`) и в сравнение с переключателями env: расхождение плана §9 (env Wazzup `1`, а путь `waha`; стоп закрыт, а
  * путь `wazzup`; путь `waha`, а приём WAHA выключен; путь `wazzup`, а приём WAHA включён) - `status: degraded`, `reason:
  * transport_mismatch` и слово расхождения (`transport_mismatch`). Путь `none` - норма и расхождением не считается.
@@ -347,7 +349,8 @@ export async function runWazzupMaintenance(
       } else {
         let observation: WhatsAppHealthObservation = { kind: "unknown" };
         let rawState: string | null = null;
-        const key = await resolveWazzupApiKey(client, organizationId);
+        // Чтение ключа из Vault - такой же вызов базы со сроком, как все остальные: завис - `failed`/`database`, сверка идёт дальше.
+        const key = parseWazzupKeyResolution(await rpc("wazzup_api_key_resolve_v1", { p_organization_id: organizationId }));
         if (!key.ready) {
           log.health_key = key.reason;
         } else {

@@ -386,6 +386,10 @@ test("the integrations table: the WhatsApp row speaks about the Wazzup channel a
   assert.deepEqual([waiting.tone, waiting.blocksWork], ["warn", false]);
   const stopped = whatsappRow(facts({ wazzup: { channelState: "active", observedAt: "2026-10-27T11:55:00+00:00", intakeEnabled: false } }));
   assert.deepEqual([stopped.state, stopped.tone, stopped.blocksWork], ["приём выключен", "warn", false]);
+  // The state, «что не работает» and the handoff already say it: no fourth sentence in the row (the card has «Приём: выключен на сервере»).
+  assert.equal(stopped.detail, null);
+  assert.equal(stopped.without, "Новые входящие WhatsApp не приходят в CRM");
+  assert.match(stopped.action.handoff, /включить приём сообщений на сервере/u);
   for (const row of [working, broken, waiting, stopped]) {
     assert.doesNotMatch(JSON.stringify(row.action), /whatsapp-connect|Подключить WhatsApp/u);
     assert.equal(row.action?.link?.href, "/v3/inbox");

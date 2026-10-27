@@ -10,10 +10,9 @@ import type { PlatformWhatsAppTransport } from "../platform-whatsapp-transport.t
 
 export type WazzupTone = "ok" | "warn" | "danger";
 
-/** Одна строка в обоих местах: под лентой чата и в строке «WhatsApp · Wazzup» таблицы. */
+/** Первая - под лентой чата и у черновика агента, вторая - в карточке канала «Настроек»; в строке «WhatsApp · Wazzup» таблицы их нет (там `detail: null`). */
 export const WAZZUP_READ_ONLY_LINE = "Только чтение: отвечайте в amoCRM или Wazzup.";
 export const WAZZUP_FALLBACK_LINE = "Запасной путь WAHA выключен, пока работает Wazzup.";
-export const WAZZUP_INTAKE_OFF_LINE = "Приём сообщений выключен на сервере. Входящие не попадают в CRM.";
 export const WAZZUP_TITLE = "WhatsApp продаж через Wazzup";
 
 /** Слово серии 321 -> слово на экране (строчными: так читается в таблице) и тон. */

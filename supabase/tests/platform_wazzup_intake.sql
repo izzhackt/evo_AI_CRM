@@ -50,6 +50,8 @@
 --     `crm_primary` alerts (and leaving wazzup closes the wazzup ones); crm_primary is unchanged;
 -- 11. the list name and number (278), the staff transport read, and the hidden origin: a Wazzup trace is invisible to
 --     the table reads and to the client and lead cards, as a WAHA one is.
+-- 12. the operator's selection of the event ids for check A6 (runbook, section 4): the inbound events of the test client's
+--     conversation inside the A2-A5 window, nothing of other conversations, no seller replies, [from, to) bounds.
 BEGIN;
 
 SET LOCAL TIME ZONE 'UTC';
@@ -765,6 +767,80 @@ SELECT pg_temp.a325_assert((:'a325_sb2'::JSONB ->> 'newInbound') = '1'
   AND pg_temp.a325_in_list(pg_temp.a325_list('unanswered'), :'a325_cb'::UUID) IS NOT NULL,
   'at the first customer message the waiting replies are added in order of time; a punctuation-only profile name is no name (the placeholder stays); the chat is unanswered: '
   || :'a325_sb2');
+
+-- B2. The operator's selection of the event ids for check A6 (docs/runbooks/wazzup-whatsapp.md, section 4): the events of the TEST
+-- client's conversation, inbound only, inside the A2-A5 window - never "the latest events". The text between the markers is the
+-- runbook's query word for word (tests/platform-wazzup-packaging.test.mjs compares them); the psql variables are the ones the
+-- runbook sets with `-v`.
+SELECT c.canonical_client_id AS test_client FROM platform.communication_conversations c WHERE c.id = :'a325_ca'::UUID \gset
+SELECT (t0 + INTERVAL '100 seconds') AS window_from, (t0 + INTERVAL '126 seconds') AS window_to FROM a325_clock \gset
+CREATE TEMP TABLE a325_a6 AS
+-- A6_EVENT_IDS_BEGIN
+select distinct b.source_webhook_event_id
+  from platform.communication_conversations c
+  join platform.communication_messages m on m.organization_id = c.organization_id and m.conversation_id = c.id
+  join platform_private.wazzup_message_bindings b on b.organization_id = m.organization_id and b.communication_message_id = m.id
+ where c.canonical_client_id = :'test_client'::uuid
+   and c.wazzup_channel_id is not null
+   and b.kind = 'inbound'
+   and m.created_at >= :'window_from'::timestamptz and m.created_at < :'window_to'::timestamptz
+ order by 1
+-- A6_EVENT_IDS_END
+;
+SELECT pg_temp.a325_assert(
+  (SELECT array_agg(source_webhook_event_id ORDER BY source_webhook_event_id) FROM a325_a6)
+    = (SELECT array_agg(x ORDER BY x) FROM unnest(ARRAY[pg_temp.a325_event('a-1'), pg_temp.a325_event('a-2'), pg_temp.a325_event('a-4')]) x),
+  'A6 ids: exactly the three inbound events of the test client''s conversation - not the seller replies (a-3, a-7: staff_echo), not the '
+  || 'automatic echoes (never stored), and not the inbound event of the OTHER conversation (b-4) that lies inside the same window');
+-- The window is [from, to): the lower bound is inclusive, the upper exclusive.
+SELECT (t0 + INTERVAL '101 seconds') AS window_from, (t0 + INTERVAL '110 seconds') AS window_to FROM a325_clock \gset
+DROP TABLE a325_a6;
+CREATE TEMP TABLE a325_a6 AS
+select distinct b.source_webhook_event_id
+  from platform.communication_conversations c
+  join platform.communication_messages m on m.organization_id = c.organization_id and m.conversation_id = c.id
+  join platform_private.wazzup_message_bindings b on b.organization_id = m.organization_id and b.communication_message_id = m.id
+ where c.canonical_client_id = :'test_client'::uuid
+   and c.wazzup_channel_id is not null
+   and b.kind = 'inbound'
+   and m.created_at >= :'window_from'::timestamptz and m.created_at < :'window_to'::timestamptz
+ order by 1
+;
+SELECT pg_temp.a325_assert(
+  (SELECT array_agg(source_webhook_event_id) FROM a325_a6) = ARRAY[pg_temp.a325_event('a-2')],
+  'A6 ids: the window [101 s, 110 s) holds only a-2 (a-1 at 100 s is before it, a-4 at 110 s is not inside the upper bound)');
+-- The other conversation has its own single inbound event; an unknown client and a client without a Wazzup conversation give nothing.
+SELECT c.canonical_client_id AS test_client FROM platform.communication_conversations c WHERE c.id = :'a325_cb'::UUID \gset
+SELECT (t0 + INTERVAL '100 seconds') AS window_from, (t0 + INTERVAL '126 seconds') AS window_to FROM a325_clock \gset
+DROP TABLE a325_a6;
+CREATE TEMP TABLE a325_a6 AS
+select distinct b.source_webhook_event_id
+  from platform.communication_conversations c
+  join platform.communication_messages m on m.organization_id = c.organization_id and m.conversation_id = c.id
+  join platform_private.wazzup_message_bindings b on b.organization_id = m.organization_id and b.communication_message_id = m.id
+ where c.canonical_client_id = :'test_client'::uuid
+   and c.wazzup_channel_id is not null
+   and b.kind = 'inbound'
+   and m.created_at >= :'window_from'::timestamptz and m.created_at < :'window_to'::timestamptz
+ order by 1
+;
+SELECT pg_temp.a325_assert((SELECT array_agg(source_webhook_event_id) FROM a325_a6) = ARRAY[pg_temp.a325_event('b-4')],
+  'A6 ids: the other conversation gives only its own inbound event (b-4), its waiting seller replies are staff_echo');
+SELECT pg_temp.a325_id(9999) AS test_client \gset
+DROP TABLE a325_a6;
+CREATE TEMP TABLE a325_a6 AS
+select distinct b.source_webhook_event_id
+  from platform.communication_conversations c
+  join platform.communication_messages m on m.organization_id = c.organization_id and m.conversation_id = c.id
+  join platform_private.wazzup_message_bindings b on b.organization_id = m.organization_id and b.communication_message_id = m.id
+ where c.canonical_client_id = :'test_client'::uuid
+   and c.wazzup_channel_id is not null
+   and b.kind = 'inbound'
+   and m.created_at >= :'window_from'::timestamptz and m.created_at < :'window_to'::timestamptz
+ order by 1
+;
+SELECT pg_temp.a325_assert((SELECT count(*) = 0 FROM a325_a6), 'A6 ids: an unknown client gives no event');
+DROP TABLE a325_a6;
 
 -- C. Media marks are the 259 marks: the agent sees photo / voice / file; no file is downloaded.
 SELECT pg_temp.a325_ingest(jsonb_build_array(

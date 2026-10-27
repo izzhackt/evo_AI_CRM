@@ -128,7 +128,21 @@ crm.evoadmissions.com, app.evoadmissions.com {
 	#   the request and retries the connection every 500 ms for up to 25 s (below
 	#   Wazzup's 30 s timeout). Caddy retries a POST only when the connection itself
 	#   failed (before any byte was sent), which is the case here, so a retry is safe.
-	@wazzup path /api/v2/whatsapp/wazzup/inbound
+	# - the matcher is exact on the ORIGINAL request URI. `handle` runs before the `respond`
+	#   guards of this block (evo_canonical_api_paths, @private), and a `path` matcher alone
+	#   lower-cases, percent-decodes and dot-cleans the path before comparing, so on its own
+	#   it would also take /api/internal/x%2f..%2f..%2fv2/whatsapp/wazzup/inbound and proxy
+	#   that raw URI to the app without the guards ever seeing it. With the check on
+	#   {http.request.orig_uri} every other spelling falls through to those guards (404) or
+	#   to the common proxy below;
+	# - request_header drops a client-supplied X-Evo-Wazzup-Ip on every route: only the
+	#   handler below sets it, so a spelling that reaches the common proxy cannot bring its
+	#   own address into the app's failed-token limiter.
+	request_header -X-Evo-Wazzup-Ip
+	@wazzup {
+		path /api/v2/whatsapp/wazzup/inbound
+		vars_regexp {http.request.orig_uri} `^/api/v2/whatsapp/wazzup/inbound(\?|$)`
+	}
 	handle @wazzup {
 		@wazzup_not_crm not host crm.evoadmissions.com
 		respond @wazzup_not_crm 404

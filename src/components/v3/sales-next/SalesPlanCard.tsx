@@ -4,15 +4,26 @@ import { DetailSheet, WidgetCard } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 
 /**
- * «План месяца» и «Перенос данных»: план показывает число, «Изменить план» открывает панель с прежней формой (`SalesTargetForm` приходит
- * готовой с сервера), «Перенос данных» — прежняя ссылка тому, у кого нет доступа к настройкам. Сбой проверки доступа остаётся на виду.
+ * «План месяца» и «Перенос данных»: «Изменить план» открывает панель с прежней формой (`SalesTargetForm` приходит готовой с сервера),
+ * «Перенос данных» — прежняя ссылка тому, у кого нет доступа к настройкам. Сбой проверки доступа остаётся на виду. План словами — только
+ * по прочитанному плану месяца (`read`): не прочитан — ничего о нём не сказано («нет чтения — нет числа»); число, которое уже стоит плиткой
+ * «План» (`inTile`), второй раз не повторяется.
  */
-export function SalesPlanCard({ target, form, importHref, unavailable }: Readonly<{
+export function SalesPlanCard({ target, read, inTile, form, importHref, unavailable }: Readonly<{
   target: number | null;
+  /** План месяца прочитан: месяц выбран, это не архив и чтение удалось. */
+  read: boolean;
+  /** Число плана уже показано плиткой «План» над таблицей. */
+  inTile: boolean;
   form: React.ReactNode | null;
   importHref: string | null;
   unavailable: boolean;
 }>) {
+  const sentence = !read ? null : target === null ? "План на месяц не задан" : inTile ? null : `План на месяц: ${target.toLocaleString("ru-RU")}`;
+  const body = [
+    unavailable ? <p key="alert" role="alert" className="t-body-compact text-fg-2">Не удалось проверить доступ к плану и переносу данных.</p> : null,
+    sentence ? <p key="sentence" className="t-body-compact text-fg-2">{sentence}</p> : null,
+  ].filter((part) => part !== null);
   return (
     <WidgetCard
       title="План месяца"
@@ -25,8 +36,7 @@ export function SalesPlanCard({ target, form, importHref, unavailable }: Readonl
         </>
       }
     >
-      {unavailable ? <p role="alert" className="t-body-compact text-fg-2">Не удалось проверить доступ к плану и переносу данных.</p> : null}
-      <p className="t-body-compact text-fg-2">{target !== null ? `План на месяц: ${target.toLocaleString("ru-RU")}` : "План на месяц не задан"}</p>
+      {body.length > 0 ? body : undefined}
     </WidgetCard>
   );
 }

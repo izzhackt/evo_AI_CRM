@@ -155,6 +155,17 @@ test("«Воронка продаж»: закрытые лиды — тот же
   assert.match(next, /href="\/v3\/pipeline"/u, "возврат к доске");
 });
 
+test("«Воронка продаж»: при усечённом чтении (4000+ лидов) числа нет ни в заголовке, ни у вкладки «Все этапы» — нет чтения, нет числа", () => {
+  const heading = (html) => text(html.match(/<h1[^>]*>[\s\S]*?<\/h1>/u)[0]);
+  const full = nextBoards.get("next-sales");
+  const cut = nextBoards.get("next-sales-truncated");
+  assert.equal(heading(full), "Воронка продаж 12");
+  assert.match(navText(full, "Этапы воронки"), /^Все этапы 12 Новый 3/u, "чтение полное: число у вкладки то же, что в заголовке");
+  assert.match(text(mainOf(cut)), /Прочитаны первые 4000 лидов — уточните поиск или фильтры\./u, "обрыв чтения назван");
+  assert.equal(heading(cut), "Воронка продаж", "в заголовке числа нет");
+  assert.match(navText(cut, "Этапы воронки"), /^Все этапы Новый 3/u, "у вкладки «Все этапы» числа тоже нет: частичное число не выдаётся за общее");
+});
+
 /* ---------------------------------------------------------------- «Воронка поступления» */
 
 test("«Воронка поступления»: те же дела на тех же этапах, вкладки разделов с теми же числами, те же поиск и фильтры; «Добавить студента» — единственный красный", () => {
@@ -187,7 +198,19 @@ test("«Воронка поступления»: перетаскивание �
   assert.match(card, /useDraggable\(\{ id: row\.studentCaseId/u);
   assert.match(card, /<AdmissionsCardMenu row=\{row\} tab=\{tab\} onMove=\{onMove\} \/>/u, "то же меню");
   const board = read("src/components/v3/admissions-pipeline-next/AdmissionsBoardNext.tsx");
-  assert.match(board, /PointerSensor[\s\S]*TouchSensor/u);
+  // Мышь и палец — разные датчики: `PointerSensor` перехватывает и касание (`pointerdown` приходит раньше `touchstart`), `TouchSensor` с удержанием
+  // тогда не срабатывает никогда, а жест забирает прокрутка и отменяет перетаскивание (CDP-проверка в pipelines-next-static-render.cjs).
+  assert.match(board, /MouseSensor[\s\S]*TouchSensor/u);
+  assert.doesNotMatch(board.replace(/^\s*\/\/.*$/gmu, ""), /PointerSensor/u, "касание не должно попадать в датчик указателя");
+  assert.match(board, /useSensor\(MouseSensor, \{ activationConstraint: \{ distance: 6 \} \}\)/u);
+  assert.match(board, /useSensor\(TouchSensor, \{ activationConstraint: \{ delay: 250, tolerance: 8 \} \}\)/u);
+  // Дело, отпущенное мимо колонок, никуда не двигается, и читалке об этом сказано, а не оставлено «взято».
+  assert.match(board, /onDragEnd: \(\{ over \}\) => \(over \? undefined : "Перемещение отменено\."\)/u);
+  // Меню «⋯» лежит внутри перетаскиваемой карточки: нажатие на пункт меню перетаскивания не начинает.
+  assert.match(card, /const keepPressInMenu = \(event: SyntheticEvent\) => \{\s*if \(event\.target instanceof Element && event\.target\.closest\("\[popover\]"\)\) event\.stopPropagation\(\);/u);
+  assert.match(card, /onMouseDown=\{keepPressInMenu\} onTouchStart=\{keepPressInMenu\}>\s*<AdmissionsCardMenu/u);
+  // Ссылка-чип «нужен ответ» подчёркнута: рядом такой же по виду «просрочено», который не ссылка.
+  assert.match(card, /<StatusBadge label=\{replyWord\} tone="warn" className="underline [^"]*" \/>/u);
   assert.doesNotMatch(board, /KeyboardSensor/u, "клавиатурный путь — меню, не второй способ перетаскивания");
   assert.match(board, /board\.moveCard\(String\(active\.id\), \{ stage: over\.id as AdmissionsPipelineStage \}, "drag"\)/u);
   assert.match(read("src/components/v3/admissions-pipeline-next/AdmissionsColumnNext.tsx"), /useDroppable\(\{ id: stage/u);
@@ -235,6 +258,39 @@ test("«Отчёт продаж»: те же записи, деньги, ост�
   for (const line of ["KGS", "USD"]) assert.match(next, new RegExp(`data-money-line="${line}"`, "u"));
   // Строка поиска и фильтров — одна разметка (общая часть).
   assert.equal(noIds(divBlock(next, 'data-testid="sales-report-toolbar"')), noIds(divBlock(legacy, 'data-testid="sales-report-toolbar"')));
+});
+
+test("«Отчёт продаж»: «План месяца» не повторяет число, которое уже стоит плиткой «План»", () => {
+  const next = report.get("admin-cookie");
+  assert.match(text(next), /План 35 осталось 29/u, "число плана стоит плиткой");
+  assert.match(text(next), /План месяца Изменить план/u, "карточка осталась: в ней действие");
+  assert.doesNotMatch(text(next), /План на месяц: 35/u, "то же число второй раз предложением не повторяется");
+});
+
+test("«Отчёт продаж»: о плане, которого не прочли, не сказано ничего — «не задан» только при удавшемся чтении (нет чтения — нет числа)", () => {
+  // Чтение плана не удалось: сказано про сбой, а «не задан» не утверждается — ни в новом, ни в прежнем виде.
+  for (const name of ["admin-cookie-management-unavailable", "admin-no-cookie-management-unavailable"]) {
+    assert.match(text(report.get(name)), /Не удалось проверить доступ к плану и переносу данных\./u, `${name}: сбой на виду`);
+    assert.doesNotMatch(text(report.get(name)), /План на месяц не задан|Текущий план: не задан/u, `${name}: «не задан» не утверждается без чтения`);
+    assert.doesNotMatch(text(report.get(name)), /План на месяц: \d/u, name);
+  }
+  // Чтение удалось, плана нет: так и сказано, плитки «План» нет.
+  const none = report.get("admin-cookie-no-plan");
+  assert.match(text(none), /План на месяц не задан/u);
+  assert.doesNotMatch(text(none), /План 35/u);
+});
+
+test("«Отчёт продаж»: таблицы сумм и поступлений лежат в прокручиваемой области, а не растягивают карточку; панель записи без действий — без пустого подвала", () => {
+  const next = report.get("admin-cookie");
+  for (const [testId, region] of [["sales-money-table", "Суммы по валютам"], ["sales-cash-totals", "Поступления и возвраты по валютам"]]) {
+    const at = next.indexOf(`data-testid="${testId}"`);
+    assert.ok(at > 0, testId);
+    const tag = next.lastIndexOf("<table", at);
+    assert.ok(next.slice(Math.max(0, tag - 160), tag).endsWith(`<div role="region" aria-label="${region}" tabindex="0" class="relative min-w-0 overflow-x-auto">`), `${testId}: область прокрутки с подписью и фокусом клавиатуры`);
+  }
+  const table = read("src/components/v3/sales-next/SalesRecordsTable.tsx");
+  assert.match(table, /footer=\{shown && \(shown\.open \|\| shown\.extra\) \? \(/u, "подвал панели есть, только когда в нём есть действие");
+  assert.match(table, /toolbar=\{toolbar \? <div className="min-w-0 flex-1">\{toolbar\}<\/div> : null\}/u, "строка фильтров занимает всю строку инструментов, как у прежнего вида");
 });
 
 test("«Отчёт продаж»: «Убрать» / «Вернуть» — те же записи и версии, у каждой строки свой request_id; «Добавить продажу» ведёт на тот же адрес; красная кнопка одна", () => {

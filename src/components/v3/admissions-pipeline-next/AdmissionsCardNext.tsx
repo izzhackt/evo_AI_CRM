@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useDraggable } from "@dnd-kit/core";
+import type { SyntheticEvent } from "react";
 
 import { StatusBadge } from "@/components/kit";
 import { AdmissionsCardMenu } from "@/components/v3/admissions-board/AdmissionsCardMenu";
@@ -9,6 +10,14 @@ import { BOARD_CARD_CLASS } from "@/components/v3/board/Board";
 import { cn } from "@/lib/utils";
 import type { AdmissionsPipelineRow, AdmissionsPipelineTab } from "@/lib/platform-admissions-pipeline-contract";
 import { caseChatAwaitState, country as countryLabel } from "@/lib/v3/wording";
+
+/**
+ * Меню «⋯» лежит внутри карточки, а перетаскивание слушает вся карточка: нажатие на пункт меню с лёгким сдвигом (щелчок по трекпаду) не должно
+ * брать дело — пункт не сработал бы, а меню осталось бы открытым. Сам «⋯» остаётся нажатием, как имя: сдвиг на 6 px — уже перетаскивание.
+ */
+const keepPressInMenu = (event: SyntheticEvent) => {
+  if (event.target instanceof Element && event.target.closest("[popover]")) event.stopPropagation();
+};
 
 /**
  * Содержимое карточки дела: имя ведёт в дело (ссылка растянута на всю карточку), вторая строка — страна · университет и круг куратора (когда кураторов несколько),
@@ -23,7 +32,7 @@ export function AdmissionsCardBody({ row, showCurator }: Readonly<{ row: Admissi
     row.overdue ? <StatusBadge key="overdue" label="просрочено" tone="danger" /> : null,
     row.needsReply ? (
       <Link key="reply" href={`/v3/messages?case=${row.studentCaseId}`} prefetch={false} draggable={false} className="v3-chip-link relative inline-flex">
-        <StatusBadge label={replyWord} tone="warn" />
+        <StatusBadge label={replyWord} tone="warn" className="underline decoration-1 underline-offset-2" />
       </Link>
     ) : null,
     row.awaitingAck ? <StatusBadge key="ack" label="ждёт принятия" tone="warn" /> : null,
@@ -62,7 +71,7 @@ export function AdmissionsCardNext({ row, tab, showCurator, onMove }: Readonly<{
     <article ref={setNodeRef} {...listeners} data-testid="v3-admissions-pipeline-card" data-student-case-id={row.studentCaseId}
       className={cn(BOARD_CARD_CLASS, "cursor-grab touch-manipulation active:cursor-grabbing", isDragging && "opacity-40")}>
       <AdmissionsCardBody row={row} showCurator={showCurator} />
-      <div className="absolute end-0.5 top-0.5">
+      <div className="absolute end-0.5 top-0.5" onMouseDown={keepPressInMenu} onTouchStart={keepPressInMenu}>
         <AdmissionsCardMenu row={row} tab={tab} onMove={onMove} />
       </div>
     </article>

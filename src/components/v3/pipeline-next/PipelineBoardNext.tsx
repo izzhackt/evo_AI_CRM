@@ -27,9 +27,11 @@ function pushState(event: MouseEvent<HTMLAnchorElement>, href: string): boolean 
  * адреса (`stage`, `lead`, `handed`, фильтры) и request_id — те же, что у прежней доски (`Pipeline.tsx`); перетаскивания в продажах
  * нет (этап меняет форма решения в панели), поэтому и здесь его нет.
  */
-export function PipelineBoardNext({ stages, leads, ownerOptions, ownerOptionsHaveMore, actor, actorMembershipId, requestIds, handedExpanded, filteredStage, showOwner, today }: Readonly<{
+export function PipelineBoardNext({ stages, leads, allCount, ownerOptions, ownerOptionsHaveMore, actor, actorMembershipId, requestIds, handedExpanded, filteredStage, showOwner, today }: Readonly<{
   stages: readonly PipelineStage[];
   leads: readonly PipelineLead[];
+  /** Число лидов в работе у вкладки «Все этапы» — то, что страница показывает в заголовке: при усечённом чтении числа нет (`null`), «нет чтения — нет числа». */
+  allCount: number | null;
   ownerOptions: readonly PlatformSalesOwnerOption[];
   ownerOptionsHaveMore: boolean;
   actor: ActivePlatformActor;
@@ -57,7 +59,7 @@ export function PipelineBoardNext({ stages, leads, ownerOptions, ownerOptionsHav
   const workflowStages = stages.flatMap((stage) => (stage.key === "handed_off" ? [] : [{ key: stage.key, title: stage.title }]));
   const stageOf = (lead: PipelineLead | null) => stages.find((stage) => stage.key === lead?.stageKey);
   const tabs: SectionTab[] = [
-    { key: "all", label: "Все этапы", count: leads.filter((lead) => !stageOf(lead)?.terminal).length, href: href({ stage: null, lead: null }) },
+    { key: "all", label: "Все этапы", count: allCount, href: href({ stage: null, lead: null }) },
     ...stages.map((stage) => ({ key: stage.key, label: stage.title, count: leads.filter((lead) => lead.stageKey === stage.key).length, href: href({ stage: stage.key, lead: null }) })),
   ];
   const closedHere = closed !== null && !closed.reopened && closed.receipt.leadId === last?.workflow.leadId;

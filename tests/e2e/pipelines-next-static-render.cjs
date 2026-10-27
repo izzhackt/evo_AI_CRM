@@ -26,6 +26,8 @@ const { leadId } = fixtures;
 
 const VIEWPORTS = {
   d1440: { viewport: { width: 1440, height: 900 } },
+  // Широкий экран с касанием (планшет, ноутбук с сенсорным экраном): перетаскивание пальцем должно работать и здесь.
+  d1440t: { viewport: { width: 1440, height: 900 }, hasTouch: true },
   d1280: { viewport: { width: 1280, height: 800 } },
   m390: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
 };
@@ -313,6 +315,102 @@ async function main() {
       const href = await cardOf(2).locator("a").first().getAttribute("href");
       report("admissions drag: the name link still opens the case (click is not a drag)", href === `/v3/profile?case=${caseOf(2)}&tab=route`, href);
       report("admissions drag: console clean", errors.length === 0, errors);
+      await context.close();
+    }
+
+    // 8b. Нажатие на пункт меню «⋯ → Переместить в…» с лёгким сдвигом указателя (щелчок по трекпаду, 9 px при пороге 6 px) — выбор пункта, а не
+    // перетаскивание дела: меню лежит внутри перетаскиваемой карточки.
+    {
+      const { context, page, errors } = await open("/v3/admissions-pipeline", "d1440");
+      const trigger = page.locator(`[data-student-case-id="${caseOf(2)}"] button[popovertarget]`);
+      await trigger.click();
+      await page.waitForSelector('[data-testid="v3-admissions-pipeline-move"]:popover-open');
+      const item = page.locator('[data-testid="v3-admissions-pipeline-move"]:popover-open').getByRole("button", { name: "Документы", exact: true });
+      await item.hover();
+      const box = await item.boundingBox();
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2 + 8, box.y + box.height / 2 + 4, { steps: 3 });
+      const during = await page.evaluate(() => ({ dimmed: document.querySelectorAll('[data-testid="v3-admissions-pipeline-card"].opacity-40').length,
+        live: [...document.querySelectorAll('[id^="DndLiveRegion"]')].map((node) => node.textContent).join("|") }));
+      await page.mouse.up();
+      await page.getByTestId("v3-undo-toasts").waitFor({ timeout: 4_000 }).catch(() => null);
+      const after = await page.evaluate((id) => ({ calls: globalThis.__boardsFixture.pipelineCalls.map((call) => call.stage ?? null), open: Boolean(document.querySelector('[data-testid="v3-admissions-pipeline-move"]:popover-open')),
+        stage: document.querySelector(`[data-student-case-id="${id}"]`)?.closest('[data-testid="v3-admissions-pipeline-column"]')?.getAttribute("data-stage") ?? null }), caseOf(2));
+      report("admissions menu: pressing an item with 9 px of pointer travel picks the item (no drag starts, no «взято»), the case moves to the chosen stage",
+        during.dimmed === 0 && !/взято/u.test(during.live) && after.calls.length === 1 && after.calls[0] === "documents" && after.stage === "documents" && !after.open, { during, after });
+      report("admissions menu: console clean", errors.length === 0, errors);
+      await context.close();
+    }
+
+    // 8c. Дело отпущено мимо колонок: никуда не двигается, читалке сказано «Перемещение отменено.» (а не оставлено «взято» или «Над этапом …»).
+    {
+      const { context, page, errors } = await open("/v3/admissions-pipeline", "d1440");
+      const from = await page.locator(`[data-testid="v3-admissions-pipeline-card"][data-student-case-id="${caseOf(1)}"]`).boundingBox();
+      await page.mouse.move(from.x + 40, from.y + 20);
+      await page.mouse.down();
+      await page.mouse.move(from.x + 60, from.y + 40, { steps: 4 });
+      await page.mouse.move(700, 16, { steps: 12 });
+      const during = await page.evaluate(() => [...document.querySelectorAll('[id^="DndLiveRegion"]')].map((node) => node.textContent).join("|"));
+      await page.mouse.up();
+      const heard = await page.waitForFunction(() => { const text = [...document.querySelectorAll('[id^="DndLiveRegion"]')].map((node) => node.textContent).join("|"); return /Перемещение отменено\./u.test(text) ? text : false; }, null, { timeout: 3_000 })
+        .then((handle) => handle.jsonValue()).catch(() => page.evaluate(() => [...document.querySelectorAll('[id^="DndLiveRegion"]')].map((node) => node.textContent).join("|")));
+      const stage = await page.evaluate((id) => document.querySelector(`[data-student-case-id="${id}"]`)?.closest('[data-testid="v3-admissions-pipeline-column"]')?.getAttribute("data-stage"), caseOf(1));
+      report("admissions drag: a card dropped outside every column stays put and the screen reader hears «Перемещение отменено.» (not left on «Над этапом …»)",
+        !/отменено/u.test(during) && /Перемещение отменено\./u.test(heard) && stage === "new" && await page.evaluate(() => globalThis.__boardsFixture.pipelineCalls.length) === 0, { during, heard, stage });
+      report("admissions drag outside: console clean", errors.length === 0, errors);
+      await context.close();
+    }
+
+    // 8d. Палец. Широкий экран с касанием: удержание 250 мс и перенос на колонку двигают дело тем же серверным действием. Телефон: быстрый жест по карточке —
+    // прокрутка страницы, дело не берётся (карточка не тускнеет, читалка молчит).
+    {
+      const { context, page, errors } = await open("/v3/admissions-pipeline", "d1440t");
+      const cdp = await context.newCDPSession(page);
+      const touch = (type, x, y) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y }] });
+      const from = await page.locator(`[data-testid="v3-admissions-pipeline-card"][data-student-case-id="${caseOf(1)}"]`).boundingBox();
+      const to = await page.locator('[data-testid="v3-admissions-pipeline-column"][data-stage="shortlist"]').boundingBox();
+      const sx = from.x + 40, sy = from.y + 20, ex = to.x + to.width / 2, ey = to.y + 140;
+      await touch("touchStart", sx, sy);
+      await page.waitForTimeout(320);
+      for (let step = 1; step <= 20; step += 1) { await touch("touchMove", sx + (ex - sx) * step / 20, sy + (ey - sy) * step / 20); await page.waitForTimeout(16); }
+      const lifted = await page.evaluate(() => document.querySelectorAll('[data-testid="v3-admissions-pipeline-card"].opacity-40').length);
+      await touch("touchEnd");
+      await page.waitForFunction((id) => document.querySelector(`[data-student-case-id="${id}"]`)?.closest('[data-testid="v3-admissions-pipeline-column"]')?.getAttribute("data-stage") === "shortlist", caseOf(1), { timeout: 4_000 }).catch(() => null);
+      const calls = await page.evaluate(() => globalThis.__boardsFixture.pipelineCalls.map((call) => call.stage ?? null));
+      report("admissions touch (1440, touch screen): hold 250 ms, drag onto a column, release — the case moves with the same server action", lifted === 1 && calls.length === 1 && calls[0] === "shortlist", { lifted, calls });
+      report("admissions touch (1440): console clean", errors.length === 0, errors);
+      await context.close();
+    }
+    {
+      const { context, page, errors } = await open("/v3/admissions-pipeline", "m390");
+      const cdp = await context.newCDPSession(page);
+      const touch = (type, x, y) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y }] });
+      await page.evaluate(() => {
+        window.__lifted = 0;
+        window.__heard = [];
+        new MutationObserver(() => { if (document.querySelector('[data-testid="v3-admissions-pipeline-card"].opacity-40')) window.__lifted += 1; }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"] });
+        new MutationObserver(() => window.__heard.push([...document.querySelectorAll('[id^="DndLiveRegion"]')].map((node) => node.textContent).join("|"))).observe(document.body, { subtree: true, childList: true, characterData: true });
+      });
+      const card = await page.locator('[data-testid="v3-admissions-pipeline-card"]').filter({ visible: true }).first().boundingBox();
+      const sx = card.x + 60, sy = card.y + card.height / 2;
+      await touch("touchStart", sx, sy);
+      for (let step = 1; step <= 15; step += 1) { await touch("touchMove", sx, sy - step * 6); await page.waitForTimeout(30); }
+      await touch("touchEnd");
+      await page.waitForTimeout(400);
+      const swipe = await page.evaluate(() => ({ lifted: window.__lifted, heard: window.__heard.filter(Boolean), calls: globalThis.__boardsFixture.pipelineCalls.length }));
+      report("admissions touch (390): a swipe that starts on a card is a scroll — the card is not lifted, the screen reader hears nothing, nothing moves", swipe.lifted === 0 && swipe.heard.length === 0 && swipe.calls === 0, swipe);
+      report("admissions touch (390): console clean", errors.length === 0, errors);
+      await context.close();
+    }
+
+    // 8e. Чип-ссылка «нужен ответ» подчёркнут (ведёт в переписку), «просрочено» рядом — такой же по виду, но не ссылка — нет.
+    {
+      const { context, page } = await open("/v3/admissions-pipeline", "d1440");
+      const chips = await page.evaluate((id) => [...document.querySelectorAll(`[data-student-case-id="${id}"] [data-slot="badge"]`)].map((chip) => ({ text: chip.textContent.trim(), line: getComputedStyle(chip).textDecorationLine, link: Boolean(chip.closest("a")) })), caseOf(6));
+      const reply = chips.find((chip) => chip.text === "нужен ответ");
+      const overdue = chips.find((chip) => chip.text === "просрочено");
+      report("admissions card: the «нужен ответ» chip (a link to the chat) is underlined, the «просрочено» chip beside it is not", Boolean(reply && overdue) && reply.link && reply.line.includes("underline") && !overdue.link && overdue.line === "none", chips);
+      await shot(page, "admissions-chips-d1440", { clip: { x: 0, y: 0, width: 1440, height: 500 } });
       await context.close();
     }
 

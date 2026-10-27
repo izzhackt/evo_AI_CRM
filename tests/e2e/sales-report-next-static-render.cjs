@@ -35,11 +35,15 @@ const SCENARIOS = {
   "preview-cookie": { ui: "next", actor: "preview" },
   "staff-no-cookie": { ui: null, actor: "staff" },
   "preview-no-cookie": { ui: null, actor: "preview" },
+  // Чтение плана не удалось / плана нет: прежний и новый вид не говорят о плане того, чего не прочли.
+  "admin-cookie-management-unavailable": { ui: "next", actor: "admin", rows: "management-unavailable" },
+  "admin-no-cookie-management-unavailable": { ui: null, actor: "admin", rows: "management-unavailable" },
+  "admin-cookie-no-plan": { ui: "next", actor: "admin", rows: "no-plan" },
 };
 
 async function renderJson() {
   const out = [];
-  for (const [name, options] of Object.entries(SCENARIOS)) out.push({ name, html: await renderRequest("/v3/main", SEARCH, { ...options, rows: "default" }) });
+  for (const [name, options] of Object.entries(SCENARIOS)) out.push({ name, html: await renderRequest("/v3/main", SEARCH, { rows: "default", ...options }) });
   process.stdout.write(JSON.stringify(out));
 }
 

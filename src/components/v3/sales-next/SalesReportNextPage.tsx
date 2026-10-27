@@ -30,7 +30,7 @@ export type SalesReportNextProps = Readonly<{
   }> | null;
   pagination: Readonly<{ prevHref: string | null; nextHref: string | null; range: string }> | null;
   cash: SalesCashData | null;
-  plan: Readonly<{ target: number | null; form: React.ReactNode | null; importHref: string | null; unavailable: boolean }> | null;
+  plan: Readonly<{ target: number | null; read: boolean; form: React.ReactNode | null; importHref: string | null; unavailable: boolean }> | null;
   dynamics: React.ReactNode;
 }>;
 
@@ -81,7 +81,7 @@ export function SalesReportNextPage({ period, addHref, alerts, headline, saved, 
       ) : null}
       {cash ? <SalesCashCard data={cash} /> : null}
       {dynamics ? <div className="min-w-0">{dynamics}</div> : null}
-      {plan ? <SalesPlanCard {...plan} /> : null}
+      {plan ? <SalesPlanCard {...plan} inTile={headline?.kind === "ok" && headline.target !== null} /> : null}
     </PageShell>
   );
 }

@@ -19,39 +19,41 @@ export function SalesMoneyCard({ data, archive }: Readonly<{ data: SalesMoneyDat
   }
   return (
     <WidgetCard title="Суммы">
-      <div className="grid gap-3" data-testid="sales-money-summary">
+      <div className="grid min-w-0 gap-3" data-testid="sales-money-summary">
         <p className="t-meta text-fg-2">{data.caption}</p>
         {refusal}
         {data.lines.length > 0 || data.cross.length > 0 ? (
-          <Table data-testid="sales-money-table" className="sm:w-auto sm:min-w-[34rem] [&_td]:px-2 [&_th]:px-2 sm:[&_td]:px-4 sm:[&_th]:px-4">
-            <caption className="sr-only">Стоимость, оплачено и остаток по валютам</caption>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead><span className="sr-only">Валюта</span></TableHead>
-                <TableHead className="text-right">Стоимость</TableHead>
-                <TableHead className="text-right">{data.showRest ? "Оплачено" : "Оплачено по записям"}</TableHead>
-                {data.showRest ? <TableHead className="text-right">Остаток</TableHead> : null}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.lines.map((line) => (
-                <TableRow key={line.currency} data-money-line={line.currency}>
-                  <TableHead scope="row" className="t-item text-fg">{line.currency}</TableHead>
-                  <TableCell className="text-right tabular-nums">{line.cost}</TableCell>
-                  <TableCell className="text-right tabular-nums">{line.paid}</TableCell>
-                  {data.showRest ? <TableCell className="text-right font-medium tabular-nums">{line.rest ?? "—"}</TableCell> : null}
+          <div role="region" aria-label="Суммы по валютам" tabIndex={0} className="relative min-w-0 overflow-x-auto">
+            <Table data-testid="sales-money-table" className="sm:w-auto sm:min-w-[34rem] [&_td]:px-2 [&_th]:px-2 sm:[&_td]:px-4 sm:[&_th]:px-4">
+              <caption className="sr-only">Стоимость, оплачено и остаток по валютам</caption>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead><span className="sr-only">Валюта</span></TableHead>
+                  <TableHead className="text-right">Стоимость</TableHead>
+                  <TableHead className="text-right">{data.showRest ? "Оплачено" : "Оплачено по записям"}</TableHead>
+                  {data.showRest ? <TableHead className="text-right">Остаток</TableHead> : null}
                 </TableRow>
-              ))}
-              {data.cross.map((pair) => (
-                <TableRow key={pair.key} data-money-cross={pair.key}>
-                  <TableHead scope="row" title={pair.title} className="font-normal text-fg-2">{pair.label}<span className="sr-only">{pair.sr}</span></TableHead>
-                  <TableCell className="text-right tabular-nums">{pair.cost}</TableCell>
-                  <TableCell className="text-right tabular-nums">{pair.paid}</TableCell>
-                  <TableCell className="text-right text-fg-3">—<span className="sr-only">остаток не считается</span></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {data.lines.map((line) => (
+                  <TableRow key={line.currency} data-money-line={line.currency}>
+                    <TableHead scope="row" className="t-item text-fg">{line.currency}</TableHead>
+                    <TableCell className="text-right tabular-nums">{line.cost}</TableCell>
+                    <TableCell className="text-right tabular-nums">{line.paid}</TableCell>
+                    {data.showRest ? <TableCell className="text-right font-medium tabular-nums">{line.rest ?? "—"}</TableCell> : null}
+                  </TableRow>
+                ))}
+                {data.cross.map((pair) => (
+                  <TableRow key={pair.key} data-money-cross={pair.key}>
+                    <TableHead scope="row" title={pair.title} className="font-normal text-fg-2">{pair.label}<span className="sr-only">{pair.sr}</span></TableHead>
+                    <TableCell className="text-right tabular-nums">{pair.cost}</TableCell>
+                    <TableCell className="text-right tabular-nums">{pair.paid}</TableCell>
+                    <TableCell className="text-right text-fg-3">—<span className="sr-only">остаток не считается</span></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         ) : null}
         <p className="t-meta text-fg-3">{data.footnote}</p>
       </div>

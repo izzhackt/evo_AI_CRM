@@ -23,7 +23,9 @@ export type SalesSheetContent = Readonly<{
 /**
  * Таблица записей «Отчёта продаж» и панель записи. Запись открывается адресом (`?record=`, как раньше): ссылка работает, «Назад» закрывает
  * панель, а тело панели и её request_id приходят с сервера. Панель открывается сразу по нажатию (скелет под названием строки), пока
- * сервер присылает запись. Страницы и фильтры ведёт сервер, поэтому у таблицы нет ни своего поиска, ни своих страниц.
+ * сервер присылает запись. Страницы и фильтры ведёт сервер, поэтому у таблицы нет ни своего поиска, ни своих страниц; строка поиска и фильтров
+ * (`toolbar`) занимает всю строку инструментов таблицы, как у прежнего вида, — иначе поле поиска сжимается и обрезает подсказку. Подвал панели
+ * есть, только когда в нём есть действие: пустая полоса с рамкой забирает высоту у формы на телефоне.
  */
 export function SalesRecordsTable({ rows, openKey, sheet, listHref, toolbar, empty, showRest, showAction, count }: Readonly<{
   rows: readonly SalesRowData[];
@@ -67,7 +69,7 @@ export function SalesRecordsTable({ rows, openKey, sheet, listHref, toolbar, emp
         getRowLabel={(row) => row.name}
         searchable={false}
         paginate={false}
-        toolbar={toolbar}
+        toolbar={toolbar ? <div className="min-w-0 flex-1">{toolbar}</div> : null}
         empty={empty}
         columnMenu={false}
       />
@@ -76,7 +78,7 @@ export function SalesRecordsTable({ rows, openKey, sheet, listHref, toolbar, emp
         onOpenChange={(next) => { if (!next) go(null, listHref); }}
         title={shown?.title ?? targetRow?.name ?? "Запись продажи"}
         description={shown?.description}
-        footer={shown ? (
+        footer={shown && (shown.open || shown.extra) ? (
           <>
             {shown.open ? <Button variant="outline" asChild><Link href={shown.open.href}>{shown.open.label}</Link></Button> : null}
             {shown.extra}

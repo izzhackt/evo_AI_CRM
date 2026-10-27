@@ -86,7 +86,8 @@ export async function SalesRegisterNextView({ actor, query, dynamics = null }: R
       pagination={workspace && (offset > 0 || workspace.hasMore) ? { prevHref: offset > 0 ? href({ offset: String(Math.max(0, offset - SALES_PAGE_SIZE)) }) : null,
         nextHref: workspace.hasMore ? href({ offset: String(offset + SALES_PAGE_SIZE) }) : null, range: workspace.rows.length ? `${offset + 1}–${offset + workspace.rows.length} из ${workspace.totalCount}` : "" } : null}
       cash={workspace && month ? salesCashData(page.cash) : null}
-      plan={planForm || importHref || page.managementUnavailable ? { target: target?.targetCount ?? null, form: planForm, importHref, unavailable: page.managementUnavailable } : null}
+      plan={planForm || importHref || page.managementUnavailable ? { target: target?.targetCount ?? null, read: page.management.status === "ready" && Boolean(month) && !archiveView,
+        form: planForm, importHref, unavailable: page.managementUnavailable } : null}
       dynamics={dynamics}
     />
   );

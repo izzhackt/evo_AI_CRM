@@ -1,6 +1,6 @@
 "use client";
 
-import { DndContext, DragOverlay, PointerSensor, TouchSensor, pointerWithin, useSensor, useSensors, type Announcements, type DragEndEvent } from "@dnd-kit/core";
+import { DndContext, DragOverlay, MouseSensor, TouchSensor, pointerWithin, useSensor, useSensors, type Announcements, type DragEndEvent } from "@dnd-kit/core";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -15,12 +15,15 @@ import { BOARD_CARD_CLASS } from "@/components/v3/board/Board";
 import type { AdmissionsPipelineStage } from "@/lib/platform-admissions-pipeline-contract";
 import { admissionsPipelineStage } from "@/lib/v3/wording";
 
-/** Объявления перетаскивания для читалки — по-русски; итог («перемещено в …») говорит строка уведомлений доски, не дублируем. */
+/**
+ * Объявления перетаскивания для читалки — по-русски. Итог перемещения («перемещено в …») говорит строка уведомлений доски, не дублируем;
+ * отпущенное мимо колонок дело никуда не двигается, и об этом сказано, а не оставлено «взято».
+ */
 const ANNOUNCEMENTS: Announcements = {
   onDragStart: ({ active }) => `Дело «${String(active.data.current?.name ?? "")}» взято.`,
   onDragOver: ({ over }) => (over ? `Над этапом «${String(over.data.current?.title ?? "")}».` : undefined),
   onDragMove: () => undefined,
-  onDragEnd: () => undefined,
+  onDragEnd: ({ over }) => (over ? undefined : "Перемещение отменено."),
   onDragCancel: () => "Перемещение отменено.",
 };
 
@@ -33,8 +36,10 @@ export function AdmissionsBoardNext(props: AdmissionsBoardProps & Readonly<{ tru
   const board = useAdmissionsBoard(props);
   const [dragging, setDragging] = useState<string | null>(null);
   const sensors = useSensors(
-    // Нажатие на имя и «⋯» остаётся нажатием: перетаскивание начинается после 6 px; палец — после удержания.
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    // Нажатие на имя и «⋯» остаётся нажатием: мышью перетаскивание начинается после 6 px. Палец — после удержания 250 мс; сдвиг раньше —
+    // это прокрутка страницы, и дело не берётся. Именно мышь и касание, а не `PointerSensor`: он перехватывает и касание (событие
+    // `pointerdown` приходит раньше `touchstart`), и тогда браузер забирает жест на прокрутку и отменяет перетаскивание.
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
   );
   const onDragEnd = ({ active, over }: DragEndEvent) => {

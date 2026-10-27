@@ -164,7 +164,7 @@ globalThis.__boardsFixture = boardsFixture;
  * подтверждает ли подменённое серверное действие сохранение решения (только
  * в браузерной гидратации: там проверяется панель после обновления).
  */
-const state = { salesRows: SALES_ROWS, saveSucceeds: false, versions: new Map(), closed: new Map() };
+const state = { salesRows: SALES_ROWS, saveSucceeds: false, versions: new Map(), closed: new Map(), truncated: false, pagesRead: 0 };
 
 // «Закрытые лиды» (246): три закрытых раньше и те, что закрыты в сценарии.
 // Закрытый лид, как в RPC доски (lifecycle_state = 'open'), с доски уходит.
@@ -201,6 +201,9 @@ function matchesDue(one, dueFilter) {
 const LOPSIDED_ROWS = VOLUME_ROWS.filter((row) => row.stageKey === "new" || row.stageKey === "handed_off").slice(0, 34);
 function selectSalesRows(kind) {
   state.salesRows = kind === "volume" ? VOLUME_ROWS : kind === "lopsided" ? LOPSIDED_ROWS : SALES_ROWS;
+  // «Усечённое чтение»: страницы лидов не кончаются (`hasNext` всегда истина), чтение останавливается на пределе страниц, как при 4000+ лидов.
+  state.truncated = kind === "truncated";
+  state.pagesRead = 0;
 }
 function setSaveSucceeds(value) {
   state.saveSucceeds = value;
@@ -215,14 +218,19 @@ const STUBS = {
   "@/lib/platform-sales": {
     // Поиск RPC здесь — подстрока по имени, контакту и действию: достаточно,
     // чтобы показать доску с пустыми этапами.
-    listPlatformSalesLeads: async (actor, options = {}) => ({
-      rows: (options.query
-        ? state.salesRows.filter((one) => [one.clientDisplayName, one.clientEmail, one.clientPhone, one.nextActionText]
-          .some((value) => value?.toLocaleLowerCase("ru-RU").includes(options.query.toLocaleLowerCase("ru-RU"))))
-        : state.salesRows).filter((one) => !state.closed.has(one.leadId) && matchesDue(one, options.dueFilter ?? "all")).map(withVersion),
-      hasNext: false,
-      nextCursor: null,
-    }),
+    listPlatformSalesLeads: async (actor, options = {}) => {
+      // Усечённое чтение: первая страница — лиды, дальше пустые страницы с новым курсором, пока чтение не упрётся в предел страниц.
+      const page = options.cursor ? (state.pagesRead += 1) : (state.pagesRead = 0);
+      const hide = state.truncated && page > 0;
+      return {
+        rows: hide ? [] : (options.query
+          ? state.salesRows.filter((one) => [one.clientDisplayName, one.clientEmail, one.clientPhone, one.nextActionText]
+            .some((value) => value?.toLocaleLowerCase("ru-RU").includes(options.query.toLocaleLowerCase("ru-RU"))))
+          : state.salesRows).filter((one) => !state.closed.has(one.leadId) && matchesDue(one, options.dueFilter ?? "all")).map(withVersion),
+        hasNext: state.truncated,
+        nextCursor: state.truncated ? { updatedAt: "2026-09-01T00:00:00.000Z", id: `truncated-cursor-${page}` } : null,
+      };
+    },
     listPlatformSalesOwnerOptions: async () => ({ rows: OWNERS, hasNext: false, nextCursor: null }),
     // Та же форма, что у настоящего координатора: чтение доски и сотрудников.
     readPlatformSalesPipeline: async (actor, readers) => ({

@@ -14,6 +14,8 @@ const VIEWPORTS = {
   d1440: { viewport: { width: 1440, height: 900 } },
   d1280: { viewport: { width: 1280, height: 800 } },
   m390: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+  m360: { viewport: { width: 360, height: 800 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+  m320: { viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
 };
 
 async function run({ outDir, bundleHydration, compileCss, fixtures, startServer, SEARCH }) {
@@ -93,6 +95,61 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
       await context.close();
     }
 
+    // 1b. Узкие экраны 390, 360 и 320: страница не шире окна, суммы и поступления остаются внутри своих карточек (широкая таблица прокручивается в
+    // карточке, а не растягивает её), последний столбец («Остаток», «Итого») можно дотянуть до виду, область прокрутки доступна с клавиатуры.
+    for (const key of ["m390", "m360", "m320"]) {
+      const { context, page, errors } = await open(`/v3/main?${SEARCH}`, key);
+      const name = `report ${key}`;
+      const width = VIEWPORTS[key].viewport.width;
+      const fit = await page.evaluate(async (testIds) => {
+        const out = { page: [document.documentElement.scrollWidth, window.innerWidth], tables: [] };
+        for (const testId of testIds) {
+          const table = document.querySelector(`[data-testid="${testId}"]`);
+          const scroller = table.parentElement;
+          const card = table.closest('[data-slot="card"]');
+          const cardBox = card.getBoundingClientRect();
+          const box = scroller.getBoundingClientRect();
+          const texts = [...card.querySelectorAll("p")].map((node) => Math.round(node.getBoundingClientRect().right - cardBox.right));
+          scroller.scrollLeft = scroller.scrollWidth;
+          await new Promise((done) => requestAnimationFrame(done));
+          const last = [...table.querySelectorAll("thead th")].pop().getBoundingClientRect();
+          const reached = Math.round(last.right - scroller.getBoundingClientRect().right);
+          scroller.scrollLeft = 0;
+          out.tables.push({ testId, scroller: scroller.getAttribute("role"), focusable: scroller.tabIndex === 0, insideCard: Math.round(box.right - cardBox.right), textOverflow: Math.max(0, ...texts),
+            scrollable: scroller.scrollWidth > scroller.clientWidth, lastHeaderReachable: reached <= 1 });
+        }
+        return out;
+      }, ["sales-money-table", "sales-cash-totals"]);
+      report(`${name}: page is not wider than the window (layout viewport stays ${width})`, fit.page[0] <= fit.page[1] + 1 && fit.page[1] <= width, fit.page);
+      report(`${name}: money and cash tables stay inside their cards (no clipped «Остаток» / «Итого»), text lines too, last column reachable by scrolling the card's region`,
+        fit.tables.every((one) => one.scroller === "region" && one.focusable && one.insideCard <= 1 && one.textOverflow <= 1 && one.lastHeaderReachable), fit.tables);
+      await shot(page, `report-${key}-fit`, { fullPage: true });
+      const axe = await axeOf(page, "[data-testid=v3-sales-report]");
+      report(`${name}: axe (scrollable regions are focusable)`, axe.length === 0, axe);
+      report(`${name}: console clean`, errors.length === 0, errors);
+      await context.close();
+    }
+
+    // 1c. Поле поиска не уже, чем у прежнего вида (320 px на ПК): строка фильтров занимает всю строку инструментов таблицы; план месяца числом не повторяется.
+    for (const key of ["d1440", "d1280", "m390"]) {
+      const widths = {};
+      for (const [label, ui] of [["next", "next"], ["legacy", null]]) {
+        const { context, page } = await open(`/v3/main?${SEARCH}`, key, { ui });
+        widths[label] = await page.evaluate(() => {
+          const input = document.querySelector('[data-testid="sales-report-toolbar"] input[type="search"]');
+          return { input: Math.round(input.getBoundingClientRect().width), toolbar: Math.round(input.closest('[data-testid="sales-report-toolbar"]').getBoundingClientRect().width), clipped: input.scrollWidth > input.clientWidth };
+        });
+        if (label === "next" && key === "d1440") {
+          const plan = await page.evaluate(() => ({ tile: Boolean([...document.querySelectorAll('[data-testid="v3-sales-headline"] [data-slot="stat-tile"]')].find((tile) => /План\s*35/u.test(tile.textContent))),
+            sentence: /План на месяц: 35/u.test(document.body.innerText), card: Boolean([...document.querySelectorAll("h2")].find((h) => h.textContent.trim() === "План месяца")) }));
+          report("report plan: the number stands in the «План» tile once; the «План месяца» card keeps the action and does not repeat it", plan.tile && plan.card && !plan.sentence, plan);
+        }
+        await context.close();
+      }
+      report(`report toolbar ${key}: the search field is as wide as in the old view (placeholder «Имя, телефон, договор» is not cut), toolbar fills its row`,
+        widths.next.input === widths.legacy.input && widths.next.toolbar === widths.legacy.toolbar && !widths.next.clipped, widths);
+    }
+
     // 2. Панель записи: строка → панель (адрес ?record=, фокус на названии) → Esc → фокус на строке; «Исправить запись» открывает форму.
     for (const key of ["d1440", "m390"]) {
       const { context, page, errors } = await open(`/v3/main?${SEARCH}`, key);
@@ -106,6 +163,8 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
       const opened = await page.evaluate(() => ({ url: location.search, inWorld: Boolean(document.querySelector('[role="dialog"]')?.closest('.v3-world[data-ui="next"]')), focus: document.activeElement.textContent.trim(),
         preview: Boolean(document.querySelector('[role="dialog"] [data-testid="sales-record-preview"]')), edit: Boolean(document.querySelector('[role="dialog"] [data-testid="sales-record-edit"]')) }));
       report(`${name}: opens by URL ?record=, focus on the title, record view and «Исправить запись» inside`, opened.url.includes(`record=${rowId(2)}`) && opened.inWorld && opened.focus === "Айжан Примерова" && opened.preview && opened.edit, opened);
+      // У записи без связанного лида в панели нет действий внизу: пустой подвал с рамкой не рисуется.
+      report(`${name}: a record without a linked lead has no empty footer strip`, (await dialog.locator('[data-slot="sheet-footer"]').count()) === 0, await dialog.locator('[data-slot="sheet-footer"]').count());
       await shot(page, `report-sheet-${key}`);
       report(`${name}: axe`, (await axeOf(page, '[role="dialog"]')).length === 0, await axeOf(page, '[role="dialog"]'));
       report(`${name}: targets >= 44px`, (await small(page, '[role="dialog"]')).length === 0, await small(page, '[role="dialog"]'));
@@ -117,10 +176,29 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
       await dialog.waitFor();
       await page.waitForSelector('[role="dialog"] [data-testid="sales-record-edit"]');
       await page.getByTestId("sales-record-edit").click();
-      await page.waitForFunction(() => document.querySelector('[role="dialog"] form'), null, { timeout: 10_000 });
-      report(`${name}: «Исправить запись» opens the edit form in the same panel (?edit=true)`, url(page).includes("edit=true") && (await dialog.locator("form").count()) > 0, url(page));
+      // Ждём саму форму записи: у скрытых окон «Убрать» (в строках и в панели) тоже `role="dialog"` и форма, поэтому ожидание по `[role="dialog"] form`
+      // кончалось ещё до щелчка, а снимок показывал просмотр записи, а не форму.
+      await page.waitForSelector('[data-slot="sheet-content"] [data-testid="sales-register-form"]', { timeout: 10_000 });
+      const applicant = dialog.getByLabel("Заявитель");
+      report(`${name}: «Исправить запись» opens the edit form (field «Заявитель» filled) in the same panel (?edit=true), the record view is gone`,
+        url(page).includes("edit=true") && (await dialog.getByTestId("sales-register-form").count()) === 1 && (await dialog.getByTestId("sales-record-preview").count()) === 0
+        && (await applicant.inputValue()) === "Айжан Примерова", url(page));
+      report(`${name}: the edit form has no empty footer strip either`, (await dialog.locator('[data-slot="sheet-footer"]').count()) === 0, await dialog.locator('[data-slot="sheet-footer"]').count());
       await shot(page, `report-sheet-edit-${key}`);
       report(`${name}: console clean`, errors.length === 0, errors);
+      await context.close();
+    }
+
+    // 2b. Запись со связанным лидом: действие «Открыть карточку клиента» стоит в подвале панели (подвал есть, когда есть что в нём показать).
+    {
+      const { context, page, errors } = await open(`/v3/main?${SEARCH}`, "d1440");
+      await rowOf(page, "d1440", "Данияр Макетов").click({ position: { x: 20, y: 8 } });
+      const dialog = page.getByRole("dialog");
+      await dialog.waitFor();
+      await page.waitForSelector('[data-testid="sales-record-preview"]');
+      const footer = await dialog.locator('[data-slot="sheet-footer"]').allTextContents();
+      report("report sheet: a record with a linked lead keeps its footer with the action «Открыть карточку клиента»", footer.length === 1 && /Открыть карточку клиента/u.test(footer[0]), footer);
+      report("report sheet with lead: console clean", errors.length === 0, errors);
       await context.close();
     }
 

@@ -15,13 +15,13 @@ export function PipelineNextPage({ count, actions, form, toolbar, notes, ...boar
   form?: React.ReactNode;
   toolbar: React.ReactNode;
   notes?: React.ReactNode;
-} & React.ComponentProps<typeof PipelineBoardNext>>) {
+} & Omit<React.ComponentProps<typeof PipelineBoardNext>, "allCount">>) {
   return (
     <PageShell title="Воронка продаж" count={count} testId="v3-pipeline" actions={actions}>
       {form}
       {toolbar}
       {notes}
-      <PipelineBoardNext {...board} />
+      <PipelineBoardNext {...board} allCount={count} />
     </PageShell>
   );
 }

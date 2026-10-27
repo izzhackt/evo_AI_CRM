@@ -219,6 +219,8 @@ const NEXT_BASES = ["sales", "sales-panel", "sales-focus", "sales-handed", "sale
   "admissions-curator", "admissions-first-empty", "admissions-stage"];
 const NEXT_SCENARIOS = {
   ...Object.fromEntries(NEXT_BASES.map((name) => [`next-${name}`, { ...SCENARIOS[name], ui: "next" }])),
+  // Чтение лидов оборвано на пределе страниц (4000+ лидов): числа у «Воронки продаж» нет ни в заголовке, ни у вкладки «Все этапы».
+  "next-sales-truncated": { ...SCENARIOS.sales, rows: "truncated", ui: "next" },
   // Три других мира: сотрудник и просмотр роли с тем же cookie и администратор без него — прежний вид.
   ...Object.fromEntries(["sales", "sales-closed", "admissions"].flatMap((name) => [
     [`staff-cookie-${name}`, { ...SCENARIOS[name], ui: "next", actor: "staff" }],

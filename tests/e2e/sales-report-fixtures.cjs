@@ -43,7 +43,7 @@ function row(n, f) {
     statusRaw: "", ownerMembershipId: ME, serviceCostRaw: String((f.cost === undefined ? 150000 : f.cost ?? 0) / 100), serviceCostMinor: f.cost === undefined ? 150000 : f.cost,
     serviceCostCurrency: f.cost === null ? null : f.costCurrency ?? "USD", paidRaw: f.paid === null ? "" : String((f.paid === undefined ? 60000 : f.paid) / 100), paidMinor: f.paid === undefined ? 60000 : f.paid,
     paidCurrency: f.paid === null ? null : f.paidCurrency ?? "USD", needsReview: f.review ?? false, notes: f.notes ?? "", archived: f.archived ?? false, sourceKey: null, sourceKind: f.flags ? "import" : "manual",
-    leadId: null, clientId: null, sourceSha256: null, sourceSheet: f.flags ? "Сентябрь (синтетический лист)" : null, sourceRow: f.flags ? 10 + n : null, updatedAt: "2026-09-24T05:00:00.000Z",
+    leadId: f.leadId ?? null, clientId: null, sourceSha256: null, sourceSheet: f.flags ? "Сентябрь (синтетический лист)" : null, sourceRow: f.flags ? 10 + n : null, updatedAt: "2026-09-24T05:00:00.000Z",
     paidContractMinor: f.contract ?? null, paidContractCurrency: f.contract == null ? null : f.costCurrency ?? "USD", reviewReasons: [], importFlags: f.flags ?? [],
     managerKey: managerKey(f.manager ?? "Санжар Эскизов"), withdrawal: f.withdrawal ?? null,
   };
@@ -54,7 +54,8 @@ const ROWS = [
   row(2, { name: "Айжан Примерова", sale: "2026-09-20", manager: " санжар эскизов", review: true, flags: ["status_unspecified"] }),
   row(3, { name: "Тимур Образцов", sale: "2026-09-14", manager: "Айдана Макетова", country: "Китай", program: "Магистратура, экономика", paid: null, review: true }),
   row(4, { name: "Бекзат Тестов", sale: null, review: true }),
-  row(5, { name: "Данияр Макетов", sale: "2026-09-05", cost: 12000000, costCurrency: "KGS", paid: 5000000, paidCurrency: "KGS" }),
+  // Запись со связанным лидом: в панели есть действие «Открыть карточку клиента» (подвал панели не пуст).
+  row(5, { name: "Данияр Макетов", sale: "2026-09-05", cost: 12000000, costCurrency: "KGS", paid: 5000000, paidCurrency: "KGS", leadId: uuid("90909090", 5) }),
   row(6, { name: "Руслан Прототипов", sale: "2026-09-03", manager: "Айдана Макетова", cost: 180000, paid: 4500000, paidCurrency: "KGS", review: true }),
   row(7, { name: "Эльвира Шаблонова с очень длинным именем для проверки обрезки", sale: "2026-09-12", cost: null, paid: null, review: true }),
   row(8, { name: "Нурлан Отказной", sale: "2026-09-18", withdrawal: { kind: "partial", at: "2026-09-25T05:00:00.000Z", by: "Администратор (синтетический)", note: "Передумал после первого платежа" } }),
@@ -62,7 +63,7 @@ const ROWS = [
   row(10, { name: "Камила Условная", month: "2026-08-01", sale: "2026-08-19" }),
 ];
 const REPORT = { rows: ROWS };
-const state = { calls: [], target: 35 };
+const state = { calls: [], target: 35, management: "ready" };
 globalThis.__salesReportFixture = state;
 
 function readReport(selection) {
@@ -129,8 +130,8 @@ const STUBS = {
     readSalesRegisterIntakeOptions: async () => null,
     readSalesRegisterWriteAccess: async () => "allowed",
     readSalesRegisterDirections: async () => ["Малайзия", "Китай", "china"],
-    readSalesRegisterManagement: async (_actor, reportMonth) => ({ status: "ready", data: { reportMonth: reportMonth ?? "2026-09-01", canManageTarget: true, canImport: true,
-      target: reportMonth === "2026-09-01" ? { id: uuid("89898989", 1), version: 2, reportMonth, managerLabel: null, targetCount: state.target } : null } }),
+    readSalesRegisterManagement: async (_actor, reportMonth) => (state.management === "unavailable" ? { status: "unavailable" } : { status: "ready", data: { reportMonth: reportMonth ?? "2026-09-01", canManageTarget: true, canImport: true,
+      target: reportMonth === "2026-09-01" && state.management !== "no-plan" ? { id: uuid("89898989", 1), version: 2, reportMonth, managerLabel: null, targetCount: state.target } : null } }),
     readSalesManagerLabels: async () => ({ status: "ready", data: MANAGER_LABELS }),
     readSalesRecordLeadLink: async () => ({ status: "ready", link: null }),
     searchSalesRecordLeadOptions: async () => [],
@@ -177,7 +178,8 @@ function syntheticUuids() {
   let next = 0;
   return () => `99999999-0000-4000-8000-${String((next += 1)).padStart(12, "0")}`;
 }
-const selectSalesRows = () => {};
+/** Режим чтения плана и переноса данных: `default` — план 35; `management-unavailable` — чтение не удалось; `no-plan` — чтение удалось, плана нет. */
+const selectSalesRows = (kind) => { state.management = kind === "management-unavailable" ? "unavailable" : kind === "no-plan" ? "no-plan" : "ready"; };
 const setSaveSucceeds = () => {};
 
 module.exports = { ACTOR: ADMIN, ACTORS, STUBS, REPORT, state, ROWS, setActor, selectSalesRows, setSaveSucceeds, syntheticUuids, uuid };

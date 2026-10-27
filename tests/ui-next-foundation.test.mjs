@@ -334,7 +334,7 @@ test("DataTable: страницы, прилипшая шапка, карточк
   const whole = renderToStaticMarkup(createElement(DataTable, { label: "Заявки", data: rows, columns, getRowId: (row) => row.id, paginate: false }));
   assert.equal((whole.match(/<tbody[\s\S]*<\/tbody>/)[0].match(/<tr/g) ?? []).length, 27, "все 27 строк сразу");
   assert.doesNotMatch(whole, /data-slot="data-table-pagination"|\d+–\d+ из \d+/);
-  assert.equal((whole.match(/<ul class="grid gap-2 md:hidden" data-slot="data-table-cards">[\s\S]*?<\/ul>/)[0].match(/<li/g) ?? []).length, 27, "и на телефоне — все карточки");
+  assert.equal((whole.match(/<ul class="grid grid-cols-1 gap-2 md:hidden" data-slot="data-table-cards">[\s\S]*?<\/ul>/)[0].match(/<li/g) ?? []).length, 27, "и на телефоне — все карточки");
   const empty = renderToStaticMarkup(createElement(DataTable, { label: "Пусто", data: [], columns }));
   assert.match(empty, /Пока пусто/);
   assert.doesNotMatch(empty, /<table/);

@@ -317,7 +317,7 @@ test("«Работа агента»: выключенный агент — од�
   const both = strip(nextPage(F.bodyProps("overview", { detail: off })));
   assert.equal((both.match(/Агент выключен — не запускается\./gu) ?? []).length, 1, "расписание и события, а предупреждение одно");
   assert.match(both, /Расписание[\s\S]*Реагирует на события[\s\S]*Агент выключен — не запускается\./u, "одна строка под обоими фактами");
-  assert.match(both, /<dl class="grid gap-x-4 gap-y-3 grid-cols-2"/u, "два факта — по половине");
+  assert.match(both, /<dl class="grid gap-x-4 gap-y-3 grid-cols-1 @md:grid-cols-2"/u, "два факта — по половине от 28rem блока, на телефоне столбцом");
   const single = strip(nextPage(F.bodyProps("overview", { detail: F.detail("director", { enabled: false }) })));
   assert.equal((single.match(/Агент выключен — не запускается\./gu) ?? []).length, 1);
   assert.match(single, /<dl class="grid gap-x-4 gap-y-3 grid-cols-1"/u, "один факт (расписание) — на всю ширину, а не в половине");
@@ -387,7 +387,7 @@ test("«На одобрение»: ряд «Ждут решения · Все»,
   assert.match(rows[2], /data-testid="v3-aia-draft-expires"[^>]*>действует до /u);
   assert.match(page, /placeholder="Поиск по черновикам"/u);
   assert.doesNotMatch(page, /data-slot="data-table-pagination"|\d+–\d+ из \d+|v3-aia-drafts-capped/u, "список ограничен сервером: ни «из N», ни второго листателя");
-  assert.match(page.match(/<ul class="grid gap-2 md:hidden"[\s\S]*?<\/ul>/u)[0], /line-clamp-2 break-words t-meta text-fg-3 md:hidden">Здравствуйте!/u, "на телефоне ответ агента — вторая строка заголовка карточки");
+  assert.match(page.match(/<ul class="grid grid-cols-1 gap-2 md:hidden"[\s\S]*?<\/ul>/u)[0], /line-clamp-2 break-words t-meta text-fg-3 md:hidden">Здравствуйте!/u, "на телефоне ответ агента — вторая строка заголовка карточки");
   const all = strip(nextPage(F.bodyProps("drafts", { draftsFilter: "all" })));
   assert.match(all, /Отправлен<\/span>/u, "вкладка «Все» показывает и решённые");
   // Сервер отдаёт последние 50: когда в очереди больше, экран так и говорит и не называет 50 общим числом.

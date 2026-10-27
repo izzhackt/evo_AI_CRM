@@ -26,7 +26,12 @@ const VIEWPORTS = {
   d1440: { viewport: { width: 1440, height: 900 } },
   d1280: { viewport: { width: 1280, height: 800 } },
   m390: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+  // Узкие ширины и окно ноутбука: только короткие проверки (боковой прокрутки нет, цели ≥ 44 px, консоль) — `LITE`.
+  d1024: { viewport: { width: 1024, height: 768 } },
+  m360: { viewport: { width: 360, height: 800 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+  m320: { viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
 };
+const LITE = new Set(["d1024", "m360", "m320"]);
 
 const LINK_SHIM = `
 const React = require("react");
@@ -85,6 +90,9 @@ async function buildBundle(outFile) {
           contents: names.map((name) => `export async function ${name}(state, form) {
   const fields = form && typeof form.entries === "function" ? Object.fromEntries([...form.entries()].map(([key, value]) => [key, typeof value === "string" ? value : "[file]"])) : null;
   window.__harness.calls.push([${JSON.stringify(name)}, fields || state]);
+  // Сценарий может задать ответ действия (window.__harness.results[имя]): одноразовый пароль, неизвестный итог, id новой роли.
+  const answer = window.__harness.results && window.__harness.results[${JSON.stringify(name)}];
+  if (answer) return answer(state, fields);
   if (/^loadMore/u.test(${JSON.stringify(name)})) return { status: "available", page: { rows: window.__harness.moreRows || [], nextCursor: null, total: 48, hasMore: false } };
   if (/^(search|read)/u.test(${JSON.stringify(name)})) return { status: "ready", rows: [] };
   return { ...(state || {}), status: "saved", requestId: (fields && fields.request_id) || "static" };
@@ -118,6 +126,8 @@ async function buildPages() {
   const deletionList = next.get("settings-deletion");
   const routes = {
     "settings-deletion": { [`/v3/settings?section=deletion&request=${fx.settings.DELETION_ROWS[0].id}`]: deletionOpen, "/v3/settings?section=deletion": deletionList },
+    // «Открыть роль» после создания: ссылка ведёт на `?role=`, и страница приходит с выбранной ролью (как мягкий переход в приложении).
+    "settings-roles-list": { [`/v3/settings?section=staff&view=roles&role=${fx.settings.ROLES[1].id}`]: next.get("settings-roles") },
   };
   for (const [name, route] of SCREENS.map((entry) => [entry[0], entry[1]])) {
     const entry = next.get(name);
@@ -137,6 +147,6 @@ function writePage(outDir, name, css, data) {
   return path;
 }
 
-module.exports = { VIEWPORTS, buildBundle, buildPages, compileCss, writePage, ROOT, lazySettled, fx };
+module.exports = { VIEWPORTS, LITE, buildBundle, buildPages, compileCss, writePage, ROOT, lazySettled, fx };
 
 if (require.main === module) require("./admin-next-checks.cjs").main().catch((error) => { console.error(error); process.exit(1); });

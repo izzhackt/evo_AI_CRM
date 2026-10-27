@@ -4,8 +4,13 @@
 
 /**
  * Проверки стенда `admin-next-static-render.cjs`: общие для каждой страницы на 1440, 1280 и 390 (нет боковой прокрутки, цели ≥ 44 px, axe, консоль,
- * один `h1`, не больше одной красной кнопки, шапка по правилам оболочки) и сценарии `admin-next-flows.cjs` (строка → панель → действие, клавиатура
- * и Esc). Каждая проверка — JSON-строка; при нарушении код выхода 1.
+ * один `h1`, не больше одной красной кнопки, шапка по правилам оболочки), короткие на 1024, 360 и 320 (боковая прокрутка, цели, консоль) и сценарии
+ * `admin-next-flows.cjs` (строка → панель → действие, клавиатура и Esc). Каждая проверка — JSON-строка; при нарушении код выхода 1.
+ *
+ * «Нет боковой прокрутки» меряется не по `innerWidth`: у телефонного контекста (`isMobile`) Chromium растягивает окно раскладки до ширины
+ * содержимого, и `scrollWidth - innerWidth` всегда 0; а `overflow-x: clip` у `html` и `body` не даёт странице прокручиваться, но обрезает
+ * содержимое, и пользователь не может до него добраться. Поэтому смотрим ширину видимой области (`clientWidth`) и содержимое самой страницы
+ * (`main`): оно не должно быть шире области.
  */
 const { mkdirSync } = require("node:fs");
 const { join, resolve } = require("node:path");
@@ -37,8 +42,11 @@ function pageFacts() {
   main.append(probe);
   const expected = getComputedStyle(probe).paddingTop;
   probe.remove();
+  const doc = document.documentElement;
   return {
-    overflow: document.documentElement.scrollWidth - window.innerWidth,
+    overflow: doc.scrollWidth - doc.clientWidth,
+    bodyOverflow: document.body.scrollWidth - doc.clientWidth,
+    mainOverflow: main.scrollWidth - main.clientWidth,
     h1: [...document.querySelectorAll("h1")].filter(visible).map((element) => element.textContent.trim()),
     reds, paddingTop: getComputedStyle(main).paddingTop, expected,
     hasHeaderRule: main.matches(":has(> div:first-child > div:first-child > h1.t-page-title)"),
@@ -46,7 +54,7 @@ function pageFacts() {
 }
 
 async function main() {
-  const { VIEWPORTS, buildBundle, buildPages, compileCss, writePage, ROOT, lazySettled } = require("./admin-next-static-render.cjs");
+  const { VIEWPORTS, LITE, buildBundle, buildPages, compileCss, writePage, ROOT, lazySettled } = require("./admin-next-static-render.cjs");
   const flows = require("./admin-next-flows.cjs").flows;
   const args = process.argv.slice(2);
   if (!args.includes("--screenshots")) throw new Error("usage: node tests/e2e/admin-next-static-render.cjs --screenshots [outDir] [--only a,b] [--flows-only]");
@@ -81,6 +89,7 @@ async function main() {
       return route.abort();
     });
     const page = await context.newPage();
+    page.setDefaultTimeout(10_000);
     const errors = [];
     page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
     page.on("console", (message) => { if (message.type() === "error" && !/notifications\/state|Failed to load resource/u.test(message.text())) errors.push(message.text()); });
@@ -99,7 +108,7 @@ async function main() {
     for (const name of Object.keys(PAGES).filter((page) => !only || only.includes(page))) {
       for (const key of Object.keys(VIEWPORTS)) {
         const legacy = name.startsWith("legacy-");
-        if (legacy && key === "d1280") continue;
+        if (legacy && (key === "d1280" || LITE.has(key))) continue;
         const { context, page, errors } = await open(name, key);
         await shot(page, `${name}-${key}`, { fullPage: true });
         if (legacy) {
@@ -110,8 +119,14 @@ async function main() {
         const facts = await page.evaluate(pageFacts);
         const label = `${name} ${key}`;
         report(`${label}: no horizontal scroll`, facts.overflow <= 1, facts.overflow);
+        report(`${label}: the page content is not wider than the screen (nothing clipped)`, facts.mainOverflow <= 1 && facts.bodyOverflow <= 1, [facts.mainOverflow, facts.bodyOverflow]);
         const small = await page.evaluate(smallTargets);
         report(`${label}: targets >= 44px`, small.length === 0, small);
+        if (LITE.has(key)) {
+          report(`${label}: console clean`, errors.length === 0, errors);
+          await context.close();
+          continue;
+        }
         const axe = await new AxeBuilder({ page }).include("main").exclude("iframe").analyze();
         report(`${label}: axe`, axe.violations.length === 0, axe.violations.map((violation) => `${violation.id}: ${violation.nodes.slice(0, 3).map((node) => node.target.join(" ")).join(" | ")}`));
         report(`${label}: one visible h1`, facts.h1.length === 1, facts.h1);

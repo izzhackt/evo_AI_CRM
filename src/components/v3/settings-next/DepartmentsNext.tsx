@@ -6,6 +6,7 @@ import { useCallback, useMemo, useState } from "react";
 import { DataTable, DetailSheet, EmptyState, StatusBadge, type DataTableColumn } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { GuardedBody, useSheetGuard } from "@/components/v3/admin-next/SheetGuard";
 import { DepartmentForm } from "@/components/v3/settings/DepartmentsSection";
 import type { StaffDepartment } from "@/lib/v3/staff-workspace-contract";
 
@@ -28,7 +29,8 @@ const columns: DataTableColumn<StaffDepartment>[] = [
 /**
  * «Отделы»: таблица (название и описание, сотрудников, состояние) с «Показать архивные», «Добавить отдел» и отдел в панели. Архивация и
  * правка — прежний бланк с причиной и версией. Незавершённый запрос или запрос с неизвестным итогом держит панель открытой (закрывать
- * нельзя, пока результат не проверен); на другой отдел переходят только после результата.
+ * нельзя, пока результат не проверен); на другой отдел переходят только после результата. Несохранённую правку Esc и щелчок мимо не
+ * выбрасывают молча: панель спрашивает (`useSheetGuard`).
  */
 export function DepartmentsNext({ departments }: Readonly<{ departments: readonly StaffDepartment[] }>) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -36,6 +38,7 @@ export function DepartmentsNext({ departments }: Readonly<{ departments: readonl
   const [showArchived, setShowArchived] = useState(false);
   const [locked, setLocked] = useState(false);
   const onLockedChange = useCallback((value: boolean) => setLocked(value), []);
+  const guard = useSheetGuard();
   const archivedCount = departments.filter((department) => department.status === "archived").length;
   const visible = useMemo(() => departments.filter((department) => showArchived || department.status === "active" || department.id === openId), [departments, showArchived, openId]);
   const open = departments.find((department) => department.id === openId) ?? null;
@@ -59,11 +62,15 @@ export function DepartmentsNext({ departments }: Readonly<{ departments: readonl
         ) : undefined}
         empty={<EmptyState title={departments.length ? "Все отделы в архиве. Включите их отображение или добавьте действующий." : "Отделов пока нет. Добавьте первый, чтобы назначить его сотрудникам."} />}
       />
-      <DetailSheet open={open !== null} onOpenChange={(next) => { if (!next && !locked) setOpenId(null); }} title={open?.name ?? "Отдел"}>
-        {open ? <DepartmentSheetBody key={open.id} department={open} onArchived={() => setShowArchived(true)} onLockedChange={onLockedChange} /> : null}
+      <DetailSheet open={open !== null} onOpenChange={(next) => { if (!next && guard.allowClose(locked)) setOpenId(null); }} title={open?.name ?? "Отдел"}>
+        <GuardedBody guard={guard}>
+          {open ? <DepartmentSheetBody key={open.id} department={open} onArchived={() => setShowArchived(true)} onLockedChange={onLockedChange} /> : null}
+        </GuardedBody>
       </DetailSheet>
-      <DetailSheet open={creating} onOpenChange={(next) => { if (!next && !locked) setCreating(false); }} title="Добавить отдел">
-        {creating ? <DepartmentForm operation="create" onClose={() => setCreating(false)} onLockedChange={onLockedChange} /> : null}
+      <DetailSheet open={creating} onOpenChange={(next) => { if (!next && guard.allowClose(locked)) setCreating(false); }} title="Добавить отдел">
+        <GuardedBody guard={guard}>
+          {creating ? <DepartmentForm operation="create" onClose={() => setCreating(false)} onLockedChange={onLockedChange} /> : null}
+        </GuardedBody>
       </DetailSheet>
     </div>
   );

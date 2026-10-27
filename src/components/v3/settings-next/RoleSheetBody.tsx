@@ -12,13 +12,21 @@ export const roleState = (role: StaffEditableRole) => (role.status === "archived
 /**
  * Роль в панели: состояние и число сотрудников, действующие разрешения и команды роли — «Изменить», «Скопировать», «Опубликовать» (сначала
  * проверка, кому и как изменится доступ) и «Архивировать» / «Восстановить». Формы — прежние (`RoleEditor`, `RolePublication`, `RoleArchive`):
- * те же поля, версии, причины и подтверждения; публиковать нечего, пока набор разрешений черновика совпадает с опубликованным.
+ * те же поля, версии, причины и подтверждения; публиковать нечего, пока набор разрешений черновика совпадает с опубликованным. «Изменить» и
+ * «Скопировать» открывают бланк в этой же панели (второй панели нет: после неё фокус вернулся бы на строку за панелями).
  */
-export function RoleSheetBody({ role, workspace, onCopy }: Readonly<{ role: StaffEditableRole; workspace: StaffRoleWorkspace; onCopy: () => void }>) {
-  const [editing, setEditing] = useState(false);
+export function RoleSheetBody({ role, workspace }: Readonly<{ role: StaffEditableRole; workspace: StaffRoleWorkspace }>) {
+  const [editing, setEditing] = useState<"edit" | "copy" | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [archiving, setArchiving] = useState(false);
-  if (editing) return <div className="grid gap-3"><h3 className="t-item text-fg">Изменить роль</h3><RoleEditor bare role={role} permissions={workspace.permissions} onClose={() => setEditing(false)} /></div>;
+  if (editing) {
+    return (
+      <div className="grid gap-3">
+        <h3 className="t-item text-fg">{editing === "copy" ? "Скопировать роль" : "Изменить роль"}</h3>
+        <RoleEditor bare role={editing === "edit" ? role : undefined} sourceRole={editing === "copy" ? role : undefined} permissions={workspace.permissions} onClose={() => setEditing(null)} />
+      </div>
+    );
+  }
   const unpublished = !role.bundleId || [...role.draftPermissionKeys].sort().join("|") !== [...role.permissionKeys].sort().join("|");
   const label = (key: string) => workspace.permissions.find((permission) => permission.key === key)?.label;
   return (
@@ -29,8 +37,8 @@ export function RoleSheetBody({ role, workspace, onCopy }: Readonly<{ role: Staf
         { label: "Сотрудников", value: <span className="tabular-nums">{role.memberCount}</span> },
       ]} />
       <div className="flex flex-wrap gap-2">
-        {role.status === "active" ? <Button variant="outline" onClick={() => setEditing(true)}>Изменить</Button> : null}
-        <Button variant="outline" onClick={onCopy}>Скопировать</Button>
+        {role.status === "active" ? <Button variant="outline" onClick={() => setEditing("edit")}>Изменить</Button> : null}
+        <Button variant="outline" onClick={() => setEditing("copy")}>Скопировать</Button>
         {role.status === "active" && unpublished ? <Button variant="outline" aria-expanded={publishing} onClick={() => setPublishing(!publishing)}>{role.bundleId ? "Опубликовать изменения" : "Опубликовать"}</Button> : null}
       </div>
       {publishing ? <RolePublication key={role.id} role={role} workspace={workspace} /> : null}

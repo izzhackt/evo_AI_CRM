@@ -10,13 +10,14 @@ import { STAFF_WORKSPACE_INITIAL_STATE, type StaffDepartment,
   type StaffWorkspaceActionState, type StaffWorkspaceMember } from "@/lib/v3/staff-workspace-contract";
 import type { StaffRoleMember } from "@/lib/v3/staff-roles-contract";
 import { staffDirectoryAccessSummary } from "@/lib/v3/wording";
+import { useStaffSheetLock } from "./staff-sheet-lock";
 
 type StaffMutationAction = (previous: StaffWorkspaceActionState, form: FormData) => Promise<StaffWorkspaceActionState>;
 
 /** Unknown outcomes must resolve the original command, including fields disabled in the UI. */
 export function useStaffMetadataForm(action: StaffMutationAction) {
   const request = useRef<{ payload: string; entries: [string, FormDataEntryValue][]; id: string } | null>(null);
-  return useActionState(async (previous: StaffWorkspaceActionState, form: FormData) => {
+  const result = useActionState(async (previous: StaffWorkspaceActionState, form: FormData) => {
     if (previous.metadataOutcome !== "unknown") {
       const entries = [...form.entries()].filter(([key]) => !key.startsWith("$ACTION_") && key !== "request_id");
       const payload = JSON.stringify(entries);
@@ -35,6 +36,8 @@ export function useStaffMetadataForm(action: StaffMutationAction) {
       return { status: "error", metadataOutcome: "unknown", message: "Не удалось подтвердить сохранение. Нажмите «Проверить сохранение»: повторится исходный запрос, без создания новой команды." } satisfies StaffWorkspaceActionState;
     }
   }, STAFF_WORKSPACE_INITIAL_STATE);
+  useStaffSheetLock(result[2] || result[0].metadataOutcome === "unknown");
+  return result;
 }
 
 export function StaffMetadataFeedback({ state }: { state: StaffWorkspaceActionState }) {

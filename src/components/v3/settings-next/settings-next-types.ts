@@ -3,10 +3,10 @@ import type { AccountDeletionOpenCount } from "@/lib/account-deletion-contract";
 import type { ReportKey, ReportLinkRead } from "@/lib/report-link-contract";
 import type { TelephonyAdminRead } from "@/lib/server/platform-telephony-admin";
 import type { AccountDeletionDetailRead, AccountDeletionQueueRead } from "@/lib/v3/account-deletion-source";
-import type { JournalStatus } from "@/lib/v3/settings-journal-contract";
+import type { JournalNotice, JournalStatus } from "@/lib/v3/settings-journal-contract";
 import type { StaffRoleWorkspace } from "@/lib/v3/staff-roles-contract";
 import type { StaffWorkspaceData } from "@/lib/v3/staff-workspace-contract";
-import type { GateFacts, IntegrationRow, JournalEntry, SectionKey, StaffView } from "@/components/v3/settings/types";
+import type { GateFacts, IntegrationRow, SectionKey, StaffView } from "@/components/v3/settings/types";
 
 /** Пункт ряда разделов «Настроек»: адрес собирает сервер (`?section=` и `&view=`), число — только у «Запросов на удаление». */
 export type SettingsNavItem = Readonly<{ key: SectionKey; view: StaffView | null; title: string; href: string; current: boolean; count: number | null }>;
@@ -17,17 +17,31 @@ export type SettingsWhatsApp = Readonly<{
   wazzup?: Readonly<{ transport: PlatformWhatsAppTransport; intakeEnabled: boolean }> | null;
 }>;
 
+/** Строка таблицы «Журнала действий»: слова (событие, тип участника, тип объекта) уже посчитал сервер. */
+export type JournalNextRow = Readonly<{ id: string; event: string; at: string; actor: string; object: string | null; objectId: string | null; profileHref: string | null }>;
+
+/** Плитка фильтра «Тип записи»; первая — «Все». Адрес несёт выбор: отфильтрованный журнал можно переслать. */
+export type JournalNextType = Readonly<{ key: string; title: string; count: number | null; href: string; active: boolean }>;
+
+/**
+ * «Журнал действий» нового вида — только данные и готовые слова (`journalNextProps`): таблицы слов журнала в клиентский кусок не едут. Строки —
+ * только названные события; событий без названия `unnamed`. Журнал листается ссылкой `nextHref` (курсор сервера), и она есть и тогда, когда
+ * названных событий на странице нет. `notice` — что сказано вместо строк (журнал выключен, не прочитан, пуст).
+ */
 export type SettingsJournalProps = Readonly<{
-  entries: readonly JournalEntry[];
   status: JournalStatus;
+  rows: readonly JournalNextRow[];
+  unnamed: number;
+  notice: JournalNotice | null;
+  types: readonly JournalNextType[] | null;
   exportEnabled: boolean;
-  facets: Readonly<{ objectTypes: readonly Readonly<{ key: string; count: number | null }>[] }>;
-  active: Readonly<{ objectType?: string }>;
-  /** Адреса фильтров и следующей страницы: журнал листается ссылками, их собирает страница (`query`). */
-  hrefs: Readonly<{ all: string; types: Readonly<Record<string, string>>; next: string | null; retry: string }>;
+  exportHelp: string;
+  exportObjectType: string | null;
   exportRequestId: string;
   exportStartAt: string;
   exportEndAt: string;
+  nextHref: string | null;
+  retryHref: string;
 }>;
 
 /**

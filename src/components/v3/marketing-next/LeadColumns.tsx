@@ -9,13 +9,15 @@ import { ChannelCell, connectionWord, DealCell } from "./LeadCells";
 export type LeadChannelSaves = Readonly<Record<string, LeadChannelRead>>;
 
 /**
- * Колонки «Заявок» маркетинга. Главная — имя и время; на телефоне под ним три данные (откуда узнал, этап, договор и оплата).
- * Телефон, канал связи и кампания — колонки второго плана (`wide`): они есть и в панели записи.
+ * Колонки «Заявок» маркетинга. Главная — имя и время; в строке к ней четыре данных (откуда узнал, этап, договор и оплата, ответственный), на
+ * телефоне под именем три (без ответственного). Телефон, канал связи и кампания — только в панели записи: рядом с меню разделов и шире 64rem
+ * они добавляли ещё три колонки, имя сжималось до трёх строк, а на экране умещалось пять заявок (правило: не больше четырёх данных в строке).
+ * Поиск «Найти среди показанных» по-прежнему находит по телефону, кампании и каналу связи: они входят в то, по чему ищет колонка имени.
  */
 export function leadColumns(saved: LeadChannelSaves, onSaved: (leadId: string, read: LeadChannelRead) => void): DataTableColumn<MarketingLeadRow>[] {
   return [
     {
-      id: "name", accessorFn: (row) => row.name ?? "Лид без имени", header: "Имя и время", meta: { mobile: "title", label: "Имя" }, enableHiding: false,
+      id: "name", accessorFn: (row) => `${row.name ?? "Лид без имени"} ${row.phone ?? ""} ${row.campaign ?? ""} ${connectionWord(row.sourceKey)}`, header: "Имя и время", meta: { mobile: "title", label: "Имя" }, enableHiding: false,
       cell: ({ row }) => (
         <span className="block min-w-0">
           <span className="block font-medium text-fg [overflow-wrap:anywhere]">{row.original.name ?? "Лид без имени"}</span>
@@ -30,8 +32,5 @@ export function leadColumns(saved: LeadChannelSaves, onSaved: (leadId: string, r
     { id: "stage", accessorFn: (row) => stageWord(row.stage, row.lifecycleState, SALES_STAGE_TITLE), header: "Этап" },
     { id: "deal", accessorFn: (row) => row.contractSignedOn ?? "", header: "Договор и оплата", cell: ({ row }) => <DealCell row={row.original} /> },
     { id: "owner", accessorFn: (row) => row.owner?.name ?? "Не назначен", header: "Ответственный", meta: { mobile: "hide" } },
-    { id: "phone", accessorFn: (row) => row.phone ?? "", header: "Телефон", meta: { wide: true, mobile: "hide" }, cell: ({ row }) => <span className="tabular-nums">{row.original.phone ?? "—"}</span> },
-    { id: "connection", accessorFn: (row) => connectionWord(row.sourceKey), header: "Канал связи", meta: { wide: true, mobile: "hide" } },
-    { id: "campaign", accessorFn: (row) => row.campaign ?? "", header: "Кампания", meta: { wide: true, mobile: "hide" }, cell: ({ row }) => row.original.campaign ?? "—" },
   ];
 }

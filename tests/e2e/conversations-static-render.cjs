@@ -1510,6 +1510,9 @@ async function buildAiSectionMarkup(name, scenario = AI_SECTION_SCENARIOS[name])
   source.readAiSpend = async () => available(normalizeAiSpend, AI_SPEND);
   require(join(ROOT, "src/lib/server/ai-agent-route-handlers.ts")).readAiAgentStatus = async () => (
     scenario.featureOff ? { state: "off" } : { state: "ready", keyAccepted: true, model: "gemini-3.8-flash", block: null });
+  // «Новый вид»: страница спрашивает переключатель (cookie); вне запроса его нет, и снимается прежний вид. `cookies()` не трогаем: его читает
+  // и клиент Supabase страницы (чтения, которых стенд не подменил, должны отказывать, как раньше).
+  require(join(ROOT, "src/lib/ui-next.ts")).isNextUi = async () => false;
   const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/ai-agent/page.tsx"));
   const search = scenario.section === "documents" ? {} : { section: scenario.section };
   const element = await Page({ searchParams: Promise.resolve(search) });
@@ -2539,6 +2542,9 @@ async function buildAutosendSectionMarkup(name, scenario = AI_P4_SECTION[name]) 
     })) } } : read };
   };
   require(join(ROOT, "src/lib/server/ai-agent-route-handlers.ts")).readAiAgentStatus = async () => ({ state: "ready", keyAccepted: true, model: "gemini-3.8-flash", block: null });
+  // «Новый вид»: страница спрашивает переключатель (cookie); вне запроса его нет, и снимается прежний вид. `cookies()` не трогаем: его читает
+  // и клиент Supabase страницы (чтения, которых стенд не подменил, должны отказывать, как раньше).
+  require(join(ROOT, "src/lib/ui-next.ts")).isNextUi = async () => false;
   const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/ai-agent/page.tsx"));
   const search = scenario.section === "documents" ? {} : { section: "autosend", ...scenario.search };
   const element = await Page({ searchParams: Promise.resolve(search) });

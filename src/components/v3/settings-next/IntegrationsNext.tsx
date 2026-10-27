@@ -48,7 +48,7 @@ function columns(): DataTableColumn<IntegrationRow>[] {
         : row.original.checkable ? <span className="text-fg-3">нет данных</span> : <><span aria-hidden="true" className="text-fg-3">—</span><span className="sr-only">проверки нет</span></>,
     },
     {
-      id: "without", accessorFn: (row) => row.without ?? "", header: "Что не работает", meta: { wide: true },
+      id: "without", accessorFn: (row) => row.without ?? "", header: "Что не работает",
       cell: ({ row }) => row.original.without ?? <><span aria-hidden="true" className="text-fg-3">—</span><span className="sr-only">всё работает</span></>,
     },
   ];
@@ -73,7 +73,9 @@ function SheetBody({ row, connectCard }: Readonly<{ row: IntegrationRow; connect
  * «Интеграции»: одна строка на сервис (состояние словом со значком, причина, последняя проверка, что не работает без сервиса),
  * строка открывает панель с тем, что сделать (работа на сервере и кто её делает, ссылка на страницу CRM по сервису). Состояния
  * только для чтения: флаги живут в файлах окружения сервера, из браузера их не меняют. Под таблицей — канал WhatsApp: карточка
- * Wazzup (только чтение) или, пока Wazzup не включён, прежнее «Подключение WhatsApp» с QR.
+ * Wazzup (только чтение) или, пока Wazzup не включён, прежнее «Подключение WhatsApp» с QR. «Что не работает» — колонка таблицы на любой
+ * ширине, а не колонка второго плана: рядом с меню разделов таблица уже 64rem на любом экране, и такая колонка не показывалась бы нигде,
+ * кроме телефона (последствие сломанного сервиса — предупреждение, оно на виду).
  */
 export function IntegrationsNext({ rows, whatsapp, nowIso }: Readonly<{ rows: readonly IntegrationRow[]; whatsapp?: SettingsWhatsApp; nowIso: string }>) {
   const [openKey, setOpenKey] = useState<string | null>(null);

@@ -7,6 +7,7 @@ import { REPORT_KEYS, type ReportKey, type ReportLinkRead } from "@/lib/report-l
 import type { TelephonyAdminRead } from "@/lib/server/platform-telephony-admin";
 import type { AccountDeletionDetailRead, AccountDeletionQueueRead } from "@/lib/v3/account-deletion-source";
 import type { JournalStatus } from "@/lib/v3/settings-journal-contract";
+import { journalNextProps } from "@/lib/v3/settings-next-journal";
 import type { StaffRoleWorkspace } from "@/lib/v3/staff-roles-contract";
 import type { StaffWorkspaceData } from "@/lib/v3/staff-workspace-contract";
 
@@ -54,9 +55,6 @@ export function settingsNextProps(input: Readonly<{
     current: entry.key === section && (entry.view === null || entry.view === staffView),
     count: entry.key === "deletion" && input.deletionOpen && input.deletionOpen.open > 0 ? input.deletionOpen.open : null,
   }));
-  const nextPage = input.journal.find((entry): entry is Extract<JournalEntry, { kind: "page" }> => entry.kind === "page") ?? null;
-  const active = input.journalFilters.objectType ? { objectType: input.journalFilters.objectType } : {};
-  const exportEndAt = input.now;
   return {
     section, staffView, nav, nowIso: input.now.toISOString(),
     integrations: input.integrations, integrationsHref: input.hrefFor("integrations", null), deletionOpen: input.deletionOpen,
@@ -68,18 +66,12 @@ export function settingsNextProps(input: Readonly<{
     reports: section === "reports" && input.reports
       ? { reads: input.reports, readOnly: input.reportsReadOnly, ids: Object.fromEntries(REPORT_KEYS.map((key) => [key, { save: randomUUID(), remove: randomUUID() }])) as NonNullable<SettingsNextProps["reports"]>["ids"] }
       : undefined,
-    journal: section === "journal" ? {
-      entries: input.journal, status: input.journalStatus, exportEnabled: input.auditExportEnabled, facets: input.journalFacets, active,
-      hrefs: {
-        all: input.journalHrefFor({}),
-        types: Object.fromEntries(input.journalFacets.objectTypes.map((type) => [type.key, input.journalHrefFor({ objectType: type.key })])),
-        next: nextPage ? input.journalHrefFor({ objectType: input.journalFilters.objectType, snapshotAt: nextPage.snapshotCreatedAt, snapshotId: nextPage.snapshotId, cursorAt: nextPage.cursorCreatedAt, cursorId: nextPage.cursorId }) : null,
-        retry: input.journalHrefFor({ objectType: input.journalFilters.objectType }),
-      },
-      exportRequestId: randomUUID(),
-      exportStartAt: new Date(exportEndAt.getTime() - 30 * 24 * 60 * 60 * 1_000).toISOString(),
-      exportEndAt: exportEndAt.toISOString(),
-    } : undefined,
+    journal: section === "journal"
+      ? journalNextProps({
+        entries: input.journal, status: input.journalStatus, facets: input.journalFacets, filters: input.journalFilters, hrefFor: input.journalHrefFor,
+        exportEnabled: input.auditExportEnabled, exportRequestId: randomUUID(), now: input.now,
+      })
+      : undefined,
     deletion: section === "deletion" ? { queue: input.deletionQueue, detail: input.deletionDetail, listHref: input.deletionHrefFor(null) } : undefined,
     gates: section === "documents" ? input.gates : undefined,
     platform: section === "platform" ? { platform: input.platform, salesImportHref: input.salesImportHref, salesManagersHref: input.salesManagersHref } : undefined,

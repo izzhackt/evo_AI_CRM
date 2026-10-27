@@ -11,21 +11,21 @@ import { aiAgentHref } from "@/lib/v3/ai-agent";
 /**
  * «Загрузить материал» и «Новая версия»: форма раскрывается на странице, а не в панели — загрузка идёт запросом с процентами, и закрытие
  * панели щелчком мимо оборвало бы её. Форма прежняя (`AiDocumentUpload`: файл, название, аудитория, отметка «материал компании», тот же
- * маршрут и request_id). Для «Новой версии» (`?replace=`) раскрыта сразу и называет документ.
+ * маршрут и request_id). Для «Новой версии» (`?replace=`) раскрыта сразу и называет документ. Форма стоит на странице всегда, а сворачивание
+ * только прячет её (`hidden`): размонтированная форма оборвала бы передачу (`abort()` при размонтировании) и потеряла бы итог — как и прежний
+ * вид, где форма не сворачивалась вовсе.
  */
 export function AiUploadPanel({ requestId, replace, featureOn, startOpen }: Readonly<{ requestId: string; replace: AiUploadReplace | null; featureOn: boolean; startOpen: boolean }>) {
   const [open, setOpen] = useState(startOpen || replace !== null);
   const regionId = useId();
   return (
     <div className="grid gap-3">
-      <div><Button variant="outline" aria-expanded={open} aria-controls={open ? regionId : undefined} onClick={() => setOpen((value) => !value)}><UploadIcon aria-hidden="true" />{replace ? "Новая версия" : "Загрузить материал"}</Button></div>
-      {open ? (
-        <div id={regionId} data-testid="v3-ai-upload">
-          <WidgetCard>
-            <AiDocumentUpload key={replace?.id ?? "new"} requestId={requestId} replace={replace} cancelHref={aiAgentHref("documents")} featureOn={featureOn} />
-          </WidgetCard>
-        </div>
-      ) : null}
+      <div><Button variant="outline" aria-expanded={open} aria-controls={regionId} onClick={() => setOpen((value) => !value)}><UploadIcon aria-hidden="true" />{replace ? "Новая версия" : "Загрузить материал"}</Button></div>
+      <div id={regionId} data-testid="v3-ai-upload-region" hidden={!open}>
+        <WidgetCard>
+          <AiDocumentUpload key={replace?.id ?? "new"} requestId={requestId} replace={replace} cancelHref={aiAgentHref("documents")} featureOn={featureOn} />
+        </WidgetCard>
+      </div>
     </div>
   );
 }

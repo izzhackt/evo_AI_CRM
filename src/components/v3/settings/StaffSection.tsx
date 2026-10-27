@@ -18,6 +18,7 @@ import { StaffPendingAccess } from "./StaffPendingAccess";
 import { StaffDisclosure } from "./StaffDisclosure";
 import { useStaffCommandForm, StaffCommandFeedback as Feedback } from "./useStaffCommandForm";
 import { staffReconcileAllowsPreparation } from "@/lib/v3/staff-invitation-access";
+import { useStaffSheetLock } from "./staff-sheet-lock";
 
 function MemberChange({ member }: { member: StaffWorkspaceMember }) {
   const [command, setCommand] = useState(0);
@@ -107,6 +108,7 @@ export function RequestRow({ request, workspace, organizationId }: { request: St
         message: "Ответ не получен. Проверьте этот запрос ещё раз; повторное письмо не отправляется." };
     }
   }, STAFF_WORKSPACE_INITIAL_STATE);
+  useStaffSheetLock(pending || state.outcome === "unknown");
   return <li className="space-y-2 border-b border-border py-4 last:border-0">
     <p className="break-words text-sm font-medium">{request.displayName} · {request.operation === "password" ? "Создание аккаунта" : request.operation === "invite" ? "Приглашение" : "Восстановление входа"}</p>
     <p className="text-sm text-fg-3">{request.status === "completed" ? request.operation === "password" ? "Аккаунт создан; пароль повторно не показывается" : "Зарегистрировано в сервисе входа; доставка письма не подтверждена"

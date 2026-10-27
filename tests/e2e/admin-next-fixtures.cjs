@@ -80,6 +80,12 @@ const JOURNAL_EVENTS = [
   { kind: "event", id: id("77777777", 12), transition: "task.change", objectType: "case_task", objectId: id("88888888", 1), role: "Staff", at: "27.10 13:40", reason: null, profileHref: `/v3/profile?case=${id("dddddddd", 41)}` },
   { kind: "page", snapshotCreatedAt: "2026-10-27T09:00:00.000Z", snapshotId: id("77777777", 90), cursorCreatedAt: "2026-10-27T08:00:00.000Z", cursorId: id("77777777", 12) },
 ];
+/** Страница журнала, где у каждого события действие, которого код ещё не знает (база пишет их раньше, чем приложение их называет): названных строк нет, курсор есть. */
+const JOURNAL_UNNAMED = [
+  { kind: "event", id: id("77777777", 21), transition: "future.action.alpha", objectType: "case_task", objectId: id("88888888", 2), role: "Staff", at: "27.10 12:05", reason: null, profileHref: null },
+  { kind: "event", id: id("77777777", 22), transition: "future.action.beta", objectType: "case_task", objectId: id("88888888", 3), role: "Service", at: "27.10 11:40", reason: null, profileHref: null },
+  JOURNAL_EVENTS[2],
+];
 const JOURNAL_FACETS = { objectTypes: [{ key: "case_task", count: 2 }, { key: "student_case", count: 5 }] };
 const GATES = { handoffs: 12, overrides: 1, financeStops: 2, evidence: 9, documents: 4 };
 
@@ -191,6 +197,6 @@ const LEADS_PAGE = { organizationId: ORG, from: "2026-10-01", to: "2026-10-27", 
 
 module.exports = {
   ORG, ME, ADMIN, STAFF, PREVIEW, id,
-  settings: { DEPARTMENTS, MEMBERS, REQUESTS, STAFF_DATA, ROLES, ROLE_WORKSPACE, PROVIDERS, WAZZUP_TRANSPORT, JOURNAL_EVENTS, JOURNAL_FACETS, GATES, DELETION_ROWS, DELETION_DETAIL_AUTO, DELETION_DETAIL_MANUAL, REPORT_LINK, telephonyRead },
+  settings: { DEPARTMENTS, MEMBERS, REQUESTS, STAFF_DATA, ROLES, ROLE_WORKSPACE, PROVIDERS, WAZZUP_TRANSPORT, JOURNAL_EVENTS, JOURNAL_UNNAMED, JOURNAL_FACETS, GATES, DELETION_ROWS, DELETION_DETAIL_AUTO, DELETION_DETAIL_MANUAL, REPORT_LINK, telephonyRead },
   marketing: { OVERVIEW, LEADS_PAGE },
 };

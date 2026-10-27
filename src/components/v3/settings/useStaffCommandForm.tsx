@@ -3,6 +3,7 @@
 import { useActionState, useRef } from "react";
 import { STAFF_WORKSPACE_INITIAL_STATE, type StaffWorkspaceActionState } from "@/lib/v3/staff-workspace-contract";
 import { staffAuthConflictMessage } from "@/lib/v3/wording";
+import { useStaffSheetLock } from "./staff-sheet-lock";
 
 type Action = (previous: StaffWorkspaceActionState, form: FormData) => Promise<StaffWorkspaceActionState>;
 
@@ -15,7 +16,7 @@ function copyForm(source: FormData) {
 /** Keep the entire original command when its outcome is unknown, not just its ID. */
 export function useStaffCommandForm(action: Action, idField = "request_id") {
   const original = useRef<FormData | null>(null);
-  return useActionState(async (previous: StaffWorkspaceActionState, form: FormData) => {
+  const result = useActionState(async (previous: StaffWorkspaceActionState, form: FormData) => {
     if (previous.retryAllowed && previous.outcome !== "unknown" && form.get("retry_rejected") === "yes") original.current = null;
     if (!original.current) {
       original.current = copyForm(form);
@@ -31,6 +32,9 @@ export function useStaffCommandForm(action: Action, idField = "request_id") {
         message: "Ответ не получен. Проверьте тот же запрос; новое письмо или изменение повторно не создаётся." } satisfies StaffWorkspaceActionState;
     }
   }, STAFF_WORKSPACE_INITIAL_STATE);
+  // В панели «Нового вида» запрос в пути или с неизвестным итогом держит панель открытой; на странице хук ничего не делает.
+  useStaffSheetLock(result[2] || result[0].outcome === "unknown");
+  return result;
 }
 
 export function StaffCommandFeedback({ state }: { state: StaffWorkspaceActionState }) {

@@ -293,7 +293,7 @@ flow("ai-documents", async (env) => {
   report("ai-documents: a scan in review links to the «Лист сверки»", (await sheet(page).getByRole("link", { name: /Лист сверки/u }).count()) >= 1, null);
   await esc(page);
   await page.getByRole("button", { name: "Загрузить материал" }).click();
-  report("ai-documents: «Загрузить материал» expands the old upload form on the page (a sheet would cancel a running upload)", (await page.locator('[data-testid="v3-ai-upload"] input[type=file]').count()) === 1 && (await sheet(page).count()) === 0, null);
+  report("ai-documents: «Загрузить материал» expands the old upload form on the page (a sheet would cancel a running upload)", (await page.locator('[data-testid="v3-ai-upload"] input[type=file]').count()) === 1 && (await page.locator('section[data-testid="v3-ai-upload"]').isVisible()) && (await sheet(page).count()) === 0, null);
   report("ai-documents: console clean", errors.length === 0, errors);
   await context.close();
 });
@@ -364,5 +364,8 @@ flow("ai-spend", async (env) => {
   report("ai-spend: console clean", errors.length === 0, errors);
   await context.close();
 });
+
+// Сценарии по независимой проверке (28.10.2026): те же помощники, отдельный файл.
+require("./admin-next-flows-review.cjs")({ flow, sheet, esc, opener, calls, focusLabel, fx });
 
 module.exports = { flows };

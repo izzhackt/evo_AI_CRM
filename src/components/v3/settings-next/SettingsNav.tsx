@@ -16,7 +16,7 @@ export function SettingsNav({ items }: Readonly<{ items: readonly SettingsNavIte
   const current = items.find((item) => item.current) ?? items[0];
   return (
     <>
-      <div className="@4xl:hidden" data-testid="v3-settings-nav-compact">
+      <div className="min-w-0 @4xl:hidden" data-testid="v3-settings-nav-compact">
         <SectionTabs label="Разделы настроек" value={keyOf(current)} tabs={items.map((item) => ({ key: keyOf(item), label: item.title, href: item.href, count: item.count }))} />
       </div>
       <nav aria-label="Разделы настроек" className="hidden min-w-0 @4xl:block" data-testid="v3-settings-nav">

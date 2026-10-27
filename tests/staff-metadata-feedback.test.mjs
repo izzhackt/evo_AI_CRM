@@ -32,6 +32,8 @@ function component(react) {
     if (id === "@/lib/staff-workspace-actions") return { staffOrganizationalDetailsAction: async () => saved };
     if (id === "@/lib/v3/staff-workspace-contract") return { STAFF_WORKSPACE_INITIAL_STATE: initial };
     if (id === "@/lib/v3/wording") return { staffDirectoryAccessSummary: () => "Сотрудник" };
+    // Сообщение панели «Нового вида» о незавершённом запросе: на странице (как здесь) контекста нет, хук ничего не делает.
+    if (id === "./staff-sheet-lock") return { useStaffSheetLock: () => undefined };
   }).StaffMemberDetails;
 }
 

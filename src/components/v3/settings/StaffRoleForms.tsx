@@ -4,11 +4,12 @@ import { useActionState, useEffect, useRef, type ReactNode } from "react";
 import { btnCls } from "@/components/ui";
 import { staffRolesAction } from "@/lib/staff-roles-actions";
 import { STAFF_ROLES_INITIAL_STATE, type StaffRolesActionState } from "@/lib/v3/staff-roles-contract";
+import { useStaffSheetLock } from "./staff-sheet-lock";
 
 /** Keep the exact request across an unknown server outcome, including disabled fields. */
 export function useStaffRoleForm() {
   const request = useRef<{ payload: string; entries: [string, FormDataEntryValue][]; id: string } | null>(null);
-  return useActionState(async (previous: StaffRolesActionState, form: FormData): Promise<StaffRolesActionState> => {
+  const result = useActionState(async (previous: StaffRolesActionState, form: FormData): Promise<StaffRolesActionState> => {
     if (previous.outcome !== "unknown") {
       const entries = [...form.entries()].filter(([key]) => !key.startsWith("$ACTION_") && key !== "request_id");
       const payload = JSON.stringify(entries);
@@ -23,6 +24,8 @@ export function useStaffRoleForm() {
     try { return await staffRolesAction(previous, original); }
     catch { return { status: "error", outcome: "unknown", message: "Ответ не получен. Проверьте сохранение тем же запросом; не отправляйте новое изменение." }; }
   }, STAFF_ROLES_INITIAL_STATE);
+  useStaffSheetLock(result[2] || result[0].outcome === "unknown");
+  return result;
 }
 
 export function StaffRoleFeedback({ state }: { state: StaffRolesActionState }) {

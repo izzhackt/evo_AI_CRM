@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { DataTable, DetailSheet, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
+import { GuardedBody, useSheetGuard } from "@/components/v3/admin-next/SheetGuard";
 import type { StaffRoleWorkspace } from "@/lib/v3/staff-roles-contract";
 import type { StaffWorkspaceData } from "@/lib/v3/staff-workspace-contract";
 
@@ -19,12 +20,17 @@ const memberHref = (id: string | null) => (id ? `${PEOPLE_HREF}&member=${encodeU
 /**
  * «Сотрудники»: таблица людей (имя и должность, отдел, доступ словами, состояние) с поиском и фильтрами «Отдел» и «Доступ», панель
  * сотрудника по строке и действия доступа над таблицей. Выбор несёт адрес `?member=` (ссылку можно переслать), но панель открывается
- * сразу из присланных данных, без нового чтения: адрес обновляется на месте. Чтения, права и команды — прежние.
+ * сразу из присланных данных, без нового чтения: адрес обновляется на месте. Мягкий переход на другой `?member=` (страница пришла с новым
+ * выбором) открывает того сотрудника, а не только первый показ. Панель не закрывается, пока запрос доступа в пути или его итог неизвестен,
+ * и спрашивает, если в форме правки есть несохранённое. Чтения, права и команды — прежние.
  */
 export function StaffNext({ data, roles, organizationId, selectedMemberId }: Readonly<{
   data: StaffWorkspaceData; roles: StaffRoleWorkspace; organizationId: string; selectedMemberId?: string;
 }>) {
   const [openId, setOpenId] = useState<string | null>(selectedMemberId ?? null);
+  const [synced, setSynced] = useState(selectedMemberId);
+  if (synced !== selectedMemberId) { setSynced(selectedMemberId); setOpenId(selectedMemberId ?? null); }
+  const guard = useSheetGuard();
   const [departmentId, setDepartmentId] = useState("");
   const [status, setStatus] = useState("");
   const lookup: StaffLookup = useMemo(() => ({
@@ -72,11 +78,13 @@ export function StaffNext({ data, roles, organizationId, selectedMemberId }: Rea
         )}
         empty={<EmptyState title={data.members.length ? "Сотрудники не найдены. Измените поиск или фильтры." : "Подключённых сотрудников пока нет."} />}
       />
-      <DetailSheet open={open !== null} onOpenChange={(next) => { if (!next) choose(null); }} title={open?.displayName ?? "Сотрудник"}
+      <DetailSheet open={open !== null} onOpenChange={(next) => { if (!next && guard.allowClose()) choose(null); }} title={open?.displayName ?? "Сотрудник"}
         description={open ? `${accessSummary(open, lookup)} · ${open.status === "active" ? "Доступ активен" : "Доступ заблокирован"}` : undefined}
         help="Должность не даёт прав доступа.">
-        {open ? <StaffMemberSheet key={open.membershipId} member={open} access={lookup.access.get(open.membershipId)} department={departmentOf(open, lookup)}
-          departments={data.departments} roles={roles} organizationId={organizationId} /> : null}
+        <GuardedBody guard={guard}>
+          {open ? <StaffMemberSheet key={open.membershipId} member={open} access={lookup.access.get(open.membershipId)} department={departmentOf(open, lookup)}
+            departments={data.departments} roles={roles} organizationId={organizationId} /> : null}
+        </GuardedBody>
       </DetailSheet>
     </div>
   );

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
+import { GuardedBody, useSheetGuard } from "@/components/v3/admin-next/SheetGuard";
 import { SPEND_CURRENCIES, type SpendFormState } from "@/lib/marketing-contract";
 import { addMarketingSpendAction } from "@/lib/platform-marketing-actions";
 
@@ -28,14 +29,17 @@ function Field({ id, label, children }: Readonly<{ id: string; label: string; ch
  * Запись ручного расхода в панели: те же поля (`period_start`, `period_end`, `amount`, `currency`, `campaign`, `note`), то же действие
  * `addMarketingSpendAction` и тот же порядок request_id, что у прежней формы: повтор при неизвестном результате идёт с прежним id,
  * после записи и конфликта запроса — с новым. Отправка не через `<form action>`: React 19 сбросил бы введённое после любого ответа.
+ * Esc и щелчок мимо над введённым спрашивают (`useSheetGuard`): прежняя форма была раскрывающимся блоком на странице, и введённое не терялось.
  */
 export function SpendAddSheet({ requestId, defaultStart, defaultEnd }: Readonly<{ requestId: string; defaultStart: string; defaultEnd: string }>) {
   const [currentRequestId, setCurrentRequestId] = useState(requestId);
   const formRef = useRef<HTMLFormElement>(null);
+  const [open, setOpen] = useState(false);
+  const guard = useSheetGuard();
   const [state, action, pending] = useActionState(async (previous: SpendFormState, form: FormData): Promise<SpendFormState> => {
     try {
       const result = await addMarketingSpendAction(previous, form);
-      if (result.status === "saved") formRef.current?.reset();
+      if (result.status === "saved") { formRef.current?.reset(); guard.clean(); }
       if (result.status === "saved" || result.status === "request_conflict") setCurrentRequestId(crypto.randomUUID());
       return result;
     } catch { return { ...previous, status: "unavailable" }; }
@@ -45,8 +49,10 @@ export function SpendAddSheet({ requestId, defaultStart, defaultEnd }: Readonly<
       title="Добавить расход"
       help="Сумма и валюта (USD, KGS, EUR) записываются как есть, без пересчёта. В итог и цену заявки входят только записи, целиком лежащие в периоде."
       trigger={<Button variant="outline"><PlusIcon aria-hidden="true" />Добавить расход</Button>}
+      open={open}
+      onOpenChange={(next) => { if (next) setOpen(true); else if (guard.allowClose()) setOpen(false); }}
     >
-      <form ref={formRef} aria-busy={pending} className="grid gap-4" onSubmit={(event) => {
+      <GuardedBody guard={guard}><form ref={formRef} aria-busy={pending} className="grid gap-4" onSubmit={(event) => {
         event.preventDefault();
         const form = new FormData(event.currentTarget);
         startTransition(() => action(form));
@@ -64,7 +70,7 @@ export function SpendAddSheet({ requestId, defaultStart, defaultEnd }: Readonly<
         <Field id="spend-note" label="Пометка"><Input id="spend-note" name="note" maxLength={500} /></Field>
         <div><Button type="submit" variant="outline" disabled={pending}>{pending ? "Записываем…" : "Записать расход"}</Button></div>
         {state.status !== "idle" ? <p role={state.status === "saved" ? "status" : "alert"} className={`t-body-compact ${state.status === "saved" ? "text-fg-2" : "text-danger"}`}>{MESSAGES[state.status]}</p> : null}
-      </form>
+      </form></GuardedBody>
     </DetailSheet>
   );
 }

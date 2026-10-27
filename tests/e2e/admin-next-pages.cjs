@@ -53,7 +53,8 @@ async function settle(node, { attempts = 40, waitMs = 15 } = {}) {
     uuidCounter = RENDER_BASE;
     try { html = renderToStaticMarkup(node); }
     catch (error) { if (!/suspended while responding to synchronous input/u.test(String(error?.message))) throw error; }
-    if (html !== null && html === previous) return html;
+    // Пока вход нового вида ждёт свой код, он рисует заглушку (`NextScreenLoading`): это ещё не итог.
+    if (html !== null && html === previous && !html.includes('data-slot="next-screen-loading"')) return html;
     previous = html;
     await pause(waitMs);
   }
@@ -78,7 +79,7 @@ const MODES = [["admin-cookie", fx.ADMIN, true], ["admin-no-cookie", fx.ADMIN, f
 const S = fx.settings;
 const ai = aiFx.build();
 let who = fx.ADMIN;
-const scenario = { providers: "production", wazzup: false, reports: true, finance: "configured", pause: null, autosendOn: true };
+const scenario = { providers: "production", wazzup: false, reports: true, finance: "configured", pause: null, autosendOn: true, journal: "named" };
 
 /* ---- подмена читателей ---- */
 const guards = require(join(ROOT, "src/lib/platform-guards.ts"));
@@ -103,7 +104,7 @@ guards.requireV3PageActor = async () => who;
 settingsSource.readAuditExportEnabled = () => true;
 settingsSource.readGateFacts = async () => S.GATES;
 settingsSource.readIntegrations = async (_actor, now) => settingsIntegrations(S.PROVIDERS[scenario.providers], now);
-settingsSource.readJournal = async () => ({ entries: S.JOURNAL_EVENTS, cursorHonored: true, status: "ready" });
+settingsSource.readJournal = async () => ({ entries: scenario.journal === "unnamed" ? S.JOURNAL_UNNAMED : S.JOURNAL_EVENTS, cursorHonored: true, status: "ready" });
 settingsSource.readJournalFacets = async () => S.JOURNAL_FACETS;
 settingsSource.readPlatformFact = async () => "не проверялось";
 settingsSource.readWhatsAppConnection = async () => (scenario.wazzup ? { status: null, wazzup: { transport: S.WAZZUP_TRANSPORT, intakeEnabled: true } } : { status: "SCAN_QR_CODE" });
@@ -145,12 +146,14 @@ const SCREENS = [
   ["settings-staff", "settings", {}, {}],
   ["settings-staff-member", "settings", { section: "staff", view: "people", member: MEMBER }, {}],
   ["settings-roles", "settings", { section: "staff", view: "roles", role: S.ROLES[1].id }, {}],
+  ["settings-roles-list", "settings", { section: "staff", view: "roles" }, {}],
   ["settings-departments", "settings", { section: "staff", view: "departments" }, {}],
   ["settings-integrations", "settings", { section: "integrations" }, { providers: "blocked" }],
   ["settings-integrations-wazzup", "settings", { section: "integrations" }, { providers: "wazzup", wazzup: true }],
   ["settings-telephony", "settings", { section: "telephony" }, {}],
   ["settings-reports", "settings", { section: "reports" }, { finance: "empty" }],
   ["settings-journal", "settings", { section: "journal" }, {}],
+  ["settings-journal-unnamed", "settings", { section: "journal" }, { journal: "unnamed" }],
   ["settings-deletion", "settings", { section: "deletion" }, {}],
   ["settings-deletion-detail", "settings", { section: "deletion", request: S.DELETION_ROWS[0].id }, {}],
   ["settings-documents", "settings", { section: "documents" }, {}],
@@ -172,7 +175,7 @@ const SCREENS = [
   ["ai-autosend-summary", "ai-agent", { section: "autosend", view: "summary" }, {}],
   ["ai-documents-paused", "ai-agent", {}, { pause: PAUSE }],
 ];
-const DEFAULTS = { providers: "production", wazzup: false, reports: true, finance: "configured", pause: null, autosendOn: true };
+const DEFAULTS = { providers: "production", wazzup: false, reports: true, finance: "configured", pause: null, autosendOn: true, journal: "named" };
 const pathOf = (route) => `/v3/${route}`;
 
 async function renderAll(modes) {

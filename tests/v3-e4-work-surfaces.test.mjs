@@ -19,6 +19,9 @@ import {
 } from "../src/lib/sales-register-view.ts";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+// «Отчёт продаж»: чтения, слова сумм, строка фильтров и переключатель периода общие у прежнего и «Нового вида» и лежат в своих файлах
+// (27.10.2026, вынесены из `SalesRegisterView.tsx` без изменений): прежний вид — это все они вместе.
+const salesView = () => ["src/components/v3/SalesRegisterView.tsx", "src/lib/v3/sales-register-page.ts", "src/lib/sales-register-money-view.ts", "src/components/v3/sales-report/SalesReportToolbar.tsx", "src/components/v3/sales-report/SalesPeriodStepper.tsx"].map(read).join("\n");
 const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
 /** Сплошной красный — класс `bg-accent` кнопки главного действия (не `bg-accent-weak`, не `hover:`). */
 const solidRed = (html) => html.match(/(?<![\w:-])bg-accent(?![\w-])/gu)?.length ?? 0;
@@ -246,7 +249,7 @@ test("«Отчёт продаж»: the month stepper crosses years, «весь �
   // «Менеджеры в отчёте»: то же правило по остаткам от 10 и 100 — «21 менеджер», «22 менеджера», «111 менеджеров».
   assert.deepEqual([1, 2, 5, 11, 21, 22, 25, 111, 124].map(managersWord),
     ["менеджер", "менеджера", "менеджеров", "менеджеров", "менеджер", "менеджера", "менеджеров", "менеджеров", "менеджера"]);
-  assert.match(read("src/components/v3/SalesManagerLabelsView.tsx"), /\$\{labels\.length\} \$\{managersWord\(labels\.length\)\} по написаниям/u);
+  assert.match(read("src/components/v3/sales-report/SalesManagerLabelsBody.tsx"), /\$\{labels\.length\} \$\{managersWord\(labels\.length\)\} по написаниям/u);
 });
 
 const pages = new Map(JSON.parse(execFileSync(process.execPath,
@@ -653,7 +656,7 @@ test("rendered «Отчёт продаж»: the report month stays visible where
   assert.doesNotMatch(money, />Остаток</u);
   // Как 247: неуточнённая оплата — каждая запись без суммы оплаты (75 без стоимости и оплаты + 41 неразобранная).
   assert.match(text(money), /Остаток не посчитан: в выборке больше 500 записей — сузьте период или фильтры\. В денежные итоги не включены неуточнённые значения: стоимость — 75, оплата — 116\. Валюты не пересчитываются/u);
-  const view = read("src/components/v3/SalesRegisterView.tsx");
+  const view = salesView();
   assert.match(view, /workspace\.unresolvedCostCount > 0 \|\| workspace\.unresolvedPaidCount > 0/u);
 });
 
@@ -694,7 +697,7 @@ test("rendered «Отчёт продаж»: «Архив» shows how many record
   assert.match(text(page), /Марат Отложенный Малайзия · Бакалавриат Санжар Эскизов 16\.09 1 500 USD — В архиве/u);
   assert.match(page, /<a [^>]*aria-current="true" class="v3-choice[^"]*" href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9">Архив<\/a>|href="\/v3\/main\?view=sales&amp;year=2026&amp;month=9"[^>]*>Архив<\/a>/u);
   assert.equal(solidRed(page), 1);
-  const view = read("src/components/v3/SalesRegisterView.tsx");
+  const view = salesView();
   assert.match(view, /const summaryRead = workspace && !creatingForm && !archiveView \? await readSummaryRows\(/u, "no all-pages read for the archive");
 });
 
@@ -709,7 +712,7 @@ test("rendered «Отчёт продаж»: «Поступления и возв
   assert.equal(cash.match(/<dt>/gu)?.length, 6);
   // Без сводки (роль её не читает) блока нет, как и прежде.
   assert.doesNotMatch(pages.get("report"), /sales-cash-totals/u);
-  const view = read("src/components/v3/SalesRegisterView.tsx");
+  const view = salesView();
   assert.match(view, /Не удалось загрузить финансовую сводку\. Обновите страницу, чтобы повторить\./u);
   assert.match(view, /В этом месяце подтверждённых финансовых событий нет\./u);
   assert.match(view, /\{workspace && cash && cash\.status !== "not_allowed" && month \?/u);
@@ -737,7 +740,7 @@ test("the page wires Lead 360 through the board's reads and «Оформить �
   assert.match(drawer, /if \(element\?\.matches\(":popover-open"\)\) element\.hidePopover\(\);/u);
   assert.match(drawer, /if \(back\?\.isConnected\) back\.focus\(\);/u);
   assert.match(drawer, /onSaved=\{closeSaved\}/u);
-  const view = read("src/components/v3/SalesRegisterView.tsx");
+  const view = salesView();
   assert.match(view, /const leadId = creatingForm && typeof query\.lead === "string" \? parseSalesUuid\(query\.lead\) : null;/u);
   assert.match(view, /getPlatformSalesLead\(actor, leadId\)\.then\(\(lead\) => lead\?\.clientDisplayName \? \{ id: lead\.leadId, query: lead\.clientDisplayName \} : null, \(\) => null\)/u);
   // Строка открывает запись просмотром (Э8.6); форма — «Исправить запись».

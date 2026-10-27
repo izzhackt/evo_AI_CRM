@@ -88,7 +88,10 @@ const compile = (source) =>
 
 for (const extension of [".ts", ".tsx"]) {
   Module._extensions[extension] = (module, filename) => {
-    module._compile(compile(readFileSync(filename, "utf8")), filename);
+    const source = readFileSync(filename, "utf8");
+    module._compile(compile(source), filename);
+    // Клиентские модули (`"use client"`) помечены: `flight-props-expand.cjs` не выполняет их как серверные.
+    if (/^\s*["']use client["']/u.test(source)) for (const value of Object.values(module.exports)) if (typeof value === "function") value.__useClient = true;
   };
 }
 // Статический импорт логотипа: next/image получает объект как от сборщика.
@@ -98,7 +101,10 @@ Module._extensions[".png"] = (module) => {
   module.exports = { src: logoSrc(), width: 1843, height: 842 };
 };
 
-const { ACTOR, STUBS, leadId, caseId, selectSalesRows, setSaveSucceeds, syntheticUuids } = require(FIXTURES);
+// Страницы с ленивым «Новым видом» (`PipelineNextLazy`, `AdmissionsPipelineNextLazy`): `next/dynamic` как в сборке App Router.
+require("./next-dynamic-alias.cjs");
+const { renderSettled } = require("./render-settled.cjs");
+const { ACTORS, STUBS, leadId, caseId, selectSalesRows, setActor, setSaveSucceeds, syntheticUuids } = require(FIXTURES);
 
 const originalResolve = Module._resolveFilename;
 Module._resolveFilename = function patchedResolve(request, ...rest) {
@@ -128,6 +134,13 @@ Module._resolveFilename = function patchedResolve(request, ...rest) {
 
 const { createElement } = require("react");
 const { renderToStaticMarkup, renderToString } = require("react-dom/server");
+
+// Страница спрашивает `isNextUi` (cookie «Нового вида»): вне запроса `cookies()` не работает. Сценарий с `ui: "next"` приносит
+// cookie `evo_ui=next`; без него cookie нет — прежний вид, как и было.
+let currentUi = null;
+require("next/headers").cookies = async () => ({
+  get: (name) => (name === "evo_ui" && currentUi === "next" ? { name, value: "next" } : undefined),
+});
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime");
 const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/hooks-client-context.shared-runtime");
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
@@ -198,40 +211,110 @@ const SCENARIOS = {
 };
 
 /**
+ * «Новый вид» (27.10.2026): те же синтетические данные, но с cookie `evo_ui=next`. Администратор получает вкладки, колонки-карточки
+ * и панель; сотрудник, просмотр роли и администратор без cookie — прежнюю разметку (`legacy-*` сценарии должны совпасть с ней
+ * байт в байт: `tests/ui-next-pipelines.test.mjs`).
+ */
+const NEXT_BASES = ["sales", "sales-panel", "sales-focus", "sales-handed", "sales-mine", "sales-search", "sales-volume", "sales-closed", "admissions", "admissions-visa",
+  "admissions-curator", "admissions-first-empty", "admissions-stage"];
+const NEXT_SCENARIOS = {
+  ...Object.fromEntries(NEXT_BASES.map((name) => [`next-${name}`, { ...SCENARIOS[name], ui: "next" }])),
+  // Три других мира: сотрудник и просмотр роли с тем же cookie и администратор без него — прежний вид.
+  ...Object.fromEntries(["sales", "sales-closed", "admissions"].flatMap((name) => [
+    [`staff-cookie-${name}`, { ...SCENARIOS[name], ui: "next", actor: "staff" }],
+    [`staff-no-cookie-${name}`, { ...SCENARIOS[name], actor: "staff" }],
+    [`preview-cookie-${name}`, { ...SCENARIOS[name], ui: "next", actor: "preview" }],
+    [`preview-no-cookie-${name}`, { ...SCENARIOS[name], actor: "preview" }],
+    [`admin-no-cookie-${name}`, { ...SCENARIOS[name] }],
+  ])),
+};
+Object.assign(SCENARIOS, NEXT_SCENARIOS);
+
+/**
  * Одна страница в оболочке. `randomUUID()` страницы на время рендера
  * предсказуем (та же последовательность, что в браузере при гидратации).
  */
-async function renderPageTree(pageKey, search, { loading = false, rows = "default" } = {}) {
+async function renderPageTree(pageKey, search, { loading = false, rows = "default", ui = null, actor = "admin" } = {}) {
   const { pathname, module, loading: loadingModule } = PAGES[pageKey];
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   selectSalesRows(rows);
+  setActor(actor);
+  currentUi = ui;
   const originalUuid = nodeCrypto.randomUUID;
   nodeCrypto.randomUUID = syntheticUuids();
   try {
     const content = loading
       ? createElement(require(join(ROOT, loadingModule)).default)
       : await require(join(ROOT, module)).default({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(search))) });
+    // `data-ui="next"` ставит layout `(v3)` только настоящему администратору с cookie; здесь — по сценарию, где это решила
+    // настоящая `isNextUi` страницы (стенд не знает правила: он смотрит, что нарисовала страница).
+    const nextRoot = ui === "next" && actor === "admin";
     const tree = createElement(
       "div",
-      { className: "v3-world", "data-surface": "staff" },
-      createElement(AppShell, { actor: ACTOR, initialNotifications: null }, content),
+      { className: "v3-world", "data-surface": "staff", "data-ui": nextRoot ? "next" : undefined },
+      createElement(AppShell, { actor: ACTORS[actor], initialNotifications: null }, content),
     );
     return withContexts(tree, pathname, search);
   } finally {
     nodeCrypto.randomUUID = originalUuid;
     selectSalesRows("default");
+    setActor("admin");
+    currentUi = null;
   }
 }
 
 async function renderScenario(name) {
   const { page, search, ...options } = SCENARIOS[name];
-  return renderToStaticMarkup(await renderPageTree(page, search, options));
+  const node = await renderPageTree(page, search, options);
+  // Новый вид страница подгружает лениво: рисуем, пока разметка не устоится.
+  return options.ui === "next" && (options.actor ?? "admin") === "admin" ? renderSettled(node) : renderToStaticMarkup(node);
+}
+
+/**
+ * «Новый вид»: свойства ленивых входов (`PipelineNextLazy`, `PipelineClosedNextLazy`, `AdmissionsPipelineNextLazy`), которые настоящие страницы
+ * отдают через границу сервер → клиент: `assertFlightProps` бросает, если среди них есть то, что RSC не сериализует (функции, экземпляры классов).
+ */
+async function nextProps() {
+  const { assertFlightPropsExpanded } = require("./flight-props-expand.cjs");
+  const { PipelineClosedNextLazy, PipelineNextLazy } = require(join(ROOT, "src/components/v3/pipeline-next/PipelineNextLazy.tsx"));
+  const { AdmissionsPipelineNextLazy } = require(join(ROOT, "src/components/v3/admissions-pipeline-next/AdmissionsPipelineNextLazy.tsx"));
+  const findElement = (node, predicate) => {
+    if (!node || typeof node !== "object") return null;
+    if (Array.isArray(node)) { for (const item of node) { const found = findElement(item, predicate); if (found) return found; } return null; }
+    if (!node.$$typeof) return null;
+    return predicate(node) ? node : findElement(node.props?.children, predicate);
+  };
+  const out = {};
+  for (const [name, lazy] of [["next-sales", PipelineNextLazy], ["next-sales-panel", PipelineNextLazy], ["next-sales-closed", PipelineClosedNextLazy], ["next-admissions", AdmissionsPipelineNextLazy], ["next-admissions-visa", AdmissionsPipelineNextLazy]]) {
+    const scenario = SCENARIOS[name] ?? { ...SCENARIOS[name.replace("next-", "")], ui: "next" };
+    const { pathname, module } = PAGES[scenario.page];
+    setActor("admin");
+    currentUi = "next";
+    const originalUuid = nodeCrypto.randomUUID;
+    nodeCrypto.randomUUID = syntheticUuids();
+    try {
+      const content = await require(join(ROOT, module)).default({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(scenario.search))) });
+      const view = findElement(content, (element) => element.type === lazy);
+      if (!view) throw new Error(`${name} (${pathname}): the page renders no lazy entry`);
+      await assertFlightPropsExpanded(view.props, `${name}: lazy entry`);
+      out[name] = Object.keys(view.props).sort();
+    } finally {
+      nodeCrypto.randomUUID = originalUuid;
+      setActor("admin");
+      currentUi = null;
+    }
+  }
+  process.stdout.write(JSON.stringify(out));
 }
 
 async function main() {
-  if (process.argv.includes("--json")) {
+  if (process.argv.includes("--next-props")) {
+    await nextProps();
+  } else if (process.argv.includes("--json") || process.argv.includes("--next-json")) {
+    // `--json` — прежние сценарии (их разметку сравнивают с базовым коммитом), `--next-json` — сценарии «Нового вида».
+    const wanted = process.argv.includes("--next-json") ? Object.keys(NEXT_SCENARIOS) : Object.keys(SCENARIOS).filter((name) => !(name in NEXT_SCENARIOS));
     const out = [];
-    for (const name of Object.keys(SCENARIOS)) out.push({ name, html: await renderScenario(name) });
+    for (const name of wanted) out.push({ name, html: await renderScenario(name) });
     process.stdout.write(JSON.stringify(out));
   } else if (process.argv.includes("--screenshots")) {
     await screenshots();
@@ -556,6 +639,11 @@ async function bundleHydration() {
       }));
       build.onResolve({ filter: /^next\/link$/ }, () => ({ path: "next-link", namespace: "link" }));
       build.onLoad({ filter: /.*/, namespace: "link" }, () => ({ contents: LINK_SHIM, resolveDir: ROOT, loader: "js" }));
+      // Страницы досок спрашивают `isNextUi` (cookie «Нового вида»): в браузерной сборке cookie нет — прежний вид. `next/dynamic` — версия
+      // для App Router, как в сборке Next (страницы импортируют ленивые входы нового вида).
+      build.onResolve({ filter: /^next\/headers$/ }, () => ({ path: "headers", namespace: "headers" }));
+      build.onLoad({ filter: /.*/, namespace: "headers" }, () => ({ contents: "module.exports = { cookies: async () => ({ get: () => undefined }) };", loader: "js" }));
+      build.onResolve({ filter: /^next\/dynamic$/ }, () => ({ path: require.resolve("next/dist/shared/lib/app-dynamic") }));
       build.onResolve({ filter: /\.png$/ }, (args) => ({ path: resolve(args.resolveDir, args.path), namespace: "png" }));
       build.onLoad({ filter: /.*/, namespace: "png" }, () => ({
         contents: `module.exports = { src: "/__static/evo-logo.png", width: 1843, height: 842 };`,

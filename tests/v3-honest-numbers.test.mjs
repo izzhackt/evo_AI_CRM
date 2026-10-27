@@ -23,6 +23,9 @@ import * as salesView from "../src/lib/sales-register-view.ts";
 const require = createRequire(import.meta.url);
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime.js");
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+// «Отчёт продаж»: чтения, слова сумм, строка фильтров и переключатель периода общие у прежнего и «Нового вида» и лежат в своих файлах
+// (27.10.2026, вынесены из `SalesRegisterView.tsx` без изменений): прежний вид — это все они вместе.
+const salesViewSource = () => ["src/components/v3/SalesRegisterView.tsx", "src/lib/v3/sales-register-page.ts", "src/lib/sales-register-money-view.ts", "src/components/v3/sales-report/SalesReportToolbar.tsx", "src/components/v3/sales-report/SalesPeriodStepper.tsx"].map(read).join("\n");
 function compile(path, resolve = require) {
   const code = ts.transpileModule(read(path), { fileName: path, compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
@@ -488,7 +491,7 @@ test("«Продажи» headline: one number by sale date, discrepancies named,
   assert.equal(render({ status: "denied" }), "");
   assert.match(render({ status: "unavailable" }), /role="alert"[^>]*>Не удалось посчитать продажи за сентябрь 2026\./u);
   assert.doesNotMatch(render({ status: "unavailable" }), /Продажи за/u);
-  const view = read("src/components/v3/SalesRegisterView.tsx");
+  const view = salesViewSource();
   assert.match(view, /readSalesCount\(actor, headlinePeriod\)/u);
   assert.match(view, /filtered=\{hasFilters\} sliceHref=\{saleSliceHref\}/u);
   assert.match(read("src/lib/v3/sales-numbers-source.ts"), /rpc\("staff_sales_count_v1"/u);

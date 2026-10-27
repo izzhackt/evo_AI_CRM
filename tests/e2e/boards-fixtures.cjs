@@ -15,6 +15,16 @@ const ACTOR = {
   displayName: "Администратор (синтетический)", systemRole: "admin", platformAccessVersion: 1, assignments: [],
   permissionKeys: [], email: "synthetic@example.invalid", presentationRole: null,
 };
+// «Новый вид» выбирает переключатель и только настоящий администратор: сценарии проверяют ещё сотрудника и просмотр роли.
+const ACTORS = {
+  admin: ACTOR,
+  staff: { ...ACTOR, systemRole: "staff", permissionKeys: ["lead.sales.workflow.manage", "staff.task.read", "lead.read"] },
+  preview: { ...ACTOR, presentationRole: "sales" },
+};
+let currentActor = ACTOR;
+function setActor(kind) {
+  currentActor = ACTORS[kind] ?? ACTOR;
+}
 const OWNER_A = "aaaaaaaa-1111-4111-8111-000000000001";
 const OWNER_B = "aaaaaaaa-1111-4111-8111-000000000002";
 const OWNERS = [
@@ -199,8 +209,8 @@ function setSaveSucceeds(value) {
 // --- подмена границ данных и прав --------------------------------------------
 const STUBS = {
   "@/lib/platform-guards": {
-    requireV3PageActor: async () => ACTOR,
-    requirePlatformStaffActor: async () => ACTOR,
+    requireV3PageActor: async () => currentActor,
+    requirePlatformStaffActor: async () => currentActor,
   },
   "@/lib/platform-sales": {
     // Поиск RPC здесь — подстрока по имени, контакту и действию: достаточно,
@@ -296,4 +306,4 @@ function syntheticUuids() {
   return () => `99999999-0000-4000-8000-${String((next += 1)).padStart(12, "0")}`;
 }
 
-module.exports = { ACTOR, STUBS, leadId, caseId, selectSalesRows, setSaveSucceeds, syntheticUuids };
+module.exports = { ACTOR, ACTORS, STUBS, leadId, caseId, selectSalesRows, setActor, setSaveSucceeds, syntheticUuids };

@@ -71,6 +71,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "sales-dynamics-source.ts", // #1067 (26.09.2026)
     "sales-handoff-source.ts",
     "sales-numbers-source.ts",
+    "sales-register-page.ts", // «Отчёт продаж»: общие чтения прежнего и «Нового вида» (27.10.2026)
     "sales-register-source.ts",
     "sales-stage.ts",
     "settings-health.ts", // #1064 (26.09.2026)

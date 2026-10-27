@@ -11,12 +11,14 @@ import {
 } from "@/components/v3/board/Board";
 import { BoardFilters, NavigateSelect, type NavigateOption } from "@/components/v3/board/BoardToolbar";
 import { Pipeline } from "@/components/v3/Pipeline";
+import { PipelineClosedNextLazy, PipelineNextLazy } from "@/components/v3/pipeline-next/PipelineNextLazy";
 import { ClosedLeadsList } from "@/components/v3/closure/ClosedLeadsList";
 import { Icon } from "@/components/icons";
 import { ManualLeadDisclosure, ManualLeadForm, ManualLeadTrigger } from "@/components/v3/ManualLeadForm";
 import { PartShell } from "@/components/v3/PartShell";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { isStaffPreview } from "@/lib/platform-access";
+import { isNextUi } from "@/lib/ui-next";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { parseClosedLeadsCursor, readClosedLeads, type ClosedLeadsPage } from "@/lib/platform-closure";
 import { closureWords } from "@/lib/v3/wording";
@@ -161,6 +163,109 @@ export default async function PipelinePart({
   const activeFilterCount = Number(query.due !== "all") + Number(query.assignment !== "all" || query.owner !== null);
   const workingCount = board.truncated ? null : working.length;
 
+  // Строка инструментов и пометки об усечённых чтениях — одни и те же в прежнем и новом виде.
+  // Одна строка инструментов 44 px. Поиск — форма методом GET, как период на главной: запрос живёт в адресе,
+  // экран можно переслать целиком. Остальные фильтры поиск несёт скрытыми полями, а выбор «Ответственного» и «Срока»
+  // применяется сразу, без «Найти».
+  const toolbar = (
+    <div className="flex shrink-0 flex-wrap items-center gap-2 @2xl:gap-3">
+      <BoardSearch
+        key={query.q ?? ""}
+        action="/v3/pipeline"
+        defaultValue={query.q ?? ""}
+        maxLength={MAX_QUERY_LENGTH}
+        placeholder="Имя, контакт или действие"
+        hidden={
+          <>
+            {query.stage !== "all" ? (
+              <input type="hidden" name="stage" value={query.stage} />
+            ) : null}
+            {query.due !== "all" ? (
+              <input type="hidden" name="due" value={query.due} />
+            ) : null}
+            {query.assignment !== "all" ? (
+              <input type="hidden" name="assignment" value={query.assignment} />
+            ) : null}
+            {query.handed === "all" ? (
+              <input type="hidden" name="handed" value="all" />
+            ) : null}
+            {query.owner !== null ? (
+              <input type="hidden" name="owner" value={query.owner} />
+            ) : null}
+          </>
+        }
+      />
+
+      <BoardFilters activeCount={activeFilterCount}>
+        <NavigateSelect
+          key={responsibleValue}
+          label="Ответственный"
+          value={responsibleValue}
+          options={responsibleOptions}
+          groups={staffOptions.length > 0 ? [{ label: "Сотрудники", options: staffOptions }] : []}
+        />
+        <BoardSegments label="Срок" showLabel items={dueChoices} />
+      </BoardFilters>
+
+      {/* Закрытые лиды — не этап доски, а отдельный тихий список (246). */}
+      <Link href={CLOSED_VIEW_PATH} prefetch={false} data-testid="v3-pipeline-closed-link"
+        className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg @2xl:order-last @2xl:ms-auto">
+        {closureWords.lead.closedList}
+      </Link>
+
+      {filtersActive ? (
+        <BoardReset
+          href={boardHref({
+            q: null,
+            stage: "all",
+            due: "all",
+            assignment: "all",
+            owner: null,
+            handed: query.handed,
+          })}
+        />
+      ) : null}
+    </div>
+  );
+  // Пометки — отдельными узлами, а не одним фрагментом: прежняя разметка (в том числе `useId`) остаётся той же.
+  const ownersNote = ownerRows.length > 0 && ownerOptions?.hasNext ? (
+    <p className="t-meta mt-1 text-fg-3">
+      Показаны первые 100 сотрудников.
+    </p>
+  ) : null;
+  const truncatedNote = board.truncated ? (
+    <p className="t-meta mt-2 text-fg-3">
+      Прочитаны первые 4000 лидов — уточните поиск или фильтры.
+    </p>
+  ) : null;
+
+  // «Новый вид» (переключатель администратора): те же чтения и права, другая расстановка — вкладки этапов, колонки-карточки и панель лида.
+  if (await isNextUi(actor)) {
+    return (
+      <ManualLeadDisclosure>
+        <PipelineNextLazy
+          count={workingCount}
+          actions={canCreateLead ? <ManualLeadTrigger /> : undefined}
+          form={canCreateLead ? <ManualLeadForm requestId={randomUUID()} ownerId={actor.membershipId}
+            owners={ownerRows.map(owner => ({ id: owner.membershipId, displayName: owner.displayLabel }))} /> : undefined}
+          toolbar={toolbar}
+          notes={<>{ownersNote}{truncatedNote}</>}
+          stages={stages}
+          leads={leads}
+          filteredStage={query.stage}
+          ownerOptions={ownerRows}
+          ownerOptionsHaveMore={ownerOptions?.hasNext ?? false}
+          actor={actor}
+          actorMembershipId={actor.membershipId}
+          requestIds={requestIds}
+          handedExpanded={query.handed === "all"}
+          showOwner={query.assignment !== "mine"}
+          today={dayInOrganizationTimezone(new Date())}
+        />
+      </ManualLeadDisclosure>
+    );
+  }
+
   return (
     <ManualLeadDisclosure>
       <PartShell
@@ -172,80 +277,11 @@ export default async function PipelinePart({
       {canCreateLead ? <ManualLeadForm requestId={randomUUID()} ownerId={actor.membershipId}
         owners={ownerRows.map(owner => ({ id: owner.membershipId, displayName: owner.displayLabel }))} /> : null}
 
-      {/* Одна строка инструментов 44 px. Поиск — форма методом GET, как
-          период на главной: запрос живёт в адресе, экран можно переслать
-          целиком. Остальные фильтры поиск несёт скрытыми полями, а выбор
-          «Ответственного» и «Срока» применяется сразу, без «Найти». */}
-      <div className="flex shrink-0 flex-wrap items-center gap-2 @2xl:gap-3">
-        <BoardSearch
-          key={query.q ?? ""}
-          action="/v3/pipeline"
-          defaultValue={query.q ?? ""}
-          maxLength={MAX_QUERY_LENGTH}
-          placeholder="Имя, контакт или действие"
-          hidden={
-            <>
-              {query.stage !== "all" ? (
-                <input type="hidden" name="stage" value={query.stage} />
-              ) : null}
-              {query.due !== "all" ? (
-                <input type="hidden" name="due" value={query.due} />
-              ) : null}
-              {query.assignment !== "all" ? (
-                <input type="hidden" name="assignment" value={query.assignment} />
-              ) : null}
-              {query.handed === "all" ? (
-                <input type="hidden" name="handed" value="all" />
-              ) : null}
-              {query.owner !== null ? (
-                <input type="hidden" name="owner" value={query.owner} />
-              ) : null}
-            </>
-          }
-        />
+      {toolbar}
 
-        <BoardFilters activeCount={activeFilterCount}>
-          <NavigateSelect
-            key={responsibleValue}
-            label="Ответственный"
-            value={responsibleValue}
-            options={responsibleOptions}
-            groups={staffOptions.length > 0 ? [{ label: "Сотрудники", options: staffOptions }] : []}
-          />
-          <BoardSegments label="Срок" showLabel items={dueChoices} />
-        </BoardFilters>
+      {ownersNote}
 
-        {/* Закрытые лиды — не этап доски, а отдельный тихий список (246). */}
-        <Link href={CLOSED_VIEW_PATH} prefetch={false} data-testid="v3-pipeline-closed-link"
-          className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg @2xl:order-last @2xl:ms-auto">
-          {closureWords.lead.closedList}
-        </Link>
-
-        {filtersActive ? (
-          <BoardReset
-            href={boardHref({
-              q: null,
-              stage: "all",
-              due: "all",
-              assignment: "all",
-              owner: null,
-              handed: query.handed,
-            })}
-          />
-        ) : null}
-      </div>
-
-      {ownerRows.length > 0 && ownerOptions?.hasNext ? (
-        <p className="t-meta mt-1 text-fg-3">
-          Показаны первые 100 сотрудников.
-        </p>
-      ) : null}
-
-      {board.truncated ? (
-        <p className="t-meta mt-2 text-fg-3">
-          Прочитаны первые 4000 лидов — уточните поиск или фильтры.
-        </p>
-      ) : null}
+      {truncatedNote}
 
       {/* Доска занимает оставшуюся высоту: на широком экране прокручиваются
           колонки, на узком (список этапов) — эта область. */}
@@ -289,10 +325,26 @@ async function closedLeadsPart(actor: ActivePlatformActor, params: SearchParams)
     page = null;
   }
   const here = cursor ? `${CLOSED_VIEW_PATH}&cursor=${encodeURIComponent(cursor)}` : CLOSED_VIEW_PATH;
+  const list = (
+    <ClosedLeadsList
+      page={page}
+      readOnly={isStaffPreview(actor)}
+      retryHref={here}
+      firstHref={CLOSED_VIEW_PATH}
+      nextHref={page?.nextCursor ? `${CLOSED_VIEW_PATH}&cursor=${encodeURIComponent(page.nextCursor)}` : null}
+      paged={cursor !== null}
+      leadHref={(leadId) => `/v3/profile?id=${leadId}&returnTo=${encodeURIComponent(here)}`}
+    />
+  );
+  const closedCount = page && cursor === null && page.nextCursor === null ? page.rows.length : null;
+  // «Новый вид» (переключатель администратора): тот же список, рамка нового вида с возвратом к доске.
+  if (await isNextUi(actor)) {
+    return <PipelineClosedNextLazy title={closureWords.lead.closedListTitle} count={closedCount} backLabel={closureWords.lead.backToBoard}>{list}</PipelineClosedNextLazy>;
+  }
   return (
     <PartShell
       title={closureWords.lead.closedListTitle}
-      count={page && cursor === null && page.nextCursor === null ? page.rows.length : null}
+      count={closedCount}
       back={
         <Link href="/v3/pipeline" className="inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4">
           <Icon name="arrow-left" size={16} />
@@ -301,15 +353,7 @@ async function closedLeadsPart(actor: ActivePlatformActor, params: SearchParams)
       }
       dense
     >
-      <ClosedLeadsList
-        page={page}
-        readOnly={isStaffPreview(actor)}
-        retryHref={here}
-        firstHref={CLOSED_VIEW_PATH}
-        nextHref={page?.nextCursor ? `${CLOSED_VIEW_PATH}&cursor=${encodeURIComponent(page.nextCursor)}` : null}
-        paged={cursor !== null}
-        leadHref={(leadId) => `/v3/profile?id=${leadId}&returnTo=${encodeURIComponent(here)}`}
-      />
+      {list}
     </PartShell>
   );
 }

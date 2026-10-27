@@ -445,7 +445,7 @@ test("«Отчёт продаж» stays reachable for lead readers without the r
   assert.ok(!ids(menu(["case.read.full", "profile.read.full"])).includes("sales-report"), "no lead and no report read — no item");
   const page = readFileSync(new URL("../src/app/(v3)/v3/main/page.tsx", import.meta.url), "utf8");
   assert.match(page, /if \(!canReadReport && !canReadSales\) redirect\("\/access-denied\?from=%2Fv3%2Fmain"\);/u);
-  assert.match(page, /if \(!canReadReport\) return <SalesDynamicsReport dynamics=\{section\} \/>;/u);
+  assert.match(page, /if \(!canReadReport\) return next \? <SalesDynamicsNextView dynamics=\{section\} \/> : <SalesDynamicsReport dynamics=\{section\} \/>;/u);
   assert.match(page, /open=\{!canReadReport \|\| typeof query\.period === "string"\}/u);
 });
 

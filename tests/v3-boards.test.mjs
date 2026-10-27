@@ -374,9 +374,10 @@ test("admissions card shares the sales grammar: states are chips with words; cur
   }
   const source = read("src/components/v3/AdmissionsPipelineBoard.tsx");
   assert.doesNotMatch(source, /<Pill\b|Ожидает принятия/u);
-  assert.match(source, /const showCurator = query\.curator === null/u);
+  // Движок доски (в нём и «Куратор»: показывать ли инициалы) общий у прежнего и «Нового вида» — `useAdmissionsBoard` (27.10.2026).
+  assert.match(read("src/components/v3/admissions-board/useAdmissionsBoard.ts"), /const showCurator = query\.curator === null/u);
   assert.equal(count(surfaces.get("admissions-curator"), /v3-initials|<abbr/gu), 0, "no curator initials once «Куратор» is chosen");
-  assert.match(source, /<Icon name="chevron-down" size=\{16\} className=\{cn\("shrink-0 text-fg-3", otherOpen && "rotate-180"\)\} \/>/u, "inline disclosure, not a flyout chevron");
+  assert.match(read("src/components/v3/admissions-board/AdmissionsCardMenu.tsx"), /<Icon name="chevron-down" size=\{16\} className=\{cn\("shrink-0 text-fg-3", otherOpen && "rotate-180"\)\} \/>/u, "inline disclosure, not a flyout chevron");
   // Queue links: one quiet wrapping line, also on a phone.
   const queues = tag(admissions, /<nav aria-label="Очереди на проверку"[^>]*>/u);
   assert.match(classOf(queues), /^flex flex-wrap items-center gap-x-2$/u);
@@ -399,7 +400,7 @@ test("error copy names no provider and the admissions route has a board skeleton
   }
   // `unavailable` can follow a committed write whose receipt was lost: the copy
   // says «не подтверждено», never «не сохранено».
-  assert.match(read("src/components/v3/AdmissionsPipelineBoard.tsx"), /unavailable: "Не удалось подтвердить перемещение\. Обновите страницу и проверьте этап\."/u);
+  assert.match(read("src/components/v3/admissions-board/board-model.ts"), /unavailable: "Не удалось подтвердить перемещение\. Обновите страницу и проверьте этап\."/u);
   assert.match(read("src/components/v3/PipelineDecisionForm.tsx"), /unavailable: "Не удалось подтвердить сохранение\. Проверьте связь и повторите\."/u);
   for (const path of ["src/components/v3/AdmissionsPipelineBoard.tsx", "src/components/v3/PipelineDecisionForm.tsx"]) {
     assert.doesNotMatch(read(path), /не сохранено/u, path);

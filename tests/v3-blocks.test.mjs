@@ -232,7 +232,7 @@ test("undo lives in the top layer and only where a real reverse command exists",
     }
   }
   // «Новый вид» «Задач» (27.10.2026): таблица `TasksTable` — тот же хук и та же обратная команда, отдельного «Отменить» нет.
-  assert.deepEqual(users.sort(), ["src/components/v3/AdmissionsPipelineBoard.tsx", "src/components/v3/tasks/TaskQueueList.tsx", "src/components/v3/tasks/next/TasksTable.tsx", "src/components/v3/today-next/TodayDashboard.tsx", "src/components/v3/today/TodayQueueList.tsx"]);
+  assert.deepEqual(users.sort(), ["src/components/v3/AdmissionsPipelineBoard.tsx", "src/components/v3/admissions-pipeline-next/AdmissionsBoardNext.tsx", "src/components/v3/tasks/TaskQueueList.tsx", "src/components/v3/tasks/next/TasksTable.tsx", "src/components/v3/today-next/TodayDashboard.tsx", "src/components/v3/today/TodayQueueList.tsx"]);
   // Команда отмены — общая с «Сегодня» (useRecentCompletions, #1067).
   assert.match(read("src/components/v3/tasks/useRecentCompletions.ts"), /staffStatusForm\(\{ id: completion\.task\.id, version: completion\.version \}, completion\.previousStatus\)/u, "reverse command with the version after completion");
   // Строки «Отменить» «Задач» и «Сегодня» собирает один хук; в строке списка своей «Отменить» нет.
@@ -245,8 +245,9 @@ test("undo lives in the top layer and only where a real reverse command exists",
   // через move_case_pipeline_v2 (251) с версией из квитанции своего перемещения.
   assert.match(read("supabase/migrations/244_platform_access_by_permissions.sql"), /Deliberately no optimistic version check/u);
   assert.match(read("supabase/migrations/251_platform_pipeline_move_undo.sql"), /RAISE EXCEPTION 'case_pipeline_moved' USING ERRCODE = 'PT409'/u);
+  // Движок общий у прежней и новой доски (`useAdmissionsBoard`), «Отменить» рисует каждая сама.
   const board = read("src/components/v3/AdmissionsPipelineBoard.tsx");
-  assert.match(board, /stage: fromStage, expectedVersion: offer\.version/u, "reverse move with the version after the move");
+  assert.match(read("src/components/v3/admissions-board/useAdmissionsBoard.ts"), /stage: fromStage, expectedVersion: offer\.version/u, "reverse move with the version after the move");
   assert.match(board, /<UndoToast items=\{toasts\} onHold=\{hold\} \/>/u, "the board's undo is the same top-layer row");
   assert.doesNotMatch(board, /data-board-undo/u, "no second undo line on the board");
   // Задача по студенту завершается с результатом, отмены у неё нет.

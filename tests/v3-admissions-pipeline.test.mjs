@@ -15,7 +15,12 @@ const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "u
 // re-exports it.
 const contract = source("src/lib/platform-admissions-pipeline-contract.ts");
 const serverModule = source("src/lib/platform-admissions-pipeline.ts");
-const board = source("src/components/v3/AdmissionsPipelineBoard.tsx");
+// The board is the component plus the engine and the card menu that «Новый вид» shares (27.10.2026: `useAdmissionsBoard`,
+// `AdmissionsCardMenu`, `board-model`, moved out of the component without changes): the source pins read all four.
+const board = [
+  "src/components/v3/AdmissionsPipelineBoard.tsx", "src/components/v3/admissions-board/useAdmissionsBoard.ts",
+  "src/components/v3/admissions-board/AdmissionsCardMenu.tsx", "src/components/v3/admissions-board/board-model.ts",
+].map(source).join("\n");
 const boardPrimitive = source("src/components/v3/board/Board.tsx");
 const actions = source("src/lib/platform-admissions-pipeline-actions.ts");
 const page = source("src/app/(v3)/v3/admissions-pipeline/page.tsx");
@@ -74,7 +79,7 @@ test("the card menu offers «Переместить в…» and «Убрать �
   assert.doesNotMatch(board, /Другой раздел/u, "no vague «other section» label");
   assert.match(board, /tabTargets\(otherTab\)\.map/u, "the other tab's stages behind its name");
   // «Открыть дело» is the card's name link: the menu does not repeat it.
-  assert.doesNotMatch(board.match(/function CardMenu[\s\S]*?\n\}\n/u)?.[0] ?? "", /Открыть дело/u);
+  assert.doesNotMatch(board.match(/function (?:CardMenu|AdmissionsCardMenu)[\s\S]*?\n\}\n/u)?.[0] ?? "", /Открыть дело/u);
 });
 
 test("a failed move renders a role=\"alert\" error and reverts the optimistic move", () => {
@@ -292,8 +297,31 @@ function boardHarness(moveAction) {
       address.location.search = url.slice(url.indexOf("?"));
     } },
   };
+  // The engine, the card menu and the words/types are production sources too: compiled with the same boundaries.
+  const wording = {
+    admissionsPipelineStage: (stage) => `stage:${stage}`, admissionsPipelineTab: (tab) => `tab:${tab}`,
+    caseChatAwaitState: () => "Ждёт ответа", country: (code) => code,
+  };
+  const boardModel = compile("src/components/v3/admissions-board/board-model.ts", (id) => ({ "@/lib/v3/wording": wording })[id]);
+  const cardMenu = compile("src/components/v3/admissions-board/AdmissionsCardMenu.tsx", (id) => ({
+    react: hooks, "@/components/icons": icons, "@/components/ui": ui, "@/components/v3/board/TopLayerMenu": topLayerMenu,
+    "@/lib/platform-admissions-pipeline-contract": pipelineContract, "@/lib/v3/wording": wording,
+  })[id]);
+  const engine = compile("src/components/v3/admissions-board/useAdmissionsBoard.ts", (id) => ({
+    react: hooks,
+    "next/navigation": { useRouter: () => ({ refresh() {} }) },
+    "@/components/v3/admissions-board/board-model": boardModel,
+    "@/components/v3/tasks/undo-deadline": undoDeadline,
+    "@/components/v3/board/board-undo": boardUndo,
+    "@/lib/platform-admissions-pipeline-actions": { moveCasePipelineAction: moveAction },
+    "@/lib/platform-admissions-pipeline-contract": pipelineContract,
+    "@/lib/v3/wording": wording,
+  })[id], { window: address });
   const board = compile("src/components/v3/AdmissionsPipelineBoard.tsx", (id) => ({
     react: hooks,
+    "@/components/v3/admissions-board/AdmissionsCardMenu": cardMenu,
+    "@/components/v3/admissions-board/board-model": boardModel,
+    "@/components/v3/admissions-board/useAdmissionsBoard": engine,
     "@/components/v3/blocks/Initials": initials,
     "@/components/v3/blocks/StatusChip": statusChip,
     "@/components/v3/blocks/UndoToast": undoToast,

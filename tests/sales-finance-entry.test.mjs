@@ -104,7 +104,8 @@ test("monthly cash validates the period before invoking readers and accepts true
 });
 
 test("sales record totals and plan remain independent of monthly cash availability", () => {
-  const view = readFileSync(new URL("../src/components/v3/SalesRegisterView.tsx", import.meta.url), "utf8");
+  // «Отчёт продаж»: чтения вынесены в `sales-register-page.ts` без изменений (27.10.2026) — прежний вид это оба файла.
+  const view = ["../src/components/v3/SalesRegisterView.tsx", "../src/lib/v3/sales-register-page.ts", "../src/lib/sales-register-money-view.ts"].map((path) => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
   // Э4 (27.09.2026, «Отчёт продаж» без коробок): сводка поступлений - факт месяца, а не архива записей; её не читает только
   // страница формы «Новая продажа» (`creatingForm`). Условие по-прежнему требует право на финансы и выбранный месяц.
   assert.match(view, /checkFinanceAccess && month && !creatingForm/);

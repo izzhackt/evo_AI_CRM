@@ -1,42 +1,35 @@
-import { isStaffPreview, staffCanAccessRoute, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
+import { staffCanAccessRoute } from "@/lib/platform-access";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Icon } from "@/components/icons";
-import { btnCls, btnGhostCls, inputCls } from "@/components/ui";
+import { btnCls, btnGhostCls } from "@/components/ui";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
-import { getPlatformSalesLead } from "@/lib/platform-sales";
-import { parseSalesUuid, type SalesRegisterWorkspace, type SalesRegisterIntakeOptions, type SalesRegisterRow } from "@/lib/platform-sales-register-contract";
-import { readSalesRegisterWorkspace, readSalesRegisterIntakeOptions, readSalesRegisterWriteAccess, readSalesRegisterDirections, readSalesRegisterManagement, readSalesRecordLeadLink } from "@/lib/v3/sales-register-source";
+import type { SalesRegisterWorkspace, SalesRegisterRow } from "@/lib/platform-sales-register-contract";
 import { SalesRecordLeadFact, SalesRecordLeadMenu } from "./SalesRecordLeadLink";
-import { readMonthlyPaymentSummary } from "@/lib/v3/finance-entry-source";
-import { readSalesCount } from "@/lib/v3/sales-numbers-source";
-import type { SalesCountRead } from "@/lib/sales-numbers-contract";
-import { SalesPeriodHeadline, salesHeadlinePeriod } from "./SalesPeriodHeadline";
-import { financeMoney, type MonthlyPaymentSummaryRead } from "@/lib/platform-finance-entry-contract";
-import { ORG_TIMEZONE } from "@/lib/v3/period";
+import { readSalesRegisterPage } from "@/lib/v3/sales-register-page";
+import { salesMoneyParts } from "@/lib/sales-register-money-view";
+import { SalesPeriodStepper } from "./sales-report/SalesPeriodStepper";
+import { SalesReportToolbar } from "./sales-report/SalesReportToolbar";
+import { SalesPeriodHeadline } from "./SalesPeriodHeadline";
+import { financeMoney } from "@/lib/platform-finance-entry-contract";
 import { SalesRegisterForm, SalesTargetForm } from "./SalesRegisterForms";
 import { SalesRecordPreview, salesRecordPanelHeader } from "./SalesRecordPreview";
 import { SalesWithdrawalControl } from "./SalesWithdrawal";
 import { StatusChip } from "./blocks/StatusChip";
 import { salesWithdrawalWord } from "@/lib/v3/wording";
-import { salesDirectionControl } from "@/lib/sales-register-directions";
-import type { SalesRegisterManagementRead } from "@/lib/sales-register-management";
 import {
-  SALES_PAGE_SIZE, SALES_STATUS_MISSING_TEXT, SALES_SUMMARY_MAX_PAGES, groupSalesLabels, recordsDative, recordsWord, salesLabelGroupOf, salesMoneySummary, salesPeriodSteps,
-  SALES_NO_REMAINDER_TEXT, salesDay, salesDayParts, salesReportMonth, salesRowContractPaid, salesRowNoRemainder, salesRowRemainder, salesRowReview, salesSummaryBasis,
+  SALES_STATUS_MISSING_TEXT, groupSalesLabels, recordsWord, salesLabelGroupOf, salesPeriodSteps,
+  SALES_NO_REMAINDER_TEXT, salesDay, salesDayParts, salesReportMonth, salesRowContractPaid, salesRowNoRemainder, salesRowRemainder, salesRowReview,
   salesWithdrawalTone,
-  type SalesLabelGroup, type SalesMoneySummary,
+  type SalesMoneySummary,
 } from "@/lib/sales-register-view";
 
-import { FilterMenu, type FilterOption } from "./queue/FilterMenu";
 import { attributeReturn, sidePanelSplit } from "./panel/side-panel";
 import { SidePanel } from "./panel/SidePanel";
-import { QueueFilterDisclosure } from "./queue/QueueFilterDisclosure";
-import { salesManagersHref, salesReportContext, type SalesReportQuery, type SalesSaleSlice } from "@/lib/sales-register-navigation";
+import { salesManagersHref, type SalesReportQuery, type SalesSaleSlice } from "@/lib/sales-register-navigation";
 export type { SalesReportQuery } from "@/lib/sales-register-navigation";
 
-const MONTHS = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 const number = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 2 });
 const money = (minor: number | null, currency: string | null) => minor === null || !currency ? null : `${number.format(minor / 100)} ${currency}`;
 const dateLabel = (date: string | null) => date ? date.split("-").reverse().join(".") : "Дата не указана";
@@ -157,18 +150,11 @@ type RowLayout = keyof typeof ROW_LAYOUT;
 /** Цвет ребра отказной строки — токен тона, ребро рисует `edgeRow` / `edgeName` (только у отказа). */
 const EDGE_TONE = { warn: "[--sale-edge:var(--warn)]", danger: "[--sale-edge:var(--danger)]" } as const;
 /** Что показывает таблица при срезе из заголовка «Продажи» (Э2). */
-const SALE_SLICE_TITLE: Record<SalesSaleSlice, string> = {
+export const SALE_SLICE_TITLE: Record<SalesSaleSlice, string> = {
   undated: "Записи без даты продажи: в продажи не входят",
   other_sale_date: "Записи с датой продажи в другом месяце: в продажи этого периода не входят",
   filed_elsewhere: "Продажи периода, записанные в другой месяц отчёта",
 };
-/**
- * Переключатель строки инструментов — ссылка вида кнопки фильтра (`FILTER_BUTTON`
- * очереди; модуль клиентский, поэтому класс повторён здесь), выбранный —
- * `aria-current` и общий `.v3-choice`.
- */
-const TOGGLE = "v3-choice inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg";
-const QUIET_LINK = "inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg";
 const PANEL_HEADING = "sale-panel-title";
 
 /**
@@ -186,61 +172,6 @@ export function SalesDynamicsReport({ dynamics }: { dynamics: ReactNode }) {
     </header>
     {dynamics}
   </main>;
-}
-
-/** Меню направления: одно имя на написания; у выбранной группы — её остальные написания. */
-function labelOptions(groups: readonly SalesLabelGroup[], selected: string | null, href: (value: string | null) => string): FilterOption[] {
-  const group = salesLabelGroupOf(groups, selected);
-  const options: FilterOption[] = [{ key: "all", label: "Все", href: href(null), selected: !selected }];
-  if (selected && !group) options.push({ key: "current", label: `Из фильтра: ${tidy(selected)}`, href: href(selected), selected: true });
-  for (const one of groups) {
-    options.push({ key: one.key, label: one.label, href: href(one.value), selected: selected === one.value });
-    if (group?.key === one.key) {
-      for (const variant of one.variants) {
-        if (variant === one.value) continue;
-        options.push({ key: `${one.key}:${variant}`, label: `другое написание: «${variant}»`, href: href(variant), selected: selected === variant });
-      }
-    }
-  }
-  return options;
-}
-
-/**
- * Меню менеджера (Э8.6, 253): один пункт на ключ написания — имя по таблице
- * владельца или самое частое написание — и число записей выборки после
- * выбора. Выбор — ключ; у кого есть «Менеджеры в отчёте», последний пункт
- * ведёт туда.
- */
-function managerOptions(workspace: SalesRegisterWorkspace, selected: string | null, href: (value: string | null) => string, managersHref: string | null): FilterOption[] {
-  const options: FilterOption[] = [{ key: "all", label: "Все", href: href(null), selected: !selected }];
-  const current = workspace.managerKey;
-  if (selected && current !== null && !workspace.managerOptions.some((option) => option.key === current)) {
-    options.push({ key: "current", label: `Из фильтра: ${tidy(selected)}`, href: href(selected), selected: true });
-  }
-  for (const option of workspace.managerOptions) {
-    options.push({ key: option.key, label: option.name, href: href(option.key), selected: option.key === current, count: option.count });
-  }
-  if (managersHref) options.push({ key: "managers", label: "Менеджеры в отчёте →", href: managersHref, selected: false });
-  return options;
-}
-
-/** Все записи выборки для остатка: те же фильтры, страницы по 50, до 10 страниц. */
-async function readSummaryRows(
-  actor: ActivePlatformActor,
-  first: SalesRegisterWorkspace,
-  offset: number,
-  selection: Omit<Parameters<typeof readSalesRegisterWorkspace>[1], "offset" | "recordId">,
-): Promise<Readonly<{ rows: readonly SalesRegisterRow[] }> | Readonly<{ rows: null; reason: "too_many" | "unavailable" }>> {
-  const pages = Math.ceil(first.totalCount / SALES_PAGE_SIZE);
-  if (pages <= 1 && offset === 0) return { rows: first.rows };
-  if (pages > SALES_SUMMARY_MAX_PAGES) return { rows: null, reason: "too_many" };
-  const reads = await Promise.all(Array.from({ length: pages }, (_, index) => index * SALES_PAGE_SIZE).map((pageOffset) =>
-    pageOffset === offset ? Promise.resolve(first) : readSalesRegisterWorkspace(actor, { ...selection, offset: pageOffset }).catch(() => null)));
-  if (reads.some((read) => read === null || read.totalCount !== first.totalCount)) return { rows: null, reason: "unavailable" };
-  const rows = reads.flatMap((read) => read!.rows);
-  // Выборка сменилась между чтениями — числа не складываются, остатка нет.
-  if (rows.length !== first.totalCount || new Set(rows.map((row) => row.id)).size !== rows.length) return { rows: null, reason: "unavailable" };
-  return { rows };
 }
 
 /**
@@ -281,41 +212,10 @@ function MoneySummary({ workspace, summary, basis, reason, filtered, yearOnly, f
       </section>
     );
   }
-  const within = [
-    basis && basis.undated > 0 ? `${basis.undated} без даты продажи` : null,
-    basis && basis.otherSaleDate > 0 ? `${basis.otherSaleDate} с датой продажи в другом ${yearOnly ? "году" : "месяце"}` : null,
-  ].filter(Boolean).join(" и ");
-  const recordsOf = filedElsewhere
-    ? yearOnly ? "с датой продажи в этом году и месяцем отчёта в другом году" : "с датой продажи в этом месяце и другим месяцем отчёта"
-    : `${yearOnly ? "года" : "месяца"} отчёта`;
-  const caption = `Суммы по ${total.toLocaleString("ru-RU")} ${recordsDative(total)} ${recordsOf}${filtered ? ", с фильтрами" : ""}${within ? `, из них ${within}` : ""}`;
-  // Суммы сервера (`totals`) не включают неуточнённые стоимость и оплату — как и прежде, это сказано числом.
-  const unresolved = !summary && (workspace.unresolvedCostCount > 0 || workspace.unresolvedPaidCount > 0)
-    ? `В денежные итоги не включены неуточнённые значения: стоимость — ${workspace.unresolvedCostCount}, оплата — ${workspace.unresolvedPaidCount}.` : null;
-  const left = summary ? [
-    summary.noCost > 0 ? `без стоимости — ${summary.noCost} ${recordsWord(summary.noCost)}` : null,
-    summary.paidMissing > 0 ? `оплата не указана — ${summary.paidMissing} ${recordsWord(summary.paidMissing)}` : null,
-    summary.paidUnclear > 0 ? `оплата не разобрана — ${summary.paidUnclear} ${recordsWord(summary.paidUnclear)}` : null,
-  ].filter(Boolean).join(", ") : "";
-  // Пары валют названы в строках таблицы («USD → KGS», число записей — подсказкой и для чтения с экрана):
-  // сноска говорит правило один раз, а не пересказывает каждую строку.
-  const cross = summary && summary.cross.length > 0
-    ? "Остаток не считается, если оплата в другой валюте и нет суммы в валюте договора."
-    : null;
-  const footnote = [
-    cross,
-    summary ? null : reason === "too_many"
-      ? `Остаток не посчитан: в выборке больше ${SALES_PAGE_SIZE * SALES_SUMMARY_MAX_PAGES} записей — сузьте период или фильтры.`
-      : "Остаток не посчитан: не удалось прочитать все записи выборки — обновите страницу.",
-    unresolved,
-    left ? `Не вошли: ${left}.` : null,
-    "Валюты не пересчитываются; это записи отчёта, не поступления за месяц.",
-  ].filter(Boolean).join(" ");
+  const { caption, footnote, lines } = salesMoneyParts({ workspace, summary, basis, reason, filtered, yearOnly, filedElsewhere, total });
   const head = "pb-1 ps-4 text-right font-medium sm:ps-10";
   const value = "py-1 ps-4 text-right align-baseline t-body-compact tabular-nums sm:ps-10";
   const label = "py-1 pe-3 text-left align-baseline";
-  const lines = summary ? summary.lines.map((line) => ({ currency: line.currency, cost: line.costMinor, paid: line.paidMinor, rest: line.remainderMinor as number | null }))
-    : workspace.totals.map((line) => ({ currency: line.currency, cost: line.costMinor, paid: line.paidMinor, rest: null }));
   return (
     <section aria-labelledby="sales-money-title" className="border-y border-border py-3" data-testid="sales-money-summary">
       <h2 id="sales-money-title" className="sr-only">Суммы по записям</h2>
@@ -500,78 +400,9 @@ function SaleRow({ row, year, href, selected, showReportMonth, showRemainder, ma
  * не показывается рядом с формой новой продажи.
  */
 export async function SalesRegisterView({ actor, query, dynamics = null }: { actor: ActivePlatformActor; query: SalesReportQuery; dynamics?: ReactNode }) {
-  const now = new Intl.DateTimeFormat("en-CA", { timeZone: ORG_TIMEZONE, year: "numeric", month: "2-digit" }).formatToParts(new Date());
-  const { year, month, offset, searchQuery, saleSlice, saleSliceHref, valid, reportMonth, params, href, clearFiltersHref, importHref } = salesReportContext(query, {
-    year: Number(now.find(p => p.type === "year")!.value), month: Number(now.find(p => p.type === "month")!.value),
-  });
-  const writeAccess = await readSalesRegisterWriteAccess(actor);
-  const canManage = writeAccess === "allowed";
-  const viewingRecord = Boolean(query.record);
-  const creating = query.new === "true" && !viewingRecord;
-  const editingRecord = viewingRecord && query.edit === "true";
-  // Новая продажа — отдельная страница формы; всё остальное — список (и панель записи).
-  const creatingForm = creating && canManage;
-  const directionsPromise = !creatingForm ? readSalesRegisterDirections(actor).catch(() => null) : Promise.resolve(null);
-  const managementPromise: Promise<SalesRegisterManagementRead> = valid && !creatingForm
-    ? readSalesRegisterManagement(actor, month && query.archived !== "true" ? reportMonth : null)
-    : Promise.resolve({ status: "denied" });
-  const checkFinanceAccess = staffHasPermission(actor, "finance.read.full") && !isStaffPreview(actor);
-  const selection = {
-    year, month, archived: query.archived === "true", manager: query.manager, direction: query.direction,
-    needsReview: query.review ? query.review === "true" : null, query: searchQuery, saleSlice,
-  };
-  let workspace: SalesRegisterWorkspace | null = null;
-  let intakeOptions: SalesRegisterIntakeOptions | null = null;
-  let cash: MonthlyPaymentSummaryRead | Readonly<{ status: "unavailable" }> | null = null;
-  // «Продажи» периода по одному определению (Э2): не зависит от фильтров строк.
-  const headlinePeriod = valid ? salesHeadlinePeriod(year, month) : null;
-  let salesCount: SalesCountRead | null = null;
-  // «Нужно уточнить · N»: то же чтение с отметкой; нет чтения — нет числа.
-  let reviewCount: number | null = null;
-  // «Оформить продажу» из Lead 360: имя лида для прежнего поиска формы.
-  let initialLead: Readonly<{ id: string; query: string }> | null = null;
-  if (valid) {
-    const leadId = creatingForm && typeof query.lead === "string" ? parseSalesUuid(query.lead) : null;
-    let reviewRead: number | null;
-    [workspace, cash, intakeOptions, salesCount, reviewRead, initialLead] = await Promise.all([
-      readSalesRegisterWorkspace(actor, { ...selection, offset, recordId: query.record ?? query.saved }).catch(() => null),
-      checkFinanceAccess && month && !creatingForm ? readMonthlyPaymentSummary(actor, year, month)
-        .catch(() => ({ status: "unavailable" as const })) : Promise.resolve(null),
-      creatingForm ? readSalesRegisterIntakeOptions(actor).catch(() => null) : Promise.resolve(null),
-      headlinePeriod && !creatingForm ? readSalesCount(actor, headlinePeriod) : Promise.resolve(null),
-      !creatingForm && query.review !== "true"
-        ? readSalesRegisterWorkspace(actor, { ...selection, needsReview: true, offset: 0 }).then((read) => read.totalCount, () => null)
-        : Promise.resolve(null),
-      leadId ? getPlatformSalesLead(actor, leadId).then((lead) => lead?.clientDisplayName ? { id: lead.leadId, query: lead.clientDisplayName } : null, () => null)
-        : Promise.resolve(null),
-    ]);
-    reviewCount = query.review === "true" ? workspace?.totalCount ?? null : reviewRead;
-  }
-  const archiveView = query.archived === "true";
-  // «Архив» — без сумм и остатка (как на сервере и до Э4): все страницы для остатка не читаются.
-  const summaryRead = workspace && !creatingForm && !archiveView ? await readSummaryRows(actor, workspace, offset, selection) : null;
-  const summary = summaryRead?.rows ? salesMoneySummary(summaryRead.rows) : null;
-  const summaryBasis = summaryRead?.rows ? salesSummaryBasis(summaryRead.rows, { year, month }) : null;
-  const management = await managementPromise;
-  const canTarget = management.status === "ready" && management.data.canManageTarget;
-  const canImport = management.status === "ready" && management.data.canImport;
-  const managementUnavailable = management.status === "unavailable";
-  // Hints only retain disabled drafts on a failed read; they never grant a write.
-  const showTargetForm = canTarget || (managementUnavailable && !isStaffPreview(actor) && staffHasPermission(actor, "sales.register.target.manage"));
-  const directions = await directionsPromise;
-  const directionControl = salesDirectionControl(directions, query.direction);
-  const rowFilters = Boolean(searchQuery || query.manager || query.direction || query.review || query.archived === "true");
-  const hasFilters = rowFilters || Boolean(saleSlice);
-  // Во «Весь год» и в срезе «записаны в другой месяц отчёта» у строк разные месяцы отчёта — его видно в строке.
-  const showReportMonth = month === undefined || saleSlice === "filed_elsewhere";
-  const saved = !creatingForm && !viewingRecord && query.saved && workspace?.selected?.id === query.saved ? workspace.selected : null;
-  // Дело, которое открыла эта продажа: адрес приходит из формы после сохранения, в нём только идентификатор.
-  const savedCaseId = saved && typeof query.case === "string" ? parseSalesUuid(query.case) : null;
-  // Карточку дела читает только тот, у кого есть право на дела (admissions.read); у Sales его нет — им остаётся карточка лида.
-  const canOpenSavedCase = savedCaseId !== null && staffPresentationCan(actor, "admissions.read");
-  const target = management.status === "ready" ? management.data.target : null;
-  const backHref = viewingRecord && workspace?.selected ? `${href()}#sale-${workspace.selected.id}` : href();
-  const panelOpen = viewingRecord && !creatingForm;
+  const {
+    year, month, offset, searchQuery, saleSlice, saleSliceHref, valid, reportMonth, params, href, clearFiltersHref, importHref, writeAccess, canManage, creating, editingRecord, creatingForm, workspace, intakeOptions, cash, headlinePeriod, salesCount, reviewCount, initialLead, archiveView, summaryRead, summary, summaryBasis, canImport, managementUnavailable, showTargetForm, directions, directionControl, rowFilters, hasFilters, showReportMonth, saved, savedCaseId, canOpenSavedCase, target, backHref, panelOpen, editing, linkedRecord, leadLink, showLeadRow, recordHref,
+  } = await readSalesRegisterPage(actor, query);
   // Рядом с открытой записью — короткий набор столбцов (Э8.6), иначе полный.
   const layout: RowLayout = panelOpen ? "compact" : "full";
   // В «Архиве» нет столбца «Остаток» (предпоследний): его место делят остальные.
@@ -584,19 +415,8 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
       ? actionColumn ? RECORD_COLUMNS_WITH_REPORT_MONTH_ACTION : RECORD_COLUMNS_WITH_REPORT_MONTH
       : actionColumn ? RECORD_COLUMNS_ACTION : RECORD_COLUMNS)
     .filter((_, index, all) => !archiveView || index !== all.length - 2);
-  const editing = editingRecord && canManage;
   // Шапка общей боковой панели (Э7): имя, строка контекста и «Открыть …» — прежние тексты записи.
   const panelHeader = panelOpen && workspace ? salesRecordPanelHeader(workspace.selected ?? null, editing) : null;
-  // «Связать с лидом» (Э8.7, 28.09.2026): только для просмотра импортированной
-  // записи; отдельное чтение — read_sales_register_v4 не трогаем. Не
-  // прочитано — строки нет вовсе, а не угаданное «не связана».
-  const linkedRecord = panelOpen && !editing ? workspace?.selected ?? null : null;
-  const showLeadLink = Boolean(linkedRecord && linkedRecord.sourceKind === "import");
-  const leadLinkRead = showLeadLink && linkedRecord ? await readSalesRecordLeadLink(actor, linkedRecord.id) : null;
-  const leadLink = leadLinkRead?.status === "ready" ? leadLinkRead.link : null;
-  const showLeadRow = showLeadLink && leadLinkRead?.status === "ready" && (leadLink !== null || canManage);
-  // Запись открывается просмотром (Э8.6); «Исправить запись» — форма, «Отмена» формы — снова просмотр.
-  const recordHref = workspace?.selected ? href({ record: workspace.selected.id }) : backHref;
 
   // Адреса строки инструментов: те же параметры, без страницы — выбор сразу применяется.
   const filterHref = (changes: Readonly<Record<string, string | null>>) => {
@@ -627,83 +447,17 @@ export async function SalesRegisterView({ actor, query, dynamics = null }: { act
   const hidden = Object.fromEntries([...params.entries()].filter(([key]) => key !== "q" && key !== "offset"));
 
   const toolbar = workspace ? (
-    <div role="group" aria-label="Поиск и фильтры" className="mt-4 flex flex-wrap items-center gap-2 first:mt-0" data-testid="sales-report-toolbar">
-      <form key={params.toString()} method="get" role="search" aria-label="Поиск по записям" className="min-w-48 flex-1 basis-full md:basis-48 md:max-w-xs">
-        {Object.entries(hidden).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
-        <label className="relative block">
-          <span className="sr-only">Имя, телефон или договор</span>
-          <Icon name="search" size={18} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-fg-3" />
-          <input name="q" type="search" defaultValue={searchQuery ?? (typeof query.q === "string" ? query.q : "")} maxLength={200}
-            placeholder="Имя, телефон, договор" enterKeyHint="search" autoComplete="off"
-            className="h-11 w-full min-w-0 rounded-ctl border border-control-edge bg-surface ps-10 pe-3 t-body text-fg placeholder:text-fg-3 hover:bg-surface-2 focus-visible:border-accent" />
-        </label>
-      </form>
-      <QueueFilterDisclosure activeCount={activeCount}>
-        <FilterMenu label="Менеджер" valueLabel={selectedManagerName}
-          options={managerOptions(workspace, selectedManager, (value) => filterHref({ manager: value }), managersHref)}
-          clearHref={selectedManager ? filterHref({ manager: null }) : null} />
-        {directionControl.kind === "select" ? (
-          <FilterMenu label="Направление" valueLabel={selectedDirection ? tidy(selectedDirection) : null}
-            options={labelOptions(directionGroups, selectedDirection, (value) => filterHref({ direction: value }))}
-            clearHref={selectedDirection ? filterHref({ direction: null }) : null} />
-        ) : (
-          // Список направлений не прочитан — ввод как в записи (прежнее поведение), применяется по Enter.
-          <form method="get" className="inline-flex" aria-label="Направление">
-            {Object.entries(hidden).filter(([name]) => name !== "direction").map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
-            {searchQuery ? <input type="hidden" name="q" value={searchQuery} /> : null}
-            <label className="block">
-              <span className="sr-only">Направление</span>
-              <input name="direction" defaultValue={directionControl.value} maxLength={1000} placeholder="Направление — как в записи"
-                aria-invalid={directionControl.reason === "invalid" ? true : undefined}
-                title={directionControl.reason === "invalid"
-                  ? "Введите направление до 500 символов без переносов строк и служебных символов."
-                  : "Не удалось загрузить список. Введите направление как в записи или обновите страницу."}
-                className={`${inputCls} min-h-11 w-56`} />
-            </label>
-          </form>
-        )}
-        <div role="group" aria-label="Уточнения" className="inline-flex">
-          <Link href={filterHref({ review: query.review === "true" ? null : "true" })} scroll={false}
-            aria-current={query.review === "true" ? "true" : undefined} className={`${TOGGLE} rounded-e-none`} data-testid="sales-review-toggle">
-            Нужно уточнить{reviewCount !== null ? <span className="tabular-nums">{" · "}{reviewCount}</span> : null}
-          </Link>
-          <Link href={filterHref({ review: query.review === "false" ? null : "false" })} scroll={false}
-            aria-current={query.review === "false" ? "true" : undefined} className={`${TOGGLE} -ms-px rounded-s-none`}>
-            Сверено
-          </Link>
-        </div>
-        <Link href={filterHref(query.archived === "true" ? { archived: null } : { archived: "true", sale: null })} scroll={false}
-          aria-current={query.archived === "true" ? "true" : undefined} className={TOGGLE}>
-          Архив
-        </Link>
-        {hasFilters ? <Link href={clearFiltersHref} scroll={false} className={`${QUIET_LINK} px-2`}>Сбросить</Link> : null}
-      </QueueFilterDisclosure>
-    </div>
+    <SalesReportToolbar workspace={workspace} query={query} params={params} searchQuery={searchQuery} hidden={hidden} activeCount={activeCount}
+      selectedManager={selectedManager} selectedManagerName={selectedManagerName} directionControl={directionControl} directionGroups={directionGroups}
+      selectedDirection={selectedDirection} filterHref={filterHref} managersHref={managersHref} reviewCount={reviewCount} hasFilters={hasFilters}
+      clearFiltersHref={clearFiltersHref} />
   ) : null;
 
   return <main className="mx-auto min-w-0 w-full max-w-[1240px] px-4 py-8 sm:px-6 min-[1600px]:max-w-[1480px]">
     {!creatingForm ? <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
       <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
         <h1 className="t-page-title text-fg">Отчёт продаж</h1>
-        {valid ? (
-          <div role="group" aria-label="Период отчёта" className="flex items-center" data-testid="sales-period-stepper">
-            <Link href={periodHref(steps.previous.year, steps.previous.month)} scroll={false}
-              aria-label={month ? "Предыдущий месяц" : "Предыдущий год"}
-              className="flex size-11 items-center justify-center rounded-ctl text-fg-2 hover:bg-surface-2 hover:text-fg">
-              <Icon name="chevron-right" size={18} className="rotate-180" />
-            </Link>
-            <FilterMenu label={month ? `${MONTHS[month - 1]} ${year}` : `${year} год`} valueLabel={null}
-              options={[
-                ...MONTHS.map((title, index) => ({ key: String(index + 1), label: `${title} ${year}`, href: periodHref(year, index + 1), selected: month === index + 1 })),
-                { key: "all", label: `Весь ${year} год`, href: periodHref(year, undefined), selected: month === undefined },
-              ]} />
-            <Link href={periodHref(steps.next.year, steps.next.month)} scroll={false}
-              aria-label={month ? "Следующий месяц" : "Следующий год"}
-              className="flex size-11 items-center justify-center rounded-ctl text-fg-2 hover:bg-surface-2 hover:text-fg">
-              <Icon name="chevron-right" size={18} />
-            </Link>
-          </div>
-        ) : null}
+        {valid ? <SalesPeriodStepper year={year} month={month} steps={steps} periodHref={periodHref} /> : null}
       </div>
       {workspace && canManage ? <Link href={href({ new: "true" })} className={`${btnCls} min-h-11`}>Добавить продажу</Link> : null}
     </div> : null}

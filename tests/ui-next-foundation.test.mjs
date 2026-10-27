@@ -246,6 +246,15 @@ test("PageHeader: h1 — прямой потомок первого потомк
   assert.equal((html.match(/<h1/g) ?? []).length, 1);
 });
 
+test("PageShell: слот `back` стоит над шапкой в той же рамке 1240 px; без него рамка прежняя", () => {
+  const { PageShell } = kit();
+  const html = renderToStaticMarkup(createElement(PageShell, { title: "Агент", testId: "page", back: createElement("a", { href: "/v3/list" }, "Назад") }, createElement("p", null, "Тело")));
+  assert.match(html, /^<main data-testid="page" class="mx-auto w-full px-4 py-8 sm:px-6 max-w-\[1240px\]"><a href="\/v3\/list">Назад<\/a><div data-slot="page-header"/);
+  assert.match(html, /<div class="mt-6 grid min-w-0 gap-4"><p>Тело<\/p><\/div><\/main>$/);
+  const plain = renderToStaticMarkup(createElement(PageShell, { title: "Список", testId: "page" }, createElement("p", null, "Тело")));
+  assert.match(plain, /^<main data-testid="page" class="[^"]*"><div data-slot="page-header"/, "без `back` шапка — первый потомок, как раньше");
+});
+
 test("KeyFacts: не больше четырёх колонок, пустые значения не рисуются, ряд без фактов не рисуется", () => {
   const { KeyFacts } = kit();
   const facts = [{ label: "Страна", value: "Китай" }, { label: "Бюджет", value: null }, { label: "Заметка", value: "" }, { label: "Этап", value: "Новая" }];
@@ -321,6 +330,11 @@ test("DataTable: страницы, прилипшая шапка, карточк
   assert.match(cards, /pointer-events-none relative/);
   assert.match(cards, /pointer-events-auto/, "ссылки и кнопки в ячейках ловят нажатия сами");
   assert.match(html, /aria-label="Поиск"/);
+  // Список, который сервер уже ограничил («последние 30»): `paginate={false}` — все строки, ни «из N», ни полосы страниц.
+  const whole = renderToStaticMarkup(createElement(DataTable, { label: "Заявки", data: rows, columns, getRowId: (row) => row.id, paginate: false }));
+  assert.equal((whole.match(/<tbody[\s\S]*<\/tbody>/)[0].match(/<tr/g) ?? []).length, 27, "все 27 строк сразу");
+  assert.doesNotMatch(whole, /data-slot="data-table-pagination"|\d+–\d+ из \d+/);
+  assert.equal((whole.match(/<ul class="grid gap-2 md:hidden" data-slot="data-table-cards">[\s\S]*?<\/ul>/)[0].match(/<li/g) ?? []).length, 27, "и на телефоне — все карточки");
   const empty = renderToStaticMarkup(createElement(DataTable, { label: "Пусто", data: [], columns }));
   assert.match(empty, /Пока пусто/);
   assert.doesNotMatch(empty, /<table/);

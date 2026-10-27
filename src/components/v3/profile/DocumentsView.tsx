@@ -87,7 +87,8 @@ export function documentsView(input: DocumentsViewInput): ReactElement {
         <ProgressBar done={counts.approved} total={counts.total} word="принято" />
       )}
       filter={checklistEmpty ? null : (
-        <QueueViewTabs label="Документы по состоянию" tabs={documentStateTabs(counts, input.filter, input.tabHref)} />
+        // «Новый вид»: фильтр - последняя строка карточки «Чек-лист»; своя нижняя линия легла бы рядом с рамкой карточки.
+        <QueueViewTabs label="Документы по состоянию" tabs={documentStateTabs(counts, input.filter, input.tabHref)} bare={input.nextUi === true} />
       )}
       checklistEmpty={checklistEmpty}
       emptyText={emptyText}

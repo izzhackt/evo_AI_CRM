@@ -93,9 +93,12 @@ function Fact({ label, children }: Readonly<{
  * Служебные сведения о передаче дела: сырые id, версии и режим передачи —
  * только в панели «Служебные сведения» вкладки, не в основной сводке.
  */
-function HandoffContext({ handoff }: Readonly<{
+function HandoffContext({ handoff, nextUi = false }: Readonly<{
   handoff: PlatformStudentCaseHandoffContext;
+  /** «Новый вид»: заголовок панели - `h2`, вложенный - `h3` (в прежнем листе `h3` и `h4`). */
+  nextUi?: boolean;
 }>) {
+  const Heading = nextUi ? "h3" : "h4";
   const exceptional = handoff.handoffMode === "exceptional_override";
   const modeLabel = exceptional ? "Исключение Admin" : handoff.handoffMode === "sales_report" ? "Из отчёта продаж" : "Обычная передача";
   // Ключ из базы на экран не попадает: неизвестный этап или источник не называется.
@@ -110,7 +113,7 @@ function HandoffContext({ handoff }: Readonly<{
       aria-labelledby="money-service-handoff"
     >
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <h4 id="money-service-handoff" className="t-item text-fg">Передача в поступление</h4>
+        <Heading id="money-service-handoff" className="t-item text-fg">Передача в поступление</Heading>
         <StatusChip label={modeLabel} tone={exceptional ? "warn" : "neutral"} />
       </div>
       <dl className="mt-1 grid gap-x-6 @xl:grid-cols-2">
@@ -187,12 +190,14 @@ export function ProfileContractWorkspace({
   organizationId,
   result,
   retry,
+  nextUi = false,
 }: Readonly<{
   snapshot: ProfileContractSnapshot;
   actor: import("@/lib/platform-auth").ActivePlatformActor;
   organizationId: string;
   result?: PlatformContractMutationOutcome;
   retry?: ProfileContractRetry;
+  nextUi?: boolean;
 }>) {
   if (actor.presentationRole === "sales") return null;
   if (
@@ -219,7 +224,7 @@ export function ProfileContractWorkspace({
       {snapshot.handoff ? (
         <CaseMoneyPanel id={CASE_MONEY_PANEL.service} label={caseMoneyWords.panels.service}>
           <div className="space-y-4">
-            <HandoffContext handoff={snapshot.handoff} />
+            <HandoffContext handoff={snapshot.handoff} nextUi={nextUi} />
             <ProfileAmoCrmCommandSection
               organizationId={organizationId}
               actor={actor}

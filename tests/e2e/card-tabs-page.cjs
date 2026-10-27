@@ -4,7 +4,7 @@
 
 /**
  * НАСТОЯЩАЯ страница `/v3/profile` (`src/app/(v3)/v3/profile/page.tsx`) для вкладок «Нового вида» в четырёх режимах переключателя:
- * администратор с cookie `evo_ui=next`, администратор без cookie, сотрудник с cookie, администратор в просмотре роли с cookie.
+ * администратор с cookie `evo_ui=next`, администратор без cookie, сотрудник и администратор в просмотре роли - каждый с cookie и без него.
  * Границы сервера (вход, cookie, чтения источников) заменены данными сценария; всё остальное - настоящий код страницы, `isNextUi`,
  * `caseWorkParts`/`caseNextParts`, `Profile`, вкладки. Асинхронные вкладки (`Documents`, `UniversityProgramsTab`, `CaseAgreement*`) заменены тем же
  * синхронным видом, что в `card-tabs-next-static-render.cjs`: статический рендер React не ждёт async-компоненты.
@@ -19,11 +19,14 @@ const Module = require("node:module");
 const { createElement: h } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 
+// Сотрудник и просмотр роли берутся и с cookie, и без него: тест сравнивает пары между собой (cookie не меняет их страницу).
 const MODES = [
   ["admin-cookie", "admin", "next"],
   ["admin-no-cookie", "admin", undefined],
   ["staff-cookie", "staff", "next"],
+  ["staff-no-cookie", "staff", undefined],
   ["preview-cookie", "preview", "next"],
+  ["preview-no-cookie", "preview", undefined],
 ];
 
 async function pageHtml({ fx, leads, scenarios, prepare }) {

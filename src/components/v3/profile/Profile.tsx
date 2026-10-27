@@ -316,7 +316,8 @@ export function Profile({
           // «Новый вид»: карточка набора, пояснение - за «?» её заголовка.
           <NamedCard title="Подтверждение вручную" id={LEAD_GATE_ANCHOR} testId="v3-lead-gate"
             help="Для передачи в поступление нужны договор и первый платёж. Подтвердите их здесь, если их нет ни в деле, ни в отчёте продаж.">
-            <HandoffGateForms actor={actor} gate={leadGate} requestIds={requestIds} bare />
+            {/* Поля короткие (сумма, номер договора): ширину держит `max-w-3xl`, как у прежнего листа. */}
+            <div className="max-w-3xl"><HandoffGateForms actor={actor} gate={leadGate} requestIds={requestIds} bare /></div>
           </NamedCard>
         ) : (
         <section id={LEAD_GATE_ANCHOR} aria-labelledby={`${LEAD_GATE_ANCHOR}-title`} className="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate">
@@ -343,6 +344,7 @@ export function Profile({
               organizationId={organizationId}
               result={contractResult}
               retry={contractRetry}
+              nextUi={nextUi}
             />
           ) : null} />
       ) : null}

@@ -208,16 +208,19 @@ export function CaseMoneyPanel({
 }>) {
   const money = useContext(CaseMoneyContext);
   const shown = money === null || money.open === id;
+  // «Новый вид»: открытая панель - карточка рядом с «Транши» и «Оплаты и чеки» (их заголовки `h2`), поэтому и её заголовок `h2`;
+  // в прежнем листе панели вложены в раздел `h2`, и заголовок остаётся `h3`.
+  const Heading = money?.next ? "h2" : "h3";
   return (
     <section id={id} data-money-panel="" hidden={!shown} aria-labelledby={`${id}-title`} className={money?.next ? "scroll-mt-20 rounded-card border border-border bg-card px-5 py-3" : "mt-4 scroll-mt-20 border-t border-border pt-1"}>
       <div className="flex min-h-12 items-center justify-between gap-3">
         {money?.next && help ? (
           <div className="flex min-w-0 items-center gap-1.5">
-            <h3 id={`${id}-title`} tabIndex={-1} data-money-panel-heading="" className="t-section text-fg">{label}</h3>
+            <Heading id={`${id}-title`} tabIndex={-1} data-money-panel-heading="" className="t-section text-fg">{label}</Heading>
             <HelpTip label={`Пояснение: ${label}`}>{help}</HelpTip>
           </div>
         ) : (
-          <h3 id={`${id}-title`} tabIndex={-1} data-money-panel-heading="" className="t-section text-fg">{label}</h3>
+          <Heading id={`${id}-title`} tabIndex={-1} data-money-panel-heading="" className="t-section text-fg">{label}</Heading>
         )}
         {money ? (
           <button type="button" onClick={money.hide} className={CLOSE}>

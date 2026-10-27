@@ -22,11 +22,13 @@ type Props = Readonly<{
 /**
  * Вкладка «Анкета» в «Новом виде»: «Заполнено студентом» (ответы анкеты платформы данными, «требуют проверки» - за «?»),
  * «Анкета студента» (прежняя форма проверки полей и файлов в карточках набора: `StudentProfileFields nextUi`) и «Другие сведения
- * дела» - карточкой, а когда есть форма полей, кнопкой с панелью. Данные, права и команды те же, что у прежней вкладки.
+ * дела» - карточкой («Сведения о лиде» у лида, «Сведения дела», когда рядом нет ответов анкеты), а когда есть форма полей, кнопкой с панелью. Данные, права и команды те же, что у прежней вкладки.
  */
 export function AnketaNext({ profile, draft, fieldsRequestId, fieldsReadOnly, documentsHref, routeHref }: Props) {
   const application = draft.studentApplication;
   const other = otherFactsShown(profile, draft);
+  // Карточка без формы полей: у лида дела нет («Сведения о лиде»); «Другие» она только рядом с ответами анкеты, иначе их не с чем сравнивать.
+  const otherTitle = !profile.student ? "Сведения о лиде" : application ? "Другие сведения дела" : "Сведения дела";
   // «Интересует» читается отдельно: пока оно читается, на месте строка о загрузке, остальная вкладка рисуется сразу.
   const otherFacts = interestNeeded(profile)
     ? <Suspense fallback={<p role="status" className="t-body-compact text-fg-3">Загружаем…</p>}><AnketaOtherFactsLoader profile={profile} draft={draft} /></Suspense>
@@ -38,8 +40,9 @@ export function AnketaNext({ profile, draft, fieldsRequestId, fieldsReadOnly, do
           title="Заполнено студентом"
           testId="v3-anketa-answers"
           help="Сведения требуют проверки: сверьте их с документами."
-          actions={<span className="t-meta text-fg-3">Отправлено {submittedDate(application.submittedAt)}</span>}
+          bodyClassName="grid grid-cols-1 gap-3"
         >
+          <p className="t-meta text-fg-3" data-testid="v3-anketa-submitted">Отправлено {submittedDate(application.submittedAt)}</p>
           <KeyFacts columns={2} facts={[...formatStudentApplicationAnswers(application.questionnaire), { label: "Почта", value: application.email }]} />
         </NamedCard>
       ) : null}
@@ -62,7 +65,7 @@ export function AnketaNext({ profile, draft, fieldsRequestId, fieldsReadOnly, do
         </MoreSheet>
       ) : null}
       {other && !draft.profileFields ? (
-        <NamedCard title="Другие сведения дела" testId="v3-anketa-other-card">{otherFacts}</NamedCard>
+        <NamedCard title={otherTitle} testId="v3-anketa-other-card">{otherFacts}</NamedCard>
       ) : null}
       {!other && !application && !draft.profileFields ? <p className="t-body-compact text-fg-2">Других сведений нет.</p> : null}
     </div>

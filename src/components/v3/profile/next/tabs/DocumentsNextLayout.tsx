@@ -68,8 +68,8 @@ export function DocumentsNextLayout({
           <div className={CARD_BODY}>{group.rows}</div>
         </div>
       ))}
-      {/* Распознавание и история удалённых - прежние раскрытия в рамке карточки: свои линии сверху и снизу у них скрыты. */}
-      {recognition ? <div className={`${CARD_FRAME_FLAT} px-5 [&_section]:border-t-0`}>{recognition}</div> : null}
+      {/* Распознавание и история удалённых - прежние раскрытия в рамке карточки: свои линии сверху и снизу, верхний отступ и поле у них сняты. */}
+      {recognition ? <div className={`${CARD_FRAME_FLAT} px-5 [&>section]:border-t-0 [&>section]:mt-0 [&>section]:pt-0`}>{recognition}</div> : null}
       {history ? <div className={`${CARD_FRAME_FLAT} px-5 [&_details]:border-y-0`}>{history}</div> : null}
     </section>
   );

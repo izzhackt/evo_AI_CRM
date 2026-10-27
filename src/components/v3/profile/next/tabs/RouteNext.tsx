@@ -13,7 +13,7 @@ type Handoff = ProfileDraft["handoffAcknowledgement"];
 
 /**
  * «Вузы и программы» в «Новом виде»: список вузов дела - одна карточка (кнопки добавления у её заголовка), пакеты партнёру -
- * вторая. Строки, их «⋯», формы статуса и партнёра, подготовка документов и пакеты - прежние части с теми же командами и правами
+ * вторая (кнопки добавления в шапке переносятся под заголовок, когда карточка узкая). Строки, их «⋯», формы статуса и партнёра, подготовка документов и пакеты - прежние части с теми же командами и правами
  * (`ProfileAdmissionsWorkspacePanel bare`, `PartnerPacketsPanel nextUi`); новое - только рамка. `@container/unis` стоит на
  * карточке: по её ширине строки выбирают одну колонку или три.
  */
@@ -51,6 +51,7 @@ export function RouteNext({
         testId="v3-profile-admissions-workspace"
         className="@container/unis"
         actions={toolbar}
+        wrapActions
         count={admissions.applications.length || null}
       >
         <ProfileAdmissionsWorkspacePanel

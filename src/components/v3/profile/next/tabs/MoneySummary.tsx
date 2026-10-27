@@ -19,7 +19,8 @@ export function MoneyStop({ reason, stopsPanel }: Readonly<{ reason: string; sto
       <p className="t-caption text-fg-3">{caseMoneyWords.rows.stop}</p>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <StatusBadge label="стоп активен" tone="danger" />
-        <span className="min-w-0 flex-1 break-words t-body-compact text-fg">{reason}</span>
+        {/* Узкая карточка: причина - своей строкой под значком и «Стопы» (иначе она остаётся колонкой в 1-2 слова); широкая - в одну строку. */}
+        <span className="order-last min-w-0 basis-full break-words t-body-compact text-fg @lg:order-none @lg:flex-1 @lg:basis-0" data-testid="v3-case-money-stop-reason">{reason}</span>
         {stopsPanel ? <CaseMoneyOpen panel={CASE_MONEY_PANEL.stops}>{caseMoneyWords.panels.stops}</CaseMoneyOpen> : null}
       </div>
     </div>

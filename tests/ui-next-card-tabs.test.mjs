@@ -44,7 +44,7 @@ test("«Документы»: карточка «Чек-лист» (прогре
   assert.match(text(html), /2 из 9 принято/u);
   assert.match(html, /<nav aria-label="Документы по состоянию"/u, "фильтр по состоянию — ссылки, как раньше");
   assert.match(html, /data-testid="v3-document-add-toggle"/u);
-  assert.equal(count(html, /data-testid="v3-document-row"|data-document-intent=/gu) >= 0, true);
+  assert.equal(count(html, /data-testid="v3-document-item"/gu), 9, "девять пунктов чек-листа, как в «9 принято»");
   // Те же строки `DocumentRow`, что у прежнего вида: столько же пунктов.
   assert.equal(count(html, /<li[^>]*scroll-mt-4 border-b border-border py-3/gu), count(legacy("docs-all"), /<li[^>]*scroll-mt-4 border-b border-border py-3/gu));
   assert.match(html, /data-testid="v3-removed-document-history"/u, "история удалённых пунктов есть");
@@ -176,6 +176,87 @@ test("каждая вкладка — карточки без вложенных
   }
 });
 
+/* ---------------------------------------------------------------- правки после проверки раскладки (27.10.2026) */
+
+const headerOf = (html, testId) => {
+  const card = html.slice(html.indexOf(`data-testid="${testId}"`));
+  return card.slice(card.indexOf('data-slot="card-header"'), card.indexOf('data-slot="card-content"'));
+};
+const levels = (html) => [...html.matchAll(/<h([1-6])[\s>]/gu)].map((match) => Number(match[1]));
+
+test("шапки карточек: дата анкеты не в действиях шапки, кнопки «Вузов» переносятся под заголовок, а не сжимают его в столбец", () => {
+  const answers = headerOf(next("anketa-full"), "v3-anketa-answers");
+  assert.ok(answers.length > 50, "шапка карточки «Заполнено студентом» найдена");
+  assert.doesNotMatch(answers, /Отправлено|data-slot="card-action"/u, "у шапки нет действий: дата не занимает клетку заголовка");
+  assert.match(next("anketa-full"), /<p class="t-meta text-fg-3" data-testid="v3-anketa-submitted">Отправлено 20 августа 2026 г\.<\/p>/u, "дата — первой строкой тела карточки");
+  const route = headerOf(next("route-four"), "v3-profile-admissions-workspace");
+  const tokens = (header) => (header.match(/data-slot="card-header" class="([^"]+)"/u)?.[1] ?? assert.fail("шапка карточки")).split(" ");
+  assert.ok(tokens(route).includes("flex") && tokens(route).includes("flex-wrap"), "шапка списка вузов переносится строкой, как прежняя");
+  assert.ok(!tokens(route).includes("grid"), "и не сетка с колонкой `auto` под кнопки");
+  assert.match(route, /data-slot="card-action" class="[^"]*\bml-auto\b/u, "кнопки прижаты вправо, когда помещаются");
+  // Общая карточка по умолчанию та же: сетка «заголовок — действия».
+  assert.ok(tokens(headerOf(next("money-same"), "v3-case-agreement")).includes("grid"));
+  assert.match(read(`${NEW_DIR}/RouteNext.tsx`), /<NamedCard[^>]*\bwrapActions\b/u);
+});
+
+test("причина финансового стопа: на узкой карточке своей строкой под значком и «Стопы», на широкой — в одной строке", () => {
+  const stop = next("money-cross");
+  const reason = stop.match(/<span class="([^"]+)" data-testid="v3-case-money-stop-reason">Второй платёж просрочен/u)?.[1] ?? assert.fail("причина стопа");
+  for (const token of ["order-last", "basis-full", "@lg:order-none", "@lg:flex-1", "@lg:basis-0"]) assert.ok(reason.split(" ").includes(token), `причина стопа: ${token}`);
+  assert.ok(!reason.split(" ").includes("flex-1") && !reason.split(" ").includes("basis-0"), "на узкой карточке нет `flex-1` с нулевой основой (из-за неё она 1-2 слова в колонке)");
+  assert.match(text(stop), /стоп активен.*Второй платёж просрочен/u, "причина и значок по-прежнему на виду");
+});
+
+test("«Анкета»: у лида карточка называется «Сведения о лиде» (дела нет), у дела без ответов анкеты — «Сведения дела»; «Другие» — только рядом с формой или ответами", () => {
+  const lead = next("lead-anketa");
+  assert.match(lead, /<h2[^>]*>Сведения о лиде<\/h2>/u);
+  assert.doesNotMatch(text(lead), /сведения дела/iu, "у лида нет дела");
+  assert.match(text(lead), /Человек.*Что выяснили при квалификации/u, "содержимое то же");
+  assert.match(next("anketa-simple"), /<h2[^>]*>Сведения дела<\/h2>/u);
+  assert.doesNotMatch(next("anketa-simple"), /Другие сведения дела/u);
+  assert.match(next("anketa-full"), /data-testid="v3-anketa-other-open"[^>]*>Другие сведения дела</u, "рядом с формой и ответами — «Другие сведения дела»");
+  const source = read(`${NEW_DIR}/AnketaNext.tsx`);
+  assert.match(source, /Сведения о лиде/u);
+});
+
+test("«Договор и оплата»: заголовок открытой панели «⋯» — `h2`, как у соседних карточек; вложенный «Передача в поступление» — `h3`; прежний лист — `h3` и `h4`", () => {
+  for (const name of ["money-same", "money-cross", "money-empty"]) {
+    const html = next(name);
+    const panels = [...html.matchAll(/<(h\d) id="money-[a-z-]+-title" tabindex="-1" data-money-panel-heading=""/gu)].map((match) => match[1]);
+    assert.ok(panels.length >= 4, `${name}: панели`);
+    assert.ok(panels.every((tag) => tag === "h2"), `${name}: заголовки панелей ${panels}`);
+    assert.match(html, /<h3 id="money-service-handoff"[^>]*>Передача в поступление<\/h3>/u, `${name}: вложенный заголовок на уровень ниже панели`);
+    const order = levels(html);
+    assert.deepEqual(order.filter((level, index) => index > 0 && level - order[index - 1] > 1), [], `${name}: уровни заголовков не перескакивают ${order}`);
+    const old = legacy(name);
+    assert.ok([...old.matchAll(/<(h\d) id="money-[a-z-]+-title" tabindex="-1" data-money-panel-heading=""/gu)].every((match) => match[1] === "h3"), `${name}: прежний лист — h3`);
+    assert.match(old, /<h4 id="money-service-handoff"[^>]*>Передача в поступление<\/h4>/u, `${name}: прежний вложенный заголовок — h4`);
+  }
+});
+
+test("«Файлы анкеты»: заголовок карточки того же размера, что у соседних карточек (16/24, 600); прежний вид — прежний `h4`", () => {
+  assert.match(next("anketa-full"), /<h3 class="text-base font-semibold leading-6 text-fg">Файлы анкеты<\/h3>/u);
+  assert.match(legacy("anketa-full"), /<h4 class="text-sm font-semibold">Файлы анкеты<\/h4>/u);
+  // Размер «t-section» из таблицы стилей: 16/24/600 — ровно то, что дают `text-base leading-6 font-semibold`.
+  const css = read("src/app/(v3)/v3.css");
+  assert.match(css, /--type-section: 16px;/u);
+  assert.match(css, /--type-section-leading: 24px;/u);
+});
+
+test("«Документы»: у фильтра в карточке «Чек-лист» нет своей нижней линии; распознавание не имеет верхнего отступа; прежний фильтр — с линией", () => {
+  const html = next("docs-all");
+  const nav = html.slice(html.indexOf('<nav aria-label="Документы по состоянию"'));
+  assert.match(nav.slice(0, nav.indexOf("</nav>")), /<ul class="flex min-w-max items-center gap-1" data-tab-ring="inset">/u);
+  assert.match(legacy("docs-all"), /<ul class="flex min-w-max items-center gap-1 border-b border-border pb-2">/u);
+  assert.match(html, /<div class="[^"]*\[&amp;&gt;section\]:border-t-0 \[&amp;&gt;section\]:mt-0 \[&amp;&gt;section\]:pt-0[^"]*"><section class="mt-3 pt-1" data-testid="document-recognition"/u, "раскрытие распознавания в карточке без своих линии и отступа");
+});
+
+test("лид: «Подтверждение вручную» — форма в обёртке `max-w-3xl`, как в прежнем листе", () => {
+  const gate = next("lead-money-gate");
+  assert.match(gate.slice(gate.indexOf('data-testid="v3-lead-gate"')), /<div class="max-w-3xl">/u);
+  assert.match(legacy("lead-money-gate"), /<section id="[^"]+" aria-labelledby="[^"]+" class="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate">/u);
+});
+
 /* ---------------------------------------------------------------- страница целиком: переключатель */
 
 const DOCS_NEW = /data-testid="v3-documents-checklist"/u;
@@ -203,8 +284,14 @@ test("страница `/v3/profile`: новый вид вкладок — то�
       assert.doesNotMatch(old, NEW_ONLY[name], `${name}/${mode}: вкладка — прежняя`);
     }
   }
-  // Сотрудник и просмотр роли с cookie получают ровно то, что без cookie (cookie их вид не меняет): разметка одной страницы, режим меняет только актёра.
-  assert.equal(real("history-long", "staff-cookie"), real("history-long", "staff-cookie"));
+  // Сотрудник и просмотр роли с cookie получают ровно то, что без cookie (cookie их вид не меняет): страница каждого сценария
+  // в паре «с cookie» и «без cookie» одна и та же, а у администратора cookie её меняет.
+  const names = [...new Set([...realPages.keys()].map((key) => key.split(":")[0]))];
+  assert.equal(names.length, 15, "четырнадцать вкладок дела и закрытый лид");
+  for (const name of names) {
+    for (const who of ["staff", "preview"]) assert.equal(real(name, `${who}-cookie`), real(name, `${who}-no-cookie`), `${name}: cookie меняет страницу (${who})`);
+    assert.notEqual(real(name, "admin-cookie"), real(name, "admin-no-cookie"), `${name}: у администратора cookie не меняет страницу`);
+  }
   // Закрытый лид: у сотрудника без права «Продажи» чтения закрытых нет — прежнее «не найден», а не новый вид.
   assert.match(text(real("lead-closed", "staff-cookie")), /Профиль не найден или недоступен вам\./u);
   assert.match(text(real("lead-closed", "admin-no-cookie")), /Лид закрыт|Вернуть в работу|закрыт/u);

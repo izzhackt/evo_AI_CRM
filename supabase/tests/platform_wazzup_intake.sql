@@ -1817,7 +1817,7 @@ SELECT pg_temp.a325_assert((:'a325_tr1'::JSONB ->> 'activeTransport') = 'wazzup'
   AND (:'a325_tr1'::JSONB #>> '{channel,transport}') = 'whatsapp' AND (:'a325_tr1'::JSONB #>> '{channel,observedAt}') IS NOT NULL
   AND (:'a325_tr1'::JSONB ->> 'lastInboundAt') IS NOT NULL
   AND (:'a325_tr1'::JSONB - ARRAY['activeTransport', 'canReply', 'replyMode', 'channel', 'lastInboundAt']) = '{}'::JSONB
-  AND (:'a325_tr1'::JSONB -> 'channel') - ARRAY['transport', 'state', 'observedAt'] = '{}'::JSONB
+  AND (:'a325_tr1'::JSONB -> 'channel') - ARRAY['transport', 'state', 'observedAt', 'last4'] = '{}'::JSONB -- last4: migration 326, absent at the 325 boundary
   AND (:'a325_tr2'::JSONB ->> 'activeTransport') = 'none' AND (:'a325_tr2'::JSONB ->> 'canReply') = 'true' AND (:'a325_tr2'::JSONB ->> 'replyMode') = 'waha'
   AND (:'a325_tr2'::JSONB -> 'lastInboundAt') = 'null'::JSONB
   AND pg_temp.a325_err(:'a325_tr3'::JSONB) IS NULL AND (:'a325_tr3'::JSONB ->> 'activeTransport') = 'none' AND (:'a325_tr3'::JSONB -> 'channel') = 'null'::JSONB,

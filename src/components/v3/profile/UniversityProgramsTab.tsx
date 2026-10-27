@@ -13,6 +13,8 @@ import { ApplicationCreateDialog } from "./ApplicationCreateDialog";
 import { CatalogPreparationLauncher } from "./StaffCatalogPreparationPicker";
 import { casePrimaryAction } from "./case-work-view";
 import { studentsHandoffPending } from "../students/students-queue-view";
+import { HelpTip } from "@/components/kit/HelpTip";
+import { RouteNext } from "./next/tabs/RouteNext";
 
 /**
  * Вкладка «Вузы и программы» (unified workflow S4, plan §8, §11) — заменяет
@@ -32,6 +34,7 @@ export async function UniversityProgramsTab({
   routeHref,
   packetsInitiallyOpen = false,
   packetApplicationId = null,
+  nextUi = false,
 }: {
   actor: ActivePlatformActor;
   draft: ProfileDraft;
@@ -40,6 +43,8 @@ export async function UniversityProgramsTab({
   packetsInitiallyOpen?: boolean;
   /** `packet_application` адреса: заявка, выбранная в форме пакета (проверяется по заявкам дела). */
   packetApplicationId?: string | null;
+  /** «Новый вид»: те же чтения, другая раскладка (`RouteNext`). */
+  nextUi?: boolean;
 }) {
   const caseId = draft.admissions?.studentCaseId;
   if (!caseId || actor.presentationRole === "sales") return null;
@@ -51,7 +56,7 @@ export async function UniversityProgramsTab({
   return (
     <UniversityProgramsView actor={actor} draft={draft} routeHref={routeHref} partnerDetails={partnerDetails}
       preparations={preparations} packets={packets} packetsInitiallyOpen={packetsInitiallyOpen}
-      packetApplicationId={packetApplicationId} nowIso={new Date().toISOString()} />
+      packetApplicationId={packetApplicationId} nowIso={new Date().toISOString()} nextUi={nextUi} />
   );
 }
 
@@ -83,6 +88,7 @@ export function UniversityProgramsView({
   packetsInitiallyOpen = false,
   packetApplicationId = null,
   nowIso,
+  nextUi = false,
 }: {
   actor: ActivePlatformActor;
   draft: ProfileDraft;
@@ -93,6 +99,7 @@ export function UniversityProgramsView({
   packetsInitiallyOpen?: boolean;
   packetApplicationId?: string | null;
   nowIso: string;
+  nextUi?: boolean;
 }) {
   const admissions = draft.admissions;
   if (!admissions || actor.presentationRole === "sales") return null;
@@ -119,8 +126,9 @@ export function UniversityProgramsView({
       {/* Не <p>: окно ручного ввода (<dialog>) рисуется рядом со своей кнопкой. Узкий экран: сначала
           главная кнопка, тихая ссылка — под ней; с 48rem — ссылка перед кнопкой в одной строке. */}
       <div className="order-last flex flex-wrap items-center gap-x-1.5 t-body-compact text-fg-2 @min-[48rem]/unis:order-none">
-        {canSelect ? <span>Вуза нет в каталоге?</span> : null}
+        {canSelect && !nextUi ? <span>Вуза нет в каталоге?</span> : null}
         <ApplicationCreateDialog workspace={admissions} />
+        {canSelect && nextUi ? <HelpTip label="Пояснение: Добавить вручную" align="end">Вуза нет в каталоге? Добавьте его вручную: это вариант, а не подача документов.</HelpTip> : null}
       </div>
       {canSelect ? (
         <CatalogPreparationLauncher
@@ -135,6 +143,25 @@ export function UniversityProgramsView({
     </>
   ) : null;
 
+  // Без заявлений пакет собрать не из чего — раскрытия нет.
+  const packetsPanel = applications.length ? (
+    <PartnerPacketsPanel
+      caseId={caseId}
+      active={active}
+      applications={applications}
+      workspace={packets}
+      initiallyOpen={packetsInitiallyOpen}
+      initialApplicationId={applications.some((application) => application.id === packetApplicationId) ? packetApplicationId : null}
+      nextUi={nextUi}
+    />
+  ) : null;
+  if (nextUi) {
+    return (
+      <RouteNext actor={actor} admissions={admissions} partnerDetails={partnerDetails} preparations={preparations} nowIso={nowIso}
+        routeHref={routeHref} toolbar={toolbar} handoff={handoff} casePage={casePage} packets={packetsPanel} />
+    );
+  }
+
   return (
     <div className="space-y-6" data-testid="v3-universities-programs">
       {handoff && !casePage ? <ProfileHandoffAcknowledgement snapshot={handoff} /> : null}
@@ -147,17 +174,7 @@ export function UniversityProgramsView({
         packetsHref={routeHref}
         toolbar={toolbar}
       />
-      {/* Без заявлений пакет собрать не из чего — раскрытия нет. */}
-      {applications.length ? (
-        <PartnerPacketsPanel
-          caseId={caseId}
-          active={active}
-          applications={applications}
-          workspace={packets}
-          initiallyOpen={packetsInitiallyOpen}
-          initialApplicationId={applications.some((application) => application.id === packetApplicationId) ? packetApplicationId : null}
-        />
-      ) : null}
+      {packetsPanel}
     </div>
   );
 }

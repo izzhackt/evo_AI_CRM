@@ -21,7 +21,11 @@ import { caseMoneyWords } from "@/lib/v3/wording";
 import { StatusChip } from "../blocks/StatusChip";
 import { CaseAgreementBlock } from "./CaseAgreementBlock";
 import { CaseMoneyPanel, CaseMoneySection } from "./CaseMoney";
-import { CASE_MONEY_PANEL, moneyMomentDay, type CaseMoneyPanelEntry } from "./case-money-view";
+import { CASE_MONEY_PANEL, moneyMomentDay } from "./case-money-view";
+import { moneyPanelPlan } from "./money-panels";
+import { AnketaNext } from "./next/tabs/AnketaNext";
+import { HistoryNext } from "./next/tabs/HistoryNext";
+import { MoneyNext } from "./next/tabs/MoneyNext";
 import { CaseHelpWorkspace } from "./CaseHelpWorkspace";
 import { CaseTasksPanel } from "./CaseTasksPanel";
 import { FinanceEntryWorkspace } from "./FinanceEntryWorkspace";
@@ -456,11 +460,14 @@ export function Overview({
 
 /* ----------------------------------------------------------------- Анкета */
 
-export function Anketa({ profile, draft, fieldsRequestId, fieldsReadOnly, documentsHref, routeHref = null }: {
+export function Anketa({ profile, draft, fieldsRequestId, fieldsReadOnly, documentsHref, routeHref = null, nextUi = false }: {
   profile: PersonProfile; draft: ProfileDraft;
   fieldsRequestId: string; fieldsReadOnly: boolean; documentsHref: string | null;
   routeHref?: string | null;
+  /** «Новый вид»: те же данные в карточках набора (`AnketaNext`); без признака разметка прежняя. */
+  nextUi?: boolean;
 }) {
+  if (nextUi) return <AnketaNext profile={profile} draft={draft} fieldsRequestId={fieldsRequestId} fieldsReadOnly={fieldsReadOnly} documentsHref={documentsHref} routeHref={routeHref} />;
   // Пустые карточки не рисуются: одна строка вместо двух «ничего не заполнено».
   // Интересующее направление лида без дела стоит в «Сведениях» Lead 360, не здесь.
   const personShown = [profile.phone, profile.email].some(Boolean) || draft.person.some((fact) => fact.value !== null);
@@ -534,6 +541,7 @@ export function Money({
   saleConditionsHref,
   financeVisible,
   contractWorkspace,
+  nextUi = false,
 }: {
   profile: PersonProfile;
   draft: ProfileDraft;
@@ -542,25 +550,15 @@ export function Money({
   saleConditionsHref: string | null;
   financeVisible: boolean;
   contractWorkspace: React.ReactNode;
+  /** «Новый вид»: лист - набор карточек (`MoneyNext`); права, чтения и панели те же. */
+  nextUi?: boolean;
 }) {
-  const financeCaseId = draft.admissions?.studentCaseId ?? salesCaseId ?? null;
-  // Раздел договора: то же правило, что у ProfileContractWorkspace (у роли продаж его нет).
-  const contractCaseId = contractWorkspace && draft.contract && actor.presentationRole !== "sales"
-    ? draft.contract.workspace.studentCaseId : null;
-  // Navigation to the shared section does not grant any financial read access.
-  const finance = financeVisible && draft.admissions?.finance ? draft.admissions : null;
-  const operations = financeVisible && financeCaseId !== null && !isStaffPreview(actor)
-    && (staffPresentationCan(actor, "admissions.read") || staffHasPermission(actor, "finance.event.confirm"));
+  if (nextUi) return <MoneyNext {...{ profile, draft, actor, salesCaseId, saleConditionsHref, financeVisible, contractWorkspace }} />;
+  const { financeCaseId, contractCaseId, finance, operations, panels } = moneyPanelPlan({
+    draft, actor, salesCaseId, financeVisible, contractWorkspace: Boolean(contractWorkspace),
+  });
   const words = caseMoneyWords.panels;
   const today = dayInOrganizationTimezone(new Date());
-  const candidates: readonly (CaseMoneyPanelEntry | null)[] = [
-    contractCaseId ? { id: CASE_MONEY_PANEL.contract, label: words.contract } : null,
-    finance ? { id: CASE_MONEY_PANEL.obligations, label: words.obligations } : null,
-    finance ? { id: CASE_MONEY_PANEL.stops, label: words.stops } : null,
-    operations ? { id: CASE_MONEY_PANEL.operations, label: words.operations } : null,
-    contractCaseId && draft.contract?.handoff ? { id: CASE_MONEY_PANEL.service, label: words.service } : null,
-  ];
-  const panels = candidates.filter((panel): panel is CaseMoneyPanelEntry => panel !== null);
 
   return (
     <CaseMoneySection panels={panels} contractCaseId={contractCaseId}>
@@ -624,7 +622,8 @@ export function Money({
 
 /* --------------------------------------------------------------- История */
 
-export function History({ profile }: { profile: PersonProfile }) {
+export function History({ profile, nextUi = false }: { profile: PersonProfile; /** «Новый вид»: `HistoryNext`. */ nextUi?: boolean }) {
+  if (nextUi) return <HistoryNext profile={profile} />;
   const today = dayInOrganizationTimezone(new Date());
   return (
     <div className="grid gap-4 @4xl:grid-cols-2">

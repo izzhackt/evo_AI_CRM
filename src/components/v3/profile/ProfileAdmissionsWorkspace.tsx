@@ -712,6 +712,7 @@ export function ProfileAdmissionsWorkspacePanel({
   nowIso,
   packetsHref = null,
   toolbar = null,
+  bare = false,
 }: Readonly<{
   actor: ActivePlatformActor;
   workspace: ProfileAdmissionsWorkspace | null;
@@ -724,6 +725,11 @@ export function ProfileAdmissionsWorkspacePanel({
   packetsHref?: string | null;
   /** «+ Вуз из каталога» и «Добавить вручную» — у заголовка списка. */
   toolbar?: ReactNode;
+  /**
+   * «Новый вид»: только список без своего раздела, заголовка и панели кнопок - их рисует карточка страницы
+   * (`RouteNext`), она же держит контейнер `@container/unis`, по ширине которого строки считают колонки.
+   */
+  bare?: boolean;
 }>) {
   if (!workspace) return null;
   const canWrite = workspace.caseState === "active" && !isStaffPreview(actor);
@@ -734,6 +740,42 @@ export function ProfileAdmissionsWorkspacePanel({
   const canInitializeRequirements = canWrite && staffHasPermission(actor, "document.manage");
   const canReviewDocuments = canWrite && staffHasPermission(actor, "document.review");
   const rows = universityRows(workspace.applications, saved, new Date(nowIso));
+
+  const notice = preparations && preparations.status !== "ready" ? (
+    <p role="status" className={bare ? "mb-3 t-body-compact text-fg-2" : "mt-2 t-body-compact text-fg-2"}>
+      {preparations.status === "forbidden" ? "Нет доступа к сохранённым подготовкам в текущем режиме." : "Не удалось прочитать сохранённые подготовки. Обновите страницу; существующие заявки сохранены."}
+    </p>
+  ) : null;
+  const list = rows.length === 0 ? (
+    <p className={bare ? "py-2 t-body-compact text-fg-2" : "mt-3 border-y border-border py-4 t-body-compact text-fg-2"} data-testid="v3-universities-empty">
+      {canWriteApplications ? "Вузов пока нет. Добавленный вуз — это вариант, а не подача документов." : "Вузов пока нет."}
+    </p>
+  ) : (
+    <ul className={bare ? "divide-y divide-border" : "mt-3 divide-y divide-border border-y border-border"}>
+      {rows.map((row) => (
+        <UniversityRowItem
+          key={row.applicationId}
+          row={row}
+          workspace={workspace}
+          details={partnerDetails.find((item) => item.applicationId === row.applicationId)}
+          canWrite={canWriteApplications}
+          packetsHref={packetsHref}
+          preparation={row.preparation ? (
+            <StaffPreparationPanel
+              key={`${scope.organizationId}:${scope.membershipId}:${row.preparation.applicationId}`}
+              preparation={row.preparation}
+              scope={scope}
+              canRead={canReadRequirements}
+              canReview={canReviewDocuments}
+              canInitialize={canInitializeRequirements && row.preparation.applicationStatus === "preparation"}
+              documentsAwaitCurator={caseDocumentsAwaitCurator(workspace.caseState)}
+            />
+          ) : null}
+        />
+      ))}
+    </ul>
+  );
+  if (bare) return <div data-testid="v3-profile-admissions-list">{notice}{list}</div>;
 
   return (
     <section
@@ -746,40 +788,8 @@ export function ProfileAdmissionsWorkspacePanel({
         <h2 id="applications-title" className="me-auto t-section text-fg">Вузы и программы</h2>
         {toolbar}
       </div>
-      {preparations && preparations.status !== "ready" ? (
-        <p role="status" className="mt-2 t-body-compact text-fg-2">
-          {preparations.status === "forbidden" ? "Нет доступа к сохранённым подготовкам в текущем режиме." : "Не удалось прочитать сохранённые подготовки. Обновите страницу; существующие заявки сохранены."}
-        </p>
-      ) : null}
-      {rows.length === 0 ? (
-        <p className="mt-3 border-y border-border py-4 t-body-compact text-fg-2" data-testid="v3-universities-empty">
-          {canWriteApplications ? "Вузов пока нет. Добавленный вуз — это вариант, а не подача документов." : "Вузов пока нет."}
-        </p>
-      ) : (
-        <ul className="mt-3 divide-y divide-border border-y border-border">
-          {rows.map((row) => (
-            <UniversityRowItem
-              key={row.applicationId}
-              row={row}
-              workspace={workspace}
-              details={partnerDetails.find((item) => item.applicationId === row.applicationId)}
-              canWrite={canWriteApplications}
-              packetsHref={packetsHref}
-              preparation={row.preparation ? (
-                <StaffPreparationPanel
-                  key={`${scope.organizationId}:${scope.membershipId}:${row.preparation.applicationId}`}
-                  preparation={row.preparation}
-                  scope={scope}
-                  canRead={canReadRequirements}
-                  canReview={canReviewDocuments}
-                  canInitialize={canInitializeRequirements && row.preparation.applicationStatus === "preparation"}
-                  documentsAwaitCurator={caseDocumentsAwaitCurator(workspace.caseState)}
-                />
-              ) : null}
-            />
-          ))}
-        </ul>
-      )}
+      {notice}
+      {list}
     </section>
   );
 }

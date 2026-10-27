@@ -25,6 +25,8 @@ import type { TaskFilterBarData } from "./task-filter-menus";
 import { sameTaskRows, taskRows, type TaskBand, type TaskLead, type TaskRow } from "./task-table-model";
 import { useTaskBulk } from "./useTaskBulk";
 
+const PAGE_SIZE = 25;
+
 /** Клавиши очереди (j/k, «x») живут, пока панель задачи закрыта: открытая панель держит фокус внутри себя. */
 function QueueKeys() {
   useQueueKeyboard({ openKey: null });
@@ -47,7 +49,7 @@ function useStableRows(next: TaskRow[]): TaskRow[] {
  * читает и проверяет страница и сервер; таблица только показывает их.
  */
 export function TasksTable({
-  bands, open, listParams, showAssignee, nowIso, permissions, leads, dial, filterBar, empty, sheet, closeHref, moveOpen,
+  bands, open, listParams, showAssignee, nowIso, permissions, leads, dial, filterBar, empty, partial, sheet, closeHref, moveOpen,
 }: Readonly<{
   bands: readonly TaskBand[];
   open: boolean;
@@ -59,6 +61,8 @@ export function TasksTable({
   dial: DialOptions | null;
   filterBar: TaskFilterBarData;
   empty: Readonly<{ title: string; action: Readonly<{ label: string; href: string }> | null }>;
+  /** Чтение неполное: таблица не называет общее число («1–25», а не «1–25 из 50»). */
+  partial: boolean;
   sheet: TaskSheetData | null;
   closeHref: string;
   moveOpen: boolean;
@@ -73,7 +77,9 @@ export function TasksTable({
     return next;
   }), []);
   const rows = useStableRows(taskRows(shown, leads));
-  const bulk = useTaskBulk(shown.flatMap((band) => band.rows), recent, permissions, open, new Date(nowIso));
+  // Что таблица показывает сейчас (поиск, страница): от этого зависят «все на странице» и выбор. До первого отчёта таблицы — её первая страница.
+  const [visible, setVisible] = useState<readonly string[]>(() => rows.slice(0, PAGE_SIZE).map((row) => row.key));
+  const bulk = useTaskBulk(shown.flatMap((band) => band.rows), visible, recent, permissions, open, new Date(nowIso));
   const columns = useMemo(() => taskColumns(showAssignee), [showAssignee]);
   const panelHref = (task: QueueTask, move = false) => taskPanelHref(listParams, task, move);
   const onCompleted: TaskTableValue["onCompleted"] = (task, completion) => {
@@ -83,7 +89,7 @@ export function TasksTable({
 
   return (
     <TaskTableProvider value={{
-      nowIso, open, permissions, recent, selection: bulk.any ? bulk.selection : null, selectable: new Set(bulk.keys), dial,
+      nowIso, open, permissions, recent, selection: bulk.any ? bulk.selection : null, selectable: new Set(bulk.selectable.keys()), dial,
       panelHref, navigate: (href) => router.push(href, { scroll: false }), announce, onCompleted, errors, setError,
     }}>
       <div className="grid min-w-0 gap-3" data-testid="task-queue-next">
@@ -97,7 +103,9 @@ export function TasksTable({
           getRowId={(row) => row.key}
           onRowClick={(row) => router.push(panelHref(row.task), { scroll: false })}
           searchPlaceholder="Задача, студент"
-          pageSize={25}
+          pageSize={PAGE_SIZE}
+          onVisibleIdsChange={setVisible}
+          partial={partial}
           columnMenu={false}
           empty={<EmptyState title={empty.title} action={empty.action ? <Button variant="outline" asChild><Link href={empty.action.href} scroll={false}>{empty.action.label}</Link></Button> : undefined} />}
           toolbar={<>

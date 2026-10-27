@@ -14,6 +14,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 
 import { buildTaskQueue, parseTaskQueueFilters } from "../src/lib/v3/task-queue.ts";
+import { isRendered } from "../src/components/v3/queue/queue-navigation.ts";
 import { caseSheetData, staffSheetData } from "../src/components/v3/tasks/next/task-sheet-data.ts";
 import { taskFilterBar } from "../src/components/v3/tasks/next/task-filter-menus.ts";
 import { exceptionWord, sameTaskRows, taskRows } from "../src/components/v3/tasks/next/task-table-model.ts";
@@ -276,6 +277,55 @@ test("честные числа: неполное чтение скрывает 
   assert.match(partial, /Показать больше задач/);
   assert.match(renderNext(nextProps("", { count: 7 })), /<h1[^>]*>Задачи<span[^>]*>7<\/span>/);
   assert.doesNotMatch(renderNext(nextProps("", { count: null })), /<h1[^>]*>Задачи<span/);
+});
+
+test("неполное чтение: страницы таблицы без общего числа («1–10»), полное — «1–10 из 27»", () => {
+  const { DataTable } = loader(browserStubs)("src/components/kit/DataTable.tsx");
+  const rows = Array.from({ length: 27 }, (_, index) => ({ id: `r${index + 1}`, name: `Тест ${index + 1}` }));
+  const columns = [{ accessorKey: "name", header: "Имя" }];
+  const props = { label: "Тест", data: rows, columns, getRowId: (row) => row.id };
+  assert.match(renderToStaticMarkup(createElement(DataTable, props)), /1–10 из 27/);
+  const partial = renderToStaticMarkup(createElement(DataTable, { ...props, partial: true }));
+  assert.match(partial, /data-slot="data-table-pagination"[^>]*><p[^>]*>1–10<\/p>/, "номера строк есть, общего числа нет");
+  assert.doesNotMatch(partial, /из 27/);
+  const incomplete = renderNext(nextProps("", { complete: false }));
+  assert.doesNotMatch(incomplete, /1–\d+ из \d+/, "страница с неполным чтением числа не печатает");
+});
+
+test("выбор для массовых действий: «все на странице» и выбор считают только строки, которые таблица показывает; «Выбрать» остаётся, пока есть что выбирать", () => {
+  const { useTaskBulk } = loader(browserStubs)("src/components/v3/tasks/next/useTaskBulk.ts");
+  const tasks = queueFor("view=all").queue.rows;
+  const probe = (visible) => {
+    let seen;
+    renderToStaticMarkup(createElement(function Probe() { seen = useTaskBulk(tasks, visible, {}, PERMISSIONS, true, NOW); return null; }));
+    return { keys: seen.keys, selectable: [...seen.selectable.keys()], any: seen.any };
+  };
+  const all = probe(tasks.map((task) => task.key));
+  assert.ok(all.keys.length >= 5 && all.keys.length === all.selectable.length, "все видимые выбираемые строки");
+  const two = probe(all.keys.slice(0, 2));
+  assert.deepEqual(two.keys, all.keys.slice(0, 2), "поиск или страница показали две строки — «все на странице» это две");
+  assert.deepEqual(two.selectable, all.selectable, "выбираемые вообще остаются: кнопка «Выбрать» не пропадает");
+  const none = probe([]);
+  assert.deepEqual(none.keys, []);
+  assert.equal(none.any, true);
+});
+
+test("клавиши очереди и фокус работают с видимой копией строки: скрытая (display: none) не считается", () => {
+  assert.equal(isRendered({ getClientRects: () => [] }), false);
+  assert.equal(isRendered({ getClientRects: () => [{}] }), true);
+  const keyboard = read("src/components/v3/queue/useQueueKeyboard.ts");
+  assert.match(keyboard, /\.filter\(isRendered\)/, "j/k идут только по видимым ссылкам");
+  assert.match(read("src/components/v3/tasks/useRecentCompletions.ts"), /find\(isRendered\)\?\.focus\(\)/, "после «Отменить» фокус — на круг видимой копии");
+});
+
+test("срок: дата и слово в одной строке, подпись «срок» после даты не повторяется; подтверждение в панели — тёмная нейтральная кнопка", () => {
+  const done = renderNext(nextProps("status=done"));
+  assert.match(done, /<time[^>]*>\d\d\.\d\d<\/time>/, "у завершённой задачи есть дата");
+  assert.doesNotMatch(done, />срок</, "колонка уже называется «Срок»");
+  assert.match(renderNext(nextProps("view=all")), /whitespace-nowrap[^"]*"><time/, "дата и слово не переносятся друг от друга");
+  const forms = read(`${NEXT_DIR}/TaskSheetForms.tsx`);
+  assert.match(forms, /<button type="submit"[^>]*className=\{`\$\{QUEUE_CONFIRM\} justify-self-start`\}>/, "«Завершить» — QUEUE_CONFIRM, как в окне массовых действий");
+  assert.doesNotMatch(forms, /<Button type="submit" disabled=\{commands\.pending\} className="justify-self-start">/, "красной кнопки в панели нет");
 });
 
 test("пустота и права: пустой список называет, что пусто, и даёт одно действие; без права читать — так и сказано; ошибка чтения остаётся на виду", () => {

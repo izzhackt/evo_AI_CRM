@@ -15,7 +15,7 @@ import { useTaskTable } from "./TaskTableContext";
 import type { TaskRow } from "./task-table-model";
 import { useTaskQuickCommands } from "./useTaskQuickCommands";
 
-/** Срок: моноширинная дата и слово рядом («прошёл 3 дн» красным, «сегодня»); у завершённых — подпись «срок». Без срока — так и сказано. */
+/** Срок: моноширинная дата и слово рядом в одной строке («прошёл 3 дн» красным, «сегодня»); у завершённых — только дата (подпись «Срок» даёт колонка). Без срока — так и сказано. */
 export function TaskDueCell({ row }: Readonly<{ row: TaskRow }>) {
   const table = useTaskTable();
   const now = new Date(table.nowIso);
@@ -23,9 +23,9 @@ export function TaskDueCell({ row }: Readonly<{ row: TaskRow }>) {
   if (!due) return <span className="t-body-compact text-fg-3">Без срока</span>;
   const word = table.recent[row.key] ? null : dueWordOf(row.task, now, table.open);
   return (
-    <div className="flex flex-wrap items-center justify-end gap-x-2 t-body-compact md:justify-start">
+    <div className="flex items-center justify-end gap-x-2 whitespace-nowrap t-body-compact md:justify-start">
       <time dateTime={due.dateTime} className="whitespace-nowrap font-mono tabular-nums text-fg">{due.text}</time>
-      {word ? <DueWord view={word} /> : due.caption ? <span className="t-meta text-fg-3">{due.caption}</span> : null}
+      {word ? <DueWord view={word} /> : null}
     </div>
   );
 }

@@ -15,7 +15,10 @@ export type { TaskSheetData } from "./task-sheet-data";
 /**
  * Панель задачи. Открыта ли она, решает адрес (`?task=`): страница читает задачу и отдаёт `sheet`, закрытие ведёт
  * на адрес списка (`closeHref`) с теми же видом и фильтрами. Закрывается сразу, не дожидаясь ответа сервера
- * (`dismissed`: именно эта выдача сервера, так что повторное открытие той же задачи открывает панель снова); последняя открытая задача остаётся в состоянии, пока панель уезжает, — пустая шапка не мигает.
+ * (`dismissed`: именно эта выдача сервера, так что повторное открытие той же задачи открывает панель снова). Когда сервер
+ * подтвердил закрытие (`sheet` стал null), отметка снимается: «Назад» браузера возвращает закэшированную выдачу —
+ * тот же объект, — и панель по адресу `?task=` открывается снова. Последняя открытая задача остаётся в состоянии, пока
+ * панель уезжает, — пустая шапка не мигает.
  * Фокус возвращается на строку, откуда панель открыли (`DetailSheet`).
  */
 export function TaskSheetHost({ sheet, closeHref, moveOpen, readOnly }: Readonly<{ sheet: TaskSheetData | null; closeHref: string; moveOpen: boolean; readOnly: boolean }>) {
@@ -23,6 +26,7 @@ export function TaskSheetHost({ sheet, closeHref, moveOpen, readOnly }: Readonly
   const [kept, setKept] = useState(sheet);
   const [dismissed, setDismissed] = useState<TaskSheetData | null>(null);
   if (sheet && sheet !== kept) setKept(sheet);
+  if (sheet === null && dismissed !== null) setDismissed(null);
   const current = sheet ?? kept;
   if (!current) return null;
   const context = current.kind === "case"

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useTable, type RowData } from "@tanstack/react-table";
 import { SearchXIcon } from "lucide-react";
 
@@ -19,6 +20,8 @@ import { cn } from "@/lib/utils";
  * сортировка по заголовку, общий поиск, видимость колонок, страницы, нажатие на строку, пустое состояние и
  * загрузка, прилипшая шапка. Меньше 768 px таблица заменяется карточками (`meta.mobile` в колонке).
  * `label` — имя прокручиваемой области для читалки; `toolbar` — свои фильтры страницы рядом с поиском.
+ * `onVisibleIdsChange` — какие строки сейчас на экране (после поиска и страницы): страница, у которой есть «все на
+ * странице», берёт их отсюда, а не из всех данных. `partial` — данные неполные: общее число не называется.
  */
 export function DataTable<T extends RowData>({
   label,
@@ -32,6 +35,8 @@ export function DataTable<T extends RowData>({
   empty,
   toolbar,
   columnMenu = true,
+  onVisibleIdsChange,
+  partial = false,
   className,
 }: Readonly<{
   label: string;
@@ -47,6 +52,10 @@ export function DataTable<T extends RowData>({
   toolbar?: React.ReactNode;
   /** Меню «Колонки» (скрыть/показать); у таблицы из двух-трёх колонок оно лишнее. */
   columnMenu?: boolean;
+  /** Ключи (`getRowId`) строк на экране, в порядке показа; зовётся, когда набор изменился. Функция должна быть устойчивой. */
+  onVisibleIdsChange?: (ids: readonly string[]) => void;
+  /** Данные — неполная выборка: «1–25» без «из N», чтобы не выдать неполное число за итог. */
+  partial?: boolean;
   className?: string;
 }>) {
   const table = useTable(
@@ -55,6 +64,10 @@ export function DataTable<T extends RowData>({
   );
   const search = String(table.state.globalFilter ?? "");
   const rows = table.getRowModel().rows;
+  const visibleKey = rows.map((row) => row.id).join("\u001f");
+  useEffect(() => {
+    onVisibleIdsChange?.(visibleKey === "" ? [] : visibleKey.split("\u001f"));
+  }, [visibleKey, onVisibleIdsChange]);
   const matches = table.getPrePaginatedRowModel().rows.length;
   const open = onRowClick ? (row: T) => onRowClick(row) : undefined;
   const cards: CardRow[] = rows.map((row) => ({
@@ -118,7 +131,7 @@ export function DataTable<T extends RowData>({
         </div>
         <DataTableCards rows={cards} loading={loading} />
         {loading ? null : (
-          <DataTablePagination total={matches} pageIndex={table.state.pagination.pageIndex} pageSize={table.state.pagination.pageSize} pageCount={table.getPageCount()} onPageSize={(size) => table.setPageSize(size)} onPrevious={() => table.previousPage()} onNext={() => table.nextPage()} />
+          <DataTablePagination total={matches} totalKnown={!partial} pageIndex={table.state.pagination.pageIndex} pageSize={table.state.pagination.pageSize} pageCount={table.getPageCount()} onPageSize={(size) => table.setPageSize(size)} onPrevious={() => table.previousPage()} onNext={() => table.nextPage()} />
         )}
       </>
     );

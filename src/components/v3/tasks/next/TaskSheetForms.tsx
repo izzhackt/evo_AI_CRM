@@ -10,13 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { projectPlatformTaskDeadline } from "@/lib/platform-task-deadline";
 
+import { QUEUE_CONFIRM } from "../../queue/queue-buttons";
 import { ComposerDeadlineField } from "../ComposerDeadlineField";
 import type { TaskSheetData } from "./task-sheet-data";
 import type { useTaskSheetCommands } from "./useTaskSheetCommands";
 
 type Commands = ReturnType<typeof useTaskSheetCommands>;
 
-/** Завершение: у рабочей задачи результат необязателен, у задачи по студенту без него она не завершается. */
+/** Завершение: у рабочей задачи результат необязателен, у задачи по студенту без него она не завершается. Подтверждение в панели — тёмная нейтральная кнопка (как в окне массовых действий): красная на странице одна, «Новая задача». */
 export function TaskSheetComplete({ data, commands }: Readonly<{ data: TaskSheetData; commands: Commands }>) {
   const id = useId();
   const staff = data.kind === "staff";
@@ -28,7 +29,7 @@ export function TaskSheetComplete({ data, commands }: Readonly<{ data: TaskSheet
           ? <Textarea id={id} value={commands.completionNote} onChange={(event) => commands.setCompletionNote(event.target.value)} maxLength={4000} rows={2} disabled={commands.pending} placeholder="Что сделано и какой следующий шаг" />
           : <Input id={id} value={commands.completeReason} onChange={(event) => commands.setCompleteReason(event.target.value)} required maxLength={1000} disabled={commands.pending} placeholder="Что сделано" />}
       </div>
-      <Button type="submit" disabled={commands.pending} className="justify-self-start">{commands.pending ? "Сохраняем…" : "Завершить"}</Button>
+      <button type="submit" disabled={commands.pending} className={`${QUEUE_CONFIRM} justify-self-start`}>{commands.pending ? "Сохраняем…" : "Завершить"}</button>
     </form>
   );
 }

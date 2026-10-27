@@ -94,6 +94,8 @@ const CASES = [
   caseRow(9, { title: "Проверить перевод диплома", student: "Камила Усенова", dueOn: "2026-09-23", assignee: COLLEAGUE_2 }),
   caseRow(10, { title: "Выдать итоговые документы", student: "Алина Ким", caseState: "closed", status: "done", dueOn: "2026-09-10", updatedAt: "2026-09-22T09:00:00.000Z" }),
 ];
+// 30 открытых рабочих задач — таблица в 25 строк рисует две страницы.
+const MANY = Array.from({ length: 30 }, (_, index) => staff(100 + index, { title: `Синтетическая задача ${String(index + 1).padStart(2, "0")}`, dueOn: `2026-10-${String(1 + (index % 28)).padStart(2, "0")}` }));
 const PARTICIPANTS = [ME, COLLEAGUE, COLLEAGUE_2].map((membershipId) => ({ membershipId, displayName: NAMES[membershipId], role: "admissions" }));
 const LEADS = {
   [`staff:${staffId(21)}`]: { leadId: "ffffffff-7777-4777-8777-000000000021", name: "Айдар Условный", href: "/v3/profile?id=ffffffff-7777-4777-8777-000000000021" },
@@ -150,9 +152,10 @@ const { staffSheetData, caseSheetData } = require("@/components/v3/tasks/next/ta
 const h = React.createElement;
 const fx = JSON.parse(document.getElementById("fixture").textContent);
 const o = fx.options;
-window.__harness = { pushes: [], calls: [] };
+window.__harness = { pushes: [], calls: [], history: [fx.search] };
 
 // «Сервер»: те же фильтры, очередь и панель, что у страницы, но по данным стенда.
+const sheetCache = new Map();
 function serve(search) {
   const params = new URLSearchParams(search);
   const filters = parseTaskQueueFilters((key) => params.get(key) ?? undefined, { teamView: o.teamView });
@@ -168,7 +171,8 @@ function serve(search) {
   const listParams = taskQueueParams(filters);
   const taskId = params.get("task");
   let sheet = null;
-  if (taskId && params.get("kind") !== "case") {
+  if (sheetCache.has(search)) sheet = sheetCache.get(search);
+  else if (taskId && params.get("kind") !== "case") {
     const task = fx.staff.find((t) => t.id === taskId);
     const lead = o.leads[ "staff:" + taskId ];
     if (task) sheet = staffSheetData({ task, participants: fx.participants, day: fx.today, nowIso: fx.now, leadId: lead ? lead.leadId : null,
@@ -184,6 +188,7 @@ function serve(search) {
       capabilities: { taskId: row.caseTaskId, studentCaseId: row.studentCaseId, canAssign: true, canChangeVisibility: true, canReadCase: true },
       day: fx.today, nowIso: fx.now });
   }
+  sheetCache.set(search, sheet);
   const canRead = o.canReadStaff || o.canReadCase;
   return {
     filters, queue, cutOff: o.cutOff, day: fx.today, nowIso: fx.now, canReadStaffTasks: o.canReadStaff, canReadCaseTasks: o.canReadCase,
@@ -200,9 +205,15 @@ function App() {
   const [search, setSearch] = React.useState(fx.search);
   const router = React.useMemo(() => ({
     // Ответ сервера приходит не мгновенно: панель открывается после обращения, а не в тот же такт, что нажатие.
-    push(href) { window.__harness.pushes.push(href); setTimeout(() => setSearch(new URL(href, "https://crm.invalid").search.slice(1)), 60); },
-    replace() {}, refresh() { window.__harness.calls.push("refresh"); }, back() {}, forward() {}, prefetch() {}, hmrRefresh() {},
+    push(href) {
+      window.__harness.pushes.push(href);
+      setTimeout(() => { const next = new URL(href, "https://crm.invalid").search.slice(1); window.__harness.history.push(next); setSearch(next); }, 60);
+    },
+    // «Назад» браузера: предыдущий адрес и прежняя (закэшированная) выдача сервера.
+    back() { const { history } = window.__harness; if (history.length > 1) { history.pop(); setSearch(history[history.length - 1]); } },
+    replace() {}, refresh() { window.__harness.calls.push("refresh"); }, forward() {}, prefetch() {}, hmrRefresh() {},
   }), []);
+  window.__harness.back = router.back;
   const body = o.failure ? h(TasksNextFailure, o.failure) : h(TasksNext, serve(search));
   return h(AppRouterContext.Provider, { value: router },
     h(PathnameContext.Provider, { value: "/v3/tasks" },
@@ -288,6 +299,7 @@ async function main() {
     overdue: writePage(outDir, "tasks-next-overdue", css, fixture("due=overdue")),
     query: writePage(outDir, "tasks-next-query", css, fixture("q=Тимур")),
     empty: writePage(outDir, "tasks-next-empty", css, fixture("due=today&type=staff", {}, { staff: [], cases: [] })),
+    many: writePage(outDir, "tasks-next-many", css, fixture("", {}, { staff: MANY, cases: [] })),
     incomplete: writePage(outDir, "tasks-next-incomplete", css, fixture("", { complete: false })),
     none: writePage(outDir, "tasks-next-none", css, fixture("", { canReadStaff: false, canReadCase: false, teamView: false })),
     lead: writePage(outDir, "tasks-next-lead", css, fixture("lead=ffffffff-7777-4777-8777-000000000021", {
@@ -394,6 +406,10 @@ async function main() {
     const facts = await page.locator("[data-testid=v3-task-detail-panel]").innerText();
     report(`${key}: staff panel shows due, assignee, result form, description, outcomes`, /Срок/u.test(facts) && /Исполнитель/u.test(facts) && /Результат/u.test(facts) && /Проверить формулировки/u.test(facts) && /сверен с памяткой/u.test(facts), facts.slice(0, 200));
     report(`${key}: panel focus inside`, await page.evaluate(() => Boolean(document.activeElement && document.activeElement.closest("[role=dialog]"))), null);
+    // Подтверждение в панели — тёмная нейтральная кнопка, как в окне массовых действий; красная на странице одна («Новая задача»).
+    const confirmColor = await page.getByRole("dialog").getByRole("button", { name: "Завершить", exact: true }).evaluate((element) => getComputedStyle(element).backgroundColor);
+    const reds = await page.evaluate(() => [...document.querySelectorAll("button, a")].filter((element) => getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)" && element.getBoundingClientRect().width > 0).map((element) => element.textContent.trim()));
+    report(`${key}: panel confirm is dark neutral, the page keeps one red button`, confirmColor !== "rgb(215, 2, 23)" && confirmColor.match(/\d+/g).slice(0, 3).every((value) => Number(value) < 80) && reds.length === 1 && reds[0] === "Новая задача", { confirmColor, reds });
     // Завершение рабочей задачи из панели: то же действие, версия и результат.
     await page.getByRole("dialog").getByRole("textbox", { name: "Результат", exact: true }).fill("Согласовано с руководителем");
     await page.getByRole("dialog").getByRole("button", { name: "Завершить", exact: true }).click();
@@ -457,6 +473,12 @@ async function main() {
     await page.waitForFunction(() => !document.querySelector('[data-testid="v3-undo-toasts"]:popover-open [data-undo-row]'));
     const undo = (await calls(page)).filter((call) => Array.isArray(call) && call[0] === "mutateStaffTaskAction").at(-1);
     report(`${key}: undo sends the previous status`, undo[1].status === "open", undo);
+    await page.waitForTimeout(300);
+    const undoFocus = await page.evaluate((rowKey) => {
+      const active = document.activeElement;
+      return { circle: Boolean(active?.matches('button[aria-label^="Завершить"]')), shown: Boolean(active && active.getClientRects().length > 0), row: active?.closest("[data-queue-row]")?.getAttribute("data-queue-row") === rowKey, tag: active?.tagName };
+    }, `staff:${staffId(6)}`);
+    report(`${key}: focus returns to the visible completion circle after undo`, undoFocus.circle && undoFocus.shown && undoFocus.row, undoFocus);
 
     // Общий поиск таблицы ищет по названию и по студенту.
     await page.getByRole("searchbox").fill("Тимур");
@@ -572,6 +594,128 @@ async function main() {
     });
     const closing = samples.filter((row) => row[2] === "closed");
     report("d1280: panel keeps the task while closing", closing.length > 0 && closing.every(([title, facts]) => title.startsWith("Согласовать шаблон письма") && facts), samples);
+    await context.close();
+  }
+
+  // 7. Массовый выбор считает только строки, которые таблица показывает: поиск и страницы не расширяют «все на странице».
+  const ticked = (page) => page.getByTestId("queue-bulk-bar").innerText();
+  const taskCalls = async (page) => (await calls(page)).filter((call) => Array.isArray(call) && (call[0] === "mutateStaffTaskAction" || call[0] === "changePlatformAdmissionsTaskAction"));
+  for (const key of ["d1280", "m390"]) {
+    const { context, page, errors } = await open(pages.list, key);
+    const hiddenTitle = "Отправить партнёру пакет по весеннему набору";
+    const shownTitle = "Подтвердить подачу в UCSI";
+    await page.getByRole("button", { name: "Выбрать", exact: true }).click();
+    await rowOf(page, key, hiddenTitle).getByRole("checkbox").check();
+    await page.getByRole("searchbox").fill("Тимур");
+    await rowOf(page, key, shownTitle).getByRole("checkbox").check();
+    await page.getByTestId("queue-bulk-bar").waitFor();
+    const afterSearch = await ticked(page);
+    report(`${key}: a task hidden by the search leaves the selection`, /Выбрано\s*1\s+задача/u.test(afterSearch) && (await page.locator("[data-bulk-select-all]").count()) === 0, afterSearch);
+    await page.getByTestId("task-bulk-complete-trigger").click();
+    await page.getByTestId("task-bulk-complete").getByRole("textbox", { name: "Результат" }).fill("Подано");
+    report(`${key}: bulk complete dialog counts only the visible task`, /Изменим:\s*1\s+задача/u.test(await page.getByTestId("task-bulk-complete").innerText()), null);
+    await page.getByTestId("task-bulk-complete").getByRole("button", { name: "Завершить", exact: true }).click();
+    await page.getByTestId("task-bulk-complete").getByRole("button", { name: "Готово" }).waitFor();
+    const sent = await taskCalls(page);
+    report(`${key}: bulk complete after a search sends only the visible task`, sent.length === 1 && JSON.stringify(sent[0]).includes(caseTaskId(1)) && !JSON.stringify(sent).includes(staffId(1)), sent);
+    await shot(page, `bulk-search-${key}`);
+    await context.close();
+    const second = await open(pages.list, key);
+    await second.page.getByRole("button", { name: "Выбрать", exact: true }).click();
+    await second.page.getByRole("searchbox").fill("Перезвонить");
+    const matching = key === "m390" ? await second.page.locator("[data-slot=data-table-cards] > li").count() : await second.page.locator("tbody tr").count();
+    await rowOf(second.page, key, "Перезвонить клиенту:").getByRole("checkbox").check();
+    const all = second.page.locator("[data-bulk-select-all]");
+    report(`${key}: select-all offers the rows the search shows`, matching === 2 && (await all.innerText()).replace(/\s+/gu, "").endsWith(`·${matching}`), await all.innerText());
+    await all.click();
+    report(`${key}: select-all after a search picks only the visible rows`, new RegExp(`Выбрано\\s*${matching}\\s+задачи`, "u").test(await ticked(second.page)), await ticked(second.page));
+    report(`${key}: console clean (bulk and search)`, errors.length === 0 && second.errors.length === 0, [...errors, ...second.errors]);
+    await second.context.close();
+  }
+  {
+    // Больше 25 задач: «все на странице» — это 25 строк страницы, а не 30; на другой странице выбор не считается.
+    const { context, page } = await open(pages.many, "d1280");
+    await page.getByRole("button", { name: "Выбрать", exact: true }).click();
+    await page.getByRole("checkbox").first().check();
+    const all = page.locator("[data-bulk-select-all]");
+    const label = (await all.innerText()).replace(/\s+/gu, "");
+    await all.click();
+    const ticksOnPage = await page.getByRole("checkbox").evaluateAll((boxes) => boxes.filter((box) => box.checked).length);
+    report("d1280: select-all on a 30-task list picks the 25 rows of the page", label.endsWith("·25") && /Выбрано\s*25/u.test(await ticked(page)) && ticksOnPage === 25, { label, ticksOnPage });
+    await page.getByRole("button", { name: "Следующая страница" }).click();
+    await page.getByTestId("queue-bulk-bar").waitFor({ state: "detached", timeout: 3000 }).catch(() => {});
+    report("d1280: selection from another page is not carried into this page", (await page.getByTestId("queue-bulk-bar").count()) === 0, null);
+    await context.close();
+  }
+
+  // 8. Клавиши очереди и фокус работают с видимым вариантом строки (таблица и карточки рисуют одно и то же).
+  for (const key of ["d1280", "m390"]) {
+    const { context, page } = await open(pages.list, key);
+    const group = key === "m390" ? "[data-slot=data-table-cards]" : "tbody";
+    await page.evaluate(() => document.activeElement?.blur());
+    await page.keyboard.press(key === "m390" ? "j" : "k");
+    const landed = await page.evaluate((scope) => {
+      const links = [...document.querySelectorAll(`${scope} [data-queue-open]`)];
+      const active = document.activeElement;
+      return { index: links.indexOf(active), count: links.length, shown: Boolean(active && active.getClientRects().length > 0), hiddenCopies: document.querySelectorAll("[data-queue-row]").length - links.length };
+    }, group);
+    report(`${key}: ${key === "m390" ? "j" : "k"} first lands on the ${key === "m390" ? "first" : "last"} visible task`, landed.shown && landed.index === (key === "m390" ? 0 : landed.count - 1) && landed.hiddenCopies > 0, landed);
+    await context.close();
+  }
+
+  // 9. «Назад» после закрытия панели возвращает панель, а клавиши очереди после закрытия работают.
+  {
+    const { context, page } = await open(pages.list, "d1280");
+    await rowOf(page, "d1280", "Согласовать шаблон письма").locator("td").nth(1).click();
+    await page.getByRole("dialog").waitFor();
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+    await page.waitForFunction(() => window.__harness.history.at(-1) === "");
+    await page.evaluate(() => window.__harness.back());
+    await page.getByRole("dialog").waitFor({ timeout: 3000 }).catch(() => {});
+    report("d1280: browser Back after closing reopens the panel of the address", (await page.getByRole("dialog").count()) === 1, await page.evaluate(() => window.__harness.history));
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog").waitFor({ state: "detached", timeout: 3000 }).catch(() => {});
+    await page.waitForFunction(() => window.__harness.history.at(-1) === "", null, { timeout: 3000 }).catch(() => {});
+    await page.evaluate(() => document.activeElement?.blur());
+    await page.keyboard.press("j");
+    report("d1280: queue keys work after the panel is closed again", await page.evaluate(() => Boolean(document.activeElement?.matches("[data-queue-open]"))), await page.evaluate(() => document.activeElement?.tagName));
+    await context.close();
+  }
+
+  // 10. Честные числа: неполное чтение не называет общее число страниц; полное — называет.
+  for (const key of ["d1440", "m390"]) {
+    const partial = await open(pages.incomplete, key);
+    const partialText = await partial.page.locator("[data-slot=data-table-pagination]").first().innerText();
+    report(`${key}: incomplete read prints no total in the pagination`, /^1–\d+\s*$/u.test(partialText.split("\n")[0]) && !/из\s*\d+/u.test(partialText), partialText);
+    await partial.context.close();
+    const whole = await open(pages.list, key);
+    const wholeText = await whole.page.locator("[data-slot=data-table-pagination]").first().innerText();
+    report(`${key}: complete read keeps the total`, /1–\d+ из \d+/u.test(wholeText), wholeText);
+    await whole.context.close();
+  }
+
+  // 11. Срок: подпись «срок» не повторяется после даты; дата и слово — в одной строке и в таблице, и в карточке.
+  {
+    const { context, page } = await open(pages.done, "d1440");
+    const cells = await page.locator("tbody tr td:nth-child(2)").allInnerTexts();
+    report("d1440: completed view shows the date only, the column already says Срок", cells.length > 0 && cells.every((text) => !/срок/iu.test(text)), cells);
+    await context.close();
+    const phone = await open(pages.done, "m390");
+    const cards = await phone.page.locator("[data-slot=data-table-cards] dd").allInnerTexts();
+    report("m390: completed card shows the date only", cards.length > 0 && cards.every((text) => !/срок/iu.test(text)), cards);
+    await phone.context.close();
+  }
+  for (const [name, key] of [["list", "d1440"], ["team", "d1280"], ["list", "m390"], ["team", "m390"]]) {
+    const { context, page } = await open(pages[name], key);
+    const lines = await page.evaluate(() => [...document.querySelectorAll("time")].filter((time) => time.getClientRects().length > 0 && time.closest("td, dd")).map((time) => {
+      const word = time.parentElement.querySelector(".v3-due");
+      const box = time.getBoundingClientRect();
+      const other = word?.getBoundingClientRect();
+      return { text: time.textContent, same: !other || Math.abs((box.top + box.bottom) / 2 - (other.top + other.bottom) / 2) <= 4, height: Math.round(time.parentElement.getBoundingClientRect().height) };
+    }));
+    report(`${name} ${key}: date and due word share one line`, lines.length > 0 && lines.every((line) => line.same) && new Set(lines.map((line) => line.height)).size === 1, lines.filter((line) => !line.same).slice(0, 3));
+    await shot(page, `due-${name}-${key}`);
     await context.close();
   }
 

@@ -89,6 +89,7 @@ export function TasksNext(props: TasksNextProps) {
           dial={props.dial}
           filterBar={taskFilterBar(filters, props)}
           empty={view.empty}
+          partial={!queue.complete}
           sheet={props.sheet}
           closeHref={props.closeHref}
           moveOpen={props.moveOpen}

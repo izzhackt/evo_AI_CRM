@@ -176,7 +176,7 @@ export default async function SettingsPart({
         // Просмотр роли виден, но ссылок не меняет (действие отказывает само, до обращения к базе).
         reportsReadOnly={isStaffPreview(actor)}
         // Просмотр роли блок видит, но подключить не может; сервер проверяет это ещё раз.
-        whatsappConnect={whatsappConnection ? { status: whatsappConnection.status, canConnect: isAdmin } : undefined}
+        whatsappConnect={whatsappConnection ? { status: whatsappConnection.status, canConnect: isAdmin, wazzup: whatsappConnection.wazzup } : undefined}
       />
     </PartShell>
   );

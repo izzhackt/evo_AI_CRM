@@ -2,6 +2,7 @@ import type { PlatformComponentStatus } from "../platform-observability.ts";
 import type { ProviderDisplayStatus } from "../provider-display-status.ts";
 import { telephonyIntegrationRow, type TelephonyIntegrationFacts } from "./telephony-health.ts";
 import { WHATSAPP_CONNECT_ANCHOR } from "./whatsapp-connect-contract.ts";
+import { WAZZUP_INTAKE_OFF_LINE, wazzupChannelWords } from "./wazzup-words.ts";
 import { settingsBlockedWahaDetail, settingsStatusWords } from "./wording.ts";
 
 /**
@@ -64,6 +65,17 @@ export type SettingsAmoAvailability =
   | Readonly<{ status: "blocked"; reason: AmoBlockedReason }>;
 
 export type SettingsIntegrationFacts = Readonly<{
+  /**
+   * Действующий путь WhatsApp - Wazzup (миграция 325): строка «WhatsApp» говорит о канале Wazzup, а не о сессии WAHA,
+   * которую при этом не проверяют. Нет поля - путь WAHA, строка прежняя.
+   */
+  wazzup?: Readonly<{
+    /** Слово состояния канала Wazzup из функции чтения пути; null - канал не наблюдали. */
+    channelState: string | null;
+    observedAt: string | null;
+    /** Приём включён на сервере (`EVO_PLATFORM_WAZZUP_INGRESS_ENABLED=1`). */
+    intakeEnabled: boolean;
+  }>;
   waha: Readonly<{
     display: ProviderDisplayStatus;
     /** Статус сессии из чтения; нужен только для заблокированной. */
@@ -164,6 +176,32 @@ function whatsappRow(waha: SettingsIntegrationFacts["waha"], now: Date): Integra
   };
 }
 
+/** Строка «WhatsApp · Wazzup»: канал Wazzup вместо сессии WAHA; «ответить отсюда нельзя» не пишется - это и так сказано в чате и в карточке ниже. */
+function wazzupRow(wazzup: NonNullable<SettingsIntegrationFacts["wazzup"]>, now: Date): IntegrationRow {
+  const words = wazzupChannelWords(wazzup.channelState);
+  const base = {
+    key: "whatsapp", name: "WhatsApp · Wazzup", checkedAt: wazzup.observedAt,
+    checkedText: formatSettingsCheck(wazzup.observedAt, now), checkable: true,
+  } as const;
+  const without = "Новые входящие WhatsApp не приходят в CRM";
+  if (!words.working) {
+    return {
+      ...base, state: words.label, tone: words.tone === "danger" ? "blocked" : "warn", detail: null, without,
+      action: { ...handoff("проверить канал в кабинете Wazzup"), link: OPEN_WHATSAPP }, blocksWork: words.tone === "danger",
+    };
+  }
+  if (!wazzup.intakeEnabled) {
+    return {
+      ...base, state: "приём выключен", tone: "warn", detail: WAZZUP_INTAKE_OFF_LINE, without,
+      action: { ...handoff("включить приём сообщений на сервере"), link: OPEN_WHATSAPP }, blocksWork: false,
+    };
+  }
+  return {
+    ...base, state: "подключён", tone: "ok", detail: null, without: null,
+    action: { handoff: null, link: OPEN_WHATSAPP }, blocksWork: false,
+  };
+}
+
 /**
  * Ключ Gemini CRM (`EVO_PLATFORM_GEMINI_API_KEY`) распознаёт документы студентов.
  * Черновики ответов делает отдельная служба evo-ai-agent со своим ключом
@@ -214,7 +252,8 @@ function amoRow(amo: SettingsAmoAvailability): IntegrationRow {
 
 /** Строки таблицы «Интеграции»: WhatsApp, amoCRM, Gemini и — если переданы факты — Телефония. */
 export function settingsIntegrations(facts: SettingsIntegrationFacts, now: Date): readonly IntegrationRow[] {
-  const rows = [whatsappRow(facts.waha, now), amoRow(facts.amo), geminiRow(facts.gemini)];
+  const whatsapp = facts.wazzup ? wazzupRow(facts.wazzup, now) : whatsappRow(facts.waha, now);
+  const rows = [whatsapp, amoRow(facts.amo), geminiRow(facts.gemini)];
   return facts.telephony ? [...rows, telephonyIntegrationRow(facts.telephony, now)] : rows;
 }
 

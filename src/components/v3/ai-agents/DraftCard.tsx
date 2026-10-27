@@ -8,7 +8,9 @@ import { QUEUE_CONFIRM, QUEUE_SECONDARY } from "@/components/v3/queue/queue-butt
 import { AI_AGENT_DRAFT_CHANNEL_LABELS, AI_AGENT_LIMITS, type AiAgentDraftRow } from "@/lib/ai-agents/contract";
 import { decideAiAgentDraftAction } from "@/lib/platform-ai-agents-actions";
 import { draftStatusWords, draftTargetHref, formatDateTimeRu, relativeTimeRu } from "@/lib/v3/ai-agents-view";
+import { WAZZUP_READ_ONLY_LINE } from "@/lib/v3/wazzup-words";
 
+import { CopyTextButton } from "./CopyTextButton";
 import { ActionMessage } from "./Notices";
 import { useAgentsAction } from "./useAgentsAction";
 import { useDirtyGuard } from "./useDirtyGuard";
@@ -47,6 +49,8 @@ export function DraftCard({
   const edited = text.trim() !== draft.text.trim();
   useDirtyGuard(effective && canManage && edited);
   const failure = state.failureCode ?? (draft.status === "pending" ? draft.failureCode : null);
+  // WhatsApp только на чтение (Wazzup, 325): база оставила черновик с этим кодом - отправит продавец вне EVO.
+  const receiveOnly = draft.channel === "whatsapp" && failure === "receive_only" && effective;
   const label = outcome
     ? draftStatusWords({ status: outcome, failureCode: state.failureCode ?? null, sentByAgent: false })
     : words;
@@ -119,7 +123,8 @@ export function DraftCard({
       </div>
 
       {draft.reason && !decided ? <p className="mt-2 t-meta text-fg-3">Почему агент так ответил: {draft.reason}</p> : null}
-      {words.note && draft.status !== "sent" && !decided ? <p className="mt-2 t-body-compact text-fg-2">{words.note}</p> : null}
+      {receiveOnly ? <p className="mt-2 t-body-compact text-fg-2" data-testid="v3-aia-draft-readonly">{WAZZUP_READ_ONLY_LINE}</p> : null}
+      {words.note && draft.status !== "sent" && !decided && !receiveOnly ? <p className="mt-2 t-body-compact text-fg-2">{words.note}</p> : null}
       {draft.status === "sent" || draft.status === "discarded" ? (
         <p className="mt-1 t-meta text-fg-3">
           {draft.decidedByName ? `Решение: ${draft.decidedByName}` : draft.sentByAgent ? "Отправил агент сам (Авто)" : ""}
@@ -132,12 +137,18 @@ export function DraftCard({
         </p>
       ) : null}
 
-      {effective && canManage ? (
+      {effective && (canManage || receiveOnly) ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button type="button" className={QUEUE_CONFIRM} disabled={pending || !text.trim()} onClick={() => decide("approve")} data-testid="v3-aia-approve">
-            {pending ? "Отправляю…" : "Одобрить и отправить"}
-          </button>
-          <button type="button" className={QUEUE_SECONDARY} disabled={pending} onClick={() => decide("discard")} data-testid="v3-aia-discard">Отклонить</button>
+          {receiveOnly ? <CopyTextButton text={canManage ? text : draft.editedText ?? draft.text} /> : null}
+          {canManage ? (
+            <>
+              {/* Пока EVO отправить не может, главное действие - копирование; «Одобрить» остаётся: после возврата на WAHA оно снова работает. */}
+              <button type="button" className={receiveOnly ? QUEUE_SECONDARY : QUEUE_CONFIRM} disabled={pending || !text.trim()} onClick={() => decide("approve")} data-testid="v3-aia-approve">
+                {pending ? "Отправляю…" : "Одобрить и отправить"}
+              </button>
+              <button type="button" className={QUEUE_SECONDARY} disabled={pending} onClick={() => decide("discard")} data-testid="v3-aia-discard">Отклонить</button>
+            </>
+          ) : null}
         </div>
       ) : null}
       <div className="mt-2">

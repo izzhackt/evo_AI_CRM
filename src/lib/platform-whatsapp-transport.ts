@@ -14,12 +14,19 @@ export type PlatformWhatsAppTransport = Readonly<{
   activeTransport: PlatformWhatsAppActiveTransport;
   canReply: boolean;
   replyMode: "waha" | "receive_only";
-  channel: Readonly<{ transport: "whatsapp" | "wapi"; state: string | null; observedAt: string | null }> | null;
+  channel: Readonly<{
+    transport: "whatsapp" | "wapi";
+    state: string | null;
+    observedAt: string | null;
+    /** Последние четыре цифры номера канала, если функция чтения их отдаёт (в 325 пока нет: поля нет); весь номер сюда не приходит. */
+    last4?: string;
+  }> | null;
   lastInboundAt: string | null;
 }>;
 
 const KEYS = Object.freeze(["activeTransport", "canReply", "replyMode", "channel", "lastInboundAt"]);
 const CHANNEL_KEYS = Object.freeze(["transport", "state", "observedAt"]);
+const LAST4 = /^\d{4}$/u;
 const STATE_WORD = /^[A-Za-z][A-Za-z0-9_]{0,63}$/u;
 const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/u;
 
@@ -50,14 +57,18 @@ export function parsePlatformWhatsAppTransport(value: unknown): PlatformWhatsApp
   if (lastInboundAt === undefined) return null;
   let channel: PlatformWhatsAppTransport["channel"] = null;
   if (value.channel !== null) {
-    if (!isObject(value.channel) || !exactKeys(value.channel, CHANNEL_KEYS)) return null;
+    // `last4` - необязательный пятый ключ: прежняя форма 325 (три ключа) и форма с четырьмя цифрами годятся, иное - нет.
+    const withLast4 = isObject(value.channel) && Object.hasOwn(value.channel, "last4");
+    if (!isObject(value.channel) || !exactKeys(value.channel, withLast4 ? [...CHANNEL_KEYS, "last4"] : CHANNEL_KEYS)) return null;
+    const last4 = withLast4 ? value.channel.last4 : undefined;
+    if (withLast4 && (typeof last4 !== "string" || !LAST4.test(last4))) return null;
     const transport = value.channel.transport;
     const state = value.channel.state;
     const observedAt = optionalTimestamp(value.channel.observedAt);
     if (transport !== "whatsapp" && transport !== "wapi") return null;
     if (state !== null && (typeof state !== "string" || !STATE_WORD.test(state))) return null;
     if (observedAt === undefined) return null;
-    channel = Object.freeze({ transport, state, observedAt });
+    channel = Object.freeze(typeof last4 === "string" ? { transport, state, observedAt, last4 } : { transport, state, observedAt });
   }
   return Object.freeze({ activeTransport: active, canReply: value.canReply, replyMode: value.replyMode, channel, lastInboundAt });
 }

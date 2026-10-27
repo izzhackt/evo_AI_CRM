@@ -63,7 +63,8 @@ export type PlatformConversationSummary = Readonly<{
   queue: PlatformConversationQueue;
   status: PlatformConversationStatus;
   subject: string;
-  wahaSessionName: PlatformWahaEvidenceSessionName;
+  /** null — беседа пришла через Wazzup (миграция 325, у неё свой канал), а не через сессию WAHA. */
+  wahaSessionName: PlatformWahaEvidenceSessionName | null;
   kommoAccountId: string | null;
   kommoConversationId: string | null;
   amocrmAccountId: string | null;
@@ -517,9 +518,11 @@ export function normalizePlatformConversationSummary(
       ? null
       : parsePlatformRouteUuid(value.student_case_id);
   const subject = parseRequiredText(value.subject);
-  const wahaSessionName = parseHistoricalOrCurrentWahaEvidenceSessionName(
-    value.waha_session_name,
-  );
+  // Беседа Wazzup (325) приходит без сессии WAHA: `null` - допустимая форма, чужое слово - нет.
+  const wahaSessionName =
+    value.waha_session_name === null
+      ? null
+      : parseHistoricalOrCurrentWahaEvidenceSessionName(value.waha_session_name);
   const kommoAccountId = parseOptionalProviderInteger(value.kommo_account_id);
   const kommoConversationId = parseOptionalProviderText(
     value.kommo_conversation_id,
@@ -561,7 +564,7 @@ export function normalizePlatformConversationSummary(
     queue === null ||
     (value.status !== "open" && value.status !== "closed") ||
     subject === null ||
-    wahaSessionName === null ||
+    (value.waha_session_name !== null && wahaSessionName === null) ||
     kommoAccountId === undefined ||
     kommoConversationId === undefined ||
     amocrmAccountId === undefined ||

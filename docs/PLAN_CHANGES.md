@@ -61984,7 +61984,7 @@ http_status=403` (временный отказ API GitHub); ничего не �
 - **Карточка телефона «Задач».** У колонки с `meta.opensRow` накладка на всю карточку — скрытый от читалки `span` (площадь касания), не кнопка:
   остановок Tab в карточке две (круг завершения и ссылка-название), а не три; фокус при касании встаёт на ссылку.
 - **Проверки (27.10.2026, без production, синтетические данные, Chromium).** До правок на `be40ea24` новые проверки падают: `ui-kit` 4 из 72,
-  `ai-agents-next` 4 из 250, `tasks-next` 4 из 196, `lazy-failure-client` 8 из 9; после — 72/72, 250/250, 196/196, 11/11; `card-next` 486/486,
+  `ai-agents-next` 5 из 250, `tasks-next` 4 из 196, `lazy-failure-client` 8 из 9; после — 72/72, 250/250, 196/196, 11/11; `card-next` 486/486,
   `ui-next-today-client` 115/115, `today-static-render --next` и `requests-static-render --next` совпали с `be40ea24` построчно. Узлы: `ui-next-*`,
   `ai-agents-next-ui` и новый `ui-next-lazy` — 106; связанные файлы — 253; `test:frontend` целиком — 1313, из них 2 падают так же, как на `main`.
   `npm run build` проходит, проверка чанков чиста. Новый стенд — `tests/e2e/lazy-failure-client.cjs`.

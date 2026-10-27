@@ -2,7 +2,7 @@ import type { PlatformComponentStatus } from "../platform-observability.ts";
 import type { ProviderDisplayStatus } from "../provider-display-status.ts";
 import { telephonyIntegrationRow, type TelephonyIntegrationFacts } from "./telephony-health.ts";
 import { WHATSAPP_CONNECT_ANCHOR } from "./whatsapp-connect-contract.ts";
-import { WAZZUP_INTAKE_OFF_LINE, wazzupChannelWords } from "./wazzup-words.ts";
+import { WAZZUP_INTAKE_OFF_LINE, isUnconfirmedWazzupState, wazzupChannelWords } from "./wazzup-words.ts";
 import { settingsBlockedWahaDetail, settingsStatusWords } from "./wording.ts";
 
 /**
@@ -178,12 +178,16 @@ function whatsappRow(waha: SettingsIntegrationFacts["waha"], now: Date): Integra
 
 /** Строка «WhatsApp · Wazzup»: канал Wazzup вместо сессии WAHA; «ответить отсюда нельзя» не пишется - это и так сказано в чате и в карточке ниже. */
 function wazzupRow(wazzup: NonNullable<SettingsIntegrationFacts["wazzup"]>, now: Date): IntegrationRow {
-  const words = wazzupChannelWords(wazzup.channelState);
+  const freshness = { observedAt: wazzup.observedAt, nowMs: now.getTime() };
+  const words = wazzupChannelWords(wazzup.channelState, freshness);
   const base = {
     key: "whatsapp", name: "WhatsApp · Wazzup", checkedAt: wazzup.observedAt,
     checkedText: formatSettingsCheck(wazzup.observedAt, now), checkable: true,
   } as const;
-  const without = "Новые входящие WhatsApp не приходят в CRM";
+  // Слово «работает» старше трёх проходов таймера - не подтверждено (отказ ключа или остановленный таймер в него не пишут).
+  const without = isUnconfirmedWazzupState(wazzup.channelState, freshness)
+    ? "Не подтверждено, что новые входящие WhatsApp приходят в CRM"
+    : "Новые входящие WhatsApp не приходят в CRM";
   if (!words.working) {
     return {
       ...base, state: words.label, tone: words.tone === "danger" ? "blocked" : "warn", detail: null, without,

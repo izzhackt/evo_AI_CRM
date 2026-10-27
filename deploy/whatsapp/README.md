@@ -44,8 +44,11 @@ independent Wazzup steps (nested under `wazzup` in the JSON line):
   in EVO and, where an amoCRM read is configured, compares them (more than
   `max(3, 2 %)` missing in EVO opens a `gap` task, a matching count closes it).
 
-Each step says `transport_inactive` while the database transport is not Wazzup. The
-WAHA part is unchanged; with both receive switches on it fails with
+Each step says `transport_inactive` while the database transport is not Wazzup (the
+timer cannot tell `none` from `waha`: with Wazzup env `1` and database path `waha` it
+still says `ok`, see the runbook, section 10, item 7). The AI start for new inbound
+messages runs after the three steps with a 15 s deadline; a skipped step or a missed
+deadline makes the run `degraded`. The WAHA part is unchanged; with both receive switches on it fails with
 `transport_conflict`. The Wazzup part never sends anything to a customer and calls
 Wazzup with `GET /v3/channels` only. **Do not switch Wazzup intake on before this
 timer is installed:** whatever the in-request projection (5 s) did not finish would

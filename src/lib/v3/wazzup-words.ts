@@ -35,9 +35,40 @@ const STATE_WORDS: Readonly<Record<string, readonly [string, WazzupTone]>> = Obj
 
 export type WazzupChannelWords = Readonly<{ label: string; tone: WazzupTone; working: boolean }>;
 
-/** Состояние канала словом. Нет слова (канал ещё не наблюдали) или оно незнакомо - не рабочий и не «сломанный». */
-export function wazzupChannelWords(state: string | null): WazzupChannelWords {
+/**
+ * Слово состояния пишет только таймер (`wazzup_channel_observe_v1`) и только когда получил настоящее состояние: отказ ключа,
+ * недоступный API и остановленный таймер в столбец не попадают - там остаётся старое «работает». Поэтому «работает» верно,
+ * лишь пока отметка свежая: три прохода таймера (он идёт раз в 5 минут). Допуск вперёд - как у сессии WAHA.
+ */
+export const WAZZUP_STATE_MAX_AGE_MS = 15 * 60 * 1000;
+const WAZZUP_STATE_MAX_FUTURE_SKEW_MS = 60 * 1000;
+
+export function isFreshWazzupState(observedAt: string | null, nowMs: number): boolean {
+  if (observedAt === null || !Number.isFinite(nowMs)) return false;
+  const observedAtMs = Date.parse(observedAt);
+  return Number.isFinite(observedAtMs)
+    && observedAtMs >= nowMs - WAZZUP_STATE_MAX_AGE_MS && observedAtMs <= nowMs + WAZZUP_STATE_MAX_FUTURE_SKEW_MS;
+}
+
+/** Время наблюдения для проверки свежести; без него (`undefined`) слово читается как есть. */
+export type WazzupFreshness = Readonly<{ observedAt: string | null; nowMs: number }>;
+
+/** «Работает» без свежей отметки - не подтверждено (слова не-рабочих состояний от возраста не зависят: это тревога и так). */
+export function isUnconfirmedWazzupState(state: string | null, freshness: WazzupFreshness): boolean {
+  return state !== null && wazzupStateHealthWord(state) === "WORKING" && !isFreshWazzupState(freshness.observedAt, freshness.nowMs);
+}
+
+export const WAZZUP_UNCONFIRMED_LABEL = "состояние не подтверждено";
+
+/**
+ * Состояние канала словом. Нет слова (канал ещё не наблюдали) или оно незнакомо - не рабочий и не «сломанный». Со `freshness`
+ * устаревшее «работает» - «состояние не подтверждено» (предупреждение, не рабочий): ни плашки «всё в порядке», ни зелёного.
+ */
+export function wazzupChannelWords(state: string | null, freshness?: WazzupFreshness): WazzupChannelWords {
   if (state === null) return Object.freeze({ label: "состояние не получено", tone: "warn", working: false });
+  if (freshness !== undefined && isUnconfirmedWazzupState(state, freshness)) {
+    return Object.freeze({ label: WAZZUP_UNCONFIRMED_LABEL, tone: "warn", working: false });
+  }
   const word = wazzupStateHealthWord(state);
   const known = STATE_WORDS[word];
   if (known === undefined) return Object.freeze({ label: "состояние не распознано", tone: "warn", working: false });
@@ -50,11 +81,18 @@ export const wazzupChannelKind = (transport: "whatsapp" | "wapi"): string =>
   transport === "wapi" ? "WABA (WhatsApp Business API)" : "Обычный WhatsApp";
 
 /** Состояние плашки «Продажи → WhatsApp»: рабочий канал не объявляется (решение 07.10.2026). */
-export type WazzupInboxChannelState = "ready" | "attention" | "unavailable" | "intake_off";
+export type WazzupInboxChannelState = "ready" | "attention" | "unavailable" | "intake_off" | "unknown";
 
-export function wazzupInboxChannelState(transport: PlatformWhatsAppTransport, intakeEnabled: boolean): WazzupInboxChannelState {
+export function wazzupInboxChannelState(
+  transport: PlatformWhatsAppTransport,
+  intakeEnabled: boolean,
+  nowMs: number = Date.now(),
+): WazzupInboxChannelState {
   if (transport.channel === null || transport.channel.state === null) return "unavailable";
-  if (!wazzupChannelWords(transport.channel.state).working) return "attention";
+  const freshness = { observedAt: transport.channel.observedAt, nowMs };
+  // Устаревшее «работает»: плашка «Состояние WhatsApp не подтверждено» (слово `unknown`), а не молчание и не «Все ответы даны».
+  if (isUnconfirmedWazzupState(transport.channel.state, freshness)) return "unknown";
+  if (!wazzupChannelWords(transport.channel.state, freshness).working) return "attention";
   return intakeEnabled ? "ready" : "intake_off";
 }
 

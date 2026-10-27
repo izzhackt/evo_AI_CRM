@@ -23,6 +23,7 @@ import {
   SEND_REFUSAL_COPY,
   WAZZUP_ECHO_LABEL,
   chatMessageOrigin,
+  conversationIsReceiveOnly,
   originWord,
   replyAccessFor,
   speakerPrefix,
@@ -30,7 +31,9 @@ import {
 import {
   WAZZUP_FALLBACK_LINE,
   WAZZUP_READ_ONLY_LINE,
+  WAZZUP_STATE_MAX_AGE_MS,
   capitalizeRu,
+  isFreshWazzupState,
   wazzupCardRows,
   wazzupChannelWords,
   wazzupInboxChannelState,
@@ -258,13 +261,67 @@ test("channel words: only «active» is working; an unknown or unseen state is n
 const wazzupTransport = (state, overrides = {}) => parsePlatformWhatsAppTransport(transport(
   state === undefined ? null : { transport: "whatsapp", state, observedAt: "2026-10-27T10:00:00+00:00" }, overrides));
 
+// Отметка канала в `wazzupTransport` - 10:00Z; «сейчас» на пять минут позже: отметка свежая.
+const OBSERVED_MS = Date.parse("2026-10-27T10:00:00Z");
+const FRESH_NOW = OBSERVED_MS + 5 * 60_000;
+
 test("the chat list banner: a working channel is not announced; trouble, a missing state and a stopped intake are", () => {
-  assert.equal(wazzupInboxChannelState(wazzupTransport("active"), true), "ready");
-  assert.equal(wazzupInboxChannelState(wazzupTransport("active"), false), "intake_off");
-  assert.equal(wazzupInboxChannelState(wazzupTransport("qr"), true), "attention");
-  assert.equal(wazzupInboxChannelState(wazzupTransport("neverSeenBefore"), true), "attention");
-  assert.equal(wazzupInboxChannelState(wazzupTransport(null), true), "unavailable");
-  assert.equal(wazzupInboxChannelState(wazzupTransport(undefined), true), "unavailable");
+  assert.equal(wazzupInboxChannelState(wazzupTransport("active"), true, FRESH_NOW), "ready");
+  assert.equal(wazzupInboxChannelState(wazzupTransport("active"), false, FRESH_NOW), "intake_off");
+  assert.equal(wazzupInboxChannelState(wazzupTransport("qr"), true, FRESH_NOW), "attention");
+  assert.equal(wazzupInboxChannelState(wazzupTransport("neverSeenBefore"), true, FRESH_NOW), "attention");
+  assert.equal(wazzupInboxChannelState(wazzupTransport(null), true, FRESH_NOW), "unavailable");
+  assert.equal(wazzupInboxChannelState(wazzupTransport(undefined), true, FRESH_NOW), "unavailable");
+});
+
+test("freshness: «работает» holds for 15 minutes of the timer's mark (three passes), not a minute longer; trouble words do not age", () => {
+  assert.equal(WAZZUP_STATE_MAX_AGE_MS, 15 * 60_000);
+  assert.equal(isFreshWazzupState("2026-10-27T10:00:00Z", OBSERVED_MS + WAZZUP_STATE_MAX_AGE_MS), true, "exactly 15 minutes is still fresh");
+  assert.equal(isFreshWazzupState("2026-10-27T10:00:00Z", OBSERVED_MS + WAZZUP_STATE_MAX_AGE_MS + 1), false);
+  assert.equal(isFreshWazzupState("2026-10-27T10:00:30Z", OBSERVED_MS), true, "a small clock skew forward is tolerated");
+  assert.equal(isFreshWazzupState("2026-10-27T10:05:00Z", OBSERVED_MS), false, "a mark from the future is not a mark");
+  for (const bad of [null, "", "not a date"]) assert.equal(isFreshWazzupState(bad, OBSERVED_MS), false, String(bad));
+  assert.equal(isFreshWazzupState("2026-10-27T10:00:00Z", Number.NaN), false);
+  const stale = { observedAt: "2026-10-27T10:00:00Z", nowMs: OBSERVED_MS + 16 * 60_000 };
+  const fresh = { observedAt: "2026-10-27T10:00:00Z", nowMs: OBSERVED_MS + 14 * 60_000 };
+  assert.deepEqual(wazzupChannelWords("active", fresh), { label: "подключён", tone: "ok", working: true });
+  assert.deepEqual(wazzupChannelWords("active", stale), { label: "состояние не подтверждено", tone: "warn", working: false });
+  assert.deepEqual(wazzupChannelWords("active", { observedAt: null, nowMs: OBSERVED_MS }), { label: "состояние не подтверждено", tone: "warn", working: false });
+  // Слова неполадок от возраста не зависят: тревога остаётся тревогой.
+  assert.deepEqual(wazzupChannelWords("notEnoughMoney", stale), wazzupChannelWords("notEnoughMoney"));
+  assert.deepEqual(wazzupChannelWords("qr", stale), wazzupChannelWords("qr"));
+  assert.deepEqual(wazzupChannelWords("somethingNew", stale), wazzupChannelWords("somethingNew"));
+});
+
+test("a stale WORKING row (key revoked, API down or the timer stopped - nothing rewrites the column) is never «Все ответы даны» and never green", () => {
+  const STALE_NOW = OBSERVED_MS + 16 * 60_000;
+  // «Продажи → WhatsApp»: плашка «Состояние WhatsApp не подтверждено» (`unknown`), не `ready` и не молчание.
+  assert.equal(wazzupInboxChannelState(wazzupTransport("active"), true, STALE_NOW), "unknown");
+  assert.equal(wazzupInboxChannelState(wazzupTransport("active"), false, STALE_NOW), "unknown", "unconfirmed outranks the stopped intake");
+  assert.equal(wazzupInboxChannelState(wazzupTransport("qr"), true, STALE_NOW), "attention", "trouble stays trouble");
+  assert.match(read("src/components/v3/Inbox.tsx"), /return "Состояние WhatsApp не подтверждено";/u, "the banner for `unknown` says it");
+  assert.match(read("src/components/v3/Inbox.tsx"), /wholeListRead = view\.channelState === "ready"/u, "«Все ответы даны» needs `ready`");
+  // «Настройки»: строка и чип не «подключён» и не зелёные.
+  const stale = (settingsNow) => settingsIntegrations(facts({ wazzup: { channelState: "active", observedAt: "2026-10-27T10:00:00+00:00", intakeEnabled: true } }), settingsNow).find((row) => row.key === "whatsapp");
+  const row = stale(new Date("2026-10-27T10:16:00Z"));
+  assert.deepEqual([row.name, row.state, row.tone, row.blocksWork], ["WhatsApp · Wazzup", "состояние не подтверждено", "warn", false]);
+  assert.match(row.without, /^Не подтверждено/u);
+  assert.notEqual(row.tone, "ok");
+  assert.equal(stale(new Date("2026-10-27T10:14:00Z")).state, "подключён", "inside the window the row is as before");
+  // Карточка канала берёт то же слово с тем же «сейчас» (чип «Подключён» без проверки возраста был бы неправдой).
+  const card = read("src/components/v3/settings/WhatsAppTransportCard.tsx");
+  assert.match(card, /wazzupChannelWords\(transport\.channel\?\.state \?\? null, \{\s*observedAt: transport\.channel\?\.observedAt \?\? null,\s*nowMs: now\.getTime\(\),\s*\}\)/u);
+});
+
+test("the night autoresponder chip is off in a read-only chat: Wazzup path or a Wazzup chat, whatever the autosend settings say", () => {
+  assert.equal(conversationIsReceiveOnly(true, "crm_primary"), true, "Wazzup path, a legacy WAHA chat");
+  assert.equal(conversationIsReceiveOnly(false, null), true, "a chat without a WAHA session is a Wazzup chat");
+  assert.equal(conversationIsReceiveOnly(true, null), true);
+  assert.equal(conversationIsReceiveOnly(false, "crm_primary"), false, "the WAHA path as before");
+  const source = read("src/lib/v3/inbox-source.ts");
+  assert.match(source, /const receiveOnly = conversationIsReceiveOnly\(channelStatus\.receiveOnly === true, thread\.conversation\.wahaSessionName\);/u);
+  assert.match(source, /readAutoreplyAtNight\(actor, thread\.conversation\.id, receiveOnly\)/u);
+  assert.match(source, /if \(receiveOnly \|\| !staffHasPermission\(actor, "ai\.agent\.use"\)\) return false;/u, "no read of the autosend settings at all");
 });
 
 test("the settings card: type, last four digits only when given, last incoming, intake, no replies; no key, address or number", () => {
@@ -296,15 +353,15 @@ const NOW = new Date("2026-10-27T12:00:00Z");
 const whatsappRow = (input) => settingsIntegrations(input, NOW).find((row) => row.key === "whatsapp");
 
 test("the integrations table: the WhatsApp row speaks about the Wazzup channel and never offers the WAHA connect link", () => {
-  const working = whatsappRow(facts({ wazzup: { channelState: "active", observedAt: "2026-10-27T10:00:00+00:00", intakeEnabled: true } }));
+  const working = whatsappRow(facts({ wazzup: { channelState: "active", observedAt: "2026-10-27T11:55:00+00:00", intakeEnabled: true } }));
   assert.deepEqual([working.name, working.state, working.tone, working.blocksWork, working.without], ["WhatsApp · Wazzup", "подключён", "ok", false, null]);
   assert.equal(working.detail, null, "the read-only fact is in the card and in the chat, not repeated in the row");
-  assert.equal(working.checkedText, "27.10 16:00");
+  assert.equal(working.checkedText, "27.10 17:55");
   const broken = whatsappRow(facts({ wazzup: { channelState: "notEnoughMoney", observedAt: "2026-10-27T10:00:00+00:00", intakeEnabled: true } }));
   assert.deepEqual([broken.state, broken.tone, broken.blocksWork], ["тариф не оплачен", "blocked", true]);
   const waiting = whatsappRow(facts({ wazzup: { channelState: "qr", observedAt: null, intakeEnabled: true } }));
   assert.deepEqual([waiting.tone, waiting.blocksWork], ["warn", false]);
-  const stopped = whatsappRow(facts({ wazzup: { channelState: "active", observedAt: null, intakeEnabled: false } }));
+  const stopped = whatsappRow(facts({ wazzup: { channelState: "active", observedAt: "2026-10-27T11:55:00+00:00", intakeEnabled: false } }));
   assert.deepEqual([stopped.state, stopped.tone, stopped.blocksWork], ["приём выключен", "warn", false]);
   for (const row of [working, broken, waiting, stopped]) {
     assert.doesNotMatch(JSON.stringify(row.action), /whatsapp-connect|Подключить WhatsApp/u);

@@ -99,6 +99,15 @@ export type InboxReplyAccess =
   | "receive_only";
 
 /**
+ * Чат только для чтения: действующий путь Wazzup (ответить из EVO нельзя ни в одном чате) либо беседа без сессии WAHA
+ * (беседа Wazzup). Ответ из CRM закрыт, и ночной автоответчик (чип «Ночью отвечает автоответчик») в таком чате ничего
+ * не отправит: ворота отправки в базе дают `receive_only` на каждом этапе.
+ */
+export function conversationIsReceiveOnly(receiveOnly: boolean, sessionName: string | null): boolean {
+  return receiveOnly || sessionName === null;
+}
+
+/**
  * Можно ли отвечать из CRM, по порядку причин: роль, путь (Wazzup - только чтение, в том числе в прежних чатах WAHA;
  * беседа без сессии WAHA - беседа Wazzup, она закрыта и после возврата на WAHA), сессия, диалог, сообщение клиента, канал.
  * Чистое правило страницы `inbox-source.ts`: проверяется Node-тестами без базы.
@@ -113,7 +122,7 @@ export function replyAccessFor(input: Readonly<{
   channelState: "ready" | "attention" | "not_connected" | "unknown" | "unavailable" | "intake_off";
 }>): InboxReplyAccess {
   if (input.role !== "allowed") return input.role;
-  if (input.receiveOnly || input.sessionName === null) return "receive_only";
+  if (conversationIsReceiveOnly(input.receiveOnly, input.sessionName)) return "receive_only";
   if (input.sessionName !== "crm_primary") return "old_session";
   if (!input.open) return "closed";
   if (!input.hasClientMessage) return "no_client_message";

@@ -39,6 +39,10 @@ try {
   };
   console.log(JSON.stringify(report.log));
   process.exitCode = report.exitCode;
+  // The AI dispatch of the Wazzup part is cut off at its deadline (slow Claude API) but cannot be cancelled: do not wait
+  // for it. Unref'd, so an idle process exits at once; otherwise stdout gets 2 s to flush and the pass ends with its own
+  // exit code instead of the 100 s hard stop (exit 1).
+  setTimeout(() => process.exit(report.exitCode), 2_000).unref();
 } catch {
   console.error("whatsapp_health_maintenance_failed");
   process.exitCode = 1;

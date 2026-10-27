@@ -49,6 +49,7 @@ import {
   type InboxChatMessage,
   type InboxReplyAccess,
   chatMessageOrigin,
+  conversationIsReceiveOnly,
   replyAccessFor,
 } from "@/lib/v3/whatsapp-chat";
 
@@ -279,11 +280,17 @@ async function readStage(
 /**
  * Шапка чата «Ночью отвечает автоответчик» (P4): только если автоответчик
  * здесь ответит по-настоящему — включён, не на паузе, чат не исключён, режим
- * «Отвечает» или чат живого теста, отправка включена на сервере. Чтение
+ * «Отвечает» или чат живого теста, отправка включена на сервере, чат не только
+ * для чтения (на пути Wazzup ворота отправки закрыты на каждом этапе). Чтение
  * информационное: сбой или отказ — без чипа, чат работает как прежде.
  */
-async function readAutoreplyAtNight(actor: ActivePlatformActor, conversationId: string): Promise<boolean> {
-  if (!staffHasPermission(actor, "ai.agent.use")) return false;
+async function readAutoreplyAtNight(
+  actor: ActivePlatformActor,
+  conversationId: string,
+  /** Чат только для чтения (путь Wazzup или беседа Wazzup): автоответчик ничего не отправит, чипа нет. */
+  receiveOnly: boolean,
+): Promise<boolean> {
+  if (receiveOnly || !staffHasPermission(actor, "ai.agent.use")) return false;
   try {
     const read = await readAiAutosendChat(actor, conversationId);
     return read.status === "available" && aiAutosendAnswersHere(read.data, aiAutosendServerState() === "on");
@@ -359,9 +366,10 @@ export async function readInbox(
     ) {
       throw new Error("V3 inbox is unavailable.");
     }
+    const receiveOnly = conversationIsReceiveOnly(channelStatus.receiveOnly === true, thread.conversation.wahaSessionName);
     const [stage, autoreplyAtNight] = await Promise.all([
       readStage(actor, context.canonicalLeadId),
-      readAutoreplyAtNight(actor, thread.conversation.id),
+      readAutoreplyAtNight(actor, thread.conversation.id, receiveOnly),
     ]);
     const viaWazzup = thread.conversation.wahaSessionName === null;
     const chat: InboxChatModel = Object.freeze({

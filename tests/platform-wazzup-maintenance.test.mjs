@@ -292,6 +292,55 @@ test("sweep: the AI agents are started once per pass, only when there are new in
   assert.equal(report.exitCode, 0);
 });
 
+const withNewInbound = (extra = {}) => quiet({
+  wazzup_projection_sweep_v1: () => ok({ ...sweepIdle, processed: 3, outcomes: { projected: 3 }, newInbound: 2, aiTriggerEnabled: true }),
+  ...extra,
+});
+
+test("the AI start runs after the sweep, the health step and the reconciliation - not inside the sweep", async () => {
+  const NOW = at("2026-10-27T00:30:00");
+  const db = withNewInbound();
+  let seen = null;
+  const { report } = await run(db, { now: NOW, amo: 300, dispatch: async () => { seen = db.names(); } });
+  assert.ok(seen !== null, "the AI agents were started");
+  for (const name of ["wazzup_projection_sweep_v1", "whatsapp_health_read_v1", "whatsapp_health_observe_v1", "wazzup_daily_counts_v1"]) {
+    assert.ok(seen.includes(name), `${name} came before the AI start`);
+  }
+  assert.equal(report.log.sweep_ai_dispatched, true);
+  assert.equal(report.log.health_status, "ok");
+  assert.equal(report.log.reconcile_status, "ok");
+  assert.equal(report.log.status, "ok");
+});
+
+test("a slow AI start cannot take the health step or the reconciliation: the 321 series is written even when the start burns 75 s of the clock", async () => {
+  let clock = at("2026-10-27T14:00:00");
+  const db = withNewInbound();
+  const wazzup = wazzupFake({ channels: [{ channelId: CHANNEL_ID, transport: "whatsapp", plainId: PLAIN_ID, state: "phoneUnavailable" }] });
+  const { report } = await run(db, { wazzup, overrides: { now: () => clock }, dispatch: async () => { clock += 75_000; } });
+  assert.equal(report.log.health_status, "ok", "the health step ran before the start");
+  assert.equal(report.log.health_word, "PHONE_UNAVAILABLE");
+  assert.equal(db.of("whatsapp_health_observe_v1").length, 1, "the series was written");
+  assert.equal(report.log.sweep_ai_dispatched, true);
+  assert.equal(report.log.status, "ok");
+  assert.equal(report.exitCode, 0);
+});
+
+test("an AI start that never returns is cut off at its deadline: the pass still reports, `degraded`, exit 0", async () => {
+  const db = withNewInbound();
+  const started = Date.now();
+  const { report } = await run(db, { dispatch: () => new Promise(() => {}), overrides: { aiDispatchDeadlineMs: 25 } });
+  assert.ok(Date.now() - started < 2_000, "the pass did not wait for the start");
+  assert.equal(report.log.sweep_ai_dispatch, "deadline");
+  assert.equal(report.log.sweep_ai_dispatched, undefined);
+  assert.equal(report.log.health_status, "ok", "health and the rest finished before the deadline began");
+  assert.equal(report.log.status, "degraded");
+  assert.equal(report.exitCode, 0);
+  // A synchronous throw from the hook is not a failure of the pass either.
+  const thrown = await run(withNewInbound(), { dispatch: () => { throw new Error("hook down"); } });
+  assert.equal(thrown.report.exitCode, 0);
+  assert.equal(thrown.report.log.status, "ok");
+});
+
 test("sweep: no intake owner is a loud failure, a database error is a failure - and neither stops the other two steps", async () => {
   const noOwner = quiet();
   const first = await run(noOwner, { env: environment({ EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: undefined }) });
@@ -468,6 +517,17 @@ test("health: the pass is skipped, not started, once the total budget is spent",
   assert.equal(report.log.health_status, "skipped");
   assert.equal(report.log.health_reason, "budget");
   assert.deepEqual(db.names().filter((name) => name.startsWith("whatsapp_health")), []);
+  // A step that did not run is not «ok»: the pass says `degraded` (still exit 0), so the journal shows the missing series.
+  assert.equal(report.log.status, "degraded");
+  assert.equal(report.exitCode, 0);
+  // The same for the nightly reconciliation: due, but no budget left - skipped and `degraded`, no count taken.
+  let night = at("2026-10-27T00:30:00");
+  const second = quiet({ wazzup_projection_sweep_v1: () => { night += 80_000; return ok(sweepIdle); } });
+  const late = await run(second, { overrides: { now: () => night }, now: night, amo: 300 });
+  assert.equal(late.report.log.reconcile_status, "skipped");
+  assert.equal(late.report.log.reconcile_reason, "budget");
+  assert.equal(second.of("wazzup_daily_counts_v1").length, 0);
+  assert.equal(late.report.log.status, "degraded");
 });
 
 // ---------------------------------------------------------------- c) reconciliation

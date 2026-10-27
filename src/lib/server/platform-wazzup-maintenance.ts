@@ -45,7 +45,8 @@ import {
  *  - **а) догрузка** (`sweep`): проецирует сохранённые, но не разобранные события (`platform.wazzup_projection_sweep_v1`)
  *    небольшими порциями и измеряет возраст самого старого; бежит на каждом проходе, пока аварийный стоп env открыт и
  *    действующий путь - Wazzup, и не зависит от опроса Wazzup. Возраст старше 30 минут - слово `degraded` в отчёте.
- *    Новое входящее при включённом в базе запуске ИИ - один запуск агентов за проход.
+ *    Новое входящее при включённом в базе запуске ИИ - один запуск агентов за проход, но не здесь: он идёт после шага в)
+ *    и ограничен сроком `aiDispatchDeadlineMs` (медленный Claude API не должен отнимать время у здоровья и сверки).
  *  - **б) здоровье** (`health`): `GET /v3/channels` (таймаут 10 с, ключ из Vault) -> слово состояния -> серия 321 сессии
  *    `wazzup` теми же правилами, что у WAHA (`planWhatsAppHealth`). Серию пишет только этот шаг, один раз за проход.
  *  - **в) сверка** (`reconcile`): в окне [00:10, 06:00) по Бишкеку считает входящие за прошлые сутки в EVO
@@ -56,6 +57,8 @@ import {
  * читающей функции. Шаги узнают его одним вызовом `wazzup_webhook_persist_v1` с пустой порцией: это единственная функция,
  * которая без записи отвечает и «путь Wazzup?», и номером привязанного канала (тот же вызов с пустой порцией делает
  * маршрут приёма для пакета из одних статусов). Не Wazzup - шаг пишет `transport_inactive` и ничего не опрашивает.
+ * Слова пути (`none` или `waha`) вызов не отдаёт, поэтому «расхождение» плана §9 (env `1`, путь `waha`) блок не называет:
+ * известное отклонение, docs/runbooks/wazzup-whatsapp.md §10 п. 7.
  *
  * Аварийный стоп (`EVO_PLATFORM_WAZZUP_INGRESS_ENABLED` не "1") и в env нет токена вебхука (настройки Wazzup не
  * начаты) - ничего не делает и в базу не ходит. Стоп закрыт, но токен задан (настройка начата или приём остановлен
@@ -69,6 +72,8 @@ const DEFAULT_RPC_DEADLINE_MS = 15_000;
 const DEFAULT_SWEEP_LIMIT = 50;
 const DEFAULT_SWEEP_MAX_ROUNDS = 4;
 const DEFAULT_SWEEP_BUDGET_MS = 40_000;
+/** Запуск ИИ-агентов идёт после трёх шагов и ждёт не дольше этого срока: 70 с блока + 15 с остаются в 100 с хард-стопа скрипта. */
+const DEFAULT_AI_DISPATCH_DEADLINE_MS = 15_000;
 /** Весь блок: хард-стоп скрипта 100 с, шаг WAHA до него тоже тратит время. */
 const DEFAULT_TOTAL_BUDGET_MS = 70_000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
@@ -95,6 +100,8 @@ export type WazzupMaintenanceDependencies = Readonly<{
   sweepMaxRounds: number;
   sweepBudgetMs: number;
   totalBudgetMs: number;
+  /** Сколько ждать `dispatchAiAgents` после шага в); дольше - проход идёт дальше (`degraded`, `sweep_ai_dispatch: deadline`). */
+  aiDispatchDeadlineMs: number;
 }>;
 
 export type WazzupMaintenanceReport = Readonly<{
@@ -125,6 +132,7 @@ export function defaultWazzupMaintenanceDependencies(): WazzupMaintenanceDepende
     sweepMaxRounds: DEFAULT_SWEEP_MAX_ROUNDS,
     sweepBudgetMs: DEFAULT_SWEEP_BUDGET_MS,
     totalBudgetMs: DEFAULT_TOTAL_BUDGET_MS,
+    aiDispatchDeadlineMs: DEFAULT_AI_DISPATCH_DEADLINE_MS,
   };
 }
 
@@ -240,6 +248,9 @@ export async function runWazzupMaintenance(
     log[`${step}_reason`] = error instanceof WhatsAppHealthDatabaseError ? error.word : "database";
   };
 
+  // Решает шаг а): были новые входящие и запуск ИИ включён в базе. Сам запуск - после шага в).
+  let aiDispatchWanted = false;
+
   // ---------------------------------------------------------------- а) догрузка
   try {
     const owner = readPlatformWazzupIntakeOwner(dependencies.environment);
@@ -300,10 +311,9 @@ export async function runWazzupMaintenance(
         if (exhausted > 0) log.sweep_failed_exhausted = exhausted;
         log.oldest_pending_seconds = oldest ?? 0;
         if (oldest !== null && oldest > WAZZUP_BACKLOG_DEGRADED_SECONDS) log.backlog = "degraded";
-        if (newInbound > 0 && aiTrigger) {
-          await dependencies.dispatchAiAgents().catch(() => undefined);
-          log.sweep_ai_dispatched = true;
-        }
+        // Запуск агентов - после шагов б) и в) (ниже): он ходит в Claude API (сессия до 30 с, с повторами) и не должен
+        // отнимать бюджет у здоровья и сверки. События уже спроецированы, терять нечего.
+        aiDispatchWanted = newInbound > 0 && aiTrigger;
       }
     }
   } catch (error) {
@@ -499,10 +509,39 @@ export async function runWazzupMaintenance(
     failed("reconcile", error);
   }
 
+  // ---------------------------------------------------------------- запуск ИИ-агентов (после а), б), в))
+  if (aiDispatchWanted) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // Сбой запуска (в том числе синхронный) проход не ломает: событие уже спроецировано, агент увидит чат по «неотвеченным».
+    const dispatch = (async (): Promise<"done"> => {
+      try {
+        await dependencies.dispatchAiAgents();
+      } catch {
+        // запуск не бросает по контракту; всё равно не сбой прохода
+      }
+      return "done";
+    })();
+    try {
+      const outcome = await Promise.race([
+        dispatch,
+        new Promise<"deadline">((resolve) => {
+          timer = setTimeout(() => resolve("deadline"), dependencies.aiDispatchDeadlineMs);
+        }),
+      ]);
+      if (outcome === "done") log.sweep_ai_dispatched = true;
+      else log.sweep_ai_dispatch = "deadline";
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  }
+
   if (failures > 0) {
     log.status = "failed";
     return done(1);
   }
-  log.status = !intakeOpen || log.backlog === "degraded" ? "degraded" : "ok";
+  // «Пропущено» - не «в порядке»: шаг, который не бежал из-за бюджета, или запуск ИИ, не уложившийся в срок.
+  const degraded = !intakeOpen || log.backlog === "degraded" || log.health_status === "skipped"
+    || log.reconcile_status === "skipped" || log.sweep_ai_dispatch === "deadline";
+  log.status = degraded ? "degraded" : "ok";
   return done(0);
 }

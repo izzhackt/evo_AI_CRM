@@ -22,7 +22,10 @@ export function WhatsAppTransportCard({
   intakeEnabled,
   now,
 }: Readonly<{ transport: PlatformWhatsAppTransport; intakeEnabled: boolean; now: Date }>) {
-  const words = wazzupChannelWords(transport.channel?.state ?? null);
+  const words = wazzupChannelWords(transport.channel?.state ?? null, {
+    observedAt: transport.channel?.observedAt ?? null,
+    nowMs: now.getTime(),
+  });
   const rows = wazzupCardRows(transport, intakeEnabled, (iso) => formatSettingsCheck(iso, now));
   return (
     <section

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { nextQueueIndex, popoverBlocksQueueKeys, rowNeedsReveal } from "./queue-navigation";
+import { isRendered, nextQueueIndex, popoverBlocksQueueKeys, rowNeedsReveal } from "./queue-navigation";
 import { QUEUE_HELP_ID } from "./QueueKeyboardHelp";
 import { QUEUE_SEARCH_SELECTOR } from "./QueueToolbar";
 
@@ -56,8 +56,8 @@ function focusedRowIndex(links: readonly HTMLElement[]): number {
 
 /** Фокус на ссылку строки по ключу: после «Показать ещё» клавиатура продолжает с первой открывшейся строки. */
 export function focusQueueRow(key: string): void {
-  const link = document.querySelector<HTMLElement>(`${QUEUE_ROW_SELECTOR}[data-queue-row="${CSS.escape(key)}"] ${QUEUE_OPEN_SELECTOR}`);
-  link?.focus();
+  const links = document.querySelectorAll<HTMLElement>(`${QUEUE_ROW_SELECTOR}[data-queue-row="${CSS.escape(key)}"] ${QUEUE_OPEN_SELECTOR}`);
+  [...links].find(isRendered)?.focus();
 }
 
 /** Модальное окно поверх очереди (диалог создания задачи, панель на узком экране). */
@@ -66,7 +66,7 @@ export function modalOpen(): boolean {
 }
 
 function rowLinks(): HTMLElement[] {
-  return [...document.querySelectorAll<HTMLElement>(`${QUEUE_ROW_SELECTOR} ${QUEUE_OPEN_SELECTOR}`)];
+  return [...document.querySelectorAll<HTMLElement>(`${QUEUE_ROW_SELECTOR} ${QUEUE_OPEN_SELECTOR}`)].filter(isRendered);
 }
 
 /**
@@ -76,7 +76,7 @@ function rowLinks(): HTMLElement[] {
  * Видимую строку не трогает (`rowNeedsReveal`).
  */
 export function revealQueueRow(key: string): boolean {
-  const row = document.querySelector<HTMLElement>(`${QUEUE_ROW_SELECTOR}[data-queue-row="${CSS.escape(key)}"]`);
+  const row = [...document.querySelectorAll<HTMLElement>(`${QUEUE_ROW_SELECTOR}[data-queue-row="${CSS.escape(key)}"]`)].find(isRendered);
   if (!row || !rowNeedsReveal(row.getBoundingClientRect(), window.innerHeight)) return false;
   row.scrollIntoView({ block: "center" });
   return true;

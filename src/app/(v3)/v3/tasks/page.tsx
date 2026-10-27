@@ -8,7 +8,10 @@ import { queueHref } from "@/components/v3/queue/queue-url";
 import { TaskComposerDialog } from "@/components/v3/tasks/TaskComposerDialog";
 import { TaskDetailPanel } from "@/components/v3/tasks/TaskDetailPanel";
 import { TasksWorkspace } from "@/components/v3/tasks/TasksWorkspace";
+import { TasksNextFailureLazy, TasksNextLazy } from "@/components/v3/tasks/next/TasksNextLazy";
+import { caseSheetData, staffSheetData } from "@/components/v3/tasks/next/task-sheet-data";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { isNextUi } from "@/lib/ui-next";
 import { staffTaskUuid } from "@/lib/platform-staff-task-contract";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { readStaffTaskWorkspace, taskQueueAccess } from "@/lib/v3/staff-task-source";
@@ -29,6 +32,11 @@ function optionalUuid(params: Params, key: string) { const value = single(params
 
 export default async function TasksPage({ searchParams }: { searchParams: Promise<Params> }) {
   const [params, actor] = await Promise.all([searchParams, requireV3PageActor("/v3/tasks")]);
+  // «Новый вид» (27.10.2026): только настоящему администратору с переключателем; данные, права и действия те же.
+  const nextUi = await isNextUi(actor);
+  const failure = (text: string, retryHref: string) => nextUi
+    ? <TasksNextFailureLazy text={text} retryHref={retryHref} />
+    : <PartShell title="Задачи"><QueueError text={text} retryHref={retryHref} /></PartShell>;
   const access = taskQueueAccess(actor);
   const preview = isStaffPreview(actor);
   const canUseStaffTasks = staffHasPermission(actor, "staff.task.read") || staffHasPermission(actor, "staff.task.create");
@@ -51,7 +59,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     try {
       [sourceLead, leadTasks] = await Promise.all([readStaffTaskLeadContext(actor, sourceLeadId), readLeadTaskLinks(actor, sourceLeadId)]);
     } catch {
-      return <PartShell title="Задачи"><QueueError text="Не удалось проверить доступ к лиду и связанным задачам." retryHref={`/v3/tasks?lead=${sourceLeadId}&create=staff`} /></PartShell>;
+      return failure("Не удалось проверить доступ к лиду и связанным задачам.", `/v3/tasks?lead=${sourceLeadId}&create=staff`);
     }
     if (!sourceLead) notFound();
   }
@@ -63,7 +71,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       sourceMessage = page.messages.find((message) => message.id === sourceMessageId && !message.deletedAt);
     } catch (error) {
       if (error instanceof TeamChatReadError && ["forbidden", "not_found"].includes(error.status)) notFound();
-      return <PartShell title="Задачи"><QueueError text="Не удалось проверить исходное сообщение; задача не создана." retryHref={`/v3/tasks?${new URLSearchParams({ message: sourceMessageId, channel: sourceChannel, create: "staff" })}`} /></PartShell>;
+      return failure("Не удалось проверить исходное сообщение; задача не создана.", `/v3/tasks?${new URLSearchParams({ message: sourceMessageId, channel: sourceChannel, create: "staff" })}`);
     }
     if (!sourceMessage) notFound();
   }
@@ -79,7 +87,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       taskId: taskKind === "staff" ? taskId : null, selectedCaseId,
     });
   } catch {
-    return <PartShell title="Задачи"><QueueError text="Не удалось загрузить задачи и доступных сотрудников." retryHref={listHref()} /></PartShell>;
+    return failure("Не удалось загрузить задачи и доступных сотрудников.", listHref());
   }
   if (taskId && taskKind === "staff" && !workspace.selectedTask) notFound();
   if (selectedCaseId && !taskId && !workspace.selectedCase) notFound();
@@ -122,7 +130,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     });
   } catch {
     // Повтор одной задачи в двух страницах чтения — данные не сходятся: не показываем их.
-    return <PartShell title="Задачи"><QueueError text="Список задач прочитан с расхождением. Повторите загрузку." retryHref={listHref()} /></PartShell>;
+    return failure("Список задач прочитан с расхождением. Повторите загрузку.", listHref());
   }
   // Панель — часть адреса списка: закрытие возвращает те же вид, фильтры и поиск.
   const closeHref = listHref();
@@ -146,6 +154,30 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   const canCreate = !preview && (composerProps.staffAllowed || composerProps.caseAllowed);
   const selectedKey = caseTaskTarget ? `case:${caseTaskTarget.task.id}` : selected ? `staff:${selected.id}` : null;
   const moveOpen = single(params, "move") === "1";
+  const permissions = {
+    actorMembershipId: actor.membershipId, admin: actor.systemRole === "admin" && !preview, preview,
+    staffComplete: staffHasPermission(actor, "staff.task.complete"), staffEdit: staffHasPermission(actor, "staff.task.edit"),
+    caseManage: staffHasPermission(actor, "task.manage"), caseAssign: staffHasPermission(actor, "task.assign"),
+  };
+  const headerCount = canReadTaskQueue && queue.complete && !sourceLead && !workspace.canReadStaffTasks && !access.teamView ? queue.rows.length : null;
+  if (nextUi) {
+    const sheet = selected ? staffSheetData({
+      task: selected, participants: workspace.assignees, day, nowIso: now.toISOString(), leadId: taskContext?.leadId ?? null, lead: taskLead,
+      sourceHref: selectedSourceHref, sourceUnavailable, outcomes: contextUnavailable ? null : taskContext?.outcomes ?? [],
+    }) : caseTaskTarget ? caseSheetData({
+      task: caseTaskTarget.task, caseId: selectedCaseId!, assignees: caseTaskTarget.assignees, capabilities: caseTaskTarget.capabilities,
+      day, nowIso: now.toISOString(),
+    }) : null;
+    return <TasksNextLazy
+      filters={filters} queue={queue} cutOff={workspace.queue.cutOff} day={day} nowIso={now.toISOString()}
+      canReadStaffTasks={workspace.canReadStaffTasks} canReadCaseTasks={workspace.canReadCaseTasks} teamView={access.teamView}
+      createdExcludesCases={workspace.createdExcludesCases} composer={composerProps} composerKey={sourceMessage?.id ?? "standalone"}
+      canCreate={canCreate} urlIntent={openIntent ?? single(params, "create") ?? null} permissions={permissions}
+      taskLeads={taskLeads} dial={listDial} count={headerCount} sheet={sheet} closeHref={closeHref} moveOpen={moveOpen}
+      sourceMessage={sourceMessage ? { id: sourceMessage.id, channelKey: sourceMessage.channelKey, authorName: sourceMessage.authorName, body: sourceMessage.body } : null}
+      sourceLead={sourceLead} leadTasks={leadTasks}
+    />;
+  }
   // Своя панель на каждую задачу: введённое в одной не переезжает в другую.
   const panel = selected ? <TaskDetailPanel key={`staff:${selected.id}`} day={day} nowIso={now.toISOString()} closeHref={closeHref} moveOpen={moveOpen} readOnly={preview} data={{
     kind: "staff", task: selected, participants: workspace.assignees,
@@ -161,7 +193,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
   }} /> : null;
 
   return <>
-    <PartShell title="Задачи" count={canReadTaskQueue && queue.complete && !sourceLead && !workspace.canReadStaffTasks && !access.teamView ? queue.rows.length : null}>
+    <PartShell title="Задачи" count={headerCount}>
     {sourceLead ? <section className="mb-5 space-y-3 border-y border-border py-4" aria-label="Задачи по лиду">
       <h2 className="t-section">{callerDisplayName(sourceLead.clientDisplayName ?? "Имя клиента не указано")}</h2>
       <p className="t-body-compact text-fg-2">Следующее действие воронки: {sourceLead.nextActionText ?? "Не назначено"}{sourceLead.nextActionDueDate ? ` · ${sourceLead.nextActionDueDate}` : ""}</p>
@@ -194,11 +226,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
       composerKey={sourceMessage?.id ?? "standalone"}
       canCreate={canCreate}
       urlIntent={openIntent ?? single(params, "create") ?? null}
-      permissions={{
-        actorMembershipId: actor.membershipId, admin: actor.systemRole === "admin" && !preview, preview,
-        staffComplete: staffHasPermission(actor, "staff.task.complete"), staffEdit: staffHasPermission(actor, "staff.task.edit"),
-        caseManage: staffHasPermission(actor, "task.manage"), caseAssign: staffHasPermission(actor, "task.assign"),
-      }}
+      permissions={permissions}
       selectedKey={selectedKey}
       taskLeads={taskLeads}
       dial={listDial}

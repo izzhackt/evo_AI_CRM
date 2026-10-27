@@ -186,7 +186,7 @@ test("B: assign, the case header and both curator filters follow case.curator.as
   const pipeline = source("src/app/(v3)/v3/admissions-pipeline/page.tsx");
   assert.match(pipeline, /!isStaffPreview\(actor\) && staffHasPermission\(actor, "case\.curator\.assign"\)\s+\? listStudentPortalActiveCurators\(actor\)/u);
   const parts = source("src/components/v3/profile/CaseWorkParts.tsx");
-  assert.match(parts, /coverage=\{!preview && staffHasPermission\(actor, "case\.curator\.assign"\)\}/u);
+  assert.match(parts, /coverage(?:=\{|: )!preview && staffHasPermission\(actor, "case\.curator\.assign"\)/u);
   const work = source("src/lib/v3/case-work-source.ts");
   assert.match(work, /: !isStaffPreview\(actor\) && staffHasPermission\(actor, "case\.curator\.assign"\)\s+\? \(await readCaseAttentionFlags/u);
 });

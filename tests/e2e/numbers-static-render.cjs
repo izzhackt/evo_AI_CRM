@@ -565,15 +565,14 @@ function shell(actor, title, body) {
 // --- Lead 360 ----------------------------------------------------------------
 // Как `profile/page.tsx` для `?id=`: имя — h1, возврат «Воронка продаж» над ним,
 // действия у заголовка, шапка «Этап · Что дальше» и «Обзор» из `leadWorkParts`.
-function leadPage(name, tab = "overview", extra = {}) {
+// Сборка частей лида (`leadWorkParts`) на синтетике — одна для прежнего вида (`leadPage`) и «Нового вида»
+// (`card-next-static-render.cjs`).
+function leadBuild(name, extra = {}) {
   const base = LEAD_SCENARIOS[name] ?? E4_LEADS[name];
   // `next`/`due` — лид без шага воронки; `openTasks` — задачи по лиду, которые читает страница (`lead_staff_task_links`).
   const scenario = "next" in extra ? { ...base, next: extra.next, due: extra.due ?? null } : base;
-  const { Profile } = require(join(ROOT, "src/components/v3/profile/Profile.tsx"));
   const { buildV3ProfileHref } = require(join(ROOT, "src/components/v3/profile/types.ts"));
   const { leadWorkParts } = require(join(ROOT, "src/components/v3/profile/LeadWorkParts.tsx"));
-  const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
-  const { Icon } = require(join(ROOT, "src/components/icons.tsx"));
   const wording = require(join(ROOT, "src/lib/v3/wording.ts"));
   const hrefFor = (tab) => buildV3ProfileHref({ leadId: LEAD_ID, studentCaseId: null }, tab);
   const profile = {
@@ -607,6 +606,14 @@ function leadPage(name, tab = "overview", extra = {}) {
     openTasks: extra.openTasks ?? null, hrefFor,
     now: new Date("2026-09-27T06:00:00.000Z"),
   });
+  return { profile, draft, sales, notes, requestIds, hrefFor, parts };
+}
+
+function leadPage(name, tab = "overview", extra = {}) {
+  const { Profile } = require(join(ROOT, "src/components/v3/profile/Profile.tsx"));
+  const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
+  const { Icon } = require(join(ROOT, "src/components/icons.tsx"));
+  const { profile, draft, sales, notes, requestIds, hrefFor, parts } = leadBuild(name, extra);
   const body = createElement(Profile, {
     profile, draft, sales, actor: ADMIN, organizationId: ORG, studentPortalCurators: [], studentPortalCuratorsAvailable: true,
     requestIds, noteRequestId: uuid("13131313", 20), notes, notesOlderHref: null, notesLatestHref: null, tab, hrefFor,
@@ -1438,7 +1445,11 @@ async function telephonyReportPages() {
   ];
 }
 
-if (process.argv.includes("--json-telephony-report")) {
+// Как модуль (`require`) harness отдаёт синтетические сценарии Lead 360 и их сборку — для проверки «Нового вида»
+// (`card-next-static-render.cjs`); как скрипт — работает по ключам ниже.
+if (require.main !== module) {
+  module.exports = { LEAD_SCENARIOS, E4_LEADS, leadBuild, withContexts, ADMIN, LEAD_ID, ORG, ME, uuid, ROOT };
+} else if (process.argv.includes("--json-telephony-report")) {
   // «Телефония» T10 (для tests/platform-telephony-report.test.mjs).
   telephonyReportPages()
     .then((pages) => process.stdout.write(JSON.stringify(pages)))

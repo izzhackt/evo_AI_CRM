@@ -27,6 +27,7 @@ export function CaseDirection({
   current,
   expectedVersion,
   requestId,
+  flush = false,
 }: Readonly<{
   studentCaseId: string;
   /** Направление дела; null - «Не выбрано». */
@@ -34,6 +35,8 @@ export function CaseDirection({
   /** `admissions_version` дела из строки очереди: ожидаемая версия записи. */
   expectedVersion: string;
   requestId: string;
+  /** Ряд ключевых данных «Нового вида»: цель 44 px выходит за строку, текст стоит на одной линии с соседними данными. */
+  flush?: boolean;
 }>) {
   const router = useRouter();
   const fieldId = useId();
@@ -88,7 +91,7 @@ export function CaseDirection({
           <button
             ref={triggerRef}
             type="button"
-            className={FACT_ACTION}
+            className={flush ? `${FACT_ACTION} -my-3` : FACT_ACTION}
             onClick={() => { setSelected(current ?? ""); setSeen(state); setOpen(true); }}
           >
             {current ? (

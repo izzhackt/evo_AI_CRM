@@ -228,7 +228,9 @@ test("«Приём дела» in «Сведения» keeps the curator's answer
   // Тот же HandoffResponseSummary, что у карточки «Приём дела» на лиде и во вкладке «Вузы и программы».
   const overview = read("src/components/v3/profile/CaseOverview.tsx");
   assert.match(overview, /import \{ HandoffResponseSummary \} from "\.\/ProfileSalesTransition";/u);
-  assert.match(overview, /<Fact term="Приём дела">[\s\S]*?<HandoffResponseSummary current=\{handoff\.current \? \{\n\s+decision: handoff\.current\.decision,\n\s+clarification: handoff\.current\.clarification,\n\s+agreedContactDate: handoff\.current\.agreedContactDate,/u);
+  // Значение «Приёма дела» — одно на два вида («Сведения» прежнего вида и «Новый вид», `caseFactValues`).
+  assert.match(overview, /reception: onRecord && handoff \? \([\s\S]*?<HandoffResponseSummary current=\{handoff\.current \? \{\n\s+decision: handoff\.current\.decision,\n\s+clarification: handoff\.current\.clarification,\n\s+agreedContactDate: handoff\.current\.agreedContactDate,/u);
+  assert.match(overview, /<Fact term="Приём дела">\{values\.reception\}<\/Fact>/u);
 });
 
 test("Admin: sales forms and portal access are collapsed groups under «Сведения»; contacts are one fact", () => {
@@ -276,10 +278,11 @@ test("the page: name as h1, «Дело студента» tab title, back to the
   // Закрытый лид (246) — его имя, как у дела.
   // Лид (Э4) — тоже по имени: `leadParts` — Lead 360 как рабочая карточка.
   // Даже запасная страница (роль без чтения продаж) называется по имени, а не «Профиль»: имя — единственный h1.
-  assert.match(page, /<PartShell title=\{view \? leadDisplayName\(view\.profile\.source, view\.profile\.person\) : docsMode \? "EVO Docs"\n\s+: closedLead \? closedLead\.name \?\? "Лид без имени" : "Студенты"\}/u);
+  assert.match(page, /const title = view \? leadDisplayName\(view\.profile\.source, view\.profile\.person\) : docsMode \? "EVO Docs"\n\s+: closedLead \? closedLead\.name \?\? "Лид без имени" : "Студенты";/u);
+  assert.match(page, /<PartShell title=\{title\}/u);
   assert.match(page, /<Link href=\{requestsReturnTo \?\? directoryHref\}[^>]*>\s*<Icon name="arrow-left" size=\{16\} \/>\s*\{requestsReturnTo \? "Заявки" : docsMode \? "EVO Docs" : "Студенты"\}/u);
   assert.match(page, /const caseTarget = view\?\.details\.routeTarget\.studentCaseId && view\.details\.admissions/u);
-  assert.match(page, /caseOverview=\{caseParts\?\.overview \?\? leadParts\?\.overview \?\? undefined\}/u);
+  assert.match(page, /caseOverview=\{nextParts\?\.overview \?\? caseParts\?\.overview \?\? leadParts\?\.overview \?\? undefined\}/u);
   // Права редактора шага — одни для «Быстрого просмотра» и дела.
   assert.match(page, /stepAccess: caseWork\.row \? nextStepAccess\(editor\.input, caseWork\.row, editor\.recordScopes\) : \{ kind: "read_only", reason: null \}/u);
   assert.match(page, /editor: editor\.input,\n    recordScopes: editor\.recordScopes,/u);
@@ -291,7 +294,7 @@ test("the page: name as h1, «Дело студента» tab title, back to the
   // (Э8.4: ряд вкладок очередей `QueueTabStrip`, `focusable` — `tabIndex` и `data-tab-strip`).
   assert.match(profile, /<QueueTabStrip label="Разделы профиля" focusable testId="v3-profile-tabs">/u);
   // Одна вкладка («Обзор» у лида без содержимого) — ряда нет.
-  assert.match(profile, /\{tabs\.length > 1 \? \(\s*<QueueTabStrip/u);
+  assert.match(profile, /tabs\.length > 1 \? \(\s*<QueueTabStrip/u);
   assert.match(read("src/components/v3/queue/QueueTabStrip.tsx"), /tabIndex=\{focusable \? 0 : undefined\}\n\s+data-tab-strip=\{focusable \? "" : undefined\}/u);
   assert.match(read("src/app/(v3)/v3.css"), /\.v3-world \[data-tab-strip\] \.v3-choice:focus-visible \{\n {2}outline-offset: -2px;\n\}/u);
   // Прежний «Обзор» лида рисует ту же часть продажи, что «Данные продажи» дела.
@@ -461,7 +464,7 @@ test("the case-only branch of readCaseProfile keeps the client e-mail/phone null
   assert.match(source, /direction: data\.studentCase\.admissionsDirection \?\? null,\n {4}applications: data\.applications,/u);
   // Контакты собираются чистой функцией из уже прочитанного, без нового чтения.
   const parts = read("src/components/v3/profile/CaseWorkParts.tsx");
-  assert.match(parts, /contacts=\{caseContacts\(\{ phone: profile\.phone, email: profile\.email \}, draft\.profileFields\)\}/u);
+  assert.match(parts, /contacts(?:=\{|: )caseContacts\(\{ phone: profile\.phone, email: profile\.email \}, draft\.profileFields\)/u);
   assert.match(parts, /email=\{profile\.email\}/u, "portal access still takes the client e-mail only");
   // Условия продажи (290): одно чтение дела параллельно с делом, не бросает, без запасного пути; блок лида остаётся null.
   assert.match(branch, /const saleRead = readCaseSaleData\(actor, canonicalCaseId\);\n {2}const data = await loadFullCase\(actor, view\.studentCase\);/u);
@@ -598,7 +601,7 @@ test("loadFullCase narrows the snapshot by case state and passes pending to the 
   assert.doesNotMatch(source, /getPlatformCaseDocumentWorkspace\([^)]*\)[^\n]*\.catch|catch[^\n]*getPlatformCaseDocumentWorkspace/u);
   const parts = read("src/components/v3/profile/CaseWorkParts.tsx");
   // Правило состояния не переписывается по месту: страница дела спрашивает ту же функцию, что и остальные экраны.
-  assert.match(parts, /documentsAwaitCurator=\{caseDocumentsAwaitCurator\(admissions\.caseState\)\}/u);
+  assert.match(parts, /documentsAwaitCurator(?:=\{|: )caseDocumentsAwaitCurator\(admissions\.caseState\)/u);
   assert.doesNotMatch(parts, /caseState === "pending"/u);
 });
 

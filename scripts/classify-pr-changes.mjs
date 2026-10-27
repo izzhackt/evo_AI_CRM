@@ -63,6 +63,8 @@ const KNOWN_CODE_PATHS = new Set([
   "assets/fonts/OFL.txt",
   "assets/fonts/README.md",
   "assets/templates/student-profile.docx",
+  // Конфигурация shadcn CLI («Новый вид»): читает только CLI при `shadcn add`, сборка её не использует.
+  "components.json",
   "docker-compose.prod.yml",
   "eslint.config.mjs",
   "next.config.ts",

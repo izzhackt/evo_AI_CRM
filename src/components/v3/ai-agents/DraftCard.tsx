@@ -25,13 +25,16 @@ const COUNTER_FROM_SHARE = 0.9;
  * Карточка, по которой нажали «Одобрить» или «Отклонить», остаётся на месте со статусом и
  * словом результата: `onDeciding` вызывается в момент нажатия и отдаёт её списку, потому что
  * сервер уже не вернёт её в «Ждут решения», а ответ и обновлённый список приходят вместе.
+ * `bare` — карточка внутри панели «Нового вида»: рамки и заголовка с адресатом и временем нет (их уже называет заголовок
+ * панели), остаются слово состояния, ссылка на переписку и «действует до …», пока срок близок.
  */
 export function DraftCard({
   draft,
   canManage,
   now,
   onDeciding,
-}: Readonly<{ draft: AiAgentDraftRow; canManage: boolean; now: string; onDeciding?: () => void }>) {
+  bare = false,
+}: Readonly<{ draft: AiAgentDraftRow; canManage: boolean; now: string; onDeciding?: () => void; bare?: boolean }>) {
   const [text, setText] = useState(draft.text);
   const { state, pending, submit } = useAgentsAction(decideAiAgentDraftAction);
   // Решение принято: любой итог, кроме «остаётся в очереди» (там карточка нужна для новой попытки).
@@ -56,18 +59,27 @@ export function DraftCard({
   }
 
   return (
-    <article className="rounded-card border border-border bg-surface p-4" data-testid="v3-aia-draft" data-status={outcome ?? draft.status} aria-labelledby={`aia-draft-${draft.id}`}>
+    <article className={bare ? undefined : "rounded-card border border-border bg-surface p-4"} data-testid="v3-aia-draft" data-status={outcome ?? draft.status} aria-labelledby={bare ? undefined : `aia-draft-${draft.id}`}>
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <StatusChip label={label.label} tone={label.tone} />
-        <h3 id={`aia-draft-${draft.id}`} className="t-item min-w-0 text-fg">
-          {AI_AGENT_DRAFT_CHANNEL_LABELS[draft.channel]}
-          {draft.targetLabel ? " · " : ""}
-          {draft.targetLabel ? (href ? <Link href={href} className="underline underline-offset-4">{draft.targetLabel}</Link> : draft.targetLabel) : null}
-        </h3>
-        <span className="t-meta text-fg-3">
-          {relativeTimeRu(draft.createdAt, now)}
-          {expiresSoon ? ` · действует до ${formatDateTimeRu(draft.expiresAt, now)}` : ""}
-        </span>
+        {bare ? (
+          <>
+            {href ? <Link href={href} className="inline-flex min-h-11 items-center t-label text-fg underline underline-offset-4">{draft.channel === "whatsapp" ? "Открыть чат" : "Открыть переписку"}</Link> : null}
+            {expiresSoon ? <span className="t-meta text-fg-3">действует до {formatDateTimeRu(draft.expiresAt, now)}</span> : null}
+          </>
+        ) : (
+          <>
+            <h3 id={`aia-draft-${draft.id}`} className="t-item min-w-0 text-fg">
+              {AI_AGENT_DRAFT_CHANNEL_LABELS[draft.channel]}
+              {draft.targetLabel ? " · " : ""}
+              {draft.targetLabel ? (href ? <Link href={href} className="underline underline-offset-4">{draft.targetLabel}</Link> : draft.targetLabel) : null}
+            </h3>
+            <span className="t-meta text-fg-3">
+              {relativeTimeRu(draft.createdAt, now)}
+              {expiresSoon ? ` · действует до ${formatDateTimeRu(draft.expiresAt, now)}` : ""}
+            </span>
+          </>
+        )}
       </header>
 
       {draft.sourceMessage ? (
@@ -130,7 +142,7 @@ export function DraftCard({
       ) : null}
       <div className="mt-2">
         <ActionMessage state={state} testId="v3-aia-draft-result" />
-        {outcome === "sent" && href ? (
+        {outcome === "sent" && href && !bare ? (
           <p><Link href={href} className="inline-flex min-h-11 items-center t-label text-fg underline underline-offset-4">{draft.channel === "whatsapp" ? "Открыть чат" : "Открыть переписку"}</Link></p>
         ) : null}
       </div>

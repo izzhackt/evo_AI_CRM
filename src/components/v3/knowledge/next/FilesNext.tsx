@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DataTable, DetailSheet, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
+import { sheetEscape } from "@/components/v3/panel/sheet-escape";
 
 import type { KnowledgeFile, KnowledgeFolder } from "../../FileManager";
 import { KnowledgeExport } from "../KnowledgeExport";
@@ -88,6 +89,7 @@ export function FilesNext({ folders, files, canManage, canUpload, createFolderRe
       <DetailSheet
         open={openFile !== null}
         onOpenChange={(next) => { if (!next) setOpenFileId(null); }}
+        onEscapeKeyDown={sheetEscape}
         title={openFile?.name ?? "Документ"}
         description={openFile?.size ?? undefined}
         footer={openFile?.downloadHref ? <Button variant="outline" asChild><a href={openFile.downloadHref}>Скачать</a></Button> : undefined}

@@ -372,3 +372,20 @@ test("«Командный чат» на телефоне: открытая пе
   assert.match(page, /group-has-\[\[data-panel=messages\]\]\/chat:max-\[800px\]:hidden/u, "шапка убирается по тому же условию");
   assert.match(page, /className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-border bg-surface /u, "на столе и в списке каналов рамка прежняя");
 });
+
+/* ---------------------------------------------------------------- Esc в полях панелей (независимая проверка сборки 2A, 28.10.2026) */
+
+test("Esc в панелях «Шаблоны ответов», «Документы» и «Календарь»: первая Esc только выводит из поля (`sheetEscape`), набранное не пропадает; в браузере — tests/e2e/tools-next-flows-esc.cjs", () => {
+  const sheets = [
+    ["src/components/v3/reply-snippets/next/SnippetsNext.tsx", 1], ["src/components/v3/reply-snippets/next/SnippetCreateSheet.tsx", 1],
+    ["src/components/v3/knowledge/next/FolderSheets.tsx", 3], ["src/components/v3/knowledge/next/FilesNext.tsx", 1], ["src/components/v3/calendar/next/CalendarTaskSheet.tsx", 1],
+  ];
+  for (const [file, expected] of sheets) {
+    const source = read(file);
+    assert.equal(count(source, /<DetailSheet\b/gu), expected, `${file}: панелей`);
+    assert.equal(count(source, /onEscapeKeyDown=\{sheetEscape\}/gu), expected, `${file}: каждая панель с полями отдаёт Esc правилам боковой панели`);
+    assert.match(source, /import \{ sheetEscape \} from "@\/components\/v3\/panel\/sheet-escape";/u, file);
+  }
+  // Панель без полей («Папки» — дерево ссылок) правил не меняет: Esc в ней закрывает панель, как раньше.
+  assert.doesNotMatch(read("src/components/v3/knowledge/next/LibraryOverlays.tsx"), /sheetEscape/u);
+});

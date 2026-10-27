@@ -11,6 +11,7 @@
 const { mkdirSync } = require("node:fs");
 const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
+const { blankBandBelowRoot, headerWrapViolations } = require("./layout-probes.cjs");
 
 /** Видимые элементы управления страницы меньше 44 px; исключения те же, что у стендов первой волны (см. tasks-next). */
 function smallTargets() {
@@ -48,7 +49,7 @@ function pageFacts() {
 
 async function main() {
   const { PAGES, VIEWPORTS, buildBundle, compileCss, writePage, ROOT, lazySettled } = require("./tools-next-static-render.cjs");
-  const flows = [...require("./tools-next-flows.cjs").flows, ...require("./tools-next-flows-fixes.cjs").flows];
+  const flows = [...require("./tools-next-flows.cjs").flows, ...require("./tools-next-flows-fixes.cjs").flows, ...require("./tools-next-flows-esc.cjs").flows];
   const args = process.argv.slice(2);
   if (!args.includes("--screenshots")) throw new Error("usage: node tests/e2e/tools-next-static-render.cjs --screenshots [outDir] [--only a,b] [--flows-only]");
   const next = args[args.indexOf("--screenshots") + 1];
@@ -101,6 +102,12 @@ async function main() {
         report(`${label}: no horizontal scroll`, facts.overflow <= 1, facts.overflow);
         const small = await page.evaluate(smallTargets);
         report(`${label}: targets >= 44px`, small.length === 0, small);
+        // Шапка карточки: короткое действие («Показать» у «Без срока») стоит рядом с заголовком, пока им вместе хватает места.
+        const wrapped = await page.evaluate(headerWrapViolations);
+        report(`${label}: card headers keep a short action beside the title`, wrapped.length === 0, wrapped);
+        // Под страницей нет пустой полосы прокрутки (абсолютно расположенные `sr-only` в ячейках остаются внутри области таблицы).
+        const band = await page.evaluate(blankBandBelowRoot, "#root");
+        report(`${label}: no blank scroll band below the page`, band.ok, band);
         const axe = await new AxeBuilder({ page }).include("main").analyze();
         report(`${label}: axe`, axe.violations.length === 0, axe.violations.map((violation) => `${violation.id}: ${violation.nodes.slice(0, 3).map((node) => node.target.join(" ")).join(" | ")}`));
         const chatInPanel = name.startsWith("chat") && facts.chatPanel === "messages" && key === "m390";

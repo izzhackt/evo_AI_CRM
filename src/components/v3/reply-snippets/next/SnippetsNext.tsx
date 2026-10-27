@@ -3,6 +3,7 @@
 import { useEffect, useEffectEvent, useState } from "react";
 
 import { DataTable, DetailSheet, EmptyState, StatusBadge, type DataTableColumn } from "@/components/kit";
+import { sheetEscape } from "@/components/v3/panel/sheet-escape";
 
 import {
   AUDIENCE_LABELS, type KnowledgeReplySnippetItem, type KnowledgeReplySnippetSectionProps,
@@ -62,6 +63,7 @@ export function SnippetsNext({ items, canManage, availableAudiences, createReque
       <DetailSheet
         open={open !== null}
         onOpenChange={(next) => { if (!next) setOpenId(null); }}
+        onEscapeKeyDown={sheetEscape}
         title={open?.snippet.title ?? "Шаблон"}
         description={open ? AUDIENCE_LABELS[open.snippet.audience] : undefined}
       >

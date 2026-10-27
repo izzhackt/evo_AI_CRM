@@ -6,6 +6,7 @@ import { DetailSheet } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { sheetEscape } from "@/components/v3/panel/sheet-escape";
 import {
   archivePlatformCompanyFileFolderAction, createPlatformCompanyFileAction, createPlatformCompanyFileFolderAction,
   movePlatformCompanyFileFolderAction, renamePlatformCompanyFileFolderAction,
@@ -18,7 +19,7 @@ import { DestinationSelect } from "./FileSheetBody";
 /** «Новая папка» в текущей папке компании: то же действие и поля (`parent_folder_id`, `name`), что у прежней формы. */
 export function CreateFolderSheet({ parent, requestId }: Readonly<{ parent: KnowledgeFolder; requestId: string }>) {
   return (
-    <DetailSheet title="Новая папка" trigger={<Button variant="outline"><FolderPlusIcon aria-hidden="true" /><span className="sr-only md:not-sr-only">Новая папка</span></Button>}>
+    <DetailSheet title="Новая папка" onEscapeKeyDown={sheetEscape} trigger={<Button variant="outline"><FolderPlusIcon aria-hidden="true" /><span className="sr-only md:not-sr-only">Новая папка</span></Button>}>
       <div data-testid="v3-company-create-folder-form">
         <FileActionForm key={requestId} action={createPlatformCompanyFileFolderAction} requestId={requestId} itemKind="folder" itemId={null}
           hidden={{ parent_folder_id: folderValue(parent) }} submit="Создать" pending="Создаём…">
@@ -32,7 +33,7 @@ export function CreateFolderSheet({ parent, requestId }: Readonly<{ parent: Know
 /** «Новый файл» — главное действие раздела, пока открыта папка компании и есть право: единственная красная кнопка. */
 export function CreateFileSheet({ parent, requestId }: Readonly<{ parent: KnowledgeFolder; requestId: string }>) {
   return (
-    <DetailSheet title="Новый файл" trigger={<Button><FilePlusIcon aria-hidden="true" />Новый файл</Button>}>
+    <DetailSheet title="Новый файл" onEscapeKeyDown={sheetEscape} trigger={<Button><FilePlusIcon aria-hidden="true" />Новый файл</Button>}>
       <div data-testid="v3-company-create-file-form">
         <FileActionForm key={requestId} action={createPlatformCompanyFileAction} requestId={requestId} itemKind="file" itemId={null}
           hidden={{ folder_id: folderValue(parent) }} submit="Создать" pending="Создаём…">
@@ -49,7 +50,7 @@ export function ManageFolderSheet({ folder, destinations, hasChildren }: Readonl
   if (folder.kind !== "company" || !version || !renameRequestId || !moveRequestId || !archiveRequestId) return null;
   const hidden = { folder_id: folder.id, expected_version: version };
   return (
-    <DetailSheet title="Управление папкой" description={folder.name} trigger={<Button variant="outline"><FolderCogIcon aria-hidden="true" /><span className="sr-only md:not-sr-only">Управление папкой</span></Button>}>
+    <DetailSheet title="Управление папкой" description={folder.name} onEscapeKeyDown={sheetEscape} trigger={<Button variant="outline"><FolderCogIcon aria-hidden="true" /><span className="sr-only md:not-sr-only">Управление папкой</span></Button>}>
       <div className="grid gap-6" data-testid="v3-company-folder-controls" data-folder-id={folder.id}>
         <FileActionForm action={renamePlatformCompanyFileFolderAction} requestId={renameRequestId} itemKind="folder" itemId={folder.id} hidden={hidden} submit="Переименовать" pending="Сохраняем…">
           <div className="grid gap-1.5"><Label htmlFor="folder-rename">Новое название</Label><Input id="folder-rename" required name="name" maxLength={255} defaultValue={folder.name} /></div>

@@ -286,7 +286,7 @@ test("«Отчёт продаж»: таблицы сумм и поступлен
     const at = next.indexOf(`data-testid="${testId}"`);
     assert.ok(at > 0, testId);
     const tag = next.lastIndexOf("<table", at);
-    assert.ok(next.slice(Math.max(0, tag - 160), tag).endsWith(`<div role="region" aria-label="${region}" tabindex="0" class="relative min-w-0 overflow-x-auto">`), `${testId}: область прокрутки с подписью и фокусом клавиатуры`);
+    assert.ok(next.slice(Math.max(0, tag - 200), tag).endsWith(`<div role="region" aria-label="${region}" tabindex="0" class="relative hidden min-w-0 overflow-x-auto @min-[34rem]:block">`), `${testId}: область прокрутки с подписью и фокусом клавиатуры (таблица — от 34rem карточки, уже — стопка)`);
   }
   const table = read("src/components/v3/sales-next/SalesRecordsTable.tsx");
   assert.match(table, /footer=\{shown && \(shown\.open \|\| shown\.extra\) \? \(/u, "подвал панели есть, только когда в нём есть действие");
@@ -411,4 +411,55 @@ test("правила нового вида: доски — карточки на
   assert.match(read("src/components/v3/sales-next/SalesReportNextPage.tsx"), /role=\{alert\.role\}/u);
   assert.match(read("src/components/v3/sales-next/SalesMoneyCard.tsx"), /\{data\.footnote\}/u);
   assert.match(read("src/components/v3/sales-next/SalesFramesNext.tsx"), /Записи продаж вашей роли недоступны/u);
+});
+
+/* ---------------------------------------------------------------- исправления после независимой проверки сборки 2A (28.10.2026) */
+
+test("Esc в панелях лида, записи и плана: первая Esc только выводит из поля (`sheetEscape`), набранное не пропадает; в браузере — pipelines-next и sales-report-next --screenshots", () => {
+  for (const file of ["pipeline-next/LeadSheetNext", "sales-next/SalesRecordsTable", "sales-next/SalesPlanCard"]) {
+    const source = read(`src/components/v3/${file}.tsx`);
+    assert.equal(count(source, /<DetailSheet\b/gu), 1, `${file}: одна панель`);
+    assert.match(source, /onEscapeKeyDown=\{sheetEscape\}/u, `${file}: Esc решает правило боковой панели`);
+    assert.match(source, /import \{ sheetEscape \} from "@\/components\/v3\/panel\/sheet-escape";/u, file);
+  }
+});
+
+test("подвал панели лида: «Открыть карточку лида» и «⋯» — одна строка и на телефоне (кнопка занимает остаток, «⋯» справа), а не столбец с одинокой «⋯»", () => {
+  const sheet = read("src/components/v3/pipeline-next/LeadSheetNext.tsx");
+  assert.match(sheet, /footer=\{\s*(?:\/\/[^\n]*\n\s*)?<div className="flex items-center gap-2 sm:justify-end">\s*<Button variant="outline" asChild className="flex-1 sm:flex-none">/u);
+  assert.match(sheet, /<CloseRecordMenu [\s\S]*?\/>\s*\) : null\}\s*<\/div>\s*\}/u, "меню закрытия лежит в той же строке");
+  // Подвал панели — столбец наизнанку: две отдельные кнопки без обёртки опять дали бы «⋯» одну над кнопкой.
+  assert.match(read("src/components/ui/sheet.tsx"), /flex flex-col-reverse gap-2 border-t border-border px-5 py-3 sm:flex-row sm:justify-end/u);
+  assert.match(read("DESIGN.md"), /в подвале одной строкой и на телефоне/u);
+});
+
+test("«Суммы» и «Поступления и возвраты»: от 34rem карточки — таблица, уже — стопка по валютам с теми же числами и словами; ни одно число не прячется за прокруткой", () => {
+  const next = report.get("admin-cookie");
+  for (const [tableId, stackId, region] of [["sales-money-table", "sales-money-stack", "Суммы по валютам"], ["sales-cash-totals", "sales-cash-stack", "Поступления и возвраты по валютам"]]) {
+    const tableAt = next.indexOf(`data-testid="${tableId}"`);
+    const stackAt = next.indexOf(`data-testid="${stackId}"`);
+    assert.ok(tableAt > 0 && stackAt > 0, `${tableId}: есть и таблица, и стопка`);
+    assert.ok(stackAt < tableAt, `${tableId}: стопка стоит перед областью таблицы (в одном `+"`@container`"+` родителе)`);
+    const list = next.slice(next.lastIndexOf("<ul", stackAt), next.indexOf("</ul>", stackAt));
+    assert.match(list, new RegExp(`^<ul aria-label="${region}" data-testid="${stackId}" class="[^"]*@min-\\[34rem\\]:hidden`, "u"), `${stackId}: стопка скрывается, когда помещается таблица`);
+    const tableTag = next.lastIndexOf("<table", tableAt);
+    assert.ok(next.slice(Math.max(0, tableTag - 200), tableTag).endsWith(`<div role="region" aria-label="${region}" tabindex="0" class="relative hidden min-w-0 overflow-x-auto @min-[34rem]:block">`), `${tableId}: область прокрутки скрыта, пока карточка уже 34rem`);
+    const wrapper = next.lastIndexOf('<div class="@container min-w-0">', stackAt);
+    assert.ok(wrapper > 0 && next.slice(wrapper, tableAt).includes(`aria-label="${region}"`), `${tableId}: стопка и таблица делят родителя-контейнер`);
+    // Те же числа и слова: значения стопки по блокам равны ячейкам строк таблицы (без валюты в заголовке строки).
+    const table = next.slice(tableTag, next.indexOf("</table>", tableTag));
+    const rows = [...table.slice(table.indexOf("<tbody")).matchAll(/<tr\b[\s\S]*?<\/tr>/gu)].map((row) => [...row[0].matchAll(/<td\b[\s\S]*?<\/td>/gu)].map((cell) => text(cell[0])).filter(Boolean));
+    const blocks = [...list.matchAll(/<li\b[\s\S]*?<\/li>/gu)].map((block) => [...block[0].matchAll(/<dd\b[\s\S]*?<\/dd>/gu)].map((value) => text(value[0])).filter(Boolean));
+    assert.ok(rows.length > 0, `${tableId}: строки`);
+    assert.deepEqual(blocks, rows, `${tableId}: числа стопки совпадают с таблицей`);
+  }
+  // «Итого» и «Остаток» назван в стопке словом, жирным — это то, что на телефоне раньше обрезалось.
+  const cash = next.slice(next.indexOf('data-testid="sales-cash-stack"'), next.indexOf("</ul>", next.indexOf('data-testid="sales-cash-stack"')));
+  assert.match(text(cash), /USD Получено .* Возвращено .* Итого .* KGS Получено/u);
+  assert.match(cash, /<dd class="m-0 text-right tabular-nums font-semibold">/u);
+  const money = next.slice(next.indexOf('data-testid="sales-money-stack"'), next.indexOf("</ul>", next.indexOf('data-testid="sales-money-stack"')));
+  assert.match(text(money), /Остаток/u);
+  assert.match(money, /data-stack-key="USD&gt;KGS"/u, "пара валют — отдельный блок, остатка у неё нет");
+  assert.match(text(money.slice(money.indexOf('data-stack-key="USD&gt;KGS"'))), /остаток не считается/u);
+  assert.match(read("DESIGN.md"), /SalesCurrencyStack/u, "каталог назвал стопку");
 });

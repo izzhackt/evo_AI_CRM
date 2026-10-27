@@ -9,6 +9,7 @@ const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
 
 const harness = require("./students-next-static-render.cjs");
+const { blankBandBelowRoot } = require("./layout-probes.cjs");
 const { journeys } = require("./students-next-journeys.cjs");
 const { journeys: fixes } = require("./students-next-fixes-journeys.cjs");
 
@@ -85,6 +86,9 @@ async function run() {
       }, testId);
       report(`${label}: page root present`, metrics.found, testId);
       report(`${label}: no horizontal scroll`, metrics.overflow <= 0, metrics.overflow);
+      // Длинный список не тянет за собой пустую полосу прокрутки: `sr-only` в ячейках («Нет» в сигналах) не вылезает за область таблицы.
+      const band = await page.evaluate(blankBandBelowRoot, "#root");
+      report(`${label}: no blank scroll band below the page (document is not taller than the app root)`, band.ok, band);
       report(`${label}: one h1`, metrics.h1.length === 1 && metrics.h1[0].length > 0, metrics.h1);
       report(`${label}: targets >= 44px`, metrics.small.length === 0, metrics.small);
       report(`${label}: cards inside the viewport, table without horizontal scroll`, metrics.wideCards === 0 && metrics.tableOverflow <= 0, { wide: metrics.wideCards, table: metrics.tableOverflow });

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { DetailSheet, KeyFacts, StatusBadge } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { sheetEscape } from "@/components/v3/panel/sheet-escape";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 
@@ -70,6 +71,7 @@ export function CalendarTaskSheet({
       open={open}
       onOpenChange={(next) => { if (!next) onClose(); }}
       onCloseAutoFocus={(event) => { event.preventDefault(); restoreFocus(); }}
+      onEscapeKeyDown={sheetEscape}
       title={task?.title ?? "Задача недоступна"}
       description={task?.person ?? undefined}
       footer={confirmed ? footer : undefined}

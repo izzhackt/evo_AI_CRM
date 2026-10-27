@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { DetailSheet, WidgetCard } from "@/components/kit";
 import { Button } from "@/components/ui/button";
+import { sheetEscape } from "@/components/v3/panel/sheet-escape";
 
 /**
  * «План месяца» и «Перенос данных»: «Изменить план» открывает панель с прежней формой (`SalesTargetForm` приходит готовой с сервера),
@@ -30,7 +31,7 @@ export function SalesPlanCard({ target, read, inTile, form, importHref, unavaila
       actions={
         <>
           {form ? (
-            <DetailSheet title="План месяца" trigger={<Button variant="outline">Изменить план</Button>}>{form}</DetailSheet>
+            <DetailSheet title="План месяца" onEscapeKeyDown={sheetEscape} trigger={<Button variant="outline">Изменить план</Button>}>{form}</DetailSheet>
           ) : null}
           {importHref ? <Button variant="ghost" asChild><Link href={importHref}>Перенос данных</Link></Button> : null}
         </>

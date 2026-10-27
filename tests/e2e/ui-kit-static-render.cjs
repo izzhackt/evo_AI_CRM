@@ -22,6 +22,7 @@ const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { rowA11yProblems } = require("./row-a11y-probe.cjs");
 const { lazySettled } = require("./lazy-settled.cjs");
+const { headerWrapViolations } = require("./layout-probes.cjs");
 
 const ROOT = resolve(__dirname, "../..");
 const LOGO_URL = pathToFileURL(join(ROOT, "public/brand/evo-logo.png")).href;
@@ -29,6 +30,8 @@ const VIEWPORTS = {
   d1440: { viewport: { width: 1440, height: 900 } },
   d1280: { viewport: { width: 1280, height: 800 } },
   m390: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+  m360: { viewport: { width: 360, height: 780 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+  m320: { viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
 };
 
 const LINK_SHIM = `
@@ -214,6 +217,16 @@ async function main() {
     // «?» названы по хозяину: на странице нет одинаковых «Пояснение».
     const helpNames = await page.evaluate(() => [...document.querySelectorAll("[data-testid=v3-ui-kit] button[aria-label^=Пояснение]")].map((element) => element.getAttribute("aria-label")));
     report(`${key}: help buttons named by owner`, helpNames.length >= 5 && helpNames.every((name) => name.startsWith("Пояснение: ")) && new Set(helpNames).size === helpNames.length, helpNames);
+    await context.close();
+  }
+
+  // Шапка карточки на узких экранах: короткое действие или бейдж стоит рядом с заголовком, пока им вместе хватает места
+  // (заголовок не занимает «запасные» 12rem), а длинное уходит под заголовок, не накрывая его.
+  for (const key of ["m390", "m360", "m320"]) {
+    const { context, page } = await open(pages.kit, key);
+    const headers = await page.evaluate(() => document.querySelectorAll("[data-testid=v3-ui-kit] [data-slot=card-header]:has(> [data-slot=card-action])").length);
+    const wrapped = await page.evaluate(headerWrapViolations);
+    report(`${key}: card headers keep a short action beside the title (wrap only when title + action do not fit)`, headers >= 2 && wrapped.length === 0, { headers, wrapped });
     await context.close();
   }
 

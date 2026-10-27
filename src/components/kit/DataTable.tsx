@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
  * «Открыть: …» в ячейке-заголовке (`meta.mobile = "title"`; у колонки с `meta.opensRow` — её ссылка), сама строка фокус не берёт.
  * `getRowLabel` — название записи для имени этой кнопки и кнопки карточки телефона; без него — значение колонки-заголовка.
  * В меню «Колонки» нет колонок `meta.wide`, пока блок таблицы уже 64rem (их на экране нет): `useColumnMenu`.
+ * Область прокрутки позиционирована (`relative`): `sr-only` в ячейках остаётся внутри неё и не растягивает страницу пустой полосой под списком.
  */
 export function DataTable<T extends RowData>({
   label,
@@ -96,7 +97,7 @@ export function DataTable<T extends RowData>({
   } else {
     body = (
       <>
-        <div role="region" aria-label={label} tabIndex={0} aria-busy={loading || undefined} className="hidden max-h-[min(70dvh,48rem)] overflow-auto rounded-card border border-border bg-surface md:block">
+        <div role="region" aria-label={label} tabIndex={0} aria-busy={loading || undefined} className="relative hidden max-h-[min(70dvh,48rem)] overflow-auto rounded-card border border-border bg-surface md:block">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((group) => (

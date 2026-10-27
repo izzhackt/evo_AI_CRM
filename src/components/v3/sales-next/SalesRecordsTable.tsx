@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { DataTable, DetailSheet } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { sheetEscape } from "@/components/v3/panel/sheet-escape";
 
 import { salesRecordColumns } from "./SalesRecordCells";
 import type { SalesRowData } from "./sales-next-types";
@@ -76,6 +77,7 @@ export function SalesRecordsTable({ rows, openKey, sheet, listHref, toolbar, emp
       <DetailSheet
         open={open}
         onOpenChange={(next) => { if (!next) go(null, listHref); }}
+        onEscapeKeyDown={sheetEscape}
         title={shown?.title ?? targetRow?.name ?? "Запись продажи"}
         description={shown?.description}
         footer={shown && (shown.open || shown.extra) ? (

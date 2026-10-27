@@ -5,6 +5,7 @@ import { useActionState } from "react";
 
 import { DetailSheet } from "@/components/kit";
 import { Button } from "@/components/ui/button";
+import { sheetEscape } from "@/components/v3/panel/sheet-escape";
 import { QUEUE_CONFIRM } from "@/components/v3/queue/queue-buttons";
 import { createPlatformReplySnippetAction } from "@/lib/platform-reply-snippet-actions";
 import type { PlatformReplySnippetAudience } from "@/lib/platform-reply-snippets";
@@ -32,7 +33,7 @@ function CreateForm({ requestId, audiences }: Readonly<{ requestId: string; audi
  */
 export function SnippetCreateSheet({ requestId, audiences }: Readonly<{ requestId: string; audiences: readonly PlatformReplySnippetAudience[] }>) {
   return (
-    <DetailSheet title="Новый шаблон" trigger={<Button><PlusIcon aria-hidden="true" />Новый шаблон</Button>}>
+    <DetailSheet title="Новый шаблон" onEscapeKeyDown={sheetEscape} trigger={<Button><PlusIcon aria-hidden="true" />Новый шаблон</Button>}>
       <CreateForm requestId={requestId} audiences={audiences} />
     </DetailSheet>
   );

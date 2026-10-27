@@ -9,6 +9,7 @@
  */
 
 const { join } = require("node:path");
+const { headerWrapViolations } = require("./layout-probes.cjs");
 
 const VIEWPORTS = {
   d1440: { viewport: { width: 1440, height: 900 } },
@@ -95,35 +96,42 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
       await context.close();
     }
 
-    // 1b. Узкие экраны 390, 360 и 320: страница не шире окна, суммы и поступления остаются внутри своих карточек (широкая таблица прокручивается в
-    // карточке, а не растягивает её), последний столбец («Остаток», «Итого») можно дотянуть до виду, область прокрутки доступна с клавиатуры.
-    for (const key of ["m390", "m360", "m320"]) {
+    // 1b. Суммы и поступления на 1440, 1280, 390, 360 и 320: страница не шире окна; на широком экране — таблица целиком (стопки нет); на узком (карточка уже 34rem) —
+    // стопка «валюта: подпись — число», таблица скрыта. Ни одно число не обрезано краем карточки (раньше последний столбец, «Итого» и «Остаток», прятался за
+    // прокруткой без подсказки), а числа стопки те же, что в таблице.
+    for (const key of ["d1440", "d1280", "m390", "m360", "m320"]) {
       const { context, page, errors } = await open(`/v3/main?${SEARCH}`, key);
       const name = `report ${key}`;
       const width = VIEWPORTS[key].viewport.width;
-      const fit = await page.evaluate(async (testIds) => {
-        const out = { page: [document.documentElement.scrollWidth, window.innerWidth], tables: [] };
-        for (const testId of testIds) {
-          const table = document.querySelector(`[data-testid="${testId}"]`);
-          const scroller = table.parentElement;
+      const phone = width < 600;
+      const fit = await page.evaluate((pairs) => {
+        const out = { page: [document.documentElement.scrollWidth, window.innerWidth], blocks: [] };
+        for (const [tableId, stackId] of pairs) {
+          const table = document.querySelector(`[data-testid="${tableId}"]`);
+          const region = table.parentElement;
+          const list = document.querySelector(`[data-testid="${stackId}"]`);
+          if (!list) { out.blocks.push({ tableId, missingStack: true }); continue; }
           const card = table.closest('[data-slot="card"]');
           const cardBox = card.getBoundingClientRect();
-          const box = scroller.getBoundingClientRect();
-          const texts = [...card.querySelectorAll("p")].map((node) => Math.round(node.getBoundingClientRect().right - cardBox.right));
-          scroller.scrollLeft = scroller.scrollWidth;
-          await new Promise((done) => requestAnimationFrame(done));
-          const last = [...table.querySelectorAll("thead th")].pop().getBoundingClientRect();
-          const reached = Math.round(last.right - scroller.getBoundingClientRect().right);
-          scroller.scrollLeft = 0;
-          out.tables.push({ testId, scroller: scroller.getAttribute("role"), focusable: scroller.tabIndex === 0, insideCard: Math.round(box.right - cardBox.right), textOverflow: Math.max(0, ...texts),
-            scrollable: scroller.scrollWidth > scroller.clientWidth, lastHeaderReachable: reached <= 1 });
+          const tableShown = getComputedStyle(region).display !== "none" && region.getClientRects().length > 0;
+          const listShown = getComputedStyle(list).display !== "none" && list.getClientRects().length > 0;
+          const shown = tableShown ? region : list;
+          const edge = shown.getBoundingClientRect();
+          const rows = [...table.querySelectorAll("tbody tr")].map((row) => [...row.cells].slice(1).map((cell) => cell.textContent.trim()).filter(Boolean));
+          const blocks = [...list.querySelectorAll(":scope > li")].map((li) => [...li.querySelectorAll("dd")].map((dd) => dd.textContent.trim()).filter(Boolean));
+          const clipped = tableShown ? Math.max(0, region.scrollWidth - region.clientWidth) : [...list.querySelectorAll("dd, dt, p")].filter((node) => node.scrollWidth > node.clientWidth + 1 || node.getBoundingClientRect().right > cardBox.right - 1).length;
+          out.blocks.push({ tableId, tableShown, listShown, insideCard: Math.round(edge.right - cardBox.right), clipped, textOverflow: Math.max(0, ...[...card.querySelectorAll("p")].map((node) => Math.round(node.getBoundingClientRect().right - cardBox.right))),
+            same: JSON.stringify(rows) === JSON.stringify(blocks), rows: rows.length, blockCount: blocks.length, regionFocusable: region.tabIndex === 0 && region.getAttribute("role") === "region" });
         }
         return out;
-      }, ["sales-money-table", "sales-cash-totals"]);
+      }, [["sales-money-table", "sales-money-stack"], ["sales-cash-totals", "sales-cash-stack"]]);
       report(`${name}: page is not wider than the window (layout viewport stays ${width})`, fit.page[0] <= fit.page[1] + 1 && fit.page[1] <= width, fit.page);
-      report(`${name}: money and cash tables stay inside their cards (no clipped «Остаток» / «Итого»), text lines too, last column reachable by scrolling the card's region`,
-        fit.tables.every((one) => one.scroller === "region" && one.focusable && one.insideCard <= 1 && one.textOverflow <= 1 && one.lastHeaderReachable), fit.tables);
+      report(`${name}: money and cash show ${phone ? "a stack by currency (table hidden)" : "the whole table (stack hidden)"}, nothing cut by the card edge, the same numbers either way`,
+        fit.blocks.every((one) => one.tableShown === !phone && one.listShown === phone && one.insideCard <= 1 && one.clipped === 0 && one.textOverflow <= 1 && one.same && one.rows > 0 && one.rows === one.blockCount && one.regionFocusable), fit.blocks);
       await shot(page, `report-${key}-fit`, { fullPage: true });
+      // Шапка «План месяца»: «Изменить план» стоит рядом с заголовком, пока им вместе хватает места.
+      const wrapped = await page.evaluate(headerWrapViolations);
+      report(`${name}: card headers keep a short action beside the title («Изменить план» next to «План месяца»)`, wrapped.length === 0, wrapped);
       const axe = await axeOf(page, "[data-testid=v3-sales-report]");
       report(`${name}: axe (scrollable regions are focusable)`, axe.length === 0, axe);
       report(`${name}: console clean`, errors.length === 0, errors);
@@ -185,6 +193,18 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
         && (await applicant.inputValue()) === "Айжан Примерова", url(page));
       report(`${name}: the edit form has no empty footer strip either`, (await dialog.locator('[data-slot="sheet-footer"]').count()) === 0, await dialog.locator('[data-slot="sheet-footer"]').count());
       await shot(page, `report-sheet-edit-${key}`);
+      // Esc в поле формы записи: первая только выводит из поля (панель, ?record=…&edit=true и набранное остаются), вторая закрывает панель.
+      const draft = "Айжан Примерова-Исправленная";
+      await applicant.fill(draft);
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(250);
+      const kept = await page.evaluate(() => ({ dialogs: document.querySelectorAll('[data-slot="sheet-content"]').length, url: location.search, onTitle: document.activeElement?.getAttribute("data-slot") === "sheet-title" }));
+      const keptValue = await applicant.inputValue().catch(() => null);
+      report(`${name}: the first Esc in «Заявитель» only leaves the field (panel, ?record=&edit=true and the typed text stay, focus on the title)`,
+        kept.dialogs === 1 && kept.url.includes(`record=${rowId(2)}`) && kept.url.includes("edit=true") && keptValue === draft && kept.onTitle, { ...kept, value: keptValue });
+      await page.keyboard.press("Escape");
+      await page.waitForFunction(() => !document.querySelector('[data-slot="sheet-content"]'), null, { timeout: 5000 }).catch(() => {});
+      report(`${name}: the second Esc closes the panel and drops ?record= and edit=true`, kept.dialogs === 1 && !/record=|edit=/u.test(url(page)), url(page));
       report(`${name}: console clean`, errors.length === 0, errors);
       await context.close();
     }
@@ -266,7 +286,16 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
       await page.getByRole("dialog").waitFor();
       report("report plan: «Изменить план» opens the old form in a panel", (await page.getByRole("dialog").locator("form").count()) > 0, null);
       await shot(page, "report-plan-d1440");
+      // Esc в поле плана: первая только выводит из поля (панель и набранное остаются), вторая закрывает панель.
+      const planField = page.getByRole("dialog").locator("form input:not([type=hidden]):not([type=checkbox]):not([type=radio])").first();
+      await planField.fill("41");
       await page.keyboard.press("Escape");
+      await page.waitForTimeout(250);
+      const planKept = { dialogs: await page.getByRole("dialog").count(), value: await planField.inputValue().catch(() => null), onTitle: await page.evaluate(() => document.activeElement?.getAttribute("data-slot") === "sheet-title") };
+      report("report plan: the first Esc in the plan field only leaves the field (panel and typed value stay, focus on the title)", planKept.dialogs === 1 && planKept.value === "41" && planKept.onTitle, planKept);
+      await page.keyboard.press("Escape");
+      await page.getByRole("dialog").waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
+      report("report plan: the second Esc closes the panel", planKept.dialogs === 1 && (await page.getByRole("dialog").count()) === 0, null);
       await context.close();
       const empty = await open(`/v3/main?${SEARCH}&q=нет-такого-имени`, "d1440");
       report("report empty: no rows says so and offers «Сбросить фильтры»", /По выбранным фильтрам записей не найдено\./u.test(await empty.page.locator("main").textContent()) && (await empty.page.getByRole("link", { name: "Сбросить фильтры" }).count()) > 0, null);

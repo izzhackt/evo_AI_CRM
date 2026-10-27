@@ -22,6 +22,7 @@ const { rowA11yProblems } = require("./row-a11y-probe.cjs");
 const { lazySettled } = require("./lazy-settled.cjs");
 const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
+const { headerWrapViolations } = require("./layout-probes.cjs");
 
 const ROOT = resolve(__dirname, "../..");
 const LOGO_URL = pathToFileURL(join(ROOT, "public/brand/evo-logo.png")).href;
@@ -29,6 +30,11 @@ const VIEWPORTS = {
   d1440: { viewport: { width: 1440, height: 900 } },
   d1280: { viewport: { width: 1280, height: 800 } },
   m390: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+};
+// Узкие телефоны: только измерение шапок карточек (раздел 1b), остальные проверки идут на `VIEWPORTS`.
+const NARROW = {
+  m360: { viewport: { width: 360, height: 780 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+  m320: { viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
 };
 const SCENES = [
   { name: "hub", path: "/v3/ai-agents", search: "" },
@@ -239,7 +245,7 @@ async function main() {
   };
 
   async function open(name, key, options = {}) {
-    const context = await browser.newContext({ ...VIEWPORTS[key], reducedMotion: "reduce" });
+    const context = await browser.newContext({ ...(VIEWPORTS[key] ?? NARROW[key]), reducedMotion: "reduce" });
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
@@ -289,6 +295,16 @@ async function main() {
       const axe = await new AxeBuilder({ page }).include(ROOT_SELECTOR).analyze();
       report(`${label}: axe`, axe.violations.length === 0, axe.violations.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`));
       report(`${label}: console clean`, errors.length === 0, errors);
+      await context.close();
+    }
+  }
+
+  // 1b. Шапки карточек на 360 и 320: бейдж («Готово», «5 · 1 с ошибкой») стоит рядом с заголовком, пока им вместе хватает места.
+  for (const scene of SCENES) {
+    for (const key of Object.keys(NARROW)) {
+      const { context, page } = await open(scene.name, key);
+      const wrapped = await page.evaluate(headerWrapViolations);
+      report(`${key}/${scene.name}: card headers keep a badge or a short action beside the title`, wrapped.length === 0, wrapped);
       await context.close();
     }
   }

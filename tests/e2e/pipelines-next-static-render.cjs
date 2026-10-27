@@ -151,6 +151,27 @@ async function main() {
       report(`${name}: axe`, (await axeOf(page, '[role="dialog"]')).length === 0, await axeOf(page, '[role="dialog"]'));
       report(`${name}: targets >= 44px`, (await smallTargets(page, '[role="dialog"]')).length === 0, await smallTargets(page, '[role="dialog"]'));
       report(`${name}: no horizontal scroll`, await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), null);
+      // Подвал: «Открыть карточку лида» и «⋯» стоят в одной строке и на телефоне (раньше «⋯» оставалась одна над кнопкой), «⋯» справа от ссылки.
+      const footer = await page.evaluate(() => {
+        const link = [...document.querySelectorAll('[role="dialog"] [data-slot="sheet-footer"] a')].find((element) => element.textContent.trim() === "Открыть карточку лида");
+        const more = document.querySelector('[role="dialog"] [data-slot="sheet-footer"] button[aria-label="Ещё действия"]');
+        if (!link || !more) return { found: false };
+        const a = link.getBoundingClientRect();
+        const b = more.getBoundingClientRect();
+        const bar = document.querySelector('[role="dialog"] [data-slot="sheet-footer"]').getBoundingClientRect();
+        return { found: true, sameRow: Math.abs(a.top - b.top) < 4 && Math.abs(a.height - b.height) < 4, moreRight: b.left >= a.right - 1, link: Math.round(a.width), more: Math.round(b.width), bar: Math.round(bar.width) };
+      });
+      report(`${name}: footer keeps «Открыть карточку лида» and «⋯» on one row, «⋯» to the right`, footer.found && footer.sameRow && footer.moreRight, footer);
+      // Esc в поле панели: первая только выводит из поля (панель, ?lead= и набранный текст остаются), вторая закрывает панель.
+      const draft = "Черновик: перезвонить в пятницу после 18:00 (синтетика)";
+      const nextAction = dialog.getByTestId("v3-pipeline-next-action");
+      await nextAction.fill(draft);
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(250);
+      const kept = await page.evaluate(() => ({ dialogs: document.querySelectorAll('[role="dialog"]').length, url: location.pathname + location.search,
+        value: document.querySelector('[data-testid="v3-pipeline-next-action"]')?.value ?? null, onTitle: document.activeElement?.getAttribute("data-slot") === "sheet-title" }));
+      report(`${name}: the first Esc in «Следующее действие» only leaves the field (panel, ?lead= and the typed text stay, focus on the title)`,
+        kept.dialogs === 1 && kept.url.includes(`lead=${leadId(5)}`) && kept.value === draft && kept.onTitle, kept);
       await page.keyboard.press("Escape");
       await dialog.waitFor({ state: "detached" });
       const closed = { url: url(page), focus: await focusInfo(page) };

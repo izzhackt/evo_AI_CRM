@@ -527,3 +527,32 @@ test("токены нового вида заданы только под data-u
   assert.doesNotMatch(outside, /\.v3-world|:root|^\s*--(?:primary|card|input|ring)\s*:/m, "вне блока переменных значений нет");
   assert.match(read("src/app/globals.css"), /^@import "tailwindcss";\n[^\n]*\n@import "\.\/ui-next\.css";/);
 });
+
+/* ---------------------------------------------------------------- исправления после независимой проверки сборки 2A (28.10.2026) */
+
+test("шапка `WidgetCard`: у заголовка нет запасных 12rem — короткое действие и бейдж остаются рядом, длинное уходит под заголовок (измеряет tests/e2e/layout-probes.cjs)", () => {
+  const card = read("src/components/kit/WidgetCard.tsx");
+  assert.match(card, /<div className="flex min-w-0 flex-\[1_1_auto\] items-center gap-1\.5">/u, "заголовок занимает ровно свою ширину; при нехватке места переносится действие, а не сжимается заголовок");
+  assert.doesNotMatch(card, /12rem/u, "ни в разметке, ни в комментарии запасной ширины заголовка нет");
+  assert.match(card, /flex flex-wrap items-start justify-between gap-x-3 gap-y-2/u, "шапка по-прежнему переносится");
+  const design = read("DESIGN.md");
+  assert.doesNotMatch(design, /заголовок не уже 12rem/u, "каталог не обещает запасных 12rem");
+  assert.match(design, /заголовок занимает ровно столько места, сколько ему нужно, и действие уходит под заголовок справа, только когда рядом с ним не хватает места/u);
+  assert.match(design, /короткие действия и бейджи остаются рядом/u);
+});
+
+test("`DataTable`: область прокрутки позиционирована (`relative`) — абсолютно расположенные `sr-only` в ячейках не растягивают страницу пустой полосой", () => {
+  const table = read("src/components/kit/DataTable.tsx");
+  assert.match(table, /<div role="region" aria-label=\{label\} tabIndex=\{0\} aria-busy=\{loading \|\| undefined\} className="relative hidden max-h-\[min\(70dvh,48rem\)\] overflow-auto /u);
+  assert.match(read("src/components/v3/students-next/StudentCells.tsx"), /className="sr-only"[^>]*>Нет</u, "ячейка «Сигналы» кладёт `sr-only` в ячейку, у которой нет своего `relative`: опора — область таблицы");
+});
+
+test("DESIGN.md: карточка лида не называет очередь «Студенты» и EVO Docs прежними — они в разделе потока students, остальное в подразделе card-tabs", () => {
+  const design = read("DESIGN.md");
+  assert.doesNotMatch(design, /Очередь «Студенты» и EVO Docs пока прежние/u);
+  assert.doesNotMatch(design, /закрытый лид — следующий раздел/u);
+  assert.match(design, /Очередь «Студенты» и EVO Docs — раздел «Новый вид: «Студенты»,\nEVO Docs и «Университеты»» ниже; остальные вкладки и закрытый лид — его подраздел «Остальные вкладки карточки»\./u);
+  assert.match(design, /^## Новый вид: «Студенты», EVO Docs и «Университеты»/mu, "раздел, на который ссылается карточка, есть");
+  assert.match(design, /^### Остальные вкладки карточки/mu, "подраздел, на который ссылается карточка, есть");
+  assert.match(read("src/app/(v3)/v3/profile/page.tsx"), /if \(nextUi && queueInput\) return <StudentsNextLazy /u, "и страница правда рисует очередь новым видом");
+});

@@ -31,6 +31,7 @@ import {
   type DocumentUploadState,
 } from "./document-upload";
 import { documentMovedText, documentStateOf, type DocumentStateFilter } from "./documents-view";
+import { DocumentsNextLayout } from "./next/tabs/DocumentsNextLayout";
 
 import type {
   ActiveDocumentGroup,
@@ -341,7 +342,10 @@ export function ProfileDocumentsClient({
   filter = null,
   checklistEmpty = false,
   emptyText = null,
+  nextUi = false,
 }: Readonly<{
+  /** «Новый вид»: тот же список и те же команды в карточках набора (`DocumentsNextLayout`); без признака разметка прежняя. */
+  nextUi?: boolean;
   /** Пункты, которые показывает выбранный фильтр (без фильтра — все). */
   groups: readonly ActiveDocumentGroup[];
   historyGroups: readonly RemovedDocumentGroup[];
@@ -452,69 +456,114 @@ export function ProfileDocumentsClient({
     && !groups.some((group) => group.items.some((item) => item.id === moved.id))
     ? documentMovedText(moved.name, moved.to) : null;
 
+  const addToggle = canChangeChecklist && !checklistEmpty ? (
+    <button
+      type="button"
+      className={`${QUEUE_SECONDARY} v3-choice`}
+      aria-expanded={addOpen}
+      aria-controls={ADD_REGION_ID}
+      disabled={!hydrated}
+      onClick={() => setAddOpen((open) => !open)}
+      data-testid="v3-document-add-toggle"
+    >
+      <Icon name="plus" size={16} className="shrink-0" />
+      <span><span className="sr-only">Добавить </span>Документ</span>
+    </button>
+  ) : null;
+  const hasUploadHint = uploadAccess === "allowed" && groups.some((group) => group.items.some((item) => item.presence !== "present" && item.uploadRequestId !== null));
+  const accessNote = uploadAccess !== "allowed" ? (
+    <p className="t-body-compact text-fg-2" role="status">
+      {ACCESS_MESSAGE[uploadAccess]}
+    </p>
+  ) : !canChangeChecklist ? (
+    <p className="t-body-compact text-danger" role="status">
+      Изменение чек-листа недоступно: сервер не подтвердил дело или команду.
+    </p>
+  ) : null;
+  const addRegion = canChangeChecklist && studentCaseId && createRequestId ? (
+    <div id={ADD_REGION_ID} hidden={!(addOpen || checklistEmpty)} className="space-y-4 border-y border-border py-4" data-testid="v3-document-add">
+      {baseline}
+      <CreateChecklistItem
+        key={createRequestId}
+        studentCaseId={studentCaseId}
+        requestId={createRequestId}
+      />
+    </div>
+  ) : null;
+  const movedNote = movedText ? (
+    <p className="t-body-compact text-fg-2" role="status" data-testid="v3-document-moved">{movedText}</p>
+  ) : null;
+  const emptyNote = (
+    <p className="py-4 t-body-compact text-fg-2" data-testid="v3-document-empty">
+      {emptyText ?? (checklistEmpty && canChangeChecklist ? emptyChecklistText(baselineOptions.length > 0, baselineTemplatesAbsent) : "В чек-листе пока нет документов.")}
+    </p>
+  );
+  const groupRows = (group: ActiveDocumentGroup) => (
+    <ul className={nextUi ? "@container/documents min-w-0 [&>li:last-child]:border-b-0" : undefined}>
+      {group.items.map((item) => (
+        <DocumentRow
+          key={`${item.id}:${item.currentVersionId ?? "none"}`}
+          item={item}
+          studentCaseId={studentCaseId}
+          uploadAccess={uploadAccess}
+          recognition={recognition}
+          today={today}
+          upload={uploads[item.id] ?? DOCUMENT_UPLOAD_IDLE}
+          onUpload={(target, file) => void upload(target, file)}
+          onReviewSaved={noteMoved}
+        />
+      ))}
+    </ul>
+  );
+  // Под списком черта последней строки уже отделяет раздел: своя не нужна.
+  const recognitionBlock = recognition && !checklistEmpty ? <DocumentRecognitionJobs key={recognition.studentCaseId}
+    access={recognition} sourceVersionId={null} sourceReady={false} ruled={groups.length === 0} /> : null;
+
+  if (nextUi) {
+    return (
+      <DocumentsNextLayout
+        progress={progress}
+        addToggle={addToggle}
+        uploadHint={hasUploadHint ? `Загрузка: ${DOCUMENT_UPLOAD_HINT}` : null}
+        accessNote={accessNote}
+        addRegion={addRegion}
+        filter={filter}
+        movedNote={movedNote}
+        empty={groups.length === 0 ? emptyNote : null}
+        groups={groups.map((group) => ({ title: group.title, count: group.items.length, rows: groupRows(group) }))}
+        recognition={recognitionBlock}
+        history={historyGroups.length > 0 ? <RemovedDocumentHistory groups={historyGroups} today={today} /> : null}
+      />
+    );
+  }
+
   return (
     <section aria-labelledby="case-documents-title" className="min-w-0 space-y-3" data-testid="v3-case-documents">
       <h2 id="case-documents-title" className="sr-only">Документы дела</h2>
 
-      {progress || (canChangeChecklist && !checklistEmpty) ? (
+      {progress || addToggle ? (
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">{progress}</div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            {canChangeChecklist && !checklistEmpty ? (
-              <button
-                type="button"
-                className={`${QUEUE_SECONDARY} v3-choice`}
-                aria-expanded={addOpen}
-                aria-controls={ADD_REGION_ID}
-                disabled={!hydrated}
-                onClick={() => setAddOpen((open) => !open)}
-                data-testid="v3-document-add-toggle"
-              >
-                <Icon name="plus" size={16} className="shrink-0" />
-                <span><span className="sr-only">Добавить </span>Документ</span>
-              </button>
-            ) : null}
+            {addToggle}
           </div>
         </div>
       ) : null}
 
-      {uploadAccess === "allowed" && groups.some((group) => group.items.some((item) => item.presence !== "present" && item.uploadRequestId !== null)) ? (
+      {hasUploadHint ? (
         // Одна подсказка про форматы на весь список, а не у каждой «Загрузить файл».
         <p className="t-meta text-fg-2" data-testid="v3-document-upload-hint">Загрузка: {DOCUMENT_UPLOAD_HINT}</p>
       ) : null}
 
-      {uploadAccess !== "allowed" ? (
-        <p className="t-body-compact text-fg-2" role="status">
-          {ACCESS_MESSAGE[uploadAccess]}
-        </p>
-      ) : !canChangeChecklist ? (
-        <p className="t-body-compact text-danger" role="status">
-          Изменение чек-листа недоступно: сервер не подтвердил дело или команду.
-        </p>
-      ) : null}
+      {accessNote}
 
-      {canChangeChecklist && studentCaseId && createRequestId ? (
-        <div id={ADD_REGION_ID} hidden={!(addOpen || checklistEmpty)} className="space-y-4 border-y border-border py-4" data-testid="v3-document-add">
-          {baseline}
-          <CreateChecklistItem
-            key={createRequestId}
-            studentCaseId={studentCaseId}
-            requestId={createRequestId}
-          />
-        </div>
-      ) : null}
+      {addRegion}
 
       {filter}
 
-      {movedText ? (
-        <p className="t-body-compact text-fg-2" role="status" data-testid="v3-document-moved">{movedText}</p>
-      ) : null}
+      {movedNote}
 
-      {groups.length === 0 ? (
-        <p className="py-4 t-body-compact text-fg-2" data-testid="v3-document-empty">
-          {emptyText ?? (checklistEmpty && canChangeChecklist ? emptyChecklistText(baselineOptions.length > 0, baselineTemplatesAbsent) : "В чек-листе пока нет документов.")}
-        </p>
-      ) : (
+      {groups.length === 0 ? emptyNote : (
         <ul className="@container/documents min-w-0">
           {groups.map((group) => (
             <li key={group.title}>
@@ -522,29 +571,13 @@ export function ProfileDocumentsClient({
                 <h3 className="t-caption text-fg-2">{group.title}</h3>
                 <span className="t-caption tabular-nums text-fg-2">{group.items.length}</span>
               </div>
-              <ul>
-                {group.items.map((item) => (
-                  <DocumentRow
-                    key={`${item.id}:${item.currentVersionId ?? "none"}`}
-                    item={item}
-                    studentCaseId={studentCaseId}
-                    uploadAccess={uploadAccess}
-                    recognition={recognition}
-                    today={today}
-                    upload={uploads[item.id] ?? DOCUMENT_UPLOAD_IDLE}
-                    onUpload={(target, file) => void upload(target, file)}
-                    onReviewSaved={noteMoved}
-                  />
-                ))}
-              </ul>
+              {groupRows(group)}
             </li>
           ))}
         </ul>
       )}
 
-      {/* Под списком черта последней строки уже отделяет раздел: своя не нужна. */}
-      {recognition && !checklistEmpty ? <DocumentRecognitionJobs key={recognition.studentCaseId}
-        access={recognition} sourceVersionId={null} sourceReady={false} ruled={groups.length === 0} /> : null}
+      {recognitionBlock}
 
       <RemovedDocumentHistory groups={historyGroups} today={today} />
     </section>

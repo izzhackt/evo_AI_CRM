@@ -15,6 +15,16 @@ const ACTOR = {
   displayName: "Администратор (синтетический)", systemRole: "admin", platformAccessVersion: 1, assignments: [],
   permissionKeys: [], email: "synthetic@example.invalid", presentationRole: null,
 };
+// «Новый вид» выбирает переключатель и только настоящий администратор: сценарии проверяют ещё сотрудника и просмотр роли.
+const ACTORS = {
+  admin: ACTOR,
+  staff: { ...ACTOR, systemRole: "staff", permissionKeys: ["lead.sales.workflow.manage", "staff.task.read", "lead.read"] },
+  preview: { ...ACTOR, presentationRole: "sales" },
+};
+let currentActor = ACTOR;
+function setActor(kind) {
+  currentActor = ACTORS[kind] ?? ACTOR;
+}
 const OWNER_A = "aaaaaaaa-1111-4111-8111-000000000001";
 const OWNER_B = "aaaaaaaa-1111-4111-8111-000000000002";
 const OWNERS = [
@@ -154,7 +164,7 @@ globalThis.__boardsFixture = boardsFixture;
  * подтверждает ли подменённое серверное действие сохранение решения (только
  * в браузерной гидратации: там проверяется панель после обновления).
  */
-const state = { salesRows: SALES_ROWS, saveSucceeds: false, versions: new Map(), closed: new Map() };
+const state = { salesRows: SALES_ROWS, saveSucceeds: false, versions: new Map(), closed: new Map(), truncated: false, pagesRead: 0 };
 
 // «Закрытые лиды» (246): три закрытых раньше и те, что закрыты в сценарии.
 // Закрытый лид, как в RPC доски (lifecycle_state = 'open'), с доски уходит.
@@ -191,6 +201,9 @@ function matchesDue(one, dueFilter) {
 const LOPSIDED_ROWS = VOLUME_ROWS.filter((row) => row.stageKey === "new" || row.stageKey === "handed_off").slice(0, 34);
 function selectSalesRows(kind) {
   state.salesRows = kind === "volume" ? VOLUME_ROWS : kind === "lopsided" ? LOPSIDED_ROWS : SALES_ROWS;
+  // «Усечённое чтение»: страницы лидов не кончаются (`hasNext` всегда истина), чтение останавливается на пределе страниц, как при 4000+ лидов.
+  state.truncated = kind === "truncated";
+  state.pagesRead = 0;
 }
 function setSaveSucceeds(value) {
   state.saveSucceeds = value;
@@ -199,20 +212,25 @@ function setSaveSucceeds(value) {
 // --- подмена границ данных и прав --------------------------------------------
 const STUBS = {
   "@/lib/platform-guards": {
-    requireV3PageActor: async () => ACTOR,
-    requirePlatformStaffActor: async () => ACTOR,
+    requireV3PageActor: async () => currentActor,
+    requirePlatformStaffActor: async () => currentActor,
   },
   "@/lib/platform-sales": {
     // Поиск RPC здесь — подстрока по имени, контакту и действию: достаточно,
     // чтобы показать доску с пустыми этапами.
-    listPlatformSalesLeads: async (actor, options = {}) => ({
-      rows: (options.query
-        ? state.salesRows.filter((one) => [one.clientDisplayName, one.clientEmail, one.clientPhone, one.nextActionText]
-          .some((value) => value?.toLocaleLowerCase("ru-RU").includes(options.query.toLocaleLowerCase("ru-RU"))))
-        : state.salesRows).filter((one) => !state.closed.has(one.leadId) && matchesDue(one, options.dueFilter ?? "all")).map(withVersion),
-      hasNext: false,
-      nextCursor: null,
-    }),
+    listPlatformSalesLeads: async (actor, options = {}) => {
+      // Усечённое чтение: первая страница — лиды, дальше пустые страницы с новым курсором, пока чтение не упрётся в предел страниц.
+      const page = options.cursor ? (state.pagesRead += 1) : (state.pagesRead = 0);
+      const hide = state.truncated && page > 0;
+      return {
+        rows: hide ? [] : (options.query
+          ? state.salesRows.filter((one) => [one.clientDisplayName, one.clientEmail, one.clientPhone, one.nextActionText]
+            .some((value) => value?.toLocaleLowerCase("ru-RU").includes(options.query.toLocaleLowerCase("ru-RU"))))
+          : state.salesRows).filter((one) => !state.closed.has(one.leadId) && matchesDue(one, options.dueFilter ?? "all")).map(withVersion),
+        hasNext: state.truncated,
+        nextCursor: state.truncated ? { updatedAt: "2026-09-01T00:00:00.000Z", id: `truncated-cursor-${page}` } : null,
+      };
+    },
     listPlatformSalesOwnerOptions: async () => ({ rows: OWNERS, hasNext: false, nextCursor: null }),
     // Та же форма, что у настоящего координатора: чтение доски и сотрудников.
     readPlatformSalesPipeline: async (actor, readers) => ({
@@ -296,4 +314,4 @@ function syntheticUuids() {
   return () => `99999999-0000-4000-8000-${String((next += 1)).padStart(12, "0")}`;
 }
 
-module.exports = { ACTOR, STUBS, leadId, caseId, selectSalesRows, setSaveSucceeds, syntheticUuids };
+module.exports = { ACTOR, ACTORS, STUBS, leadId, caseId, selectSalesRows, setActor, setSaveSucceeds, syntheticUuids };

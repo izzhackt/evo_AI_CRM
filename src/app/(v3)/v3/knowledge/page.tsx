@@ -5,7 +5,9 @@ import { KnowledgeDocuments } from "@/components/v3/knowledge/KnowledgeDocuments
 import { KnowledgeSnippets } from "@/components/v3/knowledge/KnowledgeSnippets";
 import { KnowledgeLibrary } from "@/components/v3/knowledge/KnowledgeLibrary";
 import { KnowledgeLibrarySkeleton } from "@/components/v3/knowledge/KnowledgeSkeleton";
+import { KnowledgeNextLazy } from "@/components/v3/knowledge/next/KnowledgeNextLazy";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { isNextUi } from "@/lib/ui-next";
 import { requireKnowledgeAdmin } from "@/lib/v3/knowledge-library-source";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "База знаний" };
@@ -14,6 +16,12 @@ export default async function KnowledgePart({ searchParams }: { searchParams: Pr
   const query = await searchParams;
   if (query.tab === "snippets") redirect("/v3/knowledge?section=snippets");
   const section = query.section === "documents" || query.section === "snippets" ? query.section : null;
+  // «Новый вид» (переключатель администратора): те же чтения, права и адреса, другая расстановка — вкладки разделов, таблицы и панели.
+  if (await isNextUi(actor)) {
+    return <Suspense fallback={<PartShell title="База знаний"><KnowledgeLibrarySkeleton /></PartShell>}><KnowledgeNextLazy commandScope={`${actor.organizationId}:${actor.membershipId}`} section={section}>
+      {section === "documents" ? <KnowledgeDocuments actor={actor} embedded next /> : section === "snippets" ? <KnowledgeSnippets actor={actor} next /> : null}
+    </KnowledgeNextLazy></Suspense>;
+  }
   return <PartShell title="База знаний"><Suspense fallback={<KnowledgeLibrarySkeleton />}><KnowledgeLibrary commandScope={`${actor.organizationId}:${actor.membershipId}`} section={section}>
     {section === "documents" ? <KnowledgeDocuments actor={actor} embedded /> : section === "snippets" ? <KnowledgeSnippets actor={actor} /> : null}
   </KnowledgeLibrary></Suspense></PartShell>;

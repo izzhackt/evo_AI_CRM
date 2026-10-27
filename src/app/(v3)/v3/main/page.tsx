@@ -9,6 +9,8 @@ import { SalesDynamics } from "@/components/v3/SalesDynamics";
 import { SalesManagerLabelsView } from "@/components/v3/SalesManagerLabelsView";
 import { SalesRegisterImportView } from "@/components/v3/SalesRegisterImportView";
 import { SalesDynamicsReport, SalesRegisterView, type SalesReportQuery } from "@/components/v3/SalesRegisterView";
+import { SalesDynamicsNextView, SalesImportNextView, SalesManagersNextView } from "@/components/v3/sales-next/SalesFramesNext";
+import { SalesRegisterNextView } from "@/components/v3/sales-next/SalesRegisterNextView";
 import { TodayBoardLinks, TodayScreen } from "@/components/v3/today/TodayScreen";
 import { TodayNextLazy } from "@/components/v3/today-next/TodayNextLazy";
 import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
@@ -68,10 +70,12 @@ export default async function MainPart({
 
   if (query.view === "sales") {
     if (!canReadReport && !canReadSales) redirect("/access-denied?from=%2Fv3%2Fmain");
-    if (canReadReport && isSalesImportQuery(query)) return <SalesRegisterImportView actor={actor} query={query} />;
+    // «Новый вид» (переключатель администратора): те же чтения и права, другая расстановка — плитки, таблица записей с панелью, карточки.
+    const next = await isNextUi(actor);
+    if (canReadReport && isSalesImportQuery(query)) return next ? <SalesImportNextView actor={actor} query={query} /> : <SalesRegisterImportView actor={actor} query={query} />;
     // «Менеджеры в отчёте» (Э8.6): право проверяют чтение и сервер (перенос данных отчёта).
-    if (canReadReport && isSalesManagersQuery(query)) return <SalesManagerLabelsView actor={actor} query={query} />;
-    if (!canReadSales) return <SalesRegisterView actor={actor} query={query} />;
+    if (canReadReport && isSalesManagersQuery(query)) return next ? <SalesManagersNextView actor={actor} query={query} /> : <SalesManagerLabelsView actor={actor} query={query} />;
+    if (!canReadSales) return next ? <SalesRegisterNextView actor={actor} query={query} /> : <SalesRegisterView actor={actor} query={query} />;
     const period = resolvePeriod(query);
     const carry = salesDynamicsCarry(query);
     // «Период», когда он уже выбран, несёт разобранные даты: в адресе — тот
@@ -123,8 +127,8 @@ export default async function MainPart({
       </Suspense>
     ) : null;
     const section = <>{dynamicsSection}{callsSection}</>;
-    if (!canReadReport) return <SalesDynamicsReport dynamics={section} />;
-    return <SalesRegisterView actor={actor} query={query} dynamics={section} />;
+    if (!canReadReport) return next ? <SalesDynamicsNextView dynamics={section} /> : <SalesDynamicsReport dynamics={section} />;
+    return next ? <SalesRegisterNextView actor={actor} query={query} dynamics={section} /> : <SalesRegisterView actor={actor} query={query} dynamics={section} />;
   }
 
   const now = new Date();

@@ -20,13 +20,14 @@ import { cn } from "@/lib/utils";
  * Таблица списка записей. Данные приходят готовыми (чтения и права остаются у страницы), здесь только вид: сортировка по
  * заголовку, общий поиск, видимость колонок, страницы, нажатие на строку, пустое состояние и загрузка, прилипшая шапка.
  * Меньше 768 px таблица заменяется карточками (`meta.mobile` в колонке). `label` — имя прокручиваемой области для читалки;
- * `toolbar` — свои фильтры страницы рядом с поиском. `paginate={false}` — все присланные строки сразу, без полосы страниц и
+ * `toolbar` — свои фильтры страницы рядом с поиском; `searchPlaceholder={null}` — общего поиска нет (ищет сама страница, например сервер). `paginate={false}` — все присланные строки сразу, без полосы страниц и
  * без «из N»: для списка, который сервер уже ограничил («последние 30») или разбил на страницы своими ссылками; `partial` —
  * данные неполные («1–25» без «из N»). `onVisibleIdsChange` — строки на экране после поиска и страницы («все на странице»).
  * `onRowClick` — строка нажимается мышью (фокус встаёт на кнопку записи); с клавиатуры и для читалки запись открывает кнопка
  * «Открыть: …» в ячейке-заголовке (`meta.mobile = "title"`; у колонки с `meta.opensRow` — её ссылка), сама строка фокус не берёт.
  * `getRowLabel` — название записи для имени этой кнопки и кнопки карточки телефона; без него — значение колонки-заголовка.
  * В меню «Колонки» нет колонок `meta.wide`, пока блок таблицы уже 64rem (их на экране нет): `useColumnMenu`.
+ * Область прокрутки позиционирована (`relative`): `sr-only` в ячейках остаётся внутри неё и не растягивает страницу пустой полосой под списком.
  */
 export function DataTable<T extends RowData>({
   label,
@@ -36,6 +37,7 @@ export function DataTable<T extends RowData>({
   onRowClick,
   getRowLabel,
   searchPlaceholder = "Поиск",
+  searchable = true,
   pageSize = 10,
   paginate = true,
   loading = false,
@@ -53,7 +55,9 @@ export function DataTable<T extends RowData>({
   onRowClick?: (row: T) => void;
   /** Название записи для имени перехода «Открыть: …» (таблица и карточка); без него — значение колонки-заголовка. */
   getRowLabel?: (row: T) => string;
-  searchPlaceholder?: string;
+  searchPlaceholder?: string | null;
+  /** `false` — своего поиска нет: поиск и фильтры ведёт сервер (в `toolbar`), второе поле искало бы только по присланным строкам. То же, что `searchPlaceholder={null}`. */
+  searchable?: boolean;
   pageSize?: 10 | 25 | 50;
   /** `false` — своих страниц нет, показаны все присланные строки (сервер ограничил или разбил список). Поиск и сортировка — по ним. */
   paginate?: boolean;
@@ -89,15 +93,11 @@ export function DataTable<T extends RowData>({
   if (!loading && data.length === 0) {
     body = <div className="rounded-card border border-border bg-surface">{empty ?? <EmptyState title="Пока пусто" />}</div>;
   } else if (!loading && matches === 0) {
-    body = (
-      <div className="rounded-card border border-border bg-surface">
-        <EmptyState icon={SearchXIcon} title="Ничего не найдено" action={<Button variant="outline" onClick={() => table.resetGlobalFilter()}>Сбросить поиск</Button>} />
-      </div>
-    );
+    body = <div className="rounded-card border border-border bg-surface"><EmptyState icon={SearchXIcon} title="Ничего не найдено" action={<Button variant="outline" onClick={() => table.resetGlobalFilter()}>Сбросить поиск</Button>} /></div>;
   } else {
     body = (
       <>
-        <div role="region" aria-label={label} tabIndex={0} aria-busy={loading || undefined} className="hidden max-h-[min(70dvh,48rem)] overflow-auto rounded-card border border-border bg-surface md:block">
+        <div role="region" aria-label={label} tabIndex={0} aria-busy={loading || undefined} className="relative hidden max-h-[min(70dvh,48rem)] overflow-auto rounded-card border border-border bg-surface md:block">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((group) => (
@@ -109,8 +109,7 @@ export function DataTable<T extends RowData>({
                       sorted={header.column.getIsSorted()}
                       canSort={header.column.getCanSort()}
                       onSort={header.column.getToggleSortingHandler()}
-                      end={header.column.columnDef.meta?.align === "end"}
-                      wide={header.column.columnDef.meta?.wide}
+                      meta={header.column.columnDef.meta}
                     >
                       {header.isPlaceholder ? null : <table.FlexRender header={header} />}
                     </DataTableHeadCell>
@@ -143,7 +142,7 @@ export function DataTable<T extends RowData>({
 
   return (
     <div ref={watchBlock} className={cn("@container flex min-w-0 flex-col gap-3", className)} data-slot="data-table">
-      <DataTableToolbar search={String(table.state.globalFilter ?? "")} onSearch={(value) => table.setGlobalFilter(value)} placeholder={searchPlaceholder} columns={columnMenu ? menuColumns : undefined} extra={toolbar} />
+      <DataTableToolbar search={String(table.state.globalFilter ?? "")} onSearch={(value) => table.setGlobalFilter(value)} placeholder={searchable ? searchPlaceholder : null} columns={columnMenu ? menuColumns : undefined} extra={toolbar} />
       {body}
     </div>
   );

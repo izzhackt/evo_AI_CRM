@@ -62,6 +62,9 @@ function chatPage(runtimeEnv, authorize = async () => ({
     "@/components/ui": { Card: "Card" },
     "@/components/v3/PartShell": { PartShell: "PartShell" },
     "@/components/v3/team-chat/TeamChat": { TeamChat: "TeamChat" },
+    // «Новый вид»: страница спрашивает переключатель; у этого теста он выключен — рисуется прежний `TeamChat`.
+    "@/components/v3/team-chat/next/TeamChatNextLazy": { TeamChatNextLazy: "TeamChatNextLazy", TeamChatNextFailureLazy: "TeamChatNextFailureLazy" },
+    "@/lib/ui-next": { isNextUi: async () => false },
     "@/lib/platform-guards": { requireV3PageActor: authorize },
     "@/lib/platform-team-chat": loadSource("src/lib/platform-team-chat.ts"),
     "@/lib/server/platform-team-chat-repository": { TeamChatReadError: class extends Error {} },

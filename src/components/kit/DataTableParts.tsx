@@ -26,22 +26,22 @@ export function DataTableHeadCell({
   sorted,
   canSort,
   onSort,
-  end = false,
-  wide = false,
+  meta,
   children,
 }: Readonly<{
   colSpan?: number;
   sorted: false | "asc" | "desc";
   canSort: boolean;
   onSort?: (event: unknown) => void;
-  end?: boolean;
-  wide?: boolean;
+  /** `meta` колонки: `align`, `wide`, `fit`. */
+  meta?: DataTableColumnMeta;
   children?: React.ReactNode;
 }>) {
+  const end = meta?.align === "end";
   const Icon = sorted ? SORT_ICON[sorted] : ArrowUpDownIcon;
   const ariaSort = sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : canSort ? "none" : undefined;
   return (
-    <TableHead colSpan={colSpan} aria-sort={ariaSort} className={cn("sticky top-0 z-10 bg-surface shadow-[inset_0_-1px_0_var(--border)]", end && "text-right", wide && "hidden @5xl:table-cell")}>
+    <TableHead colSpan={colSpan} aria-sort={ariaSort} className={cn("sticky top-0 z-10 bg-surface shadow-[inset_0_-1px_0_var(--border)]", end && "text-right", meta?.wide && "hidden @5xl:table-cell", meta?.fit && "w-px")}>
       {children === null || children === undefined ? null : canSort ? (
         <button
           type="button"
@@ -110,7 +110,7 @@ export function DataTableBodyRow<C extends BodyCell>({
   const title = titleCellOf(cells);
   const ownControl = Boolean(title?.column.columnDef.meta?.opensRow);
   const content = cells.map((cell) => (
-    <TableCell key={cell.id} className={cn(cell.column.columnDef.meta?.align === "end" && "text-right", cell.column.columnDef.meta?.wide && "hidden @5xl:table-cell", onOpen && !ownControl && cell === title && "relative")}>
+    <TableCell key={cell.id} className={cn(cell.column.columnDef.meta?.align === "end" && "text-right", cell.column.columnDef.meta?.wide && "hidden @5xl:table-cell", cell.column.columnDef.meta?.fit && "w-px whitespace-nowrap", onOpen && !ownControl && cell === title && "relative")}>
       {onOpen && !ownControl && cell === title ? <RowOpenButton label={label} onOpen={onOpen} /> : null}
       {renderCell(cell)}
     </TableCell>

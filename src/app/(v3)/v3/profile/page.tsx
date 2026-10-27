@@ -23,8 +23,11 @@ import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmi
 import { ParentPhoneLookalikes } from "@/components/v3/profile/ParentPhoneLookalikes";
 import type { ParentPhoneSubject } from "@/lib/parent-phone-lookalikes-contract";
 import { ClosedLeadView } from "@/components/v3/closure/ClosedLeadView";
+import { ClosedLeadNext } from "@/components/v3/profile/next/tabs/ClosedLeadNext";
+import { EmptyState } from "@/components/kit/EmptyState";
 import { withDocsSection } from "@/components/v3/profile/admissions-view";
-import { buildStudentsQueueScreen } from "@/components/v3/students/StudentsQueueScreen";
+import { buildStudentsQueueScreen, type StudentsQueueScreenInput } from "@/components/v3/students/StudentsQueueScreen";
+import { StudentsNextLazy } from "@/components/v3/students-next/StudentsNextLazy";
 import { StudentsDirectoryFallback } from "@/components/v3/students/StudentsDirectoryFallback";
 import { nextStepAccess, parseStudentsQueueParams, parseStudentsReturnTo, type NextStepAccessInput } from "@/components/v3/students/students-queue-view";
 import { UniversityProgramsTab } from "@/components/v3/profile/UniversityProgramsTab";
@@ -198,14 +201,15 @@ function previewClosure(actor: ActivePlatformActor, closure: CaseClosure | null)
 /**
  * «Студенты» и EVO Docs как рабочая очередь (миграция 241, PLAN_CHANGES
  * «Студенты» PR 2): страница читает очередь, числа, задачи открытого дела и
- * нагрузку кураторов, а экран собирает `buildStudentsQueueScreen`.
+ * нагрузку кураторов, а экран собирает `buildStudentsQueueScreen` (прежний вид)
+ * или `StudentsNextLazy` («Новый вид»): те же чтения отдаются обоим.
  */
-async function studentsQueuePage(
+async function studentsQueueInput(
   actor: ActivePlatformActor,
   parse: Exclude<ReturnType<typeof parseStudentsQueueParams>, Readonly<{ kind: "redirect" }>>,
   query: ProfileSearchParams,
   curatorsRead: Promise<readonly StudentPortalCuratorOption[]>,
-) {
+): Promise<StudentsQueueScreenInput> {
   const params = parse.params;
   const [reads, curators, packages, program] = await Promise.all([
     parse.kind === "invalid" ? null : Promise.all([
@@ -224,7 +228,7 @@ async function studentsQueuePage(
     params.mode === "docs" ? readDocsProgramDocuments(actor) : Promise.resolve(undefined),
   ]);
   const editor = nextStepEditor(actor);
-  return buildStudentsQueueScreen({
+  return {
     params,
     invalid: parse.kind === "invalid",
     read: reads?.[0] ?? { page: null, counts: null, forbidden: false },
@@ -246,7 +250,7 @@ async function studentsQueuePage(
     recordScopes: editor.recordScopes,
     createTask: !isStaffPreview(actor) && staffHasPermission(actor, "task.create"),
     requestIds: { nextStep: randomUUID(), coverage: randomUUID() },
-  });
+  };
 }
 
 export default async function ProfilePart({
@@ -417,9 +421,9 @@ export default async function ProfilePart({
   const leadTasksRead = leadSales && view && view.details.routeTarget.leadId && !leadSales.lead.nextActionText
     && !isStaffPreview(actor) && staffHasPermission(actor, "staff.task.read")
     ? readLeadTaskLinks(actor, view.details.routeTarget.leadId).then((links) => links.rows, () => null) : null;
-  const [curatorOptions, queuePage, caseWork, caseClosureRead, leadOwners, leadAgreement, leadCalls, leadDial, leadTasks] = await Promise.all([
+  const [curatorOptions, queueInput, caseWork, caseClosureRead, leadOwners, leadAgreement, leadCalls, leadDial, leadTasks] = await Promise.all([
     curatorsRead,
-    queueParse ? studentsQueuePage(actor, queueParse, params, curatorsRead.then((read) => read.curators)) : null,
+    queueParse ? studentsQueueInput(actor, queueParse, params, curatorsRead.then((read) => read.curators)) : null,
     // Лента Student 360 (Э4): журнал дела — только на «Обзоре» и первой странице заметок.
     // Читатель «Ждут куратора» без права на само дело (248/281) задач, переписки и журнала не читает.
     caseTarget ? readCaseWork(actor, caseTarget, {
@@ -439,9 +443,14 @@ export default async function ProfilePart({
   const studentPortalCurators = curatorOptions.curators;
   const studentPortalCuratorsAvailable = curatorOptions.available;
   // «Университеты и бланки» — редкий путь: тихая ссылка справа от заголовка, не красная.
-  const docsAction = docsMode && directoryMode && !isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage")
+  const manageUniversities = docsMode && directoryMode && !isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage");
+  const docsAction = manageUniversities
     ? <Link href="/v3/universities" className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">Университеты и бланки</Link>
     : undefined;
+  // «Новый вид» (27.10.2026): очередь «Студентов» и EVO Docs из набора виджетов — по тем же чтениям и правам; экран сам
+  // отдаёт `StudentsNextLazy` и ничего больше (дел и карточек в очереди нет). Прежний вид строит экран из тех же данных.
+  if (nextUi && queueInput) return <StudentsNextLazy input={queueInput} manageUniversities={manageUniversities} />;
+  const queuePage = queueInput ? buildStudentsQueueScreen(queueInput) : null;
 
   const caseParts = view && caseTarget && caseWork ? (() => {
     const editor = nextStepEditor(actor);
@@ -564,8 +573,10 @@ export default async function ProfilePart({
 
   const title = view ? leadDisplayName(view.profile.source, view.profile.person) : docsMode ? "EVO Docs"
     : closedLead ? closedLead.name ?? "Лид без имени" : "Студенты";
+  // «Новый вид» рисует и закрытый лид, и «не найден» вокруг карточки (явный адрес лида или дела), не только живую карточку.
+  const nextCard = nextParts !== null || (nextUi && (closedLead !== null || invalidIdentityShape || missing));
   const content = (
-    <div className={nextParts ? "space-y-4" : "space-y-6"}>
+    <div className={nextCard ? "space-y-4" : "space-y-6"}>
       {queuePage?.content ?? null}
       {directory ? (
         <StudentsDirectoryFallback directory={directory} params={directoryParams} docsMode={docsMode} />
@@ -590,7 +601,7 @@ export default async function ProfilePart({
             profile={view.profile}
             universityProgramsTab={tab === "route" ? <UniversityProgramsTab actor={actor} draft={view.details} routeHref={hrefFor("route")}
               packetsInitiallyOpen={singleSearchParam(params.panel) === "packets"}
-              packetApplicationId={singleSearchParam(params.packet_application) ?? null} /> : undefined}
+              packetApplicationId={singleSearchParam(params.packet_application) ?? null} nextUi={nextParts !== null} /> : undefined}
             caseHeader={nextParts?.header ?? caseParts?.header ?? leadParts?.header ?? undefined}
             caseOverview={nextParts?.overview ?? caseParts?.overview ?? leadParts?.overview ?? undefined}
             nextUi={nextParts !== null}
@@ -613,7 +624,15 @@ export default async function ProfilePart({
           />
         </>
       ) : closedLead ? (
-        <ClosedLeadView row={closedLead} readOnly={isStaffPreview(actor)} />
+        nextUi ? <ClosedLeadNext row={closedLead} readOnly={isStaffPreview(actor)} /> : <ClosedLeadView row={closedLead} readOnly={isStaffPreview(actor)} />
+      ) : (invalidIdentityShape || missing) && nextUi ? (
+        <EmptyState
+          tone="danger"
+          title={invalidIdentityShape ? "Ссылка на профиль некорректна." : "Профиль не найден или недоступен вам."}
+          action={<Link href={requestsReturnTo ?? directoryHref} className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">
+            {requestsReturnTo ? "К списку заявок" : "К списку"}
+          </Link>}
+        />
       ) : invalidIdentityShape || missing ? (
         <div className="border-t border-border py-5">
           <p className="t-body text-fg-2">
@@ -626,8 +645,8 @@ export default async function ProfilePart({
       ) : null}
     </div>
   );
-  return nextParts ? (
-    <ProfileNextShell title={title} actions={nextParts.actions} back={caseBack ?? leadBack}>{content}</ProfileNextShell>
+  return nextCard ? (
+    <ProfileNextShell title={title} actions={nextParts?.actions} back={caseBack ?? leadBack ?? closedLeadBack}>{content}</ProfileNextShell>
   ) : (
     <PartShell title={title}
       count={queuePage?.count ?? null} action={docsAction ?? caseParts?.actions ?? leadParts?.actions} dense={queuePage !== null || caseParts !== null || leadParts !== null}

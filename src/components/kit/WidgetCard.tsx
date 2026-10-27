@@ -4,7 +4,9 @@ import { cn } from "@/lib/utils";
 
 /**
  * Базовый виджет страницы: заголовок, до одной группы действий справа, «?» с пояснением, тело и (если надо)
- * подвал. Всё, что длиннее четырёх данных в строке или второстепенно, уезжает в `DetailSheet` или вкладку.
+ * подвал. Шапка переносится: заголовок занимает ровно столько места, сколько ему нужно (запасной ширины у него нет), и действие уходит под
+ * заголовок справа, только когда рядом с ним не хватает места (длинная кнопка на телефоне); короткое действие и бейдж остаются рядом.
+ * Всё, что длиннее четырёх данных в строке или второстепенно, уезжает в `DetailSheet` или вкладку.
  * Страница собирается из таких карточек; своей рамки и теней у страницы нет.
  */
 export function WidgetCard({
@@ -38,12 +40,12 @@ export function WidgetCard({
   return (
     <Card id={id} size={size} className={cn("scroll-mt-4", className)}>
       {hasHeader ? (
-        <CardHeader>
-          <div className="flex min-w-0 items-center gap-1.5">
+        <CardHeader className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+          <div className="flex min-w-0 flex-[1_1_auto] items-center gap-1.5">
             {title ? <CardTitle as={`h${headingLevel}`}>{title}</CardTitle> : null}
             {help ? <HelpTip label={helpLabel ?? (title ? `Пояснение: ${title}` : undefined)}>{help}</HelpTip> : null}
           </div>
-          {actions ? <CardAction className="flex flex-wrap items-center justify-end gap-2">{actions}</CardAction> : null}
+          {actions ? <CardAction className="ml-auto flex flex-wrap items-center justify-end gap-2">{actions}</CardAction> : null}
         </CardHeader>
       ) : null}
       {children !== undefined ? <CardContent className={bodyClassName}>{children}</CardContent> : null}

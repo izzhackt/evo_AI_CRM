@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
  * Карточка страницы лида и дела «Нового вида»: как `WidgetCard`, но заголовок может нести `id` и принимать фокус.
  * На него возвращается фокус после ответа на передачу (`#case-tasks-title`) и после «Повторить» у звонков
  * (`#lead-feed-title`) - прежние экраны делают то же. Число в заголовке - только прочитанное; «?» хранит пояснение.
+ * `wrapActions`: шапка - строка с переносом, а не сетка «заголовок - колонка действий». Длинные действия (две кнопки) тогда уходят под
+ * заголовок, а не отнимают у него место: в сетке колонка `auto` забирает всю ширину действий, и заголовок сжимается до нуля.
  */
 export function NamedCard({
   title,
@@ -14,6 +16,7 @@ export function NamedCard({
   count,
   help,
   actions,
+  wrapActions = false,
   testId,
   className,
   bodyClassName,
@@ -27,6 +30,7 @@ export function NamedCard({
   count?: number | null;
   help?: React.ReactNode;
   actions?: React.ReactNode;
+  wrapActions?: boolean;
   testId?: string;
   className?: string;
   bodyClassName?: string;
@@ -34,7 +38,7 @@ export function NamedCard({
 }>) {
   return (
     <Card id={id} data-testid={testId} className={cn("scroll-mt-4", className)}>
-      <CardHeader>
+      <CardHeader className={wrapActions ? "flex flex-wrap items-center justify-between gap-x-3 gap-y-2" : undefined}>
         <div className="flex min-w-0 items-center gap-1.5">
           <CardTitle
             as="h2"
@@ -47,7 +51,7 @@ export function NamedCard({
           </CardTitle>
           {help ? <HelpTip label={`Пояснение: ${title}`}>{help}</HelpTip> : null}
         </div>
-        {actions ? <CardAction className="flex flex-wrap items-center justify-end gap-2">{actions}</CardAction> : null}
+        {actions ? <CardAction className={cn("flex flex-wrap items-center justify-end gap-2", wrapActions && "ml-auto self-center")}>{actions}</CardAction> : null}
       </CardHeader>
       <CardContent className={bodyClassName}>{children}</CardContent>
     </Card>

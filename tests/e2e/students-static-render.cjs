@@ -942,7 +942,10 @@ async function f1() {
   if (failures.length) throw new Error(`side panel (students): ${failures.length} failed:\n${failures.join("\n")}`);
 }
 
-if (process.argv.includes("--json")) {
+if (require.main !== module) {
+  // Подключён как модуль (tests/e2e/students-next-static-render.cjs): те же синтетические сценарии очереди для «Нового вида».
+  module.exports = { SCENARIOS, scenario, pageFor, coverage, TASKS, caseId, ROOT, TODAY, ME, CURATOR_B, ACTOR, CURATOR_ACTOR, NAMES, ROWS, compileCss };
+} else if (process.argv.includes("--json")) {
   process.stdout.write(JSON.stringify(Object.keys(SCENARIOS).map((name) => ({ name, html: renderWorkspace(name) }))));
 } else if (process.argv.includes("--f1")) {
   f1().catch((error) => {

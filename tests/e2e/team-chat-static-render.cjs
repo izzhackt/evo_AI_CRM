@@ -241,6 +241,8 @@ const searchOf = (scenario) => new URLSearchParams(scenario.search).toString();
 
 // --- настоящая страница с подменённым чтением ---------------------------------------
 function stubReads(scenario) {
+  // Страница спрашивает переключатель «Новый вид» (`isNextUi`): вне запроса `cookies()` не работает, а здесь переключатель выключен.
+  require("next/headers").cookies = async () => ({ get: () => undefined });
   require(join(ROOT, "src/lib/platform-guards.ts")).requireV3PageActor = async () => ADMIN;
   require(join(ROOT, "src/lib/v3/team-chat-source.ts")).readV3TeamChatFeed = async (_actor, query) => ({
     page: page(scenario.messages, query.mode === "context" ? query.messageId : null),

@@ -500,6 +500,8 @@ function documentsClient(router) {
     if (id === "./DocumentRow") return { DocumentRow: () => null, useHydrated: () => true };
     if (id === "./document-upload") return documentUpload;
     if (id === "./documents-view") return documentsViewModule;
+    // «Новый вид» (27.10.2026): раскладка карточками - отдельный файл; прежний вид её не рисует, проверка берёт пустую заглушку.
+    if (id === "./next/tabs/DocumentsNextLayout") return { DocumentsNextLayout: () => null };
     return undefined;
   });
 }

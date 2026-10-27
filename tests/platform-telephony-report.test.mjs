@@ -383,8 +383,8 @@ test("wiring: the block sits under «Динамика по дням», shares it
   assert.match(page, /readTelephonyReport\(actor, \{ from: period\.from, to: period\.to \}\)/u, "the same period as the dynamics section");
   assert.match(page, /const section = <>\{dynamicsSection\}\{callsSection\}<\/>;/u);
   assert.match(page, /<Suspense fallback=\{null\}>\s*<StreamedSalesCalls/u, "nothing flashes while it loads for a person whose telephony is off");
-  assert.match(page, /if \(!canReadReport\) return <SalesDynamicsReport dynamics=\{section\} \/>;/u, "a manager without the register still sees the block");
-  assert.match(page, /return <SalesRegisterView actor=\{actor\} query=\{query\} dynamics=\{section\} \/>;/u);
+  assert.match(page, /if \(!canReadReport\) return next \? <SalesDynamicsNextView dynamics=\{section\} \/> : <SalesDynamicsReport dynamics=\{section\} \/>;/u, "a manager without the register still sees the block");
+  assert.match(page, /return next \? <SalesRegisterNextView actor=\{actor\} query=\{query\} dynamics=\{section\} \/> : <SalesRegisterView actor=\{actor\} query=\{query\} dynamics=\{section\} \/>;/u);
   assert.match(page, /formAction=\{`\/v3\/main#\$\{SALES_CALLS_ANCHOR\}`\}/u);
   assert.equal(SALES_CALLS_ANCHOR, "sales-calls");
   assert.notEqual(SALES_CALLS_ANCHOR, SALES_DYNAMICS_ANCHOR);

@@ -67,7 +67,7 @@ export type KnowledgeFile = Readonly<{
   uploadRequestId: string | null;
 }>;
 
-const ACTION_MESSAGE: Record<
+export const ACTION_MESSAGE: Record<
   Exclude<PlatformCompanyFileActionState["status"], "idle">,
   string
 > = {
@@ -96,8 +96,8 @@ const IDLE_UPLOAD: UploadState = Object.freeze({
   outcome: "idle",
   message: null,
 });
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
-const FILE_ACCEPT = [
+export const MAX_FILE_BYTES = 25 * 1024 * 1024;
+export const FILE_ACCEPT = [
   ".pdf",
   ".jpg",
   ".jpeg",
@@ -112,7 +112,7 @@ const FILE_ACCEPT = [
   ".pptx",
 ].join(",");
 
-function initialActionState(
+export function initialActionState(
   requestId: string,
   itemKind: "folder" | "file" | null,
   itemId: string | null,
@@ -127,7 +127,7 @@ function initialActionState(
   };
 }
 
-function useRefreshAfterMutation(status: PlatformCompanyFileActionState["status"]) {
+export function useRefreshAfterMutation(status: PlatformCompanyFileActionState["status"]) {
   const router = useRouter();
   useEffect(() => {
     if (status === "saved" || status === "stale") router.refresh();
@@ -160,11 +160,11 @@ function ActionFeedback({
   );
 }
 
-function folderValue(folder: KnowledgeFolder): string {
+export function folderValue(folder: KnowledgeFolder): string {
   return folder.kind === "company-root" ? "" : folder.id;
 }
 
-function isDescendant(
+export function isDescendant(
   candidate: KnowledgeFolder,
   ancestorId: string,
   byId: ReadonlyMap<string, KnowledgeFolder>,
@@ -394,7 +394,7 @@ function FolderControls({
   );
 }
 
-function uploadConfirmed(value: unknown, file: KnowledgeFile): boolean {
+export function uploadConfirmed(value: unknown, file: KnowledgeFile): boolean {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const payload = value as Record<string, unknown>;
   const result = payload.companyFile;

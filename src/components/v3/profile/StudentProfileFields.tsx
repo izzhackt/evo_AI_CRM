@@ -46,7 +46,13 @@ type WorkspaceProps = Readonly<{
   /** «Вузы и программы» — туда ведёт «Бланк университета» без заявлений; null — вкладки нет. */
   routeHref?: string | null;
   applications?: readonly Pick<ProfileApplication, "id" | "institution" | "program">[];
+  /**
+   * «Новый вид» (27.10.2026): классы карточки набора (`CARD_FRAME`, их передаёт `AnketaNext`) вместо прежней рамки; поля, команды и
+   * состояние те же. Без свойства разметка прежняя. Классы приходят свойством, а не импортом: файл общий с прежним видом и не тянет `ui/*`.
+   */
+  cardClass?: string;
 }>;
+
 
 /** Сплошной красный — главному действию страницы; кнопки анкеты — спокойные и тёмные. */
 const BUTTON = QUEUE_SECONDARY;
@@ -131,12 +137,12 @@ function ActionMessage({ state, pending }: { state: PlatformStudentProfileFieldA
   return message ? <p role="status" aria-live="polite" className={`text-sm leading-6 ${state.status === "saved" ? "text-ok" : "text-fg-2"}`}>{message}</p> : null;
 }
 
-function StartProfile({ snapshot, requestId, readOnly }: WorkspaceProps) {
+function StartProfile({ snapshot, requestId, readOnly, cardClass }: WorkspaceProps) {
   const [state, action, pending] = useActionState(async (previous: PlatformStudentProfileFieldActionState, form: FormData) => {
     try { return await startPlatformStudentProfileAction(previous, form); }
     catch { return { ...initialState(previous.requestId), status: "unavailable" as const }; }
   }, initialState(requestId));
-  return <section aria-labelledby="student-profile-fields-title" className="space-y-3 rounded-card border border-border bg-surface p-4">
+  return <section aria-labelledby="student-profile-fields-title" className={cardClass ? `${cardClass} px-5` : "space-y-3 rounded-card border border-border bg-surface p-4"}>
     <h2 id="student-profile-fields-title" className="t-section">Анкета студента</h2>
     <p className="text-sm leading-6 text-fg-2">Анкета ещё не создана.</p>
     {snapshot.canInitialize && !readOnly ? <form action={action} className="space-y-3">
@@ -165,7 +171,7 @@ function SourceDetails({ versionId, page, sourceVersions, documentsHref }: Reado
   </div>;
 }
 
-function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, documentsHref, routeHref = null, applications }: WorkspaceProps) {
+function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, documentsHref, routeHref = null, applications, cardClass }: WorkspaceProps) {
   const router = useRouter();
   const workspaceRef = useRef<HTMLElement>(null);
   const commandInFlight = useRef(false);
@@ -223,12 +229,12 @@ function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, docume
     })).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />);
   }
 
-  return <section ref={workspaceRef} aria-labelledby="student-profile-fields-title" className="min-w-0 space-y-4"
+  return <section ref={workspaceRef} aria-labelledby="student-profile-fields-title" className={cardClass ? "grid min-w-0 grid-cols-1 gap-4" : "min-w-0 space-y-4"}
     onSubmitCapture={event => {
       if (commandInFlight.current || blocked) { event.preventDefault(); return; }
       commandInFlight.current = true;
     }}>
-    <header className="space-y-2">
+    <header className={cardClass ? `${cardClass} px-5` : "space-y-2"}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="student-profile-fields-title" className="t-section">Анкета студента</h2>
         <StatusChip label={readiness.ready ? "Проверена" : "Черновик"} tone={readiness.ready ? "ok" : "neutral"} />
@@ -241,19 +247,19 @@ function ReviewWorkspace({ snapshot, requestId, readOnly, sourceVersions, docume
 
     <StudentProfileExportHistory studentCaseId={snapshot.studentCaseId} profile={profile} canExport={snapshot.canExport}
       applications={applications} routeHref={routeHref}
-      ready={readiness.ready} draftBlocker={draftBlocker} finalBlocker={finalBlocker} busy={busy}
+      frame={cardClass} ready={readiness.ready} draftBlocker={draftBlocker} finalBlocker={finalBlocker} busy={busy}
       commandInFlightRef={commandInFlight} onBusyChange={setExportPending} onRefreshProfile={() => router.refresh()}>
       {!readiness.ready ? <StaffDisclosure label={studentProfileFiles.review} buttonClassName="font-semibold">
         <ExportIssues issues={readiness.issues} />
       </StaffDisclosure> : null}
     </StudentProfileExportHistory>
 
-    <div className="divide-y divide-border rounded-card border border-border bg-surface">
+    <div className={cardClass ? "divide-y divide-border rounded-card border border-border bg-card" : "divide-y divide-border rounded-card border border-border bg-surface"}>
       {PROFILE_GROUPS.map(group => {
         const definitions = PROFILE_FIELDS.filter(field => field.group === group);
         const confirmed = definitions.filter(definition => byKey.get(definition.key)?.state === "confirmed").length;
         return <StaffDisclosure key={group} label={`${PROFILE_GROUP_LABELS[group]} · ${confirmed}/${definitions.length} подтверждено`}
-          className="min-w-0 px-4 py-1" buttonClassName="font-semibold [overflow-wrap:anywhere]">
+          className={cardClass ? "min-w-0 px-5 py-1" : "min-w-0 px-4 py-1"} buttonClassName="font-semibold [overflow-wrap:anywhere]">
           <div className="divide-y divide-border pb-3">
             {definitions.map(definition => {
               const field = byKey.get(definition.key)!;

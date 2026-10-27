@@ -3,14 +3,24 @@
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
+import { HelpTip } from "@/components/kit/HelpTip";
 import { caseMoneyWords } from "@/lib/v3/wording";
 
-import { useAnchoredPopover } from "../queue/useAnchoredPopover";
+import { useAnchoredPopover, type AnchoredPopover } from "../queue/useAnchoredPopover";
 import { CASE_MONEY_ROW_ACTION, type CaseMoneyPanelEntry } from "./case-money-view";
 
 type Focus = "heading" | "return" | null;
 type OpenState = Readonly<{ open: string | null; focus: Focus; target: string | null }>;
-type CaseMoneyApi = Readonly<{ open: string | null; show: (id: string, opener: HTMLElement | null) => void; hide: () => void }>;
+type CaseMoneyApi = Readonly<{
+  open: string | null;
+  show: (id: string, opener: HTMLElement | null) => void;
+  hide: () => void;
+  /** Меню «⋯» листа: его состояние держит лист, кнопка стоит в шапке листа или (новый вид) в шапке карточки сводки. */
+  menu: AnchoredPopover;
+  panels: readonly CaseMoneyPanelEntry[];
+  /** «Новый вид»: панели - карточки набора. */
+  next: boolean;
+}>;
 
 const CaseMoneyContext = createContext<CaseMoneyApi | null>(null);
 
@@ -35,10 +45,16 @@ export function CaseMoneySection({
   panels,
   contractCaseId,
   children,
+  nextUi = false,
 }: Readonly<{
   panels: readonly CaseMoneyPanelEntry[];
   contractCaseId: string | null;
   children: ReactNode;
+  /**
+   * «Новый вид»: лист - набор карточек (сводка, транши, оплаты, открытая панель), а не одна рамка; заголовок и «⋯» несёт карточка
+   * сводки (`CaseMoneyMenu`). Состояние панелей, якоря адреса и возврат фокуса - те же.
+   */
+  nextUi?: boolean;
 }>) {
   const headingId = useId();
   const sectionRef = useRef<HTMLElement>(null);
@@ -51,7 +67,7 @@ export function CaseMoneySection({
     setState({ open: id, focus: "heading", target: null });
   }, []);
   const hide = useCallback(() => setState({ open: null, focus: "return", target: null }), []);
-  const api = useMemo<CaseMoneyApi>(() => ({ open: state.open, show, hide }), [state.open, show, hide]);
+  const api = useMemo<CaseMoneyApi>(() => ({ open: state.open, show, hide, menu, panels, next: nextUi }), [state.open, show, hide, menu, panels, nextUi]);
 
   // Якорь адреса внутри панели открывает её: при загрузке и при смене якоря.
   useEffect(() => {
@@ -91,58 +107,85 @@ export function CaseMoneySection({
     }
   }, [state, menu.triggerId]);
 
+  if (nextUi) {
+    return (
+      <CaseMoneyContext.Provider value={api}>
+        <section
+          ref={sectionRef}
+          aria-label={caseMoneyWords.title}
+          data-case-money=""
+          data-testid={contractCaseId ? "v3-profile-contract-workspace" : undefined}
+          data-student-case-id={contractCaseId ?? undefined}
+          className="@container grid min-w-0 grid-cols-1 gap-4"
+        >
+          {children}
+        </section>
+      </CaseMoneyContext.Provider>
+    );
+  }
+  return (
+    <CaseMoneyContext.Provider value={api}>
+      <section
+        ref={sectionRef}
+        aria-labelledby={headingId}
+        data-case-money=""
+        data-testid={contractCaseId ? "v3-profile-contract-workspace" : undefined}
+        data-student-case-id={contractCaseId ?? undefined}
+        className="@container min-w-0 rounded-card border border-border bg-surface"
+      >
+        <header className="flex min-h-12 items-center justify-between gap-3 border-b border-border py-1 ps-4 pe-1">
+          <h2 id={headingId} className="t-section text-fg">{caseMoneyWords.title}</h2>
+          <CaseMoneyMenu />
+        </header>
+        <div className="px-4 pb-4 pt-1">{children}</div>
+      </section>
+    </CaseMoneyContext.Provider>
+  );
+}
+
+/**
+ * «⋯» листа «Договор и оплата»: меню панелей (одна за раз под сводкой). Читает состояние листа (`CaseMoneySection`): в прежнем
+ * виде стоит в шапке листа, в «Новом виде» - в шапке карточки сводки. Панелей нет - кнопки нет.
+ */
+export function CaseMoneyMenu() {
+  const money = useContext(CaseMoneyContext);
+  if (money === null || money.panels.length === 0) return null;
+  const { menu, panels, show } = money;
   const closeMenu = () => document.getElementById(menu.popoverId)?.hidePopover();
   return (
-    <section
-      ref={sectionRef}
-      aria-labelledby={headingId}
-      data-case-money=""
-      data-testid={contractCaseId ? "v3-profile-contract-workspace" : undefined}
-      data-student-case-id={contractCaseId ?? undefined}
-      className="@container min-w-0 rounded-card border border-border bg-surface"
-    >
-      <header className="flex min-h-12 items-center justify-between gap-3 border-b border-border py-1 ps-4 pe-1">
-        <h2 id={headingId} className="t-section text-fg">{caseMoneyWords.title}</h2>
-        {panels.length > 0 ? (
-          <>
-            <button
-              id={menu.triggerId}
-              type="button"
-              popoverTarget={menu.popoverId}
-              style={menu.triggerStyle}
-              aria-label={caseMoneyWords.more}
-              data-testid="v3-case-money-more"
-              className="grid size-11 shrink-0 place-items-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg"
-            >
-              <Icon name="more-horizontal" size={20} />
-            </button>
-            <div
-              id={menu.popoverId}
-              popover="auto"
-              style={menu.popoverStyle}
-              role="group"
-              aria-label={caseMoneyWords.more}
-              className="v3-anchored v3-anchored-end w-80 max-w-[calc(100vw-2rem)] rounded-ctl border border-border bg-surface p-1 text-fg shadow-evo-lg"
-            >
-              {panels.map((panel) => (
-                <button
-                  key={panel.id}
-                  type="button"
-                  aria-pressed={state.open === panel.id}
-                  className={MENU_ITEM}
-                  onClick={() => { closeMenu(); show(panel.id, null); }}
-                >
-                  {panel.label}
-                </button>
-              ))}
-            </div>
-          </>
-        ) : null}
-      </header>
-      <CaseMoneyContext.Provider value={api}>
-        <div className="px-4 pb-4 pt-1">{children}</div>
-      </CaseMoneyContext.Provider>
-    </section>
+    <>
+      <button
+        id={menu.triggerId}
+        type="button"
+        popoverTarget={menu.popoverId}
+        style={menu.triggerStyle}
+        aria-label={caseMoneyWords.more}
+        data-testid="v3-case-money-more"
+        className="grid size-11 shrink-0 place-items-center rounded-nav text-fg-2 hover:bg-surface-2 hover:text-fg"
+      >
+        <Icon name="more-horizontal" size={20} />
+      </button>
+      <div
+        id={menu.popoverId}
+        popover="auto"
+        style={menu.popoverStyle}
+        role="group"
+        aria-label={caseMoneyWords.more}
+        className="v3-anchored v3-anchored-end w-80 max-w-[calc(100vw-2rem)] rounded-ctl border border-border bg-surface p-1 text-fg shadow-evo-lg"
+      >
+        {panels.map((panel) => (
+          <button
+            key={panel.id}
+            type="button"
+            aria-pressed={money.open === panel.id}
+            className={MENU_ITEM}
+            onClick={() => { closeMenu(); show(panel.id, null); }}
+          >
+            {panel.label}
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -154,14 +197,31 @@ export function CaseMoneySection({
 export function CaseMoneyPanel({
   id,
   label,
+  help,
   children,
-}: Readonly<{ id: string; label: string; children: ReactNode }>) {
+}: Readonly<{
+  id: string;
+  label: string;
+  /** «Новый вид»: пояснение панели - за «?» у её заголовка; в прежнем виде не рисуется (там оно в тексте панели). */
+  help?: ReactNode;
+  children: ReactNode;
+}>) {
   const money = useContext(CaseMoneyContext);
   const shown = money === null || money.open === id;
+  // «Новый вид»: открытая панель - карточка рядом с «Транши» и «Оплаты и чеки» (их заголовки `h2`), поэтому и её заголовок `h2`;
+  // в прежнем листе панели вложены в раздел `h2`, и заголовок остаётся `h3`.
+  const Heading = money?.next ? "h2" : "h3";
   return (
-    <section id={id} data-money-panel="" hidden={!shown} aria-labelledby={`${id}-title`} className="mt-4 scroll-mt-20 border-t border-border pt-1">
+    <section id={id} data-money-panel="" hidden={!shown} aria-labelledby={`${id}-title`} className={money?.next ? "scroll-mt-20 rounded-card border border-border bg-card px-5 py-3" : "mt-4 scroll-mt-20 border-t border-border pt-1"}>
       <div className="flex min-h-12 items-center justify-between gap-3">
-        <h3 id={`${id}-title`} tabIndex={-1} data-money-panel-heading="" className="t-section text-fg">{label}</h3>
+        {money?.next && help ? (
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Heading id={`${id}-title`} tabIndex={-1} data-money-panel-heading="" className="t-section text-fg">{label}</Heading>
+            <HelpTip label={`Пояснение: ${label}`}>{help}</HelpTip>
+          </div>
+        ) : (
+          <Heading id={`${id}-title`} tabIndex={-1} data-money-panel-heading="" className="t-section text-fg">{label}</Heading>
+        )}
         {money ? (
           <button type="button" onClick={money.hide} className={CLOSE}>
             <Icon name="x" size={18} />

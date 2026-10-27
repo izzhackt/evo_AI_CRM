@@ -1,5 +1,6 @@
 "use client";
 
+import { onLazyFailed } from "@/components/kit/lazy-failure";
 import { OUTLINE_BUTTON } from "@/components/kit/outline-button";
 
 /**
@@ -7,6 +8,7 @@ import { OUTLINE_BUTTON } from "@/components/kit/outline-button";
  * Без этого ошибка загрузки уходит в границу ошибок `(v3)/error.tsx`, а её «Попробовать снова» (`reset()`) новой загрузки не
  * делает: `next/dynamic` помнит отклонённое обещание до перезагрузки страницы. Здесь кнопка перезагружает страницу. Файл подключают
  * входы всех экранов, поэтому он не тянет `Button` (`cva`, `tailwind-merge`): кнопка — тот же вид классами (`OUTLINE_BUTTON`).
+ * Это для браузера; на сервере отказ входа — ошибка в коде, и она уходит выше (`onLazyFailed`).
  */
 export function LoadFailed() {
   return (
@@ -17,5 +19,5 @@ export function LoadFailed() {
   );
 }
 
-/** `.catch(onScreenLoadFailed)` у ленивого входа экрана: вместо ошибки загрузки — `LoadFailed`. */
-export const onScreenLoadFailed = () => LoadFailed;
+/** `.catch(onScreenLoadFailed)` у ленивого входа экрана: в браузере вместо ошибки загрузки — `LoadFailed` (и `console.error`), на сервере — ошибка выше. */
+export const onScreenLoadFailed = onLazyFailed(LoadFailed);

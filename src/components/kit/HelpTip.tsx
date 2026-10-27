@@ -3,12 +3,14 @@
 import { lazy, Suspense } from "react";
 
 import { HELP_TIP_BUTTON, type HelpTipProps } from "@/components/kit/help-tip-button";
+import { onLazyFailed } from "@/components/kit/lazy-failure";
 
 // Окно пояснения — Radix Popover и Popper (около 30 КБ gzip). Его граф страница не должна нести в первой загрузке у тех,
 // кто «?» не видит: у сотрудников с прежним видом и у кабинета студента. Подгружается, когда «?» рисуется. `lazy`, а не
 // `next/dynamic`: вне сборки Next (тесты, стенды на Node) `next/dynamic` молча рисует пустоту, а `lazy` — заглушку ниже.
-// Не пришёл код окна (связь оборвалась): остаётся та же кнопка без окна, а не ошибка, которая сняла бы с экрана всю страницу.
-const HelpTipImpl = lazy(() => import("./HelpTipImpl").then((module) => ({ default: module.HelpTipImpl })).catch(() => ({ default: HelpTipStatic })));
+// Не пришёл код окна (связь оборвалась): остаётся та же кнопка без окна, а не ошибка, которая сняла бы с экрана всю страницу;
+// ошибка записана в `console.error`. На сервере отказ — ошибка в коде: она уходит выше (`onLazyFailed`).
+const HelpTipImpl = lazy(() => import("./HelpTipImpl").then((module) => ({ default: module.HelpTipImpl })).catch(onLazyFailed({ default: HelpTipStatic })));
 
 /** «?» без окна: на время загрузки окна и если оно не загрузилось. Имя и вид те же, что у настоящего. */
 function HelpTipStatic({ label = "Пояснение", className }: HelpTipProps) {

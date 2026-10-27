@@ -6,8 +6,10 @@
  * «Новый вид»: не пришёл код ленивого куска (обрыв связи, Turbopack повторяет загрузку один раз, потом `ChunkLoadError`). В
  * настоящем браузере (Playwright Chromium, `react-dom/client`) под границей ошибок вроде `(v3)/error.tsx`: уже нарисованная
  * страница не должна заменяться экраном ошибки из-за необязательного куска («?», «Ещё N», обращения, вкладки), а вход экрана
- * показывает строку и кнопку, которая перезагружает страницу. Код куска «не приходит»: модуль при загрузке бросает ошибку,
- * `import()` отклоняется так же, как сетевой сбой. Данные синтетические.
+ * показывает строку и кнопку, которая перезагружает страницу. Ошибка при этом не глотается: каждый отказ записан в
+ * `console.error` один раз (иначе ошибка в коде куска осталась бы совсем незаметной). Код куска «не приходит»: модуль при
+ * загрузке бросает ошибку, `import()` отклоняется так же, как сетевой сбой. Данные синтетические. Серверную сторону (ошибка
+ * уходит выше, как на `main`) закрепляет `tests/ui-next-lazy.test.mjs`.
  *
  *   node tests/e2e/lazy-failure-client.cjs [outDir]
  *     → JSON-строки проверок (при нарушении код 1); по умолчанию outDir — .impeccable/review (не коммитится).
@@ -19,6 +21,9 @@ const { pathToFileURL } = require("node:url");
 
 const ROOT = resolve(__dirname, "../..");
 const FAILING = /[\\/](HelpTipImpl|FeedOverflowImpl|CaseHelpCardImpl|SectionTabsInPlaceImpl|TodayNextPage|RequestsNextPage)\.tsx$/;
+
+/** Запись помощника отказа в `console.error`: приставка и сама ошибка (в тексте записи Chromium — её сообщение). */
+const isLazyLog = (text) => /Новый вид/u.test(text) && /ChunkLoadError/u.test(text);
 
 const ENTRY = `
 const React = require("react");
@@ -81,25 +86,29 @@ async function main() {
   const open = async (mode) => {
     const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
     const errors = [];
+    const logged = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => { if (message.type() === "error") logged.push(message.text()); });
     await page.goto(`${pathToFileURL(html).href}?mode=${mode}`, { waitUntil: "load" });
     await page.waitForSelector("html[data-ready=true]", { state: "attached" });
-    return { page, errors };
+    return { page, errors, logged };
   };
 
   {
-    const { page, errors } = await open("widgets");
+    const { page, errors, logged } = await open("widgets");
     report("widgets: the rendered page is not replaced by an error screen", (await page.locator("#boundary").count()) === 0 && (await page.locator("#alive").count()) === 1, await page.locator("#boundary").allTextContents());
     report("widgets: «?» stays as a named button", (await page.getByRole("button", { name: "Пояснение: Тест" }).count()) === 1, null);
     report("widgets: «Ещё N» stays as a named button", (await page.getByRole("button", { name: "Ещё 3 в ленте" }).count()) === 1, null);
     report("widgets: the case help card says it failed", (await page.getByText("Не удалось загрузить обращения студента").count()) === 1, null);
     report("widgets: no uncaught page errors", errors.length === 0, errors);
+    report("widgets: each of the four failures is written to console.error once", logged.filter(isLazyLog).length === 4, logged);
     await page.context().close();
   }
   for (const mode of ["today", "requests"]) {
-    const { page } = await open(mode);
+    const { page, logged } = await open(mode);
     report(`${mode}: no error-boundary screen`, (await page.locator("#boundary").count()) === 0, await page.locator("#boundary").allTextContents());
     report(`${mode}: load-failed row with a reload button`, (await page.locator("[data-testid=v3-load-failed]").count()) === 1 && (await page.getByRole("button", { name: "Обновить страницу" }).count()) === 1, null);
+    report(`${mode}: the failure is written to console.error once`, logged.filter(isLazyLog).length === 1, logged);
     if (failed) { await page.context().close(); continue; }
     const navigated = page.waitForEvent("framenavigated", { timeout: 5000 }).then(() => true, () => false);
     await page.getByRole("button", { name: "Обновить страницу" }).click();

@@ -17224,3 +17224,5 @@ append-only [`PLAN_CHANGES.md`](PLAN_CHANGES.md), в профильных пла
 ## 2026-10-27 — указатель: три плана (Wazzup, ONLYOFFICE, Looker Studio)
 
 Решения владельца 26.10.2026 и контракты реализации — в `docs/PLAN_CHANGES.md` (запись 2026-10-27) и в файлах `docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md`, `docs/EVO_AGENT_RULES_ONLYOFFICE_PLAN_2026-10-27.md`, `docs/EVO_LOOKER_REPORTS_PLAN_2026-10-27.md`.
+
+Wazzup, этап 1 — статус 27.10.2026: срезы W1–W3 и дополнения (миграции 324–326, приложение, интерфейс, runbook `docs/runbooks/wazzup-whatsapp.md`, [ADR 0036](adr/0036-receive-sales-whatsapp-via-wazzup-sidecar.md)) лежат в ветке `izzhackt/wazzup-app`, не слиты; на production ничего не включено, живого ключа Wazzup нет, проверки A0–A14 не проходились. Отклонения от плана и отложенное — `docs/PLAN_CHANGES.md`, запись «2026-10-27 · WhatsApp через Wazzup: отклонения срезов W1–W3 и дополнения этапа 1 (миграция 326, ADR 0036)».

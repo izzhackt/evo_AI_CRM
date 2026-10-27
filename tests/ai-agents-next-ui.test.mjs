@@ -7,7 +7,8 @@
 //
 //   node --conditions=react-server --experimental-strip-types --test tests/ai-agents-next-ui.test.mjs
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -69,7 +70,8 @@ import { NextOverview } from "@/components/v3/ai-agents-next/NextOverview";
 import { NextSettings } from "@/components/v3/ai-agents-next/NextSettings";
 import { NextRunSheetBody } from "@/components/v3/ai-agents-next/NextRunSheet";
 import { DraftCard } from "@/components/v3/ai-agents/DraftCard";
-import { agentGate } from "@/components/v3/ai-agents-next/agent-gate";
+import { agentGate as realAgentGate } from "@/components/v3/ai-agents-next/agent-gate";
+import { nextAgentDefaults, nextAgentsHasDefault } from "@/lib/server/ai-agents/next-defaults";
 // Новый вид страницы подгружают лениво (\`NextAgentsViewLazy\`, \`NextAgentPageLazy\`): модуль приходит асинхронно, поэтому рисуем, пока
 // разметка не устоится (две отдачи подряд совпали); у прежнего вида это те же две отдачи.
 const settle = async (render) => {
@@ -90,14 +92,15 @@ export const html = {
   agentElement: async (world, key, search = {}) => { globalThis.__world = world; return AgentPage({ params: Promise.resolve({ key }), searchParams: Promise.resolve(search) }); },
   legacyBody: (props) => renderToStaticMarkup(<AgentBody {...props} />),
   legacyHub: (list, runtimeConfigured, preview) => renderToStaticMarkup(<AgentsHub list={list} runtimeConfigured={runtimeConfigured} preview={preview} />),
-  nextPage: (props) => renderToStaticMarkup(<NextAgentPage {...props} />),
-  nextHub: (read, runtimeConfigured, preview) => renderToStaticMarkup(<NextAgentsView read={read} runtimeConfigured={runtimeConfigured} preview={preview} />),
+  // Каталог текстов читает сервер (страница): новому виду он приходит готовым, как в страницах ai-agents.
+  nextPage: (props) => renderToStaticMarkup(<NextAgentPage {...props} defaults={nextAgentDefaults(props.detail.key, props.tab)} />),
+  nextHub: (read, runtimeConfigured, preview) => renderToStaticMarkup(<NextAgentsView read={read} runtimeConfigured={runtimeConfigured} preview={preview} hasDefault={nextAgentsHasDefault()} />),
   switches: (props) => renderToStaticMarkup(<NextAgentSwitches {...props} />),
   overview: (props) => renderToStaticMarkup(<NextOverview {...props} />),
   settings: (props) => renderToStaticMarkup(<NextSettings {...props} />),
   runSheet: (props) => renderToStaticMarkup(<NextRunSheetBody {...props} />),
   draftCard: (props) => renderToStaticMarkup(<DraftCard {...props} />),
-  agentGate,
+  agentGate: (input) => realAgentGate({ defaultHasInstructions: nextAgentsHasDefault()[input.detail.key], ...input }),
 };
 `;
 
@@ -528,6 +531,101 @@ test("«Включён» и «Авто»: заперты без правил, в
   assert.match(readonly, /Авто: вкл/u);
 });
 
+/* ------------------------------------------------------------------ каталог текстов остаётся на сервере */
+
+/** Файлы, которые войдут в клиентский файл от `entry`: значения и ленивые `import()`; `import type` и серверные действия граф не продолжают. */
+function clientGraph(entry) {
+  const seen = new Set();
+  const queue = [entry];
+  const resolveFile = (base) => [`${base}.ts`, `${base}.tsx`, base, `${base}/index.ts`, `${base}/index.tsx`].find((file) => /\.tsx?$/u.test(file) && existsSync(root(file)));
+  while (queue.length) {
+    const file = queue.pop();
+    if (seen.has(file)) continue;
+    seen.add(file);
+    const source = read(file);
+    if (/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/u.test(source)) continue; // клиент получает ссылку на действие, не код
+    const ids = [
+      ...[...source.matchAll(/(?:^|\n)\s*(?:import|export)\s+(?!type\b)[^;]*?\bfrom\s*["']([^"']+)["']/gu)].map((match) => match[1]),
+      ...[...source.matchAll(/(?:^|\n)\s*import\s*["']([^"']+)["']/gu)].map((match) => match[1]),
+      ...[...source.matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/gu)].map((match) => match[1]),
+    ];
+    for (const id of ids) {
+      const base = id.startsWith("@/") ? `src/${id.slice(2)}` : id.startsWith(".") ? join(file, "..", id) : null;
+      const next = base && resolveFile(base);
+      if (next) queue.push(next);
+    }
+  }
+  return seen;
+}
+
+test("клиентский граф нового вида «ИИ-агентов» не содержит каталог текстов агентов (он остаётся на сервере)", () => {
+  const graph = clientGraph("src/components/v3/ai-agents-next/NextAgentsLazy.tsx");
+  for (const file of ["NextAgentsHub.tsx", "NextAgentTab.tsx", "NextRules.tsx", "NextSettings.tsx", "agent-gate.ts"]) assert.ok(graph.has(`src/components/v3/ai-agents-next/${file}`), `обход графа дошёл до ${file}`);
+  assert.ok(graph.size > 40, `граф разобран (${graph.size} файлов)`);
+  const leaked = [...graph].filter((file) => file.startsWith("src/content/ai-agents/") || file.includes("next-defaults"));
+  assert.deepEqual(leaked, [], "каталог текстов (30 КБ gzip) уходил бы в публичный /_next/static: страница отдаёт новому виду только нужное вкладке");
+  // Серверный помощник нельзя подключить из клиентского модуля: `server-only` остановит сборку.
+  assert.match(read("src/lib/server/ai-agents/next-defaults.ts"), /^import "server-only";/u);
+});
+
+test("страница отдаёт новому виду из каталога только нужное: хаб — булевы, вкладка — свои тексты", async () => {
+  const { AI_AGENT_DEFAULTS, AI_AGENT_PREAMBLE } = await import("../src/content/ai-agents/index.ts");
+  const { hubElement, agentElement } = await views();
+  const hub = (await hubElement(world(ADMIN, "next"))).props;
+  assert.deepEqual(hub.hasDefault, Object.fromEntries(Object.entries(AI_AGENT_DEFAULTS).map(([key, value]) => [key, value.hasInstructions])));
+  assert.ok(Object.values(hub.hasDefault).includes(false) && Object.values(hub.hasDefault).includes(true), "и «есть», и «нет» (curator-eu)");
+  const snippets = [AI_AGENT_PREAMBLE, ...Object.values(AI_AGENT_DEFAULTS).flatMap((value) => [value.instructions, value.schedulePrompt ?? ""])].filter(Boolean).map((text) => text.slice(0, 80));
+  assert.ok(snippets.length >= 5);
+  const hasText = (value) => snippets.some((snippet) => JSON.stringify(value).includes(JSON.stringify(snippet).slice(1, -1)));
+  assert.equal(hasText(hub), false, "хаб: в свойствах нет ни одного текста агента");
+  for (const [search, expected] of [
+    [{ tab: "overview" }, { hasInstructions: true }], [{ tab: "runs" }, { hasInstructions: true }], [{ tab: "drafts" }, { hasInstructions: true }], [{}, { hasInstructions: true }],
+    [{ tab: "instructions" }, { hasInstructions: true, instructions: AI_AGENT_DEFAULTS.director.instructions, preamble: AI_AGENT_PREAMBLE }],
+    [{ tab: "settings" }, { hasInstructions: true, schedulePrompt: AI_AGENT_DEFAULTS.director.schedulePrompt }],
+  ]) {
+    const props = (await agentElement(world(ADMIN, "next"), "director", search)).props;
+    assert.deepEqual(props.defaults, expected, `director ${JSON.stringify(search)}: defaults`);
+    assert.equal(hasText({ ...props, defaults: undefined }), false, `director ${JSON.stringify(search)}: тексты каталога только в defaults`);
+    assert.equal(hasText(props.defaults), "instructions" in expected || "schedulePrompt" in expected, `director ${JSON.stringify(search)}: текст только там, где он нужен`);
+  }
+  const empty = (await agentElement(world(ADMIN, "next"), "curator-eu", { tab: "instructions" })).props.defaults;
+  assert.equal(empty.hasInstructions, false);
+  assert.equal(empty.instructions, "", "у curator-eu инструкции ещё нет");
+});
+
+test("проверка сборки: файл для браузера с текстом агента — ошибка, чистая статика и несуществующий каталог — нет", async () => {
+  const { AI_AGENT_PREAMBLE } = await import("../src/content/ai-agents/index.ts");
+  const { findPromptLeaks, promptMarkers } = await import("../scripts/check-client-bundle-prompts.mjs");
+  const markers = promptMarkers();
+  const dir = mkdtempSync(join(tmpdir(), "aia-static-"));
+  try {
+    mkdirSync(join(dir, "chunks"), { recursive: true });
+    writeFileSync(join(dir, "chunks", "clean.js"), 'export const label="ИИ-агенты",rules="Общие правила EVO",hint="Подсказывает ответ, сам ничего не отправляет.";');
+    const script = root("scripts/check-client-bundle-prompts.mjs");
+    const run = (path) => spawnSync(process.execPath, ["--experimental-strip-types", "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", script, path], { encoding: "utf8" });
+    assert.equal(run(dir).status, 0, "чистая статика");
+    assert.deepEqual(findPromptLeaks(dir), []);
+    for (const [name, text] of [
+      ["preamble", AI_AGENT_PREAMBLE.split("\n")[0]],
+      ["director", [...markers].find(([, owner]) => owner === "инструкция director")[0]],
+      ["schedule", [...markers].find(([, owner]) => owner === "поручение по расписанию director")[0]],
+    ]) {
+      writeFileSync(join(dir, "chunks", `${name}.js`), `module.exports={text:${JSON.stringify(text)}};`);
+      const result = run(dir);
+      assert.equal(result.status, 1, `${name}: текст агента в файле для браузера`);
+      assert.match(result.stderr, new RegExp(`chunks[\\/]${name}\\.js`, "u"));
+      rmSync(join(dir, "chunks", `${name}.js`));
+    }
+    assert.equal(run(join(dir, "нет-такого")).status, 2, "нет каталога — сначала сборка");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  // Проверка идёт сразу за `next build`, не в конце цепочки (два теста закрепляют её конец: сборки обслуживающих задач).
+  const build = JSON.parse(read("package.json")).scripts;
+  assert.match(build.build, /^next build && npm run check:client-bundle && /u);
+  assert.equal(build["check:client-bundle"], "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-client-bundle-prompts.mjs");
+});
+
 /* ------------------------------------------------------------------ исходники */
 
 test("исходники: каждый файл нового вида ≤150 строк, без обходов (сырой HTML, service-клиент), прежний каталог не тронут", () => {
@@ -551,7 +649,7 @@ test("исходники: каждый файл нового вида ≤150 с�
     assert.match(page, /isNextUi\(actor\)/u, "вид выбирает настоящий `isNextUi`");
     assert.match(page, /@\/lib\/ui-next"/u);
   }
-  assert.match(agentPage, /<NextAgentPageLazy \{\.\.\.bodyProps\} \/>/u, "новый вид получает те же свойства, что `AgentBody`");
+  assert.match(agentPage, /<NextAgentPageLazy \{\.\.\.bodyProps\} defaults=\{nextAgentDefaults\(key, tab\)\} \/>/u, "новый вид получает те же свойства, что `AgentBody`, и тексты вкладки");
   // Новый вид — ленивый вход: в первую загрузку страниц у остальных сотрудников его таблицы, панели и Radix не входят.
   assert.match(hubPage, /import \{ NextAgentsViewLazy \} from "@\/components\/v3\/ai-agents-next\/NextAgentsLazy";/u);
   assert.match(agentPage, /import \{ NextAgentPageLazy, NextAgentUnavailableLazy \} from "@\/components\/v3\/ai-agents-next\/NextAgentsLazy";/u);

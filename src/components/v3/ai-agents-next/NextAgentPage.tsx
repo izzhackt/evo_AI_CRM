@@ -1,9 +1,9 @@
 import { PageShell, SectionTabs } from "@/components/kit";
 import { AI_AGENT_TABS, aiAgentHref, aiAgentRoleLine } from "@/lib/v3/ai-agents-view";
 
-import type { AgentBodyProps } from "@/components/v3/ai-agents/AgentBody";
 import { AgentTabs } from "@/components/v3/ai-agents/AgentTabs";
 import { SyncNowButton } from "@/components/v3/ai-agents/SyncPanel";
+import type { NextAgentPageProps } from "./agent-defaults";
 import { agentGate } from "./agent-gate";
 import { NextBackLink } from "./NextBackLink";
 import { NextAgentSwitches } from "./NextAgentSwitches";
@@ -15,10 +15,11 @@ import { AgentAlert, NextApiKeyMissing, NextPreviewLine } from "./NextNotices";
  * Страница агента в «Новом виде»: шапка набора с «Включён» и «Авто», плашки о том, что требует внимания (ключ Claude,
  * синхронизация), шесть вкладок-ссылок `?tab=` и выбранная вкладка. «Чат» — на всю рабочую область (`NextChatShell`).
  * Принимает те же свойства, что `AgentBody` прежнего вида: страница читает данные один раз и передаёт их тому виду, который включён.
+ * Тексты по умолчанию из каталога (`@/content/ai-agents`) приходят готовыми в `defaults`: каталога в клиентском коде нет.
  */
-export function NextAgentPage(props: AgentBodyProps) {
-  const { detail, tab, canEdit, preview, runtimeConfigured, needsSync } = props;
-  const gate = agentGate({ detail, canEdit, preview, runtimeConfigured });
+export function NextAgentPage(props: NextAgentPageProps) {
+  const { detail, tab, canEdit, preview, runtimeConfigured, needsSync, defaults } = props;
+  const gate = agentGate({ detail, canEdit, preview, runtimeConfigured, defaultHasInstructions: defaults.hasInstructions });
   const chat = tab === "command";
   const roleLine = aiAgentRoleLine(detail.roleLine);
   const switches = <NextAgentSwitches agentKey={detail.key} enabled={detail.enabled} autoSend={detail.autoSend} configVersion={detail.configVersion} hasInstructions={gate.hasInstructions} canEdit={canEdit} />;

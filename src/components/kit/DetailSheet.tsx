@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef } from "react";
 
+import { wrapShiftTabFromTitle } from "@/components/kit/detail-sheet-focus";
 import { HelpTip } from "@/components/kit/HelpTip";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -19,7 +20,8 @@ import { cn } from "@/lib/utils";
  * Фокус при открытии: на название панели (`tabIndex=-1`; рамки у неё нет: это не элемент управления), а не на первый попавшийся элемент. Первым в панели
  * стоит прокручиваемая область (`tabIndex=0`), и при открытии с клавиатуры рамка фокуса охватывала бы всё тело панели, обрезанная
  * её краем. Читалка так сразу зачитывает название и описание. Кто уже поставил фокус внутрь панели сам, того не трогаем.
- * Область принимает фокус клавишей Tab, рамка у неё внутри (снаружи её срезает край панели).
+ * Область принимает фокус клавишей Tab, рамка у неё внутри (снаружи её срезает край панели). Shift+Tab с названия идёт на
+ * последний управляемый элемент панели (`wrapShiftTabFromTitle`): сам Radix круг от названия не замыкает.
  *
  * Запись в панели не очищают в `onOpenChange(false)`: 200 мс закрытия панель ещё видна, и пустая шапка мигала
  * бы. Держат последнюю выбранную запись в состоянии, а открыта ли панель — отдельным флагом (`KitTable`).
@@ -88,7 +90,7 @@ export function DetailSheet({
       >
         <SheetHeader>
           <div className="flex min-w-0 items-center gap-2">
-            <SheetTitle ref={heading} tabIndex={-1} className="min-w-0 focus-visible:outline-none!">{title}</SheetTitle>
+            <SheetTitle ref={heading} tabIndex={-1} onKeyDown={wrapShiftTabFromTitle} className="min-w-0 focus-visible:outline-none!">{title}</SheetTitle>
             {help ? <HelpTip label={helpLabel ?? `Пояснение: ${title}`}>{help}</HelpTip> : null}
           </div>
           {description ? <SheetDescription>{description}</SheetDescription> : null}

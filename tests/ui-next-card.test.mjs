@@ -235,7 +235,7 @@ test("«Ещё N»: ссылка строки на место страницы �
   // «Ещё N» подгружается лениво: `FeedOverflow` — заглушка с той же кнопкой, настоящая панель — в `FeedOverflowImpl`.
   const facade = read("src/components/v3/profile/next/FeedOverflow.tsx");
   assert.match(facade, /lazy\(\(\) => import\("\.\/FeedOverflowImpl"\)/u);
-  assert.match(facade, /aria-label=\{`Ещё \$\{props\.count\} в ленте`\} data-testid="v3-feed-overflow"/u, "заглушка называется и находится так же, как настоящая кнопка");
+  assert.match(facade, /aria-label=\{`Ещё \$\{count\} в ленте`\} data-testid="v3-feed-overflow"/u, "заглушка называется и находится так же, как настоящая кнопка");
   assert.doesNotMatch(facade, /DetailSheet|ui\/button/u, "панель и Radix Dialog не импортируются статически");
   const overflow = read("src/components/v3/profile/next/FeedOverflowImpl.tsx");
   assert.match(overflow, /open=\{open\}/u);

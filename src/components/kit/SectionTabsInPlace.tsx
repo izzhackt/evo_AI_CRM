@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ComponentType } from "react";
 
 import type { SectionTab } from "@/components/kit/SectionTabs";
 
@@ -15,7 +15,8 @@ export type SectionTabsInPlaceProps = Readonly<{
 
 // Вкладки на месте — Radix Tabs; страницы нового вида почти везде держат вкладки-ссылки (`?tab=`), и Radix Tabs не должен
 // идти в первую загрузку вместе с ними. Подгружается, только когда такие вкладки рисуются (набор виджетов: `/v3/ui-kit`).
-const SectionTabsInPlaceImpl = lazy(() => import("./SectionTabsInPlaceImpl").then((module) => ({ default: module.SectionTabsInPlaceImpl })));
+// Не пришёл код вкладок: на их месте пусто (как пока грузятся), а не ошибка, которая сняла бы страницу.
+const SectionTabsInPlaceImpl = lazy<ComponentType<SectionTabsInPlaceProps>>(() => import("./SectionTabsInPlaceImpl").then((module) => ({ default: module.SectionTabsInPlaceImpl })).catch(() => ({ default: () => null })));
 
 export function SectionTabsInPlace(props: SectionTabsInPlaceProps) {
   return (

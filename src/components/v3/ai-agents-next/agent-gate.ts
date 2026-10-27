@@ -1,4 +1,3 @@
-import { AI_AGENT_DEFAULTS } from "@/content/ai-agents";
 import type { AiAgentDetail } from "@/lib/ai-agents/contract";
 import { aiAgentIsRunnable, aiAgentNextStep, aiAgentSyncProblemText, type AiAgentSetupStep } from "@/lib/v3/ai-agents-view";
 
@@ -21,9 +20,11 @@ export function agentGate(input: Readonly<{
   canEdit: boolean;
   preview: boolean;
   runtimeConfigured: boolean;
+  /** Есть ли у агента инструкция по умолчанию: каталог текстов на сервере (`NextAgentDefaults`), здесь только ответ. */
+  defaultHasInstructions: boolean;
 }>): AgentGate {
-  const { detail, canEdit, preview, runtimeConfigured } = input;
-  const hasInstructions = detail.hasInstructionsOverride || AI_AGENT_DEFAULTS[detail.key].hasInstructions;
+  const { detail, canEdit, preview, runtimeConfigured, defaultHasInstructions } = input;
+  const hasInstructions = detail.hasInstructionsOverride || defaultHasInstructions;
   const synced = aiAgentIsRunnable(detail.sync);
   const syncProblem = detail.enabled ? aiAgentSyncProblemText(detail.sync) : null;
   // Директору поручает только системный администратор (его инструменты читают данные организации целиком).

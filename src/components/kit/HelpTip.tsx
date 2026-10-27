@@ -7,7 +7,17 @@ import { HELP_TIP_BUTTON, type HelpTipProps } from "@/components/kit/help-tip-bu
 // Окно пояснения — Radix Popover и Popper (около 30 КБ gzip). Его граф страница не должна нести в первой загрузке у тех,
 // кто «?» не видит: у сотрудников с прежним видом и у кабинета студента. Подгружается, когда «?» рисуется. `lazy`, а не
 // `next/dynamic`: вне сборки Next (тесты, стенды на Node) `next/dynamic` молча рисует пустоту, а `lazy` — заглушку ниже.
-const HelpTipImpl = lazy(() => import("./HelpTipImpl").then((module) => ({ default: module.HelpTipImpl })));
+// Не пришёл код окна (связь оборвалась): остаётся та же кнопка без окна, а не ошибка, которая сняла бы с экрана всю страницу.
+const HelpTipImpl = lazy(() => import("./HelpTipImpl").then((module) => ({ default: module.HelpTipImpl })).catch(() => ({ default: HelpTipStatic })));
+
+/** «?» без окна: на время загрузки окна и если оно не загрузилось. Имя и вид те же, что у настоящего. */
+function HelpTipStatic({ label = "Пояснение", className }: HelpTipProps) {
+  return (
+    <button type="button" aria-label={label} aria-haspopup="dialog" aria-expanded="false" className={className ? `${HELP_TIP_BUTTON} ${className}` : HELP_TIP_BUTTON}>
+      <span aria-hidden="true">?</span>
+    </button>
+  );
+}
 
 /**
  * Значок «?» — сюда уезжают пояснения с экрана (решение владельца 27.10.2026): на экране остаются
@@ -21,15 +31,8 @@ const HelpTipImpl = lazy(() => import("./HelpTipImpl").then((module) => ({ defau
  * Пока окно подгружается, на месте стоит та же кнопка (имя и вид те же); на сервере окно приходит в той же отдачи.
  */
 export function HelpTip(props: HelpTipProps) {
-  const { label = "Пояснение", className } = props;
   return (
-    <Suspense
-      fallback={
-        <button type="button" aria-label={label} aria-haspopup="dialog" aria-expanded="false" className={className ? `${HELP_TIP_BUTTON} ${className}` : HELP_TIP_BUTTON}>
-          <span aria-hidden="true">?</span>
-        </button>
-      }
-    >
+    <Suspense fallback={<HelpTipStatic {...props} />}>
       <HelpTipImpl {...props} />
     </Suspense>
   );

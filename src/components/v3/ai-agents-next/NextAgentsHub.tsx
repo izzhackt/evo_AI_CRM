@@ -1,27 +1,28 @@
 import Link from "next/link";
 import { ChevronRightIcon } from "lucide-react";
 
-import { AI_AGENT_DEFAULTS } from "@/content/ai-agents";
 import { HelpTip, StatTile } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AI_AGENT_GROUPS, AI_AGENT_GROUP_LABELS, type AiAgentListItem, type AiAgentsListResult } from "@/lib/ai-agents/contract";
 import { aiAgentHref, formatUsdCents } from "@/lib/v3/ai-agents-view";
 
+import type { NextAgentsHasDefault } from "./agent-defaults";
 import { NextAgentCard } from "./NextAgentCard";
 import { NextApiKeyMissing } from "./NextNotices";
-
-const hasInstructionsOf = (agent: AiAgentListItem) => agent.hasInstructionsOverride || AI_AGENT_DEFAULTS[agent.key].hasInstructions;
 
 /**
  * Хаб «ИИ-агенты» в «Новом виде»: четыре плитки за 7 дней, три группы карточек (Продажи / Аналитика / Кураторы),
  * ряд «Не настроены» и помощник Gemini. Данные и права те же, что у прежнего хаба; пояснения ушли за «?».
+ * `hasDefault` — у кого есть инструкция по умолчанию: страница (сервер) считает, каталог текстов на клиент не идёт.
  */
 export function NextAgentsHub({
   list,
   runtimeConfigured,
   preview = false,
-}: Readonly<{ list: AiAgentsListResult; runtimeConfigured: boolean; preview?: boolean }>) {
+  hasDefault,
+}: Readonly<{ list: AiAgentsListResult; runtimeConfigured: boolean; preview?: boolean; hasDefault: NextAgentsHasDefault }>) {
+  const hasInstructionsOf = (agent: AiAgentListItem) => agent.hasInstructionsOverride || hasDefault[agent.key];
   // Плитка — ссылка, только когда очередь одна и число — её: иначе ссылка вела бы в часть (карточки ведут в каждую).
   const withDrafts = list.agents.filter((agent) => agent.stats.draftsPending > 0);
   const pendingAgent = withDrafts.length === 1 ? withDrafts[0] : undefined;

@@ -242,11 +242,40 @@ async function main() {
     report(`${key}: sheet closed by Esc`, true, null);
     await page.waitForTimeout(80); // Radix возвращает фокус отложенным вызовом уже после снятия панели
     if (key === "m390") report(`${key}: focus returns to the card after Esc`, await opener.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
+    // Мышь по ячейке: фокус после Esc возвращается на кнопку «Открыть» этой строки, а не на прокручиваемую область всей таблицы
+    // (рамка вокруг таблицы, следующий Tab — в заголовок).
     if (key === "d1280") {
+      const back = await page.evaluate(() => ({ role: document.activeElement?.getAttribute("role"), row: document.activeElement?.hasAttribute("data-row-open"), focusVisible: document.activeElement?.matches(":focus-visible") }));
+      report(`${key}: focus returns to the clicked row's open button after a mouse open + Esc (not the table region)`, back.row === true && back.role !== "region" && (await opener.evaluate((element) => element === document.activeElement)), back);
+      await page.keyboard.press("Tab");
+      report(`${key}: the next Tab continues in the list, not at the table header`, await page.evaluate(() => !document.activeElement?.closest("thead")), await page.evaluate(() => document.activeElement?.tagName));
+    }
+    // Клавиатура: Shift+Tab с названия панели переходит на последний управляемый элемент панели (как круг по Tab), а не застревает.
+    const lastTabbable = () => page.evaluate(() => {
+      const dialog = document.querySelector("[role=dialog]");
+      const visible = (element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden";
+      const stops = [...dialog.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter(visible);
+      return { last: stops.at(-1) === document.activeElement, inside: dialog.contains(document.activeElement), tag: document.activeElement?.tagName, label: document.activeElement?.getAttribute("aria-label") || document.activeElement?.textContent?.trim().slice(0, 20), stops: stops.length };
+    });
+    {
       await opener.focus();
       await page.keyboard.press("Enter");
       await page.getByRole("dialog").waitFor();
       report(`${key}: keyboard open puts focus on the sheet title`, await page.evaluate(() => document.activeElement?.getAttribute("data-slot") === "sheet-title"), await page.evaluate(() => document.activeElement?.tagName));
+      await page.keyboard.press("Shift+Tab");
+      const first = await lastTabbable();
+      report(`${key}: Shift+Tab from the sheet title goes to the last control of the sheet`, first.inside && first.last && first.stops > 1, first);
+      await page.keyboard.press("Shift+Tab");
+      const second = await lastTabbable();
+      report(`${key}: a second Shift+Tab moves on to the previous control (not stuck)`, second.inside && !second.last, second);
+      await page.keyboard.press("Escape");
+      await page.getByRole("dialog").waitFor({ state: "detached" });
+      await page.waitForTimeout(80);
+    }
+    if (key === "d1280") {
+      await opener.focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("dialog").waitFor();
       await page.getByRole("button", { name: "Закрыть" }).first().click();
       await page.getByRole("dialog").waitFor({ state: "detached" });
       await page.waitForTimeout(80);

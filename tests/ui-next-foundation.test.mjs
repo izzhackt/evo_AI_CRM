@@ -326,7 +326,7 @@ test("DataTable: страницы, прилипшая шапка, карточк
   assert.match(html, /aria-sort="none"/);
   assert.match(html, /sticky top-0/, "шапка прилипает");
   assert.match(html, /data-slot="data-table-cards"/);
-  assert.match(html, /<button type="button" aria-label="Открыть: Тест Синтетический 1" class="absolute inset-0[^"]*"><\/button>/, "карточка телефона открывается пустой кнопкой поверх карточки: ячейки в неё не вложены; имя — «Открыть: <название>»");
+  assert.match(html, /<button type="button" data-card-open="" aria-label="Открыть: Тест Синтетический 1" class="absolute inset-0[^"]*"><\/button>/, "карточка телефона открывается пустой кнопкой поверх карточки: ячейки в неё не вложены; имя — «Открыть: <название>»");
   assert.doesNotMatch(html, /aria-labelledby/, "имя кнопки карточки не берётся из всей ячейки-заголовка (в ней бывают и другие кнопки)");
   const cards = html.match(/<ul class="grid grid-cols-1 gap-2 md:hidden" data-slot="data-table-cards">[\s\S]*?<\/ul>/)[0];
   assert.doesNotMatch(cards, /<button[^>]*>(?:(?!<\/button>)[\s\S])+<\/button>/, "в карточках нет кнопки с содержимым — нет вложенных интерактивных элементов");
@@ -370,7 +370,7 @@ test("DataTable: строка не остановка клавиатуры; за
   // Без getRowLabel имя — значение колонки-заголовка.
   const unnamed = renderToStaticMarkup(createElement(DataTable, { label: "Заявки", data: rows, columns: base, getRowId: (row) => row.id, onRowClick: () => {} }));
   assert.match(unnamed, /aria-label="Открыть: Эльмира Формова"/);
-  assert.match(unnamed, /<button type="button" aria-label="Открыть: Эльмира Формова" class="absolute inset-0/, "кнопка карточки телефона названа так же");
+  assert.match(unnamed, /<button type="button" data-card-open="" aria-label="Открыть: Эльмира Формова" class="absolute inset-0/, "кнопка карточки телефона названа так же");
   // Колонка второго плана рисуется только от 64rem блока таблицы; у корня таблицы — контейнер для этого.
   assert.match(html, /<div class="@container flex min-w-0 flex-col gap-3" data-slot="data-table">/);
   assert.match(html, /<th[^>]*hidden @5xl:table-cell"[^>]*>[\s\S]*?Кто/, "заголовок колонки wide");
@@ -381,11 +381,65 @@ test("DataTable: строка не остановка клавиатуры; за
     columns: [{ accessorKey: "name", header: "Задача", meta: { mobile: "title", opensRow: true }, enableHiding: false, cell: ({ row }) => createElement("a", { href: `#${row.original.id}`, "data-queue-open": "" }, row.original.name) }],
   }));
   assert.doesNotMatch(own.match(/<tbody[\s\S]*<\/tbody>/)[0], /data-row-open=""/, "opensRow: в таблице нет второго перехода");
-  assert.match(own, /<button type="button" aria-label="Открыть: Эльмира Формова" class="absolute inset-0/, "карточка телефона всё равно называет свою кнопку");
+  // Карточка телефона: ссылка-название уже ведёт в запись, поэтому накладка на всю карточку — площадь касания, а не вторая кнопка:
+  // не кнопка, вне дерева доступности, без имени (иначе у записи два одноимённых пути клавиатуры и читалки, как в таблице).
+  const ownCards = own.match(/<ul class="grid grid-cols-1 gap-2 md:hidden" data-slot="data-table-cards">[\s\S]*?<\/ul>/)[0];
+  assert.match(ownCards, /<span aria-hidden="true" data-card-open="" class="absolute inset-0 rounded-card"><\/span>/, "накладка карточки opensRow — скрытый от читалки span");
+  assert.doesNotMatch(ownCards, /<button[^>]*aria-label="Открыть|aria-labelledby/, "второй кнопки «Открыть: …» в карточке нет");
+  assert.equal((ownCards.match(/<a [^>]*data-queue-open/g) ?? []).length, 2, "единственный путь в запись — ссылка-название");
   // Без onRowClick строки не нажимаются и кнопок нет.
   const plain = renderToStaticMarkup(createElement(DataTable, { label: "Только чтение", data: rows, columns: base, getRowId: (row) => row.id }));
   assert.doesNotMatch(plain, /data-row-open=""|cursor-pointer/);
   assert.equal((plain.match(/aria-label="Открыть/g) ?? []).length, 0);
+});
+
+test("мышь по строке ставит фокус на кнопку записи до открытия панели (иначе Esc вернул бы его на область всей таблицы)", () => {
+  const { focusRecordOpener } = loader()("src/components/kit/DataTableParts.tsx");
+  const seen = [];
+  const scope = { querySelector: (selector) => ({ focus: (options) => seen.push([selector, options]) }) };
+  focusRecordOpener(scope);
+  assert.deepEqual(seen, [["[data-row-open],[data-queue-open]", { preventScroll: true }]], "кнопка «Открыть: …» или ссылка-название; страница не прокручивается");
+  assert.doesNotThrow(() => focusRecordOpener(null));
+  assert.doesNotThrow(() => focusRecordOpener({ querySelector: () => null }), "в записи нет кнопки — ничего не делаем");
+  // Строка таблицы зовёт это перед `onOpen`, но не для нажатия на ссылку, кнопку или поле внутри неё.
+  assert.match(read("src/components/kit/DataTableParts.tsx"), /if \(\(event\.target as HTMLElement\)\.closest\(INTERACTIVE\)\) return;\s*focusRecordOpener\(event\.currentTarget\);\s*onOpen\(\);/);
+  assert.match(read("src/components/kit/DataTableCards.tsx"), /focusRecordOpener\(event\.currentTarget\.parentElement\); row\.onOpen\?\.\(\);/);
+});
+
+test("DetailSheet: Shift+Tab с названия панели идёт на последний управляемый элемент панели (Radix круг от названия не замыкает)", () => {
+  const { wrapShiftTabFromTitle } = loader()("src/components/kit/detail-sheet-focus.ts");
+  const focused = [];
+  const stop = (name, shown = true) => ({ name, getClientRects: () => (shown ? [{}] : []), focus: () => focused.push(name) });
+  const panel = (stops) => ({ closest: (selector) => (selector === '[role="dialog"]' ? { querySelectorAll: () => stops } : null) });
+  globalThis.getComputedStyle = (element) => ({ visibility: element.hidden ? "hidden" : "visible" });
+  try {
+    const event = (over = {}) => { const e = { key: "Tab", shiftKey: true, altKey: false, ctrlKey: false, metaKey: false, prevented: false, currentTarget: panel([stop("пояснение"), stop("тело"), stop("действие"), stop("закрыть"), stop("скрытая", false)]), preventDefault() { e.prevented = true; }, ...over }; return e; };
+    const wrapped = event();
+    wrapShiftTabFromTitle(wrapped);
+    assert.deepEqual(focused, ["закрыть"], "последний видимый элемент панели");
+    assert.equal(wrapped.prevented, true, "браузер сам фокус не двигает");
+    for (const over of [{ shiftKey: false }, { key: "Enter" }, { ctrlKey: true }, { currentTarget: panel([]) }, { currentTarget: { closest: () => null } }]) {
+      const quiet = event(over);
+      wrapShiftTabFromTitle(quiet);
+      assert.equal(quiet.prevented, false, JSON.stringify(Object.keys(over)));
+    }
+    assert.equal(focused.length, 1, "остальные нажатия фокуса не трогают");
+  } finally {
+    delete globalThis.getComputedStyle;
+  }
+  assert.match(read("src/components/kit/DetailSheet.tsx"), /<SheetTitle ref=\{heading\} tabIndex=\{-1\} onKeyDown=\{wrapShiftTabFromTitle\}/);
+});
+
+test("меню «Колонки»: колонки `meta.wide` не перечисляются, пока блок таблицы уже 64rem (их на экране нет); настоящую ширину меряет ui-kit/ai-agents стенд", () => {
+  const hook = read("src/components/kit/useColumnMenu.ts");
+  assert.match(hook, /const WIDE_REM = 64;/, "порог — `@5xl` контейнера Tailwind");
+  assert.match(hook, /new ResizeObserver\(/);
+  assert.match(hook, /columns\.filter\(\(column\) => wideFits !== false \|\| !column\.columnDef\.meta\?\.wide\)/, "пока ширина неизвестна, список полный; в узком блоке wide-колонок нет");
+  const table = read("src/components/kit/DataTable.tsx");
+  assert.match(table, /const \{ watchBlock, columns: menuColumns \} = useColumnMenu\(table\.getAllLeafColumns\(\)\);/);
+  assert.match(table, /<div ref=\{watchBlock\} className=\{cn\("@container/, "меряется тот же блок, у которого контейнерный запрос");
+  assert.match(table, /columns=\{columnMenu \? menuColumns : undefined\}/);
+  assert.match(read("DESIGN.md"), /меню «Колонки» её не перечисляет/);
 });
 
 test("StatTile: корень плитки — containing block для скрытой подписи «нет данных» (иначе на телефоне страница ползёт вбок)", () => {

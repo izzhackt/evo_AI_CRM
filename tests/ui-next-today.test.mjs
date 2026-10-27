@@ -222,7 +222,7 @@ test("страницы спрашивают isNextUi, читают и прове
 test("ленивые входы нового вида: «use client» и подгрузка настоящего вида, свойства страницы доходят целиком", () => {
   const today = read("src/components/v3/today-next/TodayNextLazy.tsx");
   assert.match(today, /^"use client";/u);
-  assert.match(today, /dynamic\(\(\) => import\("\.\/TodayNextPage"\)\.then\(\(module\) => module\.TodayNextPage\)\)/u);
+  assert.match(today, /dynamic\(\(\) => import\("\.\/TodayNextPage"\)\.then\(\(module\) => module\.TodayNextPage\)\.catch\(onScreenLoadFailed\)\)/u);
   const requests = read("src/components/v3/requests-next/RequestsNextLazy.tsx");
   assert.match(requests, /^"use client";/u);
   assert.match(requests, /import\("\.\/RequestsNextPage"\)\.then\(\(module\) => module\.RequestsNextPage\)/u);

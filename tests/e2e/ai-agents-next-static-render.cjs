@@ -111,6 +111,7 @@ import { AgentTabs } from "@/components/v3/ai-agents/AgentTabs";
 import { PartShell } from "@/components/v3/PartShell";
 import { AI_AGENTS_HUB_HREF, aiAgentRoleLine } from "@/lib/v3/ai-agents-view";
 import { AI_AGENT_CATALOG } from "@/lib/ai-agents/contract";
+import { nextAgentDefaults, nextAgentsHasDefault } from "@/lib/server/ai-agents/next-defaults";
 const { makeFixtures } = require(${JSON.stringify(join(ROOT, "tests/e2e/ai-agents-next-fixtures.cjs"))});
 const h = React.createElement;
 const F = makeFixtures(AI_AGENT_CATALOG);
@@ -135,8 +136,9 @@ if (fixture.legacy) {
       ? h(AgentChatShell, { testId: "v3-ai-agent-page", title: d.title, roleLine: aiAgentRoleLine(d.roleLine), tabs: h(AgentTabs, { bare: true, agentKey: d.key, title: d.title, tab, draftsPending: d.stats.draftsPending }), switches }, content)
       : h(PartShell, { title: d.title, testId: "v3-ai-agent-page", back: h("a", { href: AI_AGENTS_HUB_HREF, className: "mb-3 inline-flex min-h-11 items-center gap-1.5 rounded-nav t-label text-fg-2" }, "Все ИИ-агенты"), meta: aiAgentRoleLine(d.roleLine), action: switches }, content);
   }
-} else if (fixture.name === "hub") page = h(NextAgentsView, { read: F.available(F.LIST), runtimeConfigured: true, preview: false });
-else page = h(NextAgentPage, F.bodyProps(tab, over));
+// Каталог текстов читает сервер (страницы ai-agents): новому виду он приходит готовым, как и в сборке.
+} else if (fixture.name === "hub") page = h(NextAgentsView, { read: F.available(F.LIST), runtimeConfigured: true, preview: false, hasDefault: nextAgentsHasDefault() });
+else { const props = F.bodyProps(tab, over); page = h(NextAgentPage, { ...props, defaults: nextAgentDefaults(props.detail.key, tab) }); }
 createRoot(document.getElementById("root")).render(
   h(AppRouterContext.Provider, { value: router },
     h(PathnameContext.Provider, { value: fixture.path },
@@ -326,6 +328,12 @@ async function main() {
     report(`${key}/runs: own command can be reopened in chat and copied`, (await dialog.getByRole("link", { name: "Открыть в чате" }).count()) === 1 && (await dialog.getByRole("button", { name: "Скопировать итог" }).count()) === 1, null);
     await page.keyboard.press("Escape");
     await dialog.waitFor({ state: "detached" });
+    await page.waitForTimeout(80); // Radix возвращает фокус отложенным вызовом
+    // Мышь по ячейке открыла панель: после Esc фокус — на кнопке «Открыть» этой строки, а не на области таблицы с рамкой вокруг неё.
+    if (key === "d1280") {
+      const back = await page.evaluate(() => ({ role: document.activeElement?.getAttribute("role"), row: document.activeElement?.hasAttribute("data-row-open") }));
+      report(`${key}/runs: focus returns to the clicked row's open button after a mouse open + Esc (not the table region)`, back.row === true && back.role !== "region" && (await opener.evaluate((element) => element === document.activeElement)), back);
+    }
     // Клавиатура: Enter на кнопке открывает панель, фокус — на её названии (не на рамке вокруг всего тела), Esc возвращает его на кнопку.
     await opener.focus();
     await page.keyboard.press("Shift+Tab");
@@ -340,9 +348,48 @@ async function main() {
     await page.keyboard.press("Escape");
     await dialog.waitFor({ state: "detached" });
     report(`${key}/runs: focus returns to the ${key === "d1280" ? "open button" : "card button"} after Esc`, await opener.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
+    // Shift+Tab с названия панели запуска идёт на последний управляемый элемент панели, а не застревает на названии.
+    await opener.focus();
+    await page.keyboard.press("Enter");
+    await dialog.waitFor();
+    await page.keyboard.press("Shift+Tab");
+    const wrapped = await page.evaluate(() => {
+      const panel = document.querySelector("[role=dialog]");
+      const visible = (element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden";
+      const stops = [...panel.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')].filter(visible);
+      return { inside: panel.contains(document.activeElement), last: stops.at(-1) === document.activeElement, title: document.activeElement?.getAttribute("data-slot") === "sheet-title", stops: stops.length };
+    });
+    report(`${key}/runs: Shift+Tab from the run sheet title goes to its last control`, wrapped.inside && wrapped.last && !wrapped.title, wrapped);
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "detached" });
+    await page.waitForTimeout(80);
     await page.getByPlaceholder("Поиск по поручениям").fill("Малайзии");
     report(`${key}/runs: search narrows the list`, (await page.locator(key === "d1280" ? "tbody tr" : "[data-slot=data-table-cards] > li").count()) === 1, null);
     report(`${key}/runs: console clean`, errors.length === 0, errors);
+    await context.close();
+  }
+
+  // 3a. Меню «Колонки» называет включённой только ту колонку, которая на экране есть. «Кто запустил» (`meta.wide`) рисуется, когда
+  // блок таблицы шире 64rem (1280: блок 972 px — колонки нет и в меню её нет; 1440: 1132 px — есть, и меню её действительно скрывает).
+  for (const key of ["d1280", "d1440"]) {
+    const { context, page, errors } = await open("runs", key);
+    const table = page.locator("[data-slot=data-table]");
+    const headers = async () => (await table.locator("thead th:visible").allInnerTexts()).map((text) => text.trim()).filter(Boolean);
+    const block = await table.evaluate((element) => Math.round(element.getBoundingClientRect().width));
+    const shown = await headers();
+    await table.getByRole("button", { name: "Колонки" }).click();
+    const items = await page.getByRole("menuitemcheckbox").evaluateAll((elements) => elements.map((element) => [element.textContent.trim(), element.getAttribute("aria-checked")]));
+    const lies = items.filter(([name, checked]) => checked === "true" && !shown.includes(name));
+    report(`${key}/runs: every ticked item of the «Колонки» menu is a column that is on screen`, lies.length === 0 && items.length > 0, { block, shown, items, lies });
+    const wide = key === "d1440";
+    report(`${key}/runs: «Кто запустил» ${wide ? "is shown and listed" : "is hidden and not listed"} at a table block of ${block}px`, shown.includes("Кто запустил") === wide && items.some(([name]) => name === "Кто запустил") === wide, { block, shown, items });
+    if (wide) {
+      await page.getByRole("menuitemcheckbox", { name: "Кто запустил" }).click();
+      report(`${key}/runs: unticking «Кто запустил» hides the column`, !(await headers()).includes("Кто запустил"), await headers());
+      await page.getByRole("menuitemcheckbox", { name: "Кто запустил" }).click();
+      report(`${key}/runs: ticking it brings the column back`, (await headers()).includes("Кто запустил"), await headers());
+    }
+    report(`${key}/runs: column menu console clean`, errors.length === 0, errors);
     await context.close();
   }
 

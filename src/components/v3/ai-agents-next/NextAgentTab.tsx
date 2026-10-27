@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { SearchXIcon } from "lucide-react";
 
-import { AI_AGENT_DEFAULTS, AI_AGENT_PREAMBLE } from "@/content/ai-agents";
 import { EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
 import { spentTodayCents } from "@/lib/ai-agents/daily-cap";
 import { AI_AGENT_STARTERS, aiAgentHref } from "@/lib/v3/ai-agents-view";
 
-import type { AgentBodyProps, TabRead } from "@/components/v3/ai-agents/AgentBody";
+import type { TabRead } from "@/components/v3/ai-agents/AgentBody";
 import { AgentSetup, SetupAction } from "@/components/v3/ai-agents/AgentSetup";
 import { CommandWorkspace } from "@/components/v3/ai-agents/CommandWorkspace";
+import type { NextAgentPageProps } from "./agent-defaults";
 import type { AgentGate } from "./agent-gate";
 import { AgentAlert, NextNotReady, NextUnavailable } from "./NextNotices";
 import { NextDrafts } from "./NextDrafts";
@@ -24,9 +24,9 @@ function failure(read: TabRead<unknown>, what: string, retryHref: string) {
 }
 
 /** Содержимое выбранной вкладки страницы агента в «Новом виде»: те же чтения и условия, что у `AgentBody`, другие виджеты. */
-export function NextAgentTab({ props, gate }: Readonly<{ props: AgentBodyProps; gate: AgentGate }>) {
+export function NextAgentTab({ props, gate }: Readonly<{ props: NextAgentPageProps; gate: AgentGate }>) {
   const { detail, tab, now, canEdit, canManage, preview, runtimeConfigured, needsSync } = props;
-  const defaults = AI_AGENT_DEFAULTS[detail.key];
+  const { defaults } = props;
   const { canRun, step, blockedNote, hasInstructions } = gate;
   const key = detail.key;
   // Что мешает запуску: администратору — шаги и кнопка первого несделанного шага, остальным — слова. Ключ Claude и просмотр роли уже сказаны плашками выше.
@@ -80,8 +80,8 @@ export function NextAgentTab({ props, gate }: Readonly<{ props: AgentBodyProps; 
     case "instructions":
       return (
         <NextRules
-          agentKey={key} configVersion={detail.configVersion} current={detail.instructionsOverride?.trim() ? detail.instructionsOverride : defaults.instructions}
-          isOverride={Boolean(detail.instructionsOverride?.trim())} defaultText={defaults.instructions} preamble={AI_AGENT_PREAMBLE}
+          agentKey={key} configVersion={detail.configVersion} current={detail.instructionsOverride?.trim() ? detail.instructionsOverride : (defaults.instructions ?? "")}
+          isOverride={Boolean(detail.instructionsOverride?.trim())} defaultText={defaults.instructions ?? ""} preamble={defaults.preamble ?? ""}
           canEdit={canEdit} runtimeConfigured={runtimeConfigured}
         />
       );
@@ -89,7 +89,7 @@ export function NextAgentTab({ props, gate }: Readonly<{ props: AgentBodyProps; 
       // «Включён» и «Авто» живут только в шапке страницы: здесь второй пары переключателей нет.
       return (
         <NextSettings
-          detail={detail} defaultSchedulePrompt={defaults.schedulePrompt} canEdit={canEdit} canRunNow={canRun} runNowNote={blockedNote}
+          detail={detail} defaultSchedulePrompt={defaults.schedulePrompt ?? null} canEdit={canEdit} canRunNow={canRun} runNowNote={blockedNote}
           whatsappCap={props.whatsappDailyCapCents ? {
             capCents: props.whatsappDailyCapCents,
             spentTodayCents: props.whatsappCapState?.spentCents ?? spentTodayCents(detail.charts.spendPerDay, Date.parse(now)),

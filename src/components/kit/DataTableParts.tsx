@@ -10,6 +10,16 @@ import { cn } from "@/lib/utils";
 const INTERACTIVE = "a,button,input,select,textarea,label,[role=checkbox],[role=switch],[role=menuitem]";
 const SORT_ICON = { asc: ArrowUpIcon, desc: ArrowDownIcon } as const;
 
+/**
+ * Нажатие мышью по свободному месту строки или карточки открывает запись, но фокус сам не попадает на кнопку записи: он уходит на
+ * ближайший фокусируемый предок (прокручиваемая область таблицы), и `DetailSheet` вернул бы его туда при закрытии (рамка вокруг всей
+ * таблицы, следующий Tab — в заголовок). Поэтому перед открытием фокус ставится на кнопку «Открыть: …» (или ссылку-название
+ * `data-queue-open`) этой записи: панель запоминает её, Esc возвращает на неё, а рамки при нажатии мышью нет.
+ */
+export function focusRecordOpener(scope: Element | null): void {
+  scope?.querySelector<HTMLElement>("[data-row-open],[data-queue-open]")?.focus({ preventScroll: true });
+}
+
 /** Ячейка заголовка: прилипает сверху; сортируемая — кнопка со стрелкой и `aria-sort`. */
 export function DataTableHeadCell({
   colSpan,
@@ -110,7 +120,9 @@ export function DataTableBodyRow<C extends BodyCell>({
     <TableRow
       className="cursor-pointer has-[:is([data-row-open],[data-queue-open]):focus-visible]:bg-surface-2"
       onClick={(event) => {
-        if (!(event.target as HTMLElement).closest(INTERACTIVE)) onOpen();
+        if ((event.target as HTMLElement).closest(INTERACTIVE)) return;
+        focusRecordOpener(event.currentTarget);
+        onOpen();
       }}
     >
       {content}

@@ -508,8 +508,8 @@ test("в странице прежний вид остаётся прежним 
   assert.doesNotMatch(source, /from "@\/components\/kit/, "и набор виджетов тоже");
   const lazy = read(`${NEXT_DIR}/TasksNextLazy.tsx`);
   assert.match(lazy, /^"use client";/);
-  assert.match(lazy, /dynamic\(\(\) => import\("\.\/TasksNext"\)\.then\(\(module\) => module\.TasksNext\)\)/);
-  assert.match(lazy, /dynamic\(\(\) => import\("\.\/TasksNextFailure"\)\.then\(\(module\) => module\.TasksNextFailure\)\)/);
+  assert.match(lazy, /dynamic\(\(\) => import\("\.\/TasksNext"\)\.then\(\(module\) => module\.TasksNext\)\.catch\(onScreenLoadFailed\)\)/);
+  assert.match(lazy, /dynamic\(\(\) => import\("\.\/TasksNextFailure"\)\.then\(\(module\) => module\.TasksNextFailure\)\.catch\(onScreenLoadFailed\)\)/);
 });
 
 test("таблица «Задач»: открывает панель ссылка-название (opensRow), строка не остановка клавиатуры; карточка называет кнопку «Открыть: <задача>»", () => {

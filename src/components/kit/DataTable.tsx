@@ -9,6 +9,7 @@ import { DataTablePagination } from "@/components/kit/DataTablePagination";
 import { DataTableToolbar } from "@/components/kit/DataTableToolbar";
 import { dataTableFeatures, type DataTableColumn } from "@/components/kit/data-table-core";
 import { EmptyState } from "@/components/kit/EmptyState";
+import { useColumnMenu } from "@/components/kit/useColumnMenu";
 import { useReportVisibleIds } from "@/components/kit/useReportVisibleIds";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,17 +17,16 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components
 import { cn } from "@/lib/utils";
 
 /**
- * Таблица списка записей. Данные приходят готовыми (чтения и права остаются у страницы), здесь только вид:
- * сортировка по заголовку, общий поиск, видимость колонок, страницы, нажатие на строку, пустое состояние и
- * загрузка, прилипшая шапка. Меньше 768 px таблица заменяется карточками (`meta.mobile` в колонке).
- * `label` — имя прокручиваемой области для читалки; `toolbar` — свои фильтры страницы рядом с поиском.
- * `paginate={false}` — все присланные строки сразу, без полосы страниц и без «из N»: для списка, который сервер уже
- * ограничил («последние 30») или разбил на страницы своими ссылками («Следующая страница»); экран не называет общим
- * числом то, что получил, не ставит второй листатель и не сбрасывает номер страницы при каждой новой выдаче сервера.
- * `onVisibleIdsChange` — строки на экране после поиска и страницы («все на странице» считают их); `partial` — данные неполные.
- * `onRowClick` — строка нажимается мышью; с клавиатуры и для читалки запись открывает кнопка «Открыть: …» в ячейке-заголовке
- * (колонка с `meta.mobile = "title"`; у колонки с `meta.opensRow` — её собственная ссылка), сама строка фокус не берёт.
+ * Таблица списка записей. Данные приходят готовыми (чтения и права остаются у страницы), здесь только вид: сортировка по
+ * заголовку, общий поиск, видимость колонок, страницы, нажатие на строку, пустое состояние и загрузка, прилипшая шапка.
+ * Меньше 768 px таблица заменяется карточками (`meta.mobile` в колонке). `label` — имя прокручиваемой области для читалки;
+ * `toolbar` — свои фильтры страницы рядом с поиском. `paginate={false}` — все присланные строки сразу, без полосы страниц и
+ * без «из N»: для списка, который сервер уже ограничил («последние 30») или разбил на страницы своими ссылками; `partial` —
+ * данные неполные («1–25» без «из N»). `onVisibleIdsChange` — строки на экране после поиска и страницы («все на странице»).
+ * `onRowClick` — строка нажимается мышью (фокус встаёт на кнопку записи); с клавиатуры и для читалки запись открывает кнопка
+ * «Открыть: …» в ячейке-заголовке (`meta.mobile = "title"`; у колонки с `meta.opensRow` — её ссылка), сама строка фокус не берёт.
  * `getRowLabel` — название записи для имени этой кнопки и кнопки карточки телефона; без него — значение колонки-заголовка.
+ * В меню «Колонки» нет колонок `meta.wide`, пока блок таблицы уже 64rem (их на экране нет): `useColumnMenu`.
  */
 export function DataTable<T extends RowData>({
   label,
@@ -73,7 +73,7 @@ export function DataTable<T extends RowData>({
     { features: dataTableFeatures, columns, data: data as T[], getRowId, initialState: { pagination: { pageIndex: 0, pageSize } }, manualPagination: !paginate, globalFilterFn: "includesString" },
     (state) => state,
   );
-  const search = String(table.state.globalFilter ?? "");
+  const { watchBlock, columns: menuColumns } = useColumnMenu(table.getAllLeafColumns());
   const rows = table.getRowModel().rows;
   useReportVisibleIds(rows.map((row) => row.id), onVisibleIdsChange);
   const matches = table.getPrePaginatedRowModel().rows.length;
@@ -142,8 +142,8 @@ export function DataTable<T extends RowData>({
   }
 
   return (
-    <div className={cn("@container flex min-w-0 flex-col gap-3", className)} data-slot="data-table">
-      <DataTableToolbar search={search} onSearch={(value) => table.setGlobalFilter(value)} placeholder={searchPlaceholder} columns={columnMenu ? table.getAllLeafColumns() : undefined} extra={toolbar} />
+    <div ref={watchBlock} className={cn("@container flex min-w-0 flex-col gap-3", className)} data-slot="data-table">
+      <DataTableToolbar search={String(table.state.globalFilter ?? "")} onSearch={(value) => table.setGlobalFilter(value)} placeholder={searchPlaceholder} columns={columnMenu ? menuColumns : undefined} extra={toolbar} />
       {body}
     </div>
   );

@@ -401,7 +401,7 @@ async function main() {
     const staffTitle = "Согласовать шаблон письма";
     const row = rowOf(page, key, staffTitle);
     // Нажатие в свободное место строки (не на ссылку/кнопку): строка таблицы или кнопка-накладка карточки.
-    if (key === "m390") await row.locator("> button").click({ position: { x: 8, y: 8 } }); else await row.locator("td").nth(1).click();
+    if (key === "m390") await row.locator("> [data-card-open]").click({ position: { x: 8, y: 8 } }); else await row.locator("td").nth(1).click();
     await page.getByRole("dialog").waitFor();
     report(`${key}: row opens the panel by address`, (await pushes(page)).at(-1)?.includes(`task=${staffId(2)}`) === true, await pushes(page));
     await overlay(page, key, "sheet", "[data-slot=sheet-content]");
@@ -486,16 +486,31 @@ async function main() {
     await page.getByRole("dialog").waitFor({ state: "detached" });
     await page.waitForTimeout(80);
     report("d1280: focus returns to the title link after Esc", await link.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement?.tagName));
+    // Мышь по ячейке (не по названию): после Esc фокус — на ссылке-названии этой строки, а не на области таблицы с рамкой вокруг неё.
+    await rowOf(page, "d1280", "Согласовать шаблон письма").locator("td").nth(1).click();
+    await page.getByRole("dialog").waitFor();
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+    await page.waitForTimeout(80);
+    const back = await page.evaluate(() => ({ role: document.activeElement?.getAttribute("role"), queueOpen: document.activeElement?.hasAttribute("data-queue-open"), text: document.activeElement?.textContent?.trim() }));
+    report("d1280: focus returns to the row's title link after a mouse open + Esc (not the table region)", back.queueOpen === true && back.role !== "region" && back.text.startsWith("Согласовать шаблон письма"), back);
     report("d1280: keyboard flow console clean", errors.length === 0, errors);
     await context.close();
   }
   {
     const { context, page, errors } = await open(pages.list, "m390");
     const names = await page.evaluate(() => [...document.querySelectorAll("[data-slot=data-table-cards] > li")].filter((card) => card.getClientRects().length > 0).map((card) => [...card.querySelectorAll("button, a")].map((control) => control.getAttribute("aria-label") || control.textContent.trim())));
+    // В «Задачах» название — ссылка (`opensRow`): это единственный путь клавиатуры и читалки в запись, как в таблице. Площадь касания
+    // на всю карточку остаётся, но не остановка клавиатуры и не узел дерева доступности (второго «Открыть: …» рядом со ссылкой нет).
     const opens = names.map((list) => list.filter((name) => name.startsWith("Открыть: ")));
-    report("m390: every card has exactly one button named «Открыть: <задача>»", names.length > 0 && opens.every((list) => list.length === 1), opens);
-    const twice = names.flatMap((list) => list).filter((name) => /^Открыть: /u.test(name)).filter((name) => { const title = name.slice("Открыть: ".length); return name.split(title).length > 2; });
-    report("m390: the open name says the title once and carries no completion wording", twice.length === 0 && opens.flat().every((name) => !/Завершить/u.test(name)), { twice, opens: opens.flat().slice(0, 3) });
+    report("m390: no card has a second «Открыть: …» control next to its title link", names.length > 0 && opens.every((list) => list.length === 0), opens);
+    const links = await page.evaluate(() => [...document.querySelectorAll("[data-slot=data-table-cards] > li")].filter((card) => card.getClientRects().length > 0).map((card) => card.querySelectorAll("a[data-queue-open]").length));
+    report("m390: each card has exactly one title link that opens the record", links.length > 0 && links.every((count) => count === 1), links);
+    const overlay = await page.evaluate(() => [...document.querySelectorAll("[data-slot=data-table-cards] > li > [data-card-open]")].map((element) => ({ tag: element.tagName, hidden: element.getAttribute("aria-hidden"), tabindex: element.getAttribute("tabindex"), name: element.getAttribute("aria-label") })));
+    report("m390: the whole-card tap area is not focusable and not in the accessibility tree", overlay.length > 0 && overlay.every((item) => item.tag !== "BUTTON" && item.hidden === "true" && item.tabindex === null && item.name === null), overlay.slice(0, 3));
+    // Остановки клавиатуры в карточке: круг завершения и ссылка-название, всё (раньше было три: ещё и безымянная накладка на всю карточку).
+    const stops = await page.evaluate(() => [...document.querySelectorAll("[data-slot=data-table-cards] > li")].filter((card) => card.getClientRects().length > 0).map((card) => [...card.querySelectorAll("a[href], button, input, select, textarea, [tabindex]")].filter((element) => element.tabIndex >= 0 && !element.disabled && element.getClientRects().length > 0).map((element) => element.getAttribute("aria-label") || element.textContent.trim().slice(0, 30))));
+    report("m390: each card has two tab stops (completion circle and title link), not three", stops.length > 0 && stops.every((list) => list.length === 2 && list.some((name) => /^Завершить/u.test(name))), stops.slice(0, 3));
     report("m390: the completion buttons keep their own names", names.every((list) => list.filter((name) => /^Завершить/u.test(name)).length <= 1), names.slice(0, 3));
     report("m390: console clean (card names)", errors.length === 0, errors);
     await context.close();

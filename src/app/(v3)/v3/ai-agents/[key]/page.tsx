@@ -19,6 +19,7 @@ import { requireV3PageActor } from "@/lib/platform-guards";
 import { isNextUi } from "@/lib/ui-next";
 import { v3SectionTitle } from "@/lib/v3/navigation";
 import { computeAiAgentConfigHash, resolveAiAgentsMcpUrl } from "@/lib/server/ai-agents/config-hash";
+import { nextAgentDefaults } from "@/lib/server/ai-agents/next-defaults";
 import { aiAgentsRuntimeAvailability, aiAgentsWhatsappDailyCapCents, readAiAgentWhatsappCap, reconcileAiAgentRuns } from "@/lib/server/ai-agents/runtime";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -170,7 +171,8 @@ export default async function AiAgentPage({
     whatsappDailyCapCents: aiAgentsWhatsappDailyCapCents(),
     whatsappCapState,
   };
-  if (nextUi) return <NextAgentPageLazy {...bodyProps} />;
+  // Тексты по умолчанию — только то, что нужно вкладке (как у `AgentBody`): каталог в файлы для браузера не попадает.
+  if (nextUi) return <NextAgentPageLazy {...bodyProps} defaults={nextAgentDefaults(key, tab)} />;
 
   const switches = (
     <AgentSwitches

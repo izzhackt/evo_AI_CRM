@@ -113,6 +113,7 @@ export function TaskQueueRow({
   leadRef = null,
   dial = null,
   hideTodayWord = false,
+  stacked = false,
 }: Readonly<{
   task: QueueTask;
   href: string;
@@ -140,8 +141,17 @@ export function TaskQueueRow({
   dial?: DialOptions | null;
   /** Строка стоит в группе «Сегодня»: красное слово «сегодня» в каждой строке повторяло бы заголовок группы. */
   hideTodayWord?: boolean;
+  /**
+   * Строка всегда двухстрочная, как на узком контейнере (до 32rem): виджет «Нового вида» стоит в половине страницы,
+   * и широкая сетка со сроком в своей колонке на его ширине обрезала бы название. У прежнего вида её нет.
+   */
+  stacked?: boolean;
 }>) {
   const router = useRouter();
+  /** Классы широкой строки (от 32rem контейнера): у `stacked` их нет. */
+  const w = (classes: string) => (stacked ? "" : classes);
+  // Разделитель частей только на широкой строке: на узкой части переносятся целиком (см. `SEP`).
+  const sep = stacked ? null : SEP;
   const [pending, setPending] = useState(false);
   // Синхронный замок от двойного нажатия: `pending` меняется только после
   // рендера, и второй быстрый щелчок успел бы отправить команду ещё раз.
@@ -222,7 +232,7 @@ export function TaskQueueRow({
   // (отметка и круг), без «Выбрать» — 2.75rem (только круг).
   const selectHidden = select !== null && !select.revealed;
   // Последняя колонка — «⋯» (2.75rem); у строки с «Позвонить» шире на кнопку (`--row-tail`).
-  const layout = showAssignee
+  const layout = showAssignee && !stacked
     ? select ? "@3xl:grid-cols-[var(--row-lead)_7rem_minmax(0,1fr)_minmax(0,11rem)_var(--row-tail)]" : "@3xl:grid-cols-[2.75rem_7rem_minmax(0,1fr)_minmax(0,11rem)_var(--row-tail)]"
     : "";
   const tailVar = dialLeadId ? "[--row-tail:5.5rem]" : "[--row-tail:2.75rem]";
@@ -237,6 +247,7 @@ export function TaskQueueRow({
   const tail = task.caseState === "closed" || word !== null;
   // Вторая строка без частей не занимает высоты: у обычной рабочей задачи на широкой строке в ней пусто (срок — своя колонка).
   const metaHidden = before || tail ? ""
+    : stacked ? (due ? "" : " hidden")
     : showAssignee ? (due ? " @3xl:hidden" : " @max-[32rem]:hidden @3xl:hidden")
       : due ? " @min-[32rem]:hidden" : " hidden";
 
@@ -245,7 +256,7 @@ export function TaskQueueRow({
       data-queue-row={task.key}
       data-kind={task.kind}
       data-selected={select?.checked ? "" : undefined}
-      className={`v3-queue-row relative grid ${tailVar} ${narrow} items-center gap-x-2 border-b border-border ${wide} ${layout}${layout ? " " : ""}${selected || select?.checked ? "bg-surface-2" : "hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface"}`}
+      className={`v3-queue-row relative grid ${tailVar} ${narrow} items-center gap-x-2 border-b border-border ${stacked ? "" : wide} ${layout}${layout ? " " : ""}${selected || select?.checked ? "bg-surface-2" : "hover:bg-surface has-[[data-queue-open]:focus-visible]:bg-surface"}`}
     >
       <div className="flex">
         {select ? (select.available && !done
@@ -276,7 +287,7 @@ export function TaskQueueRow({
       </div>
 
       {/* Первая строка даты стоит на одной линии с названием, слово — с «студент · …». */}
-      <p className="hidden self-start pt-1 t-body-compact @min-[32rem]:block">
+      <p className={`hidden self-start pt-1 t-body-compact${w(" @min-[32rem]:block")}`}>
         {due ? <>
           {/* «24.09 14:30» помещается в 7rem; редкое «03.01.27 14:00» переносит время, а не наезжает на название. */}
           <time dateTime={due.dateTime} className="block font-mono tabular-nums text-fg">{due.text}</time>
@@ -293,7 +304,7 @@ export function TaskQueueRow({
           data-queue-open=""
           aria-current={selected ? "true" : undefined}
           title={task.title}
-          className={`line-clamp-2 break-words py-0.5 t-item before:absolute before:inset-0 before:content-[''] hover:underline @min-[32rem]:line-clamp-1 ${done ? "text-fg-3 line-through" : "text-fg"}`}
+          className={`line-clamp-2 break-words py-0.5 t-item before:absolute before:inset-0 before:content-[''] hover:underline${w(" @min-[32rem]:line-clamp-1")} ${done ? "text-fg-3 line-through" : "text-fg"}`}
         >
           {task.title}
         </Link>
@@ -303,12 +314,12 @@ export function TaskQueueRow({
             Завершено
           </p>
         ) : (
-          <p className={`flex min-h-6 min-w-0 flex-wrap items-center gap-x-2 t-meta text-fg-2 @min-[32rem]:gap-x-1${metaHidden}`}>
+          <p className={`flex min-h-6 min-w-0 flex-wrap items-center gap-x-2 t-meta text-fg-2${w(" @min-[32rem]:gap-x-1")}${metaHidden}`}>
             {/* Узкая строка: срок первым, как колонка срока на широкой. Части строки
                 переносятся целиком: имя студента не превращается в «Ив…».
                 Одна часть, не помещающаяся в строку, сокращается многоточием. */}
             {due ? (
-              <span className="shrink-0 @min-[32rem]:hidden">
+              <span className={`shrink-0${w(" @min-[32rem]:hidden")}`}>
                 <span>
                   {due.caption ? `${due.caption} ` : null}<time dateTime={due.dateTime} className="font-mono tabular-nums">{due.text}</time>{dueWord ? <> <DueWord view={dueWord} /></> : null}
                 </span>
@@ -331,14 +342,14 @@ export function TaskQueueRow({
                 <span className="truncate">{leadRef.name}</span>
               </Link>
               <span className="min-w-0 truncate md:pointer-fine:hidden">{leadRef.name}</span>
-              {task.fromChat ? <span className="min-w-0 shrink-[2] truncate">{SEP}из чата</span> : null}
+              {task.fromChat ? <span className="min-w-0 shrink-[2] truncate">{sep}из чата</span> : null}
             </> : task.fromChat ? <span className="min-w-0 truncate">из чата</span> : null}
-            {task.caseState === "closed" ? <span className="min-w-0 truncate">{before ? SEP : null}дело закрыто</span> : null}
-            {word ? <span className="shrink-0">{before || task.caseState === "closed" ? SEP : null}<StatusChip label={word} tone={task.status === "blocked" ? "warn" : "neutral"} /></span> : null}
+            {task.caseState === "closed" ? <span className="min-w-0 truncate">{before ? sep : null}дело закрыто</span> : null}
+            {word ? <span className="shrink-0">{before || task.caseState === "closed" ? sep : null}<StatusChip label={word} tone={task.status === "blocked" ? "warn" : "neutral"} /></span> : null}
             {/* Без своей колонки (32–48rem: панель открыта рядом) исполнитель
                 помечен «исп.» и сокращён — его не спутать со студентом или
                 источником; сжимается медленнее имени студента. */}
-            {showAssignee ? (
+            {showAssignee && !stacked ? (
               <span className="hidden min-w-0 shrink-[0.5] truncate @min-[32rem]:inline @3xl:hidden" title={`Исполнитель: ${task.assigneeDisplayName}`}>
                 {before || tail ? "· " : null}<span aria-hidden="true">исп. {shortPersonName(task.assigneeDisplayName)}</span><span className="sr-only">исполнитель {task.assigneeDisplayName}</span>
               </span>
@@ -347,13 +358,13 @@ export function TaskQueueRow({
         )}
         {/* Телефон: строке «срок · студент» не хватает места — исполнитель своей строкой, полным именем. */}
         {showAssignee && !done ? (
-          <p className="truncate pb-1 t-meta text-fg-2 @min-[32rem]:hidden" title={`Исполнитель: ${task.assigneeDisplayName}`}>
+          <p className={`truncate pb-1 t-meta text-fg-2${w(" @min-[32rem]:hidden")}`} title={`Исполнитель: ${task.assigneeDisplayName}`}>
             <span aria-hidden="true">исп.</span><span className="sr-only">исполнитель</span> {task.assigneeDisplayName}
           </p>
         ) : null}
       </div>
 
-      {showAssignee ? (
+      {showAssignee && !stacked ? (
         <p className="hidden min-w-0 items-center gap-2 t-body-compact text-fg-2 @3xl:flex" title={task.assigneeDisplayName}>
           <Initials name={task.assigneeDisplayName} decorative />
           <span className="truncate">{task.assigneeDisplayName}</span>

@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { requestsHref, type RequestsQueue } from "@/lib/requests-queue-contract";
 import { requestCallsOff, requestClosedKinds, requestLatestLine } from "@/lib/v3/requests-view";
 
-import { ManualLeadTrigger } from "../ManualLeadForm";
 import type { ViewProps } from "../requests/RequestsQueueView";
 
 /**
- * Пустая очередь: что пусто, когда пришла последняя и «Добавить лида». «Что сюда приходит» ушло за «?» страницы
- * (`requestEmptyWhat` в справке шапки). Граница роли и «Звонки не подключены» называются прямо, как у прежнего вида.
+ * Пустая очередь: что пусто, когда пришла последняя и «Показать все». «Добавить лида» здесь не повторяется: красная
+ * кнопка шапки той же страницы — тот же вход в ту же форму, а две вторичные кнопки разного веса рядом читались бы
+ * как два разных действия. «Что сюда приходит» ушло за «?» страницы (`requestEmptyWhat` в справке шапки). Граница
+ * роли и «Звонки не подключены» называются прямо, как у прежнего вида.
  */
 export function RequestsNextEmpty({ queue, props, now }: Readonly<{ queue: RequestsQueue; props: ViewProps; now: Date }>) {
   const { selection } = props;
@@ -32,12 +33,7 @@ export function RequestsNextEmpty({ queue, props, now }: Readonly<{ queue: Reque
     <EmptyState
       title={selection.status === "waiting" ? "Новых заявок нет" : "Заявок нет"}
       description={latest ?? "Заявок ещё не было."}
-      action={props.canCreateLead || more ? (
-        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
-          {props.canCreateLead ? <ManualLeadTrigger quiet /> : null}
-          {more}
-        </div>
-      ) : undefined}
+      action={more ?? undefined}
     />
   );
 }

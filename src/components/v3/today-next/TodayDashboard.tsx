@@ -48,7 +48,8 @@ export function TodayDashboard({
       {/* Одно описание на все кнопки «Позвонить» страницы: читалка не повторяет его в каждой строке. */}
       {dial?.status === "ready" ? <DialListHint /> : null}
       <div className="@container min-w-0" data-today-queue="">
-        <div className="grid items-start gap-4 @min-[56rem]:grid-cols-2">
+        {/* Область клавиатуры очереди — вся сетка, как у прежней ленты: ↑/↓ работают и с «Показать ещё», и со строки. */}
+        <div data-queue-list="" className="grid items-start gap-4 @min-[56rem]:grid-cols-2">
           {shown.map((band) => {
             const open = expanded.includes(band.key);
             return (

@@ -134,7 +134,7 @@ test("«Заявки»: звонки — исход последнего зво�
 
 test("«Сегодня»: плитка на каждую группу, числа из чтения, «—» там, где числа нет; красное — только просроченное", () => {
   const admin = nextToday.get("next-admin");
-  const tiles = [...admin.matchAll(/<li class="min-w-0"><a [^>]*data-slot="stat-tile"[^>]*>([\s\S]*?)<\/a><\/li>/gu)].map((match) => text(match[1]));
+  const tiles = [...admin.matchAll(/<li class="[^"]*"><a [^>]*data-slot="stat-tile"[^>]*>([\s\S]*?)<\/a><\/li>/gu)].map((match) => text(match[1]));
   assert.deepEqual(tiles, ["Просрочено 5", "Сегодня 4", "Ждут вас — нет данных", "Без следующего шага 2", "Ближайшие 14 дней 4"]);
   assert.match(admin, /text-danger[^"]*">5</u, "красное число просроченного");
   assert.equal(count(admin, /text-danger[^"]*t-figure|t-figure[^"]*text-danger/gu), 1, "красное число одно");
@@ -221,4 +221,46 @@ test("панель заявки открывается адресом, а зак
   assert.match(table, /requestsHref|openHref/u);
   assert.match(table, /onOpenChange=\{\(next\) => \{ if \(!next\) go\(null, listHref\); \}\}/u);
   assert.match(table, /Открываем заявку…/u, "пока запись приходит с сервера — скелет под названием строки");
+});
+
+/* ---------------------------------------------------------------- правки по ревью (27.10.2026) */
+
+test("«Заявки»: страницы ведёт сервер — у таблицы нет своей полосы страниц, «из N» и второй «Следующая страница»", () => {
+  for (const name of ["next-populated", "next-waiting", "next-calls-dial", "next-empty"]) {
+    const html = nextRequests.get(name);
+    assert.doesNotMatch(html, /data-slot="data-table-pagination"/u, `${name}: своей полосы страниц нет`);
+    assert.doesNotMatch(text(html), /\d+–\d+ из \d+/u, `${name}: «1–N из N» по загруженным строкам не пишется`);
+    assert.doesNotMatch(html, /aria-label="Строк на странице"/u, name);
+  }
+  assert.match(read("src/components/v3/requests-next/RequestsNextTable.tsx"), /paginate=\{false\}/u);
+  assert.doesNotMatch(read("src/components/v3/requests-next/RequestsNextTable.tsx"), /pageSize=/u);
+  // Набор: без `paginate` таблица листает сама, как раньше (страница «Новый вид: набор виджетов»).
+  assert.match(read("src/components/kit/DataTable.tsx"), /paginate = true/u);
+  assert.match(read("src/components/kit/DataTable.tsx"), /loading \|\| !paginate \? null/u);
+});
+
+test("«Заявки»: в пустой очереди одно вторичное действие («Показать все»), красная «Добавить лида» — только в шапке; панель — значения столбцом на телефоне", () => {
+  const empty = nextRequests.get("next-empty");
+  assert.equal(count(text(empty), /Добавить лида/gu), 1, "кнопка шапки, без второй ссылки в пустом состоянии");
+  assert.match(text(empty), /Показать все/u);
+  assert.doesNotMatch(empty, /underline-offset-4 hover:text-fg">Добавить лида/u, "тихой ссылки нет");
+  assert.match(read("src/components/kit/KeyFacts.tsx"), /2: "grid-cols-1 @md:grid-cols-2"/u, "две колонки только от 28rem блока");
+});
+
+test("«Сегодня»: клавиатура очереди ↑/↓ — по всей сетке виджетов (с «Показать ещё»), строки виджета двухстрочные, плитки — по числу групп", () => {
+  const admin = nextToday.get("next-admin");
+  const region = admin.slice(admin.indexOf('data-today-queue=""'));
+  assert.equal(count(admin, /data-queue-list=/gu), 1, "область очереди одна");
+  assert.ok(region.indexOf("data-queue-list") < region.indexOf('id="today-band-'), "область объемлет все виджеты");
+  assert.doesNotMatch(region.slice(region.indexOf("<ul")), /<ul[^>]*data-queue-list/u, "не на списке строк: кнопка «Показать ещё» стоит вне него");
+  // Строки виджета — без широкой раскладки от 32rem; у прежней ленты она есть.
+  assert.equal(count(region, /@min-\[32rem\]/gu), 0, "в виджетах нет широкой сетки строки");
+  assert.ok(count(legacyToday.get("admin"), /@min-\[32rem\]/gu) > 0, "а у прежнего вида есть");
+  // Плитки: на каждую группу при нескольких группах; у единственной группы и у пустого дня с названным сроком — нет.
+  assert.equal(count(admin, /data-slot="stat-tile"/gu), 5);
+  assert.match(admin, /data-testid="today-tiles"/u);
+  assert.match(admin, /md:grid-cols-\[repeat\(auto-fit,minmax\(11rem,1fr\)\)\]/u);
+  for (const name of ["next-empty", "next-empty-admissions"]) assert.doesNotMatch(nextToday.get(name), /data-testid="today-tiles"/u, `${name}: плиток нет`);
+  assert.match(text(nextToday.get("next-empty")), /Ближайший срок — чт 01\.10/u, "срок назван один раз, в панели");
+  assert.match(read("src/components/v3/today-next/TodayBandWidget.tsx"), /stacked/u);
 });

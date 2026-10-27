@@ -46,6 +46,15 @@ function Empty({ queue, mainAction }: Readonly<{ queue: TodayQueue; mainAction: 
 }
 
 /**
+ * Плитки нужны, когда групп несколько: у единственной группы число и так видно в её виджете, а у пустого дня
+ * ближайший срок уже назван в панели «На сегодня всё» (три раза один факт в трёх размерах — лишнее).
+ */
+function showTiles(queue: TodayQueue): boolean {
+  if (queue.bands.length < 2) return false;
+  return !(queue.applicable && queue.actionEmpty && queue.complete && queue.nearest);
+}
+
+/**
  * «Сегодня» нового вида: ряд плиток с числами групп и под ним виджеты групп по срочности. Данные, группы, числа,
  * слова строк и их действия те же, что у прежнего вида (`TodayScreen`): меняется только расстановка.
  */
@@ -71,7 +80,7 @@ export function TodayNext({
       <Empty queue={queue} mainAction={mainAction} />
       {queue.bands.length ? (
         <>
-          <TodayTiles bands={queue.bands} />
+          {showTiles(queue) ? <TodayTiles bands={queue.bands} /> : null}
           <TodayDashboard bands={queue.bands} nowIso={nowIso} permissions={permissions} dial={dial} taskLeads={taskLeads} />
         </>
       ) : null}

@@ -12,7 +12,11 @@
  * «Заявки»: строка и карточка открывают панель адресом `?open=`, панель показывает те же действия («Взять себе», решение
  * по анкете, «Отметить обработанной») с теми же request_id, что сгенерировала страница; Esc закрывает и возвращает фокус
  * на строку; поиск и сортировка; доступность (axe) таблицы и панели.
- * «Сегодня»: плитки и виджеты, «Показать ещё / Свернуть», завершение задачи на месте с «Отменить», переход плитки к виджету.
+ * Страницы очереди ведёт сервер: на 30 присланных строках у таблицы нет своих страниц и «из N», только ссылка сервера «Следующая
+ * страница»; строка и фокус переживают открытие и закрытие панели (новая выдача сервера не сбрасывает таблицу); почта в панели
+ * на телефоне не рвётся посреди домена.
+ * «Сегодня»: плитки (один ряд; на телефоне листается вбок) и виджеты, «Показать ещё / Свернуть», завершение задачи на месте с
+ * «Отменить», переход плитки к виджету; ↑/↓ работают с «Показать ещё»; на 1440 названия в строках виджета не обрезаны.
  * Сервер здесь — стенд: `router.push` через 120 мс перерисовывает тот же компонент с новым адресом.
  * Нарушение — код выхода 1 и строка с фактами.
  */
@@ -156,12 +160,25 @@ async function main() {
   const extra = Array.from({ length: 4 }, (_, index) => ({ ...waiting.items[index % waiting.items.length], key: `${waiting.items[index % waiting.items.length].key}:copy${index}`, title: `Копия ${index + 1}: ${waiting.items[index % waiting.items.length].title}` }));
   waiting.items = [...waiting.items, ...extra];
 
+  // Страница сервера в 30 строк со ссылкой «Следующая страница»: 9 строк стенда и 21 копия лида с другими id и именами.
+  const longRequests = structuredClone(requests["next-populated"]);
+  const baseLead = longRequests.read.queue.rows.find((row) => row.kind === "lead" && row.take);
+  const clones = Array.from({ length: 21 }, (_, index) => {
+    const n = String(index + 1).padStart(2, "0");
+    const id = `eeeeeeee-4444-4444-8444-0000000000${n}`;
+    return { ...baseLead, id, leadId: id, personName: `Клон ${n} Тестов`, occurredAt: new Date(Date.parse(baseLead.occurredAt) - (index + 1) * 3_600_000).toISOString() };
+  });
+  longRequests.read.queue.rows = [...longRequests.read.queue.rows, ...clones];
+  const lastClone = clones.at(-1);
+  longRequests.read.queue.nextCursor = { source: "all", status: "all", limit: 50, v: 3, direction: "next", timestamp: lastClone.occurredAt, kind: "lead", id: lastClone.id };
+
   await bundle(REQUESTS_ENTRY, join(outDir, "ui-next-requests-bundle.js"), "requests");
   await bundle(TODAY_ENTRY, join(outDir, "ui-next-today-bundle.js"), "today");
   const css = await compileCss();
   const pages = {
     requests: writePage(outDir, "ui-next-requests", css, "ui-next-requests-bundle.js", { props: requests["next-populated"], search: "status=all" }),
     requestsOpen: writePage(outDir, "ui-next-requests-open", css, "ui-next-requests-bundle.js", { props: requests["next-populated"], search: `status=all&open=${encodeURIComponent(`application:${requests["next-populated"].read.queue.rows.find((row) => row.kind === "application").id}`)}` }),
+    requestsLong: writePage(outDir, "ui-next-requests-long", css, "ui-next-requests-bundle.js", { props: longRequests, search: "status=all" }),
     requestsMissing: writePage(outDir, "ui-next-requests-missing", css, "ui-next-requests-bundle.js", { props: requests["next-populated"], search: "status=all&open=lead:99999999-0000-4000-8000-000000000999" }),
     today: writePage(outDir, "ui-next-today-page", css, "ui-next-today-bundle.js", { props: longToday }),
   };
@@ -231,6 +248,13 @@ async function main() {
     const dialog = page.getByRole("dialog");
     report(`${key}: lead panel has title and contact facts`, (await dialog.getByRole("heading", { name: lead.personName }).count()) === 1 && (await dialog.getByText("Ответственный").count()) >= 1, null);
     await shot(page, `rn-sheet-lead-${key}`);
+    // Почта — одной строкой: на телефоне значения панели идут столбцом, а не в две колонки по ~170 px.
+    const emailLines = await dialog.locator("dd", { hasText: lead.email }).first().evaluate((element) => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size;
+    });
+    report(`${key}: lead email stays on one line in the panel`, emailLines === 1, emailLines);
     await axe(page, `${key}: lead panel`, "[role=dialog]");
     await dialog.getByRole("button", { name: "Взять себе" }).click();
     await dialog.getByRole("alert").waitFor();
@@ -291,6 +315,30 @@ async function main() {
     report("d1440: console clean (keyboard)", errors.length === 0, errors);
     await context.close();
   }
+  // Страницы ведёт сервер: у таблицы нет своих страниц, «из N» и второй «Следующая страница»; строка и фокус переживают панель.
+  for (const key of ["d1440", "m390"]) {
+    const { context, page, errors } = await open(pages.requestsLong, key);
+    const wide = key === "d1440";
+    const visible = wide ? page.locator("[data-slot=table] tbody tr") : page.locator("[data-slot=data-table-cards] > li");
+    report(`${key}: server page shows all 30 loaded rows`, (await visible.count()) === 30, await visible.count());
+    report(`${key}: the table has no pager of its own`, (await page.locator("[data-slot=data-table-pagination]").count()) === 0 && (await page.getByLabel("Строк на странице").count()) === 0, null);
+    report(`${key}: only the server link «Следующая страница» exists`, (await page.getByRole("link", { name: "Следующая страница" }).count()) === 1 && (await page.getByRole("button", { name: /страница/u }).count()) === 0, await page.getByRole("button", { name: /страница/u }).count());
+    report(`${key}: no «из N» counter over the loaded rows`, !/\d+–\d+ из \d+/u.test(await page.locator("main").innerText()), null);
+    const row = wide ? page.locator("[data-slot=table] tbody tr", { hasText: "Клон 21 Тестов" }) : page.locator("[data-slot=data-table-cards] > li", { hasText: "Клон 21 Тестов" });
+    if (wide) await row.locator("td").nth(1).click(); else await row.locator("button").first().click({ position: { x: 8, y: 8 } });
+    await page.getByRole("dialog").waitFor();
+    await page.waitForFunction(() => window.__pushes.length === 1);
+    await page.waitForTimeout(200); // стенд перерисовал страницу новой выдачей: те же строки, новый массив
+    report(`${key}: rows behind the panel are still 30 after the server re-render`, (await visible.count()) === 30, await visible.count());
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+    await page.waitForTimeout(300);
+    report(`${key}: the opened row is still rendered after the panel closes`, (await row.count()) === 1 && (await visible.count()) === 30, await visible.count());
+    if (wide) report(`${key}: focus returns to the opened row (long page)`, await row.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
+    report(`${key}: console clean (long page)`, errors.length === 0, errors);
+    await shot(page, `rn-long-${key}`);
+    await context.close();
+  }
   // Адрес с открытой записью открывает панель сразу; запись, которой нет в списке, панель не открывает.
   {
     const { context, page, errors } = await open(pages.requestsOpen, "d1440");
@@ -312,12 +360,42 @@ async function main() {
     const honest = bands.every((band, index) => band.count === null ? /—|нет данных/u.test(tileTexts[index]) : tileTexts[index].includes(String(band.count)));
     report(`${key}: tile numbers equal the read counts ("—" when unknown)`, honest, { tileTexts, counts: bands.map((band) => band.count) });
     await shot(page, `tn-page-${key}`, { fullPage: true });
+    // Плитки — один ряд; на телефоне он листается вбок и не уводит строки ниже первого экрана.
+    const tileTops = await tiles.evaluateAll((elements) => [...new Set(elements.map((element) => Math.round(element.getBoundingClientRect().top)))]);
+    report(`${key}: tiles stand in one row`, tileTops.length === 1, tileTops);
+    if (key === "m390") {
+      const row = await page.getByTestId("today-tiles").evaluate((element) => ({ scrolls: element.scrollWidth > element.clientWidth, height: element.getBoundingClientRect().height, firstWidgetTop: document.getElementById("today-band-overdue").getBoundingClientRect().top + window.scrollY, page: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
+      report(`${key}: tile row scrolls sideways, is compact and the page does not`, row.scrolls && row.height < 110 && row.firstWidgetTop < 380 && row.page <= 0, row);
+    }
+    // Названия в строках виджета не обрезаны, строка двухстрочная (три колонки: знак, текст, действие), «ещё одна строка» не растёт.
+    {
+      const audit = await page.evaluate(() => [...document.querySelectorAll("[data-today-queue] [data-queue-row]")].map((row) => {
+        const title = row.querySelector("a[data-queue-open][title], p[title]");
+        const meta = row.querySelector("p.t-meta.flex");
+        return {
+          key: row.getAttribute("data-queue-row"),
+          clipped: Boolean(title && (title.scrollHeight > title.clientHeight + 1 || title.scrollWidth > title.clientWidth + 1)),
+          columns: getComputedStyle(row).gridTemplateColumns.trim().split(/\s+/u).length,
+          metaHeight: meta ? Math.round(meta.getBoundingClientRect().height) : 0,
+          facts: 1 + (meta ? [...meta.children].filter((child) => child.getClientRects().length > 0).length : 0),
+        };
+      }));
+      report(`${key}: no widget row title is clipped`, audit.every((row) => !row.clipped), audit.filter((row) => row.clipped));
+      report(`${key}: widget rows use the stacked three-column layout`, audit.every((row) => row.columns === 3), audit.filter((row) => row.columns !== 3));
+      // Вторая строка — одна на 1440 (виджет ~556 px); на телефоне части переносятся целиком, и это штатно.
+      if (key === "d1440") report(`${key}: widget row meta is a single line`, audit.every((row) => row.metaHeight <= 30), audit.filter((row) => row.metaHeight > 30));
+      console.log(JSON.stringify({ check: `${key}: widget rows with more than 4 data pieces (informational)`, rows: audit.filter((row) => row.facts > 4).map((row) => row.key) }));
+    }
     await axe(page, `${key}: today`, "main");
     // «Показать ещё»: длинная группа показывает пять строк, остальные — за кнопкой.
     const widget = page.locator("#today-band-waiting");
     const total = waiting.items.length;
     const more = `Показать ещё ${total - 5}`;
     report(`${key}: long group shows 5 rows and the button`, (await widget.locator("[data-queue-row]").count()) === 5 && (await widget.getByRole("button", { name: more }).count()) === 1, await widget.locator("[data-queue-row]").count());
+    // ↑ с кнопки «Показать ещё»: клавиатура очереди продолжает со строки, как у прежней ленты.
+    await widget.getByRole("button", { name: more }).focus();
+    await page.keyboard.press("ArrowUp");
+    report(`${key}: ArrowUp from "Показать ещё" moves focus to a row`, await page.evaluate(() => Boolean(document.activeElement && document.activeElement.closest("[data-queue-row]"))), await page.evaluate(() => document.activeElement && (document.activeElement.getAttribute("aria-label") || document.activeElement.tagName)));
     await widget.getByRole("button", { name: more }).click();
     await page.waitForTimeout(100);
     report(`${key}: expanded shows all ${total} and moves focus to the 6th row`, (await widget.locator("[data-queue-row]").count()) === total && (await page.evaluate(() => document.activeElement && document.activeElement.closest("[data-queue-row]")?.dataset.queueRow)) === (await widget.locator("[data-queue-row]").nth(5).getAttribute("data-queue-row")), null);

@@ -58,10 +58,10 @@ export function TodayBandWidget({
       title={todayBandTitle(band.label)}
       bodyClassName="px-0"
     >
-      {/* Раскладка строк считает ширину виджета, а не окна: две колонки виджетов не ломают строку. */}
-      <section className="@container min-w-0">
+      {/* Строки виджета всегда двухстрочные (`stacked`): в половине страницы широкая сетка со сроком в колонке обрезала бы названия. */}
+      <section className="min-w-0">
         {note ? <p className="px-5 pb-2 t-meta text-fg-2" data-today-band-note="">{note}</p> : null}
-        <ul data-queue-list="" className="[&>li:last-child]:border-b-0">
+        <ul className="[&>li:last-child]:border-b-0">
           {band.rows.slice(0, visible).map((item, index) => item.task ? (
             <TaskQueueRow
               key={item.key}
@@ -77,10 +77,11 @@ export function TodayBandWidget({
               leadRef={taskLeads?.[item.key] ?? null}
               dial={dial}
               hideTodayWord={band.key === "today"}
+              stacked
               announce={announce}
               onCompleted={(completion) => onCompleted(item, index, completion)}
             />
-          ) : <TodayRow key={item.key} item={item} nowIso={nowIso} dial={dial} hideReason={hoisted} />)}
+          ) : <TodayRow key={item.key} item={item} nowIso={nowIso} dial={dial} hideReason={hoisted} stacked />)}
         </ul>
         {/* Кнопка стоит внутри секции группы: клавиатура очереди (j/k) продолжает от последней строки этой группы. */}
         {hidden > 0 ? (

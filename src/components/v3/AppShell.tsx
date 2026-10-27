@@ -736,7 +736,7 @@ export function AppShell({
                   <IntentPrefetchLink
                     href="/v3/ui-kit"
                     onNavigate={closeAfterNavigation}
-                    className={cn(ITEM, "py-1 t-meta", rail && "md:max-2xl:sr-only")}
+                    className={cn(ITEM, "py-1 t-meta", rail && "md:max-2xl:hidden")}
                   >
                     Набор виджетов
                   </IntentPrefetchLink>

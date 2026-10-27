@@ -20,7 +20,7 @@ export default async function UiKitPage({ searchParams }: { searchParams: Promis
     return (
       <PartShell title="Набор виджетов" testId="v3-ui-kit-off">
         <div className="rounded-card border border-border bg-surface">
-          <EmptyState text="Включите «Новый вид» в меню слева, внизу." />
+          <EmptyState text="Включите «Новый вид»: переключатель внизу меню, на телефоне — в «Ещё»." />
         </div>
       </PartShell>
     );

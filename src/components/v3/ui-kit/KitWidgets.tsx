@@ -30,7 +30,7 @@ export function KitWidgets({ tab }: Readonly<{ tab: string }>) {
           <StatusBadge label="Ждём документы" tone="warn" />
           <StatusBadge label="Просрочено" tone="danger" />
           <StatusBadge label="Новая" tone="info" />
-          <HelpTip>Красный — только проблема. Нет настоящего состояния — серое слово.</HelpTip>
+          <HelpTip label="Пояснение: Чипы состояния">Красный — только проблема. Нет настоящего состояния — серое слово.</HelpTip>
         </div>
       </WidgetCard>
       <WidgetCard title="Вкладки-ссылки" help="Переход со своим адресом `?tab=`: его можно переслать и открыть без JavaScript.">

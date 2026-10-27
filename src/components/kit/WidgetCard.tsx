@@ -41,7 +41,7 @@ export function WidgetCard({
         <CardHeader>
           <div className="flex min-w-0 items-center gap-1.5">
             {title ? <CardTitle as={`h${headingLevel}`}>{title}</CardTitle> : null}
-            {help ? <HelpTip label={helpLabel}>{help}</HelpTip> : null}
+            {help ? <HelpTip label={helpLabel ?? (title ? `Пояснение: ${title}` : undefined)}>{help}</HelpTip> : null}
           </div>
           {actions ? <CardAction className="flex flex-wrap items-center justify-end gap-2">{actions}</CardAction> : null}
         </CardHeader>

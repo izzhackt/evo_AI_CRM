@@ -28,7 +28,7 @@ export function StatTile({
 }>) {
   const empty = value === null || value === "";
   const tile = (
-    <Card size="sm" className={cn("h-full gap-1", href && "group-hover:bg-surface-2", className)}>
+    <Card size="sm" className={cn("h-full data-[size=sm]:gap-1", href && "group-hover:bg-surface-2", className)}>
       <p className="t-caption px-4 text-fg-3">{label}</p>
       <p className={cn("t-figure px-4", empty ? "text-fg-3" : VALUE_TONE[tone])}>
         {empty ? <><span aria-hidden="true">—</span><span className="sr-only">нет данных</span></> : value}

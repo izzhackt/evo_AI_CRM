@@ -11,7 +11,9 @@
  *   node tests/e2e/ui-kit-static-render.cjs --screenshots [outDir]
  *     → снимки Playwright Chromium 1440×900, 1280×800, 390×844 (страница набора; панель записи; «?»; окно;
  *       меню; выбор; пустой поиск; загрузка; переключатель выкл/вкл) и проверки (JSON-строки, при нарушении
- *       код 1): нет ошибок консоли, нет горизонтальной прокрутки, нажимаемые ≥ 44 px, axe без нарушений.
+ *       код 1): нет ошибок консоли, нет горизонтальной прокрутки, нажимаемые ≥ 44 px, axe без нарушений;
+ *       фокус возвращается на строку/карточку после панели; ссылка и кнопка в ячейке карточки не открывают запись;
+ *       рейка досок (/v3/pipeline, 1280): «Набор виджетов» не в порядке Tab невидимым; шапка стоит на глубине h1 прежней.
  *       По умолчанию outDir — .impeccable/review (не коммитится).
  */
 
@@ -137,6 +139,7 @@ async function main() {
   const pages = {
     kit: writePage(outDir, "ui-kit", css, { actor: ADMIN, pathname: "/v3/ui-kit", search: "tab=overview", nextUi: { enabled: true }, kit: true }),
     off: writePage(outDir, "ui-kit-shell-off", css, { actor: ADMIN, pathname: "/v3/main", search: "", nextUi: { enabled: false }, kit: false }),
+    rail: writePage(outDir, "ui-kit-shell-rail", css, { actor: ADMIN, pathname: "/v3/pipeline", search: "", nextUi: { enabled: true }, kit: false }),
     staff: writePage(outDir, "ui-kit-shell-staff", css, { actor: { ...ADMIN, systemRole: "staff", displayName: "Сотрудник Синтетический" }, pathname: "/v3/main", search: "", nextUi: null, kit: false }),
   };
   const { chromium } = require("playwright");
@@ -150,8 +153,8 @@ async function main() {
     console.log(JSON.stringify({ check, ok, detail }));
   };
 
-  async function open(htmlPath, key) {
-    const context = await browser.newContext({ ...VIEWPORTS[key], reducedMotion: "reduce" });
+  async function open(htmlPath, key, reducedMotion = "reduce") {
+    const context = await browser.newContext({ ...VIEWPORTS[key], reducedMotion });
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
@@ -182,7 +185,7 @@ async function main() {
       const visible = (element) => { const box = element.getBoundingClientRect(); const style = getComputedStyle(element); return box.width > 0 && box.height > 0 && style.visibility !== "hidden"; };
       // Значок «?», флажок и переключатель увеличивают зону нажатия псевдоэлементом `after` на 44 px.
       return [...document.querySelectorAll("[data-testid=v3-ui-kit] a, [data-testid=v3-ui-kit] button, [data-testid=v3-ui-kit] input:not([type=checkbox]), [data-testid=v3-ui-kit] [role=combobox]")]
-        .filter((element) => visible(element) && !element.matches("[aria-label=Пояснение], [role=switch], [role=checkbox]"))
+        .filter((element) => visible(element) && !element.matches("[aria-label^=Пояснение], [role=switch], [role=checkbox]"))
         .map((element) => ({ text: (element.textContent || element.getAttribute("aria-label") || element.tagName).trim().slice(0, 30), h: Math.round(element.getBoundingClientRect().height), w: Math.round(element.getBoundingClientRect().width) }))
         .filter((box) => box.h < 44);
     });
@@ -191,6 +194,23 @@ async function main() {
     const axe = await new AxeBuilder({ page }).include("[data-testid=v3-ui-kit]").analyze();
     report(`${key}: axe (kit page)`, axe.violations.length === 0, axe.violations.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`));
     report(`${key}: console clean`, errors.length === 0, errors);
+    // Шапка нового вида стоит на глубине прежней (корень > div > h1): правила оболочки в v3.css находят её и дают тот же верхний отступ.
+    const top = await page.evaluate(() => {
+      const main = document.querySelector("[data-testid=v3-ui-kit]");
+      const probe = document.createElement("div");
+      probe.style.paddingTop = "var(--shell-page-top)";
+      main.append(probe);
+      const expected = getComputedStyle(probe).paddingTop;
+      probe.remove();
+      return { matches: main.matches(":has(> div:first-child > div:first-child > h1.t-page-title)"), paddingTop: getComputedStyle(main).paddingTop, expected };
+    });
+    report(`${key}: page header matches shell rules (top offset)`, top.matches && top.paddingTop === top.expected, top);
+    // Плитка: промежуток между подписью, числом и пояснением 4 px (gap-1 плитки не перебивается промежутком Card).
+    const tileGaps = await page.evaluate(() => [...document.querySelectorAll("[data-slot=stat-tile] [data-slot=card]")].map((element) => getComputedStyle(element).rowGap));
+    report(`${key}: stat tile gap is 4px`, tileGaps.length >= 4 && tileGaps.every((gap) => gap === "4px"), tileGaps);
+    // «?» названы по хозяину: на странице нет одинаковых «Пояснение».
+    const helpNames = await page.evaluate(() => [...document.querySelectorAll("[data-testid=v3-ui-kit] button[aria-label^=Пояснение]")].map((element) => element.getAttribute("aria-label")));
+    report(`${key}: help buttons named by owner`, helpNames.length >= 5 && helpNames.every((name) => name.startsWith("Пояснение: ")) && new Set(helpNames).size === helpNames.length, helpNames);
     await context.close();
   }
 
@@ -199,16 +219,43 @@ async function main() {
     const { context, page, errors } = await open(pages.kit, key);
     const table = page.locator("[data-slot=data-table]");
     await table.scrollIntoViewIfNeeded();
-    if (key === "d1280") await page.getByRole("row").nth(1).click(); else await page.locator("[data-slot=data-table-cards] button").first().click();
+    // Строка таблицы (1280) и кнопка карточки (390) открывают панель; на нажатие в «пустое» место, не на ссылку или кнопку ячейки.
+    const opener = key === "d1280" ? page.getByRole("row").nth(1) : page.locator("[data-slot=data-table-cards] > li > button").first();
+    if (key === "d1280") await opener.locator("td").nth(2).click(); else await opener.click({ position: { x: 8, y: 8 } });
     await page.getByRole("dialog").waitFor();
     await expectOverlay(page, key, "sheet", "[data-slot=sheet-content]");
     await shot(page, `sheet-${key}`);
     report(`${key}: sheet focus inside`, await page.evaluate(() => Boolean(document.activeElement && document.activeElement.closest("[role=dialog]"))), null);
+    const sheetWidth = Math.round((await page.locator("[data-slot=sheet-content]").boundingBox()).width);
+    report(`${key}: sheet width`, sheetWidth === (key === "d1280" ? 512 : 390), sheetWidth);
     await page.keyboard.press("Escape");
     await page.getByRole("dialog").waitFor({ state: "detached" });
     report(`${key}: sheet closed by Esc`, true, null);
-    await page.getByRole("button", { name: "Пояснение" }).first().click();
-    await page.getByRole("dialog", { name: "Пояснение" }).waitFor();
+    report(`${key}: focus returns to the ${key === "d1280" ? "row" : "card"} after Esc`, await opener.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
+    if (key === "d1280") {
+      await opener.focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("dialog").waitFor();
+      await page.getByRole("button", { name: "Закрыть" }).first().click();
+      await page.getByRole("dialog").waitFor({ state: "detached" });
+      report(`${key}: focus returns to the row after Enter + close button`, await opener.evaluate((element) => element === document.activeElement), await page.evaluate(() => document.activeElement && document.activeElement.tagName));
+    } else {
+      // Ссылка и кнопка внутри карточки действуют сами и не открывают запись (раньше карточка-кнопка вызывала оба действия).
+      const card = page.locator("[data-slot=data-table-cards] > li").nth(1);
+      await card.getByRole("link").click();
+      const hash = await page.evaluate(() => location.hash);
+      report(`${key}: card link follows, row not opened`, hash === "#sample-2" && (await page.getByRole("dialog").count()) === 0, hash);
+      await card.getByRole("button", { name: "Взять" }).click();
+      report(`${key}: card action runs, row not opened`, (await card.getByRole("button", { name: "Взять" }).count()) === 0 && (await card.getByText("Взята").count()) === 1 && (await page.getByRole("dialog").count()) === 0, null);
+    }
+    await page.getByRole("button", { name: /^Пояснение: / }).first().click();
+    const helpDialog = page.getByRole("dialog", { name: /^Пояснение: / });
+    await helpDialog.waitFor();
+    const described = await helpDialog.evaluate((element) => {
+      const target = document.getElementById(element.getAttribute("aria-describedby") || "");
+      return { text: target ? target.textContent.trim().length : 0, inside: Boolean(target && element.contains(target)) };
+    });
+    report(`${key}: help popover text is its description`, described.text > 0 && described.inside, described);
     await expectOverlay(page, key, "help popover", "[data-slot=popover-content]");
     await shot(page, `helptip-${key}`);
     await page.keyboard.press("Escape");
@@ -228,6 +275,9 @@ async function main() {
     await shot(page, `select-${key}`);
     await page.keyboard.press("Escape");
     if (key === "d1280") {
+      const row = page.getByRole("row").nth(1);
+      await row.getByRole("button", { name: "Взять" }).click();
+      report(`${key}: row action runs, row not opened`, (await row.getByText("Взята").count()) === 1 && (await page.getByRole("dialog").count()) === 0, null);
       // Таблица на деле: сортировка по заголовку, страницы, видимость колонок, общий поиск.
       const firstName = () => table.locator("tbody tr").first().locator("td").first().textContent();
       await table.getByRole("button", { name: /Имя/u }).click();
@@ -251,6 +301,47 @@ async function main() {
     await page.getByRole("button", { name: "Загрузка" }).click();
     await shot(page, `loading-${key}`);
     report(`${key}: interactions console clean`, errors.length === 0, errors);
+    await context.close();
+  }
+
+  // Панель закрывается 200 мс: за это время заголовок и данные записи остаются (не «Заявка» и не пустое тело).
+  {
+    const { context, page } = await open(pages.kit, "d1280", "no-preference");
+    await page.locator("[data-slot=data-table]").scrollIntoViewIfNeeded();
+    await page.getByRole("row").nth(1).locator("td").nth(2).click();
+    await page.getByRole("dialog").waitFor();
+    const samples = await page.evaluate(async () => {
+      const taken = [];
+      const sample = () => {
+        const panel = document.querySelector("[data-slot=sheet-content]");
+        if (panel) taken.push([panel.querySelector("[data-slot=sheet-title]").textContent, Boolean(panel.querySelector("[data-slot=key-facts]")), panel.getAttribute("data-state")]);
+      };
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      for (let i = 0; i < 12; i += 1) { sample(); await new Promise((done) => setTimeout(done, 25)); }
+      return taken;
+    });
+    const closing = samples.filter((sampleRow) => sampleRow[2] === "closed");
+    report("d1280: sheet keeps the record while closing", closing.length > 0 && closing.every(([title, facts]) => title === "Тест Синтетический 1" && facts), samples);
+    await context.close();
+  }
+
+  // Рейка досок (/v3/pipeline, 768–1535 px): «Набор виджетов» не остаётся невидимой ссылкой в порядке Tab.
+  {
+    const { context, page } = await open(pages.rail, "d1280");
+    const rail = await page.evaluate(() => {
+      const nav = document.querySelector("[data-shell-account]");
+      const box = (element) => { const rect = element.getBoundingClientRect(); return { w: Math.round(rect.width), h: Math.round(rect.height) }; };
+      const tabbable = [...nav.querySelectorAll("a[href], button:not([disabled]), [role=switch]")].filter((element) => getComputedStyle(element).display !== "none" && getComputedStyle(element).visibility !== "hidden");
+      return { switchShown: Boolean(nav.querySelector("[role=switch]")), kitLinks: tabbable.filter((element) => /ui-kit/u.test(element.getAttribute("href") || "")).length, small: tabbable.map((element) => ({ label: (element.getAttribute("aria-label") || element.textContent || element.tagName).trim().slice(0, 24), ...box(element) })).filter((item) => item.w < 40 || item.h < 40) };
+    });
+    report("d1280 rail: switch visible, no invisible tabbable in account area", rail.switchShown && rail.kitLinks === 0 && rail.small.length === 0, rail);
+    const seen = [];
+    for (let step = 0; step < 60; step += 1) {
+      await page.keyboard.press("Tab");
+      seen.push(await page.evaluate(() => { const element = document.activeElement; const rect = element.getBoundingClientRect(); return { tag: element.tagName, label: (element.getAttribute("aria-label") || element.textContent || "").trim().slice(0, 24), w: Math.round(rect.width), h: Math.round(rect.height) }; }));
+    }
+    report("d1280 rail: every Tab stop has a visible box", seen.every((stop) => stop.w >= 8 && stop.h >= 8), seen.filter((stop) => stop.w < 8 || stop.h < 8));
+    await shot(page, "toggle-rail-d1280", { clip: { x: 0, y: 560, width: 120, height: 240 } });
     await context.close();
   }
 

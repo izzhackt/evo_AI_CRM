@@ -1,5 +1,6 @@
 import { QueueViewTabs } from "@/components/v3/queue/QueueViewTabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 export type SectionTab = Readonly<{
   key: string;
@@ -37,10 +38,12 @@ export function SectionTabs({
 }>) {
   if (tabs.length > 0 && tabs.every((tab) => tab.href)) {
     return (
-      <QueueViewTabs
-        label={label}
-        tabs={tabs.map((tab) => ({ key: tab.key, label: tab.label, href: tab.href ?? "#", count: tab.count ?? null, current: tab.key === value }))}
-      />
+      <div className={cn("min-w-0", className)}>
+        <QueueViewTabs
+          label={label}
+          tabs={tabs.map((tab) => ({ key: tab.key, label: tab.label, href: tab.href ?? "#", count: tab.count ?? null, current: tab.key === value }))}
+        />
+      </div>
     );
   }
   return (

@@ -231,14 +231,18 @@ const kit = () => loader({
   } },
 })("src/components/kit/index.ts");
 
-test("PageHeader: h1 — первый потомок первого потомка корня (на это опирается v3.css), число и «?» — по данным", () => {
+test("PageHeader: h1 — прямой потомок первого потомка корня, как в прежней шапке (на это опирается v3.css), число и «?» — по данным", () => {
   const { PageHeader } = kit();
-  const html = renderToStaticMarkup(createElement(PageHeader, { title: "Заявки", count: 12, help: "Пояснение страницы", actions: createElement("button", null, "Создать") }));
-  assert.match(html, /^<div data-slot="page-header"[^>]*><div class="min-w-0"><div class="[^"]*"><h1 class="t-page-title text-fg">Заявки<span[^>]*>12<\/span><\/h1>/);
-  assert.match(html, /aria-label="Пояснение"/);
+  const html = renderToStaticMarkup(createElement(PageHeader, { title: "Заявки", count: 12, meta: "Сегодня", help: "Пояснение страницы", actions: createElement("button", null, "Создать") }));
+  // корень > div > h1 (прежний `PageHeader` из ui.tsx: корень > div.min-w-0 > h1); на глубину `main:has(> div:first-child > div:first-child > h1.t-page-title)` в v3.css опираются отступ сверху и телефонные правила
+  assert.match(html, /^<div data-slot="page-header"[^>]*><div class="[^"]*"><h1 class="t-page-title text-fg">Заявки<span[^>]*>12<\/span><\/h1>/);
+  assert.doesNotMatch(html, /^<div data-slot="page-header"[^>]*><div class="[^"]*"><div/, "ряда между блоком и h1 нет");
+  assert.match(html, /<\/h1><button[^>]*aria-label="Пояснение: Заявки"/, "«?» рядом с h1, имя кнопки — по заголовку");
+  assert.match(html, /<p class="t-meta basis-full text-fg-3">Сегодня<\/p>/, "вторичная строка — в том же блоке, на своей строке");
   assert.match(html, /<button>Создать<\/button>/);
+  assert.match(renderToStaticMarkup(createElement(PageHeader, { title: "Заявки", help: "x", helpLabel: "О заявках" })), /aria-label="О заявках"/);
   const bare = renderToStaticMarkup(createElement(PageHeader, { title: "Задачи", count: null }));
-  assert.doesNotMatch(bare, /aria-label="Пояснение"|tabular-nums/, "нет числа и пояснения — их нет и на экране");
+  assert.doesNotMatch(bare, /aria-label="Пояснение|tabular-nums/, "нет числа и пояснения — их нет и на экране");
   assert.equal((html.match(/<h1/g) ?? []).length, 1);
 });
 
@@ -264,6 +268,8 @@ test("StatTile: нет значения — «—» без выдуманных 
   assert.doesNotMatch(danger, /<a /);
   assert.match(renderToStaticMarkup(createElement(StatTile, { label: "Новые", value: 12, href: "/v3/requests" })), /<a [^>]*href="\/v3\/requests"/);
   assert.doesNotMatch(empty, /text-danger|%|↑|↓/);
+  assert.match(danger, /data-\[size=sm\]:gap-1/, "промежуток плитки того же варианта, что у Card (data-[size=sm]:gap-2), иначе twMerge оставляет оба");
+  assert.doesNotMatch(danger, /data-\[size=sm\]:gap-2/);
 });
 
 test("StatusBadge: слово обязательно, тона — те же имена, что у StatusChip, красный только danger", () => {
@@ -279,12 +285,15 @@ test("WidgetCard и SectionTabs: заголовок h2, «?» только пр�
   const { WidgetCard, SectionTabs } = kit();
   const card = renderToStaticMarkup(createElement(WidgetCard, { title: "Задачи", help: "Пояснение", actions: createElement("a", { href: "#" }, "Все") }, "Тело"));
   assert.match(card, /<h2 data-slot="card-title"[^>]*>Задачи<\/h2>/);
-  assert.match(card, /aria-label="Пояснение"/);
-  assert.doesNotMatch(renderToStaticMarkup(createElement(WidgetCard, { title: "Без подсказки" }, "Тело")), /aria-label="Пояснение"/);
+  assert.match(card, /aria-label="Пояснение: Задачи"/, "имя «?» — по заголовку карточки, не десяток одинаковых «Пояснение»");
+  assert.doesNotMatch(renderToStaticMarkup(createElement(WidgetCard, { title: "Без подсказки" }, "Тело")), /aria-label="Пояснение/);
+  assert.match(renderToStaticMarkup(createElement(WidgetCard, { help: "Нет заголовка", actions: createElement("a", { href: "#" }, "Все") }, "Тело")), /aria-label="Пояснение"/, "без заголовка — общее имя");
   const links = renderToStaticMarkup(createElement(SectionTabs, { label: "Разделы", value: "b", tabs: [{ key: "a", label: "А", href: "?tab=a" }, { key: "b", label: "Б", count: 3, href: "?tab=b" }, { key: "c", label: "В", count: null, href: "?tab=c" }] }));
   assert.match(links, /aria-current="page"[^>]*>Б/);
   assert.equal((links.match(/aria-current/g) ?? []).length, 1);
   assert.doesNotMatch(links, /role="tab"/);
+  const spaced = renderToStaticMarkup(createElement(SectionTabs, { label: "Разделы", className: "mt-4", value: "a", tabs: [{ key: "a", label: "А", href: "?tab=a" }] }));
+  assert.match(spaced, /^<div class="[^"]*\bmt-4\b[^"]*">/, "className применяется и у вкладок-ссылок");
   const inPlace = renderToStaticMarkup(createElement(SectionTabs, { label: "На месте", tabs: [{ key: "a", label: "А", content: "один" }, { key: "b", label: "Б", content: "два" }] }));
   assert.match(inPlace, /role="tablist"[^>]*aria-label="На месте"/);
   assert.match(inPlace, /один/);
@@ -305,7 +314,12 @@ test("DataTable: страницы, прилипшая шапка, карточк
   assert.match(html, /aria-sort="none"/);
   assert.match(html, /sticky top-0/, "шапка прилипает");
   assert.match(html, /data-slot="data-table-cards"/);
-  assert.match(html, /<button type="button"[^>]*>(?:(?!<\/button>)[\s\S])*Тест Синтетический 1</, "карточка телефона — настоящая кнопка");
+  assert.match(html, /<button type="button" aria-labelledby="[^"]+" class="absolute inset-0[^"]*"><\/button>/, "карточка телефона открывается пустой кнопкой поверх карточки: ячейки в неё не вложены");
+  assert.match(html, /id="([^"]+)" class="t-item[^"]*">Тест Синтетический 1</, "имя кнопки — заголовок карточки");
+  const cards = html.match(/<ul class="grid gap-2 md:hidden" data-slot="data-table-cards">[\s\S]*?<\/ul>/)[0];
+  assert.doesNotMatch(cards, /<button[^>]*>(?:(?!<\/button>)[\s\S])+<\/button>/, "в карточках нет кнопки с содержимым — нет вложенных интерактивных элементов");
+  assert.match(cards, /pointer-events-none relative/);
+  assert.match(cards, /pointer-events-auto/, "ссылки и кнопки в ячейках ловят нажатия сами");
   assert.match(html, /aria-label="Поиск"/);
   const empty = renderToStaticMarkup(createElement(DataTable, { label: "Пусто", data: [], columns }));
   assert.match(empty, /Пока пусто/);
@@ -330,6 +344,9 @@ test("DetailSheet, HelpTip и примитивы: портал внутри ко
   const sheet = read("src/components/kit/DetailSheet.tsx");
   assert.match(sheet, /"aria-label": title/, "прокручиваемая область панели имеет имя");
   assert.match(sheet, /tabIndex: 0/);
+  assert.match(sheet, /onCloseAutoFocus/, "без trigger фокус возвращается на запомненный элемент, а не в начало страницы");
+  assert.match(sheet, /side === "right" && "data-\[side=right\]:sm:max-w-lg"/, "ширина — того же варианта, что у SheetContent, и не для нижней панели");
+  assert.doesNotMatch(sheet, /"gap-0 sm:max-w-lg"/);
 });
 
 test("прежний набор `@/components/ui` остаётся файлом ui.tsx, новые примитивы — в каталоге ui/", () => {

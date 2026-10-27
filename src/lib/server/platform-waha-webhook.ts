@@ -16,6 +16,7 @@ import {
   type PlatformMessagingBackendConfig,
 } from "./platform-messaging-backend-config.ts";
 import { isPlatformWahaIngressEnabled } from "./platform-waha-ingress-config.ts";
+import { isPlatformWazzupIngressEnabled } from "./platform-wazzup-ingress-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
 import {
   PlatformWahaProjectorError,
@@ -827,6 +828,11 @@ export function createPlatformWahaWebhookHandler(
     // other "not configured" state gives.
     if (!isPlatformWahaIngressEnabled()) {
       return errorResponse(503, "waha_webhook_unavailable");
+    }
+    // Второй приём на тот же номер (план Wazzup §9, вторая линия после контракта env): каждое сообщение пришло бы дважды
+    // с разными идентификаторами. Оба приёма включены - WAHA ничего не читает и не записывает.
+    if (isPlatformWazzupIngressEnabled()) {
+      return errorResponse(503, "transport_conflict");
     }
 
     try {

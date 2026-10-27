@@ -49,6 +49,7 @@ export type PlatformManualSendRefusalReason =
   | "stale_source"
   | "duplicate"
   | "not_ready"
+  | "receive_only"
   | "forbidden"
   | "invalid";
 
@@ -72,6 +73,8 @@ export function classifyManualSendRefusal(
   if (code === "42501") return "forbidden";
   if (code === "22023") return "invalid";
   if (code !== "55000") return null;
+  // Миграция 325 (ворота отправки, план Wazzup §6 B.9): WhatsApp подключён только на чтение, ответа из EVO нет.
+  if (message.startsWith("receive_only")) return "receive_only";
   if (message.startsWith("duplicate_of_unresolved")) return "duplicate";
   if (/integration is not fresh provider-observed ready/u.test(message)) return "not_ready";
   if (/latest inbound message/u.test(message)) return "stale_source";

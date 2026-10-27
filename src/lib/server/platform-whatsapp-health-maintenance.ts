@@ -17,6 +17,7 @@ import {
 } from "./platform-messaging-backend-config.ts";
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
 import { isPlatformWahaIngressEnabled } from "./platform-waha-ingress-config.ts";
+import { isPlatformWazzupIngressEnabled } from "./platform-wazzup-ingress-config.ts";
 import { probePlatformWahaSessionForAlertUncached } from "./platform-waha-live-health.ts";
 
 /**
@@ -77,7 +78,7 @@ export function defaultWhatsAppHealthMaintenanceDependencies(): WhatsAppHealthMa
   };
 }
 
-class WhatsAppHealthDatabaseError extends Error {
+export class WhatsAppHealthDatabaseError extends Error {
   readonly word: "database" | "no_recipient";
   constructor(word: "database" | "no_recipient" = "database") {
     super("whatsapp_health_database_error");
@@ -119,7 +120,7 @@ function monitorState(value: unknown): WhatsAppHealthMonitor | null {
   return Object.freeze({ lastStatus, lastSeenAt, sinceAt, workingSinceAt });
 }
 
-type DatabaseState = Readonly<{
+export type WhatsAppHealthDatabaseState = Readonly<{
   now: number;
   monitor: WhatsAppHealthMonitor | null;
   disconnected: WhatsAppHealthOpenAlert | null;
@@ -127,7 +128,7 @@ type DatabaseState = Readonly<{
   lastInboundAt: number | null;
 }>;
 
-function parseState(value: unknown): DatabaseState {
+export function parseWhatsAppHealthState(value: unknown): WhatsAppHealthDatabaseState {
   if (!isObject(value)) throw new WhatsAppHealthDatabaseError();
   const now = timestampMs(value.now);
   if (now === null) throw new WhatsAppHealthDatabaseError();
@@ -146,7 +147,7 @@ function parseState(value: unknown): DatabaseState {
 }
 
 /** Руководитель продаж приёма WhatsApp (его назначает env приёма); null, если не задан или не UUID. */
-function salesHeadMembership(environment: Readonly<Record<string, string | undefined>>): string | null {
+export function salesHeadMembership(environment: Readonly<Record<string, string | undefined>>): string | null {
   const value = environment.EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID;
   if (value === undefined || value !== value.trim() || !UUID_PATTERN.test(value)) return null;
   const normalized = value.toLowerCase();
@@ -168,6 +169,13 @@ export async function runWhatsAppHealthMaintenance(
     log.status = "disabled";
     log.reason = "ingress_off";
     return done(0);
+  }
+  // Два приёма на один номер запрещены (план Wazzup §9): оба "1" - расхождение настройки, а не работа. Контракт env такой
+  // выпуск не пропускает, маршрут WAHA отвечает 503 `transport_conflict`; шаг WAHA ничего не опрашивает и громко падает.
+  if (isPlatformWazzupIngressEnabled(dependencies.environment)) {
+    log.status = "failed";
+    log.reason = "transport_conflict";
+    return done(1);
   }
 
   let config: PlatformMessagingBackendConfig;
@@ -225,7 +233,7 @@ export async function runWhatsAppHealthMaintenance(
 
   try {
     // 3. База: серия, открытые тревоги, последнее входящее, часы базы.
-    const state = parseState(
+    const state = parseWhatsAppHealthState(
       await rpc("whatsapp_health_read_v1", { p_organization_id: organizationId, p_session: WHATSAPP_HEALTH_SESSION }),
     );
 

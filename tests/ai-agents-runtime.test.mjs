@@ -1102,13 +1102,29 @@ function waSetup({ probe = "WORKING", authorize = () => ({ data: authorization()
 const sendInput = { organizationId: ORG, draftId: DRAFT_ID, senderMembershipId: STAFF_ID, requestId: REQ_ID };
 const marks = (service) => service.called("ai_agent_runtime_draft_mark_v1").map((call) => call.args);
 
-test("whatsapp: сессия не WORKING — черновик возвращается в pending, авторизация не запрашивается", async () => {
-  for (const probe of ["FAILED", "SCAN_QR_CODE", null]) {
-    const { service, deps, executed } = waSetup({ probe });
+test("whatsapp: сессия не WORKING — слово пробы уходит в авторизацию (ворота «только чтение» стоят раньше), отправки нет, черновик ведёт база", async () => {
+  // Миграция 325 (план Wazzup §6 B.9): база отвечает на авторизацию сама - `whatsapp_unavailable` и возвращает черновик в pending;
+  // приложение больше не помечает его само до авторизации. «Сказать нельзя» и негодное слово уходят как UNKNOWN.
+  for (const [probe, sent] of [["FAILED", "FAILED"], ["SCAN_QR_CODE", "SCAN_QR_CODE"], [null, "UNKNOWN"], ["bad word!", "UNKNOWN"], ["", "UNKNOWN"]]) {
+    const { service, deps, executed } = waSetup({ probe, authorize: () => ({ data: { authorized: false, reason: "whatsapp_unavailable" } }) });
     assert.deepEqual(await sendAiAgentWhatsAppDraft(sendInput, deps), { status: "failed", failureCode: "whatsapp_unavailable" });
-    assert.equal(service.called("ai_agent_runtime_whatsapp_authorize_v1").length, 0);
+    assert.deepEqual(service.called("ai_agent_runtime_whatsapp_authorize_v1").map((call) => call.args.p_provider_status), [sent]);
     assert.equal(executed.length, 0);
-    assert.deepEqual(marks(service).map((mark) => [mark.p_status, mark.p_failure_code]), [["pending", "whatsapp_unavailable"]]);
+    assert.equal(marks(service).length, 0, "состояние черновика ведёт база");
+  }
+  // Защита: если база всё же авторизовала при несработавшей пробе, в WhatsApp ничего не уходит.
+  const { deps, executed } = waSetup({ probe: "FAILED" });
+  assert.deepEqual(await sendAiAgentWhatsAppDraft(sendInput, deps), { status: "failed", failureCode: "unavailable" });
+  assert.equal(executed.length, 0);
+});
+
+test("whatsapp: WhatsApp подключён только на чтение (Wazzup) — база отказывает receive_only, ни claim, ни вызова WAHA, при любом состоянии пробы", async () => {
+  for (const probe of ["WORKING", "FAILED", null]) {
+    const { service, deps, executed } = waSetup({ probe, authorize: () => ({ data: { authorized: false, reason: "receive_only" } }) });
+    assert.deepEqual(await sendAiAgentWhatsAppDraft(sendInput, deps), { status: "failed", failureCode: "receive_only" }, String(probe));
+    assert.equal(executed.length, 0, "ни claim, ни вызов провайдера");
+    assert.equal(marks(service).length, 0, "черновик остаётся pending по решению базы");
+    assert.equal(service.called("ai_agent_runtime_whatsapp_authorize_v1").length, 1);
   }
 });
 
@@ -1116,6 +1132,7 @@ test("whatsapp: отказы базы переводятся в коды; чуж
   for (const [reason, code] of [
     ["whatsapp_unavailable", "whatsapp_unavailable"], ["conversation_moved_on", "conversation_moved_on"], ["conversation_closed", "conversation_closed"],
     ["rate_limited", "rate_limited"], ["staff_active", "staff_active"], ["sender_unavailable", "unavailable"], ["not_approved", "unavailable"],
+    ["receive_only", "receive_only"],
   ]) {
     const { service, deps, executed } = waSetup({ authorize: () => ({ data: { authorized: false, reason } }) });
     assert.deepEqual(await sendAiAgentWhatsAppDraft(sendInput, deps), { status: "failed", failureCode: code }, reason);

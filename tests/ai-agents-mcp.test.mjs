@@ -733,8 +733,8 @@ test("send_message: an unknown send outcome is queued_unknown and not an error",
   assert.equal(body.hint, "Итог отправки неизвестен — сотрудник проверит чат");
 });
 
-test("send_message: whatsapp_unavailable, rate_limited and staff_active leave a draft for staff", async () => {
-  for (const failureCode of ["whatsapp_unavailable", "rate_limited", "staff_active"]) {
+test("send_message: whatsapp_unavailable, rate_limited, staff_active and receive_only (Wazzup) leave a draft for staff", async () => {
+  for (const failureCode of ["whatsapp_unavailable", "rate_limited", "staff_active", "receive_only"]) {
     const { handler } = harness({ rpc: rpcWith(() => ({ data: NEEDS_DISPATCH, error: null })), sendResult: { status: "failed", failureCode } });
     const { result, body } = await toolCall(handler, "send_message", SEND_ARGS);
     assert.equal(result.isError, false, failureCode);

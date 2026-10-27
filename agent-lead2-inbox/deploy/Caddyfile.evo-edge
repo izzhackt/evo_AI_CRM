@@ -55,10 +55,14 @@
 	# token that logs must not keep, so the query value is replaced, whatever the path,
 	# in the request URI, in the Referer of the page's own sub-requests and in the
 	# Location of the app's canonical-host redirect (a student link opened on crm.).
+	# The Wazzup webhook address carries its only secret as ?token=<64 hex>
+	# (/api/v2/whatsapp/wazzup/inbound, docs/runbooks/wazzup-whatsapp.md): the value is
+	# replaced here too, or the token would sit in `docker logs evo-edge-caddy`.
 	log {
 		format filter {
 			request>uri query {
 				replace token_hash REDACTED
+				replace token REDACTED
 			}
 			request>headers>Referer regexp (token_hash=)[^&#\s]+ ${1}REDACTED
 			resp_headers>Location query {
@@ -112,6 +116,32 @@ crm.evoadmissions.com, app.evoadmissions.com {
 		max_size 105MB
 	}
 	encode zstd gzip
+
+	# WhatsApp via Wazzup (docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md 5.7). Wazzup posts
+	# from the internet, so the path is NOT in @private; it is served only on crm.
+	# - app. answers 404 (the app checks Host again);
+	# - the body is limited to the same 1 MiB the app enforces;
+	# - X-Evo-Wazzup-Ip is OVERWRITTEN with the peer address: the app's failed-token
+	#   limiter trusts only this header, never X-Forwarded-For;
+	# - while the app container is being replaced (a release) the connection fails and
+	#   Wazzup, which probably does not retry, would get a 502: lb_try_duration keeps
+	#   the request and retries the connection every 500 ms for up to 25 s (below
+	#   Wazzup's 30 s timeout). Caddy retries a POST only when the connection itself
+	#   failed (before any byte was sent), which is the case here, so a retry is safe.
+	@wazzup path /api/v2/whatsapp/wazzup/inbound
+	handle @wazzup {
+		@wazzup_not_crm not host crm.evoadmissions.com
+		respond @wazzup_not_crm 404
+		request_body {
+			max_size 1MiB
+		}
+		reverse_proxy evo-crm-app:3000 {
+			header_up X-Evo-Wazzup-Ip {remote_host}
+			lb_try_duration 25s
+			lb_try_interval 500ms
+		}
+	}
+
 	reverse_proxy evo-crm-app:3000 {
 		header_up X-Evo-Mcp-Ip {remote_host}
 	}

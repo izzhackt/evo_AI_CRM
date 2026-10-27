@@ -416,6 +416,7 @@ const DRAFT_HINTS: Readonly<Record<string, string>> = {
   whatsapp_unavailable: "WhatsApp сейчас не подключён: сообщение сохранено черновиком и ждёт сотрудника в CRM.",
   rate_limited: "Достигнут лимит отправки: сообщение сохранено черновиком и ждёт сотрудника в CRM.",
   staff_active: "В этом чате только что отвечал сотрудник: сообщение сохранено черновиком и ждёт его решения в CRM.",
+  receive_only: "WhatsApp подключён только на чтение: сообщение сохранено черновиком, ответ отправит сотрудник вручную.",
 };
 
 type Orchestration =
@@ -460,7 +461,7 @@ async function orchestrateSendMessage(
     };
   }
   const failure = sent.failureCode;
-  if (failure === "whatsapp_unavailable" || failure === "rate_limited" || failure === "staff_active") {
+  if (failure === "whatsapp_unavailable" || failure === "rate_limited" || failure === "staff_active" || failure === "receive_only") {
     return {
       ok: true,
       value: { status: "draft_created", mode: "draft", draft_id: draftId, failure_code: failure, hint: DRAFT_HINTS[failure] },

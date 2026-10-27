@@ -165,6 +165,9 @@ const AI_AGENT_AUTOSEND_SEND_PATH = "/api/internal/ai-agent/send";
 // Телефония Beeline KG (план телефонии §5.1): ВАТС без подписи, ключ `crm_token`
 // в теле; обработчик сам проверяет метод, размер, ключ и выключатель.
 const TELEPHONY_BEELINE_INBOUND_PATH = "/api/v2/telephony/beeline/inbound";
+// WhatsApp через Wazzup (план Wazzup §5.1): вебхук без подписи, секрет - токен в query; обработчик сам проверяет метод,
+// хост, токен, размер и аварийный стоп env. Путь НЕ в `@private` edge (Wazzup приходит из интернета), но только на `crm.`.
+const WAZZUP_WHATSAPP_INBOUND_PATH = "/api/v2/whatsapp/wazzup/inbound";
 // «Настройки → Телефония» (план телефонии §12, срез T4b): две команды сотрудника
 // с правом telephony.manage — настройки и сопоставление пользователей ВАТС. Два
 // точных пути, только POST (метод проверяет обработчик); остальное под
@@ -179,6 +182,7 @@ const TELEPHONY_ADMIN_API_PATHS: ReadonlySet<string> = new Set([
 const WHATSAPP_CONNECT_API_PATH = "/api/v3/settings/whatsapp-connect";
 const PLATFORM_PRIVATE_API_ALLOWLIST = new Set([
   "/api/v2/whatsapp/inbound",
+  WAZZUP_WHATSAPP_INBOUND_PATH,
   TELEPHONY_BEELINE_INBOUND_PATH,
   "/api/internal/platform-messaging/waha/work",
   "/api/internal/platform-operations/portal-overdue",

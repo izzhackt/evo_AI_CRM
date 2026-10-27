@@ -440,6 +440,27 @@ separately authorized
 Do not replace, copy, log out, or relink `crm_primary` as part of an app
 rollback.
 
+**WhatsApp through Wazzup (docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §13,
+[`docs/runbooks/wazzup-whatsapp.md`](../docs/runbooks/wazzup-whatsapp.md)).** Once
+the first Wazzup conversation exists, an image without Wazzup support cannot read
+the conversation queue (the summary of a conversation with no WAHA session is
+"invalid shape" to the older reader). So an app rollback is allowed only to the
+release that first carried Wazzup support (the Wazzup intake route and
+`/app/wazzup-ops.mjs`) or a newer one; that release also carries the receive
+switch and the webhook token in its sealed env snapshot, so intake simply keeps
+going after such a rollback. Before ANY rollback read, count only:
+
+```sql
+SELECT count(*) AS wazzup_conversations
+FROM platform.communication_conversations WHERE wazzup_channel_id IS NOT NULL;
+```
+
+More than zero and a rollback target older than that release: **the rollback is
+forbidden**; switch intake off instead (`wazzup-ops webhooks-patch --off`, then
+`wazzup-ops transport none`, no release needed) and fix forward. The rollback
+wrapper never calls Supabase (above), so it cannot enforce this check: it is a
+manual step recorded in the release evidence.
+
 If the successor cannot operate safely after an allowed app rollback, stop
 traffic under the approved incident plan. After recorded V3 acceptance, never
 route to or reactivate the V1 runtime.

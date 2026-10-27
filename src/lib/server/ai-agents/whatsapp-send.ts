@@ -16,6 +16,12 @@ import { callRpc, isRecord, type RpcOutcome } from "./deps.ts";
  * ai_agent_runtime_draft_mark_v1. Машину состояний черновика ведёт БД. Функция
  * не бросает: итог — в результате. Образец — ai-agent-send.ts (автоответчик).
  *
+ * WhatsApp через Wazzup (план Wazzup §6 B.9, §7; миграция 325): пока путь Wazzup или беседа пришла через Wazzup, база
+ * отказывает в авторизации кодом `receive_only` РАНЬШЕ любой другой проверки и оставляет черновик `pending`. Поэтому
+ * авторизация запрашивается и при несработавшей пробе WAHA (слово статуса уходит как есть, «сказать нельзя» —
+ * `UNKNOWN`): иначе в режиме «только чтение» черновик получал бы ложную причину «WhatsApp не подключён». Ни claim, ни
+ * вызова WAHA при отказе нет; тест следит за отсутствием вызова провайдера.
+ *
  * Не проверено на живом WhatsApp: сессия crm_primary отключена; путь проверяется
  * тестами с подставным провайдером.
  */
@@ -30,6 +36,7 @@ export type AiAgentWhatsAppSendResult = Readonly<{
     | "conversation_closed"
     | "rate_limited"
     | "staff_active"
+    | "receive_only"
     | "unknown_result"
     | "provider_error"
     | "unavailable";
@@ -71,6 +78,8 @@ export const AI_AGENT_SEND_VISIBILITY_TIMEOUT_SECONDS = 120;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const REASON = /^[a-z][a-z0-9_]{0,63}$/u;
+/** Слово статуса пробы, как его принимает база (`p_provider_status`). */
+const PROVIDER_STATUS = /^[A-Z][A-Z_]{0,39}$/u;
 const STEP_RETRY_DELAYS_MS = [250, 1_000] as const;
 
 const uuid = (value: unknown): string | null =>
@@ -80,7 +89,7 @@ export function aiAgentSendStepId(draftId: string, requestId: string, step: stri
   return uuidV5(AI_AGENT_SEND_ID_NAMESPACE, `${draftId}:${requestId}:${step}`);
 }
 
-const SAFE_REFUSALS: readonly string[] = ["whatsapp_unavailable", "conversation_moved_on", "conversation_closed", "rate_limited", "staff_active"];
+const SAFE_REFUSALS: readonly string[] = ["whatsapp_unavailable", "conversation_moved_on", "conversation_closed", "rate_limited", "staff_active", "receive_only"];
 
 export type ParsedAiAgentAuthorization =
   | Readonly<{ kind: "authorized"; replayed: boolean; authorization: PlatformManualWhatsAppSendAuthorization }>
@@ -220,12 +229,10 @@ export async function sendAiAgentWhatsAppDraft(
     client = await deps.serviceClient();
     const org = input.organizationId;
 
-    // 1. Живая проверка сессии WAHA, без кэша.
+    // 1. Живая проверка сессии WAHA, без кэша. Результат не обрывает путь: слово уходит в авторизацию, и база сама
+    //    решает, чем отказать (ворота «только чтение» раньше «WhatsApp не подключён»), и сама возвращает черновик в pending.
     const status = await deps.probe(org).catch(() => null);
-    if (status !== "WORKING") {
-      await mark(client, { organizationId: org, draftId: input.draftId, status: "pending", failureCode: "whatsapp_unavailable", senderMembershipId: null, provider: null }, deps);
-      return { status: "failed", failureCode: "whatsapp_unavailable" };
-    }
+    const providerStatus = status !== null && PROVIDER_STATUS.test(status) ? status : "UNKNOWN";
 
     // 2. Авторизация базы: правила, отправитель, лимиты; approved → sending.
     const observedAt = new Date(deps.now()).toISOString();
@@ -233,7 +240,7 @@ export async function sendAiAgentWhatsAppDraft(
       p_organization_id: org,
       p_draft_id: input.draftId,
       p_sender_membership_id: input.senderMembershipId,
-      p_provider_status: "WORKING",
+      p_provider_status: providerStatus,
       p_request_id: aiAgentSendStepId(input.draftId, input.requestId, "authorize"),
     });
     if (!authorize.ok) return { status: "failed", failureCode: "unavailable" };
@@ -242,7 +249,8 @@ export async function sendAiAgentWhatsAppDraft(
       const code = SAFE_REFUSALS.includes(parsed.reason) ? (parsed.reason as AiAgentWhatsAppSendResult["failureCode"]) : "unavailable";
       return { status: "failed", failureCode: code };
     }
-    if (parsed.kind !== "authorized") return { status: "failed", failureCode: "unavailable" };
+    // Авторизация при несработавшей пробе невозможна по определению базы; если пришла - в WhatsApp ничего не уходит.
+    if (parsed.kind !== "authorized" || providerStatus !== "WORKING") return { status: "failed", failureCode: "unavailable" };
     sending = true;
 
     // 3. claim → WAHA → finish тем же кодом, что у ручной отправки.

@@ -13,3 +13,17 @@ await build({
   conditions: ["react-server"],
   banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" },
 });
+
+// The Wazzup operator script (docs/runbooks/wazzup-whatsapp.md) ships the same way, as its own file:
+// `docker exec -i evo-crm-app-1 node /app/wazzup-ops.mjs <command>`. `deploy/` is not in the image and the container is
+// read-only, so the script is bundled, not copied from the repository.
+await build({
+  entryPoints: ["scripts/wazzup-ops.mjs"],
+  outfile: ".next/wazzup-ops.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node22",
+  conditions: ["react-server"],
+  banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" },
+});

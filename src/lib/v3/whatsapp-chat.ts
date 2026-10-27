@@ -221,6 +221,7 @@ export type WhatsAppChatSendStatus =
   | "closed"
   | "duplicate"
   | "not_ready"
+  | "receive_only"
   | "forbidden"
   | "invalid"
   | "unavailable";
@@ -247,6 +248,7 @@ export const SEND_REFUSAL_COPY: Readonly<Partial<Record<WhatsAppChatSendStatus, 
   closed: "Диалог закрыли — ответить из CRM нельзя. Текст остался в поле.",
   duplicate: "Такое же сообщение выше ещё не дошло до итога — дождитесь его или нажмите «Проверить» у него.",
   not_ready: "WhatsApp сейчас не принимает отправку из CRM. Текст сохранён — попробуйте позже.",
+  receive_only: "WhatsApp подключён только на чтение: ответьте клиенту из amoCRM или Wazzup. Текст остался в поле.",
   forbidden: "Отправка недоступна: права на этот чат изменились. Обновите страницу.",
   invalid: "Сообщение не прошло проверку. Уберите лишние знаки и отправьте ещё раз.",
 });

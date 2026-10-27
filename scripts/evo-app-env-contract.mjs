@@ -94,6 +94,24 @@ const TELEPHONY_CRM_TOKEN = /^[A-Za-z0-9-]{32,64}$/u;
 const TELEPHONY_PBX_TOKEN = /^[\x21-\x7e]{16,256}$/u;
 const TELEPHONY_PBX_HOST =
   /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/u;
+// WhatsApp via Wazzup (docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §5.5, §9), also optional: every name may be absent
+// or empty and the receive path stays off, so a release never fails on missing Wazzup env.
+//  - EVO_PLATFORM_WAZZUP_INGRESS_ENABLED: the emergency stop of POST /api/v2/whatsapp/wazzup/inbound; only '', 0 or 1.
+//    `1` means «receive allowed» (the working switch is the database transport) and needs a well-formed
+//    EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN and the intake owner EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID (a UUID).
+//  - EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN / _NEXT: the secret in the webhook address (?token=), exactly 64 hex characters
+//    (`openssl rand -hex 32`); _NEXT only next to the current token (rotation) and never equal to it. Each token is its
+//    own value, distinct from every other value in the file.
+//  - HARD rule (plan §9): EVO_PLATFORM_WAHA_INGRESS_ENABLED=1 together with EVO_PLATFORM_WAZZUP_INGRESS_ENABLED=1 is
+//    refused: two receive paths for one number would store every message twice.
+// The Wazzup API key is not here: it lives in the Supabase Vault (wazzup-ops set-key).
+const WAZZUP_ENABLED_NAME = "EVO_PLATFORM_WAZZUP_INGRESS_ENABLED";
+const WAZZUP_TOKEN_NAMES = Object.freeze([
+  "EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN",
+  "EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN_NEXT",
+]);
+const OPTIONAL_WAZZUP_NAMES = Object.freeze([WAZZUP_ENABLED_NAME, ...WAZZUP_TOKEN_NAMES]);
+const WAZZUP_WEBHOOK_TOKEN = /^[0-9a-f]{64}$/u;
 // «ИИ-агенты» на Claude Managed Agents (docs/design/ai-agents/contract.md §C.6;
 // ADR 0035), все имена OPTIONAL: пусто или нет — функция выключена, выпуск не
 // падает. Заданное значение должно быть well-formed.
@@ -473,6 +491,37 @@ function validateTelephonyConfiguration(entries) {
   }
 }
 
+function validateWazzupConfiguration(entries) {
+  const value = (name) => entries.get(name) ?? "";
+  const enabled = value(WAZZUP_ENABLED_NAME);
+  if (enabled !== "" && enabled !== "0" && enabled !== "1") fail("unsafe_runtime_flag");
+
+  const [current, next] = WAZZUP_TOKEN_NAMES.map(value);
+  if (current !== "" && !WAZZUP_WEBHOOK_TOKEN.test(current)) fail("optional_feature_configuration_invalid");
+  if (next !== "" && (current === "" || !WAZZUP_WEBHOOK_TOKEN.test(next))) {
+    fail("optional_feature_configuration_invalid");
+  }
+
+  for (const secretName of WAZZUP_TOKEN_NAMES) {
+    const secret = value(secretName);
+    if (secret === "") continue;
+    for (const [name, other] of entries) {
+      if (name !== secretName && other === secret) fail("optional_feature_configuration_invalid");
+    }
+  }
+
+  if (enabled === "1") {
+    if (current === "") fail("enabled_feature_configuration_missing");
+    // Two receive paths for one number: every message would arrive twice with different identifiers (plan §9).
+    if (entries.get("EVO_PLATFORM_WAHA_INGRESS_ENABLED") === "1") fail("unsafe_runtime_flag");
+    // Projection of an inbound message needs the sales owner of new conversations (the WAHA setting, plan §5.3).
+    const owner = value("EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID");
+    if (!UUID.test(owner) || owner === "00000000-0000-0000-0000-000000000000") {
+      fail("enabled_feature_configuration_missing");
+    }
+  }
+}
+
 function isCanonicalHttpsUrl(value, pathname) {
   if (value === "" || value.endsWith("/")) return false;
   try {
@@ -561,6 +610,7 @@ export function validateAppEnvironmentContract({
       !OPTIONAL_RUNTIME_NAMES.includes(name) &&
       !OPTIONAL_AUTOSEND_NAMES.includes(name) &&
       !OPTIONAL_TELEPHONY_NAMES.includes(name) &&
+      !OPTIONAL_WAZZUP_NAMES.includes(name) &&
       !OPTIONAL_AI_AGENTS_NAMES.includes(name)
     ) {
       fail("required_env_name_missing");
@@ -592,6 +642,7 @@ export function validateAppEnvironmentContract({
   validateOptionalFeatureConfiguration(actualEntries);
   validateAutosendConfiguration(actualEntries);
   validateTelephonyConfiguration(actualEntries);
+  validateWazzupConfiguration(actualEntries);
   validateAiAgentsConfiguration(actualEntries);
   return Object.freeze({ ok: true, code: "valid" });
 }

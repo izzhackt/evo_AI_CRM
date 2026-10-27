@@ -27,6 +27,30 @@ What one run does, in short:
 Its only output is one JSON line of counters and fixed words
 (`journalctl -u evo-whatsapp-health -n 20`): no number, key, token or text.
 
+**Wazzup part** (docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §5.2, §5.4;
+`docs/runbooks/wazzup-whatsapp.md`). The same run, after the WAHA part, does three
+independent Wazzup steps (nested under `wazzup` in the JSON line):
+
+- `sweep`: projects stored but not yet projected Wazzup events in small batches (50,
+  at most 4 per run) and reports the age of the oldest one (`oldest_pending_seconds`,
+  `backlog: degraded` above 30 minutes). It runs on every pass while
+  `EVO_PLATFORM_WAZZUP_INGRESS_ENABLED=1` and the database transport is Wazzup, even if
+  the Wazzup poll fails;
+- `health`: one `GET /v3/channels` with the key from the Vault (10 s timeout), the
+  channel state becomes the 321 status word for the session `wazzup` (the series is
+  written here and only here, once per run) and the same 10-minute / 3-working-hour
+  rules open and close the tasks;
+- `reconcile`: between 00:10 and 06:00 Asia/Bishkek counts yesterday's inbound messages
+  in EVO and, where an amoCRM read is configured, compares them (more than
+  `max(3, 2 %)` missing in EVO opens a `gap` task, a matching count closes it).
+
+Each step says `transport_inactive` while the database transport is not Wazzup. The
+WAHA part is unchanged; with both receive switches on it fails with
+`transport_conflict`. The Wazzup part never sends anything to a customer and calls
+Wazzup with `GET /v3/channels` only. **Do not switch Wazzup intake on before this
+timer is installed:** whatever the in-request projection (5 s) did not finish would
+stay unprojected, without an alert.
+
 Installation on the VPS is a one-off server step that needs the owner's separate
 go-ahead; it is not part of a release. Install only after the release that
 carries `/app/whatsapp-health-maintenance.mjs` and migration 321 is live:

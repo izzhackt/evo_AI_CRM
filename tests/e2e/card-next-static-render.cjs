@@ -34,7 +34,15 @@ const ROOT = cases.ROOT;
 const { ORG, uuid } = cases;
 const src = (path) => require(join(ROOT, "src", path));
 
-const CASE_SCENARIOS = ["admin", "curator-accept", "needs-curator", "closed-outcome", "assign-only", "direct-case", "unread", "fresh"];
+// Дело «admin» с настоящей панелью «Обращения студента» (в сценариях прежнего вида её чтение пусто): одно ждёт ответа, одно закрыто.
+const CASE_SCENARIOS = ["admin", "admin-help", "curator-accept", "needs-curator", "closed-outcome", "assign-only", "direct-case", "unread", "fresh"];
+const HELP_PAGE = {
+  caseId: cases.CASE_ID, nextCursor: null,
+  items: [
+    { id: "a1", subject: "Не загружается скан паспорта", body: "Синтетическое обращение для проверки вёрстки.", answer: null, status: "open", version: "1", createdAt: "2026-09-24T09:00:00.000Z", answeredAt: null },
+    { id: "a2", subject: "Вопрос про сроки", body: "Синтетическое обращение.", answer: "Синтетический ответ.", status: "answered", version: "2", createdAt: "2026-09-20T09:00:00.000Z", answeredAt: "2026-09-21T09:00:00.000Z" },
+  ],
+};
 // Лид с длинной лентой: больше пяти строк — «Ещё N» панелью.
 const NOTE_TEXTS = ["Созвонились: семья выбирает между двумя странами.", "Отправили список программ на почту.", "Родители просят перезвонить после работы.",
   "Уточнили бюджет: до 8 000 USD в год.", "Назначили консультацию на среду.", "Пришла заявка с сайта, перезвонить вечером."];
@@ -77,8 +85,13 @@ function legacyBody({ title, backHref, backLabel, parts, profile, draft, sales, 
 }
 
 function caseScenario(name) {
-  const { item, parts, hrefFor } = cases.buildParts(name);
+  const withHelp = name === "admin-help";
+  const { item, parts, hrefFor } = cases.buildParts(withHelp ? "admin" : name);
   const { caseNextParts } = src("components/v3/profile/next/CaseNext.tsx");
+  if (withHelp) {
+    const { CaseHelpPanel } = src("components/v3/profile/CaseHelpPanel.tsx");
+    parts.next = { ...parts.next, overview: { ...parts.next.overview, help: createElement(CaseHelpPanel, { initialPage: HELP_PAGE, student: false, card: true }) } };
+  }
   const next = caseNextParts(parts.next, parts.actions);
   return { name: `case-${name}`, actor: item.actor, pathname: "/v3/profile", search: `case=${cases.CASE_ID}&tab=overview`, title: cases.NAME,
     body: pageBody({ title: cases.NAME, backHref: cases.RETURN_TO, backLabel: "Студенты", next, profile: item.profile, draft: item.draft,
@@ -121,12 +134,13 @@ const { FeedNote, FeedEvent } = require("@/components/v3/profile/FeedRow");
 const h = React.createElement;
 const rows = Array.from({ length: 8 }, (_, index) => index % 2 === 0
   ? h(FeedNote, { key: index, body: "Синтетическая заметка " + (index + 1), author: "Менеджер Синтетический", at: "2026-09-2" + index + "T09:00:00.000Z", label: "2" + index + ".09" })
-  : h(FeedEvent, { key: index, text: "Синтетическое событие " + (index + 1), at: "2026-09-2" + index + "T09:00:00.000Z", label: "2" + index + ".09" }));
+  : h(FeedEvent, { key: index, text: "Синтетическое событие " + (index + 1), at: "2026-09-2" + index + "T09:00:00.000Z", label: "2" + index + ".09", href: "#case-facts" }));
 const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {}, hmrRefresh() {} };
 createRoot(document.getElementById("root")).render(
   h(AppRouterContext.Provider, { value: router },
     h("div", { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
-      h("main", { className: "mx-auto max-w-[760px] p-6" }, h(FeedCard, { testId: "feed", listTestId: "feed-items", rows, empty: "Пусто" })))));
+      h("main", { className: "mx-auto max-w-[760px] p-6" }, h("section", { id: "case-facts" }, "Сведения (цель ссылок в ленте)"), h("div", { style: { height: "1400px" } }),
+        h(FeedCard, { testId: "feed", listTestId: "feed-items", rows, empty: "Пусто" }), h("div", { style: { height: "600px" } })))));
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.ready = "true"; }));
 `;
 
@@ -212,6 +226,62 @@ async function screenshots() {
             nestedCards: [...document.querySelectorAll("[data-slot=card] [data-slot=card]")].length,
             tabs: [...document.querySelectorAll('nav[aria-label="Разделы профиля"] a')].map((element) => element.textContent.trim()),
             summary: Boolean(document.querySelector("[data-testid=v3-case-summary], [data-testid=v3-lead-summary]")),
+            // Ряд вкладок профиля принимает фокус сам: на него возвращается фокус после ответа на передачу.
+            tabNav: (() => {
+              const nav = document.querySelector('nav[aria-label="Разделы профиля"]');
+              if (!nav) return null;
+              nav.focus();
+              return { tabIndex: nav.getAttribute("tabindex"), strip: nav.hasAttribute("data-tab-strip"), takesFocus: document.activeElement === nav };
+            })(),
+            // «Передача» в боковой карточке: полоса в одну колонку, ячейки не налезают друг на друга и не выходят за себя.
+            handoff: (() => {
+              const strip = document.querySelector("[data-testid=v3-lead-handoff] [data-testid=v3-handoff-strip]");
+              if (!strip) return null;
+              const items = [...strip.querySelectorAll("[data-handoff-item]")];
+              const boxes = items.map((element) => element.getBoundingClientRect());
+              const overlap = boxes.some((a, index) => boxes.slice(index + 1).some((b) => a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1));
+              return { columns: getComputedStyle(strip).gridTemplateColumns.split(" ").length, overlap, spill: items.filter((element) => element.scrollWidth > element.clientWidth + 1).length };
+            })(),
+            // Значения сводки стоят на одной линии с соседними в своей строке (44 px цели не сдвигают текст).
+            factSpread: (() => {
+              const summary = document.querySelector("[data-testid=v3-case-summary], [data-testid=v3-lead-summary]");
+              const textTop = (element) => {
+                const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+                for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                  if (!node.textContent.trim()) continue;
+                  const range = document.createRange();
+                  range.selectNodeContents(node);
+                  return range.getBoundingClientRect().top;
+                }
+                return null;
+              };
+              const rows = new Map();
+              for (const dd of summary?.querySelectorAll("[data-slot=key-facts] dd") ?? []) {
+                const top = textTop(dd);
+                if (top === null) continue;
+                const row = Math.round(dd.previousElementSibling.getBoundingClientRect().top);
+                rows.set(row, [...(rows.get(row) ?? []), top]);
+              }
+              return Math.max(0, ...[...rows.values()].map((tops) => Math.max(...tops) - Math.min(...tops)));
+            })(),
+            // Шапка дела в сводке без своих линий поперёк (вторая линия рядом с линией карточки).
+            headerRules: (() => {
+              const header = document.querySelector("[data-testid=v3-case-header]");
+              if (!header) return null;
+              const width = header.getBoundingClientRect().width;
+              return [...header.querySelectorAll("*")].filter((element) => {
+                const style = getComputedStyle(element);
+                return (style.borderBottomWidth !== "0px" || style.borderTopWidth !== "0px") && element.getBoundingClientRect().width >= width * 0.9;
+              }).length;
+            })(),
+            // «Обращения студента» - карточка с заголовком того же размера, что у соседних («Задачи»).
+            helpTitle: (() => {
+              const card = document.querySelector("[data-testid=v3-case-help], [data-testid=v3-case-help-forbidden]");
+              if (!card) return null;
+              const title = card.querySelector("h2");
+              const sibling = document.querySelector("[data-testid=v3-case-tasks-part] h2");
+              return { text: title?.textContent.trim().slice(0, 20), size: title && getComputedStyle(title).fontSize, sibling: sibling && getComputedStyle(sibling).fontSize };
+            })(),
           };
         });
         report(`${label}: no horizontal scroll`, metrics.overflow <= 0, metrics.overflow);
@@ -219,6 +289,17 @@ async function screenshots() {
         report(`${label}: buttons >= 44px`, metrics.small.length === 0, metrics.small);
         report(`${label}: summary card, widgets, no nested cards`, metrics.summary && metrics.cards >= 4 && metrics.nestedCards === 0, { cards: metrics.cards, nested: metrics.nestedCards });
         report(`${label}: tab row is links`, metrics.tabs.length >= 2 && metrics.tabs[0] === "Обзор", metrics.tabs);
+        if (metrics.tabNav) report(`${label}: profile tabs row is focusable (tabindex 0, data-tab-strip, takes focus)`, metrics.tabNav.tabIndex === "0" && metrics.tabNav.strip && metrics.tabNav.takesFocus, metrics.tabNav);
+        if (key === "d1440" && metrics.tabs.length >= 2) {
+          await page.locator('nav[aria-label="Разделы профиля"] a').first().focus();
+          await page.keyboard.press("Tab");
+          const ring = await page.evaluate(() => ({ offset: getComputedStyle(document.activeElement).outlineOffset, visible: document.activeElement.matches(":focus-visible") }));
+          report(`${label}: tab focus ring is drawn inside the tab`, ring.visible && ring.offset === "-2px", ring);
+        }
+        if (metrics.handoff) report(`${label}: handoff strip is one column, cells do not overlap or spill`, metrics.handoff.columns === 1 && !metrics.handoff.overlap && metrics.handoff.spill === 0, metrics.handoff);
+        report(`${label}: summary values share one text line (spread <= 3px)`, metrics.factSpread <= 3, Math.round(metrics.factSpread * 10) / 10);
+        if (metrics.headerRules !== null) report(`${label}: summary header has no rule of its own`, metrics.headerRules === 0, metrics.headerRules);
+        if (metrics.helpTitle) report(`${label}: student requests card has a title as large as its siblings`, metrics.helpTitle.text.startsWith("Обращения студента") && metrics.helpTitle.size === metrics.helpTitle.sibling, metrics.helpTitle);
         if (key !== "d1280") {
           const axe = await new AxeBuilder({ page }).include("main").analyze();
           report(`${label}: axe (page)`, axe.violations.length === 0, axe.violations.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`));
@@ -272,6 +353,17 @@ async function screenshots() {
       await page.keyboard.press("Escape");
       await page.getByRole("dialog").waitFor({ state: "detached" });
       report(`overflow @${key}: Esc closes, focus returns to the button`, await trigger.evaluate((element) => element === document.activeElement), null);
+      // Ссылка строки на место этой же страницы закрывает панель, и страница остаётся у цели (фокус не тянет её назад к кнопке).
+      await trigger.click();
+      await page.getByRole("dialog").waitFor();
+      await page.getByRole("dialog").locator('a[href="#case-facts"]').first().click();
+      await page.getByRole("dialog").waitFor({ state: "detached" });
+      await page.waitForTimeout(150);
+      const jump = await page.evaluate(() => ({
+        hash: location.hash, dialogs: document.querySelectorAll("[role=dialog]").length, top: Math.round(document.getElementById("case-facts").getBoundingClientRect().top),
+        hidden: Boolean(document.querySelector("main")?.closest("[aria-hidden=true],[inert]")),
+      }));
+      report(`overflow @${key}: a same-page link closes the panel and the page stays at its target`, jump.hash === "#case-facts" && jump.dialogs === 0 && !jump.hidden && jump.top >= -2 && jump.top < 200, jump);
       report(`overflow @${key}: no browser errors`, errors.length === 0, errors);
       await context.close();
     }

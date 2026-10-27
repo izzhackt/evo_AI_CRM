@@ -13,6 +13,7 @@ import { NamedCard } from "./NamedCard";
 /**
  * «Передача»: договор, первый платёж, запись в отчёте, куратор, принято - полоса та же, что в прежнем виде.
  * «Изменить» - справа у заголовка; пока ничего не подтверждено, действие - кнопка под строкой состояния.
+ * Своя `@container`: полоса считает колонки по ширине карточки (22 rem справа - подписи над значениями), а не страницы.
  */
 function HandoffCard({ source }: Readonly<{ source: LeadNextSource }>) {
   const { handoff } = source;
@@ -25,6 +26,7 @@ function HandoffCard({ source }: Readonly<{ source: LeadNextSource }>) {
       title="Передача"
       id="lead-handoff"
       testId="v3-lead-handoff"
+      className="@container"
       actions={link && !handoff.empty ? <Button asChild variant="ghost">{link}</Button> : null}
     >
       {handoff.empty ? (

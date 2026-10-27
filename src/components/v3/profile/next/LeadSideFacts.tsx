@@ -71,10 +71,10 @@ export function LeadSideFacts({ source, interest }: Readonly<{ source: LeadNextS
   );
 }
 
-/** Телефон лида: ссылка набора с номером из карточки. */
+/** Телефон лида: ссылка набора с номером из карточки. Цель 44 px выходит за строку (`-my-3`): текст стоит на одной линии с соседними данными. */
 export function PhoneValue({ phone }: Readonly<{ phone: string }>) {
   return (
-    <a href={`tel:${phone.replace(/[^\d+]/gu, "")}`} className="flex min-h-11 w-fit items-center gap-1.5 tabular-nums text-fg underline-offset-4 hover:underline">
+    <a href={`tel:${phone.replace(/[^\d+]/gu, "")}`} className="-my-3 flex min-h-11 w-fit items-center gap-1.5 tabular-nums text-fg underline-offset-4 hover:underline">
       <Icon name="phone" size={16} className="shrink-0 text-fg-3" />{phone}
     </a>
   );

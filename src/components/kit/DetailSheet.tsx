@@ -27,6 +27,7 @@ export function DetailSheet({
   trigger,
   open,
   onOpenChange,
+  onCloseAutoFocus,
   footer,
   side = "right",
   children,
@@ -41,6 +42,8 @@ export function DetailSheet({
   trigger?: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /** Перед возвратом фокуса при закрытии; `preventDefault()` оставляет фокус как есть (панель закрыта ссылкой на место страницы). */
+  onCloseAutoFocus?: (event: Event) => void;
   footer?: React.ReactNode;
   side?: "right" | "bottom";
   children: React.ReactNode;
@@ -60,8 +63,10 @@ export function DetailSheet({
         side={side}
         {...(description ? {} : { "aria-describedby": undefined })}
         onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event);
           const target = opener.current;
           opener.current = null;
+          if (event.defaultPrevented) return;
           if (target?.isConnected) {
             event.preventDefault();
             target.focus();

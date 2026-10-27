@@ -13,7 +13,7 @@ import { SummaryCard } from "./SummaryCard";
  * Ссылки «Открыть документы / вузы / договор / переписку» не рисуются: те же переходы есть у вкладок и у «Написать».
  */
 export function caseNextParts(source: CaseNextSource, actions: ReactNode): Readonly<{ header: ReactNode; overview: ReactNode; actions: ReactNode }> {
-  const values = caseFactValues(source.overview, { links: false });
+  const values = caseFactValues(source.overview, { links: false, flush: true });
   const header = (
     <>
       {source.mark}

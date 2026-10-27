@@ -28,6 +28,7 @@ export function SectionTabs({
   defaultValue,
   onValueChange,
   className,
+  focusable = false,
 }: Readonly<{
   label: string;
   tabs: readonly SectionTab[];
@@ -35,12 +36,15 @@ export function SectionTabs({
   defaultValue?: string;
   onValueChange?: (value: string) => void;
   className?: string;
+  /** Ряд ссылок принимает фокус сам (профиль): на него возвращается фокус после ответа в панели. */
+  focusable?: boolean;
 }>) {
   if (tabs.length > 0 && tabs.every((tab) => tab.href)) {
     return (
       <div className={cn("min-w-0", className)}>
         <QueueViewTabs
           label={label}
+          focusable={focusable}
           tabs={tabs.map((tab) => ({ key: tab.key, label: tab.label, href: tab.href ?? "#", count: tab.count ?? null, current: tab.key === value }))}
         />
       </div>

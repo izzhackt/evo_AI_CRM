@@ -18,7 +18,7 @@ export type QueueTab = Readonly<{
  * переносится (высота шапки не меняется, когда рядом открыта панель): лишнее
  * прокручивается вбок внутри ряда, текущая вкладка видна (`QueueTabStrip`).
  */
-export function QueueViewTabs({ label, tabs, id, bare = false }: Readonly<{
+export function QueueViewTabs({ label, tabs, id, bare = false, focusable = false }: Readonly<{
   label: string;
   tabs: readonly QueueTab[];
   /** Якорь ряда вкладок (например, прежний адрес `#admissions-summary`). */
@@ -28,9 +28,11 @@ export function QueueViewTabs({ label, tabs, id, bare = false }: Readonly<{
    * Ряд тогда ровно по высоте вкладки и обрезает рамку фокуса снаружи — она рисуется внутри (`data-tab-ring`, v3.css).
    */
   bare?: boolean;
+  /** Вкладки профиля: ряд сам принимает фокус, рамка фокуса вкладки внутри (`QueueTabStrip`). */
+  focusable?: boolean;
 }>) {
   return (
-    <QueueTabStrip id={id} label={label}>
+    <QueueTabStrip id={id} label={label} focusable={focusable}>
       <ul
         className={bare ? "flex min-w-max items-center gap-1" : "flex min-w-max items-center gap-1 border-b border-border pb-2"}
         data-tab-ring={bare ? "inset" : undefined}

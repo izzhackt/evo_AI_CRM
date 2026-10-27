@@ -190,6 +190,7 @@ export function Profile({
       {tabs.length > 1 && nextUi ? (
         <SectionTabs
           label="Разделы профиля"
+          focusable
           value={current}
           tabs={tabs.map((entry) => ({ key: entry.key, label: entry.title, href: hrefFor(entry.key) }))}
         />

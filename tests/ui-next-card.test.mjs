@@ -29,8 +29,8 @@ function summaryFacts(html) {
   return [...block.matchAll(/<dt /gu)].length;
 }
 
-test("сценарии собираются: восемь дел, семь лидов и три исхода «Интересует»", () => {
-  assert.equal(CASES.length, 8);
+test("сценарии собираются: девять дел, семь лидов и три исхода «Интересует»", () => {
+  assert.equal(CASES.length, 9);
   assert.equal(LEADS.length, 7);
   assert.equal([...pages.keys()].filter((name) => name.startsWith("widget-interest-")).length, 3);
 });
@@ -44,6 +44,8 @@ test("каждая карточка — рамка нового вида, сво
     // Вкладки — настоящие ссылки `?tab=` с `aria-current`, а не вкладки на месте; прежнего ряда `v3-profile-tabs` нет.
     assert.match(html, /<nav aria-label="Разделы профиля"[^>]*>[\s\S]*?<a [^>]*aria-current="page"[^>]*>Обзор<\/a>/u, `${name}: вкладки-ссылки`);
     assert.doesNotMatch(html, /data-testid="v3-profile-tabs"/u, `${name}: прежнего ряда вкладок нет`);
+    // Ряд принимает фокус сам (на него возвращается фокус после ответа на передачу), рамка вкладки внутри (`data-tab-strip`).
+    assert.match(html, /<nav aria-label="Разделы профиля" tabindex="0" data-tab-strip=""/u, `${name}: ряд вкладок принимает фокус`);
     assert.ok([...html.matchAll(/data-slot="card"/gu)].length >= 4, `${name}: страница — набор карточек`);
     assert.doesNotMatch(html, /<aside/u, `${name}: «Сведения» — карточка, а не боковая колонка прежнего вида`);
   }
@@ -180,4 +182,44 @@ test("прежний вид не тронут признаком: вкладки
   assert.match(profile, /<HelpTip label="Пояснение: Подтверждение вручную">/u);
   // Шапка дела: без `bare` линии сверху и снизу ряда прежние.
   assert.match(read("src/components/v3/profile/CaseHeader.tsx"), /input\.bare \? "grid grid-cols-1 sm:flex sm:flex-wrap" : "grid grid-cols-1 border-y border-border sm:flex sm:flex-wrap"/u);
+});
+
+test("замечания ревью: «Передача» считает колонки по своей карточке, обращения - карточка с заголовком, шапка без второй линии", () => {
+  // «Передача» в боковой колонке (22 rem): своя `@container`, иначе полоса из пяти колонок считается по ширине страницы.
+  for (const name of ["lead-handed", "lead-potential"]) {
+    assert.match(page(name), /class="[^"]*@container"[^>]*id="lead-handoff"/u, `${name}: «Передача» - своя @container`);
+  }
+  // «Обращения студента»: заголовок карточки (как у «Задач»), счёт у заголовка и «ждут ответа» справа; без прежней рамки-раскрытия.
+  const help = page("case-admin-help");
+  assert.match(help, /<h2 data-slot="card-title"[^>]*>Обращения студента<span[^>]*>2<\/span><\/h2>/u);
+  assert.match(help, /data-testid="v3-case-help"[\s\S]*?ждут ответа: 1/u);
+  assert.doesNotMatch(help, /<details[^>]*>\s*<summary[^>]*>\s*<span[^>]*>\s*<span[^>]*>Обращения студента/u);
+  // Заголовок обращения - h3 сразу под заголовком карточки (h2), без пропуска уровня.
+  assert.match(help, /<h3 class="break-words font-semibold text-fg">Не загружается скан паспорта<\/h3>/u);
+  // Читатель «Ждут куратора» без права на дело: то же имя карточки и честное «нет доступа».
+  assert.match(page("case-assign-only"), /<h2 data-slot="card-title"[^>]*>Обращения студента<\/h2>[\s\S]*?Нет доступа к обращениям этого дела\./u);
+  assert.match(page("case-assign-only"), /data-testid="v3-case-help-forbidden"/u);
+  assert.doesNotMatch(page("case-admin"), /Обращения студента/u, "чтения обращений нет - карточки нет");
+  // «Назначить куратора» внутри сводки: своей нижней линии у обёртки нет (линия карточки одна); вне сводки - прежняя.
+  const needs = page("case-needs-curator");
+  const header = needs.slice(needs.indexOf('data-testid="v3-case-header"'), needs.indexOf("Назначить куратора"));
+  assert.doesNotMatch(header, /border-b border-border pb-3/u);
+  assert.match(read("src/components/v3/profile/CaseHeader.tsx"), /className=\{input\.bare \? undefined : "border-b border-border pb-3"\}/u);
+  // 44 px цели телефона и «Сменить» выходят за строку (`-my-3`), только в новом виде; прежняя строка «Направление» не тронута.
+  assert.match(page("lead-potential"), /<a href="tel:\+996000000002" class="-my-3 flex min-h-11/u);
+  assert.match(read("src/components/v3/profile/next/CaseNext.tsx"), /caseFactValues\(source\.overview, \{ links: false, flush: true \}\)/u);
+  assert.match(read("src/components/v3/profile/CaseDirection.tsx"), /className=\{flush \? `\$\{FACT_ACTION\} -my-3` : FACT_ACTION\}/u);
+  assert.match(read("src/components/v3/profile/CaseOverview.tsx"), /requestId=\{input\.directionAction\.requestId\} flush=\{options\.flush\}/u);
+});
+
+test("«Ещё N»: ссылка строки на место страницы закрывает панель и не возвращает фокус на кнопку; вкладки профиля берут `focusable`", () => {
+  const overflow = read("src/components/v3/profile/next/FeedOverflow.tsx");
+  assert.match(overflow, /open=\{open\}/u);
+  assert.match(overflow, /closest\('a\[href\^="#"\]'\)/u);
+  assert.match(overflow, /onCloseAutoFocus=\{\(event\) => \{\s*if \(!toAnchor\.current\) return;/u);
+  // Возврат фокуса остался прежним для Esc и крестика: `DetailSheet` зовёт чужой обработчик первым и уважает `preventDefault`.
+  assert.match(read("src/components/kit/DetailSheet.tsx"), /onCloseAutoFocus\?\.\(event\);[\s\S]*?if \(event\.defaultPrevented\) return;/u);
+  assert.match(read("src/components/v3/profile/Profile.tsx"), /<SectionTabs\s+label="Разделы профиля"\s+focusable\s+value=\{current\}/u);
+  assert.match(read("src/components/kit/SectionTabs.tsx"), /<QueueViewTabs\s+label=\{label\}\s+focusable=\{focusable\}/u);
+  assert.match(read("src/components/v3/queue/QueueViewTabs.tsx"), /<QueueTabStrip id=\{id\} label=\{label\} focusable=\{focusable\}>/u);
 });

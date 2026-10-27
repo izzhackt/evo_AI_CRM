@@ -22,6 +22,7 @@ import { LeadEditGroups } from "./LeadEditGroups";
 import { HandoffResponseSummary } from "./ProfileSalesTransition";
 import { FeedMore } from "./FeedMore";
 import { FEED_LINK, FeedChat, FeedEvent, FeedNote, FeedPointer } from "./FeedRow";
+import { NamedCard } from "./next/NamedCard";
 import {
   CASE_FACTS_ID,
   CASE_FEED_SHOWN,
@@ -78,6 +79,8 @@ export type CaseOverviewInput = Readonly<{
   salesDataSummary: string;
   salesDataOpen: boolean;
   help: ReactNode;
+  /** Читатель «Ждут куратора» без права на дело: вместо обращений - «нет доступа» (`help` это и есть). «Новый вид» рисует то же карточкой. */
+  helpNoAccess?: boolean;
   /** Лента (`caseFeed`) и заметка в одну строку; null — писать заметки нельзя (просмотр роли). */
   feed: Readonly<{ items: readonly CaseFeedItem[]; eventsUnavailable: boolean }>;
   noteComposer: ReactNode;
@@ -277,7 +280,7 @@ export function chatValue(input: CaseOverviewInput, link = true): ReactNode {
  * дела, переписка, оплата, портал. Один источник для двух видов: прежний «Обзор» кладёт их в строки `Fact`,
  * «Новый вид» - в `KeyFacts`. Нет чтения - нет значения (`null`), строка не рисуется.
  */
-export function caseFactValues(input: CaseOverviewInput, options: Readonly<{ links?: boolean }> = {}) {
+export function caseFactValues(input: CaseOverviewInput, options: Readonly<{ links?: boolean; flush?: boolean }> = {}) {
   const links = options.links ?? true;
   const handoff = input.handoff;
   const answered = handoff !== null && handoff.assignmentEventId !== null && !studentsHandoffPending(handoff);
@@ -293,7 +296,7 @@ export function caseFactValues(input: CaseOverviewInput, options: Readonly<{ lin
   return {
     direction: input.directionAction ? (
       <CaseDirection studentCaseId={input.studentCaseId} current={input.directionAction.current}
-        expectedVersion={input.directionAction.expectedVersion} requestId={input.directionAction.requestId} />
+        expectedVersion={input.directionAction.expectedVersion} requestId={input.directionAction.requestId} flush={options.flush} />
     ) : (input.direction ?? "Не выбрано"),
     curator: (
       <>
@@ -416,7 +419,14 @@ export function Groups({ input, bare = false }: Readonly<{ input: CaseOverviewIn
  * (248/281): обращения ему не читаются, поэтому вместо чтения с «Обновите
  * страницу» — тот же заголовок и честное «нет доступа».
  */
-export function CaseHelpNoAccess() {
+export function CaseHelpNoAccess({ card = false }: Readonly<{ card?: boolean }>) {
+  if (card) {
+    return (
+      <NamedCard title="Обращения студента" id="case-help" testId="v3-case-help-forbidden">
+        <p className="t-body-compact text-fg-2">Нет доступа к обращениям этого дела.</p>
+      </NamedCard>
+    );
+  }
   return (
     <section id="case-help" className="border-y border-border py-3" data-testid="v3-case-help-forbidden">
       <h3 className="t-item text-fg">Обращения студента</h3>

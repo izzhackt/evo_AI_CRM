@@ -469,7 +469,7 @@ export default async function ProfilePart({
       salesDataOpen: singleSearchParam(params.panel) === "sales",
       help: actor.presentationRole !== "sales" ? (
         <Suspense fallback={<p role="status" className="t-body-compact text-fg-2">Загружаем обращения студента…</p>}>
-          <CaseHelpWorkspace actor={actor} caseId={caseTarget.studentCaseId} />
+          <CaseHelpWorkspace actor={actor} caseId={caseTarget.studentCaseId} card={nextUi} />
         </Suspense>
       ) : null,
     });

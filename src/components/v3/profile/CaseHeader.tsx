@@ -101,7 +101,7 @@ export function CaseHeader(input: CaseHeaderInput) {
         </p>
       ) : null}
       {input.coverage && work.needsCurator ? (
-        <div className="border-b border-border pb-3">
+        <div className={input.bare ? undefined : "border-b border-border pb-3"}>
           <AssignCaseCuratorForm studentCaseId={input.studentCaseId} curators={input.curators} requestId={input.assignCuratorRequestId} />
         </div>
       ) : null}

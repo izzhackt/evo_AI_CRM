@@ -13,6 +13,10 @@ import { Profile } from "@/components/v3/profile/Profile";
 import { CaseHelpWorkspace } from "@/components/v3/profile/CaseHelpWorkspace";
 import { caseWorkParts } from "@/components/v3/profile/CaseWorkParts";
 import { leadWorkParts } from "@/components/v3/profile/LeadWorkParts";
+import { caseNextParts } from "@/components/v3/profile/next/CaseNext";
+import { CaseHelpCardWorkspace } from "@/components/v3/profile/next/CaseHelpCardWorkspace";
+import { leadNextParts } from "@/components/v3/profile/next/LeadNext";
+import { ProfileNextShell } from "@/components/v3/profile/next/ProfileNextShell";
 import { LeadChannelFact } from "@/components/v3/profile/LeadChannelFact";
 import { LeadInterestFact } from "@/components/v3/profile/LeadInterestFact";
 import { WebsiteLeadSubmissions } from "@/components/v3/profile/WebsiteLeadSubmissions";
@@ -46,6 +50,7 @@ import {
   type PlatformCaseNoteCursor,
 } from "@/lib/platform-case-notes";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { isNextUi } from "@/lib/ui-next";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { v3SectionTitle } from "@/lib/v3/navigation";
@@ -251,6 +256,9 @@ export default async function ProfilePart({
 }) {
   const actor = await requireV3PageActor("/v3/profile");
   const params = await searchParams;
+  // «Новый вид» (27.10.2026): карточка лида и дела из набора виджетов — только настоящему администратору с
+  // переключателем; данные, права и действия те же (`isNextUi`), меняется разметка.
+  const nextUi = await isNextUi(actor);
   const directoryParams = parseV3ProfileCaseDirectoryParams(params);
   const docsMode = singleSearchParam(params.section) === "docs"
     && staffPresentationCan(actor, "admissions.read")
@@ -462,7 +470,9 @@ export default async function ProfilePart({
       salesDataOpen: singleSearchParam(params.panel) === "sales",
       help: actor.presentationRole !== "sales" ? (
         <Suspense fallback={<p role="status" className="t-body-compact text-fg-2">Загружаем обращения студента…</p>}>
-          <CaseHelpWorkspace actor={actor} caseId={caseTarget.studentCaseId} />
+          {nextUi
+            ? <CaseHelpCardWorkspace actor={actor} caseId={caseTarget.studentCaseId} />
+            : <CaseHelpWorkspace actor={actor} caseId={caseTarget.studentCaseId} />}
         </Suspense>
       ) : null,
     });
@@ -512,6 +522,10 @@ export default async function ProfilePart({
     hrefFor,
     now: new Date(),
   }) : null;
+  // «Новый вид»: те же части (`caseWorkParts` / `leadWorkParts`), другая раскладка; без признака — прежний вид.
+  const nextParts = nextUi
+    ? caseParts?.next ? caseNextParts(caseParts.next, caseParts.actions) : leadParts ? leadNextParts(leadParts.next) : null
+    : null;
   // «Похоже на» (#1198, пункт 2): номер лида или дела записан как телефон родителя в анкете другого студента.
   // Только подсказка, ничего не объединяется; что показать именно этому сотруднику, решает база (миграция 306):
   // читаемые дела со ссылкой, а для дела, которого он не читает (менеджер продаж), только факт совпадения.
@@ -548,70 +562,77 @@ export default async function ProfilePart({
     </Link>
   ) : undefined;
 
-  return (
-    <PartShell title={view ? leadDisplayName(view.profile.source, view.profile.person) : docsMode ? "EVO Docs"
-      : closedLead ? closedLead.name ?? "Лид без имени" : "Студенты"}
+  const title = view ? leadDisplayName(view.profile.source, view.profile.person) : docsMode ? "EVO Docs"
+    : closedLead ? closedLead.name ?? "Лид без имени" : "Студенты";
+  const content = (
+    <div className={nextParts ? "space-y-4" : "space-y-6"}>
+      {queuePage?.content ?? null}
+      {directory ? (
+        <StudentsDirectoryFallback directory={directory} params={directoryParams} docsMode={docsMode} />
+      ) : null}
+      {view ? (
+        <>
+          {caseParts || leadParts ? null : <Link
+            className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg"
+            href={requestsReturnTo ?? pipelineBackHref ?? directoryHref}
+          >
+            {requestsReturnTo ? "К списку заявок" : pipelineBackHref ? "К воронке продаж" : docsMode ? "К списку EVO Docs" : "К списку студентов"}
+          </Link>}
+          {!leadParts && view.details.routeTarget.leadId && !isStaffPreview(actor) ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем заявки с сайта…</p>}>
+            <WebsiteLeadSubmissions actor={actor} leadId={view.details.routeTarget.leadId} />
+          </Suspense> : null}
+          {lookalikeSubject && !isStaffPreview(actor) ? <Suspense fallback={null}>
+            <ParentPhoneLookalikes actor={actor} subject={lookalikeSubject} />
+          </Suspense> : null}
+          <Profile
+            key={[actor.organizationId, actor.authUserId, actor.systemRole, actor.presentationRole,
+              view.details.routeTarget.studentCaseId ? `case:${view.details.routeTarget.studentCaseId}` : `lead:${view.details.routeTarget.leadId}`].join(":")}
+            profile={view.profile}
+            universityProgramsTab={tab === "route" ? <UniversityProgramsTab actor={actor} draft={view.details} routeHref={hrefFor("route")}
+              packetsInitiallyOpen={singleSearchParam(params.panel) === "packets"}
+              packetApplicationId={singleSearchParam(params.packet_application) ?? null} /> : undefined}
+            caseHeader={nextParts?.header ?? caseParts?.header ?? leadParts?.header ?? undefined}
+            caseOverview={nextParts?.overview ?? caseParts?.overview ?? leadParts?.overview ?? undefined}
+            nextUi={nextParts !== null}
+            draft={view.details}
+            sales={view.sales}
+            actor={actor}
+            organizationId={actor.organizationId}
+            studentPortalCurators={studentPortalCurators}
+            studentPortalCuratorsAvailable={studentPortalCuratorsAvailable}
+            requestIds={requestIds}
+            noteRequestId={randomUUID()}
+            notes={toProfileNotesSnapshot(view.notes.subject, view.notes.page)}
+            notesOlderHref={notesOlderHref}
+            notesLatestHref={notesLatestHref}
+            contractResult={contractResult}
+            contractRetry={contractRetry}
+            tab={tab}
+            hrefFor={hrefFor}
+            documentsFilter={parseDocumentStateFilter(singleSearchParam(params[DOCUMENT_STATE_PARAM]))}
+          />
+        </>
+      ) : closedLead ? (
+        <ClosedLeadView row={closedLead} readOnly={isStaffPreview(actor)} />
+      ) : invalidIdentityShape || missing ? (
+        <div className="border-t border-border py-5">
+          <p className="t-body text-fg-2">
+            {invalidIdentityShape ? "Ссылка на профиль некорректна." : "Профиль не найден или недоступен вам."}
+          </p>
+          <Link href={requestsReturnTo ?? directoryHref} className="mt-2 inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">
+            {requestsReturnTo ? "К списку заявок" : "К списку"}
+          </Link>
+        </div>
+      ) : null}
+    </div>
+  );
+  return nextParts ? (
+    <ProfileNextShell title={title} actions={nextParts.actions} back={caseBack ?? leadBack}>{content}</ProfileNextShell>
+  ) : (
+    <PartShell title={title}
       count={queuePage?.count ?? null} action={docsAction ?? caseParts?.actions ?? leadParts?.actions} dense={queuePage !== null || caseParts !== null || leadParts !== null}
       back={caseBack ?? leadBack ?? closedLeadBack}>
-      <div className="space-y-6">
-        {queuePage?.content ?? null}
-        {directory ? (
-          <StudentsDirectoryFallback directory={directory} params={directoryParams} docsMode={docsMode} />
-        ) : null}
-        {view ? (
-          <>
-            {caseParts || leadParts ? null : <Link
-              className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg"
-              href={requestsReturnTo ?? pipelineBackHref ?? directoryHref}
-            >
-              {requestsReturnTo ? "К списку заявок" : pipelineBackHref ? "К воронке продаж" : docsMode ? "К списку EVO Docs" : "К списку студентов"}
-            </Link>}
-            {!leadParts && view.details.routeTarget.leadId && !isStaffPreview(actor) ? <Suspense fallback={<p role="status" className="text-sm text-fg-2">Загружаем заявки с сайта…</p>}>
-              <WebsiteLeadSubmissions actor={actor} leadId={view.details.routeTarget.leadId} />
-            </Suspense> : null}
-            {lookalikeSubject && !isStaffPreview(actor) ? <Suspense fallback={null}>
-              <ParentPhoneLookalikes actor={actor} subject={lookalikeSubject} />
-            </Suspense> : null}
-            <Profile
-              key={[actor.organizationId, actor.authUserId, actor.systemRole, actor.presentationRole,
-                view.details.routeTarget.studentCaseId ? `case:${view.details.routeTarget.studentCaseId}` : `lead:${view.details.routeTarget.leadId}`].join(":")}
-              profile={view.profile}
-              universityProgramsTab={tab === "route" ? <UniversityProgramsTab actor={actor} draft={view.details} routeHref={hrefFor("route")}
-                packetsInitiallyOpen={singleSearchParam(params.panel) === "packets"}
-                packetApplicationId={singleSearchParam(params.packet_application) ?? null} /> : undefined}
-              caseHeader={caseParts?.header ?? leadParts?.header ?? undefined}
-              caseOverview={caseParts?.overview ?? leadParts?.overview ?? undefined}
-              draft={view.details}
-              sales={view.sales}
-              actor={actor}
-              organizationId={actor.organizationId}
-              studentPortalCurators={studentPortalCurators}
-              studentPortalCuratorsAvailable={studentPortalCuratorsAvailable}
-              requestIds={requestIds}
-              noteRequestId={randomUUID()}
-              notes={toProfileNotesSnapshot(view.notes.subject, view.notes.page)}
-              notesOlderHref={notesOlderHref}
-              notesLatestHref={notesLatestHref}
-              contractResult={contractResult}
-              contractRetry={contractRetry}
-              tab={tab}
-              hrefFor={hrefFor}
-              documentsFilter={parseDocumentStateFilter(singleSearchParam(params[DOCUMENT_STATE_PARAM]))}
-            />
-          </>
-        ) : closedLead ? (
-          <ClosedLeadView row={closedLead} readOnly={isStaffPreview(actor)} />
-        ) : invalidIdentityShape || missing ? (
-          <div className="border-t border-border py-5">
-            <p className="t-body text-fg-2">
-              {invalidIdentityShape ? "Ссылка на профиль некорректна." : "Профиль не найден или недоступен вам."}
-            </p>
-            <Link href={requestsReturnTo ?? directoryHref} className="mt-2 inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">
-              {requestsReturnTo ? "К списку заявок" : "К списку"}
-            </Link>
-          </div>
-        ) : null}
-      </div>
+      {content}
     </PartShell>
   );
 }

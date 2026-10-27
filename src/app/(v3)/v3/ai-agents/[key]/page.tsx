@@ -8,6 +8,7 @@ import { AgentBody } from "@/components/v3/ai-agents/AgentBody";
 import { AgentChatShell } from "@/components/v3/ai-agents/AgentChatShell";
 import { AgentSwitches } from "@/components/v3/ai-agents/AgentSwitches";
 import { AgentTabs } from "@/components/v3/ai-agents/AgentTabs";
+import { NextAgentPageLazy, NextAgentUnavailableLazy } from "@/components/v3/ai-agents-next/NextAgentsLazy";
 import { NotReady, Unavailable } from "@/components/v3/ai-agents/Notices";
 import { Icon } from "@/components/icons";
 import { PartShell } from "@/components/v3/PartShell";
@@ -15,8 +16,10 @@ import { taskComposerAccess } from "@/components/v3/tasks/task-composer-access";
 import { AI_AGENT_CATALOG, isAiAgentKey } from "@/lib/ai-agents/contract";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { isNextUi } from "@/lib/ui-next";
 import { v3SectionTitle } from "@/lib/v3/navigation";
 import { computeAiAgentConfigHash, resolveAiAgentsMcpUrl } from "@/lib/server/ai-agents/config-hash";
+import { nextAgentDefaults } from "@/lib/server/ai-agents/next-defaults";
 import { aiAgentsRuntimeAvailability, aiAgentsWhatsappDailyCapCents, readAiAgentWhatsappCap, reconcileAiAgentRuns } from "@/lib/server/ai-agents/runtime";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -63,6 +66,8 @@ const TWELVE_HOURS = 12 * 60 * 60 * 1000;
  * считает сервер. Неизвестный ключ или вкладка — 404. «Поручить» — чат на
  * всю рабочую область (`AgentChatShell`: тонкая шапка в одну строку, без
  * потолка 1240 px, высота окна) и получает собственные разговоры сотрудника.
+ * «Новый вид» (27.10.2026): те же чтения и те же свойства, другой вид — только настоящему администратору с включённым
+ * переключателем (`isNextUi`); остальные видят прежний вид без изменений.
  */
 export default async function AiAgentPage({
   params,
@@ -81,6 +86,8 @@ export default async function AiAgentPage({
 
   const read = await readAiAgent(actor, key);
   if (read.status === "missing") notFound();
+  const nextUi = await isNextUi(actor);
+  if (nextUi && read.status !== "available") return <NextAgentUnavailableLazy agentKey={key} status={read.status} />;
   const back = (
     <Link href={AI_AGENTS_HUB_HREF} className="mb-3 inline-flex min-h-11 items-center gap-1.5 rounded-nav t-label text-fg-2 hover:text-fg">
       <Icon name="arrow-left" size={16} /> Все ИИ-агенты
@@ -141,6 +148,32 @@ export default async function AiAgentPage({
     ? await readAiAgentWhatsappCap({ staffClient: await createSupabaseServerClient(), actor }, { key, runBudgetUsd: detail.runBudgetUsd })
     : null;
 
+  const bodyProps = {
+    detail,
+    tab,
+    now,
+    canEdit,
+    canManage,
+    preview,
+    runtimeConfigured: runtime.configured,
+    needsSync,
+    digests: digestsRead,
+    runs: runsRead,
+    runsLimit: route.runsLimit,
+    run: runRead,
+    runId: route.runId,
+    drafts: draftsRead,
+    draftsFilter: route.draftsFilter,
+    resume,
+    conversations,
+    canMakeTasks: taskAccess.staff || taskAccess.case,
+    viewerName: actor.displayName,
+    whatsappDailyCapCents: aiAgentsWhatsappDailyCapCents(),
+    whatsappCapState,
+  };
+  // Тексты по умолчанию — только то, что нужно вкладке (как у `AgentBody`): каталог в файлы для браузера не попадает.
+  if (nextUi) return <NextAgentPageLazy {...bodyProps} defaults={nextAgentDefaults(key, tab)} />;
+
   const switches = (
     <AgentSwitches
       agentKey={key}
@@ -151,31 +184,7 @@ export default async function AiAgentPage({
       canEdit={canEdit}
     />
   );
-  const content = (
-    <AgentBody
-      detail={detail}
-      tab={tab}
-      now={now}
-      canEdit={canEdit}
-      canManage={canManage}
-      preview={preview}
-      runtimeConfigured={runtime.configured}
-      needsSync={needsSync}
-      digests={digestsRead}
-      runs={runsRead}
-      runsLimit={route.runsLimit}
-      run={runRead}
-      runId={route.runId}
-      drafts={draftsRead}
-      draftsFilter={route.draftsFilter}
-      resume={resume}
-      conversations={conversations}
-      canMakeTasks={taskAccess.staff || taskAccess.case}
-      viewerName={actor.displayName}
-      whatsappDailyCapCents={aiAgentsWhatsappDailyCapCents()}
-      whatsappCapState={whatsappCapState}
-    />
-  );
+  const content = <AgentBody {...bodyProps} />;
 
   // «Поручить» — чат на всю рабочую область (оболочка отдаёт колонку высотой в окно по `isFillRoute`).
   if (tab === "command") {

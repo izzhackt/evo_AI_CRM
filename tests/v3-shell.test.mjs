@@ -419,11 +419,12 @@ test("one shell for every staff member: the layout has no look switch, the old s
   const layout = read("src/app/(v3)/layout.tsx");
   // Счётчик запросов на удаление аккаунта (миграция 315, UI-F6) приходит от сервера вместе с уведомлениями; пункт «Финансы»
   // (миграция 323) — точная проверка права на всю организацию, её тоже считает layout.
-  assert.match(layout, /<div className="v3-world" data-surface="staff">\s*<AppShell actor=\{actor\} initialNotifications=\{notifications\} deletionRequests=\{deletionRequests\} financeSection=\{financeSection\}>/u);
+  // «Новый вид» (27.10.2026): `data-ui` и `nextUi` — только настоящему администратору с включённым переключателем (tests/ui-next-foundation.test.mjs).
+  assert.match(layout, /<div className="v3-world" data-surface="staff" data-ui=\{nextUi\?\.enabled \? "next" : undefined\}>\s*<AppShell actor=\{actor\} initialNotifications=\{notifications\} deletionRequests=\{deletionRequests\} financeSection=\{financeSection\} nextUi=\{nextUi\}>/u);
   assert.doesNotMatch(layout, /look/iu, "no look is read or passed");
   assert.equal(existsSync(new URL("../src/components/v3/AppShellNext.tsx", import.meta.url)), false, "one shell file");
   const appShell = read("src/components/v3/AppShell.tsx");
-  assert.match(appShell, /export function AppShell\(\{\s*children,\s*actor,\s*initialNotifications,\s*deletionRequests = null,\s*financeSection,\s*\}/u);
+  assert.match(appShell, /export function AppShell\(\{\s*children,\s*actor,\s*initialNotifications,\s*deletionRequests = null,\s*financeSection,\s*nextUi = null,\s*\}/u);
   assert.doesNotMatch(appShell, /CurrentAppShell|AppShellNext|look|md:min-h-16|Открыть навигацию/u, "no second shell and no top bar");
   // Колокольчик — один вид: кнопка меню с панелью в верхнем слое.
   const notifications = read("src/components/v3/StaffNotifications.tsx");

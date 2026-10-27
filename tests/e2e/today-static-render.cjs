@@ -34,6 +34,9 @@
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
 const Module = require("node:module");
+require("./next-dynamic-alias.cjs");
+const { renderSettled } = require("./render-settled.cjs");
+const { assertFlightProps } = require("./flight-props.cjs");
 const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
 const ts = require("typescript");
@@ -89,6 +92,7 @@ const { staffRoleKeys } = require("./staff-role-templates.cjs");
 const { buildTodayQueue, todayDateLabel } = require(join(ROOT, "src/lib/v3/today-queue.ts"));
 const { TodayBoardLinks, TodayScreen } = require(join(ROOT, "src/components/v3/today/TodayScreen.tsx"));
 const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
+const { TodayNextPage } = require(join(ROOT, "src/components/v3/today-next/TodayNextPage.tsx"));
 
 // --- синтетические данные ---------------------------------------------------
 // «Сейчас» — суббота 26.09.2026, 10:00 по Бишкеку (04:00 UTC).
@@ -332,6 +336,29 @@ async function buildPage(name) {
 }
 
 /**
+ * «Новый вид» (27.10.2026): та же очередь и те же права, что у `buildPage`, но страница — `TodayNextPage` (`PageShell` с
+ * досками в шапке и `TodayNext`: плитки и виджеты групп). Сборка повторяет ветку `isNextUi` в `main/page.tsx`; саму страницу
+ * с cookie и без неё гоняет `--page-json` (настоящий `main/page.tsx`).
+ */
+async function buildNextPage(name) {
+  const scenario = SCENARIOS[name];
+  const who = ACTORS[scenario.actor];
+  const { access, reads } = await readTodayQueue(who, { now: NOW, readers: readers(scenario.data) });
+  const queue = buildTodayQueue(reads, NOW);
+  const { boards, mainAction } = todayLinks(who, access, { canReadReport: staffCan(who, "sales.report.read") });
+  const admin = who.systemRole === "admin";
+  const has = (key) => admin || who.permissionKeys.includes(key);
+  const permissions = {
+    actorMembershipId: ME, admin, preview: false, staffComplete: has("staff.task.complete"), staffEdit: has("staff.task.edit"),
+    caseManage: has("task.manage"), caseAssign: has("task.assign"),
+  };
+  const props = { queue, nowIso: NOW.toISOString(), permissions, mainAction };
+  // `TodayNextPage` — то, что страница подгружает лениво (`TodayNextLazy`): рамка и виджеты одним куском.
+  const node = createElement(TodayNextPage, { boards, ...props });
+  return { who, node, props };
+}
+
+/**
  * «Отчёт продаж» с разделом «Динамика по дням» (графики и воронка ушли сюда
  * со стартовой страницы). Страница — настоящий `SalesRegisterView`: его
  * чтения подменены синтетическими записями (require.cache), раздел —
@@ -481,6 +508,17 @@ async function renderFullPage(name) {
   return renderToStaticMarkup(withContexts(page, report ? reportSearch(report) : ""));
 }
 
+async function renderNextFullPage(name) {
+  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
+  const { who, node } = await buildNextPage(name);
+  const page = createElement(
+    "div",
+    { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
+    createElement(AppShell, { actor: who, initialNotifications: null }, node),
+  );
+  return renderSettled(withContexts(page, ""));
+}
+
 /**
  * Отчёт продаж: раздел открыт (выбран период) или свёрнут по умолчанию под
  * записями; `leadsOnly` — роль с lead.read без записей (Admissions по 173):
@@ -603,6 +641,151 @@ async function screenshots() {
   }
 }
 
+
+
+
+// Cookie «Нового вида»: страница спрашивает `isNextUi`; вне запроса `cookies()` не работает, поэтому сценарий задаёт её сам.
+let nextCookie = false;
+require("next/headers").cookies = async () => ({
+  get: (name) => (name === "evo_ui" && nextCookie ? { name, value: "next" } : undefined),
+});
+
+/**
+ * Настоящая `main/page.tsx` с cookie «Нового вида» и без неё, для администратора, просмотра роли и сотрудника: подменены
+ * только границы — актёр страницы и читатели очереди (как в `shell-static-render.cjs`). Нужна для проверки, что новый вид
+ * выбирает именно переключатель и именно настоящий администратор, а у остальных страница прежняя.
+ *   node tests/e2e/today-static-render.cjs --page-json
+ */
+async function pageJson() {
+  const guards = require(join(ROOT, "src/lib/platform-guards.ts"));
+  const todaySource = require(join(ROOT, "src/lib/v3/today-source.ts"));
+  const original = todaySource.readTodayQueue.harnessOriginal ?? todaySource.readTodayQueue;
+  const { default: MainPart } = require(join(ROOT, "src/app/(v3)/v3/main/page.tsx"));
+  const RealDate = Date;
+  globalThis.Date = class extends RealDate {
+    constructor(...args) { if (args.length) super(...args); else super(NOW.getTime()); }
+    static now() { return NOW.getTime(); }
+  };
+  const preview = { ...ACTORS.admin, presentationRole: "sales" };
+  const cases = [
+    ["admin-cookie", ACTORS.admin, "admin", true],
+    ["admin-no-cookie", ACTORS.admin, "admin", false],
+    ["preview-cookie", preview, "sales", true],
+    ["preview-no-cookie", preview, "sales", false],
+    ["sales-cookie", ACTORS.sales, "sales", true],
+    ["sales-no-cookie", ACTORS.sales, "sales", false],
+  ];
+  const out = [];
+  try {
+    for (const [name, who, scenario, cookie] of cases) {
+      nextCookie = cookie;
+      guards.requireV3PageActor = async () => who;
+      todaySource.readTodayQueue = Object.assign((actor, options) => original(actor, { ...options, readers: readers(SCENARIOS[scenario].data) }), { harnessOriginal: original });
+      const element = await MainPart({ searchParams: Promise.resolve({}) });
+      // Администратору с cookie страница отдаёт ленивый вход: его свойства пересекают границу сервер → клиент.
+      if (cookie && who.systemRole === "admin" && !who.presentationRole) assertFlightProps(element.props, `${name}: TodayNextLazy`);
+      out.push({ name, html: await renderSettled(withContexts(element)) });
+    }
+  } finally {
+    globalThis.Date = RealDate;
+    nextCookie = false;
+  }
+  process.stdout.write(JSON.stringify(out));
+}
+
+/** «Новый вид»: свойства `TodayNext` по сценариям — для tests/e2e/ui-next-today-client.cjs (тот же компонент в Chromium). */
+async function nextProps() {
+  const out = {};
+  for (const name of ["admin", "partial", "empty-admissions"]) out[name] = (await buildNextPage(name)).props;
+  process.stdout.write(JSON.stringify(out));
+}
+
+/** «Новый вид»: разметка страницы без оболочки по сценариям (для tests/ui-next-today.test.mjs). */
+async function nextJson() {
+  const out = [];
+  for (const name of Object.keys(SCENARIOS)) {
+    const { node } = await buildNextPage(name);
+    out.push({ name: `next-${name}`, html: await renderSettled(withContexts(node)) });
+  }
+  process.stdout.write(JSON.stringify(out));
+}
+
+/**
+ * «Новый вид»: снимки на 1440×900, 1280×800 и 390×844 (и во весь рост) и измерения — переполнение, высота страницы,
+ * плитки, виджеты, строки, цели нажатия.
+ *   node tests/e2e/today-static-render.cjs --next [outDir] [--only a,b] [--legacy]
+ */
+async function nextScreenshots() {
+  const outIndex = process.argv.indexOf("--next") + 1;
+  const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
+  mkdirSync(outDir, { recursive: true });
+  const widths = [
+    ["1440", { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 }],
+    ["1280", { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 }],
+    ["390", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }],
+  ];
+  const css = await compileCss();
+  const { chromium } = require("playwright");
+  const browser = await chromium.launch();
+  const wanted = process.argv.includes("--only") ? process.argv[process.argv.indexOf("--only") + 1].split(",") : Object.keys(SCENARIOS);
+  // Боковая прокрутка страницы — отказ, а не строка в отчёте: плитка без числа раздвигала страницу на телефоне на 287 px.
+  const sideways = [];
+  try {
+    for (const name of wanted) {
+      // `--legacy` — те же сценарии прежним видом (для «до / после»).
+      const legacy = process.argv.includes("--legacy");
+      const html = legacy ? await renderFullPage(name) : await renderNextFullPage(name);
+      const prefix = legacy ? "tl" : "tn";
+      const htmlPath = join(outDir, `${prefix}-${name}.html`);
+      writeFileSync(htmlPath, [
+        "<!DOCTYPE html>",
+        '<html lang="ru" data-theme="light" class="h-full antialiased">',
+        `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Сегодня — EVO CRM (синтетические данные)</title><style>${css}</style></head>`,
+        `<body class="min-h-full">${html}</body></html>`,
+      ].join(""));
+      for (const [width, context] of widths) {
+        for (const fullPage of [false, true]) {
+          const file = `${prefix}-${name}-${width}${fullPage ? "-full" : ""}.png`;
+          const browserContext = await browser.newContext(context);
+          const tab = await browserContext.newPage();
+          const errors = [];
+          tab.on("pageerror", (error) => errors.push(error.message));
+          await tab.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
+          await tab.evaluate(() => document.fonts.ready);
+          await tab.waitForFunction(() => [...document.images].every((image) => image.complete || image.getClientRects().length === 0));
+          if (errors.length) throw new Error(`${file}: browser errors:\n${errors.join("\n")}`);
+          const metrics = await tab.evaluate(() => {
+            const main = document.querySelector('[data-testid="v3-operational-dashboard"]') ?? document.querySelector("main");
+            const visible = (element) => { const box = element.getBoundingClientRect(); const style = getComputedStyle(element); return box.width > 0 && box.height > 0 && style.visibility !== "hidden"; };
+            const small = [...main.querySelectorAll("*")].filter((element) => [...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim()) && visible(element) && parseFloat(getComputedStyle(element).fontSize) < 12).length;
+            const targets = [...main.querySelectorAll("a, button")].filter((element) => visible(element) && !element.closest("[popover]") && element.getBoundingClientRect().height < 24 && element.getBoundingClientRect().width < 24 && !element.matches("[aria-label^=Пояснение]")).length;
+            return {
+              overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+              h1: document.querySelectorAll("h1").length,
+              tiles: main.querySelectorAll('[data-slot="stat-tile"]').length,
+              widgets: main.querySelectorAll("[data-slot=card][id^=today-band-]").length,
+              rows: [...main.querySelectorAll("[data-queue-row]")].filter(visible).length,
+              rowHeights: [...new Set([...main.querySelectorAll("[data-queue-row]")].filter(visible).map((row) => Math.round(row.getBoundingClientRect().height)))].join("/") || null,
+              textUnder12: small,
+              tinyTargets: targets,
+              pageHeight: document.documentElement.scrollHeight,
+              mainHeight: Math.round(main.getBoundingClientRect().height),
+              solidRed: [...main.querySelectorAll("a, button")].filter((element) => visible(element) && getComputedStyle(element).backgroundColor === "rgb(215, 2, 23)").length,
+            };
+          });
+          await tab.screenshot({ path: join(outDir, file), fullPage });
+          if (!fullPage) process.stdout.write(`${file}: ${Object.entries(metrics).filter(([, value]) => value !== null).map(([key, value]) => `${key}=${value}`).join(" ")}\n`);
+          if (!fullPage && !legacy && metrics.overflow > 0) sideways.push(`${file}: overflow=${metrics.overflow}`);
+          await browserContext.close();
+        }
+      }
+    }
+  } finally {
+    await browser.close();
+  }
+  if (sideways.length) throw new Error(`страница шире окна:\n${sideways.join("\n")}`);
+}
+
 async function json() {
   const out = [];
   for (const name of Object.keys(SCENARIOS)) {
@@ -615,7 +798,15 @@ async function json() {
   process.stdout.write(JSON.stringify(out));
 }
 
-if (process.argv.includes("--json")) {
+if (process.argv.includes("--page-json")) {
+  pageJson().catch((error) => { console.error(error); process.exit(1); });
+} else if (process.argv.includes("--next-props")) {
+  nextProps().catch((error) => { console.error(error); process.exit(1); });
+} else if (process.argv.includes("--next-json")) {
+  nextJson().catch((error) => { console.error(error); process.exit(1); });
+} else if (process.argv.includes("--next")) {
+  nextScreenshots().catch((error) => { console.error(error); process.exit(1); });
+} else if (process.argv.includes("--json")) {
   json().catch((error) => {
     console.error(error);
     process.exit(1);

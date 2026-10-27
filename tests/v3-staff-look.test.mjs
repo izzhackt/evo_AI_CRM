@@ -88,7 +88,8 @@ test("links keep an underline without red, and only buttons and board cards are 
 
 test("one look for every staff member: the staff layout marks its root, and the preview is gone", () => {
   const layout = read("src/app/(v3)/layout.tsx");
-  assert.match(layout, /<div className="v3-world" data-surface="staff">/u);
+  // `data-ui` — «Новый вид» (27.10.2026), только у администратора с включённым переключателем; без него корень прежний.
+  assert.match(layout, /<div className="v3-world" data-surface="staff" data-ui=\{nextUi\?\.enabled \? "next" : undefined\}>/u);
   for (const path of ["src/lib/v3/look-preview.ts", "src/lib/v3/look-preview-contract.ts", "src/lib/v3/look-preview-actions.ts", "src/components/v3/blocks/look.ts"]) {
     assert.equal(existsSync(new URL(path, ROOT)), false, `${path} is removed`);
   }

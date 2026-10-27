@@ -90,6 +90,10 @@ Module._resolveFilename = function patchedResolve(request, ...rest) {
   return originalResolve.call(this, request, ...rest);
 };
 
+// Страницы спрашивают `isNextUi` (cookie «Нового вида»): вне запроса `cookies()` не работает. Здесь запроса нет и cookie нет —
+// это прежний вид, байт в байт (проверяют тесты оболочки); «Новый вид» страниц смотрят today-/requests-static-render.cjs.
+require("next/headers").cookies = async () => ({ get: () => undefined });
+
 const { createElement: h } = require("react");
 const { renderToStaticMarkup, renderToString } = require("react-dom/server");
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime");

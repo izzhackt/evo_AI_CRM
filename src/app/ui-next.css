@@ -1,0 +1,127 @@
+/*
+ * «Новый вид» (решение владельца 27.10.2026): токены shadcn/ui → токены EVO, один раз и здесь.
+ * Подключается из globals.css. Прежние экраны этот файл не меняет:
+ *  - `@theme inline` только добавляет утилиты (`bg-primary`, `text-muted-foreground`, `border-input`…);
+ *    Tailwind пишет в CSS лишь то, что встречается в коде, а значения переменных заданы ниже только
+ *    на корне staff CRM с включённым «Новым видом» — `.v3-world[data-surface="staff"][data-ui="next"]`
+ *    (атрибут ставит layout `(v3)` только настоящему администратору с включённым переключателем).
+ *    Без атрибута переменных нет, и прежний класс с таким именем (в `ApplicationUniversitySelector`
+ *    есть два `text-muted-foreground`) остаётся таким, каким был: цвет наследуется;
+ *  - кабинет студента, сайт и вход этих значений не получают;
+ *  - роль shadcn `accent` (подложка наведения) здесь не заводится: в EVO `--accent` — красный, а `bg-accent`
+ *    уже значит «главное действие». Наведение и фокус пунктов — `bg-surface-2`/`text-fg`;
+ *    `scripts/ui/adapt-shadcn.mjs` делает эту замену в блоках из реестров.
+ * Тёмной темы у staff CRM нет, поэтому `dark:`-варианты в примитивах не используются.
+ */
+@import "tw-animate-css";
+
+/*
+ * Свои варианты атрибутов из `shadcn/tailwind.css` (MIT, shadcn): примитивы стиля radix-nova пишут
+ * `data-open:`, `data-checked:`, `data-active:`, `data-horizontal:` вместо `data-[state=open]:`.
+ * Пакет `shadcn` ради этого не ставим: в прежней разметке этих вариантов нет.
+ */
+@custom-variant data-open {
+  &:where([data-state="open"]),
+  &:where([data-open]:not([data-open="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-closed {
+  &:where([data-state="closed"]),
+  &:where([data-closed]:not([data-closed="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-checked {
+  &:where([data-state="checked"]),
+  &:where([data-checked]:not([data-checked="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-unchecked {
+  &:where([data-state="unchecked"]),
+  &:where([data-unchecked]:not([data-unchecked="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-selected {
+  &:where([data-selected="true"]) {
+    @slot;
+  }
+}
+@custom-variant data-disabled {
+  &:where([data-disabled="true"]),
+  &:where([data-disabled]:not([data-disabled="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-active {
+  &:where([data-state="active"]),
+  &:where([data-active]:not([data-active="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-horizontal {
+  &:where([data-orientation="horizontal"]) {
+    @slot;
+  }
+}
+@custom-variant data-vertical {
+  &:where([data-orientation="vertical"]) {
+    @slot;
+  }
+}
+
+/*
+ * Роль shadcn → токен EVO staff CRM. Значения берутся из токенов того же корня и меняются вместе с ними
+ * (`--border` и `--accent` остаются прежними: `--border` и так линия, `--accent` — красный EVO).
+ */
+.v3-world[data-surface="staff"][data-ui="next"] {
+  --background: var(--bg);
+  --foreground: var(--text);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--surface);
+  --popover-foreground: var(--text);
+  /* Красный — главное действие страницы (CLAUDE.md, «Визуальное направление»). */
+  --primary: var(--accent);
+  --primary-foreground: var(--on-accent);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--text);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--text-3);
+  --destructive: var(--danger);
+  --destructive-foreground: var(--on-accent);
+  /* Граница поля — тот же `--control-edge` (≥3:1, SC 1.4.11), что у `inputCls`. */
+  --input: var(--control-edge);
+  --ring: var(--focus-ring);
+  --radius: 10px;
+  /* Цвета графиков берутся у токенов со смыслом; рисовать ими без слова нельзя (CLAUDE.md, «Цвет обязан что-то значить»). */
+  --chart-1: var(--info);
+  --chart-2: var(--ok);
+  --chart-3: var(--warn);
+  --chart-4: var(--phase-sales);
+  --chart-5: var(--phase-visa);
+}
+
+@theme inline {
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+}

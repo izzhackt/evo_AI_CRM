@@ -48,8 +48,9 @@ export function FilesToolbar({
       {manage && current ? (
         <>
           <ManageFolderSheet key={`${current.id}:${current.version ?? "root"}`} folder={current} destinations={destinations} hasChildren={hasChildren} />
-          <CreateFolderSheet parent={current} requestId={createFolderRequestId} />
-          <CreateFileSheet parent={current} requestId={createFileRequestId} />
+          {/* Ключ — request_id: после сохранения страница приносит новый, панель закрывается и список виден (как «Новый шаблон»). */}
+          <CreateFolderSheet key={createFolderRequestId} parent={current} requestId={createFolderRequestId} />
+          <CreateFileSheet key={createFileRequestId} parent={current} requestId={createFileRequestId} />
         </>
       ) : null}
     </>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 import { DataTable, DetailSheet, EmptyState, StatusBadge, type DataTableColumn } from "@/components/kit";
 
@@ -10,6 +10,7 @@ import {
 import { createReplySnippetFormKey, replySnippetRowFormKey } from "../reply-snippet-form-keys";
 import { SnippetCreateSheet } from "./SnippetCreateSheet";
 import { SnippetSheetBody } from "./SnippetSheetBody";
+import { replySnippetIdFromHash } from "./snippet-hash";
 
 const columns = (canManage: boolean): DataTableColumn<KnowledgeReplySnippetItem>[] => [
   {
@@ -33,6 +34,17 @@ const columns = (canManage: boolean): DataTableColumn<KnowledgeReplySnippetItem>
 export function SnippetsNext({ items, canManage, availableAudiences, createRequestId }: KnowledgeReplySnippetSectionProps) {
   const [openId, setOpenId] = useState<string | null>(null);
   const open = items.find((item) => item.snippet.replySnippetId === openId) ?? null;
+  // Ссылка из поиска (`#reply-snippet-<id>`) открывает панель этого шаблона и при загрузке, и при смене якоря — даже со второй страницы таблицы.
+  const openFromAddress = useEffectEvent(() => {
+    const id = replySnippetIdFromHash(window.location.hash);
+    if (id && items.some((item) => item.snippet.replySnippetId === id)) setOpenId(id);
+  });
+  useEffect(() => {
+    const onHash = () => openFromAddress();
+    onHash();
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   return (
     <div className="grid gap-3" data-testid="v3-knowledge-reply-snippets">
       <DataTable

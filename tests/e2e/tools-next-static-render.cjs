@@ -164,10 +164,15 @@ const PAGES = {
   "calendar-denied": base("calendar", "/v3/calendar", "view=week&date=2026-09-26", { calendar: calendar([], { readAccess: { caseTasks: false, staffTasks: false, tasks: false } }) }),
   "calendar-panel": base("calendar", "/v3/calendar", `view=week&date=2026-09-24&case=${fx.id("dddddddd", 41)}&task=${fx.id("cccccccc", 41)}`, { calendar: calendar(fx.WEEK) }),
   "snippets": base("snippets", "/v3/knowledge", "section=snippets", { snippets: snippets() }),
+  // Двенадцатый шаблон — на второй странице таблицы; ссылка из «Материалов CRM» ведёт на него (`search.ts`: `#reply-snippet-<id>`).
+  "snippets-deep": base("snippets", "/v3/knowledge", "section=snippets", { snippets: snippets({ items: fx.SNIPPETS_MANY }), hash: `#reply-snippet-${fx.id("99999999", 12)}` }),
   "snippets-readonly": base("snippets", "/v3/knowledge", "section=snippets", { snippets: snippets({ canManage: false }) }),
   "snippets-empty": base("snippets", "/v3/knowledge", "section=snippets", { snippets: snippets({ items: [] }) }),
   "documents": base("documents", "/v3/knowledge", "section=documents", { files: files() }),
   "documents-folder": base("documents", "/v3/knowledge", `section=documents&documentFolder=${fx.id("60000000", 1)}`, { files: files() }),
+  "documents-student": base("documents", "/v3/knowledge", `section=documents&documentFolder=student-${fx.id("dddddddd", 41)}`, { files: files() }),
+  // После сохранения страница читает заново и присылает новые request_id создания (как `KnowledgeDocuments` с `randomUUID()`).
+  "documents-refresh": base("documents", "/v3/knowledge", `section=documents&documentFolder=${fx.id("60000000", 1)}`, { files: files(), refreshIds: true }),
   "documents-readonly": base("documents", "/v3/knowledge", "section=documents", { files: files({ canManage: false, canUpload: false }) }),
   "knowledge-folder": kb("area=internal&folder=@bjdocs"),
   "knowledge-root": kb("area=internal"),

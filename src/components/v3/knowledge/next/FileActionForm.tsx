@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { QUEUE_CONFIRM } from "@/components/v3/queue/queue-buttons";
 import type { PlatformCompanyFileActionState } from "@/lib/platform-company-file-actions";
 
 import { ACTION_MESSAGE, initialActionState, useRefreshAfterMutation } from "../../FileManager";
+import { useConfirmStep } from "./useConfirmStep";
 
 type FileAction = (state: PlatformCompanyFileActionState, form: FormData) => Promise<PlatformCompanyFileActionState>;
 
@@ -37,7 +38,7 @@ export function FileActionForm({ action, requestId, itemKind, itemId, hidden, su
 }>) {
   const [state, run, pending] = useActionState(action, initialActionState(requestId, itemKind, itemId));
   useRefreshAfterMutation(state.status);
-  const [asking, setAsking] = useState(false);
+  const { asking, questionId, trigger, confirm: confirmButton, ask } = useConfirmStep();
   const locked = pending || state.status === "saved";
   return (
     <form action={run} className="grid gap-3" aria-busy={pending} data-testid={testId}>
@@ -45,12 +46,12 @@ export function FileActionForm({ action, requestId, itemKind, itemId, hidden, su
       <input type="hidden" name="request_id" value={state.requestId} />
       <fieldset disabled={locked} className="grid min-w-0 gap-3 border-0 p-0">{children}</fieldset>
       {confirm && !asking && !pending ? (
-        <div><Button type="button" variant="outline" disabled={disabled || locked} onClick={() => setAsking(true)}>{submit}</Button></div>
+        <div><Button ref={trigger} type="button" variant="outline" disabled={disabled || locked} onClick={() => ask(true)}>{submit}</Button></div>
       ) : (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          {confirm ? <p className="t-body-compact text-fg">{confirm}</p> : null}
-          <button type="submit" className={QUEUE_CONFIRM} disabled={disabled || locked}>{pending ? pendingLabel : confirm ? "Да, удалить" : submit}</button>
-          {confirm ? <Button type="button" variant="ghost" disabled={pending} onClick={() => setAsking(false)}>Отмена</Button> : null}
+          {confirm ? <p id={questionId} className="t-body-compact text-fg">{confirm}</p> : null}
+          <button ref={confirmButton} type="submit" aria-describedby={confirm ? questionId : undefined} className={QUEUE_CONFIRM} disabled={disabled || locked}>{pending ? pendingLabel : confirm ? "Да, удалить" : submit}</button>
+          {confirm ? <Button type="button" variant="ghost" disabled={pending} onClick={() => ask(false)}>Отмена</Button> : null}
         </div>
       )}
       <FileFeedback state={state} />

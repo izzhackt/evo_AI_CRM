@@ -33,7 +33,7 @@ export function libraryColumns({ selected, onToggle, onToggleAll, shownIds, href
 }>): DataTableColumn<KnowledgeItem>[] {
   return [
     {
-      id: "select", enableSorting: false, enableHiding: false, enableGlobalFilter: false, meta: { label: "Выбрать", mobile: "hide" },
+      id: "select", enableSorting: false, enableHiding: false, enableGlobalFilter: false, meta: { label: "Выбрать", mobile: "hide", fit: true },
       header: () => <Checkbox aria-label="Выбрать показанные материалы" checked={shownIds.length > 0 && shownIds.every((id) => selected.has(id))} onCheckedChange={(on) => onToggleAll(on === true)} />,
       cell: ({ row }) => <Checkbox aria-label={`Выбрать: ${row.original.title}`} checked={selected.has(row.original.id)} onCheckedChange={(on) => onToggle(row.original.id, on === true)} />,
     },
@@ -59,7 +59,7 @@ export function libraryColumns({ selected, onToggle, onToggleAll, shownIds, href
         );
       },
     },
-    { id: "kind", header: "Тип", accessorFn: (item) => KIND_NAMES[item.kind], meta: { label: "Тип", wide: true, mobile: "hide" } },
+    { id: "kind", header: "Тип", accessorFn: (item) => KIND_NAMES[item.kind], meta: { label: "Тип", mobile: "hide" } },
     {
       id: "updated", header: "Изменено", accessorFn: (item) => item.updated_at, enableGlobalFilter: false, sortFn: "text", meta: { label: "Изменено", align: "end" },
       cell: ({ row }) => {

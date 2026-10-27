@@ -8,19 +8,22 @@ import type { FileEntry } from "./files-model";
 
 const RECORDS = { one: "запись", few: "записи", many: "записей" } as const;
 
-/** Колонки «Документов»: выбор для выгрузки (если выгрузка есть), название с папкой при поиске, размер или число записей, «Скачать». */
-export function fileColumns({ selectable, selected, exportableVersions, onToggle, onToggleAll }: Readonly<{
+/**
+ * Колонки «Документов»: выбор для выгрузки (если есть что выбрать), название (под папкой — число записей, под найденным файлом — папка, на телефоне
+ * под файлом — размер), размер файла, «Скачать» (если есть что скачать). Колонки выбора и скачивания узкие (`meta.fit`).
+ */
+export function fileColumns({ selectable, downloadable, selected, allChosen, onToggle, onToggleAll }: Readonly<{
   selectable: boolean;
+  downloadable: boolean;
   selected: ReadonlySet<string>;
-  exportableVersions: readonly string[];
+  allChosen: boolean;
   onToggle: (version: string, on: boolean) => void;
   onToggleAll: (on: boolean) => void;
 }>): DataTableColumn<FileEntry>[] {
-  const all = exportableVersions.length > 0 && exportableVersions.every((version) => selected.has(version));
   return [
     ...(selectable ? [{
-      id: "select", enableSorting: false, enableHiding: false, enableGlobalFilter: false, meta: { label: "Выбрать", mobile: "hide" },
-      header: () => <Checkbox aria-label="Выбрать документы на экране" disabled={exportableVersions.length === 0} checked={all} onCheckedChange={(on) => onToggleAll(on === true)} />,
+      id: "select", enableSorting: false, enableHiding: false, enableGlobalFilter: false, meta: { label: "Выбрать", mobile: "hide", fit: true },
+      header: () => <Checkbox aria-label="Выбрать документы на экране" checked={allChosen} onCheckedChange={(on) => onToggleAll(on === true)} />,
       cell: ({ row }) => {
         const entry = row.original;
         if (entry.kind !== "file") return null;
@@ -41,25 +44,28 @@ export function fileColumns({ selectable, selected, exportableVersions, onToggle
             <span className="min-w-0">
               <span className="block font-medium text-fg [overflow-wrap:anywhere]">{entry.name}</span>
               {entry.kind === "file" && entry.place ? <span className="block t-meta text-fg-3">{entry.place}</span> : null}
+              {entry.kind === "folder" ? <span className="block t-meta text-fg-3">{entry.count} {plural(entry.count, RECORDS)}</span> : null}
+              {entry.kind === "file" && entry.file.size ? <span className="block t-meta text-fg-3 md:hidden">{entry.file.size}</span> : null}
             </span>
           </span>
         );
       },
     },
     {
-      id: "size", header: "Размер", enableGlobalFilter: false, enableSorting: false, meta: { label: "Размер" },
-      accessorFn: (entry) => (entry.kind === "file" ? entry.file.size ?? "—" : `${entry.count} ${plural(entry.count, RECORDS)}`),
-      cell: ({ row }) => <span className="t-meta text-fg-3 tabular-nums">{row.getValue("size")}</span>,
+      // Размер есть только у файла (null не рисуется); у папки число записей стоит под названием. На телефоне размер — под названием файла.
+      id: "size", header: "Размер", enableGlobalFilter: false, enableSorting: false, meta: { label: "Размер", mobile: "hide" },
+      accessorFn: (entry) => (entry.kind === "file" ? entry.file.size : null),
+      cell: ({ row }) => { const size = row.getValue("size"); return typeof size === "string" ? <span className="t-meta text-fg-3 tabular-nums">{size}</span> : null; },
     },
-    {
+    ...(downloadable ? [{
       id: "download", header: () => <span className="sr-only">Скачать</span>, enableSorting: false, enableHiding: false, enableGlobalFilter: false,
-      meta: { label: "Скачать", mobile: "hide", align: "end" },
+      meta: { label: "Скачать", mobile: "hide", align: "end", fit: true },
       cell: ({ row }) => {
         const entry = row.original;
         return entry.kind === "file" && entry.file.downloadHref ? (
           <a href={entry.file.downloadHref} aria-label={`Скачать: ${entry.name}`} className="inline-flex size-11 items-center justify-center rounded-ctl text-fg-2 hover:bg-surface-2 hover:text-fg"><DownloadIcon className="size-[18px]" aria-hidden="true" /></a>
         ) : null;
       },
-    },
+    } satisfies DataTableColumn<FileEntry>] : []),
   ];
 }

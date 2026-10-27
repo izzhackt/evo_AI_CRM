@@ -10,8 +10,9 @@ import { calendarUndatedContinuationHref, type CalendarTask, type CalendarView, 
 /**
  * Какая задача открыта в панели «Календаря» нового вида. Истина — адрес (`?case=…&task=…` / `?kind=staff&task=…`): страница
  * читает задачу и точные права на неё и присылает `initialTaskKey`. Нажатая карточка открывает панель сразу (скелет под
- * названием), пока сервер отвечает; закрытие тоже сразу, а когда сервер подтвердил, что задачи в адресе нет, отметка «закрыто»
- * снимается — «Назад» браузера открывает панель снова. Фокус возвращается на карточку, откуда панель открыли.
+ * названием), пока сервер отвечает; закрытие тоже сразу и прячет любую задачу, пока сервер не подтвердит, что задачи в адресе нет
+ * (иначе Esc на ещё грузящейся задаче показал бы прежнюю, уже закрытую, пока доходит адрес), потом отметка «закрыто» снимается —
+ * «Назад» браузера открывает панель снова. Фокус возвращается на карточку, откуда панель открыли.
  */
 export function useCalendarTaskSheet({ tasks, confirmedKey, view, day, undatedCursor, basePath }: Readonly<{
   tasks: readonly CalendarTask[];
@@ -25,12 +26,12 @@ export function useCalendarTaskSheet({ tasks, confirmedKey, view, day, undatedCu
   const router = useRouter();
   const [navigating, startNavigation] = useTransition();
   const [pending, setPending] = useState<string | null>(null);
-  const [dismissed, setDismissed] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
   const opener = useRef<HTMLElement | null>(null);
   if (pending !== null && pending === confirmedKey) setPending(null);
-  if (confirmedKey === null && dismissed !== null && pending === null) setDismissed(null);
+  if (closing && confirmedKey === null) setClosing(false);
   const shownKey = pending ?? confirmedKey;
-  const sheetOpen = shownKey !== null && shownKey !== dismissed;
+  const sheetOpen = shownKey !== null && !closing;
   const confirmed = shownKey !== null && shownKey === confirmedKey;
 
   const go = (target: CalendarTask | undefined) => {
@@ -54,13 +55,13 @@ export function useCalendarTaskSheet({ tasks, confirmedKey, view, day, undatedCu
     opener,
     select(key: string, from: HTMLElement | null) {
       opener.current = from;
-      setDismissed(null);
+      setClosing(false);
       if (key !== confirmedKey) setPending(key);
       go(tasks.find((task) => task.key === key));
     },
     close() {
       if (!sheetOpen) return;
-      setDismissed(shownKey);
+      setClosing(true);
       setPending(null);
       go(undefined);
     },

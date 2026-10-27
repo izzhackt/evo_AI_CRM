@@ -9,6 +9,7 @@ import type { KnowledgeItem } from "@/lib/knowledge-library-contract";
 
 import type { KnowledgeData } from "./useKnowledgeData";
 import { itemHref, libraryColumns } from "./LibraryColumns";
+import { PhoneSelectAll } from "./PhoneSelectAll";
 
 /**
  * Список материалов папки, поиска или состояния (корзина, архив…): `DataTable` над теми же 100 строками сервера. Поиск ведёт
@@ -31,6 +32,7 @@ export function LibraryTable({ data, toggle, toggleAll, title }: Readonly<{
   if (error && rows.length === 0) return null;
   return (
     <div className="grid gap-2" aria-busy={loading}>
+      {shown && rows.length > 0 ? <PhoneSelectAll label="Выбрать показанные материалы" text="Выбрать показанные" checked={rows.every((item) => selected.has(item.id))} onChange={toggleAll} /> : null}
       <DataTable<KnowledgeItem>
         label={`Материалы: ${title}`}
         data={rows}

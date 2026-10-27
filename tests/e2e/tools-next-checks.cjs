@@ -48,7 +48,7 @@ function pageFacts() {
 
 async function main() {
   const { PAGES, VIEWPORTS, buildBundle, compileCss, writePage, ROOT, lazySettled } = require("./tools-next-static-render.cjs");
-  const { flows } = require("./tools-next-flows.cjs");
+  const flows = [...require("./tools-next-flows.cjs").flows, ...require("./tools-next-flows-fixes.cjs").flows];
   const args = process.argv.slice(2);
   if (!args.includes("--screenshots")) throw new Error("usage: node tests/e2e/tools-next-static-render.cjs --screenshots [outDir] [--only a,b] [--flows-only]");
   const next = args[args.indexOf("--screenshots") + 1];
@@ -74,7 +74,7 @@ async function main() {
     const errors = [];
     page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
     page.on("console", (message) => { if (message.type() === "error" && !/notifications\/state/u.test(message.text())) errors.push(message.text()); });
-    await page.goto(pathToFileURL(paths[name]).href, { waitUntil: "load" });
+    await page.goto(pathToFileURL(paths[name]).href + (PAGES[name].hash ?? ""), { waitUntil: "load" });
     await page.waitForSelector("html[data-ready=true]", { state: "attached", timeout: 15_000 });
     await lazySettled(page);
     await page.waitForTimeout(300);
@@ -106,7 +106,8 @@ async function main() {
         const chatInPanel = name.startsWith("chat") && facts.chatPanel === "messages" && key === "m390";
         report(`${label}: one visible h1`, facts.h1.length === 1 || (chatInPanel && facts.h1.length === 0), facts.h1);
         report(`${label}: at most one red button`, facts.reds.length <= 1, facts.reds);
-        if (facts.hasHeaderRule) report(`${label}: header matches shell padding`, facts.paddingTop === facts.expected, [facts.paddingTop, facts.expected]);
+        // Правило отступа стоит на `main`, пока в нём есть заголовок, но заголовок убран (открытая переписка чата на телефоне): отступа тоже нет.
+        if (facts.hasHeaderRule && facts.h1.length > 0) report(`${label}: header matches shell padding`, facts.paddingTop === facts.expected, [facts.paddingTop, facts.expected]);
         report(`${label}: console clean`, errors.length === 0, errors);
         await context.close();
       }

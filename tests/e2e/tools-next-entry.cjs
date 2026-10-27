@@ -30,7 +30,7 @@ const { FileManager } = require("@/components/v3/FileManager");
 const { TeamChat } = require("@/components/v3/team-chat/TeamChat");
 const h = React.createElement;
 const fx = JSON.parse(document.getElementById("fixture").textContent);
-window.__harness = { pushes: [], calls: [], history: [fx.search], requests: [], errors: [], actions: [], deleted: [] };
+window.__harness = { pushes: [], calls: [], history: [fx.search], requests: [], errors: [], actions: [], deleted: [], delay: 60, token: 0 };
 
 /* ---- сервер календаря: те же вычисления, что у calendar/page.tsx ---- */
 function serveCalendar(search) {
@@ -114,33 +114,41 @@ function legacyBody(search) {
   if (fx.screen === "chat") return h("main", { className: "flex h-[calc(100dvh-150px)] min-h-0 flex-col md:h-[calc(100dvh-64px)]", "aria-label": "Командный чат" }, h(TeamChat, fx.chat));
   throw new Error("unknown legacy screen " + fx.screen);
 }
-function body(search) {
+/* Страница после router.refresh(): сервер читает заново и присылает НОВЫЕ request_id создания (fx.refreshIds), как KnowledgeDocuments и KnowledgeSnippets. */
+const renewed = (value, epoch) => (epoch === 0 ? value : value + ":r" + epoch);
+function body(search, epoch) {
   if (fx.legacy) return legacyBody(search);
   if (fx.screen === "calendar") return h(CalendarNextPage, serveCalendar(search));
   if (fx.screen === "chat") return fx.failure ? h(TeamChatNextFailure, fx.failure) : h(TeamChatNextPage, fx.chat);
-  if (fx.screen === "snippets") return h(KnowledgeNextPage, { commandScope: "x", section: "snippets" }, h(SnippetsNext, fx.snippets));
-  if (fx.screen === "documents") return h(KnowledgeNextPage, { commandScope: "x", section: "documents" }, h(FilesNext, fx.files));
+  if (fx.screen === "snippets") return h(KnowledgeNextPage, { commandScope: "x", section: "snippets" }, h(SnippetsNext, { ...fx.snippets, createRequestId: renewed(fx.snippets.createRequestId, epoch) }));
+  if (fx.screen === "documents") return h(KnowledgeNextPage, { commandScope: "x", section: "documents" }, h(FilesNext, { ...fx.files, createFolderRequestId: renewed(fx.files.createFolderRequestId, epoch), createFileRequestId: renewed(fx.files.createFileRequestId, epoch) }));
   if (fx.screen === "knowledge") return h(KnowledgeNextPage, { commandScope: fx.org + ":" + fx.me, section: null });
   throw new Error("unknown screen " + fx.screen);
 }
 
 function App() {
   const [search, setSearch] = React.useState(fx.search);
+  const [epoch, setEpoch] = React.useState(0);
   const router = React.useMemo(() => ({
+    // Как Next 16: новая навигация вытесняет ту, что ещё ждёт ответа сервера (она не применяется), поэтому доходит последняя.
     push(href) {
       window.__harness.pushes.push(href);
-      setTimeout(() => { const next = new URL(href, "https://crm.invalid").search.slice(1); window.__harness.history.push(next); setSearch(next); }, 60);
+      const token = (window.__harness.token += 1);
+      setTimeout(() => {
+        if (token !== window.__harness.token) return;
+        const next = new URL(href, "https://crm.invalid").search.slice(1); window.__harness.history.push(next); setSearch(next);
+      }, window.__harness.delay);
     },
     replace(href) { window.__harness.pushes.push(href); },
     back() { const { history } = window.__harness; if (history.length > 1) { history.pop(); setSearch(history[history.length - 1]); } },
-    refresh() { window.__harness.calls.push("refresh"); }, forward() {}, prefetch() {}, hmrRefresh() {},
+    refresh() { window.__harness.calls.push("refresh"); if (fx.refreshIds) setTimeout(() => setEpoch((value) => value + 1), 60); }, forward() {}, prefetch() {}, hmrRefresh() {},
   }), []);
   return h(AppRouterContext.Provider, { value: router },
     h(PathnameContext.Provider, { value: fx.pathname },
       h(SearchParamsContext.Provider, { value: new URLSearchParams(search) },
         h(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } },
           h("div", fx.legacy ? { className: "v3-world", "data-surface": "staff" } : { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
-            h(AppShell, { actor: fx.actor, initialNotifications: null, nextUi: { enabled: !fx.legacy } }, body(search)))))));
+            h(AppShell, { actor: fx.actor, initialNotifications: null, nextUi: { enabled: !fx.legacy } }, body(search, epoch)))))));
 }
 createRoot(document.getElementById("root")).render(h(App));
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.ready = "true"; }));

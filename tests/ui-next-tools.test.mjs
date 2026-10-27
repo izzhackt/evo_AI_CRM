@@ -11,6 +11,8 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { replySnippetIdFromHash } from "../src/components/v3/reply-snippets/next/snippet-hash.ts";
+
 const root = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 const read = (path) => readFileSync(root(path), "utf8");
 const pages = new Map(JSON.parse(execFileSync(process.execPath, [root("tests/e2e/tools-next-pages.cjs"), "--json"], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 })).map((row) => [row.name, row]));
@@ -262,4 +264,111 @@ test("прежние части получили только то, что ну�
   assert.match(read("src/components/v3/team-chat/TeamChat.tsx"), /data-frame=\{frame === "card" \? "card" : undefined\}/u, "у прежнего вида атрибута нет");
   assert.match(read("src/components/v3/team-chat/team-chat.module.css"), /\.workspace\[data-frame="card"\] \.channels \{ padding-top: 12px; \}/u);
   assert.ok(existsSync(root("src/components/ui/native-select.tsx")));
+});
+
+/* ------------------------------------------------- замечания независимой проверки (27.10.2026): каждое закрыто и закреплено */
+
+test("шаблон из адреса: `#reply-snippet-<id>` (ссылка поиска «Материалы CRM») открывает панель шаблона и при загрузке, и при смене якоря", () => {
+  assert.equal(replySnippetIdFromHash("#reply-snippet-99999999-2222-4222-8222-000000000012"), "99999999-2222-4222-8222-000000000012");
+  assert.equal(replySnippetIdFromHash("#reply-snippet-a%20b"), "a b");
+  for (const hash of ["", "#", "#reply-snippet-", "#snippet-1", "#reply-snippet-%E0", "reply-snippet-1"]) assert.equal(replySnippetIdFromHash(hash), null, JSON.stringify(hash));
+  const search = read("src/lib/server/knowledge-library/search.ts");
+  assert.match(search, /\/v3\/knowledge\?section=snippets#reply-snippet-\$\{/u, "поиск строит именно эту ссылку");
+  const snippets = read("src/components/v3/reply-snippets/next/SnippetsNext.tsx");
+  assert.match(snippets, /replySnippetIdFromHash\(window\.location\.hash\)/u);
+  assert.match(snippets, /items\.some\(\(item\) => item\.snippet\.replySnippetId === id\)\) setOpenId\(id\)/u, "открывается только шаблон, который есть в списке");
+  assert.match(snippets, /addEventListener\("hashchange", onHash\)[\s\S]*removeEventListener\("hashchange", onHash\)/u);
+});
+
+test("«Календарь»: закрытие прячет любую задачу, пока сервер не подтвердит адрес без задачи (Esc на грузящейся задаче не возвращает прежнюю)", () => {
+  const hook = read("src/components/v3/calendar/next/useCalendarTaskSheet.ts");
+  assert.doesNotMatch(hook, /dismissed/u, "отметка «закрыто» относится к панели, а не к ключу задачи");
+  assert.match(hook, /const \[closing, setClosing\] = useState\(false\);/u);
+  assert.match(hook, /if \(closing && confirmedKey === null\) setClosing\(false\);/u, "отметка снимается, когда адрес без задачи подтверждён");
+  assert.match(hook, /const sheetOpen = shownKey !== null && !closing;/u);
+  assert.match(hook, /select\(key: string, from: HTMLElement \| null\) \{[\s\S]*setClosing\(false\);/u, "новое нажатие на карточку снимает отметку");
+  assert.match(hook, /close\(\) \{[\s\S]*setClosing\(true\);\s*setPending\(null\);/u);
+});
+
+test("«Выбрать все» есть и на телефоне: флажок над карточками с тем же названием и той же логикой, что в шапке таблицы", () => {
+  const phone = read("src/components/v3/knowledge/next/PhoneSelectAll.tsx");
+  assert.match(phone, /t-label text-fg-2 md:hidden/u, "только до 768 px: выше — флажок шапки таблицы");
+  assert.match(phone, /min-h-11/u, "цель 44 px вместе с подписью");
+  const library = read("src/components/v3/knowledge/next/LibraryTable.tsx");
+  assert.match(library, /<PhoneSelectAll label="Выбрать показанные материалы"[\s\S]*?onChange=\{toggleAll\} \/>/u);
+  assert.match(read("src/components/v3/knowledge/next/LibraryColumns.tsx"), /aria-label="Выбрать показанные материалы"[\s\S]*?onCheckedChange=\{\(on\) => onToggleAll\(on === true\)\}/u, "в шапке таблицы — то же название и та же логика");
+  const files = read("src/components/v3/knowledge/next/FilesNext.tsx");
+  assert.match(files, /<PhoneSelectAll label="Выбрать документы на экране"[\s\S]*?onChange=\{toggleAll\} \/>/u);
+  assert.match(read("src/components/v3/knowledge/next/files-columns.tsx"), /aria-label="Выбрать документы на экране"[\s\S]*?onCheckedChange=\{\(on\) => onToggleAll\(on === true\)\}/u);
+});
+
+test("«Шаблоны ответов»: автор назван в панели у того, кто управляет шаблонами, и у редактируемого, и у только читаемого", () => {
+  const body = read("src/components/v3/reply-snippets/next/SnippetSheetBody.tsx");
+  assert.match(body, /const author = canManage \? <p className="t-meta text-fg-3">Автор: \{snippet\.createdByDisplayName\}<\/p> : null;/u);
+  assert.match(body, /if \(canManage && item\.canMutate\) return <div className="grid gap-4">\{author\}<EditForms/u, "у редактируемого автор над формами");
+  assert.match(body, /\{snippet\.body\}<\/p>\s*\{author\}/u, "у читаемого автор под текстом");
+  assert.equal(count(body, /Автор:/gu), 1, "строка автора одна на оба случая");
+});
+
+test("«Материалы»: колонка «Тип» не `wide` (в блоке рядом с деревом он никогда не шире 64rem), поэтому видна от 768 px", () => {
+  const columns = read("src/components/v3/knowledge/next/LibraryColumns.tsx");
+  const kind = columns.split("\n").find((line) => line.includes('id: "kind"'));
+  assert.ok(kind, "колонка есть");
+  assert.doesNotMatch(kind, /wide/u);
+  assert.match(kind, /mobile: "hide"/u, "на телефоне её по-прежнему нет в карточке");
+});
+
+test("«Документы»: фокус не падает на страницу после открытия папки; вопрос перед удалением и архивом принимает фокус и описывает кнопку", () => {
+  const crumbs = read("src/components/v3/knowledge/next/FilesBreadcrumb.tsx");
+  assert.match(crumbs, /<span ref=\{currentRef\} tabIndex=\{-1\} aria-current="page"/u, "текущее звено пути принимает фокус программно");
+  const files = read("src/components/v3/knowledge/next/FilesNext.tsx");
+  assert.match(files, /const openFolder = \(id: string \| null\) => \{ refocus\.current = true;/u);
+  assert.match(files, /focusAfterOpen\(frame\.current, currentCrumb\.current\)/u);
+  assert.match(read("src/components/v3/knowledge/next/focus-after-open.ts"), /currentCrumb \?\? \[/u, "корень: таблица или первая карточка телефона");
+  for (const file of ["knowledge/next/FileActionForm", "reply-snippets/next/SnippetSheetBody"]) {
+    const source = read(`src/components/v3/${file}.tsx`);
+    assert.match(source, /useConfirmStep\(\)/u, file);
+    assert.match(source, /ref=\{(?:confirm|confirmButton)\}[^>]*aria-describedby=\{(?:confirm \? )?questionId/u, `${file}: кнопка подтверждения описана вопросом`);
+    assert.match(source, /ref=\{trigger\}/u, `${file}: «Отмена» возвращает фокус на исходную кнопку`);
+  }
+  const step = read("src/components/v3/knowledge/next/useConfirmStep.ts");
+  assert.match(step, /moveTo\.current === "confirm" \? confirm\.current : moveTo\.current === "trigger" \? trigger\.current : null/u);
+});
+
+test("«Новая папка» и «Новый файл» закрываются после сохранения: панели ключом request_id, как «Новый шаблон»", () => {
+  const toolbar = read("src/components/v3/knowledge/next/FilesToolbar.tsx");
+  assert.match(toolbar, /<CreateFolderSheet key=\{createFolderRequestId\} parent=\{current\} requestId=\{createFolderRequestId\} \/>/u);
+  assert.match(toolbar, /<CreateFileSheet key=\{createFileRequestId\} parent=\{current\} requestId=\{createFileRequestId\} \/>/u);
+  assert.match(read("src/components/v3/reply-snippets/next/SnippetsNext.tsx"), /<SnippetCreateSheet key=\{createReplySnippetFormKey\(createRequestId\)\}/u, "образец, по которому сделано");
+});
+
+test("колонки выбора и «Скачать» узкие (`meta.fit`), а выбирать и скачивать нечего — колонок нет, и отключённого «выбрать все» тоже", () => {
+  assert.match(read("src/components/kit/data-table-core.ts"), /fit\?: boolean;/u);
+  assert.match(read("src/components/kit/DataTableParts.tsx"), /meta\?\.fit && "w-px"/u, "шапка");
+  assert.match(read("src/components/kit/DataTableParts.tsx"), /meta\?\.fit && "w-px whitespace-nowrap"/u, "ячейка");
+  assert.match(read("src/components/kit/DataTable.tsx"), /meta=\{header\.column\.columnDef\.meta\}/u);
+  assert.match(read("src/components/v3/knowledge/next/LibraryColumns.tsx"), /id: "select"[^\n]*meta: \{ label: "Выбрать", mobile: "hide", fit: true \}/u);
+  const columns = read("src/components/v3/knowledge/next/files-columns.tsx");
+  assert.match(columns, /id: "select"[^\n]*meta: \{ label: "Выбрать", mobile: "hide", fit: true \}/u);
+  assert.match(columns, /meta: \{ label: "Скачать", mobile: "hide", align: "end", fit: true \}/u);
+  assert.doesNotMatch(columns, /disabled=\{exportableVersions\.length === 0\}/u, "отключённого флажка «выбрать все» нет");
+  assert.match(read("src/components/v3/knowledge/next/FilesNext.tsx"), /selectable: exportable\.length > 0, downloadable: model\.entries\.some\(/u);
+  assert.match(read("DESIGN.md"), /meta: \{ label\?, mobile\?: "title" \| "hide", align\?: "end", opensRow\?, wide\?, fit\? \}/u, "каталог набора назвал новое свойство");
+});
+
+test("подписи «Документов»: число записей папки — под названием, размер — у файла (null не рисуется), в панели файла студента размер один раз", () => {
+  const columns = read("src/components/v3/knowledge/next/files-columns.tsx");
+  assert.match(columns, /entry\.kind === "folder" \? <span className="block t-meta text-fg-3">\{entry\.count\} \{plural\(entry\.count, RECORDS\)\}<\/span>/u);
+  assert.match(columns, /accessorFn: \(entry\) => \(entry\.kind === "file" \? entry\.file\.size : null\)/u);
+  assert.doesNotMatch(columns, /\?\? "—"/u, "прочерк вместо null не рисуется");
+  assert.match(columns, /id: "size"[^\n]*meta: \{ label: "Размер", mobile: "hide" \}/u, "на телефоне размер — под названием файла, а не пустая строка «Размер» у папки");
+  assert.doesNotMatch(read("src/components/v3/knowledge/next/FileSheetBody.tsx"), /Размер:/u, "размер под названием панели уже есть (описание)");
+});
+
+test("«Командный чат» на телефоне: открытая переписка без шапки страницы теряет и отступы, и поле над рамкой, и саму рамку (≤ 800 px)", () => {
+  const page = read("src/components/v3/team-chat/next/TeamChatNextPage.tsx");
+  assert.match(page, /has-\[\[data-panel=messages\]\]:max-\[800px\]:p-0!/u, "отступы страницы (в том числе padding-top из v3.css) снимаются с `!`");
+  for (const rule of ["mt-0", "rounded-none!", "border-0"]) assert.ok(page.includes(`group-has-[[data-panel=messages]]/chat:max-[800px]:${rule}`), rule);
+  assert.match(page, /group-has-\[\[data-panel=messages\]\]\/chat:max-\[800px\]:hidden/u, "шапка убирается по тому же условию");
+  assert.match(page, /className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-card border border-border bg-surface /u, "на столе и в списке каналов рамка прежняя");
 });

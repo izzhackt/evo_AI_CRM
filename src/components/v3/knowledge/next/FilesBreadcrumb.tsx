@@ -4,8 +4,11 @@ import type { KnowledgeFolder } from "../../FileManager";
 
 const CRUMB = "inline-flex min-h-11 max-w-full items-center truncate rounded-nav px-1 hover:text-fg";
 
-/** Путь к открытой папке: «Документы / Компания / …». На корне путь повторил бы заголовок, поэтому его там нет. */
-export function FilesBreadcrumb({ rootLabel, path, onOpen }: Readonly<{ rootLabel: string; path: readonly KnowledgeFolder[]; onOpen: (id: string | null) => void }>) {
+/**
+ * Путь к открытой папке: «Документы / Компания / …». На корне путь повторил бы заголовок, поэтому его там нет. Текущее звено принимает
+ * фокус программно (`currentRef`, `tabIndex=-1`): после открытия папки фокус встаёт на её название, а не падает на страницу.
+ */
+export function FilesBreadcrumb({ rootLabel, path, onOpen, currentRef }: Readonly<{ rootLabel: string; path: readonly KnowledgeFolder[]; onOpen: (id: string | null) => void; currentRef: React.Ref<HTMLSpanElement> }>) {
   if (path.length === 0) return null;
   return (
     <nav aria-label="Путь к папке" className="min-w-0">
@@ -15,7 +18,7 @@ export function FilesBreadcrumb({ rootLabel, path, onOpen }: Readonly<{ rootLabe
           <li key={folder.id} className="flex min-w-0 max-w-full items-center gap-1">
             <ChevronRightIcon className="size-3.5 shrink-0 text-fg-3" aria-hidden="true" />
             {index === path.length - 1
-              ? <span aria-current="page" className="inline-flex min-h-11 items-center truncate px-1 t-item text-fg">{folder.name}</span>
+              ? <span ref={currentRef} tabIndex={-1} aria-current="page" className="inline-flex min-h-11 items-center truncate rounded-nav px-1 t-item text-fg">{folder.name}</span>
               : <button type="button" className={CRUMB} onClick={() => onOpen(folder.id)}>{folder.name}</button>}
           </li>
         ))}

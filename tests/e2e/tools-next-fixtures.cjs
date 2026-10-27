@@ -71,6 +71,13 @@ const SNIPPETS = [
   snippet(4, "sales", "Стоимость обучения — общий ответ", "Стоимость зависит от вуза и программы: в Китае от 2 500 до 4 500 долларов в год, в Малайзии — от 4 000. Точную цифру назовём после выбора программы.", { canMutate: false, author: C }),
 ];
 
+/** Двенадцать шаблонов: двенадцатый не попадает на первую страницу таблицы (по 10 строк) — на нём проверяется ссылка `#reply-snippet-<id>`. */
+const SNIPPETS_MANY = [
+  ...SNIPPETS,
+  ...["Приглашение на консультацию", "Как оплатить обучение", "Сроки рассмотрения заявки", "Список документов для поступления", "Перенос консультации", "Напоминание о договоре", "Что делать после оплаты", "Итоговое напоминание о подписании"]
+    .map((title, index) => snippet(5 + index, ["sales", "admissions", "all"][index % 3], title, `Синтетический текст шаблона «${title}».`)),
+];
+
 /* ------------------------------------------------------------------ документы */
 
 const folder = (key, name, parentId, kind = "company", number = 0) => ({
@@ -208,5 +215,5 @@ function knowledgeFixture() {
 
 module.exports = {
   id, uuid, ORG, ME, B, C, NAMES, NOW, TODAY, ADMIN, STAFF, PREVIEW, PARTICIPANTS,
-  WEEK, MONTH_EXTRA, CASE_OPTIONS, SNIPPETS, FOLDERS, FILES, CHAT, messageId, knowledgeFixture,
+  WEEK, MONTH_EXTRA, CASE_OPTIONS, SNIPPETS, SNIPPETS_MANY, FOLDERS, FILES, CHAT, messageId, knowledgeFixture,
 };

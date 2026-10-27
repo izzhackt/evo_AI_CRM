@@ -109,8 +109,7 @@ export function DataTable<T extends RowData>({
                       sorted={header.column.getIsSorted()}
                       canSort={header.column.getCanSort()}
                       onSort={header.column.getToggleSortingHandler()}
-                      end={header.column.columnDef.meta?.align === "end"}
-                      wide={header.column.columnDef.meta?.wide}
+                      meta={header.column.columnDef.meta}
                     >
                       {header.isPlaceholder ? null : <table.FlexRender header={header} />}
                     </DataTableHeadCell>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { DataTable, DetailSheet, EmptyState } from "@/components/kit";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,12 @@ import { Button } from "@/components/ui/button";
 import type { KnowledgeFile, KnowledgeFolder } from "../../FileManager";
 import { KnowledgeExport } from "../KnowledgeExport";
 import { FilesBreadcrumb } from "./FilesBreadcrumb";
+import { focusAfterOpen } from "./focus-after-open";
 import { FilesToolbar } from "./FilesToolbar";
 import { FileSheetBody } from "./FileSheetBody";
 import { fileColumns } from "./files-columns";
 import { filesModel, folderExportOf, selectedExportOf, type FileEntry } from "./files-model";
+import { PhoneSelectAll } from "./PhoneSelectAll";
 
 /**
  * «Документы» в новом виде: путь, поиск и таблица (подпапки и файлы папки; поиск — по названиям файлов во всех папках, как раньше).
@@ -40,16 +42,29 @@ export function FilesNext({ folders, files, canManage, canUpload, createFolderRe
   const model = useMemo(() => filesModel(folders, files, currentId, query), [folders, files, currentId, query]);
   const openFile = files.find((file) => file.id === openFileId) ?? null;
   const exportable = useMemo(() => model.exportable.map((file) => file.currentVersionId!), [model.exportable]);
-  const openFolder = (id: string | null) => { setSelected(new Set()); setCurrentId(id); setQuery(""); };
+  const frame = useRef<HTMLDivElement>(null);
+  const currentCrumb = useRef<HTMLSpanElement>(null);
+  const refocus = useRef(false);
+  // Нажатая строка или звено пути пропадает из разметки: после открытия фокус ставится на название папки, а не падает на страницу.
+  const openFolder = (id: string | null) => { refocus.current = true; setSelected(new Set()); setCurrentId(id); setQuery(""); };
+  useEffect(() => {
+    if (!refocus.current) return;
+    refocus.current = false;
+    focusAfterOpen(frame.current, currentCrumb.current);
+  }, [currentId]);
+  const toggleAll = useCallback((on: boolean) => setSelected((old) => { const next = new Set(old); for (const version of exportable) { if (on) next.add(version); else next.delete(version); } return next; }), [exportable]);
+  const allChosen = exportable.length > 0 && exportable.every((version) => selected.has(version));
   const columns = useMemo(() => fileColumns({
-    selectable: true, selected, exportableVersions: exportable,
+    // Выбирать и скачивать нечего (корень из одних папок) — этих колонок нет, а не пустые.
+    selectable: exportable.length > 0, downloadable: model.entries.some((entry) => entry.kind === "file" && entry.file.downloadHref), selected, allChosen,
     onToggle: (version, on) => setSelected((old) => { const next = new Set(old); if (on) next.add(version); else next.delete(version); return next; }),
-    onToggleAll: (on) => setSelected((old) => { const next = new Set(old); for (const version of exportable) { if (on) next.add(version); else next.delete(version); } return next; }),
-  }), [selected, exportable]);
+    onToggleAll: toggleAll,
+  }), [selected, exportable, allChosen, model.entries, toggleAll]);
   const open = (entry: FileEntry) => (entry.kind === "folder" ? openFolder(entry.folder.id) : setOpenFileId(entry.file.id));
   return (
-    <div className="grid min-w-0 gap-3" data-testid="v3-documents-next">
-      <FilesBreadcrumb rootLabel={rootLabel} path={model.path} onOpen={openFolder} />
+    <div ref={frame} className="grid min-w-0 gap-3" data-testid="v3-documents-next">
+      <FilesBreadcrumb rootLabel={rootLabel} path={model.path} onOpen={openFolder} currentRef={currentCrumb} />
+      {exportable.length > 0 ? <PhoneSelectAll label="Выбрать документы на экране" text="Выбрать документы" checked={allChosen} onChange={toggleAll} /> : null}
       <DataTable
         label="Таблица документов"
         data={model.entries}

@@ -25,13 +25,14 @@ export function DestinationSelect({ id, name, value, folders, label = "Пере�
 
 /**
  * Панель файла: управление файлом компании (заменить файл, переименовать, переместить, удалить) теми же действиями и полями, что
- * у прежнего `FileControls`; файл студента и роль без права управления — только «Скачать» в подвале панели.
+ * у прежнего `FileControls`; файл студента и роль без права управления — только размер под названием и «Скачать» в подвале панели.
  */
 export function FileSheetBody({ file, destinations, canManage, canUpload }: Readonly<{ file: KnowledgeFile; destinations: readonly KnowledgeFolder[]; canManage: boolean; canUpload: boolean }>) {
   const company = file.kind === "company";
   const ids = file.renameRequestId && file.moveRequestId && file.archiveRequestId && file.uploadRequestId && file.version;
   if (!company || !ids || !file.version) {
-    return canUpload && company && file.version && file.uploadRequestId ? <FileUploadForm file={file} /> : <p className="t-body-compact text-fg-2">Размер: {file.size ?? "—"}</p>;
+    // Размер уже под названием панели (описание), «Скачать» — в подвале: файлу студента добавить в тело нечего.
+    return canUpload && company && file.version && file.uploadRequestId ? <FileUploadForm file={file} /> : null;
   }
   const hidden = { company_file_id: file.id, expected_version: file.version };
   return (

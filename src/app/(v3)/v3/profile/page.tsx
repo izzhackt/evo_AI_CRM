@@ -24,7 +24,8 @@ import { ParentPhoneLookalikes } from "@/components/v3/profile/ParentPhoneLookal
 import type { ParentPhoneSubject } from "@/lib/parent-phone-lookalikes-contract";
 import { ClosedLeadView } from "@/components/v3/closure/ClosedLeadView";
 import { withDocsSection } from "@/components/v3/profile/admissions-view";
-import { buildStudentsQueueScreen } from "@/components/v3/students/StudentsQueueScreen";
+import { buildStudentsQueueScreen, type StudentsQueueScreenInput } from "@/components/v3/students/StudentsQueueScreen";
+import { StudentsNextLazy } from "@/components/v3/students-next/StudentsNextLazy";
 import { StudentsDirectoryFallback } from "@/components/v3/students/StudentsDirectoryFallback";
 import { nextStepAccess, parseStudentsQueueParams, parseStudentsReturnTo, type NextStepAccessInput } from "@/components/v3/students/students-queue-view";
 import { UniversityProgramsTab } from "@/components/v3/profile/UniversityProgramsTab";
@@ -198,14 +199,15 @@ function previewClosure(actor: ActivePlatformActor, closure: CaseClosure | null)
 /**
  * «Студенты» и EVO Docs как рабочая очередь (миграция 241, PLAN_CHANGES
  * «Студенты» PR 2): страница читает очередь, числа, задачи открытого дела и
- * нагрузку кураторов, а экран собирает `buildStudentsQueueScreen`.
+ * нагрузку кураторов, а экран собирает `buildStudentsQueueScreen` (прежний вид)
+ * или `StudentsNextLazy` («Новый вид»): те же чтения отдаются обоим.
  */
-async function studentsQueuePage(
+async function studentsQueueInput(
   actor: ActivePlatformActor,
   parse: Exclude<ReturnType<typeof parseStudentsQueueParams>, Readonly<{ kind: "redirect" }>>,
   query: ProfileSearchParams,
   curatorsRead: Promise<readonly StudentPortalCuratorOption[]>,
-) {
+): Promise<StudentsQueueScreenInput> {
   const params = parse.params;
   const [reads, curators, packages, program] = await Promise.all([
     parse.kind === "invalid" ? null : Promise.all([
@@ -224,7 +226,7 @@ async function studentsQueuePage(
     params.mode === "docs" ? readDocsProgramDocuments(actor) : Promise.resolve(undefined),
   ]);
   const editor = nextStepEditor(actor);
-  return buildStudentsQueueScreen({
+  return {
     params,
     invalid: parse.kind === "invalid",
     read: reads?.[0] ?? { page: null, counts: null, forbidden: false },
@@ -246,7 +248,7 @@ async function studentsQueuePage(
     recordScopes: editor.recordScopes,
     createTask: !isStaffPreview(actor) && staffHasPermission(actor, "task.create"),
     requestIds: { nextStep: randomUUID(), coverage: randomUUID() },
-  });
+  };
 }
 
 export default async function ProfilePart({
@@ -417,9 +419,9 @@ export default async function ProfilePart({
   const leadTasksRead = leadSales && view && view.details.routeTarget.leadId && !leadSales.lead.nextActionText
     && !isStaffPreview(actor) && staffHasPermission(actor, "staff.task.read")
     ? readLeadTaskLinks(actor, view.details.routeTarget.leadId).then((links) => links.rows, () => null) : null;
-  const [curatorOptions, queuePage, caseWork, caseClosureRead, leadOwners, leadAgreement, leadCalls, leadDial, leadTasks] = await Promise.all([
+  const [curatorOptions, queueInput, caseWork, caseClosureRead, leadOwners, leadAgreement, leadCalls, leadDial, leadTasks] = await Promise.all([
     curatorsRead,
-    queueParse ? studentsQueuePage(actor, queueParse, params, curatorsRead.then((read) => read.curators)) : null,
+    queueParse ? studentsQueueInput(actor, queueParse, params, curatorsRead.then((read) => read.curators)) : null,
     // Лента Student 360 (Э4): журнал дела — только на «Обзоре» и первой странице заметок.
     // Читатель «Ждут куратора» без права на само дело (248/281) задач, переписки и журнала не читает.
     caseTarget ? readCaseWork(actor, caseTarget, {
@@ -439,9 +441,14 @@ export default async function ProfilePart({
   const studentPortalCurators = curatorOptions.curators;
   const studentPortalCuratorsAvailable = curatorOptions.available;
   // «Университеты и бланки» — редкий путь: тихая ссылка справа от заголовка, не красная.
-  const docsAction = docsMode && directoryMode && !isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage")
+  const manageUniversities = docsMode && directoryMode && !isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage");
+  const docsAction = manageUniversities
     ? <Link href="/v3/universities" className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">Университеты и бланки</Link>
     : undefined;
+  // «Новый вид» (27.10.2026): очередь «Студентов» и EVO Docs из набора виджетов — по тем же чтениям и правам; экран сам
+  // отдаёт `StudentsNextLazy` и ничего больше (дел и карточек в очереди нет). Прежний вид строит экран из тех же данных.
+  if (nextUi && queueInput) return <StudentsNextLazy input={queueInput} manageUniversities={manageUniversities} />;
+  const queuePage = queueInput ? buildStudentsQueueScreen(queueInput) : null;
 
   const caseParts = view && caseTarget && caseWork ? (() => {
     const editor = nextStepEditor(actor);

@@ -77,7 +77,8 @@ test("rejected receipt leaves the pending-only draft route and old links retain 
   // Отклонение не меняет опубликованный индекс студента: тег не сбрасывается.
   assert.deepEqual(harness.tags, []);
   const page = readFileSync(new URL("../src/app/(v3)/v3/universities/manage/page.tsx", import.meta.url), "utf8");
-  assert.match(page, /if \(!draft\) return <PartShell/u);
+  // «Университеты» ставят рамку `UniversityShell`: прежняя `PartShell` без переключателя «Нового вида», тот же возврат.
+  assert.match(page, /if \(!draft\) return <(?:PartShell|UniversityShell)/u);
   assert.doesNotMatch(page, /drafts\[0\] \?\? notFound/u);
 });
 

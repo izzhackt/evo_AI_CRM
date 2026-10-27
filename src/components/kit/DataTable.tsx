@@ -36,6 +36,7 @@ export function DataTable<T extends RowData>({
   onRowClick,
   getRowLabel,
   searchPlaceholder = "Поиск",
+  searchable = true,
   pageSize = 10,
   paginate = true,
   loading = false,
@@ -54,6 +55,8 @@ export function DataTable<T extends RowData>({
   /** Название записи для имени перехода «Открыть: …» (таблица и карточка); без него — значение колонки-заголовка. */
   getRowLabel?: (row: T) => string;
   searchPlaceholder?: string;
+  /** `false` — своего поиска нет: список отбирает сервер (поиск в адресе); без поиска, фильтров и меню колонок панели инструментов нет. */
+  searchable?: boolean;
   pageSize?: 10 | 25 | 50;
   /** `false` — своих страниц нет, показаны все присланные строки (сервер ограничил или разбил список). Поиск и сортировка — по ним. */
   paginate?: boolean;
@@ -89,11 +92,7 @@ export function DataTable<T extends RowData>({
   if (!loading && data.length === 0) {
     body = <div className="rounded-card border border-border bg-surface">{empty ?? <EmptyState title="Пока пусто" />}</div>;
   } else if (!loading && matches === 0) {
-    body = (
-      <div className="rounded-card border border-border bg-surface">
-        <EmptyState icon={SearchXIcon} title="Ничего не найдено" action={<Button variant="outline" onClick={() => table.resetGlobalFilter()}>Сбросить поиск</Button>} />
-      </div>
-    );
+    body = <div className="rounded-card border border-border bg-surface"><EmptyState icon={SearchXIcon} title="Ничего не найдено" action={<Button variant="outline" onClick={() => table.resetGlobalFilter()}>Сбросить поиск</Button>} /></div>;
   } else {
     body = (
       <>
@@ -143,7 +142,7 @@ export function DataTable<T extends RowData>({
 
   return (
     <div ref={watchBlock} className={cn("@container flex min-w-0 flex-col gap-3", className)} data-slot="data-table">
-      <DataTableToolbar search={String(table.state.globalFilter ?? "")} onSearch={(value) => table.setGlobalFilter(value)} placeholder={searchPlaceholder} columns={columnMenu ? menuColumns : undefined} extra={toolbar} />
+      <DataTableToolbar search={String(table.state.globalFilter ?? "")} onSearch={(value) => table.setGlobalFilter(value)} placeholder={searchPlaceholder} searchable={searchable} columns={columnMenu ? menuColumns : undefined} extra={toolbar} />
       {body}
     </div>
   );

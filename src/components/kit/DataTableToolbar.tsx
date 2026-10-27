@@ -20,31 +20,37 @@ export function DataTableToolbar({
   search,
   onSearch,
   placeholder,
+  searchable = true,
   columns,
   extra,
 }: Readonly<{
   search: string;
   onSearch: (value: string) => void;
   placeholder: string;
+  /** Поле поиска; `false` — только свои фильтры страницы (список отбирает сервер). */
+  searchable?: boolean;
   /** Колонки таблицы; меню показывается, если хотя бы одну можно скрыть. Без списка меню нет. */
   columns?: readonly Column[];
   /** Свои фильтры страницы (статус, ответственный…) — те же поля и кнопки, что были, без пояснений. */
   extra?: React.ReactNode;
 }>) {
   const hideable = columns?.filter((column) => column.getCanHide()) ?? [];
+  if (!searchable && !extra && hideable.length === 0) return null;
   return (
     <div className="flex flex-wrap items-center gap-2" data-slot="data-table-toolbar">
-      <div className="relative min-w-0 flex-1 basis-56">
-        <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-3" aria-hidden="true" />
-        <Input
-          type="search"
-          value={search}
-          onChange={(event) => onSearch(event.target.value)}
-          placeholder={placeholder}
-          aria-label={placeholder}
-          className="pl-9"
-        />
-      </div>
+      {searchable ? (
+        <div className="relative min-w-0 flex-1 basis-56">
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-3" aria-hidden="true" />
+          <Input
+            type="search"
+            value={search}
+            onChange={(event) => onSearch(event.target.value)}
+            placeholder={placeholder}
+            aria-label={placeholder}
+            className="pl-9"
+          />
+        </div>
+      ) : null}
       {extra}
       {hideable.length > 0 ? (
         <DropdownMenu>

@@ -61,7 +61,7 @@ export function StudentsTable({ params, rows, counts, today, now, nextCursor, fi
       caseHref: (row) => studentsCaseHref(row.studentCaseId, { returnTo: openHref(row) }),
       selection: selectable.size > 0 ? selection : null, selectable: new Set(selectable.keys()),
     }}>
-      <div className="grid min-w-0 gap-3" data-testid="v3-student-case-directory-next">
+      <div className="grid min-w-0 gap-3" data-testid="v3-student-case-directory-next" data-queue-list="">
         {params.open === null ? <QueueKeys /> : null}
         <DataTable
           label="Студенты"

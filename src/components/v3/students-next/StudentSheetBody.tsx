@@ -14,6 +14,7 @@ import { ClosedLine, CloseRecordButton } from "../closure/Closure";
 import { ProfileHandoffAcknowledgement } from "../profile/ProfileSalesTransition";
 import { dueWordOf, queueDue } from "../queue/due-bucket";
 import { QUEUE_SECONDARY } from "../queue/queue-buttons";
+import type { TaskComposerPageContext } from "../tasks/task-composer-context";
 import { NextStepEditor } from "../students/NextStepEditor";
 import { type NextStepAccess, type StudentsHandoff, type StudentsOpenTasks } from "../students/students-queue-view";
 import { SheetSection, StudentSheetDocuments, StudentSheetTasks } from "./StudentSheetSections";
@@ -32,7 +33,7 @@ const NEED_CURATOR = <span className="font-medium text-danger">нужен кур
  * и (редкое — последним) «Завершить дело». Приём дела — первым, если он ждёт ответа куратора. Команды, права и ключи запросов
  * те же, что у прежней боковой панели; сервер проверяет каждую запись.
  */
-export function StudentSheetBody({ row, today, now, access, tasks, handoff, closure, requestId, links, onSaved, onClosureChanged }: Readonly<{
+export function StudentSheetBody({ row, today, now, access, tasks, handoff, closure, requestId, links, onSaved, onClosureChanged, onCreateTask }: Readonly<{
   row: StudentCaseQueueRow;
   today: string;
   now: Date;
@@ -44,6 +45,7 @@ export function StudentSheetBody({ row, today, now, access, tasks, handoff, clos
   links: StudentSheetLinks;
   onSaved: (receipt: CaseNextActionReceipt) => void;
   onClosureChanged: (receipt: CaseClosureReceipt) => void;
+  onCreateTask: (context: TaskComposerPageContext) => boolean;
 }>) {
   const [receipt, setReceipt] = useState<CaseClosureReceipt | null>(null);
   const [answered, setAnswered] = useState<"accepted" | "declined" | null>(null);
@@ -99,7 +101,7 @@ export function StudentSheetBody({ row, today, now, access, tasks, handoff, clos
           {access.reason ? <p className="t-body-compact text-fg-2">{access.reason}</p> : null}
         </>}
       </SheetSection>
-      <StudentSheetTasks row={row} tasks={tasks} now={now} tasksHref={links.tasks} createTaskHref={links.createTask} taskHref={links.task} />
+      <StudentSheetTasks row={row} tasks={tasks} now={now} tasksHref={links.tasks} createTaskHref={links.createTask} taskHref={links.task} onCreateTask={onCreateTask} />
       <StudentSheetDocuments row={row} href={links.documents} />
       {row.state === "active" && canChange && (known !== null || closure?.state === "active") ? (
         <div className="border-t border-border pt-4">

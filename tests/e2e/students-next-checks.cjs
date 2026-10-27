@@ -10,6 +10,7 @@ const { pathToFileURL } = require("node:url");
 
 const harness = require("./students-next-static-render.cjs");
 const { journeys } = require("./students-next-journeys.cjs");
+const { journeys: fixes } = require("./students-next-fixes-journeys.cjs");
 
 const MAINS = { students: "v3-students-next", universities: "v3-universities-next", university: "v3-university-next", manage: "v3-universities-next" };
 // Страницы, у которых проверяются все три ширины; остальные — 1440 и 390.
@@ -99,7 +100,7 @@ async function run() {
   }
 
   // 2. Пути: строка → панель → действие, клавиатура, фильтры, вкладки, очереди EVO Docs.
-  for (const journey of journeys) await journey(tools);
+  for (const journey of [...journeys, ...fixes]) await journey(tools);
 
   await browser.close();
   console.log(JSON.stringify({ summary: { checks: total, failed } }));

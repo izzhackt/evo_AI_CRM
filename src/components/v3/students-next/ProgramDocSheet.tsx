@@ -11,6 +11,7 @@ import styles from "@/components/portal/admissionPreparations/ProgramDocuments.m
 import type { ApplicationDocumentOwner, ApplicationDocumentQueueItem } from "@/lib/portal/application-documents";
 import { getPortalStrings } from "@/lib/portal/i18n";
 
+import { sheetEscape } from "../panel/sheet-escape";
 import { docsWaiting, studentsCaseHref } from "../students/students-queue-view";
 import { WaitingWord } from "./DocsCells";
 import { deadlineText, programOf } from "./docs-program-model";
@@ -42,7 +43,7 @@ export function ProgramDocSheet({ item, owner, canReview, today, returnTo, open,
   const deadline = item.deadline ? deadlineText(item.deadline, today) : null;
   const href = `${studentsCaseHref(item.studentCaseId, { docs: true, tab: "route", returnTo })}#preparation-${item.applicationId}`;
   return (
-    <DetailSheet open={open} onOpenChange={onOpenChange} title={`${item.studentDisplayName} · ${item.requirementLabel}`} description={programOf(item)}
+    <DetailSheet open={open} onOpenChange={onOpenChange} onEscapeKeyDown={sheetEscape} title={`${item.studentDisplayName} · ${item.requirementLabel}`} description={programOf(item)}
       footer={<Button variant="outline" asChild><Link href={href}>{strings.openProgram}</Link></Button>}>
       <div className="space-y-4" data-testid="v3-program-document-sheet">
         {!item.isCurrentRequirement ? <StatusBadge label={strings.olderRequirement} tone="warn" /> : null}

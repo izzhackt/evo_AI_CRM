@@ -37,6 +37,7 @@ export function universityListRows(page: CataloguePage, level: UniversityFilters
     country: universityCountry(university.content.country),
     programs: catalogueProgramCount(university, level),
     staleOn: staleOn(university.content.verifiedOn, today),
+    verifiedOn: university.content.verifiedOn,
     hidden: !isStudyCountryCode(university.content.country),
     thumb: <UniversityPhoto content={university.content} variant="thumb" />,
     deadline: deadline ? {

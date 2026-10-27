@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 
@@ -8,6 +9,7 @@ import { DataTable, type DataTableColumn } from "@/components/kit";
 import { packageStrings } from "@/components/portal/applicationPackages/strings";
 import type { ApplicationPackageQueueItem } from "@/lib/portal/application-packages";
 
+import { QueueList } from "../list-next/QueueList";
 import { docsWaiting, russianPlural, studentsCaseHref } from "../students/students-queue-view";
 import { WaitingWord } from "./DocsCells";
 
@@ -15,11 +17,17 @@ const NBSP = " ";
 const hrefOf = (item: ApplicationPackageQueueItem, returnTo: string) => `${studentsCaseHref(item.studentCaseId, { docs: true, tab: "route", returnTo })}#preparation-${item.applicationId}`;
 const programOf = (item: ApplicationPackageQueueItem) => [item.program.universityTitle, item.program.programTitle].filter(Boolean).join(" · ");
 
-function columns(today: string): DataTableColumn<ApplicationPackageQueueItem>[] {
+function columns(today: string, returnTo: string): DataTableColumn<ApplicationPackageQueueItem>[] {
   const words = packageStrings("ru");
   return [
-    { id: "student", header: "Студент", accessorFn: (item) => item.studentDisplayName, sortFn: "text", enableHiding: false, meta: { label: "Студент", mobile: "title" },
-      cell: ({ row }) => <span className="line-clamp-2 break-words t-item text-fg">{row.original.studentDisplayName}</span> },
+    // Название — ссылка к подготовке программы (область — вся ячейка): единственная остановка клавиатуры строки и цель клавиш списка.
+    { id: "student", header: "Студент", accessorFn: (item) => item.studentDisplayName, sortFn: "text", enableHiding: false, meta: { label: "Студент", mobile: "title", opensRow: true },
+      cell: ({ row }) => (
+        <div data-queue-row={row.original.package.packageId} className="relative z-0 min-w-0 py-0.5">
+          <Link href={hrefOf(row.original, returnTo)} data-queue-open="" aria-label={`Открыть документы: ${row.original.studentDisplayName}, ${programOf(row.original)}`}
+            className="line-clamp-2 break-words py-0.5 t-item text-fg before:absolute before:inset-0 before:content-[''] hover:underline">{row.original.studentDisplayName}</Link>
+        </div>
+      ) },
     { id: "package", header: "Комплект", accessorFn: programOf, sortFn: "text", meta: { label: "Комплект" },
       cell: ({ row }) => {
         const item = row.original;
@@ -44,19 +52,21 @@ function columns(today: string): DataTableColumn<ApplicationPackageQueueItem>[] 
 /** Вкладка «Комплекты»: комплекты, отправленные на проверку EVO и ещё без решения. Строка ведёт к подготовке программы, где комплект проверяется. */
 export function DocsPackagesTable({ items, today, returnTo, empty }: Readonly<{ items: readonly ApplicationPackageQueueItem[]; today: string; returnTo: string; empty: React.ReactNode }>) {
   const router = useRouter();
-  const defs = useMemo(() => columns(today), [today]);
+  const defs = useMemo(() => columns(today, returnTo), [today, returnTo]);
   return (
-    <DataTable
-      label="Комплекты на проверку"
-      data={items}
-      columns={defs}
-      getRowId={(item) => item.package.packageId}
-      onRowClick={(item) => router.push(hrefOf(item, returnTo))}
-      getRowLabel={(item) => `${item.studentDisplayName}, ${programOf(item)}`}
-      searchable={false}
-      paginate={false}
-      columnMenu={false}
-      empty={empty}
-    />
+    <QueueList>
+      <DataTable
+        label="Комплекты на проверку"
+        data={items}
+        columns={defs}
+        getRowId={(item) => item.package.packageId}
+        onRowClick={(item) => router.push(hrefOf(item, returnTo))}
+        getRowLabel={(item) => `${item.studentDisplayName}, ${programOf(item)}`}
+        searchable={false}
+        paginate={false}
+        columnMenu={false}
+        empty={empty}
+      />
+    </QueueList>
   );
 }

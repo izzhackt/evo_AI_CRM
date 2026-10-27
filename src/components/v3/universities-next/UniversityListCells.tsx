@@ -15,7 +15,7 @@ export function UniversityCell({ row }: Readonly<{ row: UniversityListRow }>) {
         <IntentPrefetchLink href={`/v3/universities/${row.id}`} data-queue-open="" title={row.name}
           className="line-clamp-2 break-words t-item text-fg before:absolute before:inset-0 before:content-[''] hover:underline hover:underline-offset-4">{row.name}</IntentPrefetchLink>
         <span className="block truncate t-meta text-fg-2">{[row.country, row.city].filter(Boolean).join(" · ")}</span>
-        {row.staleOn ? <span className="block t-meta text-warn">Проверено <time dateTime={row.staleOn} className="font-mono tabular-nums">{row.staleOn}</time></span> : null}
+        {row.staleOn ? <span className="block t-meta text-warn">Проверено <time dateTime={row.verifiedOn} className="font-mono tabular-nums">{row.staleOn}</time></span> : null}
         {/* 282: страны вне единого списка (PL, CY и др.) остаются у сотрудников, студенты их не видят. */}
         {row.hidden ? <span className="mt-1 block"><StatusBadge label="Не показывается студентам" /></span> : null}
       </div>

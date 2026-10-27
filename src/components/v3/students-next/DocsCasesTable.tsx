@@ -6,6 +6,7 @@ import { useMemo } from "react";
 import { DataTable, type DataTableColumn } from "@/components/kit";
 import type { StudentCaseQueueRow } from "@/lib/platform-student-case-queue-contract";
 
+import { QueueList } from "../list-next/QueueList";
 import { studentsCaseHref, type StudentsDocsView } from "../students/students-queue-view";
 import { CuratorName, DocumentsCell, DocsRowMenu, DocsStudentCell } from "./DocsCells";
 
@@ -37,18 +38,20 @@ export function DocsCasesTable({ rows, view, today, returnTo, toolbar, empty }: 
   const router = useRouter();
   const defs = useMemo(() => columns(view, today, returnTo), [view, today, returnTo]);
   return (
-    <DataTable
-      label="Дела EVO Docs"
-      data={rows}
-      columns={defs}
-      getRowId={(row) => row.studentCaseId}
-      onRowClick={(row) => router.push(studentsCaseHref(row.studentCaseId, { docs: true, returnTo }))}
-      getRowLabel={(row) => row.studentDisplayName}
-      searchable={false}
-      paginate={false}
-      columnMenu={false}
-      toolbar={toolbar}
-      empty={empty}
-    />
+    <QueueList>
+      <DataTable
+        label="Дела EVO Docs"
+        data={rows}
+        columns={defs}
+        getRowId={(row) => row.studentCaseId}
+        onRowClick={(row) => router.push(studentsCaseHref(row.studentCaseId, { docs: true, returnTo }))}
+        getRowLabel={(row) => row.studentDisplayName}
+        searchable={false}
+        paginate={false}
+        columnMenu={false}
+        toolbar={toolbar}
+        empty={empty}
+      />
+    </QueueList>
   );
 }

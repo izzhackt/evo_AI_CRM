@@ -60,6 +60,9 @@ const journeys = [
       const rowText = await keys(view).tableRow(page, NAMES.aidana).evaluate((element) => element.textContent);
       report(`queue ${view}: the saved step is already in the row (before the server answers)`, /Отправить копии аттестата партнёру/u.test(rowText), rowText.slice(0, 120));
       report(`queue ${view}: «Завершить дело» is in the panel for a case that can be closed`, await dialog.getByRole("button", { name: /Завершить дело/u }).count() === 1, null);
+      // Фокус после сохранения вернулся в поле шага: первая Esc только выводит из поля (как в прежней боковой панели), вторая закрывает.
+      await page.keyboard.press("Escape");
+      report(`queue ${view}: Esc in the step field after saving keeps the panel`, (await dialog.count()) === 1, null);
       await page.keyboard.press("Escape");
       await dialog.waitFor({ state: "detached" });
       report(`queue ${view}: Esc closes the panel and the address returns to the list`, !/open=/u.test((await pushes(page)).at(-1) ?? ""), (await pushes(page)).at(-1));

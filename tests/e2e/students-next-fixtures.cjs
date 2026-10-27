@@ -124,8 +124,8 @@ function universities() {
   const today = "2026-09-27";
   const page = (items, filters, offset = 0) => view.catalogueSortedPage(view.sortCatalogueRows(items, filters.level, NOW), offset);
   const countries = [...new Set(published.map((item) => item.content.country))].sort();
-  const props = (items, filters, offset = 0) => {
-    const filtered = list.universityListProps(page(items, filters, offset), { query: "", country: "", level: "", offset, ...filters }, countries, true, today);
+  const props = (items, filters, offset = 0, day = today) => {
+    const filtered = list.universityListProps(page(items, filters, offset), { query: "", country: "", level: "", offset, ...filters }, countries, true, day);
     return { ...filtered, rows: filtered.rows.map((row) => ({ ...row, thumb: null })) };
   };
   const byName = (key) => published.find((item) => all.find((entry) => entry.key === key)?.id === item.id) ?? published[0];
@@ -138,6 +138,8 @@ function universities() {
   const drafts = published.slice(0, 3).map((item, index) => ({ id: uuid("dddddddd-7777-4777-8777", index + 1), baseVersion: index + 1, content: item.content }));
   return {
     list: props(published, { query: "", country: "", level: "", offset: 0 }),
+    // Через 56 дней после проверки карточки (10.09) все они «давно не проверялись».
+    stale: props(published, { query: "", country: "", level: "", offset: 0 }, 0, "2026-11-05"),
     filtered: props(published.filter((item) => item.content.country === "MY"), { query: "", country: "MY", level: "bachelor", offset: 0 }),
     empty: props([], { query: "zzz", country: "", level: "", offset: 0 }),
     withPaging: (() => { const bundle = props(published, { query: "", country: "", level: "", offset: 30 }, 30); return bundle; })(),

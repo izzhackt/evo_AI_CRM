@@ -30,6 +30,8 @@ const VIEWPORTS = {
   d1440: { viewport: { width: 1440, height: 900 } },
   d1280: { viewport: { width: 1280, height: 800 } },
   m390: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+  m360: { viewport: { width: 360, height: 780 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+  m320: { viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
 };
 
 // --- браузерная сборка ------------------------------------------------------------------------------------------
@@ -158,7 +160,30 @@ async function buildBundle(outFile) {
             loader: "js",
           };
         }
-        return { contents: names.map((name) => `export async function ${name}() { window.__harness.calls.push([${JSON.stringify(name)}]); throw new Error("students-next harness: server action ${name} is not available"); }`).join("\n"), loader: "ts" };
+        const refuse = (skip = []) => names.filter((name) => !skip.includes(name)).map((name) => `export async function ${name}() { window.__harness.calls.push([${JSON.stringify(name)}]); throw new Error("students-next harness: server action ${name} is not available"); }`).join("\n");
+        // Диалог «Новая задача» оболочки: исполнители дела читаются, создание «сохраняется»; оба вызова записываются (форма — полями).
+        if (args.path.endsWith("task-case-actions.ts")) {
+          return {
+            contents: `export async function readTaskCaseAssigneesAction(caseId) {
+  window.__harness.calls.push(["readTaskCaseAssigneesAction", caseId]);
+  return { status: "ready", assignees: [{ membershipId: ${JSON.stringify(legacy.ME)}, displayName: "Администратор (синтетический)" }] };
+}
+${refuse(["readTaskCaseAssigneesAction"])}`,
+            loader: "js",
+          };
+        }
+        if (args.path.endsWith("platform-admissions-task-actions.ts")) {
+          return {
+            contents: `export async function createPlatformAdmissionsTaskAction(previous, form) {
+  window.__harness.calls.push(["createPlatformAdmissionsTaskAction", Object.fromEntries(form.entries())]);
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  return { status: "saved", requestId: previous.requestId, caseTaskId: "dddddddd-5555-4555-8555-000000000001", version: "1", changedAt: null };
+}
+${refuse(["createPlatformAdmissionsTaskAction"])}`,
+            loader: "js",
+          };
+        }
+        return { contents: refuse(), loader: "ts" };
       });
     },
   };
@@ -191,6 +216,7 @@ function pagesOf(fixtures) {
     ...Object.fromEntries(Object.entries(students.states).map(([name, entry]) => [`state-${name}`, queue(entry)])),
     ...Object.fromEntries(Object.entries(students.docs).map(([name, entry]) => [`docs-${name}`, queue(entry)])),
     "uni-list": uni("universities", universities.list),
+    "uni-stale": uni("universities", universities.stale),
     "uni-filtered": uni("universities", universities.filtered),
     "uni-empty": uni("universities", universities.empty),
     "uni-paged": uni("universities", universities.withPaging),

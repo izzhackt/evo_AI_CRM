@@ -414,6 +414,77 @@ test("«Управление каталогом» и вложенные стра
   await assert.rejects(universityPage("manage/page.tsx", "next", STAFF).run(), /NEXT_REDIRECT \/access-denied/u);
 });
 
+/* ---------------------------------------------------------------- исправления после независимой проверки потока (27.10.2026) */
+
+test("Esc в панели-листе: окно или всплывающее окно поверх закрываются первыми, поле панели — выход из поля, иначе закрывается панель", () => {
+  const { sheetEscapeStep } = load("src/components/v3/panel/sheet-escape.ts");
+  const step = (state) => sheetEscapeStep({ modal: false, popover: false, typing: false, inSheet: true, ...state });
+  assert.equal(step({}), "close", "Esc вне поля закрывает панель");
+  assert.equal(step({ typing: true }), "leave-field", "в поле панели первая Esc выводит из поля, введённое остаётся");
+  assert.equal(step({ modal: true }), "modal", "«Завершить дело» и «Новая задача» закрываются первыми");
+  assert.equal(step({ modal: true, typing: true }), "modal", "поле в окне поверх панели — тоже закрывается окно, а не панель");
+  assert.equal(step({ popover: true, typing: true }), "popover");
+  for (const file of ["StudentSheetHost", "CuratorsNext", "ProgramDocSheet"]) {
+    assert.match(read(`src/components/v3/students-next/${file}.tsx`), /onEscapeKeyDown=\{sheetEscape\}/u, `${file}: панель отдаёт Esc правилам боковой панели`);
+  }
+  assert.match(read("src/components/kit/DetailSheet.tsx"), /onEscapeKeyDown=\{onEscapeKeyDown\}/u, "набор виджетов отдаёт Esc странице");
+});
+
+test("«+ Задача» в панели: диалог оболочки открывают, только пока он есть; сама панель его не открывает поверх себя", () => {
+  const context = load("src/components/v3/tasks/task-composer-context.tsx");
+  assert.equal(context.taskComposerAvailable(), false, "диалога оболочки нет — ссылка ведёт на создание в «Задачах»");
+  const calls = [];
+  const unregister = context.registerTaskComposerOpener((value) => calls.push(value));
+  assert.equal(context.taskComposerAvailable(), true);
+  assert.equal(context.openTaskComposer({ title: "x" }), true);
+  assert.deepEqual(calls, [{ title: "x" }]);
+  unregister();
+  assert.equal(context.taskComposerAvailable(), false);
+  assert.doesNotMatch(read("src/components/v3/students-next/StudentSheetSections.tsx"), /openTaskComposer/u, "панель не зовёт диалог оболочки сама: поверх модальной панели он не принимает касаний");
+  const host = read("src/components/v3/students-next/StudentSheetHost.tsx");
+  assert.match(host, /taskComposerAvailable\(\)/u);
+  assert.match(host, /onCloseAutoFocus=\{afterClose\}/u, "диалог открывается, когда панель ушла");
+});
+
+test("телефон: «Сигналы» остаются среди трёх полей карточки в любом виде очереди, «Этап» на карточке не нужен (он в панели)", () => {
+  const { studentColumns } = load("src/components/v3/students-next/student-columns.tsx");
+  for (const curatorColumn of [true, false]) {
+    const shown = studentColumns(curatorColumn).filter((column) => column.meta?.mobile !== "hide");
+    const title = shown.find((column) => column.meta?.mobile === "title");
+    const card = shown.filter((column) => column !== title).slice(0, 3).map((column) => column.id);
+    assert.ok(card.includes("signals"), `${curatorColumn ? "с колонкой «Куратор»" : "«Мои»"}: на карточке ${card.join(", ")}`);
+    assert.ok(card.includes("step") && !card.includes("stage"));
+  }
+});
+
+test("списки «Нового вида» с клавишами очереди: «Студенты», EVO Docs (дела, «Документы программ», «Комплекты») и «Нагрузка кураторов» стоят в `data-queue-list`", async () => {
+  assert.match(read("src/components/v3/students-next/StudentsTable.tsx"), /data-testid="v3-student-case-directory-next" data-queue-list=""/u);
+  for (const [group, key, rows] of [["docs", "review", true], ["docs", "program", true], ["docs", "packages", true], ["curators", null, true]]) {
+    const scene = key ? sceneOf(fixtures.students[group], key) : sceneOf({ c: fixtures.students.curators }, "c");
+    const html = await profilePage("next", ADMIN, paramsOf(scene.search), scene.input).run();
+    assert.match(html, /data-queue-list=""/u, `${group}${key ? `/${key}` : ""}: список помечен`);
+    assert.equal(/data-queue-row="[^"]+"/u.test(html) && /data-queue-open=""/u.test(html), rows, `${group}${key ? `/${key}` : ""}: у строк есть ссылка или кнопка открытия для j/k`);
+  }
+  const curators = read("src/components/v3/students-next/CuratorsNext.tsx");
+  assert.doesNotMatch(curators, /columns\(today, selectedId\)|\[today, selectedId\]/u, "колонки не зависят от выбора: иначе ячейки пересоздаются, и фокус не возвращается на ссылку");
+  assert.match(curators, /<QueueList keys=\{!selectedId \|\| sheet\.closed\}>/u, "клавиши списка молчат, пока открыта панель куратора");
+  assert.match(read("src/components/v3/students-next/DocsProgramTable.tsx"), /<QueueList keys=\{!open\}>/u);
+});
+
+test("«Университеты»: у давно не проверявшейся карточки машинная дата `<time>` — ISO, на экране — день и месяц", async () => {
+  const fresh = new Date().toISOString().slice(0, 10);
+  const items = published.slice(0, 5).map((item, index) => ({ ...item, content: { ...item.content, verifiedOn: index === 0 ? "2020-01-15" : fresh } }));
+  const base = universityStubs("next", ADMIN)["src/lib/v3/university-source.ts"];
+  const run = universityPage("page.tsx", "next", ADMIN, {}, { "src/lib/v3/university-source.ts": { ...base, readStaffUniversityCatalogue: async () => ({ kind: "complete", items }) } });
+  const rows = (await run.element()).props.rows;
+  const old = rows.find((row) => row.id === items[0].id);
+  assert.deepEqual([old.staleOn, old.verifiedOn], ["15.01.20", "2020-01-15"], "текст — для глаз, ISO — для машины");
+  assert.ok(rows.filter((row) => row.id !== items[0].id).every((row) => row.staleOn === null && row.verifiedOn === fresh), "свежая карточка пометки не получает");
+  const html = await run.run();
+  assert.match(html, /<time[^>]*datetime="2020-01-15"[^>]*>15\.01\.20<\/time>/iu);
+  assert.doesNotMatch(html, /datetime="\d\d\.\d\d/iu, "в `dateTime` нет текста для глаз");
+});
+
 /* ---------------------------------------------------------------- границы файлов */
 
 const NEXT_DIRS = ["src/components/v3/students-next", "src/components/v3/universities-next", "src/components/v3/list-next"];

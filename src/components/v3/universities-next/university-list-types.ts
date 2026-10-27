@@ -9,8 +9,10 @@ export type UniversityListRow = Readonly<{
   city: string | null;
   country: string;
   programs: number;
-  /** День проверки карточки («09.08»), если она давно не проверялась; иначе null. */
+  /** День проверки карточки («09.08») на экране, если она давно не проверялась; иначе null. */
   staleOn: string | null;
+  /** День проверки карточки, ISO («2026-08-09»): машинная дата для `<time dateTime>`. */
+  verifiedOn: string;
   /** Страна вне единого списка: студенты карточку не видят. */
   hidden: boolean;
   /** Фото 48 px, собранное на сервере (`UniversityPhoto`): список фото и адреса остаются у сервера. */

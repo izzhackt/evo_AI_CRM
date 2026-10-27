@@ -11,7 +11,7 @@ import { caseDocumentsWords, taskStatus } from "@/lib/v3/wording";
 import { DueWord } from "../blocks/DueWord";
 import { ProgressBar } from "../blocks/ProgressBar";
 import { dueWordOf, queueDue } from "../queue/due-bucket";
-import { openTaskComposer, TaskComposerContextMark } from "../tasks/task-composer-context";
+import { TaskComposerContextMark, type TaskComposerPageContext } from "../tasks/task-composer-context";
 import { studentsDocumentsLine, type StudentsOpenTasks } from "../students/students-queue-view";
 
 /** Сколько открытых задач показывает панель; остальные — в деле. */
@@ -29,14 +29,19 @@ export function SheetSection({ title, action, children }: Readonly<{ title: stri
   );
 }
 
-/** Открытые задачи дела (до пяти), «+ Задача» тем же диалогом оболочки и честное «недоступно». */
-export function StudentSheetTasks({ row, tasks, now, tasksHref, createTaskHref, taskHref }: Readonly<{
+/**
+ * Открытые задачи дела (до пяти), «+ Задача» тем же диалогом оболочки и честное «недоступно». Диалог открывает не сама панель:
+ * поверх модальной панели он не принимал бы касаний, — `onCreateTask` закрывает панель и открывает его следом; `false` (диалога
+ * оболочки нет) — ссылка ведёт на создание в «Задачах», как и без скрипта.
+ */
+export function StudentSheetTasks({ row, tasks, now, tasksHref, createTaskHref, taskHref, onCreateTask }: Readonly<{
   row: StudentCaseQueueRow;
   tasks: StudentsOpenTasks | null;
   now: Date;
   tasksHref: string;
   createTaskHref: string | null;
   taskHref: (taskId: string) => string;
+  onCreateTask: (context: TaskComposerPageContext) => boolean;
 }>) {
   const open = tasks?.kind === "ready" ? tasks.tasks : [];
   const subject = { case: { id: row.studentCaseId, name: row.studentDisplayName } };
@@ -46,7 +51,7 @@ export function StudentSheetTasks({ row, tasks, now, tasksHref, createTaskHref, 
       <Button variant="ghost" asChild>
         <Link href={createTaskHref} aria-haspopup="dialog" onClick={(event) => {
           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-          if (openTaskComposer({ ...subject, caseFixed: true })) event.preventDefault();
+          if (onCreateTask({ ...subject, caseFixed: true })) event.preventDefault();
         }}>+ Задача</Link>
       </Button>
     </> : null}>
@@ -58,9 +63,9 @@ export function StudentSheetTasks({ row, tasks, now, tasksHref, createTaskHref, 
             const due = queueDue({ dueOn: task.dueOn, dueAt: task.dueAt }, now);
             const word = due ? dueWordOf({ dueOn: task.dueOn, dueAt: task.dueAt }, now) : null;
             return (
-              <li key={task.id} className="py-2">
-                <Link href={taskHref(task.id)} className="block break-words t-body-compact text-fg underline-offset-4 hover:underline">{task.title}</Link>
-                <p className="t-meta text-fg-2">
+              <li key={task.id} className="pb-2">
+                <Link href={taskHref(task.id)} className="flex min-h-11 items-center break-words t-body-compact text-fg underline-offset-4 hover:underline">{task.title}</Link>
+                <p className="-mt-1.5 t-meta text-fg-2">
                   {due ? <><time dateTime={due.dateTime} className="font-mono tabular-nums">{due.text}</time>{word ? <> <DueWord view={word} /></> : null}</> : "без срока"}
                   {task.status === "blocked" ? <span className="text-warn"> · {taskStatus(task.status)}</span> : null}
                   <span> · исп. {task.assigneeDisplayName}</span>

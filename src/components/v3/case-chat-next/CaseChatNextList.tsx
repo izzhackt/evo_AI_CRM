@@ -55,11 +55,16 @@ export function CaseChatNextList({
         </div>
       ) : null}
       <div className="flex-1 overflow-y-auto" aria-busy={loading}>
-        {showRows && (threads.rows.length === 0
-          ? <EmptyState title={emptyTitle(query, queue)} action={query.trim() ? <Button variant="outline" onClick={() => onQuery("")}>Сбросить поиск</Button> : undefined} />
-          : threads.rows.map((row) => (
-            <CaseChatNextRow key={row.studentCaseId} row={row} active={row.studentCaseId === selectedCaseId} query={query} queue={queue} readAt={readAt} membershipId={membershipId} />
-          )))}
+        {/* Поиск и смена очереди идут без перехода между страницами, пустой итог читается вслух (как `role="status"` прежнего списка).
+            Область стоит в списке всегда, а пустое состояние попадает в готовую: так читалки озвучивают надёжнее. */}
+        <div role="status">
+          {showRows && threads.rows.length === 0
+            ? <EmptyState title={emptyTitle(query, queue)} action={query.trim() ? <Button variant="outline" onClick={() => onQuery("")}>Сбросить поиск</Button> : undefined} />
+            : null}
+        </div>
+        {showRows ? threads.rows.map((row) => (
+          <CaseChatNextRow key={row.studentCaseId} row={row} active={row.studentCaseId === selectedCaseId} query={query} queue={queue} readAt={readAt} membershipId={membershipId} />
+        )) : null}
         {showRows && threads.truncated ? <p className="t-meta p-3 text-fg-3">Показаны первые {threads.rows.length}. Уточните поиск.</p> : null}
       </div>
     </nav>

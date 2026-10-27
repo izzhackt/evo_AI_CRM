@@ -30,8 +30,8 @@ const sameIds = (html) => html.replace(/_R_[a-z0-9]+_/gu, "_R_");
 const LEGACY_MODES = ["admin-no-cookie", "preview-cookie", "preview-no-cookie", "sales-cookie", "sales-no-cookie"];
 const WHATSAPP_NEW = 'data-testid="v3-whatsapp-next"';
 const MESSAGES_NEW = 'data-testid="v3-messages-next"';
-const INBOX_SCENARIOS = ["chat", "not-connected", "wazzup-read-only", "list", "empty", "empty-filtered"];
-const MESSAGES_SCENARIOS = ["thread", "cabinet", "failure"];
+const INBOX_SCENARIOS = ["chat", "chat-long-name", "chat-case-only", "not-connected", "wazzup-read-only", "list", "empty", "empty-filtered"];
+const MESSAGES_SCENARIOS = ["thread", "cabinet", "answered", "failure"];
 
 /* ---------------------------------------------------------------- выбор вида: переключатель и только администратор */
 
@@ -133,6 +133,70 @@ test("«Переписка»: те же очереди с числами, стр
     assert.match(text(html), /Не удалось загрузить переписки\. Обновите страницу\./u);
     assert.match(html, /<a [^>]*href="\/v3\/messages"[^>]*>Обновить страницу</u);
   }
+});
+
+/* ---------------------------------------------------------------- доступность и узкий экран: поправки по итогам проверки 27.10.2026 */
+
+/** Кнопка «?» шапки: открывающий тег с `class`. */
+const helpButton = (html) => html.match(/<button[^>]*aria-label="Пояснение: [^"]*"[^>]*>/u)?.[0] ?? null;
+
+test("скрытая шапка: «?» уходит из порядка табуляции там, где шапку прячет узкий экран (открытый чат), и остаётся там, где шапка видна", () => {
+  // «WhatsApp»: v3.css прячет шапку страницы только до 768 px при открытом диалоге (`main:has([data-inbox-open])`) — значит, и «?» до 768 px.
+  for (const scenario of ["chat", "chat-long-name", "chat-case-only", "wazzup-read-only"]) {
+    const button = helpButton(page("inbox", scenario, "admin-cookie"));
+    assert.ok(button, `${scenario}: «?» есть`);
+    assert.match(button, /class="[^"]*\bmax-md:hidden\b/u, `${scenario}: «?» скрыт до 768 px вместе с шапкой (display: none, не sr-only)`);
+  }
+  for (const scenario of ["list", "empty", "empty-filtered"]) {
+    assert.doesNotMatch(helpButton(page("inbox", scenario, "admin-cookie")), /hidden/u, `${scenario}: шапка видна — «?» на месте`);
+  }
+  // «Переписка»: открытая переписка прячет шапку (`@max-2xl:sr-only`) — «?» прячется на той же ширине контейнера.
+  const thread = helpButton(page("messages", "thread", "admin-cookie"));
+  assert.match(thread, /class="[^"]*@max-2xl:hidden/u, "переписка открыта: «?» скрыт вместе с шапкой");
+  assert.match(page("messages", "thread", "admin-cookie"), /<div data-slot="page-header" class="[^"]*@max-2xl:sr-only/u, "а заголовок остаётся для читалки");
+  for (const scenario of ["cabinet", "answered"]) assert.doesNotMatch(helpButton(page("messages", scenario, "admin-cookie")), /hidden/u, `${scenario}: список — шапка видна`);
+  // Прежний вид: шапка без «?» вовсе, как на базе.
+  for (const html of [page("inbox", "chat", "admin-no-cookie"), page("messages", "thread", "admin-no-cookie")]) assert.equal(helpButton(html), null);
+});
+
+test("«Переписка»: пустой список после поиска или смены очереди стоит в области role=\"status\", как у прежнего вида", () => {
+  const legacy = page("messages", "answered", "admin-no-cookie");
+  assert.match(legacy, /<p role="status"[^>]*>Нет переписок, ждущих ответа\.<\/p>/u, "прежний вид: строка в role=status");
+  const next = page("messages", "answered", "admin-cookie");
+  assert.match(next, /<div role="status"><div data-slot="empty-state"[^>]*><p[^>]*>Нет переписок, ждущих ответа\.<\/p><\/div><\/div>/u, "новый вид: то же слово в области status");
+  // Область стоит в списке и тогда, когда строки есть: то, что вставлено в готовую область, читалка озвучивает надёжнее.
+  const rows = page("messages", "cabinet", "admin-cookie");
+  assert.match(rows, /aria-busy="false"><div role="status"><\/div><a /u, "строки есть — область пуста и на месте");
+  assert.doesNotMatch(rows, /data-slot="empty-state"/u);
+  // Выше по дереву области нет: у `aria-busy` и `nav` только их собственные признаки.
+  assert.equal((next.match(/role="status"/gu) ?? []).length >= 1, true);
+});
+
+test("«WhatsApp»: имя клиента в шапке диалога не обрезано двумя строками (на телефоне подсказки по наведению нет)", () => {
+  const h2 = (html) => html.match(/<h2 class="([^"]*)"[^>]*>Нурсултан Бекмурзаевич Джумабаев-Осмоналиев<\/h2>/u)?.[1] ?? null;
+  const next = h2(page("inbox", "chat-long-name", "admin-cookie"));
+  assert.ok(next, "имя в шапке найдено");
+  assert.match(next, /\bbreak-words\b/u, "длинное имя переносится");
+  assert.doesNotMatch(next, /line-clamp/u, "без обрезки по строкам");
+  assert.doesNotMatch(read("src/components/v3/inbox-next/InboxNextThread.tsx"), /line-clamp/u);
+});
+
+test("«Открыть дело» — одно действие, один значок: папка в «WhatsApp» (диалог привязан к делу) и в «Переписке»; «Карточка лида» — человек", () => {
+  /** Ссылка шапки по подписи: её адрес и значок (первый `svg` внутри). */
+  const link = (html, title) => {
+    const match = html.match(new RegExp(`<a [^>]*title="${title}"[^>]*>(?:<svg [^>]*class="([^"]*)")?`, "u"));
+    assert.ok(match, `ссылка «${title}» найдена`);
+    return { href: match[0].match(/ href="([^"]*)"/u)?.[1] ?? null, icon: match[1] ?? null };
+  };
+  const caseOnly = link(page("inbox", "chat-case-only", "admin-cookie"), "Открыть дело");
+  assert.equal(caseOnly.href, "/v3/profile?case=dddddddd-2222-4222-8222-000000000001", "ссылка — на дело");
+  assert.match(caseOnly.icon, /lucide-folder-open/u, "«WhatsApp»: папка");
+  const cabinet = link(page("messages", "thread", "admin-cookie"), "Открыть дело");
+  assert.match(cabinet.icon, /lucide-folder-open/u, "«Переписка»: та же папка");
+  assert.equal(caseOnly.icon.match(/lucide-[a-z-]+/u)[0], cabinet.icon.match(/lucide-[a-z-]+/u)[0], "на двух страницах одно действие — один значок");
+  const lead = link(page("inbox", "chat", "admin-cookie"), "Карточка лида");
+  assert.match(lead.href, /^\/v3\/profile\?id=/u);
+  assert.match(lead.icon, /lucide-user-round/u, "«Карточка лида»: человек");
 });
 
 /* ---------------------------------------------------------------- Wazzup: только чтение остаётся только чтением */

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeftIcon, UserRoundIcon } from "lucide-react";
+import { ArrowLeftIcon, FolderOpenIcon, UserRoundIcon } from "lucide-react";
 
 import { StatusBadge } from "@/components/kit/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,8 @@ export function InboxNextThread({ view, profileHref, profileLabel, storageScope,
   if (!open) return null;
   const warning = channelWarning(open.channelState);
   const spokenTitle = `${open.person}${open.phone ? `, ${spokenPhone(open.phone)}` : ""}`;
+  // Значок по месту назначения (подпись «Открыть дело» / «Карточка лида» страница выбирает по тому же адресу): дело — папка, как в «Переписке».
+  const profileIcon = profileHref?.startsWith("/v3/profile?case=") ? FolderOpenIcon : UserRoundIcon;
   return (
     <section
       aria-label={`Переписка: ${spokenTitle}`}
@@ -48,7 +50,7 @@ export function InboxNextThread({ view, profileHref, profileLabel, storageScope,
         </Button>
         <div className="min-w-0 flex-1 pt-2.5">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h2 className="t-section min-w-0 basis-full break-words text-fg @max-2xl:line-clamp-2 @2xl:basis-auto" title={open.person}>{open.person}</h2>
+            <h2 className="t-section min-w-0 basis-full break-words text-fg @2xl:basis-auto" title={open.person}>{open.person}</h2>
             {open.chat.stage ? <StageChip label={open.chat.stage.label} phase={open.chat.stage.phase} /> : null}
             {open.chat.autoreplyAtNight ? (
               <span className="contents" data-testid="v3-inbox-autoreply-chip">
@@ -63,7 +65,7 @@ export function InboxNextThread({ view, profileHref, profileLabel, storageScope,
         {dial?.status === "ready" && open.canonicalContext.leadId ? (
           <DialButton leadId={open.canonicalContext.leadId} mapped={dial.mapped} subject={open.person} />
         ) : null}
-        {profileHref ? <ChatHeaderLink href={profileHref} label={profileLabel} icon={UserRoundIcon} testId="v3-inbox-profile-link" /> : null}
+        {profileHref ? <ChatHeaderLink href={profileHref} label={profileLabel} icon={profileIcon} testId="v3-inbox-profile-link" /> : null}
       </header>
       <InboxChat
         key={open.id}

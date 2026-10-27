@@ -115,7 +115,7 @@ async function buildPage(kind, name, actor) {
   return { element, scenario, search: new URLSearchParams(scenario.search).toString(), pathname: page.pathname };
 }
 
-const JSON_PAGES = [["inbox", "chat"], ["inbox", "not-connected"], ["inbox", "wazzup-read-only"], ["inbox", "list"], ["inbox", "empty"], ["inbox", "empty-filtered"], ["messages", "thread"], ["messages", "cabinet"], ["messages", "failure"]];
+const JSON_PAGES = [["inbox", "chat"], ["inbox", "chat-long-name"], ["inbox", "chat-case-only"], ["inbox", "not-connected"], ["inbox", "wazzup-read-only"], ["inbox", "list"], ["inbox", "empty"], ["inbox", "empty-filtered"], ["messages", "thread"], ["messages", "cabinet"], ["messages", "answered"], ["messages", "failure"]];
 const MODES = [
   ["admin-cookie", fx.ACTORS.admin, true], ["admin-no-cookie", fx.ACTORS.admin, false],
   ["preview-cookie", fx.ACTORS.preview, true], ["preview-no-cookie", fx.ACTORS.preview, false],

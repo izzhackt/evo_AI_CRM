@@ -18,7 +18,7 @@ const HELP = "Чаты WhatsApp продаж: слева диалоги, спр�
 export function InboxNextPage({ count, settingsHref, ...props }: Readonly<{ count: number | null; settingsHref: string | null } & InboxNextThreadProps>) {
   const notConnected = inboxNotConnected(props.view);
   return (
-    <ChatPageShell variant="inbox" title="WhatsApp" count={count} help={HELP} testId="v3-whatsapp-next">
+    <ChatPageShell variant="inbox" title="WhatsApp" count={count} help={HELP} testId="v3-whatsapp-next" threadOpen={props.view.selected !== null}>
       {notConnected ? (
         <section className="rounded-card border border-border bg-surface" data-testid="v3-inbox-not-connected" data-source="supabase-platform">
           <EmptyState

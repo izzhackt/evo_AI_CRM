@@ -118,12 +118,12 @@ function waChat(overrides = {}) {
     stage: { label: "Квалифицирован", phase: "sales" }, readAt: WA_READ_AT, pulse: "0000000000000001", ...overrides,
   };
 }
-function waView({ selected = true, chat = {}, row: index = 0, channelState = "ready", sort = "newest", rows = WA_ROWS, extra = {} } = {}) {
+function waView({ selected = true, chat = {}, row: index = 0, channelState = "ready", sort = "newest", rows = WA_ROWS, extra = {}, context = {} } = {}) {
   return {
     conversations: rows,
     selected: selected ? {
       ...rows[index], channelState,
-      canonicalContext: { leadId: "ffffffff-6666-4666-8666-000000000700", clientId: "ffffffff-6666-4666-8666-000000000701", studentCaseId: null },
+      canonicalContext: { leadId: "ffffffff-6666-4666-8666-000000000700", clientId: "ffffffff-6666-4666-8666-000000000701", studentCaseId: null, ...context },
       chat: waChat(chat),
     } : null,
     queueCurrentHref: "/v3/inbox", queueNewestHref: null, queueOlderHref: "/v3/inbox?before_at=x&before_id=y",
@@ -143,6 +143,8 @@ const WA_ANSWERED_ROWS = WA_ROWS.map((item) => ({ ...item, waitingSince: null, a
 const INBOX_SCENARIOS = {
   chat: { search: { conversation: WA_CONVERSATION }, inbox: waView({ chat: { replyAccess: "allowed" } }) },
   "chat-long-name": { search: { conversation: waId(6) }, inbox: waView({ row: 5 }) },
+  // Диалог привязан к делу студента, но не к лиду: ссылка шапки — «Открыть дело» (адрес `/v3/profile?case=`).
+  "chat-case-only": { search: { conversation: WA_CONVERSATION }, inbox: waView({ context: { leadId: null, studentCaseId: caseId(1) } }) },
   list: { search: {}, inbox: waView({ selected: false }) },
   "list-answered": { search: {}, inbox: waView({ selected: false, rows: WA_ANSWERED_ROWS, extra: { queueOlderHref: null } }) },
   "list-unanswered": { search: { sort: "unanswered" }, inbox: waView({ selected: false, sort: "unanswered" }) },

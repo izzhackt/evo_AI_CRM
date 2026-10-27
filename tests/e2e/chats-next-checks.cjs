@@ -90,6 +90,38 @@ async function run({ VIEWPORTS, NARROW, FIXTURE_ID, compileCss, buildBundle, pag
   });
   const axeCheck = async (page) => (await new AxeBuilder({ page }).include("main").analyze()).violations.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`);
 
+  /**
+   * Остановки табуляции внутри `main`, которых на экране не видно (WCAG 2.4.7): на элемент можно встать, а он или его предок
+   * скрыт (`clip-path`, `overflow: hidden` в точку 1×1, `display: none`). Узкий экран скрывает шапку страницы при открытом чате
+   * только для читалки; «?» в ней не должен оставаться в порядке табуляции. Элемент с `display: none` в фокус не встаёт.
+   */
+  const hiddenStops = (page) => page.evaluate(() => {
+    const main = document.querySelector("main");
+    const hidden = (element) => {
+      for (let node = element; node && node !== document.body; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        const box = node.getBoundingClientRect();
+        if (style.display === "none" || style.visibility === "hidden") return true;
+        if ((style.clipPath !== "none" || style.overflow !== "visible") && (box.width <= 2 || box.height <= 2)) return true;
+      }
+      return false;
+    };
+    const stops = [];
+    for (const element of main.querySelectorAll('a[href], button, input:not([type=hidden]), textarea, select, [tabindex]:not([tabindex="-1"])')) {
+      element.focus({ preventScroll: true });
+      if (document.activeElement === element && hidden(element)) stops.push(element.getAttribute("aria-label") ?? element.textContent.trim().slice(0, 30));
+    }
+    return stops;
+  });
+  /** «?» шапки: есть ли он, виден ли он глазу и встаёт ли в него фокус. */
+  const helpState = (page) => page.evaluate(() => {
+    const help = document.querySelector('main [aria-label^="Пояснение"]');
+    if (!help) return { present: false };
+    const box = help.getBoundingClientRect();
+    help.focus({ preventScroll: true });
+    return { present: true, width: Math.round(box.width), focusable: document.activeElement === help, display: getComputedStyle(help).display };
+  });
+
   // 1. Все сцены на трёх ширинах: боковая прокрутка, h1, цели, текст, красный, шапка, мир, axe, консоль.
   const SCENES = Object.keys(pages);
   for (const key of Object.keys(VIEWPORTS)) {
@@ -124,6 +156,8 @@ async function run({ VIEWPORTS, NARROW, FIXTURE_ID, compileCss, buildBundle, pag
         await shot(page, `${name}-${key}`);
         const header = await page.locator("[data-testid=v3-inbox-thread] header").boundingBox();
         report(`${name} ${key}: a long name does not blow up the thread header`, header.height <= 190, header);
+        const name2 = await page.locator("[data-testid=v3-inbox-thread] h2").evaluate((element) => ({ shown: element.scrollHeight - element.clientHeight, lines: Math.round(element.getBoundingClientRect().height / parseFloat(getComputedStyle(element).lineHeight)) }));
+        report(`${name} ${key}: the client's whole name is shown, not cut after two lines (there is no hover on a phone)`, name2.shown <= 1, name2);
       }
       if (name === "messages-thread-long-name") {
         const header = await page.locator("[data-testid=case-chat-thread-header]").boundingBox();
@@ -239,6 +273,51 @@ async function run({ VIEWPORTS, NARROW, FIXTURE_ID, compileCss, buildBundle, pag
     report("long name m390: the name fits the header", h2 !== null && h2.x + h2.width <= 390, h2);
     await context.close();
   }
+  // Одно действие — один значок: «Открыть дело» в «WhatsApp» (диалог привязан к делу, не к лиду) и в «Переписке» — папка, «Карточка лида» — человек.
+  {
+    const icons = {};
+    for (const [name, link] of [["inbox-chat", "[data-testid=v3-inbox-profile-link]"], ["inbox-chat-case-only", "[data-testid=v3-inbox-profile-link]"], ["messages-thread", "a[href^='/v3/profile?case=']"]]) {
+      const { context, page } = await open(name, "m390");
+      icons[name] = await page.locator(link).evaluate((a) => ({ href: a.getAttribute("href"), title: a.getAttribute("title"), icon: [...a.querySelector("svg").classList].join(" ") }));
+      await context.close();
+    }
+    report("profile link icons: «Карточка лида» is a person", /lucide-user-round/u.test(icons["inbox-chat"].icon) && icons["inbox-chat"].title === "Карточка лида", icons["inbox-chat"]);
+    report("profile link icons: «Открыть дело» in «WhatsApp» is a folder, like in «Переписка»", icons["inbox-chat-case-only"].title === "Открыть дело" && icons["inbox-chat-case-only"].href === `/v3/profile?case=${fx.caseId(1)}` && /lucide-folder-open/u.test(icons["inbox-chat-case-only"].icon) && icons["inbox-chat-case-only"].icon === icons["messages-thread"].icon, icons);
+  }
+
+  // Скрытая шапка (открытый чат на узком экране) не оставляет в порядке табуляции невидимого «?»: при видимой шапке «?» на месте.
+  {
+    const MID = { d700: { viewport: { width: 700, height: 900 } }, d800: { viewport: { width: 800, height: 900 } } };
+    const ALL_WIDTHS = { ...VIEWPORTS, ...NARROW, ...MID };
+    for (const [name, keys] of [["inbox-chat", ["m390", "m360", "m320", "d700"]], ["inbox-wazzup-read-only", ["m390"]], ["messages-thread", ["m390", "m360", "m320", "d800"]]]) {
+      for (const key of keys) {
+        const { context, page } = await open(name, key, ALL_WIDTHS);
+        const label = `${name} ${key}`;
+        const m = await metrics(page);
+        report(`${label}: the page header is hidden for the reader only`, !m.h1Shown, m.h1Shown);
+        const stops = await hiddenStops(page);
+        report(`${label}: no invisible tab stop in the page (the hidden header's «?» is out of the tab order)`, stops.length === 0, stops);
+        const help = await helpState(page);
+        report(`${label}: the hidden header's «?» does not take focus`, help.present && !help.focusable, help);
+        const back = page.getByRole("link", { name: name.startsWith("inbox") ? "Назад к списку диалогов" : "К списку" });
+        await back.focus();
+        await page.keyboard.press("Shift+Tab");
+        const landed = await page.evaluate(() => {
+          const element = document.activeElement;
+          const box = element.getBoundingClientRect();
+          return { inMain: Boolean(element.closest("main")), label: element.getAttribute("aria-label") ?? element.textContent.trim().slice(0, 30), width: Math.round(box.width), height: Math.round(box.height) };
+        });
+        report(`${label}: Shift+Tab from the back link leaves the page header's «?» alone`, !(landed.inMain && /^Пояснение/u.test(landed.label)), landed);
+        await context.close();
+      }
+    }
+    for (const [name, key] of [["inbox-chat", "d1280"], ["inbox-chat", "d1440"], ["inbox-list", "m390"], ["messages-cabinet", "m390"], ["messages-thread", "d1280"], ["messages-thread", "d1440"]]) {
+      const { context, page } = await open(name, key);
+      const help = await helpState(page);
+      report(`${name} ${key}: the visible header keeps its «?» (a visible, focusable button)`, help.present && help.focusable && help.width >= 24 && (await hiddenStops(page)).length === 0, help);
+      await context.close();
+    }
+  }
 
   // 5. Wazzup: только чтение. Нет поля ответа, нет «Отправить», нет окна ИИ; одна строка; подпись ответа продавца;
   //    рамка не вызывает отправку и не обращается к WAHA/Wazzup.
@@ -332,6 +411,30 @@ async function run({ VIEWPORTS, NARROW, FIXTURE_ID, compileCss, buildBundle, pag
   {
     const { context, page } = await open("messages-answered", "d1280");
     report("answered d1280: the empty queue and the right side say it once each", /Нет переписок, ждущих ответа\./u.test(await page.locator("nav[aria-label='Переписки кабинета студента']").innerText()) && (await page.locator("[data-testid=case-chat-next]").innerText()).trim() === "Все ответы даны", null);
+    await context.close();
+  }
+  // Пустой результат поиска и пустая очередь читаются вслух (WCAG 4.1.3): текст стоит в области `role="status"`, которая была в списке ДО поиска.
+  for (const key of ["d1280", "m390"]) {
+    for (const [name, phrase] of [["messages-cabinet", "В этой очереди нет переписок по вашему запросу."], ["messages-all", "По вашему запросу переписок не найдено."]]) {
+      const { context, page } = await open(name, key);
+      const region = page.locator("nav[aria-label='Переписки кабинета студента'] [aria-busy] > [role=status]");
+      report(`${name} ${key}: the list has its live region before any search, empty`, await region.count() === 1 && (await region.innerText()).trim() === "", await region.count());
+      const handle = (await region.count()) === 1 ? await region.elementHandle() : null;
+      await page.getByRole("searchbox", { name: "Поиск по студенту" }).fill("Несуществующий студент");
+      await page.waitForFunction(() => document.querySelector("nav [data-slot=empty-state]"), null, { timeout: 5_000 });
+      const empty = await page.evaluate((region) => {
+        const element = document.querySelector("nav [data-slot=empty-state]");
+        const live = element.closest("[role=status],[role=alert],[aria-live]");
+        return { text: element.querySelector("p").textContent, role: live?.getAttribute("role") ?? null, inRegion: Boolean(region?.contains(element)), reset: element.querySelector("button")?.textContent ?? null };
+      }, handle);
+      report(`${name} ${key}: an empty search result is announced — «${phrase}» inside the live region`, empty.text === phrase && empty.role === "status" && empty.inRegion && empty.reset === "Сбросить поиск", empty);
+      await context.close();
+    }
+  }
+  {
+    const { context, page } = await open("messages-answered", "d1280");
+    const role = await page.evaluate(() => document.querySelector("nav [data-slot=empty-state]")?.closest("[role=status]")?.getAttribute("role") ?? null);
+    report("answered d1280: the empty queue is announced too (inside role=status)", role === "status", role);
     await context.close();
   }
 

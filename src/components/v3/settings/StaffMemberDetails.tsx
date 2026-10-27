@@ -42,7 +42,7 @@ export function StaffMetadataFeedback({ state }: { state: StaffWorkspaceActionSt
     className={`text-sm leading-6 ${state.status === "error" ? "text-danger" : "text-fg-2"}`}>{state.message}</p> : null;
 }
 
-function OrganizationalDetailsForm({ member, departments, onClose }: {
+export function OrganizationalDetailsForm({ member, departments, onClose }: {
   member: StaffWorkspaceMember; departments: readonly StaffDepartment[]; onClose: () => void;
 }) {
   // Keep a dirty editor bound to its original version across background RSC updates.

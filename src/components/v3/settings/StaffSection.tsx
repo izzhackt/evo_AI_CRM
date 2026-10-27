@@ -71,7 +71,7 @@ function RecoveryForm({ member }: { member: StaffWorkspaceMember }) {
 }
 
 /** Blocking and sign-in recovery sit apart from routine assignments, never in the same stack. */
-function StaffDangerZone({ member }: { member: StaffWorkspaceMember }) {
+export function StaffDangerZone({ member }: { member: StaffWorkspaceMember }) {
   const headingId = useId();
   return <section aria-labelledby={headingId} className="mt-8 space-y-4 rounded-card border border-danger/40 p-4">
     <h4 id={headingId} className="t-section text-danger">Опасные действия</h4>
@@ -80,7 +80,7 @@ function StaffDangerZone({ member }: { member: StaffWorkspaceMember }) {
   </section>;
 }
 
-function RequestRow({ request, workspace, organizationId }: { request: StaffAuthRequest; workspace: StaffRoleWorkspace; organizationId: string }) {
+export function RequestRow({ request, workspace, organizationId }: { request: StaffAuthRequest; workspace: StaffRoleWorkspace; organizationId: string }) {
   const activeOperation = useRef<"prepare" | "reconcile" | null>(null);
   const [operation, setOperation] = useState<"prepare" | "reconcile" | null>(null);
   const claim = useCallback((next: "prepare" | "reconcile") => {

@@ -44,8 +44,10 @@ function PermissionFields({ permissions, selected, onChange }: {
   </div>;
 }
 
-function RoleEditor({ role, sourceRole, permissions, onClose }: {
+export function RoleEditor({ role, sourceRole, permissions, onClose, bare = false }: {
   role?: StaffEditableRole; sourceRole?: StaffEditableRole; permissions: readonly StaffRolePermission[]; onClose: () => void;
+  /** «Новый вид»: название стоит в заголовке панели, второго заголовка бланк не рисует. */
+  bare?: boolean;
 }) {
   const [initial] = useState(() => ({ id: role?.id ?? crypto.randomUUID(), version: role?.version ?? 0 }));
   const [label, setLabel] = useState(role?.label ?? (sourceRole ? `${sourceRole.label} — копия` : ""));
@@ -53,7 +55,7 @@ function RoleEditor({ role, sourceRole, permissions, onClose }: {
   const [selected, setSelected] = useState<readonly string[]>(role?.draftPermissionKeys ?? sourceRole?.draftPermissionKeys ?? []);
   const operation = role ? "save" : sourceRole ? "copy" : "create";
   return <div className="min-w-0 space-y-4">
-    <h3 className="t-section">{role ? "Изменить роль" : sourceRole ? "Скопировать роль" : "Новая роль"}</h3>
+    {bare ? null : <h3 className="t-section">{role ? "Изменить роль" : sourceRole ? "Скопировать роль" : "Новая роль"}</h3>}
     <StaffRoleCommandForm label="Редактор роли" submitLabel="Сохранить черновик" onComplete={(state) => <div className="flex flex-wrap gap-3">
       <button type="button" className={btnGhostCls} onClick={onClose}>Закрыть редактор</button>
       {state.roleId ? <Link href={roleHref(state.roleId)} className={btnCls} onClick={onClose}>Открыть роль</Link> : null}
@@ -79,7 +81,7 @@ function RoleEditor({ role, sourceRole, permissions, onClose }: {
   </div>;
 }
 
-function RolePublication({ role, workspace }: { role: StaffEditableRole; workspace: StaffRoleWorkspace }) {
+export function RolePublication({ role, workspace }: { role: StaffEditableRole; workspace: StaffRoleWorkspace }) {
   const [initial] = useState(role);
   const [state, action, pending] = useActionState(staffRolesAction, STAFF_ROLES_INITIAL_STATE);
   const permissionLabel = (key: string) => workspace.permissions.find((permission) => permission.key === key)?.label;
@@ -189,7 +191,7 @@ function RoleArchiveReview({ role, workspace, onRestart }: {
   </div>;
 }
 
-function RoleArchive({ role, workspace }: { role: StaffEditableRole; workspace: StaffRoleWorkspace }) {
+export function RoleArchive({ role, workspace }: { role: StaffEditableRole; workspace: StaffRoleWorkspace }) {
   const [review, setReview] = useState(0);
   const [initial] = useState(role);
   if (initial.status === "active") return <RoleArchiveReview key={review} role={initial} workspace={workspace}

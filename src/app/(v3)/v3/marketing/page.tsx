@@ -1,13 +1,16 @@
 import { MarketingLeadsView } from "@/components/v3/marketing/MarketingLeadsView";
 import { MarketingNav } from "@/components/v3/marketing/MarketingNav";
+import { MarketingNextLazy } from "@/components/v3/marketing-next/MarketingNextLazy";
 import { MarketingOverviewView } from "@/components/v3/marketing/MarketingOverviewView";
 import { PartShell } from "@/components/v3/PartShell";
 import { LookerReport } from "@/components/v3/reports/LookerReport";
 import { NO_MARKETING_FILTERS, parseMarketingLeadFilters } from "@/lib/marketing-contract";
 import { marketingHref, parseMarketingView, RECENT_DAYS_FOR_SIGNAL, shiftIsoDate } from "@/lib/marketing-view";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { isNextUi } from "@/lib/ui-next";
 import { periodLabel, resolvePeriod } from "@/lib/v3/funnel-source";
 import { readMarketingLeads, readMarketingOverview, readMarketingRecent, requireMarketingAdmin } from "@/lib/v3/marketing-source";
+import { marketingNextProps } from "@/lib/v3/marketing-next-props";
 import { readReportLink } from "@/lib/v3/report-links-source";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +41,9 @@ export default async function MarketingPage({ searchParams }: { searchParams: Pr
   // (ошибка чтения — вкладки нет).
   const reportRead = readReportLink(actor, "marketing");
   const reportsTab = (read: Awaited<typeof reportRead>) => read.status === "available" && read.link.configured;
+
+  // «Новый вид» (переключатель администратора): те же чтения, права и адреса, другая расстановка — плитки, таблицы и панели набора.
+  if (await isNextUi(actor)) return <MarketingNextLazy {...await marketingNextProps({ actor, view, period, filters, reportRead })} />;
 
   if (view === "reports") {
     const report = await reportRead;

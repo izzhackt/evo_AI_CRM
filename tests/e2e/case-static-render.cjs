@@ -1216,7 +1216,11 @@ async function drawerCheck() {
   if (failures.length) process.exit(1);
 }
 
-if (process.argv.includes("--json")) {
+// Как модуль (`require`) harness отдаёт синтетические сценарии дела и их сборку — для проверки «Нового вида»
+// (`card-next-static-render.cjs`); как скрипт — работает по ключам ниже.
+if (require.main !== module) {
+  module.exports = { SCENARIOS, buildParts, withContexts, compileCss, writeHtml, settle, STATIC_NAV, ROOT, ADMIN, CURATOR, NAME, CASE_ID, LEAD_ID, ORG, uuid, RETURN_TO, NOTES };
+} else if (process.argv.includes("--json")) {
   process.stdout.write(JSON.stringify(Object.keys(SCENARIOS).map((name) => ({ name, html: renderWorkspace(name) }))));
 } else if (process.argv.includes("--drawer")) {
   drawerCheck().catch((error) => {

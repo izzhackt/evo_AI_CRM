@@ -163,9 +163,10 @@ const MAIL_ROW = "flex min-h-11 w-fit max-w-full items-center break-all text-fg"
 /**
  * «Контакты»: телефон и почта студента. Пометка состояния («не подтверждено»)
  * - тихая подпись без цвета: одна под значениями, если у них одно состояние,
- * иначе у каждого своя. Нет значений - нет и строки.
+ * иначе у каждого своя. Нет значений - нет и строки (`null`).
+ * Значение отдельно от строки: его рисуют и «Сведения» прежнего вида, и сводка «Нового вида».
  */
-function ContactsFact({ contacts }: Readonly<{ contacts: CaseContacts }>) {
+export function contactsValue(contacts: CaseContacts): ReactNode | null {
   const present = [contacts.phone, contacts.email].filter((contact): contact is CaseContact => contact !== null);
   if (present.length === 0) return null;
   const shared = present.every((contact) => contact.note === present[0].note) ? present[0].note : null;
@@ -173,7 +174,7 @@ function ContactsFact({ contacts }: Readonly<{ contacts: CaseContacts }>) {
   const phoneHref = contacts.phone ? telHref(contacts.phone.value) : null;
   const emailHref = contacts.email ? mailHref(contacts.email.value) : null;
   return (
-    <Fact term="Контакты" testId="v3-case-contacts">
+    <>
       {contacts.phone ? (
         <div className="flex flex-wrap items-center gap-x-2">
           {phoneHref ? (
@@ -197,15 +198,19 @@ function ContactsFact({ contacts }: Readonly<{ contacts: CaseContacts }>) {
         </div>
       ) : null}
       {shared ? <p className="t-caption text-fg-2">{shared}</p> : null}
-    </Fact>
+    </>
   );
 }
 
-function DocumentsFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
+/**
+ * Документы дела: «N из M принято» полосой (Э1.3) только из прочитанных чисел, чипы остатка и (если нужно)
+ * ссылка. `link: false` - «Новый вид»: те же документы открывает вкладка «Документы» над сводкой.
+ */
+export function documentsValue(input: CaseOverviewInput, link = true): ReactNode {
   const { documents } = input;
   const line = studentsDocumentsLine(documents);
   return (
-    <Fact term="Документы" testId="v3-case-documents">
+    <>
       {input.documentsAwaitCurator ? (
         <span className="text-fg-2">{caseDocumentsWords.awaitCurator}</span>
       ) : line ? (
@@ -223,9 +228,9 @@ function DocumentsFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
       ) : <span className="text-fg-2">нет доступа</span>}
       {/* Ссылка — только там, где есть что делать (чек-лист не собран или принято не всё); при полном комплекте
           тот же переход — вкладка «Документы» прямо над «Сведениями», второй ссылки не нужно. */}
-      {input.hrefs.documents && !input.documentsAwaitCurator && documents && (documents.total === 0 || documents.approved < documents.total)
+      {link && input.hrefs.documents && !input.documentsAwaitCurator && documents && (documents.total === 0 || documents.approved < documents.total)
         ? <Link href={input.hrefs.documents} className={FACT_LINK}>Открыть документы</Link> : null}
-    </Fact>
+    </>
   );
 }
 
@@ -252,26 +257,28 @@ function ApplicationsFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
   );
 }
 
-function ChatFact({ input }: Readonly<{ input: CaseOverviewInput }>) {
+/** Переписка: состояние словом и (кроме «Нового вида») ссылка; `link: false` - переход уже есть у заголовка («Написать»). */
+export function chatValue(input: CaseOverviewInput, link = true): ReactNode {
   const chat = input.work.chat;
   return (
-    <Fact term="Переписка" testId="v3-case-chat">
+    <>
       {chat.kind === "forbidden" ? <span className="text-fg-2">нет доступа</span>
         : chat.kind === "unavailable" ? <span className="text-fg-2">не прочитана</span>
           : chat.awaitState === "needs_reply" ? <Pill tone="warn">{caseChatAwaitState("needs_reply")}</Pill>
             : chat.awaitState === "awaiting_student" ? <Pill>{caseChatAwaitState("awaiting_student")}</Pill>
               : <span className="text-fg-2">{chat.last === null ? "сообщений пока нет" : "ответа не ждёт"}</span>}
-      {chat.kind !== "forbidden" ? <Link href={input.hrefs.messages} className={FACT_LINK}>Открыть переписку</Link> : null}
-    </Fact>
+      {link && chat.kind !== "forbidden" ? <Link href={input.hrefs.messages} className={FACT_LINK}>Открыть переписку</Link> : null}
+    </>
   );
 }
 
 /**
- * «Сведения» справа от 1280 px (на телефоне — после работы): направление,
- * куратор, кто передал, продажа, контакты, приём дела, документы, заявки,
- * переписка, оплата — всё из уже прочитанных данных; нет чтения — нет числа.
+ * Значения «Сведений» дела из уже прочитанных данных: направление, куратор, кто передал, продажа, контакты, приём
+ * дела, переписка, оплата, портал. Один источник для двух видов: прежний «Обзор» кладёт их в строки `Fact`,
+ * «Новый вид» - в `KeyFacts`. Нет чтения - нет значения (`null`), строка не рисуется.
  */
-function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
+export function caseFactValues(input: CaseOverviewInput, options: Readonly<{ links?: boolean }> = {}) {
+  const links = options.links ?? true;
   const handoff = input.handoff;
   const answered = handoff !== null && handoff.assignmentEventId !== null && !studentsHandoffPending(handoff);
   // Куратор ответил «Нужно уточнить», а дело всё ещё ждёт приёма: ответ виден и на странице, не только
@@ -283,75 +290,94 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
     || (handoff !== null && handoff.assignmentEventId !== null && handoff.current !== null);
   const { curator } = input;
   const payment = input.payment;
+  return {
+    direction: input.directionAction ? (
+      <CaseDirection studentCaseId={input.studentCaseId} current={input.directionAction.current}
+        expectedVersion={input.directionAction.expectedVersion} requestId={input.directionAction.requestId} />
+    ) : (input.direction ?? "Не выбрано"),
+    curator: (
+      <>
+        {(curator.name ? (
+          <span className="inline-flex items-center gap-2"><Initials name={curator.name} decorative />{curator.name}</span>
+        ) : null) ?? (input.work.needsCurator ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-2">не назначен</span>)}
+        {curator.coverage && !input.work.needsCurator ? (
+          <Link href={curator.membershipId ? coverageHref(curator.membershipId, input.studentCaseId) : COVERAGE_VIEW_HREF}
+            className={FACT_LINK}>
+            {curator.membershipId ? "Сменить куратора" : "Нагрузка кураторов"}
+          </Link>
+        ) : null}
+      </>
+    ),
+    handedOff: input.handedOffBy ? (
+      <>
+        {input.handedOffBy.name}
+        <span className="text-fg-2"> · <time dateTime={input.handedOffBy.at} className="font-mono tabular-nums">{caseMomentLabel(input.handedOffBy.at, input.work.today)}</time></span>
+        {/* Тот же человек, что менеджер продаж, — одна строка; следующий шаг продаж остаётся под ней. */}
+        {input.sales && input.sales.manager === input.handedOffBy.name && input.sales.nextAction ? <span className="block text-fg-2">{input.sales.nextAction}</span> : null}
+      </>
+    ) : null,
+    sales: input.sales && !(input.handedOffBy && input.sales.manager === input.handedOffBy.name) ? (
+      <>
+        <span className="block">{input.sales.manager ?? "не назначен"}</span>
+        {input.sales.nextAction ? <span className="block text-fg-2">{input.sales.nextAction}</span> : null}
+      </>
+    ) : null,
+    contacts: contactsValue(input.contacts),
+    reception: onRecord && handoff ? (
+      <>
+        {/* Как прежняя карточка «Приём дела»: решение, текст куратора (уточнение или причина отказа)
+            и согласованный контакт — их видят и те, кто ответить не может (Admin, Admissions Manager). */}
+        <HandoffResponseSummary current={handoff.current ? {
+          decision: handoff.current.decision,
+          clarification: handoff.current.clarification,
+          agreedContactDate: handoff.current.agreedContactDate,
+        } : null} />
+        {answered && handoff.canRespond ? (
+          <details>
+            <summary className={SUMMARY}>Изменить ответ</summary>
+            <div className="mt-1"><CaseHandoffBlock snapshot={handoff} headingId="case-tasks-title" /></div>
+          </details>
+        ) : null}
+      </>
+    ) : null,
+    documents: documentsValue(input, links),
+    chat: chatValue(input, links),
+    payment: payment ? (
+      <>
+        {payment.percent === null ? <span className="text-fg-2">плана платежей нет</span> : (
+          <><span className="font-semibold tabular-nums">{payment.percent}%</span> оплачено{payment.remaining ? <span className="text-fg-2"> · остаток <span className="tabular-nums">{payment.remaining}</span></span> : null}</>
+        )}
+        {payment.financeStop ? <span className="block text-danger">Финансовый стоп: {payment.financeStop}</span> : null}
+        {links && payment.percent === null && input.hrefs.money ? <Link href={input.hrefs.money} className={FACT_LINK}>Открыть договор и оплату</Link> : null}
+      </>
+    ) : null,
+    portal: input.portal && !input.portal.settings ? input.portal.text : null,
+  };
+}
+
+/**
+ * «Сведения» справа от 1280 px (на телефоне — после работы): направление,
+ * куратор, кто передал, продажа, контакты, приём дела, документы, заявки,
+ * переписка, оплата — всё из уже прочитанных данных; нет чтения — нет числа.
+ */
+function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
+  const values = caseFactValues(input);
   return (
     // `#case-facts` — цель событий куратора и передачи в ленте.
     <aside id={CASE_FACTS_ID} aria-labelledby="case-facts-title" className="min-w-0 scroll-mt-4" data-testid="v3-case-facts">
       <h2 id="case-facts-title" className="t-section text-fg">Сведения</h2>
       <dl className="mt-1">
-        <Fact term="Направление">
-          {input.directionAction ? (
-            <CaseDirection studentCaseId={input.studentCaseId} current={input.directionAction.current}
-              expectedVersion={input.directionAction.expectedVersion} requestId={input.directionAction.requestId} />
-          ) : (input.direction ?? "Не выбрано")}
-        </Fact>
-        <Fact term="Куратор">
-          {(curator.name ? (
-            <span className="inline-flex items-center gap-2"><Initials name={curator.name} decorative />{curator.name}</span>
-          ) : null) ?? (input.work.needsCurator ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-2">не назначен</span>)}
-          {curator.coverage && !input.work.needsCurator ? (
-            <Link href={curator.membershipId ? coverageHref(curator.membershipId, input.studentCaseId) : COVERAGE_VIEW_HREF}
-              className={FACT_LINK}>
-              {curator.membershipId ? "Сменить куратора" : "Нагрузка кураторов"}
-            </Link>
-          ) : null}
-        </Fact>
-        {input.handedOffBy ? (
-          <Fact term="Передал">
-            {input.handedOffBy.name}
-            <span className="text-fg-2"> · <time dateTime={input.handedOffBy.at} className="font-mono tabular-nums">{caseMomentLabel(input.handedOffBy.at, input.work.today)}</time></span>
-            {/* Тот же человек, что менеджер продаж, — одна строка; следующий шаг продаж остаётся под ней. */}
-            {input.sales && input.sales.manager === input.handedOffBy.name && input.sales.nextAction ? <span className="block text-fg-2">{input.sales.nextAction}</span> : null}
-          </Fact>
-        ) : null}
-        {input.sales && !(input.handedOffBy && input.sales.manager === input.handedOffBy.name) ? (
-          <Fact term="Менеджер продаж">
-            <span className="block">{input.sales.manager ?? "не назначен"}</span>
-            {input.sales.nextAction ? <span className="block text-fg-2">{input.sales.nextAction}</span> : null}
-          </Fact>
-        ) : null}
-        <ContactsFact contacts={input.contacts} />
-        {onRecord && handoff ? (
-          <Fact term="Приём дела">
-            {/* Как прежняя карточка «Приём дела»: решение, текст куратора (уточнение или причина отказа)
-                и согласованный контакт — их видят и те, кто ответить не может (Admin, Admissions Manager). */}
-            <HandoffResponseSummary current={handoff.current ? {
-              decision: handoff.current.decision,
-              clarification: handoff.current.clarification,
-              agreedContactDate: handoff.current.agreedContactDate,
-            } : null} />
-            {answered && handoff.canRespond ? (
-              <details>
-                <summary className={SUMMARY}>Изменить ответ</summary>
-                <div className="mt-1"><CaseHandoffBlock snapshot={handoff} headingId="case-tasks-title" /></div>
-              </details>
-            ) : null}
-          </Fact>
-        ) : null}
-        <DocumentsFact input={input} />
+        <Fact term="Направление">{values.direction}</Fact>
+        <Fact term="Куратор">{values.curator}</Fact>
+        {values.handedOff ? <Fact term="Передал">{values.handedOff}</Fact> : null}
+        {values.sales ? <Fact term="Менеджер продаж">{values.sales}</Fact> : null}
+        {values.contacts ? <Fact term="Контакты" testId="v3-case-contacts">{values.contacts}</Fact> : null}
+        {values.reception ? <Fact term="Приём дела">{values.reception}</Fact> : null}
+        <Fact term="Документы" testId="v3-case-documents">{values.documents}</Fact>
         <ApplicationsFact input={input} />
-        <ChatFact input={input} />
-        {payment ? (
-          <Fact term="Оплата" testId="v3-case-payment">
-            {payment.percent === null ? <span className="text-fg-2">плана платежей нет</span> : (
-              <><span className="font-semibold tabular-nums">{payment.percent}%</span> оплачено{payment.remaining ? <span className="text-fg-2"> · остаток <span className="tabular-nums">{payment.remaining}</span></span> : null}</>
-            )}
-            {payment.financeStop ? <span className="block text-danger">Финансовый стоп: {payment.financeStop}</span> : null}
-            {payment.percent === null && input.hrefs.money ? <Link href={input.hrefs.money} className={FACT_LINK}>Открыть договор и оплату</Link> : null}
-          </Fact>
-        ) : null}
-        {input.portal && !input.portal.settings ? (
-          <Fact term="Портал" testId="v3-case-portal">{input.portal.text}</Fact>
-        ) : null}
+        <Fact term="Переписка" testId="v3-case-chat">{values.chat}</Fact>
+        {values.payment ? <Fact term="Оплата" testId="v3-case-payment">{values.payment}</Fact> : null}
+        {values.portal ? <Fact term="Портал" testId="v3-case-portal">{values.portal}</Fact> : null}
       </dl>
     </aside>
   );
@@ -362,11 +388,11 @@ function Facts({ input }: Readonly<{ input: CaseOverviewInput }>) {
  * формы шириной рабочей колонки (в колонке «Сведений» формы продажи тесны);
  * null — групп нет.
  */
-function Groups({ input }: Readonly<{ input: CaseOverviewInput }>) {
+export function Groups({ input, bare = false }: Readonly<{ input: CaseOverviewInput; bare?: boolean }>) {
   const portal = input.portal?.settings ? input.portal : null;
   if (!portal && !input.salesData) return null;
   return (
-    <div className="min-w-0 border-t border-border" data-testid="v3-case-groups">
+    <div className={bare ? "min-w-0" : "min-w-0 border-t border-border"} data-testid="v3-case-groups">
       <LeadEditGroups>
         {portal ? (
           <Group id={CASE_PORTAL_GROUP_ID} title="Доступ к порталу" testId="v3-case-portal"
@@ -400,7 +426,7 @@ export function CaseHelpNoAccess() {
 }
 
 /** Строка ленты — общая разметка Lead 360 (`FeedRow`): одна метка в одной колонке, текст — от одного края. */
-function FeedItem({ item, today, historyHref, focusTarget = false }: Readonly<{ item: CaseFeedItem; today: string; historyHref: string; focusTarget?: boolean }>) {
+export function FeedItem({ item, today, historyHref, focusTarget = false }: Readonly<{ item: CaseFeedItem; today: string; historyHref: string; focusTarget?: boolean }>) {
   const label = caseMomentLabel(item.at, today);
   if (item.kind === "older") {
     return (

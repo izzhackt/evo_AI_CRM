@@ -40,6 +40,8 @@ export type CaseHeaderInput = Readonly<{
   closure?: CaseClosure | null;
   /** У заголовка стоит красная «Принять дело»: «ждёт принятия» она говорит сама, второй раз под ней это слово не нужно. */
   acceptShown?: boolean;
+  /** «Новый вид»: шапка лежит внутри карточки сводки, поэтому своих линий сверху и снизу у ряда нет. */
+  bare?: boolean;
 }>;
 
 /**
@@ -68,7 +70,7 @@ export function CaseHeader(input: CaseHeaderInput) {
     // Имя области — не «Сведения»: так называется колонка фактов «Обзора» (две похожие области для читалки).
     // `#case-header` — цель событий шага и состояния в ленте.
     <section id={CASE_HEADER_ID} className="flex scroll-mt-4 flex-col gap-3" data-testid="v3-case-header" aria-label="Этап и следующий шаг">
-      <dl className="grid grid-cols-1 border-y border-border sm:flex sm:flex-wrap">
+      <dl className={input.bare ? "grid grid-cols-1 sm:flex sm:flex-wrap" : "grid grid-cols-1 border-y border-border sm:flex sm:flex-wrap"}>
         {stage && row ? <Fact term="Этап"><StageTrack kind="admissions" current={row.pipelineStage} closed={input.state === "closed"} /></Fact> : null}
         <Fact term="Что дальше" wide>
           <CaseNextStep row={row} fallbackStep={input.fallbackStep} access={input.stepAccess}

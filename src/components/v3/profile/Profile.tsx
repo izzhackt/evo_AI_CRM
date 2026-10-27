@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import Link from "next/link";
 
+import { HelpTip } from "@/components/kit/HelpTip";
+import { SectionTabs } from "@/components/kit/SectionTabs";
 import { Pill } from "@/components/v3/Pill";
 import { TaskComposerDialog } from "@/components/v3/tasks/TaskComposerDialog";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
@@ -78,6 +80,7 @@ export function Profile({
   caseOverview,
   headerMenu,
   documentsFilter = "all",
+  nextUi = false,
 }: {
   profile: PersonProfile;
   /** «Вузы и программы» (unified workflow S4) — replaces the old «Маршрут» tab content. */
@@ -96,6 +99,11 @@ export function Profile({
   headerMenu?: React.ReactNode;
   /** Фильтр «Документов» по состоянию из адреса (`doc_state`, Э8.1). */
   documentsFilter?: DocumentStateFilter;
+  /**
+   * «Новый вид» (27.10.2026): разделы профиля рисует `SectionTabs` набора виджетов (те же ссылки `?tab=`),
+   * пояснения уходят за «?». Данные, права и адреса те же; без признака разметка прежняя.
+   */
+  nextUi?: boolean;
   /** Canonical projections not represented directly in `PersonProfile`. */
   draft: ProfileDraft;
   sales: ProfileSalesSnapshot | null;
@@ -179,7 +187,13 @@ export function Profile({
           Прокрутка обрезает внешнюю рамку фокуса — `focusable` рисует её
           внутри вкладки (v3.css). Одна вкладка («Обзор» у лида без содержимого) —
           ряда нет. */}
-      {tabs.length > 1 ? (
+      {tabs.length > 1 && nextUi ? (
+        <SectionTabs
+          label="Разделы профиля"
+          value={current}
+          tabs={tabs.map((entry) => ({ key: entry.key, label: entry.title, href: hrefFor(entry.key) }))}
+        />
+      ) : tabs.length > 1 ? (
         <QueueTabStrip label="Разделы профиля" focusable testId="v3-profile-tabs">
           <ul className="flex min-w-max items-center gap-1 border-b border-border pb-2">
             {tabs.map((entry) => (
@@ -297,10 +311,19 @@ export function Profile({
         // Подтверждение вручную (Э8.4) — одно место для договора и оплаты лида
         // вместе с полосой «Передача»: туда ведёт её «Изменить».
         <section id={LEAD_GATE_ANCHOR} aria-labelledby={`${LEAD_GATE_ANCHOR}-title`} className="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate">
-          <h2 id={`${LEAD_GATE_ANCHOR}-title`} className="t-section text-fg">Подтверждение вручную</h2>
-          <p className="mt-1 t-body-compact text-fg-2">
-            Для передачи в поступление нужны договор и первый платёж. Подтвердите их здесь, если их нет ни в деле, ни в отчёте продаж.
-          </p>
+          {nextUi ? (
+            <div className="flex items-center gap-1.5">
+              <h2 id={`${LEAD_GATE_ANCHOR}-title`} className="t-section text-fg">Подтверждение вручную</h2>
+              <HelpTip label="Пояснение: Подтверждение вручную">
+                Для передачи в поступление нужны договор и первый платёж. Подтвердите их здесь, если их нет ни в деле, ни в отчёте продаж.
+              </HelpTip>
+            </div>
+          ) : (<>
+            <h2 id={`${LEAD_GATE_ANCHOR}-title`} className="t-section text-fg">Подтверждение вручную</h2>
+            <p className="mt-1 t-body-compact text-fg-2">
+              Для передачи в поступление нужны договор и первый платёж. Подтвердите их здесь, если их нет ни в деле, ни в отчёте продаж.
+            </p>
+          </>)}
           <div className="mt-3 border-t border-border pt-3">
             <HandoffGateForms actor={actor} gate={leadGate} requestIds={requestIds} bare />
           </div>

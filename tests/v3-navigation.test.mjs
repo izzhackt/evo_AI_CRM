@@ -490,7 +490,7 @@ test("each sidebar destination opens under a heading with the same words", () =>
   for (const [id, file, strict] of headings) {
     const label = escapeRegExp(visible.get(id));
     const page = source(file);
-    assert.match(page, new RegExp(`<PartShell\\b[^>]*?\\btitle=(?:"${label}"|\\{[^}]*"${label}"[^}]*\\})|<h1\\b[^>]*>${label}</h1>|const TITLE = "${label}";`, "u"), `${id}: ${file}`);
+    assert.match(page, new RegExp(`<PartShell\\b[^>]*?\\btitle=(?:"${label}"|\\{[^}]*"${label}"[^}]*\\})|<h1\\b[^>]*>${label}</h1>|const TITLE = "${label}";|const title = [^;]*"${label}"`, "u"), `${id}: ${file}`);
     if (strict) {
       for (const [, title] of page.matchAll(/<PartShell\b[^>]*?\btitle="([^"]+)"/gu)) assert.equal(title, visible.get(id), file);
     }

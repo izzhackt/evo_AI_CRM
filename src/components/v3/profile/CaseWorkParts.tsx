@@ -13,9 +13,9 @@ import { TaskComposerDialog } from "../tasks/TaskComposerDialog";
 import { TaskComposerContextMark } from "../tasks/task-composer-context";
 import { DIRECTION_LABELS } from "./admissions-view";
 import { CaseAcceptDrawer } from "./CaseAcceptDrawer";
-import { CaseHeader } from "./CaseHeader";
+import { CaseHeader, type CaseHeaderInput } from "./CaseHeader";
 import { CaseMoreMenu } from "./CaseMoreMenu";
-import { CaseHelpNoAccess, CaseOverview } from "./CaseOverview";
+import { CaseHelpNoAccess, CaseOverview, type CaseOverviewInput } from "./CaseOverview";
 import { CaseSaleData, CaseSaleUnavailable } from "./CaseSaleData";
 import { LeadNoteComposer } from "./LeadNoteComposer";
 import { StudentPortalAccessControls } from "./StudentPortalAccessCard";
@@ -63,6 +63,18 @@ export type CaseWorkPartsInput = Readonly<{
 }>;
 
 /**
+ * То, из чего «Новый вид» собирает карточку дела: те же входы шапки и «Обзора» и отметка контекста задач, что
+ * получает прежний вид. Чтений и прав здесь нет - данные одни, меняется только разметка (`CaseNext`).
+ */
+export type CaseNextSource = Readonly<{
+  name: string;
+  /** `TaskComposerContextMark`: «Создать задачу» меню и Ctrl+K на странице дела - с этим делом. */
+  mark: ReactNode;
+  header: CaseHeaderInput;
+  overview: CaseOverviewInput;
+}>;
+
+/**
  * Student 360 (`?case=`, Э4, 27.09.2026) по образцу Lead 360 (#1078) из уже
  * прочитанных данных — три части страницы:
  *
@@ -77,10 +89,10 @@ export type CaseWorkPartsInput = Readonly<{
  * каждую запись проверяет сервер. Сборка без запросов: её вызывают страница и
  * статический рендер с синтетикой.
  */
-export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: ReactNode; overview: ReactNode; actions: ReactNode }> {
+export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: ReactNode; overview: ReactNode; actions: ReactNode; next: CaseNextSource | null }> {
   const { actor, profile, draft, sales, work } = input;
   const admissions = draft.admissions;
-  if (!admissions) return { header: null, overview: null, actions: null };
+  if (!admissions) return { header: null, overview: null, actions: null, next: null };
   const caseId = admissions.studentCaseId;
   const preview = isStaffPreview(actor);
   // Читатель «Ждут куратора» (248/281): назначает куратора, а задачи и заметки дела база ему не даст.
@@ -182,25 +194,29 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
     </div>
   );
 
-  const header = (<>
+  const mark = (
     <TaskComposerContextMark value={{
       case: { id: caseId, name: profile.person },
       caseAssignees: caseAssignees.map(({ membershipId, displayName }) => ({ membershipId, displayName })),
     }} />
-    <CaseHeader
-      studentCaseId={caseId}
-      state={admissions.caseState}
-      fallbackStep={profile.nextAction}
-      financeStop={profile.financeStop}
-      work={work}
-      stepAccess={input.stepAccess}
-      stepRequestId={input.requestIds.step}
-      coverage={!preview && staffHasPermission(actor, "case.curator.assign")}
-      curators={input.curators}
-      assignCuratorRequestId={input.requestIds.assignCurator}
-      closure={input.closure ?? null}
-      acceptShown={primary === "accept" && handoff !== null}
-    />
+  );
+  const headerInput: CaseHeaderInput = {
+    studentCaseId: caseId,
+    state: admissions.caseState,
+    fallbackStep: profile.nextAction,
+    financeStop: profile.financeStop,
+    work,
+    stepAccess: input.stepAccess,
+    stepRequestId: input.requestIds.step,
+    coverage: !preview && staffHasPermission(actor, "case.curator.assign"),
+    curators: input.curators,
+    assignCuratorRequestId: input.requestIds.assignCurator,
+    closure: input.closure ?? null,
+    acceptShown: primary === "accept" && handoff !== null,
+  };
+  const header = (<>
+    {mark}
+    <CaseHeader {...headerInput} />
   </>);
 
   // --- Лента ---------------------------------------------------------------
@@ -230,53 +246,52 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
     ? sales.lead.currentOwnerDisplayName ?? "менеджер не назначен"
     : saleBlocks.length > 0 ? caseSaleSummary(saleBlocks) : "не прочитаны";
 
-  const overview = (
-    <CaseOverview
-      studentCaseId={caseId}
-      work={work}
-      handoff={handoff}
-      taskPermissions={{
-        actorMembershipId: actor.membershipId, admin, preview,
-        staffComplete: staffHasPermission(actor, "staff.task.complete"), staffEdit: staffHasPermission(actor, "staff.task.edit"),
-        caseManage: staffHasPermission(actor, "task.manage"), caseAssign: staffHasPermission(actor, "task.assign"),
-      }}
-      documents={draft.access.documents ? caseChecklistCounts(draft.documents) : null}
-      documentsAwaitCurator={caseDocumentsAwaitCurator(admissions.caseState)}
-      applications={applicationLines}
-      payment={draft.access.finance ? { percent: draft.paidPercent, remaining: draft.remaining, financeStop: profile.financeStop } : null}
-      // Клиент лида, если лид прочитан; дело прямого студента лида для чтения не имеет — тогда поля анкеты.
-      contacts={caseContacts({ phone: profile.phone, email: profile.email }, draft.profileFields)}
-      direction={direction}
-      directionAction={directionAction}
-      curator={{
-        name: draft.responsible,
-        membershipId: work.row?.currentCuratorMembershipId ?? null,
-        coverage: !preview && staffHasPermission(actor, "case.curator.assign"),
-      }}
-      handedOffBy={draft.handedOffBy ?? null}
-      portal={portal}
-      sales={salesVisible && sales ? { manager: sales.lead.currentOwnerDisplayName, nextAction: sales.lead.nextActionText } : null}
-      salesData={salesData}
-      salesDataSummary={salesDataSummary}
-      salesDataOpen={input.salesDataOpen}
-      help={assignOnly ? <CaseHelpNoAccess /> : input.help}
-      feed={feed}
-      // Та же заметка, что у Lead 360 (Э4): то же действие, субъект и предел; просмотр роли не пишет,
-      // читатель «Ждут куратора» тоже (`create_case_note` ему отвечает 42501).
-      noteComposer={preview || assignOnly ? null : (
-        <LeadNoteComposer key={`${input.notes.subject.leadId ?? ""}:${input.notes.subject.studentCaseId ?? ""}`}
-          subject={input.notes.subject} requestId={input.requestIds.note} />
-      )}
-      notesOlderHref={input.notesOlderHref}
-      notesLatestHref={input.notesLatestHref}
-      hrefs={{
-        documents: tabHref("documents"),
-        route: tabHref("route"),
-        money: tabHref("money"),
-        messages: messagesHref,
-        history: input.hrefFor("history"),
-      }}
-    />
-  );
-  return { header, overview, actions };
+  const overviewInput: CaseOverviewInput = {
+    studentCaseId: caseId,
+    work,
+    handoff,
+    taskPermissions: {
+      actorMembershipId: actor.membershipId, admin, preview,
+      staffComplete: staffHasPermission(actor, "staff.task.complete"), staffEdit: staffHasPermission(actor, "staff.task.edit"),
+      caseManage: staffHasPermission(actor, "task.manage"), caseAssign: staffHasPermission(actor, "task.assign"),
+    },
+    documents: draft.access.documents ? caseChecklistCounts(draft.documents) : null,
+    documentsAwaitCurator: caseDocumentsAwaitCurator(admissions.caseState),
+    applications: applicationLines,
+    payment: draft.access.finance ? { percent: draft.paidPercent, remaining: draft.remaining, financeStop: profile.financeStop } : null,
+    // Клиент лида, если лид прочитан; дело прямого студента лида для чтения не имеет — тогда поля анкеты.
+    contacts: caseContacts({ phone: profile.phone, email: profile.email }, draft.profileFields),
+    direction,
+    directionAction,
+    curator: {
+      name: draft.responsible,
+      membershipId: work.row?.currentCuratorMembershipId ?? null,
+      coverage: !preview && staffHasPermission(actor, "case.curator.assign"),
+    },
+    handedOffBy: draft.handedOffBy ?? null,
+    portal,
+    sales: salesVisible && sales ? { manager: sales.lead.currentOwnerDisplayName, nextAction: sales.lead.nextActionText } : null,
+    salesData,
+    salesDataSummary,
+    salesDataOpen: input.salesDataOpen,
+    help: assignOnly ? <CaseHelpNoAccess /> : input.help,
+    feed,
+    // Та же заметка, что у Lead 360 (Э4): то же действие, субъект и предел; просмотр роли не пишет,
+    // читатель «Ждут куратора» тоже (`create_case_note` ему отвечает 42501).
+    noteComposer: preview || assignOnly ? null : (
+      <LeadNoteComposer key={`${input.notes.subject.leadId ?? ""}:${input.notes.subject.studentCaseId ?? ""}`}
+        subject={input.notes.subject} requestId={input.requestIds.note} />
+    ),
+    notesOlderHref: input.notesOlderHref,
+    notesLatestHref: input.notesLatestHref,
+    hrefs: {
+      documents: tabHref("documents"),
+      route: tabHref("route"),
+      money: tabHref("money"),
+      messages: messagesHref,
+      history: input.hrefFor("history"),
+    },
+  };
+  const overview = <CaseOverview {...overviewInput} />;
+  return { header, overview, actions, next: { name: profile.person, mark, header: headerInput, overview: overviewInput } };
 }

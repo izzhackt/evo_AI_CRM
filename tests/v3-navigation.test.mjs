@@ -461,7 +461,8 @@ test("every staff page uses the one «<Раздел> — EVO CRM» tab pattern",
 
 test("each sidebar destination opens under a heading with the same words", () => {
   const V3 = "src/app/(v3)/v3";
-  // [link id, file, every literal PartShell title in the file is that label]
+  // [link id, file, every literal PartShell title in the file is that label] — «Университеты» ставят рамку `UniversityShell`
+  // (та же `PartShell` у прежнего вида, рамка набора у «Нового вида»), тот же заголовок.
   const headings = [
     ["home", `${V3}/main/page.tsx`, true], ["home", `${V3}/main/loading.tsx`, true],
     ["requests", `${V3}/requests/page.tsx`, true], ["requests", `${V3}/requests/loading.tsx`, true],
@@ -490,9 +491,9 @@ test("each sidebar destination opens under a heading with the same words", () =>
   for (const [id, file, strict] of headings) {
     const label = escapeRegExp(visible.get(id));
     const page = source(file);
-    assert.match(page, new RegExp(`<PartShell\\b[^>]*?\\btitle=(?:"${label}"|\\{[^}]*"${label}"[^}]*\\})|<h1\\b[^>]*>${label}</h1>|const TITLE = "${label}";|const title = [^;]*"${label}"`, "u"), `${id}: ${file}`);
+    assert.match(page, new RegExp(`<(?:PartShell|UniversityShell)\\b[^>]*?\\btitle=(?:"${label}"|\\{[^}]*"${label}"[^}]*\\})|<h1\\b[^>]*>${label}</h1>|const TITLE = "${label}";|const title = [^;]*"${label}"`, "u"), `${id}: ${file}`);
     if (strict) {
-      for (const [, title] of page.matchAll(/<PartShell\b[^>]*?\btitle="([^"]+)"/gu)) assert.equal(title, visible.get(id), file);
+      for (const [, title] of page.matchAll(/<(?:PartShell|UniversityShell)\b[^>]*?\btitle="([^"]+)"/gu)) assert.equal(title, visible.get(id), file);
     }
   }
   // «Сегодня | Отчёт продаж» tabs are gone (Э3, 26.09.2026): the report keeps its own menu item.

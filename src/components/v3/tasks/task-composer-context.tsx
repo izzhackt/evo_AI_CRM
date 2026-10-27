@@ -79,6 +79,11 @@ export function registerTaskComposerOpener(next: Opener): () => void {
   return () => { if (opener === next) opener = null; };
 }
 
+/** Есть ли диалог оболочки, который можно открыть на месте: тот, кто закрывает свою панель ради него, сначала спрашивает об этом. */
+export function taskComposerAvailable(): boolean {
+  return opener !== null;
+}
+
 /**
  * Открыть единственный диалог создания задачи на месте. false — диалога
  * оболочки нет (статическая страница, нет прав): вызывающий идёт прежней

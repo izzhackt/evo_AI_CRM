@@ -78,6 +78,10 @@ Module._resolveFilename = function patchedResolve(request, ...rest) {
   return originalResolve.call(this, request, ...rest);
 };
 
+// Страницы спрашивают `isNextUi` (cookie «Нового вида»): вне запроса `cookies()` не работает. Здесь запроса нет и cookie нет —
+// это прежний вид, байт в байт; «Новый вид» «Университетов» смотрит tests/e2e/students-next-static-render.cjs.
+require("next/headers").cookies = async () => ({ get: () => undefined });
+
 function stubModule(path, exports) {
   const filename = join(ROOT, path);
   const stub = new Module(filename);

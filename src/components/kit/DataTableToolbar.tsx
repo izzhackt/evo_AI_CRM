@@ -25,7 +25,7 @@ export function DataTableToolbar({
 }: Readonly<{
   search: string;
   onSearch: (value: string) => void;
-  /** Подпись поля поиска; `null` — поля нет (поиск ведёт сервер). */
+  /** Подпись поля поиска; `null` — поля нет (поиск ведёт сервер или сама страница); без поля, фильтров и меню колонок панели нет. */
   placeholder: string | null;
   /** Колонки таблицы; меню показывается, если хотя бы одну можно скрыть. Без списка меню нет. */
   columns?: readonly Column[];
@@ -33,6 +33,7 @@ export function DataTableToolbar({
   extra?: React.ReactNode;
 }>) {
   const hideable = columns?.filter((column) => column.getCanHide()) ?? [];
+  if (placeholder === null && !extra && hideable.length === 0) return null;
   return (
     <div className="flex flex-wrap items-center gap-2" data-slot="data-table-toolbar">
       {placeholder === null ? null : (

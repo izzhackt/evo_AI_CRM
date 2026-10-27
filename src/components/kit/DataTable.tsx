@@ -54,8 +54,8 @@ export function DataTable<T extends RowData>({
   onRowClick?: (row: T) => void;
   /** Название записи для имени перехода «Открыть: …» (таблица и карточка); без него — значение колонки-заголовка. */
   getRowLabel?: (row: T) => string;
-  searchPlaceholder?: string;
-  /** `false` — своего поиска нет: поиск и фильтры ведёт сервер (в `toolbar`), второе поле искало бы только по присланным строкам. */
+  searchPlaceholder?: string | null;
+  /** `false` — своего поиска нет: поиск и фильтры ведёт сервер (в `toolbar`), второе поле искало бы только по присланным строкам. То же, что `searchPlaceholder={null}`. */
   searchable?: boolean;
   pageSize?: 10 | 25 | 50;
   /** `false` — своих страниц нет, показаны все присланные строки (сервер ограничил или разбил список). Поиск и сортировка — по ним. */
@@ -92,11 +92,7 @@ export function DataTable<T extends RowData>({
   if (!loading && data.length === 0) {
     body = <div className="rounded-card border border-border bg-surface">{empty ?? <EmptyState title="Пока пусто" />}</div>;
   } else if (!loading && matches === 0) {
-    body = (
-      <div className="rounded-card border border-border bg-surface">
-        <EmptyState icon={SearchXIcon} title="Ничего не найдено" action={<Button variant="outline" onClick={() => table.resetGlobalFilter()}>Сбросить поиск</Button>} />
-      </div>
-    );
+    body = <div className="rounded-card border border-border bg-surface"><EmptyState icon={SearchXIcon} title="Ничего не найдено" action={<Button variant="outline" onClick={() => table.resetGlobalFilter()}>Сбросить поиск</Button>} /></div>;
   } else {
     body = (
       <>

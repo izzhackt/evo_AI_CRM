@@ -2,7 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound, redirect, unstable_rethrow } from "next/navigation";
 import { Icon } from "@/components/icons";
-import { PartShell } from "@/components/v3/PartShell";
+import { UniversityShell } from "@/components/v3/universities-next/UniversityShell";
+import { isNextUi } from "@/lib/ui-next";
 import { QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import { UniversityFormCreate } from "@/components/v3/universities/forms/UniversityFormCreate";
 import { UniversityFormUpload } from "@/components/v3/universities/forms/UniversityFormUpload";
@@ -47,6 +48,7 @@ export default async function UniversityFormsPage({ params, searchParams }: {
   const catalogId = universityUuid(route.id) ?? notFound();
   const base = `/v3/universities/${catalogId}/forms`;
   if (isStaffPreview(actor) || !staffHasPermission(actor, "catalog.import.manage")) redirect(`/access-denied?from=${encodeURIComponent(base)}`);
+  const nextUi = await isNextUi(actor);
   const templateId = uuid(query, "template"), versionId = uuid(query, "version"), afterId = uuid(query, "after"), mappingId = uuid(query, "mapping");
   const beforeVersion = before(query, "before_version"), beforeMapping = before(query, "before_mapping");
   const create = single(query, "new") === "1", upload = single(query, "upload") === "1", edit = single(query, "edit") === "1";
@@ -60,10 +62,10 @@ export default async function UniversityFormsPage({ params, searchParams }: {
     university = catalogue.items[0] ?? notFound(); data = forms;
   } catch (error) {
     unstable_rethrow(error);
-    return <PartShell title={words.title} back={backLink}><div className="space-y-4">
+    return <UniversityShell nextUi={nextUi} title={words.title} back={backLink}><div className="space-y-4">
       <p role="alert" className="max-w-2xl t-body-compact text-fg-2">{error instanceof PlatformUniversityFormError && error.code !== "unavailable" ? universityFormActionMessage(error.code) : words.readUnavailable}</p>
       <a className={link} href={base}>{words.reload}</a>
-    </div></PartShell>;
+    </div></UniversityShell>;
   }
   const { templates, workspace, inspection } = data;
   const selected = workspace?.selected_version;
@@ -75,7 +77,7 @@ export default async function UniversityFormsPage({ params, searchParams }: {
   // Бланков нет: список слева был бы пустым, и «Бланков пока нет» читалось дважды. Тогда одна колонка с одним пустым состоянием и кнопкой.
   const hasTemplates = templates.items.length > 0;
   const addLink = !create ? <Link prefetch={false} href={`${base}?new=1`} className={hasTemplates ? link : PRIMARY_LINK}>{words.add}</Link> : null;
-  return <PartShell title={words.title} back={backLink} meta={university.content.name} action={hasTemplates ? addLink : undefined}>
+  return <UniversityShell nextUi={nextUi} title={words.title} back={backLink} meta={university.content.name} action={hasTemplates ? addLink : undefined}>
     <div className="space-y-6">
       <div className={hasTemplates ? "grid gap-8 lg:grid-cols-[16rem_minmax(0,1fr)]" : "grid gap-8"}>
         {hasTemplates ? <nav aria-label={words.title} className="space-y-4 border-b border-border pb-5 lg:border-b-0 lg:border-r lg:pr-5">
@@ -154,5 +156,5 @@ export default async function UniversityFormsPage({ params, searchParams }: {
         </div>
       </div>
     </div>
-  </PartShell>;
+  </UniversityShell>;
 }

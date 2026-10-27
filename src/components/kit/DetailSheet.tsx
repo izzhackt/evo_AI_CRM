@@ -36,6 +36,7 @@ export function DetailSheet({
   onOpenChange,
   onCloseAutoFocus,
   footer,
+  onEscapeKeyDown,
   side = "right",
   children,
 }: Readonly<{
@@ -52,6 +53,8 @@ export function DetailSheet({
   /** Перед возвратом фокуса при закрытии; `preventDefault()` оставляет фокус как есть (панель закрыта ссылкой на место страницы). */
   onCloseAutoFocus?: (event: Event) => void;
   footer?: React.ReactNode;
+  /** Esc закрывает панель; страница с полями и окнами подтверждения в ней решает сама, когда не закрывать: `preventDefault()` оставляет панель. */
+  onEscapeKeyDown?: (event: KeyboardEvent) => void;
   side?: "right" | "bottom";
   children: React.ReactNode;
 }>) {
@@ -70,6 +73,7 @@ export function DetailSheet({
       <SheetContent
         side={side}
         {...(description ? {} : { "aria-describedby": undefined })}
+        onEscapeKeyDown={onEscapeKeyDown}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           const panel = event.currentTarget;

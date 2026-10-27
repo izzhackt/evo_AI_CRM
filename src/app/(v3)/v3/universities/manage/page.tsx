@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Icon } from "@/components/icons";
-import { PartShell } from "@/components/v3/PartShell";
+import { UniversityShell } from "@/components/v3/universities-next/UniversityShell";
+import { ManageIndexNextLazy } from "@/components/v3/universities-next/UniversitiesNextLazy";
+import { manageIndexProps } from "@/components/v3/universities-next/manage-index-model";
+import { isNextUi } from "@/lib/ui-next";
 import { QUEUE_SECONDARY } from "@/components/v3/queue/queue-buttons";
 import { UniversityContentView, UniversityUnavailable, universityCountry } from "@/components/v3/universities/UniversityCatalogue";
 import { UniversityEditor, UniversityIntakeIdentityForm, UniversityReviewForm } from "@/components/v3/universities/UniversityEditor";
@@ -24,6 +27,7 @@ type Params = Record<string, string | string[] | undefined>;
 export default async function UniversityManagePage({ searchParams }: { searchParams: Promise<Params> }) {
   const [actor, params] = await Promise.all([requireV3PageActor("/v3/universities"), searchParams]);
   if (isStaffPreview(actor) || !staffHasPermission(actor, "catalog.import.manage")) redirect("/access-denied?from=%2Fv3%2Funiversities");
+  const nextUi = await isNextUi(actor);
   const route = parseManageRoute(Object.entries(params)) ?? notFound();
   const mode = route.kind === "editor" ? route.mode : null;
   const value = route.kind === "editor" ? route.value : null;
@@ -36,35 +40,35 @@ export default async function UniversityManagePage({ searchParams }: { searchPar
   const back = <Link className={BACK} href={manageListHref(listIndex)}><Icon name="arrow-left" size={16} />Управление каталогом</Link>;
   if (draftId) {
     let drafts;
-    try { drafts = await readUniversityDrafts(actor, draftId); } catch { return <PartShell title="Проверка карточки"><UniversityUnavailable /></PartShell>; }
+    try { drafts = await readUniversityDrafts(actor, draftId); } catch { return <UniversityShell nextUi={nextUi} title="Проверка карточки"><UniversityUnavailable /></UniversityShell>; }
     const draft = drafts[0];
-    if (!draft) return <PartShell title="Проверка карточки" back={back}><p role="status" className={`mb-4 ${NOTE}`}>Черновик уже обработан или недоступен. Не создавайте дубликат: проверьте опубликованный каталог.</p><Link className={link} href="/v3/universities">Открыть опубликованный каталог</Link></PartShell>;
-    return <PartShell title={`Проверка: ${draft.content.name}`} back={back}><p className={`mb-5 ${NOTE}`}>{draft.reviewKind === "intake_ids" ? "Технический черновик" : "Черновик"} на основе версии {draft.baseVersion}. Студенты его не видят. Причина: {draft.reason}</p><UniversityContentView content={draft.content} now={new Date()} /><div className="mt-6"><UniversityReviewForm draftId={draft.id} requestId={randomUUID()} reviewKind={draft.reviewKind} /></div></PartShell>;
+    if (!draft) return <UniversityShell nextUi={nextUi} title="Проверка карточки" back={back}><p role="status" className={`mb-4 ${NOTE}`}>Черновик уже обработан или недоступен. Не создавайте дубликат: проверьте опубликованный каталог.</p><Link className={link} href="/v3/universities">Открыть опубликованный каталог</Link></UniversityShell>;
+    return <UniversityShell nextUi={nextUi} title={`Проверка: ${draft.content.name}`} back={back}><p className={`mb-5 ${NOTE}`}>{draft.reviewKind === "intake_ids" ? "Технический черновик" : "Черновик"} на основе версии {draft.baseVersion}. Студенты его не видят. Причина: {draft.reason}</p><UniversityContentView content={draft.content} now={new Date()} /><div className="mt-6"><UniversityReviewForm draftId={draft.id} requestId={randomUUID()} reviewKind={draft.reviewKind} /></div></UniversityShell>;
   }
   const templates = reviewedUniversityTemplates();
   if (mode === "batch") {
     let rows;
     try { rows = universityBatchRows(templates, await readUniversityBatchSnapshot(actor)); }
-    catch { return <PartShell title="Публикация подготовленного каталога" back={back}><UniversityUnavailable /></PartShell>; }
-    return <PartShell title="Публикация подготовленного каталога" back={back}><UniversityBatchReview initialRows={rows} /></PartShell>;
+    catch { return <UniversityShell nextUi={nextUi} title="Публикация подготовленного каталога" back={back}><UniversityUnavailable /></UniversityShell>; }
+    return <UniversityShell nextUi={nextUi} title="Публикация подготовленного каталога" back={back}><UniversityBatchReview initialRows={rows} /></UniversityShell>;
   }
   if (mode === "template" || editId || identifyId || mode === "new") {
     let content: UniversityContent, version = 0;
     if (editId || identifyId) {
       let page;
-      try { page = await readStaffUniversities(actor, undefined, editId ?? identifyId); } catch { return <PartShell title="Обновление карточки"><UniversityUnavailable /></PartShell>; }
+      try { page = await readStaffUniversities(actor, undefined, editId ?? identifyId); } catch { return <UniversityShell nextUi={nextUi} title="Обновление карточки"><UniversityUnavailable /></UniversityShell>; }
       const university = page.items[0] ?? notFound(); content = university.content; version = university.version;
     } else if (mode === "template") content = templates.find((item) => item.key === value)?.content ?? notFound();
     else content = { name: "", country: "CN", city: null, overview: "", websiteUrl: "", sourceUrl: "", verifiedOn: today, notes: "", photoKey: null, programs: [{ id: "program-1", title: "", level: "bachelor", duration: null, language: null, summary: "", sourceUrl: "", intakes: [] }] };
     const missingIds = content.programs.reduce((total, program) => total + program.intakes.filter((intake) => intake.id === undefined).length, 0);
     // Generate once on the server, then preserve the seed through edits and exact retries.
     const identifiedContent = withUniversityIntakeIds(content, randomUUID);
-    if (identifyId) return <PartShell title={`Идентификаторы наборов: ${content.name}`} back={back}>{missingIds === 0 ? <p role="status" className={NOTE}>У всех наборов идентификаторы уже есть: техническая версия не нужна.</p> : <div className="space-y-6">
+    if (identifyId) return <UniversityShell nextUi={nextUi} title={`Идентификаторы наборов: ${content.name}`} back={back}>{missingIds === 0 ? <p role="status" className={NOTE}>У всех наборов идентификаторы уже есть: техническая версия не нужна.</p> : <div className="space-y-6">
       <p className={`max-w-3xl ${NOTE}`}>Добавим постоянные идентификаторы {missingIds} {missingIds % 10 === 1 && missingIds % 100 !== 11 ? "набору" : "наборам"} из опубликованной версии {version}. Сведения и даты не меняются.</p>
       <UniversityContentView content={content} now={new Date()} />
       <UniversityIntakeIdentityForm content={identifiedContent} listContext={listContext} institutionId={identifyId} baseVersion={version} requestId={randomUUID()} />
-    </div>}</PartShell>;
-    return <PartShell title={editId ? "Новая версия карточки" : "Подготовка карточки"} back={back}>{editId && missingIds > 0 ? <p className={`mb-5 max-w-3xl ${NOTE}`}>Если сведения остаются прежними, можно <Link className="text-accent-text underline underline-offset-4" href={manageEditorHref("identify", editId, listContext)}>добавить идентификаторы наборов без изменения карточки</Link>.</p> : null}<UniversityEditor listContext={listContext} content={identifiedContent} institutionId={editId} baseVersion={version} requestId={randomUUID()} today={today} /></PartShell>;
+    </div>}</UniversityShell>;
+    return <UniversityShell nextUi={nextUi} title={editId ? "Новая версия карточки" : "Подготовка карточки"} back={back}>{editId && missingIds > 0 ? <p className={`mb-5 max-w-3xl ${NOTE}`}>Если сведения остаются прежними, можно <Link className="text-accent-text underline underline-offset-4" href={manageEditorHref("identify", editId, listContext)}>добавить идентификаторы наборов без изменения карточки</Link>.</p> : null}<UniversityEditor listContext={listContext} content={identifiedContent} institutionId={editId} baseVersion={version} requestId={randomUUID()} today={today} /></UniversityShell>;
   }
   if (route.kind !== "index") notFound();
   const { index } = route;
@@ -78,7 +82,8 @@ export default async function UniversityManagePage({ searchParams }: { searchPar
     .map(([code, items]) => ({ code, label: universityCountry(code), items: [...items].sort((a, b) => a.content.name.localeCompare(b.content.name, "en")) }))
     .sort((a, b) => a.label.localeCompare(b.label, "ru"));
   const paged = Boolean(index.cursor || page?.nextCursor);
-  return <PartShell title="Управление каталогом" back={<Link className={BACK} href="/v3/universities"><Icon name="arrow-left" size={16} />Все университеты</Link>} action={<Link className={PRIMARY_LINK} href={manageEditorHref("new", "1", listContext)}>Добавить университет</Link>}>
+  return <UniversityShell nextUi={nextUi} title="Управление каталогом" back={<Link className={BACK} href="/v3/universities"><Icon name="arrow-left" size={16} />Все университеты</Link>} action={<Link className={PRIMARY_LINK} href={manageEditorHref("new", "1", listContext)}>Добавить университет</Link>}>
+    {nextUi ? <ManageIndexNextLazy {...manageIndexProps({ index, page, templates, countryLabel: universityCountry })} /> : (
     <div className="min-w-0 space-y-7">
       <form action="/v3/universities/manage" method="get" className="flex flex-wrap items-end gap-3">
         <div className="min-w-0 flex-1 basis-64"><label htmlFor="manage-university-query" className="block t-label text-fg-2">Название университета</label><input key={index.q} id="manage-university-query" name="q" type="search" defaultValue={index.q} maxLength={200} className="mt-1 h-11 w-full rounded-ctl border border-control-edge bg-surface px-3 t-body text-fg" /></div>
@@ -101,5 +106,6 @@ export default async function UniversityManagePage({ searchParams }: { searchPar
         </details>)}</div> : <p role="status" className={`mt-3 ${NOTE}`}>Подготовленных материалов с таким названием нет.</p>}
       </section>
     </div>
-  </PartShell>;
+    )}
+  </UniversityShell>;
 }

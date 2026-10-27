@@ -230,11 +230,12 @@ test("undo lives in the top layer and only where a real reverse command exists",
       if (/\.tsx?$/u.test(path) && /<UndoToast\b|import \{[^}]*\bUndoToast\b/u.test(read(path))) users.push(path);
     }
   }
-  assert.deepEqual(users.sort(), ["src/components/v3/AdmissionsPipelineBoard.tsx", "src/components/v3/tasks/TaskQueueList.tsx", "src/components/v3/today/TodayQueueList.tsx"]);
+  // «Новый вид» «Задач» (27.10.2026): таблица `TasksTable` — тот же хук и та же обратная команда, отдельного «Отменить» нет.
+  assert.deepEqual(users.sort(), ["src/components/v3/AdmissionsPipelineBoard.tsx", "src/components/v3/tasks/TaskQueueList.tsx", "src/components/v3/tasks/next/TasksTable.tsx", "src/components/v3/today/TodayQueueList.tsx"]);
   // Команда отмены — общая с «Сегодня» (useRecentCompletions, #1067).
   assert.match(read("src/components/v3/tasks/useRecentCompletions.ts"), /staffStatusForm\(\{ id: completion\.task\.id, version: completion\.version \}, completion\.previousStatus\)/u, "reverse command with the version after completion");
   // Строки «Отменить» «Задач» и «Сегодня» собирает один хук; в строке списка своей «Отменить» нет.
-  for (const path of ["src/components/v3/tasks/TaskQueueList.tsx", "src/components/v3/today/TodayQueueList.tsx"]) {
+  for (const path of ["src/components/v3/tasks/TaskQueueList.tsx", "src/components/v3/tasks/next/TasksTable.tsx", "src/components/v3/today/TodayQueueList.tsx"]) {
     assert.match(read(path), /const toasts = useUndoToasts\(recent, undo\);/u, path);
     assert.match(read(path), /<UndoToast items=\{toasts\} onHold=\{hold\} \/>/u, path);
   }

@@ -45,7 +45,7 @@ export type RequestsQueueRead =
   | Readonly<{ status: "ready"; queue: RequestsQueue }>
   | Readonly<{ status: "forbidden" | "invalid" | "unavailable" }>;
 
-type ViewProps = Readonly<{
+export type ViewProps = Readonly<{
   selection: RequestSelection;
   read: RequestsQueueRead;
   /** Запись правой панели из адреса (`?open=kind:id`). */

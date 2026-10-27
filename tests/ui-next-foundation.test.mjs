@@ -325,7 +325,7 @@ test("DataTable: страницы, прилипшая шапка, карточк
   assert.match(html, /data-slot="data-table-cards"/);
   assert.match(html, /<button type="button" aria-labelledby="[^"]+" class="absolute inset-0[^"]*"><\/button>/, "карточка телефона открывается пустой кнопкой поверх карточки: ячейки в неё не вложены");
   assert.match(html, /id="([^"]+)" class="t-item[^"]*">Тест Синтетический 1</, "имя кнопки — заголовок карточки");
-  const cards = html.match(/<ul class="grid gap-2 md:hidden" data-slot="data-table-cards">[\s\S]*?<\/ul>/)[0];
+  const cards = html.match(/<ul class="grid grid-cols-1 gap-2 md:hidden" data-slot="data-table-cards">[\s\S]*?<\/ul>/)[0];
   assert.doesNotMatch(cards, /<button[^>]*>(?:(?!<\/button>)[\s\S])+<\/button>/, "в карточках нет кнопки с содержимым — нет вложенных интерактивных элементов");
   assert.match(cards, /pointer-events-none relative/);
   assert.match(cards, /pointer-events-auto/, "ссылки и кнопки в ячейках ловят нажатия сами");

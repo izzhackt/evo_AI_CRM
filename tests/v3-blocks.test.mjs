@@ -222,7 +222,8 @@ test("undo lives in the top layer and only where a real reverse command exists",
   assert.match(toast, /<p class="min-w-0 flex-1 break-words t-body-compact">Задача «Синтетическая задача» завершена\.<\/p><button type="button" data-queue-undo="" data-undo-row="staff:synthetic-1" class="v3-toast-action t-label">Отменить<\/button>/u);
   assert.match(blocks.get("toast-error"), /<p role="alert" class="w-full t-body-compact">Не удалось отменить\. Обновите страницу\.<\/p>/u);
   // «Задачи» и «Сегодня» (отмена завершения рабочей задачи — та же команда смены
-  // состояния с версией) и доска поступления (Э7, 251: обратное перемещение с версией).
+  // состояния с версией; «Сегодня» нового вида — те же хуки в виджетах) и доска поступления
+  // (Э7, 251: обратное перемещение с версией).
   const users = [];
   for (const root of ["src/app/(v3)", "src/components/v3"]) {
     for (const entry of readdirSync(new URL(`../${root}`, import.meta.url), { recursive: true })) {
@@ -230,7 +231,7 @@ test("undo lives in the top layer and only where a real reverse command exists",
       if (/\.tsx?$/u.test(path) && /<UndoToast\b|import \{[^}]*\bUndoToast\b/u.test(read(path))) users.push(path);
     }
   }
-  assert.deepEqual(users.sort(), ["src/components/v3/AdmissionsPipelineBoard.tsx", "src/components/v3/tasks/TaskQueueList.tsx", "src/components/v3/today/TodayQueueList.tsx"]);
+  assert.deepEqual(users.sort(), ["src/components/v3/AdmissionsPipelineBoard.tsx", "src/components/v3/tasks/TaskQueueList.tsx", "src/components/v3/today-next/TodayDashboard.tsx", "src/components/v3/today/TodayQueueList.tsx"]);
   // Команда отмены — общая с «Сегодня» (useRecentCompletions, #1067).
   assert.match(read("src/components/v3/tasks/useRecentCompletions.ts"), /staffStatusForm\(\{ id: completion\.task\.id, version: completion\.version \}, completion\.previousStatus\)/u, "reverse command with the version after completion");
   // Строки «Отменить» «Задач» и «Сегодня» собирает один хук; в строке списка своей «Отменить» нет.

@@ -25,7 +25,7 @@ const SHARED_REASON_ROWS = 4;
  * «шаг просрочен» повторило бы его), и только у чистых групп без задач; у
  * группы со своей строкой-пояснением (переписки) — не трогаем.
  */
-function sharedReason(band: TodayBandView): string | null {
+export function sharedReason(band: TodayBandView): string | null {
   if (band.band !== "waiting" || band.note !== null || band.items.length < SHARED_REASON_ROWS) return null;
   const reason = band.items[0].reason;
   if (!reason || band.items.some((item) => item.task || item.reason !== reason)) return null;

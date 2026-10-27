@@ -53,7 +53,8 @@ test("phone admissions board: the page passes ?stage= and the picker (or a follo
   const page = read("src/app/(v3)/v3/admissions-pipeline/page.tsx");
   assert.match(page, /stage\?: string \| string\[\];/u);
   assert.match(page, /requestedStage=\{singleValue\(params\.stage\) \?\? null\}/u);
-  const board = read("src/components/v3/AdmissionsPipelineBoard.tsx");
+  // Этап телефона ведёт движок доски (`useAdmissionsBoard`), общий у прежнего и «Нового вида» (27.10.2026); выбор «Этап» рисует сама доска.
+  const board = [read("src/components/v3/AdmissionsPipelineBoard.tsx"), read("src/components/v3/admissions-board/useAdmissionsBoard.ts")].join("\n");
   assert.match(board, /useState<AdmissionsPipelineStage>\(\(\) => admissionsNarrowStage\(tab, rows, requestedStage\)\)/u);
   assert.match(board, /setPreviousTab\(tab\);\s*setNarrowStage\(admissionsNarrowStage\(tab, rows, requestedStage\)\);/u);
   assert.match(board, /onChange=\{\(event\) => chooseNarrowStage\(event\.target\.value as AdmissionsPipelineStage\)\}/u);

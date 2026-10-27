@@ -36,6 +36,7 @@ export function DataTable<T extends RowData>({
   onRowClick,
   getRowLabel,
   searchPlaceholder = "Поиск",
+  searchable = true,
   pageSize = 10,
   paginate = true,
   loading = false,
@@ -54,6 +55,8 @@ export function DataTable<T extends RowData>({
   /** Название записи для имени перехода «Открыть: …» (таблица и карточка); без него — значение колонки-заголовка. */
   getRowLabel?: (row: T) => string;
   searchPlaceholder?: string;
+  /** `false` — своего поиска нет: поиск и фильтры ведёт сервер (в `toolbar`), второе поле искало бы только по присланным строкам. */
+  searchable?: boolean;
   pageSize?: 10 | 25 | 50;
   /** `false` — своих страниц нет, показаны все присланные строки (сервер ограничил или разбил список). Поиск и сортировка — по ним. */
   paginate?: boolean;
@@ -143,7 +146,7 @@ export function DataTable<T extends RowData>({
 
   return (
     <div ref={watchBlock} className={cn("@container flex min-w-0 flex-col gap-3", className)} data-slot="data-table">
-      <DataTableToolbar search={String(table.state.globalFilter ?? "")} onSearch={(value) => table.setGlobalFilter(value)} placeholder={searchPlaceholder} columns={columnMenu ? menuColumns : undefined} extra={toolbar} />
+      <DataTableToolbar search={String(table.state.globalFilter ?? "")} onSearch={(value) => table.setGlobalFilter(value)} placeholder={searchable ? searchPlaceholder : null} columns={columnMenu ? menuColumns : undefined} extra={toolbar} />
       {body}
     </div>
   );

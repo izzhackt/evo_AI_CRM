@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { AdmissionsPipelineBoard } from "@/components/v3/AdmissionsPipelineBoard";
+import { AdmissionsPipelineNextLazy } from "@/components/v3/admissions-pipeline-next/AdmissionsPipelineNextLazy";
 import { AddStudentDrawer } from "@/components/v3/admissions/AddStudentDrawer";
 import { BoardReset, BoardSearch, BoardSegments } from "@/components/v3/board/Board";
 import { BoardFilters, NavigateSelect } from "@/components/v3/board/BoardToolbar";
@@ -10,6 +11,7 @@ import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { readStaffApplicationPackageQueueAction } from "@/lib/portal/application-packages-actions";
 import { readStaffApplicationDocumentSubmissionQueueAction } from "@/lib/portal/application-documents-actions";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { isNextUi } from "@/lib/ui-next";
 import {
   readAdmissionsPipelineBoard,
   type AdmissionsPipelineTab,
@@ -187,18 +189,80 @@ export default async function AdmissionsPipelinePart({
     })),
   ];
 
+  // Части строки инструментов и главные действия — одни и те же в прежнем и новом виде.
+  const actions = queues || addStudent ? (
+    // Главное действие первым в разметке: на телефоне оно над ссылками очередей и
+    // Tab доходит до него первым; от `sm` ряд зеркалится — ссылки слева, кнопка справа.
+    <div className="flex flex-col items-end gap-y-2 sm:flex-row-reverse sm:flex-wrap sm:items-center sm:justify-start sm:gap-x-4">
+      {addStudent}
+      {queues}
+    </div>
+  ) : undefined;
+  const search = (
+    <BoardSearch
+      key={boardHref(query)}
+      action="/v3/admissions-pipeline"
+      defaultValue={query.q ?? ""}
+      maxLength={MAX_QUERY_LENGTH}
+      placeholder="Имя студента"
+      hidden={
+        <>
+          <input type="hidden" name="tab" value={query.tab} />
+          {query.country !== null ? <input type="hidden" name="country" value={query.country} /> : null}
+          {query.curator !== null ? <input type="hidden" name="curator" value={query.curator} /> : null}
+        </>
+      }
+    />
+  );
+  const filters = (
+    <BoardFilters activeCount={Number(query.country !== null) + Number(query.curator !== null)}>
+      <NavigateSelect key={`country:${query.country ?? ""}`} label="Страна" value={query.country ?? ""} options={countryOptions} />
+      {curatorOptions.length > 0 ? (
+        <NavigateSelect
+          key={`curator:${query.curator ?? ""}`}
+          label="Куратор"
+          value={query.curator ?? ""}
+          options={
+            query.curator !== null && !curatorOptions.some((option) => option.membershipId === query.curator)
+              ? [...curatorSelectOptions, { value: query.curator, label: "Выбранный куратор", href: boardHref(query) }]
+              : curatorSelectOptions
+          }
+        />
+      ) : null}
+    </BoardFilters>
+  );
+  const reset = filtersActive ? (
+    <BoardReset href={boardHref({ tab: query.tab, q: null, country: null, curator: null })} />
+  ) : null;
+
+  // «Новый вид» (переключатель администратора): те же чтения и права, другая расстановка — вкладки разделов, колонки-карточки с
+  // перетаскиванием (`@dnd-kit/core`) и те же части строки инструментов.
+  if (await isNextUi(actor)) {
+    return (
+      <AdmissionsPipelineNextLazy
+        actions={actions}
+        tabs={(["admission", "visa"] as const satisfies readonly AdmissionsPipelineTab[]).map((tabKey) => ({
+          key: tabKey,
+          label: admissionsPipelineTab(tabKey),
+          count: tabCount(tabKey),
+          href: boardHref({ ...query, tab: tabKey }),
+        }))}
+        toolbar={<div className="flex flex-wrap items-center gap-2 @2xl:gap-3">{search}{filters}{reset}</div>}
+        rows={board?.rows ?? []}
+        truncated={board?.truncated ?? false}
+        boardUnavailable={boardResult.status === "rejected"}
+        tab={query.tab}
+        query={{ q: query.q, country: query.country, curator: query.curator }}
+        requestedStage={singleValue(params.stage) ?? null}
+      />
+    );
+  }
+
   return (
     <PartShell
       width="board"
       title="Воронка поступления"
-      action={queues || addStudent ? (
-        // Главное действие первым в разметке: на телефоне оно над ссылками очередей и
-        // Tab доходит до него первым; от `sm` ряд зеркалится — ссылки слева, кнопка справа.
-        <div className="flex flex-col items-end gap-y-2 sm:flex-row-reverse sm:flex-wrap sm:items-center sm:justify-start sm:gap-x-4">
-          {addStudent}
-          {queues}
-        </div>
-      ) : undefined}
+      action={actions}
     >
       <div className="flex shrink-0 flex-wrap items-center gap-2 @2xl:gap-3">
         <BoardSegments
@@ -212,40 +276,11 @@ export default async function AdmissionsPipelinePart({
           }))}
         />
 
-        <BoardSearch
-          key={boardHref(query)}
-          action="/v3/admissions-pipeline"
-          defaultValue={query.q ?? ""}
-          maxLength={MAX_QUERY_LENGTH}
-          placeholder="Имя студента"
-          hidden={
-            <>
-              <input type="hidden" name="tab" value={query.tab} />
-              {query.country !== null ? <input type="hidden" name="country" value={query.country} /> : null}
-              {query.curator !== null ? <input type="hidden" name="curator" value={query.curator} /> : null}
-            </>
-          }
-        />
+        {search}
 
-        <BoardFilters activeCount={Number(query.country !== null) + Number(query.curator !== null)}>
-          <NavigateSelect key={`country:${query.country ?? ""}`} label="Страна" value={query.country ?? ""} options={countryOptions} />
-          {curatorOptions.length > 0 ? (
-            <NavigateSelect
-              key={`curator:${query.curator ?? ""}`}
-              label="Куратор"
-              value={query.curator ?? ""}
-              options={
-                query.curator !== null && !curatorOptions.some((option) => option.membershipId === query.curator)
-                  ? [...curatorSelectOptions, { value: query.curator, label: "Выбранный куратор", href: boardHref(query) }]
-                  : curatorSelectOptions
-              }
-            />
-          ) : null}
-        </BoardFilters>
+        {filters}
 
-        {filtersActive ? (
-          <BoardReset href={boardHref({ tab: query.tab, q: null, country: null, curator: null })} />
-        ) : null}
+        {reset}
       </div>
 
       <div className="mt-3 flex min-w-0 flex-col md:min-h-[320px] md:flex-1 md:overflow-y-auto @5xl:overflow-visible">

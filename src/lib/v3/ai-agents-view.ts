@@ -1152,6 +1152,7 @@ export const AI_AGENTS_DRAFT_FAILURE_WORDS: Readonly<Record<string, string>> = {
   unknown_result: "итог отправки неизвестен — проверьте чат",
   provider_error: "ошибка WhatsApp",
   sender_unavailable: "отправитель не может писать в этот чат",
+  receive_only: "WhatsApp подключён только на чтение — ответ отправит сотрудник вручную",
 };
 
 export function draftTargetHref(draft: Pick<AiAgentDraftRow, "channel" | "conversationId" | "studentCaseId">): string | null {

@@ -14,6 +14,7 @@ import {
   getPlatformWahaSessionHealth,
   type PlatformWahaSessionHealth,
 } from "@/lib/platform-communications";
+import { readPlatformWhatsAppTransport, type PlatformWhatsAppTransport } from "@/lib/platform-whatsapp-transport";
 import { providerDisplayStatus } from "@/lib/provider-display-status";
 import { readCanonicalAmoCrmCommandAvailability } from "@/lib/server/canonical-amocrm-command-actions";
 import { isPlatformP7BObservabilityEnabled } from "@/lib/server/platform-observability-config";
@@ -23,6 +24,7 @@ import {
   readPlatformGeminiProviderAvailability,
 } from "@/lib/server/platform-provider-readiness";
 import { isPlatformWahaIngressEnabled } from "@/lib/server/platform-waha-ingress-config";
+import { isPlatformWazzupIngressEnabled } from "@/lib/server/platform-wazzup-ingress-config";
 import { withLivePlatformWahaHealth } from "@/lib/server/platform-waha-live-health";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -34,6 +36,7 @@ import {
   databaseFact,
   settingsIntegrations,
   type IntegrationRow,
+  type SettingsIntegrationFacts,
 } from "@/lib/v3/settings-health";
 import type { TelephonyIntegrationFacts } from "@/lib/v3/telephony-health";
 
@@ -56,7 +59,11 @@ function assertAdminAuthority(actor: ActivePlatformActor): void {
   }
 }
 
+type SettingsIntegrationFactsWazzup = NonNullable<SettingsIntegrationFacts["wazzup"]>;
+
 type ProviderFacts = Readonly<{
+  /** Действующий путь WhatsApp (325); null - не прочитался, тогда страница как прежде говорит о WAHA. */
+  transport: PlatformWhatsAppTransport | null;
   waha: PlatformWahaSessionHealth | null;
   wahaDisplay: ReturnType<typeof platformWahaHealthDisplayStatus>;
   geminiDisplay: ReturnType<typeof providerDisplayStatus>;
@@ -65,17 +72,23 @@ type ProviderFacts = Readonly<{
 
 const readProviderFacts = cache(
   async (actor: ActivePlatformActor): Promise<ProviderFacts> => {
-    const [recordedWaha, amo] = await Promise.all([
-      getPlatformWahaSessionHealth(actor, "crm_primary"),
+    const [transport, amo] = await Promise.all([
+      readPlatformWhatsAppTransport(actor),
       readCanonicalAmoCrmCommandAvailability(),
     ]);
+    // Путь Wazzup: запасную сессию WAHA не проверяем и не показываем (план Wazzup §8, A14).
+    const wazzupPath = transport?.activeTransport === "wazzup";
+    const recordedWaha = wazzupPath ? null : await getPlatformWahaSessionHealth(actor, "crm_primary");
     // The recorded status only says when the session last changed; the live
     // probe says what it is now, so the integrations table does not go stale.
-    const waha = await withLivePlatformWahaHealth(
-      actor.organizationId,
-      recordedWaha,
-    );
+    const waha = wazzupPath
+      ? null
+      : await withLivePlatformWahaHealth(
+          actor.organizationId,
+          recordedWaha,
+        );
     return {
+      transport,
       waha,
       wahaDisplay: platformWahaHealthDisplayStatus(waha),
       geminiDisplay: providerDisplayStatus(
@@ -112,6 +125,7 @@ export async function readIntegrations(
   assertAdminAuthority(actor);
   const facts = await readProviderFacts(actor);
   return settingsIntegrations({
+    wazzup: wazzupFact(facts),
     waha: {
       display: facts.wahaDisplay,
       sessionStatus: facts.waha?.status,
@@ -124,17 +138,32 @@ export async function readIntegrations(
   }, now);
 }
 
+function wazzupFact(facts: ProviderFacts): SettingsIntegrationFactsWazzup | undefined {
+  const transport = facts.transport;
+  if (transport?.activeTransport !== "wazzup") return undefined;
+  return {
+    channelState: transport.channel?.state ?? null,
+    observedAt: transport.channel?.observedAt ?? null,
+    intakeEnabled: isPlatformWazzupIngressEnabled(),
+  };
+}
+
 /**
  * Состояние сессии WhatsApp для блока «Подключение WhatsApp»: то же живое слово
  * WAHA, что читает таблица «Интеграции» (одно чтение на отрисовку), либо `null`,
  * если проверить не удалось. Слово переводит `whatsappConnectionState`.
+ * Путь Wazzup: `wazzup` - то, что показывает карточка канала вместо кнопки подключения WAHA.
  */
 export async function readWhatsAppConnection(
   actor: ActivePlatformActor,
-): Promise<Readonly<{ status: string | null }>> {
+): Promise<Readonly<{ status: string | null; wazzup: Readonly<{ transport: PlatformWhatsAppTransport; intakeEnabled: boolean }> | null }>> {
   assertAdminAuthority(actor);
   const facts = await readProviderFacts(actor);
-  return { status: facts.waha?.status ?? null };
+  const wazzup = wazzupFact(facts);
+  return {
+    status: facts.waha?.status ?? null,
+    wazzup: wazzup && facts.transport ? { transport: facts.transport, intakeEnabled: wazzup.intakeEnabled } : null,
+  };
 }
 
 const readOperationsReadiness = cache(loadPlatformOperationsReadiness);

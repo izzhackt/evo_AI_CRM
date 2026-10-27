@@ -140,8 +140,11 @@ COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/telephony-main
 COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/ai-agents-maintenance.mjs ./ai-agents-maintenance.mjs
 # WhatsApp connection alert (docs/runbooks/whatsapp-go-live.md, «Тревога об отключении и тишине»): run by the host
 # timer deploy/whatsapp/ as `docker exec evo-crm-app-1 node /app/whatsapp-health-maintenance.mjs`; a no-op unless
-# EVO_PLATFORM_WAHA_INGRESS_ENABLED=1.
+# EVO_PLATFORM_WAHA_INGRESS_ENABLED=1 (WAHA part) or EVO_PLATFORM_WAZZUP_INGRESS_ENABLED=1 (Wazzup part).
 COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/whatsapp-health-maintenance.mjs ./whatsapp-health-maintenance.mjs
+# Wazzup operator commands (docs/runbooks/wazzup-whatsapp.md): the key arrives on stdin, never in argv; run as
+# `docker exec -i evo-crm-app-1 node /app/wazzup-ops.mjs <command>` only with the owner's go-ahead.
+COPY --from=builder --chown=nextjs:nodejs --chmod=0555 /app/.next/wazzup-ops.mjs ./wazzup-ops.mjs
 
 USER nextjs
 

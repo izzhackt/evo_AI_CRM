@@ -12,6 +12,8 @@ const chat = read("src/components/v3/inbox/InboxChat.tsx");
 const composer = read("src/components/v3/inbox/InboxComposer.tsx");
 const page = read("src/app/(v3)/v3/inbox/page.tsx");
 const inboxSource = read("src/lib/v3/inbox-source.ts");
+// W3 (Wazzup): порядок причин «нельзя ответить» - чистое правило `replyAccessFor`, его же проверяют тесты Wazzup по значениям.
+const replyRules = read("src/lib/v3/whatsapp-chat.ts");
 
 test("the chat sends through the one reviewed server action, one request id per message", () => {
   assert.match(chat, /sendPlatformWhatsAppMessageAction\(\{\s*conversationId,\s*sourceMessageId: next\.sourceMessageId,\s*requestId: next\.requestId,\s*text: next\.text,\s*\}\)/u);
@@ -49,8 +51,10 @@ test("templates only edit the text; Enter sends with a mouse, Shift+Enter and to
 
 test("the page offers the composer only to a member who may answer this chat", () => {
   assert.match(inboxSource, /function replyAccessOf\(/u);
-  assert.match(inboxSource, /if \(state\.latestInboundMessageId === null\) return "no_client_message";/u);
-  assert.match(inboxSource, /if \(conversation\.wahaSessionName !== "crm_primary"\) return "old_session";/u);
+  assert.match(inboxSource, /hasClientMessage: state\.latestInboundMessageId !== null/u);
+  assert.match(inboxSource, /sessionName: conversation\.wahaSessionName/u);
+  assert.match(replyRules, /if \(!input\.hasClientMessage\) return "no_client_message";/u);
+  assert.match(replyRules, /if \(input\.sessionName !== "crm_primary"\) return "old_session";/u);
   assert.match(page, /canReply \? readSnippets\(actor\) : Promise\.resolve\(null\)/u);
   assert.match(page, /staffPresentationCan\(actor, "messaging\.send"\)/u);
   assert.doesNotMatch(`${page}\n${inboxSource}`, /service[_-]?role|EVO_PLATFORM_SUPABASE_SECRET_KEY|recipient|rawChat|fallback/iu);

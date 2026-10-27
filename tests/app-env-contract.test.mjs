@@ -1045,6 +1045,118 @@ test("telephony env: each key is its own value, distinct from every other secret
   );
 });
 
+// ------------------------------------------------------- WhatsApp via Wazzup (W2)
+// docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §5.5, §9: every Wazzup name is OPTIONAL, so a release never fails on missing
+// Wazzup env; a present value must be well-formed, the token is distinct from every other value, and the two receive paths
+// (WAHA and Wazzup) are never both on.
+
+const WAZZUP_TOKEN = "0123456789abcdef".repeat(4);
+const WAZZUP_NEXT_TOKEN = "fedcba9876543210".repeat(4);
+const WAZZUP_OWNER = "77900000-0000-4000-8000-0000000000a1";
+const WAZZUP_NAMES = ["EVO_PLATFORM_WAZZUP_INGRESS_ENABLED", "EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN", "EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN_NEXT"];
+
+test("wazzup env: the shipped example documents the names, off and empty, and an env without them still releases", () => {
+  const { shipped, text, check } = telephonyHarness();
+  for (const name of WAZZUP_NAMES) assert.match(shipped, new RegExp(`^${name}=`, "mu"), `${name} is documented`);
+  assert.match(shipped, /^EVO_PLATFORM_WAZZUP_INGRESS_ENABLED=0$/mu);
+  assert.match(shipped, /^EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN=$/mu);
+  assert.match(shipped, /^EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN_NEXT=$/mu);
+  // The API key is deliberately not an env name: it lives in the Vault.
+  assert.ok(!/^EVO_PLATFORM_WAZZUP_(?:API|KEY)/mu.test(shipped));
+  const valid = { ok: true, code: "valid" };
+  assert.deepEqual(check(text()), valid, "a production env from before this slice");
+  assert.deepEqual(check(text({ EVO_PLATFORM_WAZZUP_INGRESS_ENABLED: "0", EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: "", EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN_NEXT: "" })), valid);
+  assert.deepEqual(check(text({ EVO_PLATFORM_WAZZUP_INGRESS_ENABLED: "" })), valid);
+});
+
+test("wazzup env: the stop is '', 0 or 1; 1 needs a well-formed token and the intake owner", () => {
+  const { text, check } = telephonyHarness();
+  const valid = { ok: true, code: "valid" };
+  for (const flag of ["true", "yes", "2", "on", "01", "1 0", "TRUE"]) {
+    assert.throws(() => check(text({ EVO_PLATFORM_WAZZUP_INGRESS_ENABLED: flag })), /unsafe_runtime_flag/u, JSON.stringify(flag));
+  }
+  // A staged token with the stop at 0 is fine.
+  assert.deepEqual(check(text({ EVO_PLATFORM_WAZZUP_INGRESS_ENABLED: "0", EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: WAZZUP_TOKEN })), valid);
+  assert.deepEqual(
+    check(text({ EVO_PLATFORM_WAZZUP_INGRESS_ENABLED: "1", EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: WAZZUP_TOKEN, EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: WAZZUP_OWNER })),
+    valid,
+  );
+  for (const absent of [undefined, ""]) {
+    assert.throws(
+      () => check(text({ EVO_PLATFORM_WAZZUP_INGRESS_ENABLED: "1", EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: absent, EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: WAZZUP_OWNER })),
+      /enabled_feature_configuration_missing/u,
+      "1 without a token",
+    );
+  }
+  // NEXT alone is not a token.
+  assert.throws(
+    () => check(text({ EVO_PLATFORM_WAZZUP_INGRESS_ENABLED: "1", EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN_NEXT: WAZZUP_NEXT_TOKEN, EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: WAZZUP_OWNER })),
+    /optional_feature_configuration_invalid/u,
+  );
+  // Projection needs the sales owner of new conversations: without a real one the switch is refused.
+  for (const owner of ["", "not-a-uuid", "00000000-0000-0000-0000-000000000000"]) {
+    assert.throws(
+      () => check(text({ EVO_PLATFORM_WAZZUP_INGRESS_ENABLED: "1", EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: WAZZUP_TOKEN, EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: owner })),
+      /enabled_feature_configuration_missing/u,
+      JSON.stringify(owner),
+    );
+  }
+});
+
+test("wazzup env: the token is exactly 64 lower-case hex characters, and NEXT only joins it for a rotation", () => {
+  const { text, check } = telephonyHarness();
+  const valid = { ok: true, code: "valid" };
+  assert.deepEqual(check(text({ EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: WAZZUP_TOKEN })), valid);
+  assert.deepEqual(check(text({ EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: WAZZUP_TOKEN, EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN_NEXT: WAZZUP_NEXT_TOKEN })), valid);
+  for (const bad of ["a".repeat(63), "a".repeat(65), WAZZUP_TOKEN.toUpperCase(), `${WAZZUP_TOKEN.slice(0, 63)}g`, `${WAZZUP_TOKEN.slice(0, 60)}-abc`, "3f1c9a52-7d44-4c0e-9b1a-5e2d8f6a7c10"]) {
+    assert.throws(() => check(text({ EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: bad })), /optional_feature_configuration_invalid/u, bad);
+  }
+  assert.throws(() => check(text({ EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: WAZZUP_TOKEN, EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN_NEXT: "short" })), /optional_feature_configuration_invalid/u);
+  assert.throws(() => check(text({ EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: WAZZUP_TOKEN, EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN_NEXT: WAZZUP_TOKEN })), /optional_feature_configuration_invalid/u, "NEXT never equals the current token");
+});
+
+test("wazzup env: each token is its own value, distinct from every other secret in the file", () => {
+  const { text, check } = telephonyHarness();
+  for (const other of [
+    { EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: WAZZUP_TOKEN },
+    { EVO_PLATFORM_P7B_OBSERVABILITY_SECRET: WAZZUP_TOKEN },
+    { EVO_AI_AGENT_INTERNAL_SECRET: WAZZUP_TOKEN },
+    { ANTHROPIC_API_KEY: WAZZUP_TOKEN },
+    { EVO_PLATFORM_TELEPHONY_CRM_TOKEN: WAZZUP_TOKEN },
+  ]) {
+    assert.throws(
+      () => check(text({ EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: WAZZUP_TOKEN, ...other })),
+      /optional_feature_configuration_invalid/u,
+      Object.keys(other)[0],
+    );
+  }
+  assert.throws(
+    () => check(text({ EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: WAZZUP_TOKEN, EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN_NEXT: WAZZUP_NEXT_TOKEN, ANTHROPIC_API_KEY: WAZZUP_NEXT_TOKEN })),
+    /optional_feature_configuration_invalid/u,
+    "the rotation token is held to the same rule",
+  );
+});
+
+test("wazzup env: WAHA intake and Wazzup intake are never both on - such a release does not start", () => {
+  const { text, check } = telephonyHarness();
+  const valid = { ok: true, code: "valid" };
+  const waha = {
+    EVO_PLATFORM_WAHA_INGRESS_ENABLED: "1",
+    EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "h".repeat(40),
+    EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: WAZZUP_OWNER,
+  };
+  const wazzup = { EVO_PLATFORM_WAZZUP_INGRESS_ENABLED: "1", EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: WAZZUP_TOKEN };
+  assert.deepEqual(check(text(waha)), valid, "WAHA alone is the old, valid state");
+  assert.deepEqual(check(text({ ...wazzup, EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: WAZZUP_OWNER })), valid, "Wazzup alone");
+  assert.throws(() => check(text({ ...waha, ...wazzup })), /unsafe_runtime_flag/u);
+  // WAHA on with a staged (stopped) Wazzup, and Wazzup on with a staged (stopped) WAHA, are both fine.
+  assert.deepEqual(check(text({ ...waha, EVO_PLATFORM_WAZZUP_INGRESS_ENABLED: "0", EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN: WAZZUP_TOKEN })), valid);
+  assert.deepEqual(
+    check(text({ ...wazzup, EVO_PLATFORM_WAHA_INGRESS_ENABLED: "0", EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET: "h".repeat(40), EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID: WAZZUP_OWNER })),
+    valid,
+  );
+});
+
 // ------------------------------------------------ ИИ-агенты на Claude Managed Agents
 // docs/design/ai-agents/contract.md §C.6 (ADR 0035): every AI-agents name is OPTIONAL, so a
 // release never fails on missing env; a present value must be well-formed and the Claude API key

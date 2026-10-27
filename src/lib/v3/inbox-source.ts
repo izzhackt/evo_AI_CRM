@@ -24,6 +24,9 @@ import {
 import { staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import { isFreshWorkingWahaSession } from "@/lib/provider-display-status";
 import { isPlatformWahaIngressEnabled } from "@/lib/server/platform-waha-ingress-config";
+import { isPlatformWazzupIngressEnabled } from "@/lib/server/platform-wazzup-ingress-config";
+import { readPlatformWhatsAppTransport, type PlatformWhatsAppTransport } from "@/lib/platform-whatsapp-transport";
+import { wazzupInboxChannelState } from "@/lib/v3/wazzup-words";
 import { withLivePlatformWahaHealth } from "@/lib/server/platform-waha-live-health";
 import { aiAutosendServerState } from "@/lib/server/ai-agent-send-config";
 import { aiAutosendAnswersHere } from "@/lib/v3/ai-agent-autosend";
@@ -45,6 +48,9 @@ import {
   type InboxChatAttempt,
   type InboxChatMessage,
   type InboxReplyAccess,
+  chatMessageOrigin,
+  conversationIsReceiveOnly,
+  replyAccessFor,
 } from "@/lib/v3/whatsapp-chat";
 
 const INBOX_PAGE_SIZE = 50;
@@ -78,12 +84,28 @@ function formatInboxTime(value: string): string {
   return BISHKEK_TIME.format(parsed).replace(",", "");
 }
 
-type InboxChannelStatus = Pick<InboxSelectedConversation, "channelState">;
+/**
+ * `receiveOnly` - действующий путь Wazzup: ответить из EVO нельзя ни в одном чате, в том числе в прежних чатах WAHA
+ * (план Wazzup §8, ворота отправки в базе). В вид страницы попадает только `channelState`.
+ */
+type InboxChannelStatus = Pick<InboxSelectedConversation, "channelState"> & Readonly<{ receiveOnly?: boolean }>;
 
 async function readInboxChannelStatus(
   actor: ActivePlatformActor,
+  transportRead: Promise<PlatformWhatsAppTransport | null>,
+  /** Живая проба WAHA: нужна списку и чату сессии CRM; у чата прежней сессии её состояние к нему не относится (`unknown`). */
+  probeWaha = true,
 ): Promise<InboxChannelStatus> {
   try {
+    // Путь Wazzup: состояние берётся из канала Wazzup (одна функция чтения), живой пробы WAHA нет.
+    const transport = await transportRead;
+    if (transport?.activeTransport === "wazzup") {
+      return Object.freeze({
+        channelState: wazzupInboxChannelState(transport, isPlatformWazzupIngressEnabled()),
+        receiveOnly: true,
+      });
+    }
+    if (!probeWaha) return Object.freeze({ channelState: "unknown" });
     // The recorded status only says when the session last changed; the live
     // probe says what it is now, so a warning does not go stale. A working
     // channel is not announced (owner, 07.10.2026: «уберем давай это»).
@@ -158,13 +180,15 @@ function toInboxConversation(
 export function toInboxChatMessage(
   message: PlatformWhatsAppChatMessage,
   viewerMembershipId: string,
+  /** Чат пришёл через Wazzup: исходящее без других следов - ответ продавца вне EVO. */
+  viaWazzup = false,
 ): InboxChatMessage {
   return Object.freeze({
     id: message.id,
     inbound: message.direction === "inbound",
     body: message.bodyText,
     createdAt: message.createdAt,
-    origin: message.origin,
+    origin: chatMessageOrigin(message.origin, message.direction === "inbound", viaWazzup),
     senderName: message.senderName,
     senderIsViewer: message.senderMembershipId !== null
       && message.senderMembershipId === viewerMembershipId.toLowerCase(),
@@ -225,14 +249,18 @@ function replyAccessOf(
   conversation: PlatformConversationSummary,
   state: PlatformWhatsAppChatState,
   channelState: InboxSelectedConversation["channelState"],
+  /** Действующий путь - Wazzup: ответов из EVO нет ни в одном чате. */
+  receiveOnly: boolean,
 ): InboxReplyAccess {
   const who = inboxReplyActor(actor);
-  if (who !== "allowed") return who;
-  if (conversation.wahaSessionName !== "crm_primary") return "old_session";
-  if (conversation.status !== "open") return "closed";
-  if (state.latestInboundMessageId === null) return "no_client_message";
-  if (channelState === "not_connected") return "not_connected";
-  return channelState === "attention" ? "attention" : "allowed";
+  return replyAccessFor({
+    role: who,
+    sessionName: conversation.wahaSessionName,
+    receiveOnly,
+    open: conversation.status === "open",
+    hasClientMessage: state.latestInboundMessageId !== null,
+    channelState,
+  });
 }
 
 /** Этап лида словами доски для шапки чата; без права или без чтения — ничего. */
@@ -252,11 +280,17 @@ async function readStage(
 /**
  * Шапка чата «Ночью отвечает автоответчик» (P4): только если автоответчик
  * здесь ответит по-настоящему — включён, не на паузе, чат не исключён, режим
- * «Отвечает» или чат живого теста, отправка включена на сервере. Чтение
+ * «Отвечает» или чат живого теста, отправка включена на сервере, чат не только
+ * для чтения (на пути Wazzup ворота отправки закрыты на каждом этапе). Чтение
  * информационное: сбой или отказ — без чипа, чат работает как прежде.
  */
-async function readAutoreplyAtNight(actor: ActivePlatformActor, conversationId: string): Promise<boolean> {
-  if (!staffHasPermission(actor, "ai.agent.use")) return false;
+async function readAutoreplyAtNight(
+  actor: ActivePlatformActor,
+  conversationId: string,
+  /** Чат только для чтения (путь Wazzup или беседа Wazzup): автоответчик ничего не отправит, чипа нет. */
+  receiveOnly: boolean,
+): Promise<boolean> {
+  if (receiveOnly || !staffHasPermission(actor, "ai.agent.use")) return false;
   try {
     const read = await readAiAutosendChat(actor, conversationId);
     return read.status === "available" && aiAutosendAnswersHere(read.data, aiAutosendServerState() === "on");
@@ -285,7 +319,9 @@ export async function readInbox(
   const readAt = new Date().toISOString();
   // Без открытого чата состояние канала не зависит от очереди — читается
   // вместе с ней (план A, 16.10.2026); с открытым чатом — после него, как раньше.
-  const earlyChannelStatus = options.conversationId ? null : readInboxChannelStatus(actor);
+  // Действующий путь (Wazzup или WAHA): одна функция чтения; null - не прочиталось, тогда как раньше (WAHA).
+  const transportRead = readPlatformWhatsAppTransport(actor);
+  const earlyChannelStatus = options.conversationId ? null : readInboxChannelStatus(actor, transportRead);
   earlyChannelStatus?.catch(() => {});
   const [queue, resolvedThread] = await Promise.all([
     listPlatformConversations(actor, {
@@ -310,9 +346,7 @@ export async function readInbox(
 
   let selected: InboxSelectedConversation | null = null;
   const channelStatusPromise = earlyChannelStatus
-    ?? (!thread || thread.conversation.wahaSessionName === "crm_primary"
-      ? readInboxChannelStatus(actor)
-      : Promise.resolve<InboxChannelStatus>({ channelState: "unknown" }));
+    ?? readInboxChannelStatus(actor, transportRead, !thread || thread.conversation.wahaSessionName === "crm_primary");
   // Name and number of every shown chat (278): one read beside the others.
   const contactsPromise = readWhatsAppContacts(actor, [
     ...queue.rows.map((row) => row.id),
@@ -332,16 +366,18 @@ export async function readInbox(
     ) {
       throw new Error("V3 inbox is unavailable.");
     }
+    const receiveOnly = conversationIsReceiveOnly(channelStatus.receiveOnly === true, thread.conversation.wahaSessionName);
     const [stage, autoreplyAtNight] = await Promise.all([
       readStage(actor, context.canonicalLeadId),
-      readAutoreplyAtNight(actor, thread.conversation.id),
+      readAutoreplyAtNight(actor, thread.conversation.id, receiveOnly),
     ]);
+    const viaWazzup = thread.conversation.wahaSessionName === null;
     const chat: InboxChatModel = Object.freeze({
-      messages: Object.freeze(thread.messages.map((message) => toInboxChatMessage(message, actor.membershipId))),
+      messages: Object.freeze(thread.messages.map((message) => toInboxChatMessage(message, actor.membershipId, viaWazzup))),
       hasOlder: thread.nextMessageCursor !== null,
       attempts: Object.freeze(state.attempts.map((attempt) => toInboxChatAttempt(attempt, actor.membershipId))),
       latestInboundMessageId: state.latestInboundMessageId,
-      replyAccess: replyAccessOf(actor, thread.conversation, state, channelStatus.channelState),
+      replyAccess: replyAccessOf(actor, thread.conversation, state, channelStatus.channelState, channelStatus.receiveOnly === true),
       stage,
       autoreplyAtNight,
       readAt,
@@ -363,7 +399,7 @@ export async function readInbox(
   const [channelStatus, contacts] = await Promise.all([channelStatusPromise, contactsPromise]);
   return Object.freeze({
     view: Object.freeze({
-      ...channelStatus,
+      channelState: channelStatus.channelState,
       conversations: Object.freeze(
         queue.rows.map((summary) =>
           toInboxConversation(summary, options.queueCursor, filters, contacts.get(summary.id)),
@@ -422,7 +458,8 @@ export async function readInboxOlderMessages(
   const presentationQueue = inboxPresentationQueue(actor);
   const thread = await getPlatformWhatsAppThread(actor, conversationId, { cursor, pageSize: MESSAGE_PAGE_SIZE });
   if (!thread || (presentationQueue !== undefined && thread.conversation.queue !== presentationQueue)) return null;
-  const messages = Object.freeze(thread.messages.map((message) => toInboxChatMessage(message, actor.membershipId)));
+  const viaWazzup = thread.conversation.wahaSessionName === null;
+  const messages = Object.freeze(thread.messages.map((message) => toInboxChatMessage(message, actor.membershipId, viaWazzup)));
   const attachmentContext = await readV3InboxMediaAttachmentContext(actor, {
     conversationId: thread.conversation.id,
     studentCaseId: thread.conversation.studentCaseId,

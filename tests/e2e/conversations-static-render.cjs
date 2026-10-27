@@ -50,6 +50,8 @@
  *       прервалась», чат без сообщений клиента, только чтение, список и
  *       телефон. Тёмной темы у
  *       хоста сотрудников нет (решение владельца 02.10.2026, layout.tsx).
+ *       Wazzup (W3, 27.10.2026): чат только для чтения - вместо поля ответа одна
+ *       строка, ответ продавца подписан «отправлено в amoCRM/Wazzup».
  *       Серверные действия и опрос отвечают синтетикой этой вкладки: ничего не
  *       отправляется. По умолчанию outDir —
  *       docs/design/evo-platform/implementation-screenshots/whatsapp-chat.
@@ -988,6 +990,14 @@ function waView({ selected = true, chat = {}, row = 0, channelState = "ready", s
     listPulse: "0000000000000002",
   };
 }
+const WA_WAZZUP_CHAT = {
+  messages: [
+    waMessage(1, true, "2026-10-06T04:12:00.000Z", "Добрый день! А можно поступить без IELTS?"),
+    waMessage(2, false, "2026-10-06T04:20:00.000Z", "Да, в двух вузах из подборки есть подготовительный курс английского.", { origin: "wazzup", ack: null }),
+    waMessage(3, true, "2026-10-06T07:40:00.000Z", "Спасибо! Жду список."),
+  ],
+  hasOlder: false, attempts: [], replyAccess: "receive_only",
+};
 const WA_SCENARIOS = {
   "chat": { actor: "sales", search: { conversation: WA_CONVERSATION }, inbox: waView(), viewports: ["1440", "390"] },
   "list": { actor: "sales", search: {}, inbox: waView({ selected: false }), viewports: ["1440", "390"] },
@@ -1001,6 +1011,10 @@ const WA_SCENARIOS = {
   },
   "read-only": { actor: "sales", search: { conversation: WA_CONVERSATION }, viewports: ["1440"], inbox: waView({ chat: { replyAccess: "no_permission", attempts: [] } }) },
   "attention": { actor: "sales", search: { conversation: WA_CONVERSATION }, viewports: ["1440"], inbox: waView({ channelState: "attention", chat: { replyAccess: "attention", attempts: [] } }) },
+  // Чат Wazzup (W3, 27.10.2026): только чтение - вместо поля ответа одна строка, ответ продавца подписан «отправлено в
+  // amoCRM/Wazzup»; при неисправном канале плашка та же, что у WAHA.
+  "wazzup-read-only": { actor: "sales", search: { conversation: WA_CONVERSATION }, viewports: ["1280", "390"], inbox: waView({ chat: WA_WAZZUP_CHAT }) },
+  "wazzup-attention": { actor: "sales", search: { conversation: WA_CONVERSATION }, viewports: ["1280"], inbox: waView({ channelState: "attention", chat: WA_WAZZUP_CHAT }) },
   // «Сортировка»: тот же список в обоих порядках (снимки меню — ниже).
   "sort-newest": { actor: "sales", search: {}, viewports: ["1440", "390"], inbox: waView({ selected: false, rows: WA_SORT_NEWEST }) },
   "sort-unanswered": { actor: "sales", search: { sort: "unanswered" }, viewports: ["1440", "390"],
@@ -1043,6 +1057,7 @@ function whatsappMetrics() {
     feedAtBottom: feed ? Math.round(feed.scrollHeight - feed.scrollTop - feed.clientHeight) : null,
     days: [...document.querySelectorAll('[data-testid="v3-inbox-messages"] > li > span.t-meta')].map((element) => element.textContent.trim()),
     origins: [...document.querySelectorAll('[data-testid="v3-inbox-message"]')].map((element) => element.dataset.origin),
+    echoLabels: [...document.querySelectorAll('[data-testid="v3-inbox-message"][data-origin="wazzup"] p.t-meta > span')].map((element) => element.textContent.trim()),
     outgoing: [...document.querySelectorAll('[data-testid="v3-inbox-outgoing"]')].map((element) => element.dataset.state),
     checks: [...document.querySelectorAll('[data-testid="v3-inbox-outgoing"] button')].filter((element) => element.textContent.trim() === "Проверить").length,
     returns: [...document.querySelectorAll('[data-testid="v3-inbox-outgoing"] button')].filter((element) => element.textContent.trim() === "Вернуть текст в поле").length,
@@ -1175,6 +1190,13 @@ async function whatsappScreenshots() {
             `${file}: list selection ${metrics.selectedRow} ${metrics.selectedPhone}, waiting pill ${metrics.waitingPill}`);
         }
         if (name === "read-only") check(/Только просмотр/u.test(metrics.unavailable ?? ""), `${file}: ${metrics.unavailable}`);
+        if (name.startsWith("wazzup")) {
+          // Только чтение: ни поля ответа, ни кнопки «Отправить»; одна строка причины; ответ продавца подписан.
+          check(metrics.unavailable === "Только чтение: отвечайте в amoCRM или Wazzup.", `${file}: ${metrics.unavailable}`);
+          check(metrics.composer === null, `${file}: a read-only chat shows a composer ${JSON.stringify(metrics.composer)}`);
+          check(JSON.stringify(metrics.echoLabels) === JSON.stringify(["· отправлено в amoCRM/Wazzup"]), `${file}: echo labels ${JSON.stringify(metrics.echoLabels)}`);
+          check(JSON.stringify(metrics.origins) === JSON.stringify(["client", "wazzup", "client"]), `${file}: origins ${JSON.stringify(metrics.origins)}`);
+        }
         await close(session, file);
       }
     }

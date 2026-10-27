@@ -6,6 +6,8 @@ import { AccountDeletionSection } from "./AccountDeletionSection";
 import { TelephonySection } from "./TelephonySection";
 import { ReportLinksSection } from "./ReportLinksSection";
 import { WhatsAppConnectSection } from "./WhatsAppConnectSection";
+import { WhatsAppTransportCard } from "./WhatsAppTransportCard";
+import type { PlatformWhatsAppTransport } from "@/lib/platform-whatsapp-transport";
 import type { ReportKey, ReportLinkRead } from "@/lib/report-link-contract";
 import type { TelephonyAdminRead } from "@/lib/server/platform-telephony-admin";
 import type { AccountDeletionOpenCount } from "@/lib/account-deletion-contract";
@@ -126,9 +128,14 @@ export function Settings({
   reportsReadOnly?: boolean;
   /**
    * «Подключение WhatsApp» (20.10.2026): слово WAHA и право подключать. Блок стоит под
-   * таблицей «Интеграции», только у Администратора; нет данных — блока нет.
+   * таблицей «Интеграции», только у Администратора; нет данных — блока нет. Путь Wazzup (`wazzup`):
+   * вместо кнопок QR и кода - карточка канала Wazzup, только чтение.
    */
-  whatsappConnect?: Readonly<{ status: string | null; canConnect: boolean }>;
+  whatsappConnect?: Readonly<{
+    status: string | null;
+    canConnect: boolean;
+    wazzup?: Readonly<{ transport: PlatformWhatsAppTransport; intakeEnabled: boolean }> | null;
+  }>;
 }) {
   const current = SECTIONS.find((entry) => entry.key === section && (entry.view === null || entry.view === staffView)) ?? SECTIONS[0];
   // Разделы сотрудников ставят свой видимый h2 с числом («Сотрудники · 5»,
@@ -180,7 +187,9 @@ export function Settings({
             : <h2 className="t-section mb-3 text-fg">{current.title}</h2>}
           {current.key === "integrations" ? <IntegrationsSection rows={integrations} connectCard={Boolean(whatsappConnect)} /> : null}
           {current.key === "integrations" && whatsappConnect ? (
-            <WhatsAppConnectSection initialStatus={whatsappConnect.status} canConnect={whatsappConnect.canConnect} />
+            whatsappConnect.wazzup
+              ? <WhatsAppTransportCard transport={whatsappConnect.wazzup.transport} intakeEnabled={whatsappConnect.wazzup.intakeEnabled} now={new Date()} />
+              : <WhatsAppConnectSection initialStatus={whatsappConnect.status} canConnect={whatsappConnect.canConnect} />
           ) : null}
           {current.key === "telephony" ? <TelephonySection read={telephony ?? null} readOnly={telephonyReadOnly ?? false} now={new Date()} /> : null}
           {current.key === "reports" && reports ? <ReportLinksSection reads={reports} readOnly={reportsReadOnly ?? false} /> : null}

@@ -5,9 +5,12 @@ After=docker.service
 
 [Service]
 Type=oneshot
-# The script does nothing unless EVO_PLATFORM_WAHA_INGRESS_ENABLED=1 in the app
+# The WAHA part does nothing unless EVO_PLATFORM_WAHA_INGRESS_ENABLED=1 in the app
 # container. It only asks WAHA for the session status and writes staff tasks in the
-# CRM; it never touches the session and sends no message. A oneshot unit never
-# overlaps itself: the timer waits for it to end.
+# CRM; it never touches the session and sends no message. The Wazzup part (sweep,
+# health, reconciliation; docs/runbooks/wazzup-whatsapp.md) runs when
+# EVO_PLATFORM_WAZZUP_INGRESS_ENABLED=1, reads Wazzup with GET /v3/channels only and
+# sends nothing either. A oneshot unit never overlaps itself: the timer waits for it
+# to end.
 ExecStart=/usr/bin/docker exec evo-crm-app-1 node /app/whatsapp-health-maintenance.mjs
 TimeoutStartSec=120

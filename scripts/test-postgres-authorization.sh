@@ -883,6 +883,43 @@ SQL
     done
   fi
 
+  # «WhatsApp продаж через Wazzup: дополнения этапа 1» (миграция 326, план этапа 1, пробелы срезов W1-W3). Matched by name,
+  # not number. IMMEDIATELY BEFORE the ordinary apply the migration must refuse with a326_anchor_drift, inside a transaction
+  # that the failure rolls back, for the one function it replaces (the staff read of the WhatsApp path, which gains the last
+  # four digits of the channel number) when that function is edited after its own migration (the md5 pre-image anchor).
+  # The edit is a comment placed right after the body's opening delimiter. A second apply of the finished migration must
+  # refuse with a326_already_applied (below).
+  if [[ "$(basename "$migration")" == *_platform_wazzup_followups.sql ]]; then
+    for t326_pinned in \
+      'platform.staff_whatsapp_transport_v1(uuid)'; do
+      t326_tamper_log="$(mktemp -t evo-t326-anchor.XXXXXX)"
+      if docker exec -i "$container_name" \
+        psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+        -v "pinned_function=$t326_pinned" \
+        -v "migration_file=/workspace/$migration" \
+        >"$t326_tamper_log" 2>&1 <<'SQL'
+BEGIN;
+SELECT replace(
+  pg_get_functiondef(:'pinned_function'::regprocedure),
+  '$function$',
+  '$function$ /* tampered after its own migration */'
+) AS tampered_definition \gset
+:tampered_definition ;
+\i :migration_file
+SQL
+      then
+        echo "migration 326 accepted an edited $t326_pinned" >&2
+        exit 1
+      fi
+      if ! grep -Fq "a326_anchor_drift" "$t326_tamper_log"; then
+        echo "migration 326 failed for the wrong pre-image reason ($t326_pinned)" >&2
+        sed -n '1,60p' "$t326_tamper_log" >&2
+        exit 1
+      fi
+      rm -f "$t326_tamper_log"
+    done
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -4840,6 +4877,40 @@ SQL
     printf '%s\n' "$wazzup_intake_log"
     if ! grep -q 'A325_WAZZUP_INTAKE_SUITE_PASSED' <<<"$wazzup_intake_log"; then
       echo "platform_wazzup_intake.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «WhatsApp продаж через Wazzup: дополнения этапа 1» (migration 326, план этапа 1, пробелы срезов W1-W3). Matched by name,
+  # not number. Right after the migration: a second apply refuses (a326_already_applied), then the suite, insisting on its
+  # marker. The suite proves: the posture (the two new functions are STABLE definers with an empty search_path for
+  # service_role only, the staff read stays for authenticated only, every other role refused, argument errors 22023); the
+  # transport read (none without a row, the bound channel with its id, kind and last four digits, the state word and time,
+  # the path words and both switches as the operator command set them, another organization sees nothing, no hash or number
+  # in the answer, nothing written); the staff read (the last four digits next to the three old keys and nothing more, the
+  # five top-level keys unchanged, the readers refused as before); and the stored events by id (once each, in the order asked,
+  # the exact shapes for a message, an echo, an edit, a deletion, a channel update without the QR code and an unparsed
+  # event, other organizations / providers / unknown ids missing, nothing written) with a replay through the persist
+  # function that deduplicates everything and moves no event, projection, binding or daily counter.
+  if [[ "$(basename "$migration")" == *_platform_wazzup_followups.sql ]]; then
+    t326_again_log="$(mktemp -t evo-t326-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t326_again_log" 2>&1; then
+      echo "migration 326 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a326_already_applied" "$t326_again_log"; then
+      echo "a second apply of migration 326 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t326_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t326_again_log"
+    wazzup_followups_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_wazzup_followups.sql </dev/null)"
+    printf '%s\n' "$wazzup_followups_log"
+    if ! grep -q 'A326_WAZZUP_FOLLOWUPS_SUITE_PASSED' <<<"$wazzup_followups_log"; then
+      echo "platform_wazzup_followups.sql did not reach its PASSED marker" >&2
       exit 1
     fi
   fi

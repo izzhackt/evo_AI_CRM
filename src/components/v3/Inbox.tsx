@@ -52,7 +52,8 @@ export type InboxSelectedConversation = InboxConversation &
   Readonly<{
     /**
      * `not_connected` — сессии WhatsApp для CRM нет вовсе; `unknown` — диалог
-     * из прежней сессии, о которой CRM состояния не знает; `intake_off` —
+     * из прежней сессии, о которой CRM состояния не знает, либо «работает»
+     * у Wazzup, но отметка старше 15 минут (таймер не подтвердил); `intake_off` —
      * сессия работает, но приём сообщений выключен на сервере.
      */
     channelState: "ready" | "attention" | "not_connected" | "unknown" | "unavailable" | "intake_off";

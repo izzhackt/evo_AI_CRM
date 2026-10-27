@@ -111,6 +111,7 @@ test("V3 server adapters use the canonical Supabase runtime only", () => {
     "university-form-source.ts",
     "university-source.ts",
     "university-view.ts",
+    "wazzup-words.ts", // WhatsApp через Wazzup (325, W3, 27.10.2026): pure words and channel rules, no Supabase
     "website-lead-source.ts",
     "whatsapp-chat.ts", // «Продажи → WhatsApp» как чат (06.10.2026): pure chat logic, no Supabase
     "whatsapp-contact-source.ts", // WhatsApp name and number (278, 07.10.2026)

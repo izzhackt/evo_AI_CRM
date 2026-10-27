@@ -187,6 +187,7 @@ export const AI_AGENT_DRAFT_FAILURE_LABELS: Readonly<Record<string, string>> = {
   unknown_result: "Итог отправки неизвестен — проверьте чат",
   provider_error: "Ошибка WhatsApp",
   sender_unavailable: "Отправитель не может писать в этот чат",
+  receive_only: "WhatsApp подключён только на чтение — ответ отправит сотрудник вручную",
 };
 
 export const AI_AGENT_DIGEST_KINDS = ["weekly", "daily", "alert", "note"] as const;

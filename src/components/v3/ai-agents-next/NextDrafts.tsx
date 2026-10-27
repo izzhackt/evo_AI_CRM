@@ -6,6 +6,7 @@ import { MailCheckIcon } from "lucide-react";
 import { DataTable, DetailSheet, EmptyState, SectionTabs, StatusBadge, type DataTableColumn } from "@/components/kit";
 import { AI_AGENT_DRAFT_CHANNEL_LABELS, type AiAgentDraftRow, type AiAgentDraftStatus, type AiAgentKey } from "@/lib/ai-agents/contract";
 import { aiAgentHref, draftStatusWords, formatDateTimeRu, plainPreview, relativeTimeRu } from "@/lib/v3/ai-agents-view";
+import { WAZZUP_READ_ONLY_LINE, isReceiveOnlyDraft } from "@/lib/v3/wazzup-words";
 
 import { AgentAlert } from "./NextNotices";
 import { DraftCard } from "@/components/v3/ai-agents/DraftCard";
@@ -19,15 +20,19 @@ const reply = (draft: AiAgentDraftRow) => plainPreview(draft.editedText ?? draft
 /**
  * Состояние словом и под ним то, что нельзя пропустить, не открывая строку: почему черновик остался в очереди или не
  * ушёл («WhatsApp сейчас не подключён») и что срок близок. Полные слова и подсказка «Подключите WhatsApp…» — в панели.
+ * Черновик WhatsApp, который EVO отправить не может (Wazzup, `receive_only`), - не сбой, а задуманное: строка говорит ту же
+ * фразу «Только чтение…», что карточка в панели, и не тревожным цветом.
  */
 function StatusCell({ draft, now }: Readonly<{ draft: AiAgentDraftRow; now: string }>) {
   const words = draftStatusWords(draft);
-  const note = draft.status === "pending" || draft.status === "failed" ? words.note : null;
+  const receiveOnly = draft.status === "pending" && isReceiveOnlyDraft(draft.channel, draft.failureCode);
+  const note = receiveOnly ? WAZZUP_READ_ONLY_LINE : draft.status === "pending" || draft.status === "failed" ? words.note : null;
+  const noteTone = receiveOnly ? "text-fg-2" : words.tone === "danger" ? "text-danger" : "text-warn";
   const soon = draft.status === "pending" && Date.parse(draft.expiresAt) - Date.parse(now) < SOON_MS;
   return (
     <span className="grid min-w-0 max-w-[18rem] justify-items-end gap-1 text-right md:justify-items-start md:text-left">
       <StatusBadge label={words.label} tone={words.tone} />
-      {note ? <span className={`t-meta ${words.tone === "danger" ? "text-danger" : "text-warn"}`} data-testid="v3-aia-draft-note">{note}</span> : null}
+      {note ? <span className={`t-meta ${noteTone}`} data-testid="v3-aia-draft-note">{note}</span> : null}
       {soon ? <span className="t-meta text-warn" data-testid="v3-aia-draft-expires">действует до {formatDateTimeRu(draft.expiresAt, now)}</span> : null}
     </span>
   );

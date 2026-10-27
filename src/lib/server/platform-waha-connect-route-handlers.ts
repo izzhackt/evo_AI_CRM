@@ -2,6 +2,7 @@ import "server-only";
 
 import { isStaffPreview, staffCanAccessRoute } from "../platform-access.ts";
 import type { ActivePlatformActor, PlatformActorResult } from "../platform-auth.ts";
+import { readPlatformWhatsAppTransport } from "../platform-whatsapp-transport.ts";
 import {
   WHATSAPP_CONNECT_ACTIONS,
   WHATSAPP_CONNECT_BODY_KEYS,
@@ -28,6 +29,10 @@ import {
  * (общие заголовки `json`); QR и код в ответе — только вызвавшему их администратору,
  * в журнал и в адрес они не попадают. Номер из тела не читается нигде, кроме
  * вызова WAHA.
+ *
+ * Пока действующий путь WhatsApp — Wazzup (план Wazzup §8-§9, миграция 325), маршрут отвечает 409 `transport_wazzup`
+ * сразу после проверки администратора: до разбора тела, лимитов и любого обращения к WAHA (никаких QR, кодов и
+ * перезапусков сессии `crm_primary`). Путь прочитать не удалось - 503 `transport_check_failed`, тоже до WAHA.
  */
 
 type Authorization =
@@ -37,6 +42,11 @@ type Authorization =
 export type WhatsAppConnectRouteDependencies = Readonly<{
   authorize(): Promise<Authorization>;
   perform(actor: ActivePlatformActor, request: WhatsAppConnectRequest): Promise<WhatsAppConnectOutcome>;
+  /**
+   * Действующий путь WhatsApp сейчас (сессией администратора). Не задан - проверки нет: так собраны обработчики в тестах
+   * прежних правил; боевой обработчик (`defaultDependencies`) задаёт её всегда.
+   */
+  transport?(actor: ActivePlatformActor): Promise<"wazzup" | "other" | "unknown">;
 }>;
 
 /**
@@ -60,9 +70,16 @@ async function defaultAuthorize(): Promise<Authorization> {
   return whatsappConnectAuthorization(await resolvePlatformActor());
 }
 
+async function defaultTransport(actor: ActivePlatformActor): Promise<"wazzup" | "other" | "unknown"> {
+  const transport = await readPlatformWhatsAppTransport(actor);
+  if (transport === null) return "unknown";
+  return transport.activeTransport === "wazzup" ? "wazzup" : "other";
+}
+
 const defaultDependencies: WhatsAppConnectRouteDependencies = {
   authorize: defaultAuthorize,
   perform: (actor, request) => performWhatsAppConnect(actor, request),
+  transport: defaultTransport,
 };
 
 function refusal(status: Exclude<Authorization["status"], "authorized">): Response {
@@ -95,6 +112,11 @@ export function createWhatsAppConnectHandler(dependencies: WhatsAppConnectRouteD
       if (!sameOrigin(request)) return failure(403, "forbidden");
       const authorization = await dependencies.authorize();
       if (authorization.status !== "authorized") return refusal(authorization.status);
+      if (dependencies.transport !== undefined) {
+        const transport = await dependencies.transport(authorization.actor).catch(() => "unknown" as const);
+        if (transport === "wazzup") return failure(409, "transport_wazzup");
+        if (transport === "unknown") return failure(503, "transport_check_failed");
+      }
       const body = await readJsonObject(request, WHATSAPP_CONNECT_BODY_KEYS, WHATSAPP_CONNECT_BODY_LIMIT_BYTES);
       const parsed = body ? requestFrom(body) : null;
       if (!parsed || new URL(request.url).search !== "") return failure(400, "invalid_request");

@@ -39,6 +39,8 @@ const SCENES = [
   { name: "run", path: "/v3/ai-agents/director", search: "tab=runs&run=11111111-1111-4111-8111-000000000001" },
   { name: "drafts", path: "/v3/ai-agents/director", search: "tab=drafts" },
   { name: "drafts-all", path: "/v3/ai-agents/director", search: "tab=drafts&show=all" },
+  // Wazzup (WhatsApp только на чтение): черновики с кодом receive_only - строка говорит «Только чтение…», панель даёт «Скопировать текст».
+  { name: "drafts-wazzup", path: "/v3/ai-agents/director", search: "tab=drafts" },
   { name: "instructions", path: "/v3/ai-agents/director", search: "tab=instructions" },
   { name: "settings", path: "/v3/ai-agents/director", search: "tab=settings" },
 ];
@@ -122,7 +124,7 @@ const params = new URLSearchParams(fixture.search);
 const tab = params.get("tab") ?? "command";
 const runId = params.get("run");
 // Данные сцены: запуск целиком; «последние 30 и есть ещё»; вкладка «Все» черновиков (по умолчанию — только ждущие, как отдаёт сервер).
-const over = runId ? { runId, run: F.available(F.RUN_DETAIL), runs: null } : fixture.name === "runs-more" ? { runs: F.available({ runs: F.RUNS_MANY, hasMore: true }) } : params.get("show") === "all" ? { draftsFilter: "all" } : {};
+const over = runId ? { runId, run: F.available(F.RUN_DETAIL), runs: null } : fixture.name === "drafts-wazzup" ? { drafts: F.available(F.DRAFTS_RECEIVE_ONLY) } : fixture.name === "runs-more" ? { runs: F.available({ runs: F.RUNS_MANY, hasMore: true }) } : params.get("show") === "all" ? { draftsFilter: "all" } : {};
 let page;
 if (fixture.legacy) {
   // Прежний вид (снимки «до»): те же страницы, что собирают ai-agents/page.tsx и [key]/page.tsx без переключателя.
@@ -469,6 +471,50 @@ async function main() {
     await dialog.waitFor({ state: "detached" });
     report(`${key}/drafts: no second prompt after the decision`, asked.length === 2, asked);
     report(`${key}/drafts: console clean`, errors.length === 0, errors);
+    await context.close();
+  }
+
+  // 5b. Wazzup (WhatsApp только на чтение): строка и панель черновика с receive_only; «Скопировать текст» копирует ровно то, что на экране, и
+  // не принимает решения; «Одобрить и отправить» остаётся вторичной кнопкой.
+  for (const key of ["d1280", "m390"]) {
+    const asked = [];
+    const { context, page, errors } = await open("drafts-wazzup", key, { dialogs: (dialog) => { asked.push(dialog.message()); return dialog.accept(); } });
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    const list = page.locator(key === "d1280" ? "tbody tr" : "[data-slot=data-table-cards] > li");
+    const READ_ONLY = "Только чтение: отвечайте в amoCRM или Wazzup.";
+    const rowTexts = [await list.nth(0).innerText(), await list.nth(1).innerText(), await list.nth(2).innerText()];
+    report(`${key}/drafts-wazzup: both WhatsApp rows say the read-only line, not a failure`, rowTexts.slice(0, 2).every((text) => text.includes(READ_ONLY) && !/Остаётся в очереди/u.test(text)), rowTexts);
+    const noteColor = await list.nth(0).locator("[data-testid=v3-aia-draft-note]").evaluate((element) => getComputedStyle(element).color);
+    if (key === "d1280") await page.getByRole("row").nth(1).locator("td").nth(1).click(); else await page.locator("[data-slot=data-table-cards] > li > button").nth(0).click({ position: { x: 8, y: 8 } });
+    const dialog = page.getByRole("dialog");
+    await dialog.waitFor();
+    await expectOverlay(page, `${key}/drafts-wazzup: draft sheet`, "[data-slot=sheet-content]");
+    const line = dialog.locator("[data-testid=v3-aia-draft-readonly]");
+    report(`${key}/drafts-wazzup: the sheet says the same line and not the connection hint`, (await line.innerText()) === READ_ONLY && !/Подключите WhatsApp|Остаётся в очереди/u.test(await dialog.innerText()), await dialog.innerText());
+    report(`${key}/drafts-wazzup: the row note is calm - the colour of the sheet's line, not a warning`, noteColor === (await line.evaluate((element) => getComputedStyle(element).color)), noteColor);
+    const copy = dialog.getByRole("button", { name: "Скопировать текст" });
+    const approve = dialog.getByRole("button", { name: "Одобрить и отправить" });
+    const sizes = { copy: Math.round((await copy.boundingBox()).height), approve: Math.round((await approve.boundingBox()).height) };
+    report(`${key}/drafts-wazzup: copy comes first, approve and discard stay, targets >= 44px`, (await copy.count()) === 1 && (await approve.count()) === 1 && (await dialog.getByRole("button", { name: "Отклонить" }).count()) === 1 && (await copy.boundingBox()).x <= (await approve.boundingBox()).x && sizes.copy >= 44 && sizes.approve >= 44, sizes);
+    const emphasis = await dialog.evaluate((element) => { const bg = (id) => getComputedStyle(element.querySelector(`[data-testid=${id}]`)).backgroundColor; return { copy: bg("v3-aia-copy-text"), approve: bg("v3-aia-approve") }; });
+    report(`${key}/drafts-wazzup: copy is the main action, approve the secondary one`, emphasis.copy !== emphasis.approve, emphasis);
+    const axe = await new AxeBuilder({ page }).include("[data-slot=sheet-content]").analyze();
+    report(`${key}/drafts-wazzup: axe on the sheet`, axe.violations.length === 0, axe.violations.map((v) => `${v.id}: ${v.nodes.slice(0, 3).map((n) => n.target.join(" ")).join(" | ")}`));
+    await shot(page, `agents-draftsheet-wazzup-${key}`);
+    const field = dialog.getByRole("textbox", { name: "Ответ агента" });
+    const shown = await field.inputValue();
+    await copy.click();
+    await dialog.getByText("Скопировано", { exact: true }).first().waitFor();
+    report(`${key}/drafts-wazzup: copy puts exactly the shown text on the clipboard and says so`, (await page.evaluate(() => navigator.clipboard.readText())) === shown.trim() && (await dialog.locator("[role=status]").innerText()) === "Скопировано", shown);
+    await field.fill(`${shown} Правка.`);
+    await copy.click();
+    await dialog.getByText("Скопировано", { exact: true }).first().waitFor();
+    report(`${key}/drafts-wazzup: after an edit it copies the edited text`, (await page.evaluate(() => navigator.clipboard.readText())) === `${shown} Правка.`.trim(), null);
+    report(`${key}/drafts-wazzup: copying decides nothing`, !(await calls(page)).some((call) => call.name === "decide"), await calls(page));
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "detached" });
+    report(`${key}/drafts-wazzup: closing with an edit still asks`, asked.length === 1 && /несохранённые/u.test(asked[0]), asked);
+    report(`${key}/drafts-wazzup: console clean`, errors.length === 0, errors);
     await context.close();
   }
 

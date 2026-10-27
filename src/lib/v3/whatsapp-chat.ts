@@ -9,6 +9,7 @@
  */
 import { PLATFORM_ORGANIZATION_TIMEZONE } from "../platform-organization-time.ts";
 import type { V3InboxMessageMedia } from "./inbox-media.ts";
+import { WAZZUP_READ_ONLY_LINE } from "./wazzup-words.ts";
 
 /** Предел текста одного сообщения WhatsApp из CRM (контракт отправки, знаки Unicode). */
 export const WHATSAPP_CHAT_TEXT_LIMIT = 3000;
@@ -31,8 +32,12 @@ export function queuedRetryDelay(answers: number): number {
 /** После стольких ответов «ждёт очереди» браузер перестаёт повторять сам (≈2,5 мин). */
 export const WHATSAPP_CHAT_QUEUED_RETRY_LIMIT = 8;
 
-/** `autoreply` — ночной автоответчик (P4): подпись «Автоответчик», от имени ответственного. */
-export type WhatsAppMessageOrigin = "client" | "crm" | "autoreply" | "phone" | "history" | "other";
+/**
+ * `autoreply` — ночной автоответчик (P4): подпись «Автоответчик», от имени ответственного.
+ * `wazzup` — ответ продавца из amoCRM или Wazzup (эхо в беседе Wazzup): база отдаёт его как `other`, слово ему даёт
+ * только чат Wazzup (`inbox-source.ts`), чтобы чужое исходящее чата WAHA не получило такую подпись.
+ */
+export type WhatsAppMessageOrigin = "client" | "crm" | "autoreply" | "phone" | "history" | "other" | "wazzup";
 export type WhatsAppAckName = "ERROR" | "PENDING" | "SERVER" | "DEVICE" | "READ" | "PLAYED";
 
 /** Сообщение ленты — то, что видит браузер: без идентификаторов WhatsApp. */
@@ -90,7 +95,40 @@ export type InboxReplyAccess =
   | "preview"
   | "old_session"
   | "not_connected"
-  | "closed";
+  | "closed"
+  | "receive_only";
+
+/**
+ * Чат только для чтения: действующий путь Wazzup (ответить из EVO нельзя ни в одном чате) либо беседа без сессии WAHA
+ * (беседа Wazzup). Ответ из CRM закрыт, и ночной автоответчик (чип «Ночью отвечает автоответчик») в таком чате ничего
+ * не отправит: ворота отправки в базе дают `receive_only` на каждом этапе.
+ */
+export function conversationIsReceiveOnly(receiveOnly: boolean, sessionName: string | null): boolean {
+  return receiveOnly || sessionName === null;
+}
+
+/**
+ * Можно ли отвечать из CRM, по порядку причин: роль, путь (Wazzup - только чтение, в том числе в прежних чатах WAHA;
+ * беседа без сессии WAHA - беседа Wazzup, она закрыта и после возврата на WAHA), сессия, диалог, сообщение клиента, канал.
+ * Чистое правило страницы `inbox-source.ts`: проверяется Node-тестами без базы.
+ */
+export function replyAccessFor(input: Readonly<{
+  role: "allowed" | "no_permission" | "preview";
+  /** Сессия WAHA беседы; null - беседа Wazzup. */
+  sessionName: string | null;
+  receiveOnly: boolean;
+  open: boolean;
+  hasClientMessage: boolean;
+  channelState: "ready" | "attention" | "not_connected" | "unknown" | "unavailable" | "intake_off";
+}>): InboxReplyAccess {
+  if (input.role !== "allowed") return input.role;
+  if (conversationIsReceiveOnly(input.receiveOnly, input.sessionName)) return "receive_only";
+  if (input.sessionName !== "crm_primary") return "old_session";
+  if (!input.open) return "closed";
+  if (!input.hasClientMessage) return "no_client_message";
+  if (input.channelState === "not_connected") return "not_connected";
+  return input.channelState === "attention" ? "attention" : "allowed";
+}
 
 export const REPLY_ACCESS_COPY: Readonly<Record<Exclude<InboxReplyAccess, "allowed">, string>> = Object.freeze({
   attention: "WhatsApp требует проверки — сообщение может не уйти.",
@@ -100,6 +138,7 @@ export const REPLY_ACCESS_COPY: Readonly<Record<Exclude<InboxReplyAccess, "allow
   old_session: "Чат пришёл через прежний номер WhatsApp — ответить из CRM нельзя.",
   not_connected: "WhatsApp не подключён к CRM — ответить отсюда нельзя.",
   closed: "Диалог закрыт — ответить из CRM нельзя.",
+  receive_only: WAZZUP_READ_ONLY_LINE,
 });
 
 const TIME = new Intl.DateTimeFormat("ru-RU", {
@@ -173,7 +212,20 @@ export function originWord(message: Pick<InboxChatMessage, "inbound" | "origin" 
   if (message.origin === "autoreply") return AUTOREPLY_LABEL;
   if (message.origin === "crm") return message.senderIsViewer ? "из CRM, вы" : `из CRM, ${message.senderName ?? "сотрудник"}`;
   if (message.origin === "phone") return "с телефона";
+  if (message.origin === "wazzup") return WAZZUP_ECHO_LABEL;
   return null;
+}
+
+/** Подпись ответа продавца из amoCRM или Wazzup (план Wazzup §8). */
+export const WAZZUP_ECHO_LABEL = "отправлено в amoCRM/Wazzup";
+
+/**
+ * Происхождение сообщения в ленте. База отдаёт эхо продавца Wazzup как `other` (как любое исходящее без следов CRM,
+ * телефона и истории); подпись «отправлено в amoCRM/Wazzup» получает только такое исходящее в чате Wazzup, чтобы чужое
+ * исходящее чата WAHA не получило слов, которые к нему не относятся.
+ */
+export function chatMessageOrigin(origin: WhatsAppMessageOrigin, inbound: boolean, viaWazzup: boolean): WhatsAppMessageOrigin {
+  return viaWazzup && !inbound && origin === "other" ? "wazzup" : origin;
 }
 
 /** Подпись ночного автоответа в ленте (P4, план ИИ-агента §11, Q9). */
@@ -191,6 +243,7 @@ export function speakerPrefix(message: Pick<InboxChatMessage, "inbound" | "origi
   if (message.origin === "autoreply") return `${AUTOREPLY_LABEL}${autoreplyOnBehalf(message.senderName) ? `, ${autoreplyOnBehalf(message.senderName)}` : ""}:`;
   if (message.origin === "crm") return message.senderIsViewer ? "Вы, из CRM:" : `${message.senderName ?? "Сотрудник"}, из CRM:`;
   if (message.origin === "phone") return "С телефона продаж:";
+  if (message.origin === "wazzup") return "Продавец, из amoCRM или Wazzup:";
   return "Продажи:";
 }
 
@@ -221,6 +274,7 @@ export type WhatsAppChatSendStatus =
   | "closed"
   | "duplicate"
   | "not_ready"
+  | "receive_only"
   | "forbidden"
   | "invalid"
   | "unavailable";
@@ -247,6 +301,7 @@ export const SEND_REFUSAL_COPY: Readonly<Partial<Record<WhatsAppChatSendStatus, 
   closed: "Диалог закрыли — ответить из CRM нельзя. Текст остался в поле.",
   duplicate: "Такое же сообщение выше ещё не дошло до итога — дождитесь его или нажмите «Проверить» у него.",
   not_ready: "WhatsApp сейчас не принимает отправку из CRM. Текст сохранён — попробуйте позже.",
+  receive_only: "WhatsApp подключён только на чтение: ответьте клиенту из amoCRM или Wazzup. Текст остался в поле.",
   forbidden: "Отправка недоступна: права на этот чат изменились. Обновите страницу.",
   invalid: "Сообщение не прошло проверку. Уберите лишние знаки и отправьте ещё раз.",
 });

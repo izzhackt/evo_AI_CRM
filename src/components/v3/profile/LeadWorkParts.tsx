@@ -13,6 +13,7 @@ import { DIAL_TOUCH_HINT, type DialOptions } from "@/lib/v3/telephony-dial";
 import { stageTrack } from "@/lib/v3/stages";
 import type { CaseAgreementReadResult } from "@/lib/v3/case-agreement-source";
 import { source as sourceWord, sourceUnderLabel } from "@/lib/v3/wording";
+import type { SalesHandoffAcknowledgement } from "@/lib/platform-handoff-acknowledgement";
 
 import { DueWord } from "../blocks/DueWord";
 import { Initials } from "../blocks/Initials";
@@ -121,6 +122,54 @@ export type LeadWorkPartsInput = Readonly<{
   now: Date;
 }>;
 
+/**
+ * То, из чего «Новый вид» собирает карточку лида: готовые узлы и данные, которые прежний вид кладёт в свою
+ * разметку (этап, «Что дальше», строки «Сведений», полоса «Передача», строки ленты, группы правки). Чтений и прав
+ * здесь нет - данные одни, меняется только разметка (`LeadNext`).
+ */
+export type LeadNextSource = Readonly<{
+  name: string;
+  leadId: string;
+  /** Действия у заголовка без строки-подсказки о наборе номера: подсказка уходит за «?». */
+  actions: ReactNode;
+  dialHint: string | null;
+  stage: ReactNode;
+  nextStep: ReactNode;
+  stepDrawer: ReactNode;
+  financeStop: string | null;
+  facts: Readonly<{
+    owner: string | null;
+    source: string;
+    arrived: Readonly<{ iso: string; label: string }> | null;
+    phone: string | null;
+    email: string | null;
+    lastContact: Readonly<{ at: string; label: string; what: string }> | null;
+    /** Несколько связанных переписок - своя строка; одна уже есть у «Написать». */
+    conversations: readonly Readonly<{ id: string; subject: string; href: string }>[];
+    answer: Readonly<{ current: SalesHandoffAcknowledgement["current"] | null; href: string | null }> | null;
+    /** «Откуда узнал» и «Интересует» читаются отдельно (`LeadChannelFact`, `LeadInterestFact`); null - строки нет. */
+    channel: ReactNode;
+    hasInterest: boolean;
+  }>;
+  handoff: Readonly<{
+    empty: boolean;
+    gate: ProfileSalesSnapshot["gate"];
+    view: ReturnType<typeof handoffStripView> | null;
+    summary: boolean;
+    edit: Readonly<{ href: string; label: string; ariaLabel: string }> | null;
+  }>;
+  feed: Readonly<{
+    callsUnavailable: ReactNode;
+    composer: ReactNode;
+    submissions: ReactNode;
+    rows: readonly ReactNode[];
+    callsShown: number | null;
+    olderHref: string | null;
+    latestHref: string | null;
+  }>;
+  groups: ReactNode;
+}>;
+
 /** Текст с датами: слова — Golos, даты — JetBrains Mono. */
 function DatedText({ text }: Readonly<{ text: StripText }>) {
   return <>{text.map((part, index) => typeof part === "string"
@@ -183,7 +232,7 @@ function portalSummary(draft: ProfileDraft): string {
  * проверяет сервер. Сборка без запросов: её вызывают страница и статический
  * рендер с синтетикой.
  */
-export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: ReactNode; overview: ReactNode; actions: ReactNode }> {
+export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: ReactNode; overview: ReactNode; actions: ReactNode; next: LeadNextSource }> {
   const { actor, profile, draft, sales } = input;
   const preview = isStaffPreview(actor);
   const today = dayInOrganizationTimezone(input.now);
@@ -241,7 +290,10 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
     : leadTaskAllowed ? { lead: { id: leadId, version: sales.lead.workflowVersion, name: profile.person } } : null;
   const closable = !preview && staffHasPermission(actor, "lead.sales.workflow.manage");
 
-  const actions = (
+  // На сенсорном экране у кнопки нет подсказки при наведении: что набор сначала звонит сотруднику, сказано строкой.
+  // Несопоставленному сотруднику она не нужна: нажатие скажет, что его логин ВАТС не связан.
+  const dialHint = input.dial?.status === "ready" && input.dial.mapped && !preview ? DIAL_TOUCH_HINT : null;
+  const actionGroup = (withHint: boolean) => (
     <div className="flex flex-wrap items-center gap-2" data-testid="v3-lead-actions">
       {primary?.kind === "step" ? (
         <button type="button" popoverTarget={LEAD_STEP_DRAWER_ID} aria-haspopup="dialog" className={`${btnCls} max-sm:w-full`} data-testid="v3-lead-primary">
@@ -294,13 +346,12 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
           blockedReason={null}
         />
       ) : null}
-      {/* На сенсорном экране у кнопки нет подсказки при наведении: что набор сначала звонит сотруднику, сказано строкой.
-          Несопоставленному сотруднику она не нужна: нажатие скажет, что его логин ВАТС не связан. */}
-      {input.dial?.status === "ready" && input.dial.mapped && !preview ? (
-        <p className="hidden basis-full t-meta text-fg-2 max-sm:block pointer-coarse:block" data-testid="v3-dial-hint">{DIAL_TOUCH_HINT}</p>
+      {withHint && dialHint ? (
+        <p className="hidden basis-full t-meta text-fg-2 max-sm:block pointer-coarse:block" data-testid="v3-dial-hint">{dialHint}</p>
       ) : null}
     </div>
   );
+  const actions = actionGroup(true);
 
   // «Что дальше»: после передачи — строка передачи; до неё — действие и срок с правкой.
   const dueDate = sales.lead.nextActionText ? sales.lead.nextActionDueDate : null;
@@ -338,28 +389,28 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
     </p>
   );
   const trackStage = stripRead && stripRead.stage !== "closed" && stageTrack("sales", stripRead.stage) ? stripRead.stage : null;
+  const stage = strip === null ? <span className="text-fg-2">не прочитан</span>
+    : trackStage ? <StageTrack kind="sales" current={trackStage} />
+      : <span data-testid="v3-lead-stage">{strip.stageTitle}</span>;
+  const stepDrawer = stepEditable ? (
+    <LeadStepDrawer
+      name={profile.person}
+      lead={sales.lead}
+      stages={input.stages}
+      ownerOptions={input.ownerOptions}
+      ownerOptionsHaveMore={input.ownerOptionsHaveMore}
+      actor={actor}
+      requestId={input.requestIds.step}
+    />
+  ) : null;
   const header = (
     <section className="flex flex-col gap-3" data-testid="v3-lead-header" aria-label="Этап и следующий шаг">
       <dl className="grid grid-cols-1 border-y border-border sm:flex sm:flex-wrap">
-        <HeaderFact term="Этап">
-          {strip === null ? <span className="text-fg-2">не прочитан</span>
-            : trackStage ? <StageTrack kind="sales" current={trackStage} />
-              : <span data-testid="v3-lead-stage">{strip.stageTitle}</span>}
-        </HeaderFact>
+        <HeaderFact term="Этап">{stage}</HeaderFact>
         <HeaderFact term="Что дальше" wide>{nextStep}</HeaderFact>
       </dl>
       {profile.financeStop ? <p className="t-body-compact font-medium text-danger">Финансовый стоп: {profile.financeStop}</p> : null}
-      {stepEditable ? (
-        <LeadStepDrawer
-          name={profile.person}
-          lead={sales.lead}
-          stages={input.stages}
-          ownerOptions={input.ownerOptions}
-          ownerOptionsHaveMore={input.ownerOptionsHaveMore}
-          actor={actor}
-          requestId={input.requestIds.step}
-        />
-      ) : null}
+      {stepDrawer}
     </section>
   );
 
@@ -446,6 +497,11 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
     && draft.contract !== null && contractWorkspaceWritable(draft.contract.workspace);
   const moneyHref = moneyTab && (gateForms || agreementWritable || contractWritable)
     ? `${input.hrefFor("money")}${gateForms ? `#${LEAD_GATE_ANCHOR}` : ""}` : null;
+  const handoffEdit = moneyHref ? {
+    href: moneyHref,
+    label: handoffEmpty ? "Подтвердить договор и оплату" : "Изменить",
+    ariaLabel: handoffEmpty ? "Подтвердить договор и оплату" : "Изменить договор и оплату",
+  } : null;
   const handoff = (
     <section aria-labelledby="lead-handoff-title" className="@container min-w-0 border-t border-border pt-3" data-testid="v3-lead-handoff">
       <div className="flex flex-wrap items-center gap-x-2">
@@ -487,59 +543,62 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
     if (freshCalls.size >= 2) break;
     if (item.kind === "call" && !preview && item.call.resultEditable && item.call.resultCode === null) freshCalls.add(item.call.callId);
   }
+  // Частичный сбой не прячется под списком: лента без звонков выглядела бы полной.
+  const callsUnavailable = input.calls?.status === "unavailable" ? (
+    <div role="status" className="mt-2 flex flex-wrap items-center gap-x-3 t-body-compact text-fg" data-testid="v3-calls-unavailable">
+      {/* Значок и слова — один блок: на узком экране значок не остаётся один в строке, слова рядом с ним переносятся внутри блока. */}
+      <p className="flex min-w-0 flex-1 basis-64 items-start gap-x-2 py-2">
+        <Icon name="alert" size={16} className="mt-[3px] shrink-0 text-warn" />
+        <span>Звонки не загрузились.</span>
+      </p>
+      <LeadCallsRetry className={`${QUIET_LINK} max-sm:ms-6`} />
+    </div>
+  ) : null;
+  const composer = notesWritable ? (
+    <LeadNoteComposer key={`${input.notes.subject.leadId ?? ""}:${input.notes.subject.studentCaseId ?? ""}`}
+      subject={input.notes.subject} requestId={input.requestIds.note} />
+  ) : null;
+  // Общая разметка строк с Student 360 (`FeedRow`): одна метка, один край текста.
+  const feedRows = feed.map((item, index) => {
+    if (item.kind === "note") {
+      return (
+        <FeedNote key={`note:${item.at}:${index}`} body={item.note.body} author={item.note.authorDisplayName}
+          at={item.at} label={leadMoment(item.at, input.now)} />
+      );
+    }
+    if (item.kind === "event") {
+      return <FeedEvent key={`event:${item.event.key}`} text={item.event.text} at={item.at} label={leadMoment(item.at, input.now)} />;
+    }
+    // Записи (T6): прочитала база — блок записи под строкой («Слушать» или слова состояния); не прочитала —
+    // слова состояния в мелкой строке, как в T5. Просмотр роли записей не воспроизводит (выдача пишет в журнал).
+    const recordings = preview ? null : callRecordings?.[item.call.callId] ?? null;
+    const row = leadCallRow(item.call, input.now, recordings, { showPhone: maskNeeded || callRows.length < 2 });
+    const pressable = !preview && item.call.resultEditable;
+    const recordingItems = recordings === null ? [] : callRecordingItems(recordings, row.recordingContext);
+    const moment = leadCallMoment(item.at, input.now);
+    return (
+      <FeedCall key={`call:${item.call.callId}`} title={row.title} outcome={row.outcome} details={row.details}
+        at={item.at} label={moment.label} exact={moment.exact}>
+        {recordingItems.length > 0 ? <LeadCallRecording items={recordingItems} /> : null}
+        {pressable ? (
+          <LeadCallResult callId={item.call.callId} callName={`${row.title}, ${moment.exact}`} code={item.call.resultCode} callbackOn={item.call.callbackOn}
+            resultLabel={row.resultLabel} callbackLabel={row.callbackLabel} pressWords={row.pressWords}
+            defaultOpen={freshCalls.has(item.call.callId)} bounds={callResultBounds} />
+        ) : row.result ? <p className="mt-0.5 break-words t-meta text-fg-2" data-testid="v3-call-result-text">{row.result}</p> : null}
+      </FeedCall>
+    );
+  });
   const feedPart = (
     <section className="min-w-0" aria-labelledby="lead-feed-title" data-testid="v3-lead-feed">
       <h2 id="lead-feed-title" tabIndex={-1} className="t-section text-fg">Лента</h2>
-      {/* Частичный сбой не прячется под списком: лента без звонков выглядела бы полной. */}
-      {input.calls?.status === "unavailable" ? (
-        <div role="status" className="mt-2 flex flex-wrap items-center gap-x-3 t-body-compact text-fg" data-testid="v3-calls-unavailable">
-          {/* Значок и слова — один блок: на узком экране значок не остаётся один в строке, слова рядом с ним переносятся внутри блока. */}
-          <p className="flex min-w-0 flex-1 basis-64 items-start gap-x-2 py-2">
-            <Icon name="alert" size={16} className="mt-[3px] shrink-0 text-warn" />
-            <span>Звонки не загрузились.</span>
-          </p>
-          <LeadCallsRetry className={`${QUIET_LINK} max-sm:ms-6`} />
-        </div>
-      ) : null}
+      {callsUnavailable}
       <div className="mt-2 space-y-3">
-        {notesWritable ? (
-          <LeadNoteComposer key={`${input.notes.subject.leadId ?? ""}:${input.notes.subject.studentCaseId ?? ""}`}
-            subject={input.notes.subject} requestId={input.requestIds.note} />
-        ) : null}
+        {composer}
         {input.submissions}
       </div>
       {feed.length > 0 ? (
         <ol className="mt-3 divide-y divide-border border-t border-border" data-testid="v3-lead-feed-items">
-          {/* Общая разметка строк с Student 360 (`FeedRow`): одна метка, один край текста. */}
-          {feed.map((item, index) => {
-            if (item.kind === "note") {
-              return (
-                <FeedNote key={`note:${item.at}:${index}`} body={item.note.body} author={item.note.authorDisplayName}
-                  at={item.at} label={leadMoment(item.at, input.now)} />
-              );
-            }
-            if (item.kind === "event") {
-              return <FeedEvent key={`event:${item.event.key}`} text={item.event.text} at={item.at} label={leadMoment(item.at, input.now)} />;
-            }
-            // Записи (T6): прочитала база — блок записи под строкой («Слушать» или слова состояния); не прочитала —
-            // слова состояния в мелкой строке, как в T5. Просмотр роли записей не воспроизводит (выдача пишет в журнал).
-            const recordings = preview ? null : callRecordings?.[item.call.callId] ?? null;
-            const row = leadCallRow(item.call, input.now, recordings, { showPhone: maskNeeded || callRows.length < 2 });
-            const pressable = !preview && item.call.resultEditable;
-            const recordingItems = recordings === null ? [] : callRecordingItems(recordings, row.recordingContext);
-            const moment = leadCallMoment(item.at, input.now);
-            return (
-              <FeedCall key={`call:${item.call.callId}`} title={row.title} outcome={row.outcome} details={row.details}
-                at={item.at} label={moment.label} exact={moment.exact}>
-                {recordingItems.length > 0 ? <LeadCallRecording items={recordingItems} /> : null}
-                {pressable ? (
-                  <LeadCallResult callId={item.call.callId} callName={`${row.title}, ${moment.exact}`} code={item.call.resultCode} callbackOn={item.call.callbackOn}
-                    resultLabel={row.resultLabel} callbackLabel={row.callbackLabel} pressWords={row.pressWords}
-                    defaultOpen={freshCalls.has(item.call.callId)} bounds={callResultBounds} />
-                ) : row.result ? <p className="mt-0.5 break-words t-meta text-fg-2" data-testid="v3-call-result-text">{row.result}</p> : null}
-              </FeedCall>
-            );
-          })}
+          {feedRows}
         </ol>
       ) : (
         <p className="mt-3 border-t border-border pt-3 t-body-compact text-fg-2">Заметок пока нет.</p>
@@ -592,45 +651,48 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
         quiet
       />
     ) : null;
+  const groupsBody = (
+    <LeadEditGroups>
+      {conditions && summaries ? (
+        <SaleConditionsRevisionProvider initialRevision={conditions.revision}>
+          <EditGroup id="sale-conditions" title="Условия продажи" summary={summaries.sale} testId="v3-lead-group-sale">
+            <LeadSaleConditions leadId={conditions.leadId} conditions={conditions} requestId={input.requestIds.saleConditions}
+              readOnly={conditionsReadOnly} quiet bare />
+          </EditGroup>
+          <EditGroup title="Пожелания" summary={summaries.wishes} testId="v3-lead-group-wishes">
+            <LeadWishesCard leadId={conditions.leadId} conditions={conditions} requestId={input.requestIds.wishesCard}
+              readOnly={conditionsReadOnly} quiet bare />
+          </EditGroup>
+          <EditGroup title="Образование" summary={summaries.education} testId="v3-lead-group-education">
+            <LeadEducationCard leadId={conditions.leadId} conditions={conditions} requestId={input.requestIds.educationCard}
+              readOnly={conditionsReadOnly} quiet bare />
+          </EditGroup>
+          <EditGroup title="Бюджет и ограничения" summary={summaries.conditions} testId="v3-lead-group-conditions">
+            <LeadConditionsCard leadId={conditions.leadId} conditions={conditions} requestId={input.requestIds.conditionsCard}
+              readOnly={conditionsReadOnly} quiet bare />
+          </EditGroup>
+        </SaleConditionsRevisionProvider>
+      ) : null}
+      <EditGroup id={LEAD_PORTAL_GROUP_ID} title="Доступ к порталу" summary={portalSummary(draft)} testId="v3-lead-group-portal">
+        <PlatformAccessCard
+          application={draft.studentApplication}
+          requestId={input.requestIds.platformAccess}
+          readOnly={preview}
+          leadId={leadId}
+          leadCabinetCase={draft.admissions ? { studentCaseId: draft.admissions.studentCaseId, state: draft.admissions.caseState } : draft.leadCabinetCase}
+          prepareRequestId={input.requestIds.prepareLeadCabinet}
+          caseLink={staffPresentationCan(actor, "admissions.read")}
+          bare
+        >
+          {portalControls}
+        </PlatformAccessCard>
+      </EditGroup>
+    </LeadEditGroups>
+  );
   const groups = (
     <section className="@container min-w-0" aria-labelledby="lead-edit-title" data-testid="v3-lead-edit">
       <h2 id="lead-edit-title" className="t-section text-fg">Данные лида</h2>
-      <LeadEditGroups>
-        {conditions && summaries ? (
-          <SaleConditionsRevisionProvider initialRevision={conditions.revision}>
-            <EditGroup id="sale-conditions" title="Условия продажи" summary={summaries.sale} testId="v3-lead-group-sale">
-              <LeadSaleConditions leadId={conditions.leadId} conditions={conditions} requestId={input.requestIds.saleConditions}
-                readOnly={conditionsReadOnly} quiet bare />
-            </EditGroup>
-            <EditGroup title="Пожелания" summary={summaries.wishes} testId="v3-lead-group-wishes">
-              <LeadWishesCard leadId={conditions.leadId} conditions={conditions} requestId={input.requestIds.wishesCard}
-                readOnly={conditionsReadOnly} quiet bare />
-            </EditGroup>
-            <EditGroup title="Образование" summary={summaries.education} testId="v3-lead-group-education">
-              <LeadEducationCard leadId={conditions.leadId} conditions={conditions} requestId={input.requestIds.educationCard}
-                readOnly={conditionsReadOnly} quiet bare />
-            </EditGroup>
-            <EditGroup title="Бюджет и ограничения" summary={summaries.conditions} testId="v3-lead-group-conditions">
-              <LeadConditionsCard leadId={conditions.leadId} conditions={conditions} requestId={input.requestIds.conditionsCard}
-                readOnly={conditionsReadOnly} quiet bare />
-            </EditGroup>
-          </SaleConditionsRevisionProvider>
-        ) : null}
-        <EditGroup id={LEAD_PORTAL_GROUP_ID} title="Доступ к порталу" summary={portalSummary(draft)} testId="v3-lead-group-portal">
-          <PlatformAccessCard
-            application={draft.studentApplication}
-            requestId={input.requestIds.platformAccess}
-            readOnly={preview}
-            leadId={leadId}
-            leadCabinetCase={draft.admissions ? { studentCaseId: draft.admissions.studentCaseId, state: draft.admissions.caseState } : draft.leadCabinetCase}
-            prepareRequestId={input.requestIds.prepareLeadCabinet}
-            caseLink={staffPresentationCan(actor, "admissions.read")}
-            bare
-          >
-            {portalControls}
-          </PlatformAccessCard>
-        </EditGroup>
-      </LeadEditGroups>
+      {groupsBody}
     </section>
   );
 
@@ -651,5 +713,44 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
     </div>
   );
 
-  return { header, overview, actions };
+  const next: LeadNextSource = {
+    name: profile.person,
+    leadId,
+    actions: actionGroup(false),
+    dialHint,
+    stage,
+    nextStep,
+    stepDrawer,
+    financeStop: profile.financeStop,
+    facts: {
+      owner,
+      source: sourceUnderLabel(profile.source) ?? "неизвестно",
+      arrived: sales.leadCreatedAt && arrivedDay ? { iso: sales.leadCreatedAt, label: arrivedDay } : null,
+      phone: profile.phone || null,
+      email: profile.email || null,
+      lastContact: lastContact ? { at: lastContact.at, label: leadMoment(lastContact.at, input.now), what: lastContact.what } : null,
+      conversations: conversations.length > 1
+        ? conversations.map((conversation) => ({
+          id: conversation.conversationId,
+          subject: conversation.subject,
+          href: buildV3InboxHref({ conversationId: conversation.conversationId, filters: { query: null, sort: "newest" } }),
+        }))
+        : [],
+      answer: answerFact ? { current: answer, href: answerHref } : null,
+      channel: input.channel ?? null,
+      hasInterest: Boolean(input.interest),
+    },
+    handoff: { empty: handoffEmpty, gate: sales.gate, view: strip, summary: !handedOff, edit: handoffEdit },
+    feed: {
+      callsUnavailable,
+      composer,
+      submissions: input.submissions,
+      rows: feedRows,
+      callsShown: input.calls?.status === "ready" && input.calls.hasMore ? input.calls.calls.length : null,
+      olderHref: input.notesOlderHref,
+      latestHref: input.notesLatestHref,
+    },
+    groups: groupsBody,
+  };
+  return { header, overview, actions, next };
 }

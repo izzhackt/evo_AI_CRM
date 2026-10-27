@@ -8,12 +8,13 @@
  * подменены записью вызова в `window.__harness.calls`, Supabase, Claude и маршрутизатор Next.js не проверяются:
  * проверяются вёрстка, токены нового вида, адаптив, клавиатура, доступность и то, что кнопки зовут те же действия.
  *
- *   node tests/e2e/ai-agents-next-static-render.cjs --screenshots [outDir]
+ *   node tests/e2e/ai-agents-next-static-render.cjs --screenshots [outDir] [--before]
  *     → снимки Playwright Chromium 1440×900, 1280×800, 390×844 (хаб; «Чат», «Обзор», «История работы», запуск,
  *       «На одобрение», «Правила агента», «Настройки»; панели запуска и черновика) и проверки (JSON-строки, при нарушении
  *       код 1): нет ошибок консоли, нет горизонтальной прокрутки, нажимаемые ≥ 44 px, axe без нарушений, панели рисуются
  *       внутри корня нового вида, Esc закрывает, фокус возвращается на строку; «Одобрить», «Авто», «Сохранить» зовут
  *       прежние серверные действия с прежними полями. По умолчанию outDir — .impeccable/review (не коммитится).
+ *     --before — только снимки прежнего вида на тех же данных (before-<экран>-<ширина>.png), без проверок.
  */
 
 const { mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -98,6 +99,13 @@ import { imageConfigDefault } from "next/dist/shared/lib/image-config";
 import { AppShell } from "@/components/v3/AppShell";
 import { NextAgentsView } from "@/components/v3/ai-agents-next/NextAgentsView";
 import { NextAgentPage } from "@/components/v3/ai-agents-next/NextAgentPage";
+import { AgentsHub } from "@/components/v3/ai-agents/AgentsHub";
+import { AgentBody } from "@/components/v3/ai-agents/AgentBody";
+import { AgentChatShell } from "@/components/v3/ai-agents/AgentChatShell";
+import { AgentSwitches } from "@/components/v3/ai-agents/AgentSwitches";
+import { AgentTabs } from "@/components/v3/ai-agents/AgentTabs";
+import { PartShell } from "@/components/v3/PartShell";
+import { AI_AGENTS_HUB_HREF, aiAgentRoleLine } from "@/lib/v3/ai-agents-view";
 import { AI_AGENT_CATALOG } from "@/lib/ai-agents/contract";
 const { makeFixtures } = require(${JSON.stringify(join(ROOT, "tests/e2e/ai-agents-next-fixtures.cjs"))});
 const h = React.createElement;
@@ -109,15 +117,27 @@ const params = new URLSearchParams(fixture.search);
 const tab = params.get("tab") ?? "command";
 const runId = params.get("run");
 let page;
-if (fixture.name === "hub") page = h(NextAgentsView, { read: F.available(F.LIST), runtimeConfigured: true, preview: false });
+if (fixture.legacy) {
+  // Прежний вид (снимки «до»): те же страницы, что собирают ai-agents/page.tsx и [key]/page.tsx без переключателя.
+  if (fixture.name === "hub") page = h(PartShell, { title: "ИИ-агенты", testId: "v3-ai-agents" }, h("div", { className: "space-y-5" }, h(AgentsHub, { list: F.LIST, runtimeConfigured: true, preview: false })));
+  else {
+    const props = F.bodyProps(tab, runId ? { runId, run: F.available(F.RUN_DETAIL), runs: null } : {});
+    const d = props.detail;
+    const switches = h(AgentSwitches, { agentKey: d.key, enabled: d.enabled, autoSend: d.autoSend, configVersion: d.configVersion, hasInstructions: true, canEdit: true });
+    const content = h(AgentBody, props);
+    page = tab === "command"
+      ? h(AgentChatShell, { testId: "v3-ai-agent-page", title: d.title, roleLine: aiAgentRoleLine(d.roleLine), tabs: h(AgentTabs, { bare: true, agentKey: d.key, title: d.title, tab, draftsPending: d.stats.draftsPending }), switches }, content)
+      : h(PartShell, { title: d.title, testId: "v3-ai-agent-page", back: h("a", { href: AI_AGENTS_HUB_HREF, className: "mb-3 inline-flex min-h-11 items-center gap-1.5 rounded-nav t-label text-fg-2" }, "Все ИИ-агенты"), meta: aiAgentRoleLine(d.roleLine), action: switches }, content);
+  }
+} else if (fixture.name === "hub") page = h(NextAgentsView, { read: F.available(F.LIST), runtimeConfigured: true, preview: false });
 else page = h(NextAgentPage, F.bodyProps(tab, runId ? { runId, run: F.available(F.RUN_DETAIL), runs: null } : {}));
 createRoot(document.getElementById("root")).render(
   h(AppRouterContext.Provider, { value: router },
     h(PathnameContext.Provider, { value: fixture.path },
       h(SearchParamsContext.Provider, { value: params },
         h(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } },
-          h("div", { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
-            h(AppShell, { actor: F.ACTOR, initialNotifications: null, nextUi: { enabled: true } }, page)))))));
+          h("div", { className: "v3-world", "data-surface": "staff", "data-ui": fixture.legacy ? undefined : "next" },
+            h(AppShell, { actor: F.ACTOR, initialNotifications: null, nextUi: fixture.legacy ? null : { enabled: true } }, page)))))));
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.ready = "true"; }));
 `;
 
@@ -167,7 +187,7 @@ async function buildBundle(outFile) {
 }
 
 function writePage(outDir, scene, css) {
-  const path = join(outDir, `agents-${scene.name}.html`);
+  const path = join(outDir, `${scene.legacy ? "before" : "agents"}-${scene.name}.html`);
   writeFileSync(path, `<!DOCTYPE html><html lang="ru" data-theme="light" class="h-full antialiased"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>ИИ-агенты (синтетические данные)</title><style>${css}</style></head><body class="min-h-full"><div id="root"></div><script type="application/json" id="fixture">${JSON.stringify(scene)}</script><script src="ai-agents-next-bundle.js"></script></body></html>`);
   return path;
 }
@@ -180,6 +200,25 @@ async function main() {
   await buildBundle(join(outDir, "ai-agents-next-bundle.js"));
   const css = await compileCss();
   const pages = Object.fromEntries(SCENES.map((scene) => [scene.name, writePage(outDir, scene, css)]));
+  if (args.includes("--before")) {
+    // Снимки прежнего вида на тех же данных (без проверок): `before-<экран>-<ширина>.png` рядом с снимками нового.
+    const { chromium: engine } = require("playwright");
+    const before = await engine.launch();
+    for (const scene of SCENES.filter((one) => one.name !== "run")) {
+      const file = writePage(outDir, { ...scene, legacy: true }, css);
+      for (const key of ["d1440", "m390"]) {
+        const context = await before.newContext({ ...VIEWPORTS[key], reducedMotion: "reduce" });
+        const page = await context.newPage();
+        await page.goto(pathToFileURL(file).href, { waitUntil: "load" });
+        await page.waitForSelector("html[data-ready=true]", { state: "attached", timeout: 15_000 });
+        await page.evaluate(() => document.fonts.ready);
+        await page.screenshot({ path: join(outDir, `before-${scene.name}-${key}.png`), fullPage: scene.name !== "chat" });
+        await context.close();
+      }
+    }
+    await before.close();
+    return;
+  }
   const { chromium } = require("playwright");
   const AxeBuilder = require("@axe-core/playwright").default;
   const browser = await chromium.launch();

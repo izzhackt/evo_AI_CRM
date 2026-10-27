@@ -766,6 +766,8 @@ test("the layout computes `financeSection` next to the existing reads and hands 
     "@/components/v3/AppShell": { AppShell: (props) => { shellProps.push(props); return null; } },
     "@/lib/platform-guards": { requirePlatformStaffActor: async () => actor },
     "@/lib/release-metadata": { readReleaseMetadata: () => ({ status: "unavailable" }) },
+    // «Новый вид» (27.10.2026): cookie читает `isNextUi`; здесь он выключен — переключатель только у настоящего администратора.
+    "@/lib/ui-next": { isNextUi: async () => false },
     "@/lib/v3/account-deletion-source": { readOpenAccountDeletionCount: async () => null },
     "@/lib/v3/staff-notification-source": { readStaffNotificationsForActor: async () => null },
     "@/lib/v3/report-links-source": { readFinanceSectionAccess: async (a) => { reads.push(a === actor); return finance(); } },
@@ -776,6 +778,7 @@ test("the layout computes `financeSection` next to the existing reads and hands 
     const shell = tree.props.children[0];
     assert.equal(shell.props.financeSection, expected);
     assert.equal(shell.props.actor, actor);
+    assert.deepEqual(shell.props.nextUi, actor === admin ? { enabled: false } : null, "переключатель «Нового вида» есть только у настоящего администратора");
     void shellProps;
   }
   // Ошибка чтения не роняет страницу: пункт скрыт.

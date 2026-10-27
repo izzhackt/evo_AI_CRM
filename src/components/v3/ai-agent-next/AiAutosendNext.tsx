@@ -32,7 +32,7 @@ export function AiAutosendNext({ read, route, journal, summary, serverOn, previe
       {route.view === "journal" && journal ? <AiAutosendJournalView read={journal} route={route} retryHref={retryHref} />
         : route.view === "summary" && summary ? <AiAutosendSummaryView read={summary} retryHref={retryHref} />
           : (
-            <WidgetCard>
+            <WidgetCard title="Параметры автоответчика" headingLevel={3}>
               <AiAutosendSettingsForm initial={state.settings} version={state.version} liveTestTitles={state.liveTestTitles} liveTestLock={aiAutosendLiveTestLock(state)}
                 readOnly={readOnly} requestId={requestIds.settings} action={saveAiAutosendSettingsAction} />
             </WidgetCard>

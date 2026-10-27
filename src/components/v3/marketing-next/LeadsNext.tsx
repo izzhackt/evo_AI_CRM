@@ -66,6 +66,7 @@ function LeadsTable({ initial, request, body }: Readonly<{
         searchPlaceholder="Найти среди показанных"
         pageSize={25}
         partial={cursor !== null}
+        columnMenu={false}
         toolbar={<LeadFiltersSheet period={body.period} filters={body.filters} clearHref={body.clearHref} />}
         empty={<EmptyState title="За этот период заявок по фильтрам нет." />}
       />

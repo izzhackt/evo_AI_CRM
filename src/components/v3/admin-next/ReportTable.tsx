@@ -41,7 +41,7 @@ export function ReportTable({ label, columns, rows, foot, minWidth = "min-w-[40r
         {foot ? (
           <TableFooter>
             <TableRow className="hover:bg-transparent">
-              <TableHead scope="row" className={cn(STICKY, "bg-surface-2 t-item text-fg")}>{foot.head}</TableHead>
+              <TableHead scope="row" className={cn(STICKY, "h-auto bg-surface-2 py-3 align-top t-item text-fg")}>{foot.head}</TableHead>
               {foot.cells.map((cell, index) => <TableCell key={index} className="align-top tabular-nums">{cell}</TableCell>)}
             </TableRow>
           </TableFooter>

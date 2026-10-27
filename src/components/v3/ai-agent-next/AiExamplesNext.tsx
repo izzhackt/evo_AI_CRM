@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { DataTable, DetailSheet, EmptyState, StatusBadge, WidgetCard, type DataTableColumn } from "@/components/kit";
+import { DataTable, DetailSheet, EmptyState, HelpTip, StatusBadge, WidgetCard, type DataTableColumn } from "@/components/kit";
 import { AiActionForm } from "@/components/v3/ai-agent/AiActionForm";
 import { deleteAiExampleAction } from "@/lib/platform-ai-agent-actions";
 import { aiDateTime } from "@/lib/v3/ai-agent";
@@ -40,9 +40,13 @@ export function AiExamplesNext({ read, preview, requestIds }: Readonly<{ read: A
   const open = read.data.items.find((example) => example.id === openId) ?? null;
   const canDelete = read.data.canManage && !preview;
   return (
-    <section aria-label="Эталонные ответы" className="grid min-w-0 gap-3" data-testid="v3-ai-examples">
+    <section aria-labelledby="ai-examples-title" className="grid min-w-0 gap-3" data-testid="v3-ai-examples">
+      <div className="flex items-center gap-1.5">
+        <h2 id="ai-examples-title" className="t-section text-fg">Эталонные ответы <span className="tabular-nums text-fg-3">{read.data.items.length}</span></h2>
+        <HelpTip label="Пояснение: Эталонные ответы">Пример действует, пока не изменились его документы, «Правила общения» и модель; иначе агент его не берёт. Новые вопросы примерами сами не становятся.</HelpTip>
+      </div>
       <DataTable
-        label={`Эталонные ответы · ${read.data.items.length}`}
+        label="Эталонные ответы"
         data={read.data.items}
         columns={columns}
         getRowId={(example) => example.id}
@@ -52,8 +56,7 @@ export function AiExamplesNext({ read, preview, requestIds }: Readonly<{ read: A
         columnMenu={false}
         empty={<EmptyState title="Эталонных ответов пока нет" description="Они появляются после «Применить» в Лаборатории." />}
       />
-      <DetailSheet open={open !== null} onOpenChange={(next) => { if (!next) setOpenId(null); }} title={open?.question ?? "Эталонный ответ"} description={open ? staleWord(open) : undefined}
-        help="Пример действует, пока не изменились его документы, «Правила общения» и модель; иначе агент его не берёт. Новые вопросы примерами сами не становятся.">
+      <DetailSheet open={open !== null} onOpenChange={(next) => { if (!next) setOpenId(null); }} title={open?.question ?? "Эталонный ответ"} description={open ? staleWord(open) : undefined}>
         {open ? (
           <div className="grid gap-4">
             <p className="v3-ai-example-answer whitespace-pre-wrap t-body-compact text-fg-2">{open.answer}</p>

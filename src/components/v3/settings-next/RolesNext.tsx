@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 
 import { DataTable, DetailSheet, EmptyState, StatusBadge, type DataTableColumn } from "@/components/kit";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { RoleEditor } from "@/components/v3/settings/StaffRolesSection";
 import { StaffRoleControls } from "@/components/v3/settings/StaffRoleControls";
 import type { StaffEditableRole, StaffRoleWorkspace } from "@/lib/v3/staff-roles-contract";
@@ -59,10 +60,10 @@ export function RolesNext({ workspace, selectedRoleId }: Readonly<{ workspace: S
           searchPlaceholder="Найти роль"
           columnMenu={false}
           pageSize={25}
-          toolbar={<label className="flex min-h-11 items-center gap-2 t-label text-fg-2"><input type="checkbox" className="size-5 accent-fg" checked={archived} onChange={(event) => setArchived(event.target.checked)} />Показать архивные</label>}
+          toolbar={<label className="flex min-h-11 items-center gap-2 t-label text-fg-2"><Checkbox checked={archived} onCheckedChange={(value) => setArchived(value === true)} />Показать архивные</label>}
           empty={<EmptyState title="Ролей не найдено. Создайте новую." />}
         />
-        <DetailSheet open={open !== null} onOpenChange={(next) => { if (!next) choose(null); }} title={open?.label ?? "Роль"} description={open ? roleState(open) : undefined}
+        <DetailSheet open={open !== null} onOpenChange={(next) => { if (!next) choose(null); }} title={open?.label ?? "Роль"}
           help="Роль задаёт действия. Область — свои записи, отдел или направление — выбирается при назначении сотруднику.">
           {open ? <RoleSheetBody key={open.id} role={open} workspace={workspace} onCopy={() => { choose(null); setEditor(open); }} /> : null}
         </DetailSheet>

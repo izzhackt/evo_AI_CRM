@@ -27,6 +27,11 @@ export async function marketingNextProps(input: Readonly<{
   const hrefPeriod = period.key === "custom" ? { key: period.key, from: period.from, to: period.to } : { key: period.key };
   const range = { from: period.from, to: period.to };
   const retryHref = marketingHref({ view, period: hrefPeriod, filters });
+  // Чтения вида идут рядом со ссылкой на отчёт (как у прежней страницы), а не после неё.
+  const overviewReads = view === "overview"
+    ? Promise.all([readMarketingOverview(actor, range), readMarketingRecent(actor, { from: shiftIsoDate(period.today, -(RECENT_DAYS_FOR_SIGNAL - 1)), to: period.today })])
+    : null;
+  const leadsRead = view === "leads" ? readMarketingLeads(actor, range, filters, null) : null;
   const report = await input.reportRead;
   const reportsTab = report.status === "available" && report.link.configured;
   const tabs = MARKETING_VIEWS.filter((tab) => tab.key !== "reports" || reportsTab).map((tab) => ({
@@ -46,16 +51,13 @@ export async function marketingNextProps(input: Readonly<{
   };
   const meta = periodLabel(period);
   if (view === "leads") {
-    const read = await readMarketingLeads(actor, range, filters, null);
+    const read = await leadsRead!;
     return {
       view, meta, tabs, period: periodBar,
       body: { kind: "leads", read, period: { key: period.key, from: period.from, to: period.to }, filters, retryHref, clearHref: marketingHref({ view: "leads", period: hrefPeriod }) },
     };
   }
-  const [read, recent] = await Promise.all([
-    readMarketingOverview(actor, range),
-    readMarketingRecent(actor, { from: shiftIsoDate(period.today, -(RECENT_DAYS_FOR_SIGNAL - 1)), to: period.today }),
-  ]);
+  const [read, recent] = await overviewReads!;
   const spend: readonly SpendRow[] = read.status === "available" ? [...read.overview.spend.insidePeriod, ...read.overview.spend.partiallyOverlapping] : [];
   return {
     view, meta, tabs, period: periodBar,

@@ -70,7 +70,8 @@ export function ChannelsCard({ overview, unknownHref }: Readonly<{ overview: Mar
           rows={rows}
           foot={{ head: "Всего", cells: [n(cohort.totals.leads), ...stageCells({ ...cohort.totals })] }}
         />
-        <KeyFacts columns={3} facts={[
+        <KeyFacts columns={4} facts={[
+          { label: "Заявки с сайта", value: <span data-testid="marketing-website-source" className="tabular-nums">{n(cohort.sourceKeys.website ?? 0)}</span> },
           { label: "Источник не известен", value: <span data-testid="marketing-unknown-line" className="tabular-nums">{shareText(unknown, whole)}</span> },
           { label: "Повторные обращения", value: <span data-testid="marketing-repeats" className="tabular-nums">{n(cohort.repeatSubmissions)}</span> },
           { label: "Анкеты на платформе", value: cohort.cabinetForms > 0 ? <span className="tabular-nums">{n(cohort.cabinetForms)}</span> : null },

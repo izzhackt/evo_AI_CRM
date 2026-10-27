@@ -36,9 +36,9 @@ function SectionBody(props: SettingsNextProps) {
 export function SettingsSection(props: SettingsNextProps) {
   const current = props.nav.find((item) => item.current);
   return (
-    <section aria-label={current?.title} className="grid min-w-0 gap-4">
+    <div className="grid min-w-0 gap-4">
       <h2 className="sr-only">{current?.title}</h2>
       <SectionBody {...props} />
-    </section>
+    </div>
   );
 }

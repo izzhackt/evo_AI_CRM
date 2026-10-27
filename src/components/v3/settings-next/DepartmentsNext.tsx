@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 
 import { DataTable, DetailSheet, EmptyState, StatusBadge, type DataTableColumn } from "@/components/kit";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DepartmentForm } from "@/components/v3/settings/DepartmentsSection";
 import type { StaffDepartment } from "@/lib/v3/staff-workspace-contract";
 
@@ -53,7 +54,7 @@ export function DepartmentsNext({ departments }: Readonly<{ departments: readonl
         pageSize={25}
         toolbar={archivedCount ? (
           <label className="flex min-h-11 items-center gap-2 t-label text-fg-2">
-            <input type="checkbox" className="size-5 accent-fg" checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} />Показать архивные · {archivedCount}
+            <Checkbox checked={showArchived} onCheckedChange={(value) => setShowArchived(value === true)} />Показать архивные · {archivedCount}
           </label>
         ) : undefined}
         empty={<EmptyState title={departments.length ? "Все отделы в архиве. Включите их отображение или добавьте действующий." : "Отделов пока нет. Добавьте первый, чтобы назначить его сотрудникам."} />}

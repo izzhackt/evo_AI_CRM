@@ -25,7 +25,8 @@ export function DataTableToolbar({
 }: Readonly<{
   search: string;
   onSearch: (value: string) => void;
-  placeholder: string;
+  /** Подсказка поля общего поиска; `null` — поля нет (поиск ведёт страница в `extra`). */
+  placeholder: string | null;
   /** Колонки таблицы; меню показывается, если хотя бы одну можно скрыть. Без списка меню нет. */
   columns?: readonly Column[];
   /** Свои фильтры страницы (статус, ответственный…) — те же поля и кнопки, что были, без пояснений. */
@@ -34,17 +35,19 @@ export function DataTableToolbar({
   const hideable = columns?.filter((column) => column.getCanHide()) ?? [];
   return (
     <div className="flex flex-wrap items-center gap-2" data-slot="data-table-toolbar">
-      <div className="relative min-w-0 flex-1 basis-56">
-        <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-3" aria-hidden="true" />
-        <Input
-          type="search"
-          value={search}
-          onChange={(event) => onSearch(event.target.value)}
-          placeholder={placeholder}
-          aria-label={placeholder}
-          className="pl-9"
-        />
-      </div>
+      {placeholder === null ? null : (
+        <div className="relative min-w-0 flex-1 basis-56">
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-fg-3" aria-hidden="true" />
+          <Input
+            type="search"
+            value={search}
+            onChange={(event) => onSearch(event.target.value)}
+            placeholder={placeholder}
+            aria-label={placeholder}
+            className="pl-9"
+          />
+        </div>
+      )}
       {extra}
       {hideable.length > 0 ? (
         <DropdownMenu>

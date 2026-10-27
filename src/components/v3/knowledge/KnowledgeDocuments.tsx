@@ -6,6 +6,7 @@ import {
   type KnowledgeFile,
   type KnowledgeFolder,
 } from "@/components/v3/FileManager";
+import { FilesNextLazy } from "@/components/v3/knowledge/next/FilesNextLazy";
 import type { ActivePlatformActor } from "@/lib/platform-auth";
 import { loadV3KnowledgeSurface } from "@/lib/v3/knowledge-surface";
 import {
@@ -20,7 +21,7 @@ import {
 
 const STUDENTS_ROOT = "students";
 
-export async function KnowledgeDocuments({ actor, embedded = false }: { actor: ActivePlatformActor; embedded?: boolean }) {
+export async function KnowledgeDocuments({ actor, embedded = false, next = false }: { actor: ActivePlatformActor; embedded?: boolean; next?: boolean }) {
   const surface = await loadV3KnowledgeSurface(actor, {
     readCompany: readCompanyKnowledge,
     readStudents: readKnowledgeStudents,
@@ -112,6 +113,15 @@ export async function KnowledgeDocuments({ actor, embedded = false }: { actor: A
       uploadRequestId: null,
     })),
   ];
+
+  // «Новый вид»: те же папки, файлы, права и request_id, другая расстановка (таблица и панели).
+  if (next) {
+    return <>
+      {!studentDocuments.complete && <p role="alert" className="mb-3 t-body-compact text-warn">Откройте документы нужного клиента в его карточке: общий список не помещается на этом экране.</p>}
+      <FilesNextLazy folders={folders} files={files} canManage={surface.canManageCompanyFiles} canUpload={surface.canUploadCompanyFiles}
+        createFolderRequestId={randomUUID()} createFileRequestId={randomUUID()} />
+    </>;
+  }
 
   return <>
     {!studentDocuments.complete && <p role="alert" className="mb-3 t-body-compact text-warn">Откройте документы нужного клиента в его карточке: общий список не помещается на этом экране.</p>}

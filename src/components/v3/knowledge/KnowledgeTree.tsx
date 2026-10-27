@@ -35,7 +35,7 @@ const VIEWS: readonly (readonly [Exclude<KnowledgeView, "list">, string])[] = [
  * скелет стоит только внутри раскрытой ветки; чтение не удалось — честная
  * ошибка с «Повторить», а не вечный скелет.
  */
-export function KnowledgeTree({ folders, folderError = false, onRetryFolders, area, parentId, view, section, href, onNavigate }: Readonly<{
+export function KnowledgeTree({ folders, folderError = false, onRetryFolders, area, parentId, view, section, href, onNavigate, sections = true }: Readonly<{
   /** null — папки ещё не прочитаны (или чтение не удалось: тогда `folderError`). */
   folders: readonly KnowledgeItem[] | null;
   /** Последнее чтение папок не удалось. */
@@ -47,6 +47,8 @@ export function KnowledgeTree({ folders, folderError = false, onRetryFolders, ar
   section: "documents" | "snippets" | null;
   href: Href;
   onNavigate?: () => void;
+  /** Группа «Файлы и шаблоны» (Документы, Шаблоны ответов); в новом виде их открывают вкладки страницы, и группы здесь нет. */
+  sections?: boolean;
 }>) {
   const [toggled, setToggled] = useState<ReadonlyMap<string, boolean>>(new Map());
   const children = useMemo(() => {
@@ -127,13 +129,13 @@ export function KnowledgeTree({ folders, folderError = false, onRetryFolders, ar
     </div> : null}
     {/* Две подписанные группы: без подписей шесть ссылок читались вложенными в «Секреты и доступы», а «Входящие» совпадало с папкой того же имени. */}
     <nav aria-label="Разделы базы знаний" className="space-y-2 border-t border-border pt-1">
-      <div>
+      {sections ? <div>
         <p className={GROUP_LABEL}>Файлы и шаблоны</p>
         <ul className="space-y-0.5">
           <li><Link href="/v3/knowledge?section=documents" aria-current={section === "documents" ? "page" : undefined} onClick={onNavigate} className={VIEW_LINK}>Документы</Link></li>
           <li><Link href="/v3/knowledge?section=snippets" aria-current={section === "snippets" ? "page" : undefined} onClick={onNavigate} className={VIEW_LINK}>Шаблоны ответов</Link></li>
         </ul>
-      </div>
+      </div> : null}
       <div>
         <p className={GROUP_LABEL}>Состояние материалов</p>
         <ul className="space-y-0.5">

@@ -27,7 +27,8 @@
 --     ничего не пишет, пока путь не wazzup; чужой канал и не личный WhatsApp только считаются; код привязки устройства из
 --     состояния канала не сохраняется; битый элемент - событие `unparsed`. `wazzup_daily_counts_v1` - количества для суточной сверки.
 --  e) Проекция (service_role): `wazzup_project_event_v1` и `wazzup_projection_sweep_v1` (старейшие pending/failed, до 8 попыток,
---     по времени сообщения; возраст самого старого - в ответе). Новый номер: студент по правилу 316 -> совпадение по номеру
+--     по времени сообщения; возраст самого старого - в ответе; догрузка ничего не ждёт: занятое событие или чат пропускает, проход
+--     не обрушивается взаимоблокировкой; удаление клиентом берёт тот же замок чата, что и проекция сообщения). Новый номер: студент по правилу 316 -> совпадение по номеру
 --     (единственный клиент; лид - его единственный открытый лид) -> новый клиент БЕЗ лида; несколько клиентов на номере -
 --     беседа без клиента (`ambiguous`), агенту закрыта. Ответ продавца (эхо с authorId или sentFromApp) - исходящее своей
 --     беседы; автоматическое эхо в беседу не попадает; ответ до беседы ждёт и добавляется при первом входящем. Метки медиа - ровно
@@ -41,9 +42,11 @@
 --     сотрудника, захват уже авторизованной работы. Закрыты, пока действующий путь wazzup (любая беседа, и старые беседы WAHA
 --     тоже) или беседа пришла через Wazzup.
 --  h) ВОРОТА GEMINI `platform_private.whatsapp_gemini_allowed`: поллер входящих, память, ночная сводка, окно ИИ в чате и его
---     билет, автоответчик (`wazzup_ai_off`) - беседа Wazzup тексты Gemini не отдаёт, пока владелец не включит флаг командой.
+--     билет, автоответчик (`wazzup_ai_off`) - беседа Wazzup тексты Gemini не отдаёт, пока владелец не включит флаг командой;
+--     беседа с неопределённым клиентом (`ambiguous`) закрыта для Gemini и при включённом флаге.
 --  i) Чтение переписки агентами: при закрытых воротах `whatsapp_state = receive_only`, `can_reply = false`; беседа с неопределённым
---     клиентом закрыта (`identity_unresolved`, строки аудита чтения нет); удалённое клиентом сообщение - `text: null, deleted: true`.
+--     клиентом закрыта (`identity_unresolved`, строки аудита чтения нет); удалённое клиентом сообщение - `text: null, deleted: true`;
+--     в списке бесед предпросмотр пуст и у беседы, чьё последнее сообщение клиент удалил (`last_deleted: true`).
 --  j) Тревога о связи (321): сессия `wazzup`, вид `gap` (суточная сверка), причины закрытия `transport_switched`, `counts_match`;
 --     для Wazzup последнее входящее - событие `message` с isEcho = false за 30 суток; слова задачи по сессии (номеров нет).
 --  k) Имя и номер в списке чатов (278) для бесед Wazzup; чтение пути для сотрудника `staff_whatsapp_transport_v1`
@@ -632,8 +635,18 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
       WHERE c.organization_id = p_organization_id AND c.id = p_conversation_id AND c.wazzup_channel_id IS NOT NULL))
 $$;
 
+-- Беседа Wazzup, чей клиент не определён (несколько клиентов на одном номере): агентам закрыта целиком (и Claude, и Gemini).
+CREATE FUNCTION platform_private.wazzup_conversation_unresolved(p_organization_id UUID, p_conversation_id UUID)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT EXISTS (SELECT 1 FROM platform_private.wazzup_chat_bindings b
+    WHERE b.organization_id = p_organization_id AND b.conversation_id = p_conversation_id
+      AND b.identity_state = 'ambiguous')
+$$;
+
 -- Можно ли отдавать тексты этой беседы Gemini (Google). Беседа Wazzup - только когда владелец сказал «да»
--- (`gemini_enabled`, команда оператора без выпуска). Остальные беседы - как всегда.
+-- (`gemini_enabled`, команда оператора без выпуска). Беседа с неопределённым клиентом (два клиента на одном номере, возможно
+-- студент, отказавшийся от ИИ) закрыта для Gemini целиком и при включённом флаге: проверка согласия 320 «нет студента - можно»
+-- к ней неприменима (план §5.3). Остальные беседы - как всегда.
 CREATE FUNCTION platform_private.whatsapp_gemini_allowed(p_organization_id UUID, p_conversation_id UUID)
 RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT NOT (
@@ -641,14 +654,7 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
       WHERE c.organization_id = p_organization_id AND c.id = p_conversation_id AND c.wazzup_channel_id IS NOT NULL)
     AND NOT COALESCE((SELECT s.gemini_enabled FROM platform_private.whatsapp_transport_state s
       WHERE s.organization_id = p_organization_id), FALSE))
-$$;
-
--- Беседа Wazzup, чей клиент не определён (несколько клиентов на одном номере): агентам закрыта целиком.
-CREATE FUNCTION platform_private.wazzup_conversation_unresolved(p_organization_id UUID, p_conversation_id UUID)
-RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
-  SELECT EXISTS (SELECT 1 FROM platform_private.wazzup_chat_bindings b
-    WHERE b.organization_id = p_organization_id AND b.conversation_id = p_conversation_id
-      AND b.identity_state = 'ambiguous')
+  AND NOT platform_private.wazzup_conversation_unresolved(p_organization_id, p_conversation_id)
 $$;
 
 -- Сообщение, которое клиент удалил у себя (текст для ИИ скрыт).
@@ -657,6 +663,17 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT EXISTS (SELECT 1 FROM platform_private.wazzup_message_bindings b
     WHERE b.organization_id = p_organization_id AND b.communication_message_id = p_message_id
       AND b.sender_deleted_at IS NOT NULL)
+$$;
+
+-- Последнее сообщение беседы (то же, что берёт `ai_agent_conv_last`: по времени и id) клиент удалил у себя. Предпросмотр
+-- последнего сообщения в списке бесед агента тогда пуст: иначе удалённый текст ушёл бы агенту именно в самом частом случае
+-- (клиент стирает только что отправленное).
+CREATE FUNCTION platform_private.wazzup_last_message_deleted(p_organization_id UUID, p_conversation_id UUID)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT COALESCE((SELECT platform_private.wazzup_message_deleted(m.organization_id, m.id)
+    FROM platform.communication_messages m
+    WHERE m.organization_id = p_organization_id AND m.conversation_id = p_conversation_id
+    ORDER BY m.created_at DESC, m.id DESC LIMIT 1), FALSE)
 $$;
 
 -- Счётчик суток по Бишкеку (только количество).
@@ -1248,6 +1265,32 @@ RETURNS VOID LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
     message_id = COALESCE(EXCLUDED.message_id, x.message_id), updated_at = clock_timestamp()
 $$;
 
+-- Итог «сбой» (обёртка проекции, подтранзакция ядра уже откатилась). Не трогает итог, который уже окончателен: параллельная
+-- проекция того же события успела записать projected / ignored / needs_review - сбой её не затирает и попытку не прибавляет.
+CREATE FUNCTION platform_private.wazzup_projection_fail(p_organization_id UUID, p_event_id UUID, p_code TEXT)
+RETURNS VOID LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+  INSERT INTO platform_private.wazzup_event_projections AS x (organization_id, event_id, state, attempts, last_code)
+  VALUES (p_organization_id, p_event_id, 'failed', 1, p_code)
+  ON CONFLICT (organization_id, event_id) DO UPDATE SET state = 'failed', attempts = LEAST(x.attempts + 1, 1000),
+    last_code = EXCLUDED.last_code, updated_at = clock_timestamp()
+  WHERE x.state NOT IN ('projected', 'ignored', 'ignored_auto_echo', 'needs_review')
+$$;
+
+-- Замок чата: один на (организация, канал, номер клиента); держится до конца транзакции. Им закрыты проекция сообщения и
+-- проекция удаления того же чата (удаление не должно «не увидеть» сообщение, которое другая транзакция проецирует в этот миг).
+-- p_wait = FALSE (догрузка): замок не ждут; занят - FALSE, событие остаётся в очереди до следующего прохода.
+CREATE FUNCTION platform_private.wazzup_chat_lock(p_organization_id UUID, p_channel_id UUID, p_digits TEXT, p_wait BOOLEAN)
+RETURNS BOOLEAN LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_key BIGINT := hashtextextended('evo:wazzup:chat:' || p_organization_id::TEXT || ':' || p_channel_id::TEXT || ':' || p_digits, 0);
+BEGIN
+  IF p_wait THEN
+    PERFORM pg_advisory_xact_lock(v_key);
+    RETURN TRUE;
+  END IF;
+  RETURN pg_try_advisory_xact_lock(v_key);
+END
+$$;
+
 -- Новая беседа (по образцу 259): область записи, доступ ответственного, беседа с клиентом и лидом, участники, привязка чата.
 CREATE FUNCTION platform_private.wazzup_create_conversation(p_organization_id UUID, p_channel_id UUID, p_digits TEXT,
   p_event_id UUID, p_owner UUID, p_identity_state TEXT, p_client_id UUID, p_lead_id UUID, p_request_id UUID)
@@ -1342,7 +1385,12 @@ END
 $$;
 
 -- Ядро проекции одного события. Идемпотентно по событию. Ошибка выходит наружу: итог `failed` пишет обёртка.
-CREATE FUNCTION platform_private.wazzup_project_core(p_organization_id UUID, p_event_id UUID, p_owner UUID, p_request_id UUID)
+-- p_background = TRUE (догрузка, один проход держит замки всех обработанных событий): ничего не ждёт. Строку итога берёт
+-- FOR UPDATE SKIP LOCKED (занята - событие в работе у другой транзакции, оно само запишет итог), замок чата - пробой
+-- (занят - исключение wazzup_chat_busy, подтранзакция откатывается и отпускает строку, событие остаётся в очереди), а счёт
+-- автоэха откладывается до конца прохода (горячая строка счётчика не держится весь проход).
+CREATE FUNCTION platform_private.wazzup_project_core(p_organization_id UUID, p_event_id UUID, p_owner UUID, p_request_id UUID,
+  p_background BOOLEAN DEFAULT FALSE)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
   e platform_private.provider_webhook_events%ROWTYPE; st platform_private.whatsapp_transport_state%ROWTYPE;
@@ -1363,8 +1411,16 @@ BEGIN
   IF st.organization_id IS NULL OR st.active_transport <> 'wazzup' OR ch.organization_id IS NULL THEN
     RETURN jsonb_build_object('outcome', 'transport_inactive');
   END IF;
-  SELECT * INTO prj FROM platform_private.wazzup_event_projections p
-  WHERE p.organization_id = p_organization_id AND p.event_id = p_event_id FOR UPDATE;
+  IF p_background THEN
+    SELECT * INTO prj FROM platform_private.wazzup_event_projections p
+    WHERE p.organization_id = p_organization_id AND p.event_id = p_event_id FOR UPDATE SKIP LOCKED;
+    IF NOT FOUND THEN
+      RETURN jsonb_build_object('outcome', 'busy', 'code', 'row_locked', 'newInbound', FALSE);
+    END IF;
+  ELSE
+    SELECT * INTO prj FROM platform_private.wazzup_event_projections p
+    WHERE p.organization_id = p_organization_id AND p.event_id = p_event_id FOR UPDATE;
+  END IF;
   IF prj.state IN ('projected', 'ignored', 'ignored_auto_echo', 'needs_review') THEN
     RETURN jsonb_build_object('outcome', prj.state, 'code', prj.last_code, 'conversationId', prj.conversation_id,
       'messageId', prj.message_id, 'newInbound', FALSE, 'deduplicated', TRUE, 'aiTriggerEnabled', st.ai_trigger_enabled);
@@ -1392,6 +1448,18 @@ BEGIN
     RETURN jsonb_build_object('outcome', 'ignored', 'code', 'edit_not_projected', 'newInbound', FALSE,
       'aiTriggerEnabled', st.ai_trigger_enabled);
   ELSIF e.event_type = 'message.deleted' THEN
+    -- Тот же замок чата, что у проекции сообщения: если сообщение проецируется в этот миг в другой транзакции, привязки в ней
+    -- не видно (она ещё не зафиксирована), а проекция прочла удаления до появления этого. Без замка отметка терялась бы
+    -- навсегда (итог удаления окончателен). С замком удаление ждёт фиксации и находит привязку; если сообщение ещё не
+    -- проецировали, его проекция, взяв замок позже, прочтёт это удаление сама.
+    v_digits := CASE WHEN el ->> 'chatId' ~ '^[1-9][0-9]{6,14}$' THEN el ->> 'chatId'
+      ELSE (SELECT m.raw_payload ->> 'chatId' FROM platform_private.provider_webhook_events m
+        WHERE m.organization_id = p_organization_id AND m.provider = 'wazzup' AND m.event_type = 'message'
+          AND m.provider_account_ref = e.provider_account_ref AND m.payload_id = e.payload_id LIMIT 1) END;
+    IF v_digits ~ '^[1-9][0-9]{6,14}$'
+      AND NOT platform_private.wazzup_chat_lock(p_organization_id, ch.channel_id, v_digits, NOT p_background) THEN
+      RAISE EXCEPTION 'wazzup_chat_busy' USING ERRCODE = '55P03';
+    END IF;
     UPDATE platform_private.wazzup_message_bindings b SET sender_deleted_at = e.provider_occurred_at
     WHERE b.organization_id = p_organization_id AND b.channel_id = ch.channel_id AND b.wazzup_message_id = e.payload_id
       AND b.sender_deleted_at IS NULL;
@@ -1419,10 +1487,12 @@ BEGIN
   v_review := (v_content ->> 'review')::BOOLEAN;
   IF v_echo THEN
     IF NOT platform_private.wazzup_echo_is_staff_reply(el) THEN
-      PERFORM platform_private.wazzup_count(p_organization_id, 'auto_echo');
+      IF NOT p_background THEN
+        PERFORM platform_private.wazzup_count(p_organization_id, 'auto_echo');
+      END IF;
       PERFORM platform_private.wazzup_projection_set(p_organization_id, p_event_id, 'ignored_auto_echo', 'auto_echo', NULL, NULL);
       RETURN jsonb_build_object('outcome', 'ignored_auto_echo', 'code', 'auto_echo', 'newInbound', FALSE,
-        'aiTriggerEnabled', st.ai_trigger_enabled);
+        'aiTriggerEnabled', st.ai_trigger_enabled, 'countDeferred', p_background);
     END IF;
     IF v_review AND NOT (v_content ->> 'has_media')::BOOLEAN THEN
       PERFORM platform_private.wazzup_projection_set(p_organization_id, p_event_id, 'ignored', 'empty_echo', NULL, NULL);
@@ -1431,9 +1501,10 @@ BEGIN
     END IF;
   END IF;
 
-  -- Один замок на чат: два события одного человека не создадут две беседы.
-  PERFORM pg_advisory_xact_lock(hashtextextended(
-    'evo:wazzup:chat:' || p_organization_id::TEXT || ':' || ch.channel_id::TEXT || ':' || v_digits, 0));
+  -- Один замок на чат: два события одного человека не создадут две беседы. Догрузка его не ждёт (занят - событие остаётся).
+  IF NOT platform_private.wazzup_chat_lock(p_organization_id, ch.channel_id, v_digits, NOT p_background) THEN
+    RAISE EXCEPTION 'wazzup_chat_busy' USING ERRCODE = '55P03';
+  END IF;
   SELECT * INTO chat FROM platform_private.wazzup_chat_bindings b
   WHERE b.organization_id = p_organization_id AND b.channel_id = ch.channel_id AND b.chat_digits = v_digits;
   IF NOT FOUND THEN
@@ -1517,12 +1588,39 @@ BEGIN
 END
 $$;
 
--- Проекция одного события (service_role). Ошибка не теряет событие: итог `failed` с кодом и числом попыток, подтранзакция
--- откатывает полузаписанное; в код идёт только SQLSTATE или наше слово `wazzup_*`, никогда текст ошибки.
+-- Обёртка проекции одного события. Ошибка не теряет событие: итог `failed` с кодом и числом попыток, подтранзакция откатывает
+-- полузаписанное; в код идёт только SQLSTATE или наше слово `wazzup_*`, никогда текст ошибки. Итог пишется условно и в своей
+-- подтранзакции: уже окончательный итог не затирается, а сбой самой записи (взаимоблокировка, ожидание строки) не обрушивает
+-- вызывающего - событие остаётся как было и следующий проход возьмёт его снова. Занятый чат (только для догрузки) - не сбой:
+-- `busy`, событие остаётся в очереди нетронутым.
+CREATE FUNCTION platform_private.wazzup_project_one(p_organization_id UUID, p_event_id UUID, p_owner UUID, p_request_id UUID,
+  p_background BOOLEAN)
+RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_state TEXT; v_message TEXT; v_code TEXT; v_recorded BOOLEAN := TRUE;
+BEGIN
+  BEGIN
+    RETURN platform_private.wazzup_project_core(p_organization_id, p_event_id, p_owner, p_request_id, p_background);
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_message = MESSAGE_TEXT;
+  END;
+  IF v_message = 'wazzup_chat_busy' THEN
+    RETURN jsonb_build_object('outcome', 'busy', 'code', 'chat_busy', 'newInbound', FALSE);
+  END IF;
+  v_code := CASE WHEN v_message ~ '^wazzup_[a-z_]{1,50}$' THEN v_message ELSE v_state END;
+  BEGIN
+    PERFORM platform_private.wazzup_projection_fail(p_organization_id, p_event_id, v_code);
+  EXCEPTION WHEN OTHERS THEN
+    v_recorded := FALSE;
+  END;
+  RETURN jsonb_build_object('outcome', 'failed', 'code', v_code, 'newInbound', FALSE)
+    || CASE WHEN v_recorded THEN '{}'::JSONB ELSE jsonb_build_object('recorded', FALSE) END;
+END
+$$;
+
+-- Проекция одного события (service_role): вызов приёма сразу после записи события, замки ждутся.
 CREATE FUNCTION platform.wazzup_project_event_v1(p_organization_id UUID, p_event_id UUID, p_intake_sales_membership_id UUID,
   p_request_id UUID)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_state TEXT; v_message TEXT; v_code TEXT;
 BEGIN
   PERFORM platform_private.require_p2g_service();
   IF p_organization_id IS NULL OR p_event_id IS NULL OR p_request_id IS NULL THEN
@@ -1532,25 +1630,21 @@ BEGIN
     WHERE x.organization_id = p_organization_id AND x.id = p_event_id AND x.provider = 'wazzup') THEN
     RAISE EXCEPTION 'wazzup_event_unavailable' USING ERRCODE = '42501';
   END IF;
-  BEGIN
-    RETURN platform_private.wazzup_project_core(p_organization_id, p_event_id, p_intake_sales_membership_id, p_request_id);
-  EXCEPTION WHEN OTHERS THEN
-    GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE, v_message = MESSAGE_TEXT;
-    v_code := CASE WHEN v_message ~ '^wazzup_[a-z_]{1,50}$' THEN v_message ELSE v_state END;
-    PERFORM platform_private.wazzup_projection_set(p_organization_id, p_event_id, 'failed', v_code, NULL, NULL);
-    RETURN jsonb_build_object('outcome', 'failed', 'code', v_code, 'newInbound', FALSE);
-  END;
+  RETURN platform_private.wazzup_project_one(p_organization_id, p_event_id, p_intake_sales_membership_id, p_request_id, FALSE);
 END
 $$;
 
 -- Догрузка (service_role): старейшие pending/failed (не больше 8 попыток) по порядку времени сообщения - внутри чата это
 -- и есть порядок dateTime. Возраст самого старого необработанного - в ответе (для метрики и «деградации» после 30 минут).
+-- Один проход - одна транзакция, и замки обработанных событий держатся до её конца, поэтому догрузка ничего не ждёт:
+-- занятое событие или чат (их сейчас проецирует приём) она пропускает и оставляет в очереди (`busy` в ответе), счёт автоэха
+-- прибавляет один раз в конце. Приложение вызывает её небольшими порциями: так замки чатов держатся недолго.
 CREATE FUNCTION platform.wazzup_projection_sweep_v1(p_organization_id UUID, p_intake_sales_membership_id UUID,
   p_limit INTEGER DEFAULT 100)
 RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
   v_state platform_private.whatsapp_transport_state; r RECORD; v_one JSONB; v_processed INTEGER := 0; v_new INTEGER := 0;
-  v_outcomes JSONB := '{}'::JSONB; v_oldest TIMESTAMPTZ; v_exhausted BIGINT; v_outcome TEXT;
+  v_outcomes JSONB := '{}'::JSONB; v_oldest TIMESTAMPTZ; v_exhausted BIGINT; v_outcome TEXT; v_busy INTEGER := 0; v_auto_echo BIGINT := 0;
 BEGIN
   PERFORM platform_private.require_p2g_service();
   IF p_organization_id IS NULL OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 500 THEN
@@ -1567,19 +1661,29 @@ BEGIN
     ORDER BY e.provider_occurred_at, e.received_at, e.id
     LIMIT p_limit
   LOOP
-    v_one := platform.wazzup_project_event_v1(p_organization_id, r.event_id, p_intake_sales_membership_id, gen_random_uuid());
-    v_processed := v_processed + 1;
+    v_one := platform_private.wazzup_project_one(p_organization_id, r.event_id, p_intake_sales_membership_id, gen_random_uuid(), TRUE);
     v_outcome := v_one ->> 'outcome';
+    IF v_outcome = 'busy' THEN
+      v_busy := v_busy + 1;
+      CONTINUE;
+    END IF;
+    v_processed := v_processed + 1;
     v_outcomes := jsonb_set(v_outcomes, ARRAY[v_outcome], to_jsonb(COALESCE((v_outcomes ->> v_outcome)::INTEGER, 0) + 1));
     IF (v_one ->> 'newInbound')::BOOLEAN THEN
       v_new := v_new + 1;
     END IF;
+    IF COALESCE((v_one ->> 'countDeferred')::BOOLEAN, FALSE) THEN
+      v_auto_echo := v_auto_echo + 1;
+    END IF;
   END LOOP;
+  IF v_auto_echo > 0 THEN
+    PERFORM platform_private.wazzup_count(p_organization_id, 'auto_echo', v_auto_echo);
+  END IF;
   SELECT min(p.created_at) INTO v_oldest FROM platform_private.wazzup_event_projections p
   WHERE p.organization_id = p_organization_id AND (p.state = 'pending' OR (p.state = 'failed' AND p.attempts < 8));
   SELECT count(*) INTO v_exhausted FROM platform_private.wazzup_event_projections p
   WHERE p.organization_id = p_organization_id AND p.state = 'failed' AND p.attempts >= 8;
-  RETURN jsonb_build_object('transportActive', TRUE, 'processed', v_processed, 'outcomes', v_outcomes, 'newInbound', v_new,
+  RETURN jsonb_build_object('transportActive', TRUE, 'processed', v_processed, 'busy', v_busy, 'outcomes', v_outcomes, 'newInbound', v_new,
     'oldestPendingSeconds', CASE WHEN v_oldest IS NULL THEN NULL ELSE floor(extract(epoch FROM clock_timestamp() - v_oldest))::BIGINT END,
     'failedExhausted', v_exhausted, 'aiTriggerEnabled', v_state.ai_trigger_enabled);
 END
@@ -1760,6 +1864,7 @@ SELECT pg_temp.a325_replace('platform.ai_agent_tool_list_conversations_v1(uuid,t
         THEN left(q.last_body, 200) END,$old$,
   $new$      'last_text_preview', CASE WHEN platform_private.ai_agent_conversation_ai_allowed(q.organization_id, q.id)
         AND NOT platform_private.wazzup_conversation_unresolved(q.organization_id, q.id)
+        AND NOT platform_private.wazzup_last_message_deleted(q.organization_id, q.id)
         THEN left(q.last_body, 200) END,$new$, 1, 'wazzup_conversation_unresolved');
 SELECT pg_temp.a325_replace('platform.ai_agent_tool_list_conversations_v1(uuid,text,jsonb)',
   $old$        ELSE jsonb_build_object('ai_consent_missing', TRUE) END
@@ -1767,6 +1872,8 @@ $old$,
   $new$        ELSE jsonb_build_object('ai_consent_missing', TRUE) END
       || CASE WHEN platform_private.wazzup_conversation_unresolved(q.organization_id, q.id)
         THEN jsonb_build_object('identity_unresolved', TRUE) ELSE '{}'::JSONB END
+      || CASE WHEN platform_private.wazzup_last_message_deleted(q.organization_id, q.id)
+        THEN jsonb_build_object('last_deleted', TRUE) ELSE '{}'::JSONB END
 $new$, 1, NULL);
 
 -- ---------------------------------------------------------------------------
@@ -2165,13 +2272,13 @@ COMMENT ON FUNCTION platform.wazzup_webhook_persist_v1(UUID, TEXT, TEXT, JSONB, 
 COMMENT ON FUNCTION platform.wazzup_project_event_v1(UUID, UUID, UUID, UUID) IS
   '325: service-only; projects one stored Wazzup event into the shared conversations (identity: student by rule 316, phone match, new client without a lead); failures are recorded with a code and an attempt count.';
 COMMENT ON FUNCTION platform.wazzup_projection_sweep_v1(UUID, UUID, INTEGER) IS
-  '325: service-only; projects the oldest pending or failed Wazzup events (at most 8 attempts each) and reports the age of the oldest unprocessed one.';
+  '325: service-only; projects the oldest pending or failed Wazzup events (at most 8 attempts each) and reports the age of the oldest unprocessed one; never waits for a lock (a busy event or chat stays queued and is counted as busy).';
 COMMENT ON FUNCTION platform.whatsapp_transport_configure_v1(UUID, TEXT, BOOLEAN, BOOLEAN, UUID) IS
   '325: service-only; sets the active WhatsApp transport and the AI trigger / Gemini switches without a release; switching to wazzup closes the open crm_primary alerts (transport_switched).';
 COMMENT ON FUNCTION platform_private.whatsapp_send_allowed(UUID, UUID) IS
   '325: the one send gate of the six WhatsApp send paths: false while the active transport is wazzup or the conversation came through Wazzup.';
 COMMENT ON FUNCTION platform_private.whatsapp_gemini_allowed(UUID, UUID) IS
-  '325: the Gemini gate: false for a Wazzup conversation until the owner has allowed Gemini for Wazzup chats.';
+  '325: the Gemini gate: false for a Wazzup conversation until the owner has allowed Gemini for Wazzup chats, and always false for a Wazzup conversation whose client is unresolved (ambiguous).';
 
 -- ---------------------------------------------------------------------------
 -- Самопроверка: таблицы закрыты; права и определитель новых функций; заменённые функции сохранили атрибуты и действительно
@@ -2269,10 +2376,29 @@ BEGIN
     OR strpos((SELECT x.prosrc FROM pg_catalog.pg_proc x
         WHERE x.oid = 'platform.ai_agent_tool_list_conversations_v1(uuid,text,jsonb)'::REGPROCEDURE), 'wazzup_conversation_unresolved(') = 0
     OR strpos((SELECT x.prosrc FROM pg_catalog.pg_proc x
+        WHERE x.oid = 'platform.ai_agent_tool_list_conversations_v1(uuid,text,jsonb)'::REGPROCEDURE), 'wazzup_last_message_deleted(') = 0
+    OR strpos((SELECT x.prosrc FROM pg_catalog.pg_proc x
+        WHERE x.oid = 'platform_private.whatsapp_gemini_allowed(uuid,uuid)'::REGPROCEDURE), 'wazzup_conversation_unresolved(') = 0
+    OR strpos((SELECT x.prosrc FROM pg_catalog.pg_proc x
         WHERE x.oid = 'platform.ai_agent_tool_get_conversation_v1(uuid,text,jsonb)'::REGPROCEDURE), 'wazzup_message_deleted(') = 0
     OR platform_private.ai_autosend_reason_ru('receive_only') <> 'WhatsApp подключён только на чтение'
   THEN
     RAISE EXCEPTION 'a325_verify_gates' USING ERRCODE = '55000';
+  END IF;
+  -- Проекция не ждёт замков догрузки и не теряет удаление: строка итога берётся FOR UPDATE SKIP LOCKED, замок чата берут сообщение
+  -- и удаление (ровно два места), сбой записывается условно, догрузка идёт через обёртку.
+  IF strpos((SELECT x.prosrc FROM pg_catalog.pg_proc x WHERE x.oid = to_regprocedure('platform_private.wazzup_project_core(uuid,uuid,uuid,uuid,boolean)')),
+        'FOR UPDATE SKIP LOCKED') = 0
+    OR (SELECT (length(x.prosrc) - length(replace(x.prosrc, 'wazzup_chat_lock(', ''))) / length('wazzup_chat_lock(')
+        FROM pg_catalog.pg_proc x WHERE x.oid = to_regprocedure('platform_private.wazzup_project_core(uuid,uuid,uuid,uuid,boolean)')) <> 2
+    OR strpos((SELECT x.prosrc FROM pg_catalog.pg_proc x WHERE x.oid = to_regprocedure('platform_private.wazzup_project_one(uuid,uuid,uuid,uuid,boolean)')),
+        'wazzup_projection_fail(') = 0
+    OR strpos((SELECT x.prosrc FROM pg_catalog.pg_proc x WHERE x.oid = 'platform.wazzup_projection_sweep_v1(uuid,uuid,integer)'::REGPROCEDURE),
+        'wazzup_project_one(') = 0
+    OR strpos((SELECT x.prosrc FROM pg_catalog.pg_proc x WHERE x.oid = to_regprocedure('platform_private.wazzup_projection_fail(uuid,uuid,text)')),
+        'x.state NOT IN') = 0
+  THEN
+    RAISE EXCEPTION 'a325_verify_projection_locks' USING ERRCODE = '55000';
   END IF;
   -- Семейство инструментов и MCP не выросло: 24 инструмента, 3 функции MCP (права сохранены).
   IF (SELECT count(*) FROM pg_catalog.pg_proc x WHERE x.pronamespace = 'platform'::REGNAMESPACE AND x.proname LIKE 'ai\_agent\_tool\_%'

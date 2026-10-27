@@ -28,7 +28,10 @@
 --     media marks are the 259 marks (the agent sees photo / voice / file); edits are ignored; a deletion hides the text
 --     from the agent (also when it came before the message); an invalid chat id and a conversation handed to a curator go
 --     to review; the sweep works in time order, retries failures up to 8 times and reports the age of the oldest
---     unprocessed event;
+--     unprocessed event; a deletion takes the chat lock the message projection takes (so it cannot miss a message being
+--     projected in another transaction); the sweep never waits (a busy count in its answer), adds the automatic echoes once
+--     at the end, and a failure never overwrites an outcome that is already final nor aborts the pass when its own record
+--     cannot be written;
 --  6. the identity: a student with a direct case (rule 316) keeps their client and lead; a client with one open lead gets
 --     it, with two - the client without a lead; an imported client is matched, not duplicated; two clients on one number
 --     leave the conversation without a client and closed to the agent; a student who declined the AI helpers is closed to
@@ -39,8 +42,10 @@
 --     reply is refused before any authorization, an authorized item is not claimed (and is claimed once the gate opens);
 --     without Wazzup the WAHA behaviour is as before except that an unknown channel state makes a draft;
 --  8. the Gemini gates: a Wazzup conversation gives the poller no pointer, no ticket, no memory, no night summary, no U9 proposal, and the
---     autoresponder says `wazzup_ai_off`; a WAHA conversation is unchanged; switching the flag on opens them;
---  9. the agent reading: `receive_only` and `can_reply = false`, `identity_unresolved`, the deleted message without text;
+--     autoresponder says `wazzup_ai_off`; a WAHA conversation is unchanged; switching the flag on opens them - except for the
+--     ambiguous conversation (two clients on one number), which stays closed to Gemini on every path whatever the flag;
+--  9. the agent reading: `receive_only` and `can_reply = false`, `identity_unresolved`, the deleted message without text, in the
+--     list too: no preview when the latest message was deleted by the client;
 -- 10. the health alert (321): the wazzup session, the `gap` kind and the new reasons; switching the transport closes the
 --     `crm_primary` alerts (and leaving wazzup closes the wazzup ones); crm_primary is unchanged;
 -- 11. the list name and number (278), the staff transport read, and the hidden origin: a Wazzup trace is invisible to
@@ -837,6 +842,16 @@ SELECT pg_temp.a325_assert((:'a325_sd'::JSONB #>> '{outcomes,projected}') = '1'
 SELECT pg_temp.a325_persist(jsonb_build_array(
   pg_temp.a325_el(pg_temp.a325_msg('d-1', '996000000204', 'Секретный текст удалённого сообщения', 160, FALSE, '{"isDeleted": true}')))) AS a325_pd2 \gset
 SELECT pg_temp.a325_sweep() AS a325_sd2 \gset
+-- The deletion takes the chat lock of the message projection (transaction level, so it is still held here): another
+-- transaction that is projecting this chat's message cannot be missed by it. Nothing else touched this chat before.
+CREATE FUNCTION pg_temp.a325_chat_locked(p_digits TEXT) RETURNS BOOLEAN LANGUAGE SQL STABLE AS $$
+  SELECT EXISTS (SELECT 1 FROM pg_locks l CROSS JOIN LATERAL (SELECT hashtextextended('evo:wazzup:chat:' || pg_temp.a325_id(1)::TEXT || ':'
+      || pg_temp.a325_channel()::TEXT || ':' || p_digits, 0) AS k) key
+    WHERE l.locktype = 'advisory' AND l.pid = pg_backend_pid() AND l.granted AND l.objsubid = 1
+      AND l.classid::BIGINT = ((key.k >> 32) & 4294967295) AND l.objid::BIGINT = (key.k & 4294967295))
+$$;
+SELECT pg_temp.a325_assert(pg_temp.a325_chat_locked('996000000204') AND NOT pg_temp.a325_chat_locked('996000000298'),
+  'a deletion that no message waits for yet still takes the chat lock of its chat (and the lock of a chat nobody touched is not held)');
 SELECT pg_temp.a325_ingest(jsonb_build_array(pg_temp.a325_msg('d-1', '996000000204', 'Секретный текст удалённого сообщения', 160),
   pg_temp.a325_msg('d-2', '996000000204', 'Второе сообщение остаётся видимым', 161))) AS a325_sd3 \gset
 SELECT pg_temp.a325_conv('996000000204') AS a325_cd \gset
@@ -847,6 +862,40 @@ SELECT pg_temp.a325_assert((:'a325_sd2'::JSONB #>> '{outcomes,projected}') = '1'
   AND NOT (:'a325_gd2'::TEXT LIKE '%Секретный текст%') AND (:'a325_gd2'::TEXT LIKE '%Второе сообщение остаётся видимым%')
   AND (SELECT count(*) = 1 FROM jsonb_array_elements(:'a325_gd2'::JSONB -> 'messages') m WHERE (m.value ->> 'deleted') = 'true'),
   'a deletion that arrived before the message hides it from the agent as soon as the message is projected');
+-- The inline projection of a deletion (the webhook path, which waits for the lock) takes the same lock.
+SELECT pg_temp.a325_persist(jsonb_build_array(
+  pg_temp.a325_el(pg_temp.a325_msg('dl-2', '996000000602', 'Удалено до проекции, путь приёма', 162, FALSE, '{"isDeleted": true}')))) AS a325_pdl2 \gset
+SELECT pg_temp.a325_project(pg_temp.a325_event('dl-2', 'message.deleted')) AS a325_sdl2 \gset
+SELECT pg_temp.a325_assert((:'a325_sdl2'::JSONB ->> 'code') = 'deleted_noted' AND pg_temp.a325_chat_locked('996000000602'),
+  'the inline projection of a deletion also takes the chat lock: ' || :'a325_sdl2');
+
+-- The client deletes the message he has just sent, so it is the latest one: the list gives the agent no preview of it either.
+SELECT pg_temp.a325_ingest(jsonb_build_array(pg_temp.a325_msg('lp-1', '996000000601', 'ПРЕВЬЮ-СЕКРЕТ клиент удалил только что отправленное', 165))) AS a325_slp \gset
+SELECT pg_temp.a325_conv('996000000601') AS a325_clp \gset
+SELECT pg_temp.a325_assert(pg_temp.a325_chat_locked('996000000601'), 'the projection of a message takes the chat lock of its chat (the lock the deletion shares)');
+SELECT pg_temp.a325_list('all') AS a325_lp0 \gset
+SELECT pg_temp.a325_persist(jsonb_build_array(
+  pg_temp.a325_el(pg_temp.a325_msg('lp-1', '996000000601', 'ПРЕВЬЮ-СЕКРЕТ клиент удалил только что отправленное', 166, FALSE, '{"isDeleted": true}')))) AS a325_plp \gset
+SELECT pg_temp.a325_sweep() AS a325_slp2 \gset
+SELECT pg_temp.a325_list('all') AS a325_lp1, pg_temp.a325_list() AS a325_lp2, pg_temp.a325_get(:'a325_clp'::UUID) AS a325_lp3 \gset
+SELECT pg_temp.a325_assert((pg_temp.a325_in_list(:'a325_lp0'::JSONB, :'a325_clp'::UUID) ->> 'last_text_preview') LIKE 'ПРЕВЬЮ-СЕКРЕТ%'
+  AND NOT (pg_temp.a325_in_list(:'a325_lp0'::JSONB, :'a325_clp'::UUID) ? 'last_deleted')
+  AND (pg_temp.a325_in_list(:'a325_lp1'::JSONB, :'a325_clp'::UUID) -> 'last_text_preview') = 'null'::JSONB
+  AND (pg_temp.a325_in_list(:'a325_lp1'::JSONB, :'a325_clp'::UUID) ->> 'last_deleted') = 'true'
+  AND (pg_temp.a325_in_list(:'a325_lp2'::JSONB, :'a325_clp'::UUID) -> 'last_text_preview') = 'null'::JSONB
+  AND (pg_temp.a325_in_list(:'a325_lp2'::JSONB, :'a325_clp'::UUID) ->> 'last_deleted') = 'true'
+  AND (pg_temp.a325_in_list(:'a325_lp2'::JSONB, :'a325_clp'::UUID) ->> 'last_direction') = 'inbound'
+  AND NOT (:'a325_lp1'::TEXT LIKE '%ПРЕВЬЮ-СЕКРЕТ%') AND NOT (:'a325_lp2'::TEXT LIKE '%ПРЕВЬЮ-СЕКРЕТ%')
+  AND (SELECT (m.value -> 'text') = 'null'::JSONB AND (m.value ->> 'deleted') = 'true' FROM jsonb_array_elements(:'a325_lp3'::JSONB -> 'messages') m LIMIT 1),
+  'the client deleted the message he had just sent (the latest one): before the deletion the list shows its preview, after it - in the "all" and the default "unanswered" lists alike - no preview and last_deleted = true; the read says text null and deleted');
+-- A newer message brings the preview back (the deleted one is no longer the latest); an older deleted message never hides it.
+SELECT pg_temp.a325_ingest(jsonb_build_array(pg_temp.a325_msg('lp-2', '996000000601', 'Новое сообщение после удаления', 167))) AS a325_slp3 \gset
+SELECT pg_temp.a325_list('all') AS a325_lp4 \gset
+SELECT pg_temp.a325_assert((pg_temp.a325_in_list(:'a325_lp4'::JSONB, :'a325_clp'::UUID) ->> 'last_text_preview') = 'Новое сообщение после удаления'
+  AND NOT (pg_temp.a325_in_list(:'a325_lp4'::JSONB, :'a325_clp'::UUID) ? 'last_deleted')
+  AND (pg_temp.a325_in_list(:'a325_lp4'::JSONB, :'a325_ca'::UUID) ->> 'last_text_preview') IS NOT NULL
+  AND NOT (pg_temp.a325_in_list(:'a325_lp4'::JSONB, :'a325_ca'::UUID) ? 'last_deleted'),
+  'a newer message brings the preview back; a deleted message that is not the latest (a-1 of the first chat) does not hide the preview of the latest');
 
 -- E. Invalid chat ids and conversations that left sales go to review.
 SELECT pg_temp.a325_ingest(jsonb_build_array(pg_temp.a325_msg('e-1', 'abc-not-a-number', 'Чат не номером', 170),
@@ -945,6 +994,117 @@ SELECT pg_temp.a325_assert((:'a325_scur'::JSONB #>> '{outcomes,needs_review}') =
   AND (SELECT count(*) = :a325_cc_msgs FROM platform.communication_messages WHERE conversation_id = :'a325_cc'::UUID)
   AND (SELECT count(*) = 1 FROM platform_private.wazzup_chat_bindings WHERE chat_digits = '996000000203'),
   'after the conversation went to a curator the new message goes to review: nothing is stored, no new conversation (stage 1)');
+
+-- F2. The sweep never waits and never overwrites a final outcome; a failure that cannot even be recorded does not abort the pass.
+-- (The waiting itself - a chat or an event held by ANOTHER transaction - needs a second session; it is proven by the two-session run
+-- of the migration's review, the suite proves the single-session half: the shapes, the conditional record, the deferred count.)
+-- The failure record: a pending event becomes failed (one attempt, then two); a final outcome is left exactly as it is.
+SELECT pg_temp.a325_persist(jsonb_build_array(pg_temp.a325_el(pg_temp.a325_msg('fr-1', '996000000603', 'Для проверки записи сбоя', 450)))) AS a325_pfr \gset
+SELECT platform_private.wazzup_projection_fail(pg_temp.a325_id(1), pg_temp.a325_event('fr-1'), 'wazzup_probe') AS a325_fr1 \gset
+SELECT p.state AS a325_fr1_state, p.attempts AS a325_fr1_n, p.last_code AS a325_fr1_code FROM platform_private.wazzup_event_projections p
+  WHERE p.event_id = pg_temp.a325_event('fr-1') \gset
+SELECT platform_private.wazzup_projection_fail(pg_temp.a325_id(1), pg_temp.a325_event('fr-1'), 'wazzup_probe_two') AS a325_fr2 \gset
+SELECT pg_temp.a325_state('a-2') AS a325_fr_a2_before, (SELECT p.attempts FROM platform_private.wazzup_event_projections p WHERE p.event_id = pg_temp.a325_event('a-2')) AS a325_fr_a2_n,
+  (SELECT p.last_code FROM platform_private.wazzup_event_projections p WHERE p.event_id = pg_temp.a325_event('a-2')) AS a325_fr_a2_code \gset
+SELECT platform_private.wazzup_projection_fail(pg_temp.a325_id(1), pg_temp.a325_event('a-2'), 'wazzup_probe') AS a325_fr3 \gset
+SELECT platform_private.wazzup_projection_fail(pg_temp.a325_id(1), pg_temp.a325_event('c-12'), 'wazzup_probe') AS a325_fr4 \gset
+SELECT platform_private.wazzup_projection_fail(pg_temp.a325_id(1), pg_temp.a325_event('a-5'), 'wazzup_probe') AS a325_fr5 \gset
+SELECT pg_temp.a325_assert(:'a325_fr1_state' = 'failed' AND :'a325_fr1_n' = '1' AND :'a325_fr1_code' = 'wazzup_probe'
+  AND (SELECT p.state = 'failed' AND p.attempts = 2 AND p.last_code = 'wazzup_probe_two' FROM platform_private.wazzup_event_projections p WHERE p.event_id = pg_temp.a325_event('fr-1'))
+  AND pg_temp.a325_state('a-2') = :'a325_fr_a2_before' AND pg_temp.a325_state('a-2') = 'projected'
+  AND (SELECT p.attempts = :a325_fr_a2_n AND p.last_code IS NOT DISTINCT FROM :'a325_fr_a2_code' FROM platform_private.wazzup_event_projections p WHERE p.event_id = pg_temp.a325_event('a-2'))
+  AND pg_temp.a325_state('c-12') = 'ignored' AND pg_temp.a325_state('a-5') = 'ignored_auto_echo',
+  'the failure record turns a pending event into failed (attempts 1, then 2) and leaves projected / ignored / ignored_auto_echo outcomes untouched (no state change, no attempt)');
+UPDATE platform_private.wazzup_event_projections SET state = 'needs_review', last_code = 'a325_probe' WHERE event_id = pg_temp.a325_event('fr-1');
+SELECT platform_private.wazzup_projection_fail(pg_temp.a325_id(1), pg_temp.a325_event('fr-1'), 'wazzup_probe_three') AS a325_fr6 \gset
+SELECT pg_temp.a325_assert((SELECT p.state = 'needs_review' AND p.last_code = 'a325_probe' AND p.attempts = 2 FROM platform_private.wazzup_event_projections p WHERE p.event_id = pg_temp.a325_event('fr-1')),
+  'a needs_review outcome is final too: a late failure record does not turn it into failed');
+UPDATE platform_private.wazzup_event_projections SET state = 'ignored', last_code = 'a325_fixture' WHERE event_id = pg_temp.a325_event('fr-1');
+-- A failure whose own record cannot be written (a trigger of this suite makes every write of a failed outcome fail): the caller gets the
+-- failure and the pass goes on; the event stays as it was and the next pass retries it.
+CREATE FUNCTION pg_temp.a325_nofail() RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'synthetic record failure' USING ERRCODE = 'P0001';
+END
+$$;
+CREATE TRIGGER a325_nofail BEFORE INSERT OR UPDATE ON platform_private.wazzup_event_projections
+  FOR EACH ROW WHEN (NEW.state = 'failed') EXECUTE FUNCTION pg_temp.a325_nofail();
+SELECT pg_temp.a325_persist(jsonb_build_array(pg_temp.a325_el(pg_temp.a325_msg('nf-1', '996000000604', 'Первый, сбой не записывается', 451)),
+  pg_temp.a325_el(pg_temp.a325_msg('nf-2', '996000000605', 'Второй, сбой не записывается', 452)))) AS a325_pnf \gset
+SELECT pg_temp.a325_project(pg_temp.a325_event('nf-1'), 302) AS a325_nf1 \gset
+SELECT pg_temp.a325_sweep(302) AS a325_nf2 \gset
+DROP TRIGGER a325_nofail ON platform_private.wazzup_event_projections;
+SELECT pg_temp.a325_sweep() AS a325_nf3 \gset
+SELECT pg_temp.a325_assert((:'a325_nf1'::JSONB ->> 'outcome') = 'failed' AND (:'a325_nf1'::JSONB ->> 'code') = 'wazzup_intake_owner_ineligible'
+  AND (:'a325_nf1'::JSONB ->> 'recorded') = 'false'
+  AND NOT (:'a325_nf2'::JSONB ? 'error') AND (:'a325_nf2'::JSONB ->> 'processed') = '2' AND (:'a325_nf2'::JSONB #>> '{outcomes,failed}') = '2'
+  AND (:'a325_nf3'::JSONB #>> '{outcomes,projected}') = '2' AND pg_temp.a325_state('nf-1') = 'projected' AND pg_temp.a325_state('nf-2') = 'projected'
+  AND (SELECT bool_and(p.attempts = 1) FROM platform_private.wazzup_event_projections p
+      WHERE p.event_id IN (pg_temp.a325_event('nf-1'), pg_temp.a325_event('nf-2'))),
+  'when even the failure record cannot be written the inline call reports failed (recorded = false) instead of raising, the sweep finishes its pass, the events stay as they were and the next pass projects them: ' || :'a325_nf1' || :'a325_nf2');
+-- A busy chat: the lock helper is replaced (inside this transaction, restored below) by one that refuses to be taken without waiting, as if
+-- another transaction were projecting the chat. The sweep must not wait: the events stay exactly as they were (pending, no attempt, nothing
+-- written: no conversation, no client, no binding) and are counted as busy; the inline call - which waits - is not affected by the helper
+-- refusing only the no-wait mode. A deletion is held back the same way. Restoring the helper lets the next pass project them.
+SELECT pg_get_functiondef('platform_private.wazzup_chat_lock(uuid,uuid,text,boolean)'::REGPROCEDURE) AS a325_lock_def \gset
+SELECT pg_temp.a325_persist(jsonb_build_array(pg_temp.a325_el(pg_temp.a325_msg('bz-1', '996000000609', 'Занятый чат, первое', 456)),
+  pg_temp.a325_el(pg_temp.a325_msg('bz-2', '996000000610', 'Занятый чат, второе', 457)),
+  pg_temp.a325_el(pg_temp.a325_msg('bz-1', '996000000609', 'Занятый чат, первое', 458, FALSE, '{"isDeleted": true}')))) AS a325_pbz \gset
+SELECT count(*) AS a325_bz_conv0 FROM platform.communication_conversations WHERE organization_id = pg_temp.a325_id(1) \gset
+SELECT count(*) AS a325_bz_cli0 FROM platform.clients WHERE organization_id = pg_temp.a325_id(1) \gset
+SELECT count(*) AS a325_bz_msg0 FROM platform.communication_messages WHERE organization_id = pg_temp.a325_id(1) \gset
+CREATE OR REPLACE FUNCTION platform_private.wazzup_chat_lock(p_organization_id UUID, p_channel_id UUID, p_digits TEXT, p_wait BOOLEAN)
+RETURNS BOOLEAN LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = '' AS $$ SELECT p_wait $$;
+SELECT pg_temp.a325_sweep() AS a325_bz1 \gset
+SELECT pg_temp.a325_assert((:'a325_bz1'::JSONB ->> 'busy') = '3' AND (:'a325_bz1'::JSONB ->> 'processed') = '0' AND (:'a325_bz1'::JSONB -> 'outcomes') = '{}'::JSONB
+  AND (:'a325_bz1'::JSONB ->> 'newInbound') = '0' AND (:'a325_bz1'::JSONB ->> 'oldestPendingSeconds') IS NOT NULL
+  AND (SELECT bool_and(p.state = 'pending' AND p.attempts = 0 AND p.last_code IS NULL AND p.conversation_id IS NULL AND p.message_id IS NULL)
+      FROM platform_private.wazzup_event_projections p WHERE p.event_id IN (pg_temp.a325_event('bz-1'), pg_temp.a325_event('bz-2'), pg_temp.a325_event('bz-1', 'message.deleted')))
+  AND (SELECT count(*) = :a325_bz_conv0 FROM platform.communication_conversations WHERE organization_id = pg_temp.a325_id(1))
+  AND (SELECT count(*) = :a325_bz_cli0 FROM platform.clients WHERE organization_id = pg_temp.a325_id(1))
+  AND (SELECT count(*) = :a325_bz_msg0 FROM platform.communication_messages WHERE organization_id = pg_temp.a325_id(1))
+  AND pg_temp.a325_conv('996000000609') IS NULL AND pg_temp.a325_conv('996000000610') IS NULL,
+  'a sweep over busy chats waits for nothing: the two messages and the deletion stay pending with no attempt, nothing is written, and they are reported as busy (3): ' || :'a325_bz1');
+SELECT pg_temp.a325_project(pg_temp.a325_event('bz-1')) AS a325_bz2 \gset
+SELECT pg_temp.a325_assert((:'a325_bz2'::JSONB ->> 'outcome') = 'projected' AND pg_temp.a325_state('bz-1') = 'projected',
+  'the inline call, which waits for the chat, is not held back by the no-wait refusal and projects the message: ' || :'a325_bz2');
+:a325_lock_def ;
+SELECT pg_temp.a325_sweep() AS a325_bz3 \gset
+SELECT pg_temp.a325_assert((:'a325_bz3'::JSONB ->> 'busy') = '0' AND (:'a325_bz3'::JSONB ->> 'processed') = '2' AND (:'a325_bz3'::JSONB #>> '{outcomes,projected}') = '2'
+  AND pg_temp.a325_state('bz-2') = 'projected' AND pg_temp.a325_state('bz-1', 'message.deleted') = 'projected'
+  AND (SELECT p.last_code = 'deleted_noted' FROM platform_private.wazzup_event_projections p WHERE p.event_id = pg_temp.a325_event('bz-1', 'message.deleted'))
+  AND (SELECT b.sender_deleted_at IS NOT NULL FROM platform_private.wazzup_message_bindings b WHERE b.wazzup_message_id = 'bz-1'),
+  'with the lock free again the next pass projects what it held back; the deletion stored with its message was already applied when the message was projected: ' || :'a325_bz3');
+-- A projection row that another transaction is working on is skipped, not waited for (the row is absent here, which is how a single session sees
+-- the skipped branch: the real lock needs a second session); the inline mode does not skip, it carries on and writes the outcome.
+SELECT pg_temp.a325_persist(jsonb_build_array(pg_temp.a325_el(pg_temp.a325_msg('rl-1', '996000000613', 'Строка итога занята', 459)))) AS a325_prl \gset
+SELECT pg_temp.a325_event('rl-1') AS a325_rl_ev \gset
+DELETE FROM platform_private.wazzup_event_projections WHERE event_id = :'a325_rl_ev'::UUID;
+SELECT platform_private.wazzup_project_one(pg_temp.a325_id(1), :'a325_rl_ev'::UUID, pg_temp.a325_id(301), gen_random_uuid(), TRUE) AS a325_rl1 \gset
+SELECT NOT EXISTS (SELECT 1 FROM platform_private.wazzup_event_projections WHERE event_id = :'a325_rl_ev'::UUID) AND pg_temp.a325_conv('996000000613') IS NULL AS a325_rl_untouched \gset
+SELECT platform_private.wazzup_project_one(pg_temp.a325_id(1), :'a325_rl_ev'::UUID, pg_temp.a325_id(301), gen_random_uuid(), FALSE) AS a325_rl2 \gset
+SELECT pg_temp.a325_assert((:'a325_rl1'::JSONB ->> 'outcome') = 'busy' AND (:'a325_rl1'::JSONB ->> 'code') = 'row_locked' AND :'a325_rl_untouched'::BOOLEAN
+  AND (:'a325_rl2'::JSONB ->> 'outcome') = 'projected' AND pg_temp.a325_state('rl-1') = 'projected',
+  'the no-wait mode skips an event whose projection row is not available to it (busy, row_locked, nothing written); the inline mode projects it: ' || :'a325_rl1' || :'a325_rl2');
+-- The answer of the sweep names what it skipped (nothing here: no other transaction holds anything), and the automatic echoes are counted
+-- exactly once on either path: the sweep adds them at the end of the pass, the inline projection adds each as it goes.
+SELECT n AS a325_ae0 FROM platform_private.wazzup_daily_counters WHERE counter = 'auto_echo' \gset
+SELECT pg_temp.a325_persist(jsonb_build_array(
+  pg_temp.a325_el(pg_temp.a325_msg('ae-1', '996000000606', 'Нерабочее время', 453, TRUE)),
+  pg_temp.a325_el(pg_temp.a325_msg('ae-2', '996000000607', 'Нерабочее время', 454, TRUE)),
+  pg_temp.a325_el(pg_temp.a325_msg('ae-3', '996000000608', 'Нерабочее время', 455, TRUE)))) AS a325_pae \gset
+SELECT pg_temp.a325_project(pg_temp.a325_event('ae-1')) AS a325_ae1 \gset
+SELECT n AS a325_ae2 FROM platform_private.wazzup_daily_counters WHERE counter = 'auto_echo' \gset
+SELECT pg_temp.a325_project(pg_temp.a325_event('ae-1')) AS a325_ae1b \gset
+SELECT pg_temp.a325_sweep() AS a325_ae3 \gset
+SELECT n AS a325_ae4 FROM platform_private.wazzup_daily_counters WHERE counter = 'auto_echo' \gset
+SELECT pg_temp.a325_sweep() AS a325_ae5 \gset
+SELECT n AS a325_ae6 FROM platform_private.wazzup_daily_counters WHERE counter = 'auto_echo' \gset
+SELECT pg_temp.a325_assert((:'a325_ae1'::JSONB ->> 'outcome') = 'ignored_auto_echo' AND (:'a325_ae1'::JSONB ->> 'countDeferred') = 'false'
+  AND :a325_ae2 = :a325_ae0 + 1 AND (:'a325_ae1b'::JSONB ->> 'deduplicated') = 'true'
+  AND (:'a325_ae3'::JSONB #>> '{outcomes,ignored_auto_echo}') = '2' AND (:'a325_ae3'::JSONB ->> 'busy') = '0' AND (:'a325_ae3'::JSONB ->> 'processed') = '2'
+  AND :a325_ae4 = :a325_ae0 + 3 AND (:'a325_ae5'::JSONB ->> 'processed') = '0' AND (:'a325_ae5'::JSONB ->> 'busy') = '0' AND :a325_ae6 = :a325_ae4,
+  'automatic echoes are counted once: inline one by one (a repeat is a dedupe and counts nothing), in a sweep pass once at the end for the whole pass; an empty pass counts nothing and reports busy = 0: ' || :'a325_ae3');
 
 -- G. The identity of a new number.
 SET LOCAL session_replication_role = replica;
@@ -1262,8 +1422,9 @@ SELECT pg_temp.a325_assert(:'a325_ck_waha' = '{receive_only,receive_only,receive
   'transport wazzup: the autoresponder says receive_only for a WAHA chat and wazzup_ai_off for a Wazzup chat on every stage (due, commit, authorize): ' || :'a325_ck_waha' || :'a325_ck_wz');
 SELECT pg_temp.a325_cfg('wazzup', 'NULL', 'true') AS a325_c_g \gset
 SELECT array_agg(pg_temp.a325_check(:'a325_ca'::UUID, s) ORDER BY ord) AS a325_ck_wz2 FROM unnest(ARRAY['due', 'commit', 'authorize']) WITH ORDINALITY AS t(s, ord) \gset
-SELECT pg_temp.a325_assert(:'a325_ck_wz2' = '{receive_only,receive_only,receive_only}',
-  'with the Gemini flag on, a Wazzup chat is still closed for sending: receive_only on every stage: ' || :'a325_ck_wz2');
+SELECT array_agg(pg_temp.a325_check(:'a325_camb'::UUID, s) ORDER BY ord) AS a325_ck_amb FROM unnest(ARRAY['due', 'commit', 'authorize']) WITH ORDINALITY AS t(s, ord) \gset
+SELECT pg_temp.a325_assert(:'a325_ck_wz2' = '{receive_only,receive_only,receive_only}' AND :'a325_ck_amb' = '{wazzup_ai_off,wazzup_ai_off,wazzup_ai_off}',
+  'with the Gemini flag on, a Wazzup chat is still closed for sending (receive_only on every stage) and the ambiguous chat is still closed to Gemini (wazzup_ai_off): ' || :'a325_ck_wz2' || :'a325_ck_amb');
 SELECT pg_temp.a325_cfg('none', 'NULL', 'false') AS a325_c_n2 \gset
 SELECT array_agg(pg_temp.a325_check(:'a325_cw1'::UUID, s) ORDER BY ord) AS a325_ck_waha2, array_agg(pg_temp.a325_check(:'a325_ca'::UUID, s) ORDER BY ord) AS a325_ck_wz3
 FROM unnest(ARRAY['due', 'commit', 'authorize']) WITH ORDINALITY AS t(s, ord) \gset
@@ -1338,6 +1499,7 @@ SELECT pg_temp.a325_cfg('wazzup', 'NULL', 'false') AS a325_g0 \gset
 SELECT pg_temp.a325_assert((:'a325_g0'::JSONB ->> 'transport') = 'wazzup' AND (:'a325_g0'::JSONB ->> 'geminiEnabled') = 'false'
   AND platform_private.ai_memory_gate(pg_temp.a325_id(1)) AND NOT platform_private.whatsapp_gemini_allowed(pg_temp.a325_id(1), :'a325_ca'::UUID)
   AND platform_private.whatsapp_gemini_allowed(pg_temp.a325_id(1), :'a325_cw1'::UUID)
+  AND NOT platform_private.whatsapp_gemini_allowed(pg_temp.a325_id(1), :'a325_camb'::UUID)
   AND NOT platform_private.whatsapp_send_allowed(pg_temp.a325_id(1), :'a325_ca'::UUID) AND NOT platform_private.whatsapp_send_allowed(pg_temp.a325_id(1), :'a325_cw1'::UUID)
   AND platform_private.whatsapp_send_allowed(pg_temp.a325_id(1), NULL) IS FALSE AND platform_private.whatsapp_send_allowed(pg_temp.a325_id(2), NULL),
   'the gates themselves: Gemini closed for a Wazzup conversation and open for a WAHA one; sending closed for both under wazzup (and for no conversation at all in that organization), open in another organization');
@@ -1429,6 +1591,36 @@ SELECT pg_temp.a325_assert((:'a325_g1'::JSONB ->> 'geminiEnabled') = 'true' AND 
   AND COALESCE(:'a325_mp_wz2'::JSONB ->> 'reason', '') <> 'wazzup_ai_off' AND COALESCE(:'a325_mc_wz2'::JSONB ->> 'reason', '') <> 'wazzup_ai_off'
   AND jsonb_array_length(:'a325_sm2'::JSONB -> 'chats') = 2 AND (:'a325_tk_wz2'::JSONB ->> 'ticket') ~ '^[0-9a-f]{64}$',
   'with gemini_enabled = true (an operator command, no release) the poller, the memory, the night summary and the window open for Wazzup chats');
+-- ... but the conversation whose client is unresolved (two clients on one number) stays closed to Gemini on every path, flag on: the
+-- 320 consent check treats it as "no student, allowed", so this is the gate's own refusal.
+SELECT pg_temp.a325_agent(format('SELECT platform_ai_agent.memory_context_v1(%L, ''a325-worker'', 120)', :'a325_camb')) AS a325_mc_amb \gset
+SELECT platform_private.ai_memory_poke(:'a325_camb'::UUID, FALSE, 0) AS a325_mp_amb \gset
+SELECT pg_temp.a325_as(1, format('SELECT platform.ai_agent_ticket_v1(%L, ''answer'', %L, NULL)', pg_temp.a325_id(1), :'a325_camb')) AS a325_tk_amb \gset
+SELECT pg_temp.a325_u9_request(:'a325_camb'::UUID, 9104) AS a325_u9_r_amb, pg_temp.a325_u9_begin(:'a325_camb'::UUID, 9104) AS a325_u9_b_amb \gset
+CREATE TEMP TABLE a325_ids_amb AS SELECT :'a325_camb'::UUID AS camb;
+CREATE FUNCTION pg_temp.a325_summary_amb() RETURNS UUID LANGUAGE plpgsql AS $$
+DECLARE v_id UUID := gen_random_uuid();
+BEGIN
+  INSERT INTO platform_private.ai_autosend_summaries (id, organization_id, interval_start, interval_end, shadow_night, counts, items, status)
+  VALUES (v_id, pg_temp.a325_id(1), clock_timestamp() - INTERVAL '10 hours', clock_timestamp() - INTERVAL '1 hour', FALSE, '{}'::JSONB,
+    jsonb_build_array(jsonb_build_object('conversationId', (SELECT camb FROM a325_ids_amb)), jsonb_build_object('conversationId', (SELECT ca FROM a325_ids))), 'pending');
+  RETURN v_id;
+END
+$$;
+SELECT pg_temp.a325_agent(format('SELECT platform_ai_agent.autosend_summary_context_v1(%L, ''a325-worker'', 120)', pg_temp.a325_summary_amb())) AS a325_sm_amb \gset
+SELECT pg_temp.a325_assert(NOT platform_private.whatsapp_gemini_allowed(pg_temp.a325_id(1), :'a325_camb'::UUID)
+  AND platform_private.ai_agent_conversation_ai_allowed(pg_temp.a325_id(1), :'a325_camb'::UUID)
+  AND NOT pg_temp.a325_ticket_ok(:'a325_camb'::UUID)
+  AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(:'a325_poll2'::JSONB -> 'items') i WHERE (i ->> 'conversationId')::UUID = :'a325_camb'::UUID)
+  AND (:'a325_mp_amb'::JSONB ->> 'status') = 'skipped' AND (:'a325_mp_amb'::JSONB ->> 'reason') = 'wazzup_ai_off'
+  AND (:'a325_mc_amb'::JSONB ->> 'status') = 'none' AND (:'a325_mc_amb'::JSONB ->> 'reason') = 'wazzup_ai_off' AND NOT (:'a325_mc_amb'::JSONB ? 'window')
+  AND NOT EXISTS (SELECT 1 FROM platform_private.ai_client_memory m WHERE m.conversation_id = :'a325_camb'::UUID AND (m.enqueued_at IS NOT NULL OR m.lease_owner IS NOT NULL))
+  AND pg_temp.a325_err(:'a325_tk_amb'::JSONB) = '42501' AND pg_temp.a325_msg(:'a325_tk_amb'::JSONB) = 'wazzup_ai_off'
+  AND pg_temp.a325_err(:'a325_u9_r_amb'::JSONB) = '42501' AND pg_temp.a325_msg(:'a325_u9_r_amb'::JSONB) = 'wazzup_ai_off'
+  AND pg_temp.a325_err(:'a325_u9_b_amb'::JSONB) = '42501' AND pg_temp.a325_msg(:'a325_u9_b_amb'::JSONB) = 'wazzup_ai_off'
+  AND jsonb_array_length(:'a325_sm_amb'::JSONB -> 'chats') = 1 AND (:'a325_sm_amb'::JSONB #>> '{chats,0,conversationId}') = :'a325_ca'
+  AND NOT (:'a325_sm_amb'::TEXT LIKE '%Один номер на двоих%'),
+  'with the Gemini flag on the ambiguous conversation (two clients on one number) is STILL closed to Gemini: no poller pointer, no queued memory, no claimed window, no ticket (and a live ticket is not honoured), no U9 context, not in the night summary - while the 320 consent check alone would allow it: ' || :'a325_mc_amb' || :'a325_tk_amb');
 SELECT pg_temp.a325_u9_request(:'a325_ca'::UUID, 9103) AS a325_u9_r_wz2, pg_temp.a325_u9_begin(:'a325_ca'::UUID, 9103) AS a325_u9_b_wz2 \gset
 SELECT pg_temp.a325_assert(NOT (:'a325_u9_r_wz2'::JSONB ? 'error') AND NOT (:'a325_u9_b_wz2'::JSONB ? 'error'),
   'U9: with the Gemini flag on the Wazzup chat is taken like a WAHA one: ' || :'a325_u9_r_wz2' || left(:'a325_u9_b_wz2', 120));

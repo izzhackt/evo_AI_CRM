@@ -4811,10 +4811,13 @@ SQL
   # deletions and channel states, 150 elements in two portions, an unparsed element, another channel and other chat types
   # only counted, no QR code stored, a failing element not stopping the rest); the projection (a new number: conversation
   # and client without a lead, seller replies, automatic echoes left out, a reply before the conversation backfilled, the
-  # 259 media marks, edits ignored, deletions hidden from the agent, the sweep order / retries / age, a curator
-  # conversation); the identity (rule 316, number match with a single open lead, imports, two clients on a number,
-  # the student who declined the AI helpers); the send gates on all six paths, with the real WAHA chain on the other
-  # side and a control for each; the Gemini gates and their switch; what the agent reads; the connection alert of
+  # 259 media marks, edits ignored, deletions hidden from the agent (also from the list preview), a deletion taking the
+  # chat lock of the message projection, the sweep order / retries / age and its never waiting (busy chats and rows
+  # left queued, automatic echoes counted once, a final outcome never overwritten by a failure record, a failure whose
+  # own record cannot be written not aborting the pass), a curator conversation); the identity (rule 316, number match
+  # with a single open lead, imports, two clients on a number, the student who declined the AI helpers); the send gates
+  # on all six paths, with the real WAHA chain on the other side and a control for each; the Gemini gates and their
+  # switch (the ambiguous conversation stays closed to Gemini with the switch on); what the agent reads; the connection alert of
   # the wazzup session, the gap kind and the new reasons, the transport switch closing the alerts; the chat-list
   # name and number; the staff transport read; the hidden origin of Wazzup traces.
   if [[ "$(basename "$migration")" == *_platform_wazzup_intake.sql ]]; then

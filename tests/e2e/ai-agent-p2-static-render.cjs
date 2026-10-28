@@ -290,6 +290,9 @@ function deserialize(node, components) {
 async function buildPageTree(scenario) {
   process.env.EVO_AI_AGENT_INTERNAL_SECRET = scenario.featureOff ? "" : AI_SECRET;
   stubReads(scenario);
+  // «Новый вид»: страница спрашивает переключатель (cookie); вне запроса его нет, и снимается прежний вид. `cookies()` не трогаем: его читает
+  // и клиент Supabase страницы (чтения, которых стенд не подменил, должны отказывать, как раньше).
+  require(join(ROOT, "src/lib/ui-next.ts")).isNextUi = async () => false;
   const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/ai-agent/page.tsx"));
   const element = await Page({ searchParams: Promise.resolve(scenario.search) });
   const components = serverComponents();

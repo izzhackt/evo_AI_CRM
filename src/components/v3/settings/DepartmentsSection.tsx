@@ -6,7 +6,7 @@ import { staffDepartmentAction } from "@/lib/staff-workspace-actions";
 import type { StaffDepartment } from "@/lib/v3/staff-workspace-contract";
 import { StaffMetadataFeedback, useStaffMetadataForm } from "./StaffMemberDetails";
 
-function DepartmentForm({ department, operation, onClose, onArchived, onLockedChange, anotherRequestPending = false }: {
+export function DepartmentForm({ department, operation, onClose, onArchived, onLockedChange, anotherRequestPending = false }: {
   department?: StaffDepartment;
   operation: "create" | "update" | "archive" | "restore";
   onClose: () => void;

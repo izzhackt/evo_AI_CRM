@@ -157,6 +157,11 @@ Module._resolveFilename = function patchedResolve(request, ...rest) {
   return originalResolve.call(this, request, ...rest);
 };
 
+// Страницы спрашивают `isNextUi` (cookie «Нового вида»): вне запроса его нет, и снимается прежний вид, как у сотрудников. `cookies()` не трогаем:
+// его читает и клиент Supabase страницы (чтения, которых стенд не подменил, должны отказывать, как раньше: заглушка `cookies()` без `getAll`
+// роняла режимы «ИИ-агента» ещё до первой проверки). «Новый вид» страниц «WhatsApp» и «Переписка» — tests/e2e/chats-next-static-render.cjs.
+require(join(ROOT, "src/lib/ui-next.ts")).isNextUi = async () => false;
+
 const { createElement: h } = require("react");
 const { renderToStaticMarkup, renderToString } = require("react-dom/server");
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime");
@@ -1510,6 +1515,9 @@ async function buildAiSectionMarkup(name, scenario = AI_SECTION_SCENARIOS[name])
   source.readAiSpend = async () => available(normalizeAiSpend, AI_SPEND);
   require(join(ROOT, "src/lib/server/ai-agent-route-handlers.ts")).readAiAgentStatus = async () => (
     scenario.featureOff ? { state: "off" } : { state: "ready", keyAccepted: true, model: "gemini-3.8-flash", block: null });
+  // «Новый вид»: страница спрашивает переключатель (cookie); вне запроса его нет, и снимается прежний вид. `cookies()` не трогаем: его читает
+  // и клиент Supabase страницы (чтения, которых стенд не подменил, должны отказывать, как раньше).
+  require(join(ROOT, "src/lib/ui-next.ts")).isNextUi = async () => false;
   const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/ai-agent/page.tsx"));
   const search = scenario.section === "documents" ? {} : { section: scenario.section };
   const element = await Page({ searchParams: Promise.resolve(search) });
@@ -2539,6 +2547,9 @@ async function buildAutosendSectionMarkup(name, scenario = AI_P4_SECTION[name]) 
     })) } } : read };
   };
   require(join(ROOT, "src/lib/server/ai-agent-route-handlers.ts")).readAiAgentStatus = async () => ({ state: "ready", keyAccepted: true, model: "gemini-3.8-flash", block: null });
+  // «Новый вид»: страница спрашивает переключатель (cookie); вне запроса его нет, и снимается прежний вид. `cookies()` не трогаем: его читает
+  // и клиент Supabase страницы (чтения, которых стенд не подменил, должны отказывать, как раньше).
+  require(join(ROOT, "src/lib/ui-next.ts")).isNextUi = async () => false;
   const { default: Page } = require(join(ROOT, "src/app/(v3)/v3/ai-agent/page.tsx"));
   const search = scenario.section === "documents" ? {} : { section: "autosend", ...scenario.search };
   const element = await Page({ searchParams: Promise.resolve(search) });

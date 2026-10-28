@@ -32,7 +32,7 @@ import { AccountDeletionProcess } from "./AccountDeletionProcess";
  * запрос «срок сегодня, прошёл», а не «просрочено на 1 дн.».
  */
 
-const COUNT_WORDS: Readonly<Record<keyof AccountDeletionDetail["counts"], string>> = {
+export const COUNT_WORDS: Readonly<Record<keyof AccountDeletionDetail["counts"], string>> = {
   application: "Анкета и её квитанции",
   profile: "Профиль, доступ и согласия",
   consultations: "Запросы консультаций",
@@ -41,7 +41,7 @@ const COUNT_WORDS: Readonly<Record<keyof AccountDeletionDetail["counts"], string
   journal: "Записи журнала о них",
 };
 
-const REASON_WORDS: Readonly<Record<AccountDeletionReason, string>> = {
+export const REASON_WORDS: Readonly<Record<AccountDeletionReason, string>> = {
   staff: "это сотрудник",
   case: "есть дело студента",
   application_converted: "анкета одобрена, по ней создано дело",
@@ -54,7 +54,7 @@ const REASON_WORDS: Readonly<Record<AccountDeletionReason, string>> = {
 };
 
 /** Что команда делает вручную (решение владельца 08.10.2026, инструкция docs/runbooks/account-deletion.md). */
-const CHECKLIST: readonly Readonly<{ what: string; who: string }>[] = [
+export const CHECKLIST: readonly Readonly<{ what: string; who: string }>[] = [
   { what: "Документы и файлы: строки документов, файлы в хранилище, выгрузки документов.", who: "технический администратор" },
   { what: "Переписка: чат в кабинете, чаты WhatsApp с сообщениями и медиа, данные ИИ (память, черновики, ответы).", who: "технический администратор" },
   { what: "Профиль студента, анкета, задачи, заметки, заявки в вузы, виза, тесты, уведомления, консультации, избранное.", who: "технический администратор" },
@@ -64,13 +64,13 @@ const CHECKLIST: readonly Readonly<{ what: string; who: string }>[] = [
   { what: "Вход в аккаунт: удалить или отключить пользователя Supabase Auth, последним шагом.", who: "технический администратор" },
 ];
 
-const LOGIN_WORDS = {
+export const LOGIN_WORDS = {
   active: "Вход в аккаунт ещё работает.",
   disabled: "Вход в аккаунт отключён.",
   absent: "Вход в аккаунт удалён.",
 } as const;
 
-const EMAIL_WORDS = {
+export const EMAIL_WORDS = {
   sent: "письмо с подтверждением отправлено",
   failed: "письмо не отправлено: ошибка почты",
   not_configured: "письмо не отправлено: почта в CRM не настроена",
@@ -83,7 +83,7 @@ function statusPill(row: AccountDeletionQueueRow) {
   return <Pill tone="neutral">ждёт удаления</Pill>;
 }
 
-function modeText(row: AccountDeletionQueueRow): string {
+export function modeText(row: AccountDeletionQueueRow): string {
   if (row.status === "completed") return row.mode === "manual" ? "вручную" : "автоматически";
   return row.mode === "manual" ? "ручная обработка" : "автоматически";
 }

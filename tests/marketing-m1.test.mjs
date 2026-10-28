@@ -187,6 +187,7 @@ test("«Финансы» opens for the real Admin and a holder of finance.read.f
   const guards = [];
   const load = loader({
     "@/lib/platform-guards": { requireV3PageActor: async (route) => { guards.push(route); return accountant; } },
+    "@/lib/ui-next": { isNextUi: async () => false },
     "@/lib/v3/report-links-source": { readReportLink: async () => ({ status: "available", link: { reportKey: "finance", configured: false, reportId: null, pageId: null, version: 0, updatedAt: null } }) },
   });
   const html = renderToStaticMarkup(await load("src/app/(v3)/v3/finance/page.tsx").default());

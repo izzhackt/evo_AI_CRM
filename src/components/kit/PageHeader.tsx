@@ -15,6 +15,7 @@ export function PageHeader({
   meta,
   help,
   helpLabel,
+  helpClassName,
   actions,
   className,
 }: Readonly<{
@@ -26,6 +27,11 @@ export function PageHeader({
   /** Пояснение страницы: уходит за «?», на экране его нет. */
   help?: React.ReactNode;
   helpLabel?: string;
+  /**
+   * Классы кнопки «?». Хозяин, который прячет шапку только от глаз (`sr-only`, обрезка), прячет и «?» через `hidden`
+   * (display: none): невидимая кнопка в порядке табуляции — фокус без видимого кольца.
+   */
+  helpClassName?: string;
   /** Одна группа действий справа; на узком экране переносится под заголовок. */
   actions?: React.ReactNode;
   className?: string;
@@ -37,7 +43,7 @@ export function PageHeader({
           {title}
           {typeof count === "number" ? <span className="ml-2.5 font-normal tabular-nums text-fg-3">{count}</span> : null}
         </h1>
-        {help ? <HelpTip label={helpLabel ?? `Пояснение: ${title}`}>{help}</HelpTip> : null}
+        {help ? <HelpTip label={helpLabel ?? `Пояснение: ${title}`} className={helpClassName}>{help}</HelpTip> : null}
         {meta ? <p className="t-meta basis-full text-fg-3">{meta}</p> : null}
       </div>
       {actions ? <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}

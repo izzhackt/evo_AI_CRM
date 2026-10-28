@@ -23,7 +23,7 @@ const root = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 const read = (path) => readFileSync(root(path), "utf8");
 
 /** Модули, чей код «не приходит»: то, что грузят ленивые куски и входы экранов. */
-const FAILING = /[\\/](HelpTipImpl|FeedOverflowImpl|CaseHelpCardImpl|SectionTabsInPlaceImpl|TodayNextPage|RequestsNextPage|TasksNext|TasksNextFailure|NextAgentsView|NextAgentPage|NextAgentUnavailable)\.tsx$/;
+const FAILING = /[\\/](HelpTipImpl|FeedOverflowImpl|CaseHelpCardImpl|SectionTabsInPlaceImpl|TodayNextPage|RequestsNextPage|TasksNext|TasksNextFailure|NextAgentsView|NextAgentPage|NextAgentUnavailable|SettingsNextPage|MarketingNextPage|FinanceNextPage|AiAgentNextPage)\.tsx$/;
 
 const ENTRY = `
 import { createElement as h, Suspense } from "react";
@@ -41,6 +41,10 @@ import { RequestsNextInvalidLazy, RequestsNextLazy } from "@/components/v3/reque
 import { TasksNextFailureLazy, TasksNextLazy } from "@/components/v3/tasks/next/TasksNextLazy";
 import { TodayNextLazy } from "@/components/v3/today-next/TodayNextLazy";
 import { NextAgentPageLazy, NextAgentUnavailableLazy, NextAgentsViewLazy } from "@/components/v3/ai-agents-next/NextAgentsLazy";
+import { SettingsNextLazy } from "@/components/v3/settings-next/SettingsNextLazy";
+import { MarketingNextLazy } from "@/components/v3/marketing-next/MarketingNextLazy";
+import { FinanceNextLazy } from "@/components/v3/finance-next/FinanceNextLazy";
+import { AiAgentNextLazy } from "@/components/v3/ai-agent-next/AiAgentNextLazy";
 
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Рисует, пока две отдачи подряд не совпадут; первая отдача (заглушка, пока код грузится) возвращается отдельно. */
@@ -82,9 +86,15 @@ const nodes = {
 /** То, что стоит над входом экрана на настоящем маршруте: файл loading.tsx — это граница Suspense. */
 const underLoading = (node) => h(Suspense, { fallback: h("p", { id: "route-loading" }, "Загрузка маршрута") }, node);
 const entries = { TodayNextLazy, RequestsNextLazy, RequestsNextInvalidLazy, TasksNextLazy, TasksNextFailureLazy, NextAgentsViewLazy, NextAgentPageLazy, NextAgentUnavailableLazy };
+/** Входы потока «admin» (28.10.2026): у их маршрутов нет своего loading.tsx, границу Suspense держит сам вход (опция loading). */
+const adminEntries = { SettingsNextLazy, MarketingNextLazy, FinanceNextLazy, AiAgentNextLazy };
 export const render = {
   ...Object.fromEntries(Object.entries(nodes).map(([name, node]) => [name, () => settle(node())])),
   screens: Object.fromEntries(Object.entries(entries).map(([name, Screen]) => [name, () => settle(h(Screen, {}))])),
+  admin: {
+    screens: Object.fromEntries(Object.entries(adminEntries).map(([name, Screen]) => [name, () => settle(h(Screen, {}))])),
+    served: Object.fromEntries(Object.entries(adminEntries).map(([name, Screen]) => [name, () => serve(h(Screen, {}))])),
+  },
   served: {
     ...Object.fromEntries(Object.entries(nodes).map(([name, node]) => [name, () => serve(node())])),
     screens: Object.fromEntries(Object.entries(entries).map(([name, Screen]) => [name, () => serve(h(Screen, {}))])),
@@ -244,6 +254,33 @@ test("на сервере код экрана не пришёл, над вход
     assert.match(markup, /<!--\$!-->/u, `${name}: граница отдана браузеру на дорисовку`);
     assert.match(markup, /Загрузка маршрута/u, `${name}: пока браузер дорисовывает, виден скелет маршрута`);
     assert.doesNotMatch(markup, /v3-load-failed|Не удалось загрузить экран/u, `${name}: на сервере заглушка не рисуется`);
+  }
+});
+
+test("входы потока «admin» («Настройки», «Маркетинг», «Финансы», «ИИ-агент»): у маршрутов нет `loading.tsx` (он менял бы прежний вид), поэтому границу держит сам вход; код не пришёл — сервер слышит ошибку, оболочка цела, ответ 200, скелет входа виден", async () => {
+  for (const kind of ["chunk", "bug"]) {
+    const { admin } = await views(kind);
+    assert.equal(Object.keys(admin.served).length, 4);
+    for (const [name, render] of Object.entries(admin.served)) {
+      const { errors, markup, shellFailed } = await render();
+      assert.equal(shellFailed, false, `${kind} ${name}: оболочку держит Suspense входа`);
+      assert.equal(errors.length, 1, `${kind} ${name}: исходная ошибка дошла до журнала сервера`);
+      assert.equal(kind === "chunk" ? isChunkError(errors[0]) : isBugError(errors[0]), true, `${kind} ${name}: сама ошибка, не обёртка`);
+      assert.match(markup, /<!--\$!-->/u, `${kind} ${name}: граница отдана браузеру на дорисовку`);
+      assert.match(markup, /data-slot="next-screen-loading"/u, `${kind} ${name}: пока браузер дорисовывает, виден скелет входа`);
+      assert.doesNotMatch(markup, /v3-load-failed|Не удалось загрузить экран/u, `${kind} ${name}: на сервере заглушка не рисуется`);
+    }
+  }
+  for (const route of ["settings", "marketing", "finance", "ai-agent"]) assert.equal(existsSync(root(`src/app/(v3)/v3/${route}/loading.tsx`)), false, `${route}: без loading.tsx`);
+});
+
+test("в браузере код входа потока «admin» не пришёл: строка и «Обновить страницу»; ошибка в `console.error` (ошибка в коде куска уходит выше в границу ошибок — это проверяет стенд Chromium `lazy-failure-client.cjs`: отрисовка без DOM границу ошибок не воспроизводит)", async () => {
+  const { admin } = await views();
+  for (const [name, render] of Object.entries(admin.screens)) {
+    const { result: { markup }, errors } = await inBrowser(render);
+    assert.match(markup, /data-testid="v3-load-failed"/u, name);
+    assert.match(markup, /<button[^>]*>Обновить страницу<\/button>/u, name);
+    assert.equal(errors.length, 1, `${name}: ошибка загрузки записана`);
   }
 });
 

@@ -17,13 +17,16 @@ import { AiDocumentViewer } from "@/components/v3/ai-agent/AiDocumentViewer";
 import { AiExamplesList } from "@/components/v3/ai-agent/AiExamplesList";
 import { AiLaboratory } from "@/components/v3/ai-agent/AiLaboratory";
 import { AiReviewSheet } from "@/components/v3/ai-agent/AiReviewSheet";
+import type { AiAgentNextBody } from "@/components/v3/ai-agent-next/ai-agent-next-types";
+import { AiAgentNextLazy } from "@/components/v3/ai-agent-next/AiAgentNextLazy";
 import { PartShell } from "@/components/v3/PartShell";
 import { isStaffPreview } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { isNextUi } from "@/lib/ui-next";
 import { aiAgentFeatureOn } from "@/lib/server/ai-agent-internal-auth";
 import { aiAutosendServerState } from "@/lib/server/ai-agent-send-config";
 import { readAiAgentStatus } from "@/lib/server/ai-agent-route-handlers";
-import { aiAgentHref, parseAiAgentRoute } from "@/lib/v3/ai-agent";
+import { AI_AGENT_SECTIONS, aiAgentHref, parseAiAgentRoute } from "@/lib/v3/ai-agent";
 import { AI_AGENTS_HUB_HREF } from "@/lib/v3/ai-agents-view";
 import { readAiAutosend, readAiAutosendJournal, readAiAutosendSummary } from "@/lib/v3/ai-agent-autosend-source";
 import {
@@ -62,6 +65,9 @@ export default async function AiAgentPage({ searchParams }: Readonly<{ searchPar
   const { section } = route;
   const preview = isStaffPreview(actor);
   const featureOn = aiAgentFeatureOn();
+  // «Новый вид» (переключатель администратора): те же чтения, права и request_id, другая расстановка; содержимое подраздела — данными для входа.
+  const next = await isNextUi(actor);
+  let nextBody: AiAgentNextBody | null = null;
   const retryHref = aiAgentHref(section, section === "documents"
     ? { document: route.documentId, page: route.page, replace: route.replaceId }
     : section === "review" ? { status: route.reviewFilter === "open" ? null : route.reviewFilter, document: route.documentId }
@@ -87,6 +93,7 @@ export default async function AiAgentPage({ searchParams }: Readonly<{ searchPar
     const detail = await readAiDocumentDetail(actor, route.documentId);
     if (detail.status === "missing") notFound();
     if (detail.status !== "available") {
+      nextBody = { kind: "unavailable", what: "документ", retryHref };
       content = <AiUnavailable what="документ" retryHref={retryHref} />;
     } else {
       const pages = detail.data.pages;
@@ -97,6 +104,11 @@ export default async function AiAgentPage({ searchParams }: Readonly<{ searchPar
       if (route.page !== null && (textOnly ? route.page !== 1 : !pages.some((page) => page.pageNo === route.page))) notFound();
       const pageNo = route.page ?? pages[0]?.pageNo ?? (textOnly && !busy ? 1 : null);
       const page = pageNo !== null ? await readAiDocumentPage(actor, route.documentId, pageNo) : null;
+      nextBody = {
+        kind: "viewer", detail: detail.data, page: page?.status === "available" ? page.data : null, pageNo,
+        pageRead: page === null ? "none" : page.status === "available" ? "available" : page.status === "missing" ? "missing" : "unavailable",
+        highlightChunkId: route.chunkId,
+      };
       content = (
         <AiDocumentViewer
           detail={detail.data}
@@ -110,6 +122,13 @@ export default async function AiAgentPage({ searchParams }: Readonly<{ searchPar
   } else if (section === "documents") {
     const read = await readAiDocuments(actor);
     const items = read.status === "available" ? read.data.items : [];
+    const requestIds = {
+      upload: randomUUID(),
+      retry: requestIdsFor(items.filter((item) => item.status === "failed").map((item) => item.id)),
+      company: requestIdsFor(items.filter((item) => item.status === "failed").map((item) => item.id)),
+      remove: requestIdsFor(items.map((item) => item.id)),
+    };
+    nextBody = { kind: "documents", read, preview, requestIds, retryHref, replaceId: route.replaceId, featureOn };
     content = (
       <AiDocumentsView
         read={read}
@@ -117,51 +136,55 @@ export default async function AiAgentPage({ searchParams }: Readonly<{ searchPar
         retryHref={retryHref}
         replaceId={route.replaceId}
         featureOn={featureOn}
-        requestIds={{
-          upload: randomUUID(),
-          retry: requestIdsFor(items.filter((item) => item.status === "failed").map((item) => item.id)),
-          company: requestIdsFor(items.filter((item) => item.status === "failed").map((item) => item.id)),
-          remove: requestIdsFor(items.map((item) => item.id)),
-        }}
+        requestIds={requestIds}
       />
     );
   } else if (section === "review") {
     const read = await readAiReview(actor, { filter: route.reviewFilter, documentId: route.documentId, limit: 50 });
     if (read.status === "available" && route.reviewFilter === "open" && !route.documentId) reviewOpenCount = read.data.pendingCount;
+    const requestIds = requestIdsFor(read.status === "available" ? read.data.items.map((item) => item.id) : []);
+    nextBody = { kind: "review", read, filter: route.reviewFilter, documentId: route.documentId, preview, requestIds, retryHref };
     content = (
       <AiReviewSheet
         read={read}
         filter={route.reviewFilter}
         documentId={route.documentId}
         preview={preview}
-        requestIds={requestIdsFor(read.status === "available" ? read.data.items.map((item) => item.id) : [])}
+        requestIds={requestIds}
         retryHref={retryHref}
       />
     );
   } else if (section === "lab") {
     const [lab, examples] = await Promise.all([readAiLab(actor), readAiExamples(actor)]);
+    const labIds = { discard: randomUUID(), reject: randomUUID() };
+    const exampleIds = requestIdsFor(examples.status === "available" ? examples.data.items.map((item) => item.id) : []);
+    nextBody = { kind: "lab", initial: lab.status === "available" ? lab.data : null, featureOn, preview, requestIds: labIds, examples, exampleIds };
     content = (
       <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <AiLaboratory
           initial={lab.status === "available" ? lab.data : null}
           featureOn={featureOn}
           preview={preview}
-          requestIds={{ discard: randomUUID(), reject: randomUUID() }}
+          requestIds={labIds}
         />
         <AiExamplesList
           read={examples}
           preview={preview}
-          requestIds={requestIdsFor(examples.status === "available" ? examples.data.items.map((item) => item.id) : [])}
+          requestIds={exampleIds}
         />
       </div>
     );
   } else if (section === "rules") {
+    const read = await readAiRules(actor);
+    const editorRequestId = randomUUID();
+    const confirmRequestId = randomUUID();
+    nextBody = { kind: "rules", read, preview, editorRequestId, confirmRequestId, retryHref };
     content = (
       <AiRulesView
-        read={await readAiRules(actor)}
+        read={read}
         preview={preview}
-        editorRequestId={randomUUID()}
-        confirmRequestId={randomUUID()}
+        editorRequestId={editorRequestId}
+        confirmRequestId={confirmRequestId}
         retryHref={retryHref}
       />
     );
@@ -172,6 +195,8 @@ export default async function AiAgentPage({ searchParams }: Readonly<{ searchPar
       view.view === "summary" ? readAiAutosendSummary(actor, view.summaryId) : Promise.resolve(null),
     ]);
     if (summary?.status === "missing") notFound();
+    const autosendIds = { settings: randomUUID(), toggle: randomUUID(), mode: randomUUID(), pause: randomUUID(), resume: randomUUID() };
+    nextBody = { kind: "autosend", read: autosend, route: view, journal, summary, serverOn: aiAutosendServerState() === "on", preview, retryHref, requestIds: autosendIds };
     content = (
       <AiAutosendView
         read={autosend}
@@ -181,11 +206,12 @@ export default async function AiAgentPage({ searchParams }: Readonly<{ searchPar
         serverOn={aiAutosendServerState() === "on"}
         preview={preview}
         retryHref={retryHref}
-        requestIds={{ settings: randomUUID(), toggle: randomUUID(), mode: randomUUID(), pause: randomUUID(), resume: randomUUID() }}
+        requestIds={autosendIds}
       />
     );
   } else {
     const [spend, agentStatus] = await Promise.all([readAiSpend(actor), readAiAgentStatus(actor.organizationId)]);
+    if (next) nextBody = { kind: "spend", spend, settings, agentStatus, preview, capRequestId: randomUUID(), revokeRequestId: randomUUID(), memoryRequestId: randomUUID(), retryHref };
     content = (
       <AiSpendView
         spend={spend}
@@ -196,6 +222,20 @@ export default async function AiAgentPage({ searchParams }: Readonly<{ searchPar
         revokeRequestId={randomUUID()}
         memoryRequestId={randomUUID()}
         retryHref={retryHref}
+      />
+    );
+  }
+
+  if (next && nextBody) {
+    return (
+      <AiAgentNextLazy
+        section={section}
+        tabs={AI_AGENT_SECTIONS.map((tab) => ({ key: tab.key, label: tab.title, href: aiAgentHref(tab.key), count: tab.key === "review" ? reviewOpenCount : null }))}
+        notice={{ settings: settingsData, featureOn, preview, consentRequestId: randomUUID() }}
+        pause={section !== "autosend" && autosend.status === "available" && autosend.data.pause
+          ? { state: autosend.data, preview, compactHref: aiAgentHref("autosend") } : null}
+        hubHref={AI_AGENTS_HUB_HREF}
+        body={nextBody}
       />
     );
   }

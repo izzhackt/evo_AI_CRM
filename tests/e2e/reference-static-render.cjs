@@ -236,6 +236,8 @@ let journalRead = JOURNAL_READS["settings-journal-empty"];
 
 function installStubs() {
   const { settingsIntegrations } = require(join(ROOT, "src/lib/v3/settings-health.ts"));
+  // «Новый вид»: страница спрашивает переключатель (cookie); вне запроса его нет, и рисуется прежний вид.
+  require("next/headers").cookies = async () => ({ get: () => undefined });
   stubModule("src/lib/platform-guards.ts", { async requireV3PageActor() { return who; } });
   stubModule("src/lib/supabase/server.ts", { async createSupabaseServerClient() { return fakeSupabase; } });
   stubModule("src/lib/v3/settings-source.ts", {

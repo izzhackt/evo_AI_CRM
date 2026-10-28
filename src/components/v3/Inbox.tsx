@@ -82,7 +82,7 @@ export type InboxView = Readonly<{
  * последней проверки владелец убрал 07.10.2026 («уберем давай это»). Беда —
  * не подключён, приём выключен, состояние не прочитать — видна всегда.
  */
-function channelWarning(
+export function channelWarning(
   state: InboxSelectedConversation["channelState"],
 ): string | null {
   if (state === "ready") return null;
@@ -94,11 +94,11 @@ function channelWarning(
 }
 
 /** Номер для читалки: «+996, скрыто, 12 46 64» вместо трёх «bullet». */
-function spokenPhone(phone: string): string {
+export function spokenPhone(phone: string): string {
   return phone.replace(" ••• ", ", скрыто, ");
 }
 
-function ContactPhone({ phone, className }: Readonly<{ phone: string; className: string }>) {
+export function ContactPhone({ phone, className }: Readonly<{ phone: string; className: string }>) {
   return (
     <span className={className} data-testid="v3-inbox-contact-phone">
       <span aria-hidden="true">{phone}</span>
@@ -121,7 +121,7 @@ export function inboxNotConnected(view: InboxView): boolean {
 }
 
 /** Варианты «Сортировки» — слова владельца (08.10.2026). */
-const SORT_OPTIONS: readonly Readonly<{ sort: V3InboxSort; label: string; valueLabel: string }>[] = [
+export const SORT_OPTIONS: readonly Readonly<{ sort: V3InboxSort; label: string; valueLabel: string }>[] = [
   { sort: "newest", label: "Сначала новые", valueLabel: "сначала новые" },
   { sort: "unanswered", label: "Неотвеченные", valueLabel: "неотвеченные" },
 ];

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
-import { startTransition, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { startTransition, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ComponentType } from "react";
 import { Icon } from "@/components/icons";
 import { Initials } from "@/components/v3/blocks/Initials";
 import { StageChip, StatusChip } from "@/components/v3/blocks/StatusChip";
@@ -60,7 +60,7 @@ function dayLabel(at: string, readAt: string): string {
   return DAY_MONTH_YEAR.format(moment).replace(/\s*г\.$/u, "");
 }
 
-function rowTime(at: string, readAt: string): string {
+export function rowTime(at: string, readAt: string): string {
   const moment = new Date(at);
   const now = new Date(readAt);
   if (Number.isFinite(now.getTime()) && DAY_KEY.format(moment) === DAY_KEY.format(now)) return TIME.format(moment);
@@ -71,7 +71,7 @@ function rowTime(at: string, readAt: string): string {
  * Э5 «Переписки»: «Нужен ответ» — предупреждение словом, не красный (красный
  * текст — только проблема); «Ждём студента» — нейтрально: ход за студентом.
  */
-function awaitTone(state: CaseChatAwaitState): PillTone {
+export function awaitTone(state: CaseChatAwaitState): PillTone {
   return state === "needs_reply" ? "warn" : "neutral";
 }
 
@@ -81,7 +81,7 @@ function StateWord({ tone, label }: Readonly<{ tone: PillTone; label: string }>)
 }
 
 /** Порядок видимого переключателя состояния в шапке переписки. */
-const AWAIT_CONTROL_ORDER = ["needs_reply", "awaiting_student", "none"] as const satisfies readonly CaseChatAwaitState[];
+export const AWAIT_CONTROL_ORDER = ["needs_reply", "awaiting_student", "none"] as const satisfies readonly CaseChatAwaitState[];
 
 /**
  * Шаблоны ответа для поля ответа (Э5): то же чтение и то же право, что у
@@ -542,13 +542,15 @@ function MessageRow({
 
 function CaseChatThreadView({
   caseId, initialPage, initialFailure, storageScope, membershipId, pendingAttachment, onAttachmentConsumed,
-  organizationId, realtimeConfig, studentDisplayName, listHref, onListChanged, facts, snippets, documentsAwaitCurator, readAt,
+  organizationId, realtimeConfig, studentDisplayName, listHref, onListChanged, facts, snippets, documentsAwaitCurator, readAt, Header,
 }: Readonly<{
   caseId: string; initialPage: CaseChatPage | null; initialFailure: CaseChatFailure | null; readAt: string;
   storageScope: string; membershipId: string; pendingAttachment: CaseChatPendingAttachment | null;
   onAttachmentConsumed: () => void; organizationId: string; realtimeConfig: SupabasePublicConfig;
   studentDisplayName: string | null; listHref: string; onListChanged: () => void;
   facts: CaseChatCaseFacts | null; snippets: CaseChatSnippets; documentsAwaitCurator: boolean;
+  /** Шапка переписки рамки (прежняя `ThreadHeader` или шапка «Нового вида»): движок один. */
+  Header: ComponentType<CaseChatHeaderProps>;
 }>) {
   const [page, setPage] = useState<CaseChatPage | null>(initialPage);
   const [error, setError] = useState<CaseChatFailure | null>(initialFailure);
@@ -733,7 +735,7 @@ function CaseChatThreadView({
 
   if (!page) {
     return <div className="flex min-w-0 flex-1 flex-col">
-      <ThreadHeader name={studentDisplayName} facts={facts} caseId={caseId} listHref={listHref}
+      <Header name={studentDisplayName} facts={facts} caseId={caseId} listHref={listHref}
         awaitState={null} onSetAwait={() => {}} awaitPending={false} />
       {failureNotice ?? <p role="alert" className="p-4 t-body-compact text-danger">{CASE_CHAT_FAILURE_COPY.unavailable}</p>}
     </div>;
@@ -743,7 +745,7 @@ function CaseChatThreadView({
   let currentDay = "";
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <ThreadHeader
+      <Header
         name={studentDisplayName} facts={facts} caseId={caseId} listHref={listHref}
         awaitState={awaitState ?? page.thread.awaitState} onSetAwait={changeAwait} awaitPending={awaitPending} />
       {failureNotice}
@@ -787,7 +789,7 @@ function CaseChatThreadView({
  * строк одно и ничего не сообщает. «Непрочитанное» — отдельное состояние
  * (чтение 234): чужое сообщение после моей отметки прочтения.
  */
-function threadRowBadges(row: CaseChatThreadRow, queue: CaseChatQueue): { tone: PillTone; text: string }[] {
+export function threadRowBadges(row: CaseChatThreadRow, queue: CaseChatQueue): { tone: PillTone; text: string }[] {
   const badges: { tone: PillTone; text: string }[] = [];
   if (queue === "all" && row.awaitState !== "none") {
     const text = caseChatAwaitState(row.awaitState);
@@ -796,7 +798,7 @@ function threadRowBadges(row: CaseChatThreadRow, queue: CaseChatQueue): { tone: 
   return badges;
 }
 
-function queueLabel(queue: CaseChatQueue): string {
+export function queueLabel(queue: CaseChatQueue): string {
   return queue === "all" ? "Все" : caseChatAwaitState(queue) ?? "";
 }
 
@@ -912,9 +914,24 @@ function NextThreadPane({ read, membershipId, query, queue, loading, failure }: 
   );
 }
 
+/**
+ * Рамка «Переписки»: список слева, шапка переписки и пустая правая часть. Движок (запросы, поиск, живые обновления,
+ * черновик, поле ответа, лента) в `CaseChatWorkspace` один; «Новый вид» подставляет свою рамку (`case-chat-next`),
+ * прежний вид — эту.
+ */
+export type CaseChatListProps = Parameters<typeof CaseChatList>[0];
+export type CaseChatHeaderProps = Parameters<typeof ThreadHeader>[0];
+export type CaseChatIdleProps = Parameters<typeof NextThreadPane>[0];
+export type CaseChatFrame = Readonly<{
+  List: ComponentType<CaseChatListProps>;
+  Header: ComponentType<CaseChatHeaderProps>;
+  Idle: ComponentType<CaseChatIdleProps>;
+}>;
+const LEGACY_FRAME: CaseChatFrame = { List: CaseChatList, Header: ThreadHeader, Idle: NextThreadPane };
+
 export function CaseChatWorkspace({
   organizationId, membershipId, realtimeConfig, initialQueue, initialStudentDisplayName, selectedCaseId, initialPage,
-  initialPageFailure, caseFacts = null, snippets = null, documentsAwaitCurator = false,
+  initialPageFailure, caseFacts = null, snippets = null, documentsAwaitCurator = false, frame = LEGACY_FRAME,
 }: Readonly<{
   organizationId: string; membershipId: string; realtimeConfig: SupabasePublicConfig;
   initialQueue: CaseChatQueueRead; selectedCaseId: string | null;
@@ -925,6 +942,8 @@ export function CaseChatWorkspace({
   snippets?: CaseChatSnippets;
   /** Дело ждёт куратора (`caseDocumentsAwaitCurator`, считает страница): вложение-документ без ссылки на вкладку, которой нет. */
   documentsAwaitCurator?: boolean;
+  /** Рамка вида; без неё — прежняя. */
+  frame?: CaseChatFrame;
 }>) {
   const [queueRead, setQueueRead] = useState(initialQueue);
   const threads = queueRead.list;
@@ -1049,19 +1068,19 @@ export function CaseChatWorkspace({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 rounded-card border border-border bg-surface">
-      <CaseChatList threads={threads} counts={counts} readAt={queueRead.readAt} selectedCaseId={selectedCaseId} query={query} onQuery={onQuery}
+      <frame.List threads={threads} counts={counts} readAt={queueRead.readAt} selectedCaseId={selectedCaseId} query={query} onQuery={onQuery}
         queue={queue} onQueue={onQueue}
         membershipId={membershipId} hidden={selectedCaseId !== null} loading={loading} failure={failure} onRetry={retryList}
         current={shown.query === query && shown.queue === queue} />
       {selectedCaseId ? (
-        <CaseChatThreadView caseId={selectedCaseId} initialPage={initialPage} initialFailure={initialPageFailure}
+        <CaseChatThreadView Header={frame.Header} caseId={selectedCaseId} initialPage={initialPage} initialFailure={initialPageFailure}
           storageScope={`${organizationId}:${membershipId}`} membershipId={membershipId} pendingAttachment={attachment}
           onAttachmentConsumed={consumeAttachment} organizationId={organizationId} realtimeConfig={realtimeConfig}
           studentDisplayName={row?.studentDisplayName ?? initialStudentDisplayName} onListChanged={refreshList}
           listHref={caseChatHref(query, queue)} facts={caseFacts} snippets={snippets} documentsAwaitCurator={documentsAwaitCurator}
           readAt={queueRead.readAt} />
       ) : (
-        <NextThreadPane read={queueRead} membershipId={membershipId} query={query} queue={queue} loading={loading} failure={failure} />
+        <frame.Idle read={queueRead} membershipId={membershipId} query={query} queue={queue} loading={loading} failure={failure} />
       )}
     </div>
   );

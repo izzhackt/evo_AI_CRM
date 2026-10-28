@@ -47,4 +47,33 @@ function blankBandBelowRoot(rootSelector) {
   return { scrollHeight, rootBottom, band: Math.max(0, scrollHeight - allowed), ok: scrollHeight <= allowed + 1 };
 }
 
-module.exports = { headerWrapViolations, blankBandBelowRoot };
+/**
+ * Таблицы, которые на этой ширине режутся краем: таблица шире области прокрутки или карточки, в которой лежит (последний столбец виден не
+ * весь), либо шире окна. Волна 2A нашла так «Суммы» и «Поступления и возвраты» на 360 и 320: столбец «Итого» уходил за край карточки без
+ * подсказки о прокрутке. `scroll: true` — таблицу можно прокрутить в своей области (область с `role="region"` и `tabindex=0`), это тоже
+ * учитывается: на 360 и 320 допустимо только то, что дизайн страницы задумал, а не то, что осталось от широкой раскладки.
+ */
+function clippedTables() {
+  const visible = (element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden";
+  const out = [];
+  const viewport = document.documentElement.clientWidth;
+  for (const table of document.querySelectorAll("main table")) {
+    if (!visible(table)) continue;
+    let hit = null;
+    // Ближайшая область, которая прокручивает или обрезает содержимое: таблице в ней тесно, если область шире окна не стала, а таблица в неё не влезла.
+    for (let holder = table.parentElement; holder && holder !== document.body; holder = holder.parentElement) {
+      const overflow = getComputedStyle(holder).overflowX;
+      if (overflow === "visible") continue;
+      const over = Math.round(holder.scrollWidth - holder.clientWidth);
+      if (over > 1) hit = { holder: `${holder.tagName.toLowerCase()}${holder.getAttribute("role") ? `[role=${holder.getAttribute("role")}]` : ""}`, over, scroll: /auto|scroll/u.test(overflow) };
+      break;
+    }
+    // Области нет: таблица не должна выходить за окно.
+    const right = table.getBoundingClientRect().right;
+    if (!hit && right > viewport + 1) hit = { holder: "viewport", over: Math.round(right - viewport), scroll: false };
+    if (hit) out.push({ ...hit, label: (table.closest("[aria-label]")?.getAttribute("aria-label") || table.querySelector("th")?.textContent || "").trim().slice(0, 40), columns: table.querySelectorAll("thead th").length });
+  }
+  return out;
+}
+
+module.exports = { headerWrapViolations, blankBandBelowRoot, clippedTables };

@@ -157,9 +157,13 @@ test("existing command hook keeps the original request payload after an unknown 
   const attempts = [];
   const compiledModule = { exports: {} };
   new Function("require", "module", "exports", compiled)((id) => {
-    if (id === "react") return { useRef: (current) => ({ current }), useActionState: (action) => action };
+    // `useActionState` настоящего React отдаёт [состояние, действие, идёт ли запрос]; хук читает состояние и признак запроса для панели «Нового вида»,
+    // а тест берёт из результата само действие — поэтому действие несёт эти три значения под индексами.
+    if (id === "react") return { useRef: (current) => ({ current }), useActionState: (action, initial) => Object.assign(action, { 0: initial, 1: action, 2: false }) };
     if (id === "@/components/ui") return {};
     if (id === "@/lib/v3/staff-roles-contract") return { STAFF_ROLES_INITIAL_STATE: { status: "idle", message: "" } };
+    // Сообщение панели «Нового вида» о незавершённом запросе: на странице (как здесь) контекста нет, хук ничего не делает.
+    if (id === "./staff-sheet-lock") return { useStaffSheetLock: () => undefined };
     if (id === "@/lib/staff-roles-actions") return { staffRolesAction: async (_, form) => {
       attempts.push([...form.entries()]);
       return attempts.length === 1 ? { status: "error", outcome: "unknown" } : saved(8);
@@ -263,6 +267,7 @@ function staffSectionHarness() {
     "./StaffPendingAccess": { StaffPendingAccess: "pending" },
     "./StaffDisclosure": { StaffDisclosure: "disclosure" },
     "./useStaffCommandForm": { useStaffCommandForm: () => [idle, "command", false], StaffCommandFeedback: "feedback" },
+    "./staff-sheet-lock": { useStaffSheetLock: () => undefined },
     "@/lib/v3/staff-invitation-access": { staffReconcileAllowsPreparation: () => true },
   };
   const sectionCode = ts.transpileModule(readFileSync(new URL("../src/components/v3/settings/StaffSection.tsx", import.meta.url), "utf8"), {

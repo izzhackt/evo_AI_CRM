@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 
 import { Inbox, inboxNotConnected } from "@/components/v3/Inbox";
+import { InboxNextLazy } from "@/components/v3/inbox-next/InboxNextLazy";
 import { PartShell } from "@/components/v3/PartShell";
 import { isStaffPreview, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import {
@@ -10,6 +11,7 @@ import {
   type PlatformConversationQueueCursor,
 } from "@/lib/platform-communications";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { isNextUi } from "@/lib/ui-next";
 import { buildV3InboxHref, type V3InboxSort } from "@/lib/v3/inbox-href";
 import { v3InboxProfileHref } from "@/lib/v3/inbox-profile-link";
 import { readV3InboxMediaAttachmentContext } from "@/lib/v3/inbox-media";
@@ -125,6 +127,24 @@ export default async function InboxPart({
     ? "/v3/settings?section=integrations"
     : null;
 
+  // «Новый вид» (переключатель администратора, 27.10.2026): те же чтения и права, другая рамка — список, шапка диалога;
+  // движок чата (`InboxChat`) тот же. Вход ленивый: у остальных сотрудников его кусков в первой загрузке нет.
+  if (await isNextUi(actor)) {
+    return (
+      <InboxNextLazy
+        view={view}
+        profileHref={profileHref}
+        profileLabel={profileLabel}
+        settingsHref={settingsHref}
+        storageScope={`${actor.organizationId}:${actor.membershipId}`}
+        replySnippets={replySnippets}
+        mediaAttachmentContext={mediaAttachmentContext}
+        assistant={assistant}
+        dial={dial}
+        count={notConnected || paged ? null : view.conversations.length}
+      />
+    );
+  }
   // WhatsApp — пункт «Продаж» (решение владельца 27.09.2026: WhatsApp
   // продажников, куда приходят лиды); страница стоит отдельно от «Переписки»
   // поступления, число диалогов — у заголовка, как до Э5.

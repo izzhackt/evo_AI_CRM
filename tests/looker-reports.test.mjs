@@ -497,6 +497,8 @@ async function financePage(actor, readResult) {
   const reads = [];
   const load = loader({
     "@/lib/platform-guards": guardsFor(actor),
+    // «Новый вид» вне запроса cookie не читает: страница тут проверяется в прежнем виде.
+    "@/lib/ui-next": { isNextUi: async () => false },
     "@/lib/v3/report-links-source": { readReportLink: async (a, key) => { reads.push([a === actor, key]); return readResult; } },
   });
   const html = renderToStaticMarkup(await load("src/app/(v3)/v3/finance/page.tsx").default());
@@ -561,6 +563,7 @@ async function marketingPage(readResult, query = {}) {
   const spy = (name) => async () => { spies.push(name); return { status: "unavailable" }; };
   const load = loader({
     "@/lib/platform-guards": guardsFor(admin, calls),
+    "@/lib/ui-next": { isNextUi: async () => false },
     "@/lib/v3/marketing-source": {
       readMarketingOverview: spy("overview"), readMarketingLeads: spy("leads"), readMarketingRecent: async () => { spies.push("recent"); return null; },
       requireMarketingAdmin: () => undefined,

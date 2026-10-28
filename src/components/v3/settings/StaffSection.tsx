@@ -18,6 +18,7 @@ import { StaffPendingAccess } from "./StaffPendingAccess";
 import { StaffDisclosure } from "./StaffDisclosure";
 import { useStaffCommandForm, StaffCommandFeedback as Feedback } from "./useStaffCommandForm";
 import { staffReconcileAllowsPreparation } from "@/lib/v3/staff-invitation-access";
+import { useStaffSheetLock } from "./staff-sheet-lock";
 
 function MemberChange({ member }: { member: StaffWorkspaceMember }) {
   const [command, setCommand] = useState(0);
@@ -71,7 +72,7 @@ function RecoveryForm({ member }: { member: StaffWorkspaceMember }) {
 }
 
 /** Blocking and sign-in recovery sit apart from routine assignments, never in the same stack. */
-function StaffDangerZone({ member }: { member: StaffWorkspaceMember }) {
+export function StaffDangerZone({ member }: { member: StaffWorkspaceMember }) {
   const headingId = useId();
   return <section aria-labelledby={headingId} className="mt-8 space-y-4 rounded-card border border-danger/40 p-4">
     <h4 id={headingId} className="t-section text-danger">Опасные действия</h4>
@@ -80,7 +81,7 @@ function StaffDangerZone({ member }: { member: StaffWorkspaceMember }) {
   </section>;
 }
 
-function RequestRow({ request, workspace, organizationId }: { request: StaffAuthRequest; workspace: StaffRoleWorkspace; organizationId: string }) {
+export function RequestRow({ request, workspace, organizationId }: { request: StaffAuthRequest; workspace: StaffRoleWorkspace; organizationId: string }) {
   const activeOperation = useRef<"prepare" | "reconcile" | null>(null);
   const [operation, setOperation] = useState<"prepare" | "reconcile" | null>(null);
   const claim = useCallback((next: "prepare" | "reconcile") => {
@@ -107,6 +108,7 @@ function RequestRow({ request, workspace, organizationId }: { request: StaffAuth
         message: "Ответ не получен. Проверьте этот запрос ещё раз; повторное письмо не отправляется." };
     }
   }, STAFF_WORKSPACE_INITIAL_STATE);
+  useStaffSheetLock(pending || state.outcome === "unknown");
   return <li className="space-y-2 border-b border-border py-4 last:border-0">
     <p className="break-words text-sm font-medium">{request.displayName} · {request.operation === "password" ? "Создание аккаунта" : request.operation === "invite" ? "Приглашение" : "Восстановление входа"}</p>
     <p className="text-sm text-fg-3">{request.status === "completed" ? request.operation === "password" ? "Аккаунт создан; пароль повторно не показывается" : "Зарегистрировано в сервисе входа; доставка письма не подтверждена"

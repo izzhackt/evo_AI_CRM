@@ -21,7 +21,7 @@ const { join, resolve } = require("node:path");
 const { pathToFileURL } = require("node:url");
 
 const ROOT = resolve(__dirname, "../..");
-const FAILING = /[\\/](HelpTipImpl|FeedOverflowImpl|CaseHelpCardImpl|SectionTabsInPlaceImpl|TodayNextPage|RequestsNextPage|CalendarNextPage|SnippetsNext|FilesNext|KnowledgeNextPage|TeamChatNextPage)\.tsx$/;
+const FAILING = /[\\/](HelpTipImpl|FeedOverflowImpl|CaseHelpCardImpl|SectionTabsInPlaceImpl|TodayNextPage|RequestsNextPage|CalendarNextPage|SnippetsNext|FilesNext|KnowledgeNextPage|TeamChatNextPage|SettingsNextPage|MarketingNextPage|FinanceNextPage|AiAgentNextPage)\.tsx$/;
 
 /** Запись помощника отказа в `console.error`: приставка и сама ошибка (в тексте записи Chromium — её сообщение). */
 const isLazyLog = (text) => /Новый вид/u.test(text) && /ChunkLoadError/u.test(text);
@@ -42,6 +42,10 @@ const { SnippetsNextLazy } = require("@/components/v3/reply-snippets/next/Snippe
 const { FilesNextLazy } = require("@/components/v3/knowledge/next/FilesNextLazy");
 const { KnowledgeNextLazy } = require("@/components/v3/knowledge/next/KnowledgeNextLazy");
 const { TeamChatNextLazy } = require("@/components/v3/team-chat/next/TeamChatNextLazy");
+const { SettingsNextLazy } = require("@/components/v3/settings-next/SettingsNextLazy");
+const { MarketingNextLazy } = require("@/components/v3/marketing-next/MarketingNextLazy");
+const { FinanceNextLazy } = require("@/components/v3/finance-next/FinanceNextLazy");
+const { AiAgentNextLazy } = require("@/components/v3/ai-agent-next/AiAgentNextLazy");
 const h = React.createElement;
 // Граница ошибок вроде (v3)/error.tsx: что она поймала, то заменило страницу.
 class Boundary extends React.Component {
@@ -53,6 +57,7 @@ const mode = new URLSearchParams(location.search).get("mode");
 const screens = {
   today: h(TodayNextLazy, {}), requests: h(RequestsNextLazy, {}), calendar: h(CalendarNextLazy, {}), snippets: h(SnippetsNextLazy, {}),
   files: h(FilesNextLazy, {}), knowledge: h(KnowledgeNextLazy, {}), chat: h(TeamChatNextLazy, {}),
+  settings: h(SettingsNextLazy, {}), marketing: h(MarketingNextLazy, {}), finance: h(FinanceNextLazy, {}), aiAgent: h(AiAgentNextLazy, {}),
 };
 const widgets = h("main", { id: "page" }, h("p", { id: "alive" }, "Страница нарисована"),
   h(HelpTip, { label: "Пояснение: Тест" }, "Текст пояснения"),
@@ -119,7 +124,7 @@ async function main() {
     report("widgets: each of the four failures is written to console.error once", logged.filter(isLazyLog).length === 4, logged);
     await page.context().close();
   }
-  for (const mode of ["today", "requests", "calendar", "snippets", "files", "knowledge", "chat"]) {
+  for (const mode of ["today", "requests", "calendar", "snippets", "files", "knowledge", "chat", "settings", "marketing", "finance", "aiAgent"]) {
     const { page, logged } = await open(mode);
     report(`${mode}: no error-boundary screen`, (await page.locator("#boundary").count()) === 0, await page.locator("#boundary").allTextContents());
     report(`${mode}: load-failed row with a reload button`, (await page.locator("[data-testid=v3-load-failed]").count()) === 1 && (await page.getByRole("button", { name: "Обновить страницу" }).count()) === 1, null);
@@ -131,7 +136,7 @@ async function main() {
     await page.context().close();
   }
   // Ошибка в коде куска: не «проверьте связь», а граница ошибок; помощник молчит.
-  for (const mode of ["widgets", "today", "requests", "calendar", "snippets", "files", "knowledge", "chat"]) {
+  for (const mode of ["widgets", "today", "requests", "calendar", "snippets", "files", "knowledge", "chat", "settings", "marketing", "finance", "aiAgent"]) {
     const { page, logged } = await open(mode, "bug");
     report(`bug ${mode}: the error reaches the error boundary`, (await page.locator("#boundary").count()) === 1 && /ошибка в коде куска/u.test((await page.locator("#boundary").allTextContents()).join("")), await page.locator("#boundary").allTextContents());
     report(`bug ${mode}: no load-failed row and no stub`, (await page.locator("[data-testid=v3-load-failed]").count()) === 0 && (await page.locator("#alive").count()) === 0, null);

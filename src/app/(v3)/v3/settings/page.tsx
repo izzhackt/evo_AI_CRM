@@ -1,9 +1,12 @@
 import { PartShell } from "@/components/v3/PartShell";
 import { Settings } from "@/components/v3/settings/Settings";
+import { SettingsNextLazy } from "@/components/v3/settings-next/SettingsNextLazy";
 import { TelephonySection } from "@/components/v3/settings/TelephonySection";
 import { isSectionKey, staffViewOf, type SectionKey, type StaffView } from "@/components/v3/settings/types";
 import { isStaffPreview } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
+import { isNextUi } from "@/lib/ui-next";
+import { settingsNextProps } from "@/lib/v3/settings-next-props";
 import { readTelephonyAdmin, telephonyIntegrationFactsFrom } from "@/lib/server/platform-telephony-admin";
 import { readReportLink } from "@/lib/v3/report-links-source";
 import { redirect } from "next/navigation";
@@ -119,6 +122,45 @@ export default async function SettingsPart({
     const tail = search.toString();
     return tail ? `/v3/settings?${tail}` : "/v3/settings";
   };
+
+  // «Новый вид» (переключатель администратора): те же чтения и права, другая расстановка — ряд разделов, таблицы и панели набора.
+  if (await isNextUi(actor)) {
+    return (
+      <SettingsNextLazy
+        {...settingsNextProps({
+          section,
+          staffView,
+          hrefFor: (next: SectionKey, view: StaffView | null) => query({ section: next, view: view ?? undefined }),
+          integrations,
+          whatsappConnect: whatsappConnection ? { status: whatsappConnection.status, canConnect: isAdmin, wazzup: whatsappConnection.wazzup } : undefined,
+          staff,
+          staffRoles,
+          staffOrganizationId: actor.organizationId,
+          selectedStaffMemberId: params.member,
+          selectedStaffRoleId: params.role,
+          telephony,
+          telephonyReadOnly: isStaffPreview(actor),
+          reports,
+          reportsReadOnly: isStaffPreview(actor),
+          journal,
+          journalStatus: journalRead.status,
+          auditExportEnabled: readAuditExportEnabled(),
+          journalFacets,
+          journalFilters,
+          journalHrefFor: (next) => query({ section: "journal", object: next.objectType, snapshot: next.snapshotAt, snapshotId: next.snapshotId, cursor: next.cursorAt, cursorId: next.cursorId }),
+          deletionQueue,
+          deletionDetail,
+          deletionHrefFor: (requestId: string | null) => query({ section: "deletion", request: requestId ?? undefined }),
+          deletionOpen,
+          gates,
+          platform,
+          salesImportHref: salesManagement?.status === "ready" && salesManagement.data.canImport ? "/v3/main?view=sales&mode=import" : undefined,
+          salesManagersHref: salesManagement?.status === "ready" && salesManagement.data.canImport ? salesManagersHref() : undefined,
+          now: new Date(),
+        })}
+      />
+    );
+  }
 
   return (
     <PartShell

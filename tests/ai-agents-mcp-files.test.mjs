@@ -15,8 +15,8 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-// The network check is off by default in this file so the older scenarios stay about the link itself; the
-// address binding has its own tests at the end (a link is accepted only from the Anthropic allow-list).
+// The file route ignores EVO_AI_AGENTS_MCP_IP_ALLOWLIST (the sandbox egress is not a fixed range); the
+// variable is set here only so the tests at the end can show that it makes no difference.
 function environment(overrides = {}) {
   return {
     NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
@@ -27,6 +27,7 @@ function environment(overrides = {}) {
 }
 
 const ANTHROPIC_IP = "160.79.104.17";
+const SANDBOX_IP = "34.172.54.233";
 
 const RESOLVED = {
   bucket: "student-documents",
@@ -271,77 +272,77 @@ test("attachmentDisposition: safe ASCII fallback, UTF-8 name, no header injectio
   assert.ok(attachmentDisposition("x'(y)*.pdf").includes("%27%28y%29%2A.pdf"));
 });
 
-/* ------------------------------------------------ the link is bound to the requester (review #1290) */
+/* ------------------------------------------------ the link is token-only, not bound to an address */
 
-test("by default a link works only from the Anthropic allow-list; the first request from it is served", async () => {
+test("a link works from a non-Anthropic sandbox address and with no address header at all", async () => {
   const env = environment();
   delete env.EVO_AI_AGENTS_MCP_IP_ALLOWLIST;
   const { handler, state } = harness({ env });
-  const served = await handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": ANTHROPIC_IP } }));
-  assert.equal(served.status, 200);
-  assert.deepEqual(new Uint8Array(await served.arrayBuffer()), BYTES);
-  assert.equal(state.rpc.length, 1);
-  // The same address through X-Forwarded-For (last element), as the edge rewrites it.
-  const viaForwarded = await handler(get(FILE_TOKEN, { headers: { "x-forwarded-for": `203.0.113.9, ${ANTHROPIC_IP}` } }));
-  assert.equal(viaForwarded.status, 200);
-});
-
-test("a foreign or unknown address gets an empty 404 before the database: the link is not spent and its existence is not revealed", async () => {
-  const env = environment();
-  delete env.EVO_AI_AGENTS_MCP_IP_ALLOWLIST;
-  const { handler, state } = harness({ env });
-  for (const headers of [{ "x-evo-mcp-ip": "198.51.100.77" }, { "x-forwarded-for": "198.51.100.77" }, { "x-evo-mcp-ip": "160.79.112.1" }, {}]) {
+  for (const headers of [
+    { "x-evo-mcp-ip": SANDBOX_IP },
+    { "x-forwarded-for": `203.0.113.9, ${SANDBOX_IP}` },
+    {},
+  ]) {
     const response = await handler(get(FILE_TOKEN, { headers }));
-    assert.equal(response.status, 404, JSON.stringify(headers));
-    assert.equal(await response.text(), "");
+    assert.equal(response.status, 200, JSON.stringify(headers));
+    assert.deepEqual(new Uint8Array(await response.arrayBuffer()), BYTES);
   }
-  assert.equal(state.rpc.length, 0, "the database is never asked and the 3 uses are untouched");
-  assert.equal(state.downloads.length, 0);
-  // An unknown token from a foreign address looks the same as a real one.
-  const unknown = await handler(get(randomBytes(32).toString("base64url"), { headers: { "x-evo-mcp-ip": "198.51.100.77" } }));
-  assert.equal(unknown.status, 404);
-  assert.equal(await unknown.text(), "");
-  // The allowed address still gets all three uses afterwards.
-  const statuses = [];
-  for (let attempt = 0; attempt < 4; attempt += 1) statuses.push((await handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": ANTHROPIC_IP } }))).status);
-  assert.deepEqual(statuses, [200, 200, 200, 404], "10 minutes and 3 uses are unchanged");
+  assert.equal(state.rpc.length, 3);
+  // The 10 minutes / 3 uses limit still applies from any address.
+  assert.equal((await handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": SANDBOX_IP } }))).status, 404);
 });
 
-test("EVO_AI_AGENTS_MCP_IP_ALLOWLIST: a custom list replaces the default, a bad list refuses everyone, off switches the check off", async () => {
-  const custom = harness({ env: environment({ EVO_AI_AGENTS_MCP_IP_ALLOWLIST: "198.51.100.0/24, 203.0.113.5" }) });
-  assert.equal((await custom.handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": "198.51.100.20" } }))).status, 200);
-  assert.equal((await custom.handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": "203.0.113.5" } }))).status, 200);
-  assert.equal((await custom.handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": ANTHROPIC_IP } }))).status, 404, "the default network is not added to a custom list");
-
-  const broken = harness({ env: environment({ EVO_AI_AGENTS_MCP_IP_ALLOWLIST: "not-an-address, 999.1.1.1/8" }) });
-  assert.equal((await broken.handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": ANTHROPIC_IP } }))).status, 404, "no usable entry: refuse everyone");
-  assert.equal(broken.state.rpc.length, 0);
-
-  const off = harness({ env: environment({ EVO_AI_AGENTS_MCP_IP_ALLOWLIST: "off" }) });
-  assert.equal((await off.handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": "198.51.100.77" } }))).status, 200);
-  assert.equal((await off.handler(get(FILE_TOKEN))).status, 200, "off needs no address at all");
+test("EVO_AI_AGENTS_MCP_IP_ALLOWLIST (custom, broken, unset, off) does not affect the file route", async () => {
+  const unset = environment();
+  delete unset.EVO_AI_AGENTS_MCP_IP_ALLOWLIST;
+  const cases = {
+    custom: environment({ EVO_AI_AGENTS_MCP_IP_ALLOWLIST: "198.51.100.0/24, 203.0.113.5" }),
+    broken: environment({ EVO_AI_AGENTS_MCP_IP_ALLOWLIST: "not-an-address, 999.1.1.1/8" }),
+    unset,
+    off: environment({ EVO_AI_AGENTS_MCP_IP_ALLOWLIST: "off" }),
+  };
+  for (const [name, env] of Object.entries(cases)) {
+    const { handler, state } = harness({ env });
+    for (const headers of [{ "x-evo-mcp-ip": SANDBOX_IP }, { "x-evo-mcp-ip": ANTHROPIC_IP }, {}]) {
+      const response = await handler(get(FILE_TOKEN, { headers }));
+      assert.equal(response.status, 200, `${name} ${JSON.stringify(headers)}`);
+    }
+    assert.equal(state.rpc.length, 3, name);
+  }
 });
 
-test("foreign-address attempts count toward the failure limiter (429 after the limit) and the log has the reason only", async () => {
+test("repeated bad tokens from one address still hit 429 after the limit, with or without an address", async () => {
   let clock = 5_000_000;
   const failureLimiter = new AiAgentsMcpFailureLimiter({ now: () => clock });
-  const env = environment();
-  delete env.EVO_AI_AGENTS_MCP_IP_ALLOWLIST;
-  const { handler, state } = harness({ env, failureLimiter });
-  const headers = { "x-evo-mcp-ip": "198.51.100.88" };
+  const { handler, state } = harness({ failureLimiter });
+  const headers = { "x-evo-mcp-ip": SANDBOX_IP };
   const statuses = [];
-  for (let attempt = 0; attempt < 22; attempt += 1) statuses.push((await handler(get(FILE_TOKEN, { headers }))).status);
+  for (let attempt = 0; attempt < 22; attempt += 1) {
+    statuses.push((await handler(get(randomBytes(32).toString("base64url"), { headers }))).status);
+  }
   assert.deepEqual(new Set(statuses.slice(0, 20)), new Set([404]));
   assert.deepEqual(statuses.slice(20), [429, 429]);
-  assert.equal(state.rpc.length, 0);
-  assert.equal(state.logs.filter((entry) => entry.reason === "ip_denied").length, 20);
-  const serialized = JSON.stringify(state.logs);
-  for (const secret of [FILE_TOKEN, "198.51.100.88"]) assert.equal(serialized.includes(secret), false, `the log must not contain ${secret}`);
-
-  // An unknown address (no header at all) is refused and logged as ip_unknown.
-  const noAddress = harness({ env });
-  assert.equal((await noAddress.handler(get(FILE_TOKEN))).status, 404);
-  assert.deepEqual(noAddress.state.logs.map((entry) => entry.reason), ["ip_unknown"]);
+  const blocked = await handler(get(FILE_TOKEN, { headers }));
+  assert.equal(blocked.status, 429, "a blocked address is refused even with a valid link");
+  assert.equal(blocked.headers.get("retry-after"), "60");
   clock += 61_000;
-  assert.equal((await handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": ANTHROPIC_IP } }))).status, 200, "the allowed address is unaffected after the block");
+  assert.equal((await handler(get(FILE_TOKEN, { headers }))).status, 200, "the block lasts a minute");
+
+  // Requests with no address share one "unknown" bucket and are limited the same way.
+  const anonymous = harness({ failureLimiter });
+  const anonymousStatuses = [];
+  for (let attempt = 0; attempt < 22; attempt += 1) anonymousStatuses.push((await anonymous.handler(get("short"))).status);
+  assert.deepEqual(new Set(anonymousStatuses.slice(0, 20)), new Set([404]));
+  assert.deepEqual(anonymousStatuses.slice(20), [429, 429]);
+  assert.equal(state.logs.some((entry) => entry.reason === "ip_denied" || entry.reason === "ip_unknown"), false);
+});
+
+test("the log has the reason only: no token and no address, for sandbox and unknown callers alike", async () => {
+  const { handler, state } = harness();
+  await handler(get(FILE_TOKEN, { headers: { "x-evo-mcp-ip": SANDBOX_IP } }));
+  await handler(get(randomBytes(32).toString("base64url"), { headers: { "x-evo-mcp-ip": SANDBOX_IP } }));
+  await handler(get(FILE_TOKEN));
+  assert.deepEqual(state.logs.map((entry) => entry.reason), ["served", "not_found", "served"]);
+  const serialized = JSON.stringify(state.logs);
+  for (const secret of [FILE_TOKEN, SANDBOX_IP]) assert.equal(serialized.includes(secret), false, `the log must not contain ${secret}`);
 });

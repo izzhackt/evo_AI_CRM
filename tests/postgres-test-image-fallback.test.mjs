@@ -7,10 +7,10 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const resolver = fileURLToPath(
-  new URL('../scripts/resolve-postgres-test-image.sh', import.meta.url)
+  new URL('../scripts/local-dev/resolve-postgres-test-image.sh', import.meta.url)
 )
 const authorizationHarness = fileURLToPath(
-  new URL('../scripts/test-postgres-authorization.sh', import.meta.url)
+  new URL('../scripts/test-runners/test-postgres-authorization.sh', import.meta.url)
 )
 const digest =
   'sha256:80d7b27c3e8d77cfa7226eee9508671796da214781ff15a35b3670d7ad5ee453'

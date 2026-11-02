@@ -41,8 +41,8 @@ export const PLATFORM_AUDIT_MAX_EXPORT_WINDOW_MS = 31 * 24 * 60 * 60 * 1_000;
 // it, so the server list only ever grows. Drift between this file and the
 // live server allowlists is caught by the real-Postgres suite
 // `supabase/tests/platform_audit_journal_contract.sql` (run on the latest
-// migration chain by `scripts/test-postgres-authorization.sh`, checked by
-// `scripts/check-platform-audit-journal-contract.mjs`), not by a build-time
+// migration chain by `scripts/test-runners/test-postgres-authorization.sh`, checked by
+// `scripts/checks/check-platform-audit-journal-contract.mjs`), not by a build-time
 // type. A row whose action, resource type or changed-field-codes are not
 // (yet) in these lists is not rejected outright: `parseSafeRow` keeps it with
 // `recognized: false` rather than dropping it or failing the whole page —

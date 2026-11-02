@@ -15,7 +15,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const source = readFileSync(
-  new URL("../scripts/test-v3-release-rollback-orbstack.mjs", import.meta.url),
+  new URL("../scripts/test-runners/test-v3-release-rollback-orbstack.mjs", import.meta.url),
   "utf8",
 );
 
@@ -40,7 +40,7 @@ test("preflight failure removes its owned temp contour and preserves the origina
   try {
     const result = spawnSync(
       process.execPath,
-      [fileURLToPath(new URL("../scripts/test-v3-release-rollback-orbstack.mjs", import.meta.url))],
+      [fileURLToPath(new URL("../scripts/test-runners/test-v3-release-rollback-orbstack.mjs", import.meta.url))],
       { encoding: "utf8", env: environment, timeout: 10_000 },
     );
     assert.notEqual(result.status, 0);

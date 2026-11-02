@@ -34,7 +34,7 @@
     "application": "Canonical pending migrations applied once through Supabase CLI; no reset or reseed."
   },
   "harness": {
-    "path": "scripts/prove-public-student-onboarding-local.mjs",
+    "path": "scripts/local-dev/prove-public-student-onboarding-local.mjs",
     "sha256": "e27c5fc0ac6b841978cf56fb020b79f9a2b39e4089285f602083e5c2ddb2187d",
     "invocations": 1,
     "exitCode": 0,
@@ -138,7 +138,7 @@
       "productionChanged": false
     },
     "harness": {
-      "path": "scripts/prove-public-student-onboarding-local.mjs",
+      "path": "scripts/local-dev/prove-public-student-onboarding-local.mjs",
       "sha256": "a12bfc87405fb07dec33dd8beea956c62d532229c438f89b2cad7f96fc7eed88",
       "mode": "--resume-secure-registration-delta",
       "passedChecks": 11,

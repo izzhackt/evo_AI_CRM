@@ -27,11 +27,11 @@ import {
   parseAgentFile,
   readCatalogKeys,
   stripHtmlComments,
-} from "../scripts/build-ai-agent-prompts.mjs";
+} from "../scripts/maintenance/build-ai-agent-prompts.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CONTENT_DIR = path.join(ROOT, "src", "content", "ai-agents");
-const GENERATOR = path.join(ROOT, "scripts", "build-ai-agent-prompts.mjs");
+const GENERATOR = path.join(ROOT, "scripts", "maintenance", "build-ai-agent-prompts.mjs");
 
 const MARKER = "<!-- red-line -->";
 const WITH_INSTRUCTIONS = ["director", "sales", "curator-cn", "curator-my"];

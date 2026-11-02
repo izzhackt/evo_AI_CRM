@@ -261,7 +261,7 @@ shared hard-isolated runtime с deadline/memory boundary и подавление
 диагностик, а не heap-cap внутри web process. Asset tracing тоже остаётся интеграционным gate.
 
 `npm run test:university-forms` включает3 D4-модуля в реальный
-[CI/UNIT runner](../../../scripts/run-node-test-suite.mjs); классификатор разрешает
+[CI/UNIT runner](../../../scripts/test-runners/run-node-test-suite.mjs); классификатор разрешает
 только3 exact font assets и требует build. [Synthetic tests](../../../tests/university-form-pdf.test.mjs)
 проверяют исходные потоки, immutable binding, отказ при неподтверждённых полях,
 геометрию, glyph failures, overflow и воспроизводимость. Локально52 focused checks,

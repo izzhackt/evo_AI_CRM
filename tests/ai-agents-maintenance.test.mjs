@@ -375,16 +375,16 @@ test("образ несёт сборку в /app/ai-agents-maintenance.mjs, сб
     /^COPY --from=builder --chown=nextjs:nodejs --chmod=0555 \/app\/\.next\/ai-agents-maintenance\.mjs \.\/ai-agents-maintenance\.mjs$/mu,
   );
   const pkg = JSON.parse(read("package.json"));
-  assert.equal(pkg.scripts["build:ai-agents-maintenance"], "node scripts/build-ai-agents-maintenance.mjs");
+  assert.equal(pkg.scripts["build:ai-agents-maintenance"], "node scripts/maintenance/build-ai-agents-maintenance.mjs");
   assert.match(pkg.scripts.build, /npm run build:ai-agents-maintenance$/u);
-  const builder = read("scripts/build-ai-agents-maintenance.mjs");
-  assert.match(builder, /entryPoints: \["scripts\/ai-agents-maintenance\.mjs"\]/u);
+  const builder = read("scripts/maintenance/build-ai-agents-maintenance.mjs");
+  assert.match(builder, /entryPoints: \["scripts\/maintenance\/ai-agents-maintenance\.mjs"\]/u);
   assert.match(builder, /outfile: "\.next\/ai-agents-maintenance\.mjs"/u);
   assert.match(builder, /conditions: \["react-server"\]/u);
 });
 
 test("точка входа: единственный вывод — одна JSON-строка или фиксированное слово, жёсткий предел меньше таймаута unit", () => {
-  const entry = read("scripts/ai-agents-maintenance.mjs");
+  const entry = read("scripts/maintenance/ai-agents-maintenance.mjs");
   assert.equal((entry.match(/console\./gu) ?? []).length, 3);
   assert.match(entry, /console\.log\(JSON\.stringify\(report\.log\)\)/u);
   assert.match(entry, /console\.error\("ai_agents_maintenance_failed"\)/u);
@@ -401,7 +401,7 @@ test("сборка самодостаточна: без ключа печата�
     const outfile = join(directory, "ai-agents-maintenance.mjs");
     await build({
       absWorkingDir: root,
-      entryPoints: ["scripts/ai-agents-maintenance.mjs"],
+      entryPoints: ["scripts/maintenance/ai-agents-maintenance.mjs"],
       outfile,
       bundle: true,
       platform: "node",

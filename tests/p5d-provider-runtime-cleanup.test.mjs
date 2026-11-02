@@ -22,8 +22,8 @@ const ACTIVE_PROVIDER_RUNTIME_PATHS = [
   "src/app/(v3)/v3/inbox/page.tsx",
   "src/components/v3/inbox/InboxChat.tsx",
   "src/app/api/internal/platform-messaging/waha/work/route.ts",
-  "scripts/test-postgres-v2-foundation.sh",
-  "scripts/prepare-connected-amocrm-validation.mjs",
+  "scripts/test-runners/test-postgres-v2-foundation.sh",
+  "scripts/checks/prepare-connected-amocrm-validation.mjs",
 ];
 
 const PROVIDER_GUARD_TEST_PATHS = [

@@ -11,7 +11,7 @@
 | `director.md`, `sales.md`, `curator-cn.md`, `curator-my.md` | Инструкции четырёх ролей. Frontmatter: `key`, у «Директора» ещё `schedule_prompt` (поручение для запуска `0 9 * * 1`) |
 | `curator-eu.md`, `curator-ae.md`, `curator-tr.md` | Заготовки: только frontmatter и комментарий «Инструкции пока нет» (`hasInstructions=false`, синхронизация даст `instructions_empty`) |
 | `prompts.generated.ts` | Сгенерированный модуль (не править). Его читает `index.ts`; в образе приложения ни `fs`, ни `.md` не нужны |
-| `scripts/build-ai-agent-prompts.mjs` | Генератор: `node scripts/build-ai-agent-prompts.mjs` пишет модуль, `--check` падает при расхождении |
+| `scripts/maintenance/build-ai-agent-prompts.mjs` | Генератор: `node scripts/maintenance/build-ai-agent-prompts.mjs` пишет модуль, `--check` падает при расхождении |
 | `tests/ai-agents-content.test.mjs` | 22 быстрых теста (генератор, структура, объёмы, сканер безопасности, красные линии, имена инструментов, ответы владельца 23.10) |
 
 Правка текста: изменить `.md`, запустить генератор, закоммитить оба. HTML-комментарии `<!-- … -->` вырезаются и в промпт не попадают. Абзацу, где «опасное» слово встречается только как запрет (турист, безвиз, виза по прилёту), ставится на предыдущей строке пометка `<!-- red-line -->`; тест не пропускает такие слова вне помеченных абзацев и вообще не пропускает названия коммерческих VPN.

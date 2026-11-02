@@ -16,11 +16,11 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const SHELL_PATH = new URL(
-  "../scripts/verify-connected-amocrm-validation.sh",
+  "../scripts/checks/verify-connected-amocrm-validation.sh",
   import.meta.url,
 );
 const PREPARE_PATH = new URL(
-  "../scripts/prepare-connected-amocrm-validation.mjs",
+  "../scripts/checks/prepare-connected-amocrm-validation.mjs",
   import.meta.url,
 );
 const E2E_PATH = new URL(
@@ -148,11 +148,11 @@ test("connected amoCRM harness is opt-in, exact-main and OrbStack-only", async (
   assert.match(source, /read-waha-self/u);
   assert.match(
     source,
-    /"\$node_bin" --conditions=react-server --experimental-strip-types \\\n+\s+scripts\/prepare-connected-amocrm-validation\.mjs seed/u,
+    /"\$node_bin" --conditions=react-server --experimental-strip-types \\\n+\s+scripts\/checks\/prepare-connected-amocrm-validation\.mjs seed/u,
   );
   assert.match(
     source,
-    /"\$node_bin" --conditions=react-server --experimental-strip-types \\\n+\s+scripts\/prepare-connected-amocrm-validation\.mjs discover/u,
+    /"\$node_bin" --conditions=react-server --experimental-strip-types \\\n+\s+scripts\/checks\/prepare-connected-amocrm-validation\.mjs discover/u,
   );
   assert.match(source, /authority-blocked\.json/u);
   assert.match(source, /provider-preparation-attempt\.json/u);
@@ -221,10 +221,10 @@ test("connected amoCRM acceptance has one local Supabase data authority", async 
 test("connected amoCRM acceptance reuses one exact local Admin before seeding", async () => {
   const source = await readFile(SHELL_PATH, "utf8");
   const prepareAdminIndex = source.indexOf(
-    'scripts/prepare-connected-amocrm-validation.mjs prepare-admin',
+    'scripts/checks/prepare-connected-amocrm-validation.mjs prepare-admin',
   );
   const seedIndex = source.indexOf(
-    'scripts/prepare-connected-amocrm-validation.mjs seed',
+    'scripts/checks/prepare-connected-amocrm-validation.mjs seed',
   );
   const blockedStart = source.indexOf("start_app 0");
   const blockedEnd = source.indexOf("stop_app", blockedStart);
@@ -243,7 +243,7 @@ test("connected amoCRM acceptance reuses one exact local Admin before seeding", 
   assert.match(source, /EVO_STAFF_AUTH_ADMIN_EMAIL="\$staff_admin_email"/u);
   assert.match(source, /EVO_STAFF_AUTH_ADMIN_PASSWORD="\$staff_admin_password"/u);
   assert.match(source, /chmod 600 "\$staff_log"/u);
-  assert.doesNotMatch(source, /scripts\/provision-local-supabase-staff\.mjs/u);
+  assert.doesNotMatch(source, /scripts\/local-dev\/provision-local-supabase-staff\.mjs/u);
   assert.doesNotMatch(source, /supabase db reset/u);
   assert.doesNotMatch(source, /EVO_STAFF_AUTH_(?:SALES|ADMISSIONS)_/u);
 
@@ -572,7 +572,7 @@ test("connected amoCRM discovery exits before the authorized dispatch boundary",
   );
   const discoveryBranchStart = source.indexOf(
     'if [[ "$validation_phase" == "discover" ]]; then',
-    source.indexOf("scripts/prepare-connected-amocrm-validation.mjs seed"),
+    source.indexOf("scripts/checks/prepare-connected-amocrm-validation.mjs seed"),
   );
   const discoveryExit = source.indexOf("exit 0", discoveryBranchStart);
   const authorizedStart = source.indexOf("start_app 1", discoveryBranchStart);
@@ -594,7 +594,7 @@ test("connected amoCRM discovery exits before the authorized dispatch boundary",
     "verify-discovery-boundary",
   );
   const freshDiscoveryIndex = source.indexOf(
-    "scripts/prepare-connected-amocrm-validation.mjs discover",
+    "scripts/checks/prepare-connected-amocrm-validation.mjs discover",
     discoveryExit,
   );
   assert.ok(snapshotIndex >= 0 && snapshotIndex < boundaryVerificationIndex);

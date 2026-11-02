@@ -19,7 +19,7 @@ import {
   evaluateU11RecoveryEvidence,
   validateU11RecoveryResult,
   writeU11RecoveryResult,
-} from "../scripts/u11-recovery-evidence.mjs";
+} from "../scripts/release/u11-recovery-evidence.mjs";
 
 const SHA = Object.freeze({
   source: "1".repeat(64),
@@ -481,7 +481,7 @@ test("the evaluate CLI consumes only closed JSON and never prints input values",
   const invalidOwnerOutputPath = join(root, "invalid-owner-result.json");
   const scriptPath = join(
     process.cwd(),
-    "scripts/u11-recovery-evidence.mjs",
+    "scripts/release/u11-recovery-evidence.mjs",
   );
   const input = {
     observedAt: "2026-08-27T10:00:00.000Z",

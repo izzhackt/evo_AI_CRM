@@ -24,12 +24,6 @@ jobs:
       code: ${{ steps.classify.outputs.code }}
       lint: ${{ steps.classify.outputs.lint }}
       build: ${{ steps.classify.outputs.build }}
-      inbox_dependencies: ${{ steps.classify.outputs.inbox_dependencies }}
-      inbox_formatting: ${{ steps.classify.outputs.inbox_formatting }}
-      inbox_contract_tests: ${{ steps.classify.outputs.inbox_contract_tests }}
-      format_base_sha: ${{ steps.classify.outputs.format_base_sha }}
-      format_head_sha: ${{ steps.classify.outputs.format_head_sha }}
-      lead_agent_dependencies: ${{ steps.classify.outputs.lead_agent_dependencies }}
       unknown: ${{ steps.classify.outputs.unknown }}
     steps:
       - name: Check out full history
@@ -52,8 +46,7 @@ jobs:
           set -Eeuo pipefail
           format_base_sha=$(git merge-base "$BASE_SHA" "$HEAD_SHA")
           format_head_sha=$(git rev-parse "$HEAD_SHA")
-          printf 'format_base_sha=%s\nformat_head_sha=%s\n' "$format_base_sha" "$format_head_sha" >> "$GITHUB_OUTPUT"
-          node scripts/classify-pr-changes.mjs --base "$format_base_sha" --head "$format_head_sha" --github-output "$GITHUB_OUTPUT"
+          node scripts/checks/classify-pr-changes.mjs --base "$format_base_sha" --head "$format_head_sha" --github-output "$GITHUB_OUTPUT"
 
       - name: Validate classifier outputs
         env:
@@ -64,14 +57,10 @@ jobs:
           CODE: ${{ steps.classify.outputs.code }}
           LINT: ${{ steps.classify.outputs.lint }}
           BUILD: ${{ steps.classify.outputs.build }}
-          INBOX_DEPENDENCIES: ${{ steps.classify.outputs.inbox_dependencies }}
-          INBOX_FORMATTING: ${{ steps.classify.outputs.inbox_formatting }}
-          INBOX_CONTRACT_TESTS: ${{ steps.classify.outputs.inbox_contract_tests }}
-          LEAD_AGENT_DEPENDENCIES: ${{ steps.classify.outputs.lead_agent_dependencies }}
           UNKNOWN: ${{ steps.classify.outputs.unknown }}
         run: |
           set -Eeuo pipefail
-          for value in "$HAS_CHANGES" "$ORDINARY_DOCS" "$CONTRACTS" "$MIGRATION_BOUNDARY" "$CODE" "$LINT" "$BUILD" "$INBOX_DEPENDENCIES" "$INBOX_FORMATTING" "$INBOX_CONTRACT_TESTS" "$LEAD_AGENT_DEPENDENCIES" "$UNKNOWN"; do
+          for value in "$HAS_CHANGES" "$ORDINARY_DOCS" "$CONTRACTS" "$MIGRATION_BOUNDARY" "$CODE" "$LINT" "$BUILD" "$UNKNOWN"; do
             case "$value" in
               true|false) ;;
               *)
@@ -168,7 +157,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           git fetch --no-tags origin main:refs/remotes/origin/main
-          boundary_diff="$(git diff --name-status --no-renames origin/main...HEAD -- supabase/migrations/ supabase/tests/ scripts/test-postgres-authorization.sh)"
+          boundary_diff="$(git diff --name-status --no-renames origin/main...HEAD -- supabase/migrations/ supabase/tests/ scripts/test-runners/test-postgres-authorization.sh)"
           if [[ "$boundary_diff" == $'A\tsupabase/migrations/171_platform_team_chat_remove_mute.sql' ]]; then
             echo "scoped_chat_mute=true" >> "$GITHUB_OUTPUT"
           else
@@ -309,128 +298,6 @@ jobs:
         if: ${{ steps.migration-scope.outputs.scoped_retired_slot == 'true' }}
         run: node --test tests/staff-roles-sales-handoff-migrations.test.mjs
 
-  # Isolated dependency verification; no deployment or provider credentials.
-  lead_agent_dependencies:
-    name: Lead-agent dependency maintenance
-    needs: changed-range
-    if: ${{ needs.changed-range.outputs.lead_agent_dependencies == 'true' && needs.changed-range.outputs.unknown != 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    container: python:3.13-slim@sha256:6771159cd4fa5d9bba1258caf0b82e6b73458c694d178ad97c5e925c2d0e1a91
-    defaults:
-      run:
-        working-directory: evo-lead-agent
-    steps:
-      - name: Check out source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - name: Install production uv version
-        run: python -m pip install --no-cache-dir uv==0.11.7
-
-      - name: Install locked production dependencies
-        run: uv sync --locked --no-dev
-
-      - name: Check installed dependency compatibility
-        run: uv pip check
-
-      - name: Exercise real local lead-agent HTTP runtime
-        run: uv run --locked --no-dev python ../scripts/smoke-lead-agent-dependencies.py
-
-  # Source-only maintenance of a retired companion; no deployment or credentials.
-  inbox_dependencies:
-    name: Inbox dependency maintenance
-    needs: changed-range
-    if: ${{ (needs.changed-range.outputs.inbox_dependencies == 'true' || needs.changed-range.outputs.inbox_formatting == 'true' || needs.changed-range.outputs.inbox_contract_tests == 'true') && needs.changed-range.outputs.unknown != 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: agent-lead2-inbox
-    env:
-      NEXT_TELEMETRY_DISABLED: "1"
-      FORMAT_BASE_SHA: ${{ needs.changed-range.outputs.format_base_sha }}
-      FORMAT_HEAD_SHA: ${{ needs.changed-range.outputs.format_head_sha }}
-    steps:
-      - name: Check out source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-          ref: ${{ needs.changed-range.outputs.format_head_sha }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: agent-lead2-inbox/package-lock.json
-
-      - name: Reject unsafe Inbox formatting scope before dependency installation
-        if: ${{ needs.changed-range.outputs.inbox_formatting == 'true' }}
-        run: node ../scripts/verify-inbox-format.mjs --base "$FORMAT_BASE_SHA" --head "$FORMAT_HEAD_SHA" --scope-only
-
-      - name: Install locked Inbox dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Prove exact output of the unchanged locked formatter
-        if: ${{ needs.changed-range.outputs.inbox_formatting == 'true' }}
-        run: node ../scripts/verify-inbox-format.mjs --base "$FORMAT_BASE_SHA" --head "$FORMAT_HEAD_SHA"
-
-      - name: Check the complete Inbox formatting baseline
-        if: ${{ needs.changed-range.outputs.inbox_formatting == 'true' }}
-        run: npm run format:check
-
-      - name: Audit all installed Inbox dependencies
-        run: npm audit --audit-level=low
-
-      - name: Exercise formatter proof with actual Git and locked Prettier
-        run: node --test ../tests/inbox-format-verifier.test.mjs
-
-      - name: Typecheck Inbox
-        run: npm run typecheck
-
-      - name: Lint Inbox
-        run: npm run lint
-
-      - name: Test pure Inbox helpers without provider adapters
-        if: ${{ needs.changed-range.outputs.inbox_formatting != 'true' }}
-        run: |
-          node --input-type=module <<'NODE'
-          import { startVitest } from "vitest/node";
-          const files = [
-            "src/lib/themes.test.ts",
-            "src/lib/whatsapp/template-status-normalize.test.ts",
-            "src/lib/ai/chunk.test.ts",
-          ];
-          let context;
-          try {
-            context = await startVitest("test", files,
-              { config: false, watch: false, include: files },
-              { configFile: false, envDir: false });
-            if (Object.keys(context.config.env ?? {}).length !== 0) {
-              throw new Error("Pure helper tests must not inject environment values");
-            }
-            const modules = context.state.getTestModules();
-            if (modules.length !== files.length || modules.some((module) => !module.ok())
-              || context.state.getUnhandledErrors().length > 0) {
-              process.exitCode = 1;
-            }
-          } finally {
-            await context?.close();
-          }
-          NODE
-
-      - name: Test the three explicit legacy contract files
-        if: ${{ needs.changed-range.outputs.inbox_contract_tests == 'true' && needs.changed-range.outputs.inbox_formatting != 'true' }}
-        run: npm test -- src/components/first-launch-ui.test.tsx src/lib/deployment-config.test.ts src/lib/supabase/schema-contract.test.ts
-
-      # Existing offline unit suite (uses its original mocks); not provider proof.
-      - name: Run legacy Inbox tests for the formatter baseline
-        if: ${{ needs.changed-range.outputs.inbox_formatting == 'true' }}
-        run: npm test
-
-      - name: Build Inbox with TypeScript authority
-        run: npm run build
-
   fast-checks:
     name: Fast checks
     if: ${{ always() }}
@@ -440,8 +307,6 @@ jobs:
       - lint
       - build
       - migration_boundary
-      - inbox_dependencies
-      - lead_agent_dependencies
     runs-on: ubuntu-latest
     steps:
       - name: Require selected fast PR checks
@@ -453,30 +318,11 @@ jobs:
           LINT_RESULT: ${{ needs.lint.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           MIGRATION_BOUNDARY_RESULT: ${{ needs.migration_boundary.result }}
-          LEAD_AGENT_DEPENDENCIES_REQUIRED: ${{ needs.changed-range.outputs.lead_agent_dependencies }}
-          LEAD_AGENT_DEPENDENCIES_RESULT: ${{ needs.lead_agent_dependencies.result }}
-          INBOX_DEPENDENCIES_REQUIRED: ${{ needs.changed-range.outputs.inbox_dependencies }}
-          INBOX_DEPENDENCIES_RESULT: ${{ needs.inbox_dependencies.result }}
-          INBOX_FORMATTING_REQUIRED: ${{ needs.changed-range.outputs.inbox_formatting }}
-          INBOX_CONTRACT_TESTS_REQUIRED: ${{ needs.changed-range.outputs.inbox_contract_tests }}
         run: |
           set -Eeuo pipefail
           test "$RANGE_RESULT" = "success"
           test "$HAS_CHANGES" = "true"
           test "$UNKNOWN" = "false"
-          for required in "$INBOX_DEPENDENCIES_REQUIRED" "$INBOX_FORMATTING_REQUIRED" "$INBOX_CONTRACT_TESTS_REQUIRED"; do
-            case "$required" in true|false) ;; *) exit 1 ;; esac
-          done
-          if test "$INBOX_DEPENDENCIES_REQUIRED" = "true" || test "$INBOX_FORMATTING_REQUIRED" = "true" || test "$INBOX_CONTRACT_TESTS_REQUIRED" = "true"; then
-            test "$INBOX_DEPENDENCIES_RESULT" = "success"
-          else
-            test "$INBOX_DEPENDENCIES_RESULT" = "skipped"
-          fi
-          case "$LEAD_AGENT_DEPENDENCIES_REQUIRED" in
-            true) test "$LEAD_AGENT_DEPENDENCIES_RESULT" = "success" ;;
-            false) test "$LEAD_AGENT_DEPENDENCIES_RESULT" = "skipped" ;;
-            *) exit 1 ;;
-          esac
           for result in "$CONTRACTS_RESULT" "$LINT_RESULT" "$BUILD_RESULT" "$MIGRATION_BOUNDARY_RESULT"; do
             case "$result" in
               success|skipped) ;;

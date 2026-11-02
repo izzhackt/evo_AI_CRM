@@ -73,7 +73,7 @@ import {
   isConnectedPlatformPrivateApi,
   isRetiredPlatformRoute,
 } from "../src/lib/platform-route-contract.ts";
-import { validateAppEnvironmentContract } from "../scripts/evo-app-env-contract.mjs";
+import { validateAppEnvironmentContract } from "../scripts/release/evo-app-env-contract.mjs";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const ID = (n) => `27200000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -987,7 +987,7 @@ test("real proxy: staff P2 APIs reach the session gate (401), the broker passes 
 test("env: the broker secret is optional, well-formed and distinct from the agent-call secret", () => {
   const example = read("deploy/env.production.example");
   assert.match(example, /^EVO_AI_AGENT_STORAGE_SECRET=$/mu);
-  const contract = read("scripts/evo-app-env-contract.mjs");
+  const contract = read("scripts/release/evo-app-env-contract.mjs");
   assert.match(contract, /OPTIONAL_RUNTIME_NAMES = Object\.freeze\(\["EVO_AI_AGENT_INTERNAL_SECRET", "EVO_AI_AGENT_STORAGE_SECRET"\]\)/u);
   assert.equal(typeof validateAppEnvironmentContract, "function");
 });

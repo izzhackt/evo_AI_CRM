@@ -5,7 +5,7 @@
 - Date: 2026-07-28
 - Starting database boundary: migration 042
 - Additive migration: 043
-- Parent contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
+- Parent contract: `docs/archive/plans/platform-long-run-plan.md`
 - Foundation contract: `docs/platform/p2-supabase-foundation.md`
 
 ## Purpose and proof boundary

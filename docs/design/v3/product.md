@@ -405,7 +405,7 @@ protected short checks.
 > «okay, i like ur recommendations we can go with them»
 
 План со всеми принятыми поправками:
-[EVO_CRM_REDESIGN_PLAN_2026-09-25.md](../../EVO_CRM_REDESIGN_PLAN_2026-09-25.md).
+[2026-09-25-crm-redesign-plan.md](../../archive/plans/2026-09-25-crm-redesign-plan.md).
 Поверх исходной сводки принято:
 
 - одной волосяной тенью «приподняты» только кнопки и карточки досок; панели,

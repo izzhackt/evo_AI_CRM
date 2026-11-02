@@ -2,7 +2,7 @@
 -- Boundary suite for migration 300 «Телефония Beeline KG» срез T9 (неизвестный входящий номер →
 -- клиент и лид «Звонок», известный клиент без открытого лида → задача последнему владельцу,
 -- потолки автоматики, очередь «Заявок» v3 с вкладкой «Звонки»;
--- docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.1, §6.2, §9.1, §9.3, §12, §18.2; ADR 0033). Runs on
+-- docs/archive/plans/2026-10-16-telephony-plan.md §6.1, §6.2, §9.1, §9.3, §12, §18.2; ADR 0033). Runs on
 -- the real chain right after 300 inside one transaction that is rolled back, with its own
 -- synthetic organizations, members (roles through the REAL platform.staff_role_command /
 -- staff_role_publish / staff_role_assignments_save), clients, leads and calls: no provider, no

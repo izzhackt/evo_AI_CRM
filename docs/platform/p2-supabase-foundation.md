@@ -4,7 +4,7 @@
 - Date: 2026-08-04
 - Block family: P2A–P2H and P2R0–P2R3 merged reusable foundation; P2R3
   implementation merged in PR #112
-- Parent contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
+- Parent contract: `docs/archive/plans/platform-long-run-plan.md`
 - Architecture: ADR 0014/0015, with greenfield/UI conflicts superseded by ADR
   0016
 - Current checkpoint: `121db548b252eff9e4b79f62297aa27fe39e5c40`

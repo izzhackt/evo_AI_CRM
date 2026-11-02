@@ -1,5 +1,5 @@
 /**
- * «Телефония Beeline KG», срез T7 (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.4, §6.5, §8,
+ * «Телефония Beeline KG», срез T7 (docs/archive/plans/2026-10-16-telephony-plan.md §5.4, §6.5, §8,
  * §12; миграция 299): чистый контракт кнопки «Позвонить» — без React и без сервера. Его
  * читают страницы, кнопка, маршрут `POST /api/v3/telephony/dial` и Node-тесты.
  *

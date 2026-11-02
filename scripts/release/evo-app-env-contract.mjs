@@ -46,7 +46,7 @@ const REQUIRED_RUNTIME_VALUES = Object.freeze([
 // stays releasable before the owner adds it. A present, non-empty value must
 // still be well-formed.
 //  - EVO_AI_AGENT_INTERNAL_SECRET: HMAC of CRM → private «ИИ-агент» requests
-//    (docs/EVO_AI_AGENT_PLAN_2026-10-06.md §4.3, §4.7; ADR 0032), 32–256
+//    (docs/archive/plans/2026-10-06-ai-agent-plan.md §4.3, §4.7; ADR 0032), 32–256
 //    printable characters without whitespace, distinct from every WAHA and
 //    lead-agent secret.
 //  - EVO_AI_AGENT_STORAGE_SECRET: HMAC of agent → CRM storage-broker requests
@@ -63,7 +63,7 @@ const OPTIONAL_RUNTIME_NAMES = Object.freeze(["EVO_AI_AGENT_INTERNAL_SECRET", "E
 //    the other agent secrets and distinct from every other value.
 const OPTIONAL_AUTOSEND_NAMES = Object.freeze(["EVO_AI_AGENT_AUTOSEND", "EVO_AI_AGENT_SEND_SECRET"]);
 const OPTIONAL_SECRET_NAMES = Object.freeze([...OPTIONAL_RUNTIME_NAMES, "EVO_AI_AGENT_SEND_SECRET"]);
-// Beeline KG PBX telephony (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.5; ADR 0033),
+// Beeline KG PBX telephony (docs/archive/plans/2026-10-16-telephony-plan.md §5.5; ADR 0033),
 // also optional: every name may be absent or empty and the feature stays off, so
 // a release never fails on missing telephony env (plan §14, step 3).
 //  - EVO_PLATFORM_TELEPHONY_ENABLED: the intake switch; only '', 0 or 1. `1` is
@@ -94,7 +94,7 @@ const TELEPHONY_CRM_TOKEN = /^[A-Za-z0-9-]{32,64}$/u;
 const TELEPHONY_PBX_TOKEN = /^[\x21-\x7e]{16,256}$/u;
 const TELEPHONY_PBX_HOST =
   /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/u;
-// WhatsApp via Wazzup (docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §5.5, §9), also optional: every name may be absent
+// WhatsApp via Wazzup (docs/plans/2026-10-27-wazzup-whatsapp-plan.md §5.5, §9), also optional: every name may be absent
 // or empty and the receive path stays off, so a release never fails on missing Wazzup env.
 //  - EVO_PLATFORM_WAZZUP_INGRESS_ENABLED: the emergency stop of POST /api/v2/whatsapp/wazzup/inbound; only '', 0 or 1.
 //    `1` means «receive allowed» (the working switch is the database transport) and needs a well-formed

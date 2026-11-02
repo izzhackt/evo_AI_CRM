@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for the T11a migration «Телефония Beeline KG» срез T11a (стирание
 -- телефонии по человеку и очистка доказательств по сроку;
--- docs/EVO_TELEPHONY_PLAN_2026-10-16.md §13, §16; ADR 0033; PLAN_CHANGES
+-- docs/archive/plans/2026-10-16-telephony-plan.md §13, §16; ADR 0033; PLAN_CHANGES
 -- «Телефония T11a»). Runs on the real chain right after that migration inside one
 -- transaction that is rolled back, with its own synthetic organizations,
 -- members, clients, leads, PBX users and messages (the calls come through the

@@ -1,6 +1,6 @@
 # «Путь поступления» на «Главной»: контракт для веба и iPhone
 
-Дата: 16.10.2026. План: `docs/EVO_STUDENT_APP_V2_PLAN_2026-10-16.md` §8 (S4), решения владельца §2 (Р5), общие правила §4, проверки §12. Запись `docs/PLAN_CHANGES.md` «Путь поступления на «Главной» (284)». Миграция `supabase/migrations/284_platform_student_country_choice.sql`.
+Дата: 16.10.2026. План: `docs/archive/plans/2026-10-16-student-app-v2-plan.md` §8 (S4), решения владельца §2 (Р5), общие правила §4, проверки §12. Запись `docs/PLAN_CHANGES.md` «Путь поступления на «Главной» (284)». Миграция `supabase/migrations/284_platform_student_country_choice.sql`.
 
 Этот документ для агентов веба (`/portal`) и iPhone (`ios/`). Веб и iPhone показывают одно и то же: один набор файлов и одни правила ниже.
 

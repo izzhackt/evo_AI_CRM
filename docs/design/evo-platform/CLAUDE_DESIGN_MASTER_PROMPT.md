@@ -43,7 +43,7 @@ repository; do not use generic SaaS lorem ipsum.
 Start by reading these sources in this order:
 
 1. `AGENTS.md`, `CONTEXT.md` and ADR 0020
-2. `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` and the current U-slice issue
+2. `docs/archive/plans/platform-long-run-plan.md` and the current U-slice issue
 3. `docs/design/evo-platform/IMPLEMENTATION_PLAN.md`
 4. `docs/design/evo-platform/COMPLETION_CHECKLIST.md`
 5. `docs/design/evo-platform/SOURCE_BRIEF_IT_TZ.md`

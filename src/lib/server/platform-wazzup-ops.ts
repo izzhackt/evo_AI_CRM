@@ -30,7 +30,7 @@ import {
 
 /**
  * Команды оператора для WhatsApp через Wazzup: `docker exec -i evo-crm-app-1 node /app/wazzup-ops.mjs <команда>`
- * (docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §5.5-§5.6; runbook docs/runbooks/wazzup-whatsapp.md). Запускаются только с
+ * (docs/plans/2026-10-27-wazzup-whatsapp-plan.md §5.5-§5.6; runbook docs/runbooks/wazzup-whatsapp.md). Запускаются только с
  * «давай» владельца, никогда не выпуском.
  *
  * Правило секретов: ключ Wazzup приходит только через stdin (скрытый ввод в терминале или конвейер) и уходит в Vault;

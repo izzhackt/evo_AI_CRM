@@ -1,5 +1,5 @@
 \set ON_ERROR_STOP on
--- Boundary suite for migration 323 «Отчёты Looker Studio» (docs/EVO_LOOKER_REPORTS_PLAN_2026-10-27.md §4, §6, §12.2):
+-- Boundary suite for migration 323 «Отчёты Looker Studio» (docs/plans/2026-10-27-looker-reports-plan.md §4, §6, §12.2):
 -- хранение двух ссылок организации (отчёт «Маркетинга» и отчёт «Финансов»), чтение и правка. Runs on the real chain
 -- right after 323 inside one transaction that is rolled back, with its own synthetic organizations, members and
 -- roles (the roles are made and assigned through the REAL platform.staff_role_command / staff_role_publish /

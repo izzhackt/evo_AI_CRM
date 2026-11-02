@@ -1,6 +1,6 @@
 # Личный календарь EVO — исходники и план реализации
 
-Источник: `dc3c246d470600e4203e5d6610a79503ae7862ac`, worktree `/Users/iskhak.tazhibaev/.codex/worktrees/evo-ux-system-audit/evo_AI_CRM`. Дополнительно изучены свежие приватные `calendar-desktop.png` и `calendar-mobile.png` из `/tmp/evo-ux-audit-evidence/`: реальное локальное приложение `d7067bc3`, неизменённый calendar, Admin managed206, снимки предоставил родитель. Этот агент browser/БД/команды записи не вызывал; код не менял. Все ссылки ниже относительны к worktree. Это план по §10 `docs/EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md:282–296`, не live production acceptance.
+Источник: `dc3c246d470600e4203e5d6610a79503ae7862ac`, worktree `/Users/iskhak.tazhibaev/.codex/worktrees/evo-ux-system-audit/evo_AI_CRM`. Дополнительно изучены свежие приватные `calendar-desktop.png` и `calendar-mobile.png` из `/tmp/evo-ux-audit-evidence/`: реальное локальное приложение `d7067bc3`, неизменённый calendar, Admin managed206, снимки предоставил родитель. Этот агент browser/БД/команды записи не вызывал; код не менял. Все ссылки ниже относительны к worktree. Это план по §10 `docs/archive/plans/2026-09-20-crm-ux-and-admissions-plan.md:282–296`, не live production acceptance.
 
 Режим Impeccable Operate; контекст уже загружен родителем. Сохранить EVO logo, Golos, действующие светлые/тёмные токены, красный акцент, общую навигацию и рабочие функции задач. Не превращать этот срез в редизайн всего task workspace.
 

@@ -14,7 +14,7 @@
 - [Admissions operating process](admissions-process.md)
 - [Consultation and sales playbook](sales-playbook.md)
 - [EVO Inbox knowledge-base upload pack](knowledge-base/README.md)
-- [Brand and product research](../EVO_BRAND_RESEARCH.md)
+- [Brand and product research](../archive/plans/brand-research.md)
 - [Approved-style starter FAQ](../../evo-lead-agent/examples/evo-admissions-starter-knowledge.json)
 
 ## Owner-Approved Country Inputs

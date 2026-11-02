@@ -60,7 +60,7 @@ What still leaks pre-U2 assumptions on current main:
 - current projection creates communication records, but the active contract does
   not yet prove that supported inbound messages create or reuse canonical
   clients/leads and therefore become visible through connected `/sales`;
-- `docs/EVO_LAUNCH_PLAN.md`, `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`,
+- `docs/EVO_LAUNCH_PLAN.md`, `docs/archive/plans/platform-long-run-plan.md`,
   `CONTEXT.md`, and ADR 0020 current-slice metadata were stale relative to
   the merged U0-U2 baseline before this U3 contract refresh.
 

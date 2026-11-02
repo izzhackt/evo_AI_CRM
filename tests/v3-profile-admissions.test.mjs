@@ -122,7 +122,7 @@ test("application selector owns stale reads and search Enter without changing ap
   assert.doesNotMatch(selector, /country\(item\.country\)\s*\?\?\s*item\.country/u);
   // OTH-4: the selector's render location moved from ProfileAdmissionsWorkspace.tsx's
   // inline <details>«Новая заявка»</details> into the new small search dialog
-  // (docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md §«Uni & knowledge base») --
+  // (docs/archive/plans/2026-09-19-other-fable-plan.md §«Uni & knowledge base») --
   // deliberate pin move, not a drop. Program is optional here (plan: "программу
   // указать сразу либо позже"), so the old `required` pin is gone too.
   const createDialog = source("src/components/v3/profile/ApplicationCreateDialog.tsx");
@@ -214,7 +214,7 @@ test("V3 profile actions use canonical versioned server commands and honest outc
     assert.match(controls, new RegExp(`${action}`));
   }
   assert.match(createDialog, /createPlatformUniversityApplicationAction/u);
-  // OTH-4 (docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md §«Uni & knowledge base»:
+  // OTH-4 (docs/archive/plans/2026-09-19-other-fable-plan.md §«Uni & knowledge base»:
   // «Добавленный вуз означает «рассматриваем». Фактическая подача отмечается
   // отдельно.»): un-deadens changePlatformUniversityApplicationAction /
   // ApplicationStatusForm, which the retired unified-workflow-S4 comment

@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for migration 274 («ИИ-агент» P3: память о клиенте и медиа в
--- контексте, docs/EVO_AI_AGENT_PLAN_2026-10-06.md §5.2–5.4, §6.1, §9, §13,
+-- контексте, docs/archive/plans/2026-10-06-ai-agent-plan.md §5.2–5.4, §6.1, §9, §13,
 -- §15 P3). Runs on the real chain right after 274 inside one transaction that
 -- is rolled back, with its own synthetic organizations; no provider, Gemini
 -- call, real person, real phone or production action. Members are modelled

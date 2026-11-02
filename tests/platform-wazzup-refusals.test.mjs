@@ -1,5 +1,5 @@
 // What the application does so that nothing is ever sent to a customer while WhatsApp is connected through Wazzup
-// (plan docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §0, §6 B.9, §8, §9): the 409 on the WAHA connect route, the `receive_only`
+// (plan docs/plans/2026-10-27-wazzup-whatsapp-plan.md §0, §6 B.9, §8, §9): the 409 on the WAHA connect route, the `receive_only`
 // refusal in every application send path, the second line of the double-receive ban, and the route contract. Fakes only: no
 // WAHA, no Wazzup, no Supabase. Everything is synthetic. Run with:
 // node --conditions=react-server --experimental-strip-types --test tests/platform-wazzup-refusals.test.mjs

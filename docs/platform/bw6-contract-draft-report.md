@@ -5,7 +5,7 @@
 - Block-ID: `EVO-BW6-CONTRACT-DRAFT-REPORT-2026-08-04`
 - Starting main: `1061bad81b27deee98d9c69380b3e543dc281924`
 - Expected additive migration: `057_platform_contract_draft_report.sql`
-- Parent contract: [`EVO_PLATFORM_LONG_RUN_PLAN.md`](../EVO_PLATFORM_LONG_RUN_PLAN.md)
+- Parent contract: [`platform-long-run-plan.md`](../archive/plans/platform-long-run-plan.md)
 - Requirements: [`EVO_PLATFORM_TZ.md`](../specs/EVO_PLATFORM_TZ.md),
   FR-093, FR-101 and FR-102
 

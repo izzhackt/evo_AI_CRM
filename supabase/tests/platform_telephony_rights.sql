@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for migration 291 «Телефония Beeline KG» срез T2 (права, роли,
--- журнал действий; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §11; ADR 0033). Runs on
+-- журнал действий; docs/archive/plans/2026-10-16-telephony-plan.md §11; ADR 0033). Runs on
 -- the real chain right after 291 inside one transaction that is rolled back,
 -- with its own synthetic organizations, members and roles (modelled like
 -- production: invited staff have coarse role NULL, permissions come from scoped

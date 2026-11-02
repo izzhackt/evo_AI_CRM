@@ -13,7 +13,7 @@ The active successor sources are:
 - `deploy/README.md` for the runtime boundary;
 - `deploy/production-release.md` for the controlled exact-SHA release process;
 - `deploy/runtime-hardening.md` for health, privacy, and resource rules; and
-- `docs/DISASTER_RECOVERY.md` for the managed-Supabase recovery contract.
+- `docs/runbooks/disaster-recovery.md` for the managed-Supabase recovery contract.
 
 Any real production deployment, rollback, provider mutation, customer-data
 operation, WAHA session change, or cutover still requires its own current plan

@@ -5,7 +5,7 @@
 - Block-ID: `EVO-BW5-CATALOG-IMPORT-BOUNDARY-2026-08-04`
 - Starting main: `cb74856305ed4a71d3bfa0ad94a19637bb6ffa48`
 - Additive migration: `056_platform_university_catalog_import_boundary.sql`
-- Parent contract: [`EVO_PLATFORM_LONG_RUN_PLAN.md`](../EVO_PLATFORM_LONG_RUN_PLAN.md)
+- Parent contract: [`platform-long-run-plan.md`](../archive/plans/platform-long-run-plan.md)
 - Requirements: [`EVO_PLATFORM_TZ.md`](../specs/EVO_PLATFORM_TZ.md),
   FR-106, FR-107, FR-108 and FR-110
 

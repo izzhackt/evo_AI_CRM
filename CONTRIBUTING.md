@@ -11,7 +11,7 @@ business documentation, so every change must be reviewable and reproducible.
 - GitHub Issues records work status and decisions that require action. Do not
   keep the only copy of a task in a local note or chat.
 - The VPS is a runtime, not a development source. Do not make an untracked fix
-  directly in `/opt/evo-crm` or `/opt/evo-inbox` and leave it there.
+  directly in `/opt/evo-crm` and leave it there.
 - Production data stays in its owning system. Do not copy customer records,
   WhatsApp sessions, database files, or provider secrets into Git.
 
@@ -31,15 +31,16 @@ before coding.
 
 ## Repository Map
 
-- `src/`, `tests/`, and the root `package.json`: EVO Admissions CRM.
-- `agent-lead2-inbox/`: EVO Inbox companion application.
-- `evo-lead-agent/`: WhatsApp lead-agent service.
-- `deploy/`, `docker-compose.prod.yml`, and
-  `agent-lead2-inbox/deploy/`: production deployment definitions.
+- `src/`, `tests/`, and the root `package.json`: the EVO Platform application
+  (staff CRM, student portal, API routes).
+- `supabase/`: migrations and database tests; `ios/`: the student iPhone app.
+- `deploy/`, `docker-compose.prod.yml`, and `Dockerfile`: production deployment
+  definitions; `deploy/edge/` holds the public edge proxy config.
 - `docs/`: product, architecture, operations, and business documentation.
+- The retired lead-agent and EVO Inbox trees live only under the git tag
+  `archive/lead-agent-and-inbox-2026-11-02`.
 
-Each application has its own dependencies and validation commands. Install and
-run commands from the directory that owns the relevant package file.
+The root `README.md` has the full folder map.
 
 ## Prepare A Local Workspace
 
@@ -66,21 +67,6 @@ Create local environment files only from committed `*.example` files. Replace
 placeholders locally, never in a tracked file. Do not use production customer
 data to make local development convenient.
 
-For EVO Inbox:
-
-```bash
-cd agent-lead2-inbox
-cp .env.local.example .env.local
-npm ci --include=dev
-```
-
-For the lead agent:
-
-```bash
-cd evo-lead-agent
-uv sync --extra dev
-```
-
 ## Make A Change
 
 1. Start from an up-to-date `main` branch.
@@ -95,7 +81,7 @@ uv sync --extra dev
 Commit messages follow Conventional Commits, for example:
 
 ```text
-feat(inbox): add operator conversation filter
+feat(crm): add operator conversation filter
 fix(deploy): keep CRM on the EVO edge network
 docs: document the admissions data owner map
 ```
@@ -113,25 +99,6 @@ npm run build
 
 Run `npm run test:e2e` when a user workflow or browser-visible behavior
 changes.
-
-### EVO Inbox
-
-```bash
-cd agent-lead2-inbox
-npm run lint
-npm run typecheck
-npm test
-npm run format:check
-npm run build
-```
-
-### Lead Agent
-
-```bash
-cd evo-lead-agent
-uv run ruff check .
-uv run pytest
-```
 
 Do not claim that WhatsApp, WAHA, amoCRM, Gemini, Supabase, DNS, Caddy, or a
 deployment works unless the real authorized service was exercised. If a real

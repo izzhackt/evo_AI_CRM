@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for migration 296 «Телефония Beeline KG» срез T4b («Настройки →
 -- Телефония»: чтение, правка настроек, сопоставление пользователей ВАТС;
--- docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.5, §6.3, §6.4, §9.1, §11, §12; ADR
+-- docs/archive/plans/2026-10-16-telephony-plan.md §5.5, §6.3, §6.4, §9.1, §11, §12; ADR
 -- 0033). Runs on the real chain right after 296 inside one transaction that is
 -- rolled back, with its own synthetic organizations, members and PBX users (the
 -- roles «Телефония — менеджер/руководитель» come from the real provisioning of

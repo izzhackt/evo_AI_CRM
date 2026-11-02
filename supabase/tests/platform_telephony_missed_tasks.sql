@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for migration 298 «Телефония Beeline KG» срез T8 (задача «Перезвонить»
 -- по пропущенному, «Недозвон» с каденсом, автозакрытие, задачи по результату звонка,
--- потолки автоматики; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.1, §6.2, §9.1, §9.2, §9.4;
+-- потолки автоматики; docs/archive/plans/2026-10-16-telephony-plan.md §6.1, §6.2, §9.1, §9.2, §9.4;
 -- ADR 0033). Runs on the real chain right after 298 inside one transaction that is rolled
 -- back, with its own synthetic organizations, members (roles through the REAL
 -- platform.staff_role_command / staff_role_publish / staff_role_assignments_save),

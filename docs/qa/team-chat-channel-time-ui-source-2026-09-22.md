@@ -7,7 +7,7 @@ acceptance, production, native and full item15 are not claimed.
 
 ## Contract and review before code
 
-[UI plan](../EVO_TEAM_CHAT_CHANNEL_TIME_UI_PLAN_2026-09-22.md) and both journal
+[UI plan](../archive/plans/2026-09-22-team-chat-channel-time-ui-plan.md) and both journal
 appends were committed before implementation at
 `7692a242383ba7122901b6ca73547999728d601c`. The reviewed plan SHA-256 was
 `3843d0c589a33575396935d3cb14dd91df08e65021ea3719575288ff03258199`.

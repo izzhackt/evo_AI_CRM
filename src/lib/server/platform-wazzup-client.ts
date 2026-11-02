@@ -1,7 +1,7 @@
 import "server-only";
 
 /**
- * Клиент API Wazzup (docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §5.5). Базовый адрес `https://api.wazzup24.com`,
+ * Клиент API Wazzup (docs/plans/2026-10-27-wazzup-whatsapp-plan.md §5.5). Базовый адрес `https://api.wazzup24.com`,
  * заголовок `Authorization: Bearer <ключ>` (wazzup24.ru/help/api-ru/avtorizaciya/, прочитано 27.10.2026).
  *
  * Только три вызова, и ровно те, что разрешены Sidecar-ключу интеграции (страница «Способы подключения»:

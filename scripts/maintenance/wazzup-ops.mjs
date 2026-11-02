@@ -1,4 +1,4 @@
-// Entry of the Wazzup operator commands (docs/runbooks/wazzup-whatsapp.md, docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md
+// Entry of the Wazzup operator commands (docs/runbooks/wazzup-whatsapp.md, docs/plans/2026-10-27-wazzup-whatsapp-plan.md
 // §5.5-§5.6). Bundled by scripts/maintenance/build-whatsapp-health-maintenance.mjs into .next/wazzup-ops.mjs, shipped in the image as
 // /app/wazzup-ops.mjs and run by the operator, with the owner's go-ahead, as
 // `docker exec -i evo-crm-app-1 node /app/wazzup-ops.mjs <command>`.

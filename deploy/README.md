@@ -22,7 +22,7 @@ Use [production-release.md](production-release.md) for the exact-SHA release,
 [fast-app-release.md](fast-app-release.md) for automatic execution and exact
 rollback, and [runtime-hardening.md](runtime-hardening.md) for health, privacy,
 resource, and log rules. The managed-Supabase recovery boundary is in
-[`docs/DISASTER_RECOVERY.md`](../docs/DISASTER_RECOVERY.md). The superseded V1
+[`docs/runbooks/disaster-recovery.md`](../docs/runbooks/disaster-recovery.md). The superseded V1
 multi-runtime material is retained under
 [`docs/archive/v1`](../docs/archive/v1/README.md) and must not be executed.
 

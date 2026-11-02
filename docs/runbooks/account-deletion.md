@@ -230,7 +230,7 @@ WHERE payload ->> 'actor_id' = '<subject_auth_user_id>'
    доступ и согласия»; отдельной группы у них нет.
 
    **Телефония (288 и 294, «Телефония Beeline KG», план
-   `docs/EVO_TELEPHONY_PLAN_2026-10-16.md` §13).** Таблицы `platform_private.telephony_*`
+   `docs/archive/plans/2026-10-16-telephony-plan.md` §13).** Таблицы `platform_private.telephony_*`
    хранят номер человека (`client_phone` звонков и наборов, поле `phone` в
    доказательствах приёма `telephony_pbx_events.fields`), ссылки на записи
    разговоров (`telephony_call_legs.recording_link`, секрет; сам звук EVO не

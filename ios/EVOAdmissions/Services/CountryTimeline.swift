@@ -1,6 +1,6 @@
 import Foundation
 
-// «Путь поступления» на «Главной» (S4, план docs/EVO_STUDENT_APP_V2_PLAN_2026-10-16.md
+// «Путь поступления» на «Главной» (S4, план docs/archive/plans/2026-10-16-student-app-v2-plan.md
 // §8). Те же семь файлов, что читает веб (`src/content/timelines/*.json`,
 // ресурсы bundle через project.yml, копий в Swift нет), и тот же выбор, что
 // `selectCountryTimeline` в src/lib/portal/country-timeline.ts (контракт

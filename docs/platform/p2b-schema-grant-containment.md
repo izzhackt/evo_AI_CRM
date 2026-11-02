@@ -3,7 +3,7 @@
 - Block: P2B
 - Date: 2026-07-28
 - Starting main: `7420736b02f251162cf709e3cc4029262d94f1c5`
-- Plan: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
+- Plan: `docs/archive/plans/platform-long-run-plan.md`
 - Detailed contract: `docs/platform/p2-supabase-foundation.md`
 - Provider proof: not required for this repository/disposable-local block
 

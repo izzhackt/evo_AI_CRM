@@ -3,7 +3,7 @@
 Статус: контракт для потоков S3.3 (веб), S3.4 (iPhone) и S3.5 (CRM). Источник
 правды: `supabase/migrations/283_platform_catalog_geography_costs.sql`, проверки:
 `supabase/tests/platform_catalog_geography_costs.sql`. План:
-`docs/EVO_STUDENT_APP_V2_PLAN_2026-10-16.md` (раздел 7), решения:
+`docs/archive/plans/2026-10-16-student-app-v2-plan.md` (раздел 7), решения:
 `docs/PLAN_CHANGES.md`, записи 16.10.2026 о миграции 283.
 
 Все RPC в схеме `platform`. Веб вызывает их как

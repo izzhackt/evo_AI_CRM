@@ -8,7 +8,7 @@
 | Основание | Документы компании, проверенный материал по Китаю, исходный материал по Малайзии, бизнес-документация, реализованные контракты CRM/EVO Inbox/Lead Agent и целевой EVO Platform contract |
 
 Целевую реализацию определяют
-[`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`](../EVO_PLATFORM_LONG_RUN_PLAN.md) и
+[`docs/archive/plans/platform-long-run-plan.md`](../archive/plans/platform-long-run-plan.md) и
 [ADR 0014](../adr/0014-unified-evo-platform-target-architecture.md). Описание
 разделённых CRM, EVO Inbox и Lead Agent ниже остаётся честной картой текущего
 runtime до контролируемого перехода.

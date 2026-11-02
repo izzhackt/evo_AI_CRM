@@ -2,7 +2,7 @@
 
 ## Телефония Beeline KG — план фазы 1, 2026-10-16 (редакция 2026-10-17)
 
-Контракт: [EVO_TELEPHONY_PLAN_2026-10-16.md](EVO_TELEPHONY_PLAN_2026-10-16.md),
+Контракт: [2026-10-16-telephony-plan.md](archive/plans/2026-10-16-telephony-plan.md),
 решение — [ADR 0033](adr/0033-integrate-beeline-kg-pbx-via-rest-api-without-recording-copies.md),
 решения владельца — запись 2026-10-16 в `PLAN_CHANGES.md`. Телефония выходит из
 списка отложенных (DEC-019 только в части телефонии): REST API ВАТС Beeline
@@ -18,7 +18,7 @@ review за выключенными флагами, а флаги включа�
 
 ## Приложение студента v2 — план 2026-10-16
 
-Контракт: [EVO_STUDENT_APP_V2_PLAN_2026-10-16.md](EVO_STUDENT_APP_V2_PLAN_2026-10-16.md),
+Контракт: [2026-10-16-student-app-v2-plan.md](archive/plans/2026-10-16-student-app-v2-plan.md),
 решения владельца — запись 2026-10-16 в `PLAN_CHANGES.md`. Веб-кабинет и
 iPhone как один продукт: S1 скорость (вариант A, код без переезда сервера),
 S2 единый список стран CN, MY, AE, TR, IT, CZ везде, включая форму сайта,
@@ -30,7 +30,7 @@ review, iPhone — через TestFlight. План не разрешает produ
 
 ## Маркетинг, источники заявок и аналитика сайта — план 2026-10-06
 
-Контракт: [EVO_MARKETING_PLAN_2026-10-06.md](EVO_MARKETING_PLAN_2026-10-06.md),
+Контракт: [2026-10-06-marketing-plan.md](archive/plans/2026-10-06-marketing-plan.md),
 решение владельца — запись 2026-10-06 в `PLAN_CHANGES.md`. Раздел
 «Маркетинг» только для admin (каналы → заявки → договоры → оплаты, заявки с
 именами, Instagram, реклама Meta, сайт и поиск), «Откуда узнал» у лида,
@@ -40,12 +40,12 @@ review, iPhone — через TestFlight. План не разрешает produ
 
 ## CRM UX и единое поступление — принято к реализации 2026-09-20
 
-Владелец поручил реализовать [план CRM UX и поступления](EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md).
+Владелец поручил реализовать [план CRM UX и поступления](archive/plans/2026-09-20-crm-ux-and-admissions-plan.md).
 Он определяет выбранные CRM-изменения и общий путь программа → документы →
 проверка EVO для CRM, веба и iPhone. Веб — первый полный рабочий выпуск;
 iPhone использует те же серверные операции. Этот порядок относится к новому
 admissions-пути и уточняет прежнее общее правило параллельной разработки.
-[Ведомость исполнения](EVO_CRM_UX_AND_ADMISSIONS_EXECUTION_2026-09-20.md)
+[Ведомость исполнения](archive/plans/2026-09-20-crm-ux-and-admissions-execution.md)
 разделяет реализацию, review/merge, выпуск и реальные проверки.
 
 Решение §14.2 получено: клиент с сопровождением сразу начинает подготовку
@@ -72,11 +72,11 @@ admissions-пути и уточняет прежнее общее правило
 функций и переходе к этим этапам. Автоматически после KB их не запускать.
 Точечные реальные проверки изменений, независимое review и управляемые
 release-гейты сохраняются. Актуальный порядок и известные UI-пробелы:
-[план продолжения Astra, §4–6](EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md#4-порядок-блоков).
+[план продолжения Astra, §4–6](archive/plans/2026-09-20-astra-continuation-plan.md#4-порядок-блоков).
 
 ## CRM Knowledge Base — план GPT-6 Astra, 2026-09-19
 
-Контракт отдельной задачи: [EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md](EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md).
+Контракт отдельной задачи: [2026-09-19-crm-knowledge-base-plan.md](archive/plans/2026-09-19-crm-knowledge-base-plan.md).
 Admin-only база с папками, страницами и файлами, существующими материалами
 клиентов, защищёнными записями доступа; обязательный перенос и сортировка всей
 локальной базы, дальнейшая работа в CRM и выгрузка материала/папки/всей базы.
@@ -94,7 +94,7 @@ Astra владеет этим scope, Claude Code Fable продолжает Port
 - KB-0 and runtime merged through #902/#906/#915/#916/#918/#919/#921/#924. Worktree `evo-crm-knowledge-implementation` preserves the canonical dirty checkout. Admin navigation is unified under Knowledge Base; staff document/template routes remain available.
 - Production ledger 001–206 is contiguous and matches applied hashes. SOPS runtime, external age key and export maintenance timer are provisioned. The owner transferred schema/release and actual import/export coordination to Astra; Portal/App remains Fable's scope.
 - The complete source plan covers 6,570 entries: 436 internal pages, 432 internal files, 5,668 raw files and 32 protected originals; two key files remain outside CRM. All 6,568 source originals and 25 structured protected records are imported. Full UI/API reconciliation: 6,568 verified, 0 missing, 0 mismatch; 5,961 unique blobs and 607 preserved duplicate source locations. After the first Storage failure, #924 was released and the same full snapshot resumed with all 206 verified parts retained. The 10,471,474,710-byte ZIP is downloaded and fully verified: 7,542 file entries, all 6,568 originals, 25 current protected records (26 versions) and 32 protected originals; zero missing/errors. All 2,655 review questions remain explicit; two key files stay outside the archive.
-- Real editor/navigation, file-review metadata, selected canonical ZIP, normal Auth denials, source-byte preservation and earlier UI journeys are recorded in the [KB execution receipt](EVO_CRM_KNOWLEDGE_BASE_EXECUTION_2026-09-20.md). No Student customer acceptance or AI republication is claimed.
+- Real editor/navigation, file-review metadata, selected canonical ZIP, normal Auth denials, source-byte preservation and earlier UI journeys are recorded in the [KB execution receipt](archive/plans/2026-09-20-crm-knowledge-base-execution.md). No Student customer acceptance or AI republication is claimed.
 - Current release `35481793583` accepted exact main `b7598a1c5046fe3c2b16fc014bc0c22044e64b27`; runtime/accepted pointer match, healthy, pending absent and arm=false. The changed Storage path passed a real one-file Admin export/download with exact source bytes and five role denials. Earlier canonical-search HTTP/UI acceptance and guarded release history remain in the execution receipt.
 
 ## Portal release v3-r35473599531-a1-fd25b1ac accepted 2026-09-20
@@ -398,7 +398,7 @@ features. Clients also receive their authorized case, curator, documents,
 tasks and communication; invitations and later service enrollment preserve
 the same account, saved choices and learning progress.
 
-Current contract: [full portal plan](EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md).
+Current contract: [full portal plan](archive/plans/2026-09-19-portal-web-iphone-plan.md).
 The owner's later clarification replaces PR #859's sequential delivery order:
 develop the desktop-first web portal and the full iPhone app in parallel. Both
 student audiences receive the shared features, with full accompaniment added for
@@ -422,8 +422,8 @@ controls; this documentation change itself performs no deployment or migration.
 - [x] PORT-6: scoped integration, content completion and final UX pass. (кроме вычитки KY носителем — владельческий пункт)
 - [ ] PORT-7: managed web delivery, iPhone distribution and truthful handoff. (владельческие внешние шаги: Apple Developer/подпись/TestFlight/store; агентская часть — done: review-аккаунт, документация)
 
-Финальные документы: [ведомость](EVO_PORTAL_FINAL_LEDGER_2026-09-20.md) · [handover и передача Astra](EVO_PORTAL_HANDOVER_2026-09-20.md).
-План продолжения: [EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md](EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md) (исполнитель — GPT-6 Astra).
+Финальные документы: [ведомость](archive/plans/2026-09-20-portal-final-ledger.md) · [handover и передача Astra](archive/plans/2026-09-20-portal-handover.md).
+План продолжения: [2026-09-20-astra-continuation-plan.md](archive/plans/2026-09-20-astra-continuation-plan.md) (исполнитель — GPT-6 Astra).
 
 These checkboxes describe planned work, not existing feature readiness. Existing
 authentication, organization/case access and private assessment boundaries remain
@@ -490,7 +490,7 @@ release also carries the portal session's migration-free #867/#868.
 
 ## Other staff UX — merged 2026-09-19 (receipts)
 
-All six slices of `docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md` are merged to
+All six slices of `docs/archive/plans/2026-09-19-other-fable-plan.md` are merged to
 main (5fbb1b08). Per the allocation update below-noted in the previous
 revision, the chain was renumbered 187-191 mid-flight: the parallel portal
 session shipped 186_platform_student_invite_conflict_codes first; ranges
@@ -562,7 +562,7 @@ arm read back `false`. The cabinet-invite privilege boundary is covered by a
 real-Postgres suite executed at the 185 checkpoint of the authorization
 harness (this release's own review requirement).
 
-With S8 the unified-workflow plan (docs/EVO_UNIFIED_WORKFLOW_PLAN_2026-09-18.md)
+With S8 the unified-workflow plan (docs/archive/plans/2026-09-18-unified-workflow-plan.md)
 is fully implemented: an independent audit of all nine owner criteria against
 the shipped code found eight done and one gap — closed by this slice. The two
 remaining documented cosmetic follow-ups (full-row card save vs partial
@@ -639,7 +639,7 @@ team chat and the student portal read-only path on the pivoted UI.
 
 ## Unified workflow — active 2026-09-18
 
-Owner plan docs/EVO_UNIFIED_WORKFLOW_PLAN_2026-09-18.md supersedes conflicting
+Owner plan docs/archive/plans/2026-09-18-unified-workflow-plan.md supersedes conflicting
 earlier decisions. Contract entry: docs/PLAN_CHANGES.md (2026-09-18, «unified
 workflow: план-контракт реализации»). One release to production at the end.
 
@@ -2406,7 +2406,7 @@ Missing backend/provider configuration fails closed; model/budgets remain the
 existing database snapshot. Bundle, focused CLI checks and one Next build are
 required; image/browser/provider acceptance remains a separate root-owned gate.
 No activation, scheduling, provider calls, database changes or deployment occur
-in this implementation slice. See the [CLI runbook](document-recognition-worker.md).
+in this implementation slice. See the [CLI runbook](platform/document-recognition-worker.md).
 
 Root approves the bounded [isolated source runtime](design/v3/document-source-runtime-contract.md)
 from reviewed D4 `ae52a316`: fixed Linux source inspector, `document-source-v1`,
@@ -5395,7 +5395,7 @@ Updated 2026-08-17 in the workspace timezone.
 
 This document is the execution contract for the current EVO Platform MVP lane in
 this repo. The current detailed contract is
-`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`. New implementation lanes are blocked
+`docs/archive/plans/platform-long-run-plan.md`. New implementation lanes are blocked
 until their plan and `docs/PLAN_CHANGES.md` amendment are independently
 reviewed and merged. If scope, architecture, API/schema, acceptance criteria,
 file ownership or merge order changes, stop the affected code change and merge
@@ -5772,7 +5772,7 @@ checkpoint is:
 
 The implementation authority for P7 is append-only Block
 `EVO-P7-SECURITY-RELIABILITY-PLAN-2026-08-13` in `docs/PLAN_CHANGES.md` and the
-P7 section of `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`, expanded by
+P7 section of `docs/archive/plans/platform-long-run-plan.md`, expanded by
 `docs/platform/p7-security-reliability.md` and the primary-source note
 `docs/research/p7-official-evidence-2026-08-13.md`. P7A removes direct browser
 audit-table access and connects the accepted Platform Settings surface to a
@@ -6243,7 +6243,7 @@ open ownership; merged migrations are immutable.
 
 P0–P10, their exact exit evidence, validation commands, protected operations,
 remaining owner decisions and the independent-review/merge-controller protocol
-are defined in `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`.
+are defined in `docs/archive/plans/platform-long-run-plan.md`.
 
 - P0: plan/TZ/DOCX/ADR and target architecture, docs-only.
 - P1: current-app role/RBAC/handoff correction. P1A-P1D are merged.
@@ -6562,7 +6562,7 @@ Historical slice: `/goal-evo-platform-frontend`.
 This section records the then-current runtime and acceptance contract for the
 completed frontend work. Its legacy `visa` role matrix is historical evidence
 only and is superseded for all P1+ implementation by
-`docs/EVO_PLATFORM_LONG_RUN_PLAN.md` and `docs/specs/EVO_PLATFORM_TZ.md`.
+`docs/archive/plans/platform-long-run-plan.md` and `docs/specs/EVO_PLATFORM_TZ.md`.
 
 This slice ran after its planning-only PR was independently reviewed and
 merged. It did not close or weaken `/goal-evo-preplatform-hardening`; the
@@ -7071,7 +7071,7 @@ Historical implementation material below remains as prior-slice context until
 the documentation archive pass is complete.
 
 The EVO Inbox companion lane is specified in
-`docs/EVO_INBOX_COMPANION_PRD.md`. It creates a WACRM-derived, fully redesigned
+`docs/archive/plans/inbox-companion-prd.md`. It creates a WACRM-derived, fully redesigned
 standalone companion app at `agent-lead2-inbox/`, hosted at
 `inbox.evoadmissions.com`, using managed Supabase Cloud, WAHA session
 `evo-inbox`, WACRM's own draft-only AI assistant, and amoCRM as the identity
@@ -7235,7 +7235,7 @@ Current risk surfaced by repo inspection:
 - `docs/PLAN_CHANGES.md` has an append-only `/goal-qa-launch` entry before
   runtime or test coding because this lane changes active scope, acceptance
   criteria, file ownership, merge-order status, and validation evidence.
-- `docs/QA_LAUNCH_REPORT.md` records the QA method, scored checklist, desktop
+- `docs/archive/plans/qa-launch-report.md` records the QA method, scored checklist, desktop
   and mobile screenshots paths, pass/fail evidence, changes made, validation
   output, stop reason, and named blockers.
 - Browser QA starts from a fresh context with no saved login, cookies, or site
@@ -7334,7 +7334,7 @@ outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
 
 `/goal-evo-inbox-companion` planned write set:
 
-- `docs/EVO_INBOX_COMPANION_PRD.md`: product contract and acceptance context.
+- `docs/archive/plans/inbox-companion-prd.md`: product contract and acceptance context.
 - `docs/EVO_LAUNCH_PLAN.md`: lane status, phase plan, write sets, and
   validation gates.
 - `docs/PLAN_CHANGES.md`: append-only decisions and scope changes.
@@ -7392,9 +7392,9 @@ outside its named ownership area, update `docs/PLAN_CHANGES.md` first.
 
 - `docs/EVO_LAUNCH_PLAN.md`: current-slice and acceptance update.
 - `docs/PLAN_CHANGES.md`: append-only QA launch entry.
-- `docs/QA_LAUNCH_REPORT.md`: QA checklist, screenshot paths, validation, stop
+- `docs/archive/plans/qa-launch-report.md`: QA checklist, screenshot paths, validation, stop
   reason, and blockers.
-- `docs/SCENARIO_EVALUATION.md`: refreshed only by the required scenario runner
+- `docs/archive/plans/scenario-evaluation.md`: refreshed only by the required scenario runner
   as validation evidence.
 - Runtime, scenario, or copy files only if the QA pass exposes a
   launch-blocking bug, fake-success claim, missing validation evidence, or small
@@ -10418,7 +10418,7 @@ No production migration/release or deferred final E2E/content/App Store work.
 ## 2026-09-20 — EVO product-wide UX refinement
 
 Owner-authorized additive execution contract:
-[`EVO_UX_REFINEMENT_PLAN_2026-09-20.md`](EVO_UX_REFINEMENT_PLAN_2026-09-20.md).
+[`2026-09-20-ux-refinement-plan.md`](archive/plans/2026-09-20-ux-refinement-plan.md).
 Analyze the entire CRM, product web (desktop/mobile), and iPhone experience against
 real tasks and the existing CRM/admissions functional plan. Preserve EVO/Atlas/native
 identity and useful functions; improve CRM composition, density, typography,
@@ -10432,7 +10432,7 @@ separate. The first documentation pass is not a completed all-page runtime audit
 ## Parallel A/B execution — 2026-09-20
 
 Owner dispatched two agents for items 1–36 only; items 37–50 remain deferred.
-Lane A contract: `docs/EVO_PARALLEL_A_CRM_PLAN_2026-09-20.md`. First block A-1
+Lane A contract: `docs/archive/plans/2026-09-20-parallel-a-crm-plan.md`. First block A-1
 (items 4/34) adds an exact-path lead-agent dependency CI lane: locked Python 3.13
 installation and real local HTTP smoke, with unknown paths still fail-closed.
 This unblocks assessment of #847, not production release or provider acceptance.
@@ -12249,7 +12249,7 @@ Issue687 owner/managed exit and all remaining accepted1–36 work stay open.
 
 ## 2026-09-21 — A / item15a: remove automatic task actions from staff chat (precode)
 
-Contract: `docs/EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md` §9,
+Contract: `docs/archive/plans/2026-09-20-crm-ux-and-admissions-plan.md` §9,
 «Задачи из чата убираются». Previous A block CRM-03/221 merged as PR#968,
 main `43bd20c802ef2e9789463548ef1a1e3c3cbcf09d`. This is a bounded first slice
 of item15, not completion of the whole chat redesign.
@@ -12378,7 +12378,7 @@ Actual existing Admin Money/Contract,1280/390/320px; явные денежные
 ## 2026-09-21 — A / item15b: composer autosize precode
 
 After A15a/#970, source analysis of main686b7f41 is recorded in
-`docs/EVO_TEAM_CHAT_REMAINDER_ANALYSIS_2026-09-21.md`. Flat feed requires changing
+`docs/archive/plans/2026-09-21-team-chat-remainder-analysis.md`. Flat feed requires changing
 the root-only reader, reply-to-reply/rollback contract and old draft recovery;
 removing the thread UI alone would lose visible history. Sparse seen cannot
 reuse the whole-channel read_sequence command. No migration number is reserved.
@@ -12497,7 +12497,7 @@ gate для самого выбора. Новый staff-save создаёт ре
 ### A15c precode — additive flat timeline reader, 2026-09-21
 
 After A15b merged in6d01bc81/#974, select the next coherent read foundation from
-`docs/EVO_TEAM_CHAT_FLAT_READER_PLAN_2026-09-21.md`. Accepted product plan§12
+`docs/archive/plans/2026-09-21-team-chat-flat-reader-plan.md`. Accepted product plan§12
 requires old replies AND new unread accounting before thread removal. Add a
 separate bounded timeline/context reader over original message rows, safe parent
 quote projections, strict DTO/decoder and authenticated repository access.
@@ -12575,7 +12575,7 @@ idempotent mark_seen and compatible unread calculation, preserving historical
 read_sequence and all current UI/commands/drafts. Later quote compatibility,
 draft recovery, flat-feed/search/scroll integration and density/previews remain
 separate dependent slices. Do not remove thread UI before these prerequisites.
-See docs/EVO_TEAM_CHAT_FLAT_UI_PLAN_2026-09-21.md and its actual QA receipt.
+See docs/archive/plans/2026-09-21-team-chat-flat-ui-plan.md and its actual QA receipt.
 
 This append is precode only, awaiting independent exact-head review.224 remains
 B-reserved; A has no new migration number or apply/Auth-write window. Production
@@ -12695,7 +12695,7 @@ No production/UI/server-action journey or whole-item15 completion claimed.
 ### A15e precode: additive direct quotes while preserving v1 root replies
 
 A15d merged in main439a66de. New bounded contract at
-docs/EVO_TEAM_CHAT_DIRECT_QUOTES_PLAN_2026-09-21.md proposes one private quote
+docs/archive/plans/2026-09-21-team-chat-direct-quotes-plan.md proposes one private quote
 map, post_v2 and timeline_v2. Existing command171 (with156 scoped rights),
 reader223, seen225, messages and frozen v1 requests remain unchanged. V2 keeps
 server-derived root-parent separately from direct target and stores an explicit
@@ -13377,7 +13377,7 @@ passed and full raw window was released to ROOT990. Start A15f source work in an
 isolated chat-only worktree while ROOT owns runtime. No migration or database/
 Auth/browser/server work belongs to this offline step.
 
-Update docs/EVO_TEAM_CHAT_FLAT_UI_PLAN_2026-09-21.md with the current dependency
+Update docs/archive/plans/2026-09-21-team-chat-flat-ui-plan.md with the current dependency
 state and concrete SSR/V2 timeline, one composer, V1 draft recovery, context/
 search/anchor, invalidation and seen integration. Pin a500ms stable body dwell
 with visible height at least min(50%body,160px), active visible window, overlay/
@@ -13442,7 +13442,7 @@ Storage and incoming224 sessions restored; own browser/server stopped. See
 `docs/qa/crm-sales-compact-summary-2026-09-21.md`. Mainca7c98ec integration
 preserves exact SalesRegisterView bytes; this is reused proof, not a new run.
 
-`docs/EVO_ITEMS_1_36_STATUS_2026-09-21.md` reconciles the accepted original labels
+`docs/archive/plans/2026-09-21-items-1-36-status.md` reconciles the accepted original labels
 and remaining work, preserving earlier historical checkpoints. Local231 then
 applied once with no Auth/submission/business writes; window passed B232.
 No production delivery or whole1–36 completion claimed.
@@ -13458,7 +13458,7 @@ periods/archive states, preserve exact strings/C order, reject overflow above
 Strict DTO and shared500-code-point validator; native GET select retains
 unknown current URL values, filters/period/Back/reset. Explicit option error
 keeps exact-text input available without pretending empty success.
-See docs/EVO_SALES_DIRECTIONS_PLAN_2026-09-21.md for scope, grants and acceptance.
+See docs/archive/plans/2026-09-21-sales-directions-plan.md for scope, grants and acceptance.
 Source-only while B232 owns QA; ROOT coordinates any later local apply.
 No production or fixture creation is authorized by this entry.
 
@@ -13573,7 +13573,7 @@ Cash already has correct scoped authority and is not part of this fix. Moving
 the import form remains the later7b block. Impeccable Operate applies within
 current EVO; inspect historical233 baseline, reread craft-floor beforeUIediting.
 
-Contract: docs/EVO_SALES_MANAGEMENT_STATE_PLAN_2026-09-21.md, independentprecode
+Contract: docs/archive/plans/2026-09-21-sales-management-state-plan.md, independentprecode
 approveded9a5f93. Reserve235 behindA234; actualexisting-actor/read-onlyQA after
 B1003 releases sharedruntime. No production/fixtures/targetwrites/importsubmit
 or newAuthactors. Missing actor/data combinations remain explicitly unclaimed.
@@ -13589,7 +13589,7 @@ production use here. See docs/qa/crm-sales-management-source-2026-09-21.md.
 ### A11 / CRM-07 case-chat queues — decisions before code, 2026-09-21
 
 A15f is merged in #992 / ca7c98ec2. Implement the bounded contract in
-[case-chat queue plan](EVO_CASE_CHAT_QUEUE_PLAN_2026-09-21.md): three queues
+[case-chat queue plan](archive/plans/2026-09-21-case-chat-queue-plan.md): three queues
 from existing await_state, additive staff reader v2 with q/filter before the
 200-row limit, shared search race guard, current-list invalidation and durable
 selected conversation context. Existing v1, commands, rights, drafts and EVO
@@ -13626,7 +13626,7 @@ gates; production, broad E2E and unsupported positive QA states unclaimed.
 ### A15g-1 / item15 — read errors and exact retry, precode 2026-09-21
 
 A11/#1002 merged479dd6788. The next accepted minimum is
-[read retry contract](EVO_TEAM_CHAT_READ_RETRY_PLAN_2026-09-21.md): operation-owned
+[read retry contract](archive/plans/2026-09-21-team-chat-read-retry-plan.md): operation-owned
 read errors, frozen search/cursor retry, separate background failure ownership,
 and terminal late forbidden without changing write protocol or permissions.
 A owns TeamChat.tsx, a small client-safe helper and behavior tests. No SQL,
@@ -13809,7 +13809,7 @@ no new UI admission or widened functionality is implied.
 ## 2026-09-21 — A14a compact staff catalogue, precode
 
 A1005 merged29e0fb46a; its local235 window released to ROOT/B1006.
-[Item14 contract](EVO_STAFF_CATALOG_COMPACT_PLAN_2026-09-21.md) independently
+[Item14 contract](archive/plans/2026-09-21-staff-catalog-compact-plan.md) independently
 approvedca49e8fb on plan8f081b63. Target source33966da1 is byte-identical on
 incoming29e0fb46a. A owns staff-only UniversityList, optional compact UniversityPhoto,
 a pure program/intake deadline selector+tests, and staff page's shared now.
@@ -13843,7 +13843,7 @@ full country facet, management changes and production remain open.
 ## 2026-09-21 — ROOT item7b import management precode
 
 After accepted #1004 (main d68ce587), implement the already approved
-[import placement plan](EVO_SALES_IMPORT_MANAGEMENT_PLAN_2026-09-21.md).
+[import placement plan](archive/plans/2026-09-21-sales-import-management-plan.md).
 Move the existing import mount out of the daily report into its own internal
 mode=import view; preserve a scoped report entry for authorized custom staff
 and add an independently scoped Admin Settings entry. Preserve existing forms,
@@ -14014,7 +14014,7 @@ and incoming catalogue product files match main. Reuse unchanged scope checks.
 PR #1008 смержен в main d6add88372778758b23686fb0bba6ae74181e15b после
 независимого exact-head review beadbefc и CI35623264182. Его actual b8497ad4
 и ограничения остаются в существующей квитанции. A начинает следующий
-принятый ограниченный блок по [плану группировки](EVO_TEAM_CHAT_MESSAGE_GROUPING_PLAN_2026-09-21.md).
+принятый ограниченный блок по [плану группировки](archive/plans/2026-09-21-team-chat-message-grouping-plan.md).
 Исходный чат идентичен actual7d70a71d/main29e0fb46; прежние снимки используются
 только как визуальная база, не как приёмка нового поведения.
 
@@ -14100,7 +14100,7 @@ PR #1012 принят в main `7faa4748c899b58e25d630f6c3942a6dd21ff663`: final 
 `0036d57d`, CI35631741403 SUCCESS (5 PASS / 3 ожидаемых SKIP), ordinary squash
 exact head88f0479c. Предыдущие actual/gaps сохраняются, production не запускался.
 
-Следующий [двухфайловый контракт](EVO_TEAM_CHAT_SERVICE_ROW_PLAN_2026-09-21.md)
+Следующий [двухфайловый контракт](archive/plans/2026-09-21-team-chat-service-row-plan.md)
 принят до кода: precode83cf1217, независимое APPROVED_PRECODEeeceef77 и разрешение
 ROOT на source-only реализацию. В Row переносим единственные time/edited в footer
 с прежними Ответить/menu; полный автор остаётся над body, continuation header
@@ -14233,7 +14233,7 @@ profile не входит в staff chat flow. Final exact-head review/CI/merge �
 ### A15 — bounded channel preview reader/DTO до кода, 2026-09-21
 
 После merge #1014 / main24e78024 независимый precode review7a844584 принял
-предложение1ee57581. [Контракт](EVO_TEAM_CHAT_CHANNEL_PREVIEWS_PLAN_2026-09-21.md)
+предложение1ee57581. [Контракт](archive/plans/2026-09-21-team-chat-channel-previews-plan.md)
 разделяет reader/DTO и последующий rail UI. ROOT резервирует237 и разрешает
 только первый source блок: additive latestPreview в существующем channels RPC,
 strict decoder и pure monotonic snapshot/preview acceptance с protocol tests.
@@ -14415,7 +14415,7 @@ rail UI ждёт merge. Production и whole15/1–36 не закрыты.
 
 #1017 смержен вc675d4b4 после exact-head reviewf36fec39 и CI35645855198
 (6SUCCESS/2SKIP) наab45c3a6. Новый isolated branch team-chat-channel-preview-rail
-содержит только [предложение второго блока](EVO_TEAM_CHAT_CHANNEL_RAIL_PLAN_2026-09-21.md),
+содержит только [предложение второго блока](archive/plans/2026-09-21-team-chat-channel-rail-plan.md),
 ещё без product edits/runtime. Общие request tickets на refresh/search и
 принятый acceptor; latestPreview каждой строки; только presentation latest state
 удаляется, обязательные tail refs/hydration сохраняются. Mobile nav показывает
@@ -14463,7 +14463,7 @@ tests, typecheck и targeted lint PASS; parity9173d669. No actual/UI/runtime,
 ### A15 rail — actual incumbent получен, UI source этап разрешён — 22.09
 
 ROOT просмотрел один c675 Admin batch390/320/1440 и разрешил следующий UI этап
-[того же плана](EVO_TEAM_CHAT_CHANNEL_RAIL_PLAN_2026-09-21.md). Mobile rail gap
+[того же плана](archive/plans/2026-09-21-team-chat-channel-rail-plan.md). Mobile rail gap
 закрыт: links68–69.6px/no overflow/Enter-back на320; desktop288px, preview13px.
 Короткий Impeccable critique записан до product edit: selected-only preview
 скрывает последнее сообщение «Продаж» (unread1), пустое «Поступление» не объяснено.
@@ -14602,7 +14602,7 @@ main и полные собственные дополнения журнало�
 ## 2026-09-22 — A15 command feedback, accepted precode before implementation
 
 После protected merge #1020 в eec9c548 начинается [точное сообщение об исходе
-команды](EVO_TEAM_CHAT_COMMAND_FEEDBACK_PLAN_2026-09-22.md). Independent
+команды](archive/plans/2026-09-22-team-chat-command-feedback-plan.md). Independent
 precode reviewa67c4d25 принят с единственной коррекцией: повтор может создать
 первое сообщение, если исходная попытка не дошла; обещаем отсутствие дубликата,
 а не отсутствие нового сообщения. Corrected approved plan1b5bcf4d.
@@ -14675,7 +14675,7 @@ Pagination отсутствует в данных, same-context refresh оста
 ## 2026-09-22 — A15 channel timestamp: accepted precode, reservation239 before source
 
 #1024 смержен вd1568d58 после review3e4cfb59 и CI35669601084. Следующий
-[принятый timestamp-контракт](EVO_TEAM_CHAT_CHANNEL_TIME_PLAN_2026-09-22.md)
+[принятый timestamp-контракт](archive/plans/2026-09-22-team-chat-channel-time-plan.md)
 перенесён в репо до кода: original8c0466d5, independent37f9d5a, ROOTacceptance9c73157b.
 Fresh targeted diff сохраняет предпосылку additive outer field/nested7 exact.
 ROOT эксклюзивно зарезервировал239; другая миграция не назначается.
@@ -14818,7 +14818,7 @@ review/CI/merge #1028 остаются отдельным следующим ш�
 
 #1027 защищённо смержен в2a04610f8: reader239/DTO, local apply и ordinary RPC
 приняты, strict ownclosure завершена, QA возвращена ROOT. Следующий узкий
-[UI-план](EVO_TEAM_CHAT_CHANNEL_TIME_UI_PLAN_2026-09-22.md) записан до кода.
+[UI-план](archive/plans/2026-09-22-team-chat-channel-time-ui-plan.md) записан до кода.
 Impeccable Operate сохраняет текущий EVO rail; historical1440/320 просмотрены,
 CSS и channel markup точно совпадают с accepted rail sourcebab531ae.
 
@@ -14909,7 +14909,7 @@ Scope этого блока — только общие документы на 
 компании и исправление текущих статусов. Исторические квитанции и append-журналы
 сохраняются; исходники продукта, SQL, KB-файлы, approval и публикации не меняются.
 
-[План KB](EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md), §1 и §9, разрешает оставить
+[План KB](archive/plans/2026-09-19-crm-knowledge-base-plan.md), §1 и §9, разрешает оставить
 конкретные спорные утверждения с явным вопросом. Итог анализа определяется
 инвентарём, происхождением, распределением и адресным остатком, а не утверждением
 всех статей. [Общая карта](qa/knowledge-source-reconciliation-2026-09-21.md)
@@ -14936,7 +14936,7 @@ compatibility addendum `82cca346` сохраняют границы этого �
 ## 2026-09-22 — A15 compact root tombstone, before implementation
 
 После merged #1030/#1031 (main0926399b) согласован оставшийся §9 UX-срез:
-[компактный след удалённого сообщения](EVO_TEAM_CHAT_COMPACT_TOMBSTONE_PLAN_2026-09-22.md).
+[компактный след удалённого сообщения](archive/plans/2026-09-22-team-chat-compact-tombstone-plan.md).
 Старый replyCount считает root-parent descendants, а не все прямые цитаты для
 бывшего reply. Поэтому scope только deleted + explicit parent null + count0 +
 quote null; unknown/reply/replied строки остаются прежними. SQL/wire/roles/actions,
@@ -15062,7 +15062,7 @@ STOP, KB decisions и пределы31/32 сохранены. Проверки �
 
 ## 2026-09-22 — independent audit1–36: source и ограниченный read-only UI
 
-[Независимая ведомость](EVO_ITEMS_1_36_INDEPENDENT_REVIEW_2026-09-22.md)
+[Независимая ведомость](archive/plans/2026-09-22-items-1-36-independent-review.md)
 на main6515e695 проверяет36 требований без нового продуктового scope.
 ROOT/A/B координация исключила дублирование draft1026/980. Нового подтверждённого
 дефекта вне их scope в просмотренных путях не установлено. Read-only local dev
@@ -15412,7 +15412,7 @@ On confirmed stale/request-conflict only, the explicit «Обновить кар
 
 Владелец расширил каталог публичного сайта на остальные действующие вузы EVO;
 задача сайта передала ROOT зависимость приёмника для Czechia/Austria/Cyprus → EU.
-[Минимальный контракт](EVO_WEBSITE_COUNTRY_EXTENSION_2026-09-22.md) фиксируется до
+[Минимальный контракт](archive/plans/2026-09-22-website-country-extension.md) фиксируется до
 кода: только HTTP country allowlist и тело receive_website_lead, миграция240.
 Существующие country/university receipts, guards и шестистрановая подготовка
 сохранены. Тестовые lead submissions не выполняются по решению владельца.
@@ -15458,7 +15458,7 @@ release smoke; живой сбой чтения шаблонов не воспр
 сотруднику с ролью Admin через Настройки CRM; #1040 и native-проверки iPhone
 отложены; KB159 без изменений; #708 открыт до второго сотрудника; SOPS-архив
 ключа Resend не нужен. Подробно — сверка 23.09 в
-[ведомости 1–36](EVO_ITEMS_1_36_STATUS_2026-09-21.md).
+[ведомости 1–36](archive/plans/2026-09-21-items-1-36-status.md).
 
 
 ## 2026-09-24 — UX quick wins CRM (критика Impeccable) и роль Sales Manager для Admin
@@ -15567,7 +15567,7 @@ iPhone; 25.09 владелец решил оставить так.
 `EVO_PRODUCTION_RELEASE_ARMED` после выпуска и живой UI — сеть сессии не
 пускает к `crm.evoadmissions.com`.
 
-Текущий план CRM — [план редизайна 25.09](EVO_CRM_REDESIGN_PLAN_2026-09-25.md),
+Текущий план CRM — [план редизайна 25.09](archive/plans/2026-09-25-crm-redesign-plan.md),
 принят владельцем с поправками разбора. Следующий выпуск — доски (#1053);
 дополнение 26.09: доски выпущены 26.09 в `d89eebea` (r135), квитанция ниже.
 
@@ -16828,7 +16828,7 @@ opus 5.5 and if some mistakes/bugs fix». Порядок main, ledger и вып�
 
 ## 2026-10-06 — раздел «ИИ-агент»: план
 
-Контракт: [EVO_AI_AGENT_PLAN_2026-10-06.md](EVO_AI_AGENT_PLAN_2026-10-06.md),
+Контракт: [2026-10-06-ai-agent-plan.md](archive/plans/2026-10-06-ai-agent-plan.md),
 решения владельца — запись 2026-10-06 в `PLAN_CHANGES.md`, ADR
 [0031](adr/0031-allow-bounded-night-whatsapp-autoreply.md) (ночной
 автоответчик) и [0032](adr/0032-run-the-ai-agent-as-a-private-evo-service.md)
@@ -17202,7 +17202,7 @@ append-only [`PLAN_CHANGES.md`](PLAN_CHANGES.md), в профильных пла
 | «Unified workflow — active 2026-09-18» («Финальная проверка слайсов, применение миграций владельцем и один управляемый релиз»; 1 пункт) | Раздел «Unified workflow — released 2026-09-19»: миграции 180–183 применены (ledger 001–183), выпуск [`35390450281`](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35390450281) принят на `f9a233c6` после отката первой попытки и исправления [#850](https://github.com/izzhackt/evo_AI_CRM/pull/850) |
 | «Student Profile response cancellation — active 2026-09-17» («Distinguish client cancellation…», «Independently review and merge the diagnostic change, then run the frozen-current-main full gate once»; 2 пункта) | Только как **условие выпуска**: решение владельца 18.09 заменило тяжёлый полный гейт лёгким ([`AGENTS.md`](../AGENTS.md), «Fast Execution And Validation — 2026-09-18»; раздел «Lightweight production release — completed 2026-09-18»; [квитанция](design/v3/references/2026-09-18-lightweight-production-release.md); выпуск [`35276212272`](https://github.com/izzhackt/evo_AI_CRM/actions/runs/35276212272) принят на `ac04c8e3`). **Причина прерывистой отмены ответа так и не установлена**: пункты устарели как предусловие, а не как решённая ошибка |
 | «Portal latency and Inbox dependency maintenance…» (P3: «independently review exact diffs…, run the production app's existing full gate once»; 1 пункт) | То же: слияние PR #810 и #811 и закрытие PR701/702 записаны в самом разделе, полный гейт снят решением 18.09, выпуск `35276212272` принят. Смоук того выпуска проверил вход админа, маршрут дела, вход студента, обзор и документы; **отказ в доступе сотруднику к чужому делу в нём не повторялся** |
-| «Auth email — SMTP and templates saved…» (строка «Confirm protected SOPS key archival»; 1 пункт) | Решение владельца: архивирование ключа Resend в SOPS «не нужно» ([`EVO_ITEMS_1_36_STATUS_2026-09-21.md`](EVO_ITEMS_1_36_STATUS_2026-09-21.md), «Решения владельца 23.09.2026»). Это снятие пункта решением, а не выполнение; **доставка письма от этого не доказана** (см. ниже) |
+| «Auth email — SMTP and templates saved…» (строка «Confirm protected SOPS key archival»; 1 пункт) | Решение владельца: архивирование ключа Resend в SOPS «не нужно» ([`2026-09-21-items-1-36-status.md`](archive/plans/2026-09-21-items-1-36-status.md), «Решения владельца 23.09.2026»). Это снятие пункта решением, а не выполнение; **доставка письма от этого не доказана** (см. ниже) |
 | «2026-09-21 — website enquiry country and university context» (миграция, `Undecided`, проверка формы университета, узкие проверки, выпуск корневым владельцем; 5 пунктов) | Слито [#996](https://github.com/izzhackt/evo_AI_CRM/pull/996) («preserve university and undecided enquiry country»), файл [`231_platform_website_enquiry_context.sql`](../supabase/migrations/231_platform_website_enquiry_context.sql) (в нём `Undecided`) в `main`, ledger без дыр до 312 (запись «Телефония T7b», миграция 312), запись «website enquiry migration reservation moved to 231» в `PLAN_CHANGES.md` |
 
 **Не доказано, что устарели, остаются открытыми (7 пунктов):**
@@ -17218,11 +17218,11 @@ append-only [`PLAN_CHANGES.md`](PLAN_CHANGES.md), в профильных пла
   разрешённая владельцем, в журнале платформы не записана. Это личная проверка владельца, а
   не задача агентов: решение владельца 17.09.2026 («личные проверки владельца…», `DECISIONS.md`
   общего репозитория `izzhackt/EVO`) и «45–50 — исключены» в ведомости пунктов 1–36
-  ([`EVO_ITEMS_1_36_STATUS_2026-09-21.md`](EVO_ITEMS_1_36_STATUS_2026-09-21.md)). Пункты
+  ([`2026-09-21-items-1-36-status.md`](archive/plans/2026-09-21-items-1-36-status.md)). Пункты
   остаются открытыми как приёмка, но агент заявку не отправляет и в свой чеклист не возвращает.
 
 ## 2026-10-27 — указатель: три плана (Wazzup, ONLYOFFICE, Looker Studio)
 
-Решения владельца 26.10.2026 и контракты реализации — в `docs/PLAN_CHANGES.md` (запись 2026-10-27) и в файлах `docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md`, `docs/EVO_AGENT_RULES_ONLYOFFICE_PLAN_2026-10-27.md`, `docs/EVO_LOOKER_REPORTS_PLAN_2026-10-27.md`.
+Решения владельца 26.10.2026 и контракты реализации — в `docs/PLAN_CHANGES.md` (запись 2026-10-27) и в файлах `docs/plans/2026-10-27-wazzup-whatsapp-plan.md`, `docs/plans/2026-10-27-agent-rules-onlyoffice-plan.md`, `docs/plans/2026-10-27-looker-reports-plan.md`.
 
 Wazzup, этап 1 — статус 27.10.2026: срезы W1–W3 и дополнения (миграции 324–326, приложение, интерфейс, runbook `docs/runbooks/wazzup-whatsapp.md`, [ADR 0036](adr/0036-receive-sales-whatsapp-via-wazzup-sidecar.md)) лежат в ветке `izzhackt/wazzup-app`, не слиты; на production ничего не включено, живого ключа Wazzup нет, проверки A0–A14 не проходились. Отклонения от плана и отложенное — `docs/PLAN_CHANGES.md`, запись «2026-10-27 · WhatsApp через Wazzup: отклонения срезов W1–W3 и дополнения этапа 1 (миграция 326, ADR 0036)».

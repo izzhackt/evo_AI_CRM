@@ -10,7 +10,7 @@ import { parseSalesUuid } from "../platform-sales-register-contract.ts";
 import { createSupabaseServerClient } from "../supabase/server.ts";
 
 /**
- * Ссылки на отчёты Looker Studio (миграция 323; план `docs/EVO_LOOKER_REPORTS_PLAN_2026-10-27.md` §4, §6).
+ * Ссылки на отчёты Looker Studio (миграция 323; план `docs/plans/2026-10-27-looker-reports-plan.md` §4, §6).
  *
  * Решение принимает база: «Маркетинг» читает только системный Admin, «Финансы» — Admin или держатель
  * `finance.read.full` на ВСЮ организацию, правит только Admin. Здесь стоит дешёвый отказ до обращения к базе (подсказка

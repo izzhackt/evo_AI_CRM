@@ -122,7 +122,7 @@ admin API: в них ключ сайта. Подробная процедура 
 консоли Report-Only при проверках отчётов Looker Studio («Маркетинг → Отчёты», «Финансы»), плюс хост сцены Spline, если
 `NEXT_PUBLIC_TRANSCRIPTION_SPLINE_SCENE_URL` задана (иначе это окно убрать). `blob:` нужен предпросмотру документа
 (`DocumentPreviewButton`). Перевод — одним согласованным окном пакета с разрешения владельца, в рамках «Как править» выше;
-отчёты Looker Studio (миграция 323) файл edge не меняют (`docs/EVO_LOOKER_REPORTS_PLAN_2026-10-27.md`, §8).
+отчёты Looker Studio (миграция 323) файл edge не меняют (`docs/plans/2026-10-27-looker-reports-plan.md`, §8).
 
 **Доменные блоки** живого файла [live], каждый из них в репозитории совпадает:
 
@@ -282,7 +282,7 @@ prune`: `down` удаляет контейнеры, и ночная чистка
 Состояние на **20.10.2026** (времена в UTC) по записи `docs/PLAN_CHANGES.md` «Телефония:
 включение 20.10.2026 и исправление пустого окна истории»; на этой сверке кабинет ВАТС
 заново не читался, а время включения флагов (журнал аудита) и число запусков таймера
-(журнал systemd) перечитаны на сервере 21.10 только на чтение [запись, live]. Контракт — `docs/EVO_TELEPHONY_PLAN_2026-10-16.md`
+(журнал systemd) перечитаны на сервере 21.10 только на чтение [запись, live]. Контракт — `docs/archive/plans/2026-10-16-telephony-plan.md`
 и ADR 0033, порядок и квитанция — [`telephony-go-live.md`](telephony-go-live.md).
 Телефония **включена и обрабатывает настоящие звонки, но не принята**: строки A2–A14
 и B15–B20 приёмки настоящими звонками не пройдены.
@@ -310,6 +310,6 @@ Beeline сам удаляет записи старше примерно 360 д�
 EVO и задержка `contact` (план §15, строки 3 и 14).
 
 Источники: `docs/PLAN_CHANGES.md` (записи 19.10, PR #1267, и запись 20.10 «Рабочая CRM
-переключена…»), `docs/runbooks/selfhosted-cutover.md`, `docs/adr/0034-*.md`, `docs/DISASTER_RECOVERY.md`,
+переключена…»), `docs/runbooks/selfhosted-cutover.md`, `docs/adr/0034-*.md`, `docs/runbooks/disaster-recovery.md`,
 `deploy/README.md`, `agent-lead2-inbox/deploy/`, чтение сервера и панели Spaceship
 19.10 (только чтение), RDAP Verisign и публичный DNS.

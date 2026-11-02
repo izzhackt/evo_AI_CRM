@@ -3,7 +3,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { readReleaseMetadata } from "./release-metadata.ts";
 
 /**
- * Замер A0 (docs/EVO_STUDENT_APP_V2_PLAN_2026-10-16.md §5.1, запись
+ * Замер A0 (docs/archive/plans/2026-10-16-student-app-v2-plan.md §5.1, запись
  * docs/PLAN_CHANGES.md 19.10.2026): одна строка JSON `evo_timing` на запрос
  * страницы, server action или route handler.
  *

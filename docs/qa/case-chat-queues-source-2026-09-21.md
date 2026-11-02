@@ -3,7 +3,7 @@
 Текущий результат: [actual local234 и исправление UI](case-chat-queues-actual-2026-09-21.md).
 Ниже сохранён source-only этап до выполнения QA; его ожидания не описывают текущий статус.
 
-Контракт: [пункт 11 / CRM-07](../EVO_CASE_CHAT_QUEUE_PLAN_2026-09-21.md).
+Контракт: [пункт 11 / CRM-07](../archive/plans/2026-09-21-case-chat-queue-plan.md).
 Precode `5e58cb6afb381ba09f798220cb07f0f91c0b667a` получил независимое
 APPROVED PRECODE ONLY. Эта запись относится к source-реализации после него;
 actual DB/Auth/UI и финальное независимое ревью ещё не заявляются.

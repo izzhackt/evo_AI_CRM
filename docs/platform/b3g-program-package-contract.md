@@ -1,7 +1,7 @@
 # B3g / 232 — отправка и проверка комплекта программы
 
 Precode 21.09.2026, main `7aad173f83ec612854e3b5553225611ea4811127`.
-Основание — §11 принятого [плана](../EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md),
+Основание — §11 принятого [плана](../archive/plans/2026-09-20-crm-ux-and-admissions-plan.md),
 [контракт B3f](b3f-program-document-submission-contract.md) и его
 [принятая локальная QA](b3f-program-document-submission-qa.md).
 ROOT принял функциональное направление и резервирует 232 для B3g.1; 231 — website.

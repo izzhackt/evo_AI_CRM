@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { configureUniversityTemplateStorage, UNIVERSITY_TEMPLATE_BUCKET, runUniversityTemplateStorageCli } from "../scripts/configure-university-template-storage.mjs";
+import { configureUniversityTemplateStorage, UNIVERSITY_TEMPLATE_BUCKET, runUniversityTemplateStorageCli } from "../scripts/maintenance/configure-university-template-storage.mjs";
 
 test("template bucket configuration defaults to credential-free no-mutation plan", async () => {
   const result = await configureUniversityTemplateStorage({ fetchImpl() { assert.fail("plan must not read a service"); }, environment: {} });

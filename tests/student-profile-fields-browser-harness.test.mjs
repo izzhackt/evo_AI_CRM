@@ -15,7 +15,7 @@ import { studentProfileFileMessage } from "../src/lib/v3/wording.ts";
 import { PROFILE_FIELDS, PROFILE_REQUIRED_FIELD_KEYS } from "../src/lib/student-profile-fields.ts";
 import { DOCUMENT_EXPORT_MAX_BYTES, DOCUMENT_EXPORT_MIME, DOCUMENT_EXPORT_TEMPLATE_SHA256, DOCUMENT_PACKAGE_MAX_BYTES, DOCUMENT_PACKAGE_MIME } from "../src/lib/document-export-artifact-contract.ts";
 
-const harness = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+const harness = readFileSync(new URL("../scripts/test-runners/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
 const runnerUrl = new URL("../scripts/lib/student-profile-fields-browser-proof.mjs", import.meta.url);
 const captureEvents = ["requestfinished", "requestfailed", "framenavigated"];
 function capturePage(overrides) {
@@ -441,13 +441,13 @@ test("cleanup for all other foundation modes remains byte-identical", () => {
 test("production runtime selector fails before resources and changes only the two configured proof starts", () => {
   assert.ok(harness.indexOf('d2_browser_runtime="${EVO_D2_BROWSER_RUNTIME-development}"') < harness.indexOf('mkdir "$supabase_lock_dir"'));
   for (const value of ["", "invalid", "Production"]) {
-    const result = spawnSync("bash", [new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url).pathname], {
+    const result = spawnSync("bash", [new URL("../scripts/test-runners/test-postgres-v2-foundation.sh", import.meta.url).pathname], {
       encoding: "utf8", env: { ...process.env, EVO_D2_BROWSER_RUNTIME: value },
     });
     assert.equal(result.status, 1);
     assert.match(result.stderr, /EVO_D2_BROWSER_RUNTIME must be development or production/u);
   }
-  const unsupported = spawnSync("bash", [new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url).pathname, "--staff-onboarding-only"], {
+  const unsupported = spawnSync("bash", [new URL("../scripts/test-runners/test-postgres-v2-foundation.sh", import.meta.url).pathname, "--staff-onboarding-only"], {
     encoding: "utf8", env: { ...process.env, EVO_D2_BROWSER_RUNTIME: "production" },
   });
   assert.equal(unsupported.status, 1);
@@ -517,7 +517,7 @@ test("Linux browser trust rejects unsupported or legacy stores before resources 
   assert.match(preflight, /command -v certutil/u);
   assert.doesNotMatch(harness, /(?:^|\s)(?:export\s+)?HOME=|(?:mv|rm|cp|mkdir)[^\n]*"\$HOME/u);
   if (process.platform === "darwin") {
-    const result = spawnSync("bash", [new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url).pathname], {
+    const result = spawnSync("bash", [new URL("../scripts/test-runners/test-postgres-v2-foundation.sh", import.meta.url).pathname], {
       encoding: "utf8", env: { ...process.env, EVO_D2_BROWSER_RUNTIME: "production" },
     });
     assert.equal(result.status, 1);

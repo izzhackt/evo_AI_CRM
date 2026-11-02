@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { classifyNameStatus } from '../scripts/classify-pr-changes.mjs';
+import { classifyNameStatus } from '../scripts/checks/classify-pr-changes.mjs';
 
 const sql = readFileSync(new URL('../supabase/migrations/162_platform_document_recognition_queue.sql', import.meta.url), 'utf8');
 const sourceSql = readFileSync(new URL('../supabase/migrations/163_platform_document_recognition_source_access.sql', import.meta.url), 'utf8');
-const runner = readFileSync(new URL('../scripts/test-document-recognition-postgres.sh', import.meta.url), 'utf8');
+const runner = readFileSync(new URL('../scripts/test-runners/test-document-recognition-postgres.sh', import.meta.url), 'utf8');
 const positive = readFileSync(new URL('../supabase/tests/document_recognition_queue_positive.sql', import.meta.url), 'utf8');
 
 test('queue migration owns durable provider, result and cleanup commands without automatic generation retry', () => {
@@ -53,7 +53,7 @@ test('bounded real SQL proof has isolated ownership, production-free resources a
 });
 
 test('new proof script is already a known code path, without unknown-range relaxation', () => {
-  const result = classifyNameStatus(Buffer.from('A\0scripts/test-document-recognition-postgres.sh\0'));
+  const result = classifyNameStatus(Buffer.from('A\0scripts/test-runners/test-document-recognition-postgres.sh\0'));
   assert.equal(result.unknown, false);
   assert.equal(result.code, true);
 });

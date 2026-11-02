@@ -4,7 +4,7 @@
 `docker exec evo-crm-app-1 node /app/telephony-maintenance.mjs` one minute after
 the previous run ended (a oneshot unit never overlaps itself).
 Plan: `docs/EVO_TELEPHONY_PLAN_2026-10-16.md` section 5.3; the job is built from
-`scripts/telephony-maintenance.mjs` into the app image.
+`scripts/maintenance/telephony-maintenance.mjs` into the app image.
 
 The job does nothing unless `EVO_PLATFORM_TELEPHONY_ENABLED=1` in the app
 container, and makes no PBX request without the complete

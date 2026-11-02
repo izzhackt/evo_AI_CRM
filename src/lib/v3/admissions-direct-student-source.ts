@@ -30,7 +30,13 @@ export async function createAdmissionsStudentCase(
     if (error.code === "42501" && message === "admissions_direct_curator_forbidden") return { status: "curator_forbidden" };
     if (error.code === "42501") return { status: "forbidden" };
     if (error.code === "PT409" && message === "admissions_direct_case_exists") return { status: "case_exists" };
-    if (error.code === "PT409" && message === "admissions_direct_lead_exists") return { status: "lead_exists" };
+    if (error.code === "PT409" && message === "admissions_direct_lead_exists") {
+      // Номер лида база кладёт в DETAIL (281). Ссылка только на лид, который RLS отдаёт этому сотруднику: иначе карточка ответит «Профиль не найден».
+      const detail = typeof error.details === "string" && UUID_PATTERN.test(error.details) ? error.details.toLowerCase() : null;
+      const visible = detail === null ? null : await client.schema("platform").from("leads").select("id")
+        .eq("organization_id", actor.organizationId).eq("id", detail).maybeSingle();
+      return { status: "lead_exists", leadId: visible && !visible.error && visible.data ? detail : null };
+    }
     if (error.code === "22023" && message === "admissions_direct_request_conflict") return { status: "request_conflict" };
     if (error.code === "22023" && message.startsWith(INVALID_PREFIX)) {
       const key = message.slice(INVALID_PREFIX.length);

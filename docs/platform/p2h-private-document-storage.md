@@ -234,10 +234,10 @@ on the code invariant plus the named focused mutation or negative test.
 The original P2H focused proof lived in
 `supabase/tests/platform_document_storage_rls.sql`,
 `supabase/tests/platform_document_storage_inventory.sql`,
-`scripts/test-postgres-authorization.sh` and the now-retired standalone
+`scripts/test-runners/test-postgres-authorization.sh` and the now-retired standalone
 `scripts/test-p2h-storage-api.mjs`, which remains available in frozen Git
 history. The active real application/browser acceptance path is
-`scripts/test-postgres-v2-foundation.sh`; #551 extended that one path to the
+`scripts/test-runners/test-postgres-v2-foundation.sh`; #551 extended that one path to the
 pinned private ClamAV scanner rather than retaining a second executable
 Storage client. P2H itself proved only the local synthetic
 PostgreSQL/Auth/PostgREST/Storage boundary, not managed Supabase, production

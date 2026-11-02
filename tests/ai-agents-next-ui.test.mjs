@@ -639,13 +639,13 @@ test("страница отдаёт новому виду из каталога 
 
 test("проверка сборки: файл для браузера с текстом агента — ошибка, чистая статика и несуществующий каталог — нет", async () => {
   const { AI_AGENT_PREAMBLE } = await import("../src/content/ai-agents/index.ts");
-  const { findPromptLeaks, promptMarkers } = await import("../scripts/check-client-bundle-prompts.mjs");
+  const { findPromptLeaks, promptMarkers } = await import("../scripts/checks/check-client-bundle-prompts.mjs");
   const markers = promptMarkers();
   const dir = mkdtempSync(join(tmpdir(), "aia-static-"));
   try {
     mkdirSync(join(dir, "chunks"), { recursive: true });
     writeFileSync(join(dir, "chunks", "clean.js"), 'export const label="ИИ-агенты",rules="Общие правила EVO",hint="Подсказывает ответ, сам ничего не отправляет.";');
-    const script = root("scripts/check-client-bundle-prompts.mjs");
+    const script = root("scripts/checks/check-client-bundle-prompts.mjs");
     const run = (path) => spawnSync(process.execPath, ["--experimental-strip-types", "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", script, path], { encoding: "utf8" });
     assert.equal(run(dir).status, 0, "чистая статика");
     assert.deepEqual(findPromptLeaks(dir), []);
@@ -667,7 +667,7 @@ test("проверка сборки: файл для браузера с тек�
   // Проверка идёт сразу за `next build`, не в конце цепочки (два теста закрепляют её конец: сборки обслуживающих задач).
   const build = JSON.parse(read("package.json")).scripts;
   assert.match(build.build, /^next build && npm run check:client-bundle && /u);
-  assert.equal(build["check:client-bundle"], "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-client-bundle-prompts.mjs");
+  assert.equal(build["check:client-bundle"], "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/checks/check-client-bundle-prompts.mjs");
 });
 
 /* ------------------------------------------------------------------ исходники */

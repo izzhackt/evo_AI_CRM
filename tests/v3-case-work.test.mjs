@@ -903,3 +903,38 @@ test("Student 360 «Данные продажи» keeps the lead's linked WhatsA
   assert.match(tabs, /data-testid="v3-sales-groups">\s*<LinkedConversationLinks sales=\{sales\} actor=\{actor\}/u);
   assert.match(tabs, /<LinkedConversationLinks sales=\{sales\} actor=\{actor\} className="flex flex-col gap-1 border-t/u);
 });
+
+test("the contract download reads the file through the staff session, the service key only signs the link", async () => {
+  const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  const { decodeContractDownloadTarget: decode, receiptTargetErrorStatus } = await import("../src/lib/payment-receipt-target.ts");
+  const org = "10000000-0000-4000-8000-000000000001";
+  const caseId = "20000000-0000-4000-8000-000000000002";
+  const file = "30000000-0000-4000-8000-000000000003";
+  const object = "40000000-0000-4000-8000-000000000004";
+  const stored = { organization_id: org, student_case_id: caseId, case_contract_file_id: file, storage_object_name: `case-contracts/${org}/${caseId}/${object}` };
+  assert.equal(decode(stored, org, caseId, file)?.storageObjectName, stored.storage_object_name);
+  for (const path of ["", "../x", `${stored.storage_object_name}/extra`, `${stored.storage_object_name}\n`,
+    `payment-receipts/${org}/${caseId}/${object}`, `case-contracts/${org}/${file}/${object}`]) {
+    assert.equal(decode({ ...stored, storage_object_name: path }, org, caseId, file), null, path);
+  }
+  for (const value of [null, [], true, { ...stored, extra: 1 }, { ...stored, organization_id: caseId }, { ...stored, student_case_id: org },
+    { ...stored, case_contract_file_id: org }, { organization_id: org }]) {
+    assert.equal(decode(value, org, caseId, file), null);
+  }
+  assert.equal(receiptTargetErrorStatus({ code: "42501" }), 403);
+  assert.equal(receiptTargetErrorStatus({ code: "XX000" }), 503);
+  const handlers = fileOf("src/lib/server/platform-case-agreement-storage-route-handlers.ts");
+  const handler = handlers.slice(handlers.indexOf("export function createCaseContractFileDownloadHandler"),
+    handlers.indexOf("export function createPaymentReceiptFileDownloadHandler"));
+  assert.match(handler, /userClient\.schema\("platform"\)\.rpc\(\s*"staff_case_contract_file_download_target_v1"/u);
+  assert.match(handler, /serviceClient\.storage\.from\(BUCKET_ID\)\.createSignedUrl\(target\.storageObjectName/u);
+  assert.doesNotMatch(handlers, /\.from\(table\)|signAndRedirect|file_not_found/u, "no route reads a file table with the service key");
+  const migration = fileOf("supabase/migrations/327_platform_case_contract_download_target.sql");
+  assert.match(migration, /GRANT EXECUTE ON FUNCTION platform\.staff_case_contract_file_download_target_v1\(UUID, UUID\) TO authenticated;/u);
+  assert.doesNotMatch(migration, /GRANT [A-Z, ]*ON (TABLE )?platform\.case_contract_files/u, "no direct table right is added");
+  const suite = fileOf("supabase/tests/platform_case_contract_download_target.sql");
+  const script = fileOf("scripts/test-postgres-authorization.sh");
+  assert.match(suite, /ROLLBACK;\s*$/u);
+  assert.ok(script.indexOf("A327_CASE_CONTRACT_DOWNLOAD_SUITE_PASSED") > 0 && script.indexOf("A327_CASE_CONTRACT_DOWNLOAD_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
+  assert.match(script, /a327_already_applied/u);
+});

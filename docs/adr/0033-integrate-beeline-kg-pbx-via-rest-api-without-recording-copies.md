@@ -195,7 +195,7 @@ Kyrgyzstan), тенант `evoadmitions.ats.beeline.kg`: пять пользов
    `…_PBX_URL` (`https://evoadmitions.ats.beeline.kg/crmapi/v1`) и хост тенанта
    (группа PBX — «всё или ничего»). Ключ приёма — UUID или hex длиной 32–64
    знака. Токены не повторяют друг друга и ключ amoCRM. Env-контракт релиза
-   (`scripts/evo-app-env-contract.mjs`) расширяется вместе с маршрутом.
+   (`scripts/release/evo-app-env-contract.mjs`) расширяется вместе с маршрутом.
    Подключение «Ваша CRM» создаётся в день запуска (агент готовит значения,
    владелец или агент сохраняет форму); ledger, выпуск и включение флагов — шаги
    выпуска срезов без отдельного разрешения (решение владельца 17.10); установка
@@ -270,5 +270,5 @@ Kyrgyzstan), тенант `evoadmitions.ats.beeline.kg`: пять пользов
 - Репозиторий: `docs/specs/EVO_PLATFORM_TZ.md` (DEC-019, INT-018),
   `docs/audits/evo-platform-next-wave/EVO_PRIORITIZED_BACKLOG.md` (DA-04),
   `docs/EVO_LAUNCH_PLAN.md` (P6B), `src/lib/platform-route-contract.ts`,
-  `src/lib/server/platform-waha-webhook.ts`, `scripts/evo-app-env-contract.mjs`,
+  `src/lib/server/platform-waha-webhook.ts`, `scripts/release/evo-app-env-contract.mjs`,
   ADR 0032.

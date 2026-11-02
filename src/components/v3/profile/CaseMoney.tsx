@@ -39,7 +39,7 @@ const CLOSE = "inline-flex min-h-11 items-center gap-1.5 rounded-nav px-2 t-labe
  *
  * `contractCaseId` — дело, чей раздел договора виден этому сотруднику: тогда
  * лист несёт прежний `data-testid="v3-profile-contract-workspace"` с id дела
- * (его ждёт видимым проверка выпуска `scripts/evo-production-browser-smoke.mjs`).
+ * (его ждёт видимым проверка выпуска `scripts/release/evo-production-browser-smoke.mjs`).
  */
 export function CaseMoneySection({
   panels,

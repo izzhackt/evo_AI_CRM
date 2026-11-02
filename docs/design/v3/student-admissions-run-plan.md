@@ -542,7 +542,7 @@ VERIFIED означает изолированную проверку, а не p
   `record_student_portal_invite_success` проверяет `confirmation_sent_at`.
   `auth.admin.createUser(email_confirm:true)` создаёт реальный Auth account,
   но **не** доказывает/закрывает эту цепочку.
-- `scripts/provision-local-student-portal-browser.mjs` применяет
+- `scripts/local-dev/provision-local-student-portal-browser.mjs` применяет
   `session_replication_role=replica`. Не переносить это в managed production,
   не засчитывать как штатный provisioning и не подделывать `invite_succeeded`.
 - Migration 134 автоматически пишет completed handoff в sales register.

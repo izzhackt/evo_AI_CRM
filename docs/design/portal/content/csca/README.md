@@ -40,7 +40,7 @@ CSCA»; без логотипов CSC и CSCA и слов «официальны
 ```bash
 node scripts/portal/generate-csca-content-seed.mjs --check   # 286 заморожена по sha256, часть 2 совпадает с источниками
 node --test scripts/portal/test-csca-content-seed.mjs
-bash scripts/test-csca-learning-postgres.sh   # одноразовая БД: 285 и 286, обновление до 1.1.0 с прогрессом ученика
+bash scripts/test-runners/test-csca-learning-postgres.sh   # одноразовая БД: 285 и 286, обновление до 1.1.0 с прогрессом ученика
 ```
 
 `--write` перегенерирует НЕприменённую миграцию части 2 (если файла нет, создаёт
@@ -71,7 +71,7 @@ bash scripts/test-csca-learning-postgres.sh   # одноразовая БД: 285
    строки по миграциям равны файлу), `node --conditions=react-server
    --experimental-strip-types --test tests/portal-csca-sessions.test.mjs` (экран на
    настоящих данных: закрытие окна, смена ближайшей сессии),
-   `bash scripts/test-csca-learning-postgres.sh` (настоящая цепочка Postgres и RPC
+   `bash scripts/test-runners/test-csca-learning-postgres.sh` (настоящая цепочка Postgres и RPC
    `learning_track_home_v1`).
 
 Окно регистрации сессии 14 и 15 ноября 2026 закрывается 21.10.2026 23:59 по Пекину

@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { expectedMigrationVersions } from "../scripts/fast-release-ledger-gate.mjs";
+import { expectedMigrationVersions } from "../scripts/release/fast-release-ledger-gate.mjs";
 import { fileURLToPath } from "node:url";
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -19,7 +19,7 @@ test("staff fast path accepts only the complete exact added 173–175 boundary d
   const expected = paths.map(path => `A\\t${path}`).join("\\n");
   assert.ok(workflow.includes(`staff_diff=$'${expected}'`));
   assert.ok(workflow.includes('if [[ "$boundary_diff" == "$staff_diff" ]]; then'));
-  assert.ok(workflow.includes('git diff --name-status --no-renames origin/main...HEAD -- supabase/migrations/ supabase/tests/ scripts/test-postgres-authorization.sh'));
+  assert.ok(workflow.includes('git diff --name-status --no-renames origin/main...HEAD -- supabase/migrations/ supabase/tests/ scripts/test-runners/test-postgres-authorization.sh'));
   assert.match(workflow, /echo "scoped_staff_handoff=true" >> "\$GITHUB_OUTPUT"\n\s+else\n\s+echo "scoped_staff_handoff=false"/u);
   // #836, #830, #841 and #858 added the exact 176/177/178/186 lanes to the same skip condition.
   assert.ok(workflow.includes("if: ${{ steps.migration-scope.outputs.scoped_chat_mute != 'true' && steps.migration-scope.outputs.scoped_staff_handoff != 'true' && steps.migration-scope.outputs.scoped_retired_slot != 'true' && steps.migration-scope.outputs.scoped_docs_intake != 'true' && steps.migration-scope.outputs.scoped_student_intake != 'true' && steps.migration-scope.outputs.scoped_student_conflicts != 'true' && steps.migration-scope.outputs.scoped_invite_conflicts != 'true' }}"));

@@ -3,7 +3,7 @@
 - Block: P2A
 - Date: 2026-07-28
 - Starting main: `1b2ee797a01bbf60d4bc75cabae72c0c6dc0c9d5`
-- Plan: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
+- Plan: `docs/archive/plans/platform-long-run-plan.md`
 - Detailed contract: `docs/platform/p2-supabase-foundation.md`
 - Provider proof: not required for this repository/local-only block
 

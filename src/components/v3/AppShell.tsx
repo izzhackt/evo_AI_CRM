@@ -49,7 +49,7 @@ import { onCreateTaskClick, PaletteButton, PaletteIconButton, ShellCommands } fr
 
 /*
  * Оболочка staff CRM — Э1.2 плана редизайна 25.09.2026
- * (docs/EVO_CRM_REDESIGN_PLAN_2026-09-25.md); единственная оболочка для всех
+ * (docs/archive/plans/2026-09-25-crm-redesign-plan.md); единственная оболочка для всех
  * сотрудников с Э1.5 (решение владельца 27.09).
  *
  * - Компьютер: верхней панели нет. «Создать задачу», уведомления, просмотр

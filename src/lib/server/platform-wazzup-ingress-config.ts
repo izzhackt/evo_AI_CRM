@@ -3,7 +3,7 @@ import "server-only";
 import { WAZZUP_WEBHOOK_TOKEN_PATTERN } from "../platform-wazzup-webhook.ts";
 
 /**
- * Приём WhatsApp через Wazzup: настройка (docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §5.1, §5.5, §9).
+ * Приём WhatsApp через Wazzup: настройка (docs/plans/2026-10-27-wazzup-whatsapp-plan.md §5.1, §5.5, §9).
  *
  * Wazzup у Sidecar-ключа ничего не подписывает: единственный секрет - токен в адресе вебхука (`?token=`), 64
  * шестнадцатеричных знака. Он сравнивается на каждом запросе, поэтому лежит в env приложения (как ключ приёма

@@ -1,4 +1,4 @@
-// The Wazzup webhook route (src/lib/server/platform-wazzup-ingress.ts, plan docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §5.1):
+// The Wazzup webhook route (src/lib/server/platform-wazzup-ingress.ts, plan docs/plans/2026-10-27-wazzup-whatsapp-plan.md §5.1):
 // every request runs against a recording fake of the platform RPC client - no Wazzup, no Supabase, no network.
 // Everything here is synthetic: the organization, the tokens, the numbers, the channel. Run with:
 // node --conditions=react-server --experimental-strip-types --test tests/platform-wazzup-ingress.test.mjs

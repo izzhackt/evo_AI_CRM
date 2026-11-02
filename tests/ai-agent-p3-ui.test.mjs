@@ -1,4 +1,4 @@
-// «ИИ-агент» P3 (docs/EVO_AI_AGENT_PLAN_2026-10-06.md §9, §12.1, §15 P3):
+// «ИИ-агент» P3 (docs/archive/plans/2026-10-06-ai-agent-plan.md §9, §12.1, §15 P3):
 // CRM-сторона памяти о клиенте — маршруты `GET/DELETE
 // /api/v3/ai-agent/conversations/[id]/memory` (сессия, same-origin, строгий
 // UUID в контракте прокси, коды базы), чистый контракт блока «Что ИИ знает о

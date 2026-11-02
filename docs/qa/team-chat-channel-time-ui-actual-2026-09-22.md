@@ -4,7 +4,7 @@
 независимым ревью `APPROVED_ACTUAL_UI_AND_CLOSURE`, затем ROOT принял ресурс.
 Итоговый handoff: `PASS`, `released:true`, следующий владелец ROOT,
 назначенное окно `ROOT1031_CALENDAR_COMBINED`. Собственные ресурсы A закрыты.
-Это техническая приёмка видимого времени каналов по [плану](../EVO_TEAM_CHAT_CHANNEL_TIME_UI_PLAN_2026-09-22.md).
+Это техническая приёмка видимого времени каналов по [плану](../archive/plans/2026-09-22-team-chat-channel-time-ui-plan.md).
 
 ## Исходники и повторное использование проверок
 

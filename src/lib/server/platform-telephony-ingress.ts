@@ -25,7 +25,7 @@ import {
 import { createPlatformSupabaseServiceClient } from "./platform-supabase-service-client.ts";
 
 /**
- * PBX → CRM intake for Beeline KG (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.1,
+ * PBX → CRM intake for Beeline KG (docs/archive/plans/2026-10-16-telephony-plan.md §5.1,
  * ADR 0033), route `POST /api/v2/telephony/beeline/inbound`.
  *
  * The cheap refusals come first and the database is never called before the

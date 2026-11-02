@@ -51,7 +51,7 @@ tests не добавлялись. Diff ограничен двумя проду
 Одно отдельно согласованное actual окно1440/390/320: время/автор/edited,
 размеры controls, wrap и открытый menu, reply/quote, keyboard/permalink,
 search/context/Back и prepend anchors, unsent draft. Baseline высот той же пары
-112.1875/136.984375/161.78125px сохранён в [плане](../EVO_TEAM_CHAT_SERVICE_ROW_PLAN_2026-09-21.md).
+112.1875/136.984375/161.78125px сохранён в [плане](../archive/plans/2026-09-21-team-chat-service-row-plan.md).
 Не обещаем процент, новые available variants или весь item15. Возможное
 изменение intrinsic ширины bubble и рост footer при wrap — явные actual риски.
 

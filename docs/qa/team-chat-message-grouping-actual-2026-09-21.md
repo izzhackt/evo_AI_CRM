@@ -8,7 +8,7 @@
 `05705f7ab5aa3a907b9fbfb997ce4440aa636065`. Source-only review
 `1652463677c191b39162a83244581f28128d60c1bb49cb390f4054b4e5c1131e`
 одобрено; CI35624660692:5 PASS,3 ожидаемых SKIP.
-Контракт: [A15g-2](../EVO_TEAM_CHAT_MESSAGE_GROUPING_PLAN_2026-09-21.md);
+Контракт: [A15g-2](../archive/plans/2026-09-21-team-chat-message-grouping-plan.md);
 [исходные проверки](team-chat-message-grouping-source-2026-09-21.md) сохраняют
 39/39 tests, lint/typecheck и первоначальную TS2737.
 

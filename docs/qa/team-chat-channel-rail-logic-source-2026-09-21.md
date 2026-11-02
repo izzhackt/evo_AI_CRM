@@ -1,7 +1,7 @@
 # A15 rail — первый logic-only этап
 
 Статус: source реализован и локальные целевые проверки прошли; независимый
-source review ещё впереди. [Precode](../EVO_TEAM_CHAT_CHANNEL_RAIL_PLAN_2026-09-21.md)
+source review ещё впереди. [Precode](../archive/plans/2026-09-21-team-chat-channel-rail-plan.md)
 9eb9f51f принят review430b613f; ROOT дал отдельный source-only GO. Уточнение
 плана/журналов7cf4639b предшествует этому коду. Base mainc675d4b4 (#1017).
 

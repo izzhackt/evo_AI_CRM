@@ -4,7 +4,7 @@
 независимо одобрены. Финальные docs-head review/CI/merge и ROOT-передача среды
 остаются отдельными gates. Это не production и не завершение пункта15/всех1–36.
 
-Контракт: [план](../EVO_TEAM_CHAT_READ_RETRY_PLAN_2026-09-21.md),
+Контракт: [план](../archive/plans/2026-09-21-team-chat-read-retry-plan.md),
 [исходники и29 целевых проверок](crm-team-chat-read-retry-source-2026-09-21.md).
 Actual выполнен на чистом `7d70a71d8156c70195567d9ee8c44e7cc6c2d5ae` после
 интеграции main `d68ce58711b413f8366c80615456cfbbf22a0772` (#1004).

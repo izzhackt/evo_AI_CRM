@@ -12,7 +12,7 @@ staff-facing frontend without pretending that its backend had already been
 unified.
 
 The target backend and migration contract is now
-[`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`](../../EVO_PLATFORM_LONG_RUN_PLAN.md),
+[`docs/archive/plans/platform-long-run-plan.md`](../../archive/plans/platform-long-run-plan.md),
 governed by [ADR 0020](../../adr/0020-unify-evo-v1-on-canonical-supabase.md). The
 frontend remains the UI contract; it is not evidence that Supabase, amoCRM,
 WAHA, or AI provider paths are live.

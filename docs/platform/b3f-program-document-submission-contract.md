@@ -2,7 +2,7 @@
 
 Precode от 2026-09-21, source `28613990d3b3ba3b66053571cc3c6e8391cc35e7`
 после #988. Основание — §11.6–11.9
-[принятого плана](../EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md).
+[принятого плана](../archive/plans/2026-09-20-crm-ux-and-admissions-plan.md).
 Root зарезервировал228 и принял направление; этот контракт требует независимого
 source review до кода. Runtime принадлежит очереди A227→ROOT990→ROOT991;
 228 apply, Auth/Storage/browser/server и native acceptance здесь не разрешаются.

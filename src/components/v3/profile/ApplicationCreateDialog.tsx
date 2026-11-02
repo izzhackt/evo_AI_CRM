@@ -57,7 +57,7 @@ function ApplicationCreateForm({
       <input type="hidden" name="expected_version" value="0" />
       {/* Unified workflow S4 (plan §11), kept by OTH-4: no submission-status
           editing here — a newly added university/program is simply "being
-          considered" (docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md §«Uni &
+          considered" (docs/archive/plans/2026-09-19-other-fable-plan.md §«Uni &
           knowledge base»: «Добавленный вуз означает «рассматриваем»»). The
           status column stays a required DB field, so a fixed default is
           still submitted, just never as a visible picker here — marking the

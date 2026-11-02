@@ -14,7 +14,7 @@
 > [issue #376](https://github.com/izzhackt/evo_AI_CRM/issues/376),
 > [ADR 0020](../adr/0020-unify-evo-v1-on-canonical-supabase.md),
 > [launch plan](../EVO_LAUNCH_PLAN.md) и
-> [long-run plan](../EVO_PLATFORM_LONG_RUN_PLAN.md). Этот Markdown и созданный
+> [long-run plan](../archive/plans/platform-long-run-plan.md). Этот Markdown и созданный
 > из него `EVO_PLATFORM_TZ.docx` сохранены как исторический снимок и source
 > material для U1-U14. При любом расхождении действующий контракт имеет
 > приоритет.
@@ -31,7 +31,7 @@
 > **Историческое назначение документа.** Это ТЗ являлось контрактом на последующую
 > реализацию единой EVO Admissions Platform. Оно не утверждает, что внешние
 > интеграции уже работают. После merge P0 оно разрешает только поэтапную
-> repository-реализацию по `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`; production
+> repository-реализацию по `docs/archive/plans/platform-long-run-plan.md`; production
 > deployment, migration, provider mutation, live send и удаление сервисов
 > требуют отдельных gates и полномочий.
 
@@ -1163,7 +1163,7 @@ owner и runbook. Необходимо минимум:
 ## 21. Миграция и поэтапный запуск
 
 Детальный merge/validation contract находится в
-`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`. Только один implementation PR может быть
+`docs/archive/plans/platform-long-run-plan.md`. Только один implementation PR может быть
 открыт; plan/schema/migrations идут последовательно. Executor не сливает свой
 PR: exact head должен получить независимый SHA-bound review, а merge выполняет
 отдельный controller.
@@ -1640,12 +1640,12 @@ WAHA, Supabase Storage, AI, telephony или payment provider.
 
 Расширенный index официальных RBAC, Webhooks/Vault/backup/Realtime,
 Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
-`docs/EVO_PLATFORM_LONG_RUN_PLAN.md`, ADR 0014 и ADR 0015.
+`docs/archive/plans/platform-long-run-plan.md`, ADR 0014 и ADR 0015.
 
 ### 31.2 Основные источники репозитория
 
 - `AGENTS.md`, `CONTEXT.md`;
-- `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`, `docs/EVO_LAUNCH_PLAN.md`,
+- `docs/archive/plans/platform-long-run-plan.md`, `docs/EVO_LAUNCH_PLAN.md`,
   `docs/PLAN_CHANGES.md`;
 - `docs/research/evo-mvp-waha-ai-memory-2026-08-09.md`;
 - `docs/research/evo-mvp-autonomous-send-2026-08-09.md`;
@@ -1654,7 +1654,7 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 - `docs/platform/greenfield-platform-boundary.md`;
 - `docs/business/evo-business-context.md`;
 - `docs/business/admissions-process.md`;
-- `docs/EVO_INBOX_COMPANION_PRD.md`;
+- `docs/archive/plans/inbox-companion-prd.md`;
 - `evo-lead-agent/functional-spec.md`;
 - `evo-lead-agent/technical-spec.md`;
 - `agent-lead2-inbox/docs/supabase-managed-store.md`;
@@ -1672,10 +1672,10 @@ Kommo Chats/write и WAHA Sessions/send contracts зафиксирован в
 | SRC-OZO | `TZ_Platforma_avtomatizacii_OZO.docx` (SHA-256 `0d4cb67e8d44057b765efd336c5199d888e3dc912e7c95d1c298cba0a056c5b1`) и `docs/design/evo-platform/SOURCE_BRIEF_IT_TZ.md` |
 | SRC-BIZ | `docs/business/evo-business-context.md`, `docs/business/admissions-process.md`, `docs/business/sales-playbook.md` и утверждённые knowledge sources |
 | SRC-ARCH | `CONTEXT.md`, `docs/platform/system-overview.md`, `docs/platform/data-ownership.md` и применимые ADR |
-| SRC-INBOX | `docs/EVO_INBOX_COMPANION_PRD.md`, Inbox migrations, `agent-lead2-inbox/docs/supabase-managed-store.md` и ADR 0004/0005/0008/0009/0010/0013 |
+| SRC-INBOX | `docs/archive/plans/inbox-companion-prd.md`, Inbox migrations, `agent-lead2-inbox/docs/supabase-managed-store.md` и ADR 0004/0005/0008/0009/0010/0013 |
 | SRC-LEAD | `evo-lead-agent/functional-spec.md`, `evo-lead-agent/technical-spec.md` и текущая integration logic |
 | SRC-UI | Реализованный frontend, `docs/design/evo-platform/IMPLEMENTATION_PLAN.md`, completion checklist и финальные frontend/design audits |
-| SRC-OPS | `docs/BLOCK_G_FINAL_AUDIT.md`, disaster-recovery/release runbooks и доказанные production boundaries |
+| SRC-OPS | `docs/archive/plans/block-g-final-audit.md`, disaster-recovery/release runbooks и доказанные production boundaries |
 | SRC-AMO | Официальные Kommo limitations, webhooks, Chats и lead-write contracts из раздела 31.1 |
 | SRC-WAHA | Официальные WAHA Sessions, Events и Send messages из раздела 31.1 |
 | SRC-SUPA | Официальные Supabase Branching, RLS/RBAC, Storage, Queues, SSR, Vault, Realtime и backup contracts из раздела 31.1 |

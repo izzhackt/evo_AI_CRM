@@ -1,6 +1,6 @@
 # Реализация базы знаний
 
-Контракт: [план владельца](../../EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md).
+Контракт: [план владельца](../../archive/plans/2026-09-19-crm-knowledge-base-plan.md).
 
 ## Последовательность
 
@@ -47,7 +47,7 @@ Context7 недоступен из-за квоты; Next.js 16.3.4 также п
 ## Текущее состояние черновика — 20.09.2026
 
 Кандидат реализован в draft #906. Точные результаты подготовки, проверки и
-открытые production-этапы записаны в [квитанции выполнения](../../EVO_CRM_KNOWLEDGE_BASE_EXECUTION_2026-09-20.md).
+открытые production-этапы записаны в [квитанции выполнения](../../archive/plans/2026-09-20-crm-knowledge-base-execution.md).
 Forward migrations находятся в `supabase/migrations/`: 201 — library, 202 —
 sealed records, 203 — canonical exports, 204 — export jobs. Наличие файлов
 не является свидетельством применения. Schema apply и выпуск координирует

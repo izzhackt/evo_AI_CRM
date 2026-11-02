@@ -436,11 +436,11 @@ when the baseline had none. No mode may stop or recreate WAHA, log out or relink
 Never roll back a Supabase migration by restoring SQLite, starting a frozen
 worker, or dual-writing. Database/schema recovery is forward-only unless the
 separately authorized
-[`docs/DISASTER_RECOVERY.md`](../docs/DISASTER_RECOVERY.md) plan says otherwise.
+[`docs/runbooks/disaster-recovery.md`](../docs/runbooks/disaster-recovery.md) plan says otherwise.
 Do not replace, copy, log out, or relink `crm_primary` as part of an app
 rollback.
 
-**WhatsApp through Wazzup (docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §13,
+**WhatsApp through Wazzup (docs/plans/2026-10-27-wazzup-whatsapp-plan.md §13,
 [`docs/runbooks/wazzup-whatsapp.md`](../docs/runbooks/wazzup-whatsapp.md)).** Once
 the first Wazzup conversation exists, an image without Wazzup support cannot read
 the conversation queue (the summary of a conversation with no WAHA session is

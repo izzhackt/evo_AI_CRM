@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for migrations 324 and 325 «WhatsApp продаж через Wazzup: приём и запрет отправки» (план этапа 1
--- docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md, срез W1: база данных). Runs on the real chain right after 325 inside one
+-- docs/plans/2026-10-27-wazzup-whatsapp-plan.md, срез W1: база данных). Runs on the real chain right after 325 inside one
 -- transaction that is rolled back, with its own synthetic organizations, members, Wazzup elements and clients: no Wazzup,
 -- no WhatsApp, no message to anyone, no real person, no real number or key, no production action. The functions are
 -- called through the same request.jwt.claims role gate the service path uses; staff sessions are the real

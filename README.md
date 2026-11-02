@@ -1,129 +1,42 @@
-# EVO Admissions CRM
+# EVO Platform
 
-EVO is one authenticated staff product for Sales, Student 360, Admissions, Finance,
-Tasks, Documents, WhatsApp and human-reviewed AI workflows. The active
-production-successor application lives at the repository root and uses one
-managed Supabase foundation for Postgres, staff Auth, private Storage, RLS and
-the limited Realtime capabilities the product needs.
+Один продукт EVO Admissions: сотрудники ведут продажи, поступление, студентов,
+документы и задачи в одном месте. Репозиторий публичный: в нём нет данных
+клиентов, телефонов, ключей и паролей.
 
-## Workspace and related repositories
+Что входит в платформу:
 
-This CRM source repository is **public**; staff accounts, customer data and
-runtime secrets remain private. The [shared EVO workspace](https://github.com/izzhackt/EVO)
-is a separate **private** repository for cross-product context and brand
-navigation; access is limited to authorized collaborators. The independent
-[marketing website](https://github.com/izzhackt/evoadmissions-website) has its own
-source, dependencies and release process.
+- **CRM для сотрудников** — `crm.evoadmissions.com`;
+- **кабинет студента** — `app.evoadmissions.com` (то же приложение);
+- **iPhone-приложение студента** — папка `ios/`;
+- **ИИ-агенты Claude** — готовят черновики ответов, сотрудник проверяет сам.
 
-The canonical local layout is `01_Projects/EVO/evo_AI_CRM/` alongside
-`01_Projects/EVO/evoadmissions-website/`. A standalone CRM clone still builds and
-tests without either sibling repository. Product assets, migrations, tests,
-business docs and demo presentations stay here. Corporate originals and their
-registry moved to ignored shared storage, not Git; see the
-[brand and company boundary](docs/company/README.md).
+Стек: Next.js 16, собственный (self-hosted) Supabase, Docker на одном VPS.
 
-The production Compose topology is:
+Публичный сайт — отдельный репозиторий
+[evoadmissions-website](https://github.com/izzhackt/evoadmissions-website).
+Общий приватный контекст — [izzhackt/EVO](https://github.com/izzhackt/EVO).
 
-- `app`: the root Next.js application;
-- `clamav`: the private document malware scanner, pinned by immutable image digest;
-- `waha`: the private WhatsApp transport, pinned by immutable image digest.
+## Карта папок
 
-The repository-retained `agent-lead2-inbox/` and `evo-lead-agent/` trees are
-frozen V1 migration and rollback inputs. They are not separate target products,
-are excluded from the successor image, and must not be started, imported or
-used as release fallbacks. Historical deployment material is indexed under
-[`docs/archive/`](docs/archive/README.md).
+| Папка | Что внутри |
+| --- | --- |
+| `src/` | код приложения: страницы, серверная логика, компоненты |
+| `supabase/` | миграции базы данных и SQL-тесты |
+| `ios/` | приложение студента для iPhone (SwiftUI) |
+| `tests/` | автотесты приложения |
+| `scripts/` | служебные скрипты: выпуск, проверки, локальный запуск, импорт |
+| `deploy/` | как приложение живёт на сервере: Docker, выпуск, `deploy/edge/` — публичный прокси |
+| `docs/` | вся документация, см. [`docs/README.md`](docs/README.md) |
+| `config/` | настройки инструментов (проверки зависимостей, Playwright) |
+| `public/` | статические файлы сайта (бренд) |
+| `assets/` | шрифты и шаблоны, нужные приложению при работе |
+| `drizzle/` | замороженная история старой схемы БД (V2); не менять, нужна тестам |
 
-## Product authority
+## Запуск на своём компьютере
 
-Read these before medium or large changes:
-
-- [`AGENTS.md`](AGENTS.md) — repository boundaries and replacement discipline;
-- [`CONTEXT.md`](CONTEXT.md) — domain context;
-- [`docs/EVO_LAUNCH_PLAN.md`](docs/EVO_LAUNCH_PLAN.md) — active implementation
-  contract;
-- [`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md) — append-only decision ledger;
-- [`docs/adr/`](docs/adr/) — architecture decisions.
-
-GitHub `main` is the shared source of truth. Work through a GitHub Issue and a
-reviewed exact-head PR; do not turn a local or VPS checkout into private
-authority.
-
-The [EVO Docs integration plan](docs/design/v3/evo-docs-unification-run-plan.md)
-keeps document work inside Platform. Staff open **Admissions → EVO Docs** to
-choose an accessible student and jump to **Анкета и формы**, **Файлы** or
-**Пакет ZIP**. This is the existing case workspace, not a second Docs app.
-The current accepted runtime is recorded
-in the [launch plan](docs/EVO_LAUNCH_PLAN.md). At the earlier `r72.1-35868e75`
-checkpoint, application catalogue selection and contract workspace recovery were released,
-with exact-main CI, accepted server receipt and ordinary Admin tunnel readback
-verified. See the [historical receipt](docs/design/v3/references/2026-09-15-docs-managed-release.md#catalogue-and-pilot-production-release)
-for access URLs and remaining employee/client follow-ups.
-
-The preceding PDF preview fixes and persistent ZIP
-packages up to 50 MiB are merged through PRs #784–#786 (`5bc5df73`). The original
-isolated profile/ZIP scenario passed private Storage, entry-byte verification,
-identical ZIP download after a fresh login and owned cleanup. Managed migration169
-and the private 50 MiB DOCX/PDF/ZIP export bucket are already applied and verified;
-do not repeat these writes. CI `34972050911` attempt2 and automatic release
-`34973968977` passed. That release's production readback confirmed accepted
-`r66.1-5bc5df73`, healthy HTTPS, no pending release and the release arm off.
-The ordinary Admin GDUT preview passed both pages, rapid switching and cold reload.
-Follow the [pilot priorities](docs/EVO_LAUNCH_PLAN.md#pilot-priorities-prod-first-small-parallel-deliveries-2026-09-15):
-production first, the existing permanent database and SSH tunnel, no staging.
-The [release and real-UI evidence](docs/design/v3/references/2026-09-15-docs-managed-release.md)
-records nine imported blank templates: eight published, USTC still draft pending
-DOC→PDF format confirmation. Standalone Docs is retired, with source/data moved
-recoverably; D5 transfer of five old test students/history was cancelled by the
-owner, not completed. Do not repeat uploads or retirement. Real Gemini provider
-acceptance, USTC and extra polish are deferred, not pilot-release blockers;
-isolated proof is not real-client acceptance. S2 roles/onboarding and D2 profile work
-from the [earlier `05585020` release](docs/design/v3/references/2026-09-13-staff-docs-s2-d2-release.md)
-remain deployed; see the [Admin guide](docs/design/v3/staff-admin-guide.md).
-The [staff activation plan](docs/design/v3/staff-sales-handoff-run-plan.md)
-records permanent staff accounts, real password sign-in checks and the single
-owner-authorized synthetic sale → curator handoff. Employee-led onboarding,
-email invitation delivery and a chosen real-client document flow are not
-implied by those checks.
-
-The September11 [university completion run](docs/design/v3/university-catalog-completion-run-plan.md)
-is accepted in `892558b2`: **143 institutions across15 countries, 251 selected
-programmes and143 verified photos**. The eligible institutional source inventory
-is covered; unconfirmed programme language, duration and intake fields remain
-explicitly unknown. See the [production/readback evidence](docs/design/v3/references/2026-09-11-university-catalog-production-acceptance.md)
-and the [catalogue through the existing SSH tunnel](http://localhost:3000/v3/universities).
-Do not repeat the completed publications or migrations001–151.
-
-The preceding [Admin/chat expansion](docs/design/v3/admin-realtime-university-expansion-run-plan.md)
-and [read-only Admin Student preview](docs/design/v3/student-portal-admin-preview-plan.md)
-remain implemented; genuine multi-user/business and private Student acceptance
-are separate from this catalogue run. The preceding
-[`business operations run`](docs/design/v3/business-operations-universities-run-plan.md)
-is shipped in accepted `f5d0157a`; real multi-user/business acceptance remains
-separate. Do not repeat those historical releases or completed imports.
-
-The September 9 implementation baseline is recorded in
-[`student-admissions-run-plan.md`](docs/design/v3/student-admissions-run-plan.md):
-Student Portal, native English/career-interest tests, China/Malaysia Admissions,
-and the shared [`DESIGN.md`](DESIGN.md) contract. Their earlier implementation and
-release history is retained there; live Student/business acceptance is separate
-from the current accepted application revision.
-The preceding follow-up scope and acceptance history remain in
-[`docs/design/v3/curator-ux-run-plan.md`](docs/design/v3/curator-ux-run-plan.md).
-The earlier `run-plan.md` first-launch checklist is retained as history; do not
-repeat a completed release when starting the September 8 curator/UX improvements.
-
-## Local development
-
-Requirements:
-
-- Node.js 22 (pinned by `.nvmrc`);
-- npm;
-- Supabase CLI;
-- OrbStack on macOS, with Docker context exactly `orbstack`;
-- Playwright Chromium for the real browser gate.
-
-Install and run the application with real ignored local Supabase credentials:
+Нужны: Node.js 22 (версия в `.nvmrc`), npm, Supabase CLI. На macOS контейнеры
+запускаем только через OrbStack (Docker context `orbstack`, см. `AGENTS.md`).
 
 ```bash
 nvm use
@@ -131,53 +44,38 @@ npm ci
 npm run dev
 ```
 
-The application fails closed when Supabase URL, publishable key, server key or
-organization authority is missing. It never falls back to SQLite, Drizzle,
-fixtures or a companion application.
+Нужны настоящие локальные ключи Supabase в игнорируемых `.env*` файлах, шаблон —
+`.env.example`. Без URL, ключей и организации приложение останавливается
+сознательно: заглушек и подмены данных нет.
 
-Validation follows the changed scope:
+Проверки выбираются по изменению: `npm run lint`, `npm run typecheck`,
+`npm run test:unit`; для интерфейса — `npm run test:e2e`.
 
-- **Documentation only:** check the changed-file classifier, `git diff --check`
-  and links. Ordinary prose skips product checks; contract docs also run the
-  short `Release contracts` suite. Lint, typecheck, build and migration-boundary
-  suites are not required for prose-only changes.
-- **Routine PR:** run the affected real tests, obtain independent review of the
-  current commit, and pass the protected `Changed range` and `Fast checks` jobs
-  with their selected checks.
-- **Release:** run the manual `EVO platform CI` workflow once on the frozen
-  current `main` commit. Its successful result admits that exact commit to the
-  release lane. Repeat only if the candidate changes or a failed check needs a
-  verified fix; do not repeat it for every PR or merge.
+## Как идёт работа
 
-For a specific investigation, `npm run test:database:local` exercises the real
-disposable Supabase/PostgreSQL/Auth/Storage and browser contract, and
-`npm run test:p6d:orbstack` runs the isolated container candidate proof. Use these
-when the affected case needs them; they are not an additional mandatory rollup
-alongside the release workflow. Select lint, typecheck, build or security tests
-for the changed code or failure under investigation.
+1. Задача — GitHub Issue.
+2. Короткая ветка от свежего `main`, один смысл на ветку.
+3. Pull request, независимая проверка, squash-слияние в `main`.
+4. Сообщения коммитов — Conventional Commits (`feat(crm): ...`, `fix: ...`, `docs: ...`).
+5. Выпуск на сервер — только из `main`, после 21:00 по Бишкеку или в воскресенье
+   (пока работает телефония). Порядок — в [`deploy/production-release.md`](deploy/production-release.md).
 
-Do not put secrets, WhatsApp session data, customer personal data, Supabase
-server keys, provider tokens or production environment files in Git or command
-output.
+`main` на GitHub — единственная точка правды; сервер — только среда запуска.
 
-## Release boundary
+## Где лежат правила
 
-The current successor runbook is
-[`deploy/production-release.md`](deploy/production-release.md). It is a gated
-exact-SHA contract. The owner direction recorded in `AGENTS.md` already
-authorizes the #552 V3 deployment and active-runtime retirement after #551 and
-all named prerequisites pass. Provider enablement, live provider calls and
-webhook ownership transfer require their separate acceptance scope. Use the
-active run plan for remaining access requirements and deployment steps.
+| Файл | О чём |
+| --- | --- |
+| [`AGENTS.md`](AGENTS.md) | правила для людей и агентов: границы, безопасность, WhatsApp |
+| [`CLAUDE.md`](CLAUDE.md) | инструкции для Claude Code |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | как вносить изменения и открывать PR |
+| [`CONTEXT.md`](CONTEXT.md) | словарь терминов и текущие решения |
+| [`PRODUCT.md`](PRODUCT.md) | для кого продукт и каким он должен быть |
+| [`DESIGN.md`](DESIGN.md) | дизайн-контракт интерфейса |
+| [`SECURITY.md`](SECURITY.md) | как сообщить об уязвимости |
 
-The intended production location remains `/opt/evo-crm` on `hermes-vps`, with
-the public CRM route owned by `evo-edge-caddy` on `evo_public_web`. WAHA remains
-private. The frozen `/opt/evo-inbox` contour must not be used as successor
-authority.
-
-## Knowledge workspace
-
-Human-facing EVO knowledge lives outside the repository at
-`/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания`. Follow the privacy,
-provenance and approval rules in `AGENTS.md`; never publish raw archives or
-credentials into an AI knowledge base.
+План работ: [`docs/EVO_LAUNCH_PLAN.md`](docs/EVO_LAUNCH_PLAN.md), журнал решений
+(только дописывается): [`docs/PLAN_CHANGES.md`](docs/PLAN_CHANGES.md).
+Архитектурные решения: [`docs/adr/`](docs/adr/).
+Старые lead-agent и EVO Inbox удалены 2026-11-02; их код сохранён в git-теге
+`archive/lead-agent-and-inbox-2026-11-02`.

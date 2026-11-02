@@ -115,7 +115,7 @@ services:
       retries: 5
       start_period: 30s
 
-  # «ИИ-агент» (plan docs/EVO_AI_AGENT_PLAN_2026-10-06.md §4.2, §4.6, ADR 0032).
+  # «ИИ-агент» (plan docs/archive/plans/2026-10-06-ai-agent-plan.md §4.2, §4.6, ADR 0032).
   # Off unless the `ai-agent` profile is enabled: a plain `docker compose` call and
   # every release with EVO_AI_AGENT_ENABLED unset render exactly app, clamav and waha.
   # The private GHCR image is pinned only by digest; an unset digest is harmless while

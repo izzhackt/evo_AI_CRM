@@ -20,7 +20,7 @@
   зависимость расширенного публичного сайта — Czechia/Austria/Cyprus→EU.
   Приёмник/SQL сохраняет guards; подготовка документов остаётся для шести стран.
   Независимое review510bb3d7 PASSc91885cef78f73b0eaf53cde30786ce3aff7e289f75673a48e45820a230dad05;
-  CI35738576887 SUCCESS. [36 реальных request contexts и Postgres DDL](../EVO_WEBSITE_COUNTRY_EXTENSION_2026-09-22.md)
+  CI35738576887 SUCCESS. [36 реальных request contexts и Postgres DDL](../archive/plans/2026-09-22-website-country-extension.md)
   проверены без лидов/форм/контактов. Публичная отправка остаётся у владельца.
 
 ## Миграция240

@@ -36,7 +36,7 @@ The current repo contract already fixes the P5F-specific starting model and the 
 - [EVO_LAUNCH_PLAN.md](../EVO_LAUNCH_PLAN.md) says Google's catalog also lists `gemini-3.6-flash` as stable, but that does not authorize it for P5F without a separate eval and plan update.
 
 The same contract is repeated in
-[EVO_PLATFORM_LONG_RUN_PLAN.md](../EVO_PLATFORM_LONG_RUN_PLAN.md).
+[platform-long-run-plan.md](../archive/plans/platform-long-run-plan.md).
 
 ### Current Google provider guidance
 

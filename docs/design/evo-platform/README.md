@@ -7,7 +7,7 @@ Student Portal frontend.
 
 | File | Purpose |
 |---|---|
-| [`EVO_PLATFORM_LONG_RUN_PLAN.md`](../../EVO_PLATFORM_LONG_RUN_PLAN.md) | Current execution contract for the unified backend, migration, provider proof and release gates |
+| [`platform-long-run-plan.md`](../../archive/plans/platform-long-run-plan.md) | Current execution contract for the unified backend, migration, provider proof and release gates |
 | [`ADR 0020`](../../adr/0020-unify-evo-v1-on-canonical-supabase.md) | Current ownership, migration and one-product decision under parent #376 |
 | [`CLAUDE_DESIGN_MASTER_PROMPT.md`](CLAUDE_DESIGN_MASTER_PROMPT.md) | One autonomous prompt for a full frontend pass in the linked local repository |
 | [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) | Implemented frontend contract plus its alignment boundary with the unified-platform target |
@@ -22,7 +22,7 @@ When sources disagree, use this order:
 
 1. owner instructions and `AGENTS.md`;
 2. parent issue #376, ADR 0020 and
-   `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` for target-state work;
+   `docs/archive/plans/platform-long-run-plan.md` for target-state work;
 3. accepted ADRs, `CONTEXT.md` and platform data-ownership docs;
 4. current application code, server-side permissions and tests as evidence of
    what exists now, not as authority to preserve target-state gaps;

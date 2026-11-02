@@ -70,7 +70,7 @@ PR: `scripts/maintenance/waha-runtime-binding.mjs` (см. [§ Скрипт](#с�
 
 Для сессии `crm_primary` процедура **заменяет** указание «новую конфигурацию
 WAHA направлять на приватный webhook lead-agent» из `AGENTS.md`
-(§ «WhatsApp And Lead-Agent Boundary»): решение владельца — прямой приём
+(бывший § «WhatsApp And Lead-Agent Boundary»; удалён 2026-11-02, актуальное состояние — § «WhatsApp (state 2026-11-02)»): решение владельца — прямой приём
 WAHA → CRM (`/api/v2/whatsapp/inbound`), lead-agent на этом пути не участвует.
 Сам раздел `AGENTS.md` обновляется отдельным docs-PR после go-live, не здесь;
 до тех пор webhook не «исправлять» под старый текст.

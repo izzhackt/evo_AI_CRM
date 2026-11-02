@@ -64,10 +64,11 @@ is superseded where it authorizes autonomous replies or canonical amoCRM
 context. ADR 0015 remains historical evidence for how the repository adopted a
 single migration authority before the V2 reset; it no longer defines the
 runtime target for new implementation work.
-Companion-era terms below remain as honest descriptions of separate runtimes
-that may still exist before a separately authorized cutover. They are migration
-inputs to retire, not target architecture, permanent compatibility contracts,
-or a second source of truth.
+The lead-agent and EVO Inbox runtimes were removed from the repository on
+2026-11-02 (final tree under git tag `archive/lead-agent-and-inbox-2026-11-02`).
+Companion-era terms below are kept only as history of those runtimes. They are
+not target architecture, permanent compatibility contracts, or a second source
+of truth.
 
 ## Language
 
@@ -591,6 +592,6 @@ _Avoid_: newest file wins, all sources are equal
 
 ## Admin knowledge migration — 2026-09-19
 
-Current contract: [CRM Knowledge Base](docs/EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md). Astra owns the Admin library, local-source migration/sorting and export. Fable owns Portal/App and coordinates shared schema/release operations until recorded handoff.
+Current contract: [CRM Knowledge Base](docs/archive/plans/2026-09-19-crm-knowledge-base-plan.md). Astra owns the Admin library, local-source migration/sorting and export. Fable owns Portal/App and coordinates shared schema/release operations until recorded handoff.
 
 The four roots of `/Users/iskhak.tazhibaev/Documents/01_Projects/EVO_Знания` are the migration sources and preserved archive, not a bidirectionally synchronized editing surface. Only verified migration/read/export establishes CRM as the working library. CRM «Клиентская база» means personal dossiers; the historical local name denotes general knowledge approved for client AI. Preserve the latter's approval and source metadata when sorting into internal topics. Existing AI bundles are not republished. Raw archives, personal files and SOPS secrets retain separate storage/access boundaries.

@@ -515,7 +515,7 @@ SQL
 
   # «Телефония Beeline KG», срез T7b (звонок из «Позвонить» привязан к своему набору,
   # «вызов не принят сотрудником» не даёт «Недозвон» и задачу; первичный импорт — только
-  # последние 30 суток; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.4, §6.1, §14 шаг 11).
+  # последние 30 суток; docs/archive/plans/2026-10-16-telephony-plan.md §5.4, §6.1, §14 шаг 11).
   # Matched by name, not number, so a renumbering at merge keeps the hook. IMMEDIATELY BEFORE
   # the ordinary apply the migration must refuse with a312_anchor_drift, inside a
   # transaction that the failure rolls back, for each of the four functions it replaces when
@@ -3569,7 +3569,7 @@ SQL
       -f /workspace/supabase/tests/platform_website_lead_intake_fix.sql
   fi
 
-  # Migrations 263-265 («Маркетинг» М1, docs/EVO_MARKETING_PLAN_2026-10-06.md):
+  # Migrations 263-265 («Маркетинг» М1, docs/archive/plans/2026-10-06-marketing-plan.md):
   # append-only attribution touches and the optional marks of the website
   # form (receive_website_lead's single signature, legacy payload unchanged,
   # bad marks dropped, replay keeps one touch), instagram / whatsapp_manual in
@@ -3602,7 +3602,7 @@ SQL
       -f /workspace/supabase/tests/platform_whatsapp_chat_replies.sql
   fi
 
-  # «ИИ-агент» P1 (docs/EVO_AI_AGENT_PLAN_2026-10-06.md, ADR 0032): schema,
+  # «ИИ-агент» P1 (docs/archive/plans/2026-10-06-ai-agent-plan.md, ADR 0032): schema,
   # role evo_ai_agent, rights, queue and RPCs. Matched by name, not number, so
   # a renumbering at merge keeps the hook. The three migrations are applied a
   # SECOND time first (production-safe re-run: no new bundle, queue, price or
@@ -3653,7 +3653,7 @@ SQL
       -f /workspace/supabase/tests/platform_ai_agent_answer_sources.sql
   fi
 
-  # «ИИ-агент» P2 (docs/EVO_AI_AGENT_PLAN_2026-10-06.md §4.5, §7, §8, §13,
+  # «ИИ-агент» P2 (docs/archive/plans/2026-10-06-ai-agent-plan.md §4.5, §7, §8, §13,
   # §15 P2): files, «Лист сверки», Laboratory. Matched by name, not number.
   # Each of the three migrations is applied a SECOND time right after itself
   # (production-safe re-run at its own point of the chain: no new bucket,
@@ -3703,7 +3703,7 @@ SQL
       -f /workspace/supabase/tests/platform_ai_agent_p2.sql
   fi
 
-  # «ИИ-агент» P3 (docs/EVO_AI_AGENT_PLAN_2026-10-06.md §5.2–5.4, §6.1, §9,
+  # «ИИ-агент» P3 (docs/archive/plans/2026-10-06-ai-agent-plan.md §5.2–5.4, §6.1, §9,
   # §13, §15 P3): client memory and media in context. Matched by name, not
   # number. The migration is applied a SECOND time right after itself
   # (production-safe re-run: no new table, constraint, pointer or error); a
@@ -3747,7 +3747,7 @@ SQL
       -f /workspace/supabase/tests/platform_ai_agent_p3.sql
   fi
 
-  # «ИИ-агент» P4 (docs/EVO_AI_AGENT_PLAN_2026-10-06.md §11, §15 P4, ADR 0031):
+  # «ИИ-агент» P4 (docs/archive/plans/2026-10-06-ai-agent-plan.md §11, §15 P4, ADR 0031):
   # the night autoresponder, shipped off. Matched by name, not number. Each of
   # the three migrations is applied a SECOND time right after itself
   # (production-safe re-run: no new column, constraint, trigger, row or
@@ -4027,7 +4027,7 @@ SQL
   fi
 
   # «Телефония Beeline KG», срез T1b (приём, проекция, ноги, окно успокоения,
-  # очередь, сопоставление телефона; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.1,
+  # очередь, сопоставление телефона; docs/archive/plans/2026-10-16-telephony-plan.md §5.1,
   # §5.2, §6.1, §6.2). Matched by name, not number, so a renumbering at merge
   # keeps the hook. Right after the migration the suite proves: four
   # service-only public functions and closed private helpers; the flag (no
@@ -4048,7 +4048,7 @@ SQL
   fi
 
   # «Телефония Beeline KG», срез T2 (права и роли, allowlist журнала;
-  # docs/EVO_TELEPHONY_PLAN_2026-10-16.md §11). Matched by name, not number, so
+  # docs/archive/plans/2026-10-16-telephony-plan.md §11). Matched by name, not number, so
   # a renumbering at merge keeps the hook. Right after the migration the suite
   # proves: the six organization-level definitions; the two roles per active
   # organization (exact keys, bundle 1, nobody assigned, no access version
@@ -4069,7 +4069,7 @@ SQL
 
   # «Телефония Beeline KG», срез T4a (сверка по истории ВАТС, первичный импорт,
   # справочник сотрудников ВАТС, состояние и здоровье фоновой работы;
-  # docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.3, §5.4). Matched by name, not
+  # docs/archive/plans/2026-10-16-telephony-plan.md §5.3, §5.4). Matched by name, not
   # number, so a renumbering at merge keeps the hook. Right after the migration
   # the suite proves: five new service-only public functions and three closed
   # private helpers; the import flag shipping OFF and the shape locks of the new
@@ -4090,7 +4090,7 @@ SQL
   fi
 
   # «Телефония Beeline KG», срез T5 (строки звонков в «Ленте» лида и результат
-  # звонка одним нажатием; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §9.4, §11, §12).
+  # звонка одним нажатием; docs/archive/plans/2026-10-16-telephony-plan.md §9.4, §11, §12).
   # Matched by name, not number, so a renumbering at merge keeps the hook. Right
   # after the migration the suite proves: the two public functions (SECURITY
   # DEFINER, empty search_path, authenticated only) and the two closed helpers;
@@ -4161,7 +4161,7 @@ SQL
   fi
 
   # «Телефония Beeline KG», срез T11a (стирание телефонии по человеку и очистка
-  # доказательств по сроку; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §13). Matched
+  # доказательств по сроку; docs/archive/plans/2026-10-16-telephony-plan.md §13). Matched
   # by name, not number, so a renumbering at merge keeps the hook. Right after
   # the migration the suite proves: six public functions (service-only) and six
   # closed private helpers; the receipt table closed to every client role; the
@@ -4185,7 +4185,7 @@ SQL
   fi
 
   # «Телефония Beeline KG», срез T4b («Настройки → Телефония»: чтение, правка
-  # настроек, сопоставление пользователей ВАТС; docs/EVO_TELEPHONY_PLAN_2026-10-16.md
+  # настроек, сопоставление пользователей ВАТС; docs/archive/plans/2026-10-16-telephony-plan.md
   # §5.5, §6.3, §6.4, §9.1, §11, §12). Matched by name, not number, so a
   # renumbering at merge keeps the hook. Right after the migration the suite
   # proves: three authenticated-only staff functions and four closed private
@@ -4211,7 +4211,7 @@ SQL
 
   # «Телефония Beeline KG», срез T6 (выдача и погашение права слушать запись,
   # учёт ответов источника, список записей звонков лида;
-  # docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.4, §7, §11, §12). Matched by name,
+  # docs/archive/plans/2026-10-16-telephony-plan.md §6.4, §7, §11, §12). Matched by name,
   # not number, so a renumbering at merge keeps the hook. Right after the
   # migration the suite proves: four public functions (grant and list for
   # authenticated, consume and report for service_role only, the role check
@@ -4238,7 +4238,7 @@ SQL
 
   # «Телефония Beeline KG», срез T8 (задача «Перезвонить» по пропущенному, «Недозвон»
   # с каденсом, автозакрытие, задачи по результату звонка, потолки автоматики;
-  # docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.1, §9.1, §9.2, §9.4). Matched by name, not
+  # docs/archive/plans/2026-10-16-telephony-plan.md §6.1, §9.1, §9.2, §9.4). Matched by name, not
   # number, so a renumbering at merge keeps the hook. Right after the migration the suite
   # proves: the full catalog of twenty-one public telephony functions (one new, service-only)
   # and 22 closed private helpers; the automation mark and the new link kind; the
@@ -4263,7 +4263,7 @@ SQL
   fi
 
   # «Телефония Beeline KG», срез T7 (кнопка «Позвонить»: проверки набора в базе,
-  # идемпотентность, лимиты, журнал; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.4, §6.5,
+  # идемпотентность, лимиты, журнал; docs/archive/plans/2026-10-16-telephony-plan.md §5.4, §6.5,
   # §9.1, §12). Matched by name, not number, so a renumbering at merge keeps the hook.
   # Right after the migration the suite proves: four public functions (options and
   # begin for authenticated, target and finish for service_role only, the role check
@@ -4300,7 +4300,7 @@ SQL
   # «Телефония Beeline KG», срез T9 (неизвестный входящий номер -> клиент и лид
   # «Звонок», известный клиент без открытого лида -> задача последнему владельцу,
   # потолки автоматики, очередь «Заявок» v3 с вкладкой «Звонки»;
-  # docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.2, §9.1, §9.3, §12, §18.2). Matched by
+  # docs/archive/plans/2026-10-16-telephony-plan.md §6.2, §9.1, §9.3, §12, §18.2). Matched by
   # name, not number, so a renumbering at merge keeps the hook. Right after the
   # migration the suite proves: the service-only tick and the closed private
   # helpers (the whole telephony catalog, the missed-call tick included when that
@@ -4324,7 +4324,7 @@ SQL
   fi
 
   # «Телефония Beeline KG», срез T10 (блок «Звонки» в «Отчёте продаж»;
-  # docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.1, §9.1, §10, §11, §12). Matched by
+  # docs/archive/plans/2026-10-16-telephony-plan.md §6.1, §9.1, §10, §11, §12). Matched by
   # name, not number, so a renumbering at merge keeps the hook. Right after the
   # migration the suite proves: one STABLE SECURITY DEFINER report for
   # authenticated only and two closed helpers; the whole telephony catalog; the

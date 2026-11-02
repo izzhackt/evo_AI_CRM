@@ -24,7 +24,7 @@ import {
 } from "./platform-telephony-pbx-config.ts";
 
 /**
- * Background work for Beeline KG telephony (docs/EVO_TELEPHONY_PLAN_2026-10-16.md
+ * Background work for Beeline KG telephony (docs/archive/plans/2026-10-16-telephony-plan.md
  * §5.3, §5.4; ADR 0033), run once a minute by the systemd timer as
  * `docker exec evo-crm-app-1 node /app/telephony-maintenance.mjs`.
  *

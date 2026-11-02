@@ -8,7 +8,7 @@
 
 ## Что изменилось
 
-По [precode-контракту](../EVO_TEAM_CHAT_COMPACT_TOMBSTONE_PLAN_2026-09-22.md)
+По [precode-контракту](../archive/plans/2026-09-22-team-chat-compact-tombstone-plan.md)
 один класс добавляется только при `Boolean(deletedAt)`, explicit parent null,
 replyCount0 и quote null. Неизвестные metadata не становятся нулём; reply с
 legacy count0 не считается leaf. SQL141/227, reader/DTO и схема не изменены.

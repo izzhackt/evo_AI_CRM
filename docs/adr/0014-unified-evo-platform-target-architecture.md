@@ -5,7 +5,7 @@
 - Decision owners: CEO/CTO authorization bundle and technical owner
 - Supersedes for target architecture: ADR 0002, ADR 0006, ADR 0008, ADR 0009
 - Superseded in conflict by: ADR 0020
-- Execution contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
+- Execution contract: `docs/archive/plans/platform-long-run-plan.md`
 
 ## Context
 

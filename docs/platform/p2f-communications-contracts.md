@@ -7,7 +7,7 @@
   `aac1cba851e89070a7eb54baab4eddf921e3447c`
 - Starting database boundary: migration 043
 - Frozen additive migration: `044_platform_communications_contracts.sql`
-- Parent contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
+- Parent contract: `docs/archive/plans/platform-long-run-plan.md`
 - Foundation contract: `docs/platform/p2-supabase-foundation.md`
 
 ## Purpose and proof boundary

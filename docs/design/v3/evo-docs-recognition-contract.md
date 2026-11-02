@@ -227,7 +227,7 @@ or raw errors. Distinguish settled failure, deferral, missing configuration,
 timeout and signal exits. The normal Next build bundles this CLI with existing
 esbuild and copies that bundle into the same final image; the server default
 command and native inspector artifacts remain unchanged. This prepares execution,
-without scheduling or activating it. See the [runbook](../../document-recognition-worker.md).
+without scheduling or activating it. See the [runbook](../../platform/document-recognition-worker.md).
 
 До кода root связывает контракт с PLAN_CHANGES и выделяет миграции после D2 integration.
 Локально: реальные Auth/DB UI на изолированном синтетическом деле; очередь/restart до dispatch,

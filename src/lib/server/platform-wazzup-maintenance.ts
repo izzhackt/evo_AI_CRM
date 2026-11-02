@@ -40,7 +40,7 @@ import {
 } from "./platform-wazzup-ingress-config.ts";
 
 /**
- * Часть задачи таймера `evo-whatsapp-health` для WhatsApp через Wazzup (docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §5.2,
+ * Часть задачи таймера `evo-whatsapp-health` для WhatsApp через Wazzup (docs/plans/2026-10-27-wazzup-whatsapp-plan.md §5.2,
  * §5.4, §9). Запускается тем же `docker exec evo-crm-app-1 node /app/whatsapp-health-maintenance.mjs`, после шага WAHA
  * (его код не менялся), и состоит из трёх независимых шагов: сбой одного не останавливает другие.
  *

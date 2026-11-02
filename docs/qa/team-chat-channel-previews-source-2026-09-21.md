@@ -4,7 +4,7 @@
 независимым review. [Actual и закрытие сессий](team-chat-channel-previews-actual-2026-09-21.md)
 относятся к `bb24f35f6d44ed227021368acbc41f9c0f8e7278`; main436865af интегрирован,
 final-head CI/review ещё впереди. Подключение UI остаётся отдельным следующим блоком.
-Это первый блок [принятого плана](../EVO_TEAM_CHAT_CHANNEL_PREVIEWS_PLAN_2026-09-21.md).
+Это первый блок [принятого плана](../archive/plans/2026-09-21-team-chat-channel-previews-plan.md).
 Plan/journals commit `eac7a504` предшествует source commit
 `8104e106ab4da839e99a49007f180cbdad83a9ed`, base main `24e78024`.
 

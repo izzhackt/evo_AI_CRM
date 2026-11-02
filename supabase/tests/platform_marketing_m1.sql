@@ -1,5 +1,5 @@
 \set ON_ERROR_STOP on
--- Boundary suite for migrations 263-265 («Маркетинг» М1, docs/EVO_MARKETING_PLAN_2026-10-06.md):
+-- Boundary suite for migrations 263-265 («Маркетинг» М1, docs/archive/plans/2026-10-06-marketing-plan.md):
 -- source attribution touches, the metki of the website form, the manual sources, the one channel rule,
 -- the admin-only marketing reads and the manual spend. Members are modelled like production (as in
 -- platform_sales_one_truth.sql after 155 and 244): invited staff have organization_memberships.current_role

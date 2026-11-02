@@ -5,7 +5,7 @@
 The owner has expanded task-based UX analysis and refinement to all CRM, product
 web (desktop/mobile) and iPhone surfaces. Preserve existing brand and capabilities;
 CRM may receive substantial workflow/layout improvements. Follow the additive
-[UX plan](docs/EVO_UX_REFINEMENT_PLAN_2026-09-20.md) together with the current
+[UX plan](docs/archive/plans/2026-09-20-ux-refinement-plan.md) together with the current
 CRM/admissions functional contract. Older portal-only scope below is historical
 for that plan and does not exclude this new staff work. Dedicated page agents
 are authorized; production mutations and release are not implied.
@@ -71,7 +71,7 @@ The current implementation scope is the student portal and its necessary CRM
 connections. Staff continue in the existing CRM; a separate staff redesign is
 not part of this portal plan. Fable chooses and implements a full portal UX/UI
 redesign within the EVO brand, with concise, useful frontend copy and no AI-style
-explanatory filler. See the [full web + iPhone plan](docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md).
+explanatory filler. See the [full web + iPhone plan](docs/archive/plans/2026-09-19-portal-web-iphone-plan.md).
 
 This is an approved product direction, not a claim that independent self-serve
 access, lesson-based learning or an iPhone client is already implemented or
@@ -215,4 +215,4 @@ The CRM knowledge library is Admin-only across pages, search, APIs and export. P
 
 CRM «Клиентская база» projects actual client cases and their existing documents/chat/history without a second client identity or independently editable file copy. Local general client-AI knowledge instead belongs in internal topics with preserved approval/provenance. SOPS protects secret records separately; no raw material or personal dossier is implicitly published to AI.
 
-The owner requested migration and sorting of all four local source roots, retaining originals as an archive. CRM becomes the workplace after real read/edit/download/export and inventory reconciliation. These are acceptance criteria, not a completion claim. See [the full contract](docs/EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md).
+The owner requested migration and sorting of all four local source roots, retaining originals as an archive. CRM becomes the workplace after real read/edit/download/export and inventory reconciliation. These are acceptance criteria, not a completion claim. See [the full contract](docs/archive/plans/2026-09-19-crm-knowledge-base-plan.md).

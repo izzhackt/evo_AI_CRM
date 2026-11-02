@@ -2,7 +2,7 @@
 
 This file preserves the superseded SQLite/companion recovery proposal. Its
 commands are rollback/decision evidence only and are not valid successor
-instructions. Use `docs/DISASTER_RECOVERY.md` for the managed-Supabase contract.
+instructions. Use `docs/runbooks/disaster-recovery.md` for the managed-Supabase contract.
 
 # EVO backup and disaster recovery
 

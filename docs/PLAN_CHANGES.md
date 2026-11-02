@@ -62551,3 +62551,73 @@ request_id те же. Прежний вид не затронут: правки 
   Chromium `admin-next` 1995 из 1995 (было 1966; +29 новых проверок, из них 10 — 6 про полосу и 4 про панель — до правок не проходили). Прежний вид: `admin-next-pages.cjs --legacy-json` на чистом `git archive origin/main` и на ветке — 1 276 413 байт, байт в байт, и совпадает с записанным до правок. `typecheck` — 0, eslint по 147 файлам, изменённым относительно main, — 0 замечаний, `git diff --check`, `npm run build` с `check:client-bundle` — exit 0
   (правило `has-[>[role=region]:focus-visible]` есть в собранном CSS). Файлы нового вида: `DeletionNext.tsx` 98 строк, `ReportTable.tsx` 76.
 - **Не сделано.** Незавершённый запрос «Отметить выполненным» или «Удалить навсегда» панель по-прежнему не удерживает (формы `AccountDeletionManualDone` и `AccountDeletionProcess` прежнего вида не сообщают охране `useStaffSheetLock`; пока запрос идёт, поля отключены, и охрана не спрашивает) — как и до правки, вне замечания; «Назад» в браузере закрывает панель без вопроса, как у остальных панелей под охраной. `InboxNextRow` (поток chats) использует `focus-visible:-outline-offset-2` без `!`; тот ли же сбой там, не проверялось. Живой вход администратора и настоящий `next start` не проверялись. Слияния и PR нет.
+
+## 2026-11-02 · Repository structure cleanup
+
+The owner asked for a repository that is clearly structured and named. The work is split into three pull requests, merged in this order. Earlier entries above are not rewritten.
+
+- **Scope.** (1) "retire": the `evo-lead-agent/` and `agent-lead2-inbox/` trees are removed from `main`; their last state is preserved under the git tag `archive/lead-agent-and-inbox-2026-11-02`, and the live edge proxy config moves to `deploy/edge/` (`Caddyfile.evo-edge`, `docker-compose.edge.yml`). (2) "tidy": extra Playwright configs move to `config/playwright/`, `presentations/` to `docs/presentations/`, `specs/` to `docs/specs/`, `design-qa.md` to `docs/design/`, and `scripts/` is grouped into subfolders. (3) "docs map" (this entry): a short root `README.md` with a folder map, the `AGENTS.md` WhatsApp section rewritten as "WhatsApp (state 2026-11-02)" (the lead-agent and Inbox sections are removed), stale lead-agent/Inbox lines fixed in `CONTEXT.md` and `CONTRIBUTING.md`, and `docs/` reorganized.
+- **New `docs/` layout.** Only `README.md`, `EVO_LAUNCH_PLAN.md` and `PLAN_CHANGES.md` stay at the `docs/` root (tooling and parent instructions refer to them by name). Active plans go to `docs/plans/`; closed dated plans, ledgers, handovers and reports go to `docs/archive/plans/`; `docs/lead-agent/` goes to `docs/archive/lead-agent/`; the disaster-recovery plan joins `docs/runbooks/`; the document-recognition CLI note joins `docs/platform/`. Names are lowercase kebab-case, `YYYY-MM-DD-<topic>.md` when the old name carried a date. Moves were made with `git mv`; file contents are unchanged except relative links and path references in live documents.
+- **Left in place on purpose.** `docs/PROMISE_AUDIT.md`, `docs/PUBLIC_PROMISE_COPY_CHANGESET.md` and `docs/PUBLIC_PROMISE_LIVE_AUDIT.md` are read by `scripts/check-promise-audit.mjs` and `scripts/audit-public-promises.mjs`; they move only together with a change of those scripts. Code comments under `supabase/migrations/`, `supabase/tests/`, `scripts/` and `deploy/` that still cite old plan paths are not edited (applied migrations are immutable; `scripts/` and `deploy/` are moved by the sibling PRs); the cited names are resolved by the table below.
+- **Not changed.** No runtime behaviour, migration, deployment or provider setting changed. WhatsApp state is unchanged: WAHA stays private, Wazzup intake stays off until the owner enables it.
+
+| Old path | New path |
+| --- | --- |
+| `docs/BLOCK_F_REHEARSAL_EVIDENCE.md` | `docs/archive/plans/block-f-rehearsal-evidence.md` |
+| `docs/BLOCK_G_FINAL_AUDIT.md` | `docs/archive/plans/block-g-final-audit.md` |
+| `docs/DISASTER_RECOVERY.md` | `docs/runbooks/disaster-recovery.md` |
+| `docs/EVO_AGENT_RULES_ONLYOFFICE_PLAN_2026-10-27.md` | `docs/plans/2026-10-27-agent-rules-onlyoffice-plan.md` |
+| `docs/EVO_AI_AGENT_PLAN_2026-10-06.md` | `docs/archive/plans/2026-10-06-ai-agent-plan.md` |
+| `docs/EVO_ASTRA_CONTINUATION_PLAN_2026-09-20.md` | `docs/archive/plans/2026-09-20-astra-continuation-plan.md` |
+| `docs/EVO_BRAND_RESEARCH.md` | `docs/archive/plans/brand-research.md` |
+| `docs/EVO_CASE_CHAT_QUEUE_PLAN_2026-09-21.md` | `docs/archive/plans/2026-09-21-case-chat-queue-plan.md` |
+| `docs/EVO_CRM_KNOWLEDGE_BASE_EXECUTION_2026-09-20.md` | `docs/archive/plans/2026-09-20-crm-knowledge-base-execution.md` |
+| `docs/EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md` | `docs/archive/plans/2026-09-19-crm-knowledge-base-plan.md` |
+| `docs/EVO_CRM_REDESIGN_PLAN_2026-09-25.md` | `docs/archive/plans/2026-09-25-crm-redesign-plan.md` |
+| `docs/EVO_CRM_UX_AND_ADMISSIONS_EXECUTION_2026-09-20.md` | `docs/archive/plans/2026-09-20-crm-ux-and-admissions-execution.md` |
+| `docs/EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md` | `docs/archive/plans/2026-09-20-crm-ux-and-admissions-plan.md` |
+| `docs/EVO_INBOX_COMPANION_PRD.md` | `docs/archive/plans/inbox-companion-prd.md` |
+| `docs/EVO_INBOX_IMPLEMENTATION_ISSUES.md` | `docs/archive/plans/inbox-implementation-issues.md` |
+| `docs/EVO_INBOX_REMOTE_LONG_RUNS.md` | `docs/archive/plans/inbox-remote-long-runs.md` |
+| `docs/EVO_ITEMS_1_36_INDEPENDENT_REVIEW_2026-09-22.md` | `docs/archive/plans/2026-09-22-items-1-36-independent-review.md` |
+| `docs/EVO_ITEMS_1_36_STATUS_2026-09-21.md` | `docs/archive/plans/2026-09-21-items-1-36-status.md` |
+| `docs/EVO_LOOKER_REPORTS_PLAN_2026-10-27.md` | `docs/plans/2026-10-27-looker-reports-plan.md` |
+| `docs/EVO_MARKETING_PLAN_2026-10-06.md` | `docs/archive/plans/2026-10-06-marketing-plan.md` |
+| `docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md` | `docs/archive/plans/2026-09-19-other-fable-plan.md` |
+| `docs/EVO_PARALLEL_A_CRM_PLAN_2026-09-20.md` | `docs/archive/plans/2026-09-20-parallel-a-crm-plan.md` |
+| `docs/EVO_PARALLEL_B_ADMISSIONS_PLAN_2026-09-20.md` | `docs/archive/plans/2026-09-20-parallel-b-admissions-plan.md` |
+| `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` | `docs/archive/plans/platform-long-run-plan.md` |
+| `docs/EVO_PORTAL_FINAL_LEDGER_2026-09-20.md` | `docs/archive/plans/2026-09-20-portal-final-ledger.md` |
+| `docs/EVO_PORTAL_HANDOVER_2026-09-20.md` | `docs/archive/plans/2026-09-20-portal-handover.md` |
+| `docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` | `docs/archive/plans/2026-09-19-portal-web-iphone-plan.md` |
+| `docs/EVO_SALES_DIRECTIONS_PLAN_2026-09-21.md` | `docs/archive/plans/2026-09-21-sales-directions-plan.md` |
+| `docs/EVO_SALES_IMPORT_MANAGEMENT_PLAN_2026-09-21.md` | `docs/archive/plans/2026-09-21-sales-import-management-plan.md` |
+| `docs/EVO_SALES_MANAGEMENT_STATE_PLAN_2026-09-21.md` | `docs/archive/plans/2026-09-21-sales-management-state-plan.md` |
+| `docs/EVO_STAFF_CATALOG_COMPACT_PLAN_2026-09-21.md` | `docs/archive/plans/2026-09-21-staff-catalog-compact-plan.md` |
+| `docs/EVO_STUDENT_APP_V2_PLAN_2026-10-16.md` | `docs/archive/plans/2026-10-16-student-app-v2-plan.md` |
+| `docs/EVO_TEAM_CHAT_CHANNEL_PREVIEWS_PLAN_2026-09-21.md` | `docs/archive/plans/2026-09-21-team-chat-channel-previews-plan.md` |
+| `docs/EVO_TEAM_CHAT_CHANNEL_RAIL_PLAN_2026-09-21.md` | `docs/archive/plans/2026-09-21-team-chat-channel-rail-plan.md` |
+| `docs/EVO_TEAM_CHAT_CHANNEL_TIME_PLAN_2026-09-22.md` | `docs/archive/plans/2026-09-22-team-chat-channel-time-plan.md` |
+| `docs/EVO_TEAM_CHAT_CHANNEL_TIME_UI_PLAN_2026-09-22.md` | `docs/archive/plans/2026-09-22-team-chat-channel-time-ui-plan.md` |
+| `docs/EVO_TEAM_CHAT_COMMAND_FEEDBACK_PLAN_2026-09-22.md` | `docs/archive/plans/2026-09-22-team-chat-command-feedback-plan.md` |
+| `docs/EVO_TEAM_CHAT_COMPACT_TOMBSTONE_PLAN_2026-09-22.md` | `docs/archive/plans/2026-09-22-team-chat-compact-tombstone-plan.md` |
+| `docs/EVO_TEAM_CHAT_DIRECT_QUOTES_PLAN_2026-09-21.md` | `docs/archive/plans/2026-09-21-team-chat-direct-quotes-plan.md` |
+| `docs/EVO_TEAM_CHAT_FLAT_READER_PLAN_2026-09-21.md` | `docs/archive/plans/2026-09-21-team-chat-flat-reader-plan.md` |
+| `docs/EVO_TEAM_CHAT_FLAT_UI_PLAN_2026-09-21.md` | `docs/archive/plans/2026-09-21-team-chat-flat-ui-plan.md` |
+| `docs/EVO_TEAM_CHAT_MESSAGE_GROUPING_PLAN_2026-09-21.md` | `docs/archive/plans/2026-09-21-team-chat-message-grouping-plan.md` |
+| `docs/EVO_TEAM_CHAT_READ_RETRY_PLAN_2026-09-21.md` | `docs/archive/plans/2026-09-21-team-chat-read-retry-plan.md` |
+| `docs/EVO_TEAM_CHAT_REMAINDER_ANALYSIS_2026-09-21.md` | `docs/archive/plans/2026-09-21-team-chat-remainder-analysis.md` |
+| `docs/EVO_TEAM_CHAT_SERVICE_ROW_PLAN_2026-09-21.md` | `docs/archive/plans/2026-09-21-team-chat-service-row-plan.md` |
+| `docs/EVO_TELEPHONY_PLAN_2026-10-16.md` | `docs/archive/plans/2026-10-16-telephony-plan.md` |
+| `docs/EVO_UNIFIED_WORKFLOW_PLAN_2026-09-18.md` | `docs/archive/plans/2026-09-18-unified-workflow-plan.md` |
+| `docs/EVO_UX_REFINEMENT_PLAN_2026-09-20.md` | `docs/archive/plans/2026-09-20-ux-refinement-plan.md` |
+| `docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md` | `docs/plans/2026-10-27-wazzup-whatsapp-plan.md` |
+| `docs/EVO_WEBSITE_COUNTRY_EXTENSION_2026-09-22.md` | `docs/archive/plans/2026-09-22-website-country-extension.md` |
+| `docs/GEMINI_RECEIVE_ONLY_ROLLOUT_PRD.md` | `docs/archive/plans/gemini-receive-only-rollout-prd.md` |
+| `docs/LONG_RUN_CODEX_LAUNCH_HANDOFF.md` | `docs/archive/plans/long-run-codex-launch-handoff.md` |
+| `docs/QA_LAUNCH_REPORT.md` | `docs/archive/plans/qa-launch-report.md` |
+| `docs/SCENARIO_EVALUATION.md` | `docs/archive/plans/scenario-evaluation.md` |
+| `docs/document-recognition-worker.md` | `docs/platform/document-recognition-worker.md` |
+| `docs/lead-agent/CONSULTATIVE_SALES_EVALUATION_RU.md` | `docs/archive/lead-agent/CONSULTATIVE_SALES_EVALUATION_RU.md` |
+| `docs/lead-agent/REAL_WHATSAPP_GOLDEN_DATASET.md` | `docs/archive/lead-agent/REAL_WHATSAPP_GOLDEN_DATASET.md` |
+| `docs/lead-agent/TOP_50_REAL_WHATSAPP_INTENTS_DRAFT.md` | `docs/archive/lead-agent/TOP_50_REAL_WHATSAPP_INTENTS_DRAFT.md` |

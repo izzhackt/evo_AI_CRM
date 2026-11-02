@@ -39,7 +39,7 @@
 - Исходные файлы окружения до агента: `/root/evo-config-backups/.env.ai-agent.20261007T060650Z`
   и `.env.production.20261007T060652Z`.
 
-Контракт: [план «ИИ-агент»](../EVO_AI_AGENT_PLAN_2026-10-06.md) §4.2, §4.5–§4.8, §11,
+Контракт: [план «ИИ-агент»](../archive/plans/2026-10-06-ai-agent-plan.md) §4.2, §4.5–§4.8, §11,
 §15, [ADR 0032](../adr/0032-run-the-ai-agent-as-a-private-evo-service.md), для P4 —
 [ADR 0031](../adr/0031-allow-bounded-night-whatsapp-autoreply.md). Этот документ
 описывает шаги; он сам ничего не разрешает. Каждое действие на production — пароль

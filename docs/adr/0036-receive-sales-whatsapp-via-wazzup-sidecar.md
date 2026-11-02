@@ -2,7 +2,7 @@
 
 - Статус: принято 2026-10-26 (решение владельца в беседе того же дня: «Да, через Wazzup»; ответы на вопросы с вариантами,
   `docs/PLAN_CHANGES.md` «2026-10-27 · Пакет планов»). Контракт реализации —
-  [docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md](../EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md) (редакция 2 после независимой критики).
+  [docs/plans/2026-10-27-wazzup-whatsapp-plan.md](../plans/2026-10-27-wazzup-whatsapp-plan.md) (редакция 2 после независимой критики).
   Реализация этапа 1 — срезы W1–W3 (миграции 324–326, приложение, интерфейс; ветка `izzhackt/wazzup-app`, на момент записи не слита).
   **На production ничего не включено**: ключа Wazzup нет, переключения пути нет, живых проверок A0–A14 не было.
 - Владелец решения: владелец продукта EVO.
@@ -128,7 +128,7 @@
 
 ## Источники
 
-- `docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md` (§1–§6, §9, §11–§13, §16–§19); `docs/runbooks/wazzup-whatsapp.md`; запись
+- `docs/plans/2026-10-27-wazzup-whatsapp-plan.md` (§1–§6, §9, §11–§13, §16–§19); `docs/runbooks/wazzup-whatsapp.md`; запись
   `docs/PLAN_CHANGES.md` «2026-10-27 · WhatsApp через Wazzup: отклонения срезов W1–W3 и дополнения этапа 1 (миграция 326)».
 - Миграции `324_platform_wazzup_provider.sql`, `325_platform_wazzup_intake.sql`, `326_platform_wazzup_followups.sql`; наборы
   `supabase/tests/platform_wazzup_intake.sql`, `platform_wazzup_followups.sql`.

@@ -6,7 +6,7 @@
 - Block-ID: `EVO-BW7-INTEGRATION-PROOF-2026-08-04`
 - Starting main: `a2ecadbe05dcf6993bbd558f3d80fa405a571a7c`
 - Migration: none; canonical history remains 001–057
-- Parent contract: [`EVO_PLATFORM_LONG_RUN_PLAN.md`](../EVO_PLATFORM_LONG_RUN_PLAN.md)
+- Parent contract: [`platform-long-run-plan.md`](../archive/plans/platform-long-run-plan.md)
 
 ## Purpose and evidence boundary
 

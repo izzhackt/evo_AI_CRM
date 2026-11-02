@@ -1,7 +1,7 @@
 # 0030 — iPhone-клиент на SwiftUI поверх существующих Supabase RPC
 
 Статус: принято 2026-09-19 (PORT-0, полномочие Fable по
-`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md` §8/§12).
+`docs/archive/plans/2026-09-19-portal-web-iphone-plan.md` §8/§12).
 
 ## Контекст
 

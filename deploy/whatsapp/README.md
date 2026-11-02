@@ -29,7 +29,7 @@ What one run does, in short:
 Its only output is one JSON line of counters and fixed words
 (`journalctl -u evo-whatsapp-health -n 20`): no number, key, token or text.
 
-**Wazzup part** (docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §5.2, §5.4;
+**Wazzup part** (docs/plans/2026-10-27-wazzup-whatsapp-plan.md §5.2, §5.4;
 `docs/runbooks/wazzup-whatsapp.md`). The same run, after the WAHA part, does three
 independent Wazzup steps (nested under `wazzup` in the JSON line):
 

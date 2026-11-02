@@ -122,7 +122,7 @@ proof of a live integration.
   [`DESIGN_REVIEW_CLOSURE_2026-07-25.md`](DESIGN_REVIEW_CLOSURE_2026-07-25.md)
 - Current browser captures:
   [`implementation-screenshots/final-audit/`](implementation-screenshots/final-audit/)
-- Business scenario report: [`../../SCENARIO_EVALUATION.md`](../../SCENARIO_EVALUATION.md)
+- Business scenario report: [`scenario-evaluation.md`](../../archive/plans/scenario-evaluation.md)
 - Accessibility coverage: [`../../../tests/e2e/platform-accessibility.spec.ts`](../../../tests/e2e/platform-accessibility.spec.ts)
 - Responsive/product browser coverage:
   [`../../../tests/e2e/`](../../../tests/e2e/)

@@ -28,7 +28,7 @@ import {
 
 /**
  * Wazzup -> CRM: приём вебхуков WhatsApp продаж, `POST /api/v2/whatsapp/wazzup/inbound?token=<64 hex>`
- * (docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §5.1, §9; миграции 324-325).
+ * (docs/plans/2026-10-27-wazzup-whatsapp-plan.md §5.1, §9; миграции 324-325).
  *
  * Wazzup у Sidecar-ключа тело не подписывает (страница «Webhooks»: `Authorization: Bearer` бывает только при `crmKey`),
  * поэтому единственная защита - токен в адресе. Порядок - от дешёвого к дорогому; ДО проверки токена тело не читается,

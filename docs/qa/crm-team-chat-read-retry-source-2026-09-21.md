@@ -1,6 +1,6 @@
 # A15g-1 — source-проверка чтения и повтора командного чата
 
-Контракт: [план A15g-1](../EVO_TEAM_CHAT_READ_RETRY_PLAN_2026-09-21.md).
+Контракт: [план A15g-1](../archive/plans/2026-09-21-team-chat-read-retry-plan.md).
 Precode `a90fda0c413a680073e18c8db02bdb27ef1e3812` независимо одобрен. Эта запись
 описывает исходники и локальные проверки кода. Последующий ограниченный
 actual7d70a71d и закрытие local235 записаны [отдельно](crm-team-chat-read-retry-actual-2026-09-21.md).

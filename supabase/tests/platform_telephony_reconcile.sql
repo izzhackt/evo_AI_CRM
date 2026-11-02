@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for migration 293 «Телефония Beeline KG» срез T4a (сверка по
 -- истории ВАТС, первичный импорт, справочник сотрудников ВАТС, состояние и
--- здоровье фоновой работы; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.3, §5.4,
+-- здоровье фоновой работы; docs/archive/plans/2026-10-16-telephony-plan.md §5.3, §5.4,
 -- §6.1, §6.3, §7.3; ADR 0033). Runs on the real chain right after 293 inside one
 -- transaction that is rolled back, with its own synthetic organizations, members,
 -- clients, leads, PBX users and history rows: no PBX call, no real person, no

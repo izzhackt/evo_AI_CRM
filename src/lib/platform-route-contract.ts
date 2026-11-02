@@ -324,19 +324,19 @@ export function isConnectedPlatformPrivateApi(path: string): boolean {
  */
 const PAYMENT_RECEIPT_UPLOAD_PATH = /^\/api\/v2\/payment-receipts\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PAYMENT_RECEIPT_DOWNLOAD_PATH = /^\/api\/v2\/payment-receipt-files\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/download$/i;
-// «Телефония Beeline KG» T5 (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §9.4, §12): the
+// «Телефония Beeline KG» T5 (docs/archive/plans/2026-10-16-telephony-plan.md §9.4, §12): the
 // one-tap call result (POST). The handler repeats the staff session, sameOrigin and
 // telephony.call.dial; the database decides the lead, the call, the flags and the
 // windows. Strict lower-case UUID (version 1-8, variant 8-b, like the AI memory route).
 const TELEPHONY_CALL_RESULT_PATH =
   /^\/api\/v3\/telephony\/calls\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/result$/;
-// «Телефония Beeline KG» T6 (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §7, §12): the recording
+// «Телефония Beeline KG» T6 (docs/archive/plans/2026-10-16-telephony-plan.md §7, §12): the recording
 // stream proxy (GET, Range). The handler repeats the staff session, the listen right and
 // the preview refusal; the database decides the flag, the scope, the state and the limits.
 // Strict lower-case UUID (version 1-8, variant 8-b), nothing after it.
 const TELEPHONY_RECORDING_PATH =
   /^\/api\/v3\/telephony\/recordings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
-// «Телефония Beeline KG» T7 (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.5, §12): the Call
+// «Телефония Beeline KG» T7 (docs/archive/plans/2026-10-16-telephony-plan.md §6.5, §12): the Call
 // button (POST, exact path, no id in the path: the body carries the lead id and the request
 // id, never the number). The handler repeats sameOrigin, the staff session, the preview
 // refusal and telephony.call.dial; the database decides flags, lead, number, prefixes,

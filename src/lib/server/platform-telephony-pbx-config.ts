@@ -2,7 +2,7 @@ import "server-only";
 
 /**
  * Outbound (EVO → PBX) configuration for Beeline KG `crmapi/v1`
- * (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.4 and §5.5, ADR 0033).
+ * (docs/archive/plans/2026-10-16-telephony-plan.md §5.4 and §5.5, ADR 0033).
  *
  * Three names make one group, «all or nothing», and the release env contract
  * (`scripts/release/evo-app-env-contract.mjs`, slice T3) already validates their shape:

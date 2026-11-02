@@ -126,7 +126,7 @@ test("server actions use only canonical seams and active V3 revalidation", () =>
 });
 
 test("the real local PostgreSQL harness proves the canonical amoCRM panel in Chromium", () => {
-  const harness = source("scripts/test-postgres-v2-foundation.sh");
+  const harness = source("scripts/test-runners/test-postgres-v2-foundation.sh");
 
   assert.match(harness, /canonical_amocrm_command_browser_assert\(\)/);
   assert.match(harness, /EVO_EXPECT_AMOCRM_BROWSER_MODE="provider-not-authorized"/);

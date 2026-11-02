@@ -21,15 +21,15 @@ test("cold history diagnostics distinguish steps without retaining private error
   assert.match(runner, /expect\(historyToggle\)\.toHaveAttribute\("aria-expanded", "true"\)/u);
 });
 import { parseDocumentRecognitionProviderConfig, maximumDocumentRecognitionCostMicros } from "../src/lib/server/gemini-document-recognition.ts";
-import { resolveNodeTestPlan } from "../scripts/run-node-test-suite.mjs";
-import { classifyChangedEntries } from "../scripts/classify-pr-changes.mjs";
+import { resolveNodeTestPlan } from "../scripts/test-runners/run-node-test-suite.mjs";
+import { classifyChangedEntries } from "../scripts/checks/classify-pr-changes.mjs";
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-const harness = read("scripts/test-postgres-v2-foundation.sh");
+const harness = read("scripts/test-runners/test-postgres-v2-foundation.sh");
 const runner = read("scripts/lib/document-recognition-browser-proof.mjs");
 const driver = read("scripts/lib/document-recognition-predispatch-proof.mjs");
 const image = read("scripts/lib/document-recognition-acceptance-image.mjs");
-const docker = read("scripts/Dockerfile.document-recognition-acceptance");
+const docker = read("scripts/test-runners/Dockerfile.document-recognition-acceptance");
 const revision = "a".repeat(40), hash = "b".repeat(64), productionId = `sha256:${"c".repeat(64)}`, acceptanceId = `sha256:${"d".repeat(64)}`;
 function imageEvidence() {
   const runtime = { inspectorSha256: hash, launcherSha256: hash, nodeSha256: hash, treeSha256: hash };
@@ -229,7 +229,7 @@ test("ordinary CI manifest includes acceptance contract checks once, not the rea
   const plan = resolveNodeTestPlan({ packageJson, repositoryRoot: new URL("..", import.meta.url).pathname });
   assert.equal(plan.files.filter(path => path === "tests/document-recognition-acceptance-harness.test.mjs").length, 1);
   assert.equal(plan.files.includes("scripts/lib/document-recognition-browser-proof.mjs"), false);
-  const classified = classifyChangedEntries(["scripts/Dockerfile.document-recognition-acceptance",
+  const classified = classifyChangedEntries(["scripts/test-runners/Dockerfile.document-recognition-acceptance",
     "scripts/lib/document-recognition-predispatch-proof.mjs", "scripts/lib/document-recognition-acceptance-image.mjs"]
     .map(path => ({ status: "A", paths: [path] })));
   assert.equal(classified.unknown, false);

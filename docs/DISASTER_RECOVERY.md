@@ -264,7 +264,7 @@ run command:
 --exclusive-project-ref iosckaqtovbbnssqcpde
 ```
 
-`EVO_RUN_V3_MANAGED_SUPABASE_EXPORT=1 node scripts/export-v3-managed-supabase-backup.mjs preflight <inputs-and-flags>`
+`EVO_RUN_V3_MANAGED_SUPABASE_EXPORT=1 node scripts/release/export-v3-managed-supabase-backup.mjs preflight <inputs-and-flags>`
 remains side-effect free: no lease is created and no password is required or attempted. It validates
 the existing tools, API keys, project, fresh provider backup, endpoint and source
 migration versions against a contiguous known repository prefix. The actual

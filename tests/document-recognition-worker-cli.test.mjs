@@ -7,8 +7,8 @@ import test from "node:test";
 import {
   parseDocumentRecognitionWorkerCommand as parse,
   runDocumentRecognitionWorkerCli as run,
-} from "../scripts/run-document-recognition-worker.ts";
-import { buildDocumentRecognitionWorker } from "../scripts/build-document-recognition-worker.mjs";
+} from "../scripts/maintenance/run-document-recognition-worker.ts";
+import { buildDocumentRecognitionWorker } from "../scripts/maintenance/build-document-recognition-worker.mjs";
 
 // CLI/lifecycle unit boundaries and real no-config bundle processes only.
 // No provider, database, Storage or native inspector acceptance is claimed.
@@ -107,7 +107,7 @@ test("deadline abort is propagated and a late settled result cannot become succe
 
 async function childLifecycle({ signal, ignoreAbort = false }) {
   const script = `
-    import { runDocumentRecognitionWorkerCli as run } from ${JSON.stringify(new URL("../scripts/run-document-recognition-worker.ts", import.meta.url).href)};
+    import { runDocumentRecognitionWorkerCli as run } from ${JSON.stringify(new URL("../scripts/maintenance/run-document-recognition-worker.ts", import.meta.url).href)};
     process.exitCode = await run(${JSON.stringify([...args("processing"), "--timeout-ms", signal ? "5000" : "20"])}, {
       createDependencies: () => ({}),
       processing: async (_id, _deps, abort) => {

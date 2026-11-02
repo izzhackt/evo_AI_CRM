@@ -263,7 +263,7 @@ UX-8 exit inventory для review и release:
   `tests/v3-student-portal-ui.test.mjs` — source contracts v2/no-fallback/v1
   preservation;
 - `supabase/tests/platform_student_portal_next_steps_boundary.sql` и его вызов из
-  `scripts/test-postgres-authorization.sh` — реальные catalog/no-session проверки
+  `scripts/test-runners/test-postgres-authorization.sh` — реальные catalog/no-session проверки
   обеих форм без создания actors/cases;
 - будущая migration удаления v1 не входит в текущую ветку и создаётся только
   после явной приёмки владельца; номер заранее не резервировать.

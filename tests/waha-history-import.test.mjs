@@ -24,7 +24,7 @@ import {
   scanWindow,
   slimMessage,
   withPhoneAlternative,
-} from "../scripts/waha-history-import.mjs";
+} from "../scripts/import/waha-history-import.mjs";
 import {
   BODY,
   CHAT_A,
@@ -59,7 +59,7 @@ const NOW_S = Math.floor(NOW.getTime() / 1000);
 const WINDOW_TO = NOW.toISOString();
 const at = makeAt(NOW_S);
 const baseRows = () => makeBaseRows(NOW_S);
-const SCRIPT_URL = new URL("../scripts/waha-history-import.mjs", import.meta.url);
+const SCRIPT_URL = new URL("../scripts/import/waha-history-import.mjs", import.meta.url);
 
 function sha256(value) {
   return createHash("sha256").update(value, "utf8").digest("hex");
@@ -1779,7 +1779,7 @@ test("the CLI ships in the runner image next to the other operator scripts", () 
   const dockerfile = readFileSync(new URL("../Dockerfile", import.meta.url), "utf8");
   assert.match(
     dockerfile,
-    /COPY --from=builder --chown=nextjs:nodejs --chmod=0555 \/app\/scripts\/waha-history-import\.mjs \.\/scripts\/waha-history-import\.mjs/u,
+    /COPY --from=builder --chown=nextjs:nodejs --chmod=0555 \/app\/scripts\/import\/waha-history-import\.mjs \.\/scripts\/waha-history-import\.mjs/u,
   );
   const source = readFileSync(SCRIPT_URL, "utf8");
   const imports = [...source.matchAll(/^import .* from "([^"]+)";$/gmu)].map((match) => match[1]);

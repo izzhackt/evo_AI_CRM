@@ -4,7 +4,7 @@
  * направления») и обе проекции, и его разбор. Файл клиент-безопасный: без
  * server-only и без Supabase, и без собственных зависимостей, кроме списка
  * направлений, потому что его разбирает и `platform-audit.ts`, который
- * запускается без `npm ci` (`scripts/check-platform-audit-journal-contract.mjs`).
+ * запускается без `npm ci` (`scripts/checks/check-platform-audit-journal-contract.mjs`).
  *
  * В поле только коды направлений сотрудников (`ADMISSIONS_DIRECTIONS`): ни версий,
  * ни персональных данных. Код вне пяти (например, IT или CZ) разбор не пропускает:

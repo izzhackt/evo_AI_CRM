@@ -201,7 +201,7 @@ The proxy uses [Node HTTP message completion and socket destruction](https://r2.
 timeouts destroy the request explicitly rather than treating a timeout event as
 completed work. The committed product adapter remains unchanged by this harness.
 
-Prepared entry point: `scripts/test-postgres-v2-foundation.sh --university-template-ingress-only`.
+Prepared entry point: `scripts/test-runners/test-postgres-v2-foundation.sh --university-template-ingress-only`.
 It requires the same `EVO_D3_COMBINED_IMAGE`, `EVO_D3_ACCEPTANCE_IMAGE` and frozen
 revision binding used by the shared image-pair gate. No image is built by this
 mode. The browser helper is `scripts/lib/university-template-ingress-browser-proof.mjs`;

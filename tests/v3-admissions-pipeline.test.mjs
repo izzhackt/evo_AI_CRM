@@ -123,7 +123,7 @@ test("the navigation entry is the first item of the Поступление group
 });
 
 test("migration 187 continues the contiguous source ledger", async () => {
-  const { expectedMigrationVersions } = await import("../scripts/fast-release-ledger-gate.mjs");
+  const { expectedMigrationVersions } = await import("../scripts/release/fast-release-ledger-gate.mjs");
   const { fileURLToPath } = await import("node:url");
   const versions = expectedMigrationVersions(fileURLToPath(new URL("../supabase/migrations", import.meta.url)));
   assert.ok(versions.includes("185") && versions.includes("186"));
@@ -837,11 +837,11 @@ test("migration 251 is forward-only and additive: a version column with its trig
 });
 
 test("migration 251 continues the contiguous source ledger and runs its real-Postgres suite at its checkpoint", async () => {
-  const { expectedMigrationVersions } = await import("../scripts/fast-release-ledger-gate.mjs");
+  const { expectedMigrationVersions } = await import("../scripts/release/fast-release-ledger-gate.mjs");
   const { fileURLToPath } = await import("node:url");
   const versions = expectedMigrationVersions(fileURLToPath(new URL("../supabase/migrations", import.meta.url)));
   assert.ok(versions.includes("250") && versions.includes("251"));
-  assert.match(source("scripts/test-postgres-authorization.sh"),
+  assert.match(source("scripts/test-runners/test-postgres-authorization.sh"),
     /== 251_\* \]\]; then\s+docker exec "\$container_name" \\\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\s+-f \/workspace\/supabase\/tests\/platform_pipeline_move_undo\.sql/u);
   assert.match(undoSuite, /^BEGIN;$/mu);
   assert.match(undoSuite, /^ROLLBACK;\s*$/mu);

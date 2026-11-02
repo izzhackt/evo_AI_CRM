@@ -19,7 +19,7 @@ function between(value, start, end) {
 }
 
 test("Platform provider acceptance is exact-SHA, private, single-run and fail-closed", () => {
-  const shell = source("scripts/verify-platform-provider-acceptance.sh");
+  const shell = source("scripts/checks/verify-platform-provider-acceptance.sh");
 
   assert.match(shell, /set -euo pipefail/u);
   assert.match(shell, /umask 077/u);
@@ -76,16 +76,16 @@ test("Platform provider acceptance is exact-SHA, private, single-run and fail-cl
 
   assert.match(
     shell,
-    /playwright\.platform-provider-acceptance\.config\.ts/u,
+    /config\/playwright\/platform-provider-acceptance\.config\.ts/u,
   );
   assert.notEqual(
-    statSync(new URL("scripts/verify-platform-provider-acceptance.sh", ROOT)).mode & 0o111,
+    statSync(new URL("scripts/checks/verify-platform-provider-acceptance.sh", ROOT)).mode & 0o111,
     0,
   );
 });
 
 test("the one browser proof performs one reviewed Gemini call and one explicit WAHA send", () => {
-  const config = source("playwright.platform-provider-acceptance.config.ts");
+  const config = source("config/playwright/platform-provider-acceptance.config.ts");
   const spec = source("tests/e2e/platform-provider-acceptance.spec.ts");
 
   assert.match(config, /testMatch: "platform-provider-acceptance\.spec\.ts"/u);
@@ -137,7 +137,7 @@ test("the one browser proof performs one reviewed Gemini call and one explicit W
 });
 
 test("local browser proof resolves one ambiguous send only through exact WAHA readback", () => {
-  const foundation = source("scripts/test-postgres-v2-foundation.sh");
+  const foundation = source("scripts/test-runners/test-postgres-v2-foundation.sh");
   const spec = source("tests/e2e/platform-communications.spec.ts");
 
   assert.match(foundation, /waha_session_name="crm_primary"/u);

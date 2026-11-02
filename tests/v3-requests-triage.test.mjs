@@ -292,7 +292,7 @@ test("migration 250 is forward-only, definer with an empty search path, and keep
   assert.match(sql, /actor\.platform_role IS NOT DISTINCT FROM 'student'/u);
   assert.doesNotMatch(sql, /platform_role\s*(?:NOT\s+)?IN\s*\(|platform_role\s*<>|platform_role\s*=/u);
   assert.match(sql, /GRANT EXECUTE ON FUNCTION platform\.staff_requests_queue_v2\(UUID,TEXT,TEXT,INTEGER,JSONB\) TO authenticated;/u);
-  assert.match(read("scripts/test-postgres-authorization.sh"), /250_\*[\s\S]*platform_requests_queue_triage\.sql/u);
+  assert.match(read("scripts/test-runners/test-postgres-authorization.sh"), /250_\*[\s\S]*platform_requests_queue_triage\.sql/u);
 });
 
 test("«Звонки» (телефония T9): the page reads v3 only, v3 is the v2 body plus phone_call behind ui_enabled, and v2 stays for the previous release", () => {
@@ -322,7 +322,7 @@ test("«Звонки» (телефония T9): the page reads v3 only, v3 is th
   ]) {
     assert.ok(body(v2, 2).includes(gate) && body(sql, 3).includes(gate), gate);
   }
-  assert.match(read("scripts/test-postgres-authorization.sh"), /\*_platform_telephony_unknown_leads\.sql[\s\S]*platform_telephony_unknown_leads\.sql/u);
+  assert.match(read("scripts/test-runners/test-postgres-authorization.sh"), /\*_platform_telephony_unknown_leads\.sql[\s\S]*platform_telephony_unknown_leads\.sql/u);
 });
 
 test("«Звонки»: the tab, its number and its rows exist only when the read carries phone calls; «Все» adds them; an old link says so in words", () => {

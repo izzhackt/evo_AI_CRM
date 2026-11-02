@@ -24,7 +24,7 @@ const NEW_FILES = [
   "src/lib/server/platform-wazzup-maintenance.ts",
   "src/lib/server/platform-wazzup-ops.ts",
   "src/app/api/v2/whatsapp/wazzup/inbound/route.ts",
-  "scripts/wazzup-ops.mjs",
+  "scripts/maintenance/wazzup-ops.mjs",
   "docs/runbooks/wazzup-whatsapp.md",
 ];
 
@@ -43,8 +43,8 @@ async function bundleBoth() {
   const directory = mkdtempSync(join(tmpdir(), "wazzup-bundles-"));
   const timer = join(directory, "whatsapp-health-maintenance.mjs");
   const ops = join(directory, "wazzup-ops.mjs");
-  await build({ ...BUNDLE_OPTIONS, entryPoints: ["scripts/whatsapp-health-maintenance.mjs"], outfile: timer });
-  await build({ ...BUNDLE_OPTIONS, entryPoints: ["scripts/wazzup-ops.mjs"], outfile: ops });
+  await build({ ...BUNDLE_OPTIONS, entryPoints: ["scripts/maintenance/whatsapp-health-maintenance.mjs"], outfile: timer });
+  await build({ ...BUNDLE_OPTIONS, entryPoints: ["scripts/maintenance/wazzup-ops.mjs"], outfile: ops });
   return { directory, timer, ops };
 }
 
@@ -57,12 +57,12 @@ test("the image carries /app/wazzup-ops.mjs and the build produces it next to th
   assert.match(dockerfile, /^COPY --from=builder --chown=nextjs:nodejs --chmod=0555 \/app\/\.next\/whatsapp-health-maintenance\.mjs \.\/whatsapp-health-maintenance\.mjs$/mu);
   const pkg = JSON.parse(read("package.json"));
   // The Wazzup bundle is built by the existing health-maintenance builder, so the pinned order of the build chain holds.
-  assert.equal(pkg.scripts["build:whatsapp-health-maintenance"], "node scripts/build-whatsapp-health-maintenance.mjs");
+  assert.equal(pkg.scripts["build:whatsapp-health-maintenance"], "node scripts/maintenance/build-whatsapp-health-maintenance.mjs");
   assert.match(pkg.scripts.build, /npm run build:telephony-maintenance && npm run build:whatsapp-health-maintenance && npm run build:ai-agents-maintenance$/u);
-  const builder = read("scripts/build-whatsapp-health-maintenance.mjs");
-  assert.match(builder, /entryPoints: \["scripts\/whatsapp-health-maintenance\.mjs"\]/u);
+  const builder = read("scripts/maintenance/build-whatsapp-health-maintenance.mjs");
+  assert.match(builder, /entryPoints: \["scripts\/maintenance\/whatsapp-health-maintenance\.mjs"\]/u);
   assert.match(builder, /outfile: "\.next\/whatsapp-health-maintenance\.mjs"/u);
-  assert.match(builder, /entryPoints: \["scripts\/wazzup-ops\.mjs"\]/u);
+  assert.match(builder, /entryPoints: \["scripts\/maintenance\/wazzup-ops\.mjs"\]/u);
   assert.match(builder, /outfile: "\.next\/wazzup-ops\.mjs"/u);
   assert.equal((builder.match(/conditions: \["react-server"\]/gu) ?? []).length, 2);
   for (const file of NEW_FILES) assert.ok(existsSync(join(root, file)), file);
@@ -155,11 +155,11 @@ test("the ops script and the timer script never log a value they handle: no cons
     assert.ok(!/\bdebugger\b/u.test(code));
     assert.ok(!/process\.argv/u.test(code), `${file}: arguments are read only by the entry script`);
   }
-  assert.match(read("scripts/wazzup-ops.mjs"), /runWazzupOps\(process\.argv\.slice\(2\)\)/u);
+  assert.match(read("scripts/maintenance/wazzup-ops.mjs"), /runWazzupOps\(process\.argv\.slice\(2\)\)/u);
 });
 
 test("the edge handler: public path on crm. only, 1 MiB, overwritten address header, the hold during a release, and the token redacted in the access log", () => {
-  const edge = read("agent-lead2-inbox/deploy/Caddyfile.evo-edge");
+  const edge = read("deploy/edge/Caddyfile.evo-edge");
   const site = edge.slice(edge.indexOf("crm.evoadmissions.com, app.evoadmissions.com {"));
   const crm = site.slice(0, site.indexOf("\n}\n") + 3);
   // The matcher is exact on the ORIGINAL request URI (not only the cleaned path), so the odd spellings that Caddy's `path` matcher
@@ -189,12 +189,12 @@ test("the edge handler: public path on crm. only, 1 MiB, overwritten address hea
 });
 
 // ---------------------------------------------------------------- the edge, on the pinned Caddy image
-// Same image and offline discipline as scripts/test-p7b-caddy-runtime.sh: the digest is read from that script, the image is never
+// Same image and offline discipline as scripts/test-runners/test-p7b-caddy-runtime.sh: the digest is read from that script, the image is never
 // pulled here, and the test is skipped (visibly) when Docker or the image is not on this machine. The real Caddyfile is adapted
 // as is; the live run changes only the site address (plain HTTP on 8080) and the upstream (a stub inside the same container).
-const CADDY_IMAGE = /readonly CADDY_IMAGE="(caddy@sha256:[0-9a-f]{64})"/u.exec(read("scripts/test-p7b-caddy-runtime.sh"))?.[1] ?? "";
-const WEBSITE_HEADER_EXAMPLE = join(root, "agent-lead2-inbox/deploy/website-intake-header.caddy.example");
-const EDGE_FILE = join(root, "agent-lead2-inbox/deploy/Caddyfile.evo-edge");
+const CADDY_IMAGE = /readonly CADDY_IMAGE="(caddy@sha256:[0-9a-f]{64})"/u.exec(read("scripts/test-runners/test-p7b-caddy-runtime.sh"))?.[1] ?? "";
+const WEBSITE_HEADER_EXAMPLE = join(root, "deploy/edge/website-intake-header.caddy.example");
+const EDGE_FILE = join(root, "deploy/edge/Caddyfile.evo-edge");
 
 function caddyImageIsHere() {
   if (CADDY_IMAGE === "") return false;
@@ -236,7 +236,7 @@ test("the edge at runtime: only the canonical Wazzup URI reaches the Wazzup hand
   const name = `evo-wazzup-edge-test-${process.pid}-${Date.now()}`;
   try {
     // The real file with its site address and upstream swapped for plain HTTP and a stub in the same Caddy: the body of the site block is untouched.
-    const source = read("agent-lead2-inbox/deploy/Caddyfile.evo-edge")
+    const source = read("deploy/edge/Caddyfile.evo-edge")
       .replace(/^\{\n/u, "{\n\tadmin off\n\tauto_https off\n")
       .replace("crm.evoadmissions.com, app.evoadmissions.com {", "http://crm.evoadmissions.com:8080, http://app.evoadmissions.com:8080 {")
       .replaceAll("evo-crm-app:3000", "127.0.0.1:3000");
@@ -349,7 +349,7 @@ test("the runbook carries the rules an operator needs: the key on stdin only, co
     "openelsewhere",
     "Sidecar",
     // the contract and the example env come from the release SHA (envcheck against a stale pre-Wazzup contract passes a conflicting env)
-    "git show \"$SHA:scripts/evo-app-env-contract.mjs\"",
+    "git show \"$SHA:scripts/release/evo-app-env-contract.mjs\"",
     "git show \"$SHA:deploy/env.production.example\"",
     "EVO_SUPABASE_PROJECT_REF",
     "app_env_snapshot_seal_failed",
@@ -372,7 +372,7 @@ test("the runbook carries the rules an operator needs: the key on stdin only, co
 
 test("the runbook's live-edge procedure: the expected added lines are exactly what the Caddyfile adds, the write follows backup, check and validate, and the rollback restores the backup in place", () => {
   const runbook = read("docs/runbooks/wazzup-whatsapp.md");
-  const edge = read("agent-lead2-inbox/deploy/Caddyfile.evo-edge");
+  const edge = read("deploy/edge/Caddyfile.evo-edge");
   // What the Caddyfile adds to the live file: the Wazzup directives of the crm./app. block and one line of the (evo_app) log filter.
   const site = edge.slice(edge.indexOf("crm.evoadmissions.com, app.evoadmissions.com {"));
   const from = site.indexOf("\trequest_header -X-Evo-Wazzup-Ip\n");
@@ -562,7 +562,7 @@ test("the app stands on migrations 324-326 (the follow-ups 326 carry the two ser
 test("the repository is public: the new files hold no real-looking phone number, e-mail address or key", () => {
   const files = [...NEW_FILES, "tests/platform-wazzup-ingress.test.mjs", "tests/platform-wazzup-client.test.mjs", "tests/platform-wazzup-ops.test.mjs",
     "tests/platform-wazzup-maintenance.test.mjs", "tests/platform-wazzup-refusals.test.mjs", "tests/platform-wazzup-webhook.test.mjs", "tests/platform-wazzup-packaging.test.mjs",
-    "agent-lead2-inbox/deploy/Caddyfile.evo-edge", "deploy/env.production.example", "deploy/whatsapp/README.md"];
+    "deploy/edge/Caddyfile.evo-edge", "deploy/env.production.example", "deploy/whatsapp/README.md"];
   for (const file of files) {
     const source = read(file);
     assert.ok(!/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}/u.test(source.replace(/user@host/gu, "")), `${file}: an e-mail address`);

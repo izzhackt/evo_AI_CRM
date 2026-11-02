@@ -8,7 +8,7 @@ import { PortalMarkAllReadButton } from "./PortalMarkAllReadButton";
 import { PortalNotificationReadButton } from "./PortalNotificationReadButton";
 import { PortalNotificationReadForm } from "./PortalNotificationReadForm";
 import { PortalStatus } from "./PortalStatus";
-import { formatPortalTimestamp, portalNotificationTarget } from "./presentation";
+import { formatPortalTimestamp, portalNotificationTarget, portalNotificationText } from "./presentation";
 
 export type MarkPortalNotificationReadAction = (
   formData: FormData,
@@ -68,6 +68,7 @@ export function NotificationsView({
           const createdLabel = formatPortalTimestamp(notification.createdAt);
           const dueLabel = formatPortalTimestamp(notification.dueAt);
           const target = portalNotificationTarget(notification, strings);
+          const text = portalNotificationText(notification, strings);
 
           return (
             <li
@@ -78,15 +79,15 @@ export function NotificationsView({
                 <div className="pt-ntf-item-main">
                   <div className="pt-ntf-item-title-row">
                     <h3 className={unread ? "pt-ntf-item-title pt-ntf-item-title-unread" : "pt-ntf-item-title"}>
-                      {notification.subjectLabel}
+                      {text.title}
                     </h3>
                     {unread ? (
                       <PortalStatus label={strings.statusNew} tone="info" />
                     ) : null}
                   </div>
-                  {notification.detail ? (
+                  {text.detail ? (
                     <p className="pt-ntf-item-detail">
-                      {notification.detail}
+                      {text.detail}
                     </p>
                   ) : null}
                   {createdLabel || dueLabel ? (

@@ -4752,6 +4752,33 @@ SQL
       exit 1
     fi
   fi
+  # «Студент узнаёт о новом сообщении» (migration 330, PLAN_CHANGES 02.11.2026). Matched by name, not number. Right after the
+  # migration: a second apply refuses (a330_already_applied), then the suite, insisting on its marker. The suite proves: one
+  # notification per unread without the message text, the list and the real read command, nobody notified without a live
+  # portal, and that the curator is still notified as before.
+  if [[ "$(basename "$migration")" == *_platform_case_chat_student_notification.sql ]]; then
+    t330_again_log="$(mktemp -t evo-t330-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t330_again_log" 2>&1; then
+      echo "migration 330 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a330_already_applied" "$t330_again_log"; then
+      echo "a second apply of migration 330 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t330_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t330_again_log"
+    case_chat_student_notification_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_chat_student_notification.sql </dev/null)"
+    printf '%s\n' "$case_chat_student_notification_log"
+    if ! grep -q 'A330_CASE_CHAT_STUDENT_NOTIFICATION_SUITE_PASSED' <<<"$case_chat_student_notification_log"; then
+      echo "platform_case_chat_student_notification.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «Тревога о связи WhatsApp продаж» (migration 321, PLAN_CHANGES 26.10.2026). Matched by name, not number.
   # Additive migration: it replaces nothing, so there are no pre-image anchors to tamper with. Right after the
   # migration: a second apply refuses (a321_already_applied), then the suite, insisting on its marker. The suite

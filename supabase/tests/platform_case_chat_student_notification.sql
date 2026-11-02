@@ -10,7 +10,10 @@
 --  4. no notification for a case without a student, without an activated portal, or for a suspended student, and the
 --     message itself is still saved;
 --  5. the student reads it through student_portal_notifications_v2 and the bell counts it; another student does not see it;
---  6. the curator is still notified of the student's message as before.
+--  6. the curator is still notified of the student's message as before;
+--  7. reading the chat without the bell clears the notification, and the next message notifies again;
+--  8. a message newer than the one shown stays unread; another student and Staff clear nothing;
+--  9. an unread notification older than a day does not silence a new one; a fresh one does, and only one can be unread.
 BEGIN;
 
 SET LOCAL TIME ZONE 'UTC';
@@ -154,6 +157,70 @@ SELECT pg_temp.a330_assert(pg_temp.a330_count(702) = 0 AND pg_temp.a330_count(70
   'no notification with no student, no activated portal or a suspended student');
 SELECT pg_temp.a330_assert((SELECT count(*) = 3 FROM platform.case_chat_messages m WHERE m.id IN (pg_temp.a330_id(806), pg_temp.a330_id(807), pg_temp.a330_id(808))),
   'the messages themselves are saved');
+
+-- ---------------------------------------------------------------------------
+-- 7 and 8. The student reads the chat without touching the bell.
+-- ---------------------------------------------------------------------------
+CREATE FUNCTION pg_temp.a330_seq(p_id INTEGER) RETURNS BIGINT LANGUAGE SQL AS $$
+  SELECT m.sequence_id FROM platform.case_chat_messages m WHERE m.id = pg_temp.a330_id(p_id)
+$$;
+CREATE FUNCTION pg_temp.a330_read_chat(p_claims TEXT, p_up_to BIGINT) RETURNS JSONB LANGUAGE SQL AS $$
+  SELECT pg_temp.a330_as(p_claims, format('SELECT to_jsonb(platform.mark_own_case_chat_notifications_read_v1(%s))', p_up_to))
+$$;
+CREATE FUNCTION pg_temp.a330_unread(p_case INTEGER) RETURNS BIGINT LANGUAGE SQL AS $$
+  SELECT count(*) FROM platform.notifications n WHERE n.organization_id = pg_temp.a330_id(1) AND n.student_case_id = pg_temp.a330_id(p_case)
+    AND n.category = 'case_chat.message' AND n.read_at IS NULL
+$$;
+SELECT pg_temp.a330_post(705, 1, 810);
+SELECT pg_temp.a330_post(705, 1, 811);
+SELECT pg_temp.a330_assert(pg_temp.a330_count(705) = 1 AND pg_temp.a330_unread(705) = 1, 'one unread for two messages');
+SELECT pg_temp.a330_read_chat(:'a330_student', pg_temp.a330_seq(811));
+SELECT pg_temp.a330_assert(pg_temp.a330_unread(705) = 1, 'another student clears nothing in this case');
+SELECT pg_temp.a330_claims(1) AS a330_staff \gset
+SELECT pg_temp.a330_assert(pg_temp.a330_read_chat(:'a330_staff', pg_temp.a330_seq(811)) ->> 'error' = '42501' AND pg_temp.a330_unread(705) = 1,
+  'Staff is refused');
+SELECT pg_temp.a330_assert(pg_temp.a330_read_chat(:'a330_other', pg_temp.a330_seq(810) - 1) = '0'::JSONB AND pg_temp.a330_unread(705) = 1,
+  'reading only older messages leaves the newer notification unread');
+SELECT pg_temp.a330_assert(pg_temp.a330_read_chat(:'a330_other', pg_temp.a330_seq(811)) = '1'::JSONB AND pg_temp.a330_unread(705) = 0,
+  'reading the chat clears the notification without the bell');
+SELECT pg_temp.a330_assert((SELECT count(*) = 1 FROM platform.notification_events e JOIN platform.notifications n ON n.id = e.notification_id
+    WHERE n.student_case_id = pg_temp.a330_id(705) AND e.event_type = 'read' AND e.actor_membership_id = pg_temp.a330_id(305)),
+  'the read has its event by the student');
+SELECT pg_temp.a330_assert((SELECT count(*) = 1 FROM platform.audit_events a JOIN platform.notifications n ON n.id = a.resource_id
+    WHERE n.student_case_id = pg_temp.a330_id(705) AND a.action = 'notification.read'), 'and its audit record');
+SELECT pg_temp.a330_assert(pg_temp.a330_read_chat(:'a330_other', pg_temp.a330_seq(811)) = '0'::JSONB, 'a repeat changes nothing');
+SELECT pg_temp.a330_post(705, 1, 812);
+SELECT pg_temp.a330_assert(pg_temp.a330_count(705) = 2 AND pg_temp.a330_unread(705) = 1,
+  'read the chat without the bell: the next message notifies again');
+SELECT pg_temp.a330_assert(pg_temp.a330_read_chat(:'a330_other', pg_temp.a330_seq(811)) = '0'::JSONB AND pg_temp.a330_unread(705) = 1,
+  'a message newer than the one shown stays unread');
+SELECT pg_temp.a330_assert(pg_temp.a330_as(:'a330_other', 'SELECT to_jsonb(platform.mark_own_case_chat_notifications_read_v1(NULL))') ->> 'error' = '22023',
+  'an empty position is refused');
+
+-- ---------------------------------------------------------------------------
+-- 9. A client that does not report reading, and two messages at once.
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.a330_post(705, 1, 813);
+SELECT pg_temp.a330_assert(pg_temp.a330_count(705) = 2 AND pg_temp.a330_unread(705) = 1, 'a fresh unread still holds the next message back');
+SET LOCAL session_replication_role = replica;
+UPDATE platform.notifications n SET created_at = created_at - INTERVAL '25 hours'
+  WHERE n.student_case_id = pg_temp.a330_id(705) AND n.category = 'case_chat.message' AND n.read_at IS NULL;
+SET LOCAL session_replication_role = origin;
+SELECT pg_temp.a330_post(705, 1, 814);
+SELECT pg_temp.a330_assert(pg_temp.a330_count(705) = 3 AND pg_temp.a330_unread(705) = 1, 'an unread older than a day is replaced by the new message');
+SELECT pg_temp.a330_assert((SELECT count(*) = 1 FROM platform.notification_events e JOIN platform.notifications n ON n.id = e.notification_id
+    WHERE n.student_case_id = pg_temp.a330_id(705) AND e.event_type = 'cancelled'), 'the replaced one has its event');
+DO $a330_one$
+BEGIN
+  INSERT INTO platform.notifications (organization_id, student_case_id, recipient_membership_id, category, title, body, dedupe_key, created_by_membership_id)
+  VALUES (pg_temp.a330_id(1), pg_temp.a330_id(705), pg_temp.a330_id(305), 'case_chat.message', 'x', 'x', 'a330-second-unread', pg_temp.a330_id(301));
+  RAISE EXCEPTION 'A330: a second unread notification was accepted';
+EXCEPTION WHEN unique_violation THEN NULL;
+END
+$a330_one$;
+SELECT pg_temp.a330_post(705, 5, 815);
+SELECT pg_temp.a330_assert(pg_temp.a330_read_chat(:'a330_other', pg_temp.a330_seq(814)) = '1'::JSONB AND pg_temp.a330_unread(705) = 0,
+  'the student''s own newer message does not hold the notification back');
 
 \echo A330_CASE_CHAT_STUDENT_NOTIFICATION_SUITE_PASSED
 ROLLBACK;

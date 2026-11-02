@@ -37,6 +37,24 @@ export async function loadPortalCaseMessagesAction(
 }
 
 /**
+ * Открытый чат снимает уведомление о сообщениях до показанного (миграция 330). Сбой не мешает читать:
+ * уведомление останется, и студент снимет его в колокольчике.
+ */
+export async function markPortalCaseChatReadAction(upToSequenceId: unknown): Promise<{ ok: boolean }> {
+  try {
+    await requireStudentPortalActor();
+    if (typeof upToSequenceId !== "string" || !SEQUENCE_PATTERN.test(upToSequenceId)) return { ok: false };
+    const client = await createSupabaseServerClient();
+    const { error } = await client
+      .schema("platform")
+      .rpc("mark_own_case_chat_notifications_read_v1", { p_up_to_sequence_id: upToSequenceId });
+    return { ok: !error };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
  * Отправка сообщения по делу (PORT-5c, миграция 200). RPC идемпотентен по
  * request_id: повтор нажатия и retry сети возвращают исходный receipt,
  * дубль невозможен; тот же request_id с другим текстом сервер отклоняет

@@ -899,3 +899,24 @@ test("330: a staff message notifies the student once per unread and the notifica
   assert.ok(script.indexOf("A330_CASE_CHAT_STUDENT_NOTIFICATION_SUITE_PASSED") > 0 && script.indexOf("A330_CASE_CHAT_STUDENT_NOTIFICATION_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
   assert.match(script, /a330_already_applied/u);
 });
+
+test("330: the shown chat clears the notification and its text follows the student's language", () => {
+  const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  const hook = fileOf("src/components/portal/messages/useMarkCaseChatRead.ts");
+  assert.ok(hook.includes('document.visibilityState !== "visible"'), "a hidden tab does not read");
+  assert.ok(fileOf("src/components/portal/messages/MessagesThread.tsx").includes("useMarkCaseChatRead(messages[messages.length - 1]?.sequenceId ?? null)"));
+  assert.ok(fileOf("src/lib/portal/messages-actions.ts").includes('.rpc("mark_own_case_chat_notifications_read_v1", { p_up_to_sequence_id: upToSequenceId })'));
+  const presentation = fileOf("src/components/portal/admission/presentation.ts");
+  assert.ok(presentation.includes("return { title: strings.caseChatNotificationTitle, detail: strings.caseChatNotificationDetail };"));
+  const view = fileOf("src/components/portal/admission/NotificationsView.tsx");
+  assert.ok(view.includes("{text.title}"));
+  assert.ok(!view.includes("{notification.subjectLabel}"), "the stored Russian text does not reach the screen directly");
+  const i18n = fileOf("src/lib/portal/i18n.ts");
+  assert.equal((i18n.match(/caseChatNotificationTitle:/gu) ?? []).length, 2, "both languages");
+  assert.match(i18n, /caseChatNotificationTitle: "EVO командасынан жаңы билдирүү"/u);
+  const migration = fileOf("supabase/migrations/330_platform_case_chat_student_notification.sql");
+  assert.ok(!migration.includes("AND NOT EXISTS (SELECT 1 FROM platform.notifications"), "the unique index holds one unread, not a racing check");
+  assert.match(migration, /CREATE UNIQUE INDEX notifications_case_chat_one_unread/u);
+  assert.ok(migration.includes("m.sequence_id > p_up_to_sequence_id AND m.author_membership_id <> actor.membership_id"), "a newer staff message keeps it unread");
+  assert.match(fileOf("supabase/tests/platform_case_chat_student_notification.sql"), /read the chat without the bell: the next message notifies again/u);
+});

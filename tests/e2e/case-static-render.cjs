@@ -263,7 +263,7 @@ const CHAT = {
 
 function profile(fields = {}) {
   return {
-    leadId: fields.leadId ?? null, person: NAME, email: fields.email ?? null, phone: fields.phone ?? null, student: true, stage: null,
+    leadId: fields.leadId ?? null, person: NAME, email: fields.email ?? null, portalInviteEmail: fields.portalInviteEmail ?? null, phone: fields.phone ?? null, student: true, stage: null,
     caseStatus: fields.state ?? "active", source: null, qualification: null, arrived: "01.09.2026", nextAction: "Собрать апостиль на аттестат",
     nextActionAt: null, handoff: null, applications: [], visa: [], financeStop: fields.financeStop ?? null, timeline: [],
   };
@@ -428,6 +428,9 @@ const SCENARIOS = {
   // Дело прямого студента, лида для чтения нет: «Контакты» из полей анкеты с одной подписью «не подтверждено»,
   // «Направление» - из снимка дела (290); в строке очереди другое значение, и оно не берётся. «Данные продажи» -
   // условия лида только чтением: сумма и день продажи, внесённые при создании дела.
+  // Дело без лида: у Admin почта клиента для приглашения; куратору её чтение не отдаёт (portalInviteEmailFor).
+  "direct-case-client-email": { actor: ADMIN, profile: profile({ portalInviteEmail: "client@example.invalid" }), sales: null, draft: draft(), work: work() },
+  "direct-case-curator-no-email": { actor: CURATOR, profile: profile(), sales: null, draft: draft(), work: work() },
   "direct-case": { actor: ADMIN, profile: profile(), sales: null,
     draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: "MY", profileFields: DIRECT_FIELDS, saleConditions: DIRECT_SALE_CONDITIONS }),
     work: work({ row: queueRow({ direction: "CN", flags: [] }), activity: ACTIVITY_AWAITING }) },

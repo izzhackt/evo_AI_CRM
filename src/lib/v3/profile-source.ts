@@ -8,6 +8,7 @@ import { loadProfileSalesContext } from "./profile-route-load";
 import { loadStudentApplicationForCase, loadStudentApplicationForLead } from "./student-application-source";
 import { readCaseSaleConditions, readLeadSaleConditions } from "./lead-sale-conditions-source";
 import { readLeadCabinetCase, readStudentCaseCabinetOrigin, readStudentCaseClientEmail } from "./lead-cabinet-source";
+import { portalInviteEmailFor } from "./portal-invite-email";
 import { readLeadHandoffStrip } from "./sales-numbers-source";
 import { withWhatsAppTitles } from "./whatsapp-contact-source";
 import type { StudentApplication } from "@/lib/student-application-contract";
@@ -742,7 +743,7 @@ async function readCaseProfile(
     // `email` остаётся null намеренно: неподтверждённое значение анкеты не включает «Доступ к порталу».
     // Блоку нужна почта клиента: её отдельно несёт `portalInviteEmail`, блок виден только Admin.
     email: null,
-    portalInviteEmail: actor.systemRole === "admin" ? await readStudentCaseClientEmail(actor, canonicalCaseId) : null,
+    portalInviteEmail: await portalInviteEmailFor(actor.systemRole, () => readStudentCaseClientEmail(actor, canonicalCaseId)),
     phone: null,
     student: true,
     stage: null,

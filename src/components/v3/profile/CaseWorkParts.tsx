@@ -120,6 +120,7 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
           organizationId={actor.organizationId}
           studentCaseId={caseId}
           email={profile.email ?? profile.portalInviteEmail ?? null}
+          emailFromClientCard={profile.email === null && Boolean(profile.portalInviteEmail)}
           displayName={profile.person}
           caseState={admissions.caseState}
           isCabinetCase={admissions.isCabinetCase}

@@ -457,9 +457,38 @@ test("the direction is the snapshot's only: no queue-row or target-country fallb
   for (const inherited of ["constructor", "__proto__", "toString", "valueOf"]) assert.equal(country(inherited), null, inherited);
 });
 
+test("a case without a lead: Admin sees the invite address beside the button with the unconfirmed mark", () => {
+  const html = surfaces.get("direct-case-client-email");
+  const text = texts(html);
+  assert.match(text, /Приглашение уйдёт на: client@example\.invalid Почта из карточки клиента — проверьте\./u);
+  assert.match(html, /name="email" value="client@example\.invalid"/u);
+  // Адрес рядом с кнопкой, в той же форме.
+  const line = html.indexOf('data-testid="student-portal-invite-email"');
+  assert.ok(line > 0 && line < html.indexOf("Проверить и подготовить доступ", line));
+  // В контакты «Сведений» почта клиента не попадает: адрес только в блоке доступа.
+  assert.doesNotMatch(html, /mailto:client@example\.invalid/u);
+  // Адрес из профиля лида идёт без пометки.
+  const lead = texts(surfaces.get("admin"));
+  assert.match(lead, /Приглашение уйдёт на: student@example\.invalid/u);
+  assert.doesNotMatch(lead, /Почта из карточки клиента/u);
+  // Адреса нет: строка не рисуется, остаётся честное «Нет рабочего email».
+  assert.doesNotMatch(texts(surfaces.get("direct-case")), /Приглашение уйдёт на/u);
+});
+
+test("a case without a lead: a non-Admin never reads the client's address", async () => {
+  const { portalInviteEmailFor } = await import("../src/lib/v3/portal-invite-email.ts");
+  let reads = 0;
+  const readClientEmail = async () => { reads += 1; return "client@example.invalid"; };
+  assert.equal(await portalInviteEmailFor("admin", readClientEmail), "client@example.invalid");
+  assert.equal(reads, 1);
+  for (const role of ["staff", "", "ADMIN"]) assert.equal(await portalInviteEmailFor(role, readClientEmail), null, role);
+  assert.equal(reads, 1, "the read does not run for anyone else");
+  assert.doesNotMatch(surfaces.get("direct-case-curator-no-email"), /client@example\.invalid|student-portal-invite-email/u);
+});
+
 test("a case without an open lead can be invited to the portal: the Admin block gets the client's email, the contact rows do not", () => {
   const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-  assert.match(fileOf("src/lib/v3/profile-source.ts"), /portalInviteEmail: actor\.systemRole === "admin" \? await readStudentCaseClientEmail\(actor, canonicalCaseId\) : null/u);
+  assert.match(fileOf("src/lib/v3/profile-source.ts"), /portalInviteEmail: await portalInviteEmailFor\(actor\.systemRole, \(\) => readStudentCaseClientEmail\(actor, canonicalCaseId\)\),/u);
   const reader = fileOf("src/lib/v3/lead-cabinet-source.ts");
   assert.match(reader, /from\("clients"\)\.select\("email"\)/u);
   assert.doesNotMatch(reader, /createPlatformSupabaseServiceClient/u, "the read stays under the staff session and RLS");

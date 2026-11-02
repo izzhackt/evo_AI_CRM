@@ -45,6 +45,7 @@ export function StudentPortalAccessControls({
   organizationId,
   studentCaseId,
   email,
+  emailFromClientCard = false,
   displayName,
   caseState,
   isCabinetCase,
@@ -56,6 +57,8 @@ export function StudentPortalAccessControls({
   organizationId: string;
   studentCaseId: string;
   email: string | null;
+  /** Почта из карточки клиента: её никто не подтверждал, опечатка отдаст кабинет чужому человеку. */
+  emailFromClientCard?: boolean;
   displayName: string;
   caseState: "pending" | "active" | "closed";
   /** Unified workflow S8: source_key-derived (184's lead-cabinet origin), NOT caseState — a legacy pending case and a cabinet-pending case share caseState==='pending'. */
@@ -187,6 +190,12 @@ export function StudentPortalAccessControls({
             />
           </label>
         </details>
+        {email !== null && caseState !== "closed" ? (
+          <p className="md:col-span-2" data-testid="student-portal-invite-email">
+            Приглашение уйдёт на: <span className="break-all font-medium text-fg">{email}</span>
+            {emailFromClientCard ? <span className="block">Почта из карточки клиента — проверьте.</span> : null}
+          </p>
+        ) : null}
         <button className={`${buttonCls} w-fit justify-self-start`} type="submit" disabled={!canPrepare || pending}>
           {pending ? "Проверяем…" : "Проверить и подготовить доступ"}
         </button>

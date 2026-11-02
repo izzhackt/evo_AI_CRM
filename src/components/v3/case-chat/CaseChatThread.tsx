@@ -749,6 +749,11 @@ function CaseChatThreadView({
         name={studentDisplayName} facts={facts} caseId={caseId} listHref={listHref}
         awaitState={awaitState ?? page.thread.awaitState} onSetAwait={changeAwait} awaitPending={awaitPending} />
       {failureNotice}
+      {page.studentHasPortal === false ? (
+        <p role="status" data-testid="v3-case-chat-no-portal" className="border-b border-border px-3 py-2 t-body-compact text-warn">
+          У студента нет кабинета: он не увидит это сообщение. Свяжитесь с ним другим способом.
+        </p>
+      ) : null}
       <div className="relative flex min-h-0 flex-1 flex-col">
         {/* `relative`: абсолютные `sr-only` внутри ленты («Вы.») привязаны к ленте и обрезаются ею, а не к обёртке выше — иначе они растягивают страницу. */}
         <div ref={viewport} onScroll={onFeedScroll} className="relative min-h-0 flex-1 overflow-y-auto bg-bg px-3 py-2 @2xl:px-5" aria-label="История переписки">

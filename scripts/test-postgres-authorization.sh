@@ -4755,6 +4755,32 @@ SQL
       exit 1
     fi
   fi
+  # «Студент без кабинета: честный сигнал» (migration 329, PLAN_CHANGES 02.11.2026). Matched by name, not number. Right after
+  # the migration: a second apply refuses (a329_already_applied), then the suite, insisting on its marker. The suite proves
+  # the flag in the staff chat page and in get_case, and that send_message refuses no_student_portal with nothing written.
+  if [[ "$(basename "$migration")" == *_platform_student_without_portal_signals.sql ]]; then
+    t329_again_log="$(mktemp -t evo-t329-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t329_again_log" 2>&1; then
+      echo "migration 329 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a329_already_applied" "$t329_again_log"; then
+      echo "a second apply of migration 329 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t329_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t329_again_log"
+    student_without_portal_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_without_portal_signals.sql </dev/null)"
+    printf '%s\n' "$student_without_portal_log"
+    if ! grep -q 'A329_STUDENT_WITHOUT_PORTAL_SUITE_PASSED' <<<"$student_without_portal_log"; then
+      echo "platform_student_without_portal_signals.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «ИИ-агенты»: расход агента за сутки по Бишкеку для дневного лимита на WhatsApp (migration 322, PLAN_CHANGES
   # 26.10.2026). Matched by name, not number. Right after the migration: a second apply refuses
   # (a322_already_applied), then the suite, insisting on its marker. The suite proves: the posture of the one new

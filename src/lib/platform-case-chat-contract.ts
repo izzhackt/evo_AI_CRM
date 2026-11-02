@@ -64,6 +64,8 @@ export type CaseChatThread = Readonly<{
 export type CaseChatPage = Readonly<{
   messages: readonly CaseChatMessage[]; cursor: string; hasMore: boolean;
   thread: CaseChatThread; readSequenceId: string;
+  /** Есть ли у студента дела кабинет (миграция 329). null: база этого ещё не сказала, предупреждать не о чем. */
+  studentHasPortal?: boolean | null;
 }>;
 
 /** Pages are newest-first (sequence DESC): an older page goes after the loaded messages. */

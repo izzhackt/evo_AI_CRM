@@ -467,10 +467,12 @@ test("a case without a lead: Admin sees the invite address beside the button wit
   assert.ok(line > 0 && line < html.indexOf("Проверить и подготовить доступ", line));
   // В контакты «Сведений» почта клиента не попадает: адрес только в блоке доступа.
   assert.doesNotMatch(html, /mailto:client@example\.invalid/u);
-  // Адрес из профиля лида идёт без пометки.
-  const lead = texts(surfaces.get("admin"));
-  assert.match(lead, /Приглашение уйдёт на: student@example\.invalid/u);
-  assert.doesNotMatch(lead, /Почта из карточки клиента/u);
+  // Дело с лидом: адрес из той же карточки клиента, пометка та же.
+  assert.match(texts(surfaces.get("lead-card-email")), /Приглашение уйдёт на: lead-card@example\.invalid Почта из карточки клиента — проверьте\./u);
+  // Адрес совпал с одобренной анкетой студента: пометки нет.
+  const confirmed = texts(surfaces.get("admin"));
+  assert.match(confirmed, /Приглашение уйдёт на: student@example\.invalid/u);
+  assert.doesNotMatch(confirmed, /Почта из карточки клиента/u);
   // Адреса нет: строка не рисуется, остаётся честное «Нет рабочего email».
   assert.doesNotMatch(texts(surfaces.get("direct-case")), /Приглашение уйдёт на/u);
 });
@@ -486,10 +488,46 @@ test("a case without a lead: a non-Admin never reads the client's address", asyn
   assert.doesNotMatch(surfaces.get("direct-case-curator-no-email"), /client@example\.invalid|student-portal-invite-email/u);
 });
 
+test("the invite address counts as confirmed only when it matches the student's approved application", async () => {
+  const { inviteEmailConfirmed } = await import("../src/lib/v3/portal-invite-email.ts");
+  const approved = { status: "approved", email: "Student@Example.invalid " };
+  assert.equal(inviteEmailConfirmed("student@example.invalid", approved), true);
+  assert.equal(inviteEmailConfirmed("other@example.invalid", approved), false, "another address is not confirmed by the application");
+  assert.equal(inviteEmailConfirmed("student@example.invalid", { ...approved, status: "pending" }), false, "a pending application confirms nothing");
+  assert.equal(inviteEmailConfirmed("student@example.invalid", null), false);
+  assert.equal(inviteEmailConfirmed(null, approved), false);
+  // Все места, где блок рисуется, передают это решение, а не значение по умолчанию.
+  for (const path of ["CaseWorkParts", "LeadWorkParts", "Profile"]) {
+    const file = readFileSync(new URL(`../src/components/v3/profile/${path}.tsx`, import.meta.url), "utf8");
+    assert.equal((file.match(/<StudentPortalAccessControls/gu) ?? []).length, (file.match(/emailConfirmed=\{inviteEmailConfirmed\(/gu) ?? []).length, path);
+  }
+});
+
+test("the invite reader takes the email of this case's client inside this organization; a failed or empty read gives nothing", async () => {
+  const { readCaseClientEmail } = await import("../src/lib/v3/portal-invite-email.ts");
+  const fake = (answers, calls = []) => ({
+    calls,
+    schema: (name) => ({ from: (table) => {
+      calls.push([name, table]);
+      const query = { select: () => query, eq: (column, value) => { calls.push([column, value]); return query; }, maybeSingle: async () => answers[table] };
+      return query;
+    } }),
+  });
+  const found = fake({ student_cases: { data: { canonical_client_id: "client-1" }, error: null }, clients: { data: { email: " a@example.invalid " }, error: null } });
+  assert.equal(await readCaseClientEmail(found, "org-1", "case-1"), "a@example.invalid");
+  assert.deepEqual(found.calls, [["platform", "student_cases"], ["organization_id", "org-1"], ["id", "case-1"], ["platform", "clients"], ["organization_id", "org-1"], ["id", "client-1"]]);
+  const noCase = { student_cases: { data: null, error: { message: "boom" } }, clients: { data: { email: "a@example.invalid" }, error: null } };
+  assert.equal(await readCaseClientEmail(fake(noCase), "org-1", "case-1"), null);
+  const noClient = { student_cases: { data: { canonical_client_id: "client-1" }, error: null }, clients: { data: null, error: { message: "boom" } } };
+  assert.equal(await readCaseClientEmail(fake(noClient), "org-1", "case-1"), null);
+  const empty = { student_cases: { data: { canonical_client_id: "client-1" }, error: null }, clients: { data: { email: "  " }, error: null } };
+  assert.equal(await readCaseClientEmail(fake(empty), "org-1", "case-1"), null);
+});
+
 test("a case without an open lead can be invited to the portal: the Admin block gets the client's email, the contact rows do not", () => {
   const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
   assert.match(fileOf("src/lib/v3/profile-source.ts"), /portalInviteEmail: await portalInviteEmailFor\(actor\.systemRole, \(\) => readStudentCaseClientEmail\(actor, canonicalCaseId\)\),/u);
-  const reader = fileOf("src/lib/v3/lead-cabinet-source.ts");
+  const reader = fileOf("src/lib/v3/portal-invite-email.ts");
   assert.match(reader, /from\("clients"\)\.select\("email"\)/u);
   assert.doesNotMatch(reader, /createPlatformSupabaseServiceClient/u, "the read stays under the staff session and RLS");
 });

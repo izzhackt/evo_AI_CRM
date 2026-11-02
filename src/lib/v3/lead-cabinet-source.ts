@@ -2,6 +2,7 @@ import "server-only";
 import { staffPresentationCan } from "../platform-access.ts";
 import type { ActivePlatformActor } from "../platform-auth";
 import { createSupabaseServerClient } from "../supabase/server";
+import { readCaseClientEmail } from "./portal-invite-email";
 
 /**
  * «Подготовить кабинет» (unified workflow S7, plan §4): the lead-card «Доступ
@@ -82,14 +83,5 @@ export async function readStudentCaseClientEmail(
   actor: ActivePlatformActor,
   studentCaseId: string,
 ): Promise<string | null> {
-  const client = await createSupabaseServerClient();
-  const caseRow = await client.schema("platform").from("student_cases").select("canonical_client_id")
-    .eq("organization_id", actor.organizationId).eq("id", studentCaseId).maybeSingle();
-  const clientId = caseRow.data?.canonical_client_id;
-  if (caseRow.error || typeof clientId !== "string") return null;
-  const clientRow = await client.schema("platform").from("clients").select("email")
-    .eq("organization_id", actor.organizationId).eq("id", clientId).maybeSingle();
-  const email = clientRow.data?.email;
-  if (clientRow.error || typeof email !== "string") return null;
-  return email.trim() || null;
+  return readCaseClientEmail(await createSupabaseServerClient(), actor.organizationId, studentCaseId);
 }

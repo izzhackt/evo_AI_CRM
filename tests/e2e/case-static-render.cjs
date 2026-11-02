@@ -431,6 +431,8 @@ const SCENARIOS = {
   // Дело без лида: у Admin почта клиента для приглашения; куратору её чтение не отдаёт (portalInviteEmailFor).
   "direct-case-client-email": { actor: ADMIN, profile: profile({ portalInviteEmail: "client@example.invalid" }), sales: null, draft: draft(), work: work() },
   "direct-case-curator-no-email": { actor: CURATOR, profile: profile(), sales: null, draft: draft(), work: work() },
+  // Дело с лидом: адрес всё равно из карточки клиента, анкеты студента нет.
+  "lead-card-email": { actor: ADMIN, profile: profile({ leadId: LEAD_ID, email: "lead-card@example.invalid" }), sales: null, draft: draft(), work: work() },
   "direct-case": { actor: ADMIN, profile: profile(), sales: null,
     draft: draft({ handoff: NO_HANDOFF, handedOffBy: null, direction: "MY", profileFields: DIRECT_FIELDS, saleConditions: DIRECT_SALE_CONDITIONS }),
     work: work({ row: queueRow({ direction: "CN", flags: [] }), activity: ACTIVITY_AWAITING }) },

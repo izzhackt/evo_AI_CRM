@@ -4,7 +4,7 @@ import type { PlatformTelephonyPbxConfig } from "./platform-telephony-pbx-config
 
 /**
  * Server-only client for the Beeline KG PBX `crmapi/v1` (EVO → PBX direction),
- * docs/EVO_TELEPHONY_PLAN_2026-10-16.md §3.2 and §5.4, ADR 0033.
+ * docs/archive/plans/2026-10-16-telephony-plan.md §3.2 and §5.4, ADR 0033.
  *
  * What it is allowed to do is a closed list (`TELEPHONY_PBX_OPERATIONS`): six
  * read paths and one write, `POST /makecall` (slice T7, the «Позвонить» button).

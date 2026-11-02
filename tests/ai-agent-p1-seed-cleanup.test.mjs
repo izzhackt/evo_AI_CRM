@@ -15,7 +15,7 @@ import * as workflows from "../src/lib/platform-provider-workflows.ts";
 import { settingsIntegrations } from "../src/lib/v3/settings-health.ts";
 
 /*
- * ИИ-агент P1, срез 6 (docs/EVO_AI_AGENT_PLAN_2026-10-06.md §5.6, §14):
+ * ИИ-агент P1, срез 6 (docs/archive/plans/2026-10-06-ai-agent-plan.md §5.6, §14):
  * перенос «Базы знаний» больше не создаёт папку «ИИ-ассистент», а старые
  * пути ИИ в CRM (staff-assistant и черновики Gemini U9) удалены. SQL-таблицы
  * и функции 030/054/065–067/075/091 остаются — их здесь не проверяем.

@@ -35,8 +35,8 @@
 - Keep real runtime secrets only in ignored `.env*` files, VPS secret files,
   provider dashboards, or encrypted application settings; commit only safe
   examples such as `.env.example` and documented placeholder values.
-- Keep WAHA, the lead-agent, and their dashboards/APIs private unless explicit
-  authenticated public access is added.
+- Keep WAHA and its dashboards/APIs private unless explicit authenticated
+  public access is added.
 
 ## Fast Execution And Validation — 2026-09-18
 
@@ -99,7 +99,7 @@ instructions to run a full heavy suite for every change or release candidate.
 ## Current Product Authority
 
 - Latest owner direction (2026-09-25): the staff CRM follows
-  `docs/EVO_CRM_REDESIGN_PLAN_2026-09-25.md`, accepted with its review
+  `docs/archive/plans/2026-09-25-crm-redesign-plan.md`, accepted with its review
   amendments and executed by one session. The production permissions and the
   limits of the executing environment are recorded there and in
   `docs/PLAN_CHANGES.md`; provider enablement is not included.
@@ -255,7 +255,7 @@ instructions to run a full heavy suite for every change or release candidate.
   cutover with exactly one active owner.
   Update 2026-10-06: that cutover happened on the owner's instruction —
   `crm_primary` (GOWS) was paired and posts to the CRM direct ingress (see
-  «WhatsApp And Lead-Agent Boundary»). Re-pairing, QR, logout or restart of
+  «WhatsApp (state 2026-11-02)»). Re-pairing, QR, logout or restart of
   the session by an agent still need the owner's explicit permission.
   Update 2026-10-20: the owner asked to connect the session himself from the
   platform. An Admin now does that with the «Подключение WhatsApp» block in
@@ -372,110 +372,43 @@ instructions to run a full heavy suite for every change or release candidate.
   `evo-crm`.
 - The app container is `evo-crm-app-1`, image `evo-crm:latest`, private network
   alias `evo-crm-app:3000`.
-- Public EVO routes should be served by `evo-edge-caddy` on `evo_public_web`,
-  not by `/opt/acadis` or any `acadis_*` Docker network.
+- Public EVO routes should be served by `evo-edge-caddy` on `evo_public_web`
+  (config in `deploy/edge/`), not by `/opt/acadis` or any `acadis_*` Docker
+  network.
 - Do not introduce new EVO dependencies on the `acadis_*` Docker networks;
   Arcadis/acadis is a separate project boundary. EVO services should use their
   own Compose projects and neutral EVO-owned proxy/network names.
 
-## Historical EVO Inbox Companion Boundary
+## WhatsApp (state 2026-11-02)
 
-State 2026-09-23 (read-only inventory): `/opt/evo-inbox` and every `evo-inbox`
-container are absent on `hermes-vps`. Bullets specific to the companion app
-(its path, Compose project, own WAHA service/session and webhook) describe a
-possible return, not the current runtime. The shared `evo-edge-caddy` /
-`evo_public_web` guards and every WAHA privacy/secret rule below still apply.
-
-The frozen companion records below are migration and rollback input, not
-current V3 runtime authority or permission for a separate product, login, UI,
-canonical store or fallback. Issue #552 owns its post-acceptance retirement;
-check the live checkpoint in `docs/design/v3/run-plan.md` and #552 before acting.
-
-- Historical path: `/opt/evo-inbox`; Compose project: `evo-inbox`.
-- After named V3 acceptance, retire only the obsolete public route
-  `https://evo-inbox.72.62.119.112.sslip.io` and its two already-stopped
-  containers, `evo-inbox-app-1` and `evo-inbox-waha`. Preserve companion volumes
-  (including WAHA sessions), images, configuration and historical evidence.
-  Do not restart the companion or use it as a V3 fallback. The separate
-  `inbox.72.62.119.112.sslip.io` route is not a retirement target (it was never
-  in the live edge file; its repo block was removed 2026-10-06 as unused).
-- The shared `evo-edge-caddy` proxy and `evo_public_web` network remain active.
-  Their source files are the explicit active exception in this frozen tree:
-  `agent-lead2-inbox/deploy/docker-compose.edge.yml` and
-  `agent-lead2-inbox/deploy/Caddyfile.evo-edge`. Preserve the canonical CRM
-  API-path guard, every unrelated live route and the bind-mounted source path;
-  do not delete its historical release directory or stop/recreate the proxy.
-- Historical private WAHA service: `evo-inbox-waha`, reachable only on the
-  companion network at `http://evo-inbox-waha:3000`; its session was `evo-inbox`.
-- Frozen companion rule: the companion app does not reuse `/opt/evo-crm`,
-  `evo-crm-waha`, `crm_primary`, or the lead-agent webhook path. EVO Inbox owns
-  its companion WAHA webhook at `/api/waha/webhook`, its own HMAC secret, and
-  its own encrypted WAHA settings. This companion-only isolation record is not
-  current successor session authority. ADR 0025 records the selected transport;
-  Current Product Authority above carries the selected sales `crm_primary`
-  transport into active V3 under the single-runtime rules.
-- Do not publish WAHA ports publicly. Operator access to WAHA QR/dashboard must
-  use a private server-side path such as SSH tunnel or an authenticated internal
-  admin surface.
-
-## WhatsApp And Lead-Agent Boundary
-
-State 2026-10-06 (supersedes the lead-agent routing below for the sales
-number): the sales WhatsApp runs on WAHA GOWS session `crm_primary` with
-direct ingress into the CRM — no lead-agent, no amoCRM on this path.
-
-- WAHA webhook: `http://evo-crm-app:3000/api/v2/whatsapp/inbound` (private
-  network only; the public edge answers 404), events `message.any` and
-  `session.status`, HMAC from `EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET`.
-  Ingress is off unless `EVO_PLATFORM_WAHA_INGRESS_ENABLED=1`; with ingress
-  on, the env contract also requires
-  `EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID` (owner of new WhatsApp leads).
-- The plain WAHA API key lives only in the Supabase Vault runtime binding;
-  `/opt/evo-crm/.env.waha` keeps `WAHA_API_KEY=sha512:<hash>` and, since
-  2026-10-06 15:02Z (receipt in the go-live runbook),
-  `WAHA_WORKER_RESTART_SESSIONS=true`.
-- Runbooks: `docs/runbooks/whatsapp-go-live.md` (configuration, pairing,
-  receipts) and `docs/runbooks/whatsapp-history-import.md`.
-- Agents never reset, log out or re-pair `crm_primary`, request a QR or
-  pairing code, restart the session, or send bulk messages — not on
-  production, not through the WAHA API, not through the settings block —
-  without the owner's explicit permission. Since 2026-10-20 the Admin (the
-  owner) does the linking himself from the «Подключение WhatsApp» block in
-  «Настройки → Интеграции»; an agent only builds and tests that block against a
-  local throwaway WAHA session, never against `crm_primary`.
-
-Below, the lead-agent routing and its amoCRM sync are the earlier design,
-kept as history. The private-WAHA rules there still apply: base URL
-`http://evo-crm-waha:3000`, no public port, only the key hash in `.env.waha`.
-
-State 2026-09-23 (read-only inventory): no `evo-lead-agent` container or unit
-exists on `hermes-vps`, so bullets about lead-agent routing and its signed CRM
-sync describe a possible return, not the current runtime. `evo-crm-waha-1`
-runs (session state unverified): the private WAHA service, its base URL and
-the WAHA key/secret rules below remain in force.
-
-- This section describes the existing production CRM/lead-agent path, not the
-  EVO Inbox companion app.
-- WAHA is a private Compose service, not a public port.
-- CRM-to-WAHA base URL: `http://evo-crm-waha:3000`.
-- The lead-agent owns WAHA inbound automation:
-  `http://evo-lead-agent:8000/webhooks/waha`.
-- The CRM legacy WAHA webhook route describes the frozen V1 deployment only.
-  It is not successor compatibility permission: V3 must not import, execute,
-  bundle or route through it, and the replacing V3 slice must remove its
-  superseded active references after real proof.
-- The lead-agent resolves/creates amoCRM contact and lead first, then posts a
-  signed internal sync event to:
-  `http://evo-crm-app:3000/api/internal/lead-agent/whatsapp`.
-- The existing production path treats amoCRM as its lead/contact and sales-
-  status authority. This is current-state migration evidence, not target
-  authority; #376 and ADR 0021 make EVO/Supabase canonical for every net-new
-  pilot case without a compatibility or fallback write path.
-- EVO CRM is the staff/operator UI and stores local shadow fields such as
-  `amo_lead_id`, `amo_contact_id`, and `agent_state`.
-- Store `WAHA_API_KEY=sha512:<hash>` in `/opt/evo-crm/.env.waha`; store the
-  plain WAHA API key only in encrypted CRM settings and `.env.lead-agent`.
-- Use separate secrets for WAHA webhook HMAC and lead-agent-to-CRM sync HMAC.
+- The lead-agent and the EVO Inbox companion were retired and removed from
+  the repository on 2026-11-02. Their final tree is kept under the git tag
+  `archive/lead-agent-and-inbox-2026-11-02`; do not restore, start, import or
+  route through them.
+- The private WAHA container `evo-crm-waha` (base URL
+  `http://evo-crm-waha:3000`, no public port) still exists, but the WhatsApp
+  connection has been broken since 2026-10-12. Do not claim it works.
+- The WAHA path into the CRM is the private route
+  `http://evo-crm-app:3000/api/v2/whatsapp/inbound` (HMAC from
+  `EVO_PLATFORM_WAHA_WEBHOOK_HMAC_SECRET`; off unless
+  `EVO_PLATFORM_WAHA_INGRESS_ENABLED=1`; the public edge answers 404).
+- The replacement is Wazzup. Stage 1 code is merged (#1310): ADR
+  `docs/adr/0036-receive-sales-whatsapp-via-wazzup-sidecar.md`, runbook
+  `docs/runbooks/wazzup-whatsapp.md`, plan
+  `docs/plans/2026-10-27-wazzup-whatsapp-plan.md`. Intake is OFF until the
+  owner enables it.
+- Agents never reset WAHA sessions, never request a QR or pairing code, never
+  log out or restart a session, and never enable broadcasts or auto-replies
+  without the owner's explicit permission. AI only writes drafts for staff
+  review. The Admin links WhatsApp himself from «Настройки → Интеграции».
+- `/opt/evo-crm/.env.waha` keeps only `WAHA_API_KEY=sha512:<hash>`; the plain
+  key lives only in the Supabase Vault runtime binding. Keep separate secrets
+  for the WAHA webhook HMAC and for Wazzup.
+- Public EVO routes go through `evo-edge-caddy` on `evo_public_web`; its
+  config lives in `deploy/edge/` (`Caddyfile.evo-edge`,
+  `docker-compose.edge.yml`). No EVO service may depend on `acadis_*` networks.
+- Runbooks: `docs/runbooks/wazzup-whatsapp.md`,
+  `docs/runbooks/whatsapp-go-live.md`, `docs/runbooks/whatsapp-history-import.md`.
 
 ## Agent skills
 
@@ -503,7 +436,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## CRM Knowledge Base delivery — 2026-09-19
 
-- The owner requested full implementation of `docs/EVO_CRM_KNOWLEDGE_BASE_PLAN_2026-09-19.md`, including real local-source import, sorting and export. CRM becomes the Admin knowledge workplace only after verified import/read/export; the four local roots remain unchanged source archives.
+- The owner requested full implementation of `docs/archive/plans/2026-09-19-crm-knowledge-base-plan.md`, including real local-source import, sorting and export. CRM becomes the Admin knowledge workplace only after verified import/read/export; the four local roots remain unchanged source archives.
 - CRM «Клиентская база» means dossiers backed by existing CRM identities/cases. The historical local «Клиентская база знаний ЭВО» contains general approved AI knowledge; import it into internal topics preserving its provenance/approval, never into personal dossiers by name alone. AI publication/bundles remain a separate authority.
 - Astra owns the knowledge scope. Fable retains Portal/App and the current schema/release coordinator role until an explicit handoff. No parallel schema apply, migration-number claim or arm/disarm. Shared changes are small, isolated and reviewed against fresh main.
 - Private inventory, migration state, files and export receipts stay outside this public repository. SOPS ciphertext stays separate; decryption/signing keys never enter knowledge storage or exports.

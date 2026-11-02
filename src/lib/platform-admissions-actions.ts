@@ -317,7 +317,7 @@ export async function createPlatformUniversityApplicationAction(
     ? applicationText(institutionValue, 1, 300)
     : null;
   // OTH-4: the case's university selector may set the program now or leave
-  // it for later (docs/EVO_OTHER_FABLE_PLAN_2026-09-19.md §«Uni & knowledge
+  // it for later (docs/archive/plans/2026-09-19-other-fable-plan.md §«Uni & knowledge
   // base») -- empty is a deliberate NULL, same optional-text convention as
   // evidence/note below, not an error.
   const programName = optionalApplicationText(

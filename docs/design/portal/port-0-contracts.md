@@ -1,7 +1,7 @@
 # PORT-0 — стартовые контракты EVO Portal
 
 Дата: 2026-09-19. База: main `4a6c061f`. Исполнение по
-`docs/EVO_PORTAL_WEB_IPHONE_PLAN_2026-09-19.md`; решения ниже принимает Fable в
+`docs/archive/plans/2026-09-19-portal-web-iphone-plan.md`; решения ниже принимает Fable в
 рамках полномочий плана §12 и фиксируются здесь и в `docs/PLAN_CHANGES.md` до
 кодирования.
 

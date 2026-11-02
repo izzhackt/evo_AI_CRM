@@ -27,12 +27,12 @@ Public marketing:
 
 Repo/product artifacts:
 
-- `docs/EVO_BRAND_RESEARCH.md`
+- `docs/archive/plans/brand-research.md`
 - `docs/EVO_LAUNCH_PLAN.md`
 - `docs/PUBLIC_PROMISE_COPY_CHANGESET.md`
 - `docs/PUBLIC_PROMISE_LIVE_AUDIT.md`
-- `docs/QA_LAUNCH_REPORT.md`
-- `docs/SCENARIO_EVALUATION.md`
+- `docs/archive/plans/qa-launch-report.md`
+- `docs/archive/plans/scenario-evaluation.md`
 - `src/lib/i18n.ts`
 - `src/lib/prepared-ai.ts`
 - `src/lib/ai.ts`
@@ -46,7 +46,7 @@ Repo/product artifacts:
 
 | ID | Promise | Source | Current behavior | Evidence | Label | Risk |
 | --- | --- | --- | --- | --- | --- | --- |
-| P01 | Staff can log in and reach the correct EVO workspace. | App demo, scenario docs. | Staff session routes to the role-specific home; the seeded sales account lands on `/sales`. | S01-S02 in `docs/SCENARIO_EVALUATION.md`. | proven | low |
+| P01 | Staff can log in and reach the correct EVO workspace. | App demo, scenario docs. | Staff session routes to the role-specific home; the seeded sales account lands on `/sales`. | S01-S02 in `docs/archive/plans/scenario-evaluation.md`. | proven | low |
 | P02 | Client/student users are isolated from staff routes and can use a portal. | App demo, launch plan. | Client can load `/portal`; staff route redirects back to portal. | S03 and S31. | proven | low |
 | P03 | Staff dashboard covers admissions queues, applications, documents, tasks, finance, and clients. | App UI, launch plan. | Dashboard and navigation render real queue links and counts. | S04-S06. | proven | low |
 | P04 | Admissions pipeline can create leads, move statuses, add notes, and convert leads to clients. | App UI, demo flow. | Server Actions persist lead creation, movement, notes, and conversion. | S07-S12. | proven | low |
@@ -66,7 +66,7 @@ Repo/product artifacts:
 | P18 | Role-safe finance controls exist. | Finance UI and scenario docs. | Finance user sees mutation controls; sales staff sees read-only finance page. | S05, S22-S24. | proven | low |
 | P19 | Invalid payment amounts are rejected. | Finance flow. | Negative amount does not insert; positive amount inserts pending payment. | S23. | proven | low |
 | P20 | Secrets are not leaked in amoCRM settings UI. | Settings UI, launch plan. | Saved secrets are masked/omitted from follow-up page. | S33. | proven | low |
-| P21 | App is production-buildable and audit-clean. | QA launch report. | Build, lint, typegen, typecheck, scenarios, and audit pass. | `docs/QA_LAUNCH_REPORT.md`, latest validation. | proven | low |
+| P21 | App is production-buildable and audit-clean. | QA launch report. | Build, lint, typegen, typecheck, scenarios, and audit pass. | `docs/archive/plans/qa-launch-report.md`, latest validation. | proven | low |
 | P22 | EVO helps choose country/university and apply with less stress. | Public home page. | Product tracks country, target degree, applications, tasks, and documents, but cannot prove service outcome or stress reduction. | Public site plus S04-S25. | partly proven | medium |
 | P23 | EVO supports university admission from documents through visa preparation. | Public home/services pages. | Product supports document, application, and visa operations; service delivery remains external. | Public site plus S13-S19. | partly proven | medium |
 | P24 | EVO supports IELTS/SAT preparation and personal brand/spike work. | Public home page. | Current CRM has notes/tasks but no dedicated IELTS/SAT or personal-brand module. | Public site; no scenario coverage. | unsupported | medium |

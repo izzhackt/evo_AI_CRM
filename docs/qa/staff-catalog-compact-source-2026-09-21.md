@@ -5,7 +5,7 @@
 ниже прежние проверки/ограничения не переобозначены новым запуском.
 
 Source `030d7c2ecb072e5c61e5b3cec225755970f3fd09`, precode `f67d0fe6`.
-Основание: [утверждённый план](../EVO_STAFF_CATALOG_COMPACT_PLAN_2026-09-21.md).
+Основание: [утверждённый план](../archive/plans/2026-09-21-staff-catalog-compact-plan.md).
 Целевые файлы33966da1 и входящий main29e0fb46 byte-identical перед изменением.
 Это source-проверка; Auth/DB/server/browser и новый actual UI не выполнялись.
 

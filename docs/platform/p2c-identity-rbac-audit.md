@@ -3,7 +3,7 @@
 Status: implementation evidence for the P2C repository block
 Date: 2026-07-28
 Starting main: `0d38a8bb36fa423de14467f798141fac199ab047`
-Plan contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
+Plan contract: `docs/archive/plans/platform-long-run-plan.md`
 
 ## Purpose
 

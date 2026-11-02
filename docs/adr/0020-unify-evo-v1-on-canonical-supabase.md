@@ -13,7 +13,7 @@
 - Current execution slice: GitHub issue #381 (U4; U0-U3 merged)
 - Starting repository baseline:
   `31d26b6e6bdc8a96fcf9f48210e417d43619370d`
-- Execution contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
+- Execution contract: `docs/archive/plans/platform-long-run-plan.md`
 - Decision log: `docs/PLAN_CHANGES.md`
 
 ## Context

@@ -2,7 +2,7 @@
 
 21 September 2026. Runtime source `7a54f4e3cc564d0e02797ebde932e3d6f28833d9`, base main
 `d02d15b75919dcca94b79c0e3efdd05da0f3b701` (includes ROOT32 PR985).
-Contract: [accepted precode](../EVO_TEAM_CHAT_DIRECT_QUOTES_PLAN_2026-09-21.md),
+Contract: [accepted precode](../archive/plans/2026-09-21-team-chat-direct-quotes-plan.md),
 merged PR986 / `418521f5b43a1461af11be01b6169430c21f2a6e`.
 
 Actual local apply/API QA used integrated source

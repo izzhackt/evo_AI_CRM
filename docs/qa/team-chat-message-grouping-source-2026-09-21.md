@@ -8,7 +8,7 @@ code review и merge ещё не пройдены. Новое поведение
 Основа: main `d6add88372778758b23686fb0bba6ae74181e15b` (#1008).
 Precode commit `6a128cbc` предшествует продуктовым изменениям.
 Проверенный source commit: `05705f7ab5aa3a907b9fbfb997ce4440aa636065`.
-Контракт: [A15g-2](../EVO_TEAM_CHAT_MESSAGE_GROUPING_PLAN_2026-09-21.md).
+Контракт: [A15g-2](../archive/plans/2026-09-21-team-chat-message-grouping-plan.md).
 
 Соседние сообщения одного автора/канала в пределах пяти минут и одного дня
 Bishkek скрывают повторные имя/аватар только визуально и получают меньшие

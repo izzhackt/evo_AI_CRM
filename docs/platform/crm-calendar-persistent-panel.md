@@ -1,7 +1,7 @@
 # Calendar16b: persistent task panel
 
 Pre-code contract, 22 September 2026. Base `ec3f62bad9b7f5030ecb2949a33d9f1a9b46d9ed`
-contains merged disclosure16a/#1025. Implements accepted [§10](../EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md#10-личный-календарь).
+contains merged disclosure16a/#1025. Implements accepted [§10](../archive/plans/2026-09-20-crm-ux-and-admissions-plan.md#10-личный-календарь).
 Independent approved planning receipt: `0f8d0e2aa395bf9372773e1247f742cd3cfdb666d4671ab5f155c502e57366f4`;
 approved plan SHA256 `2c64156a5fcb2e8848e4b7adad800476df5b23c5b524c1efe550d928c4a2b659`.
 

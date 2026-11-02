@@ -17,7 +17,7 @@ production не менялся, на настоящем production, ВАТС и 
 запускались. Фрагменты shell проверены только локально, на синтетическом сервере и
 синтетических файлах env.
 
-Контракт: [план](../EVO_TELEPHONY_PLAN_2026-10-16.md) (§5.1–§5.7, §9, §11, §14,
+Контракт: [план](../archive/plans/2026-10-16-telephony-plan.md) (§5.1–§5.7, §9, §11, §14,
 §15, §17), [ADR 0033](../adr/0033-integrate-beeline-kg-pbx-via-rest-api-without-recording-copies.md)
 и записи `docs/PLAN_CHANGES.md` «Телефония T1a … T11a». Если этот документ и план
 расходятся, прав план, кроме отличий, названных ниже явно («Отличия» в разделе 4).
@@ -496,7 +496,7 @@ FROM platform_private.telephony_calls WHERE started_at > now() - interval '1 day
 
 ## 6. Источники
 
-- План: `docs/EVO_TELEPHONY_PLAN_2026-10-16.md`; ADR 0033; `docs/PLAN_CHANGES.md`,
+- План: `docs/archive/plans/2026-10-16-telephony-plan.md`; ADR 0033; `docs/PLAN_CHANGES.md`,
   записи «Телефония T1a … T11a» (особенно T3 — приём и env, T4a — таймер, сверка и
   импорт, T4b — «Настройки → Телефония», T6 — записи, T7 — набор, T8 — автоматика).
 - Код: `src/lib/server/platform-telephony-ingress.ts` (маршрут приёма и журнал),

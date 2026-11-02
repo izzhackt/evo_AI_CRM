@@ -42,7 +42,7 @@ Accepted progress:
   `inbox-prod` is a separate retained Inbox SaaS product outside P7C.
 
 This contract expands the append-only Block-ID above. If wording conflicts,
-`docs/PLAN_CHANGES.md` and `docs/EVO_PLATFORM_LONG_RUN_PLAN.md` take
+`docs/PLAN_CHANGES.md` and `docs/archive/plans/platform-long-run-plan.md` take
 precedence. This documentation change modifies no application code, schema,
 runtime credential or customer data. It records the separately owner-authorized
 completed organization transfer and display-name change described by the P7C

@@ -3,7 +3,7 @@
 Status: implementation evidence for the P2D repository block
 Date: 2026-07-28
 Starting main: `f9bda9cd0554d225211fb9e3d0b1969be262a838`
-Plan contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
+Plan contract: `docs/archive/plans/platform-long-run-plan.md`
 
 ## Purpose and proof boundary
 

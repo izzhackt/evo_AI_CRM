@@ -2,7 +2,7 @@
 
 План до реализации, 21.09.2026. Основание: main
 `17c60966f6198509abbe6e6c91af482701b6647e` после #967 и раздел11
-[плана CRM/admissions](../EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md).
+[плана CRM/admissions](../archive/plans/2026-09-20-crm-ux-and-admissions-plan.md).
 Root принял направление pre-code; runtime, новая миграция и включение функции
 этим документом не объявляются выполненными. Номер SQL ещё не зарезервирован.
 

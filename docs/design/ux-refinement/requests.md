@@ -1,6 +1,6 @@
 # `/v3/requests` — CRM-03: анализ перед реализацией
 
-Источник: worktree `/Users/iskhak.tazhibaev/.codex/worktrees/evo-ux-system-audit/evo_AI_CRM`, HEAD `dc3c246d470600e4203e5d6610a79503ae7862ac`, 20.09.2026. Контракт: `docs/EVO_CRM_UX_AND_ADMISSIONS_PLAN_2026-09-20.md:152-158`. Planning only: код, БД, Auth и обращения не изменялись.
+Источник: worktree `/Users/iskhak.tazhibaev/.codex/worktrees/evo-ux-system-audit/evo_AI_CRM`, HEAD `dc3c246d470600e4203e5d6610a79503ae7862ac`, 20.09.2026. Контракт: `docs/archive/plans/2026-09-20-crm-ux-and-admissions-plan.md:152-158`. Planning only: код, БД, Auth и обращения не изменялись.
 
 Осмотрены реальные `requests-desktop.png` и `requests-mobile.png`, переданные основным исполнителем из `/tmp/evo-ux-audit-evidence/`: Admin, managed schema 206, локальный runtime `d7067bc3`. `git diff --name-only d7067bc3 HEAD --` для requests page/source/consultation component пуст: снимки переиспользуемы для этой неизменённой страницы. На обоих видны «Заявки 0», «Все», четыре фильтра, «На рассмотрении: 0», «Заявок пока нет». В мобильном 390px фильтры переносятся, текст/кнопки не обрезаны; сохранены EVO logo, shell, нейтральная поверхность и красный active state. Это доказательство только пустого Admin UI. Заполненная очередь, ошибки, pagination и решения здесь live не проверялись; снимки/персональные сведения в отчёт не копируются.
 

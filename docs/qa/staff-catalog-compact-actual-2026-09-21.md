@@ -1,7 +1,7 @@
 # A14a — компактный каталог: реальный Admin и закрытие QA
 
 Actual source: `b8497ad44cd020f0abf112b92a5b4a7c7d459651`, PR #1008.
-[Контракт](../EVO_STAFF_CATALOG_COMPACT_PLAN_2026-09-21.md),
+[Контракт](../archive/plans/2026-09-21-staff-catalog-compact-plan.md),
 [исходные проверки и два baseline failure](staff-catalog-compact-source-2026-09-21.md).
 Это локальная техническая приёмка существующего Admin; production не запускался.
 

@@ -1,5 +1,5 @@
 /*
- * WhatsApp через Wazzup, этап 1 (docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §5.1): чистые правила разбора вебхука
+ * WhatsApp через Wazzup, этап 1 (docs/plans/2026-10-27-wazzup-whatsapp-plan.md §5.1): чистые правила разбора вебхука
  * Wazzup. Здесь нет ни сети, ни базы, ни часов, ни env: маршрут приёма (`server/platform-wazzup-ingress.ts`) и команда
  * оператора (`server/platform-wazzup-ops.ts`) берут отсюда адрес, предел тела, разбор верхнего уровня и деление на порции.
  *

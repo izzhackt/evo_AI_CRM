@@ -818,7 +818,7 @@ test("snapshot implementation opens the protected source descriptor exactly once
 });
 
 // -------------------------------------------------------------- telephony (T3)
-// docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.5: every telephony name is OPTIONAL, so
+// docs/archive/plans/2026-10-16-telephony-plan.md §5.5: every telephony name is OPTIONAL, so
 // a release never fails on missing telephony env; a present value must be
 // well-formed and the keys are distinct from every other value.
 
@@ -1046,7 +1046,7 @@ test("telephony env: each key is its own value, distinct from every other secret
 });
 
 // ------------------------------------------------------- WhatsApp via Wazzup (W2)
-// docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §5.5, §9: every Wazzup name is OPTIONAL, so a release never fails on missing
+// docs/plans/2026-10-27-wazzup-whatsapp-plan.md §5.5, §9: every Wazzup name is OPTIONAL, so a release never fails on missing
 // Wazzup env; a present value must be well-formed, the token is distinct from every other value, and the two receive paths
 // (WAHA and Wazzup) are never both on.
 

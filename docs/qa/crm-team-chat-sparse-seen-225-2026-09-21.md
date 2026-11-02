@@ -2,7 +2,7 @@
 
 21 сентября 2026. Runtime `fb12146e5fdd3470c061ac7c321ddeadb7cc7e53`;
 фактически проверенный integration head `3fc9ef3435882cb431fbe291e9582474f59666cc`.
-Принятый [precode](../EVO_TEAM_CHAT_FLAT_UI_PLAN_2026-09-21.md) — PR#981.
+Принятый [precode](../archive/plans/2026-09-21-team-chat-flat-ui-plan.md) — PR#981.
 PR#982/main `2b23285d5127b2e8d633c733bf102c25b093baa6` включён до применения225;
 SQL224 совпадает с действительно применённым B source `1fa3ef0e…`.
 Все пять A runtime hashes сохранены. CI35555819344 полностью прошёл на3fc9ef34.

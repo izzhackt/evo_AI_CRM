@@ -1,6 +1,6 @@
 # Схема контента «Путь поступления»
 
-Версия схемы: 1. Дата: 16.10.2026. План: `docs/EVO_STUDENT_APP_V2_PLAN_2026-10-16.md` §8.
+Версия схемы: 1. Дата: 16.10.2026. План: `docs/archive/plans/2026-10-16-student-app-v2-plan.md` §8.
 Контракт выбора и RPC для веба и iPhone: `docs/portal/country-timeline-contract.md`.
 
 Семь файлов: `cn.json`, `my.json`, `ae.json`, `tr.json`, `it.json`, `cz.json` (страны продукта) и `undecided.json` (общий маршрут). Веб читает их через `src/lib/portal/country-timeline.ts`, iPhone берёт те же файлы ресурсами bundle (`ios/project.yml`). Строгий парсер проверяет каждый файл при импорте; неверный файл ломает сборку и тесты (`tests/portal-country-timeline.test.mjs`).

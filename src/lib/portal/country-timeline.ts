@@ -1,5 +1,5 @@
 /**
- * «Путь поступления» на «Главной» (S4, план docs/EVO_STUDENT_APP_V2_PLAN_2026-10-16.md
+ * «Путь поступления» на «Главной» (S4, план docs/archive/plans/2026-10-16-student-app-v2-plan.md
  * §8): строгий разбор файлов src/content/timelines/*.json и выбор того, что
  * видит студент. Контракт для веба и iPhone: docs/portal/country-timeline-contract.md.
  *

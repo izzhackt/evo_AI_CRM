@@ -7,7 +7,7 @@
 - Merged PR: #92
 - Merge commit: `b10d72863230aba646bcc8f2acafdc76c27b3fe1`
 - Exact-main CI: `30490070719` — success
-- Parent contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
+- Parent contract: `docs/archive/plans/platform-long-run-plan.md`
 - Foundation contract: `docs/platform/p2-supabase-foundation.md`
 
 ## Purpose and proof boundary

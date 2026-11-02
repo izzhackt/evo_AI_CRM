@@ -3,7 +3,7 @@ import { createPlatformWazzupInboundHandler } from "../../../../../../lib/server
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Wazzup -> CRM (docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md §5.1). Один обработчик на все методы: он отвечает на POST,
+// Wazzup -> CRM (docs/plans/2026-10-27-wazzup-whatsapp-plan.md §5.1). Один обработчик на все методы: он отвечает на POST,
 // а на остальные - 405 с `Allow: POST`, так что ответ один и тот же на маршруте и в его модульных тестах.
 const handler = createPlatformWazzupInboundHandler();
 

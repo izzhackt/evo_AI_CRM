@@ -1,4 +1,4 @@
-// «ИИ-агент» P4 (docs/EVO_AI_AGENT_PLAN_2026-10-06.md §11 правила 9–11, §15
+// «ИИ-агент» P4 (docs/archive/plans/2026-10-06-ai-agent-plan.md §11 правила 9–11, §15
 // P4; ADR 0031): маршрут отправки ночного автоответа
 // `POST /api/internal/ai-agent/send`. База — подделка с записью вызовов
 // (authorize → claim → runtime → finish → record), WhatsApp — поддельный

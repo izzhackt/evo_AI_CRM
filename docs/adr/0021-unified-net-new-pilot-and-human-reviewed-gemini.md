@@ -7,7 +7,7 @@
 - Supersedes in conflict: ADR 0020 active-data migration timing and generic AI-provider wording
 - Execution program: GitHub issues #382 through #387; stop before #388
 - Starting repository baseline: `cfc75ca29a66546886de320aa80c454d18104b92`
-- Execution contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
+- Execution contract: `docs/archive/plans/platform-long-run-plan.md`
 - Decision log: `docs/PLAN_CHANGES.md`
 
 ## Context

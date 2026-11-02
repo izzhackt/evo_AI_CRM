@@ -2,7 +2,7 @@
 
 Status: local transport candidate verified on 2026-09-09. This is **not** a
 managed-provider export, restore, migration rehearsal or deployment receipt.
-Operators should use the [recovery runbook](../../DISASTER_RECOVERY.md#explicit-short-lived-read-only-transport)
+Operators should use the [recovery runbook](../../runbooks/disaster-recovery.md#explicit-short-lived-read-only-transport)
 for the separately authorized real export.
 
 ## Exact candidate and checks

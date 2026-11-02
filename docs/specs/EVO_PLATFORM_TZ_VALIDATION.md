@@ -7,7 +7,7 @@
 > [issue #376](https://github.com/izzhackt/evo_AI_CRM/issues/376),
 > [ADR 0020](../adr/0020-unify-evo-v1-on-canonical-supabase.md),
 > [launch plan](../EVO_LAUNCH_PLAN.md) и
-> [long-run plan](../EVO_PLATFORM_LONG_RUN_PLAN.md).
+> [long-run plan](../archive/plans/platform-long-run-plan.md).
 
 Дата проверки: 09.08.2026
 

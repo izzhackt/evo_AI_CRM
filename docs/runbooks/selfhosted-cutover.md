@@ -396,7 +396,7 @@ self-hosted не стираются, их можно перенести в об�
 - ADR 0034 вместо ADR 0024, правка пунктов `AGENTS.md` про проект `iosckaqtovbbnssqcpde` и
   `docs/runbooks/infrastructure-map.md` (разделы 3–8) — **сделано** в PR #1274. Открыто: `deploy/*.md`,
   `docs/runbooks/document-export-storage.md`, `docs/runbooks/team-workspace-activation.md`,
-  `docs/DISASTER_RECOVERY.md` и прочие файлы, называющие облако рабочей базой (вместе с #1271).
+  `docs/runbooks/disaster-recovery.md` и прочие файлы, называющие облако рабочей базой (вместе с #1271).
 - Старые JWT-ключи облачного проекта отключить после проверки, что ими никто не пользуется
   (`infrastructure-map.md`, раздел 7).
 - Фильтр `apikey` в журнале edge-Caddy **сделан 20.10** (глобальный журнал по умолчанию, коммит `28ea1c333`).

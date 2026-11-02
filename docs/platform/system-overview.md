@@ -10,7 +10,7 @@
   `docs/adr/0017-separate-student-profile-document-automation-from-evo-platform.md`
 - Historical autonomy/read-mostly decision (superseded):
   `docs/adr/0019-gate-autonomous-inbound-replies-and-resume-read-only-amocrm.md`
-- Execution contract: `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
+- Execution contract: `docs/archive/plans/platform-long-run-plan.md`
 
 ## Главное простыми словами
 

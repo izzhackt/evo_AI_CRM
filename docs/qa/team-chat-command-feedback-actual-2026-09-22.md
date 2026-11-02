@@ -1,6 +1,6 @@
 # A15 — проверка сообщения об ошибке команды, 22.09.2026
 
-PR #1024 реализует [принятый план](../EVO_TEAM_CHAT_COMMAND_FEEDBACK_PLAN_2026-09-22.md).
+PR #1024 реализует [принятый план](../archive/plans/2026-09-22-team-chat-command-feedback-plan.md).
 На точном source `b7533a92d0499c7d1008660efd27ca0453cfca5d` принят один
 отрицательный UI-сценарий модерации в изолированной локальной CRM. Независимое
 actual/visual/closure review `f61ac50b` одобрено; QA возвращена ROOT до

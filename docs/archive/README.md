@@ -12,16 +12,26 @@ are not current instructions, task trackers, or deployment runbooks.
 - Repository workflow: [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md)
 - Production boundaries: [`../../AGENTS.md`](../../AGENTS.md)
 
-## Superseded Documents Retained At Stable Paths
+## Superseded Documents
 
 | Document                                                                      | Why it is retained                                 | Current replacement                                       |
 | ----------------------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------- |
-| [`EVO_INBOX_IMPLEMENTATION_ISSUES.md`](../EVO_INBOX_IMPLEMENTATION_ISSUES.md) | Original dependency split and draft issue bodies   | GitHub Issues and the launch plan                         |
-| [`EVO_INBOX_REMOTE_LONG_RUNS.md`](../EVO_INBOX_REMOTE_LONG_RUNS.md)           | Earlier server workspace and Codex prompt sequence | `CONTRIBUTING.md`, `AGENTS.md`, and current GitHub Issues |
-| [`LONG_RUN_CODEX_LAUNCH_HANDOFF.md`](../LONG_RUN_CODEX_LAUNCH_HANDOFF.md)     | Snapshot of an earlier launch-control handoff      | The launch plan and append-only decision log              |
+| [`inbox-implementation-issues.md`](plans/inbox-implementation-issues.md) | Original dependency split and draft issue bodies   | GitHub Issues and the launch plan                         |
+| [`inbox-remote-long-runs.md`](plans/inbox-remote-long-runs.md)           | Earlier server workspace and Codex prompt sequence | `CONTRIBUTING.md`, `AGENTS.md`, and current GitHub Issues |
+| [`long-run-codex-launch-handoff.md`](plans/long-run-codex-launch-handoff.md)     | Snapshot of an earlier launch-control handoff      | The launch plan and append-only decision log              |
 
-The three documents above remain at their original paths so older commits and
-decision records keep working links. Each has a warning banner at the top.
+These three documents moved to [`plans/`](plans/) on 2026-11-02 (old paths are
+listed in the 2026-11-02 entry of `../PLAN_CHANGES.md`). Each has a warning
+banner at the top.
+
+## Closed plans, reports and handoffs
+
+- [`plans/`](plans/) — dated plans, execution ledgers, handovers, QA reports and
+  PRDs that are finished. Names are `YYYY-MM-DD-topic.md`. Not current
+  instructions.
+- [`lead-agent/`](lead-agent/) — evaluation notes of the retired WhatsApp
+  lead-agent (its code is kept under git tag
+  `archive/lead-agent-and-inbox-2026-11-02`).
 
 ## Frozen V1 deployment material
 

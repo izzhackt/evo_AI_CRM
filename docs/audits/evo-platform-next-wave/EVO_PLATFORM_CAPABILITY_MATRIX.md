@@ -86,7 +86,7 @@
 Core authority and status:
 
 - `CONTEXT.md`
-- `docs/EVO_PLATFORM_LONG_RUN_PLAN.md`
+- `docs/archive/plans/platform-long-run-plan.md`
 - `docs/adr/0020-unify-evo-v1-on-canonical-supabase.md` (current authority)
 - `docs/specs/EVO_PLATFORM_TZ.md` (historical source)
 - `docs/adr/0014-unified-evo-platform-target-architecture.md` (historical)

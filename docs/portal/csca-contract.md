@@ -1,7 +1,7 @@
 # Подготовка к CSCA: контракт RPC и контента (миграции 285, 286)
 
 Статус: S5.1 ядро, 16.10.2026. Источник решений: план
-`docs/EVO_STUDENT_APP_V2_PLAN_2026-10-16.md` §9 и запись `docs/PLAN_CHANGES.md`
+`docs/archive/plans/2026-10-16-student-app-v2-plan.md` §9 и запись `docs/PLAN_CHANGES.md`
 «2026-10-16 · Подготовка к CSCA, S5.1 ядро». SQL:
 `supabase/migrations/285_platform_csca_learning_engine.sql` (движок),
 `supabase/migrations/286_platform_csca_math_part1.sql` (контент, генерируется из

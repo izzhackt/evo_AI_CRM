@@ -11,7 +11,7 @@
  *
  * Очередь собирается НАСТОЯЩИМ кодом: `readTodayQueue` (права по ролям,
  * независимые чтения, пределы страниц) с подставленными читателями, затем
- * `buildTodayQueue`; страница — настоящие `PartShell`, `TodayBoardLinks`,
+ * `buildTodayQueue`; страница — настоящие `PartShell`,
  * `TodayScreen` (строки задач — настоящая `TaskQueueRow`) внутри настоящего
  * `AppShell`. Данные СИНТЕТИЧЕСКИЕ: люди, задачи, лиды и переписки выдуманы
  * для проверки вёрстки и не являются записями EVO. Живой Supabase, права и
@@ -90,7 +90,7 @@ const { readTodayQueue, todayLinks, TodaySourceDenied } = require(join(ROOT, "sr
 const { staffCan } = require(join(ROOT, "src/lib/platform-access.ts"));
 const { staffRoleKeys } = require("./staff-role-templates.cjs");
 const { buildTodayQueue, todayDateLabel } = require(join(ROOT, "src/lib/v3/today-queue.ts"));
-const { TodayBoardLinks, TodayScreen } = require(join(ROOT, "src/components/v3/today/TodayScreen.tsx"));
+const { TodayScreen } = require(join(ROOT, "src/components/v3/today/TodayScreen.tsx"));
 const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
 const { TodayNextPage } = require(join(ROOT, "src/components/v3/today-next/TodayNextPage.tsx"));
 
@@ -313,13 +313,13 @@ function withContexts(node, search = "") {
   );
 }
 
-/** Та же сборка, что у `main/page.tsx`: `PartShell` с датой, доски в шапке (`todayLinks`), `TodayScreen`. */
+/** Та же сборка, что у `main/page.tsx`: `PartShell` с датой и `TodayScreen`. */
 async function buildPage(name) {
   const scenario = SCENARIOS[name];
   const who = ACTORS[scenario.actor];
   const { access, reads } = await readTodayQueue(who, { now: NOW, readers: readers(scenario.data) });
   const queue = buildTodayQueue(reads, NOW);
-  const { boards, mainAction } = todayLinks(who, access, { canReadReport: staffCan(who, "sales.report.read") });
+  const { mainAction } = todayLinks(who, access, { canReadReport: staffCan(who, "sales.report.read") });
   const admin = who.systemRole === "admin";
   const has = (key) => admin || who.permissionKeys.includes(key);
   const permissions = {
@@ -330,14 +330,13 @@ async function buildPage(name) {
     title: "Сегодня",
     testId: "v3-operational-dashboard",
     meta: createElement("time", { dateTime: queue.today }, todayDateLabel(queue.today)),
-    action: createElement(TodayBoardLinks, { links: boards }),
   }, createElement(TodayScreen, { queue, nowIso: NOW.toISOString(), permissions, mainAction }));
   return { who, node };
 }
 
 /**
  * «Новый вид» (27.10.2026): та же очередь и те же права, что у `buildPage`, но страница — `TodayNextPage` (`PageShell` с
- * досками в шапке и `TodayNext`: плитки и виджеты групп). Сборка повторяет ветку `isNextUi` в `main/page.tsx`; саму страницу
+ * `TodayNext`: плитки и виджеты групп). Сборка повторяет ветку `isNextUi` в `main/page.tsx`; саму страницу
  * с cookie и без неё гоняет `--page-json` (настоящий `main/page.tsx`).
  */
 async function buildNextPage(name) {
@@ -345,7 +344,7 @@ async function buildNextPage(name) {
   const who = ACTORS[scenario.actor];
   const { access, reads } = await readTodayQueue(who, { now: NOW, readers: readers(scenario.data) });
   const queue = buildTodayQueue(reads, NOW);
-  const { boards, mainAction } = todayLinks(who, access, { canReadReport: staffCan(who, "sales.report.read") });
+  const { mainAction } = todayLinks(who, access, { canReadReport: staffCan(who, "sales.report.read") });
   const admin = who.systemRole === "admin";
   const has = (key) => admin || who.permissionKeys.includes(key);
   const permissions = {
@@ -354,7 +353,7 @@ async function buildNextPage(name) {
   };
   const props = { queue, nowIso: NOW.toISOString(), permissions, mainAction };
   // `TodayNextPage` — то, что страница подгружает лениво (`TodayNextLazy`): рамка и виджеты одним куском.
-  const node = createElement(TodayNextPage, { boards, ...props });
+  const node = createElement(TodayNextPage, props);
   return { who, node, props };
 }
 

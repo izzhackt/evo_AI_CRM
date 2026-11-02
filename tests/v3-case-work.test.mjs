@@ -457,15 +457,23 @@ test("the direction is the snapshot's only: no queue-row or target-country fallb
   for (const inherited of ["constructor", "__proto__", "toString", "valueOf"]) assert.equal(country(inherited), null, inherited);
 });
 
+test("a case without an open lead can be invited to the portal: the Admin block gets the client's email, the contact rows do not", () => {
+  const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  assert.match(fileOf("src/lib/v3/profile-source.ts"), /portalInviteEmail: actor\.systemRole === "admin" \? await readStudentCaseClientEmail\(actor, canonicalCaseId\) : null/u);
+  const reader = fileOf("src/lib/v3/lead-cabinet-source.ts");
+  assert.match(reader, /from\("clients"\)\.select\("email"\)/u);
+  assert.doesNotMatch(reader, /createPlatformSupabaseServiceClient/u, "the read stays under the staff session and RLS");
+});
+
 test("the case-only branch of readCaseProfile keeps the client e-mail/phone null (portal access needs a confirmed e-mail) and reads the sale conditions apart", () => {
   const source = read("src/lib/v3/profile-source.ts");
   const branch = source.slice(source.indexOf("async function readCaseProfile("), source.indexOf("async function readLeadProfile("));
-  assert.match(branch, /person: data\.studentCase\.studentDisplayName,[\s\S]*?email: null,\n {4}phone: null,\n {4}student: true,/u);
+  assert.match(branch, /person: data\.studentCase\.studentDisplayName,[\s\S]*?email: null,\n {4}portalInviteEmail: [^\n]+\n {4}phone: null,\n {4}student: true,/u);
   assert.match(source, /direction: data\.studentCase\.admissionsDirection \?\? null,\n {4}applications: data\.applications,/u);
   // Контакты собираются чистой функцией из уже прочитанного, без нового чтения.
   const parts = read("src/components/v3/profile/CaseWorkParts.tsx");
   assert.match(parts, /contacts(?:=\{|: )caseContacts\(\{ phone: profile\.phone, email: profile\.email \}, draft\.profileFields\)/u);
-  assert.match(parts, /email=\{profile\.email\}/u, "portal access still takes the client e-mail only");
+  assert.match(parts, /email=\{profile\.email \?\? profile\.portalInviteEmail \?\? null\}/u, "portal access still takes the client e-mail only, never the анкета value");
   // Условия продажи (290): одно чтение дела параллельно с делом, не бросает, без запасного пути; блок лида остаётся null.
   assert.match(branch, /const saleRead = readCaseSaleData\(actor, canonicalCaseId\);\n {2}const data = await loadFullCase\(actor, view\.studentCase\);/u);
   assert.match(branch, /\.\.\.\(await saleRead\),/u);

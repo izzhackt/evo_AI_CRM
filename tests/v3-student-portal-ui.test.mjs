@@ -881,3 +881,42 @@ test("the Student portal structural contract is registered exactly once", () => 
   assert.equal(registrations.length, 1);
   assert.match(packageJson.scripts["test:frontend"], /tests\/v3-student-portal-ui\.test\.mjs/u);
 });
+
+test("330: a staff message notifies the student once per unread and the notification leads to the messages", () => {
+  const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  const source = fileOf("supabase/migrations/330_platform_case_chat_student_notification.sql");
+  assert.ok(source.indexOf("a330_already_applied") < source.indexOf("a330_anchor_drift"));
+  assert.match(source, /student_portal_notifications_v2\(\)'/u);
+  assert.match(source, /mark_own_student_portal_notification_read_v2\(uuid,uuid\)'/u, "the read command accepts it, otherwise a read one blocks new ones");
+  assert.match(source, /REVOKE ALL ON FUNCTION platform_private\.own_case_chat_notifications\(\) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;/u);
+  assert.doesNotMatch(source.replaceAll("NEW.body = ''", ""), /NEW\.body/u, "the notification holds no message text");
+  assert.match(fileOf("src/components/portal/admission/presentation.ts"), /eventCode === "case_chat_message"[\s\S]*?href: "\/portal\/messages", label: strings\.targetMessages/u);
+  const i18n = fileOf("src/lib/portal/i18n.ts");
+  assert.match(i18n, /targetMessages: "Открыть сообщения"/u);
+  assert.match(i18n, /targetMessages: "Билдирүүлөрдү ачуу"/u);
+  const script = fileOf("scripts/test-runners/test-postgres-authorization.sh");
+  assert.match(fileOf("supabase/tests/platform_case_chat_student_notification.sql"), /ROLLBACK;\s*$/u);
+  assert.ok(script.indexOf("A330_CASE_CHAT_STUDENT_NOTIFICATION_SUITE_PASSED") > 0 && script.indexOf("A330_CASE_CHAT_STUDENT_NOTIFICATION_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
+  assert.match(script, /a330_already_applied/u);
+});
+
+test("330: the shown chat clears the notification and its text follows the student's language", () => {
+  const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  const hook = fileOf("src/components/portal/messages/useMarkCaseChatRead.ts");
+  assert.ok(hook.includes('document.visibilityState !== "visible"'), "a hidden tab does not read");
+  assert.ok(fileOf("src/components/portal/messages/MessagesThread.tsx").includes("useMarkCaseChatRead(messages[messages.length - 1]?.sequenceId ?? null)"));
+  assert.ok(fileOf("src/lib/portal/messages-actions.ts").includes('.rpc("mark_own_case_chat_notifications_read_v1", { p_up_to_sequence_id: upToSequenceId })'));
+  const presentation = fileOf("src/components/portal/admission/presentation.ts");
+  assert.ok(presentation.includes("return { title: strings.caseChatNotificationTitle, detail: strings.caseChatNotificationDetail };"));
+  const view = fileOf("src/components/portal/admission/NotificationsView.tsx");
+  assert.ok(view.includes("{text.title}"));
+  assert.ok(!view.includes("{notification.subjectLabel}"), "the stored Russian text does not reach the screen directly");
+  const i18n = fileOf("src/lib/portal/i18n.ts");
+  assert.equal((i18n.match(/caseChatNotificationTitle:/gu) ?? []).length, 2, "both languages");
+  assert.match(i18n, /caseChatNotificationTitle: "EVO командасынан жаңы билдирүү"/u);
+  const migration = fileOf("supabase/migrations/330_platform_case_chat_student_notification.sql");
+  assert.ok(!migration.includes("AND NOT EXISTS (SELECT 1 FROM platform.notifications"), "the unique index holds one unread, not a racing check");
+  assert.match(migration, /CREATE UNIQUE INDEX notifications_case_chat_one_unread/u);
+  assert.ok(migration.includes("m.sequence_id > p_up_to_sequence_id AND m.author_membership_id <> actor.membership_id"), "a newer staff message keeps it unread");
+  assert.match(fileOf("supabase/tests/platform_case_chat_student_notification.sql"), /read the chat without the bell: the next message notifies again/u);
+});

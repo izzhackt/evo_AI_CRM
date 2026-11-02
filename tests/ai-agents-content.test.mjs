@@ -278,7 +278,7 @@ test("инструменты в промптах существуют в рее�
   for (const extra of [
     "ai_consent_missing", "evo_crm", "auto_send", "now_utc", "can_reply", "staff_last_replied_at", "latest_version_id", "amount_by_currency",
     "source_note", "draft_created", "next_cursor", "nearest_deadline", "whatsapp_state", "connected", "body_md", "metrics",
-    "kpis", "series", "pipeline_stage", "operational_stage", "agent_disabled", "send_authority",
+    "kpis", "series", "pipeline_stage", "operational_stage", "agent_disabled", "send_authority", "student_has_portal", "no_student_portal",
   ]) known.add(extra);
   const unknown = new Set();
   for (const { text } of allTexts()) {

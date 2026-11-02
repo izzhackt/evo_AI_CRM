@@ -18,6 +18,7 @@ import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 import { PORTAL_MESSAGES_CHANGED_EVENT } from "@/lib/portal-poll-section";
 import { isStaleDeployment, noteStaleDeployment } from "@/lib/stale-deployment";
 import { useStaleDeployment } from "@/lib/use-stale-deployment";
+import { useMarkCaseChatRead } from "./useMarkCaseChatRead";
 
 /** Черновик вкладки прошлой сборки — до её перезагрузки (A1). */
 const STALE_DRAFT_KEY = "evo:portal-messages:stale-draft:";
@@ -74,6 +75,8 @@ export function MessagesThread({
   const [sendFailed, setSendFailed] = useState(false);
   const [justSent, setJustSent] = useState(false);
   const [sending, startSending] = useTransition();
+
+  useMarkCaseChatRead(messages[messages.length - 1]?.sequenceId ?? null);
 
   const refreshRef = useRef<() => void>(() => {});
   // A11y (PORT-6a): зеркало messages для поллинга (замыкание в refresh()

@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for migration 288 «Телефония Beeline KG» срез T1a (схема и
--- RLS; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.2, §6, §7.1, §9.1, §11;
+-- RLS; docs/archive/plans/2026-10-16-telephony-plan.md §5.2, §6, §7.1, §9.1, §11;
 -- ADR 0033, решения 3–5). Runs on the real chain right after 288 inside one
 -- transaction that is rolled back, with its own synthetic organizations,
 -- members, clients, leads and tasks: no provider, no real person, no real

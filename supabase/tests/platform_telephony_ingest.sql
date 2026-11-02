@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for migration 289 «Телефония Beeline KG» срез T1b (приём,
 -- проекция, ноги, окно успокоения, очередь, сопоставление телефона;
--- docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.1, §5.2, §6.1, §6.2; ADR 0033).
+-- docs/archive/plans/2026-10-16-telephony-plan.md §5.1, §5.2, §6.1, §6.2; ADR 0033).
 -- Runs on the real chain right after 289 inside one transaction that is rolled
 -- back, with its own synthetic organizations, members, clients, leads, PBX users
 -- and messages: no provider, no real person, no real phone, no recording, no

@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for migration 312 «Телефония Beeline KG» срез T7b (звонок из «Позвонить»
 -- привязывается к своему набору; первичный импорт — только последние 30 суток;
--- docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.4, §6.1, §9.4, §14 шаг 11; ADR 0033). Runs on the
+-- docs/archive/plans/2026-10-16-telephony-plan.md §5.4, §6.1, §9.4, §14 шаг 11; ADR 0033). Runs on the
 -- real chain right after 312 inside one transaction that is rolled back, with its own synthetic
 -- organizations, members, clients, leads, PBX users and calls: no provider, no real person, no
 -- real phone, no production action. Events enter through the REAL intake

@@ -406,7 +406,7 @@ INSERT INTO p7aj_pairs(action, resource_type) VALUES
     ('team.chat.post', 'team_chat_message'),
     ('work.review.resolve', 'work_review_case'),
     -- Telephony T2 (migration 291): the pairs the later telephony slices write
-    -- (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §11): a recording grant and a call
+    -- (docs/archive/plans/2026-10-16-telephony-plan.md §11): a recording grant and a call
     -- result on the call, a dial request, and the settings/mapping/automation
     -- events on the organization's settings row.
     ('telephony.recording.listen', 'telephony_call'),

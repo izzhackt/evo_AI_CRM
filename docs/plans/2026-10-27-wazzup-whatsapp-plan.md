@@ -300,7 +300,7 @@ review по точному head. Архитектурное решение оф�
   `docs/runbooks/whatsapp-go-live.md` §F, скрипт внутри контейнера приложения);
   секреты приложения — один env-файл `/opt/evo-crm/.env.production`
   (`docker-compose.prod.yml:28-29`); токены телефонии лежат там же
-  (`docs/EVO_TELEPHONY_PLAN_2026-10-16.md:162`). Контракт env проверяет
+  (`docs/archive/plans/2026-10-16-telephony-plan.md:162`). Контракт env проверяет
   `scripts/release/evo-app-env-contract.mjs` (телефония — :66-76), пример —
   `deploy/env.production.example` (WAHA :22-34, телефония :69-98).
 - Маршруты без cookie сотрудника — точный список
@@ -316,7 +316,7 @@ review по точному head. Архитектурное решение оф�
   ошибок прячет и `token` (:17-33).
 - Прецедент неподписанного вебхука с секретом — телефония: постоянное по времени
   сравнение, `…_NEXT` для ротации, ограничитель неудач, «хранить сначала,
-  проецировать потом» (`docs/EVO_TELEPHONY_PLAN_2026-10-16.md:384-481`).
+  проецировать потом» (`docs/archive/plans/2026-10-16-telephony-plan.md:384-481`).
   Телефония выбрала отдельные таблицы, чтобы не трогать горячий путь WhatsApp
   (там же, 483-516); для Wazzup это не подходит — сообщения обязаны попасть в
   общие беседы (см. выше про внешние ключи). Флаги телефонии, которые меняются без
@@ -1273,7 +1273,7 @@ Wazzup — uuid). Надёжно склеить их нельзя (общего 
   `deploy/env.production.example`, `deploy/whatsapp/README.md`,
   `deploy/production-release.md`, `deploy/fast-app-release.md`,
   `docs/runbooks/whatsapp-go-live.md`, `docs/runbooks/telephony-go-live.md`,
-  `docs/EVO_TELEPHONY_PLAN_2026-10-16.md`.
+  `docs/archive/plans/2026-10-16-telephony-plan.md`.
 
 ## 19. Ревизия по критике (27.10.2026)
 

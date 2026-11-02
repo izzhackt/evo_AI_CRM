@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for migrations 275–277 («ИИ-агент» P4: ночной автоответчик,
--- docs/EVO_AI_AGENT_PLAN_2026-10-06.md §11 правила 1–13 и таблица «Где
+-- docs/archive/plans/2026-10-06-ai-agent-plan.md §11 правила 1–13 и таблица «Где
 -- проверяется», §15 P4, §18 Q5–Q9, Q11; ADR 0031). Runs on the real chain
 -- right after 277 inside one transaction that is rolled back, with its own
 -- synthetic organizations; no provider, Gemini call, real person, real phone

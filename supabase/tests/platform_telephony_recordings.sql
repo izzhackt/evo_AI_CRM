@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for migration 297 «Телефония Beeline KG» срез T6 (выдача и погашение
 -- права слушать запись, учёт ответов источника, список записей звонков лида;
--- docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.4, §7, §11, §12; ADR 0033). Runs on the
+-- docs/archive/plans/2026-10-16-telephony-plan.md §6.4, §7, §11, §12; ADR 0033). Runs on the
 -- real chain right after 297 inside one transaction that is rolled back, with its own
 -- synthetic organizations, members (modelled like production: invited staff have coarse
 -- role NULL, rights come from scoped role assignments made through the REAL

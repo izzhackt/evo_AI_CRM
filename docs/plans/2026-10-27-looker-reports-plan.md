@@ -55,7 +55,7 @@ Windsor.ai, доступ к рекламному кабинету Meta и выд
 - Ряд вкладок и выбор периода: `src/components/v3/marketing/MarketingNav.tsx:22-34`.
 - Доступ в приложении: `src/lib/v3/marketing-source.ts:24-29` → `staffCanAccessRoute(actor, "/v3/marketing")` → `src/lib/platform-access.ts:44` (`systemRole === "admin" && !isStaffPreview`).
 - Доступ в базе: `platform_private.marketing_admin_actor()` — положительная проверка `platform_role = 'admin'` (`supabase/migrations/265_platform_marketing_reads.sql:67-74`); приватная таблица с RLS и отозванными правами — `265:56-58`. Просмотра роли база не различает: это cookie приложения, не состояние базы.
-- Утверждённый контракт раздела: «Вкладки без данных не рисуются» (`docs/EVO_MARKETING_PLAN_2026-10-06.md:179`); свои вкладки «Instagram», «Реклама», «Подключения» (М2) и «Сайт и поиск» (М3) — `:173-176`, `:397-398`.
+- Утверждённый контракт раздела: «Вкладки без данных не рисуются» (`docs/archive/plans/2026-10-06-marketing-plan.md:179`); свои вкладки «Instagram», «Реклама», «Подключения» (М2) и «Сайт и поиск» (М3) — `:173-176`, `:397-398`.
 
 **«Финансы» (только в PR #1306, ветка `izzhackt/nav-fullscreen-tabs`).**
 - `src/app/(v3)/v3/finance/page.tsx:14-22` — заготовка: `requireV3PageActor("/v3/finance")` и `EmptyState` «Здесь будут доходы, расходы и расчёты EVO.».
@@ -112,8 +112,8 @@ Windsor.ai, доступ к рекламному кабинету Meta и выд
 Одна additive-миграция `supabase/migrations/NNN_platform_report_links.sql`.
 Номер — по порядку слияния планов пакета, который закрепляет запись пакета в
 `PLAN_CHANGES`. Сейчас 323 заявили оба соседа: Wazzup — 323 и 324
-(`docs/EVO_WAZZUP_WHATSAPP_PLAN_2026-10-27.md:536,542`), ONLYOFFICE — «на 27.10
-это 323» (`docs/EVO_AGENT_RULES_ONLYOFFICE_PLAN_2026-10-27.md:383`). Предложение
+(`docs/plans/2026-10-27-wazzup-whatsapp-plan.md:536,542`), ONLYOFFICE — «на 27.10
+это 323» (`docs/plans/2026-10-27-agent-rules-onlyoffice-plan.md:383`). Предложение
 для записи пакета: Wazzup 323–324, ONLYOFFICE — следующий, этот план —
 последним. При сдвиге файл перенумеровывается: хук набора привязан к имени, а
 не к номеру (как у `322_platform_ai_agents_daily_spend.sql:4`).

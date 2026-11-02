@@ -78,7 +78,7 @@ for (const required of [
 }
 
 // The CRM no longer drafts replies with Gemini: the U9 proposal path and the
-// staff-assistant were removed in AI-agent P1 (docs/EVO_AI_AGENT_PLAN_2026-10-06.md
+// staff-assistant were removed in AI-agent P1 (docs/archive/plans/2026-10-06-ai-agent-plan.md
 // §5.6). Drafting, its rules and its leak guard live in the private evo-ai-agent
 // service, so there is no CRM prompt left to check here.
 for (const retired of [

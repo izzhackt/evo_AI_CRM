@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for migration 301 «Телефония Beeline KG» срез T10 (блок «Звонки» в
--- «Отчёте продаж»; docs/EVO_TELEPHONY_PLAN_2026-10-16.md §6.1, §9.1, §9.2, §10, §11, §12;
+-- «Отчёте продаж»; docs/archive/plans/2026-10-16-telephony-plan.md §6.1, §9.1, §9.2, §10, §11, §12;
 -- ADR 0033). Runs on the real chain right after 301 inside one transaction that is rolled
 -- back, with its own synthetic organizations, members (modelled like production: invited
 -- staff have coarse role NULL, rights come from scoped role assignments made through the

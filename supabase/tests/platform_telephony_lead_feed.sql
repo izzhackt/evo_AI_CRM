@@ -1,6 +1,6 @@
 \set ON_ERROR_STOP on
 -- Boundary suite for migration 295 «Телефония Beeline KG» срез T5 (строки звонков в
--- «Ленте» лида и результат звонка одним нажатием; docs/EVO_TELEPHONY_PLAN_2026-10-16.md
+-- «Ленте» лида и результат звонка одним нажатием; docs/archive/plans/2026-10-16-telephony-plan.md
 -- §6.1, §9.1, §9.4, §11, §12; ADR 0033). Runs on the real chain right after 295
 -- inside one transaction that is rolled back, with its own synthetic organizations,
 -- members (modelled like production: invited staff have coarse role NULL, rights come

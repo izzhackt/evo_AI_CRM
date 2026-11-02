@@ -38,8 +38,8 @@
   `src/lib/v3/navigation.ts`, `src/lib/v3/wording.ts`,
   `src/lib/platform-route-contract.ts`, `src/lib/fixed-role-policy.ts`,
   `src/lib/platform-access.ts`, `src/components/v3/AppShell.tsx`,
-  `scripts/evo-production-browser-smoke.mjs`,
-  `scripts/test-postgres-authorization.sh`. Каталоги `src/app/(portal)/` и
+  `scripts/release/evo-production-browser-smoke.mjs`,
+  `scripts/test-runners/test-postgres-authorization.sh`. Каталоги `src/app/(portal)/` и
   `src/components/v3/portal/` OTHER не трогает — свободная зона Portal.
 - Зависимости PORT-5 (задачи, договор/оплата, чат по делу) — **именованные
   блокеры** до появления PR OTH-2/OTH-3/OTH-5 с реальной схемой. OTHER строит
@@ -188,7 +188,7 @@ basic english36):
 
 - Любая правка якорей smoke (`student-portal-shell`, «Разделы кабинета»,
   «Моё поступление», заголовки /portal/documents, `#staff-email` и пр.) — в том
-  же PR обновляются `scripts/evo-production-browser-smoke.mjs` и
+  же PR обновляются `scripts/release/evo-production-browser-smoke.mjs` и
   `tests/production-browser-smoke.test.mjs`. Новые ключевые портальные экраны
   добавляют свои якоря в smoke — названная, а не молчаливая зона покрытия.
 - Порядок production-изменений: миграция в main → `evo-schema-ledger.yml`

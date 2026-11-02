@@ -23,7 +23,7 @@ import {
   verifyRuntimeEnvironmentIdentity,
   validateAppEnvironmentContract,
   verifySupabaseProjectCredentials,
-} from "../scripts/evo-app-env-contract.mjs";
+} from "../scripts/release/evo-app-env-contract.mjs";
 
 const TEST_ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
 const TEST_SALES_MEMBERSHIP_ID = "22222222-2222-4222-8222-222222222222";
@@ -396,7 +396,7 @@ test("self-hosted: the closed CLI takes the word as the project argument and che
     chmodSync(examplePath, 0o600);
     chmodSync(envPath, 0o600);
     const run = (identity) => spawnSync(process.execPath, [
-      "scripts/evo-app-env-contract.mjs", "--example", examplePath, "--env", envPath, "--supabase-project-ref", identity,
+      "scripts/release/evo-app-env-contract.mjs", "--example", examplePath, "--env", envPath, "--supabase-project-ref", identity,
     ], { encoding: "utf8", timeout: 30_000 });
     const accepted = run(SELFHOSTED_IDENTITY);
     assert.equal(accepted.status, 0, accepted.stderr);
@@ -523,7 +523,7 @@ test("closed CLI validates private files without printing their values", () => {
     const accepted = spawnSync(
       process.execPath,
       [
-        "scripts/evo-app-env-contract.mjs",
+        "scripts/release/evo-app-env-contract.mjs",
         "--example",
         examplePath,
         "--env",
@@ -547,7 +547,7 @@ test("closed CLI validates private files without printing their values", () => {
     const rejected = spawnSync(
       process.execPath,
       [
-        "scripts/evo-app-env-contract.mjs",
+        "scripts/release/evo-app-env-contract.mjs",
         "--example",
         examplePath,
         "--env",
@@ -587,7 +587,7 @@ test("seals exact private environment bytes once with mode 0600 and digest-only 
     const cli = spawnSync(
       process.execPath,
       [
-        "scripts/evo-app-env-contract.mjs",
+        "scripts/release/evo-app-env-contract.mjs",
         "--seal-private-env",
         source,
         "--snapshot",
@@ -615,7 +615,7 @@ test("candidate CLI seals controller image identity without modifying operator e
   try {
     writeFileSync(source, sourceText, { mode: 0o600 });
     const cli = spawnSync(process.execPath, [
-      "scripts/evo-app-env-contract.mjs", "--seal-candidate-env", source,
+      "scripts/release/evo-app-env-contract.mjs", "--seal-candidate-env", source,
       "--snapshot", snapshot, "--runtime-image-id", imageId,
     ], { encoding: "utf8" });
     assert.equal(cli.status, 0, cli.stderr);
@@ -642,7 +642,7 @@ test("runtime identity CLI binds sealed snapshot, actual container ID and revisi
   try {
     writeFileSync(snapshot, `EVO_RUNTIME_IMAGE_ID=${imageId}\n`, { mode: 0o600 });
     const cli = spawnSync(process.execPath, [
-      "scripts/evo-app-env-contract.mjs", "--verify-runtime-identity",
+      "scripts/release/evo-app-env-contract.mjs", "--verify-runtime-identity",
       "--snapshot", snapshot, "--runtime-image-id", imageId,
       "--release-revision", revision,
     ], {
@@ -805,7 +805,7 @@ test("snapshot seal deterministically rejects in-place mutation and path replace
 });
 
 test("snapshot implementation opens the protected source descriptor exactly once", () => {
-  const implementation = readFileSync("scripts/evo-app-env-contract.mjs", "utf8");
+  const implementation = readFileSync("scripts/release/evo-app-env-contract.mjs", "utf8");
   const seal = implementation.slice(
     implementation.indexOf("export function sealPrivateEnvironmentSnapshot"),
     implementation.indexOf("function parseCli"),

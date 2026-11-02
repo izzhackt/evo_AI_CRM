@@ -18,12 +18,12 @@ import {
   runCli,
   validateBindingRow,
   validatePlainWahaApiKey,
-} from "../scripts/waha-runtime-binding.mjs";
+} from "../scripts/maintenance/waha-runtime-binding.mjs";
 
 // Every identifier below is synthetic. No Supabase project, WAHA instance or
 // provider is contacted: Supabase and WAHA are mocked with injected fetch
 // functions or a loopback HTTP server.
-const SCRIPT_URL = new URL("../scripts/waha-runtime-binding.mjs", import.meta.url);
+const SCRIPT_URL = new URL("../scripts/maintenance/waha-runtime-binding.mjs", import.meta.url);
 const SUPABASE_ORIGIN = "https://abcdefghijklmnopqrst.supabase.co";
 const SUPABASE_SECRET_KEY = "sb_secret_abcdefghijklmnopqrstuvwxyz0123456789";
 const ORGANIZATION_ID = "11111111-1111-4111-8111-111111111111";
@@ -1122,9 +1122,9 @@ test("the runner image ships the script as a non-root, read-only-executable file
   const dockerfile = readFileSync(new URL("../Dockerfile", import.meta.url), "utf8");
   assert.match(
     dockerfile,
-    /COPY --from=builder --chown=nextjs:nodejs --chmod=0555 \/app\/scripts\/waha-runtime-binding\.mjs \.\/scripts\/waha-runtime-binding\.mjs/u,
+    /COPY --from=builder --chown=nextjs:nodejs --chmod=0555 \/app\/scripts\/maintenance\/waha-runtime-binding\.mjs \.\/scripts\/waha-runtime-binding\.mjs/u,
   );
-  const copyIndex = dockerfile.indexOf("/app/scripts/waha-runtime-binding.mjs");
+  const copyIndex = dockerfile.indexOf("/app/scripts/maintenance/waha-runtime-binding.mjs");
   const userIndex = dockerfile.lastIndexOf("USER nextjs");
   assert.ok(copyIndex > 0 && userIndex > copyIndex, "the COPY must precede the final USER nextjs");
   const dockerignore = readFileSync(new URL("../.dockerignore", import.meta.url), "utf8");

@@ -301,7 +301,7 @@ review по точному head. Архитектурное решение оф�
   секреты приложения — один env-файл `/opt/evo-crm/.env.production`
   (`docker-compose.prod.yml:28-29`); токены телефонии лежат там же
   (`docs/EVO_TELEPHONY_PLAN_2026-10-16.md:162`). Контракт env проверяет
-  `scripts/evo-app-env-contract.mjs` (телефония — :66-76), пример —
+  `scripts/release/evo-app-env-contract.mjs` (телефония — :66-76), пример —
   `deploy/env.production.example` (WAHA :22-34, телефония :69-98).
 - Маршруты без cookie сотрудника — точный список
   `PLATFORM_PRIVATE_API_ALLOWLIST` (`src/lib/platform-route-contract.ts:177-186`,
@@ -345,7 +345,7 @@ review по точному head. Архитектурное решение оф�
   Бишкеку или в воскресенье.
 - Контейнер приложения `read_only: true` (`docker-compose.prod.yml:19`); каталог
   `deploy/` в образ не попадает. Скрипты для контейнера собираются в образ, как
-  `whatsapp-health-maintenance.mjs` (`scripts/build-whatsapp-health-maintenance.mjs:7-8`,
+  `whatsapp-health-maintenance.mjs` (`scripts/maintenance/build-whatsapp-health-maintenance.mjs:7-8`,
   `Dockerfile:142-144`).
 - Нагрузка: около 850 сообщений и до ~1 600 статусов в будний день. Статусы в этапе
   1 не храним (§5.2), поэтому в базе прибавляется около 850 сырых событий в день,
@@ -678,7 +678,7 @@ amoCRM 17–18.10, прежние клиенты WAHA, заведённые вр
 существующем SOPS-архиве «Секреты и доступы ЭВО».
 
 Новые переменные добавляются в `deploy/env.production.example` и в контракт
-`scripts/evo-app-env-contract.mjs` (по образцу телефонии, :66-76): `…_INGRESS_ENABLED`
+`scripts/release/evo-app-env-contract.mjs` (по образцу телефонии, :66-76): `…_INGRESS_ENABLED`
 — только `''`, `0`, `1`; `1` только с годным токеном; **`EVO_PLATFORM_WAHA_INGRESS_ENABLED=1`
 вместе с `EVO_PLATFORM_WAZZUP_INGRESS_ENABLED=1` контракт отклоняет** — такой выпуск
 не начнётся (§9).
@@ -717,7 +717,7 @@ Git, env-файл, задачи EVO, скриншоты. Если ключ вс�
 ### 5.6. Команды оператора (только с «давай»)
 
 `/app/wazzup-ops.mjs` собирается в образ так же, как
-`whatsapp-health-maintenance.mjs` (`scripts/build-whatsapp-health-maintenance.mjs:7-8`,
+`whatsapp-health-maintenance.mjs` (`scripts/maintenance/build-whatsapp-health-maintenance.mjs:7-8`,
 `Dockerfile:142-144`): `deploy/` в образ не попадает, а контейнер
 `read_only: true` (`docker-compose.prod.yml:19`). Запуск —
 `docker exec -i evo-crm-app-1 node /app/wazzup-ops.mjs <команда>`; ключ берётся из
@@ -897,7 +897,7 @@ handle @wazzup {
 Поэтому миграции безвредны для работающего приложения, пока строк Wazzup нет, а
 строки появляются только после переключения транспорта (§11).
 
-SQL-набор (`scripts/test-postgres-authorization.sh`, хуки по имени файла):
+SQL-набор (`scripts/test-runners/test-postgres-authorization.sh`, хуки по имени файла):
 
 - запись: дедуп по `messageId`; повтор пакета; **две разные правки одного сообщения —
   два события; две смены состояния канала — два события; повтор той же правки — дедуп;
@@ -1269,7 +1269,7 @@ Wazzup — uuid). Надёжно склеить их нельзя (общего 
   `src/lib/server/canonical-amocrm-provider-config.ts`,
   `src/lib/platform-route-contract.ts`, `src/app/api/v3/settings/whatsapp-connect/route.ts`,
   `agent-lead2-inbox/deploy/Caddyfile.evo-edge`, `docker-compose.prod.yml`, `Dockerfile`,
-  `scripts/build-whatsapp-health-maintenance.mjs`, `scripts/evo-app-env-contract.mjs`,
+  `scripts/maintenance/build-whatsapp-health-maintenance.mjs`, `scripts/release/evo-app-env-contract.mjs`,
   `deploy/env.production.example`, `deploy/whatsapp/README.md`,
   `deploy/production-release.md`, `deploy/fast-app-release.md`,
   `docs/runbooks/whatsapp-go-live.md`, `docs/runbooks/telephony-go-live.md`,

@@ -163,7 +163,7 @@ Invoker wrappers и ограниченные EXECUTE grants не заменяю�
   (она заканчивается июлем). Подготовлено 209 записей и 4 месячных плана отдела.
   Два независимых исполнителя получили одинаковый payload SHA-256:
   `11e4844e6b6f2651649aedd690b1d172f41de9ec2e8a3874ee0a8510fe1c03b4`.
-- Подготовка: `scripts/prepare-sales-register-import.py --help`. Приватные
+- Подготовка: `scripts/import/prepare-sales-register-import.py --help`. Приватные
   `source.xlsx`, `payload.json`, `manifest.json` сохранены вне Git в каталоге
   `~/.codex/private-artifacts/evo-sales-20260908` (каталог 0700, файлы 0600).
   Manifest фиксирует происхождение, исключения и сверку; не печатать payload.

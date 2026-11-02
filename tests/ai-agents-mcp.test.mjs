@@ -924,7 +924,7 @@ test("a throwing logger or an unexpected failure never breaks the answer", async
 /* ------------------------------------------------------------------- edge */
 
 test("the edge Caddyfile overwrites X-Evo-Mcp-Ip for the CRM host and keeps the MCP path public", () => {
-  const caddyfile = readFileSync(new URL("../agent-lead2-inbox/deploy/Caddyfile.evo-edge", import.meta.url), "utf8");
+  const caddyfile = readFileSync(new URL("../deploy/edge/Caddyfile.evo-edge", import.meta.url), "utf8");
   const block = caddyfile.slice(caddyfile.indexOf("crm.evoadmissions.com, app.evoadmissions.com {"));
   const crmBlock = block.slice(0, block.indexOf("\n}\n") + 3);
   assert.match(crmBlock, /reverse_proxy evo-crm-app:3000 \{\s*header_up X-Evo-Mcp-Ip \{remote_host\}\s*\}/u);

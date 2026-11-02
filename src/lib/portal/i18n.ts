@@ -1486,7 +1486,7 @@ const messagesKy: Readonly<Record<MessagesKey, string>> = {
  * уведомления и «Ответ куратора». Русские значения — байт-в-байт прежние
  * строки экранов: заголовки «Моё поступление» / «Документы» / «Чеклист» /
  * «Список документов пока пуст» — якоря production-смоука
- * (scripts/evo-production-browser-smoke.mjs), а смоук-аккаунт живёт с
+ * (scripts/release/evo-production-browser-smoke.mjs), а смоук-аккаунт живёт с
  * language=ru. Доменные статусы (`docStatus.*`, `payStatus.*`,
  * `reviewDecision.*`, `taskStatus.*`, `payCategory.*`) — локализуемая
  * портальная обёртка над словарями src/lib/v3/wording.ts: RU-значения
@@ -1640,7 +1640,7 @@ const admissionRu = {
   "stage.intake": "приём дела",
   "stage.profile_and_route": "выбор программы",
   "stage.documents": "сбор документов",
-  "stage.applications": "подача через партнёра",
+  "stage.applications": "подача заявок в университеты",
   "stage.decisions": "решения университетов",
   "stage.visa_and_predeparture": "виза и подготовка к отъезду",
   "stage.arrival_and_adaptation": "поездка и прибытие",
@@ -1815,7 +1815,7 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   "stage.intake": "ишти кабыл алуу",
   "stage.profile_and_route": "программаны тандоо",
   "stage.documents": "документтерди чогултуу",
-  "stage.applications": "өнөктөш аркылуу тапшыруу",
+  "stage.applications": "университеттерге арыз тапшыруу",
   "stage.decisions": "университеттердин чечимдери",
   "stage.visa_and_predeparture": "виза жана жол сапарга даярдык",
   "stage.arrival_and_adaptation": "сапар жана келүү",

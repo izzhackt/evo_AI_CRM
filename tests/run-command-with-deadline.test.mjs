@@ -12,10 +12,10 @@ import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { runCommandWithDeadline } from "../scripts/run-command-with-deadline.mjs";
+import { runCommandWithDeadline } from "../scripts/test-runners/run-command-with-deadline.mjs";
 
 const deadlineRunnerPath = fileURLToPath(
-  new URL("../scripts/run-command-with-deadline.mjs", import.meta.url),
+  new URL("../scripts/test-runners/run-command-with-deadline.mjs", import.meta.url),
 );
 
 test("executes through the physical CLI path and preserves child status", () => {

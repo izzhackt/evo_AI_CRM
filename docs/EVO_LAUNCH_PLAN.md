@@ -2975,7 +2975,7 @@ backups. Keep the existing production/tunnel working. Production release, if
 performed, must follow the existing exact-main acceptance process; local visual
 proof alone is not deployment proof. Implementation and local validation are
 complete: build/TypeScript/lint,152 frontend tests and15 role/brand/auth tests
-passed; actual desktop/mobile/query/focus checks are in [design QA](../design-qa.md).
+passed; actual desktop/mobile/query/focus checks are in [design QA](design/design-qa.md).
 The PR records final-head independent review and CI/merge status. Accepted
 production remains the revision recorded above until separately released.
 
@@ -4086,8 +4086,8 @@ Lead Agent, manual-send worker, SQLite backup and historical P8 release
 programs are not candidate services, checks or fallbacks.
 
 At #587 completion, the retained executable release authority was
-`.github/workflows/evo-fast-release.yml`, `scripts/evo-fast-release.sh`,
-`scripts/fast-release-ci-gate.mjs` and
+`.github/workflows/evo-fast-release.yml`, `scripts/release/evo-fast-release.sh`,
+`scripts/release/fast-release-ci-gate.mjs` and
 `scripts/evo-release-environment-profile.mjs`, updated to the single successor
 contract. #551 now supersedes that staging-oriented profile and removes it from
 the active executable surface while retaining the exact-main CI gate and
@@ -6469,7 +6469,7 @@ real validation, and receives a separate launch-control reviewer verdict.
 
 1. **CI enforcement for PostgreSQL authorization**
    - Require the existing real-role harness
-     `scripts/test-postgres-authorization.sh` through the
+     `scripts/test-runners/test-postgres-authorization.sh` through the
      repository-root `npm run test:security` gate in GitHub Actions.
    - Provision only safe ephemeral/disposable PostgreSQL for CI. Do not connect
      the harness to production or require committed/runtime secrets.
@@ -7563,7 +7563,7 @@ Named write set:
   dependency graphs.
 - `.github/workflows/evo-platform-ci.yml`: separate blocking production and
   constrained development audit gates.
-- `scripts/check-npm-audit-allowlist.mjs`,
+- `scripts/checks/check-npm-audit-allowlist.mjs`,
   `config/npm-audit-allowlist.json`: real npm audit execution and the
   time-bounded exception contract.
 
@@ -7743,9 +7743,9 @@ their own explicit authorization.
 - `docs/specs/EVO_PLATFORM_TZ.docx`: editable owner-facing specification.
 - `docs/specs/EVO_PLATFORM_TZ_VALIDATION.md`: reproducible validation and
   page-inspection ledger.
-- `scripts/generate-evo-platform-tz.py`: deterministic DOCX builder.
-- `scripts/verify-evo-platform-tz.py`,
-  `scripts/requirements-evo-platform-tz.txt`: isolated dependency, real
+- `scripts/docs/generate-evo-platform-tz.py`: deterministic DOCX builder.
+- `scripts/docs/verify-evo-platform-tz.py`,
+  `scripts/docs/requirements-evo-platform-tz.txt`: isolated dependency, real
   LibreOffice/Poppler render and accessibility/traceability verification
   contract.
 - Existing brand and implementation screenshots under `docs/company/brand/**`
@@ -10031,7 +10031,7 @@ R0 changes no server, DNS, provider, managed database, user or live data.
 1. Implement truthful Admin readiness/audit visibility and explicitly blocked
    states; configured-only or generic HTTP success is not healthy.
 2. Extend and harden the existing `.github/workflows/evo-fast-release.yml` and
-   `scripts/evo-fast-release.sh` release authority with a reviewed
+   `scripts/release/evo-fast-release.sh` release authority with a reviewed
    migration-bearing mode for the V1 range. Keep the current presentation-only
    fast lane as a constrained mode; do not create a parallel second
    controller. The migration-bearing mode must pin exact current main, exact
@@ -16306,7 +16306,7 @@ WhatsApp · Отчёт продаж»; «Поступление»: «Ворон�
 `pending-current.json` и папки переноса, `docker inspect` приложения и
 WAHA; arm — `gh variable list` (`updatedAt`); время слияния #1091–#1093 и
 закрытие #1061 — `gh pr view`, `gh issue view`; миграции — `git diff` по
-диапазону и `scripts/fast-release-ledger-gate.mjs`; health — HTTP GET. По
+диапазону и `scripts/release/fast-release-ledger-gate.mjs`; health — HTTP GET. По
 записи координирующей сессии 28.09, повторно не читались: живая проверка
 интерфейса и ход работы (у сессии, которая пишет квитанцию, нет входа в
 CRM). Персональных данных и секретов в записях нет.
@@ -16392,7 +16392,7 @@ guard перед accept) прошли, а `fast-release-ledger-gate` пропу�
 `pending-current.json` и папки переноса, `docker inspect` приложения и
 WAHA; arm — `gh variable list` (`updatedAt`); время слияния и коммиты
 #1094 и #1095 — `gh pr view`; миграции — `git diff` по диапазону и
-`scripts/fast-release-ledger-gate.mjs`; health — HTTP GET. По записи
+`scripts/release/fast-release-ledger-gate.mjs`; health — HTTP GET. По записи
 координирующей сессии 28.09, повторно не читались: живая проверка
 интерфейса (у сессии, которая пишет квитанцию, нет входа в CRM).
 Персональных данных и секретов в записях нет.
@@ -17051,7 +17051,7 @@ WAHA (healthy, 0 перезапусков) и приложение исправ�
 `stop` → `start` (`SCAN_QR_CODE`) → код по номеру продаж → `WORKING` в
 11:07:25; `me` — номер продаж (последние цифры 7030). Вебхуки снова приходят.
 
-**Догрузка переписки за простой (08.10).** `scripts/waha-history-import.mjs`
+**Догрузка переписки за простой (08.10).** `scripts/import/waha-history-import.mjs`
 по `docs/runbooks/whatsapp-history-import.md`: `--window-to
 2026-10-08T11:07:25Z --days 2 --include-outbound-only`. `sync-status` —
 `stable: true` (227 чатов, 1402 сообщения, два снимка через 195 с, сессия 13

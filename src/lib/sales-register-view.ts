@@ -97,7 +97,7 @@ const IMPORT_FIELD_TEXT: Readonly<Record<string, string>> = {
   direction: "направление", intake: "набор", contract_number: "номер договора", manager_label: "менеджер", status_raw: "статус оплаты",
 };
 
-/** Пометка переноса данных словами (ключи — `scripts/prepare-sales-register-import.py`). */
+/** Пометка переноса данных словами (ключи — `scripts/import/prepare-sales-register-import.py`). */
 export function salesImportFlagText(flag: string): string {
   if (flag === "status_unspecified") return "статус оплаты не указан";
   if (flag === "phone_missing") return "нет телефона";

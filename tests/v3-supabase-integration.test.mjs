@@ -401,7 +401,7 @@ test("V3 pipeline links and document table remain keyboard-operable", () => {
 
 test("ordinary real foundation proof runs the fail-closed V3 browser gate", () => {
   const gate = source("scripts/v3-gate/gate.mjs");
-  const foundation = source("scripts/test-postgres-v2-foundation.sh");
+  const foundation = source("scripts/test-runners/test-postgres-v2-foundation.sh");
   const manifest = JSON.parse(source("package.json"));
 
   assert.match(gate, /EVO_STAFF_AUTH_ADMIN_EMAIL/);

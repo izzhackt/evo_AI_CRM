@@ -4,7 +4,7 @@
 // (самопроверяемая правка оценщика прав, одна добавочная строка контекста, только две
 // permission-ключа и только очередь продаж). Что сотрудник видит и в какие диалоги
 // отвечает, решает база: это доказывает настоящая цепочка Postgres,
-// supabase/tests/platform_whatsapp_team_inbox.sql (scripts/test-postgres-authorization.sh),
+// supabase/tests/platform_whatsapp_team_inbox.sql (scripts/test-runners/test-postgres-authorization.sh),
 // а не этот файл.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -199,7 +199,7 @@ test("since 06.10.2026 several members answer in a row; a failed send says exact
 });
 
 test("the Postgres harness runs the multi-reply suite right after migration 266", () => {
-  const harness = source("scripts/test-postgres-authorization.sh");
+  const harness = source("scripts/test-runners/test-postgres-authorization.sh");
   assert.match(harness, /if \[\[ "\$\(basename "\$migration"\)" == 266_\* \]\]; then\s+docker exec "\$container_name" \\\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\s+-f \/workspace\/supabase\/tests\/platform_whatsapp_chat_replies\.sql\s+fi/u);
   const suite = source("supabase/tests/platform_whatsapp_chat_replies.sql");
   assert.match(suite, /N266_WHATSAPP_CHAT_REPLIES_SUITE_START/u);
@@ -207,7 +207,7 @@ test("the Postgres harness runs the multi-reply suite right after migration 266"
 });
 
 test("the Postgres harness runs the real-chain suite right after migration 261", () => {
-  const harness = source("scripts/test-postgres-authorization.sh");
+  const harness = source("scripts/test-runners/test-postgres-authorization.sh");
   assert.match(harness, /if \[\[ "\$\(basename "\$migration"\)" == 261_\* \]\]; then\s+docker exec "\$container_name" \\\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\s+-f \/workspace\/supabase\/tests\/platform_whatsapp_team_inbox\.sql\s+fi/u);
   const suite = source("supabase/tests/platform_whatsapp_team_inbox.sql");
   assert.match(suite, /N261_WHATSAPP_TEAM_INBOX_SUITE_START/u);

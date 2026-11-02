@@ -262,14 +262,9 @@ instructions to run a full heavy suite for every change or release candidate.
   «Настройки → Интеграции» (QR or a pairing code by phone number); the agent
   never presses it, never calls the same WAHA endpoints directly, and the
   block has no logout or reset.
-- The 2026-09-04 owner direction authorizes this repository transition,
-  V3 integration, isolated recovery/migration rehearsal and scoped cleanup
-  without routine approval pauses. It also authorizes #552 to perform the one
-  V3 production deployment and active-runtime retirement after #551 and every
-  named prerequisite pass; do not request a second routine approval at that
-  point. Missing access, a failed prerequisite or ambiguous external state
-  still fails clearly. Provider enablement, webhook ownership transfer and live
-  provider calls remain outside that authorization.
+- Сливает в `main` только владелец или ИИ по его прямой команде в чате. Production
+  deploy, provider mutation и schema-apply — отдельные gates из
+  `docs/EVO_LAUNCH_PLAN.md`.
 - Validation must also avoid duplicate work inside a gate. When a full proof
   is explicitly required, it applies migrations once through local Supabase,
   executes each Node test file once through the canonical CI manifest,

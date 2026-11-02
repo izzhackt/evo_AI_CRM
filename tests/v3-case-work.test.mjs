@@ -858,7 +858,7 @@ test("the contract download reads the file through the staff session, the servic
   assert.match(migration, /GRANT EXECUTE ON FUNCTION platform\.staff_case_contract_file_download_target_v1\(UUID, UUID\) TO authenticated;/u);
   assert.doesNotMatch(migration, /GRANT [A-Z, ]*ON (TABLE )?platform\.case_contract_files/u, "no direct table right is added");
   const suite = fileOf("supabase/tests/platform_case_contract_download_target.sql");
-  const script = fileOf("scripts/test-postgres-authorization.sh");
+  const script = fileOf("scripts/test-runners/test-postgres-authorization.sh");
   assert.match(suite, /ROLLBACK;\s*$/u);
   assert.ok(script.indexOf("A327_CASE_CONTRACT_DOWNLOAD_SUITE_PASSED") > 0 && script.indexOf("A327_CASE_CONTRACT_DOWNLOAD_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
   assert.match(script, /a327_already_applied/u);

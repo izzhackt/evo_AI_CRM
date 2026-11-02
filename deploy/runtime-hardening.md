@@ -22,11 +22,11 @@ active staging artifacts rather than leave aliases or disabled fallbacks:
 #551 must remove only release-environment staging branches, inputs, imports,
 configuration and assertions from these active files:
 
-- `scripts/evo-app-env-contract.mjs`;
-- `scripts/evo-fast-release.sh`;
-- `scripts/platform-provider-runtime-inventory.mjs`;
-- `scripts/test-p6d-release-candidate-orbstack.mjs`;
-- `scripts/validate-runtime-hardening.mjs`;
+- `scripts/release/evo-app-env-contract.mjs`;
+- `scripts/release/evo-fast-release.sh`;
+- `scripts/checks/platform-provider-runtime-inventory.mjs`;
+- `scripts/test-runners/test-p6d-release-candidate-orbstack.mjs`;
+- `scripts/checks/validate-runtime-hardening.mjs`;
 - `tests/app-env-contract.test.mjs`;
 - `tests/fast-release-control.test.mjs`;
 - `tests/p6d-release-candidate.test.mjs`;

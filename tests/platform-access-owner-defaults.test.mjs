@@ -3,7 +3,7 @@
 // real-Postgres suite wiring, the interface gates of B and C, and the menu of
 // D with every real role bundle. They supplement, never replace, the boundary
 // suite supabase/tests/platform_access_owner_defaults.sql (checkpoint 248 in
-// scripts/test-postgres-authorization.sh), which runs the changed functions
+// scripts/test-runners/test-postgres-authorization.sh), which runs the changed functions
 // against members modelled like production.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -20,7 +20,7 @@ const {
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const migration = source("supabase/migrations/248_platform_access_owner_defaults.sql");
 const suite = source("supabase/tests/platform_access_owner_defaults.sql");
-const script = source("scripts/test-postgres-authorization.sh");
+const script = source("scripts/test-runners/test-postgres-authorization.sh");
 
 /** The body of one function in 248, from its CREATE line up to its closing $$ / $function$. */
 function functionBody(kind, name) {

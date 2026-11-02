@@ -124,7 +124,7 @@ Normal anonymous, Sales and Admissions calls to207 returned respectively
 Student RPC. RU/KY were checked at1280×900 and390×844, with document width equal
 to viewport width. KY was selected and saved through the real profile form.
 
-The local-only `scripts/bind-local-student-intake.mjs` was independently reviewed
+The local-only `scripts/local-dev/bind-local-student-intake.mjs` was independently reviewed
 and applied solely by A before registration. It checks disposable project,
 workdir/container ownership, loopback origins and local Docker/OrbStack, then
 binds one previously empty intake configuration to an existing active local

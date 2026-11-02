@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const harness = readFileSync(
-  new URL("../scripts/test-p2g-queues-runtime.sh", import.meta.url),
+  new URL("../scripts/test-runners/test-p2g-queues-runtime.sh", import.meta.url),
   "utf8",
 );
 const sqlHarness = readFileSync(

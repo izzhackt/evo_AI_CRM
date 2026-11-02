@@ -79,7 +79,7 @@ for (const file of ["docker-compose.prod.yml"]) {
     for (const block of [app, clamav, waha]) assert.doesNotMatch(block, /^      (?:ai:|- ai$)/mu);
     // The controller's override declares the same bridge, so it renders on top of a rollback
     // snapshot that predates it and Compose keeps one network definition.
-    const controller = await read("scripts/evo-fast-release.sh");
+    const controller = await read("scripts/release/evo-fast-release.sh");
     assert.match(controller, /^readonly AI_AGENT_APP_NETWORK_OVERRIDE=\$'services:\\n  app:\\n    networks:\\n      ai:\\n        aliases:\\n          - evo-crm-app\\nnetworks:\\n  ai:\\n    name: evo_crm_ai\\n    driver: bridge\\n'$/mu);
 
     for (const block of [app, clamav, waha, agentApi, agentWorker]) {
@@ -122,7 +122,7 @@ test("the Docker context excludes secrets, frozen applications and non-runtime e
 });
 
 test("runtime hardening validation checks only the root successor Compose models", async () => {
-  const validator = await read("scripts/validate-runtime-hardening.mjs");
+  const validator = await read("scripts/checks/validate-runtime-hardening.mjs");
   assert.match(validator, /docker-compose\.prod\.yml/u);
   assert.doesNotMatch(validator, /docker-compose\.staging\.yml/u);
   assert.match(validator, /\["app", "clamav", "waha"\]/u);

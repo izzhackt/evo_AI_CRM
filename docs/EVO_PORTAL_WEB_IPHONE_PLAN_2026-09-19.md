@@ -86,7 +86,7 @@ Fable сообщил о готовности Xcode, симулятора, OrbSta
 | Документы | `src/app/api/portal/document-slots/[documentSlotId]/versions/route.ts`, `src/app/api/portal/document-versions/[versionId]/download/route.ts` |
 | Обращения и финансы | `src/lib/platform-admissions-support-actions.ts`, `src/lib/platform-finance-entry-contract.ts`, `src/components/v3/portal/PaymentsView.tsx` |
 | Локализация | `src/lib/i18n.ts`, `src/lib/i18n-data.ts` и текущие прямые строки portal-компонентов |
-| Release | `.github/workflows/evo-platform-ci.yml`, `.github/workflows/evo-fast-release.yml`, `scripts/evo-fast-release.sh`, `scripts/fast-release-ledger-gate.mjs` |
+| Release | `.github/workflows/evo-platform-ci.yml`, `.github/workflows/evo-fast-release.yml`, `scripts/release/evo-fast-release.sh`, `scripts/release/fast-release-ledger-gate.mjs` |
 
 ## 4. Структура продукта
 

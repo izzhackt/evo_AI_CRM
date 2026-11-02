@@ -3,7 +3,7 @@
 `evo-whatsapp-health.service` and `.timer` run
 `docker exec evo-crm-app-1 node /app/whatsapp-health-maintenance.mjs` five
 minutes after the previous run ended (a oneshot unit never overlaps itself).
-The job is built from `scripts/whatsapp-health-maintenance.mjs` into the app
+The job is built from `scripts/maintenance/whatsapp-health-maintenance.mjs` into the app
 image; migration 321 holds its state. Runbook:
 `docs/runbooks/whatsapp-go-live.md`, section «Тревога об отключении и тишине».
 

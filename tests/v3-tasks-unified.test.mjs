@@ -23,7 +23,7 @@ const notificationsSource = source("src/lib/v3/staff-notification-source.ts");
 const sql = source("supabase/migrations/188_platform_staff_notifications_v2.sql");
 
 test("migration 188 is present (186/187 belong to parallel slices; merge order closes the gap)", () => {
-  // Not scripts/fast-release-ledger-gate.mjs's expectedMigrationVersions()
+  // Not scripts/release/fast-release-ledger-gate.mjs's expectedMigrationVersions()
   // here deliberately: that helper requires an unbroken 001..N run, and this
   // worktree genuinely has no 186_* file (the S2 task instructions name this
   // gap explicitly: "if a 186 block does not exist in this worktree, model

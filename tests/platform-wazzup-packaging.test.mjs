@@ -24,7 +24,7 @@ const NEW_FILES = [
   "src/lib/server/platform-wazzup-maintenance.ts",
   "src/lib/server/platform-wazzup-ops.ts",
   "src/app/api/v2/whatsapp/wazzup/inbound/route.ts",
-  "scripts/wazzup-ops.mjs",
+  "scripts/maintenance/wazzup-ops.mjs",
   "docs/runbooks/wazzup-whatsapp.md",
 ];
 
@@ -43,8 +43,8 @@ async function bundleBoth() {
   const directory = mkdtempSync(join(tmpdir(), "wazzup-bundles-"));
   const timer = join(directory, "whatsapp-health-maintenance.mjs");
   const ops = join(directory, "wazzup-ops.mjs");
-  await build({ ...BUNDLE_OPTIONS, entryPoints: ["scripts/whatsapp-health-maintenance.mjs"], outfile: timer });
-  await build({ ...BUNDLE_OPTIONS, entryPoints: ["scripts/wazzup-ops.mjs"], outfile: ops });
+  await build({ ...BUNDLE_OPTIONS, entryPoints: ["scripts/maintenance/whatsapp-health-maintenance.mjs"], outfile: timer });
+  await build({ ...BUNDLE_OPTIONS, entryPoints: ["scripts/maintenance/wazzup-ops.mjs"], outfile: ops });
   return { directory, timer, ops };
 }
 
@@ -57,12 +57,12 @@ test("the image carries /app/wazzup-ops.mjs and the build produces it next to th
   assert.match(dockerfile, /^COPY --from=builder --chown=nextjs:nodejs --chmod=0555 \/app\/\.next\/whatsapp-health-maintenance\.mjs \.\/whatsapp-health-maintenance\.mjs$/mu);
   const pkg = JSON.parse(read("package.json"));
   // The Wazzup bundle is built by the existing health-maintenance builder, so the pinned order of the build chain holds.
-  assert.equal(pkg.scripts["build:whatsapp-health-maintenance"], "node scripts/build-whatsapp-health-maintenance.mjs");
+  assert.equal(pkg.scripts["build:whatsapp-health-maintenance"], "node scripts/maintenance/build-whatsapp-health-maintenance.mjs");
   assert.match(pkg.scripts.build, /npm run build:telephony-maintenance && npm run build:whatsapp-health-maintenance && npm run build:ai-agents-maintenance$/u);
-  const builder = read("scripts/build-whatsapp-health-maintenance.mjs");
-  assert.match(builder, /entryPoints: \["scripts\/whatsapp-health-maintenance\.mjs"\]/u);
+  const builder = read("scripts/maintenance/build-whatsapp-health-maintenance.mjs");
+  assert.match(builder, /entryPoints: \["scripts\/maintenance\/whatsapp-health-maintenance\.mjs"\]/u);
   assert.match(builder, /outfile: "\.next\/whatsapp-health-maintenance\.mjs"/u);
-  assert.match(builder, /entryPoints: \["scripts\/wazzup-ops\.mjs"\]/u);
+  assert.match(builder, /entryPoints: \["scripts\/maintenance\/wazzup-ops\.mjs"\]/u);
   assert.match(builder, /outfile: "\.next\/wazzup-ops\.mjs"/u);
   assert.equal((builder.match(/conditions: \["react-server"\]/gu) ?? []).length, 2);
   for (const file of NEW_FILES) assert.ok(existsSync(join(root, file)), file);
@@ -155,7 +155,7 @@ test("the ops script and the timer script never log a value they handle: no cons
     assert.ok(!/\bdebugger\b/u.test(code));
     assert.ok(!/process\.argv/u.test(code), `${file}: arguments are read only by the entry script`);
   }
-  assert.match(read("scripts/wazzup-ops.mjs"), /runWazzupOps\(process\.argv\.slice\(2\)\)/u);
+  assert.match(read("scripts/maintenance/wazzup-ops.mjs"), /runWazzupOps\(process\.argv\.slice\(2\)\)/u);
 });
 
 test("the edge handler: public path on crm. only, 1 MiB, overwritten address header, the hold during a release, and the token redacted in the access log", () => {
@@ -189,10 +189,10 @@ test("the edge handler: public path on crm. only, 1 MiB, overwritten address hea
 });
 
 // ---------------------------------------------------------------- the edge, on the pinned Caddy image
-// Same image and offline discipline as scripts/test-p7b-caddy-runtime.sh: the digest is read from that script, the image is never
+// Same image and offline discipline as scripts/test-runners/test-p7b-caddy-runtime.sh: the digest is read from that script, the image is never
 // pulled here, and the test is skipped (visibly) when Docker or the image is not on this machine. The real Caddyfile is adapted
 // as is; the live run changes only the site address (plain HTTP on 8080) and the upstream (a stub inside the same container).
-const CADDY_IMAGE = /readonly CADDY_IMAGE="(caddy@sha256:[0-9a-f]{64})"/u.exec(read("scripts/test-p7b-caddy-runtime.sh"))?.[1] ?? "";
+const CADDY_IMAGE = /readonly CADDY_IMAGE="(caddy@sha256:[0-9a-f]{64})"/u.exec(read("scripts/test-runners/test-p7b-caddy-runtime.sh"))?.[1] ?? "";
 const WEBSITE_HEADER_EXAMPLE = join(root, "deploy/edge/website-intake-header.caddy.example");
 const EDGE_FILE = join(root, "deploy/edge/Caddyfile.evo-edge");
 
@@ -349,7 +349,7 @@ test("the runbook carries the rules an operator needs: the key on stdin only, co
     "openelsewhere",
     "Sidecar",
     // the contract and the example env come from the release SHA (envcheck against a stale pre-Wazzup contract passes a conflicting env)
-    "git show \"$SHA:scripts/evo-app-env-contract.mjs\"",
+    "git show \"$SHA:scripts/release/evo-app-env-contract.mjs\"",
     "git show \"$SHA:deploy/env.production.example\"",
     "EVO_SUPABASE_PROJECT_REF",
     "app_env_snapshot_seal_failed",

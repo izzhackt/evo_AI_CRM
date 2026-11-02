@@ -519,7 +519,7 @@ test("nothing in the job's sources logs a value: the only console use is the ent
   ]) {
     assert.ok(!/console\./u.test(read(path)), path);
   }
-  const entry = read("scripts/whatsapp-health-maintenance.mjs");
+  const entry = read("scripts/maintenance/whatsapp-health-maintenance.mjs");
   assert.equal((entry.match(/console\./gu) ?? []).length, 3);
   assert.match(entry, /console\.log\(JSON\.stringify\(report\.log\)\)/u);
   assert.match(entry, /console\.error\("whatsapp_health_maintenance_failed"\)/u);

@@ -4,18 +4,30 @@ import test from "node:test";
 import {
   classifyNameStatus,
   parseNameStatus,
-} from "../scripts/classify-pr-changes.mjs";
+} from "../scripts/checks/classify-pr-changes.mjs";
 
 const nul = (...fields) => Buffer.from(`${fields.join("\0")}\0`, "utf8");
 
 test("D4 native template runtime and server adapter remain code, not ordinary documentation", () => {
   for (const path of ["scripts/document-source/launcher.c", "scripts/university-template/inspect.mjs",
     "scripts/university-template/build.mjs", "scripts/university-template/test-harness.mjs",
-    "scripts/run-university-template-runtime-tests.mjs", "src/lib/server/university-template-preflight.ts", "Dockerfile"]) {
+    "scripts/test-runners/run-university-template-runtime-tests.mjs", "src/lib/server/university-template-preflight.ts", "Dockerfile"]) {
     const result = classifyNameStatus(nul("M", path));
     assert.equal(result.code, true, path); assert.equal(result.unknown, false, path);
     assert.equal(result.ordinary_docs, false, path); assert.equal(result.lint, true, path);
   }
+});
+
+test("Playwright configs under config/playwright and the root default config are known code", () => {
+  for (const path of ["playwright.config.ts", "config/playwright/accessibility.config.ts",
+    "config/playwright/supabase-staff-auth.config.ts", "scripts/release/evo-fast-release.sh",
+    "scripts/checks/classify-pr-changes.mjs"]) {
+    const result = classifyNameStatus(nul("M", path));
+    assert.equal(result.code, true, path); assert.equal(result.unknown, false, path);
+    assert.equal(result.ordinary_docs, false, path); assert.equal(result.lint, true, path);
+  }
+  // A new top-level Playwright config is no longer a recognised location.
+  assert.equal(classifyNameStatus(nul("A", "playwright.extra.config.ts")).unknown, true);
 });
 
 test("name-status parser handles safe NUL-delimited changes and renames", () => {
@@ -39,7 +51,9 @@ test("ordinary prose documentation skips contract and code checks", () => {
     "A",
     "docs/evidence/browser-proof.png",
     "A",
-    "presentations/release-overview.pptx",
+    "docs/presentations/release-overview.pptx",
+    "A",
+    "docs/specs/issues/example.specs.md",
   ));
   assert.equal(result.ordinary_docs, true);
   assert.equal(result.contracts, false);
@@ -90,7 +104,7 @@ test("the exact onboarding proof receipt is documentary without accepting arbitr
 });
 
 test("onboarding evidence preserves the union of application, migration, contract and proof-script checks", () => {
-  const script = "scripts/prove-public-student-onboarding-local.mjs";
+  const script = "scripts/local-dev/prove-public-student-onboarding-local.mjs";
   const scriptOnly = classifyNameStatus(nul("A", script));
   assert.equal(scriptOnly.unknown, false);
   assert.equal(scriptOnly.code, true);
@@ -322,4 +336,15 @@ test("portal content drafts under docs/design/portal/content are ordinary docs",
   ]) {
     assert.equal(classifyNameStatus(nul("A", path)).unknown, true, path);
   }
+});
+
+test("accepts moving retired root configs and folders out, but not editing them in place", () => {
+  const moved = classifyNameStatus(nul(
+    "R100", "playwright.accessibility.config.ts", "config/playwright/accessibility.config.ts",
+    "R100", "presentations/README.md", "docs/presentations/README.md",
+    "R100", "specs/issues/1.specs.md", "docs/specs/issues/1.specs.md",
+  ));
+  assert.equal(moved.unknown, false);
+  assert.equal(classifyNameStatus(nul("M", "playwright.accessibility.config.ts")).unknown, true);
+  assert.equal(classifyNameStatus(nul("A", "presentations/new.md")).unknown, true);
 });

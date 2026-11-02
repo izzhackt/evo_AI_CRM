@@ -44,7 +44,7 @@ test("generated local Auth rejects external delivery, providers and non-loopback
 });
 
 test("both harnesses use generated workdir for every CLI lifecycle call and onboard after app startup", () => {
-  for (const name of ["test-postgres-v2-foundation.sh", "verify-platform-provider-acceptance.sh"]) {
+  for (const name of ["test-runners/test-postgres-v2-foundation.sh", "checks/verify-platform-provider-acceptance.sh"]) {
     const harness = readFileSync(new URL(`../scripts/${name}`, import.meta.url), "utf8");
     for (const command of harness.split("\n").filter((line) => /npx --no-install supabase (?:--workdir|start|stop|status|db)/u.test(line))) {
       assert.match(command, /supabase --workdir "\$supabase_workdir"/u);
@@ -58,7 +58,7 @@ test("both harnesses use generated workdir for every CLI lifecycle call and onbo
 });
 
 test("employee provisioner uses published scoped invitations, not the revoked pilot path", () => {
-  const provisioner = readFileSync(new URL("../scripts/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
+  const provisioner = readFileSync(new URL("../scripts/local-dev/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
   assert.match(provisioner, /prepareScopedStaffInvitations/u);
   assert.match(provisioner, /acceptScopedStaffInvitations/u);
   assert.match(provisioner, /staff_access_snapshot/u);
@@ -70,7 +70,7 @@ test("employee provisioner uses published scoped invitations, not the revoked pi
 });
 
 test("onboarding subset proves real mail acceptance before returning, without provider or Storage suites", () => {
-  const harness = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+  const harness = readFileSync(new URL("../scripts/test-runners/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
   const subset = harness.slice(harness.indexOf('if [[ "$staff_onboarding_only" == "1" ]]'));
   const branch = subset.slice(0, subset.indexOf("\nfi"));
   assert.match(branch, /start_app configured unavailable blocked provider-not-authorized disabled/u);
@@ -83,7 +83,7 @@ test("onboarding subset proves real mail acceptance before returning, without pr
   assert.match(branch, /LOCAL_SCOPED_STAFF_ONBOARDING_VERIFIED/u);
   assert.match(branch, /exit 0/u);
   assert.doesNotMatch(branch, /start_clamav_scanner|start_isolated_waha_service|provision_local_staff_and_fixtures|verify_p4/u);
-  const provisioner = readFileSync(new URL("../scripts/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
+  const provisioner = readFileSync(new URL("../scripts/local-dev/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
   const afterAcceptance = provisioner.slice(provisioner.indexOf("accepted = await acceptScopedStaffInvitations"));
   assert.match(afterAcceptance, /phase === "onboarding-proof"[\s\S]*?LOCAL_SUPABASE_STAFF_ONBOARDING_VERIFIED[\s\S]*?return;/u);
 });
@@ -95,7 +95,7 @@ test("CLI lifecycle receives the same physical workdir as the strict gateway own
     const alias = join(fixture, "alias"); symlinkSync(physical, alias, "dir");
     const supplied = `${alias}//`;
     const expected = realpathSync(supplied);
-    for (const name of ["test-postgres-v2-foundation.sh", "verify-platform-provider-acceptance.sh"]) {
+    for (const name of ["test-runners/test-postgres-v2-foundation.sh", "checks/verify-platform-provider-acceptance.sh"]) {
       const harness = readFileSync(new URL(`../scripts/${name}`, import.meta.url), "utf8");
       const normalization = harness.split("\n").find((line) => line.startsWith('supabase_workdir="$(cd -- "$supabase_workdir" && pwd -P)"'));
       assert.ok(normalization, `${name} must canonicalize before handing ownership to the CLI`);
@@ -110,7 +110,7 @@ test("CLI lifecycle receives the same physical workdir as the strict gateway own
 });
 
 test("failure diagnostics emit only literal error categories and query-free main timings", () => {
-  const harness = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+  const harness = readFileSync(new URL("../scripts/test-runners/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
   const diagnostic = harness.match(/"\$node_bin" - "\$app_log" <<'NODE'\n([\s\S]*?)\nNODE/u)?.[1];
   assert.ok(diagnostic);
   const fixture = mkdtempSync(join(tmpdir(), "evo-staff-log-categories-"));

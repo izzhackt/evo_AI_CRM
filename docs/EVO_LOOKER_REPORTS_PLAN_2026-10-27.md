@@ -122,7 +122,7 @@ Windsor.ai, доступ к рекламному кабинету Meta и выд
 - защита от повторного применения в начале: если функция `platform.organization_report_link_v1(uuid,text)` уже есть — `RAISE EXCEPTION 'aNNN_already_applied' USING ERRCODE = '55000'` (образец — `322:47-48`), плюс проверка, что нужные помощники (`staff_can_access`, `current_actor_authority`, `p7a_safe_audit_actions`) на месте;
 - `BEGIN; … COMMIT;` одной транзакцией;
 - расширение списка безопасных действий журнала переименованием с объединением с **уникальным суффиксом** `p7a_safe_audit_actions_pre_report_links` (образец `291:209-231`): параллельные миграции пакета тоже могут переименовывать эту функцию, одинаковые суффиксы столкнутся;
-- SQL-набор `supabase/tests/platform_report_links.sql` с маркером `ANNN_REPORT_LINKS_SUITE_PASSED` и хук в `scripts/test-postgres-authorization.sh` по имени `*_platform_report_links.sql`: повторное применение должно упасть именно на `aNNN_already_applied`, затем набор должен дойти до маркера (образец — хук 321, `:4624-4652`).
+- SQL-набор `supabase/tests/platform_report_links.sql` с маркером `ANNN_REPORT_LINKS_SUITE_PASSED` и хук в `scripts/test-runners/test-postgres-authorization.sh` по имени `*_platform_report_links.sql`: повторное применение должно упасть именно на `aNNN_already_applied`, затем набор должен дойти до маркера (образец — хук 321, `:4624-4652`).
 
 **Таблица** `platform_private.organization_report_links`:
 
@@ -388,7 +388,7 @@ UI — по дизайн-контракту CRM (`DESIGN.md`, общие `Card`,
 |---|---|
 | `supabase/migrations/NNN_platform_report_links.sql` | защита `aNNN_already_applied`, таблица, 2 RPC, действие журнала (переименование `…_pre_report_links`) |
 | `supabase/tests/platform_report_links.sql` | SQL-набор с маркером `ANNN_REPORT_LINKS_SUITE_PASSED` |
-| `scripts/test-postgres-authorization.sh` | хук по имени `*_platform_report_links.sql`: второе применение падает на `aNNN_already_applied`, затем набор до маркера (образец `:4624-4652`) |
+| `scripts/test-runners/test-postgres-authorization.sh` | хук по имени `*_platform_report_links.sql`: второе применение падает на `aNNN_already_applied`, затем набор до маркера (образец `:4624-4652`) |
 | `src/lib/looker-report-link.ts` | разбор ввода и построители адресов |
 | `src/lib/v3/report-links-source.ts` | server-only чтение и правка ссылки; `readFinanceSectionAccess(actor)` для меню |
 | `src/app/(v3)/layout.tsx`, `src/components/v3/AppShell.tsx`, `src/lib/v3/navigation.ts` | точная проверка пункта «Финансы» (§6.2), комментарий у `SECTIONS` |

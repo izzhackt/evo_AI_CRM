@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = new URL("../", import.meta.url);
-const verifierPath = new URL("../scripts/verify-supabase-history.mjs", import.meta.url);
+const verifierPath = new URL("../scripts/checks/verify-supabase-history.mjs", import.meta.url);
 const supabaseConfigPath = new URL("../supabase/config.toml", import.meta.url);
 
 const SOURCE = Object.freeze({

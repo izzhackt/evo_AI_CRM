@@ -482,7 +482,7 @@ test("the single wording module maps every Student status exposed by E2", () => 
     ["intake", "приём дела"],
     ["profile_and_route", "выбор программы"],
     ["documents", "сбор документов"],
-    ["applications", "подача через партнёра"],
+    ["applications", "подача заявок в университеты"],
     ["decisions", "решения университетов"],
     ["visa_and_predeparture", "виза и подготовка к отъезду"],
     ["arrival_and_adaptation", "поездка и прибытие"],

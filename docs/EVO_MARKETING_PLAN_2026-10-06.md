@@ -303,7 +303,7 @@ stdin или файл с правами 0600, который удаляется 
 Search Console. Флаги `EVO_MARKETING_SYNC_ENABLED` и
 `EVO_MARKETING_{IG,META_ADS,GA4,GSC}_ENABLED` добавляются в
 `validateFeatureFlags` и проверку обязательной конфигурации
-`scripts/evo-app-env-contract.mjs` с тестом; на VPS они ставятся до выпуска,
+`scripts/release/evo-app-env-contract.mjs` с тестом; на VPS они ставятся до выпуска,
 который добавляет их в `deploy/env.production.example`.
 
 ## 8. Сайт (репозиторий `evoadmissions-website`, отдельные PR)

@@ -250,7 +250,7 @@ test("329: the staff sees that a student has no cabinet and the agent gets an ho
     assert.match(prompt, /`student_has_portal: false`/u, agent);
     assert.match(prompt, /`no_student_portal`/u, agent);
   }
-  const script = fileOf("scripts/test-postgres-authorization.sh");
+  const script = fileOf("scripts/test-runners/test-postgres-authorization.sh");
   assert.match(fileOf("supabase/tests/platform_student_without_portal_signals.sql"), /ROLLBACK;\s*$/u);
   assert.ok(script.indexOf("A329_STUDENT_WITHOUT_PORTAL_SUITE_PASSED") > 0 && script.indexOf("A329_STUDENT_WITHOUT_PORTAL_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
   assert.match(script, /a329_already_applied/u);

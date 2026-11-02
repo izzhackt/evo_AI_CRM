@@ -45,6 +45,7 @@ export function StudentPortalAccessControls({
   organizationId,
   studentCaseId,
   email,
+  emailConfirmed = false,
   displayName,
   caseState,
   isCabinetCase,
@@ -56,6 +57,8 @@ export function StudentPortalAccessControls({
   organizationId: string;
   studentCaseId: string;
   email: string | null;
+  /** Адрес из одобренной анкеты студента. Без неё он из карточки клиента, и его никто не подтверждал. */
+  emailConfirmed?: boolean;
   displayName: string;
   caseState: "pending" | "active" | "closed";
   /** Unified workflow S8: source_key-derived (184's lead-cabinet origin), NOT caseState — a legacy pending case and a cabinet-pending case share caseState==='pending'. */
@@ -98,6 +101,8 @@ export function StudentPortalAccessControls({
     state?.status === "reconciliationRequired" &&
     "receiptId" in state &&
     Boolean(state.attemptId && state.inviteKind);
+  // Приглашение уже выдано: оно живёт со своим адресом, и «уйдёт на» больше не про него.
+  const inviteOpen = state === null || ["invalid", "unavailable", "inviteFailed", "forbidden"].includes(state.status);
   const forbiddenCopy = cabinetPending
     ? "Управлять доступом может Admin или менеджер продаж с доступом к лиду."
     : "Управлять доступом может только Admin.";
@@ -187,6 +192,12 @@ export function StudentPortalAccessControls({
             />
           </label>
         </details>
+        {email !== null && caseState !== "closed" && inviteOpen ? (
+          <p className="md:col-span-2" data-testid="student-portal-invite-email">
+            Приглашение уйдёт на: <span className="break-all font-medium text-fg">{email}</span>
+            {emailConfirmed ? null : <span className="block">Почта из карточки клиента — проверьте.</span>}
+          </p>
+        ) : null}
         <button className={`${buttonCls} w-fit justify-self-start`} type="submit" disabled={!canPrepare || pending}>
           {pending ? "Проверяем…" : "Проверить и подготовить доступ"}
         </button>

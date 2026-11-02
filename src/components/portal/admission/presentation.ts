@@ -172,6 +172,17 @@ export type PortalNotificationTarget = Readonly<{ href: string; label: string }>
  * or new category prefix falls through to the overview rather than a dead
  * end (`/portal/applications` itself now only redirects there too).
  */
+export function portalNotificationText(
+  notification: Pick<StudentPortalNotification, "eventCode" | "subjectLabel" | "detail">,
+  strings: AdmissionStrings,
+): Readonly<{ title: string; detail: string | null }> {
+  // Сообщение команды: текст хранится по-русски, на экран он идёт на языке студента.
+  if (notification.eventCode === "case_chat_message") {
+    return { title: strings.caseChatNotificationTitle, detail: strings.caseChatNotificationDetail };
+  }
+  return { title: notification.subjectLabel, detail: notification.detail };
+}
+
 export function portalNotificationTarget(
   notification: Pick<StudentPortalNotification, "notificationId" | "category" | "eventCode">,
   strings: AdmissionStrings,
@@ -187,6 +198,9 @@ export function portalNotificationTarget(
       href: `/portal/notifications/${notification.notificationId}`,
       label: strings.targetReply,
     };
+  }
+  if (notification.eventCode === "case_chat_message") {
+    return { href: "/portal/messages", label: strings.targetMessages };
   }
   if (notification.category.startsWith("document")) {
     return { href: "/portal/documents", label: strings.targetDocuments };

@@ -35,6 +35,7 @@ import { LeadSaleConditions } from "./LeadSaleConditions";
 import { LeadStepDrawer } from "./LeadStepDrawer";
 import { HandoffResponseSummary, HandoffStripBlock, StripLine } from "./ProfileSalesTransition";
 import { StudentPortalAccessControls } from "./StudentPortalAccessCard";
+import { inviteEmailConfirmed } from "@/lib/v3/portal-invite-email";
 import { PlatformAccessCard } from "./tabs";
 import {
   LEAD_GATE_ANCHOR,
@@ -627,6 +628,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
         organizationId={actor.organizationId}
         studentCaseId={draft.admissions.studentCaseId}
         email={profile.email}
+        emailConfirmed={inviteEmailConfirmed(profile.email, draft.studentApplication)}
         displayName={profile.person}
         caseState={draft.admissions.caseState}
         isCabinetCase={draft.admissions.isCabinetCase}
@@ -642,6 +644,7 @@ export function leadWorkParts(input: LeadWorkPartsInput): Readonly<{ header: Rea
         organizationId={actor.organizationId}
         studentCaseId={draft.leadCabinetCase.studentCaseId}
         email={profile.email}
+        emailConfirmed={inviteEmailConfirmed(profile.email, draft.studentApplication)}
         displayName={profile.person}
         caseState="pending"
         isCabinetCase

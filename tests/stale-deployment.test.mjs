@@ -640,6 +640,13 @@ test("pages without a compared section ask only for the bell, and moving between
   }
 });
 
+/** The real read-marking hook, bound to the thread's runtime and actions. */
+function markReadHook(shared, actions) {
+  return compile("src/components/portal/messages/useMarkCaseChatRead.ts", (id) => shared(id) ?? ({
+    "@/lib/portal/messages-actions": actions,
+  })[id]);
+}
+
 function messagesThread(runtime, shared, actions) {
   return compile("src/components/portal/messages/MessagesThread.tsx", (id) => shared(id) ?? lightPollBoundary()[id] ?? ({
     "@/lib/portal/messages": {
@@ -648,10 +655,59 @@ function messagesThread(runtime, shared, actions) {
     },
     "@/lib/portal/messages-actions": actions,
     "@/lib/portal/i18n": portalI18n,
+    "./useMarkCaseChatRead": markReadHook(shared, actions),
   })[id]);
 }
 
 const THREAD = { messages: [], awaitState: "needs_reply", hasMore: false, cursor: null };
+const threadMessage = (sequenceId) => ({
+  id: `m${sequenceId}`, sequenceId, mine: false, authorName: "Куратор", body: "Текст", createdAt: "2026-11-02T10:00:00.000Z",
+  attachmentKind: null, attachmentLabel: null, quotedBodyPreview: null,
+});
+
+test("the shown chat clears the message notification; a hidden tab waits, a failed attempt repeats", async () => {
+  const browser = fakeBrowser();
+  const restore = browser.install();
+  const runtime = createRuntime();
+  try {
+    const { shared } = await staleModules(runtime);
+    const marked = [];
+    let answer = { ok: true };
+    let page = { ...THREAD, messages: [threadMessage("5")] };
+    const { MessagesThread } = messagesThread(runtime, shared, {
+      loadPortalCaseMessagesAction: async () => ({ ok: true, page }),
+      sendPortalCaseMessageAction: async () => ({ ok: true }),
+      markPortalCaseChatReadAction: async (sequenceId) => { marked.push(sequenceId); return answer; },
+    });
+    runtime.render(MessagesThread, { initialPage: page, strings: portalI18n.getPortalStrings("messages", "ru"), locale: "ru", draftScope: "m1:c1" });
+    await runtime.flush();
+    assert.deepEqual(marked, ["5"], "opening the chat clears it up to the newest shown message");
+
+    browser.document.visibilityState = "hidden";
+    page = { ...THREAD, messages: [threadMessage("6")] };
+    browser.window.dispatchEvent({ type: "evo:portal-messages-changed" });
+    await runtime.flush();
+    assert.deepEqual(marked, ["5"], "a message that arrives in a hidden tab is not read yet");
+
+    answer = { ok: false };
+    browser.document.visibilityState = "visible";
+    browser.dispatch("document", "visibilitychange");
+    await runtime.flush();
+    assert.deepEqual(marked, ["5", "6"], "coming back reads it");
+
+    answer = { ok: true };
+    browser.dispatch("document", "visibilitychange");
+    await runtime.flush();
+    assert.deepEqual(marked, ["5", "6", "6"], "a failed attempt repeats on the next return");
+
+    browser.dispatch("document", "visibilitychange");
+    await runtime.flush();
+    assert.deepEqual(marked, ["5", "6", "6"], "a confirmed position is not sent twice");
+  } finally {
+    runtime.unmount();
+    restore();
+  }
+});
 
 test("the portal case chat stops polling on a stale action and keeps the student's draft", async () => {
   const browser = fakeBrowser();
@@ -785,6 +841,7 @@ test("the student's draft survives «Обновить страницу» on a st
     "@/lib/portal/messages": { PORTAL_CASE_MESSAGE_BODY_LIMIT: 2000, mergePortalCaseMessages: (existing, incoming) => [...existing, ...incoming] },
     "@/lib/portal/messages-actions": { loadPortalCaseMessagesAction: async () => ({ ok: true, page: THREAD }), sendPortalCaseMessageAction: send },
     "@/lib/portal/i18n": portalI18n,
+    "./useMarkCaseChatRead": markReadHook(shared, { markPortalCaseChatReadAction: async () => ({ ok: true }) }),
   })[id], { sessionStorage: storage }).MessagesThread;
   const runtimes = [];
   try {

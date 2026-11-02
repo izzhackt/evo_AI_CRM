@@ -417,21 +417,16 @@ test("role scoping: each role reads only its own sources, on the real 173 role t
   assert.deepEqual(todayAccess(actor({ systemRole: "admin", presentationRole: "admissions" })).sources, ["tasks", "students", "handoffs", "chats"]);
 });
 
-test("header boards and the empty-day action follow the role's sources, not lead.read alone", () => {
+test("the empty-day action follows the role's sources, not lead.read alone; the header carries no board links", () => {
   const linksOf = (fields, canReadReport = false) => {
     const who = actor(fields);
     return todayLinks(who, todayAccess(who), { canReadReport });
   };
-  const SALES_BOARD = { label: "Воронка продаж", short: "Продажи", href: "/v3/pipeline" };
-  const ADMISSIONS_BOARD = { label: "Воронка поступления", short: "Поступление", href: "/v3/admissions-pipeline" };
-  // Настоящая Admissions (lead.read по 173): её доска и «Открыть студентов», без воронки продаж.
-  assert.deepEqual(linksOf({ permissionKeys: ADMISSIONS }), { boards: [ADMISSIONS_BOARD], mainAction: { label: "Открыть студентов", href: "/v3/profile" } });
-  assert.deepEqual(linksOf({ permissionKeys: SALES }, true), { boards: [SALES_BOARD], mainAction: { label: "Открыть воронку продаж", href: "/v3/pipeline" } });
-  assert.deepEqual(linksOf({ systemRole: "admin" }, true).boards, [SALES_BOARD, ADMISSIONS_BOARD]);
-  assert.deepEqual(linksOf({ systemRole: "admin", presentationRole: "admissions" }).boards, [ADMISSIONS_BOARD]);
-  assert.deepEqual(linksOf({ systemRole: "admin", presentationRole: "sales" }, true).boards, [SALES_BOARD]);
-  assert.deepEqual(linksOf({ permissionKeys: ["sales.register.read"] }, true), { boards: [], mainAction: { label: "Открыть отчёт продаж", href: "/v3/main?view=sales" } });
-  assert.deepEqual(linksOf({ permissionKeys: ["lead.read"] }), { boards: [], mainAction: null });
+  // Настоящая Admissions (lead.read по 173): «Открыть студентов», без воронки продаж.
+  assert.deepEqual(linksOf({ permissionKeys: ADMISSIONS }), { mainAction: { label: "Открыть студентов", href: "/v3/profile" } });
+  assert.deepEqual(linksOf({ permissionKeys: SALES }, true), { mainAction: { label: "Открыть воронку продаж", href: "/v3/pipeline" } });
+  assert.deepEqual(linksOf({ permissionKeys: ["sales.register.read"] }, true), { mainAction: { label: "Открыть отчёт продаж", href: "/v3/main?view=sales" } });
+  assert.deepEqual(linksOf({ permissionKeys: ["lead.read"] }), { mainAction: null });
 });
 
 test("«Отчёт продаж» stays reachable for lead readers without the report: menu item and a report of the section", () => {
@@ -550,8 +545,8 @@ test("static render: the page root, the dated heading and one queue for Admin", 
   const headers = [...html.matchAll(/<h2 id="today-band-[a-z_]+"[^>]*>(.*?)<\/h2>/gu)].map((match) => text(match[1]).trim());
   assert.deepEqual(headers, ["Просрочено · 5", "Сегодня · сб 26.09 · 4", "Ждут вас", "Без следующего шага · 2", "Ближайшие 14 дней · 4"]);
   assert.match(html, /<\/h2><p class="[^"]*t-meta[^"]*">Числа нет: часть переписок могла получить ответ\.<\/p>/u);
-  // Две доски: на телефоне короткие имена в строке заголовка, шире — полные; видимое слово и есть имя ссылки.
-  assert.match(html, /aria-label="Доски"[\s\S]*href="\/v3\/pipeline"[^>]*><span class="sm:hidden">Продажи<\/span><span class="hidden sm:inline">Воронка продаж<\/span><\/a>[\s\S]*href="\/v3\/admissions-pipeline"[^>]*><span class="sm:hidden">Поступление<\/span><span class="hidden sm:inline">Воронка поступления<\/span><\/a>/u);
+  // Воронки открываются из бокового меню: в шапке «Сегодня» их нет (решение владельца 30.10).
+  assert.doesNotMatch(html, /aria-label="Доски"|Воронка продаж|Воронка поступления/u);
   // Красный — у просроченного срока, не у причины: причина всегда обычным текстом.
   const reasons = [...html.matchAll(/<span class="([^"]*)" data-today-reason="">([^<]*)<\/span>/gu)];
   assert.ok(reasons.length >= 10);
@@ -585,7 +580,6 @@ test("static render: admissions and sales see only their own sources (real 173 t
   // Куратор рендера — с правами шаблона Admissions, включая lead.read: лидов, заявок и воронки продаж нет.
   const admissions = surfaces.get("admissions");
   assert.doesNotMatch(admissions, /data-today-source="(?:leads|requests)"|Воронка продаж|Открыть воронку продаж/u);
-  assert.match(admissions, /aria-label="Доски"[^>]*><a [^>]*href="\/v3\/admissions-pipeline"[^>]*>Воронка поступления<\/a><\/nav>/u);
   assert.match(admissions, /data-today-source="chats"/u);
   assert.match(admissions, /Принять дело/u);
   assert.doesNotMatch(admissions, /Назначить куратора/u, "no curator assignment without case.curator.assign");

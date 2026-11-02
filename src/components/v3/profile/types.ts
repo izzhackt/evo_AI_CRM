@@ -136,6 +136,8 @@ export type PersonProfile = Readonly<{
   leadId: string | null;
   person: string;
   email: string | null;
+  /** Почта клиента для приглашения в кабинет, когда `email` пуст: дело без открытого лида. Контактом не показывается. */
+  portalInviteEmail?: string | null;
   phone: string | null;
   student: boolean;
   stage: string | null;

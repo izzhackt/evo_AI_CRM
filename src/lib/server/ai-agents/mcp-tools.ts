@@ -283,6 +283,7 @@ const ERROR_MESSAGES: Readonly<Record<AiAgentToolErrorCode, string>> = {
   unavailable: "Сервис временно недоступен: повторите позже.",
   internal_error: "Внутренняя ошибка: повторите позже или сообщите сотруднику.",
   ai_consent_missing: "Студент не дал согласия на ИИ-помощников: его документы и переписку агент не читает.",
+  no_student_portal: "У студента нет кабинета: он не увидит сообщение, оно не сохранено. Поставьте куратору задачу связаться со студентом.",
 };
 
 const ERROR_CODE_SET: ReadonlySet<string> = new Set(AI_AGENT_TOOL_ERROR_CODES);

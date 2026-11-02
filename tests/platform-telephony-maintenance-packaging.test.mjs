@@ -41,7 +41,7 @@ test("the image carries the bundle at /app/telephony-maintenance.mjs and the bui
     /^COPY --from=builder --chown=nextjs:nodejs --chmod=0555 \/app\/\.next\/telephony-maintenance\.mjs \.\/telephony-maintenance\.mjs$/mu,
   );
   const pkg = JSON.parse(read("package.json"));
-  assert.equal(pkg.scripts["build:telephony-maintenance"], "node scripts/build-telephony-maintenance.mjs");
+  assert.equal(pkg.scripts["build:telephony-maintenance"], "node scripts/maintenance/build-telephony-maintenance.mjs");
   assert.match(pkg.scripts.build, /npm run build:telephony-maintenance( |$)/u);
   for (const file of [
     "tests/platform-telephony-pbx-config.test.mjs",
@@ -51,8 +51,8 @@ test("the image carries the bundle at /app/telephony-maintenance.mjs and the bui
   ]) {
     assert.ok(pkg.scripts["test:unit:core"].includes(file), `${file} is part of test:unit:core`);
   }
-  const builder = read("scripts/build-telephony-maintenance.mjs");
-  assert.match(builder, /entryPoints: \["scripts\/telephony-maintenance\.mjs"\]/u);
+  const builder = read("scripts/maintenance/build-telephony-maintenance.mjs");
+  assert.match(builder, /entryPoints: \["scripts\/maintenance\/telephony-maintenance\.mjs"\]/u);
   assert.match(builder, /outfile: "\.next\/telephony-maintenance\.mjs"/u);
   assert.match(builder, /conditions: \["react-server"\]/u);
 });
@@ -63,7 +63,7 @@ test("the bundle builds, is self-contained and, with the switch off, prints one 
     const outfile = join(directory, "telephony-maintenance.mjs");
     await build({
       absWorkingDir: root,
-      entryPoints: ["scripts/telephony-maintenance.mjs"],
+      entryPoints: ["scripts/maintenance/telephony-maintenance.mjs"],
       outfile,
       bundle: true,
       platform: "node",
@@ -118,7 +118,7 @@ test("nothing in the T4a sources logs a value: the only console use is the entry
   ]) {
     assert.ok(!/console\./u.test(read(path)), path);
   }
-  const entry = read("scripts/telephony-maintenance.mjs");
+  const entry = read("scripts/maintenance/telephony-maintenance.mjs");
   assert.equal((entry.match(/console\./gu) ?? []).length, 2);
   assert.match(entry, /console\.log\(JSON\.stringify\(report\.log\)\)/u);
   assert.match(entry, /console\.error\("telephony_maintenance_failed"\)/u);

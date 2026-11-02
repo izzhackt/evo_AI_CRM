@@ -39,7 +39,7 @@ Repo/product artifacts:
 - `src/lib/whatsapp.ts`
 - `src/lib/amocrm.ts`
 - `src/app/api/webhooks/telephony/route.ts`
-- `scripts/audit-public-promises.mjs`
+- `scripts/checks/audit-public-promises.mjs`
 - `scripts/scenarios/admissions-crm.mjs`
 
 ## Promise Register

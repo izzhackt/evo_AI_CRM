@@ -8,8 +8,8 @@ import {
   matchSupabaseTarget,
   SELFHOSTED_SUPABASE_ORIGIN,
 } from "../scripts/lib/evo-supabase-target.mjs";
-import { loadEnvironment as loadWahaBindingEnvironment } from "../scripts/waha-runtime-binding.mjs";
-import { loadEnvironment as loadWahaHistoryEnvironment } from "../scripts/waha-history-import.mjs";
+import { loadEnvironment as loadWahaBindingEnvironment } from "../scripts/maintenance/waha-runtime-binding.mjs";
+import { loadEnvironment as loadWahaHistoryEnvironment } from "../scripts/import/waha-history-import.mjs";
 import {
   loadPlatformObservabilityConfig,
   PlatformObservabilityConfigurationError,

@@ -16,7 +16,7 @@ import { createHash, createHmac } from "node:crypto";
  *
  * Без секрета (или с секретом короче 32 знаков) функция выключена: окно ИИ
  * честно говорит «не подключён», а CRM выпускается как обычно — имя в
- * контракте env необязательное (`scripts/evo-app-env-contract.mjs`).
+ * контракте env необязательное (`scripts/release/evo-app-env-contract.mjs`).
  */
 export const AI_AGENT_DEFAULT_URL = "http://evo-ai-agent:8080";
 export const AI_AGENT_TIMESTAMP_HEADER = "X-EVO-AI-Timestamp";

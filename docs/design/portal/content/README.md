@@ -18,8 +18,8 @@
 Используйте Node 22 репозитория:
 
 ```bash
-node scripts/generate-portal-learning-seed.mjs --check
-node --test scripts/test-portal-learning-content.mjs
+node scripts/import/generate-portal-learning-seed.mjs --check
+node --test scripts/test-runners/test-portal-learning-content.mjs
 ```
 
 Генератор по умолчанию печатает детерминированный SQL; `--write` механически

@@ -11,7 +11,7 @@ import { templateAcceptanceAppSpec, verifyTemplateAcceptanceContainer,
   templateAcceptanceSecretInput, createTemplateAcceptanceProxy, TEMPLATE_PROOF_CHECKS,
   createTemplateAcceptanceTls, validTemplateAcceptanceTls, createTemplateAcceptanceHttpsServer,
   validateTemplatePendingReceipt, TEMPLATE_APPLICATION_BOOTSTRAP } from "../scripts/lib/university-template-ingress-acceptance.mjs";
-import { classifyChangedEntries } from "../scripts/classify-pr-changes.mjs";
+import { classifyChangedEntries } from "../scripts/checks/classify-pr-changes.mjs";
 import { TEMPLATE_MAPPING_CHECKS, TEMPLATE_PDF_MAPPING_CHECKS } from "../scripts/lib/university-template-mapping-evidence.mjs";
 import { assertUnknownTemplateOutcome, assertExactTemplateReplay } from "../scripts/lib/university-template-ingress-browser-proof.mjs";
 import { normalizeUniversityTemplateIngressReceipt, normalizeUniversityTemplateInspectionMetadata } from "../src/lib/university-template-ingress.ts";
@@ -152,18 +152,18 @@ test("the exact serialized application bootstrap parses without executing or sta
 test("harness source stays classified as tests and tooling, not an unknown or managed operation", () => {
   const result = classifyChangedEntries(["scripts/lib/university-template-ingress-acceptance.mjs",
     "scripts/lib/university-template-ingress-browser-proof.mjs", "tests/university-template-ingress-acceptance.test.mjs",
-    "scripts/test-postgres-v2-foundation.sh"].map(path => ({ status: "A", paths: [path] })));
+    "scripts/test-runners/test-postgres-v2-foundation.sh"].map(path => ({ status: "A", paths: [path] })));
   assert.equal(result.unknown, false);
 });
 
 test("bounded foundation mode refuses missing images before acquiring a lock or starting a stack", () => {
   const env = { ...process.env, EVO_NODE_BIN: process.execPath, EVO_D3_COMBINED_IMAGE: "", EVO_D3_ACCEPTANCE_IMAGE: "",
     EVO_PLATFORM_GEMINI_API_KEY: "", GEMINI_API_KEY: "" };
-  const result = spawnSync("bash", ["scripts/test-postgres-v2-foundation.sh", "--university-template-ingress-only"], {
+  const result = spawnSync("bash", ["scripts/test-runners/test-postgres-v2-foundation.sh", "--university-template-ingress-only"], {
     cwd: new URL("..", import.meta.url), env, encoding: "utf8", timeout: 10_000,
   });
   assert.equal(result.status, 1); assert.match(result.stderr, /no foundation stack was started/u);
-  const script = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../scripts/test-runners/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
   assert.ok(script.indexOf("--image-gate") < script.indexOf('if ! mkdir "$supabase_lock_dir"'));
   const branch = script.slice(script.lastIndexOf('if [[ "$university_template_ingress_only" == "1" ]]'));
   assert.match(branch, /start_clamav_scanner\n  university_template_ingress_browser_assert\n  exit 0/u);

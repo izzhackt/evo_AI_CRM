@@ -27,7 +27,7 @@
 ```
 npm run build
 EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node \
-  bash scripts/test-postgres-v2-foundation.sh
+  bash scripts/test-runners/test-postgres-v2-foundation.sh
 ```
 
 Переменные, которые читает прогон:

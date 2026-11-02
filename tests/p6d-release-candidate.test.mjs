@@ -10,9 +10,9 @@ const activeReleaseFiles = [
   ".github/workflows/evo-fast-pr-checks.yml",
   ".github/workflows/evo-fast-release.yml",
   "package.json",
-  "scripts/evo-fast-release.sh",
-  "scripts/fast-release-ci-gate.mjs",
-  "scripts/validate-runtime-hardening.mjs",
+  "scripts/release/evo-fast-release.sh",
+  "scripts/release/fast-release-ci-gate.mjs",
+  "scripts/checks/validate-runtime-hardening.mjs",
   "deploy/README.md",
   "deploy/production-release.md",
   "deploy/runtime-hardening.md",
@@ -47,7 +47,7 @@ test("the active package exposes one P6D proof and no P8 release entrypoint", as
   const packageJson = JSON.parse(await read("package.json"));
   assert.equal(
     packageJson.scripts["test:p6d:orbstack"],
-    "EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node EVO_P6D_CANDIDATE_PROOF=1 bash scripts/test-postgres-v2-foundation.sh",
+    "EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node EVO_P6D_CANDIDATE_PROOF=1 bash scripts/test-runners/test-postgres-v2-foundation.sh",
   );
   assert.match(packageJson.scripts["test:p6d"], /p6d-release-candidate\.test\.mjs/u);
   assert.deepEqual(
@@ -60,7 +60,7 @@ test("the active package exposes one P6D proof and no P8 release entrypoint", as
 test("CI and the exact-SHA gate require only the current root successor", async () => {
   const workflow = await read(".github/workflows/evo-platform-ci.yml");
   const fastPr = await read(".github/workflows/evo-fast-pr-checks.yml");
-  const gate = await read("scripts/fast-release-ci-gate.mjs");
+  const gate = await read("scripts/release/fast-release-ci-gate.mjs");
   assert.match(workflow, /^  workflow_dispatch:$/mu);
   assert.match(workflow, /proof_revision:\n        description: Exact current main commit SHA to prove\./u);
   assert.doesNotMatch(workflow, /^  pull_request:|^  push:/mu);
@@ -73,9 +73,9 @@ test("CI and the exact-SHA gate require only the current root successor", async 
   assert.match(workflow, /git\/ref\/heads\/main/u);
   assert.match(workflow, /^  crm:\n    name: Main CRM$/mu);
   assert.match(workflow, /^  crm:\n    name: Main CRM\n    needs: main_admission\n    runs-on: ubuntu-latest\n    timeout-minutes: 5$/mu);
-  assert.match(workflow, /bash -n scripts\/evo-fast-release\.sh/u);
-  assert.match(workflow, /node --check scripts\/evo-production-browser-smoke\.mjs/u);
-  assert.match(workflow, /node --check scripts\/fast-release-ledger-gate\.mjs/u);
+  assert.match(workflow, /bash -n scripts\/release\/evo-fast-release\.sh/u);
+  assert.match(workflow, /node --check scripts\/release\/evo-production-browser-smoke\.mjs/u);
+  assert.match(workflow, /node --check scripts\/release\/fast-release-ledger-gate\.mjs/u);
   assert.match(workflow, /name: Check scoped release source contracts\n        run: >-\n          node --test/u);
   assert.match(workflow, /--test-name-pattern='\^\(CI and the exact-SHA gate require only the current root successor\|active platform CI executes only the root successor product\|workflow binds exact green main to one runner-built immutable release\)\$'/u);
   assert.match(workflow, /tests\/p6d-release-candidate\.test\.mjs\n          tests\/fast-release-control\.test\.mjs/u);
@@ -90,7 +90,7 @@ test("CI and the exact-SHA gate require only the current root successor", async 
   assert.match(fastPr, /git diff --check origin\/main\.\.\.HEAD/u);
   assert.match(fastPr, /format_base_sha=\$\(git merge-base "\$BASE_SHA" "\$HEAD_SHA"\)/u);
   assert.match(fastPr, /format_head_sha=\$\(git rev-parse "\$HEAD_SHA"\)/u);
-  assert.match(fastPr, /node scripts\/classify-pr-changes\.mjs --base "\$format_base_sha" --head "\$format_head_sha" --github-output "\$GITHUB_OUTPUT"/u);
+  assert.match(fastPr, /node scripts\/checks\/classify-pr-changes\.mjs --base "\$format_base_sha" --head "\$format_head_sha" --github-output "\$GITHUB_OUTPUT"/u);
   for (const output of ["has_changes", "ordinary_docs", "contracts", "migration_boundary", "code", "lint", "build", "unknown"]) {
     assert.match(fastPr, new RegExp(`${output}: \\$\\{\\{ steps\\.classify\\.outputs\\.${output} \\}\\}`, "u"));
   }
@@ -121,8 +121,8 @@ test("CI and the exact-SHA gate require only the current root successor", async 
 });
 
 test("P6D proof accepts only process-provided real local Supabase authority", async () => {
-  const harness = await read("scripts/test-p6d-release-candidate-orbstack.mjs");
-  const foundation = await read("scripts/test-postgres-v2-foundation.sh");
+  const harness = await read("scripts/test-runners/test-p6d-release-candidate-orbstack.mjs");
+  const foundation = await read("scripts/test-runners/test-postgres-v2-foundation.sh");
   assert.match(foundation, /node_bin="\$\{EVO_NODE_BIN:-\}"/u);
   assert.match(foundation, /node_bin="\$\(command -v node \|\| true\)"/u);
   assert.match(

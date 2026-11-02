@@ -161,7 +161,7 @@ test("the template warning speaks to the viewer: who adds it, or what the Admin 
 test("the sheet: a summary in rows, rare work behind «⋯», the release-gate testid on the visible sheet", () => {
   const admin = pages.get("admin-same-currency");
   const money = sheet(admin);
-  // Проверка выпуска (scripts/evo-production-browser-smoke.mjs) ждёт видимым именно этот элемент с id дела.
+  // Проверка выпуска (scripts/release/evo-production-browser-smoke.mjs) ждёт видимым именно этот элемент с id дела.
   assert.match(money, /^<section[^>]*data-case-money=""[^>]*data-testid="v3-profile-contract-workspace" data-student-case-id="cccccccc-2222-4222-8222-000000000001"/u);
   assert.equal((admin.match(/data-testid="v3-profile-contract-workspace"/gu) ?? []).length, 1);
   const shown = visible(money);

@@ -186,18 +186,18 @@ test("P6C runtime configuration fails closed on Supabase without local database 
 });
 
 test("P6C database and provider harnesses use only the canonical Supabase database", () => {
-  const foundationHarness = source("scripts/test-postgres-v2-foundation.sh");
+  const foundationHarness = source("scripts/test-runners/test-postgres-v2-foundation.sh");
   const providerHarness = source(
-    "scripts/verify-platform-provider-acceptance.sh",
+    "scripts/checks/verify-platform-provider-acceptance.sh",
   );
-  const nodeRuntimeCheck = source("scripts/check-node-runtime.mjs");
+  const nodeRuntimeCheck = source("scripts/checks/check-node-runtime.mjs");
 
   assert.match(foundationHarness, /SUPABASE_DB_URL/u);
   assert.match(foundationHarness, /supabase --workdir "\$supabase_workdir" db reset --local/u);
   assert.match(foundationHarness, /rm -f -- "\$supabase_lock_pid_file"/u);
   assert.doesNotMatch(
     foundationHarness,
-    /"\$repo_root\/scripts\/test-postgres-authorization\.sh"/u,
+    /"\$repo_root\/scripts\/test-runners\/test-postgres-authorization\.sh"/u,
   );
   assert.match(
     foundationHarness,
@@ -235,7 +235,7 @@ test("P6C foundation harness reports an unrecoverable stale lock without startin
     mkdirSync(lockDirectory);
     writeFileSync(blockingEntry, "preserve the non-empty lock");
 
-    const result = spawnSync("bash", ["scripts/test-postgres-v2-foundation.sh"], {
+    const result = spawnSync("bash", ["scripts/test-runners/test-postgres-v2-foundation.sh"], {
       cwd: fileURLToPath(repoRoot),
       encoding: "utf8",
       env: {

@@ -110,7 +110,7 @@ SOPS-архиве «Секреты и доступы ЭВО», никогда в
 | `EVO_AI_AGENT_SEND_SECRET` | P4 | то же значение | то же значение | агент не вызывает маршрут отправки; живое решение ставит автоответчик на паузу (`server_switch_off`) |
 | `EVO_AI_AGENT_AUTOSEND` | P4 | `0` | `0` | как `0`: маршрут `/api/internal/ai-agent/send` отвечает 503 без вызова БД и WhatsApp |
 
-Контракт `.env.production` (`scripts/evo-app-env-contract.mjs`): все четыре имени
+Контракт `.env.production` (`scripts/release/evo-app-env-contract.mjs`): все четыре имени
 необязательны, выпуск без них проходит; `EVO_AI_AGENT_AUTOSEND` принимает только
 пусто, `0` или `1`, а `1` без `EVO_AI_AGENT_INTERNAL_SECRET` и
 `EVO_AI_AGENT_SEND_SECRET` останавливает выпуск. Controller проверяет у

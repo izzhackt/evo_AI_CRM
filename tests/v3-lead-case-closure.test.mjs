@@ -4,7 +4,7 @@
 // (статические рендеры tests/e2e/*-static-render.cjs с синтетикой). Права,
 // версии и состояния решает SQL — их доказывает набор
 // supabase/tests/platform_lead_case_closure.sql (контрольная точка 246 в
-// scripts/test-postgres-authorization.sh), а не этот файл.
+// scripts/test-runners/test-postgres-authorization.sh), а не этот файл.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -29,7 +29,7 @@ import { caseCloseOpenTasks, caseCloseOutcome, closureOutcome, closureWords, lea
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const migration = read("supabase/migrations/246_platform_lead_case_closure.sql");
 const suite = read("supabase/tests/platform_lead_case_closure.sql");
-const script = read("scripts/test-postgres-authorization.sh");
+const script = read("scripts/test-runners/test-postgres-authorization.sh");
 const harness = (name) => new Map(JSON.parse(execFileSync(
   process.execPath,
   [fileURLToPath(new URL(`./e2e/${name}-static-render.cjs`, import.meta.url)), "--json"],

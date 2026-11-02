@@ -105,12 +105,12 @@ test("conditions-missing UX: a distinct status routes the create form back to th
 // Э8.6 (253, owner decisions 28.09): «Оплачено в валюте договора» as columns, row v2, read v4, manage v2 and
 // «Менеджеры в отчёте». The real-Postgres proof is supabase/tests/platform_sales_register_v4.sql at its checkpoint.
 test("migration 253 continues the contiguous source ledger and runs its real-Postgres suite at its checkpoint", async () => {
-  const { expectedMigrationVersions } = await import("../scripts/fast-release-ledger-gate.mjs");
+  const { expectedMigrationVersions } = await import("../scripts/release/fast-release-ledger-gate.mjs");
   const { fileURLToPath } = await import("node:url");
   // 252 is Э8.5's migration (merged first); the ledger stays contiguous only with both.
   const versions = expectedMigrationVersions(fileURLToPath(new URL("../supabase/migrations", import.meta.url)));
   assert.ok(versions.includes("252") && versions.includes("253"));
-  const script = readFileSync(new URL("../scripts/test-postgres-authorization.sh", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../scripts/test-runners/test-postgres-authorization.sh", import.meta.url), "utf8");
   assert.match(script, /== 253_\* \]\]; then\s+docker exec "\$container_name" \\\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\s+-f \/workspace\/supabase\/tests\/platform_sales_register_v4\.sql/u);
   const suite = readFileSync(new URL("../supabase/tests/platform_sales_register_v4.sql", import.meta.url), "utf8");
   assert.match(suite, /^BEGIN;$/mu);
@@ -148,11 +148,11 @@ test("migration 253 adds columns outside `fields`, new versions only, and keeps 
 // просто связать»). The real-Postgres proof is
 // supabase/tests/platform_sales_record_lead_link.sql at its checkpoint.
 test("migration 254 continues the contiguous source ledger and runs its real-Postgres suite at its checkpoint", async () => {
-  const { expectedMigrationVersions } = await import("../scripts/fast-release-ledger-gate.mjs");
+  const { expectedMigrationVersions } = await import("../scripts/release/fast-release-ledger-gate.mjs");
   const { fileURLToPath } = await import("node:url");
   const versions = expectedMigrationVersions(fileURLToPath(new URL("../supabase/migrations", import.meta.url)));
   assert.ok(versions.includes("253") && versions.includes("254"));
-  const script = readFileSync(new URL("../scripts/test-postgres-authorization.sh", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../scripts/test-runners/test-postgres-authorization.sh", import.meta.url), "utf8");
   assert.match(script, /== 254_\* \]\]; then\s+docker exec "\$container_name" \\\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\s+-f \/workspace\/supabase\/tests\/platform_sales_record_lead_link\.sql/u);
   const suite = readFileSync(new URL("../supabase/tests/platform_sales_record_lead_link.sql", import.meta.url), "utf8");
   assert.match(suite, /^BEGIN;$/mu);
@@ -198,7 +198,7 @@ test("migration 254 adds a plain lead link outside `lead_id`, never a pipeline s
 // absent: an `expectedMigrationVersions` contiguity assertion — 255–257 belong to
 // other PRs that merge first, and the older ledger tests above already own that proof.
 test("migration 258 patches the released sale command by one verified anchor and runs its real-Postgres suite at its checkpoint", () => {
-  const script = readFileSync(new URL("../scripts/test-postgres-authorization.sh", import.meta.url), "utf8");
+  const script = readFileSync(new URL("../scripts/test-runners/test-postgres-authorization.sh", import.meta.url), "utf8");
   assert.match(script, /== 258_\* \]\]; then\s+docker exec "\$container_name" \\\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\s+-f \/workspace\/supabase\/tests\/platform_pending_case_handoff\.sql/u);
   const suite = readFileSync(new URL("../supabase/tests/platform_pending_case_handoff.sql", import.meta.url), "utf8");
   assert.match(suite, /^BEGIN;$/mu);

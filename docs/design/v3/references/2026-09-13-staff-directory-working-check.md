@@ -35,7 +35,7 @@ rows and healthy original container were rechecked.
 
 Local evidence: `/tmp/evo-staff-s1-fixture.lIqdIF/README.md`, schema/forward/test
 logs, `post-test-verification.log` and `cleanup-proof.log`. These logs stay
-outside Git. `bash -n scripts/test-postgres-authorization.sh` and
+outside Git. `bash -n scripts/test-runners/test-postgres-authorization.sh` and
 `git diff --check` passed. The runner now executes only the added suite after154.
 
 | Input | SHA-256 |

@@ -1154,7 +1154,7 @@ KB только папку «ИИ-ассистент» и маршрутизац
 эталоны eval, которые подтверждает владелец. Ориентиры по срезам:
 
 1. Миграции: схема, роль, права (§5.5), очередь, цены, RPC, SQL-тесты в
-   `scripts/test-postgres-authorization.sh` — ≈ 1 неделя.
+   `scripts/test-runners/test-postgres-authorization.sh` — ≈ 1 неделя.
 2. Приватный репозиторий, CI, образ в GHCR, digest агента в release
    controller и compose, откат — ≈ 1 неделя.
 3. Агент: каркас api и worker, хранение на RPC EVO, клиент Gemini, журнал

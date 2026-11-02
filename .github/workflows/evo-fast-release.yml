@@ -245,8 +245,8 @@ jobs:
           archive_sha256=$(sha256sum "$archive" | awk '{print $1}')
           archive_bytes=$(wc -c < "$archive" | tr -d '[:space:]')
           compose_sha256=$(sha256sum docker-compose.prod.yml | awk '{print $1}')
-          controller_sha256=$(sha256sum scripts/evo-fast-release.sh | awk '{print $1}')
-          validator_sha256=$(sha256sum scripts/evo-app-env-contract.mjs | awk '{print $1}')
+          controller_sha256=$(sha256sum scripts/release/evo-fast-release.sh | awk '{print $1}')
+          validator_sha256=$(sha256sum scripts/release/evo-app-env-contract.mjs | awk '{print $1}')
           env_example_sha256=$(sha256sum deploy/env.production.example | awk '{print $1}')
           [[ "$archive_sha256" =~ ^[0-9a-f]{64}$ ]]
           [[ "$archive_bytes" =~ ^[1-9][0-9]*$ ]]
@@ -595,8 +595,8 @@ jobs:
           [[ "$(sha256sum "$archive" | awk '{print $1}')" == "$(jq -r '.archiveSha256' "$manifest")" ]]
           [[ "$(wc -c < "$archive" | tr -d '[:space:]')" == "$(jq -r '.archiveBytes' "$manifest")" ]]
           [[ "$(sha256sum docker-compose.prod.yml | awk '{print $1}')" == "$(jq -r '.composeSha256' "$manifest")" ]]
-          [[ "$(sha256sum scripts/evo-fast-release.sh | awk '{print $1}')" == "$(jq -r '.controllerSha256' "$manifest")" ]]
-          [[ "$(sha256sum scripts/evo-app-env-contract.mjs | awk '{print $1}')" == "$(jq -r '.validatorSha256' "$manifest")" ]]
+          [[ "$(sha256sum scripts/release/evo-fast-release.sh | awk '{print $1}')" == "$(jq -r '.controllerSha256' "$manifest")" ]]
+          [[ "$(sha256sum scripts/release/evo-app-env-contract.mjs | awk '{print $1}')" == "$(jq -r '.validatorSha256' "$manifest")" ]]
           [[ "$(sha256sum deploy/env.production.example | awk '{print $1}')" == "$(jq -r '.envExampleSha256' "$manifest")" ]]
           [[ "$EVO_ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
           [[ "$EVO_ARTIFACT_DIGEST" =~ ^[0-9a-f]{64}$ ]]
@@ -705,7 +705,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -Eeuo pipefail
-          node scripts/fast-release-ledger-gate.mjs > /tmp/evo-production-ledger-initial.json
+          node scripts/release/fast-release-ledger-gate.mjs > /tmp/evo-production-ledger-initial.json
           jq -e '.ok == true' /tmp/evo-production-ledger-initial.json >/dev/null
 
       - name: Final live GitHub mutation guard
@@ -832,7 +832,7 @@ jobs:
           EVO_RELEASE_REPO: ${{ github.workspace }}
         run: |
           set -Eeuo pipefail
-          node scripts/fast-release-ledger-gate.mjs > /tmp/evo-production-ledger-live.json
+          node scripts/release/fast-release-ledger-gate.mjs > /tmp/evo-production-ledger-live.json
           jq -e '.ok == true' /tmp/evo-production-ledger-live.json >/dev/null
 
       - name: Transfer exact release allowlist
@@ -863,9 +863,9 @@ jobs:
             "evo-production:$transfer_dir/evo-production-release-image.json"
           scp docker-compose.prod.yml \
             "evo-production:$transfer_dir/docker-compose.prod.yml"
-          scp scripts/evo-fast-release.sh \
+          scp scripts/release/evo-fast-release.sh \
             "evo-production:$transfer_dir/evo-fast-release.sh"
-          scp scripts/evo-app-env-contract.mjs \
+          scp scripts/release/evo-app-env-contract.mjs \
             "evo-production:$transfer_dir/evo-app-env-contract.mjs"
           scp deploy/env.production.example \
             "evo-production:$transfer_dir/env.production.example"
@@ -1069,7 +1069,7 @@ jobs:
           EVO_RELEASE_ARTIFACT_DIGEST: sha256:${{ needs.build.outputs.artifact_digest }}
         run: |
           set -Eeuo pipefail
-          node scripts/evo-production-browser-smoke.mjs
+          node scripts/release/evo-production-browser-smoke.mjs
           [[ -f /tmp/evo-v3-browser-receipt.json && ! -L /tmp/evo-v3-browser-receipt.json ]]
           [[ "$(stat -c '%a' /tmp/evo-v3-browser-receipt.json)" == 600 ]]
 
@@ -1226,7 +1226,7 @@ jobs:
           EVO_RELEASE_REPO: ${{ github.workspace }}
         run: |
           set -Eeuo pipefail
-          node scripts/fast-release-ledger-gate.mjs > /tmp/evo-production-ledger-accept.json
+          node scripts/release/fast-release-ledger-gate.mjs > /tmp/evo-production-ledger-accept.json
           jq -e '.ok == true' /tmp/evo-production-ledger-accept.json >/dev/null
 
       - name: Accept exact V3 candidate

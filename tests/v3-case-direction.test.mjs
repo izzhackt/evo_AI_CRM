@@ -1,6 +1,6 @@
 // «Задать направление» делу студента (миграция 292): разбор ответа команды, слова, вход
 // действия и разметка «Сведений» дела. Дополняет, а не заменяет граничный набор на настоящем
-// Postgres supabase/tests/platform_case_direction.sql (scripts/test-postgres-authorization.sh):
+// Postgres supabase/tests/platform_case_direction.sql (scripts/test-runners/test-postgres-authorization.sh):
 // право, версию, регламент, повтор и журнал решает SQL.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
@@ -173,7 +173,7 @@ test("«Сведения»: Admin and the head see «Задать направл
 });
 
 test("the migration and the suite are wired together", () => {
-  const script = source("scripts/test-postgres-authorization.sh");
+  const script = source("scripts/test-runners/test-postgres-authorization.sh");
   assert.ok(script.includes("*_platform_case_direction.sql"));
   assert.ok(script.includes("/workspace/supabase/tests/platform_case_direction.sql"));
   const suite = source("supabase/tests/platform_case_direction.sql");

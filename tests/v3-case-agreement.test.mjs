@@ -2,7 +2,7 @@
 // SQL pins are pattern-matched against the migration file, same style as
 // tests/platform-lead-sale-conditions-migration.test.mjs (no database
 // execution in this environment). Deliberately does NOT call
-// expectedMigrationVersions()/scripts/fast-release-ledger-gate.mjs: this
+// expectedMigrationVersions()/scripts/release/fast-release-ledger-gate.mjs: this
 // worktree is intentionally missing 186/187 (parallel slices, merge order
 // guarantees contiguity — see the migration's own header comment), so that
 // helper throws "migration source ledger is not contiguous" here by design

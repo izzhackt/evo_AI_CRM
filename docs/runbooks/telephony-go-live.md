@@ -180,7 +180,7 @@ envcheck() {       # контракт env: файлы контракта и пр
 openssl rand -hex 32 | tr -d '\n' | pbcopy
 # локально: положить контракт и пример env из SHA выпущенного main на VPS (один раз)
 SHA=<полный SHA выпущенного main>
-git show "$SHA:scripts/evo-app-env-contract.mjs" | ssh hermes-vps 'install -d -m 700 /root/evo-golive && cat > /root/evo-golive/evo-app-env-contract.mjs'
+git show "$SHA:scripts/release/evo-app-env-contract.mjs" | ssh hermes-vps 'install -d -m 700 /root/evo-golive && cat > /root/evo-golive/evo-app-env-contract.mjs'
 git show "$SHA:deploy/env.production.example"    | ssh hermes-vps 'cat > /root/evo-golive/env.production.example'
 gh variable get EVO_SUPABASE_PROJECT_REF --repo izzhackt/evo_AI_CRM   # не секрет; это значение — REF на VPS
 # после вставки ключа на VPS и в SOPS очистить буфер: printf '' | pbcopy
@@ -500,8 +500,8 @@ FROM platform_private.telephony_calls WHERE started_at > now() - interval '1 day
   записи «Телефония T1a … T11a» (особенно T3 — приём и env, T4a — таймер, сверка и
   импорт, T4b — «Настройки → Телефония», T6 — записи, T7 — набор, T8 — автоматика).
 - Код: `src/lib/server/platform-telephony-ingress.ts` (маршрут приёма и журнал),
-  `…-pbx-config.ts`, `…-maintenance.ts`, `scripts/telephony-maintenance.mjs`,
-  `scripts/evo-app-env-contract.mjs`, `deploy/env.production.example`,
+  `…-pbx-config.ts`, `…-maintenance.ts`, `scripts/maintenance/telephony-maintenance.mjs`,
+  `scripts/release/evo-app-env-contract.mjs`, `deploy/env.production.example`,
   `deploy/telephony/`, `src/lib/v3/telephony-settings.ts` и `telephony-health.ts`.
 - Соседние runbook: `docs/runbooks/whatsapp-go-live.md` (выпуск, env, edge C5),
   `docs/runbooks/account-deletion.md` (стирание телефонии), `deploy/fast-app-release.md`.

@@ -44,8 +44,8 @@
 | Узел | `cloud` (по умолчанию) | `selfhosted` |
 |---|---|---|
 | `evo-fast-release.yml`: проверка ledger (три шага) | Management API (`SUPABASE_ACCESS_TOKEN`) | SSH тем же доступом, что выпуск: `docker exec -i evo-supabase-db psql … select version from supabase_migrations.schema_migrations` |
-| `evo-schema-ledger.yml`, `check` и `apply` | Management API, `supabase db push --linked` | `scripts/selfhosted-schema-ledger.mjs`: SSH (только с `main`), сухой прогон, затем недостающие файлы по порядку; файл без `begin/commit` и его строка ledger — одна транзакция, у файла со своими `begin/commit` строка ledger вставляется сразу после его `commit` |
-| Проверка env (`scripts/evo-app-env-contract.mjs`) | `NEXT_PUBLIC_SUPABASE_URL` ровно `https://<ref>.supabase.co` | ровно `https://supabase.evoadmissions.com`, без шаблонов |
+| `evo-schema-ledger.yml`, `check` и `apply` | Management API, `supabase db push --linked` | `scripts/release/selfhosted-schema-ledger.mjs`: SSH (только с `main`), сухой прогон, затем недостающие файлы по порядку; файл без `begin/commit` и его строка ledger — одна транзакция, у файла со своими `begin/commit` строка ledger вставляется сразу после его `commit` |
+| Проверка env (`scripts/release/evo-app-env-contract.mjs`) | `NEXT_PUBLIC_SUPABASE_URL` ровно `https://<ref>.supabase.co` | ровно `https://supabase.evoadmissions.com`, без шаблонов |
 | Проверка ключей перед выпуском | `GET <origin>/auth/v1/settings` и `/auth/v1/admin/users?page=1&per_page=1` | те же запросы на `https://supabase.evoadmissions.com` |
 | Манифест образа и контроллер | `supabaseProjectRef` = 20 символов | `supabaseProjectRef` = слово `selfhosted` |
 
@@ -74,7 +74,7 @@ self-hosted в режиме `selfhosted` останавливает выпуск
    не движется до конца выпуска.
 7. Окно объявлено заранее; приложение в окне **не останавливается** (см. шаг 1).
 8. В `/root/contract-check/` на сервере лежат `evo-app-env-contract.mjs` и `env.production.example` из
-   текущего `main` (для `env-switch.sh`): `git show origin/main:scripts/evo-app-env-contract.mjs`,
+   текущего `main` (для `env-switch.sh`): `git show origin/main:scripts/release/evo-app-env-contract.mjs`,
    `git show origin/main:deploy/env.production.example`, режим 0600.
 9. Домен: автопродление `evoadmissions.com` включено, срок 2027-01-24, способа оплаты на аккаунте нет
    (`infrastructure-map.md`, раздел 1) — к окну не относится, но `supabase.evoadmissions.com` живёт на нём.
@@ -346,7 +346,7 @@ self-hosted есть сессии `evo_ai_agent`. 20.10: выполнено, `EV
 10. Журнал приложения без `supabase.co`: `docker logs evo-crm-app-1 2>&1 | grep -c 'supabase\.co'` = 0 [live].
 11. Журнал edge без ключей: `docker logs --since 40m evo-edge-caddy 2>&1 | grep -c -F -f <(printf '%s\n' "$KEY")`
     по каждому из четырёх ключей = 0 (фильтр журнала ошибок — коммит `28ea1c333`).
-12. Скорость: строки `evo_timing` из `docker logs evo-crm-app-1` (в 20.10 `scripts/timing-report.mjs`
+12. Скорость: строки `evo_timing` из `docker logs evo-crm-app-1` (в 20.10 `scripts/maintenance/timing-report.mjs`
     при запуске с `--min-n=1` ничего не печатал — разобрать отдельно; сводку по классам можно получить
     коротким скриптом); тяжёлые экраны («WhatsApp», воронка) открываются 10 из 10.
 13. Облако после дампа не менялось: хеши и счётчики облака (тот же `rowhash.sql`/`counts.sql` через
@@ -421,5 +421,5 @@ self-hosted не стираются, их можно перенести в об�
 
 Источники: `docs/PLAN_CHANGES.md` (записи 19–20.10), `docs/runbooks/infrastructure-map.md`,
 `docs/runbooks/whatsapp-go-live.md`, `docs/runbooks/resend-auth-email.md`, `docs/runbooks/ai-agent-enable.md`,
-`supabase/config.toml`, `deploy/fast-app-release.md`, `scripts/evo-fast-release.sh`, чтение и проверки
+`supabase/config.toml`, `deploy/fast-app-release.md`, `scripts/release/evo-fast-release.sh`, чтение и проверки
 сервера 19–20.10.

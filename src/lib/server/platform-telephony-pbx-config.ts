@@ -5,7 +5,7 @@ import "server-only";
  * (docs/EVO_TELEPHONY_PLAN_2026-10-16.md §5.4 and §5.5, ADR 0033).
  *
  * Three names make one group, «all or nothing», and the release env contract
- * (`scripts/evo-app-env-contract.mjs`, slice T3) already validates their shape:
+ * (`scripts/release/evo-app-env-contract.mjs`, slice T3) already validates their shape:
  *  - EVO_PLATFORM_TELEPHONY_PBX_TOKEN — the cabinet's «Ключ для авторизации в
  *    АТС», sent as the `X-API-KEY` header; a secret;
  *  - EVO_PLATFORM_TELEPHONY_PBX_URL — the https API base, no trailing slash;

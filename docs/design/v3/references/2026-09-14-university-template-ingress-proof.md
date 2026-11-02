@@ -23,7 +23,7 @@ PATH=/opt/homebrew/opt/node@22/bin:$PATH \
 EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node \
 EVO_D3_COMBINED_IMAGE=sha256:69db72cef0e76e9d7c4b22bf9907b52d58a617cfbf3f4c2ca0955b83b77519bc \
 EVO_D3_ACCEPTANCE_IMAGE=sha256:19663c20bdf3114c5eeed04b3eb702eea5e1fb49434d2015b0fc19fed3c9c0eb \
-bash scripts/test-postgres-v2-foundation.sh --university-template-ingress-only
+bash scripts/test-runners/test-postgres-v2-foundation.sh --university-template-ingress-only
 ```
 
 Повтор требует доступности именно этих images или новой проверенной пары;

@@ -9,7 +9,7 @@ import { runInNewContext } from "node:vm";
 import {
   verifyLocalGatewayImageReference,
   verifyLocalGatewayRuntimeIdentity,
-} from "../scripts/configure-local-supabase-gateway.mjs";
+} from "../scripts/local-dev/configure-local-supabase-gateway.mjs";
 
 test("local gateway accepts the pinned CLI's exact official Kong image references", () => {
   for (const image of [
@@ -557,8 +557,8 @@ test("checked-in controller inputs are hash-bound and remote transfer is allowli
   const transfer = namedStep("Transfer exact release allowlist");
   for (const path of [
     "docker-compose.prod.yml",
-    "scripts/evo-fast-release.sh",
-    "scripts/evo-app-env-contract.mjs",
+    "scripts/release/evo-fast-release.sh",
+    "scripts/release/evo-app-env-contract.mjs",
     "deploy/env.production.example",
   ]) assert.match(validate + transfer, new RegExp(path.replaceAll(".", "\\."), "u"));
   for (const field of [
@@ -640,7 +640,7 @@ test("candidate remains pending until authenticated read-only V3 proof and expli
   assert.match(browserStep, /EVO_PRODUCTION_SMOKE_CASE_ID: \$\{\{ secrets\.EVO_PRODUCTION_SMOKE_CASE_ID \}\}/u);
   assert.match(browserStep, /EVO_PRODUCTION_SMOKE_STUDENT_EMAIL: \$\{\{ secrets\.EVO_PRODUCTION_SMOKE_STUDENT_EMAIL \}\}/u);
   assert.match(browserStep, /EVO_PRODUCTION_SMOKE_STUDENT_PASSWORD: \$\{\{ secrets\.EVO_PRODUCTION_SMOKE_STUDENT_PASSWORD \}\}/u);
-  assert.match(browserStep, /scripts\/evo-production-browser-smoke\.mjs/u);
+  assert.match(browserStep, /scripts\/release\/evo-production-browser-smoke\.mjs/u);
   assert.doesNotMatch(browserStep, /ssh|scp|WAHA|WHATSAPP|GEMINI|AMOCRM/u);
   assert.equal((workflow.match(/secrets\.EVO_PRODUCTION_SMOKE_ADMIN_(?:EMAIL|PASSWORD)/gu) ?? []).length, 2);
   assert.equal((workflow.match(/secrets\.EVO_PRODUCTION_SMOKE_STUDENT_(?:EMAIL|PASSWORD)/gu) ?? []).length, 2);
@@ -781,7 +781,7 @@ test("the initial ledger read waits for the pinned SSH trust and still precedes 
   assert.ok(contract < configure && configure < initial && initial < githubMutation);
   const step = namedStep("Read exact Supabase migration ledger");
   assert.doesNotMatch(step, /\bssh\b|\bscp\b|EVO_GITHUB_VARIABLES_READ_TOKEN/u, "the script owns the transport; the step names none");
-  assert.match(step, /node scripts\/fast-release-ledger-gate\.mjs/u);
+  assert.match(step, /node scripts\/release\/fast-release-ledger-gate\.mjs/u);
   // the self-hosted read needs no extra secret: only the deploy trust that the step before it installs
   assert.doesNotMatch(step, /EVO_DEPLOY_SSH_PRIVATE_KEY|EVO_DEPLOY_KNOWN_HOSTS/u);
 });
@@ -813,8 +813,8 @@ test("the schema-ledger workflow selects the database by the same variable and n
     assert.match(schemaStep(name), /if: \$\{\{ env\.EVO_SUPABASE_TARGET == 'selfhosted' \}\}/u);
   }
   assert.match(schemaStep("Apply missing migrations to self-hosted (dry-run first)"), /if: \$\{\{ inputs\.mode == 'apply' && env\.EVO_SUPABASE_TARGET == 'selfhosted' \}\}/u);
-  assert.match(schemaStep("Read self-hosted migration ledger (read-only)"), /node scripts\/selfhosted-schema-ledger\.mjs check/u);
-  assert.match(schemaStep("Apply missing migrations to self-hosted (dry-run first)"), /node scripts\/selfhosted-schema-ledger\.mjs apply/u);
+  assert.match(schemaStep("Read self-hosted migration ledger (read-only)"), /node scripts\/release\/selfhosted-schema-ledger\.mjs check/u);
+  assert.match(schemaStep("Apply missing migrations to self-hosted (dry-run first)"), /node scripts\/release\/selfhosted-schema-ledger\.mjs apply/u);
   // the self-hosted steps carry no Supabase cloud credential and no port forwarding
   for (const name of ["Configure pinned SSH trust (self-hosted)", "Read self-hosted migration ledger (read-only)", "Apply missing migrations to self-hosted (dry-run first)"]) {
     assert.doesNotMatch(schemaStep(name), /SUPABASE_ACCESS_TOKEN|EVO_SUPABASE_PROJECT_REF|api\.supabase\.com/u, name);

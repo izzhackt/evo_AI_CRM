@@ -88,7 +88,7 @@
 ## 2. Переменные окружения
 
 Все имена необязательные: пусто — раздел выключен (`deploy/env.production.example`,
-проверка `scripts/evo-app-env-contract.mjs`).
+проверка `scripts/release/evo-app-env-contract.mjs`).
 
 | Имя | Что это | По умолчанию |
 | --- | --- | --- |
@@ -118,7 +118,7 @@ SHA=$(printf %s "$TOKEN" | shasum -a 256 | cut -d' ' -f1)
 # SQL под service_role на целевой базе (идентификаторы подставить свои):
 #   select platform.ai_agent_runtime_token_set_v1(
 #     '<organization_id>', 'director', '<membership_id администратора>', '<SHA>', 'stage');
-node scripts/ai-agents-mcp-smoke.mjs https://crm.evoadmissions.com/api/mcp/v1 "$TOKEN"
+node scripts/checks/ai-agents-mcp-smoke.mjs https://crm.evoadmissions.com/api/mcp/v1 "$TOKEN"
 ```
 
 Скрипт проходит `initialize` → `tools/list` (24 инструмента) →
@@ -236,7 +236,7 @@ Anthropic. Фоновая сверка пишет строку `{"event":"ai_age
 страницу раздела (ленивая сверка), а запуски расписания читались одной страницей
 из 20. Фоновая сверка делает это сама раз в ~5 минут: это
 `/app/ai-agents-maintenance.mjs` в образе приложения (собирается из
-`scripts/ai-agents-maintenance.mjs`, как задача телефонии). За один проход:
+`scripts/maintenance/ai-agents-maintenance.mjs`, как задача телефонии). За один проход:
 
 1. без `EVO_ANTHROPIC_API_KEY` ничего не делает (строка `status:"disabled"`);
 2. один проход за раз: замок `/tmp/evo-ai-agents-maintenance.lock` в контейнере

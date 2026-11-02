@@ -209,7 +209,7 @@ Admin-only действует на страницу, поиск, API/RPC, про
 | История работы | `src/lib/v3/profile-activity-source.ts`, RPC `staff_student_case_activity`, `src/lib/platform-case-notes.ts` |
 | Шаблоны ответов | `src/lib/v3/reply-snippets-source.ts`, `src/lib/platform-reply-snippets.ts` |
 | Исторический ingestion | `scripts/knowledge_ingestion/README.md`, `prepare.py`, `review.py`, `publish.py`, `client_publish.py`, `build_platform_bundle.py` в этой папке |
-| Отдельный импорт AI bundles | `scripts/import-platform-knowledge-bundle.ts`, `src/lib/server/platform-knowledge-bundle.ts` |
+| Отдельный импорт AI bundles | `scripts/import/import-platform-knowledge-bundle.ts`, `src/lib/server/platform-knowledge-bundle.ts` |
 | Порядок источников | `docs/adr/0029-resolve-knowledge-by-authority-order.md` |
 | Бренд/дизайн | `DESIGN.md`, `src/app/(v3)/v3.css`, `public/brand/evo-logo.png` |
 

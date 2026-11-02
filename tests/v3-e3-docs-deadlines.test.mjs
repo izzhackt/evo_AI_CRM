@@ -39,7 +39,7 @@ import {
  * (`admissions_deadline_page_v1`) и его код в приложении убраны; сама
  * функция базы и её проверка авторизации в обе стороны
  * (supabase/tests/platform_today_university_deadlines.sql на реальном
- * Postgres, scripts/test-postgres-authorization.sh) остаются в базе
+ * Postgres, scripts/test-runners/test-postgres-authorization.sh) остаются в базе
  * неиспользуемыми — тест ниже проверяет только их сохранность. Это не живая
  * проверка Supabase, прав или данных.
  */
@@ -455,7 +455,7 @@ test("EVO Docs: «N из M принято» is a bar only from read checklist nu
 });
 
 test("real-Postgres suite: the deadline read's authorization both ways runs on the latest chain", () => {
-  const script = read("scripts/test-postgres-authorization.sh");
+  const script = read("scripts/test-runners/test-postgres-authorization.sh");
   const suite = read("supabase/tests/platform_today_university_deadlines.sql");
   const loopEnd = script.indexOf("find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort\n)");
   const run = script.indexOf("-f /workspace/supabase/tests/platform_today_university_deadlines.sql");

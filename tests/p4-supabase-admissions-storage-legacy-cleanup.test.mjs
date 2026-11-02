@@ -12,7 +12,7 @@ function source(relativePath) {
 
 test("P4 SQL acceptance checks the filenames actually uploaded by its browser producer", () => {
   const browser = source("tests/e2e/supabase-staff-auth.spec.ts");
-  const verifier = source("scripts/test-postgres-v2-foundation.sh");
+  const verifier = source("scripts/test-runners/test-postgres-v2-foundation.sh");
 
   // Э8.1: the file is chosen through one helper that uploads on choice; the
   // proof document's first two uploads are its versions 1 and 2.
@@ -101,7 +101,7 @@ test("P4 package and environment contracts no longer carry local-file dependenci
   assert.equal(dependencyNames.has("@types/busboy"), false);
 
   assert.doesNotMatch(source(".env.example"), /EVO_PRIVATE_DOCUMENT_ROOT/);
-  assert.doesNotMatch(source("scripts/evo-app-env-contract.mjs"), /EVO_PRIVATE_DOCUMENT_ROOT/);
+  assert.doesNotMatch(source("scripts/release/evo-app-env-contract.mjs"), /EVO_PRIVATE_DOCUMENT_ROOT/);
 });
 
 test("P4 private Storage is non-public, non-overwriting and fails closed", () => {
@@ -127,7 +127,7 @@ test("P4 private Storage is non-public, non-overwriting and fails closed", () =>
 });
 
 test("#551 runs one pinned private scanner in the canonical real foundation gate", () => {
-  const harness = source("scripts/test-postgres-v2-foundation.sh");
+  const harness = source("scripts/test-runners/test-postgres-v2-foundation.sh");
   const historicalP2h = source("docs/platform/p2h-private-document-storage.md");
   const scannerInvocation = harness.lastIndexOf("\nstart_clamav_scanner\n");
   const configuredAppStart = harness.lastIndexOf(

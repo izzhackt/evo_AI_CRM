@@ -593,3 +593,26 @@ test("the document add region stays open for an emptied checklist: no toggle, so
   assert.match(client, /hidden=\{!\(addOpen \|\| checklistEmpty\)\}/u);
   assert.match(client, /canChangeChecklist && !checklistEmpty \? \(\s*<button/u);
 });
+
+test("328 pins the 068 review wrapper by md5 and only adds the shortcut for a case without a portal", async () => {
+  const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  const { createHash } = await import("node:crypto");
+  const source068 = fileOf("supabase/migrations/068_platform_student_portal_notifications.sql");
+  const source328 = fileOf("supabase/migrations/328_platform_document_review_without_portal.sql");
+  const start = source068.indexOf("platform.review_document_version_with_portal_notification_v1(");
+  const from = source068.indexOf("AS $$", start) + "AS $$".length;
+  const body068 = source068.slice(from, source068.indexOf("$$;", from));
+  assert.equal(createHash("md5").update(body068, "utf8").digest("hex"), source328.match(/IS DISTINCT FROM '([0-9a-f]{32})'/u)?.[1], "the anchor is the 068 text");
+  const from328 = source328.indexOf("AS $$", source328.indexOf("CREATE OR REPLACE FUNCTION")) + "AS $$".length;
+  const body328 = source328.slice(from328, source328.indexOf("$$;", from328));
+  const added = body328.slice(body328.indexOf("  -- 328:"), body328.indexOf("  PERFORM 1\n"));
+  assert.match(added, /student_membership_id IS NULL OR student_case\.portal_activated_at IS NULL/u);
+  assert.equal(body328.replace(added, "").replace("  no_portal_account BOOLEAN;\n", ""), body068, "only the no-portal shortcut is added");
+  assert.ok(source328.indexOf("a328_already_applied") < source328.indexOf("a328_anchor_drift"), "a repeat is told apart from drift");
+  assert.match(fileOf("src/components/v3/profile/DocumentRow.tsx"), /Причину увидит студент, если у него есть кабинет\./u);
+  const script = fileOf("scripts/test-postgres-authorization.sh");
+  assert.match(fileOf("supabase/tests/platform_document_review_without_portal.sql"), /ROLLBACK;\s*$/u);
+  assert.ok(script.indexOf("A328_DOCUMENT_REVIEW_WITHOUT_PORTAL_SUITE_PASSED") > 0 && script.indexOf("A328_DOCUMENT_REVIEW_WITHOUT_PORTAL_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
+  assert.match(script, /a328_already_applied/u);
+  assert.match(script, /a328_anchor_drift/u);
+});

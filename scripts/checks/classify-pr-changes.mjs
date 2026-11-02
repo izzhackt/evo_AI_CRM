@@ -44,7 +44,9 @@ const DOCUMENT_ASSET_PATHS = new Set([
 // Only removal of what is left under these roots is accepted; adding or editing
 // anything there stays unknown and receives the strongest gates. The shared edge
 // proxy config moved to deploy/edge/, which the "deploy/" prefix already covers.
-const RETIRED_ROOT_PREFIXES = ["agent-lead2-inbox/", "evo-lead-agent/"];
+const RETIRED_ROOT_PREFIXES = ["agent-lead2-inbox/", "evo-lead-agent/", "presentations/", "specs/"];
+// Root Playwright configs moved to config/playwright/ on 2026-11-02; only their removal is accepted.
+const RETIRED_ROOT_PATTERN = /^playwright\..+\.config\.ts$/u;
 const KNOWN_CODE_PATHS = new Set([
   ".dockerignore",
   ".env.example",
@@ -184,7 +186,7 @@ export function classifyChangedEntries(entries) {
   const retiredRemovalPaths = new Set(entries
     .filter((entry) => entry.status === "D" || /^R\d/u.test(entry.status))
     .map((entry) => entry.paths[0])
-    .filter((path) => RETIRED_ROOT_PREFIXES.some((prefix) => path.startsWith(prefix))));
+    .filter((path) => RETIRED_ROOT_PREFIXES.some((prefix) => path.startsWith(prefix)) || RETIRED_ROOT_PATTERN.test(path)));
   const rootCodePaths = strongPaths.filter((path) => !retiredRemovalPaths.has(path));
   const unknownPaths = strongPaths.filter((path) => !isKnownCodePath(path) && !retiredRemovalPaths.has(path));
   const codeRequired = strongPaths.length > 0;

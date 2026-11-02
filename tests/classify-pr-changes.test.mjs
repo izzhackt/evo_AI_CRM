@@ -337,3 +337,14 @@ test("portal content drafts under docs/design/portal/content are ordinary docs",
     assert.equal(classifyNameStatus(nul("A", path)).unknown, true, path);
   }
 });
+
+test("accepts moving retired root configs and folders out, but not editing them in place", () => {
+  const moved = classifyNameStatus(nul(
+    "R100", "playwright.accessibility.config.ts", "config/playwright/accessibility.config.ts",
+    "R100", "presentations/README.md", "docs/presentations/README.md",
+    "R100", "specs/issues/1.specs.md", "docs/specs/issues/1.specs.md",
+  ));
+  assert.equal(moved.unknown, false);
+  assert.equal(classifyNameStatus(nul("M", "playwright.accessibility.config.ts")).unknown, true);
+  assert.equal(classifyNameStatus(nul("A", "presentations/new.md")).unknown, true);
+});

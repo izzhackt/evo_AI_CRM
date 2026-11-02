@@ -165,11 +165,14 @@ test("error wording: no codes, no long dashes, every server key maps to a field"
   assert.equal(admissionsDirectMessage({ status: "curator_forbidden" }),
     "Этого куратора вы назначить не можете. Выберите куратора своего отдела или оставьте «Без куратора».");
   // Delta review #1194 (3): the same words for the Admin and everyone else, without «попросите Admin».
-  assert.equal(admissionsDirectMessage({ status: "lead_exists" }),
-    "Этот человек уже есть в продажах как открытый лид. Дело появится, когда продажи передадут его в поступление.");
+  assert.equal(admissionsDirectMessage({ status: "lead_exists", leadId: null }),
+    "Этот человек уже есть в продажах как открытый лид, например после звонка. Дело появится, когда продажи передадут его в поступление.");
   assert.doesNotMatch(admissionsDirectMessage({ status: "lead_exists" }), /Admin/u);
   assert.match(directSource, /error\.code === "42501" && message === "admissions_direct_curator_forbidden"\) return \{ status: "curator_forbidden" \}/u);
-  assert.match(directSource, /error\.code === "PT409" && message === "admissions_direct_lead_exists"\) return \{ status: "lead_exists" \}/u);
+  // The way out of the refusal: a link to the lead, only when RLS shows this lead to this person: otherwise the card says «не найден».
+  assert.match(directSource, /error\.code === "PT409" && message === "admissions_direct_lead_exists"\) \{[\s\S]*?from\("leads"\)\.select\("id"\)[\s\S]*?return \{ status: "lead_exists", leadId: visible && !visible\.error && visible\.data \? detail : null \}/u);
+  assert.match(drawer, /result\.status === "lead_exists" && result\.leadId \?/u);
+  assert.match(drawer, /\/v3\/profile\?id=\$\{encodeURIComponent\(result\.leadId\)\}/u);
   const copy = drawer.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/^\s*\/\/.*$/gmu, "");
   assert.doesNotMatch(copy, /[–—]/u, "the drawer copy (outside code comments) has no long dashes");
 });

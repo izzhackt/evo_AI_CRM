@@ -13,7 +13,9 @@
 --  6. the curator is still notified of the student's message as before;
 --  7. reading the chat without the bell clears the notification, and the next message notifies again;
 --  8. a message newer than the one shown stays unread; another student and Staff clear nothing;
---  9. an unread notification older than a day does not silence a new one; a fresh one does, and only one can be unread.
+--  9. an unread notification older than a day does not silence a new one; a fresh one does, and only one can be unread;
+-- 10. the bell's read command answers normally for a row the chat has already cleared; another student is still refused;
+-- 11. a task card without text rings no bell, a card with text does.
 BEGIN;
 
 SET LOCAL TIME ZONE 'UTC';
@@ -221,6 +223,28 @@ $a330_one$;
 SELECT pg_temp.a330_post(705, 5, 815);
 SELECT pg_temp.a330_assert(pg_temp.a330_read_chat(:'a330_other', pg_temp.a330_seq(814)) = '1'::JSONB AND pg_temp.a330_unread(705) = 0,
   'the student''s own newer message does not hold the notification back');
+
+-- ---------------------------------------------------------------------------
+-- 10. «Отметить» in an old tab, after the chat has already cleared the row.
+-- ---------------------------------------------------------------------------
+SELECT n.id AS a330_cleared FROM platform.notifications n
+  WHERE n.student_case_id = pg_temp.a330_id(705) AND n.category = 'case_chat.message' ORDER BY n.created_at DESC LIMIT 1 \gset
+SELECT pg_temp.a330_as(:'a330_other', format('SELECT to_jsonb(r) FROM platform.mark_own_student_portal_notification_read_v2(%L, %L) r',
+  :'a330_cleared'::UUID, gen_random_uuid())) AS a330_again \gset
+SELECT pg_temp.a330_assert(NOT (:'a330_again'::JSONB) ? 'error' AND ((:'a330_again'::JSONB) ->> 'is_read')::BOOLEAN,
+  'a read that came second answers with the same result, not an error: ' || :'a330_again');
+SELECT pg_temp.a330_assert(pg_temp.a330_as(:'a330_student', format('SELECT to_jsonb(r) FROM platform.mark_own_student_portal_notification_read_v2(%L, %L) r',
+  :'a330_cleared'::UUID, gen_random_uuid())) ->> 'error' = '42501', 'another student still gets a refusal');
+
+-- ---------------------------------------------------------------------------
+-- 11. A task card without text is not shown to the student, so it rings no bell; with text it does.
+-- ---------------------------------------------------------------------------
+INSERT INTO platform.case_chat_messages (id, organization_id, student_case_id, author_membership_id, body, attachment_kind, attachment_id)
+VALUES (pg_temp.a330_id(816), pg_temp.a330_id(1), pg_temp.a330_id(705), pg_temp.a330_id(301), '', 'case_task', pg_temp.a330_id(900));
+SELECT pg_temp.a330_assert(pg_temp.a330_unread(705) = 0, 'a task card without text rings no bell');
+INSERT INTO platform.case_chat_messages (id, organization_id, student_case_id, author_membership_id, body, attachment_kind, attachment_id)
+VALUES (pg_temp.a330_id(817), pg_temp.a330_id(1), pg_temp.a330_id(705), pg_temp.a330_id(301), 'Посмотрите задачу', 'case_task', pg_temp.a330_id(900));
+SELECT pg_temp.a330_assert(pg_temp.a330_unread(705) = 1, 'a task card with text is a message');
 
 \echo A330_CASE_CHAT_STUDENT_NOTIFICATION_SUITE_PASSED
 ROLLBACK;

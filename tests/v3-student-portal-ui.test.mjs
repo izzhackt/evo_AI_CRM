@@ -889,7 +889,7 @@ test("330: a staff message notifies the student once per unread and the notifica
   assert.match(source, /student_portal_notifications_v2\(\)'/u);
   assert.match(source, /mark_own_student_portal_notification_read_v2\(uuid,uuid\)'/u, "the read command accepts it, otherwise a read one blocks new ones");
   assert.match(source, /REVOKE ALL ON FUNCTION platform_private\.own_case_chat_notifications\(\) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;/u);
-  assert.doesNotMatch(source, /NEW\.body/u, "the notification holds no message text");
+  assert.doesNotMatch(source.replaceAll("NEW.body = ''", ""), /NEW\.body/u, "the notification holds no message text");
   assert.match(fileOf("src/components/portal/admission/presentation.ts"), /eventCode === "case_chat_message"[\s\S]*?href: "\/portal\/messages", label: strings\.targetMessages/u);
   const i18n = fileOf("src/lib/portal/i18n.ts");
   assert.match(i18n, /targetMessages: "Открыть сообщения"/u);

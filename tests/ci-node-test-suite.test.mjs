@@ -10,7 +10,7 @@ import {
   SERIAL_PROVIDER_TEST_FILES,
   UNIT_ENTRY_SCRIPTS,
   resolveNodeTestPlan,
-} from "../scripts/run-node-test-suite.mjs";
+} from "../scripts/test-runners/run-node-test-suite.mjs";
 
 const repositoryRoot = new URL("..", import.meta.url).pathname;
 const packageJson = JSON.parse(readFileSync(join(repositoryRoot, "package.json"), "utf8"));
@@ -298,6 +298,6 @@ test("targeted local suite names remain available", () => {
   }
   assert.equal(
     packageJson.scripts["test:database:migration-boundaries"],
-    "bash scripts/test-postgres-authorization.sh",
+    "bash scripts/test-runners/test-postgres-authorization.sh",
   );
 });

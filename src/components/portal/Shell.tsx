@@ -46,7 +46,7 @@ import type { Theme } from "@/lib/theme";
  * (portal.css, раздел «Движение»); один индикатор активной вкладки переезжает
  * между пунктами по CSS-переменным, которые считает `useActiveTabIndicator`.
  *
- * Смоук-якоря production-прогона (scripts/evo-production-browser-smoke.mjs +
+ * Смоук-якоря production-прогона (scripts/release/evo-production-browser-smoke.mjs +
  * tests/production-browser-smoke.test.mjs): data-testid="student-portal-shell"
  * на корне и ровно один <nav aria-label="Разделы кабинета"> со ссылкой
  * href="/portal". Байт-в-байт; менять — только вместе со смоук-скриптом и его

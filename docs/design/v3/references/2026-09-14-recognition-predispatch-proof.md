@@ -53,7 +53,7 @@ Chromium1440×1000. Синтетический студент, публичны�
 - БД подтверждает1job,1source-access event,0provider intents/files/proposals,
   освобождённую reservation. Финальный receipt создан только после cleanup.
 
-Команда: `bash scripts/test-postgres-v2-foundation.sh --document-recognition-only`
+Команда: `bash scripts/test-runners/test-postgres-v2-foundation.sh --document-recognition-only`
 с точными image IDs ниже; Node22.23.1, OrbStack/nativearm64. Exit0:
 `01a09cc401f670b194bceb636acb67f3`. В proof4 browser warnings и0errors;
 предупреждения не классифицированы и не объявлены отсутствующими.

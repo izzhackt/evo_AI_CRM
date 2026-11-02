@@ -764,7 +764,7 @@ test("wiring: the migration, its suite and the test script agree", () => {
   // Begin and options are for the session, target and finish for the server.
   assert.match(migration, /GRANT EXECUTE ON FUNCTION\s+platform\.telephony_dial_options_v1\(UUID\),\s+platform\.telephony_dial_begin_v1\(UUID, UUID, UUID\)\s+TO authenticated;/u);
   assert.match(migration, /GRANT EXECUTE ON FUNCTION\s+platform\.telephony_dial_target_v1\(UUID, UUID, UUID\),\s+platform\.telephony_dial_finish_v1\(UUID, UUID, UUID, TEXT, TEXT, INTEGER, TEXT, TEXT\)\s+TO service_role;/u);
-  const script = read("scripts/test-postgres-authorization.sh");
+  const script = read("scripts/test-runners/test-postgres-authorization.sh");
   assert.match(script, /\*_platform_telephony_dial\.sql \]\]; then\s+docker exec "\$container_name" \\\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\s+-f \/workspace\/supabase\/tests\/platform_telephony_dial\.sql <\/dev\/null/u);
   const suite = read("supabase/tests/platform_telephony_dial.sql");
   assert.match(suite, /T299_TELEPHONY_DIAL_SUITE_PASSED/u);

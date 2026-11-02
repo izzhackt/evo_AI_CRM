@@ -98,9 +98,9 @@ import {
   verifyRestoredStorageInventory,
   waitForPostgrestSchemaCache,
   writeEvidence,
-} from "../scripts/test-v3-managed-supabase-recovery-orbstack.mjs";
+} from "../scripts/test-runners/test-v3-managed-supabase-recovery-orbstack.mjs";
 
-const script = new URL("../scripts/test-v3-managed-supabase-recovery-orbstack.mjs", import.meta.url);
+const script = new URL("../scripts/test-runners/test-v3-managed-supabase-recovery-orbstack.mjs", import.meta.url);
 const source = readFileSync(script, "utf8");
 const sourceCommit = "1".repeat(40);
 const sourceMigrationTree = "2".repeat(40);
@@ -3170,7 +3170,7 @@ test("egress-blocked recovery bridge derives the Supabase API target and proves 
 });
 
 test("candidate image is locally built from sorted exact target blobs for linux/amd64", async (t) => {
-  const required = [".dockerignore", "Dockerfile", "package.json", "package-lock.json", "scripts/check-node-runtime.mjs"];
+  const required = [".dockerignore", "Dockerfile", "package.json", "package-lock.json", "scripts/checks/check-node-runtime.mjs"];
   const listing = Buffer.from(required.map((path, index) => `100644 blob ${String(index + 1).repeat(40)}\t${path}\0`).join(""), "utf8");
   assert.deepEqual(parseTargetTreeListing(listing).map(({ path }) => path), required);
   const reversed = parseTargetTreeListing(Buffer.from([...required].reverse().map((path, index) => `100644 blob ${String(index + 1).repeat(40)}\t${path}\0`).join(""), "utf8"));

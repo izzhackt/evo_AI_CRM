@@ -23,7 +23,7 @@
 | Env (`/opt/evo-crm/.env.production`) | `EVO_PLATFORM_WAZZUP_INGRESS_ENABLED` (`0`/`1`, аварийный стоп), `EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN` (64 hex), `EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN_NEXT` (только при ротации); владелец новых бесед — прежний `EVO_PLATFORM_WAHA_INTAKE_SALES_MEMBERSHIP_ID` |
 | Ключ API Wazzup | Supabase Vault (привязка с отпечатком SHA-256); в env, в Git, в чате, в argv, в файлах его нет |
 | Рабочие выключатели (без выпуска) | `platform_private.whatsapp_transport_state`: `active_transport` (`none`/`waha`/`wazzup`), `ai_trigger_enabled`, `gemini_enabled`; меняются командой `wazzup-ops transport` |
-| Команды оператора | `docker exec -i evo-crm-app-1 node /app/wazzup-ops.mjs <команда>` (собрано в образ, `scripts/wazzup-ops.mjs`) |
+| Команды оператора | `docker exec -i evo-crm-app-1 node /app/wazzup-ops.mjs <команда>` (собрано в образ, `scripts/maintenance/wazzup-ops.mjs`) |
 | Таймер | прежний `evo-whatsapp-health` (раз в 5 минут, `deploy/whatsapp/`), три шага Wazzup после шага WAHA |
 | Edge | обработчик и фильтр журнала в `agent-lead2-inbox/deploy/Caddyfile.evo-edge` (в репозитории; живой файл правится отдельным «давай») |
 | Клиент Wazzup | `src/lib/server/platform-wazzup-client.ts`: только `GET /v3/channels`, `GET /v3/webhooks`, `PATCH /v3/webhooks`; вызова отправки в коде нет |
@@ -83,9 +83,9 @@ Wazzup шлёт на адрес `{"test": true}` и ждёт 200, иначе 400
 ```bash
 # локально (Mac); SHA - полный SHA слитого main, который будет выпущен (тот же, что в процедуре Р)
 SHA=<полный SHA main>
-git show "$SHA:scripts/evo-app-env-contract.mjs" | ssh hermes-vps 'install -d -m 700 /root/evo-golive && cat > /root/evo-golive/evo-app-env-contract.mjs'
+git show "$SHA:scripts/release/evo-app-env-contract.mjs" | ssh hermes-vps 'install -d -m 700 /root/evo-golive && cat > /root/evo-golive/evo-app-env-contract.mjs'
 git show "$SHA:deploy/env.production.example"    | ssh hermes-vps 'cat > /root/evo-golive/env.production.example'
-git show "$SHA:scripts/evo-app-env-contract.mjs" | shasum -a 256      # сверить с sha256sum на VPS (ниже)
+git show "$SHA:scripts/release/evo-app-env-contract.mjs" | shasum -a 256      # сверить с sha256sum на VPS (ниже)
 gh variable get EVO_SUPABASE_PROJECT_REF --repo izzhackt/evo_AI_CRM   # не секрет; это значение - REF на VPS
 ```
 
@@ -229,7 +229,7 @@ printf '%s\n' "$IDS" | grep -c .       # не меньше трёх (A2 + фот
 `vars_regexp {http.request.orig_uri} ^/api/v2/whatsapp/wazzup/inbound(\?|$)`: любое иное написание не попадает в обработчик и
 получает прежние `404` защиты (или идёт в общий прокси, как до появления маршрута, но без чужого `X-Evo-Wazzup-Ip`).
 
-Проверено в репозитории закреплённым образом Caddy v2.11.3 (digest из `scripts/test-p7b-caddy-runtime.sh`) без сети
+Проверено в репозитории закреплённым образом Caddy v2.11.3 (digest из `scripts/test-runners/test-p7b-caddy-runtime.sh`) без сети
 (`tests/platform-wazzup-packaging.test.mjs`, пропускается, если Docker или образа нет): `caddy adapt` — порядок маршрутов сайта:
 обработчик Wazzup, затем `@private` `404`, затем `404` для неканонических `/api`-адресов, затем общий `reverse_proxy`
 (`max_size 1MiB` в адаптации — 1048576, равно пределу приложения); живой прогон настоящего блока с заглушкой вместо приложения —

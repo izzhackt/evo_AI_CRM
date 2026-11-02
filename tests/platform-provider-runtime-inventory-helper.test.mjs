@@ -19,7 +19,7 @@ import {
   validateBrowserEvidence,
   validateDatabaseEvidence,
   validateRemoteEvidence,
-} from "../scripts/platform-provider-runtime-inventory.mjs";
+} from "../scripts/checks/platform-provider-runtime-inventory.mjs";
 
 const SHA = "5e32bdc9391f46e73dcca1a433a52c823fae9e8a";
 const OBSERVED_AT = "2026-09-03T14:30:00.000Z";

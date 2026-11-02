@@ -34,7 +34,7 @@
 ```sh
 PATH=/opt/homebrew/opt/node@22/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin \
 EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node \
-bash scripts/test-e5-admissions-browser.sh
+bash scripts/test-runners/test-e5-admissions-browser.sh
 ```
 
 Требования: Node 22, установленные зависимости/Playwright Chromium, работающий OrbStack и Docker context `orbstack`. Harness выбирает свободные loopback-порты и удаляет только свой scratch/project при завершении. Секреты генерируются для одного запуска и не выводятся.

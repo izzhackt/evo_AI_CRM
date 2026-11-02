@@ -1486,7 +1486,7 @@ const messagesKy: Readonly<Record<MessagesKey, string>> = {
  * уведомления и «Ответ куратора». Русские значения — байт-в-байт прежние
  * строки экранов: заголовки «Моё поступление» / «Документы» / «Чеклист» /
  * «Список документов пока пуст» — якоря production-смоука
- * (scripts/evo-production-browser-smoke.mjs), а смоук-аккаунт живёт с
+ * (scripts/release/evo-production-browser-smoke.mjs), а смоук-аккаунт живёт с
  * language=ru. Доменные статусы (`docStatus.*`, `payStatus.*`,
  * `reviewDecision.*`, `taskStatus.*`, `payCategory.*`) — локализуемая
  * портальная обёртка над словарями src/lib/v3/wording.ts: RU-значения

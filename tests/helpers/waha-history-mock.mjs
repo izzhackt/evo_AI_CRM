@@ -1,6 +1,6 @@
 // Synthetic WAHA 2026.9.2 GOWS REST history and a loopback mock of the WAHA REST
 // API, shared by tests/waha-history-import.test.mjs and the real-chain driver
-// scripts/test-waha-history-import-chain.mjs. Everything is synthetic: numbers,
+// scripts/test-runners/test-waha-history-import-chain.mjs. Everything is synthetic: numbers,
 // names and texts are made up, and the server only answers GET.
 import { createServer } from "node:http";
 

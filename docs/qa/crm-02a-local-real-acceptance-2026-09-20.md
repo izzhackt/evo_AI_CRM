@@ -60,7 +60,7 @@ Guarded helper привязал одну опубликованную локал
     }
   ],
   "managerSetup": {
-    "path": "scripts/bind-local-sales-manager.mjs",
+    "path": "scripts/local-dev/bind-local-sales-manager.mjs",
     "sha256": "fa81ab569f6d7d1fe36955487eb726cb4ac29935deacbaec4e089766f131bb29",
     "reviewed": true,
     "changedRows": 1,

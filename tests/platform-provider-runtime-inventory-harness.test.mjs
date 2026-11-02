@@ -4,7 +4,7 @@ import test from "node:test";
 
 const ROOT = new URL("../", import.meta.url);
 const HARNESS_URL = new URL(
-  "../scripts/verify-platform-provider-runtime-inventory.sh",
+  "../scripts/checks/verify-platform-provider-runtime-inventory.sh",
   import.meta.url,
 );
 
@@ -67,7 +67,7 @@ test("P5D remote WAHA inspection stays read-only and never copies a secret", () 
 });
 
 test("P5D local foundation mounts the dedicated read-only Chromium proof", () => {
-  const foundation = source("scripts/test-postgres-v2-foundation.sh");
+  const foundation = source("scripts/test-runners/test-postgres-v2-foundation.sh");
   const v3Layout = source("src/app/(v3)/layout.tsx");
   const v3AppShell = source("src/components/v3/AppShell.tsx");
   const packageManifest = source("package.json");
@@ -80,7 +80,7 @@ test("P5D local foundation mounts the dedicated read-only Chromium proof", () =>
   assert.match(foundation, /rm -R -- "\$cache_path"/u);
   assert.match(
     foundation,
-    /playwright\.platform-provider-runtime-inventory\.config\.ts/u,
+    /config\/playwright\/platform-provider-runtime-inventory\.config\.ts/u,
   );
   assert.match(foundation, /EVO_PLATFORM_RUNTIME_INVENTORY_MAIN_SHA/u);
   assert.match(foundation, /EVO_PLATFORM_RUNTIME_INVENTORY_BROWSER_EVIDENCE_FILE/u);

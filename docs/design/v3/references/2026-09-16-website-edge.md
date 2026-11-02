@@ -87,7 +87,7 @@ reload would not satisfy cold restart and is not the deployment procedure.
 
 ## Verification scope and primary sources
 
-Run `bash scripts/test-p7b-caddy-runtime.sh` under the supported local container
+Run `bash scripts/test-runners/test-p7b-caddy-runtime.sh` under the supported local container
 runtime. It exercises the real source on pinned Caddy2.11.3, with a deliberately
 non-secret import for parsing; it does not emulate or accept a successful lead.
 Separately validate the full config with real Caddy and compare adapted route/
@@ -107,7 +107,7 @@ header/body contracts without a customer input. No production changes are made.
   disabled, example import mounted read-only: `Valid configuration`.
 - The same real validator without the private import returned exit1 / file
   missing as expected. No default key or alternate route was substituted.
-- `bash scripts/test-p7b-caddy-runtime.sh`: passed actual local HTTP guards on
+- `bash scripts/test-runners/test-p7b-caddy-runtime.sh`: passed actual local HTTP guards on
   both apex/www for GET/PUT/OPTIONS→405 and other/malformed API paths→404,
   the direct CRM receiver→404, existing private/path guards and credential-log
   redaction. Its uniquely owned container was removed. No upstream or successful

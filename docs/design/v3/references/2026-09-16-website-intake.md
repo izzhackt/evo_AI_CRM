@@ -76,7 +76,7 @@ reads are visibly unavailable; an empty authorized result means no section.
 ## Verification and deployment
 
 Apply the actual001–170 schema chain in an owned, network-isolated PostgreSQL
-container with `bash scripts/check-website-intake-schema.sh`. This checks schema
+container with `bash scripts/checks/check-website-intake-schema.sh`. This checks schema
 and grants without creating customers and removes only its own container.
 It is **not** a test of successful intake or a substitute for real acceptance.
 Run focused lint/generated Next types/typecheck and independent review. Use
@@ -99,7 +99,7 @@ Sources: [Supabase functions](https://supabase.com/docs/guides/database/function
 - `next typegen` then `tsc --noEmit`: passed. Raw typecheck before Next generated
   its image declarations reported the pre-existing logo import; normal Next type
   generation resolved it without modifying the logo or adding a declaration shim.
-- `bash scripts/check-website-intake-schema.sh`: passed actual contiguous001–170
+- `bash scripts/checks/check-website-intake-schema.sh`: passed actual contiguous001–170
   migrations and RPC privilege assertions on pinned Supabase PostgreSQL17.6.1.143
   under OrbStack, network disabled. Zero client/lead rows. Owned container
   `evo-website-schema-27706-41471` was removed by the script.

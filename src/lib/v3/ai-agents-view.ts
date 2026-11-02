@@ -992,6 +992,7 @@ export const AI_AGENT_TOOL_ERROR_WORDS: Readonly<Record<string, string>> = {
   unavailable: "сервис недоступен",
   internal_error: "внутренняя ошибка",
   ai_consent_missing: "нет согласия студента",
+  no_student_portal: "у студента нет кабинета",
 };
 export const toolErrorWords = (code: string): string => AI_AGENT_TOOL_ERROR_WORDS[code] ?? "ошибка";
 

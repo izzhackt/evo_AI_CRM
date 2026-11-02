@@ -670,7 +670,7 @@ export function DocumentRow({
                   aria-describedby={`${reasonId}-help`}
                   onChange={(event) => setReason(event.target.value)}
                 />
-                <p id={`${reasonId}-help`} className="mt-1 t-meta text-fg-2">Причину увидит студент.</p>
+                <p id={`${reasonId}-help`} className="mt-1 t-meta text-fg-2">Причину увидит студент, если у него есть кабинет.</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button type="submit" value="correction_required" className={QUEUE_CONFIRM} disabled={reviewLocked}>

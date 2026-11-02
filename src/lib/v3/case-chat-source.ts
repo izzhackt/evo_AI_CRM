@@ -68,6 +68,7 @@ export async function readCaseChatPage(
   const messages = data.messages.map(message);
   return {
     messages, cursor: data.cursor, hasMore: data.hasMore, readSequenceId: data.readSequenceId,
+    studentHasPortal: typeof data.studentHasPortal === "boolean" ? data.studentHasPortal : null,
     thread: {
       awaitState: data.thread.awaitState, lastMessageAt: data.thread.lastMessageAt as string | null,
       lastMessageSequenceId: data.thread.lastMessageSequenceId as string | null,

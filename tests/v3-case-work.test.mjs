@@ -233,6 +233,29 @@ test("«Приём дела» in «Сведения» keeps the curator's answer
   assert.match(overview, /<Fact term="Приём дела">\{values\.reception\}<\/Fact>/u);
 });
 
+test("329: the staff sees that a student has no cabinet and the agent gets an honest refusal", () => {
+  const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  const source = fileOf("supabase/migrations/329_platform_student_without_portal_signals.sql");
+  assert.ok(source.indexOf("a329_already_applied") < source.indexOf("a329_replace_drift"));
+  assert.doesNotMatch(source, /CREATE FUNCTION platform\./u, "no function is added to the API");
+  assert.match(source, /RAISE EXCEPTION 'no_student_portal' USING ERRCODE = '55000'/u);
+  assert.match(fileOf("src/lib/ai-agents/contract.ts"), /"no_student_portal"/u);
+  assert.match(fileOf("src/lib/server/ai-agents/mcp-tools.ts"), /no_student_portal: "У студента нет кабинета/u);
+  assert.match(fileOf("src/lib/v3/case-chat-source.ts"), /typeof data\.studentHasPortal === "boolean" \? data\.studentHasPortal : null/u);
+  const thread = fileOf("src/components/v3/case-chat/CaseChatThread.tsx");
+  assert.match(thread, /page\.studentHasPortal === false \?/u, "null stays silent: only a confirmed absence warns");
+  assert.match(thread, /У студента нет кабинета: он не увидит это сообщение\./u);
+  for (const agent of ["curator-my", "curator-cn"]) {
+    const prompt = fileOf(`src/content/ai-agents/${agent}.md`);
+    assert.match(prompt, /`student_has_portal: false`/u, agent);
+    assert.match(prompt, /`no_student_portal`/u, agent);
+  }
+  const script = fileOf("scripts/test-runners/test-postgres-authorization.sh");
+  assert.match(fileOf("supabase/tests/platform_student_without_portal_signals.sql"), /ROLLBACK;\s*$/u);
+  assert.ok(script.indexOf("A329_STUDENT_WITHOUT_PORTAL_SUITE_PASSED") > 0 && script.indexOf("A329_STUDENT_WITHOUT_PORTAL_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
+  assert.match(script, /a329_already_applied/u);
+});
+
 test("Admin: sales forms and portal access are collapsed groups under «Сведения»; contacts are one fact", () => {
   const html = surfaces.get("admin");
   const shown = visible(html);
@@ -858,7 +881,7 @@ test("the contract download reads the file through the staff session, the servic
   assert.match(migration, /GRANT EXECUTE ON FUNCTION platform\.staff_case_contract_file_download_target_v1\(UUID, UUID\) TO authenticated;/u);
   assert.doesNotMatch(migration, /GRANT [A-Z, ]*ON (TABLE )?platform\.case_contract_files/u, "no direct table right is added");
   const suite = fileOf("supabase/tests/platform_case_contract_download_target.sql");
-  const script = fileOf("scripts/test-postgres-authorization.sh");
+  const script = fileOf("scripts/test-runners/test-postgres-authorization.sh");
   assert.match(suite, /ROLLBACK;\s*$/u);
   assert.ok(script.indexOf("A327_CASE_CONTRACT_DOWNLOAD_SUITE_PASSED") > 0 && script.indexOf("A327_CASE_CONTRACT_DOWNLOAD_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
   assert.match(script, /a327_already_applied/u);

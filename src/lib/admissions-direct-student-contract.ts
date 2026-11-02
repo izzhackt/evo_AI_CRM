@@ -365,7 +365,8 @@ export function parseAdmissionsDirectPayload(input: unknown): AdmissionsDirectPa
 export type AdmissionsDirectResult =
   | Readonly<{ status: "saved"; studentCaseId: string; state: "active" | "pending" }>
   | Readonly<{ status: "invalid"; field: string | null }>
-  | Readonly<{ status: "forbidden" | "curator_forbidden" | "case_exists" | "lead_exists" | "request_conflict" | "unavailable" }>;
+  | Readonly<{ status: "lead_exists"; leadId?: string | null }>
+  | Readonly<{ status: "forbidden" | "curator_forbidden" | "case_exists" | "request_conflict" | "unavailable" }>;
 
 /** Ключ нагрузки из ошибки базы → поле формы. */
 const SERVER_FIELDS: Readonly<Record<string, AdmissionsDirectField>> = {
@@ -403,7 +404,7 @@ export function admissionsDirectMessage(result: AdmissionsDirectResult): string 
     case "forbidden": return "Нет права добавлять студентов. Если оно должно быть, попросите Admin проверить вашу роль.";
     case "curator_forbidden": return "Этого куратора вы назначить не можете. Выберите куратора своего отдела или оставьте «Без куратора».";
     case "case_exists": return "У человека с этим телефоном или почтой уже есть открытое дело. Найдите его в «Студентах».";
-    case "lead_exists": return "Этот человек уже есть в продажах как открытый лид. Дело появится, когда продажи передадут его в поступление.";
+    case "lead_exists": return "Этот человек уже есть в продажах как открытый лид, например после звонка. Дело появится, когда продажи передадут его в поступление.";
     case "request_conflict": return "Этот запрос уже использован с другими данными. Обновите страницу и заполните форму снова.";
     case "unavailable": return "Сохранение не подтверждено. Данные остались в форме; безопасно повторите.";
   }

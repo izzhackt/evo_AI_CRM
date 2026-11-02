@@ -8,46 +8,6 @@ import {
 
 const nul = (...fields) => Buffer.from(`${fields.join("\0")}\0`, "utf8");
 
-test("only the retired Inbox manifests select its isolated dependency checks", () => {
-  for (const path of ["agent-lead2-inbox/package.json", "agent-lead2-inbox/package-lock.json"]) {
-    const result = classifyNameStatus(nul("M", path));
-    assert.equal(result.inbox_dependencies, true, path);
-    assert.equal(result.unknown, false, path);
-    assert.equal(result.code, true, path);
-    assert.equal(result.ordinary_docs, false, path);
-    assert.equal(result.lint, false, path);
-    assert.equal(result.build, false, path);
-  }
-  for (const path of ["agent-lead2-inbox/package.json.backup", "agent-lead2-inbox/nested/package.json"]) {
-    const result = classifyNameStatus(nul("M", path));
-    assert.equal(result.inbox_dependencies, false, path);
-    assert.equal(result.unknown, true, path);
-    assert.equal(result.build, true, path);
-  }
-});
-
-test("Inbox maintenance preserves stronger checks for mixed changes and both rename paths", () => {
-  const mixed = classifyNameStatus(nul("M", "agent-lead2-inbox/package-lock.json", "M", "src/app/page.tsx"));
-  assert.equal(mixed.inbox_dependencies, true);
-  assert.equal(mixed.lint, true);
-  assert.equal(mixed.build, true);
-  assert.equal(mixed.unknown, false);
-  const docs = classifyNameStatus(nul("M", "agent-lead2-inbox/package.json", "M", "docs/EVO_LAUNCH_PLAN.md"));
-  assert.equal(docs.inbox_dependencies, true);
-  assert.equal(docs.contracts, true);
-  assert.equal(docs.unknown, false);
-  for (const paths of [
-    ["agent-lead2-inbox/package.json", "agent-lead2-inbox/retired-package.json"],
-    ["agent-lead2-inbox/unreviewed.json", "agent-lead2-inbox/package-lock.json"],
-  ]) {
-    const renamed = classifyNameStatus(nul("R100", ...paths));
-    assert.equal(renamed.inbox_dependencies, true);
-    assert.equal(renamed.unknown, true);
-  }
-  assert.equal(classifyNameStatus(nul("M", "agent-lead2-inbox/deploy/Caddyfile.evo-edge")).inbox_dependencies, false);
-  assert.equal(classifyNameStatus(Buffer.alloc(0)).inbox_dependencies, false);
-});
-
 test("D4 native template runtime and server adapter remain code, not ordinary documentation", () => {
   for (const path of ["scripts/document-source/launcher.c", "scripts/university-template/inspect.mjs",
     "scripts/university-template/build.mjs", "scripts/university-template/test-harness.mjs",
@@ -225,21 +185,12 @@ test("the shadcn CLI config is known code with lint but not a production build i
   assert.deepEqual(result.unknown_paths, []);
 });
 
-test("the shared EVO edge Caddy source is a known infrastructure path", () => {
-  const result = classifyNameStatus(nul(
-    "M",
-    "agent-lead2-inbox/deploy/Caddyfile.evo-edge",
-  ));
-  assert.equal(result.code, true);
-  assert.equal(result.lint, true);
-  assert.equal(result.build, false);
-  assert.equal(result.unknown, false);
-});
-
-test("only the exact shared edge Compose and non-secret import example are recognized", () => {
+test("the shared EVO edge config under deploy/edge is known infrastructure code", () => {
   for (const path of [
-    "agent-lead2-inbox/deploy/docker-compose.edge.yml",
-    "agent-lead2-inbox/deploy/website-intake-header.caddy.example",
+    "deploy/edge/Caddyfile.evo-edge",
+    "deploy/edge/docker-compose.edge.yml",
+    "deploy/edge/website-intake-header.caddy.example",
+    "deploy/edge/README.md",
   ]) {
     const result = classifyNameStatus(nul("M", path));
     assert.equal(result.code, true, path);
@@ -248,15 +199,41 @@ test("only the exact shared edge Compose and non-secret import example are recog
     assert.equal(result.unknown, false, path);
     assert.deepEqual(result.unknown_paths, [], path);
   }
-  for (const path of [
-    "agent-lead2-inbox/deploy/docker-compose.other.yml",
-    "agent-lead2-inbox/deploy/website-intake-header.caddy",
-  ]) {
-    const result = classifyNameStatus(nul("M", path));
-    assert.equal(result.unknown, true, path);
-    assert.equal(result.build, true, path);
-    assert.deepEqual(result.unknown_paths, [path]);
+});
+
+test("CODEOWNERS is a governance contract path, not an unknown path", () => {
+  const result = classifyNameStatus(nul("M", ".github/CODEOWNERS"));
+  assert.equal(result.contracts, true);
+  assert.equal(result.unknown, false);
+  assert.equal(result.build, false);
+});
+
+test("the retired Inbox and lead-agent roots accept only removal, never new or edited files", () => {
+  const retired = ["agent-lead2-inbox/src/app/page.tsx", "agent-lead2-inbox/package.json", "evo-lead-agent/uv.lock"];
+  for (const path of retired) {
+    const removed = classifyNameStatus(nul("D", path));
+    assert.equal(removed.unknown, false, path);
+    assert.deepEqual(removed.unknown_paths, [], path);
+    assert.equal(removed.lint, false, path);
+    assert.equal(removed.build, false, path);
+    assert.equal(removed.code, true, path);
+    for (const status of ["A", "M", "T"]) {
+      const changed = classifyNameStatus(nul(status, path));
+      assert.equal(changed.unknown, true, `${status} ${path}`);
+      assert.equal(changed.build, true, `${status} ${path}`);
+    }
   }
+  // Moving the edge config out is accepted; moving anything into a retired root is not.
+  const moved = classifyNameStatus(nul("R100", "agent-lead2-inbox/deploy/Caddyfile.evo-edge", "deploy/edge/Caddyfile.evo-edge"));
+  assert.equal(moved.unknown, false);
+  assert.equal(moved.lint, true);
+  assert.equal(moved.build, false);
+  const into = classifyNameStatus(nul("R100", "src/lib/utils.ts", "agent-lead2-inbox/src/lib/utils.ts"));
+  assert.equal(into.unknown, true);
+  // A removal mixed with an unreviewed path keeps the unknown path unknown.
+  const mixed = classifyNameStatus(nul("D", "evo-lead-agent/uv.lock", "M", "unclassified.binary"));
+  assert.equal(mixed.unknown, true);
+  assert.deepEqual(mixed.unknown_paths, ["unclassified.binary"]);
 });
 
 test("runtime schemas and Node-version changes receive the production build gate", () => {
@@ -345,89 +322,4 @@ test("portal content drafts under docs/design/portal/content are ordinary docs",
   ]) {
     assert.equal(classifyNameStatus(nul("A", path)).unknown, true, path);
   }
-});
-
-
-test("lead-agent dependency scope stays narrow and preserves mixed/rename gates", () => {
-  for (const path of ["evo-lead-agent/pyproject.toml", "evo-lead-agent/uv.lock"]) {
-    const result = classifyNameStatus(nul("M", path));
-    assert.equal(result.lead_agent_dependencies, true);
-    assert.equal(result.unknown, false);
-    assert.equal(result.lint, false);
-    assert.equal(result.build, false);
-    assert.equal(result.code, true);
-  }
-  for (const path of ["evo-lead-agent/src/evo_lead_agent/main.py", "evo-lead-agent/uv.lock.bak", "evo-lead-agent/nested/uv.lock"]) {
-    const result = classifyNameStatus(nul("M", path));
-    assert.equal(result.lead_agent_dependencies, false);
-    assert.equal(result.unknown, true);
-  }
-  const mixed = classifyNameStatus(nul("M", "evo-lead-agent/uv.lock", "M", "src/app/page.tsx"));
-  assert.equal(mixed.lead_agent_dependencies, true);
-  assert.equal(mixed.lint, true);
-  assert.equal(mixed.build, true);
-  assert.equal(mixed.unknown, false);
-  for (const paths of [["evo-lead-agent/uv.lock", "evo-lead-agent/old.lock"], ["evo-lead-agent/old.lock", "evo-lead-agent/uv.lock"]]) {
-    const result = classifyNameStatus(nul("R100", ...paths));
-    assert.equal(result.lead_agent_dependencies, true);
-    assert.equal(result.unknown, true);
-  }
-});
-
-
-test("dependency smoke and its workflow select the actual Python lane", () => {
-  for (const path of ["scripts/smoke-lead-agent-dependencies.py", ".github/workflows/evo-fast-pr-checks.yml"]) {
-    const result = classifyNameStatus(nul("M", path));
-    assert.equal(result.lead_agent_dependencies, true);
-    assert.equal(result.unknown, false);
-  }
-});
-
-
-test("Inbox formatting candidates require byte proof and preserve unknown/rename boundaries", () => {
-  const path = "agent-lead2-inbox/src/app/page.tsx";
-  const modified = classifyNameStatus(nul("M", path));
-  assert.equal(modified.inbox_formatting, true);
-  assert.equal(modified.inbox_dependencies, false);
-  assert.equal(modified.unknown, false);
-  assert.equal(modified.lint, false);
-  assert.equal(modified.build, false);
-  for (const status of ["A", "D", "T"]) {
-    const result = classifyNameStatus(nul(status, path));
-    assert.equal(result.inbox_formatting, false);
-    assert.equal(result.unknown, true);
-  }
-  const renamed = classifyNameStatus(nul("R100", path, "agent-lead2-inbox/src/app/renamed.tsx"));
-  assert.equal(renamed.inbox_formatting, false);
-  assert.equal(renamed.unknown, true);
-  const mixed = classifyNameStatus(nul("M", path, "M", "unclassified.binary"));
-  assert.equal(mixed.inbox_formatting, true);
-  assert.equal(mixed.unknown, true);
-  for (const control of [".editorconfig", ".prettierrc", ".prettierignore", "src/prettier.config.mjs", "supabase/migrations/001.sql", "public/opus/encoder.js"]) {
-    assert.equal(classifyNameStatus(nul("M", `agent-lead2-inbox/${control}`)).unknown, true, control);
-  }
-  assert.equal(classifyNameStatus(nul("M", "agent-lead2-inbox/deploy/docker-compose.edge.yml")).inbox_formatting, false);
-  assert.equal(classifyNameStatus(nul("M", "scripts/verify-inbox-format.mjs")).inbox_dependencies, true);
-});
-
-
-test("only modified legacy contract tests select the bounded test maintenance lane", () => {
-  for (const path of ["agent-lead2-inbox/src/components/first-launch-ui.test.tsx", "agent-lead2-inbox/src/lib/deployment-config.test.ts", "agent-lead2-inbox/src/lib/supabase/schema-contract.test.ts"]) {
-    const result = classifyNameStatus(nul("M", path));
-    assert.equal(result.inbox_contract_tests, true);
-    assert.equal(result.inbox_formatting, false);
-    assert.equal(result.unknown, false);
-    for (const status of ["A", "D", "T"]) {
-      const changed = classifyNameStatus(nul(status, path));
-      assert.equal(changed.inbox_contract_tests, false);
-      assert.equal(changed.unknown, true);
-    }
-    assert.equal(classifyNameStatus(nul("R100", path, path + ".old")).unknown, true);
-  }
-  const otherTest = classifyNameStatus(nul("M", "agent-lead2-inbox/src/lib/unreviewed.test.ts"));
-  assert.equal(otherTest.inbox_contract_tests, false);
-  assert.equal(otherTest.inbox_formatting, true);
-  const mixed = classifyNameStatus(nul("M", "agent-lead2-inbox/src/lib/deployment-config.test.ts", "M", "agent-lead2-inbox/src/lib/utils.ts"));
-  assert.equal(mixed.inbox_contract_tests, true);
-  assert.equal(mixed.inbox_formatting, true);
 });

@@ -7,8 +7,8 @@ umask 077
 
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly DEADLINE_RUNNER="${REPO_ROOT}/scripts/run-command-with-deadline.mjs"
-readonly SOURCE_CADDYFILE="${REPO_ROOT}/agent-lead2-inbox/deploy/Caddyfile.evo-edge"
-readonly WEBSITE_HEADER_EXAMPLE="${REPO_ROOT}/agent-lead2-inbox/deploy/website-intake-header.caddy.example"
+readonly SOURCE_CADDYFILE="${REPO_ROOT}/deploy/edge/Caddyfile.evo-edge"
+readonly WEBSITE_HEADER_EXAMPLE="${REPO_ROOT}/deploy/edge/website-intake-header.caddy.example"
 readonly CRM_HOST="crm.evoadmissions.com"
 readonly CADDY_IMAGE="caddy@sha256:86deaf5e3d3408a6ccec08fbb79989783dd26e206ae10bcf78a801dc8c9ab794"
 readonly RUN_ID="p7b-edge-$$_${RANDOM}"

@@ -2,12 +2,12 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
-import { INBOX_CONTRACT_TEST_PATHS, isInboxFormatCandidate } from "./inbox-format-policy.mjs";
 
 const CONTRACT_PATHS = new Set([
   "AGENTS.md",
   "CLAUDE.md",
   "CONTEXT.md",
+  ".github/CODEOWNERS",
   "docs/EVO_LAUNCH_PLAN.md",
   "docs/PLAN_CHANGES.md",
   "deploy/fast-app-release.md",
@@ -40,15 +40,11 @@ const DOCUMENT_ASSET_PATHS = new Set([
   "docs/evidence/public-student-onboarding-local-2026-09-18.json",
   "docs/qa/student-public-onboarding-177-local-2026-09-18.json",
 ]);
-// Dependency maintenance does not reopen the retired companion's source tree.
-const INBOX_DEPENDENCY_PATHS = new Set([
-  "agent-lead2-inbox/package.json",
-  "agent-lead2-inbox/package-lock.json",
-]);
-const LEAD_AGENT_DEPENDENCY_PATHS = new Set([
-  "evo-lead-agent/pyproject.toml",
-  "evo-lead-agent/uv.lock",
-]);
+// Retired on 2026-11-02 (code kept under the tag archive/lead-agent-and-inbox-2026-11-02).
+// Only removal of what is left under these roots is accepted; adding or editing
+// anything there stays unknown and receives the strongest gates. The shared edge
+// proxy config moved to deploy/edge/, which the "deploy/" prefix already covers.
+const RETIRED_ROOT_PREFIXES = ["agent-lead2-inbox/", "evo-lead-agent/"];
 const KNOWN_CODE_PATHS = new Set([
   ".dockerignore",
   ".env.example",
@@ -56,9 +52,6 @@ const KNOWN_CODE_PATHS = new Set([
   ".gitignore",
   ".nvmrc",
   "Dockerfile",
-  "agent-lead2-inbox/deploy/Caddyfile.evo-edge",
-  "agent-lead2-inbox/deploy/docker-compose.edge.yml",
-  "agent-lead2-inbox/deploy/website-intake-header.caddy.example",
   "assets/fonts/NotoSans-Regular.ttf",
   "assets/fonts/OFL.txt",
   "assets/fonts/README.md",
@@ -170,9 +163,7 @@ function isOrdinaryProsePath(path) {
 }
 
 function isKnownCodePath(path) {
-  return LEAD_AGENT_DEPENDENCY_PATHS.has(path)
-    || INBOX_DEPENDENCY_PATHS.has(path)
-    || KNOWN_CODE_PATHS.has(path)
+  return KNOWN_CODE_PATHS.has(path)
     || hasPrefix(path, KNOWN_CODE_PREFIXES)
     || /^playwright\..+\.config\.ts$/u.test(path);
 }
@@ -192,17 +183,13 @@ export function classifyChangedEntries(entries) {
     ...ordinaryProsePaths,
   ]);
   const strongPaths = paths.filter((path) => !knownLightweight.has(path));
-  const inboxDependencyPaths = paths.filter((path) => INBOX_DEPENDENCY_PATHS.has(path));
-  const inboxContractTestPaths = new Set(entries.filter((entry) => entry.status === "M")
-    .flatMap((entry) => entry.paths).filter((path) => INBOX_CONTRACT_TEST_PATHS.has(path)));
-  const inboxFormatPaths = new Set(entries.filter((entry) => entry.status === "M")
-    .flatMap((entry) => entry.paths).filter((path) => !isKnownCodePath(path)
-      && !inboxContractTestPaths.has(path) && isInboxFormatCandidate(path)));
-  const leadAgentDependencies = paths.some((path) => LEAD_AGENT_DEPENDENCY_PATHS.has(path)
-    || path === "scripts/smoke-lead-agent-dependencies.py"
-    || path === ".github/workflows/evo-fast-pr-checks.yml");
-  const rootCodePaths = strongPaths.filter((path) => !INBOX_DEPENDENCY_PATHS.has(path) && !LEAD_AGENT_DEPENDENCY_PATHS.has(path) && !inboxFormatPaths.has(path) && !inboxContractTestPaths.has(path));
-  const unknownPaths = strongPaths.filter((path) => !isKnownCodePath(path) && !inboxFormatPaths.has(path) && !inboxContractTestPaths.has(path));
+  // A deletion, or the old side of a rename, under a retired root is accepted.
+  const retiredRemovalPaths = new Set(entries
+    .filter((entry) => entry.status === "D" || /^R\d/u.test(entry.status))
+    .map((entry) => entry.paths[0])
+    .filter((path) => RETIRED_ROOT_PREFIXES.some((prefix) => path.startsWith(prefix))));
+  const rootCodePaths = strongPaths.filter((path) => !retiredRemovalPaths.has(path));
+  const unknownPaths = strongPaths.filter((path) => !isKnownCodePath(path) && !retiredRemovalPaths.has(path));
   const codeRequired = strongPaths.length > 0;
   const buildRequired = strongPaths.some(requiresProductionBuild) || unknownPaths.length > 0;
 
@@ -214,13 +201,6 @@ export function classifyChangedEntries(entries) {
     code: codeRequired,
     lint: rootCodePaths.length > 0,
     build: buildRequired,
-    inbox_dependencies: inboxDependencyPaths.length > 0 || paths.some((path) => [
-      "scripts/inbox-format-policy.mjs", "scripts/verify-inbox-format.mjs",
-      "tests/inbox-format-verifier.test.mjs",
-    ].includes(path)),
-    inbox_formatting: inboxFormatPaths.size > 0,
-    inbox_contract_tests: inboxContractTestPaths.size > 0,
-    lead_agent_dependencies: leadAgentDependencies,
     unknown: paths.length === 0 || unknownPaths.length > 0,
     paths,
     ordinary_prose_paths: ordinaryProsePaths,

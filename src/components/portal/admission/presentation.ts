@@ -188,6 +188,9 @@ export function portalNotificationTarget(
       label: strings.targetReply,
     };
   }
+  if (notification.eventCode === "case_chat_message") {
+    return { href: "/portal/messages", label: strings.targetMessages };
+  }
   if (notification.category.startsWith("document")) {
     return { href: "/portal/documents", label: strings.targetDocuments };
   }

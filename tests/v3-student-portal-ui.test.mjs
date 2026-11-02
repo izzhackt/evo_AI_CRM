@@ -881,3 +881,21 @@ test("the Student portal structural contract is registered exactly once", () => 
   assert.equal(registrations.length, 1);
   assert.match(packageJson.scripts["test:frontend"], /tests\/v3-student-portal-ui\.test\.mjs/u);
 });
+
+test("330: a staff message notifies the student once per unread and the notification leads to the messages", () => {
+  const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  const source = fileOf("supabase/migrations/330_platform_case_chat_student_notification.sql");
+  assert.ok(source.indexOf("a330_already_applied") < source.indexOf("a330_anchor_drift"));
+  assert.match(source, /student_portal_notifications_v2\(\)'/u);
+  assert.match(source, /mark_own_student_portal_notification_read_v2\(uuid,uuid\)'/u, "the read command accepts it, otherwise a read one blocks new ones");
+  assert.match(source, /REVOKE ALL ON FUNCTION platform_private\.own_case_chat_notifications\(\) FROM PUBLIC, anon, authenticated, service_role, supabase_auth_admin;/u);
+  assert.doesNotMatch(source, /NEW\.body/u, "the notification holds no message text");
+  assert.match(fileOf("src/components/portal/admission/presentation.ts"), /eventCode === "case_chat_message"[\s\S]*?href: "\/portal\/messages", label: strings\.targetMessages/u);
+  const i18n = fileOf("src/lib/portal/i18n.ts");
+  assert.match(i18n, /targetMessages: "Открыть сообщения"/u);
+  assert.match(i18n, /targetMessages: "Билдирүүлөрдү ачуу"/u);
+  const script = fileOf("scripts/test-postgres-authorization.sh");
+  assert.match(fileOf("supabase/tests/platform_case_chat_student_notification.sql"), /ROLLBACK;\s*$/u);
+  assert.ok(script.indexOf("A330_CASE_CHAT_STUDENT_NOTIFICATION_SUITE_PASSED") > 0 && script.indexOf("A330_CASE_CHAT_STUDENT_NOTIFICATION_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
+  assert.match(script, /a330_already_applied/u);
+});

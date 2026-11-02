@@ -610,7 +610,7 @@ test("328 pins the 068 review wrapper by md5 and only adds the shortcut for a ca
   assert.equal(body328.replace(added, "").replace("  no_portal_account BOOLEAN;\n", ""), body068, "only the no-portal shortcut is added");
   assert.ok(source328.indexOf("a328_already_applied") < source328.indexOf("a328_anchor_drift"), "a repeat is told apart from drift");
   assert.match(fileOf("src/components/v3/profile/DocumentRow.tsx"), /Причину увидит студент, если у него есть кабинет\./u);
-  const script = fileOf("scripts/test-postgres-authorization.sh");
+  const script = fileOf("scripts/test-runners/test-postgres-authorization.sh");
   assert.match(fileOf("supabase/tests/platform_document_review_without_portal.sql"), /ROLLBACK;\s*$/u);
   assert.ok(script.indexOf("A328_DOCUMENT_REVIEW_WITHOUT_PORTAL_SUITE_PASSED") > 0 && script.indexOf("A328_DOCUMENT_REVIEW_WITHOUT_PORTAL_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
   assert.match(script, /a328_already_applied/u);

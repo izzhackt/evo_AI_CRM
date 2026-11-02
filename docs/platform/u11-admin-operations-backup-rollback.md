@@ -34,7 +34,7 @@ staging source and disposable restore target have been exercised successfully.
 - Production, DNS, provider settings, managed data and real staff accounts are
   unchanged by this implementation PR.
 - U11 extends the existing `.github/workflows/evo-fast-release.yml` and
-  `scripts/evo-fast-release.sh` release authority. It does not create a second
+  `scripts/release/evo-fast-release.sh` release authority. It does not create a second
   deployment authority.
 - The presentation-only fast lane remains app-only and must continue rejecting
   migration-bearing ranges.

@@ -2,7 +2,7 @@
 // the write's input/receipt/error mapping and the wording it relies on.
 // These supplement, never replace, the real-Postgres boundary suite
 // supabase/tests/platform_case_next_action_queue.sql (checkpoint 241 in
-// scripts/test-postgres-authorization.sh), which proves authorization,
+// scripts/test-runners/test-postgres-authorization.sh), which proves authorization,
 // replay, conflicts, paging, counts and the staff-only boundary (the Student
 // projections never return the step) against the actual SQL.
 import assert from "node:assert/strict";
@@ -242,7 +242,7 @@ test("252: documents.oldest_submitted_at — optional, consistent with the waiti
   assert.match(waitMigration, /RAISE EXCEPTION 'student_case_queue_document_wait_anchor_drift: before';/u);
   assert.match(waitMigration, /WHEN shown\.can_read_documents THEN \(/u, "the verification keeps the document gate");
   assert.doesNotMatch(waitMigration, /staff_student_case_queue_counts_v1|CREATE (OR REPLACE )?FUNCTION|ALTER TABLE|DROP /u, "one read, no new objects");
-  assert.match(source("scripts/test-postgres-authorization.sh"), /== 252_\* \]\]; then\n\s+docker exec "\$container_name" \\\n\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\n\s+-f \/workspace\/supabase\/tests\/platform_case_queue_document_wait\.sql/u);
+  assert.match(source("scripts/test-runners/test-postgres-authorization.sh"), /== 252_\* \]\]; then\n\s+docker exec "\$container_name" \\\n\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\n\s+-f \/workspace\/supabase\/tests\/platform_case_queue_document_wait\.sql/u);
   assert.match(source("supabase/tests/platform_case_queue_document_wait.sql"), /N252_CASE_QUEUE_DOCUMENT_WAIT_SUITE_OK/u);
 });
 
@@ -365,7 +365,7 @@ test("the SQL one-line rule is exactly the TypeScript one over the whole BMP", (
 });
 
 test("the real-Postgres suite runs at checkpoint 241 of the Migration boundary job", () => {
-  const script = source("scripts/test-postgres-authorization.sh");
+  const script = source("scripts/test-runners/test-postgres-authorization.sh");
   assert.match(script, /== 241_\* \]\]; then\s+docker exec "\$container_name" \\\s+psql -X -v ON_ERROR_STOP=1 -h 127\.0\.0\.1 -U postgres -d "\$test_database" \\\s+-f \/workspace\/supabase\/tests\/platform_case_next_action_queue\.sql/u);
   assert.match(suite, /^BEGIN;$/mu);
   assert.match(suite, /^ROLLBACK;\s*$/mu);

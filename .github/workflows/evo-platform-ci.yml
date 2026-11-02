@@ -98,9 +98,9 @@ jobs:
       - name: Check release entrypoint syntax
         run: |
           set -Eeuo pipefail
-          bash -n scripts/evo-fast-release.sh
-          node --check scripts/evo-production-browser-smoke.mjs
-          node --check scripts/fast-release-ledger-gate.mjs
+          bash -n scripts/release/evo-fast-release.sh
+          node --check scripts/release/evo-production-browser-smoke.mjs
+          node --check scripts/release/fast-release-ledger-gate.mjs
 
       - name: Check scoped release source contracts
         run: >-

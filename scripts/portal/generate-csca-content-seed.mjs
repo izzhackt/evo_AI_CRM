@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import katex from "katex";
 
 // S5.1 / part 2: versioned CSCA content -> immutable content migrations.
-// Fork of scripts/generate-portal-learning-seed.mjs: deterministic SQL,
+// Fork of scripts/import/generate-portal-learning-seed.mjs: deterministic SQL,
 // sha256-stamped sources, --check byte-for-byte drift mode, --write to
 // regenerate the UNAPPLIED part 2 migration.
 //
@@ -19,7 +19,7 @@ import katex from "katex";
 //          the output of this script. All 28 topics have a lesson and a
 //          practice set, the diagnostic has 24 items and the mock 48.
 // The files are found by name, not by number, so a renumbering at merge keeps
-// the hooks (scripts/test-csca-learning-postgres.sh does the same). Once part 2
+// the hooks (scripts/test-runners/test-csca-learning-postgres.sh does the same). Once part 2
 // is applied, new content means a new version and a new forward migration,
 // never an edit here.
 //

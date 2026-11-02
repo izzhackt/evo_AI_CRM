@@ -806,7 +806,7 @@ test("the runbooks carry the frame-src line for the future CSP and the leaving-e
   assert.match(team, /Уход сотрудника: внешние доступы/u);
   assert.match(team, /\*\*сначала Google,\s+потом CRM\*\*/u, "Google first, then the CRM");
   assert.match(team, /Убрать человека из «Поделиться» обоих отчётов и таблицы-источника/u);
-  const edge = read("agent-lead2-inbox/deploy/Caddyfile.evo-edge");
+  const edge = read("deploy/edge/Caddyfile.evo-edge");
   assert.doesNotMatch(edge, /lookerstudio|frame-src/u, "the edge file is untouched: no live edge change in this slice");
 });
 

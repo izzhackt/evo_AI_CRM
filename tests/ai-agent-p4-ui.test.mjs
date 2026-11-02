@@ -61,7 +61,7 @@ import {
   normalizePlatformWhatsAppChatState,
 } from "../src/lib/platform-communications.ts";
 import { autoreplyOnBehalf, originWord, outgoingBubbles, speakerPrefix } from "../src/lib/v3/whatsapp-chat.ts";
-import { validateAppEnvironmentContract } from "../scripts/evo-app-env-contract.mjs";
+import { validateAppEnvironmentContract } from "../scripts/release/evo-app-env-contract.mjs";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const ID = (n) => `27700000-0000-4000-8000-${String(n).padStart(12, "0")}`;

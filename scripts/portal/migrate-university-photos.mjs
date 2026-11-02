@@ -1,7 +1,7 @@
 /**
  * PORT-9d: подготовка managed-хранения фото вузов (docs/PLAN_CHANGES.md).
  *
- * Три режима по идиоме scripts/configure-university-template-storage.mjs —
+ * Три режима по идиоме scripts/maintenance/configure-university-template-storage.mjs —
  * офлайн-план по умолчанию, явные --check/--apply:
  *   (без аргументов | --plan)  офлайн: полнота метаданных и деление записей
  *                              библиотеки на eligible/ineligible по лицензии

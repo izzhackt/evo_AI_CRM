@@ -2,7 +2,7 @@
 // checks of the migration text, its real-Postgres suite wiring and the board
 // move pre-check. These supplement, never replace, the boundary suite
 // supabase/tests/platform_access_by_permissions.sql (checkpoint 244 in
-// scripts/test-postgres-authorization.sh), which runs every changed function
+// scripts/test-runners/test-postgres-authorization.sh), which runs every changed function
 // against members modelled like production (coarse role NULL, the production
 // role bundles and scope shapes).
 import assert from "node:assert/strict";
@@ -17,7 +17,7 @@ import {
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const migration = source("supabase/migrations/244_platform_access_by_permissions.sql");
 const suite = source("supabase/tests/platform_access_by_permissions.sql");
-const script = source("scripts/test-postgres-authorization.sh");
+const script = source("scripts/test-runners/test-postgres-authorization.sh");
 const pipeline = source("src/lib/platform-admissions-pipeline.ts");
 
 const ORG = "24400000-0000-4000-8000-000000000001";

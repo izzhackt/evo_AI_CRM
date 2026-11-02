@@ -20,7 +20,7 @@ import {
   checkSelfHostedLedger,
   pendingVersions,
   SchemaLedgerError,
-} from "../scripts/selfhosted-schema-ledger.mjs";
+} from "../scripts/release/selfhosted-schema-ledger.mjs";
 
 // docs/runbooks/selfhosted-cutover.md: ledger and migrations of the self-hosted stack run over SSH
 // inside the database container. The transport is the only seam; everything above it is the real code.
@@ -251,7 +251,7 @@ test("apply refuses a database that is not a prefix of the tree, applies nothing
 test("the CLI accepts only check and apply and prints a code, not an error object", () => {
   const { root, directory } = migrationsFixture({ "001_one.sql": "select 1;\n" });
   try {
-    const result = spawnSync(process.execPath, ["scripts/selfhosted-schema-ledger.mjs", "plan"], {
+    const result = spawnSync(process.execPath, ["scripts/release/selfhosted-schema-ledger.mjs", "plan"], {
       encoding: "utf8",
       env: { PATH: process.env.PATH, EVO_RELEASE_REPO: root },
       timeout: 30_000,

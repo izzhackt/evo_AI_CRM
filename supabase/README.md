@@ -13,7 +13,8 @@ configuration, migrations, and database authorization tests.
 - `config.toml` defines the isolated `evo-platform-local` development stack.
 - There is no migration 040 in P2A. P2B owns the next verified migration.
 
-The former `agent-lead2-inbox/supabase/` path is a pointer only. Never restore a
+The former `agent-lead2-inbox/supabase/` path was removed on 2026-11-02 (code kept
+under the tag `archive/lead-agent-and-inbox-2026-11-02`). Never restore a
 second SQL copy there. Once merged, migrations are immutable; corrections use a
 new forward migration.
 

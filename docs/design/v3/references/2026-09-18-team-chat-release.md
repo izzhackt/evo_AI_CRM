@@ -15,7 +15,7 @@ History, read cursors, permissions, threads and realtime are preserved.
   passed: build48s, lint56s, scoped migration9s, release source contracts70s.
   No full PostgreSQL replay, broad E2E suite or external-provider checks.
 - Local changed-file lint and14 focused checks passed. Real authenticated local
-  desktop/mobile observations are recorded in root `design-qa.md`, separately
+  desktop/mobile observations are recorded in `docs/design/design-qa.md`, separately
   from source/harness tests. No staff messages, accounts or tasks were created.
 - An earlier source assertion mistook `supabase/migrations/` for a CLI command;
   its command-only correction passed before merge. No failing check was bypassed.

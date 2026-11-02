@@ -8,6 +8,7 @@
 #                               any more (the release replaced it) or after MAX_MIN minutes
 set -uo pipefail
 umask 077
+# Server path inside an old release snapshot; in the repo this file now lives at deploy/edge/Caddyfile.evo-edge.
 LIVE=/opt/evo-releases/ee8a825ebc72f84449636e3feaefab7a330913d4/repo/agent-lead2-inbox/deploy/Caddyfile.evo-edge
 SAVED=/root/Caddyfile.evo-edge.pre-maintenance
 LOG=/root/edge-maint.log

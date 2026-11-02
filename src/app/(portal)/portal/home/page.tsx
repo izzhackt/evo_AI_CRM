@@ -44,7 +44,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * «Главная» кабинета (PORT-9c). Живёт на отдельном маршруте: корень /portal
  * остаётся «Моим поступлением» — его заголовок, точка входа после логина и
  * ссылка nav — замороженные смоук-якоря production
- * (scripts/evo-production-browser-smoke.mjs). Только существующие RPC-чтения;
+ * (scripts/release/evo-production-browser-smoke.mjs). Только существующие RPC-чтения;
  * каждый источник падает в свой честный fallback, не роняя весь экран.
  */
 export default async function StudentPortalHomePage() {

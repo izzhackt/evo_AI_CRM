@@ -920,6 +920,36 @@ SQL
     done
   fi
 
+  # «Вернуть документ без кабинета» (migration 328, PLAN_CHANGES 02.11.2026). Matched by name, not number. IMMEDIATELY BEFORE
+  # the ordinary apply the migration must refuse with a328_anchor_drift, inside a transaction that the failure rolls back,
+  # when the review wrapper it replaces is edited after 068. A second apply refuses with a328_already_applied (below).
+  if [[ "$(basename "$migration")" == *_platform_document_review_without_portal.sql ]]; then
+    t328_tamper_log="$(mktemp -t evo-t328-anchor.XXXXXX)"
+    if docker exec -i "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -v "migration_file=/workspace/$migration" \
+      >"$t328_tamper_log" 2>&1 <<'SQL'
+BEGIN;
+SELECT replace(
+  pg_get_functiondef('platform.review_document_version_with_portal_notification_v1(uuid,uuid,platform.document_review_decision,text,uuid)'::regprocedure),
+  '$function$',
+  '$function$ /* tampered after its own migration */'
+) AS tampered_definition \gset
+:tampered_definition ;
+\i :migration_file
+SQL
+    then
+      echo "migration 328 accepted an edited review wrapper" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a328_anchor_drift" "$t328_tamper_log"; then
+      echo "migration 328 failed for the wrong pre-image reason" >&2
+      sed -n '1,60p' "$t328_tamper_log" >&2
+      exit 1
+    fi
+    rm -f "$t328_tamper_log"
+  fi
+
   docker exec "$container_name" \
     psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
     -f "/workspace/$migration"
@@ -4722,6 +4752,33 @@ SQL
       exit 1
     fi
   fi
+  # «Студент узнаёт о новом сообщении» (migration 330, PLAN_CHANGES 02.11.2026). Matched by name, not number. Right after the
+  # migration: a second apply refuses (a330_already_applied), then the suite, insisting on its marker. The suite proves: one
+  # notification per unread without the message text, the list and the real read command, nobody notified without a live
+  # portal, and that the curator is still notified as before.
+  if [[ "$(basename "$migration")" == *_platform_case_chat_student_notification.sql ]]; then
+    t330_again_log="$(mktemp -t evo-t330-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t330_again_log" 2>&1; then
+      echo "migration 330 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a330_already_applied" "$t330_again_log"; then
+      echo "a second apply of migration 330 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t330_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t330_again_log"
+    case_chat_student_notification_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_case_chat_student_notification.sql </dev/null)"
+    printf '%s\n' "$case_chat_student_notification_log"
+    if ! grep -q 'A330_CASE_CHAT_STUDENT_NOTIFICATION_SUITE_PASSED' <<<"$case_chat_student_notification_log"; then
+      echo "platform_case_chat_student_notification.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «Тревога о связи WhatsApp продаж» (migration 321, PLAN_CHANGES 26.10.2026). Matched by name, not number.
   # Additive migration: it replaces nothing, so there are no pre-image anchors to tamper with. Right after the
   # migration: a second apply refuses (a321_already_applied), then the suite, insisting on its marker. The suite
@@ -4755,6 +4812,32 @@ SQL
       exit 1
     fi
   fi
+  # «Студент без кабинета: честный сигнал» (migration 329, PLAN_CHANGES 02.11.2026). Matched by name, not number. Right after
+  # the migration: a second apply refuses (a329_already_applied), then the suite, insisting on its marker. The suite proves
+  # the flag in the staff chat page and in get_case, and that send_message refuses no_student_portal with nothing written.
+  if [[ "$(basename "$migration")" == *_platform_student_without_portal_signals.sql ]]; then
+    t329_again_log="$(mktemp -t evo-t329-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t329_again_log" 2>&1; then
+      echo "migration 329 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a329_already_applied" "$t329_again_log"; then
+      echo "a second apply of migration 329 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t329_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t329_again_log"
+    student_without_portal_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_student_without_portal_signals.sql </dev/null)"
+    printf '%s\n' "$student_without_portal_log"
+    if ! grep -q 'A329_STUDENT_WITHOUT_PORTAL_SUITE_PASSED' <<<"$student_without_portal_log"; then
+      echo "platform_student_without_portal_signals.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
   # «ИИ-агенты»: расход агента за сутки по Бишкеку для дневного лимита на WhatsApp (migration 322, PLAN_CHANGES
   # 26.10.2026). Matched by name, not number. Right after the migration: a second apply refuses
   # (a322_already_applied), then the suite, insisting on its marker. The suite proves: the posture of the one new
@@ -4783,6 +4866,33 @@ SQL
     printf '%s\n' "$ai_agents_daily_spend_log"
     if ! grep -q 'A322_AI_AGENTS_DAILY_SPEND_SUITE_PASSED' <<<"$ai_agents_daily_spend_log"; then
       echo "platform_ai_agents_daily_spend.sql did not reach its PASSED marker" >&2
+      exit 1
+    fi
+  fi
+  # «Вернуть документ без кабинета» (migration 328, PLAN_CHANGES 02.11.2026). Matched by name, not number. Right after the
+  # migration: a second apply refuses (a328_already_applied), then the suite, insisting on its marker. The suite proves: a case
+  # with no activated portal saves the decision and notifies nobody, the reason stays required, staff without the case are
+  # refused, and a case with a portal behaves as before (publication off or a suspended student refuses, on notifies once).
+  if [[ "$(basename "$migration")" == *_platform_document_review_without_portal.sql ]]; then
+    t328_again_log="$(mktemp -t evo-t328-again.XXXXXX)"
+    if docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f "/workspace/$migration" >"$t328_again_log" 2>&1; then
+      echo "migration 328 applied twice" >&2
+      exit 1
+    fi
+    if ! grep -Fq "a328_already_applied" "$t328_again_log"; then
+      echo "a second apply of migration 328 failed for the wrong reason" >&2
+      sed -n '1,60p' "$t328_again_log" >&2
+      exit 1
+    fi
+    rm -f "$t328_again_log"
+    document_review_without_portal_log="$(docker exec "$container_name" \
+      psql -X -v ON_ERROR_STOP=1 -h 127.0.0.1 -U postgres -d "$test_database" \
+      -f /workspace/supabase/tests/platform_document_review_without_portal.sql </dev/null)"
+    printf '%s\n' "$document_review_without_portal_log"
+    if ! grep -q 'A328_DOCUMENT_REVIEW_WITHOUT_PORTAL_SUITE_PASSED' <<<"$document_review_without_portal_log"; then
+      echo "platform_document_review_without_portal.sql did not reach its PASSED marker" >&2
       exit 1
     fi
   fi

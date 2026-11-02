@@ -2,6 +2,7 @@ import "server-only";
 import { staffPresentationCan } from "../platform-access.ts";
 import type { ActivePlatformActor } from "../platform-auth";
 import { createSupabaseServerClient } from "../supabase/server";
+import { readCaseClientEmail } from "./portal-invite-email";
 
 /**
  * «Подготовить кабинет» (unified workflow S7, plan §4): the lead-card «Доступ
@@ -72,4 +73,15 @@ export async function readStudentCaseCabinetOrigin(
   );
   if (error || typeof data !== "boolean") return false;
   return data;
+}
+
+/**
+ * Почта клиента дела для блока «Доступ к порталу» (дело без открытого лида: добавлено вручную или импортом). Читается под
+ * сессией сотрудника, права решает RLS. Сбой или пустая почта: null, блок честно говорит, что почты нет.
+ */
+export async function readStudentCaseClientEmail(
+  actor: ActivePlatformActor,
+  studentCaseId: string,
+): Promise<string | null> {
+  return readCaseClientEmail(await createSupabaseServerClient(), actor.organizationId, studentCaseId);
 }

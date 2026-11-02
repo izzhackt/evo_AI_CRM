@@ -233,6 +233,29 @@ test("«Приём дела» in «Сведения» keeps the curator's answer
   assert.match(overview, /<Fact term="Приём дела">\{values\.reception\}<\/Fact>/u);
 });
 
+test("329: the staff sees that a student has no cabinet and the agent gets an honest refusal", () => {
+  const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  const source = fileOf("supabase/migrations/329_platform_student_without_portal_signals.sql");
+  assert.ok(source.indexOf("a329_already_applied") < source.indexOf("a329_replace_drift"));
+  assert.doesNotMatch(source, /CREATE FUNCTION platform\./u, "no function is added to the API");
+  assert.match(source, /RAISE EXCEPTION 'no_student_portal' USING ERRCODE = '55000'/u);
+  assert.match(fileOf("src/lib/ai-agents/contract.ts"), /"no_student_portal"/u);
+  assert.match(fileOf("src/lib/server/ai-agents/mcp-tools.ts"), /no_student_portal: "У студента нет кабинета/u);
+  assert.match(fileOf("src/lib/v3/case-chat-source.ts"), /typeof data\.studentHasPortal === "boolean" \? data\.studentHasPortal : null/u);
+  const thread = fileOf("src/components/v3/case-chat/CaseChatThread.tsx");
+  assert.match(thread, /page\.studentHasPortal === false \?/u, "null stays silent: only a confirmed absence warns");
+  assert.match(thread, /У студента нет кабинета: он не увидит это сообщение\./u);
+  for (const agent of ["curator-my", "curator-cn"]) {
+    const prompt = fileOf(`src/content/ai-agents/${agent}.md`);
+    assert.match(prompt, /`student_has_portal: false`/u, agent);
+    assert.match(prompt, /`no_student_portal`/u, agent);
+  }
+  const script = fileOf("scripts/test-runners/test-postgres-authorization.sh");
+  assert.match(fileOf("supabase/tests/platform_student_without_portal_signals.sql"), /ROLLBACK;\s*$/u);
+  assert.ok(script.indexOf("A329_STUDENT_WITHOUT_PORTAL_SUITE_PASSED") > 0 && script.indexOf("A329_STUDENT_WITHOUT_PORTAL_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
+  assert.match(script, /a329_already_applied/u);
+});
+
 test("Admin: sales forms and portal access are collapsed groups under «Сведения»; contacts are one fact", () => {
   const html = surfaces.get("admin");
   const shown = visible(html);
@@ -457,15 +480,90 @@ test("the direction is the snapshot's only: no queue-row or target-country fallb
   for (const inherited of ["constructor", "__proto__", "toString", "valueOf"]) assert.equal(country(inherited), null, inherited);
 });
 
+test("a case without a lead: Admin sees the invite address beside the button with the unconfirmed mark", () => {
+  const html = surfaces.get("direct-case-client-email");
+  const text = texts(html);
+  assert.match(text, /Приглашение уйдёт на: client@example\.invalid Почта из карточки клиента — проверьте\./u);
+  assert.match(html, /name="email" value="client@example\.invalid"/u);
+  // Адрес рядом с кнопкой, в той же форме.
+  const line = html.indexOf('data-testid="student-portal-invite-email"');
+  assert.ok(line > 0 && line < html.indexOf("Проверить и подготовить доступ", line));
+  // В контакты «Сведений» почта клиента не попадает: адрес только в блоке доступа.
+  assert.doesNotMatch(html, /mailto:client@example\.invalid/u);
+  // Дело с лидом: адрес из той же карточки клиента, пометка та же.
+  assert.match(texts(surfaces.get("lead-card-email")), /Приглашение уйдёт на: lead-card@example\.invalid Почта из карточки клиента — проверьте\./u);
+  // Адрес совпал с одобренной анкетой студента: пометки нет.
+  const confirmed = texts(surfaces.get("admin"));
+  assert.match(confirmed, /Приглашение уйдёт на: student@example\.invalid/u);
+  assert.doesNotMatch(confirmed, /Почта из карточки клиента/u);
+  // Адреса нет: строка не рисуется, остаётся честное «Нет рабочего email».
+  assert.doesNotMatch(texts(surfaces.get("direct-case")), /Приглашение уйдёт на/u);
+});
+
+test("a case without a lead: a non-Admin never reads the client's address", async () => {
+  const { portalInviteEmailFor } = await import("../src/lib/v3/portal-invite-email.ts");
+  let reads = 0;
+  const readClientEmail = async () => { reads += 1; return "client@example.invalid"; };
+  assert.equal(await portalInviteEmailFor("admin", readClientEmail), "client@example.invalid");
+  assert.equal(reads, 1);
+  for (const role of ["staff", "", "ADMIN"]) assert.equal(await portalInviteEmailFor(role, readClientEmail), null, role);
+  assert.equal(reads, 1, "the read does not run for anyone else");
+  assert.doesNotMatch(surfaces.get("direct-case-curator-no-email"), /client@example\.invalid|student-portal-invite-email/u);
+});
+
+test("the invite address counts as confirmed only when it matches the student's approved application", async () => {
+  const { inviteEmailConfirmed } = await import("../src/lib/v3/portal-invite-email.ts");
+  const approved = { status: "approved", email: "Student@Example.invalid " };
+  assert.equal(inviteEmailConfirmed("student@example.invalid", approved), true);
+  assert.equal(inviteEmailConfirmed("other@example.invalid", approved), false, "another address is not confirmed by the application");
+  assert.equal(inviteEmailConfirmed("student@example.invalid", { ...approved, status: "pending" }), false, "a pending application confirms nothing");
+  assert.equal(inviteEmailConfirmed("student@example.invalid", null), false);
+  assert.equal(inviteEmailConfirmed(null, approved), false);
+  // Все места, где блок рисуется, передают это решение, а не значение по умолчанию.
+  for (const path of ["CaseWorkParts", "LeadWorkParts", "Profile"]) {
+    const file = readFileSync(new URL(`../src/components/v3/profile/${path}.tsx`, import.meta.url), "utf8");
+    assert.equal((file.match(/<StudentPortalAccessControls/gu) ?? []).length, (file.match(/emailConfirmed=\{inviteEmailConfirmed\(/gu) ?? []).length, path);
+  }
+});
+
+test("the invite reader takes the email of this case's client inside this organization; a failed or empty read gives nothing", async () => {
+  const { readCaseClientEmail } = await import("../src/lib/v3/portal-invite-email.ts");
+  const fake = (answers, calls = []) => ({
+    calls,
+    schema: (name) => ({ from: (table) => {
+      calls.push([name, table]);
+      const query = { select: () => query, eq: (column, value) => { calls.push([column, value]); return query; }, maybeSingle: async () => answers[table] };
+      return query;
+    } }),
+  });
+  const found = fake({ student_cases: { data: { canonical_client_id: "client-1" }, error: null }, clients: { data: { email: " a@example.invalid " }, error: null } });
+  assert.equal(await readCaseClientEmail(found, "org-1", "case-1"), "a@example.invalid");
+  assert.deepEqual(found.calls, [["platform", "student_cases"], ["organization_id", "org-1"], ["id", "case-1"], ["platform", "clients"], ["organization_id", "org-1"], ["id", "client-1"]]);
+  const noCase = { student_cases: { data: null, error: { message: "boom" } }, clients: { data: { email: "a@example.invalid" }, error: null } };
+  assert.equal(await readCaseClientEmail(fake(noCase), "org-1", "case-1"), null);
+  const noClient = { student_cases: { data: { canonical_client_id: "client-1" }, error: null }, clients: { data: null, error: { message: "boom" } } };
+  assert.equal(await readCaseClientEmail(fake(noClient), "org-1", "case-1"), null);
+  const empty = { student_cases: { data: { canonical_client_id: "client-1" }, error: null }, clients: { data: { email: "  " }, error: null } };
+  assert.equal(await readCaseClientEmail(fake(empty), "org-1", "case-1"), null);
+});
+
+test("a case without an open lead can be invited to the portal: the Admin block gets the client's email, the contact rows do not", () => {
+  const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  assert.match(fileOf("src/lib/v3/profile-source.ts"), /portalInviteEmail: await portalInviteEmailFor\(actor\.systemRole, \(\) => readStudentCaseClientEmail\(actor, canonicalCaseId\)\),/u);
+  const reader = fileOf("src/lib/v3/portal-invite-email.ts");
+  assert.match(reader, /from\("clients"\)\.select\("email"\)/u);
+  assert.doesNotMatch(reader, /createPlatformSupabaseServiceClient/u, "the read stays under the staff session and RLS");
+});
+
 test("the case-only branch of readCaseProfile keeps the client e-mail/phone null (portal access needs a confirmed e-mail) and reads the sale conditions apart", () => {
   const source = read("src/lib/v3/profile-source.ts");
   const branch = source.slice(source.indexOf("async function readCaseProfile("), source.indexOf("async function readLeadProfile("));
-  assert.match(branch, /person: data\.studentCase\.studentDisplayName,[\s\S]*?email: null,\n {4}phone: null,\n {4}student: true,/u);
+  assert.match(branch, /person: data\.studentCase\.studentDisplayName,[\s\S]*?email: null,\n {4}portalInviteEmail: [^\n]+\n {4}phone: null,\n {4}student: true,/u);
   assert.match(source, /direction: data\.studentCase\.admissionsDirection \?\? null,\n {4}applications: data\.applications,/u);
   // Контакты собираются чистой функцией из уже прочитанного, без нового чтения.
   const parts = read("src/components/v3/profile/CaseWorkParts.tsx");
   assert.match(parts, /contacts(?:=\{|: )caseContacts\(\{ phone: profile\.phone, email: profile\.email \}, draft\.profileFields\)/u);
-  assert.match(parts, /email=\{profile\.email\}/u, "portal access still takes the client e-mail only");
+  assert.match(parts, /email=\{profile\.email \?\? profile\.portalInviteEmail \?\? null\}/u, "portal access still takes the client e-mail only, never the анкета value");
   // Условия продажи (290): одно чтение дела параллельно с делом, не бросает, без запасного пути; блок лида остаётся null.
   assert.match(branch, /const saleRead = readCaseSaleData\(actor, canonicalCaseId\);\n {2}const data = await loadFullCase\(actor, view\.studentCase\);/u);
   assert.match(branch, /\.\.\.\(await saleRead\),/u);
@@ -858,7 +956,7 @@ test("the contract download reads the file through the staff session, the servic
   assert.match(migration, /GRANT EXECUTE ON FUNCTION platform\.staff_case_contract_file_download_target_v1\(UUID, UUID\) TO authenticated;/u);
   assert.doesNotMatch(migration, /GRANT [A-Z, ]*ON (TABLE )?platform\.case_contract_files/u, "no direct table right is added");
   const suite = fileOf("supabase/tests/platform_case_contract_download_target.sql");
-  const script = fileOf("scripts/test-postgres-authorization.sh");
+  const script = fileOf("scripts/test-runners/test-postgres-authorization.sh");
   assert.match(suite, /ROLLBACK;\s*$/u);
   assert.ok(script.indexOf("A327_CASE_CONTRACT_DOWNLOAD_SUITE_PASSED") > 0 && script.indexOf("A327_CASE_CONTRACT_DOWNLOAD_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
   assert.match(script, /a327_already_applied/u);

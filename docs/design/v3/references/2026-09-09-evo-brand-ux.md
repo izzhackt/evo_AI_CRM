@@ -154,7 +154,7 @@ gap; it does not reopen managed SMTP or deferred #687.
 ### Owner-approved isolated Student visual acceptance — 09.09
 
 Source baseline: `df914fc7d1dae33600d0b2802b6787f45233a942` plus the exact
-three-file delta committed with this note: `scripts/test-e4-student-portal-browser.sh`,
+three-file delta committed with this note: `scripts/test-runners/test-e4-student-portal-browser.sh`,
 `tests/e2e/student-portal.spec.ts`, and `src/components/v3/portal/OverviewView.tsx`.
 This is not a claim that the unmodified baseline passed. The browser spec is the
 actual E4 entry point; there is no `scripts/check-e4-student-portal-browser.mjs`.
@@ -192,7 +192,7 @@ no mock backend, managed-production writes, invitations or provider messages.
   `.env`/`.next`; the live 3100 preview and 3000 SSH tunnel remain untouched.
   Owned E4 containers/volumes were cleaned up; the old local stack remains at 125.
 
-Reproduce with Node 22.23.1: `EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node bash scripts/test-e4-student-portal-browser.sh`
+Reproduce with Node 22.23.1: `EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node bash scripts/test-runners/test-e4-student-portal-browser.sh`
 (put that Node directory first in `PATH`). The final run used only loopback
 `http://127.0.0.1:60229`, project `evo-e4-29300-33869-e511617a`, now removed.
 Normal invite → callback/password → authority provisioning remains separately

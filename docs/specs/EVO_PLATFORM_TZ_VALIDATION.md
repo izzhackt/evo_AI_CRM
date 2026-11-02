@@ -78,7 +78,7 @@ DOCX собирается только из канонического Markdown.
 
 ```bash
 /Users/iskhak.tazhibaev/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 \
-  scripts/generate-evo-platform-tz.py
+  scripts/docs/generate-evo-platform-tz.py
 ```
 
 Полная повторная сборка, структурная проверка, accessibility audit и реальный
@@ -87,11 +87,11 @@ LibreOffice/Poppler render выполнены командой:
 ```bash
 render_dir="$(mktemp -d /private/tmp/evo-platform-tz-v2.3-final.XXXXXX)"
 /Users/iskhak.tazhibaev/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 \
-  scripts/verify-evo-platform-tz.py --render-dir "$render_dir"
+  scripts/docs/verify-evo-platform-tz.py --render-dir "$render_dir"
 ```
 
 Закреплённая document-зависимость: `python-docx==1.2.0` в
-`scripts/requirements-evo-platform-tz.txt`.
+`scripts/docs/requirements-evo-platform-tz.txt`.
 
 Финальный автоматический результат:
 

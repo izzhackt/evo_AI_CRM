@@ -1,6 +1,6 @@
 # Хранилище сформированных анкет
 
-Команда [configure-document-export-storage.mjs](../../scripts/configure-document-export-storage.mjs)
+Команда [configure-document-export-storage.mjs](../../scripts/maintenance/configure-document-export-storage.mjs)
 проверяет настройки одного bucket, а не готовность всего D4. Контракт:
 [сохранённые результаты](../design/v3/evo-docs-export-artifacts-contract.md).
 
@@ -24,14 +24,14 @@
 файлы `.env` и не получает новые credentials. Publishable/anon ключ не подходит.
 
 ```bash
-node scripts/configure-document-export-storage.mjs
+node scripts/maintenance/configure-document-export-storage.mjs
 ```
 
 После просмотра результата и только в согласованном окне изменений:
 
 ```bash
-node scripts/configure-document-export-storage.mjs --apply
-node scripts/configure-document-export-storage.mjs
+node scripts/maintenance/configure-document-export-storage.mjs --apply
+node scripts/maintenance/configure-document-export-storage.mjs
 ```
 
 Результат — JSON с фиксированными кодами, очищенными before/after settings и

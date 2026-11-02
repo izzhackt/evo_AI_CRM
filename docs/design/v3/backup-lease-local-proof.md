@@ -23,7 +23,7 @@ OrbStack running, Docker context `orbstack`, and cached `postgres:18.6-bookworm`
 
 ```bash
 node --test tests/v3-managed-supabase-export.test.mjs tests/v3-managed-supabase-recovery-harness.test.mjs
-node scripts/test-v3-managed-backup-readonly-postgres.mjs
+node scripts/test-runners/test-v3-managed-backup-readonly-postgres.mjs
 ```
 
 The recorded runs used
@@ -34,7 +34,7 @@ read-only repository mount and fictional records. It checks ownership before
 removing that exact container and its private temporary output.
 
 The SHA-256 of the executed
-[PostgreSQL harness](../../../scripts/test-v3-managed-backup-readonly-postgres.mjs)
+[PostgreSQL harness](../../../scripts/test-runners/test-v3-managed-backup-readonly-postgres.mjs)
 was `719c5b8c91b0796705aa2499e1ddc361ec0aa230ad12713395dbe4baa9adc43b`.
 
 ## What the proof covers

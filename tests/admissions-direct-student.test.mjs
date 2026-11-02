@@ -3,7 +3,7 @@
 // validation, the server-side re-parse and the error wording) and static
 // checks of the migration text and its suite wiring. They supplement, never
 // replace, the real-Postgres suite supabase/tests/platform_admissions_direct_student.sql
-// (hooked after 281 in scripts/test-postgres-authorization.sh).
+// (hooked after 281 in scripts/test-runners/test-postgres-authorization.sh).
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -28,7 +28,7 @@ import {
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const migration = source("supabase/migrations/281_platform_admissions_direct_student.sql");
 const suite = source("supabase/tests/platform_admissions_direct_student.sql");
-const script = source("scripts/test-postgres-authorization.sh");
+const script = source("scripts/test-runners/test-postgres-authorization.sh");
 const drawer = source("src/components/v3/admissions/AddStudentDrawer.tsx");
 const page = source("src/app/(v3)/v3/admissions-pipeline/page.tsx");
 const directSource = source("src/lib/v3/admissions-direct-student-source.ts");

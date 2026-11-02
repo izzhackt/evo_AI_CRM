@@ -50,12 +50,12 @@ test("the image carries the bundle at /app/whatsapp-health-maintenance.mjs and t
     /^COPY --from=builder --chown=nextjs:nodejs --chmod=0555 \/app\/\.next\/whatsapp-health-maintenance\.mjs \.\/whatsapp-health-maintenance\.mjs$/mu,
   );
   const pkg = JSON.parse(read("package.json"));
-  assert.equal(pkg.scripts["build:whatsapp-health-maintenance"], "node scripts/build-whatsapp-health-maintenance.mjs");
+  assert.equal(pkg.scripts["build:whatsapp-health-maintenance"], "node scripts/maintenance/build-whatsapp-health-maintenance.mjs");
   assert.match(pkg.scripts.build, /npm run build:whatsapp-health-maintenance( |$)/u);
   // The sibling build steps keep their place: telephony before, AI agents last (their packaging tests pin it).
   assert.match(pkg.scripts.build, /npm run build:telephony-maintenance && npm run build:whatsapp-health-maintenance && npm run build:ai-agents-maintenance$/u);
-  const builder = read("scripts/build-whatsapp-health-maintenance.mjs");
-  assert.match(builder, /entryPoints: \["scripts\/whatsapp-health-maintenance\.mjs"\]/u);
+  const builder = read("scripts/maintenance/build-whatsapp-health-maintenance.mjs");
+  assert.match(builder, /entryPoints: \["scripts\/maintenance\/whatsapp-health-maintenance\.mjs"\]/u);
   assert.match(builder, /outfile: "\.next\/whatsapp-health-maintenance\.mjs"/u);
   assert.match(builder, /conditions: \["react-server"\]/u);
 });
@@ -66,7 +66,7 @@ test("the bundle builds, is self-contained and, with the receive path off, print
     const outfile = join(directory, "whatsapp-health-maintenance.mjs");
     await build({
       absWorkingDir: root,
-      entryPoints: ["scripts/whatsapp-health-maintenance.mjs"],
+      entryPoints: ["scripts/maintenance/whatsapp-health-maintenance.mjs"],
       outfile,
       bundle: true,
       platform: "node",
@@ -141,7 +141,7 @@ test("migration 321 exists, is additive, and its copy matches the rules in the a
   assert.ok(!/Это не отвязка/u.test(sql));
   assert.ok(!/когда сервис ответит/u.test(sql));
   // The SQL suite is hooked into the authorization harness by file name and insists on its marker.
-  const harness = read("scripts/test-postgres-authorization.sh");
+  const harness = read("scripts/test-runners/test-postgres-authorization.sh");
   assert.match(harness, /\*_platform_whatsapp_health_alerts\.sql/u);
   assert.match(harness, /a321_already_applied/u);
   assert.match(harness, /A321_WHATSAPP_HEALTH_ALERTS_SUITE_PASSED/u);

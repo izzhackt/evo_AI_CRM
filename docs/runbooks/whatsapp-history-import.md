@@ -11,8 +11,8 @@ production (миграция 260, release, запуск загрузчика), �
 
 Код: draft PR [#1139](https://github.com/izzhackt/evo_AI_CRM/pull/1139) — слой
 базы данных (миграция `260_platform_waha_history_import.sql`) и загрузчик
-`scripts/waha-history-import.mjs` (он ставится в образ приложения, как
-`scripts/waha-runtime-binding.mjs`). Приём живых сообщений — #1137, go-live —
+`scripts/import/waha-history-import.mjs` (он ставится в образ приложения, как
+`scripts/maintenance/waha-runtime-binding.mjs`). Приём живых сообщений — #1137, go-live —
 `docs/runbooks/whatsapp-go-live.md` (#1138); этот документ идёт **после**
 приёмки go-live.
 
@@ -506,7 +506,7 @@ rm -f history-preview.jsonl pilot.txt   # копии на хосте
   Флаги в нём — те же, что в этом документе (`--include-outbound-only` везде,
   пилот `--only-chats-file`, остальное `--all-chats` за файлом предпросмотра).
 - `supabase/tests/platform_waha_history_import.sql` (его запускает
-  `scripts/test-postgres-authorization.sh` сразу после миграции 260) — контракт базы;
+  `scripts/test-runners/test-postgres-authorization.sh` сразу после миграции 260) — контракт базы;
   раздел 8b — запуск владельца: чат только из наших сообщений, отложенные живые
   сообщения, живые сообщения после импорта, повышение клиента ровно один раз;
   раздел 8c — края добора отложенных сообщений (id на более поздней странице,

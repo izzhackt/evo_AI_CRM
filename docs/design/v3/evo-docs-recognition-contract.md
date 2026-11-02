@@ -70,7 +70,7 @@ RPC/read adapter и локальная настоящая PostgreSQL-прове�
 | [Private Storage handler](../../../src/lib/server/platform-document-storage-route-handlers.ts) | Выделить ограниченное чтение точных байтов: version/slot/case, clean scan, MIME/magic/size/SHA-256. Не выдавать Gemini пользовательский signed URL. |
 | Новый `src/lib/platform-document-recognition.ts` | Строгие request/job/result DTO, фиксированные коды, пользовательские RPC через текущую сессию. |
 | Новые `src/lib/server/{document-recognition-route-handler,document-recognition-worker,gemini-document-recognition}.ts` | HTTP-граничные проверки; claim/side-effect/outcome; отдельный узкий Files + REST generateContent adapter. |
-| Новый `scripts/run-document-recognition-worker.ts` | Ограниченный `--once` tick управляемого private worker того же приложения/image; не fire-and-forget внутри HTTP-запроса. |
+| Новый `scripts/maintenance/run-document-recognition-worker.ts` | Ограниченный `--once` tick управляемого private worker того же приложения/image; не fire-and-forget внутри HTTP-запроса. |
 
 Перенести паттерны ledger/lease из [045](../../../supabase/migrations/045_platform_durable_work_queues.sql),
 но не помещать извлечение в существующий `ai_draft_generate` с его retry-семантикой.
@@ -212,7 +212,7 @@ Files SDK допускается с `config.name`; HTTP retries для upload/ge
 
 ### Production CLI amendment, 2026-09-14
 
-`scripts/run-document-recognition-worker.ts` composes the actual
+`scripts/maintenance/run-document-recognition-worker.ts` composes the actual
 `inspectDocumentSource`, existing dependency factory and exactly one processing
 or cleanup tick. Require explicit `--once --mode processing|cleanup --worker-id`;
 there is no default processing mode, implicit loop or retry. Processing uses only
@@ -285,7 +285,7 @@ parser, диагностическая подмена, mock inspector и fake ve
    До сборки image и запуска стека требуется независимое одобрение этого объединения.
 2. В одном clean checkout объединить reviewed D3 + fixed runtime + этот harness.
    Обычный `Dockerfile` собирает production image с exact `EVO_IMAGE_REVISION`.
-   Затем отдельный `scripts/Dockerfile.document-recognition-acceptance` получает
+   Затем отдельный `scripts/test-runners/Dockerfile.document-recognition-acceptance` получает
    `EVO_D3_COMBINED_IMAGE_REF` (разрешаемое имя/тег или repository digest),
    `EVO_D3_COMBINED_IMAGE` (его фактический local `sha256:<image ID>`) и
    `EVO_D3_ACCEPTANCE_REVISION` (тот же commit). Reference и image ID не взаимозаменяемы;
@@ -293,7 +293,7 @@ parser, диагностическая подмена, mock inspector и fake ve
    [image identity](https://docs.docker.com/reference/cli/docker/image/pull/).
 3. Запуск: `EVO_D3_COMBINED_IMAGE` и `EVO_D3_ACCEPTANCE_IMAGE` задаются точными local
    image ID, `EVO_NODE_BIN` указывает Node22; выполнить
-   `bash scripts/test-postgres-v2-foundation.sh --document-recognition-only`.
+   `bash scripts/test-runners/test-postgres-v2-foundation.sh --document-recognition-only`.
    Gate до stack creation сравнивает native architecture, revision, точные TS bytes
    из clean Git commit и фактические launcher/inspect/dependency-tree/Node hashes
    обоих образов. TS-модули исполняются только в acceptance target: это **не**

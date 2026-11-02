@@ -48,7 +48,7 @@ import {
   validateSupabaseDatabaseCa,
   verifyPrivateSigningKey,
   verifySigningKeyPair,
-} from "../scripts/export-v3-managed-supabase-backup.mjs";
+} from "../scripts/release/export-v3-managed-supabase-backup.mjs";
 import {
   createTemporaryReadOnlyLease,
   buildReadOnlyCapabilitySql,

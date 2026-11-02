@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 
-import { formatReport, parseTimingLines, percentile, summarize } from "../scripts/timing-report.mjs";
+import { formatReport, parseTimingLines, percentile, summarize } from "../scripts/maintenance/timing-report.mjs";
 
 // Отчёт по журналу `evo_timing` (замер A0, docs/PLAN_CHANGES.md 19.10.2026).
 
@@ -98,13 +98,13 @@ test("the text report names the coverage, the table has one row per group, and n
 });
 
 test("the command reads stdin and exits non-zero when there are no records", () => {
-  const ok = spawnSync(process.execPath, ["scripts/timing-report.mjs", "--json"], { input: `${line()}\n`, encoding: "utf8" });
+  const ok = spawnSync(process.execPath, ["scripts/maintenance/timing-report.mjs", "--json"], { input: `${line()}\n`, encoding: "utf8" });
   assert.equal(ok.status, 0, ok.stderr);
   assert.equal(JSON.parse(ok.stdout).requests, 1);
-  const empty = spawnSync(process.execPath, ["scripts/timing-report.mjs"], { input: "nothing here\n", encoding: "utf8" });
+  const empty = spawnSync(process.execPath, ["scripts/maintenance/timing-report.mjs"], { input: "nothing here\n", encoding: "utf8" });
   assert.equal(empty.status, 2);
   assert.match(empty.stdout, /Запросов: 0/);
-  const bad = spawnSync(process.execPath, ["scripts/timing-report.mjs", "--kind=unknown"], { input: "", encoding: "utf8" });
+  const bad = spawnSync(process.execPath, ["scripts/maintenance/timing-report.mjs", "--kind=unknown"], { input: "", encoding: "utf8" });
   assert.equal(bad.status, 1);
   assert.match(bad.stderr, /--kind/);
 });

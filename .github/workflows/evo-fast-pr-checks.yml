@@ -46,7 +46,7 @@ jobs:
           set -Eeuo pipefail
           format_base_sha=$(git merge-base "$BASE_SHA" "$HEAD_SHA")
           format_head_sha=$(git rev-parse "$HEAD_SHA")
-          node scripts/classify-pr-changes.mjs --base "$format_base_sha" --head "$format_head_sha" --github-output "$GITHUB_OUTPUT"
+          node scripts/checks/classify-pr-changes.mjs --base "$format_base_sha" --head "$format_head_sha" --github-output "$GITHUB_OUTPUT"
 
       - name: Validate classifier outputs
         env:
@@ -157,7 +157,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           git fetch --no-tags origin main:refs/remotes/origin/main
-          boundary_diff="$(git diff --name-status --no-renames origin/main...HEAD -- supabase/migrations/ supabase/tests/ scripts/test-postgres-authorization.sh)"
+          boundary_diff="$(git diff --name-status --no-renames origin/main...HEAD -- supabase/migrations/ supabase/tests/ scripts/test-runners/test-postgres-authorization.sh)"
           if [[ "$boundary_diff" == $'A\tsupabase/migrations/171_platform_team_chat_remove_mute.sql' ]]; then
             echo "scoped_chat_mute=true" >> "$GITHUB_OUTPUT"
           else

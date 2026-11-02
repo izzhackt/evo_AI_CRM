@@ -51,7 +51,7 @@ import {
 import { isConnectedPlatformApi, isConnectedPlatformPage } from "../src/lib/platform-route-contract.ts";
 import { staffCanAccessRoute } from "../src/lib/platform-access.ts";
 import { buildV3Navigation } from "../src/lib/v3/navigation.ts";
-import { validateAppEnvironmentContract } from "../scripts/evo-app-env-contract.mjs";
+import { validateAppEnvironmentContract } from "../scripts/release/evo-app-env-contract.mjs";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const ID = (n) => `27100000-0000-4000-8000-${String(n).padStart(12, "0")}`;

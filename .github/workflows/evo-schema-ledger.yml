@@ -202,7 +202,7 @@ jobs:
         if: ${{ env.EVO_SUPABASE_TARGET == 'selfhosted' }}
         run: |
           set -Eeuo pipefail
-          node scripts/selfhosted-schema-ledger.mjs check
+          node scripts/release/selfhosted-schema-ledger.mjs check
 
       - name: Install pinned Supabase CLI
         if: ${{ inputs.mode == 'apply' && env.EVO_SUPABASE_TARGET == 'cloud' }}
@@ -235,4 +235,4 @@ jobs:
         if: ${{ inputs.mode == 'apply' && env.EVO_SUPABASE_TARGET == 'selfhosted' }}
         run: |
           set -Eeuo pipefail
-          node scripts/selfhosted-schema-ledger.mjs apply
+          node scripts/release/selfhosted-schema-ledger.mjs apply

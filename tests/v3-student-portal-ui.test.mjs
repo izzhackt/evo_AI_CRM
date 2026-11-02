@@ -894,7 +894,7 @@ test("330: a staff message notifies the student once per unread and the notifica
   const i18n = fileOf("src/lib/portal/i18n.ts");
   assert.match(i18n, /targetMessages: "Открыть сообщения"/u);
   assert.match(i18n, /targetMessages: "Билдирүүлөрдү ачуу"/u);
-  const script = fileOf("scripts/test-postgres-authorization.sh");
+  const script = fileOf("scripts/test-runners/test-postgres-authorization.sh");
   assert.match(fileOf("supabase/tests/platform_case_chat_student_notification.sql"), /ROLLBACK;\s*$/u);
   assert.ok(script.indexOf("A330_CASE_CHAT_STUDENT_NOTIFICATION_SUITE_PASSED") > 0 && script.indexOf("A330_CASE_CHAT_STUDENT_NOTIFICATION_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
   assert.match(script, /a330_already_applied/u);

@@ -78,11 +78,6 @@ const migrationsDirectory = path.join(
   "supabase",
   "migrations",
 );
-const legacySupabaseDirectory = path.join(
-  repositoryRoot,
-  "agent-lead2-inbox",
-  "supabase",
-);
 
 function fail(message) {
   throw new Error(message);
@@ -280,41 +275,6 @@ function assertSameNames(actualNames, expectedNames) {
   fail(`canonical migration set differs from manifest${details ? ` (${details})` : ""}`);
 }
 
-async function listRelativeFiles(directory, prefix = "") {
-  let entries;
-  try {
-    entries = await readdir(directory, { withFileTypes: true });
-  } catch (error) {
-    fail(
-      `cannot read legacy companion Supabase pointer directory: ${error.message}`,
-    );
-  }
-
-  const files = [];
-  for (const entry of entries.sort((left, right) =>
-    left.name.localeCompare(right.name),
-  )) {
-    const relativePath = path.posix.join(prefix, entry.name);
-    if (entry.isDirectory()) {
-      files.push(
-        ...(await listRelativeFiles(path.join(directory, entry.name), relativePath)),
-      );
-      continue;
-    }
-    files.push(entry.isFile() ? relativePath : `${relativePath} [not a regular file]`);
-  }
-  return files;
-}
-
-async function assertLegacyPathIsPointerOnly() {
-  const files = await listRelativeFiles(legacySupabaseDirectory);
-  if (files.length !== 1 || files[0] !== "README.md") {
-    fail(
-      "agent-lead2-inbox/supabase must contain only the README.md pointer",
-    );
-  }
-}
-
 async function verifyFile(file) {
   const canonicalPath = path.join(migrationsDirectory, file.name);
   const bytes = await readFile(canonicalPath);
@@ -348,7 +308,6 @@ async function main() {
     actualNames.slice(0, immutableMigrationCount),
     expectedNames,
   );
-  await assertLegacyPathIsPointerOnly();
   for (const file of [...manifest.files, ...immutablePlatformMigrations]) {
     await verifyFile(file);
   }

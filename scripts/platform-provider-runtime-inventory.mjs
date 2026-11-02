@@ -21,11 +21,9 @@ const TIMESTAMPTZ =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/u;
 const SAFE_PATH = /^[A-Za-z0-9._/-]+$/u;
 const HISTORICAL_ROOTS = Object.freeze([
-  "agent-lead2-inbox/",
   "deploy/",
   "docs/",
   "drizzle/",
-  "evo-lead-agent/",
   "output/",
   "supabase/",
 ]);

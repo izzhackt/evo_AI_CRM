@@ -24,31 +24,6 @@ const executableLegacy =
 test("active release authority has no executable legacy topology", async () => {
   for (const path of activeReleaseFiles) {
     let value = await read(path);
-    if (path === ".github/workflows/evo-fast-pr-checks.yml") {
-      const maintenance = value.match(/^  inbox_dependencies:\n[\s\S]*?(?=^  fast-checks:)/mu)?.[0];
-      assert.ok(maintenance, "the source-only dependency lane is explicit");
-      assert.doesNotMatch(maintenance, /secrets\.|docker|ssh|npm run (?:start|dev|seed|preflight)|continue-on-error/u);
-      // Permit only these two directory bindings, only inside the reviewed
-      // source-maintenance job. Every other legacy reference remains forbidden.
-      let directoryBindingsRemoved = maintenance;
-      for (const line of [
-        "        working-directory: agent-lead2-inbox\n",
-        "          cache-dependency-path: agent-lead2-inbox/package-lock.json\n",
-      ]) {
-        assert.equal(maintenance.split(line).length - 1, 1);
-        directoryBindingsRemoved = directoryBindingsRemoved.replace(line, "");
-      }
-      // A function replacer keeps "$'" or "$&" in the job text literal.
-      value = value.replace(maintenance, () => directoryBindingsRemoved);
-      // The isolated lead-agent lock lane (#938, A-1) gets the same exception:
-      // one directory binding, only inside that reviewed job (up to the next job).
-      const leadAgentLane = value.match(/^  lead_agent_dependencies:\n[\s\S]*?(?=^  \S)/mu)?.[0];
-      assert.ok(leadAgentLane, "the isolated lead-agent dependency lane is explicit");
-      assert.doesNotMatch(leadAgentLane, /secrets\.|docker|ssh|npm run (?:start|dev|seed|preflight)|continue-on-error/u);
-      const leadAgentBinding = "        working-directory: evo-lead-agent\n";
-      assert.equal(leadAgentLane.split(leadAgentBinding).length - 1, 1);
-      value = value.replace(leadAgentLane, () => leadAgentLane.replace(leadAgentBinding, ""));
-    }
     const executableLines = value
       .split(/\r?\n/u)
       .filter((line) => executableLegacy.test(line))
@@ -137,10 +112,7 @@ test("CI and the exact-SHA gate require only the current root successor", async 
   assert.match(fastPr, /needs:\n      - changed-range\n      - contracts\n      - lint\n      - build\n      - migration_boundary/u);
   assert.doesNotMatch(fastPr, /^  typecheck:\n    name: Standalone typecheck$/mu);
   assert.doesNotMatch(fastPr, /outputs\.typecheck|TYPECHECK/u);
-  const maintenance = fastPr.match(/^  inbox_dependencies:\n[\s\S]*?(?=^  fast-checks:)/mu)?.[0];
-  assert.ok(maintenance);
-  assert.equal((maintenance.match(/run: npm run typecheck/gu) ?? []).length, 1);
-  assert.doesNotMatch(fastPr.replace(maintenance, ""), /run: npm run typecheck/u);
+  assert.doesNotMatch(fastPr, /run: npm run typecheck/u);
   // Inspect command invocations, not source paths such as supabase/migrations/.
   assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:(?:npx|pnpm\s+(?:exec|dlx)|yarn\s+(?:exec|dlx)|npm\s+exec(?:\s+--)?)\s+)?(?:playwright|supabase)(?:@[^\s/]+)?(?:\s|$)/imu);
   assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:npm|pnpm|yarn)\s+(?:run\s+)?test:(?:database:local|security|unit)(?:\b|:)/imu);

@@ -59,13 +59,7 @@ async function createValidFixture(t) {
   t.after(() => rm(root, { force: true, recursive: true }));
 
   const migrationsDirectory = path.join(root, "supabase", "migrations");
-  const legacyDirectory = path.join(root, "agent-lead2-inbox", "supabase");
   await mkdir(migrationsDirectory, { recursive: true });
-  await mkdir(legacyDirectory, { recursive: true });
-  await writeFile(
-    path.join(legacyDirectory, "README.md"),
-    "Canonical migrations live at ../../supabase/migrations.\n",
-  );
 
   const files = [];
   for (let number = 1; number <= 39; number += 1) {
@@ -512,24 +506,4 @@ test("rejects nondeterministic or incorrect provenance metadata", async (t) => {
   manifest.source.commit = "0000000000000000000000000000000000000000";
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   await expectVerifierFailure(root, /manifest source commit must be 1b2ee797/);
-});
-
-test("rejects a duplicate SQL migration left under the companion path", async (t) => {
-  const root = await createValidFixture(t);
-  const legacyMigrationsDirectory = path.join(
-    root,
-    "agent-lead2-inbox",
-    "supabase",
-    "migrations",
-  );
-  await mkdir(legacyMigrationsDirectory, { recursive: true });
-  await writeFile(
-    path.join(legacyMigrationsDirectory, "001_initial_schema.sql"),
-    FIXTURE_SQL,
-  );
-
-  await expectVerifierFailure(
-    root,
-    /must contain only the README\.md pointer/,
-  );
 });

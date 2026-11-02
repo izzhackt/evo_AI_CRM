@@ -21,14 +21,14 @@ import {
   FAST_RELEASE_REQUIRED_CHECKS,
   validateFastReleaseChecks,
   verifyFastReleaseCi,
-} from "../scripts/fast-release-ci-gate.mjs";
+} from "../scripts/release/fast-release-ci-gate.mjs";
 import {
   expectedMigrationVersions,
   resolveSupabaseTarget,
   verifyProductionMigrationLedger,
   verifySelfHostedMigrationLedger,
-} from "../scripts/fast-release-ledger-gate.mjs";
-import { sealCandidateEnvironmentSnapshot } from "../scripts/evo-app-env-contract.mjs";
+} from "../scripts/release/fast-release-ledger-gate.mjs";
+import { sealCandidateEnvironmentSnapshot } from "../scripts/release/evo-app-env-contract.mjs";
 const REVISION = "90ab8b1b0c1dd6a92c931e9793c052f984f19fc4";
 const CLAMAV_IMAGE = "clamav/clamav@sha256:6c92171e6ab52529cd44452f6443dd05b2fc4d580c190ffc70f45f955cb9f4b9";
 
@@ -645,7 +645,7 @@ function candidateIdentityFixture() {
   const state = JSON.parse(readFileSync(statePath, "utf8"));
   const controllerDir = join(fixture.evidenceDir, "controller");
   mkdirSync(controllerDir, { mode: 0o700 });
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const wrapper = "#!/bin/sh\nexit 1\n";
   writeFileSync(join(controllerDir, "evo-fast-release.sh"), controller, { mode: 0o700 });
   writeFileSync(join(fixture.evidenceDir, "rollback-command.sh"), wrapper, { mode: 0o700 });
@@ -875,7 +875,7 @@ test("the gate CLI: cloud by default, selfhosted over ssh with a fixed command, 
     const record = join(root, "ssh-argv.log");
     // A fake `ssh` records its argv and answers like psql -A -t. It stands in for the transport only.
     writeExecutable(join(bin, "ssh"), `#!/bin/sh\nprintf '%s\\n' "$@" > "${record}"\nprintf '001\\n002\\n'\n`);
-    const gate = join(process.cwd(), "scripts", "fast-release-ledger-gate.mjs");
+    const gate = join(process.cwd(), "scripts", "release", "fast-release-ledger-gate.mjs");
     const run = (environment) => spawnSync(process.execPath, [gate], {
       encoding: "utf8",
       env: { PATH: `${bin}:${process.env.PATH}`, EVO_RELEASE_REPO: root, ...environment },
@@ -918,7 +918,7 @@ test("the gate CLI: cloud by default, selfhosted over ssh with a fixed command, 
 });
 
 test("preflight removes only owned snapshots with real filesystem commands", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const preflight = controller.slice(
     controller.indexOf("preflight() {"),
     controller.indexOf("sync_file_and_parent() {"),
@@ -955,7 +955,7 @@ test("preflight removes only owned snapshots with real filesystem commands", () 
 });
 
 test("release health accepts only the canonical staff host and existing loopback rehearsal", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const declaration = controller.match(/^readonly HEALTH_URL_RE=.*$/mu)?.[0];
   assert.ok(declaration, "actual release health declaration must exist");
   for (const [url, accepted] of [
@@ -979,7 +979,7 @@ test("release health accepts only the canonical staff host and existing loopback
 });
 
 test("controller accepts a 20-character cloud project ref or the word selfhosted and nothing else", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const declaration = controller.match(/^readonly SUPABASE_PROJECT_REF_RE=.*$/mu)?.[0];
   assert.ok(declaration, "actual project identity declaration must exist");
   for (const [value, accepted] of [
@@ -1000,7 +1000,7 @@ test("controller accepts a 20-character cloud project ref or the word selfhosted
 });
 
 test("release controller is app-only, wait-gated, and avoids destructive shortcuts", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const preflight = controller.slice(
     controller.indexOf("preflight() {"),
     controller.indexOf("write_result() {"),
@@ -1013,7 +1013,7 @@ test("release controller is app-only, wait-gated, and avoids destructive shortcu
     controller.indexOf("deploy() {"),
     controller.indexOf("manual_rollback() {"),
   );
-  execFileSync("bash", ["-n", "scripts/evo-fast-release.sh"]);
+  execFileSync("bash", ["-n", "scripts/release/evo-fast-release.sh"]);
   assert.match(controller, /--no-deps/u);
   assert.match(controller, /--no-build/u);
   assert.match(controller, /--pull never/u);
@@ -1057,7 +1057,7 @@ test("release controller is app-only, wait-gated, and avoids destructive shortcu
 });
 
 test("release controller closes archive TOCTOU and verifies every runtime transition", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const candidateConfiguration = controller.slice(
     controller.indexOf("load_candidate_configuration() {"),
     controller.indexOf("compose() {"),
@@ -1128,7 +1128,7 @@ test("release controller closes archive TOCTOU and verifies every runtime transi
 });
 
 test("release mutations hold one host flock and rollback on interruption", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const lock = controller.slice(
     controller.indexOf("acquire_release_lock() {"),
     controller.indexOf("service_container_id() {"),
@@ -1186,13 +1186,13 @@ test("manual recovery is state-bound and idempotent after no-EXIT interruptions"
     try {
       const sealed = spawnSync(
         "bash",
-        ["scripts/evo-fast-release.sh", "seal-rollback-seed"],
+        ["scripts/release/evo-fast-release.sh", "seal-rollback-seed"],
         { encoding: "utf8", env: fixture.environment, timeout: 20_000 },
       );
       assert.equal(sealed.status, 0, `rollback seed failed: ${sealed.stderr}`);
       const interrupted = spawnSync(
         "bash",
-        ["scripts/evo-fast-release.sh", "deploy"],
+        ["scripts/release/evo-fast-release.sh", "deploy"],
         { encoding: "utf8", env: fixture.environment, timeout: 20_000 },
       );
       assert.equal(
@@ -1235,7 +1235,7 @@ test("manual recovery is state-bound and idempotent after no-EXIT interruptions"
       };
       const recovery = spawnSync(
         "bash",
-        ["scripts/evo-fast-release.sh", "rollback"],
+        ["scripts/release/evo-fast-release.sh", "rollback"],
         { encoding: "utf8", env: recoveryEnvironment, timeout: 20_000 },
       );
       assert.equal(recovery.status, 0, recovery.stderr);
@@ -1251,7 +1251,7 @@ test("manual recovery is state-bound and idempotent after no-EXIT interruptions"
       if (scenario.killPoint === "after-scanner") {
         const repeated = spawnSync(
           "bash",
-          ["scripts/evo-fast-release.sh", "rollback"],
+          ["scripts/release/evo-fast-release.sh", "rollback"],
           { encoding: "utf8", env: recoveryEnvironment, timeout: 20_000 },
         );
         assert.equal(repeated.status, 0, repeated.stderr);
@@ -1265,7 +1265,7 @@ test("manual recovery is state-bound and idempotent after no-EXIT interruptions"
         }));
         const unrelatedApp = spawnSync(
           "bash",
-          ["scripts/evo-fast-release.sh", "rollback"],
+          ["scripts/release/evo-fast-release.sh", "rollback"],
           { encoding: "utf8", env: recoveryEnvironment, timeout: 20_000 },
         );
         assert.equal(unrelatedApp.status, 2);
@@ -1278,7 +1278,7 @@ test("manual recovery is state-bound and idempotent after no-EXIT interruptions"
         }));
         const unrelatedScanner = spawnSync(
           "bash",
-          ["scripts/evo-fast-release.sh", "rollback"],
+          ["scripts/release/evo-fast-release.sh", "rollback"],
           { encoding: "utf8", env: recoveryEnvironment, timeout: 20_000 },
         );
         assert.equal(unrelatedScanner.status, 2);
@@ -1288,7 +1288,7 @@ test("manual recovery is state-bound and idempotent after no-EXIT interruptions"
         writeFileSync(fixture.releaseStatePath, JSON.stringify(draftV2State), { mode: 0o600 });
         const rejectedDraft = spawnSync(
           "bash",
-          ["scripts/evo-fast-release.sh", "rollback"],
+          ["scripts/release/evo-fast-release.sh", "rollback"],
           { encoding: "utf8", env: recoveryEnvironment, timeout: 20_000 },
         );
         assert.equal(rejectedDraft.status, 2);
@@ -1360,7 +1360,7 @@ fi
   try {
     const result = JSON.parse(execFileSync(
       "bash",
-      ["scripts/evo-fast-release.sh", "status"],
+      ["scripts/release/evo-fast-release.sh", "status"],
       { encoding: "utf8", env: environment },
     ));
     assert.deepEqual(
@@ -1369,7 +1369,7 @@ fi
     );
     const blocked = spawnSync(
       "bash",
-      ["scripts/evo-fast-release.sh", "status"],
+      ["scripts/release/evo-fast-release.sh", "status"],
       { encoding: "utf8", env: { ...environment, FAKE_EXTRA_RUNTIME: "1" } },
     );
     assert.equal(blocked.status, 2);
@@ -1380,7 +1380,7 @@ fi
 });
 
 test("release controller requires one sealed rollback source and never stages a fallback path", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   assert.match(controller, /verify_rollback_seed\(\)/u);
   assert.match(controller, /seal_rollback_seed\(\)/u);
   assert.match(controller, /evo-release-rollback-seed\/v3/u);
@@ -1410,7 +1410,7 @@ test("release controller requires one sealed rollback source and never stages a 
 });
 
 test("controller seals the mutable app environment once after the host lock and never reopens it for runtime work", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const deploy = controller.slice(
     controller.indexOf("deploy() {"),
     controller.indexOf("manual_rollback() {"),
@@ -1436,7 +1436,7 @@ test("controller seals the mutable app environment once after the host lock and 
 });
 
 test("pending state and runtime receipt use crash-safe single-file transitions", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const state = controller.slice(
     controller.indexOf("create_rollback_state() {"),
     controller.indexOf("verify_rollback_state_contract() {"),
@@ -1470,7 +1470,7 @@ test("pending state and runtime receipt use crash-safe single-file transitions",
 });
 
 test("acceptance is deterministic, generation-bound, atomic, and idempotent across both crash windows", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const derive = controller.slice(
     controller.indexOf("derive_acceptance_payload() {"),
     controller.indexOf("accept_candidate() {"),
@@ -1518,7 +1518,7 @@ test("acceptance is deterministic, generation-bound, atomic, and idempotent acro
 });
 
 test("lost accept response is classified accepted without consulting health", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const status = controller.slice(
     controller.indexOf("candidate_status() {"),
     controller.indexOf("derive_acceptance_payload() {"),
@@ -1538,7 +1538,7 @@ test("lost accept response is classified accepted without consulting health", ()
 });
 
 test("unhealthy pending candidate remains classifiable for the rollback decision", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const status = controller.slice(
     controller.indexOf("candidate_status() {"),
     controller.indexOf("derive_acceptance_payload() {"),
@@ -1565,7 +1565,7 @@ test("rollback restores the previous app from an exact unhealthy pending candida
   try {
     const execution = spawnSync(
       "bash",
-      ["scripts/evo-fast-release.sh", "rollback-pending"],
+      ["scripts/release/evo-fast-release.sh", "rollback-pending"],
       { encoding: "utf8", env: fixture.environment },
     );
     assert.equal(execution.status, 0, `${execution.stderr}\n${readFileSync(fixture.dockerLog, "utf8")}`);
@@ -1584,13 +1584,13 @@ test("rollback restores the previous app from an exact unhealthy pending candida
 test("candidate status and accept reject actual environment drift before accepting any receipt", () => {
   const fixture = candidateIdentityFixture();
   try {
-    const status = spawnSync("bash", ["scripts/evo-fast-release.sh", "candidate-status"], {
+    const status = spawnSync("bash", ["scripts/release/evo-fast-release.sh", "candidate-status"], {
       encoding: "utf8", env: fixture.environment,
     });
     assert.equal(status.status, 0, status.stderr);
     assert.equal(JSON.parse(status.stdout).status, "pending");
     for (const command of ["candidate-status", "accept-candidate", "rollback-pending"]) {
-      const execution = spawnSync("bash", ["scripts/evo-fast-release.sh", command], {
+      const execution = spawnSync("bash", ["scripts/release/evo-fast-release.sh", command], {
         encoding: "utf8", env: {
           ...fixture.environment,
           FAKE_APP_ENV_JSON: JSON.stringify([`EVO_RELEASE_REVISION=${REVISION}`]),
@@ -1612,7 +1612,7 @@ test("rollback restores the exact previous sealed image ID instead of inheriting
   const previousEnvPath = join(fixture.evidenceDir, "rollback-app.env");
   const previousBytes = readFileSync(previousEnvPath);
   try {
-    const execution = spawnSync("bash", ["scripts/evo-fast-release.sh", "rollback-pending"], {
+    const execution = spawnSync("bash", ["scripts/release/evo-fast-release.sh", "rollback-pending"], {
       encoding: "utf8", env: fixture.environment,
     });
     assert.equal(execution.status, 0, execution.stderr);
@@ -1635,7 +1635,7 @@ test("pending-only rollback refuses both accepted crash windows before runtime m
       const before = readFileSync(fixture.dockerState, "utf8");
       const execution = spawnSync(
         "bash",
-        ["scripts/evo-fast-release.sh", "rollback-pending"],
+        ["scripts/release/evo-fast-release.sh", "rollback-pending"],
         { encoding: "utf8", env: fixture.environment },
       );
       assert.equal(execution.status, 2);
@@ -1657,7 +1657,7 @@ test("rollback restores the previous app when failed deploy left no candidate co
   try {
     const execution = spawnSync(
       "bash",
-      ["scripts/evo-fast-release.sh", "rollback"],
+      ["scripts/release/evo-fast-release.sh", "rollback"],
       { encoding: "utf8", env: fixture.environment },
     );
     assert.equal(execution.status, 0, `${execution.stderr}\n${readFileSync(fixture.dockerLog, "utf8")}`);
@@ -1680,7 +1680,7 @@ test("accepted V3 rollback retry finishes pointer restore without mutating resto
   try {
     const execution = spawnSync(
       "bash",
-      ["scripts/evo-fast-release.sh", "rollback"],
+      ["scripts/release/evo-fast-release.sh", "rollback"],
       { encoding: "utf8", env: fixture.environment },
     );
     assert.equal(execution.status, 0, `${execution.stderr}\n${readFileSync(fixture.dockerLog, "utf8")}`);
@@ -1708,7 +1708,7 @@ test("accepted V3 rollback retry refuses a foreign runtime and preserves its poi
     const pointerBefore = readFileSync(fixture.currentPointerPath, "utf8");
     const execution = spawnSync(
       "bash",
-      ["scripts/evo-fast-release.sh", "rollback"],
+      ["scripts/release/evo-fast-release.sh", "rollback"],
       { encoding: "utf8", env: fixture.environment },
     );
     assert.equal(execution.status, 2);
@@ -1721,7 +1721,7 @@ test("accepted V3 rollback retry refuses a foreign runtime and preserves its poi
 });
 
 test("rollback is bound to the exact pending or accepted generation and has no mutable env fallback", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const rollback = controller.slice(
     controller.indexOf("rollback_from_state() {"),
     controller.indexOf("load_bound_release_state() {"),
@@ -1742,7 +1742,7 @@ test("rollback is bound to the exact pending or accepted generation and has no m
 });
 
 test("pending-only wrapper and controller hold one lock from authority check through rollback", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const wrapper = controller.slice(
     controller.indexOf("create_rollback_wrapper() {"),
     controller.indexOf("create_rollback_state() {"),
@@ -1828,9 +1828,9 @@ test("active platform CI executes only the root successor product", () => {
   assert.match(workflow, /git\/ref\/heads\/main/u);
   assert.match(workflow, /^  crm:\n    name: Main CRM$/mu);
   assert.match(workflow, /^  crm:\n    name: Main CRM\n    needs: main_admission\n    runs-on: ubuntu-latest\n    timeout-minutes: 5$/mu);
-  assert.match(workflow, /bash -n scripts\/evo-fast-release\.sh/u);
-  assert.match(workflow, /node --check scripts\/evo-production-browser-smoke\.mjs/u);
-  assert.match(workflow, /node --check scripts\/fast-release-ledger-gate\.mjs/u);
+  assert.match(workflow, /bash -n scripts\/release\/evo-fast-release\.sh/u);
+  assert.match(workflow, /node --check scripts\/release\/evo-production-browser-smoke\.mjs/u);
+  assert.match(workflow, /node --check scripts\/release\/fast-release-ledger-gate\.mjs/u);
   assert.match(workflow, /name: Check scoped release source contracts\n        run: >-\n          node --test/u);
   assert.match(workflow, /--test-name-pattern='\^\(CI and the exact-SHA gate require only the current root successor\|active platform CI executes only the root successor product\|workflow binds exact green main to one runner-built immutable release\)\$'/u);
   assert.match(workflow, /tests\/p6d-release-candidate\.test\.mjs\n          tests\/fast-release-control\.test\.mjs/u);
@@ -1850,8 +1850,8 @@ test("active platform CI executes only the root successor product", () => {
   assert.equal((`${workflow}\n${fastPr}`.match(/^    name: Changed range$/gmu) ?? []).length, 1);
   assert.equal((`${workflow}\n${fastPr}`.match(/^    name: Fast checks$/gmu) ?? []).length, 1);
   assert.match(fastPr, /git diff --check origin\/main\.\.\.HEAD/u);
-  assert.match(fastPr, /node scripts\/classify-pr-changes\.mjs --base "\$format_base_sha" --head "\$format_head_sha" --github-output "\$GITHUB_OUTPUT"/u);
-  for (const output of ["has_changes", "ordinary_docs", "contracts", "migration_boundary", "code", "lint", "build", "inbox_dependencies", "inbox_formatting", "inbox_contract_tests", "lead_agent_dependencies", "unknown"]) {
+  assert.match(fastPr, /node scripts\/checks\/classify-pr-changes\.mjs --base "\$format_base_sha" --head "\$format_head_sha" --github-output "\$GITHUB_OUTPUT"/u);
+  for (const output of ["has_changes", "ordinary_docs", "contracts", "migration_boundary", "code", "lint", "build", "unknown"]) {
     assert.match(fastPr, new RegExp(`${output}: \\$\\{\\{ steps\\.classify\\.outputs\\.${output} \\}\\}`, "u"));
   }
   assert.doesNotMatch(fastPr, /^  classification_guard:/mu);
@@ -1872,43 +1872,14 @@ test("active platform CI executes only the root successor product", () => {
   assert.match(fastPr, /needs:\n      - changed-range\n      - contracts\n      - lint\n      - build\n      - migration_boundary/u);
   assert.doesNotMatch(fastPr, /^  typecheck:\n    name: Standalone typecheck$/mu);
   assert.doesNotMatch(fastPr, /outputs\.typecheck|TYPECHECK/u);
-  assert.equal((fastPr.match(/run: npm run typecheck/gu) ?? []).length, 1);
+  assert.doesNotMatch(fastPr, /run: npm run typecheck/u);
+  assert.doesNotMatch(fastPr, /inbox_|lead_agent_|working-directory:/u);
   // Inspect command invocations, not source paths such as supabase/migrations/.
   assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:(?:npx|pnpm\s+(?:exec|dlx)|yarn\s+(?:exec|dlx)|npm\s+exec(?:\s+--)?)\s+)?(?:playwright|supabase)(?:@[^\s/]+)?(?:\s|$)/imu);
   assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:npm|pnpm|yarn)\s+(?:run\s+)?test:(?:database:local|security|unit)(?:\b|:)/imu);
 });
 
-test("retired Inbox dependency maintenance runs in isolation without deployment or provider fixtures", () => {
-  const workflow = readFileSync(".github/workflows/evo-fast-pr-checks.yml", "utf8");
-  const lane = workflow.split("  inbox_dependencies:\n    name: Inbox dependency maintenance\n")[1]?.split("\n  fast-checks:")[0];
-  assert.ok(lane);
-  assert.match(lane, /if: \$\{\{ \(needs\.changed-range\.outputs\.inbox_dependencies == 'true' \|\| needs\.changed-range\.outputs\.inbox_formatting == 'true' \|\| needs\.changed-range\.outputs\.inbox_contract_tests == 'true'\) && needs\.changed-range\.outputs\.unknown != 'true' \}\}/u);
-  assert.match(lane, /working-directory: agent-lead2-inbox/u);
-  assert.match(lane, /cache-dependency-path: agent-lead2-inbox\/package-lock\.json/u);
-  for (const command of ["npm ci --ignore-scripts", "npm audit --audit-level=low", "npm run typecheck", "npm run lint", "npm run build"]) {
-    assert.ok(lane.includes(`run: ${command}`), command);
-  }
-  for (const path of ["src/lib/themes.test.ts", "src/lib/whatsapp/template-status-normalize.test.ts", "src/lib/ai/chunk.test.ts"]) assert.ok(lane.includes(`"${path}"`));
-  assert.match(lane, /startVitest\("test", files,/u);
-  assert.match(lane, /config: false, watch: false, include: files/u);
-  assert.match(lane, /configFile: false, envDir: false/u);
-  assert.match(lane, /Object\.keys\(context\.config\.env \?\? \{\}\)\.length !== 0/u);
-  assert.match(lane, /modules\.length !== files\.length \|\| modules\.some\(\(module\) => !module\.ok\(\)\)/u);
-  assert.match(lane, /context\.state\.getUnhandledErrors\(\)\.length > 0/u);
-  assert.match(lane, /process\.exitCode = 1/u);
-  assert.match(lane, /finally \{\n\s+await context\?\.close\(\);/u);
-  assert.match(lane, /ref: \$\{\{ needs\.changed-range\.outputs\.format_head_sha \}\}/u);
-  assert.match(lane, /FORMAT_BASE_SHA: \$\{\{ needs\.changed-range\.outputs\.format_base_sha \}\}/u);
-  assert.match(lane, /if: \$\{\{ needs\.changed-range\.outputs\.inbox_formatting == 'true' \}\}\n        run: npm test/u);
-  assert.match(lane, /if: \$\{\{ needs\.changed-range\.outputs\.inbox_formatting != 'true' \}\}\n        run:/u);
-  assert.ok(lane.indexOf("--scope-only") < lane.indexOf("npm ci --ignore-scripts"));
-  assert.ok(lane.indexOf("Prove exact output") > lane.indexOf("npm ci --ignore-scripts"));
-  assert.match(lane, /run: npm run format:check/u);
-  assert.match(lane, /run: node --test \.\.\/tests\/inbox-format-verifier\.test\.mjs/u);
-  assert.doesNotMatch(lane, /secrets\.|docker|ssh|continue-on-error|ENCRYPTION_KEY|META_APP_SECRET/u);
-});
-
-test("actual Fast checks shell requires selected dependency maintenance to succeed", () => {
+test("actual Fast checks shell requires every selected check to succeed or be skipped", () => {
   const workflow = readFileSync(".github/workflows/evo-fast-pr-checks.yml", "utf8");
   const gate = workflow.split("      - name: Require selected fast PR checks\n")[1];
   assert.ok(gate);
@@ -1918,32 +1889,17 @@ test("actual Fast checks shell requires selected dependency maintenance to succe
     RANGE_RESULT: "success", HAS_CHANGES: "true", UNKNOWN: "false",
     CONTRACTS_RESULT: "skipped", LINT_RESULT: "skipped", BUILD_RESULT: "skipped",
     MIGRATION_BOUNDARY_RESULT: "skipped",
-    INBOX_DEPENDENCIES_REQUIRED: "true", INBOX_DEPENDENCIES_RESULT: "success", INBOX_FORMATTING_REQUIRED: "false", INBOX_CONTRACT_TESTS_REQUIRED: "false",
-    LEAD_AGENT_DEPENDENCIES_REQUIRED: "false", LEAD_AGENT_DEPENDENCIES_RESULT: "skipped",
   };
   const run = (changes) => spawnSync("bash", ["-c", script], { env: { ...env, ...changes }, encoding: "utf8" }).status;
   assert.equal(run({}), 0);
-  assert.equal(run({ LEAD_AGENT_DEPENDENCIES_REQUIRED: "true", LEAD_AGENT_DEPENDENCIES_RESULT: "success" }), 0);
-  for (const result of ["failure", "cancelled", "skipped", "", "unknown"]) {
-    assert.notEqual(run({ LEAD_AGENT_DEPENDENCIES_REQUIRED: "true", LEAD_AGENT_DEPENDENCIES_RESULT: result }), 0, result);
+  assert.equal(run({ CONTRACTS_RESULT: "success", LINT_RESULT: "success", BUILD_RESULT: "success", MIGRATION_BOUNDARY_RESULT: "success" }), 0);
+  for (const name of ["CONTRACTS_RESULT", "LINT_RESULT", "BUILD_RESULT", "MIGRATION_BOUNDARY_RESULT"]) {
+    for (const result of ["failure", "cancelled", "", "unknown"]) {
+      assert.notEqual(run({ [name]: result }), 0, `${name}=${result}`);
+    }
   }
-  for (const required of ["", "unknown"]) assert.notEqual(run({ LEAD_AGENT_DEPENDENCIES_REQUIRED: required }), 0);
-  assert.notEqual(run({ LEAD_AGENT_DEPENDENCIES_RESULT: "success" }), 0);
-  for (const result of ["failure", "cancelled", "skipped", "", "unknown"]) {
-    assert.notEqual(run({ INBOX_DEPENDENCIES_RESULT: result }), 0, result);
-  }
-  assert.equal(run({ INBOX_DEPENDENCIES_REQUIRED: "false", INBOX_DEPENDENCIES_RESULT: "skipped" }), 0);
-  for (const required of ["", "unknown"]) assert.notEqual(run({ INBOX_DEPENDENCIES_REQUIRED: required }), 0);
-  assert.equal(run({ INBOX_DEPENDENCIES_REQUIRED: "false", INBOX_FORMATTING_REQUIRED: "true" }), 0);
-  for (const result of ["failure", "cancelled", "skipped", "", "unknown"]) {
-    assert.notEqual(run({ INBOX_DEPENDENCIES_REQUIRED: "false", INBOX_FORMATTING_REQUIRED: "true", INBOX_DEPENDENCIES_RESULT: result }), 0, result);
-  }
-  assert.notEqual(run({ INBOX_FORMATTING_REQUIRED: "" }), 0);
-  assert.equal(run({ INBOX_DEPENDENCIES_REQUIRED: "false", INBOX_CONTRACT_TESTS_REQUIRED: "true" }), 0);
-  for (const result of ["failure", "cancelled", "skipped", "", "unknown"]) {
-    assert.notEqual(run({ INBOX_DEPENDENCIES_REQUIRED: "false", INBOX_CONTRACT_TESTS_REQUIRED: "true", INBOX_DEPENDENCIES_RESULT: result }), 0, result);
-  }
-  assert.notEqual(run({ INBOX_CONTRACT_TESTS_REQUIRED: "" }), 0);
+  assert.notEqual(run({ RANGE_RESULT: "failure" }), 0);
+  assert.notEqual(run({ HAS_CHANGES: "false" }), 0);
   assert.notEqual(run({ UNKNOWN: "true" }), 0);
 });
 
@@ -1983,7 +1939,7 @@ test("actual OrbStack container transports and verifies sealed runtime image ide
     assert.match(container, /^[a-f0-9]{12,64}$/u);
     assert.equal(docker(["inspect", "--format", "{{.Image}}", container]), imageId);
     const environment = docker(["inspect", "--format", "{{json .Config.Env}}", container]);
-    const args = ["scripts/evo-app-env-contract.mjs", "--verify-runtime-identity", "--snapshot", snapshot,
+    const args = ["scripts/release/evo-app-env-contract.mjs", "--verify-runtime-identity", "--snapshot", snapshot,
       "--runtime-image-id", imageId, "--release-revision", revision];
     const checked = spawnSync(process.execPath, args, { input: environment, encoding: "utf8" });
     assert.equal(checked.status, 0, checked.stderr);
@@ -2319,7 +2275,7 @@ exec ${JSON.stringify(process.execPath)} "$@"
   delete environment.EVO_CRM_AI_AGENT_ENV_FILE;
   delete environment.COMPOSE_PROFILES;
   const releaseDir = join(evidenceRoot, releaseId);
-  const run = (command, overrides = {}) => spawnSync("bash", ["scripts/evo-fast-release.sh", command], {
+  const run = (command, overrides = {}) => spawnSync("bash", ["scripts/release/evo-fast-release.sh", command], {
     encoding: "utf8", env: { ...environment, ...overrides }, timeout: 60_000,
   });
   const runtime = () => JSON.parse(readFileSync(statePath, "utf8"));
@@ -2598,7 +2554,7 @@ test("AI agent enabled: a rollback whose previous agent image is gone stops befo
 });
 
 test("release controller requires Docker Compose 2.30 or later and reads the version safely", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const failHelper = controller.slice(controller.indexOf("fail() {"), controller.indexOf("require_command() {"));
   const constants = controller.match(
     /^readonly COMPOSE_MIN_MAJOR=.*\nreadonly COMPOSE_MIN_MINOR=.*\nreadonly COMPOSE_VERSION_RE=.*$/mu,
@@ -2657,7 +2613,7 @@ exit "$FAKE_STATUS"
 });
 
 test("every release refuses an old Docker Compose before any change; rollback is never gated", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const body = (name, next) => controller.slice(controller.indexOf(`${name}() {`), controller.indexOf(`${next}() {`));
   for (const [name, next] of [["preflight", "sync_file_and_parent"], ["deploy", "manual_rollback"]]) {
     assert.match(body(name, next), /^\s+load_candidate_configuration\n\s+verify_compose_version\n\s+acquire_release_lock$/mu, name);
@@ -2715,7 +2671,7 @@ function leftoverLogTemporaries(releaseDir) {
 }
 
 test("release controller keeps the outgoing app log as best-effort private evidence", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const deploy = controller.slice(controller.indexOf("deploy() {"), controller.indexOf("manual_rollback() {"));
   const saver = controller.slice(
     controller.indexOf("previous_app_logs_warning() {"),
@@ -2834,7 +2790,7 @@ test("a failed log copy only warns: the release still deploys, verifies and roll
 });
 
 test("the log copy returns success under errexit for an absent app, a foreign id and an unwritable directory", () => {
-  const controller = readFileSync("scripts/evo-fast-release.sh", "utf8");
+  const controller = readFileSync("scripts/release/evo-fast-release.sh", "utf8");
   const constants = controller.match(/^readonly HASH64_RE=.*$/mu)?.[0] + "\n"
     + controller.match(/^readonly PREVIOUS_APP_LOG_TAIL_LINES=.*$/mu)?.[0];
   const helpers = controller.slice(controller.indexOf("sync_file_and_parent() {"), controller.indexOf("replace_json_atomically() {"))

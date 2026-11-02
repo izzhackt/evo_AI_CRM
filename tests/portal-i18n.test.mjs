@@ -87,7 +87,7 @@ test("universities dictionary covers levels, intake statuses and honest map line
 
 // PORT-6a: русские значения admission-словаря — якоря production-смоука
 // (смоук-аккаунт живёт с language=ru); их изменение ломает
-// scripts/evo-production-browser-smoke.mjs и допустимо только совместным PR
+// scripts/release/evo-production-browser-smoke.mjs и допустимо только совместным PR
 // со смоук-скриптом и его контракт-тестом.
 test("admission ru values keep the production smoke anchors byte-for-byte", () => {
   const ru = getPortalStrings("admission", "ru");

@@ -11,12 +11,12 @@ import {
   buildProductionSmokeReceipt,
   readProductionSmokeConfiguration,
   writeProductionSmokeReceipt,
-} from "../scripts/evo-production-browser-smoke.mjs";
+} from "../scripts/release/evo-production-browser-smoke.mjs";
 
 const REVISION = "a".repeat(40);
 const DIGEST = `sha256:${"b".repeat(64)}`;
 const smokeSource = readFileSync(
-  new URL("../scripts/evo-production-browser-smoke.mjs", import.meta.url),
+  new URL("../scripts/release/evo-production-browser-smoke.mjs", import.meta.url),
   "utf8",
 );
 
@@ -154,7 +154,7 @@ test("smoke has no business interaction or sensitive browser evidence path", () 
 });
 
 test("CLI errors are sanitized and never echo missing credential names", () => {
-  const script = new URL("../scripts/evo-production-browser-smoke.mjs", import.meta.url);
+  const script = new URL("../scripts/release/evo-production-browser-smoke.mjs", import.meta.url);
   const result = spawnSync(process.execPath, [fileURLToPath(script)], {
     encoding: "utf8",
     env: { PATH: process.env.PATH },

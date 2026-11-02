@@ -22,22 +22,23 @@ active staging artifacts rather than leave aliases or disabled fallbacks:
 #551 must remove only release-environment staging branches, inputs, imports,
 configuration and assertions from these active files:
 
-- `scripts/evo-app-env-contract.mjs`;
-- `scripts/evo-fast-release.sh`;
-- `scripts/platform-provider-runtime-inventory.mjs`;
-- `scripts/test-p6d-release-candidate-orbstack.mjs`;
-- `scripts/validate-runtime-hardening.mjs`;
+- `scripts/release/evo-app-env-contract.mjs`;
+- `scripts/release/evo-fast-release.sh`;
+- `scripts/checks/platform-provider-runtime-inventory.mjs`;
+- `scripts/test-runners/test-p6d-release-candidate-orbstack.mjs`;
+- `scripts/checks/validate-runtime-hardening.mjs`;
 - `tests/app-env-contract.test.mjs`;
 - `tests/fast-release-control.test.mjs`;
 - `tests/p6d-release-candidate.test.mjs`;
 - `tests/platform-runtime-public-config.test.mjs`;
 - `tests/runtime-hardening.test.mjs`;
-- `evo-lead-agent/tests/test_config.py` — release-staging assertions removed; and
+- `evo-lead-agent/tests/test_config.py` — release-staging assertions removed (the lead-agent was removed from the
+  repository on 2026-11-02, tag `archive/lead-agent-and-inbox-2026-11-02`); and
 - `package.json`.
 
 The new two-job release workflow also removes its `staging` Environment/input/
 job path. The obsolete CRM staging route is removed from the
-legacy source `agent-lead2-inbox/deploy/Caddyfile.evo-edge`. `deploy/README.md` and
+legacy edge source `Caddyfile.evo-edge` (then in `agent-lead2-inbox/deploy/`, since 2026-11-02 in `deploy/edge/`). `deploy/README.md` and
 root `CONTEXT.md` describe only the no-staging V3 authority; the superseded
 staging runbooks are copied to historical-only
 `docs/archive/v2/staging-release.md` and

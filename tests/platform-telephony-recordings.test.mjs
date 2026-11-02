@@ -792,7 +792,7 @@ test("wiring: the route, the handler, the source and the migration agree; the li
   const player = read("src/components/v3/profile/LeadCallRecording.tsx");
   const contract = read("src/lib/v3/telephony-lead-calls.ts");
   const view = read("src/components/v3/profile/lead-work-view.ts");
-  const script = read("scripts/test-postgres-authorization.sh");
+  const script = read("scripts/test-runners/test-postgres-authorization.sh");
   // The RPC parameter names in TypeScript are the SQL parameter names, in both directions.
   const params = (name) => [...migration.match(new RegExp(`FUNCTION platform\\.${name}\\(([^)]*)\\)`, "u"))[1].matchAll(/\bp_[a-z_]+/gu)].map((match) => match[0]).sort();
   const used = (file, name) => [...file.match(new RegExp(`rpc\\(\\s*"${name}",\\s*\\{([^}]*)\\}`, "u"))[1].matchAll(/\bp_[a-z_]+/gu)].map((match) => match[0]).sort();

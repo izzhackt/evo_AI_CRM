@@ -225,8 +225,8 @@ S2 — [объединённый PR747](https://github.com/izzhackt/evo_AI_CRM/p
 `schemaVersion: 2` и `systemRole: admin | staff`; Sales/Admissions — сценарии
 или представления Admin, не отдельные системные роли. API `staff_access_snapshot`
 и workspace ролей сохраняют `schemaVersion: 1`. Это описание исходного кода
-([recovery](../../../scripts/test-v3-managed-supabase-recovery-orbstack.mjs),
-[inventory](../../../scripts/platform-provider-runtime-inventory.mjs)), а не новый
+([recovery](../../../scripts/test-runners/test-v3-managed-supabase-recovery-orbstack.mjs),
+[inventory](../../../scripts/checks/platform-provider-runtime-inventory.mjs)), а не новый
 результат этих recovery/inventory suites и не изменение исторического S1/D1 proof.
 
 ## Результат

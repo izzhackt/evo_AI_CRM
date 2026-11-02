@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { cleanNextDevTypes } from "../scripts/clean-next-dev-types.mjs";
+import { cleanNextDevTypes } from "../scripts/local-dev/clean-next-dev-types.mjs";
 
 test("cleanNextDevTypes removes only interrupted development route types", async () => {
   const repositoryRoot = await mkdtemp(join(tmpdir(), "evo-next-dev-types-"));

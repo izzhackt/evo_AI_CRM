@@ -18,6 +18,7 @@ yarn-error.log*
 
 evo_website
 twenty-evo-admissions-app
+# Removed from the repository on 2026-11-02; kept so a restored copy never enters the build context.
 agent-lead2-inbox
 evo-lead-agent
 # Frozen V2 database history; never part of the successor build context.

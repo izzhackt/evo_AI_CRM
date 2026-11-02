@@ -177,7 +177,7 @@ test("the seed runbook seeds only through the admin RPC and trashes the folder r
 test("every SQL block of the seed runbook runs verbatim in the Postgres suite", () => {
   const runbook = read("docs/runbooks/ai-agent-seed.md");
   const suite = read("supabase/tests/platform_ai_agent_seed_runbook.sql");
-  assert.match(read("scripts/test-postgres-authorization.sh"),
+  assert.match(read("scripts/test-runners/test-postgres-authorization.sh"),
     /-f \/workspace\/supabase\/tests\/platform_ai_agent_seed_runbook\.sql/u);
   const blocks = [...runbook.matchAll(/```sql\n([\s\S]*?)```/gu)].map((match) => match[1]);
   assert.equal(blocks.length, 9, "preview ×2, steps 2–4, checks ×4");

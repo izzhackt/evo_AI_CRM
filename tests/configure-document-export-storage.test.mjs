@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   DOCUMENT_EXPORT_BUCKET, UNIVERSITY_FORM_EXPORT_BUCKET, DOCUMENT_PACKAGE_EXPORT_BUCKET, DOCUMENT_EXPORT_STORAGE_ORIGIN, DOCUMENT_EXPORT_STORAGE_PROJECT,
   configureDocumentExportStorage, parseDocumentExportStorageArgs, runDocumentExportStorageCli,
-} from "../scripts/configure-document-export-storage.mjs";
+} from "../scripts/maintenance/configure-document-export-storage.mjs";
 
 const syntheticKey = `sb_secret_${"synthetic_unit_only_".repeat(2)}`;
 const environment = { NEXT_PUBLIC_SUPABASE_URL: DOCUMENT_EXPORT_STORAGE_ORIGIN, EVO_PLATFORM_SUPABASE_SECRET_KEY: syntheticKey };

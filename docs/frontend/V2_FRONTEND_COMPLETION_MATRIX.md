@@ -224,5 +224,5 @@ guards that could not fail — which were fixed and re-reviewed before merge.
 - Fourteen legacy SQLite Server Actions remain registered on the deferred
   `/calls` and `/chat` routes, which already fail closed at the proxy.
   Removing them means deleting deferred routes, which is a scope decision.
-- Wiring `test:a11y` into `scripts/test-postgres-v2-foundation.sh`, and
+- Wiring `test:a11y` into `scripts/test-runners/test-postgres-v2-foundation.sh`, and
   therefore into CI, changes CI cost and gating behaviour.

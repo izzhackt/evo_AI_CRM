@@ -695,7 +695,7 @@ SLA, сверка и отметка истёкших записей, поэто�
 amoCRM EVO не читает и не использует (§17, риск 1).
 
 **Контракт env (срез T3).** Релиз проверяет env скриптом
-`scripts/evo-app-env-contract.mjs`: любое имя из `deploy/env.production.example`,
+`scripts/release/evo-app-env-contract.mjs`: любое имя из `deploy/env.production.example`,
 которого нет в `.env.production`, роняет выпуск (`required_env_name_missing`),
 если оно не в списках необязательных. Поэтому T3 вносит: пять имён и
 `…_CRM_TOKEN_NEXT` в `deploy/env.production.example`; все новые токены,
@@ -1622,7 +1622,7 @@ amoCRM контакт и сделку (виджет), а `makecall` с вкла�
 | T1a | Схема: таблицы §5.2 и §6 (звонки, ноги, события, настройки с флагами, наборы, выдачи, связи задач, состояние), RLS, отзыв прав, append-only; SQL-тесты отказов RLS всех ролей | 287 |
 | T1b | Функции: приём (доказательство, ссылка сразу в ногу), проекция, слияние ног, окно успокоения, аренда и повторы, сопоставление телефона; SQL-тесты (идемпотентность, неоднозначное сопоставление, ответ необратим, «приветствие» не ответ, мягкая проверка) | 288 |
 | T2 | Права, роли «Телефония — менеджер» и «Телефония — руководитель» (с `manage`), allowlist журнала (действия и типы объектов), проверка в конце: у каждого system admin действуют все шесть ключей | 289 |
-| T3 | Приём: маршрут, конфиг и выключатель, мягкая проверка и запись формы, узкий разбор, постоянное по времени сравнение с двумя ключами, ограничитель неудач, быстрый `contact`, список маршрутов, тесты скрытых 404; env-контракт (`deploy/env.production.example`, `scripts/evo-app-env-contract.mjs`, `tests/app-env-contract.test.mjs`); выпуск с `ENABLED=0` | — |
+| T3 | Приём: маршрут, конфиг и выключатель, мягкая проверка и запись формы, узкий разбор, постоянное по времени сравнение с двумя ключами, ограничитель неудач, быстрый `contact`, список маршрутов, тесты скрытых 404; env-контракт (`deploy/env.production.example`, `scripts/release/evo-app-env-contract.mjs`, `tests/app-env-contract.test.mjs`); выпуск с `ENABLED=0` | — |
 | T4a | Клиент ВАТС (`crmapi/v1`: `users`, `groups`, `history/json`, `domain`, `record`; белый список путей), сверка с курсором, первичный импорт ссылок, `telephony-maintenance.mjs`, сборка в образ, `deploy/telephony/*.service` и `*.timer` | 290 |
 | T4b | «Настройки → Телефония» (сопоставление, часы, флаги, префиксы, лимиты, потолки), строка здоровья | 291 |
 | T5 | Лента лида: строки звонков и ног, маска номера в строках, «Последний контакт», строка результата | 292 |
@@ -1786,7 +1786,7 @@ EVO на `contact`; названия двух отметок прав в фор�
   `deploy/knowledge/*.timer` и `*.service`;
   `agent-lead2-inbox/deploy/Caddyfile.evo-edge`;
   `deploy/env.production.example`.
-- Код: `scripts/evo-app-env-contract.mjs`, `tests/app-env-contract.test.mjs`,
+- Код: `scripts/release/evo-app-env-contract.mjs`, `tests/app-env-contract.test.mjs`,
   `src/components/v3/profile/LeadWorkParts.tsx`,
   `src/lib/platform-route-contract.ts`,
   `src/lib/server/platform-waha-webhook.ts`,

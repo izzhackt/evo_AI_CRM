@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { expectedMigrationVersions } from "../scripts/fast-release-ledger-gate.mjs";
+import { expectedMigrationVersions } from "../scripts/release/fast-release-ledger-gate.mjs";
 import { fileURLToPath } from "node:url";
 
 const source = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");

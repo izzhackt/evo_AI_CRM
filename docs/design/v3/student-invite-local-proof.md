@@ -14,7 +14,7 @@ Use Node 22 and install dependencies with `npm ci --ignore-scripts`. On macOS,
 OrbStack must already be running with Docker context `orbstack`.
 
 ```sh
-node scripts/test-student-invite-browser.mjs
+node scripts/test-runners/test-student-invite-browser.mjs
 ```
 
 The harness reserves unique nonprivileged loopback ports, copies the app without

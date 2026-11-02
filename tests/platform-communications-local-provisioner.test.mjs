@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const source = readFileSync(
-  new URL("../scripts/provision-local-platform-communications.mjs", import.meta.url),
+  new URL("../scripts/local-dev/provision-local-platform-communications.mjs", import.meta.url),
   "utf8",
 );
 

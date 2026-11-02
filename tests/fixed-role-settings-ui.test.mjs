@@ -39,7 +39,7 @@ const auditExportRouteSource = readFileSync(
   "utf8",
 );
 const foundationHarnessSource = readFileSync(
-  new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url),
+  new URL("../scripts/test-runners/test-postgres-v2-foundation.sh", import.meta.url),
   "utf8",
 );
 

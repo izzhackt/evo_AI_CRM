@@ -531,7 +531,7 @@ permission to substitute for either P4R proof or P4B:
 - P2R3 may rebuild the original prerequisite server-auth and local-proof
   surfaces:
   `src/lib/actions.ts`, `src/lib/platform-auth.ts`,
-  `scripts/run-command-with-deadline.mjs`,
+  `scripts/test-runners/run-command-with-deadline.mjs`,
   `scripts/test-supabase-auth-hook.mjs`,
   `scripts/test-supabase-local-reset.sh`, and their focused tests in
   `tests/platform-auth-config.test.mjs`,
@@ -1178,7 +1178,7 @@ node node_modules/typescript/bin/tsc --noEmit
 npm run build
 npm run scenarios
 npm audit --omit=dev --audit-level=moderate
-node scripts/check-npm-audit-allowlist.mjs
+node scripts/checks/check-npm-audit-allowlist.mjs
 npm run test:e2e
 ```
 
@@ -1194,7 +1194,7 @@ npm run typecheck
 npm test
 npm run build
 npm audit --omit=dev --audit-level=moderate
-node ../scripts/check-npm-audit-allowlist.mjs
+node ../scripts/checks/check-npm-audit-allowlist.mjs
 ```
 
 ### EVO Lead Agent while retained

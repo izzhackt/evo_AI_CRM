@@ -64,7 +64,7 @@ test("P6B browser proof covers every retired staff and API route", () => {
 });
 
 test("P6B foundation harness clears only stale empty lock directories and never masks a live run", () => {
-  const harness = source("scripts/test-postgres-v2-foundation.sh");
+  const harness = source("scripts/test-runners/test-postgres-v2-foundation.sh");
 
   assert.match(harness, /supabase_lock_pid_file="\$supabase_lock_dir\/pid"/);
   assert.match(harness, /foundation_harness_pid_active\(\)/);

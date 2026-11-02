@@ -60,13 +60,10 @@ test("the content folder holds exactly the seven files and every file passes the
     ["applications"], ["decisions"], ["visa_and_predeparture"], ["arrival_and_adaptation"]]);
   assert.ok(general.steps.every((step) => step.timing === null));
   assert.equal(general.intake.model, "none");
-  // Titles of the general route are the stage names of the cabinet (admission.stage.*),
-  // except step 4: the cabinet says «подача через партнёра», a parent reads
-  // «Подача заявок в университеты» (review s4-web-review-1 F6).
+  // Titles of the general route are the stage names of the cabinet (admission.stage.*).
   const i18n = read("src/lib/portal/i18n.ts");
   for (const step of general.steps) {
     const stage = step.stageKeys[0];
-    if (stage === "applications") continue;
     assert.match(i18n, new RegExp(`"stage\\.${stage}": "${step.title.ru.toLowerCase()}"`), stage);
     assert.match(i18n, new RegExp(`"stage\\.${stage}": "${step.title.ky.toLowerCase()}"`), stage);
   }

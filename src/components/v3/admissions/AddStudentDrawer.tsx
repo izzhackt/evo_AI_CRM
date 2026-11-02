@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
@@ -465,7 +466,12 @@ export function AddStudentDrawer({ curator }: Readonly<{ curator: AddStudentCura
 
         <div className="sticky bottom-0 z-10 space-y-2 border-t border-border bg-surface p-4">
           {result && result.status !== "saved" ? (
-            <p id={statusId} role="alert" className="t-body-compact text-danger">{admissionsDirectMessage(result)}</p>
+            <div>
+              <p id={statusId} role="alert" className="t-body-compact text-danger">{admissionsDirectMessage(result)}</p>
+              {result.status === "lead_exists" && result.leadId ? (
+                <Link href={`/v3/profile?id=${encodeURIComponent(result.leadId)}`} className={TEXT_ACTION}>Открыть лид</Link>
+              ) : null}
+            </div>
           ) : saved ? (
             <p id={statusId} role="status" className="t-body-compact text-fg-2">{admissionsDirectMessage(result)}</p>
           ) : null}

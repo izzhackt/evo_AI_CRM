@@ -7,7 +7,8 @@ import { caseSectionAccessForState, parseCaseSectionAccess, readCaseProfileSecti
 import { loadProfileSalesContext } from "./profile-route-load";
 import { loadStudentApplicationForCase, loadStudentApplicationForLead } from "./student-application-source";
 import { readCaseSaleConditions, readLeadSaleConditions } from "./lead-sale-conditions-source";
-import { readLeadCabinetCase, readStudentCaseCabinetOrigin } from "./lead-cabinet-source";
+import { readLeadCabinetCase, readStudentCaseCabinetOrigin, readStudentCaseClientEmail } from "./lead-cabinet-source";
+import { portalInviteEmailFor } from "./portal-invite-email";
 import { readLeadHandoffStrip } from "./sales-numbers-source";
 import { withWhatsAppTitles } from "./whatsapp-contact-source";
 import type { StudentApplication } from "@/lib/student-application-contract";
@@ -739,9 +740,10 @@ async function readCaseProfile(
     person: data.studentCase.studentDisplayName,
     // Нет лида для чтения (дело прямого студента: его лид `converted`, а лидовые чтения
     // отдают только `open`). Контакты «Сведений» берёт `caseContacts` из полей анкеты;
-    // `email` остаётся null намеренно: от него зависит «Доступ к порталу», которому нужна
-    // подтверждённая почта клиента, а не неподтверждённое значение анкеты.
+    // `email` остаётся null намеренно: неподтверждённое значение анкеты не включает «Доступ к порталу».
+    // Блоку нужна почта клиента: её отдельно несёт `portalInviteEmail`, блок виден только Admin.
     email: null,
+    portalInviteEmail: await portalInviteEmailFor(actor.systemRole, () => readStudentCaseClientEmail(actor, canonicalCaseId)),
     phone: null,
     student: true,
     stage: null,

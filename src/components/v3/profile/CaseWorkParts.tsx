@@ -19,6 +19,7 @@ import { CaseHelpNoAccess, CaseOverview, type CaseOverviewInput } from "./CaseOv
 import { CaseSaleData, CaseSaleUnavailable } from "./CaseSaleData";
 import { LeadNoteComposer } from "./LeadNoteComposer";
 import { StudentPortalAccessControls } from "./StudentPortalAccessCard";
+import { inviteEmailConfirmed } from "@/lib/v3/portal-invite-email";
 import {
   CASE_PORTAL_GROUP_ID,
   caseApplicationLines,
@@ -119,7 +120,8 @@ export function caseWorkParts(input: CaseWorkPartsInput): Readonly<{ header: Rea
         <StudentPortalAccessControls
           organizationId={actor.organizationId}
           studentCaseId={caseId}
-          email={profile.email}
+          email={profile.email ?? profile.portalInviteEmail ?? null}
+          emailConfirmed={inviteEmailConfirmed(profile.email ?? profile.portalInviteEmail ?? null, draft.studentApplication)}
           displayName={profile.person}
           caseState={admissions.caseState}
           isCabinetCase={admissions.isCabinetCase}

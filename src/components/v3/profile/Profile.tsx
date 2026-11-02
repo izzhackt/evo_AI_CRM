@@ -16,6 +16,7 @@ import type { DocumentStateFilter } from "./documents-view";
 import { ProfileContractWorkspace } from "./ProfileContractWorkspace";
 import { ProfileNotes } from "./ProfileNotes";
 import { StudentPortalAccessControls } from "./StudentPortalAccessCard";
+import { inviteEmailConfirmed } from "@/lib/v3/portal-invite-email";
 import { profileNotesSubjectKey } from "./profile-notes-view";
 import { Anketa, History, Money, Overview, PlatformAccessCard } from "./tabs";
 import { QueueTabStrip } from "../queue/QueueTabStrip";
@@ -238,6 +239,7 @@ export function Profile({
                   organizationId={organizationId}
                   studentCaseId={draft.admissions.studentCaseId}
                   email={profile.email}
+                  emailConfirmed={inviteEmailConfirmed(profile.email, draft.studentApplication)}
                   displayName={profile.person}
                   caseState={draft.admissions.caseState}
                   isCabinetCase={draft.admissions.isCabinetCase}
@@ -256,6 +258,7 @@ export function Profile({
                   organizationId={organizationId}
                   studentCaseId={draft.leadCabinetCase.studentCaseId}
                   email={profile.email}
+                  emailConfirmed={inviteEmailConfirmed(profile.email, draft.studentApplication)}
                   displayName={profile.person}
                   caseState="pending"
                   isCabinetCase

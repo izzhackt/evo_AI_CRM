@@ -21,6 +21,15 @@ export function decodeReceiptDownloadTarget(value: unknown, organizationId: stri
   if (!row.storage_object_name.startsWith(prefix) || !id(row.storage_object_name.slice(prefix.length))) return null;
   return { storageObjectName: row.storage_object_name };
 }
+export function decodeContractDownloadTarget(value: unknown, organizationId: string, studentCaseId: string, fileId: string) {
+  const row = record(value, ["organization_id", "student_case_id", "case_contract_file_id", "storage_object_name"]);
+  if (!row || !id(row.organization_id) || !id(row.student_case_id) || !id(row.case_contract_file_id)
+    || row.organization_id !== organizationId || row.student_case_id !== studentCaseId || row.case_contract_file_id !== fileId
+    || typeof row.storage_object_name !== "string" || row.storage_object_name.length > 512) return null;
+  const prefix = `case-contracts/${organizationId}/${studentCaseId}/`;
+  if (!row.storage_object_name.startsWith(prefix) || !id(row.storage_object_name.slice(prefix.length))) return null;
+  return { storageObjectName: row.storage_object_name };
+}
 export function receiptTargetErrorStatus(error: { code?: string } | null): 403 | 503 {
   return error?.code === "42501" ? 403 : 503;
 }

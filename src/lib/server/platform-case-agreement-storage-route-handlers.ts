@@ -1,4 +1,4 @@
-import { decodeReceiptUploadTarget, decodeReceiptDownloadTarget, receiptTargetErrorStatus } from "../payment-receipt-target.ts";
+import { decodeReceiptUploadTarget, decodeReceiptDownloadTarget, decodeContractDownloadTarget, receiptTargetErrorStatus } from "../payment-receipt-target.ts";
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
@@ -292,57 +292,12 @@ export function createPaymentReceiptFileUploadHandler() {
   };
 }
 
-async function signAndRedirect(
-  organizationId: string,
-  studentCaseId: string,
-  table: "case_contract_files" | "payment_receipt_files",
-  fileId: string,
-): Promise<Response> {
-  const { resolvePlatformActor } = await import("../platform-auth.ts");
-  const actorResult = await resolvePlatformActor();
-  if (actorResult.status !== "authenticated") {
-    return errorResponse(actorResult.status === "anonymous" ? 401 : 503, "unavailable");
-  }
-  if (actorResult.actor.organizationId !== organizationId) {
-    return errorResponse(403, "case_agreement_forbidden");
-  }
-  const { createSupabaseServerClient } = await import("../supabase/server.ts");
-  const userClient = await createSupabaseServerClient();
-  const readResponse = await userClient.schema("platform").rpc(
-    "staff_case_agreement_v1",
-    { p_student_case_id: studentCaseId },
-  );
-  if (readResponse.error) return errorResponse(403, "case_agreement_forbidden");
-
-  const serviceClient = createPlatformSupabaseServiceClient(
-    getPlatformSupabaseBackendConfig(),
-  );
-  const fileLookup = await serviceClient.schema("platform")
-    .from(table)
-    .select("storage_object_name, student_case_id")
-    .eq("organization_id", organizationId)
-    .eq("id", fileId)
-    .maybeSingle();
-  if (
-    fileLookup.error || !fileLookup.data ||
-    fileLookup.data.student_case_id !== studentCaseId
-  ) {
-    return errorResponse(404, "file_not_found");
-  }
-  const signedResponse = await serviceClient.storage.from(BUCKET_ID).createSignedUrl(
-    fileLookup.data.storage_object_name as string,
-    60,
-    { download: true },
-  );
-  if (signedResponse.error) return errorResponse(503, "storage_signing_unavailable");
-  return Response.redirect(signedResponse.data.signedUrl, 307);
-}
-
 export function createCaseContractFileDownloadHandler() {
   return async function GET(
     _request: Request,
     context: { params: Promise<{ studentCaseId: string; fileId: string }> },
   ): Promise<Response> {
+    try {
     const { resolvePlatformActor } = await import("../platform-auth.ts");
     const actorResult = await resolvePlatformActor();
     if (actorResult.status !== "authenticated") {
@@ -352,12 +307,22 @@ export function createCaseContractFileDownloadHandler() {
     const studentCaseId = uuid(params.studentCaseId);
     const fileId = uuid(params.fileId);
     if (!studentCaseId || !fileId) return errorResponse(400, "invalid_request");
-    return signAndRedirect(
-      actorResult.actor.organizationId,
-      studentCaseId,
-      "case_contract_files",
-      fileId,
+    const { createSupabaseServerClient } = await import("../supabase/server.ts");
+    const userClient = await createSupabaseServerClient();
+    const targetResponse = await userClient.schema("platform").rpc(
+      "staff_case_contract_file_download_target_v1", { p_student_case_id: studentCaseId, p_file_id: fileId },
     );
+    if (targetResponse.error) return errorResponse(receiptTargetErrorStatus(targetResponse.error),
+      targetResponse.error.code === "42501" ? "case_agreement_forbidden" : "contract_target_unavailable");
+    const target = decodeContractDownloadTarget(targetResponse.data, actorResult.actor.organizationId, studentCaseId, fileId);
+    if (!target) return errorResponse(503, "contract_target_unavailable");
+    const serviceClient = createPlatformSupabaseServiceClient(getPlatformSupabaseBackendConfig());
+    const signedResponse = await serviceClient.storage.from(BUCKET_ID).createSignedUrl(target.storageObjectName, 60, { download: true });
+    if (signedResponse.error) return errorResponse(503, "storage_signing_unavailable");
+    return Response.redirect(signedResponse.data.signedUrl, 307);
+    } catch {
+      return errorResponse(503, "contract_unavailable");
+    }
   };
 }
 

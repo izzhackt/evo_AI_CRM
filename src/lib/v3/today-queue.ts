@@ -103,12 +103,10 @@ export function todayBandsDependingOn(source: TodaySource): readonly TodayBand[]
 
 export type TodayWho = Readonly<{ name: string; href: string }>;
 
-/** Тихая ссылка страницы: доска в шапке или главное действие пустого дня. */
+/** Тихая ссылка страницы: главное действие пустого дня. */
 export type TodayLink = Readonly<{
   label: string;
   href: string;
-  /** Короткое имя для телефона, когда досок две («Продажи» вместо «Воронка продаж»). */
-  short?: string;
 }>;
 export type TodayDue = Readonly<{ dueOn: string | null; dueAt: string | null }>;
 

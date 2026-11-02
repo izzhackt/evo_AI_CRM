@@ -11,7 +11,7 @@ import { SalesRegisterImportView } from "@/components/v3/SalesRegisterImportView
 import { SalesDynamicsReport, SalesRegisterView, type SalesReportQuery } from "@/components/v3/SalesRegisterView";
 import { SalesDynamicsNextView, SalesImportNextView, SalesManagersNextView } from "@/components/v3/sales-next/SalesFramesNext";
 import { SalesRegisterNextView } from "@/components/v3/sales-next/SalesRegisterNextView";
-import { TodayBoardLinks, TodayScreen } from "@/components/v3/today/TodayScreen";
+import { TodayScreen } from "@/components/v3/today/TodayScreen";
 import { TodayNextLazy } from "@/components/v3/today-next/TodayNextLazy";
 import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
@@ -145,7 +145,7 @@ export default async function MainPart({
   // Задача «Перезвонить клиенту» несёт лид: строка называет клиента, пока набор открыт этому сотруднику (иначе — как раньше).
   const taskLeads = dial.status === "ready" ? await readTodayTaskLeads(actor, queue) : null;
   const preview = isStaffPreview(actor);
-  const { boards, mainAction } = todayLinks(actor, access, { canReadReport });
+  const { mainAction } = todayLinks(actor, access, { canReadReport });
   const permissions = {
     actorMembershipId: actor.membershipId,
     admin: actor.systemRole === "admin" && !preview,
@@ -158,7 +158,7 @@ export default async function MainPart({
 
   // «Новый вид» (переключатель администратора): те же чтения и права, другая расстановка — виджеты вместо ленты.
   if (await isNextUi(actor)) {
-    return <TodayNextLazy boards={boards} queue={queue} nowIso={now.toISOString()} mainAction={mainAction} dial={dial} taskLeads={taskLeads} permissions={permissions} />;
+    return <TodayNextLazy queue={queue} nowIso={now.toISOString()} mainAction={mainAction} dial={dial} taskLeads={taskLeads} permissions={permissions} />;
   }
 
   return (
@@ -166,7 +166,6 @@ export default async function MainPart({
       title="Сегодня"
       testId="v3-operational-dashboard"
       meta={<time dateTime={queue.today}>{todayDateLabel(queue.today)}</time>}
-      action={<TodayBoardLinks links={boards} />}
     >
       <TodayScreen
         queue={queue}

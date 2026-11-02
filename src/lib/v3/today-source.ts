@@ -132,30 +132,22 @@ export function todayAccess(actor: ActivePlatformActor): TodayAccess {
 }
 
 export type TodayLinks = Readonly<{
-  /** Тихие ссылки шапки: доски роли. */
-  boards: readonly TodayLink[];
   /** Главное действие пустого дня; null — у роли его нет. */
   mainAction: TodayLink | null;
 }>;
 
 /**
- * Ссылки «Сегодня» по источникам роли, а не по одному `lead.read`: доска
- * продаж и «Открыть воронку продаж» — тем, кто ведёт продажи; доска
- * поступления — по праву её страницы. Пустой день без очереди — отчёт, если
- * роль его читает. Доски — переходы, а не красная кнопка.
+ * Главное действие пустого дня по источникам роли, а не по одному `lead.read`. Воронки открываются из
+ * бокового меню: в шапке «Сегодня» их нет (решение владельца 30.10.2026).
  */
 export function todayLinks(actor: ActivePlatformActor, access: TodayAccess, options: Readonly<{ canReadReport: boolean }>): TodayLinks {
   const sales = access.sources.includes("leads") && staffCanAccessRoute(actor, "/v3/pipeline");
-  const boards: TodayLink[] = [
-    ...(sales ? [{ label: "Воронка продаж", short: "Продажи", href: "/v3/pipeline" }] : []),
-    ...(staffCanAccessRoute(actor, "/v3/admissions-pipeline") ? [{ label: "Воронка поступления", short: "Поступление", href: "/v3/admissions-pipeline" }] : []),
-  ];
   const mainAction: TodayLink | null = sales ? { label: "Открыть воронку продаж", href: "/v3/pipeline" }
     : access.sources.includes("students") ? { label: "Открыть студентов", href: "/v3/profile" }
     : access.sources.includes("tasks") ? { label: "Все задачи", href: "/v3/tasks" }
     : options.canReadReport ? { label: "Открыть отчёт продаж", href: "/v3/main?view=sales" }
     : null;
-  return Object.freeze({ boards: Object.freeze(boards), mainAction });
+  return Object.freeze({ mainAction });
 }
 
 type Pages<Row> = Readonly<{ rows: readonly Row[]; complete: boolean }>;

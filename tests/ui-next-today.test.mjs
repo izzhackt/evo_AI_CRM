@@ -33,7 +33,7 @@ const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/&#x27;/gu, "'").r
 const WIDGETS = /data-slot="stat-tile"|data-slot="card"[^>]*id="today-band-/u;
 const NEW_FILES = [
   "src/components/v3/today-next/TodayNext.tsx", "src/components/v3/today-next/TodayDashboard.tsx", "src/components/v3/today-next/TodayBandWidget.tsx",
-  "src/components/v3/today-next/TodayTiles.tsx", "src/components/v3/today-next/TodayBoards.tsx",
+  "src/components/v3/today-next/TodayTiles.tsx",
   "src/components/v3/requests-next/RequestsNextView.tsx", "src/components/v3/requests-next/RequestsNextTable.tsx",
   "src/components/v3/requests-next/RequestSheetBody.tsx", "src/components/v3/requests-next/requests-next-rows.tsx",
   "src/components/v3/requests-next/RequestsNextEmpty.tsx",
@@ -176,10 +176,10 @@ test("«Сегодня»: пустой день говорит прежними 
   assert.match(empty, /Ближайший срок — чт 01\.10/u);
   const admissions = text(nextToday.get("next-empty-admissions"));
   assert.match(admissions, /На сегодня всё/u);
-  const boards = nextToday.get("next-admin");
-  assert.match(boards, /aria-label="Доски"/u);
-  assert.match(text(boards), /Воронка продаж/u);
-  assert.match(text(boards), /Воронка поступления/u);
+  // Решение владельца 30.10: воронки открываются из бокового меню, в шапке «Сегодня» их нет.
+  const admin = nextToday.get("next-admin");
+  assert.doesNotMatch(admin, /aria-label="Доски"/u);
+  assert.doesNotMatch(text(admin), /Воронка продаж|Воронка поступления/u);
 });
 
 /* ---------------------------------------------------------------- устройство: виджеты набора, короткие файлы, токены */
@@ -205,8 +205,8 @@ test("страницы спрашивают isNextUi, читают и прове
   const main = read("src/app/(v3)/v3/main/page.tsx");
   assert.match(main, /import \{ isNextUi \} from "@\/lib\/ui-next";/u);
   // Новый вид подгружается лениво: страница отдаёт его только настоящему администратору и не импортирует статически.
-  assert.match(main, /if \(await isNextUi\(actor\)\) \{\s*return <TodayNextLazy boards=\{boards\} queue=\{queue\} nowIso=\{now\.toISOString\(\)\} mainAction=\{mainAction\} dial=\{dial\} taskLeads=\{taskLeads\} permissions=\{permissions\} \/>;/u);
-  assert.doesNotMatch(main, /from "@\/components\/v3\/today-next\/Today(Next|Boards|Dashboard)"|from "@\/components\/kit"/u, "виджеты нового вида в первую загрузку страницы не входят");
+  assert.match(main, /if \(await isNextUi\(actor\)\) \{\s*return <TodayNextLazy queue=\{queue\} nowIso=\{now\.toISOString\(\)\} mainAction=\{mainAction\} dial=\{dial\} taskLeads=\{taskLeads\} permissions=\{permissions\} \/>;/u);
+  assert.doesNotMatch(main, /from "@\/components\/v3\/today-next\/Today(Next|Dashboard)"|from "@\/components\/kit"/u, "виджеты нового вида в первую загрузку страницы не входят");
   assert.match(main, /<PartShell\s+title="Сегодня"[\s\S]*?<TodayScreen/u, "прежний вид на месте");
   assert.match(main, /const taskLeads = dial\.status === "ready" \? await readTodayTaskLeads\(actor, queue\) : null;/u, "чтения прежние");
   const requests = read("src/app/(v3)/v3/requests/page.tsx");

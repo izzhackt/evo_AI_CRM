@@ -13,7 +13,7 @@
 
 1. Прочитайте §1–§3 и **только свой** раздел (§A, §B, §C, §D или §E), затем §9 (сквозные правила). Чужие разделы читайте по ссылке, когда на них указывает ваш.
 2. Меняйте **только файлы из своей строки §3**. Общие файлы (навигация, права, журнал, env) закреплены ровно за одним строителем. Нужна правка в чужом файле — запишите её в handoff, не делайте.
-3. Скорость важнее полноты проверки (поручение владельца 22.10.2026). Проверяйте только то, что написали: целевые тесты нового кода, `tsc --noEmit`, для SQL — один сценарный файл на чистой временной базе. Полные наборы (`test:unit`, `test:security`, `scripts/test-postgres-authorization.sh` целиком, Playwright) **не запускайте**.
+3. Скорость важнее полноты проверки (поручение владельца 22.10.2026). Проверяйте только то, что написали: целевые тесты нового кода, `tsc --noEmit`, для SQL — один сценарный файл на чистой временной базе. Полные наборы (`test:unit`, `test:security`, `scripts/test-runners/test-postgres-authorization.sh` целиком, Playwright) **не запускайте**.
 4. Не запускайте `git commit` и `git push`: коммитит оркестратор по спискам файлов из §3 (иначе параллельные индексы конфликтуют).
 5. `node_modules` — симлинк; `npm install` запрещён. Если в этом worktree симлинк указывает на неполный каталог (нет `next`/`typescript`), он перенаправлен на полный: `…/scratchpad/tel-ui/node_modules`; проверка типов: `node_modules/.bin/tsc --noEmit -p tsconfig.json` (≈15 с; ошибки про `*.png`/`*.webp` уже есть и к вам не относятся).
 6. Канонический checkout `/Users/iskhak.tazhibaev/Documents/01_Projects/EVO/evo_AI_CRM` не трогать. Продакшен, VPS, WhatsApp, WAHA, боевой Supabase и реальный ключ Anthropic не трогать. Реальных вызовов Anthropic нет: ключа у строителей нет. Всё, что идёт к Anthropic, проверяется тестами с подставленным `fetch` по форме документации, и честно помечается в handoff как «не проверено на живом API».
@@ -85,8 +85,8 @@
 - `supabase/migrations/317_platform_ai_agents_managed.sql`
 - `supabase/tests/platform_ai_agents_managed.sql`
 - `supabase/tests/platform_audit_journal_contract.sql` (правка списков)
-- `scripts/test-postgres-authorization.sh` (только хук `*_platform_ai_agents_managed.sql`, по образцу 316)
-- `scripts/check-platform-audit-journal-contract.mjs` (если ему нужна правка)
+- `scripts/test-runners/test-postgres-authorization.sh` (только хук `*_platform_ai_agents_managed.sql`, по образцу 316)
+- `scripts/checks/check-platform-audit-journal-contract.mjs` (если ему нужна правка)
 - `src/lib/platform-audit.ts` (+ `PLATFORM_AUDIT_ACTIONS`, `PLATFORM_AUDIT_RESOURCE_TYPES`, пояснительный абзац)
 - `src/lib/v3/wording.ts` (**только** подписи журнала §A.8)
 - `tests/platform-audit.test.mjs` (в том числе запись 317 в список `P7A_WRAPPER_MIGRATIONS`, как сделано для 316)
@@ -96,7 +96,7 @@
 - `src/app/api/mcp/v1/route.ts`, `src/app/api/mcp/v1/files/[token]/route.ts`
 - `src/lib/server/ai-agents/mcp-server.ts`, `mcp-auth.ts`, `mcp-tools.ts`, `mcp-files.ts`
 - `agent-lead2-inbox/deploy/Caddyfile.evo-edge` (одна строка `header_up`, §B.7)
-- `scripts/ai-agents-mcp-smoke.mjs`
+- `scripts/checks/ai-agents-mcp-smoke.mjs`
 - `tests/ai-agents-mcp.test.mjs`, `tests/ai-agents-mcp-files.test.mjs`
 - Если тест Caddyfile в `tests/` сверяет содержимое — его правка (найдите `grep -rn "Caddyfile.evo-edge" tests`).
 
@@ -105,7 +105,7 @@
 - `src/lib/server/ai-agents/runtime.ts` (заменяет заглушку), `anthropic.ts`, `sync.ts`, `runs.ts`, `events.ts`, `drafts.ts`, `env.ts`
 - `src/lib/server/ai-agents/dispatch.ts`, `whatsapp-send.ts`, `config-hash.ts` (заменяют заглушки)
 - Хуки (по одной вставке): `src/lib/server/website-lead-intake.ts`, `src/lib/server/platform-waha-webhook.ts`
-- Окружение: `scripts/evo-app-env-contract.mjs`, `deploy/env.production.example`, `tests/app-env-contract.test.mjs`
+- Окружение: `scripts/release/evo-app-env-contract.mjs`, `deploy/env.production.example`, `tests/app-env-contract.test.mjs`
 - `docs/runbooks/ai-agents-managed.md`
 - `tests/ai-agents-runtime.test.mjs`, `tests/ai-agents-events.test.mjs`, `tests/ai-agents-dispatch.test.mjs`
 
@@ -123,7 +123,7 @@
 
 - `src/content/ai-agents/_preamble.md`, `director.md`, `sales.md`, `curator-cn.md`, `curator-my.md`, `curator-eu.md`, `curator-ae.md`, `curator-tr.md`
 - `src/content/ai-agents/index.ts` (заменяет заглушку), `src/content/ai-agents/prompts.generated.ts`
-- `scripts/build-ai-agent-prompts.mjs`
+- `scripts/maintenance/build-ai-agent-prompts.mjs`
 - `tests/ai-agents-content.test.mjs`
 - `docs/design/ai-agents/content-notes.md` (откуда что взято, что исключено, вопросы владельцу)
 
@@ -342,7 +342,7 @@
 
 В конце 317: сид (7 строк на организацию, значения из таблицы §A.2), RLS/гранты (ни одна таблица не читается ролями API; все функции без `PUBLIC`/`anon`; `service_role` — только `ai_agent_runtime_*`, `ai_agent_mcp_*`, `ai_agent_tool_*`; `authenticated` — только `ai_agents_*`), allowlist (11+3), cardinality прежних списков, `NOTIFY pgrst, 'reload schema'`.
 
-`supabase/tests/platform_ai_agents_managed.sql` (один файл, метка `PASSED`, хук в `test-postgres-authorization.sh` по образцу 316): сид; матрица прав (админ/обычный сотрудник/студент/anon/service); `ai_agents_update_v1` (патч, версия, валидации, аудит без текстов); токены (`stage`, окно `prev`, `restore`); `ai_agent_mcp_auth_v1` (текущий, прежний, просроченный, неизвестный, выключенный); по **одному** сценарию на каждый из 24 инструментов (форма ответа, отказ на лишний ключ, маски, чёрный список); `send_message` (черновик; direct портал; предохранители; лимиты); авторизация WhatsApp (если раздел F есть): создаёт `kind='ai_agent'` + работу, повтор — `replayed`; журнал (11 действий, 3 типа, `p7a_*`); `ai_agent_file_grants` (срок, число использований). **Не запускать** весь `test-postgres-authorization.sh`: применить цепочку 001…317 на временную базу (образец — запуск самого скрипта: образ `scripts/resolve-postgres-test-image.sh`, `supabase/tests/bootstrap_supabase.sql`) и выполнить только свой файл.
+`supabase/tests/platform_ai_agents_managed.sql` (один файл, метка `PASSED`, хук в `test-postgres-authorization.sh` по образцу 316): сид; матрица прав (админ/обычный сотрудник/студент/anon/service); `ai_agents_update_v1` (патч, версия, валидации, аудит без текстов); токены (`stage`, окно `prev`, `restore`); `ai_agent_mcp_auth_v1` (текущий, прежний, просроченный, неизвестный, выключенный); по **одному** сценарию на каждый из 24 инструментов (форма ответа, отказ на лишний ключ, маски, чёрный список); `send_message` (черновик; direct портал; предохранители; лимиты); авторизация WhatsApp (если раздел F есть): создаёт `kind='ai_agent'` + работу, повтор — `replayed`; журнал (11 действий, 3 типа, `p7a_*`); `ai_agent_file_grants` (срок, число использований). **Не запускать** весь `test-postgres-authorization.sh`: применить цепочку 001…317 на временную базу (образец — запуск самого скрипта: образ `scripts/local-dev/resolve-postgres-test-image.sh`, `supabase/tests/bootstrap_supabase.sql`) и выполнить только свой файл.
 
 ### A.9 Согласие студента на ИИ-помощников (миграция 320)
 
@@ -441,7 +441,7 @@
 
 ### B.8 Smoke-скрипт и тесты
 
-- `scripts/ai-agents-mcp-smoke.mjs <url> <token>`: `initialize` → `notifications/initialized` → `tools/list` (24) → `tools/call get_my_settings`; печатает коротко «ok/ошибка» и коды HTTP. Для эксплуатации после выкладки (до подключения к Claude). Токен читается из аргумента или `EVO_MCP_SMOKE_TOKEN`, нигде не печатается.
+- `scripts/checks/ai-agents-mcp-smoke.mjs <url> <token>`: `initialize` → `notifications/initialized` → `tools/list` (24) → `tools/call get_my_settings`; печатает коротко «ok/ошибка» и коды HTTP. Для эксплуатации после выкладки (до подключения к Claude). Токен читается из аргумента или `EVO_MCP_SMOKE_TOKEN`, нигде не печатается.
 - `tests/ai-agents-mcp.test.mjs` (node:test, `--conditions=react-server --experimental-strip-types`): подставной RPC-клиент и подставной `sendWhatsAppDraft`. Покрыть: 401 без/с неверным токеном; 403 чужой IP / неизвестный IP / `off`; разбор `X-Forwarded-For` (последний элемент); `initialize` (согласование версии); `tools/list` равен реестру (24, схемы); уведомление → 202; батч; `tools/call`: валидатор (лишний ключ, граница, enum), успех, обрезка по размеру, отображение ошибок Postgres (таблица §B.4), `agent_disabled`, `needs_dispatch` → четыре исхода §B.5; ограничители; журнал не содержит токена и аргументов.
 - `tests/ai-agents-mcp-files.test.mjs`: токен неверной формы, 404, 200 с заголовками, повторное использование.
 
@@ -561,7 +561,7 @@
 
 ### C.6 Окружение и эксплуатация
 
-- `scripts/evo-app-env-contract.mjs`: добавить необязательные имена `EVO_ANTHROPIC_API_KEY` (секрет: `^[\x21-\x7e]{20,300}$`, значение **не** должно совпадать ни с одним другим значением env — как другие секреты), `EVO_ANTHROPIC_API_BASE_URL` (https-адрес без пути), `EVO_AI_AGENTS_MCP_URL` (https-адрес, путь `/api/mcp/v1`), `EVO_AI_AGENTS_MCP_IP_ALLOWLIST` (список CIDR или `off`), `EVO_AI_AGENTS_RUN_BUDGET_USD` (число 0…100). Пустое значение — функция выключена. `deploy/env.production.example`: блок с комментарием и пустыми значениями. `tests/app-env-contract.test.mjs`: принимает пустые, принимает корректные, отвергает ключ со значением, совпадающим с другим секретом, и мусорные значения.
+- `scripts/release/evo-app-env-contract.mjs`: добавить необязательные имена `EVO_ANTHROPIC_API_KEY` (секрет: `^[\x21-\x7e]{20,300}$`, значение **не** должно совпадать ни с одним другим значением env — как другие секреты), `EVO_ANTHROPIC_API_BASE_URL` (https-адрес без пути), `EVO_AI_AGENTS_MCP_URL` (https-адрес, путь `/api/mcp/v1`), `EVO_AI_AGENTS_MCP_IP_ALLOWLIST` (список CIDR или `off`), `EVO_AI_AGENTS_RUN_BUDGET_USD` (число 0…100). Пустое значение — функция выключена. `deploy/env.production.example`: блок с комментарием и пустыми значениями. `tests/app-env-contract.test.mjs`: принимает пустые, принимает корректные, отвергает ключ со значением, совпадающим с другим секретом, и мусорные значения.
 - `docs/runbooks/ai-agents-managed.md`: порядок включения (§10 чек-лист), где взять ключ в Claude Console и как задать **лимиты расходов в Console** (владелец), как обновить токен MCP, как проверить MCP smoke-скриптом, как отключить всё (выключатели: `Включён` у агента, пустой ключ `EVO_ANTHROPIC_API_KEY`, `EVO_AI_AGENTS_MCP_IP_ALLOWLIST` уже не нужен), что делать при `mcp_authentication_failed_error`/`mcp_connection_failed_error`, как удалить сессии в Console (данные у Anthropic остаются до удаления).
 
 ### C.7 Тесты (быстрые, без сети)
@@ -636,7 +636,7 @@
 ### E.1 Файлы и формат
 
 - `src/content/ai-agents/<key>.md` — один файл на агента (7) + `_preamble.md` (общая преамбула). Формат файла агента: frontmatter YAML между `---` с полями `key` (равен имени файла и ключу каталога), `schedule_prompt` (многострочный блок `|`; нет расписания — поле опущено), затем тело — **инструкция** (система-промпт без преамбулы). HTML-комментарии `<!-- … -->` — заметки авторам: генератор их вырезает, в промпт они не попадают.
-- `scripts/build-ai-agent-prompts.mjs`: читает `.md`, проверяет (frontmatter, ключи, пределы: инструкция ≤ 40 000 символов, преамбула ≤ 8 000, `schedule_prompt` ≤ 4 000, без NUL), пишет `src/content/ai-agents/prompts.generated.ts` (экспорт `AI_AGENT_PROMPT_SOURCES: Record<AiAgentKey, {instructions: string; schedulePrompt: string | null}>` и `AI_AGENT_PREAMBLE_TEXT: string`; шапка «сгенерировано, не править»). Режим `--check` падает, если сгенерированный файл расходится с `.md`. Генератор — Node без зависимостей; frontmatter разбирается самописно (только `key` и блок `schedule_prompt`).
+- `scripts/maintenance/build-ai-agent-prompts.mjs`: читает `.md`, проверяет (frontmatter, ключи, пределы: инструкция ≤ 40 000 символов, преамбула ≤ 8 000, `schedule_prompt` ≤ 4 000, без NUL), пишет `src/content/ai-agents/prompts.generated.ts` (экспорт `AI_AGENT_PROMPT_SOURCES: Record<AiAgentKey, {instructions: string; schedulePrompt: string | null}>` и `AI_AGENT_PREAMBLE_TEXT: string`; шапка «сгенерировано, не править»). Режим `--check` падает, если сгенерированный файл расходится с `.md`. Генератор — Node без зависимостей; frontmatter разбирается самописно (только `key` и блок `schedule_prompt`).
 - `src/content/ai-agents/index.ts` (заменяет заглушку): сохраняет экспорты `AiAgentDefault`, `AI_AGENT_PREAMBLE`, `AI_AGENT_DEFAULTS`, `effectiveAiAgentInstructions`, `buildAiAgentSystemPrompt` и сигнатуры, берёт тексты из `prompts.generated.ts`. `hasInstructions = instructions.trim() !== ""`. Чистый модуль (без `server-only`, без `fs`): его читают и сервер, и (через D) страницы.
 - Тексты в образе приложения живут как TypeScript-модуль (никакого `fs` во время работы: standalone-сборка Next не прихватывает `.md`).
 
@@ -695,7 +695,7 @@
 
 1. Строители A, B, C, D, E работают параллельно (заглушки и `contract.ts` уже в ветке). Единственная зависимость «по времени» — D и C используют RPC A только как имена (`contract.ts`), поэтому могут не ждать.
 2. Приём по очереди: E → A → C → B → D (контент и БД первыми; интерфейс последним). После каждого: `tsc --noEmit`; для A — файл SQL-набора на временной базе; для остальных — их тесты.
-3. Сквозная проверка (без боевых сервисов): временная база с цепочкой до 317 → создать токен агента вручную SQL (`ai_agent_runtime_token_set_v1`), поднять `next dev`/обработчик с подставным сервисным клиентом, пройти `scripts/ai-agents-mcp-smoke.mjs` (initialize → tools/list → get_my_settings). Реальный Anthropic не вызывается.
+3. Сквозная проверка (без боевых сервисов): временная база с цепочкой до 317 → создать токен агента вручную SQL (`ai_agent_runtime_token_set_v1`), поднять `next dev`/обработчик с подставным сервисным клиентом, пройти `scripts/checks/ai-agents-mcp-smoke.mjs` (initialize → tools/list → get_my_settings). Реальный Anthropic не вызывается.
 4. Запись о реализации в `docs/PLAN_CHANGES.md` (квитанция: что сделано, что проверено, что нет) — делает интегратор, не строители.
 5. Независимый review PR по правилам репозитория (`AGENTS.md`); номер миграции пересмотреть, если `origin/main` к тому времени ушёл дальше 316 (так было с 313–316).
 

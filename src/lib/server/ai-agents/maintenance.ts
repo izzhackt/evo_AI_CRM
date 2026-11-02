@@ -28,7 +28,7 @@ import {
  * Фоновая сверка ИИ-агентов с Claude (аудит 24.10.2026, пункт 8). Раньше статусы и расход запусков обновлялись
  * только когда кто-то открывал страницу раздела, а запуски расписания читались одной страницей из 20.
  * Запускается раз в ~5 минут таймером systemd на хосте: `docker exec evo-crm-app-1 node /app/ai-agents-maintenance.mjs`
- * (как телефония: scripts/ai-agents-maintenance.mjs → .next/ai-agents-maintenance.mjs, docs/runbooks/ai-agents-managed.md).
+ * (как телефония: scripts/maintenance/ai-agents-maintenance.mjs → .next/ai-agents-maintenance.mjs, docs/runbooks/ai-agents-managed.md).
  *
  * Один проход:
  *  1. без ключа Claude API ничего не делает (раздел выключен);

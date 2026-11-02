@@ -26,7 +26,7 @@ acceptance. University forms/packages and the original full run remain open.
 ## Historical source 0cc1f5c7
 
 Frozen source: `0cc1f5c7199c040ac652ae40678da13aec845ef9`, clean at start/end.
-Command: `EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node bash scripts/test-postgres-v2-foundation.sh --student-profile-fields-only`
+Command: `EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node bash scripts/test-runners/test-postgres-v2-foundation.sh --student-profile-fields-only`
 with Node22.23.1 first on PATH. OrbStack Running/contextorbstack verified.
 Browser plugin unavailable; repository Playwright/Chromium1440x1000 used.
 

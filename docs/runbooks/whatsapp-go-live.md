@@ -66,7 +66,7 @@ read-only проверкам (только счётчики и окна прог
 `docs/runbooks/whatsapp-history-import.md`, не часть go-live) и
 [#1141](https://github.com/izzhackt/evo_AI_CRM/pull/1141) (отвечать из CRM могут
 все сотрудники, миграция 261, `67ec56098`). Код записи ключа WAHA в Vault — этот
-PR: `scripts/waha-runtime-binding.mjs` (см. [§ Скрипт](#скрипт-vault-binding)).
+PR: `scripts/maintenance/waha-runtime-binding.mjs` (см. [§ Скрипт](#скрипт-vault-binding)).
 
 Для сессии `crm_primary` процедура **заменяет** указание «новую конфигурацию
 WAHA направлять на приватный webhook lead-agent» из `AGENTS.md`
@@ -377,7 +377,7 @@ c файлом на сервере; в #1137 добавлено имя
 строки нет в `/opt/evo-crm/.env.production` (наличие на сервере здесь не
 проверялось), любой release текущего `main` остановится: отсутствие даёт отказ
 контроллера `app_env_contract_invalid` (внутри — `required_env_name_missing`)
-[repo] `scripts/evo-app-env-contract.mjs`, `scripts/evo-fast-release.sh`.
+[repo] `scripts/release/evo-app-env-contract.mjs`, `scripts/release/evo-fast-release.sh`.
 
 ```bash
 B=/root/evo-config-backups; install -d -m 700 "$B"; TS=$(date -u +%Y%m%dT%H%M%SZ)
@@ -393,7 +393,7 @@ stat -c '%a %U:%G' "$f"                                          # права/в
 
 ```bash
 # локально:
-git show origin/main:scripts/evo-app-env-contract.mjs | ssh hermes-vps 'install -d -m 700 /root/evo-golive && cat > /root/evo-golive/evo-app-env-contract.mjs'
+git show origin/main:scripts/release/evo-app-env-contract.mjs | ssh hermes-vps 'install -d -m 700 /root/evo-golive && cat > /root/evo-golive/evo-app-env-contract.mjs'
 git show origin/main:deploy/env.production.example   | ssh hermes-vps 'cat > /root/evo-golive/env.production.example'
 gh variable get EVO_SUPABASE_PROJECT_REF --repo izzhackt/evo_AI_CRM        # 20 символов, не секрет
 # на VPS: REF=<это значение> (без --verify-supabase-keys: сеть и ключи не трогаются; пути абсолютные):
@@ -425,7 +425,7 @@ env-файлах с настоящим валидатором #1137: строк�
    (на release №2, `main` = `8424dc38`, ledger 001–262 совпадал с репозиторием;
    позже #1142 добавил в `main` миграции 263–265 — применены ли они в production,
    здесь не проверялось: перед следующим release сверить ledger),
-   [repo] `scripts/fast-release-ledger-gate.mjs`; несовпадение —
+   [repo] `scripts/release/fast-release-ledger-gate.mjs`; несовпадение —
    `schema_ledger_mismatch`). Состояние по сообщению оркестратора на 2026-10-06
    (из production не перечитывалось): 259 и 260 применены 2026-10-06 через
    `evo-schema-ledger`, **261 ещё нет**. Выполнено позже в тот же день:
@@ -505,7 +505,7 @@ production ничего не менялось и не перезагружало
 `/api/v2/whatsapp/inbound/*`. Устаревший хост `evo-crm.….sslip.io` мутации и так
 не пропускает (405) **[repo]**. Локально проверено: `caddy validate` на
 закреплённом образе (digest из `docs/archive/v1/production-release.md`,
-Caddy v2.11.3; образ живого контейнера не сверялся) и `scripts/test-p7b-caddy-runtime.sh` (пути добавлены в список
+Caddy v2.11.3; образ живого контейнера не сверялся) и `scripts/test-runners/test-p7b-caddy-runtime.sh` (пути добавлены в список
 запретных, 404) — на production не запускалось **[live ✗]**.
 
 **Общий edge.** `evo-edge-caddy` обслуживает не только EVO: в том же Caddy
@@ -1331,7 +1331,7 @@ journalctl -u evo-whatsapp-health -n 5 --no-pager
 
 ## Скрипт Vault-binding
 
-`scripts/waha-runtime-binding.mjs` (в образе: `/app/scripts/waha-runtime-binding.mjs`,
+`scripts/maintenance/waha-runtime-binding.mjs` (в образе: `/app/scripts/waha-runtime-binding.mjs`,
 владелец `nextjs`, права `0555`; только `node:`-встроенные модули). Режимы:
 `check` (чтение), `check --verify-key`, `provision [--dry-run]`;
 `--check`/`--provision` — синонимы; `--session crm_primary` и
@@ -1361,8 +1361,8 @@ CLI по HTTP — создание, dry-run, идемпотентность, р�
   [tags](https://hub.docker.com/r/devlikeapro/waha/tags).
 - Supabase Vault: https://supabase.com/docs/guides/database/vault ·
   Docker Compose `up`: https://docs.docker.com/reference/cli/docker/compose/up/ .
-- Репозиторий: `deploy/fast-app-release.md`, `scripts/evo-fast-release.sh`,
-  `scripts/evo-app-env-contract.mjs`, `docker-compose.prod.yml`,
+- Репозиторий: `deploy/fast-app-release.md`, `scripts/release/evo-fast-release.sh`,
+  `scripts/release/evo-app-env-contract.mjs`, `docker-compose.prod.yml`,
   `deploy/env.waha.example`, миграции 080, 081, 082, 102.
 
 **Дополнение 2026-10-09 (отключение и повторная привязка).** 07.10 в

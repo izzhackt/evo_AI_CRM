@@ -46,7 +46,7 @@ const adminSnapshot = { schemaVersion: 1, authUserId: userId, profileId, members
   displayName: "Local Admin", systemRole: "admin", accessVersion: 1, assignments: [], permissions: ["membership.provision"] };
 
 test("foundation failure output forwards only the exact role-editor machine observations", () => {
-  const harness = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+  const harness = readFileSync(new URL("../scripts/test-runners/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
   const pattern = harness.match(/role_editor_diagnostic="\$\(grep -m 1 -E '([^']+)' "\$staff_provision_log" \|\| true\)"/)?.[1];
   assert.ok(pattern, "The harness must retain the bounded role-editor observation before cleanup");
   assert.match(harness, /\[\[ -z "\$role_editor_diagnostic" \]\] \|\| echo "\$role_editor_diagnostic" >&2/);
@@ -68,7 +68,7 @@ test("foundation failure output forwards only the exact role-editor machine obse
 });
 
 test("foundation failure reports only fixed completed invitation and onboarding stages and still fails", () => {
-  const harness = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+  const harness = readFileSync(new URL("../scripts/test-runners/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
   const start = harness.indexOf('  # Completed stages are partial progress; the failed proof still exits nonzero.');
   const end = harness.indexOf('  role_editor_diagnostic=', start);
   assert.ok(start > 0 && end > start);
@@ -99,7 +99,7 @@ test("foundation failure reports only fixed completed invitation and onboarding 
 });
 
 test("foundation callback diagnostic forwards only the last exact five-boolean observation", () => {
-  const harness = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+  const harness = readFileSync(new URL("../scripts/test-runners/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
   const report = harness.match(/^  callback_readiness_diagnostic=.*\n  \[\[ -z "\$callback_readiness_diagnostic" \]\] \|\| echo "\$callback_readiness_diagnostic" >&2/m)?.[0];
   assert.ok(report, "Callback diagnostics must survive the private log cleanup");
   const first = '{"stage":"LOCAL_STAFF_CALLBACK_READINESS","cachedClean":true,"locationClean":true,"documentComplete":true,"cachedCleanAfterBrowserRead":true,"emailConfirmed":true}';
@@ -308,8 +308,8 @@ test("Admin invitation UI submits the two planned recipients once and returns ca
 });
 
 test("invitation UI marker is required before unchanged mail acceptance and editor proofs", () => {
-  const wrapper = readFileSync(new URL("../scripts/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
-  const shell = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+  const wrapper = readFileSync(new URL("../scripts/local-dev/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
+  const shell = readFileSync(new URL("../scripts/test-runners/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
   const helper = readFileSync(new URL("../scripts/lib/scoped-staff-provisioner.mjs", import.meta.url), "utf8");
   assert.ok(/const browser = await chromium\.launch[\s\S]*await prepareScopedStaffRoles[\s\S]*await prepareScopedStaffInvitations[\s\S]*LOCAL_SCOPED_STAFF_INVITATION_UI_VERIFIED[\s\S]*accepted = await acceptScopedStaffInvitations[\s\S]*await verifyScopedStaffRoleEditor[\s\S]*await verifyScopedStaffMemberEditor/.test(wrapper), "Require UI dispatch before the existing acceptance sequence");
   assert.ok(/grep -Fx "LOCAL_SCOPED_STAFF_INVITATION_UI_VERIFIED" "\$staff_provision_log" >\/dev\/null \\\n\s*\|\| fail/.test(shell), "Require the distinct invitation UI marker at the shell boundary");
@@ -661,7 +661,7 @@ test("role editor keeps local clients and explicit private evidence boundary bef
 
 test("role editor marker stays distinct and follows successful onboarding before any optional screenshots", () => {
   const helper = readFileSync(new URL("../scripts/lib/scoped-staff-provisioner.mjs", import.meta.url), "utf8");
-  const wrapper = readFileSync(new URL("../scripts/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
+  const wrapper = readFileSync(new URL("../scripts/local-dev/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
   assert.match(wrapper, /accepted = await acceptScopedStaffInvitations[\s\S]*await verifyScopedStaffRoleEditor[\s\S]*LOCAL_SCOPED_STAFF_ROLE_EDITOR_VERIFIED/);
   assert.match(wrapper, /LOCAL_SUPABASE_STAFF_ONBOARDING_VERIFIED/);
   assert.match(helper, /if \(evidence\) \{[\s\S]*await cleanSettings\(\)[\s\S]*page\.screenshot/);
@@ -792,8 +792,8 @@ test("member editor proves two same-card UI saves and restores existing assignme
 });
 
 test("member editor has a separate required shell marker after the complete catalogue proof", () => {
-  const wrapper = readFileSync(new URL("../scripts/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
-  const shell = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+  const wrapper = readFileSync(new URL("../scripts/local-dev/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
+  const shell = readFileSync(new URL("../scripts/test-runners/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
   assert.match(wrapper, /await verifyScopedStaffRoleEditor[\s\S]*LOCAL_SCOPED_STAFF_ROLE_EDITOR_VERIFIED[\s\S]*await verifyScopedStaffMemberEditor[\s\S]*LOCAL_SCOPED_STAFF_MEMBER_EDITOR_VERIFIED/);
   assert.match(shell, /grep -Fx "LOCAL_SCOPED_STAFF_MEMBER_EDITOR_VERIFIED" "\$staff_provision_log" >\/dev\/null \\\n\s*\|\| fail/);
 });
@@ -812,8 +812,8 @@ test("ordinary business proof orders canonical setup before the four same-card s
   assert.doesNotMatch(edits, /\.reload\(|staff_role_assignments_save|staff_role_command|staff_role_publish/);
   assert.match(edits, /Изменить назначения/);
   assert.match(edits, /await fields\(original.accessVersion \+ 4, original.assignments\)/);
-  const wrapper = readFileSync(new URL("../scripts/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
-  const shell = readFileSync(new URL("../scripts/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
+  const wrapper = readFileSync(new URL("../scripts/local-dev/provision-local-supabase-staff.mjs", import.meta.url), "utf8");
+  const shell = readFileSync(new URL("../scripts/test-runners/test-postgres-v2-foundation.sh", import.meta.url), "utf8");
   assert.match(wrapper, /await verifyScopedStaffMemberEditor[\s\S]*LOCAL_SCOPED_STAFF_MEMBER_EDITOR_VERIFIED[\s\S]*await verifyScopedStaffBusinessScopes[\s\S]*LOCAL_SCOPED_STAFF_BUSINESS_SCOPES_VERIFIED/);
   assert.match(shell, /grep -Fx "LOCAL_SCOPED_STAFF_BUSINESS_SCOPES_VERIFIED" "\$staff_provision_log" >\/dev\/null \\\n\s*\|\| fail/);
 });

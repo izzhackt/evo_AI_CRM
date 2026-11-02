@@ -10,9 +10,9 @@ const activeReleaseFiles = [
   ".github/workflows/evo-fast-pr-checks.yml",
   ".github/workflows/evo-fast-release.yml",
   "package.json",
-  "scripts/evo-fast-release.sh",
-  "scripts/fast-release-ci-gate.mjs",
-  "scripts/validate-runtime-hardening.mjs",
+  "scripts/release/evo-fast-release.sh",
+  "scripts/release/fast-release-ci-gate.mjs",
+  "scripts/checks/validate-runtime-hardening.mjs",
   "deploy/README.md",
   "deploy/production-release.md",
   "deploy/runtime-hardening.md",
@@ -24,31 +24,6 @@ const executableLegacy =
 test("active release authority has no executable legacy topology", async () => {
   for (const path of activeReleaseFiles) {
     let value = await read(path);
-    if (path === ".github/workflows/evo-fast-pr-checks.yml") {
-      const maintenance = value.match(/^  inbox_dependencies:\n[\s\S]*?(?=^  fast-checks:)/mu)?.[0];
-      assert.ok(maintenance, "the source-only dependency lane is explicit");
-      assert.doesNotMatch(maintenance, /secrets\.|docker|ssh|npm run (?:start|dev|seed|preflight)|continue-on-error/u);
-      // Permit only these two directory bindings, only inside the reviewed
-      // source-maintenance job. Every other legacy reference remains forbidden.
-      let directoryBindingsRemoved = maintenance;
-      for (const line of [
-        "        working-directory: agent-lead2-inbox\n",
-        "          cache-dependency-path: agent-lead2-inbox/package-lock.json\n",
-      ]) {
-        assert.equal(maintenance.split(line).length - 1, 1);
-        directoryBindingsRemoved = directoryBindingsRemoved.replace(line, "");
-      }
-      // A function replacer keeps "$'" or "$&" in the job text literal.
-      value = value.replace(maintenance, () => directoryBindingsRemoved);
-      // The isolated lead-agent lock lane (#938, A-1) gets the same exception:
-      // one directory binding, only inside that reviewed job (up to the next job).
-      const leadAgentLane = value.match(/^  lead_agent_dependencies:\n[\s\S]*?(?=^  \S)/mu)?.[0];
-      assert.ok(leadAgentLane, "the isolated lead-agent dependency lane is explicit");
-      assert.doesNotMatch(leadAgentLane, /secrets\.|docker|ssh|npm run (?:start|dev|seed|preflight)|continue-on-error/u);
-      const leadAgentBinding = "        working-directory: evo-lead-agent\n";
-      assert.equal(leadAgentLane.split(leadAgentBinding).length - 1, 1);
-      value = value.replace(leadAgentLane, () => leadAgentLane.replace(leadAgentBinding, ""));
-    }
     const executableLines = value
       .split(/\r?\n/u)
       .filter((line) => executableLegacy.test(line))
@@ -72,7 +47,7 @@ test("the active package exposes one P6D proof and no P8 release entrypoint", as
   const packageJson = JSON.parse(await read("package.json"));
   assert.equal(
     packageJson.scripts["test:p6d:orbstack"],
-    "EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node EVO_P6D_CANDIDATE_PROOF=1 bash scripts/test-postgres-v2-foundation.sh",
+    "EVO_NODE_BIN=/opt/homebrew/opt/node@22/bin/node EVO_P6D_CANDIDATE_PROOF=1 bash scripts/test-runners/test-postgres-v2-foundation.sh",
   );
   assert.match(packageJson.scripts["test:p6d"], /p6d-release-candidate\.test\.mjs/u);
   assert.deepEqual(
@@ -85,7 +60,7 @@ test("the active package exposes one P6D proof and no P8 release entrypoint", as
 test("CI and the exact-SHA gate require only the current root successor", async () => {
   const workflow = await read(".github/workflows/evo-platform-ci.yml");
   const fastPr = await read(".github/workflows/evo-fast-pr-checks.yml");
-  const gate = await read("scripts/fast-release-ci-gate.mjs");
+  const gate = await read("scripts/release/fast-release-ci-gate.mjs");
   assert.match(workflow, /^  workflow_dispatch:$/mu);
   assert.match(workflow, /proof_revision:\n        description: Exact current main commit SHA to prove\./u);
   assert.doesNotMatch(workflow, /^  pull_request:|^  push:/mu);
@@ -98,9 +73,9 @@ test("CI and the exact-SHA gate require only the current root successor", async 
   assert.match(workflow, /git\/ref\/heads\/main/u);
   assert.match(workflow, /^  crm:\n    name: Main CRM$/mu);
   assert.match(workflow, /^  crm:\n    name: Main CRM\n    needs: main_admission\n    runs-on: ubuntu-latest\n    timeout-minutes: 5$/mu);
-  assert.match(workflow, /bash -n scripts\/evo-fast-release\.sh/u);
-  assert.match(workflow, /node --check scripts\/evo-production-browser-smoke\.mjs/u);
-  assert.match(workflow, /node --check scripts\/fast-release-ledger-gate\.mjs/u);
+  assert.match(workflow, /bash -n scripts\/release\/evo-fast-release\.sh/u);
+  assert.match(workflow, /node --check scripts\/release\/evo-production-browser-smoke\.mjs/u);
+  assert.match(workflow, /node --check scripts\/release\/fast-release-ledger-gate\.mjs/u);
   assert.match(workflow, /name: Check scoped release source contracts\n        run: >-\n          node --test/u);
   assert.match(workflow, /--test-name-pattern='\^\(CI and the exact-SHA gate require only the current root successor\|active platform CI executes only the root successor product\|workflow binds exact green main to one runner-built immutable release\)\$'/u);
   assert.match(workflow, /tests\/p6d-release-candidate\.test\.mjs\n          tests\/fast-release-control\.test\.mjs/u);
@@ -115,7 +90,7 @@ test("CI and the exact-SHA gate require only the current root successor", async 
   assert.match(fastPr, /git diff --check origin\/main\.\.\.HEAD/u);
   assert.match(fastPr, /format_base_sha=\$\(git merge-base "\$BASE_SHA" "\$HEAD_SHA"\)/u);
   assert.match(fastPr, /format_head_sha=\$\(git rev-parse "\$HEAD_SHA"\)/u);
-  assert.match(fastPr, /node scripts\/classify-pr-changes\.mjs --base "\$format_base_sha" --head "\$format_head_sha" --github-output "\$GITHUB_OUTPUT"/u);
+  assert.match(fastPr, /node scripts\/checks\/classify-pr-changes\.mjs --base "\$format_base_sha" --head "\$format_head_sha" --github-output "\$GITHUB_OUTPUT"/u);
   for (const output of ["has_changes", "ordinary_docs", "contracts", "migration_boundary", "code", "lint", "build", "unknown"]) {
     assert.match(fastPr, new RegExp(`${output}: \\$\\{\\{ steps\\.classify\\.outputs\\.${output} \\}\\}`, "u"));
   }
@@ -137,10 +112,7 @@ test("CI and the exact-SHA gate require only the current root successor", async 
   assert.match(fastPr, /needs:\n      - changed-range\n      - contracts\n      - lint\n      - build\n      - migration_boundary/u);
   assert.doesNotMatch(fastPr, /^  typecheck:\n    name: Standalone typecheck$/mu);
   assert.doesNotMatch(fastPr, /outputs\.typecheck|TYPECHECK/u);
-  const maintenance = fastPr.match(/^  inbox_dependencies:\n[\s\S]*?(?=^  fast-checks:)/mu)?.[0];
-  assert.ok(maintenance);
-  assert.equal((maintenance.match(/run: npm run typecheck/gu) ?? []).length, 1);
-  assert.doesNotMatch(fastPr.replace(maintenance, ""), /run: npm run typecheck/u);
+  assert.doesNotMatch(fastPr, /run: npm run typecheck/u);
   // Inspect command invocations, not source paths such as supabase/migrations/.
   assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:(?:npx|pnpm\s+(?:exec|dlx)|yarn\s+(?:exec|dlx)|npm\s+exec(?:\s+--)?)\s+)?(?:playwright|supabase)(?:@[^\s/]+)?(?:\s|$)/imu);
   assert.doesNotMatch(fastPr, /(?:^|[\n;&|]|\brun:)\s*(?:npm|pnpm|yarn)\s+(?:run\s+)?test:(?:database:local|security|unit)(?:\b|:)/imu);
@@ -149,8 +121,8 @@ test("CI and the exact-SHA gate require only the current root successor", async 
 });
 
 test("P6D proof accepts only process-provided real local Supabase authority", async () => {
-  const harness = await read("scripts/test-p6d-release-candidate-orbstack.mjs");
-  const foundation = await read("scripts/test-postgres-v2-foundation.sh");
+  const harness = await read("scripts/test-runners/test-p6d-release-candidate-orbstack.mjs");
+  const foundation = await read("scripts/test-runners/test-postgres-v2-foundation.sh");
   assert.match(foundation, /node_bin="\$\{EVO_NODE_BIN:-\}"/u);
   assert.match(foundation, /node_bin="\$\(command -v node \|\| true\)"/u);
   assert.match(

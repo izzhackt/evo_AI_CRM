@@ -34,7 +34,7 @@
   edge к сети, правка edge Caddy, секреты в env), запись в DNS у Spaceship, выпуск
   приложения и применение миграции. Каждое такое действие — только после разрешения
   владельца в чате, в окне выпусков (§14.2).
-- Изменение release controller (`scripts/evo-fast-release.sh`) иначе как отдельным
+- Изменение release controller (`scripts/release/evo-fast-release.sh`) иначе как отдельным
   срезом с тестами и независимым review по точному head (§5.2, §15).
 - Загрузку в EVO китайского гайда с 18 картинками до ответа владельца (§16 п.3).
   До ответа грузится только очищенный владельцем `.docx` (§8.3).
@@ -157,8 +157,8 @@ Claude обычной синхронизацией.
 | Безопасный Markdown | `src/components/v3/ai-agents/Markdown.tsx` | предпросмотр «Что получит агент» |
 | Список разрешённых маршрутов: всё, чего нет в списке, — 404 | `src/lib/platform-route-contract.ts:148-185` (`PLATFORM_PRIVATE_API_ALLOWLIST`), `:306-310`, `:352-389` | новые маршруты (§7.3) |
 | Внутренние маршруты `/api/internal/*`: снаружи edge отвечает 404 | `Caddyfile.evo-edge:37-38`; пример — `src/app/api/internal/ai-agent/send/route.ts` | файл и callback для ONLYOFFICE |
-| Функция выключена, пока секрета нет | `src/lib/server/ai-agent-internal-auth.ts:27-41`; `OPTIONAL_RUNTIME_NAMES` и `OPTIONAL_SECRET_NAMES` в `scripts/evo-app-env-contract.mjs:55`, `:65` | `EVO_ONLYOFFICE_*` необязательны |
-| Своя сеть службы и подключение CRM к ней через release controller | ИИ-агент: сеть `evo_crm_ai` (`docker-compose.prod.yml:118-126`, `:218-222`), override `AI_AGENT_APP_NETWORK_OVERRIDE` и проверка сетей (`scripts/evo-fast-release.sh:36-44`, `verify_networks` `:601-636`, откат `:2015-2019`) | сеть `evo_docs` (§5.2) |
+| Функция выключена, пока секрета нет | `src/lib/server/ai-agent-internal-auth.ts:27-41`; `OPTIONAL_RUNTIME_NAMES` и `OPTIONAL_SECRET_NAMES` в `scripts/release/evo-app-env-contract.mjs:55`, `:65` | `EVO_ONLYOFFICE_*` необязательны |
+| Своя сеть службы и подключение CRM к ней через release controller | ИИ-агент: сеть `evo_crm_ai` (`docker-compose.prod.yml:118-126`, `:218-222`), override `AI_AGENT_APP_NETWORK_OVERRIDE` и проверка сетей (`scripts/release/evo-fast-release.sh:36-44`, `verify_networks` `:601-636`, откат `:2015-2019`) | сеть `evo_docs` (§5.2) |
 | Безопасная замена функции базы | проверка `md5(prosrc)` прежнего тела (`319_platform_ai_agents_hardening.sql:56-73`), итоговая проверка определителя, прав и числа функций (`322_platform_ai_agents_daily_spend.sql:96-125`) | замена `ai_agents_update_v1` (§7.2) |
 
 ### 3.3. Сервер, сети и edge
@@ -204,7 +204,7 @@ Claude обычной синхронизацией.
   поколение выпуска (`deploy/fast-app-release.md:308-320`). Значит, сменить
   `EVO_ONLYOFFICE_*` можно только новым выпуском, а не перезапуском.
 - Release controller проверяет, что сети каждого контейнера CRM ровно такие, как в
-  отрисованном compose (`scripts/evo-fast-release.sh:601-636`). Ручной
+  отрисованном compose (`scripts/release/evo-fast-release.sh:601-636`). Ручной
   `docker network connect` для контейнера CRM сломает следующий выпуск
   (`runtime_network_contract_invalid`).
 
@@ -329,8 +329,8 @@ HTML с картинками из буфера). Админ копирует т�
   о сети добавляется и в `docker-compose.edge.yml` на случай будущего пересоздания);
   CRM под alias `evo-crm-app` — **через release controller**, как сеть ИИ-агента:
   override по образцу `AI_AGENT_APP_NETWORK_OVERRIDE`, учёт в `verify_networks`,
-  переходный режим и отрисовка отката (`scripts/evo-fast-release.sh:36-44`,
-  `:601-636`, `:2015-2019`), проверки в `scripts/validate-runtime-hardening.mjs`.
+  переходный режим и отрисовка отката (`scripts/release/evo-fast-release.sh:36-44`,
+  `:601-636`, `:2015-2019`), проверки в `scripts/checks/validate-runtime-hardening.mjs`.
   Включается своей переменной выпуска по образцу `EVO_AI_AGENT_ENABLED`
   (`:30-31`, `:267-286`); без неё CRM к сети не подключается, а функция выключена.
 - `ALLOW_PRIVATE_IP_ADDRESS=true` допустим только здесь. Что видит редактор:
@@ -399,7 +399,7 @@ Swap полезен всему серверу: сейчас при нехват�
 - Новые необязательные имена CRM: `EVO_ONLYOFFICE_JWT_SECRET`,
   `EVO_ONLYOFFICE_PUBLIC_URL` (публичный адрес §6), `EVO_ONLYOFFICE_INTERNAL_URL`
   (`http://evo-docs-onlyoffice`), `EVO_ONLYOFFICE_CRM_BASE_URL` (в С1
-  `http://evo-crm-app:3000`). В `scripts/evo-app-env-contract.mjs` секрет
+  `http://evo-crm-app:3000`). В `scripts/release/evo-app-env-contract.mjs` секрет
   добавляется к необязательным (`OPTIONAL_RUNTIME_NAMES` и `OPTIONAL_SECRET_NAMES`,
   `:55`, `:65`). Там уже проверяются формат 32–256 знаков и то, что значение не
   совпадает ни с одним другим (`:387-403`). Адреса обязательны, когда секрет задан —
@@ -643,7 +643,7 @@ RPC (все `SECURITY DEFINER`, `search_path = ''`):
 | `platform.ai_agent_rules_callback_v1` | только `service_role` | записать статус сессии и, идемпотентно по `(сессия, sha256)`, новую версию с флагами |
 | `platform.ai_agent_rules_session_reconcile_v1` | только `service_role` | закрыть сессию по итогам сверки с ONLYOFFICE (`reconciled`), записать `users_seen` |
 
-Тесты прав — в наборе Postgres-авторизации (`scripts/test-postgres-authorization.sh`,
+Тесты прав — в наборе Postgres-авторизации (`scripts/test-runners/test-postgres-authorization.sh`,
 отдельный блок, как для 321 и 322): не-админ и `authenticated` к служебным RPC
 получают отказ, `anon` к bucket — отказ, `ai_agents_update_v1` с
 `instructionsOverride` при `rules_source='document'` — отказ, при `'text'` —
@@ -1261,8 +1261,8 @@ iframe, сверка сессий, «забытых» и поздних callback
   `platform-company-file-storage-route-handlers.ts`, `ai-agent-internal-auth.ts`,
   `document-package.ts`, `university-form-docx.ts`
 - `src/lib/supabase/server.ts`
-- `scripts/evo-app-env-contract.mjs`, `scripts/evo-fast-release.sh`,
-  `scripts/validate-runtime-hardening.mjs`
+- `scripts/release/evo-app-env-contract.mjs`, `scripts/release/evo-fast-release.sh`,
+  `scripts/checks/validate-runtime-hardening.mjs`
 - `docker-compose.prod.yml`, `next.config.ts`, `package.json`
 - `agent-lead2-inbox/deploy/Caddyfile.evo-edge`, `agent-lead2-inbox/deploy/docker-compose.edge.yml`
 - `deploy/README.md`, `deploy/fast-app-release.md`

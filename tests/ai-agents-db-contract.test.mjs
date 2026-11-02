@@ -55,7 +55,7 @@ const SUITE_320 = readFileSync(new URL("../supabase/tests/platform_student_ai_co
 // Migration 322 (written as 321, renumbered at merge; daily spend of an agent for the WhatsApp limit, 26.10.2026) adds one read-only runtime function and replaces nothing.
 const SOURCE_322 = readFileSync(new URL("../supabase/migrations/322_platform_ai_agents_daily_spend.sql", import.meta.url), "utf8");
 const SUITE_322 = readFileSync(new URL("../supabase/tests/platform_ai_agents_daily_spend.sql", import.meta.url), "utf8");
-const TEST_SCRIPT = readFileSync(new URL("../scripts/test-postgres-authorization.sh", import.meta.url), "utf8");
+const TEST_SCRIPT = readFileSync(new URL("../scripts/test-runners/test-postgres-authorization.sh", import.meta.url), "utf8");
 
 test("the tool schema table is the contract's registry, row for row", () => {
   const rows = [...SOURCE.matchAll(/\('([a-z_]+)', '(read|write)', '(none|read|write)', \$j\$(.*?)\$j\$::jsonb\)/gsu)].map(

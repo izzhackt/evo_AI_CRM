@@ -182,14 +182,6 @@ export function paymentCategory(
 
 export type PortalNotificationTarget = Readonly<{ href: string; label: string }>;
 
-/**
- * One deep link per notification, derived from the durable `category` (and
- * `case_help_answer`, the one event code with its own detail route). The
- * `application`/`visa` categories the retired «Заявки и виза» screen used
- * (S5) never existed in any emitted notification, and every other unknown
- * or new category prefix falls through to the overview rather than a dead
- * end (`/portal/applications` itself now only redirects there too).
- */
 export function portalNotificationText(
   notification: Pick<StudentPortalNotification, "eventCode" | "subjectLabel" | "detail">,
   strings: AdmissionStrings,
@@ -201,6 +193,14 @@ export function portalNotificationText(
   return { title: notification.subjectLabel, detail: notification.detail };
 }
 
+/**
+ * One deep link per notification, derived from the durable `category` (and
+ * `case_help_answer`, the one event code with its own detail route). The
+ * `application`/`visa` categories the retired «Заявки и виза» screen used
+ * (S5) never existed in any emitted notification, and every other unknown
+ * or new category prefix falls through to the overview rather than a dead
+ * end (`/portal/applications` itself now only redirects there too).
+ */
 export function portalNotificationTarget(
   notification: Pick<StudentPortalNotification, "notificationId" | "category" | "eventCode">,
   strings: AdmissionStrings,

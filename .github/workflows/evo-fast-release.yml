@@ -810,8 +810,14 @@ jobs:
               artifact?.workflow_run?.head_sha !== env.EVO_RELEASE_REVISION ||
               artifact?.workflow_run?.head_branch !== "main"
             ) fail();
+            // Judge only the "Main CRM" check of the upstream CI run that triggered this
+            // release (its check suite). Older skipped/failed runs on the same SHA are
+            // other check suites and must not block a later, fully green run.
+            const upstreamSuiteId = String(ci?.check_suite_id ?? "");
+            if (!/^[1-9][0-9]*$/u.test(upstreamSuiteId)) fail();
             const mainCrmChecks = Array.isArray(checks?.check_runs)
-              ? checks.check_runs.filter((run) => run?.name === "Main CRM")
+              ? checks.check_runs.filter((run) =>
+                run?.name === "Main CRM" && String(run?.check_suite?.id) === upstreamSuiteId)
               : [];
             if (
               mainCrmChecks.length === 0 ||
@@ -1203,8 +1209,14 @@ jobs:
               artifact?.workflow_run?.head_sha !== env.EVO_RELEASE_REVISION ||
               artifact?.workflow_run?.head_branch !== "main"
             ) fail();
+            // Judge only the "Main CRM" check of the upstream CI run that triggered this
+            // release (its check suite). Older skipped/failed runs on the same SHA are
+            // other check suites and must not block a later, fully green run.
+            const upstreamSuiteId = String(ci?.check_suite_id ?? "");
+            if (!/^[1-9][0-9]*$/u.test(upstreamSuiteId)) fail();
             const mainCrmChecks = Array.isArray(checks?.check_runs)
-              ? checks.check_runs.filter((run) => run?.name === "Main CRM")
+              ? checks.check_runs.filter((run) =>
+                run?.name === "Main CRM" && String(run?.check_suite?.id) === upstreamSuiteId)
               : [];
             if (
               mainCrmChecks.length === 0 ||

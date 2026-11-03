@@ -112,7 +112,7 @@ END $$;
 -- (organization_id, recipient_membership_id, event_key) used everywhere
 -- else in this table) and so a changed or cleared due naturally mints a
 -- different key next time instead of resurrecting a stale one. The bell
--- polls this RPC every 60s (src/components/staff/StaffNotifications.tsx), so a
+-- polls this RPC every 60s (src/components/v3/StaffNotifications.tsx), so a
 -- reminder becomes visible within one polling interval of crossing the
 -- 24-hour boundary with no background job at all.
 CREATE FUNCTION platform.staff_notifications_page_v2(

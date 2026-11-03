@@ -51,6 +51,9 @@ const shellRu = {
   // не «Подготовка»: в продукте это слово значит подготовку документов.
   "nav.groupChoice": "Выбор",
   "nav.groupPrep": "Учёба",
+  // Кнопка в шапке рейла: свернуть до значков и обратно.
+  "rail.collapse": "Свернуть меню",
+  "rail.expand": "Развернуть меню",
 } as const;
 
 type ShellKey = keyof typeof shellRu;
@@ -87,6 +90,8 @@ const shellKy: Readonly<Record<ShellKey, string>> = {
   "nav.profile": "Профиль",
   "nav.groupChoice": "Тандоо",
   "nav.groupPrep": "Окуу",
+  "rail.collapse": "Менюну жыйноо",
+  "rail.expand": "Менюну ачуу",
 };
 
 /**

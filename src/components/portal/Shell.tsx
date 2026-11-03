@@ -18,6 +18,7 @@ import { PortalStaleDeploymentNotice } from "./PortalStaleDeploymentNotice";
 import { RailFooter } from "./RailFooter";
 
 import { EvoLogo } from "@/components/platform/brand/EvoLogo";
+import { EvoMark } from "@/components/platform/brand/EvoMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import type { Locale } from "@/lib/i18n-data";
 import {
@@ -25,6 +26,7 @@ import {
   getPortalStrings,
   type PortalStrings,
 } from "@/lib/portal/i18n";
+import { writePortalRailChoice } from "@/lib/portal/rail-choice";
 import type { Theme } from "@/lib/theme";
 
 /**
@@ -240,6 +242,7 @@ export function Shell({
   theme,
   release = null,
   studyCountry = null,
+  railCollapsed = false,
 }: {
   children: React.ReactNode;
   displayName: string;
@@ -250,6 +253,8 @@ export function Shell({
   release?: string | null;
   /** Страна поступления для подписи в карточке внизу рейла; `null` — без неё. */
   studyCountry?: string | null;
+  /** Рейл свёрнут до значков (cookie `portal_rail`, читает layout). */
+  railCollapsed?: boolean;
 }) {
   const pathname = usePathname();
   const strings = getPortalStrings("shell", locale);
@@ -275,6 +280,11 @@ export function Shell({
   const navRef = useRef<HTMLElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const [unread, setUnread] = useState<number | null>(null);
+  const [collapsed, setCollapsed] = useState(railCollapsed);
+  const toggleRail = () => {
+    writePortalRailChoice(!collapsed);
+    setCollapsed(!collapsed);
+  };
   useActiveTabIndicator(navRef, pathname, sections.length);
 
   // Лист не диалог: страница под ним доступна. Закрывают его Escape (фокус
@@ -316,6 +326,8 @@ export function Shell({
           href={section.href}
           aria-current={active ? "page" : undefined}
           className="pt-nav-link"
+          // Свёрнутый рейл: подпись скрыта визуально, подсказка — по наведению.
+          title={collapsed ? label : undefined}
           onClick={() => setOpenAt(null)}
         >
           <SectionIcon section={section.key} />
@@ -341,28 +353,44 @@ export function Shell({
   };
 
   return (
-    <div className="pt-shell" data-testid="student-portal-shell">
+    <div className="pt-shell" data-testid="student-portal-shell" data-rail={collapsed ? "collapsed" : undefined}>
       <a href="#portal-content" className="pt-skip-link">
         {strings.skipToContent}
       </a>
 
       <div className="pt-body">
         {/* Рейл (03.11.2026, по образцу кабинета пользователя): колонка на всю
-            высоту — логотип и тема сверху, разделы по группам, внизу
-            язык и карточка студента. На телефоне обёртки нет (display: contents):
-            шапка становится полосой сверху, разделы — нижней панелью. */}
+            высоту — логотип и кнопка «Свернуть меню» сверху, разделы по
+            группам, внизу язык, тема и карточка студента; свёрнутый — только
+            значки. На телефоне обёртки нет (display: contents): шапка
+            становится полосой сверху (логотип, колокольчик, тема), разделы —
+            нижней панелью. */}
         <div className="pt-rail">
           <header className="pt-topbar">
             <IntentPrefetchLink href="/portal" aria-label={strings.home} className="pt-topbar-logo">
-              <EvoLogo width={112} />
+              <EvoLogo width={112} className="pt-logo-full" />
+              <EvoMark size={32} tone="mono" className="pt-logo-mark" />
             </IntentPrefetchLink>
             <div className="pt-topbar-actions">
               {/* Опрос живёт всегда; колокольчик виден только на телефоне, в рейле — число у «Входящих». */}
               {accessTier === "assisted" ? (
                 <PortalNotificationUpdates locale={locale} release={release} onUnreadChange={setUnread} />
               ) : null}
-              {/* Тема — одна кнопка на виду и на телефоне (решение владельца 02.10). */}
-              <ThemeToggle locale={locale} initialTheme={theme} />
+              {/* Тема — на виду (решение владельца 02.10): здесь на телефоне, внизу рейла на широком экране. */}
+              <span className="pt-topbar-theme"><ThemeToggle locale={locale} initialTheme={theme} /></span>
+              <button
+                type="button"
+                className="pt-rail-toggle"
+                aria-expanded={!collapsed}
+                aria-label={collapsed ? strings["rail.expand"] : strings["rail.collapse"]}
+                title={collapsed ? strings["rail.expand"] : strings["rail.collapse"]}
+                onClick={toggleRail}
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <rect x="3" y="3.5" width="14" height="13" rx="2.5" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M7.5 3.5v13" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
+              </button>
             </div>
           </header>
           {/* Смоук-якорь: aria-label не локализуется до совместного PR со смоук-скриптом. */}
@@ -410,6 +438,7 @@ export function Shell({
             displayName={displayName}
             studyCountry={studyCountry}
             locale={locale}
+            theme={theme}
             current={pathname === RAIL_ACCOUNT_HREF}
           />
         </div>

@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 
 import { Shell } from "@/components/portal/Shell";
 import { getLocale } from "@/lib/i18n";
 import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
+import { PORTAL_RAIL_COOKIE, portalRailCollapsed } from "@/lib/portal/rail-choice";
 import { readReleaseMetadata } from "@/lib/release-metadata";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 import { isStudyCountryCode, studyCountryName } from "@/lib/study-countries";
@@ -23,7 +25,7 @@ export default async function StudentPortalLayout({
 }: Readonly<{
   children: ReactNode;
 }>) {
-  const [actor, locale, theme, countryChoice] = await Promise.all([
+  const [actor, locale, theme, countryChoice, cookieStore] = await Promise.all([
     requireStudentPortalActor(),
     getLocale(),
     readRequestTheme(),
@@ -31,6 +33,7 @@ export default async function StudentPortalLayout({
     // Студент»); то же чтение 284, что у «Пути поступления». Сбой или «Пока не
     // решил» — без страны.
     readStudentCountryChoice().catch((): null => null),
+    cookies(),
   ]);
   const country = countryChoice?.country ?? null;
   const studyCountry = country !== null && isStudyCountryCode(country) ? studyCountryName(country, locale) : null;
@@ -44,6 +47,7 @@ export default async function StudentPortalLayout({
       theme={theme}
       release={metadata.status === "available" ? metadata.revision : null}
       studyCountry={studyCountry}
+      railCollapsed={portalRailCollapsed(cookieStore.get(PORTAL_RAIL_COOKIE)?.value)}
     >
       {children}
     </Shell>

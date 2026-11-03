@@ -112,6 +112,8 @@
    * обеих темах.
    */
   --pt-rail-mark: #ece7df;
+  /* Знак EVO в свёрнутом рейле: фирменный красный в обеих темах. */
+  --pt-brand-red: #d70217;
 }
 
 /* Тёмная — только по выбору студента (кнопка «солнце/луна»). */
@@ -400,6 +402,15 @@
   display: contents;
 }
 
+.pt-topbar-theme {
+  display: contents;
+}
+
+.pt-rail-toggle,
+.pt-logo-mark {
+  display: none;
+}
+
 @media (min-width: 768px) {
   /* Верхней полосы на широком экране нет: логотип и тема — в шапке рейла. */
   .pt-shell {
@@ -446,7 +457,7 @@
     pointer-events: none;
   }
 
-  /* Шапка рейла: логотип слева, кнопка темы справа; колокольчика нет. */
+  /* Шапка рейла: логотип слева, «Свернуть меню» справа; колокольчика нет. */
   .pt-rail .pt-topbar {
     position: relative;
     min-height: 0;
@@ -457,6 +468,116 @@
 
   .pt-rail .pt-bell {
     display: none;
+  }
+
+  /* Тема на широком экране — внизу рейла; в шапке кнопка «Свернуть меню». */
+  .pt-topbar-theme {
+    display: none;
+  }
+
+  /* Кнопка без рамки, как у образца: значок панели, подложка только по наведению. */
+  .pt-rail-toggle {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--pt-radius-control);
+    background: transparent;
+    color: var(--pt-text-2);
+    cursor: pointer;
+    transition:
+      background-color var(--pt-motion-fast) var(--pt-ease),
+      color var(--pt-motion-fast) var(--pt-ease);
+  }
+
+  .pt-rail-toggle:hover {
+    background: var(--pt-bg);
+    color: var(--pt-text);
+  }
+
+  .pt-rail-toggle:focus-visible {
+    outline: 2px solid var(--pt-accent);
+    outline-offset: 2px;
+  }
+
+  /*
+   * Свёрнутый рейл (кнопка в шапке, cookie `portal_rail`): только значки.
+   * Подписи разделов и карточки скрыты визуально и остаются доступными
+   * именами; группы — тонкой линией, число непрочитанных — в углу значка.
+   */
+  .pt-shell[data-rail="collapsed"] {
+    --pt-rail-width: 76px;
+  }
+
+  [data-rail="collapsed"] .pt-rail::after {
+    display: none;
+  }
+
+  [data-rail="collapsed"] .pt-rail .pt-topbar {
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px 0 8px;
+  }
+
+  [data-rail="collapsed"] .pt-logo-full {
+    display: none;
+  }
+
+  [data-rail="collapsed"] .pt-logo-mark {
+    display: block;
+    color: var(--pt-brand-red);
+  }
+
+  [data-rail="collapsed"] .pt-nav {
+    padding: 12px 8px;
+  }
+
+  [data-rail="collapsed"] .pt-nav-link {
+    justify-content: center;
+    padding: 0;
+  }
+
+  [data-rail="collapsed"] .pt-nav-link .pt-nav-label,
+  [data-rail="collapsed"] .pt-nav-account-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  [data-rail="collapsed"] .pt-nav-link .pt-nav-pending {
+    display: none;
+  }
+
+  [data-rail="collapsed"] .pt-nav-group {
+    height: 1px;
+    margin: 8px 10px;
+    padding: 0;
+    overflow: hidden;
+    background: var(--pt-line);
+    font-size: 0;
+  }
+
+  [data-rail="collapsed"] .pt-nav-badge {
+    position: absolute;
+    top: 3px;
+    inset-inline-end: 6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: var(--pt-size-tab);
+  }
+
+  [data-rail="collapsed"] .pt-nav-link[aria-current="page"]::before,
+  [data-rail="collapsed"] .pt-nav-account[aria-current="page"]::before {
+    inset-inline-start: -8px;
   }
 
   /* Открытый раздел: красное слово, планка и тихая подложка. */
@@ -521,7 +642,8 @@
 
 /*
  * Низ рейла (03.11.2026, по образцу кабинета, присланного пользователем):
- * переключатель языка RU | KY и карточка студента со ссылкой на «Профиль».
+ * переключатель языка RU | KY, кнопка темы и карточка студента со ссылкой
+ * на «Профиль».
  * Только широкий экран: на телефоне рейл — нижняя панель, язык меняется в
  * «Профиле», имя — там же. Цвета — прежние токены.
  */
@@ -537,6 +659,48 @@
     gap: 12px;
     padding: 12px 12px 16px;
     border-top: 1px solid var(--pt-line);
+  }
+
+  .pt-rail-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  [data-rail="collapsed"] .pt-nav-footer {
+    justify-items: center;
+    padding: 12px 8px 16px;
+  }
+
+  /* Свёрнутый низ — только кружок с инициалами; язык и тема — в развёрнутом. */
+  [data-rail="collapsed"] .pt-rail-controls {
+    display: none;
+  }
+
+  /* Мышь: язык и тема компактнее (на сенсорном экране цели остаются 44 px). */
+  @media (pointer: fine) {
+    .pt-rail .pt-lang-switch {
+      padding: 2px;
+    }
+
+    .pt-rail .pt-lang-option {
+      min-width: 36px;
+      min-height: 30px;
+      padding: 0 8px;
+    }
+
+    .pt-rail .theme-toggle {
+      width: 34px;
+      height: 34px;
+    }
+  }
+
+  [data-rail="collapsed"] .pt-nav-account {
+    grid-template-columns: auto;
+    min-height: 0;
+    padding: 4px;
+    background: transparent;
   }
 
   /* «Профиль» в рейле заменяет карточка студента; на телефоне пункт в «Ещё». */

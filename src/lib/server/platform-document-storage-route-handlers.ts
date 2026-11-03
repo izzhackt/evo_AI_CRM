@@ -1529,6 +1529,15 @@ function createDocumentUploadOperation(
         sha256Hex,
       });
       if (!reservation) return errorResponse(503, "storage_unavailable");
+      // A replayed request id can return a reservation whose window passed
+      // before its object was stored. Finalization accepts only objects created
+      // inside that window, so writing now would strand the bytes (#1337).
+      if (
+        !reservation.storageObjectPresent
+        && Date.parse(reservation.expiresAt) <= dependencies.now()
+      ) {
+        return errorResponse(409, "upload_reservation_expired");
+      }
 
       if (!reservation.storageObjectPresent && uploadTransport === "standard") {
         const storageResponse = await serviceClient.storage.from(BUCKET_ID).upload(

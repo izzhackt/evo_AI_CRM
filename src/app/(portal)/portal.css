@@ -3842,10 +3842,46 @@
 .pt-lesson-cover {
   display: flex;
   align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
   aspect-ratio: 16 / 9;
   padding: 14px 18px;
   border-bottom: 1px solid var(--pt-line);
   background: var(--pt-bg);
+}
+
+/* Иллюстрация темы: штрих вторичного текста, белые формы, подписи — Golos. */
+.pt-lesson-art {
+  align-self: center;
+  width: 62%;
+  max-width: 150px;
+  height: auto;
+  fill: var(--pt-surface);
+  stroke: var(--pt-text-2);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  overflow: visible;
+}
+
+.pt-lesson-art text {
+  fill: var(--pt-text-2);
+  stroke: none;
+  font-family: var(--pt-font-sans);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pt-lesson-art .pt-lesson-art-big {
+  font-size: 22px;
+}
+
+.pt-lesson-tile[data-state="done"] .pt-lesson-art {
+  stroke: var(--pt-ok);
+}
+
+.pt-lesson-tile:hover .pt-lesson-art {
+  stroke: var(--pt-text);
 }
 
 .pt-lesson-num {

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { LessonIllustration } from "@/components/portal/english/LessonIllustration";
 import { getLocale } from "@/lib/i18n";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import type { LearningModule } from "@/lib/portal/learning";
@@ -99,6 +100,7 @@ export default async function EnglishPage() {
                     >
                       <span className="pt-lesson-cover" aria-hidden="true">
                         <span className="pt-lesson-num">{String(lesson.orderIndex).padStart(2, "0")}</span>
+                        <LessonIllustration lessonKey={lesson.lessonKey} />
                       </span>
                       <span className="pt-lesson-tile-body">
                         <span className="pt-lesson-tile-title">

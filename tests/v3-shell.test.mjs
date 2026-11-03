@@ -370,12 +370,13 @@ test("phone chrome and window-height pages share rem units, so the composer stay
   // «Переписка» и «Командный чат» — страницы «на окно» под правилом.
   const conversations = read("src/components/v3/ConversationsMain.tsx");
   assert.match(conversations, /className="[^"]*h-\[calc\(100dvh-150px\)\] md:h-\[calc\(100dvh-64px\)\]"/u);
-  assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /<ConversationsMain title=\{TITLE\} threadOpen=\{rawCase !== null\}>/u);
-  assert.match(read("src/app/(v3)/v3/team-chat/page.tsx"), /<main className="[^"]*100dvh[^"]*" aria-label="Командный чат">/u);
+  // С #1327 обе страницы рисуют «Новый вид» (его рамки сами держат высоту окна под `isFillRoute`), прежних рамок в страницах нет.
+  assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /<CaseChatNextLazy/u);
+  assert.match(read("src/app/(v3)/v3/team-chat/page.tsx"), /<TeamChatNextLazy/u);
   // WhatsApp (PartShell `fill`, отдельная страница «Продаж») своей высоты не
   // задаёт: от 768 px её даёт колонка оболочки по `isFillRoute`.
   assert.match(read("src/components/v3/PartShell.tsx"), /fill \? "flex flex-col py-6 md:min-h-0 md:flex-1"/u);
-  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /<PartShell title="WhatsApp" count=\{notConnected \|\| paged \? null : view\.conversations\.length\} fill>/u);
+  assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /<InboxNextLazy/u);
   assert.match(shell, /const fill = isFillRoute\(pathname, query\.get\("tab"\)\);/u);
   assert.match(shell, /fill && "md:flex md:h-dvh md:flex-col"/u, "the content column is window-high on fill routes");
   assert.match(shell, /fill && "md:flex md:min-h-0 md:flex-1 md:flex-col md:overflow-y-auto"/u);
@@ -419,12 +420,12 @@ test("one shell for every staff member: the layout has no look switch, the old s
   const layout = read("src/app/(v3)/layout.tsx");
   // Счётчик запросов на удаление аккаунта (миграция 315, UI-F6) приходит от сервера вместе с уведомлениями; пункт «Финансы»
   // (миграция 323) — точная проверка права на всю организацию, её тоже считает layout.
-  // «Новый вид» (27.10.2026): `data-ui` и `nextUi` — только настоящему администратору с включённым переключателем (tests/ui-next-foundation.test.mjs).
-  assert.match(layout, /<div className="v3-world" data-surface="staff" data-ui=\{nextUi\?\.enabled \? "next" : undefined\}>\s*<AppShell actor=\{actor\} initialNotifications=\{notifications\} deletionRequests=\{deletionRequests\} financeSection=\{financeSection\} nextUi=\{nextUi\}>/u);
+  // «Новый вид» (#1327): `data-ui="next"` у всех, переключателя нет (tests/ui-next-foundation.test.mjs).
+  assert.match(layout, /<div className="v3-world" data-surface="staff" data-ui="next">\s*<AppShell actor=\{actor\} initialNotifications=\{notifications\} deletionRequests=\{deletionRequests\} financeSection=\{financeSection\}>/u);
   assert.doesNotMatch(layout, /look/iu, "no look is read or passed");
   assert.equal(existsSync(new URL("../src/components/v3/AppShellNext.tsx", import.meta.url)), false, "one shell file");
   const appShell = read("src/components/v3/AppShell.tsx");
-  assert.match(appShell, /export function AppShell\(\{\s*children,\s*actor,\s*initialNotifications,\s*deletionRequests = null,\s*financeSection,\s*nextUi = null,\s*\}/u);
+  assert.match(appShell, /export function AppShell\(\{\s*children,\s*actor,\s*initialNotifications,\s*deletionRequests = null,\s*financeSection,\s*\}/u);
   assert.doesNotMatch(appShell, /CurrentAppShell|AppShellNext|look|md:min-h-16|Открыть навигацию/u, "no second shell and no top bar");
   // Колокольчик — один вид: кнопка меню с панелью в верхнем слое.
   const notifications = read("src/components/v3/StaffNotifications.tsx");

@@ -8,6 +8,9 @@ import { parseRequestSelection, requestsHref } from "../src/lib/requests-queue-c
 import { requestClosedLine, requestDisplayName, requestEmptyWhat, requestLatestLine, requestReceived, requestTabs, requestTriage } from "../src/lib/v3/requests-view.ts";
 import { buildTodayQueue, todayRequestItems } from "../src/lib/v3/today-queue.ts";
 
+/** Прежний вид убран со страниц (#1327): разметка, которую снимали эти проверки, больше не рисуется; их и прежние компоненты удаляет #1328. */
+const LEGACY_VIEW_REMOVED = "old view is not rendered since #1327; removed with the old components in #1328";
+
 /**
  * «Заявки» (Э3, 27.09.2026): очередь разбора с «Взять себе». Логика
  * представления проверяется напрямую, разметка — настоящей страницей в
@@ -89,7 +92,7 @@ test("the rendered take repeats the lead's stage and next action and names the v
   assert.match(form, /aria-label="Взять себе: Эльмира Формова"/u);
 });
 
-test("«Взять себе» only where the read says the server allows and the viewer is not previewing a role", () => {
+test("«Взять себе» only where the read says the server allows and the viewer is not previewing a role", { skip: LEGACY_VIEW_REMOVED }, () => {
   const lead = {
     kind: "lead", id: LEAD_1, source: "website", occurredAt: "2026-09-27T03:12:00.000000Z", personName: "x", email: null, phone: null,
     leadId: LEAD_1, owner: null, handedOff: false, take: { workflowVersion: "1", stageKey: "new", nextActionText: null, nextActionDueDate: null },
@@ -132,7 +135,7 @@ test("counts come only from the read: tabs show the read's numbers, hide a kind 
   }
 });
 
-test("rows: name to Lead 360 with the way back, source, when it came without SLA colour, triage, one «Открыть»", () => {
+test("rows: name to Lead 360 with the way back, source, when it came without SLA colour, triage, one «Открыть»", { skip: LEGACY_VIEW_REMOVED }, () => {
   const html = main(surfaces.get("populated"));
   assert.equal(count(html, /data-queue-row=/gu), 9);
   assert.match(html, new RegExp(`href="/v3/profile\\?id=${LEAD_1}&amp;returnTo=%2Fv3%2Frequests%3Fstatus%3Dall"`, "u"));
@@ -147,7 +150,7 @@ test("rows: name to Lead 360 with the way back, source, when it came without SLA
   assert.deepEqual(requestReceived("2026-09-20T04:00:00.000000Z", NOW), { dateTime: "2026-09-20T04:00:00.000000Z", text: "20.09 10:00", word: "7 дн назад" });
 });
 
-test("one solid red: «Добавить лида» in the header; the empty queue says what comes here and when the last came", () => {
+test("one solid red: «Добавить лида» in the header; the empty queue says what comes here and when the last came", { skip: LEGACY_VIEW_REMOVED }, () => {
   for (const [name, html] of surfaces) {
     if (name === "preview") continue;
     assert.equal(count(main(html), /border-accent bg-accent/gu), 1, `${name}: one solid red`);
@@ -163,7 +166,7 @@ test("one solid red: «Добавить лида» in the header; the empty queu
   assert.match(main(surfaces.get("sales-empty")), /Последняя пришла 24\.09 в 16:00 \(3 дн назад\)\./u);
 });
 
-test("a role that cannot read every kind: «Все» names the closed kinds and the empty queue promises only what it reads", () => {
+test("a role that cannot read every kind: «Все» names the closed kinds and the empty queue promises only what it reads", { skip: LEGACY_VIEW_REMOVED }, () => {
   // Ревью PR #1084: у Sales Manager анкеты закрыты (набор 250 — application_ready = FALSE
   // у каждого Sales Manager), а пустое «Все» обещало «анкеты поступающих» и молчало,
   // что «Анкеты» роли недоступны.
@@ -212,7 +215,7 @@ test("the manual-lead form tells an owner-read failure apart from «no available
     /props\.owners === null\s*\? <p role="status"[^>]*>Список ответственных не загрузился, поэтому добавить лида сейчас нельзя\. Обновите страницу\.<\/p>\s*: props\.owners\.length \? <ManualLeadEditor/u);
 });
 
-test("the right panel holds the full questionnaire and the existing decision, quiet and flat", () => {
+test("the right panel holds the full questionnaire and the existing decision, quiet and flat", { skip: LEGACY_VIEW_REMOVED }, () => {
   const html = main(surfaces.get("drawer"));
   const panel = html.slice(html.indexOf('data-testid="queue-detail-panel"'));
   assert.match(panel, /data-testid="requests-detail-panel"/u);
@@ -233,7 +236,7 @@ test("the right panel holds the full questionnaire and the existing decision, qu
   assert.match(lead, /<dialog[^>]*aria-labelledby="request-lead-dddddddd-3333-4333-8333-000000000001"[^>]*data-testid="queue-detail-panel"/u);
 });
 
-test("switching records gives the panel a new instance: no draft, conflict or take error carries to another record", () => {
+test("switching records gives the panel a new instance: no draft, conflict or take error carries to another record", { skip: LEGACY_VIEW_REMOVED }, () => {
   // Ревью PR #1084: без ключа панель при «Открыть» другой записи оставалась тем
   // же экземпляром, и причина отказа анкеты A уходила с application_id анкеты B,
   // конфликт B запирал A, ошибка «Взять себе» лида X с его request_id — у лида Y.
@@ -325,7 +328,7 @@ test("«Звонки» (телефония T9): the page reads v3 only, v3 is th
   assert.match(read("scripts/test-runners/test-postgres-authorization.sh"), /\*_platform_telephony_unknown_leads\.sql[\s\S]*platform_telephony_unknown_leads\.sql/u);
 });
 
-test("«Звонки»: the tab, its number and its rows exist only when the read carries phone calls; «Все» adds them; an old link says so in words", () => {
+test("«Звонки»: the tab, its number and its rows exist only when the read carries phone calls; «Все» adds them; an old link says so in words", { skip: LEGACY_VIEW_REMOVED }, () => {
   // Телефония включена: вкладка с числом, строки с источником «Звонок», «Взять себе» как у любого лида.
   assert.deepEqual(tabs(surfaces.get("calls")), ["Все 12", "Сайт 4", "WhatsApp 1", "Звонки 3", "Анкеты 2", "Консультации 2"]);
   assert.deepEqual(tabs(surfaces.get("calls-waiting")), ["Все 6", "Сайт 2", "WhatsApp 0", "Звонки 2", "Анкеты 1", "Консультации 1"]);

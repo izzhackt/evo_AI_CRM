@@ -5,10 +5,9 @@ import { Icon } from "@/components/icons";
 import { UniversityShell } from "@/components/v3/universities-next/UniversityShell";
 import { UniversitiesListNextLazy } from "@/components/v3/universities-next/UniversitiesNextLazy";
 import { universityListProps } from "@/components/v3/universities-next/university-list-model";
-import { UniversityList, UniversityUnavailable } from "@/components/v3/universities/UniversityCatalogue";
+import { UniversityUnavailable } from "@/components/v3/universities/UniversityCatalogue";
 import { requireV3PageActor } from "@/lib/platform-guards";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
-import { isNextUi } from "@/lib/ui-next";
 import { parseUniversityFilters } from "@/lib/platform-university-catalog";
 import { readStaffUniversityCatalogue, readStaffUniversityCountries } from "@/lib/v3/university-source";
 import { catalogueServerPage, catalogueSortedPage, sortCatalogueRows } from "@/lib/v3/university-view";
@@ -17,8 +16,6 @@ export const metadata = { title: "Университеты" };
 export default async function UniversitiesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const [actor, params] = await Promise.all([requireV3PageActor("/v3/universities"), searchParams]);
   const filters = parseUniversityFilters(params) ?? notFound();
-  // «Новый вид» (27.10.2026): тот же каталог, те же чтения и права — таблица из набора виджетов вместо прежней.
-  const nextUi = await isNextUi(actor);
   const canManage = !isStaffPreview(actor) && staffHasPermission(actor, "catalog.import.manage");
   // Управление каталогом это редкая задача Admin (Э6): тихие ссылки, не красная кнопка.
   // Города и курсы валют кабинета студента (план 7.5) рядом, без нового пункта меню.
@@ -31,12 +28,12 @@ export default async function UniversitiesPage({ searchParams }: { searchParams:
     </div>
   ) : undefined;
   let catalogue, facet;
-  try { [catalogue, facet] = await Promise.all([readStaffUniversityCatalogue(actor, filters), readStaffUniversityCountries(actor)]); } catch { return <UniversityShell nextUi={nextUi} title="Университеты" action={manageAction}><UniversityUnavailable /></UniversityShell>; }
+  try { [catalogue, facet] = await Promise.all([readStaffUniversityCatalogue(actor, filters), readStaffUniversityCountries(actor)]); } catch { return <UniversityShell title="Университеты" action={manageAction}><UniversityUnavailable /></UniversityShell>; }
   const now = new Date();
   // Общий порядок по сроку — только из полного чтения; каталог за пределом — страницы сервера по названию.
   const page = catalogue.kind === "complete"
     ? catalogueSortedPage(sortCatalogueRows(catalogue.items, filters.level, now), filters.offset)
     : catalogueServerPage(catalogue.page.items, filters.offset, catalogue.page.nextOffset, filters.level, now);
-  if (nextUi) return <UniversitiesListNextLazy {...universityListProps(page, filters, facet.countries, canManage, dayInOrganizationTimezone(now))} />;
-  return <UniversityShell nextUi={false} title="Университеты" count={page.total} action={manageAction}><UniversityList page={page} filters={filters} countries={facet.countries} canManage={canManage} now={now} /></UniversityShell>;
+  // «Новый вид» (единственный вид, #1327): тот же каталог, те же чтения и права — таблица из набора виджетов.
+  return <UniversitiesListNextLazy {...universityListProps(page, filters, facet.countries, canManage, dayInOrganizationTimezone(now))} />;
 }

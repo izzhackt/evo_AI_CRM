@@ -273,38 +273,31 @@ const NEW_ONLY = {
   "anketa-full": /data-testid="v3-anketa-answers"/u, "history-long": /data-testid="v3-history-events"/u, "lead-closed": /data-testid="v3-lead-closed-card"/u,
 };
 
-test("страница `/v3/profile`: новый вид вкладок — только настоящему администратору с cookie; без cookie, у сотрудника и в просмотре роли — прежний вид", () => {
-  for (const name of Object.keys(MARKERS)) {
-    const on = real(name, "admin-cookie");
-    assert.match(on, /data-testid="v3-profile-next"/u, `${name}: рамка нового вида`);
-    assert.match(on, NEW_ONLY[name], `${name}: вкладка в новом виде`);
-    for (const mode of ["admin-no-cookie", "staff-cookie", "preview-cookie"]) {
-      const old = real(name, mode);
-      assert.doesNotMatch(old, /data-testid="v3-profile-next"/u, `${name}/${mode}: рамки нового вида нет`);
-      assert.doesNotMatch(old, NEW_ONLY[name], `${name}/${mode}: вкладка — прежняя`);
-    }
-  }
-  // Сотрудник и просмотр роли с cookie получают ровно то, что без cookie (cookie их вид не меняет): страница каждого сценария
-  // в паре «с cookie» и «без cookie» одна и та же, а у администратора cookie её меняет.
+test("страница `/v3/profile`: новый вид вкладок — у каждой роли (администратор, сотрудник, просмотр роли), cookie больше нет (#1327)", () => {
   const names = [...new Set([...realPages.keys()].map((key) => key.split(":")[0]))];
   assert.equal(names.length, 15, "четырнадцать вкладок дела и закрытый лид");
-  for (const name of names) {
-    for (const who of ["staff", "preview"]) assert.equal(real(name, `${who}-cookie`), real(name, `${who}-no-cookie`), `${name}: cookie меняет страницу (${who})`);
-    assert.notEqual(real(name, "admin-cookie"), real(name, "admin-no-cookie"), `${name}: у администратора cookie не меняет страницу`);
+  for (const name of Object.keys(MARKERS)) {
+    for (const mode of ["admin-cookie", "admin-no-cookie", "staff-cookie", "staff-no-cookie", "preview-cookie", "preview-no-cookie"]) {
+      const page = real(name, mode);
+      assert.match(page, /data-testid="v3-profile-next"/u, `${name}/${mode}: рамка нового вида`);
+      // Закрытый лид: у сотрудника без права «Продажи» чтения закрытых нет — «не найден» в новой рамке.
+      if (name === "lead-closed" && !mode.startsWith("admin")) continue;
+      assert.match(page, NEW_ONLY[name], `${name}/${mode}: вкладка в новом виде`);
+    }
   }
-  // Закрытый лид: у сотрудника без права «Продажи» чтения закрытых нет — прежнее «не найден», а не новый вид.
   assert.match(text(real("lead-closed", "staff-cookie")), /Профиль не найден или недоступен вам\./u);
   assert.match(text(real("lead-closed", "admin-no-cookie")), /Лид закрыт|Вернуть в работу|закрыт/u);
 });
 
 /* ---------------------------------------------------------------- исходники */
 
-test("«Новый вид» включается страницей только через isNextUi; закрытый лид и «не найден» берут новую рамку лишь с переключателем", () => {
+test("«Новый вид» страницы единственный (#1327); закрытый лид и «не найден» всегда берут новую рамку", () => {
   const source = read("src/app/(v3)/v3/profile/page.tsx");
-  assert.match(source, /const nextUi = await isNextUi\(actor\);/u);
-  assert.match(source, /const nextCard = nextParts !== null \|\| \(nextUi && \(closedLead !== null \|\| invalidIdentityShape \|\| missing\)\);/u);
-  assert.match(source, /nextUi \? <ClosedLeadNext row=\{closedLead\} readOnly=\{isStaffPreview\(actor\)\} \/> : <ClosedLeadView row=\{closedLead\} readOnly=\{isStaffPreview\(actor\)\} \/>/u);
-  assert.match(source, /\(invalidIdentityShape \|\| missing\) && nextUi \? \(\s*<EmptyState/u);
+  assert.doesNotMatch(source, /isNextUi/u);
+  assert.match(source, /const nextCard = nextParts !== null \|\| closedLead !== null \|\| invalidIdentityShape \|\| missing;/u);
+  assert.match(source, /<ClosedLeadNext row=\{closedLead\} readOnly=\{isStaffPreview\(actor\)\} \/>/u);
+  assert.doesNotMatch(source, /<ClosedLeadView/u);
+  assert.match(source, /invalidIdentityShape \|\| missing \? \(\s*<EmptyState/u);
   assert.match(source, /nextUi=\{nextParts !== null\} \/> : undefined\}/u, "вкладка «Вузы и программы» получает признак того же решения");
   // Чтения те же: в странице не добавилось ни одного `read*`.
   const reads = [...source.matchAll(/\b(read[A-Z]\w+)\(/gu)].map((match) => match[1]);

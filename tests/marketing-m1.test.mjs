@@ -37,7 +37,7 @@ function loader(overrides) {
     } }).outputText;
     const compiled = { exports: {} };
     cache.set(path, compiled);
-    const resolveFile = (base) => [`${base}.ts`, `${base}.tsx`, base].find((file) => existsSync(new URL(`../${file}`, import.meta.url)) && /\.tsx?$/.test(file));
+    const resolveFile = (base) => [`${base}.ts`, `${base}.tsx`, base, `${base}/index.ts`, `${base}/index.tsx`].find((file) => existsSync(new URL(`../${file}`, import.meta.url)) && /\.tsx?$/.test(file));
     new Function("require", "module", "exports", code)((id) => {
       if (id in overrides) return overrides[id];
       if (id === "server-only") return {};
@@ -187,10 +187,11 @@ test("«Финансы» opens for the real Admin and a holder of finance.read.f
   const guards = [];
   const load = loader({
     "@/lib/platform-guards": { requireV3PageActor: async (route) => { guards.push(route); return accountant; } },
-    "@/lib/ui-next": { isNextUi: async () => false },
     "@/lib/v3/report-links-source": { readReportLink: async () => ({ status: "available", link: { reportKey: "finance", configured: false, reportId: null, pageId: null, version: 0, updatedAt: null } }) },
   });
-  const html = renderToStaticMarkup(await load("src/app/(v3)/v3/finance/page.tsx").default());
+  // «Новый вид» — единственный вид (#1327): страница отдаёт ленивому входу данные, экран рисует `FinanceNextPage`.
+  const element = await load("src/app/(v3)/v3/finance/page.tsx").default();
+  const html = renderToStaticMarkup(createElement(load("src/components/v3/finance-next/FinanceNextPage.tsx").FinanceNextPage, element.props));
   assert.deepEqual(guards, ["/v3/finance"]);
   assert.match(html, /<h1 class="t-page-title[^>]*>Финансы<\/h1>/u);
   assert.match(html, /Отчёт ещё не подключён\./u);
@@ -198,7 +199,10 @@ test("«Финансы» opens for the real Admin and a holder of finance.read.f
   // Ничего выдуманного: ни цифр, ни форм, ни таблиц, ни окна без подключённого отчёта.
   const text = html.replace(/<[^>]+>/gu, " ");
   assert.doesNotMatch(text, /\d/u, "no numbers");
-  assert.doesNotMatch(html, /<(?:button|form|input|select|table|canvas|iframe)\b/u);
+  assert.doesNotMatch(html, /<(?:form|input|select|table|canvas|iframe)\b/u);
+  // Единственная кнопка нового вида — «?» с пояснением в шапке; действий у не-администратора нет.
+  assert.deepEqual([...html.matchAll(/<button\b[^>]*aria-label="([^"]+)"/gu)].map((match) => match[1].split(":")[0]), ["Пояснение"]);
+  assert.equal([...html.matchAll(/<button\b/gu)].length, 1);
 });
 
 test("a refused role never reaches the database: denied, not an empty or zero read", async () => {

@@ -224,8 +224,11 @@ export async function prepareScopedStaffInvitations({ browser, adminClient, apiU
       && await page.getByTestId("v3-shell").getAttribute("data-presentation-role") === "actual", "LOCAL_STAFF_INVITATION_ADMIN_UI_REQUIRED");
     stage = "FORM";
     await page.goto(`${appOrigin}/v3/settings?section=staff&view=people`, { waitUntil: "domcontentloaded" });
+    // «Новый вид» (#1327) подгружает экран лениво: щелчок до гидратации ничего не раскрыл бы, поэтому ждём, пока страница затихнет.
+    await page.waitForLoadState("networkidle");
     await page.getByRole("button", { name: "Пригласить сотрудника", exact: true }).click();
-    const form = () => page.locator("form").filter({ has: page.getByRole("heading", { name: "Пригласить сотрудника", exact: true }) });
+    // «Новый вид» (#1327): заголовок «Пригласить сотрудника» стоит в карточке над формой, а не внутри неё; форма — в её раскрывающемся блоке.
+    const form = () => page.getByTestId("v3-staff-new-invite").locator("form");
     const next = () => form().getByRole("button", { name: "Пригласить следующего сотрудника", exact: true });
     const invitations = [];
     for (const scenario of SCENARIOS) {

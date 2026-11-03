@@ -3,26 +3,21 @@ import { redirect } from "next/navigation";
 import { Suspense, type ComponentProps } from "react";
 
 import type { PeriodChoice } from "@/components/v3/MainHeader";
-import { PartShell } from "@/components/v3/PartShell";
 import { SalesCallsReport } from "@/components/v3/SalesCallsReport";
 import { SalesDynamics } from "@/components/v3/SalesDynamics";
-import { SalesManagerLabelsView } from "@/components/v3/SalesManagerLabelsView";
-import { SalesRegisterImportView } from "@/components/v3/SalesRegisterImportView";
-import { SalesDynamicsReport, SalesRegisterView, type SalesReportQuery } from "@/components/v3/SalesRegisterView";
+import { type SalesReportQuery } from "@/components/v3/SalesRegisterView";
 import { SalesDynamicsNextView, SalesImportNextView, SalesManagersNextView } from "@/components/v3/sales-next/SalesFramesNext";
 import { SalesRegisterNextView } from "@/components/v3/sales-next/SalesRegisterNextView";
-import { TodayScreen } from "@/components/v3/today/TodayScreen";
 import { TodayNextLazy } from "@/components/v3/today-next/TodayNextLazy";
 import { isStaffPreview, staffCan, staffHasPermission, staffPresentationCan } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import { isNextUi } from "@/lib/ui-next";
 import { isSalesImportQuery, isSalesManagersQuery, SALES_CALLS_ANCHOR, SALES_DYNAMICS_ANCHOR, salesDynamicsCarry, salesDynamicsHref } from "@/lib/sales-register-navigation";
 import { PERIODS, periodLabel, resolvePeriod } from "@/lib/v3/funnel-source";
 import { v3SectionTitle } from "@/lib/v3/navigation";
 import { readSalesDynamics, type SalesDynamicsRead } from "@/lib/v3/sales-dynamics-source";
 import type { TelephonyReportState } from "@/lib/v3/telephony-report";
 import { canReadTelephonyReport, readTelephonyReport } from "@/lib/v3/telephony-report-source";
-import { buildTodayQueue, todayDateLabel } from "@/lib/v3/today-queue";
+import { buildTodayQueue } from "@/lib/v3/today-queue";
 import { readDialOptions } from "@/lib/v3/telephony-dial-source";
 import { readTodayTaskLeads } from "@/lib/v3/telephony-task-leads-source";
 import { readTodayQueue, todayLinks } from "@/lib/v3/today-source";
@@ -70,12 +65,11 @@ export default async function MainPart({
 
   if (query.view === "sales") {
     if (!canReadReport && !canReadSales) redirect("/access-denied?from=%2Fv3%2Fmain");
-    // «Новый вид» (переключатель администратора): те же чтения и права, другая расстановка — плитки, таблица записей с панелью, карточки.
-    const next = await isNextUi(actor);
-    if (canReadReport && isSalesImportQuery(query)) return next ? <SalesImportNextView actor={actor} query={query} /> : <SalesRegisterImportView actor={actor} query={query} />;
+    // «Новый вид» (единственный вид, #1327): плитки, таблица записей с панелью, карточки.
+    if (canReadReport && isSalesImportQuery(query)) return <SalesImportNextView actor={actor} query={query} />;
     // «Менеджеры в отчёте» (Э8.6): право проверяют чтение и сервер (перенос данных отчёта).
-    if (canReadReport && isSalesManagersQuery(query)) return next ? <SalesManagersNextView actor={actor} query={query} /> : <SalesManagerLabelsView actor={actor} query={query} />;
-    if (!canReadSales) return next ? <SalesRegisterNextView actor={actor} query={query} /> : <SalesRegisterView actor={actor} query={query} />;
+    if (canReadReport && isSalesManagersQuery(query)) return <SalesManagersNextView actor={actor} query={query} />;
+    if (!canReadSales) return <SalesRegisterNextView actor={actor} query={query} />;
     const period = resolvePeriod(query);
     const carry = salesDynamicsCarry(query);
     // «Период», когда он уже выбран, несёт разобранные даты: в адресе — тот
@@ -127,8 +121,8 @@ export default async function MainPart({
       </Suspense>
     ) : null;
     const section = <>{dynamicsSection}{callsSection}</>;
-    if (!canReadReport) return next ? <SalesDynamicsNextView dynamics={section} /> : <SalesDynamicsReport dynamics={section} />;
-    return next ? <SalesRegisterNextView actor={actor} query={query} dynamics={section} /> : <SalesRegisterView actor={actor} query={query} dynamics={section} />;
+    if (!canReadReport) return <SalesDynamicsNextView dynamics={section} />;
+    return <SalesRegisterNextView actor={actor} query={query} dynamics={section} />;
   }
 
   const now = new Date();
@@ -156,25 +150,6 @@ export default async function MainPart({
     caseAssign: staffHasPermission(actor, "task.assign"),
   };
 
-  // «Новый вид» (переключатель администратора): те же чтения и права, другая расстановка — виджеты вместо ленты.
-  if (await isNextUi(actor)) {
-    return <TodayNextLazy queue={queue} nowIso={now.toISOString()} mainAction={mainAction} dial={dial} taskLeads={taskLeads} permissions={permissions} />;
-  }
-
-  return (
-    <PartShell
-      title="Сегодня"
-      testId="v3-operational-dashboard"
-      meta={<time dateTime={queue.today}>{todayDateLabel(queue.today)}</time>}
-    >
-      <TodayScreen
-        queue={queue}
-        nowIso={now.toISOString()}
-        mainAction={mainAction}
-        dial={dial}
-        taskLeads={taskLeads}
-        permissions={permissions}
-      />
-    </PartShell>
-  );
+  // «Новый вид» (единственный вид, #1327): виджеты вместо ленты.
+  return <TodayNextLazy queue={queue} nowIso={now.toISOString()} mainAction={mainAction} dial={dial} taskLeads={taskLeads} permissions={permissions} />;
 }

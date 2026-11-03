@@ -137,7 +137,7 @@ test("V3 exposes the canonical audit export only on the Admin journal surface", 
     v3SettingsPageSource,
     /const journalFilters = \{ objectType: params\.object, role: params\.role \}/,
   );
-  assert.match(v3SettingsPageSource, /auditExportEnabled=\{readAuditExportEnabled\(\)\}/);
+  assert.match(v3SettingsPageSource, /auditExportEnabled: readAuditExportEnabled\(\)/);
   assert.match(v3SettingsSectionsSource, /\{exportEnabled \? \(\s*<Card title="Экспорт журнала">/);
   assert.match(v3SettingsSource, /return isPlatformP7AAuditEnabled\(environment\)/);
   assert.match(v3SettingsSectionsSource, /action="\/api\/platform-audit\/export"/);

@@ -1,12 +1,9 @@
 import { notFound } from "next/navigation";
-import { Card } from "@/components/ui";
-import { ConversationsMain } from "@/components/v3/ConversationsMain";
-import { CaseChatWorkspace, type CaseChatCaseFacts, type CaseChatSnippets } from "@/components/v3/case-chat/CaseChatThread";
+import { type CaseChatCaseFacts, type CaseChatSnippets } from "@/components/v3/case-chat/CaseChatThread";
 import { CaseChatNextFailureLazy, CaseChatNextLazy } from "@/components/v3/case-chat-next/CaseChatNextLazy";
 import { DIRECTION_LABELS } from "@/components/v3/profile/admissions-view";
 import { staffCan } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import { isNextUi } from "@/lib/ui-next";
 import { CASE_CHAT_FAILURE_COPY, caseChatHref, caseChatUuid, parseCaseChatAttachParam, parseCaseChatQueue } from "@/lib/platform-case-chat-contract";
 import { getPlatformStudentCaseView } from "@/lib/platform-admissions";
 import { caseDocumentsAwaitCurator } from "@/lib/v3/case-access-contract";
@@ -17,7 +14,6 @@ import { getSupabasePublicConfig } from "@/lib/supabase/config";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Переписка" };
-const TITLE = "Переписка";
 
 /**
  * «Переписка» — пункт «Поступления» (решение владельца 27.09.2026; короткое
@@ -38,8 +34,6 @@ export default async function MessagesPage({ searchParams }: {
   const queue = parseCaseChatQueue(params.queue);
   if (queue === null) notFound();
   if (rawCase !== null && !caseChatUuid(rawCase)) notFound();
-  // «Новый вид» (переключатель администратора, 27.10.2026): те же чтения и права, другая рамка; движок переписки тот же.
-  const nextUi = await isNextUi(actor);
 
   let queueRead: Awaited<ReturnType<typeof readStaffCaseChatQueue>> | null = null;
   let threadsFailure: keyof typeof CASE_CHAT_FAILURE_COPY = "unavailable";
@@ -50,13 +44,7 @@ export default async function MessagesPage({ searchParams }: {
   }
 
   if (!queueRead) {
-    if (nextUi) return <CaseChatNextFailureLazy forbidden={threadsFailure === "forbidden"} retryHref={caseChatHref(query ?? "", queue, rawCase, parseCaseChatAttachParam(attach))} />;
-    return <ConversationsMain title={TITLE}>
-      <Card>
-        <p role="alert">{threadsFailure === "forbidden" ? "Доступ к перепискам изменился. Обновите страницу." : "Не удалось загрузить переписки. Обновите страницу."}</p>
-        <a className="mt-4 inline-flex min-h-11 items-center text-accent-text underline" href={caseChatHref(query ?? "", queue, rawCase, parseCaseChatAttachParam(attach))}>Обновить страницу</a>
-      </Card>
-    </ConversationsMain>;
+    return <CaseChatNextFailureLazy forbidden={threadsFailure === "forbidden"} retryHref={caseChatHref(query ?? "", queue, rawCase, parseCaseChatAttachParam(attach))} />;
   }
 
   let initialPage: Awaited<ReturnType<typeof readCaseChatPage>> | null = null;
@@ -101,39 +89,19 @@ export default async function MessagesPage({ searchParams }: {
   }
 
   const realtimeConfig = getSupabasePublicConfig();
-  if (nextUi) {
-    return (
-      <CaseChatNextLazy
-        organizationId={actor.organizationId}
-        membershipId={actor.membershipId}
-        realtimeConfig={realtimeConfig}
-        initialQueue={queueRead}
-        initialStudentDisplayName={studentDisplayName}
-        selectedCaseId={rawCase}
-        initialPage={initialPage}
-        initialPageFailure={pageFailure}
-        caseFacts={caseFacts}
-        snippets={snippets}
-        documentsAwaitCurator={caseDocumentsAwaitCurator(caseState)}
-      />
-    );
-  }
   return (
-    <ConversationsMain title={TITLE} threadOpen={rawCase !== null}>
-      <CaseChatWorkspace
-        key={`${actor.membershipId}:${rawCase ?? "list"}`}
-        organizationId={actor.organizationId}
-        membershipId={actor.membershipId}
-        realtimeConfig={realtimeConfig}
-        initialQueue={queueRead}
-        initialStudentDisplayName={studentDisplayName}
-        selectedCaseId={rawCase}
-        initialPage={initialPage}
-        initialPageFailure={pageFailure}
-        caseFacts={caseFacts}
-        snippets={snippets}
-        documentsAwaitCurator={caseDocumentsAwaitCurator(caseState)}
-      />
-    </ConversationsMain>
+    <CaseChatNextLazy
+      organizationId={actor.organizationId}
+      membershipId={actor.membershipId}
+      realtimeConfig={realtimeConfig}
+      initialQueue={queueRead}
+      initialStudentDisplayName={studentDisplayName}
+      selectedCaseId={rawCase}
+      initialPage={initialPage}
+      initialPageFailure={pageFailure}
+      caseFacts={caseFacts}
+      snippets={snippets}
+      documentsAwaitCurator={caseDocumentsAwaitCurator(caseState)}
+    />
   );
 }

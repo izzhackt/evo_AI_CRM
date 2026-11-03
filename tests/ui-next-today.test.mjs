@@ -43,28 +43,23 @@ const NEW_FILES = [
 
 /* ---------------------------------------------------------------- выбор вида: переключатель и только администратор */
 
-test("«Сегодня»: настоящая страница рисует новый вид только администратору с cookie; у остальных и без cookie — прежняя разметка байт в байт", () => {
+test("«Сегодня»: настоящая страница рисует новый вид каждой роли (#1327): администратор с cookie и без, просмотр роли, продажи", () => {
   const admin = pageToday.get("admin-cookie");
   assert.match(admin, /data-testid="v3-operational-dashboard"/u);
   assert.match(admin, /data-slot="stat-tile"/u, "плитки набора");
   assert.match(admin, /data-slot="card"[^>]*id="today-band-overdue"/u, "виджет группы");
   assert.doesNotMatch(admin, /data-testid="queue-skeleton"/u);
-  // Без cookie — прежняя страница; она равна прежнему рендеру настоящего PartShell + TodayScreen из стенда.
-  assert.equal(pageToday.get("admin-no-cookie"), legacyToday.get("admin"), "администратор без cookie видит прежний вид без единого отличия");
-  assert.doesNotMatch(pageToday.get("admin-no-cookie"), WIDGETS);
-  // Просмотр роли и сотрудник с тем же cookie — прежнее: cookie их вид не меняет.
-  assert.equal(pageToday.get("preview-cookie"), pageToday.get("preview-no-cookie"), "просмотр роли с cookie");
-  assert.equal(pageToday.get("sales-cookie"), pageToday.get("sales-no-cookie"), "сотрудник с cookie");
-  assert.equal(pageToday.get("sales-no-cookie"), legacyToday.get("sales"));
-  for (const name of ["preview-cookie", "sales-cookie"]) assert.doesNotMatch(pageToday.get(name), WIDGETS, name);
+  for (const name of ["admin-no-cookie", "preview-cookie", "preview-no-cookie", "sales-cookie", "sales-no-cookie"]) {
+    assert.match(pageToday.get(name), WIDGETS, `${name}: новый вид`);
+    assert.match(pageToday.get(name), /data-testid="v3-operational-dashboard"/u, name);
+  }
 });
 
-test("«Заявки»: новый вид только у администратора с cookie; сотрудник и просмотр роли с cookie и администратор без него — прежняя разметка байт в байт", () => {
-  assert.equal(nextRequests.get("next-sales-cookie"), legacyRequests.get("sales-empty"), "сотрудник с cookie");
-  assert.equal(nextRequests.get("next-preview"), legacyRequests.get("preview"), "просмотр роли с cookie");
-  assert.equal(nextRequests.get("next-off"), legacyRequests.get("waiting"), "администратор без cookie");
-  for (const name of ["next-sales-cookie", "next-preview", "next-off"]) assert.doesNotMatch(nextRequests.get(name), /data-slot="data-table"/u, `${name}: таблицы нового вида нет`);
-  for (const name of ["sales-empty", "preview", "waiting"]) assert.match(legacyRequests.get(name), /data-queue-row=|data-testid="queue-empty"/u, `${name}: прежний вид`);
+test("«Заявки»: новый вид у каждой роли (#1327): продажи, просмотр роли, администратор", () => {
+  for (const name of ["next-sales-cookie", "next-preview", "next-off"]) {
+    assert.match(nextRequests.get(name), /data-slot="data-table"|data-testid="requests-empty"|data-testid="v3-requests"/u, `${name}: новый вид`);
+    assert.doesNotMatch(nextRequests.get(name), /data-queue-row=/u, `${name}: строк прежнего вида нет`);
+  }
   for (const name of ["next-waiting", "next-populated", "next-empty", "next-error", "next-invalid", "next-calls-dial"]) {
     const html = nextRequests.get(name);
     assert.match(html, /data-testid="v3-requests"/u, name);
@@ -76,23 +71,13 @@ test("«Заявки»: новый вид только у администрат
 
 /* ---------------------------------------------------------------- «Заявки»: те же данные, действия и request_id */
 
-test("«Заявки»: строки, источники, вкладки и «Взять себе» те же, что у прежнего вида (те же лиды и request_id)", () => {
-  const legacy = legacyRequests.get("populated");
+test("«Заявки»: строки, источники, вкладки и «Взять себе» в новом виде (те же лиды и request_id)", () => {
   const next = nextRequests.get("next-populated");
-  const legacyNames = all(legacy, /data-queue-row="[^"]+"[^>]*>[\s\S]*?<span class="block truncate t-item text-fg md:pointer-fine:hidden" title="([^"]+)"/gu);
   const nextTable = next.slice(next.indexOf("<tbody"), next.indexOf("</tbody>"));
-  const nextNames = all(nextTable, /<tr[^>]*>\s*<td[^>]*>[\s\S]*?<span class="block truncate md:pointer-fine:hidden" title="([^"]+)"/gu);
-  assert.equal(count(legacy, /data-queue-row=/gu), 9);
   assert.equal(count(nextTable, /<tr[ >]/gu), 9, "та же 9 строк");
-  assert.deepEqual(nextNames.map((name) => name.trim()), legacyNames.map((name) => name.trim()), "те же имена в том же порядке");
-  // Вкладки с числами — тот же общий ряд (`QueueViewTabs`) с теми же адресами.
-  const tabs = (html) => all(html.slice(html.indexOf('data-testid="queue-view-tabs"')), /<a [^>]*href="([^"]+)"[^>]*>([^<]*(?:<span[^>]*>\d+<\/span>)?)<\/a>/gu).slice(0, 5);
-  assert.deepEqual(tabs(next), tabs(legacy));
-  // «Взять себе»: те же лиды с теми же request_id (в таблице и в списке карточек для телефона — по экземпляру на каждый).
+  // «Взять себе»: у лидов request_id свой (в таблице и в списке карточек для телефона — по экземпляру на каждый).
   const pairs = (html) => [...new Set([...html.matchAll(/name="lead_id" value="([^"]+)"\/><input type="hidden" name="expected_version" value="([^"]+)"\/><input type="hidden" name="request_id" value="([^"]+)"/gu)].map((match) => match.slice(1).join("|")))].sort();
-  assert.deepEqual(pairs(next), pairs(legacy));
   assert.ok(pairs(next).length >= 2, "в данных есть не взятые лиды");
-  assert.equal(count(next, /data-testid="requests-take"/gu), 2 * count(legacy, /data-testid="requests-take"/gu), "кнопка в строке таблицы и в карточке телефона");
   // Состояния разбора словами, как раньше.
   for (const word of ["Взять себе", "ждёт решения", "Передан в поступление", "отклонена", "открыта", "обработана"]) assert.match(text(next), new RegExp(word, "u"), word);
 });
@@ -115,7 +100,6 @@ test("«Заявки»: пустая очередь, сбой чтения и н
   assert.match(empty, /Последняя пришла вчера в 19:05\./u);
   assert.match(empty, /Показать все/u);
   assert.doesNotMatch(empty, /Сюда приходят/u, "пояснение не стоит на экране");
-  assert.match(text(legacyRequests.get("empty")), /Сюда приходят/u, "а у прежнего вида стояло");
   const page = read("src/app/(v3)/v3/requests/page.tsx");
   assert.match(page, /requestEmptyWhat\(read\.queue, selection\.source\)/u, "и теперь живёт в справке шапки");
   const error = nextRequests.get("next-error");
@@ -201,22 +185,21 @@ test("новые файлы короче 150 строк, собраны из н�
   assert.match(read("src/components/v3/today-next/TodayDashboard.tsx"), /^"use client";/u);
 });
 
-test("страницы спрашивают isNextUi, читают и проверяют права как прежде; прежняя ветка осталась", () => {
+test("страницы всегда рисуют новый вид (#1327), читают и проверяют права как прежде", () => {
   const main = read("src/app/(v3)/v3/main/page.tsx");
-  assert.match(main, /import \{ isNextUi \} from "@\/lib\/ui-next";/u);
-  // Новый вид подгружается лениво: страница отдаёт его только настоящему администратору и не импортирует статически.
-  assert.match(main, /if \(await isNextUi\(actor\)\) \{\s*return <TodayNextLazy queue=\{queue\} nowIso=\{now\.toISOString\(\)\} mainAction=\{mainAction\} dial=\{dial\} taskLeads=\{taskLeads\} permissions=\{permissions\} \/>;/u);
+  assert.doesNotMatch(main, /isNextUi/u);
+  // Новый вид подгружается лениво и не импортируется статически.
+  assert.match(main, /return <TodayNextLazy queue=\{queue\} nowIso=\{now\.toISOString\(\)\} mainAction=\{mainAction\} dial=\{dial\} taskLeads=\{taskLeads\} permissions=\{permissions\} \/>;/u);
   assert.doesNotMatch(main, /from "@\/components\/v3\/today-next\/Today(Next|Dashboard)"|from "@\/components\/kit"/u, "виджеты нового вида в первую загрузку страницы не входят");
-  assert.match(main, /<PartShell\s+title="Сегодня"[\s\S]*?<TodayScreen/u, "прежний вид на месте");
+  assert.doesNotMatch(main, /<PartShell|<TodayScreen/u, "прежнего вида нет");
   assert.match(main, /const taskLeads = dial\.status === "ready" \? await readTodayTaskLeads\(actor, queue\) : null;/u, "чтения прежние");
   const requests = read("src/app/(v3)/v3/requests/page.tsx");
-  assert.match(requests, /const next = await isNextUi\(actor\);/u);
-  assert.match(requests, /if \(next\) \{\s*return \(\s*<ManualLeadDisclosure>\s*<RequestsNextLazy/u);
-  assert.match(requests, /if \(next\) return <RequestsNextInvalidLazy \/>;/u);
+  assert.doesNotMatch(requests, /isNextUi/u);
+  assert.match(requests, /return \(\s*<ManualLeadDisclosure>\s*<RequestsNextLazy/u);
+  assert.match(requests, /return <RequestsNextInvalidLazy \/>;/u);
   assert.doesNotMatch(requests, /from "@\/components\/v3\/requests-next\/RequestsNext(View|Page)"|from "@\/components\/kit"/u, "очередь нового вида в первую загрузку страницы не входит");
-  assert.match(requests, /<PartShell title="Заявки" dense testId="v3-requests"/u, "прежний вид на месте");
+  assert.doesNotMatch(requests, /<PartShell|<RequestsQueueView/u, "прежнего вида нет");
   assert.match(requests, /const \[read, owners, dial\] = await Promise\.all\(\[/u, "чтения прежние");
-  for (const page of [main, requests]) assert.ok(page.indexOf("isNextUi(actor)") < page.indexOf("<PartShell"), "выбор вида до прежней разметки");
 });
 
 test("ленивые входы нового вида: «use client» и подгрузка настоящего вида, свойства страницы доходят целиком", () => {

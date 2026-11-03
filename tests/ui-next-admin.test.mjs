@@ -18,7 +18,6 @@ const count = (value, pattern) => [...value.matchAll(pattern)].length;
 const text = (value) => value.replace(/<[^>]+>/gu, " ").replace(/&#x27;/gu, "'").replace(/&amp;/gu, "&").replace(/\s+/gu, " ").trim();
 const all = (value, pattern) => [...value.matchAll(pattern)].map((match) => match[1]);
 const MODES = ["admin-cookie", "admin-no-cookie", "preview-cookie", "staff-cookie"];
-const LEGACY_MODES = MODES.slice(1);
 const NEXT = /data-slot="page-header"/u;
 
 const sourcesIn = (directory) => readdirSync(root(directory), { recursive: true }).filter((file) => /\.(tsx?|ts)$/u.test(String(file))).map((file) => `${directory}/${file}`);
@@ -37,32 +36,34 @@ const SCREENS = [
   ["ai-lab", "v3-ai-examples"], ["ai-rules", "v3-ai-rules"], ["ai-spend", "v3-ai-spend"], ["ai-autosend", "v3-ai-autosend"],
 ];
 
-test("каждый экран потока: новый вид только у администратора с cookie; без cookie, в просмотре роли и у сотрудника — прежняя разметка", () => {
-  for (const [name, marker] of SCREENS) {
-    const next = html(`${name}:admin-cookie`);
-    assert.match(next, NEXT, `${name}: шапка набора`);
-    assert.equal(count(next, /<h1[ >]/gu), 1, `${name}: один h1`);
-    for (const mode of LEGACY_MODES) {
-      const legacy = html(`${name}:${mode}`);
-      assert.doesNotMatch(legacy, /data-slot="(?:page-header|card|data-table|badge)"/u, `${name}:${mode}: виджетов нового вида нет`);
-      assert.ok(legacy.includes(marker) || /v3-/u.test(legacy), `${name}:${mode}: прежняя разметка`);
+test("каждый экран потока рисуется новым видом в любом режиме стенда (переключателя и cookie больше нет, #1327); «Маркетинг» по-прежнему только администратору", () => {
+  for (const [name] of SCREENS) {
+    for (const mode of MODES) {
+      const next = html(`${name}:${mode}`);
+      assert.match(next, NEXT, `${name}:${mode}: шапка набора`);
+      assert.equal(count(next, /<h1[ >]/gu), 1, `${name}:${mode}: один h1`);
     }
   }
-  // «Маркетинг» открыт только настоящему администратору: просмотр роли и сотрудник получают прежний отказ (не нового вида).
+  // «Маркетинг» открыт только настоящему администратору: просмотр роли и сотрудник получают прежний отказ.
   for (const name of ["marketing-overview", "marketing-leads", "marketing-reports"]) {
-    assert.match(html(`${name}:admin-cookie`), /data-testid="v3-marketing"/u, name);
-    assert.match(html(`${name}:admin-cookie`), NEXT, name);
-    assert.doesNotMatch(html(`${name}:admin-no-cookie`), /data-slot="(?:page-header|card)"/u, `${name}: без cookie прежний вид`);
+    for (const mode of ["admin-cookie", "admin-no-cookie"]) {
+      assert.match(html(`${name}:${mode}`), /data-testid="v3-marketing"/u, `${name}:${mode}`);
+      assert.match(html(`${name}:${mode}`), NEXT, `${name}:${mode}`);
+    }
     for (const mode of ["preview-cookie", "staff-cookie"]) assert.equal(pages.get(`${name}:${mode}`).rejected, "marketing_forbidden", `${name}:${mode}`);
   }
 });
 
-test("cookie ничего не даёт сотруднику и просмотру роли: у «Финансов» и «ИИ-агента» они видят прежний вид", () => {
-  for (const name of ["finance", "finance-empty", "ai-documents", "ai-spend"]) {
-    for (const mode of ["preview-cookie", "staff-cookie"]) assert.doesNotMatch(html(`${name}:${mode}`), /data-slot="(?:page-header|card)"/u, `${name}:${mode}`);
+test("сотрудник и просмотр роли видят новый вид «Финансов» и «ИИ-агента» (раньше — прежний); «Настройки» сотрудника — новая рамка", () => {
+  for (const name of ["finance", "finance-empty", "ai-documents", "ai-spend", "settings-staff"]) {
+    for (const mode of ["preview-cookie", "staff-cookie"]) assert.match(html(`${name}:${mode}`), NEXT, `${name}:${mode}`);
   }
-  // Просмотр роли с cookie на «Настройках»: страница та же, что и без cookie (а не новая).
-  assert.doesNotMatch(html("settings-staff:preview-cookie"), NEXT);
+  // Держатель `telephony.manage` без прав Admin: одна «Телефония» в рамке нового вида, без ряда разделов Admin (чтения и права прежние).
+  const manager = html("settings-staff:staff-cookie");
+  assert.match(manager, /data-testid="v3-settings-telephony"/u);
+  assert.doesNotMatch(manager, /data-testid="v3-settings-nav/u, "ряда разделов у не-администратора нет");
+  assert.equal(count(manager, /<h1[ >]/gu), 1);
+  assert.match(text(manager), /Телефония/u);
 });
 
 /* ------------------------------------------------------------------------------------------ «Настройки» */
@@ -178,7 +179,6 @@ test("«Запросы на удаление»: та же очередь со с
   assert.match(html("settings-deletion:admin-cookie"), /data-overdue="true"/u, "просрочка помечена");
   const source = read("src/components/v3/settings-next/DeletionNext.tsx");
   assert.match(source, /`\$\{listHref\}&request=\$\{encodeURIComponent\(row\.id\)\}`/u);
-  assert.match(html("settings-deletion:admin-no-cookie"), /href="\/v3\/settings\?section=deletion&amp;request=66666666-2222-4222-8222-000000000001"/u, "прежний адрес — тот же вид");
   // Предупреждения и запреты остаются на виду в панели: слова те же, что у прежнего вида.
   const detail = read("src/components/v3/settings-next/DeletionNotices.tsx") + read("src/components/v3/settings-next/DeletionPlans.tsx");
   for (const word of ["Журнал входов не очищен", "Автоматическое удаление было начато", "Ручная обработка"]) assert.ok(detail.includes(word), word);
@@ -221,10 +221,8 @@ test("«Маркетинг → Заявки»: те же лиды; фильтр�
     assert.match(text(legacy), new RegExp(word, "u"), `прежний: ${word}`);
   }
   // Фильтры нового вида стоят в панели (в разметке страницы их нет): поля и форма сверяются по файлу с прежним.
-  const form = (value) => value.slice(value.indexOf('aria-label="Фильтры заявок"'), value.indexOf("</form>", value.indexOf('aria-label="Фильтры заявок"')));
   const sheet = read("src/components/v3/marketing-next/LeadFiltersSheet.tsx");
   const filters = (list) => list.filter((name) => !["period", "from", "to"].includes(name));
-  assert.deepEqual(filters(names(sheet)), filters(names(form(legacy))), "те же имена полей фильтра (период форма несёт скрытыми полями при выбранном «Периоде»)");
   assert.deepEqual(filters(names(sheet)), ["campaign", "channel", "contract", "no_owner", "stage", "unknown", "view"]);
   assert.match(sheet, /action="\/v3\/marketing"/u);
   assert.match(sheet, /method="get"/u);
@@ -343,14 +341,14 @@ test("правила Wazzup (только чтение) в новом виде �
 
 /* --------------------------------------------------------------- первая загрузка: ленивые входы и серверные тексты */
 
-test("входы нового вида ленивые, с заглушкой при обрыве связи; у маршрутов нет своего loading.tsx (он менял бы и прежний вид); страницы не подключают новый вид статически", () => {
+test("входы нового вида ленивые, с заглушкой при обрыве связи; у маршрутов нет своего loading.tsx (он менял бы и прежний вид); страницы не подключают новый вид статически; loading.tsx маршрута по-прежнему нет", () => {
   const routes = { settings: "SettingsNextLazy", marketing: "MarketingNextLazy", finance: "FinanceNextLazy", "ai-agent": "AiAgentNextLazy" };
   for (const [route, name] of Object.entries(routes)) {
     const dir = `src/app/(v3)/v3/${route}`;
     assert.equal(existsSync(root(`${dir}/loading.tsx`)), false, `${route}: loading.tsx нет: граница Suspense маршрута стала бы и у сотрудников с прежним видом (скелет, ответ 200 вместо 307/404)`);
     const page = read(`${dir}/page.tsx`);
     assert.match(page, new RegExp(`<${name}\\b`, "u"), `${route}: страница рисует ${name}`);
-    assert.match(page, /await isNextUi\(actor\)/u, `${route}: выбор вида — переключатель`);
+    assert.doesNotMatch(page, /isNextUi/u, `${route}: выбора вида нет — новый вид единственный`);
     const imports = [...page.matchAll(/^import .* from "(@\/components\/v3\/[^"]+)";$/gmu)].map((match) => match[1]);
     for (const path of imports.filter((value) => /-next\//u.test(value))) assert.match(path, /Lazy$|-types$/u, `${route}: ${path} — только ленивый вход и типы`);
   }
@@ -462,9 +460,7 @@ test("«Журнал действий»: ссылка «Следующие со�
 
 test("«Лист сверки»: у открытого пункта, чьё исправление не применилось, ошибка видна в списке, а не только в панели", () => {
   const next = html("ai-review:admin-cookie");
-  const legacy = html("ai-review:admin-no-cookie");
   const sentence = "Исправление не применилось: число встречается в тексте не один раз. Подтвердите или исправьте снова.";
-  assert.equal(count(text(legacy), new RegExp(sentence, "gu")), 1, "прежний вид: на виду");
   // Таблица и карточки телефона — две отрисовки одного списка; панель в разметке закрыта, поэтому полная фраза пришла из списка, а не из панели.
   assert.ok(count(text(next), new RegExp(sentence, "gu")) >= 1, "новый вид: тоже в списке");
   assert.match(next, /t-meta text-warn[^>]*>Исправление не применилось/u, "предупреждающий цвет, не серая подпись");
@@ -502,15 +498,8 @@ test("«Настройки» на узком окне: одна колонка �
   assert.match(region(nav, "v3-settings-nav-compact"), /class="[^"]*\bmin-w-0\b/u, "ряд вкладок может сжиматься до колонки");
 });
 
-test("стенды, что рисуют страницу «ИИ-агента» вне запроса, подменяют переключатель; стенд Chromium меряет настоящую боковую прокрутку и узкие окна", () => {
-  for (const file of readdirSync(root("tests/e2e")).filter((name) => name.endsWith(".cjs"))) {
-    const source = read(`tests/e2e/${file}`);
-    if (!/src\/app\/\(v3\)\/v3\/ai-agent\/page\.tsx/u.test(source) || file.startsWith("admin-next-")) continue;
-    assert.match(source, /ui-next\.ts"\)\)\.isNextUi = async \(\) => false/u, `${file}: страница спрашивает cookie, вне запроса её нет`);
-    const pages = source.match(/require\(join\(ROOT, "src\/app\/\(v3\)\/v3\/ai-agent\/page\.tsx"\)\)/gu).length;
-    const stubs = source.match(/ui-next\.ts"\)\)\.isNextUi = async \(\) => false/gu).length;
-    assert.ok(stubs >= pages, `${file}: подмена до каждого подключения страницы (${stubs} из ${pages})`);
-  }
+test("стенды не подменяют переключатель (его нет); стенд Chromium меряет настоящую боковую прокрутку и узкие окна", () => {
+  for (const file of readdirSync(root("tests/e2e")).filter((name) => name.endsWith(".cjs"))) assert.doesNotMatch(read(`tests/e2e/${file}`), /src\/lib\/ui-next\.ts/u, `${file}: модуля ui-next.ts больше нет`);
   const checks = read("tests/e2e/admin-next-checks.cjs");
   assert.match(checks, /doc\.scrollWidth - doc\.clientWidth/u, "ширина видимой области, а не innerWidth (у телефонного окна он растягивается)");
   assert.match(checks, /main\.scrollWidth - main\.clientWidth/u, "содержимое страницы не шире экрана: html и body обрезают его молча");

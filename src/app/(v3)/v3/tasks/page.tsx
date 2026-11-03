@@ -1,23 +1,14 @@
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge, EmptyState } from "@/components/ui";
-import { PartShell } from "@/components/v3/PartShell";
-import { QueueError } from "@/components/v3/queue/QueueStates";
 import { queueHref } from "@/components/v3/queue/queue-url";
-import { TaskComposerDialog } from "@/components/v3/tasks/TaskComposerDialog";
-import { TaskDetailPanel } from "@/components/v3/tasks/TaskDetailPanel";
-import { TasksWorkspace } from "@/components/v3/tasks/TasksWorkspace";
 import { TasksNextFailureLazy, TasksNextLazy } from "@/components/v3/tasks/next/TasksNextLazy";
 import { caseSheetData, staffSheetData } from "@/components/v3/tasks/next/task-sheet-data";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import { isNextUi } from "@/lib/ui-next";
 import { staffTaskUuid } from "@/lib/platform-staff-task-contract";
 import { dayInOrganizationTimezone } from "@/lib/platform-task-deadline";
 import { readStaffTaskWorkspace, taskQueueAccess } from "@/lib/v3/staff-task-source";
 import { buildTaskQueue, parseTaskQueueFilters, taskQueueParams } from "@/lib/v3/task-queue";
 import { readCalendarTaskTarget } from "@/lib/v3/calendar-source";
-import { callerDisplayName, taskStatus } from "@/lib/v3/wording";
 import { isTeamChatChannel, staffCanAccessChatChannel, type TeamChatMessage } from "@/lib/platform-team-chat";
 import { readTeamChatPage, TeamChatReadError } from "@/lib/server/platform-team-chat-repository";
 import { readStaffTaskChatSource, readStaffTaskContext, readStaffTaskLeadContext, readLeadTaskLinks, type StaffTaskContext } from "@/lib/server/platform-staff-task-repository";
@@ -32,11 +23,8 @@ function optionalUuid(params: Params, key: string) { const value = single(params
 
 export default async function TasksPage({ searchParams }: { searchParams: Promise<Params> }) {
   const [params, actor] = await Promise.all([searchParams, requireV3PageActor("/v3/tasks")]);
-  // «Новый вид» (27.10.2026): только настоящему администратору с переключателем; данные, права и действия те же.
-  const nextUi = await isNextUi(actor);
-  const failure = (text: string, retryHref: string) => nextUi
-    ? <TasksNextFailureLazy text={text} retryHref={retryHref} />
-    : <PartShell title="Задачи"><QueueError text={text} retryHref={retryHref} /></PartShell>;
+  // «Новый вид» — единственный вид (#1327).
+  const failure = (text: string, retryHref: string) => <TasksNextFailureLazy text={text} retryHref={retryHref} />;
   const access = taskQueueAccess(actor);
   const preview = isStaffPreview(actor);
   const canUseStaffTasks = staffHasPermission(actor, "staff.task.read") || staffHasPermission(actor, "staff.task.create");
@@ -152,7 +140,6 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     sourceLeadId: sourceLead?.leadId, sourceLeadVersion: sourceLead?.workflowVersion,
   };
   const canCreate = !preview && (composerProps.staffAllowed || composerProps.caseAllowed);
-  const selectedKey = caseTaskTarget ? `case:${caseTaskTarget.task.id}` : selected ? `staff:${selected.id}` : null;
   const moveOpen = single(params, "move") === "1";
   const permissions = {
     actorMembershipId: actor.membershipId, admin: actor.systemRole === "admin" && !preview, preview,
@@ -160,79 +147,20 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     caseManage: staffHasPermission(actor, "task.manage"), caseAssign: staffHasPermission(actor, "task.assign"),
   };
   const headerCount = canReadTaskQueue && queue.complete && !sourceLead && !workspace.canReadStaffTasks && !access.teamView ? queue.rows.length : null;
-  if (nextUi) {
-    const sheet = selected ? staffSheetData({
-      task: selected, participants: workspace.assignees, day, nowIso: now.toISOString(), leadId: taskContext?.leadId ?? null, lead: taskLead,
-      sourceHref: selectedSourceHref, sourceUnavailable, outcomes: contextUnavailable ? null : taskContext?.outcomes ?? [],
-    }) : caseTaskTarget ? caseSheetData({
-      task: caseTaskTarget.task, caseId: selectedCaseId!, assignees: caseTaskTarget.assignees, capabilities: caseTaskTarget.capabilities,
-      day, nowIso: now.toISOString(),
-    }) : null;
-    return <TasksNextLazy
-      filters={filters} queue={queue} cutOff={workspace.queue.cutOff} day={day} nowIso={now.toISOString()}
-      canReadStaffTasks={workspace.canReadStaffTasks} canReadCaseTasks={workspace.canReadCaseTasks} teamView={access.teamView}
-      createdExcludesCases={workspace.createdExcludesCases} composer={composerProps} composerKey={sourceMessage?.id ?? "standalone"}
-      canCreate={canCreate} urlIntent={openIntent ?? single(params, "create") ?? null} permissions={permissions}
-      taskLeads={taskLeads} dial={listDial} count={headerCount} sheet={sheet} closeHref={closeHref} moveOpen={moveOpen}
-      sourceMessage={sourceMessage ? { id: sourceMessage.id, channelKey: sourceMessage.channelKey, authorName: sourceMessage.authorName, body: sourceMessage.body } : null}
-      sourceLead={sourceLead} leadTasks={leadTasks}
-    />;
-  }
-  // Своя панель на каждую задачу: введённое в одной не переезжает в другую.
-  const panel = selected ? <TaskDetailPanel key={`staff:${selected.id}`} day={day} nowIso={now.toISOString()} closeHref={closeHref} moveOpen={moveOpen} readOnly={preview} data={{
-    kind: "staff", task: selected, participants: workspace.assignees,
-    extra: {
-      leadHref: taskContext?.leadId ? `/v3/tasks?lead=${taskContext.leadId}` : null,
-      lead: taskLead,
-      sourceHref: selectedSourceHref, sourceUnavailable: Boolean(selected.sourceMessageId) && !selectedSourceHref && sourceUnavailable,
-      outcomes: taskContext?.outcomes ?? [], outcomesUnavailable: contextUnavailable,
-    },
-  }} /> : caseTaskTarget ? <TaskDetailPanel key={`case:${caseTaskTarget.task.id}`} day={day} nowIso={now.toISOString()} closeHref={closeHref} moveOpen={moveOpen} readOnly={preview} data={{
-    kind: "case", task: caseTaskTarget.task, caseId: selectedCaseId!,
-    assignees: caseTaskTarget.assignees, capabilities: caseTaskTarget.capabilities,
-  }} /> : null;
-
-  return <>
-    <PartShell title="Задачи" count={headerCount}>
-    {sourceLead ? <section className="mb-5 space-y-3 border-y border-border py-4" aria-label="Задачи по лиду">
-      <h2 className="t-section">{callerDisplayName(sourceLead.clientDisplayName ?? "Имя клиента не указано")}</h2>
-      <p className="t-body-compact text-fg-2">Следующее действие воронки: {sourceLead.nextActionText ?? "Не назначено"}{sourceLead.nextActionDueDate ? ` · ${sourceLead.nextActionDueDate}` : ""}</p>
-      {sourceLead.canOpenPipeline ? <Link href={sourceLead.clientDisplayName === "Имя клиента не указано" ? "/v3/pipeline" : `/v3/pipeline?q=${encodeURIComponent(sourceLead.clientDisplayName)}`} className="inline-flex min-h-11 items-center t-label underline">Открыть в воронке</Link> : null}
-      <TaskComposerDialog key={sourceLead.leadId} {...composerProps}
-        openIntent={openIntent ?? single(params, "create") ?? null} triggerLabel="Новая задача по лиду"
-        triggerClassName="inline-flex min-h-11 items-center rounded-ctl border border-control-edge bg-surface px-3 t-label text-fg-2 hover:bg-surface-2 hover:text-fg" />
-      <h3 className="t-item">Связанные рабочие задачи</h3>
-      {leadTasks?.rows.length ? <ul className="divide-y divide-border">{leadTasks.rows.map((task) => <li key={task.id}><Link href={`/v3/tasks?task=${task.id}`} className="flex min-h-11 flex-wrap items-center justify-between gap-2 py-2 t-body-compact"><span className="break-words underline">{task.title}</span><Badge value={task.status} label={taskStatus(task.status) ?? task.status} /></Link></li>)}</ul> : <EmptyState text="Связанных задач нет." />}
-      {leadTasks?.truncated ? <p className="t-body-compact text-fg-2">Показаны последние 50.</p> : null}
-      <Link href="/v3/tasks" className="inline-flex min-h-11 items-center t-label underline">Все мои задачи</Link>
-    </section> : <>
-    {sourceMessage ? <section className="mb-4 space-y-2 border-y border-border py-4" aria-label="Исходное сообщение">
-      <p className="t-item">Задача из сообщения · {sourceMessage.authorName}</p>
-      <p className="whitespace-pre-wrap break-words t-body-compact">{sourceMessage.body}</p>
-      <p className="t-body-compact text-fg-3">Проверьте название и исполнителя. Доступ к каналу не меняется.</p>
-      <Link href={`/v3/team-chat?channel=${sourceMessage.channelKey}&message=${sourceMessage.id}`} className="inline-flex min-h-11 items-center t-label underline">Вернуться к сообщению</Link>
-    </section> : null}
-    <TasksWorkspace
-      filters={filters}
-      queue={queue}
-      cutOff={workspace.queue.cutOff}
-      day={day}
-      nowIso={now.toISOString()}
-      canReadStaffTasks={workspace.canReadStaffTasks}
-      canReadCaseTasks={workspace.canReadCaseTasks}
-      teamView={access.teamView}
-      createdExcludesCases={workspace.createdExcludesCases}
-      composer={composerProps}
-      composerKey={sourceMessage?.id ?? "standalone"}
-      canCreate={canCreate}
-      urlIntent={openIntent ?? single(params, "create") ?? null}
-      permissions={permissions}
-      selectedKey={selectedKey}
-      taskLeads={taskLeads}
-      dial={listDial}
-      panel={panel}
-    />
-    </>}
-    </PartShell>
-  </>;
+  const sheet = selected ? staffSheetData({
+    task: selected, participants: workspace.assignees, day, nowIso: now.toISOString(), leadId: taskContext?.leadId ?? null, lead: taskLead,
+    sourceHref: selectedSourceHref, sourceUnavailable, outcomes: contextUnavailable ? null : taskContext?.outcomes ?? [],
+  }) : caseTaskTarget ? caseSheetData({
+    task: caseTaskTarget.task, caseId: selectedCaseId!, assignees: caseTaskTarget.assignees, capabilities: caseTaskTarget.capabilities,
+    day, nowIso: now.toISOString(),
+  }) : null;
+  return <TasksNextLazy
+    filters={filters} queue={queue} cutOff={workspace.queue.cutOff} day={day} nowIso={now.toISOString()}
+    canReadStaffTasks={workspace.canReadStaffTasks} canReadCaseTasks={workspace.canReadCaseTasks} teamView={access.teamView}
+    createdExcludesCases={workspace.createdExcludesCases} composer={composerProps} composerKey={sourceMessage?.id ?? "standalone"}
+    canCreate={canCreate} urlIntent={openIntent ?? single(params, "create") ?? null} permissions={permissions}
+    taskLeads={taskLeads} dial={listDial} count={headerCount} sheet={sheet} closeHref={closeHref} moveOpen={moveOpen}
+    sourceMessage={sourceMessage ? { id: sourceMessage.id, channelKey: sourceMessage.channelKey, authorName: sourceMessage.authorName, body: sourceMessage.body } : null}
+    sourceLead={sourceLead} leadTasks={leadTasks}
+  />;
 }

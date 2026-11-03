@@ -218,8 +218,9 @@ test("исходники: «Поручить» — рамка без потол�
   assert.match(read("src/app/(v3)/v3.css"), /\.v3-world \[data-tab-ring="inset"\] \.v3-choice:focus-visible \{\n {2}outline-offset: -2px;\n\}/u, "ряд вкладок в шапке ровно по высоте вкладки — рамка фокуса внутри, а не обрезана");
 
   const page = read("src/app/(v3)/v3/ai-agents/[key]/page.tsx");
-  assert.match(page, /if \(tab === "command"\) \{\s*return \(\s*<AgentChatShell/u);
-  assert.match(page, /<PartShell title=\{detail\.title\} testId="v3-ai-agent-page" back=\{back\}/u, "остальные вкладки — прежняя шапка страницы");
+  // С #1327 рамку чата и шапку остальных вкладок рисует «Новый вид» (NextAgentPage), страница передаёт ему те же свойства.
+  assert.doesNotMatch(page, /<AgentChatShell|<PartShell/u);
+  assert.match(page, /<NextAgentPageLazy \{\.\.\.bodyProps\}/u);
   assert.doesNotMatch(page, /fill=\{tab === "command"\}/u);
 
   const body = read("src/components/v3/ai-agents/AgentBody.tsx");

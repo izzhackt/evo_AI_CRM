@@ -1,13 +1,10 @@
 import { randomUUID } from "node:crypto";
 
 import { ManualLeadDisclosure, ManualLeadForm, ManualLeadTrigger } from "@/components/v3/ManualLeadForm";
-import { PartShell } from "@/components/v3/PartShell";
-import { QueueError } from "@/components/v3/queue/QueueStates";
-import { RequestsQueueView, type RequestsQueueRead } from "@/components/v3/requests/RequestsQueueView";
+import { type RequestsQueueRead } from "@/components/v3/requests/RequestsQueueView";
 import { RequestsNextInvalidLazy, RequestsNextLazy } from "@/components/v3/requests-next/RequestsNextLazy";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import { isNextUi } from "@/lib/ui-next";
 import { parseRequestOpen, parseRequestSelection, type RequestSelection } from "@/lib/requests-queue-contract";
 import { requestEmptyWhat } from "@/lib/v3/requests-view";
 import { readPipelineOwnerOptions } from "@/lib/v3/pipeline-source";
@@ -31,15 +28,10 @@ export default async function RequestsPage({ searchParams }: {
 }) {
   const actor = await requireV3PageActor("/v3/requests");
   const params = await searchParams;
-  // «Новый вид» (переключатель администратора): те же чтения и права, другая расстановка — таблица и панель записи.
-  const next = await isNextUi(actor);
   let selection: RequestSelection;
   try { selection = parseRequestSelection(params); }
   catch {
-    if (next) return <RequestsNextInvalidLazy />;
-    return <PartShell title="Заявки" dense>
-      <QueueError text="Эта ссылка на очередь заявок неверна." retryHref="/v3/requests" />
-    </PartShell>;
+    return <RequestsNextInvalidLazy />;
   }
   const open = parseRequestOpen(params.open);
   const readOnly = isStaffPreview(actor);
@@ -61,54 +53,30 @@ export default async function RequestsPage({ searchParams }: {
     ? Object.fromEntries(read.queue.rows.flatMap((row) => row.kind === "lead" && row.take ? [[row.leadId, randomUUID()]] : []))
     : {};
 
-  if (next) {
-    return (
-      <ManualLeadDisclosure>
-        <RequestsNextLazy
-          help={[
-            "Очередь разбора: кто пришёл, откуда и взял ли кто-нибудь. Поиск и сортировка работают по строкам этой страницы; остальные страницы — ссылками под таблицей.",
-            // Что сюда приходит — только из видов, которые читает роль (прежде стояло в пустой очереди).
-            read.status === "ready" ? requestEmptyWhat(read.queue, selection.source) : null,
-          ].filter(Boolean).join(" ")}
-          actions={canCreateLead ? <ManualLeadTrigger /> : undefined}
-          selection={selection}
-          read={read}
-          open={open}
-          actorMembershipId={actor.membershipId}
-          readOnly={readOnly}
-          canCreateLead={canCreateLead}
-          nowIso={new Date().toISOString()}
-          takeRequestIds={takeRequestIds}
-          dial={dial}
-          callLines={callLines}
-          decisionRequestId={randomUUID()}
-        >
-          {canCreateLead ? <ManualLeadForm requestId={randomUUID()} ownerId={actor.membershipId}
-            owners={owners ? owners.rows.map((owner) => ({ id: owner.membershipId, displayName: owner.displayLabel })) : null} /> : null}
-        </RequestsNextLazy>
-      </ManualLeadDisclosure>
-    );
-  }
-
   return (
     <ManualLeadDisclosure>
-      <PartShell title="Заявки" dense testId="v3-requests" action={canCreateLead ? <ManualLeadTrigger /> : undefined}>
+      <RequestsNextLazy
+        help={[
+          "Очередь разбора: кто пришёл, откуда и взял ли кто-нибудь. Поиск и сортировка работают по строкам этой страницы; остальные страницы — ссылками под таблицей.",
+          // Что сюда приходит — только из видов, которые читает роль (прежде стояло в пустой очереди).
+          read.status === "ready" ? requestEmptyWhat(read.queue, selection.source) : null,
+        ].filter(Boolean).join(" ")}
+        actions={canCreateLead ? <ManualLeadTrigger /> : undefined}
+        selection={selection}
+        read={read}
+        open={open}
+        actorMembershipId={actor.membershipId}
+        readOnly={readOnly}
+        canCreateLead={canCreateLead}
+        nowIso={new Date().toISOString()}
+        takeRequestIds={takeRequestIds}
+        dial={dial}
+        callLines={callLines}
+        decisionRequestId={randomUUID()}
+      >
         {canCreateLead ? <ManualLeadForm requestId={randomUUID()} ownerId={actor.membershipId}
           owners={owners ? owners.rows.map((owner) => ({ id: owner.membershipId, displayName: owner.displayLabel })) : null} /> : null}
-        <RequestsQueueView
-          selection={selection}
-          read={read}
-          open={open}
-          actorMembershipId={actor.membershipId}
-          readOnly={readOnly}
-          canCreateLead={canCreateLead}
-          nowIso={new Date().toISOString()}
-          takeRequestIds={takeRequestIds}
-          dial={dial}
-          callLines={callLines}
-          decisionRequestId={randomUUID()}
-        />
-      </PartShell>
+      </RequestsNextLazy>
     </ManualLeadDisclosure>
   );
 }

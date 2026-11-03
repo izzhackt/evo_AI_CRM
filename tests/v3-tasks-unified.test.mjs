@@ -71,14 +71,15 @@ test("the unified composer is reachable from both the task list and a case (Case
   // and the global top-bar link open the same TaskComposerDialog.
   assert.match(quickAdd, /import \{ TaskComposerDialog \} from "\.\/TaskComposerDialog"/u);
   assert.match(quickAdd, /<TaskComposerDialog\s+\{\.\.\.composer\}\s+hideTrigger/u);
-  assert.match(panelPage, /import \{ TaskComposerDialog \} from "@\/components\/v3\/tasks\/TaskComposerDialog"/u);
+  // С #1327 страницу «Задач» рисует «Новый вид»: диалог создания приходит свойствами `composer` (`composerProps`) тем же `TaskComposerDialog`.
+  assert.match(panelPage, /composer=\{composerProps\}/u);
   assert.doesNotMatch(panelPage, /<PartShell[^>]*\baction=/u);
   assert.match(caseTasksPanel, /import \{ TaskComposerDialog \} from "@\/components\/v3\/tasks\/TaskComposerDialog"/u);
   assert.match(caseTasksPanel, /initialCase=\{\{ id: caseId, name: caseName \}\}/u);
 });
 
 test("the task-list page renders a right-side/full-screen panel instead of navigating to a separate page", () => {
-  assert.match(panelPage, /import \{ TaskDetailPanel \} from "@\/components\/v3\/tasks\/TaskDetailPanel"/u);
+  assert.match(panelPage, /sheet=\{sheet\}/u, "панель выбранной задачи — выезжающий лист нового вида");
   assert.doesNotMatch(panelPage, /PartShell title="Рабочая задача"/u);
   assert.match(panelPage, /readCalendarTaskTarget\(actor, selectedCaseId, taskId\)/u);
 });

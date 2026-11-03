@@ -377,13 +377,11 @@ async function renderScenario(name) {
   };
   try {
     const content = await page({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(current.search))) });
-    // `data-ui="next"` ставит layout `(v3)` только настоящему администратору с cookie; здесь — по сценарию страницы,
-    // где это решила настоящая `isNextUi` (стенд не знает правила: он смотрит, что нарисовала страница).
-    const nextRoot = current.ui === "next" && current.actor === "admin";
-    const tree = createElement("div", { className: "v3-world", "data-surface": "staff", "data-ui": nextRoot ? "next" : undefined },
+    // `data-ui="next"` ставит layout `(v3)` всем (#1327); здесь страница рисует единственный вид, и стенд ждёт ленивый вход.
+    const tree = createElement("div", { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
       createElement(AppShell, { actor: ACTORS[current.actor], initialNotifications: null }, content));
     // Новый вид страница подгружает лениво (`RequestsNextLazy`): рисуем, пока разметка не устоится.
-    return nextRoot ? await renderSettled(withContexts(tree, current.search)) : renderToStaticMarkup(withContexts(tree, current.search));
+    return await renderSettled(withContexts(tree, current.search));
   } finally {
     nodeCrypto.randomUUID = originalUuid;
     globalThis.Date = RealDate;

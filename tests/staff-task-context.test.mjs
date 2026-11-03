@@ -65,6 +65,6 @@ test("linked lead context uses canonical authority without requiring Sales-only 
   assert.match(sql, /LEFT JOIN platform\.clients/);
   assert.match(page, /readStaffTaskLeadContext\(actor, sourceLeadId\)/);
   assert.doesNotMatch(page, /getPlatformSalesLead/);
-  assert.match(page, /sourceLead\.canOpenPipeline/);
+  assert.match(readFileSync(new URL("../src/components/v3/tasks/next/TaskSourceCards.tsx", import.meta.url), "utf8"), /canOpenPipeline/);
   assert.match(pipeline, /!isStaffPreview\(actor\) && staffHasPermission\(actor, "lead\.sales\.workflow\.manage"\)/);
 });

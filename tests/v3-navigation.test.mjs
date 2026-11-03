@@ -486,12 +486,19 @@ test("each sidebar destination opens under a heading with the same words", () =>
     ["ai-agents", `${V3}/ai-agents/page.tsx`, true],
     ["settings", `${V3}/settings/page.tsx`, true],
   ];
+  const nextSources = () => {
+    const walk = (dir) => readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true }).flatMap((entry) => (
+      entry.isDirectory() ? walk(`${dir}/${entry.name}`) : /\.(?:ts|tsx)$/u.test(entry.name) && /next/u.test(`${dir}/${entry.name}`) ? [`${dir}/${entry.name}`] : []));
+    return walk("src/components/v3").map((file) => source(file)).join("\n");
+  };
   const visible = new Map(["admin", "sales", "admissions"].flatMap((role) => links(navigation(role)).map((link) => [link.id, link.label])));
   assert.deepEqual([...new Set(headings.map(([id]) => id))].sort(), [...visible.keys()].sort());
   for (const [id, file, strict] of headings) {
     const label = escapeRegExp(visible.get(id));
     const page = source(file);
-    assert.match(page, new RegExp(`<(?:PartShell|UniversityShell)\\b[^>]*?\\btitle=(?:"${label}"|\\{[^}]*"${label}"[^}]*\\})|<h1\\b[^>]*>${label}</h1>|const TITLE = "${label}";|const title = [^;]*"${label}"`, "u"), `${id}: ${file}`);
+    const literal = new RegExp(`<(?:PartShell|PageShell|UniversityShell)\\b[^>]*?\\btitle=(?:"${label}"|\\{[^}]*"${label}"[^}]*\\})|<h1\\b[^>]*>${label}</h1>|const TITLE = "${label}";|const title = [^;]*"${label}"`, "u");
+    // С #1327 страницы отдают заголовок «Новому виду»: слово ищем в его файлах (`PageShell`/`PageHeader` с этим `title`).
+    if (!literal.test(page)) assert.match(nextSources(), new RegExp(`\\btitle[=:] ?\\{?"${label}"|\\btitle="${label}"|<h1\\b[^>]*>${label}</h1>`, "u"), `${id}: ${file}`);
     if (strict) {
       for (const [, title] of page.matchAll(/<(?:PartShell|UniversityShell)\b[^>]*?\btitle="([^"]+)"/gu)) assert.equal(title, visible.get(id), file);
     }

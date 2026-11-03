@@ -749,7 +749,7 @@ test("the page wires Lead 360 through the board's reads and «Оформить �
   assert.match(forms, /const result = await searchSalesRegisterStudentsAction\(wanted\.query\)/u);
   assert.match(forms, /const lead = result\.leads\.find\(item => item\.id === wanted\.id\) \?\? null;\s+if \(lead\) chooseLead\(lead\);/u);
   // Главная рисует отчёт без признака облика: облик один (Э1.5).
-  assert.match(read("src/app/(v3)/v3/main/page.tsx"), /<SalesRegisterView actor=\{actor\} query=\{query\} dynamics=\{section\} \/>/u);
+  assert.match(read("src/app/(v3)/v3/main/page.tsx"), /<SalesRegisterNextView actor=\{actor\} query=\{query\} dynamics=\{section\} \/>/u);
 });
 
 test("failure and vocabulary copy after review: nothing claims an outcome the code does not know, one wording per concept", () => {

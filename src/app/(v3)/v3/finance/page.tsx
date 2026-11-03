@@ -1,9 +1,5 @@
-import { EmptyState } from "@/components/ui";
 import { FinanceNextLazy } from "@/components/v3/finance-next/FinanceNextLazy";
-import { PartShell } from "@/components/v3/PartShell";
-import { LookerReport } from "@/components/v3/reports/LookerReport";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import { isNextUi } from "@/lib/ui-next";
 import { readReportLink } from "@/lib/v3/report-links-source";
 
 export const dynamic = "force-dynamic";
@@ -23,24 +19,6 @@ export default async function FinancePage() {
   const isAdmin = actor.systemRole === "admin";
   const source = "Цифры — из Google Таблицы финансиста, а не из CRM. Они могут не совпадать с «Отчётом продаж» и вкладкой «Договор и оплата».";
   const adminNote = "Отчёт открывает Google, а не CRM. Снятие роли в CRM не закрывает отчёт: когда человек уходит, уберите его в «Поделиться» отчёта и таблицы.";
-  // «Новый вид» (переключатель администратора): то же чтение и те же права, другая расстановка — отчёт в карточке набора.
-  if (await isNextUi(actor)) return <FinanceNextLazy read={read} isAdmin={isAdmin} source={source} adminNote={isAdmin ? adminNote : null} />;
-  return (
-    <PartShell title="Финансы" testId="v3-finance">
-      {read.status === "denied" ? (
-        <div className="rounded-card border border-border bg-surface" data-testid="v3-finance-denied">
-          <EmptyState text="Нет доступа к отчёту «Финансы»: нужно право «Полный просмотр финансов» на всю организацию." />
-        </div>
-      ) : (
-        <LookerReport
-          reportKey="finance"
-          read={read}
-          source={source}
-          canManage={isAdmin}
-          retryHref="/v3/finance"
-          adminNote={isAdmin ? adminNote : undefined}
-        />
-      )}
-    </PartShell>
-  );
+  // «Новый вид» (единственный вид, #1327): отчёт в карточке набора; право на чтение решает база, «Нет доступа» рисует сам экран.
+  return <FinanceNextLazy read={read} isAdmin={isAdmin} source={source} adminNote={isAdmin ? adminNote : null} />;
 }

@@ -1,17 +1,14 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { AdmissionsPipelineBoard } from "@/components/v3/AdmissionsPipelineBoard";
 import { AdmissionsPipelineNextLazy } from "@/components/v3/admissions-pipeline-next/AdmissionsPipelineNextLazy";
 import { AddStudentDrawer } from "@/components/v3/admissions/AddStudentDrawer";
-import { BoardReset, BoardSearch, BoardSegments } from "@/components/v3/board/Board";
+import { BoardReset, BoardSearch } from "@/components/v3/board/Board";
 import { BoardFilters, NavigateSelect } from "@/components/v3/board/BoardToolbar";
-import { PartShell } from "@/components/v3/PartShell";
 import { isStaffPreview, staffHasPermission } from "@/lib/platform-access";
 import { readStaffApplicationPackageQueueAction } from "@/lib/portal/application-packages-actions";
 import { readStaffApplicationDocumentSubmissionQueueAction } from "@/lib/portal/application-documents-actions";
 import { requireV3PageActor } from "@/lib/platform-guards";
-import { isNextUi } from "@/lib/ui-next";
 import {
   readAdmissionsPipelineBoard,
   type AdmissionsPipelineTab,
@@ -237,63 +234,23 @@ export default async function AdmissionsPipelinePart({
 
   // «Новый вид» (переключатель администратора): те же чтения и права, другая расстановка — вкладки разделов, колонки-карточки с
   // перетаскиванием (`@dnd-kit/core`) и те же части строки инструментов.
-  if (await isNextUi(actor)) {
-    return (
-      <AdmissionsPipelineNextLazy
-        actions={actions}
-        tabs={(["admission", "visa"] as const satisfies readonly AdmissionsPipelineTab[]).map((tabKey) => ({
-          key: tabKey,
-          label: admissionsPipelineTab(tabKey),
-          count: tabCount(tabKey),
-          href: boardHref({ ...query, tab: tabKey }),
-        }))}
-        toolbar={<div className="flex flex-wrap items-center gap-2 @2xl:gap-3">{search}{filters}{reset}</div>}
-        rows={board?.rows ?? []}
-        truncated={board?.truncated ?? false}
-        boardUnavailable={boardResult.status === "rejected"}
-        tab={query.tab}
-        query={{ q: query.q, country: query.country, curator: query.curator }}
-        requestedStage={singleValue(params.stage) ?? null}
-      />
-    );
-  }
-
   return (
-    <PartShell
-      width="board"
-      title="Воронка поступления"
-      action={actions}
-    >
-      <div className="flex shrink-0 flex-wrap items-center gap-2 @2xl:gap-3">
-        <BoardSegments
-          label="Разделы воронки поступления"
-          items={(["admission", "visa"] as const satisfies readonly AdmissionsPipelineTab[]).map((tabKey) => ({
-            key: tabKey,
-            title: admissionsPipelineTab(tabKey),
-            count: tabCount(tabKey),
-            href: boardHref({ ...query, tab: tabKey }),
-            active: query.tab === tabKey,
-          }))}
-        />
-
-        {search}
-
-        {filters}
-
-        {reset}
-      </div>
-
-      <div className="mt-3 flex min-w-0 flex-col md:min-h-[320px] md:flex-1 md:overflow-y-auto @5xl:overflow-visible">
-        <AdmissionsPipelineBoard
-          rows={board?.rows ?? []}
-          truncated={board?.truncated ?? false}
-          boardUnavailable={boardResult.status === "rejected"}
-          tab={query.tab}
-          query={{ q: query.q, country: query.country, curator: query.curator }}
-          requestedStage={singleValue(params.stage) ?? null}
-        />
-      </div>
-    </PartShell>
+    <AdmissionsPipelineNextLazy
+      actions={actions}
+      tabs={(["admission", "visa"] as const satisfies readonly AdmissionsPipelineTab[]).map((tabKey) => ({
+        key: tabKey,
+        label: admissionsPipelineTab(tabKey),
+        count: tabCount(tabKey),
+        href: boardHref({ ...query, tab: tabKey }),
+      }))}
+      toolbar={<div className="flex flex-wrap items-center gap-2 @2xl:gap-3">{search}{filters}{reset}</div>}
+      rows={board?.rows ?? []}
+      truncated={board?.truncated ?? false}
+      boardUnavailable={boardResult.status === "rejected"}
+      tab={query.tab}
+      query={{ q: query.q, country: query.country, curator: query.curator }}
+      requestedStage={singleValue(params.stage) ?? null}
+    />
   );
 }
 

@@ -83,6 +83,7 @@ export function DocumentsView({
               <a href={`#document-${document.documentSlotId}`} className="pt-adm-docs-item" data-status={document.status}>
                 <span className="pt-adm-docs-mark" aria-hidden="true">{documentChecklistMark(document)}</span>
                 <span className="pt-adm-docs-name">{document.requirementLabel}</span>
+                {document.instructions ? <span className="pt-adm-docs-hint">{document.instructions}</span> : null}
                 <span className="pt-adm-docs-status">{documentStatus(document, strings).label}</span>
               </a>
             </li>

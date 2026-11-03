@@ -52,6 +52,7 @@ export async function DocumentsSummaryCard({ locale }: Readonly<{ locale: Locale
                 >
                   <span className="pt-adm-docs-mark" aria-hidden="true">{documentChecklistMark(document)}</span>
                   <span className="pt-adm-docs-name">{document.requirementLabel}</span>
+                  {document.instructions ? <span className="pt-adm-docs-hint">{document.instructions}</span> : null}
                   <span className="pt-adm-docs-status">{documentStatus(document, strings).label}</span>
                 </Link>
               </li>

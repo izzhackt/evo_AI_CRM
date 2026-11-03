@@ -4433,7 +4433,7 @@
 }
 
 .pt-adm-docs-mark {
-  grid-row: span 2;
+  grid-row: 1 / span 3;
   display: grid;
   place-items: center;
   width: 20px;
@@ -4464,9 +4464,21 @@
   overflow-wrap: anywhere;
 }
 
+/* Что именно прислать — коротко, одной-двумя строками под названием. */
+.pt-adm-docs-hint {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  line-height: 1.4;
+}
+
 .pt-adm-docs-status {
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
+  font-weight: 600;
 }
 
 .pt-adm-docs-item[data-status="correction_required"] .pt-adm-docs-status,

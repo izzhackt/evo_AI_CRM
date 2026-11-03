@@ -72,7 +72,8 @@ const SECTIONS = [
   // ссылка a[href="/portal"] в этом nav).
   { href: "/portal/home", key: "nav.home", tiers: ["approved", "assisted"] },
   { href: "/portal", key: "nav.overview", tiers: ["approved", "assisted"] },
-  { href: "/portal/documents", key: "nav.documents", tiers: ["assisted"] },
+  // 03.11.2026: «Документы» и «Оплата» — без пунктов меню; страницы на месте,
+  // к ним ведут шаг и ссылки «Поступления».
   { href: "/portal/messages", key: "nav.messages", tiers: ["assisted"] },
   { href: "/portal/universities", key: "nav.universities", tiers: ["approved", "assisted"] },
   { href: "/portal/professions", key: "nav.professions", tiers: ["approved", "assisted"] },
@@ -81,7 +82,6 @@ const SECTIONS = [
   // умолчанию до ответа владельца, PLAN_CHANGES 16.10).
   { href: "/portal/csca", key: "nav.csca", tiers: ["approved", "assisted"] },
   { href: "/portal/favorites", key: "nav.favorites", tiers: ["approved", "assisted"] },
-  { href: "/portal/payments", key: "nav.payments", tiers: ["assisted"] },
   { href: "/portal/tests", key: "nav.tests", tiers: ["approved", "assisted"] },
   { href: "/portal/profile", key: "nav.profile", tiers: ["approved", "assisted"] },
 ] as const satisfies readonly {
@@ -181,8 +181,6 @@ function SectionIcon({ section }: { section: (typeof SECTIONS)[number]["key"] })
     "nav.home": "M3.5 9.5 10 3.5l6.5 6M5.5 8.2V16h9V8.2M8.5 16v-4h3v4",
     // Поступление: флажок у цели маршрута.
     "nav.overview": "M5 17V3.5M5 3.5h9.5l-2 3.5 2 3.5H5",
-    // Документы: лист с загнутым углом.
-    "nav.documents": "M6 2.5h5.5L15 6v11.5H6zM11.5 2.5V6H15M8.2 9.5h3.6M8.2 12.5h3.6",
     // Входящие (переписка и «Что нового»): пузырь диалога.
     "nav.messages": "M3.5 4.5h13v8.5h-7.2L6 16v-3H3.5zM6.8 7.5h6.4M6.8 10h4.4",
     // Университеты: здание с колоннами.
@@ -195,8 +193,6 @@ function SectionIcon({ section }: { section: (typeof SECTIONS)[number]["key"] })
     "nav.csca": "M4 3.5v12.5h12.5M6.5 13.5c1.6-.2 2.6-1.4 3.5-3.6.9-2.3 2.2-4.4 5-4.9",
     // Избранное: сердечко.
     "nav.favorites": "M10 16.1 4.4 10.7a3.6 3.6 0 0 1 0-5.2 3.7 3.7 0 0 1 5.2 0l.4.4.4-.4a3.7 3.7 0 0 1 5.2 0 3.6 3.6 0 0 1 0 5.2z",
-    // Оплата: карта.
-    "nav.payments": "M3 5.5h14v9H3zM3 8.5h14M5.5 11.5h3",
     // Тесты: планшет с отметкой.
     "nav.tests": "M6.5 3.5h7a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1zM8 3.5V2.8h4v.7M7.7 10.2l1.6 1.6 3-3.3",
     // Профиль: человек.

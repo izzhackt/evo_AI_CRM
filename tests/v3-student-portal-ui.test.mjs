@@ -91,7 +91,7 @@ test("the Student workspace preserves four portal pages, private tests and publi
       // PORT-9c: «Главная» — первый пункт обоих tier'ов.
       "/portal/home",
       "/portal",
-      "/portal/documents",
+      // 03.11.2026: «Документы» и «Оплата» сняты с меню, страницы — с «Поступления».
       // PORT-5c: переписка по делу — только assisted (tiers-гейт в Shell).
       "/portal/messages",
       "/portal/universities",
@@ -100,7 +100,6 @@ test("the Student workspace preserves four portal pages, private tests and publi
       // S5.1: CSCA рядом с «Английским», навигация не перестраивается.
       "/portal/csca",
       "/portal/favorites",
-      "/portal/payments",
       // 03.11.2026: «Уведомления» вошли во «Входящие» (/portal/messages,
       // лента «Что нового»); сама страница осталась для старых ссылок.
       "/portal/tests",

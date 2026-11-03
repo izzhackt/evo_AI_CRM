@@ -484,7 +484,8 @@ const ASSISTED_SECTION_PATHS = [
   "/portal/home",
   "/portal",
   "/portal/documents",
-  // 03.11.2026: «Оплата» без пункта меню (страница — с «Поступления»).
+  // 03.11.2026: «Оплата» снова пункт меню.
+  "/portal/payments",
   "/portal/messages",
   "/portal/universities",
   "/portal/professions",

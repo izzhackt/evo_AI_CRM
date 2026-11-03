@@ -92,7 +92,8 @@ test("the Student workspace preserves four portal pages, private tests and publi
       "/portal/home",
       "/portal",
       "/portal/documents",
-      // 03.11.2026: «Оплата» снята с меню, страница — с «Поступления».
+      // 03.11.2026: «Оплата» снова пункт меню.
+      "/portal/payments",
       // PORT-5c: переписка по делу — только assisted (tiers-гейт в Shell).
       "/portal/messages",
       // 03.11.2026: группы рейла «Выбор» и «Подготовка».
@@ -337,11 +338,15 @@ test("overview names each actor from the canonical projection and links exact it
   assert.match(overview, /id=\{`evo-task-\$\{evoAction\.taskId\}`\}/u);
   // Без задачи команды блока «Что делает EVO» нет вовсе — пустую строку-заглушку
   // студент не читает; спокойное состояние — один заголовок без пояснения.
-  assert.match(overview, /\{evoAction && evoStatus \? \(\s*<>\s*<h2 className="pt-adm-aside-title">\{strings\.evoHeading\}<\/h2>/u);
+  assert.match(overview, /\{evoAction && evoStatus \? \(\s*<div id=\{`evo-task-\$\{evoAction\.taskId\}`\} className="pt-adm-info-card">\s*<h2 className="pt-adm-aside-title">\{strings\.evoHeading\}<\/h2>/u);
   assert.doesNotMatch(overview, /evoEmpty|calmDoneLead/u);
   assert.equal(admissionRu.calmDone, "Сейчас действий от вас не требуется");
   // PORT-5d: 44px-цели живут в pt-классах (portal.css), не в tailwind-утилитах.
-  assert.match(overview, /pt-btn/u);
+  // 03.11.2026: карточки «Ваш следующий шаг» нет; первое дело открывает плитка
+  // «Требуют действия» на /portal (nextActionHref).
+  assert.match(overview, /className="pt-link"/u);
+  assert.doesNotMatch(overview, /student-next-step|pt-adm-hero/u);
+  assert.match(overview, /href: primary \? actionHref\(primary\) : null/u);
   assert.match(
     documents,
     /id=\{`document-\$\{document\.documentSlotId\}`\}/u,
@@ -364,9 +369,11 @@ test("the overview never claims a mandatory stage, and a pending cabinet stays h
   // ключи через admission.stage.* (RU байт-в-байт зеркалит staff-словарь
   // studentOperationalStage), нестандартное значение — stageCustom, без
   // overview этапа нет вовсе. Никакого нового RPC и выдуманных названий.
-  assert.match(overview, /overview\.operationalStage/u);
+  // 03.11.2026: «Моё поступление» больше не рисует этап; подпись этапа живёт
+  // в «Профиле» той же функцией stageLabel.
   assert.match(overview, /strings\.stageCustom/u);
-  assert.match(overview, /const stage = overview \? stageLabel\(overview\.operationalStage, strings\) : null/u);
+  assert.match(source("src/app/(portal)/portal/profile/page.tsx"),
+    /const stage = overview \? stageLabel\(overview\.operationalStage, admissionStrings\) : null/u);
   for (const key of [
     "contract_confirmed",
     "admissions_handoff",
@@ -390,7 +397,9 @@ test("the overview never claims a mandatory stage, and a pending cabinet stays h
   // в admission.pending* (RU байт-в-байт тот же — проверено ниже по значениям),
   // потому что этим экранам нужен KY, а staff-словарь не локализуется.
   assert.match(overview, /pending\??: boolean/u);
-  assert.match(overview, /pending \? strings\.pendingHeading : strings\.curatorHeading/u);
+  // 03.11.2026: без карточки куратора pending-кабинет получает одну карточку
+  // «Ваша анкета» с тем же честным текстом и ссылкой на статус.
+  assert.match(overview, /\{pending \? \(\s*<div className="pt-adm-info-card">\s*<h2 className="pt-adm-aside-card-title">\{strings\.pendingApplicationHeading\}<\/h2>/u);
   assert.match(overview, /strings\.pendingManagerNotice/u);
   // Пояснение под «Ваша анкета» на экране не рисуется: заголовок и ссылка говорят сами.
   assert.doesNotMatch(overview, /strings\.pendingApplicationHint/u);

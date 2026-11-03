@@ -35,7 +35,7 @@ type AdmissionView = "universities" | "programs";
  * студенту без дела на сопровождении (accessTier approved) её нет вовсе.
  *
  * 03.11.2026 (по образцу «Мой список» в кабинете пользователя): сверху плитки
- * с числами, затем следующий шаг и две вкладки-ссылки — «Вузы» (бывшее
+ * с числами («Требуют действия» ведёт к первому делу), затем две вкладки-ссылки — «Вузы» (бывшее
  * «Избранное», по умолчанию) и «Программы» (выбранные программы,
  * ?view=programs).
  */
@@ -77,26 +77,9 @@ async function AdmissionOverview({ actor, locale, view }: Readonly<{
   const favorites = await favoritesRead;
   const strings = getPortalStrings("admission", locale);
   const preparationStrings = getPortalStrings("preparations", locale);
-  // Плитки: только то, что прочиталось; без данных плитки нет.
-  const tiles = [
-    { key: "favorites", value: favorites?.length ?? null, label: strings["tile.favorites"] },
-    { key: "programs", value: preparations?.length ?? null, label: strings["tile.programs"] },
-    { key: "actions", value: overview ? overview.studentActions.length : null, label: strings["tile.actions"] },
-  ].filter((tile) => tile.value !== null);
-
   return (
     <>
-      {tiles.length > 0 ? (
-        <ul className="pt-stat-tiles" aria-label={strings.tilesLabel}>
-          {tiles.map((tile) => (
-            <li key={tile.key} className="pt-stat-tile">
-              <span className="pt-stat-value">{tile.value}</span>
-              <span className="pt-stat-label">{tile.label}</span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {overview === undefined ? <p className="pt-prep-error" role="status">{preparationStrings.overviewUnavailable}</p> : <OverviewView overview={overview} pending={actor.caseState === "pending"} locale={locale} />}
+      {overview === undefined ? <p className="pt-prep-error" role="status">{preparationStrings.overviewUnavailable}</p> : <OverviewView overview={overview} pending={actor.caseState === "pending"} locale={locale} favoritesCount={favorites?.length ?? null} programsCount={preparations?.length ?? null} />}
       <nav className="pt-pill-tabs" aria-label={strings.tabsLabel}>
         <Link className="pt-pill-tab" href="/portal" aria-current={view === "universities" ? "page" : undefined}>
           {strings["tab.universities"]}

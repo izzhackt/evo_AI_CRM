@@ -4453,106 +4453,8 @@
   }
 }
 
-.pt-adm-main {
-  min-width: 0;
-}
-
 .pt-adm-hero {
   padding: 24px 20px;
-}
-
-.pt-adm-hero-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-}
-
-.pt-adm-hero-icon {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--pt-radius-control);
-  background: color-mix(in srgb, var(--pt-accent) 10%, var(--pt-surface));
-  color: var(--pt-accent);
-  font-size: var(--pt-size-heading);
-}
-
-.pt-adm-hero-icon-calm {
-  margin-bottom: 14px;
-}
-
-.pt-adm-hero-title {
-  margin: 0;
-  font-size: var(--pt-size-title);
-  font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.02em;
-  overflow-wrap: anywhere;
-}
-
-.pt-adm-hero-title-calm {
-  max-width: 440px;
-}
-
-.pt-adm-hero-lead {
-  margin: 14px 0 0;
-  max-width: 540px;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-secondary);
-  line-height: var(--pt-leading);
-}
-
-.pt-adm-hero-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px 32px;
-  margin: 20px 0 0;
-  padding-top: 16px;
-  border-top: 1px solid var(--pt-line);
-}
-
-.pt-adm-hero-fact {
-  min-width: 165px;
-  flex: 1;
-}
-
-.pt-adm-hero-fact dt {
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-}
-
-.pt-adm-hero-fact dd {
-  margin: 6px 0 0;
-  font-size: var(--pt-size-secondary);
-  overflow-wrap: anywhere;
-}
-
-.pt-adm-hero-cta {
-  margin-top: 20px;
-}
-
-.pt-adm-hero-link {
-  display: inline-block;
-  margin-top: 16px;
-}
-
-.pt-adm-subhead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0;
-  padding: 10px 20px;
-  border-top: 1px solid var(--pt-line);
-  border-bottom: 1px solid var(--pt-line);
-  background: var(--pt-bg);
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
 .pt-adm-list {
@@ -4565,60 +4467,6 @@
 
 .pt-adm-list > li + li {
   border-top: 1px solid var(--pt-line);
-}
-
-.pt-adm-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px 16px;
-  padding: 16px 20px;
-}
-
-.pt-adm-row-main {
-  min-width: 0;
-}
-
-.pt-adm-row-title {
-  margin: 0;
-  font-size: var(--pt-size-secondary);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.pt-adm-row-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  margin: 4px 0 0;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-}
-
-.pt-adm-row-meta-item {
-  display: flex;
-  gap: 4px;
-}
-
-.pt-adm-row-meta-item dd {
-  margin: 0;
-}
-
-.pt-adm-row-action {
-  flex-shrink: 0;
-}
-
-.pt-adm-footer-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 20px;
-  padding: 12px 20px;
-  border-top: 1px solid var(--pt-line);
-}
-
-.pt-adm-aside {
-  min-width: 0;
 }
 
 .pt-adm-aside-title {
@@ -4634,11 +4482,6 @@
   color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
   line-height: var(--pt-leading);
-}
-
-.pt-adm-evo {
-  padding-inline-start: 14px;
-  border-inline-start: 2px solid var(--pt-line);
 }
 
 .pt-adm-evo-title {
@@ -4661,60 +4504,11 @@
   font-size: var(--pt-size-caption);
 }
 
-.pt-adm-curator {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid var(--pt-line);
-}
-
-.pt-adm-curator-caption {
-  margin: 0 0 8px;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-}
-
-.pt-adm-curator-name {
-  display: block;
-  font-size: var(--pt-size-secondary);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.pt-adm-aside-card {
-  margin-top: 24px;
-  padding: 20px;
-  border: 1px solid var(--pt-line);
-  border-radius: var(--pt-radius-card);
-  background: var(--pt-surface);
-  box-shadow: var(--pt-shadow-card);
-}
-
 .pt-adm-aside-card-title {
   margin: 0;
   color: var(--pt-accent);
   font-size: var(--pt-size-secondary);
   font-weight: 600;
-}
-
-.pt-adm-aside-card-text {
-  margin: 8px 0;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-  line-height: var(--pt-leading);
-}
-
-/* Без пояснений ссылки карточки стоят столбиком сразу под заголовком. */
-.pt-adm-aside-card > .pt-link {
-  display: flex;
-  width: fit-content;
-}
-
-/* Блока «Что делает EVO» нет, пока у команды нет задачи: куратор встаёт первым. */
-.pt-adm-curator:first-child,
-.pt-adm-stage + .pt-adm-curator {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: 0;
 }
 
 /*
@@ -4747,6 +4541,52 @@
   box-shadow: var(--pt-shadow-card);
 }
 
+.pt-stat-tile.pt-stat-link {
+  height: 100%;
+  color: var(--pt-text);
+  text-decoration: none;
+  transition: box-shadow var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-stat-link:hover {
+  box-shadow: var(--pt-shadow-raised);
+}
+
+.pt-stat-link:hover .pt-stat-label {
+  color: var(--pt-text);
+}
+
+.pt-stat-link:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.pt-stat-tiles > li > .pt-stat-tile {
+  height: 100%;
+}
+
+/* Этап, куратор, задача EVO и связь — строка коротких карточек. */
+.pt-adm-info {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 16px;
+}
+
+.pt-adm-info-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 18px 22px;
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-adm-info-card > * {
+  margin: 0;
+}
+
 .pt-stat-value {
   font-size: 36px;
   font-weight: 700;
@@ -4765,7 +4605,7 @@
   display: inline-flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin: 32px 0 20px;
+  margin: 8px 0 20px;
   padding: 4px;
   border-radius: var(--pt-radius-chip);
   background: var(--pt-skeleton);
@@ -5243,7 +5083,6 @@ main.pt-page > .pt-card {
 .pt-doc-card .pt-doc-hint {
   margin: 0;
 }
-
 
 .pt-doc-controls {
   display: flex;
@@ -5985,14 +5824,6 @@ main.pt-page > .pt-card {
 
 .pt-res-back {
   align-self: flex-start;
-}
-
-/* Этап дела в колонке команды EVO (PORT-8c). */
-
-.pt-adm-stage {
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--pt-line);
 }
 
 /* ---------- «Главная» кабинета (PORT-9c) ---------- */

@@ -73,8 +73,9 @@ const SECTIONS = [
   { href: "/portal/home", key: "nav.home", tiers: ["approved", "assisted"] },
   { href: "/portal", key: "nav.overview", tiers: ["approved", "assisted"] },
   { href: "/portal/documents", key: "nav.documents", tiers: ["assisted"] },
-  // 03.11.2026: «Оплата» — без пункта меню; страница на месте, к ней ведут шаг
-  // и ссылка «Все начисления» на «Поступлении».
+  // 03.11.2026: «Оплата» снова пункт меню (слово пользователя): ссылки на
+  // начисления на «Поступлении» больше нет.
+  { href: "/portal/payments", key: "nav.payments", tiers: ["assisted"] },
   { href: "/portal/messages", key: "nav.messages", tiers: ["assisted"] },
   // 03.11.2026: рейл по группам, как в кабинете-образце пользователя: «Выбор»
   // (вузы, профессии) и «Учёба» (английский, CSCA, тесты). «Избранное» —
@@ -188,6 +189,8 @@ function SectionIcon({ section }: { section: (typeof SECTIONS)[number]["key"] })
     "nav.overview": "M5 17V3.5M5 3.5h9.5l-2 3.5 2 3.5H5",
     // Документы: лист с загнутым углом.
     "nav.documents": "M6 2.5h5.5L15 6v11.5H6zM11.5 2.5V6H15M8.2 9.5h3.6M8.2 12.5h3.6",
+    // Оплата: карта.
+    "nav.payments": "M3 5.5h14v9H3zM3 8.5h14M6 12h3",
     // Входящие (переписка и «Что нового»): пузырь диалога.
     "nav.messages": "M3.5 4.5h13v8.5h-7.2L6 16v-3H3.5zM6.8 7.5h6.4M6.8 10h4.4",
     // Университеты: здание с колоннами.

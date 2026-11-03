@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
 import { Icon } from "@/components/icons";
+import { caseChatHref } from "@/lib/platform-case-chat-contract";
 import type { CaseClosure, CaseClosureReceipt } from "@/lib/platform-closure-contract";
 import type {
   CaseNextActionReceipt,
@@ -199,6 +200,7 @@ export function StudentsQueueBody({
         tasks: `${studentsCaseHref(openRow.studentCaseId, { returnTo: returnTo(openRow.studentCaseId) })}#case-tasks`,
         createTask: createTask ? `/v3/tasks?create=case&case=${encodeURIComponent(openRow.studentCaseId)}` : null,
         task: (taskId) => `/v3/tasks?task=${encodeURIComponent(taskId)}&kind=case&case=${encodeURIComponent(openRow.studentCaseId)}`,
+        messages: openRow.state === "active" ? caseChatHref("", "all", openRow.studentCaseId) : null,
       }}
     />
   ) : <StudentQuickViewMissing closeHref={closeHref} caseHref={studentsCaseHref(openKey, { returnTo: closeHref })} />;

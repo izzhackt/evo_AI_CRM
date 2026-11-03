@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { KeyFacts } from "@/components/kit";
@@ -24,6 +25,11 @@ export type StudentSheetLinks = Readonly<{
   documents: string;
   createTask: string | null;
   task: (taskId: string) => string;
+  /**
+   * «Написать» (03.11.2026): переписка с этим студентом в «Переписке». null — дело не в работе: в списке «Переписки» только
+   * дела в работе. Студенту без кабинета переписка сама скажет, что он сообщение не увидит.
+   */
+  messages: string | null;
 }>;
 
 const NEED_CURATOR = <span className="font-medium text-danger">нужен куратор</span>;
@@ -87,6 +93,7 @@ export function StudentSheetBody({ row, today, now, access, tasks, handoff, clos
       <KeyFacts columns={1} facts={[
         { label: "Этап", value: admissionsPipelineStage(row.pipelineStage) ? <StageTrack kind="admissions" current={row.pipelineStage} closed={row.state === "closed"} /> : null },
         { label: "Куратор", value: <>{curator}{awaiting ? <span className="block font-medium text-warn">ждёт принятия</span> : null}</> },
+        { label: "Переписка", value: links.messages ? <Link href={links.messages} className="inline-flex min-h-6 items-center underline underline-offset-4 hover:text-fg-2">Написать студенту</Link> : null },
         { label: "Состояние", value: state },
       ]} />
       {row.state === "active" && known ? <p role="status" className="t-body-compact text-ok">Дело снова в работе.</p> : null}

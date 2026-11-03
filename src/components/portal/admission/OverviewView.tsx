@@ -14,7 +14,8 @@ type AdmissionStrings = PortalStrings<"admission">;
  * фиксированный CHECK-словарь миграции 042 + свободные значения). Известные
  * ключи локализуются словарём admission.stage.* (RU байт-в-байт зеркалит
  * staff-словарь studentOperationalStage), нестандартное значение честно
- * показывается как stageCustom — этап не выдумывается.
+ * показывается как stageCustom — этап не выдумывается. Ту же подпись берёт
+ * метка этапа в карточке «Профиля».
  */
 const STAGE_KEYS = [
   "contract_confirmed",
@@ -30,7 +31,7 @@ const STAGE_KEYS = [
   "closed",
 ] as const;
 
-function stageLabel(stage: string, strings: AdmissionStrings): string | null {
+export function stageLabel(stage: string, strings: AdmissionStrings): string | null {
   const normalized = stage.trim();
   if (!normalized) return null;
   const known = STAGE_KEYS.find((key) => key === normalized);

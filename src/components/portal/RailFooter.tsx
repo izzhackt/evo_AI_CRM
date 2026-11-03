@@ -36,8 +36,11 @@ export function RailFooter({ displayName, studyCountry, locale, current }: Reado
   const [pending, startTransition] = useTransition();
   const pendingRef = useRef(false);
 
+  // «en» показывается по-русски (getPortalStrings), значит отмечен RU.
+  const shown: PortalLanguage = locale === "ky" ? "ky" : "ru";
+
   function choose(language: PortalLanguage) {
-    if (pendingRef.current || language === locale) return;
+    if (pendingRef.current || language === shown) return;
     pendingRef.current = true;
     setFailed(false);
     startTransition(async () => {
@@ -60,7 +63,7 @@ export function RailFooter({ displayName, studyCountry, locale, current }: Reado
             key={language.value}
             type="button"
             className="pt-lang-option"
-            aria-pressed={locale === language.value}
+            aria-pressed={shown === language.value}
             aria-disabled={pending}
             onClick={() => choose(language.value)}
           >
@@ -76,6 +79,7 @@ export function RailFooter({ displayName, studyCountry, locale, current }: Reado
       <IntentPrefetchLink href="/portal/profile" aria-current={current ? "page" : undefined} className="pt-nav-account">
         <span className="pt-nav-account-initials" aria-hidden="true">{accountInitials(displayName)}</span>
         <span className="pt-nav-account-text">
+          <span className="pt-sr-only">{shell["nav.profile"]}: </span>
           <span className="pt-nav-account-name">{displayName}</span>
           <span className="pt-nav-account-role">
             {studyCountry ? `${studyCountry} · ${shell.accountRole}` : shell.accountRole}

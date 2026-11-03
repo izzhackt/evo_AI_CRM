@@ -371,45 +371,49 @@ export function Shell({
       </header>
 
       <div className="pt-body">
-        {/* Смоук-якорь: aria-label не локализуется до совместного PR со смоук-скриптом. */}
-        <nav
-          ref={navRef}
-          aria-label="Разделы кабинета"
-          className="pt-nav"
-          onBlur={closeWhenFocusLeaves}
-        >
-          <ul
-            className="pt-nav-list pt-nav-bar"
-            style={{ "--pt-tab-count": tabSections.length } as CSSProperties}
+        {/* Рейл: список разделов прокручивается, низ (язык и карточка студента)
+            стоит под ним вне <nav>; на телефоне обёртки нет (display: contents). */}
+        <div className="pt-rail">
+          {/* Смоук-якорь: aria-label не локализуется до совместного PR со смоук-скриптом. */}
+          <nav
+            ref={navRef}
+            aria-label="Разделы кабинета"
+            className="pt-nav"
+            onBlur={closeWhenFocusLeaves}
           >
-            {tabSections.map(renderSection)}
-            {moreSections.length > 0 ? (
-              <li className="pt-nav-more-item">
-                <button
-                  ref={toggleRef}
-                  type="button"
-                  className="pt-nav-more-toggle"
-                  aria-expanded={moreOpen}
-                  aria-controls={sheetId}
-                  data-current-inside={currentInMore ? "" : undefined}
-                  onClick={() => setOpenAt(moreOpen ? null : pathname)}
-                >
-                  <MoreIcon />
-                  <span className="pt-nav-label">{strings["nav.more"]}</span>
-                </button>
-              </li>
-            ) : null}
-          </ul>
-          {moreSections.length > 0 ? (
             <ul
-              id={sheetId}
-              className="pt-nav-list pt-nav-sheet"
-              data-open={moreOpen ? "" : undefined}
+              className="pt-nav-list pt-nav-bar"
+              style={{ "--pt-tab-count": tabSections.length } as CSSProperties}
             >
-              {moreSections.map(renderSection)}
+              {tabSections.map(renderSection)}
+              {moreSections.length > 0 ? (
+                <li className="pt-nav-more-item">
+                  <button
+                    ref={toggleRef}
+                    type="button"
+                    className="pt-nav-more-toggle"
+                    aria-expanded={moreOpen}
+                    aria-controls={sheetId}
+                    data-current-inside={currentInMore ? "" : undefined}
+                    onClick={() => setOpenAt(moreOpen ? null : pathname)}
+                  >
+                    <MoreIcon />
+                    <span className="pt-nav-label">{strings["nav.more"]}</span>
+                  </button>
+                </li>
+              ) : null}
             </ul>
-          ) : null}
-          <span aria-hidden="true" className="pt-nav-indicator" />
+            {moreSections.length > 0 ? (
+              <ul
+                id={sheetId}
+                className="pt-nav-list pt-nav-sheet"
+                data-open={moreOpen ? "" : undefined}
+              >
+                {moreSections.map(renderSection)}
+              </ul>
+            ) : null}
+            <span aria-hidden="true" className="pt-nav-indicator" />
+          </nav>
           {/* Широкий экран: язык и карточка студента внизу рейла; на телефоне их нет. */}
           <RailFooter
             displayName={displayName}
@@ -417,7 +421,7 @@ export function Shell({
             locale={locale}
             current={pathname === RAIL_ACCOUNT_HREF}
           />
-        </nav>
+        </div>
 
         {/*
           Существующие экраны продолжают жить в v3-мире без изменений до своих

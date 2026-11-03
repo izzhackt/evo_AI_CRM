@@ -535,21 +535,35 @@
   font-weight: 600;
 }
 
+/* Телефон: обёртки рейла нет — панель вкладок и лист живут как раньше. */
+.pt-rail {
+  display: contents;
+}
+
 @media (min-width: 768px) {
-  .pt-nav {
+  /* Колонка рейла: список разделов прокручивается, низ стоит под ним. */
+  .pt-rail {
     position: sticky;
     top: var(--pt-topbar-height);
     align-self: flex-start;
-    display: grid;
-    align-content: start;
-    gap: 4px;
+    display: flex;
+    flex-direction: column;
     width: var(--pt-rail-width);
     height: calc(100dvh - var(--pt-topbar-height));
     flex-shrink: 0;
-    overflow-y: auto;
-    padding: 16px 12px;
     background: var(--pt-surface);
     border-inline-end: 1px solid var(--pt-line);
+  }
+
+  .pt-nav {
+    position: relative;
+    display: grid;
+    flex: 1;
+    align-content: start;
+    gap: 4px;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px 12px;
   }
 
   /* Вкладки и «лист» — один рейл подряд, в порядке разделов. */
@@ -582,17 +596,12 @@
 }
 
 @media (min-width: 768px) {
-  /* Колонка вместо сетки: низ прижимается к краю рейла. */
-  .pt-nav {
-    display: flex;
-    flex-direction: column;
-  }
-
+  /* Низ всегда на виду: под прокручиваемым списком, не в его конце. */
   .pt-nav-footer {
     display: grid;
+    flex-shrink: 0;
     gap: 12px;
-    margin-top: auto;
-    padding-top: 16px;
+    padding: 12px 12px 16px;
     border-top: 1px solid var(--pt-line);
   }
 
@@ -619,7 +628,7 @@
 
 .pt-lang-option {
   min-width: 44px;
-  min-height: 32px;
+  min-height: 44px;
   padding: 0 10px;
   border: 0;
   border-radius: calc(var(--pt-radius-control) - 3px);
@@ -632,10 +641,11 @@
   cursor: pointer;
 }
 
+/* Выбранный: поверхность и рамка контрола (≥3:1 в обеих темах), не только тон. */
 .pt-lang-option[aria-pressed="true"] {
   background: var(--pt-surface);
   color: var(--pt-text);
-  box-shadow: var(--pt-shadow-card);
+  box-shadow: inset 0 0 0 1px var(--pt-control-edge);
   cursor: default;
 }
 
@@ -1342,6 +1352,16 @@
   margin: 2px 0 0;
   color: var(--pt-text-2);
   overflow-wrap: anywhere;
+}
+
+/* Метки под почтой, как «Этап: …» у ориентира: страна и этап дела. */
+.pt-profile-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
 /* Телефон: «Выйти» под именем; от 640 px — справа в той же строке. */

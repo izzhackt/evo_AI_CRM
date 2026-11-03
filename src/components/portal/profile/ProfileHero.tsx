@@ -5,20 +5,23 @@ import { accountInitials } from "@/components/portal/initials";
 /**
  * Карточка студента наверху «Профиля» (03.11.2026): место под фото — пока
  * инициалы в круге, как у кнопки аккаунта (поля фото у студента в модели
- * нет), имя и почта из профиля 196. Справа — действие аккаунта («Выйти»),
- * под чертой — строка-ссылка (результаты тестов). Ссылку и серверное
- * действие передаёт страница: они остаются в её исходнике.
+ * нет), имя и почта из профиля 196, метки страны и этапа. Справа — действие
+ * аккаунта («Выйти»), под чертой — строка-ссылка (результаты тестов). Ссылку
+ * и серверное действие передаёт страница: они остаются в её исходнике.
  */
 export function ProfileHero({
   displayName,
   email,
   emailLabel,
+  chips,
   action,
   footer,
 }: Readonly<{
   displayName: string;
   email: string;
   emailLabel: string;
+  /** Короткие метки под почтой: страна поступления, этап дела. Пустой — без строки. */
+  chips: readonly string[];
   action: ReactNode;
   footer: ReactNode;
 }>) {
@@ -32,6 +35,11 @@ export function ProfileHero({
             <span className="pt-sr-only">{emailLabel}: </span>
             {email}
           </p>
+          {chips.length > 0 ? (
+            <ul className="pt-profile-chips">
+              {chips.map((chip) => <li key={chip} className="pt-chip">{chip}</li>)}
+            </ul>
+          ) : null}
         </div>
         <div className="pt-profile-hero-action">{action}</div>
       </div>

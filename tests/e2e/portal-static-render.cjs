@@ -849,6 +849,7 @@ const surfaces = [
             displayName: "Айбек Токтогулов",
             email: "student@example.invalid",
             emailLabel: profileStrings.emailLabel,
+            chips: ["Малайзия", `${admission.stageTerm}: ${admission["stage.applications"]}`],
             action: createElement(
               "form",
               null,

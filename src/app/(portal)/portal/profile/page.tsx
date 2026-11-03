@@ -7,6 +7,10 @@ import { AccountDeletionPanel } from "@/components/account-deletion/AccountDelet
 import { LanguageForm } from "@/components/portal/profile/LanguageForm";
 import { ProfileHero } from "@/components/portal/profile/ProfileHero";
 import { ProfileIcon } from "@/components/portal/profile/ProfileIcon";
+import { stageLabel } from "@/components/portal/admission/OverviewView";
+import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
+import { readStudentPortalOverview } from "@/lib/v3/portal-source";
+import { isStudyCountryCode, studyCountryName } from "@/lib/study-countries";
 import { getLocale } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
 import {
@@ -111,12 +115,23 @@ export default async function ProfilePage() {
   // (320, 25.10.2026) — тоже отдельное чтение со своей честной строкой сбоя,
   // и только у клиента с делом на сопровождении: самостоятельному студенту
   // (accessTier approved) строки нет, а база не читается.
-  const [profile, deletion, consultationHistory, aiConsent] = await Promise.all([
+  // Метки карточки студента (03.11.2026): страна поступления (чтение 284) и
+  // этап дела (обзор, только у клиента на сопровождении); сбой — без метки.
+  const [profile, deletion, consultationHistory, countryChoice, overview, aiConsent] = await Promise.all([
     readOwnPortalProfile().catch((): PortalProfile | null => null),
     readOwnAccountDeletion(),
     readOwnConsultationRequests().catch((): readonly ConsultationReceipt[] | null => null),
+    readStudentCountryChoice().catch((): null => null),
+    actor.accessTier === "assisted" ? readStudentPortalOverview().catch((): null => null) : null,
     readOwnAiConsent(actor.accessTier),
   ]);
+  const admissionStrings = getPortalStrings("admission", locale);
+  const country = countryChoice?.country ?? null;
+  const stage = overview ? stageLabel(overview.operationalStage, admissionStrings) : null;
+  const heroChips = [
+    country !== null && isStudyCountryCode(country) ? studyCountryName(country, locale) : null,
+    stage ? `${admissionStrings.stageTerm}: ${stage}` : null,
+  ].filter((chip): chip is string => chip !== null);
 
   return (
     <main className="pt-page pt-profile">
@@ -131,6 +146,7 @@ export default async function ProfilePage() {
             displayName={profile.displayName}
             email={profile.email}
             emailLabel={strings.emailLabel}
+            chips={heroChips}
             action={(
               <form action={logoutStudentPortalAction}>
                 <button type="submit" className="pt-btn-ghost">{strings.logout}</button>
@@ -174,9 +190,7 @@ export default async function ProfilePage() {
                 <ProfileIcon name="language" />
                 {strings.languageHeading}
               </h2>
-              {/* key: язык, сменённый внизу рейла, сбрасывает выбор формы. */}
               <LanguageForm
-                key={profile.portalLanguage}
                 initialLanguage={profile.portalLanguage}
                 strings={{
                   languageHeading: strings.languageHeading,

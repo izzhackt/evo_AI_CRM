@@ -27,6 +27,8 @@ const shellRu = {
   staleVersion: "Вышла новая версия — обновите страницу.",
   staleVersionReload: "Обновить страницу",
   account: "Ваш аккаунт",
+  // Подпись под именем в карточке внизу рейла.
+  accountRole: "Студент",
   logout: "Выйти",
   // Кнопка «солнце/луна»: имя постоянное, состояние — aria-pressed.
   "theme.dark": "Тёмная тема",
@@ -35,7 +37,7 @@ const shellRu = {
   "nav.home": "Главная",
   "nav.overview": "Поступление",
   "nav.documents": "Документы",
-  "nav.messages": "Сообщения",
+  "nav.messages": "Входящие",
   "nav.universities": "Университеты",
   "nav.professions": "Профессии",
   "nav.english": "Английский",
@@ -45,6 +47,13 @@ const shellRu = {
   "nav.notifications": "Уведомления",
   "nav.tests": "Тесты",
   "nav.profile": "Профиль",
+  // Подписи групп рейла (03.11.2026): над «Университетами» и над «Английским»;
+  // не «Подготовка»: в продукте это слово значит подготовку документов.
+  "nav.groupChoice": "Выбор",
+  "nav.groupPrep": "Учёба",
+  // Кнопка в шапке рейла: свернуть до значков и обратно.
+  "rail.collapse": "Свернуть меню",
+  "rail.expand": "Развернуть меню",
 } as const;
 
 type ShellKey = keyof typeof shellRu;
@@ -60,6 +69,7 @@ const shellKy: Readonly<Record<ShellKey, string>> = {
   staleVersion: "Жаңы версия чыкты — баракты жаңыртыңыз.",
   staleVersionReload: "Баракты жаңыртуу",
   account: "Сиздин аккаунт",
+  accountRole: "Студент",
   logout: "Чыгуу",
   // KY: носитель языка вычитывает в PR.
   "theme.dark": "Караңгы тема",
@@ -68,7 +78,7 @@ const shellKy: Readonly<Record<ShellKey, string>> = {
   "nav.home": "Башкы бет",
   "nav.overview": "Тапшыруу",
   "nav.documents": "Документтер",
-  "nav.messages": "Билдирүүлөр",
+  "nav.messages": "Келген каттар",
   "nav.universities": "Университеттер",
   "nav.professions": "Кесиптер",
   "nav.english": "Англис тили",
@@ -78,6 +88,10 @@ const shellKy: Readonly<Record<ShellKey, string>> = {
   "nav.notifications": "Билдирмелер",
   "nav.tests": "Тесттер",
   "nav.profile": "Профиль",
+  "nav.groupChoice": "Тандоо",
+  "nav.groupPrep": "Окуу",
+  "rail.collapse": "Менюну жыйноо",
+  "rail.expand": "Менюну ачуу",
 };
 
 /**
@@ -336,9 +350,7 @@ const universitiesKy: Readonly<Record<UniversitiesKey, string>> = {
  * свойств. Никаких рейтингов и «шансов поступления» — план §6/§14.
  */
 const favoritesRu = {
-  kicker: "Каталог",
   title: "Избранное",
-  lead: "Университеты, которые вы сохранили. Можно сравнить их рядом.",
   savedCount: "Сохранено: {count}",
   hiddenCount: "Больше нет в каталоге: {count}",
   emptyTitle: "Пока ничего не сохранено",
@@ -359,9 +371,7 @@ const favoritesRu = {
 type FavoritesKey = keyof typeof favoritesRu;
 
 const favoritesKy: Readonly<Record<FavoritesKey, string>> = {
-  kicker: "Каталог",
   title: "Тандалмалар",
-  lead: "Сиз сактаган университеттер. Аларды катар коюп салыштырса болот.",
   savedCount: "Сакталды: {count}",
   hiddenCount: "Каталогдо мындан ары жок: {count}",
   emptyTitle: "Азырынча эч нерсе сакталган жок",
@@ -385,44 +395,29 @@ const favoritesKy: Readonly<Record<FavoritesKey, string>> = {
  * описанием последствий, без обещаний сроков (план §7 тексты, §13).
  */
 const profileRu = {
-  kicker: "Аккаунт",
   title: "Профиль",
-  lead: "Данные аккаунта, язык портала и управление доступом.",
   unavailable: "Не удалось загрузить профиль. Обновите страницу.",
-  dataHeading: "Данные",
-  nameLabel: "Имя",
-  emailLabel: "Email",
+  // «Моя анкета» (03.11.2026): ответы /apply только для чтения.
+  applicationUnavailable: "Не удалось загрузить анкету. Обновите страницу.",
   testsLink: "Личные результаты тестов",
   languageHeading: "Язык портала",
-  languageHint: "Сохраняется в аккаунте и действует на всех ваших устройствах.",
   languageRu: "Русский",
   languageKy: "Кыргызский",
-  languageSave: "Сохранить язык",
-  languageSaved: "Язык сохранён.",
   languageError: "Не удалось сохранить язык. Повторите.",
-  sessionHeading: "Выход",
   logout: "Выйти",
 } as const;
 
 type ProfileKey = keyof typeof profileRu;
 
 const profileKy: Readonly<Record<ProfileKey, string>> = {
-  kicker: "Аккаунт",
   title: "Профиль",
-  lead: "Аккаунттун маалыматы, порталдын тили жана кирүүнү башкаруу.",
   unavailable: "Профиль жүктөлгөн жок. Баракты жаңыртыңыз.",
-  dataHeading: "Маалымат",
-  nameLabel: "Аты-жөнү",
-  emailLabel: "Email",
+  applicationUnavailable: "Анкета жүктөлгөн жок. Баракты жаңыртыңыз.",
   testsLink: "Жеке тест жыйынтыктары",
   languageHeading: "Порталдын тили",
-  languageHint: "Аккаунтта сакталат жана бардык түзмөктөрүңүздө колдонулат.",
   languageRu: "Орусча",
   languageKy: "Кыргызча",
-  languageSave: "Тилди сактоо",
-  languageSaved: "Тил сакталды.",
   languageError: "Тил сакталган жок. Кайталаңыз.",
-  sessionHeading: "Чыгуу",
   logout: "Чыгуу",
 };
 
@@ -477,10 +472,8 @@ const consultationKy: Readonly<Record<ConsultationKey, string>> = {
  * учебное содержание и не переводятся (план §2); интерфейс — RU/KY.
  */
 const englishRu = {
-  kicker: "Обучение",
   title: "Английский",
   lessonTitle: "Урок",
-  lead: "Модуль уроков с нуля: теория, задания и разбор каждого ответа.",
   unavailable: "Не удалось загрузить уроки. Обновите страницу. Ваш прогресс не потерян.",
   emptyTitle: "Уроки готовятся",
   emptyBody: "Когда проверенный модуль будет опубликован, он появится здесь.",
@@ -541,10 +534,8 @@ const englishRu = {
 type EnglishKey = keyof typeof englishRu;
 
 const englishKy: Readonly<Record<EnglishKey, string>> = {
-  kicker: "Окуу",
   title: "Англис тили",
   lessonTitle: "Сабак",
-  lead: "Нөлдөн баштаган сабактар модулу: теория, тапшырмалар жана ар бир жооптун разбору.",
   unavailable: "Сабактар жүктөлгөн жок. Баракты жаңыртыңыз. Прогрессиңиз жоголгон жок.",
   emptyTitle: "Сабактар даярдалып жатат",
   emptyBody: "Текшерилген модуль жарыялангандан кийин ушул жерде чыгат.",
@@ -619,6 +610,21 @@ const cscaRu = {
   emptyBody: "Когда проверенные уроки будут опубликованы, они появятся здесь.",
   overviewToggle: "Об экзамене",
   overviewSkip: "К занятиям",
+  // Вкладки страницы (03.11.2026): занятия и обзор экзамена.
+  tabsLabel: "Разделы CSCA",
+  "tab.lessons": "Занятия",
+  "tab.about": "Об экзамене",
+  moduleDone: "Пройдено {done} из {total}",
+  // Плитки под следующим шагом: крупное число и подпись.
+  "tile.topics": "Темы",
+  "tile.topicsNote": "С пройденным уроком",
+  "tile.reviewNote": "К повторению сегодня",
+  "tile.exam": "Ближайший экзамен",
+  "tile.days.one": "день",
+  "tile.days.few": "дня",
+  "tile.days.many": "дней",
+  "tile.examToday": "Сегодня",
+  "tile.examNone": "Даты не опубликованы",
   overviewChecked: "Сведения об экзамене подтверждены EVO {date}, правила и даты сессий публикует csca.cn.",
   moduleHeading: "Занятия в EVO",
   moduleStatus: "Сейчас в EVO математика (тем: {count}). Физика и химия позже.",
@@ -867,6 +873,19 @@ const cscaKy: Readonly<Record<CscaKey, string>> = {
   emptyBody: "Текшерилген сабактар жарыялангандан кийин ушул жерде чыгат.",
   overviewToggle: "Экзамен жөнүндө",
   overviewSkip: "Сабактарга өтүү",
+  tabsLabel: "CSCA бөлүмдөрү",
+  "tab.lessons": "Сабактар",
+  "tab.about": "Экзамен жөнүндө",
+  moduleDone: "{total} ичинен {done} өтүлдү",
+  "tile.topics": "Темалар",
+  "tile.topicsNote": "Сабагы өтүлгөн",
+  "tile.reviewNote": "Бүгүн кайталоого",
+  "tile.exam": "Жакынкы экзамен",
+  "tile.days.one": "күн",
+  "tile.days.few": "күн",
+  "tile.days.many": "күн",
+  "tile.examToday": "Бүгүн",
+  "tile.examNone": "Даталар жарыяланган жок",
   overviewChecked: "Экзамен тууралуу маалыматты EVO {date} тастыктаган, эрежелерди жана сессиялардын даталарын csca.cn жарыялайт.",
   moduleHeading: "EVOдогу сабактар",
   moduleStatus: "Азыр EVOдо математика бар (темалар: {count}). Физика жана химия кийинчерээк.",
@@ -1114,9 +1133,8 @@ const cscaKy: Readonly<Record<CscaKey, string>> = {
  * с его локалью и здесь сознательно не переводится.
  */
 const testsRu = {
-  kicker: "Кабинет студента",
+  backToCatalog: "Все тесты",
   title: "Тесты",
-  lead: "Узнайте, что стоит подтянуть в английском и какие занятия вам интересны. Проходите в своём темпе — результаты остаются в вашем кабинете.",
   emptyTitle: "Тесты готовятся",
   emptyBody: "Когда проверенные задания будут опубликованы, они появятся здесь.",
   cardDraft: "В процессе · {answered} из {total}",
@@ -1223,9 +1241,8 @@ const testsRu = {
 type TestsKey = keyof typeof testsRu;
 
 const testsKy: Readonly<Record<TestsKey, string>> = {
-  kicker: "Студенттин кабинети",
+  backToCatalog: "Бардык тесттер",
   title: "Тесттер",
-  lead: "Англис тилинде эмнени бекемдөө керектигин жана кайсы иштер сизге кызыктуу экенин билиңиз. Өз ыргагыңызда өтүңүз — жыйынтыктар кабинетиңизде калат.",
   emptyTitle: "Тесттер даярдалып жатат",
   emptyBody: "Текшерилген тапшырмалар жарыялангандан кийин ушул жерде чыгат.",
   cardDraft: "Аткарылууда · {total} ичинен {answered}",
@@ -1334,10 +1351,8 @@ const testsKy: Readonly<Record<TestsKey, string>> = {
  * Названия программ и вузов остаются на языке каталога (имена собственные).
  */
 const professionsRu = {
-  kicker: "Исследование",
   title: "Профессии",
   cardTitle: "Профессия",
-  lead: "Как устроен рабочий день, что придётся уметь и куда за этим поступать.",
   unavailable: "Не удалось загрузить профессии. Обновите страницу.",
   emptyTitle: "По этому интересу пока нет карточек",
   emptyBody: "Уберите фильтр или выберите другой интерес.",
@@ -1377,10 +1392,8 @@ const professionsRu = {
 type ProfessionsKey = keyof typeof professionsRu;
 
 const professionsKy: Readonly<Record<ProfessionsKey, string>> = {
-  kicker: "Изилдөө",
   title: "Кесиптер",
   cardTitle: "Кесип",
-  lead: "Жумуш күнү кандай өтөт, эмнени билүү керек жана ал үчүн кайда тапшыруу керек.",
   unavailable: "Кесиптер жүктөлгөн жок. Баракты жаңыртыңыз.",
   emptyTitle: "Бул кызыгуу боюнча карточкалар азырынча жок",
   emptyBody: "Чыпканы алып салыңыз же башка кызыгууну тандаңыз.",
@@ -1424,9 +1437,16 @@ const professionsKy: Readonly<Record<ProfessionsKey, string>> = {
  * страница помечает разницу предметно.
  */
 const messagesRu = {
-  kicker: "Сопровождение",
-  title: "Сообщения",
-  lead: "Переписка с командой EVO по вашему делу.",
+  // «Входящие» (03.11.2026): переписка и лента «Что нового» в одном разделе.
+  title: "Входящие",
+  listAria: "Переписка и новости",
+  chatTitle: "Команда EVO",
+  chatSubline: "Куратор и команда отвечают здесь",
+  updatesTitle: "Что нового",
+  updatesSubline: "Новости по вашему делу, отвечать не нужно",
+  updatesUnavailable: "Не удалось загрузить новости. Обновите страницу.",
+  unreadCount: "Новых: {count}",
+  dayToday: "Сегодня",
   unavailable: "Не удалось загрузить сообщения. Обновите страницу. Переписка не потеряна.",
   emptyTitle: "Сообщений пока нет",
   emptyBody: "Напишите команде EVO — сообщение появится здесь вместе с ответом.",
@@ -1447,16 +1467,22 @@ const messagesRu = {
   attachmentDocument: "Документ: {label}",
   quotedPrefix: "В ответ на: {preview}",
   newMessageNotice: "Новое сообщение от {name}.",
-  differenceNote: "Здесь — переписка с командой по вашему делу. Разовый вопрос куратору с ответом — в разделе «Поступление».",
-  differenceLink: "Открыть вопрос куратору",
+  differenceNote: "Разовый вопрос куратору — на странице «Поступление».",
+  differenceLink: "Задать вопрос",
 } as const;
 
 type MessagesKey = keyof typeof messagesRu;
 
 const messagesKy: Readonly<Record<MessagesKey, string>> = {
-  kicker: "Коштоо",
-  title: "Билдирүүлөр",
-  lead: "Ишиңиз боюнча EVO командасы менен кат алышуу.",
+  title: "Келген каттар",
+  listAria: "Кат алышуу жана жаңылыктар",
+  chatTitle: "EVO командасы",
+  chatSubline: "Куратор жана команда ушул жерде жооп берет",
+  updatesTitle: "Эмне жаңы",
+  updatesSubline: "Ишиңиз боюнча жаңылыктар, жооп берүүнүн кереги жок",
+  updatesUnavailable: "Жаңылыктар жүктөлгөн жок. Баракты жаңыртыңыз.",
+  unreadCount: "Жаңы: {count}",
+  dayToday: "Бүгүн",
   unavailable: "Билдирүүлөр жүктөлгөн жок. Баракты жаңыртыңыз. Кат алышуу жоголгон жок.",
   emptyTitle: "Азырынча билдирүү жок",
   emptyBody: "EVO командасына жазыңыз — билдирүү жообу менен ушул жерде чыгат.",
@@ -1477,8 +1503,8 @@ const messagesKy: Readonly<Record<MessagesKey, string>> = {
   attachmentDocument: "Документ: {label}",
   quotedPrefix: "Жооп катары: {preview}",
   newMessageNotice: "{name} жаңы билдирүү жазды.",
-  differenceNote: "Бул жерде — ишиңиз боюнча команда менен кат алышуу. Кураторго жообу менен бир жолку суроо — «Тапшыруу» бөлүмүндө.",
-  differenceLink: "Кураторго суроону ачуу",
+  differenceNote: "Кураторго бир жолку суроо — «Тапшыруу» барагында.",
+  differenceLink: "Суроо берүү",
 };
 
 /**
@@ -1494,21 +1520,30 @@ const messagesKy: Readonly<Record<MessagesKey, string>> = {
  * tests/portal-i18n.test.mjs), staff-файл при этом не импортируется.
  */
 const admissionRu = {
-  kicker: "Сопровождение",
-  kickerCabinet: "Кабинет студента",
-  messagesNote: "Напишите команде EVO — переписка идёт в разделе «Сообщения».",
-  messagesLink: "Написать в сообщениях",
+  messagesLink: "Написать команде EVO",
 
   overviewTitle: "Моё поступление",
-  overviewLead: "Ваш следующий шаг и работа команды — под рукой.",
+  // 03.11.2026: плитки и вкладки «Вузы» (бывшее «Избранное») и «Программы».
+  tilesLabel: "Сводка",
+  "tile.favorites": "Вузов в избранном",
+  "tile.programs": "Выбранных программ",
+  "tile.actions": "Требуют действия",
+  tabsLabel: "Вузы и программы",
+  "tab.universities": "Вузы",
+  "tab.programs": "Программы",
   documentsTitle: "Документы",
-  documentsLead: "Что нужно предоставить, что уже принято и что требуется исправить.",
+  // 03.11.2026: подзаголовок, окно «Загрузить документ» и вкладки страницы.
+  documentsLead: "Команда EVO проверяет каждый файл перед подачей в вуз.",
+  uploadDialogOpen: "Загрузить документ",
+  uploadDialogClose: "Закрыть",
+  uploadDialogSelect: "Какой документ",
+  uploadDialogDone: "Готово",
+  docsTabsLabel: "Документы и пакеты",
+  "docsTab.checklist": "Мои документы",
+  "docsTab.packages": "Пакеты по вузам",
   paymentsTitle: "Оплата",
-  paymentsLead: "Сколько начислено, оплачено и осталось.",
   notificationsTitle: "Уведомления",
-  notificationsLead: "Важные изменения и сроки по вашему поступлению.",
   replyTitle: "Ответ куратора",
-  replyLead: "Обращение по вашему поступлению.",
   replyAllNotifications: "Все уведомления",
   replyYourQuestion: "Ваш вопрос",
   replyAnswer: "Ответ EVO",
@@ -1523,18 +1558,12 @@ const admissionRu = {
   openDocument: "Открыть документ",
   nextStepHeading: "Ваш следующий шаг",
   planHeading: "План поступления",
-  nextStepNote: "Что требуется от вас",
-  heroPaymentLead: "Проверьте сумму, срок оплаты и указания команды EVO.",
-  heroReplaceLead: "Откройте замечания к документу и загрузите исправленный файл.",
-  heroUploadLead: "Откройте документ и загрузите файл.",
   heroDueTerm: "Срок (по Бишкеку)",
   heroOutstandingTerm: "Осталось оплатить",
-  heroDocumentTerm: "Документ",
   heroPaymentCta: "Посмотреть начисление",
   calmDone: "Сейчас действий от вас не требуется",
   calmNoPlan: "План поступления пока не опубликован",
-  calmDoneLead: "Сейчас нет действий по документам и оплате. Можно изучить университеты или задать вопрос куратору.",
-  calmNoPlanLead: "Команда EVO добавит сюда этапы поступления, следующий шаг и контакт куратора.",
+  calmNoPlanLead: "Команда EVO добавит сюда ваш следующий шаг.",
   exploreUniversities: "Изучить университеты",
   remainingHeading: "Также требует внимания",
   footerNavAria: "Документы и оплата",
@@ -1542,17 +1571,15 @@ const admissionRu = {
   allPayments: "Все начисления",
   asideAria: "Команда EVO и помощь",
   evoHeading: "Что делает EVO",
-  evoEmpty: "Нет опубликованной задачи команды EVO.",
   curatorHeading: "Ваш куратор",
   curatorEmpty: "Куратор пока не назначен.",
   pendingHeading: "Сопровождение",
   pendingManagerNotice: "Менеджер свяжется с вами.",
   pendingApplicationHeading: "Ваша анкета",
+  // Зеркало staff-словаря portalPendingCabinet; на экране намеренно не рисуется.
   pendingApplicationHint: "Анкета, которую вы отправили и одобрила команда EVO.",
   pendingApplicationLink: "Открыть анкету",
   helpHeading: "Вопрос куратору",
-  helpText: "Отправьте вопрос команде EVO или прочитайте ответ на ваше обращение.",
-  helpTextAlso: "Отправляли разовое обращение? Ответ на него — ниже на этой странице.",
   helpLink: "Ответы на обращения",
   helpLinkPending: "Открыть обращения",
 
@@ -1578,6 +1605,12 @@ const admissionRu = {
   nextStepLabel: "Следующий шаг:",
 
   uploadLabel: "Загрузить новый файл",
+  // Кнопка строки документа, когда файл уже есть (03.11.2026).
+  replaceButton: "Заменить",
+  // Черновик уведомления о данных (03.11.2026): слова — на утверждение шефу.
+  // Это уведомление, а не согласие: согласие с записью — отдельная задача.
+  documentsPrivacyNote: "Загружая документы, вы разрешаете EVO использовать их для поступления. Файлы видите только вы и команда EVO, они хранятся закрыто и проверяются на вирусы.",
+  documentsPrivacyLink: "Политика конфиденциальности",
   uploadButton: "Загрузить",
   uploadingButton: "Загружаем файл…",
   confirmingButton: "Подтверждаем сохранение…",
@@ -1588,7 +1621,7 @@ const admissionRu = {
   uploadRefreshing: "Обновляем список документов…",
   uploadHint: "PDF, JPG или PNG, до 25 МБ.",
   uploadLocked: "Принятый документ доступен только для скачивания.",
-  downloadButton: "Скачать последний файл",
+  downloadButton: "Скачать",
   downloadAria: "Скачать {name}",
   lastFileFallback: "последний файл",
   errorFormUnavailable: "Форма загрузки недоступна.",
@@ -1623,9 +1656,9 @@ const admissionRu = {
   markAllReadError: "Не удалось подтвердить отметку для всех уведомлений. Часть могла быть отмечена. Повторите попытку.",
   marking: "Отмечаем…",
   targetReply: "Прочитать ответ куратора",
-  targetMessages: "Открыть сообщения",
+  targetMessages: "Открыть переписку",
   caseChatNotificationTitle: "Новое сообщение от команды EVO",
-  caseChatNotificationDetail: "Откройте «Сообщения», чтобы прочитать.",
+  caseChatNotificationDetail: "Откройте переписку во «Входящих», чтобы прочитать.",
   targetDocuments: "Открыть документы",
   targetProgramDocument: "Открыть решение по документу",
   targetProgramPackage: "Открыть решение по комплекту",
@@ -1636,7 +1669,7 @@ const admissionRu = {
   // PORT-8c: операционный этап дела — локализуемое зеркало staff-словаря
   // STUDENT_OPERATIONAL_STAGE (wording.ts): RU байт-в-байт, KY — свои
   // значения; нестандартный этап показывается честным stageCustom.
-  stageTerm: "Этап сопровождения",
+  stageTerm: "Этап",
   stageCustom: "индивидуальный этап сопровождения",
   "stage.contract_confirmed": "договор подтверждён",
   "stage.admissions_handoff": "передано в приёмную",
@@ -1649,6 +1682,17 @@ const admissionRu = {
   "stage.arrival_and_adaptation": "поездка и прибытие",
   "stage.completed": "поступление завершено",
   "stage.closed": "дело закрыто",
+  // Короткие подписи шагов дорожки на «Главной» (03.11.2026); полные — выше.
+  "stageShort.contract_confirmed": "Договор",
+  "stageShort.admissions_handoff": "Передача",
+  "stageShort.intake": "Приём",
+  "stageShort.profile_and_route": "Программа",
+  "stageShort.documents": "Документы",
+  "stageShort.applications": "Подача",
+  "stageShort.decisions": "Решения",
+  "stageShort.visa_and_predeparture": "Виза",
+  "stageShort.arrival_and_adaptation": "Прибытие",
+  "stageShort.completed": "Завершено",
   "docStatus.required": "Не загружен",
   "docStatus.submitted": "На проверке",
   "docStatus.approved": "Принят",
@@ -1675,21 +1719,28 @@ const admissionRu = {
 type AdmissionKey = keyof typeof admissionRu;
 
 const admissionKy: Readonly<Record<AdmissionKey, string>> = {
-  kicker: "Коштоо",
-  kickerCabinet: "Студенттин кабинети",
-  messagesNote: "EVO командасына жазыңыз — кат алышуу «Билдирүүлөр» бөлүмүндө жүрөт.",
-  messagesLink: "Билдирүүлөрдө жазуу",
+  messagesLink: "EVO командасына жазуу",
 
   overviewTitle: "Менин тапшыруум",
-  overviewLead: "Кийинки кадамыңыз жана команданын иши — көз алдыңызда.",
+  tilesLabel: "Кыскача",
+  "tile.favorites": "Тандалмалардагы университеттер",
+  "tile.programs": "Тандалган программалар",
+  "tile.actions": "Аракет талап кылынат",
+  tabsLabel: "Университеттер жана программалар",
+  "tab.universities": "Университеттер",
+  "tab.programs": "Программалар",
   documentsTitle: "Документтер",
-  documentsLead: "Эмнени берүү керек, эмне кабыл алынды жана эмнени оңдоо керек.",
+  documentsLead: "EVO командасы ар бир файлды университетке тапшыруудан мурун текшерет.",
+  uploadDialogOpen: "Документ жүктөө",
+  uploadDialogClose: "Жабуу",
+  uploadDialogSelect: "Кайсы документ",
+  uploadDialogDone: "Даяр",
+  docsTabsLabel: "Документтер жана пакеттер",
+  "docsTab.checklist": "Менин документтерим",
+  "docsTab.packages": "Университеттер боюнча пакеттер",
   paymentsTitle: "Төлөм",
-  paymentsLead: "Канча эсептелди, канча төлөндү жана канча калды.",
   notificationsTitle: "Билдирмелер",
-  notificationsLead: "Тапшырууңуз боюнча маанилүү өзгөрүүлөр жана мөөнөттөр.",
   replyTitle: "Куратордун жообу",
-  replyLead: "Тапшырууңуз боюнча кайрылуу.",
   replyAllNotifications: "Бардык билдирмелер",
   replyYourQuestion: "Сиздин суроо",
   replyAnswer: "EVO жообу",
@@ -1704,18 +1755,12 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   openDocument: "Документти ачуу",
   nextStepHeading: "Сиздин кийинки кадамыңыз",
   planHeading: "Тапшыруу планы",
-  nextStepNote: "Сизден эмне талап кылынат",
-  heroPaymentLead: "Сумманы, төлөм мөөнөтүн жана EVO командасынын көрсөтмөлөрүн текшериңиз.",
-  heroReplaceLead: "Документке берилген сын-пикирлерди ачып, оңдолгон файлды жүктөңүз.",
-  heroUploadLead: "Документти ачып, файлды жүктөңүз.",
   heroDueTerm: "Мөөнөтү (Бишкек убактысы)",
   heroOutstandingTerm: "Төлөнүүгө калды",
-  heroDocumentTerm: "Документ",
   heroPaymentCta: "Эсептөөнү көрүү",
   calmDone: "Азыр сизден эч кандай аракет талап кылынбайт",
   calmNoPlan: "Тапшыруу планы азырынча жарыялана элек",
-  calmDoneLead: "Азыр документтер жана төлөм боюнча аракеттер жок. Университеттерди изилдесеңиз же кураторго суроо берсеңиз болот.",
-  calmNoPlanLead: "EVO командасы бул жерге тапшыруу этаптарын, кийинки кадамды жана куратордун байланышын кошот.",
+  calmNoPlanLead: "EVO командасы бул жерге кийинки кадамыңызды кошот.",
   exploreUniversities: "Университеттерди изилдөө",
   remainingHeading: "Дагы көңүл бурууну талап кылат",
   footerNavAria: "Документтер жана төлөм",
@@ -1723,7 +1768,6 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   allPayments: "Бардык эсептөөлөр",
   asideAria: "EVO командасы жана жардам",
   evoHeading: "EVO эмне кылып жатат",
-  evoEmpty: "EVO командасынын жарыяланган тапшырмасы жок.",
   curatorHeading: "Сиздин куратор",
   curatorEmpty: "Куратор азырынча дайындала элек.",
   pendingHeading: "Коштоо",
@@ -1732,8 +1776,6 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   pendingApplicationHint: "Сиз жөнөткөн жана EVO командасы жактырган анкета.",
   pendingApplicationLink: "Анкетаны ачуу",
   helpHeading: "Кураторго суроо",
-  helpText: "EVO командасына суроо жөнөтүңүз же кайрылууңузга берилген жоопту окуңуз.",
-  helpTextAlso: "Бир жолку кайрылуу жибергенсизби? Анын жообу ушул беттин ылдый жагында.",
   helpLink: "Кайрылууларга жооптор",
   helpLinkPending: "Кайрылууларды ачуу",
 
@@ -1759,6 +1801,9 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   nextStepLabel: "Кийинки кадам:",
 
   uploadLabel: "Жаңы файл жүктөө",
+  replaceButton: "Алмаштыруу",
+  documentsPrivacyNote: "Документтерди жүктөп, сиз EVOго аларды тапшыруу үчүн колдонууга уруксат бересиз. Файлдарды сиз жана EVO командасы гана көрөт, алар жабык сакталат жана вируска текшерилет.",
+  documentsPrivacyLink: "Купуялык саясаты",
   uploadButton: "Жүктөө",
   uploadingButton: "Файлды жүктөп жатабыз…",
   confirmingButton: "Сакталышын ырастап жатабыз…",
@@ -1769,7 +1814,7 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   uploadRefreshing: "Документтердин тизмесин жаңыртып жатабыз…",
   uploadHint: "PDF, JPG же PNG, 25 МБга чейин.",
   uploadLocked: "Кабыл алынган документти жүктөп алууга гана болот.",
-  downloadButton: "Акыркы файлды жүктөп алуу",
+  downloadButton: "Жүктөп алуу",
   downloadAria: "{name} жүктөп алуу",
   lastFileFallback: "акыркы файлды",
   errorFormUnavailable: "Жүктөө формасы жеткиликсиз.",
@@ -1804,9 +1849,9 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   markAllReadError: "Бардык билдирмелердин окулганын белгилөө ырасталган жок. Айрымдары белгиленген болушу мүмкүн. Кайра аракет кылыңыз.",
   marking: "Белгилеп жатабыз…",
   targetReply: "Куратордун жообун окуу",
-  targetMessages: "Билдирүүлөрдү ачуу",
+  targetMessages: "Кат алышууну ачуу",
   caseChatNotificationTitle: "EVO командасынан жаңы билдирүү",
-  caseChatNotificationDetail: "Окуу үчүн «Билдирүүлөрдү» ачыңыз.",
+  caseChatNotificationDetail: "Окуу үчүн «Келген каттардагы» кат алышууну ачыңыз.",
   targetDocuments: "Документтерди ачуу",
   targetProgramDocument: "Документ боюнча чечимди ачуу",
   targetProgramPackage: "Топтом боюнча чечимди ачуу",
@@ -1814,7 +1859,7 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   targetOverview: "Тапшырууну ачуу",
 
   statusUnavailable: "статус жеткиликсиз",
-  stageTerm: "Коштоо этабы",
+  stageTerm: "Этап",
   stageCustom: "коштоонун жеке этабы",
   "stage.contract_confirmed": "келишим ырасталды",
   "stage.admissions_handoff": "кабыл алуу тобуна өткөрүлдү",
@@ -1827,6 +1872,16 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   "stage.arrival_and_adaptation": "сапар жана келүү",
   "stage.completed": "тапшыруу аяктады",
   "stage.closed": "иш жабылды",
+  "stageShort.contract_confirmed": "Келишим",
+  "stageShort.admissions_handoff": "Өткөрүү",
+  "stageShort.intake": "Кабыл алуу",
+  "stageShort.profile_and_route": "Программа",
+  "stageShort.documents": "Документтер",
+  "stageShort.applications": "Арыздар",
+  "stageShort.decisions": "Чечимдер",
+  "stageShort.visa_and_predeparture": "Виза",
+  "stageShort.arrival_and_adaptation": "Келүү",
+  "stageShort.completed": "Аяктады",
   "docStatus.required": "Жүктөлө элек",
   "docStatus.submitted": "Текшерүүдө",
   "docStatus.approved": "Кабыл алынды",
@@ -2223,10 +2278,17 @@ const applyKy: Readonly<Record<ApplyKey, string>> = {
  * собственные тексты экрана.
  */
 const homeRu = {
-  kicker: "Кабинет студента",
   title: "Главная",
-  leadApproved: "Путь поступления, уроки, тесты и сохранённые университеты.",
-  leadAssisted: "Что сделать сейчас, путь поступления, уроки и сохранённые университеты.",
+  // Шапка и «Ближайшие даты» (03.11.2026, по образцу кабинета пользователя).
+  greeting: "Здравствуйте, {name}",
+  stageStep: "Этап {n} из {total}: {stage}",
+  stagesAria: "Этапы поступления",
+  datesHeading: "Ближайшие даты",
+  datesEmptyTitle: "Дат пока нет",
+  dateDeadline: "{name}: последний день подачи",
+  dateStart: "{name}: начало учёбы",
+  favoritesHeading: "Мои вузы",
+  newsAll: "Все",
   caseHeading: "Что сделать сейчас",
   caseUnavailable: "Не удалось загрузить, что нужно сделать. Обновите страницу.",
   caseMore: "Ещё действий: {count}",
@@ -2256,10 +2318,16 @@ const homeRu = {
 type HomeKey = keyof typeof homeRu;
 
 const homeKy: Readonly<Record<HomeKey, string>> = {
-  kicker: "Студенттин кабинети",
   title: "Башкы бет",
-  leadApproved: "Тапшыруу жолу, сабактар, тесттер жана сакталган университеттер.",
-  leadAssisted: "Азыр эмне кылуу керек, тапшыруу жолу, сабактар жана сакталган университеттер.",
+  greeting: "Саламатсызбы, {name}",
+  stageStep: "{total} этаптын {n}-этабы: {stage}",
+  stagesAria: "Тапшыруунун этаптары",
+  datesHeading: "Жакынкы даталар",
+  datesEmptyTitle: "Даталар азырынча жок",
+  dateDeadline: "{name}: арыз берүүнүн акыркы күнү",
+  dateStart: "{name}: окуунун башталышы",
+  favoritesHeading: "Менин университеттерим",
+  newsAll: "Баары",
   caseHeading: "Азыр эмне кылуу керек",
   caseUnavailable: "Эмне кылуу керектиги жүктөлгөн жок. Баракты жаңыртыңыз.",
   caseMore: "Дагы аракеттер: {count}",

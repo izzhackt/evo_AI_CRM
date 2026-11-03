@@ -5,6 +5,7 @@ import { useRef } from "react";
 
 import { DetailSheet } from "@/components/kit";
 import { Button } from "@/components/ui/button";
+import { caseChatHref } from "@/lib/platform-case-chat-contract";
 import type { CaseClosure, CaseClosureReceipt } from "@/lib/platform-closure-contract";
 import type { CaseNextActionReceipt, StudentCaseQueueRow } from "@/lib/platform-student-case-queue-contract";
 
@@ -79,6 +80,7 @@ export function StudentSheetHost({ openKey, row, dismissed, onDismiss, returnTo,
           documents: caseUrl("documents"),
           createTask: createTask ? `/v3/tasks?create=case&case=${encodeURIComponent(row.studentCaseId)}` : null,
           task: (taskId) => `/v3/tasks?task=${encodeURIComponent(taskId)}&kind=case&case=${encodeURIComponent(row.studentCaseId)}`,
+          messages: row.state === "active" ? caseChatHref("", "all", row.studentCaseId) : null,
         }}
         onSaved={onSaved}
         onClosureChanged={onClosureChanged}

@@ -15,24 +15,22 @@ import {
 import { cscaHomeCardVisible, selectCscaHomeCard } from "@/lib/portal/csca-home-card";
 import { readCscaHome } from "@/lib/portal/csca-source";
 import { getPortalStrings } from "@/lib/portal/i18n";
-import { readLearningModules } from "@/lib/portal/learning-source";
-import { readStudentRecentUniversities } from "@/lib/portal/recent-universities-source";
 import {
   readStudentUniversitiesByIds,
   readStudentUniversityFavorites,
 } from "@/lib/portal/university-favorites-source";
 import { TIMELINE_MODULE_ROUTES } from "@/lib/portal/timeline-module-routes";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
-import { STUDY_COUNTRY_UNDECIDED, studyCountryOptions } from "@/lib/study-countries";
-import { readStudentAssessments } from "@/lib/v3/student-assessment-source";
+import { STUDY_COUNTRY_UNDECIDED, isStudyCountryCode, studyCountryName, studyCountryOptions } from "@/lib/study-countries";
 import {
+  readStudentPortalNotifications,
   readStudentPortalOverview,
   type StudentPortalOverview,
 } from "@/lib/v3/portal-source";
 
 export const dynamic = "force-dynamic";
 
-/** Показываем на «Главной» первые записи избранного; полный список — /portal/favorites. */
+/** Показываем на «Главной» первые записи избранного; полный список — вкладка «Вузы» на /portal. */
 const HOME_FAVORITES_LIMIT = 4;
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -63,14 +61,15 @@ export default async function StudentPortalHomePage() {
   // круга ожидания нет, а сбой чтения прячет карточку, не роняя «Главную».
   // Только у клиента с делом на сопровождении (tier assisted, он уже известен
   // из actor): самостоятельному студенту вопроса нет, и RPC не вызывается.
-  const [overviewResult, modules, assessments, favoritesResult, recentUniversities, choiceRead, aiConsentRead] = await Promise.all([
+  // 03.11.2026: «Учёба и тесты» и «Новое в каталоге» сняты с «Главной» — их
+  // чтений здесь больше нет; «Что нового» (лента «Входящих») — только assisted.
+  const [overviewResult, news, favoritesResult, choiceRead, aiConsentRead] = await Promise.all([
     tier === "assisted"
       ? readStudentPortalOverview()
         .then((value): { ok: true; value: StudentPortalOverview | null } => ({ ok: true, value }))
         .catch((): { ok: false } => ({ ok: false }))
       : Promise.resolve({ ok: true, value: null } as const),
-    readLearningModules().catch((): null => null),
-    readStudentAssessments().catch((): null => null),
+    tier === "assisted" ? readStudentPortalNotifications().catch((): null => null) : Promise.resolve(null),
     readStudentUniversityFavorites()
       .then(async (saved) => ({
         ok: true as const,
@@ -80,7 +79,6 @@ export default async function StudentPortalHomePage() {
         ),
       }))
       .catch(() => ({ ok: false as const })),
-    readStudentRecentUniversities().catch((): null => null),
     readStudentCountryChoice().catch((): null => null).then(async (choice) => ({
       choice,
       cscaHome: cscaHomeCardVisible(choice) ? await readCscaHome().catch((): null => null) : null,
@@ -108,24 +106,21 @@ export default async function StudentPortalHomePage() {
     label: option.label,
   }));
 
+  const country = choice?.country ?? null;
+  const studyCountry = country !== null && isStudyCountryCode(country) ? studyCountryName(country, locale) : null;
+
+  // Заголовок страницы — приветствие в шапке HomeView (HomeHero).
   return (
     <main className="pt-page">
-      <header className="pt-page-header">
-        <p className="pt-page-kicker">{strings.kicker}</p>
-        <h1 className="pt-page-title">{strings.title}</h1>
-        <p className="pt-page-lead">
-          {tier === "assisted" ? strings.leadAssisted : strings.leadApproved}
-        </p>
-      </header>
       <HomeView
         tier={tier}
+        displayName={actor.displayName}
+        studyCountry={studyCountry}
         overview={overviewResult.ok ? overviewResult.value : null}
         overviewFailed={!overviewResult.ok}
-        modules={modules}
-        assessments={assessments}
+        news={news}
         favorites={favoritesResult.ok ? favoritesResult.items : null}
         favoritesTotal={favoritesResult.ok ? favoritesResult.total : 0}
-        recentUniversities={recentUniversities}
         journey={(
           <CountryTimeline
             view={timelineView}

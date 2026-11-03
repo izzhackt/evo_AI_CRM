@@ -94,8 +94,7 @@ function OptionList({
 }) {
   return (
     // A11y (PORT-6a, WCAG 1.3.1/H71): группа радио-кнопок программно связана
-    // со своим вопросом через radiogroup + aria-labelledby — тот же паттерн,
-    // что уже используется в LanguageForm.
+    // со своим вопросом через radiogroup + aria-labelledby.
     <div role="radiogroup" aria-labelledby={labelId}>
       <ul className="pt-ex-options">
         {options.map((option) => (

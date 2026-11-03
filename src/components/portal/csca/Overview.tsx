@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { PhotoRights, type PhotoRightsStrings } from "@/components/portal/universities/PhotoRights";
 import type { Locale } from "@/lib/i18n-data";
 import { cscaDayLabel } from "@/lib/portal/csca";
@@ -16,11 +18,9 @@ import {
   type CscaSubjectFact,
   type L10n,
 } from "@/lib/portal/csca-overview";
-import { cscaOverviewOpen, type CscaOverviewChoice } from "@/lib/portal/csca-overview-choice";
 import { formatPortalString, type PortalStrings } from "@/lib/portal/i18n";
 
 import { cscaPhotoUrl } from "./overview-photo-files";
-import { OverviewSheet } from "./OverviewSheet";
 
 type Strings = PortalStrings<"csca">;
 
@@ -68,17 +68,6 @@ function OverviewPhoto({
         placement="bottom"
       />
     </figure>
-  );
-}
-
-function Thumb({ photo, eager }: { photo: CscaPhoto; eager: boolean }) {
-  const { webp, fallback } = cscaPhotoSources(photo);
-  const small = webp.filter((file) => file.width < 720);
-  return (
-    <picture className="cs-ov-thumb">
-      <source type="image/webp" srcSet={cscaPhotoSrcSet(small, cscaPhotoUrl)} sizes="72px" />
-      <img src={cscaPhotoUrl(fallback.path)} width={fallback.width} height={fallback.height} alt="" loading={eager ? "eager" : "lazy"} decoding="async" style={{ objectPosition: photo.objectPosition }} />
-    </picture>
   );
 }
 
@@ -206,63 +195,39 @@ function VerdictIcon({ needed }: { needed: boolean }) {
 }
 
 /**
- * Обзор экзамена (решение владельца 17.10.2026): что такое CSCA, кому он
- * нужен, предметы и формат, стоимость, вопросы. Факты из
- * src/content/csca/overview.json (подтвердил владелец), без прошедших дат:
- * вопрос «Когда проходит экзамен?» ведёт к блоку «Сессии CSCA» с календарём
- * csca.cn из базы. Логотипов CSC и CSCA и слов о партнёрстве нет.
+ * Вкладка «Об экзамене» (решение владельца 17.10.2026; отдельной вкладкой с
+ * 03.11.2026): что такое CSCA, сессии, кому он нужен, предметы и формат,
+ * стоимость, вопросы. Факты из src/content/csca/overview.json (подтвердил
+ * владелец), без прошедших дат: вопрос «Когда проходит экзамен?» ведёт к
+ * блоку «Сессии CSCA» с календарём csca.cn из базы. Логотипов CSC и CSCA и
+ * слов о партнёрстве нет.
  */
 export function CscaOverview({
   locale,
-  started,
-  choice,
   sessionsShown,
-  moduleShown,
+  sessions,
   strings,
   rightsStrings,
 }: {
   locale: Locale;
-  /** Студент уже занимается: обзор по умолчанию свёрнут. */
-  started: boolean;
-  /** Выбор зрителя из cookie `csca_overview` (контракт §19), без него умолчание. */
-  choice: CscaOverviewChoice | null;
   /** На странице есть блок сессий, к нему ведёт ответ о датах. */
   sessionsShown: boolean;
-  /** Занятия загрузились: под вводным текстом ссылка «К занятиям» на следующий шаг. */
-  moduleShown: boolean;
+  /** Календарь сессий csca.cn (SessionPicker) под вводной частью. */
+  sessions: ReactNode;
   strings: Strings;
   rightsStrings: PhotoRightsStrings;
 }) {
   const o = CSCA_OVERVIEW;
   const lang = locale === "ky" ? "ky" : "ru";
   const t = (text: L10n) => text[lang];
-  // Состояние первой отрисовки знает сервер: от него зависит, какое фото
-  // грузить сразу (герой открытого листа или миниатюра свёрнутого).
-  const openAtLoad = cscaOverviewOpen(choice, started);
   const hero = cscaOverviewPhoto(o.photos.hero);
   const audiencePhoto = cscaOverviewPhoto(o.photos.audience);
-
-  const head = (
-    <>
-      <h1 id="cs-title" className="cs-ov-title">{o.exam.short}</h1>
-      <p className="cs-ov-name" lang="en">{o.exam.nameEn}</p>
-    </>
-  );
 
   const intro = (
     <div className="cs-ov-intro">
       {o.intro.map((paragraph, index) => (
         <p key={index} className={index === 0 ? "cs-ov-lead" : undefined}>{t(paragraph)}</p>
       ))}
-      {moduleShown ? (
-        // Кто уже знает экзамен, не листает обзор до занятий (critique раунда 2).
-        <a className="cs-inline-link cs-ov-skip" href="#cs-next">
-          {strings.overviewSkip}
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M8 3.5v9m0 0 4-4m-4 4-4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </a>
-      ) : null}
     </div>
   );
 
@@ -355,25 +320,24 @@ export function CscaOverview({
   );
 
   return (
-    <OverviewSheet
-      started={started}
-      initialChoice={choice}
-      toggleLabel={strings.overviewToggle}
-      head={head}
-      summary={<p className="cs-ov-summary">{t(o.summary)}</p>}
-      intro={intro}
-      photo={(
-        <OverviewPhoto
-          photo={hero}
-          locale={locale}
-          sizes="(min-width: 1100px) 560px, 100vw"
-          className="cs-ov-photo cs-ov-photo-hero"
-          eager={openAtLoad}
-          rightsStrings={rightsStrings}
-        />
-      )}
-      thumb={<Thumb photo={hero} eager={!openAtLoad} />}
-      body={body}
-    />
+    <div className="cs-about">
+      <section className="cs-ov" data-open="" aria-labelledby="cs-title">
+        <div className="cs-ov-hero">
+          <div className="cs-ov-hero-text">{intro}</div>
+          <OverviewPhoto
+            photo={hero}
+            locale={locale}
+            sizes="(min-width: 1100px) 560px, 100vw"
+            className="cs-ov-photo cs-ov-photo-hero"
+            eager
+            rightsStrings={rightsStrings}
+          />
+        </div>
+      </section>
+      {sessions}
+      <section className="cs-ov" data-open="" aria-labelledby="cs-ov-audience-title">
+        <div id="cs-ov-body" className="cs-ov-body">{body}</div>
+      </section>
+    </div>
   );
 }

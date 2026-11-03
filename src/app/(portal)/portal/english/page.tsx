@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { LessonCover } from "@/components/portal/english/LessonCover";
 import { getLocale } from "@/lib/i18n";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import type { LearningModule } from "@/lib/portal/learning";
@@ -42,9 +43,7 @@ export default async function EnglishPage() {
   return (
     <main className="pt-page">
       <header className="pt-page-header">
-        <p className="pt-page-kicker">{strings.kicker}</p>
         <h1 className="pt-page-title">{strings.title}</h1>
-        <p className="pt-page-lead">{strings.lead}</p>
       </header>
 
       {modules === null ? (
@@ -56,79 +55,72 @@ export default async function EnglishPage() {
         </div>
       ) : (
         modules.map((module) => (
-          <section key={module.moduleId} className="pt-learn-module">
-            <div className="pt-learn-summary">
-              <h2 className="pt-section-title">
-                {locale === "ky" ? module.metadata.title_ky : module.metadata.title_ru}
-              </h2>
-              <p className="pt-learn-note">
-                {locale === "ky" ? module.metadata.level_note_ky : module.metadata.level_note_ru}
-              </p>
-              <p className="pt-learn-progress pt-data">
-                {formatPortalString(strings.progress, {
-                  done: String(module.lessonsCompleted),
-                  total: String(module.lessonsTotal),
-                })}
-              </p>
-            </div>
-
-            <div className="pt-learn-entries">
-              {reviewCount > 0 ? (
-                <Link className="pt-btn" href="/portal/english/review">
-                  {strings.reviewEntry}
+          <section key={module.moduleId} className="pt-learn-module" aria-labelledby={`module-${module.moduleId}`}>
+            {/* Модуль: название, прогресс полосой и вход в тест — без описаний (03.11.2026). */}
+            <div className="pt-learn-head">
+              <div className="pt-learn-head-main">
+                <h2 id={`module-${module.moduleId}`} className="pt-section-title">
+                  {locale === "ky" ? module.metadata.title_ky : module.metadata.title_ru}
+                </h2>
+                <p id={`module-progress-${module.moduleId}`} className="pt-learn-progress">
+                  {formatPortalString(strings.progress, {
+                    done: String(module.lessonsCompleted),
+                    total: String(module.lessonsTotal),
+                  })}
+                </p>
+                <progress
+                  className="pt-progress"
+                  value={module.lessonsCompleted}
+                  max={Math.max(module.lessonsTotal, 1)}
+                  aria-labelledby={`module-progress-${module.moduleId}`}
+                />
+              </div>
+              <div className="pt-learn-entries">
+                {reviewCount > 0 ? (
+                  <Link className="pt-btn" href="/portal/english/review">
+                    {strings.reviewEntry}
+                  </Link>
+                ) : null}
+                <Link className="pt-btn-ghost" href="/portal/tests/english">
+                  {strings.testEntry}
                 </Link>
-              ) : null}
-              <Link className="pt-btn-ghost" href="/portal/tests/english">
-                {strings.testEntry}
-              </Link>
-              <p className="pt-learn-note">{strings.testEntryHint}</p>
+              </div>
             </div>
 
-            <ol className="pt-lesson-list">
+            {/* Уроки плитками: обложка с фото темы, название и число заданий; плитка — ссылка на урок. */}
+            <ol className="pt-lesson-grid">
               {module.lessons.map((lesson) => {
-                const status = lesson.completed
-                  ? strings.statusCompleted
-                  : lesson.draftAttemptId
-                    ? strings.statusDraft
-                    : strings.statusNew;
-                const action = lesson.draftAttemptId
-                  ? strings.continueLesson
-                  : lesson.completed
-                    ? strings.repeatLesson
-                    : strings.startLesson;
+                const state = lesson.completed ? "done" : lesson.draftAttemptId ? "draft" : "new";
                 return (
-                  <li key={lesson.lessonId} className="pt-lesson-row">
-                    <div className="pt-lesson-row-body">
-                      <p className="pt-lesson-row-kicker pt-data">
-                        {formatPortalString(strings.lessonLabel, { n: String(lesson.orderIndex) })}
-                        {" · "}
-                        {formatPortalString(strings.exercisesCount, {
-                          count: String(lesson.exercisesTotal),
-                        })}
-                      </p>
-                      <h3 className="pt-lesson-row-title">
-                        {locale === "ky" ? lesson.metadata.title_ky : lesson.metadata.title_ru}
-                      </h3>
-                      <p className="pt-lesson-row-goal">
-                        {locale === "ky" ? lesson.metadata.goal_ky : lesson.metadata.goal_ru}
-                      </p>
-                      <p className="pt-lesson-row-status">
-                        <span className="pt-chip">{status}</span>
-                        {lesson.lastResult ? (
-                          <span className="pt-data">
-                            {formatPortalString(strings.lastResult, {
-                              correct: String(lesson.lastResult.correctCount),
-                              total: String(lesson.lastResult.exercisesTotal),
-                            })}
-                          </span>
-                        ) : null}
-                      </p>
-                    </div>
+                  <li key={lesson.lessonId}>
                     <Link
-                      className="pt-btn-ghost"
+                      className="pt-lesson-tile"
+                      data-state={state}
                       href={`/portal/english/lesson/${lesson.lessonId}`}
                     >
-                      {action}
+                      <LessonCover lessonKey={lesson.lessonKey} orderIndex={lesson.orderIndex} />
+                      <span className="pt-lesson-tile-body">
+                        <span className="pt-lesson-tile-title">
+                          {locale === "ky" ? lesson.metadata.title_ky : lesson.metadata.title_ru}
+                        </span>
+                        <span className="pt-lesson-tile-meta">
+                          <span className="pt-sr-only">
+                            {formatPortalString(strings.lessonLabel, { n: String(lesson.orderIndex) })}{" · "}
+                          </span>
+                          {formatPortalString(strings.exercisesCount, { count: String(lesson.exercisesTotal) })}
+                        </span>
+                        {state === "new" ? null : (
+                          <span className="pt-chip pt-lesson-tile-state">
+                            {state === "done" ? strings.statusCompleted : strings.statusDraft}
+                            {lesson.lastResult
+                              ? ` · ${formatPortalString(strings.lastResult, {
+                                correct: String(lesson.lastResult.correctCount),
+                                total: String(lesson.lastResult.exercisesTotal),
+                              })}`
+                              : null}
+                          </span>
+                        )}
+                      </span>
                     </Link>
                   </li>
                 );

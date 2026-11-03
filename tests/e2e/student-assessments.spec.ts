@@ -25,9 +25,9 @@ async function login(page: Page, kind = "STUDENT") {
   await expect(page).toHaveURL(kind === "ADMIN" ? /\/v3\/main$/ : /\/portal$/);
 }
 
-// PORT-2 (#867): «Выйти» lives in the account menu of the portal top bar.
+// 03.11.2026: the top bar has no account menu; «Выйти» lives on «Профиль».
 async function logout(page: Page) {
-  await page.getByRole("banner").locator("details.pt-user-menu > summary").click();
+  await page.goto("/portal/profile");
   await page.getByRole("button", { name: "Выйти", exact: true }).click();
 }
 

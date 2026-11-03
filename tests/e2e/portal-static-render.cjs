@@ -70,7 +70,9 @@ const { OverviewView } = require(join(ROOT, "src/components/portal/admission/Ove
 const { DocumentsView } = require(join(ROOT, "src/components/portal/admission/DocumentsView.tsx"));
 const { NotificationsView } = require(join(ROOT, "src/components/portal/admission/NotificationsView.tsx"));
 const { ProfessionsGrid } = require(join(ROOT, "src/components/portal/professions/ProfessionsGrid.tsx"));
-const { LanguageForm } = require(join(ROOT, "src/components/portal/profile/LanguageForm.tsx"));
+const { LanguageSwitch } = require(join(ROOT, "src/components/portal/LanguageSwitch.tsx"));
+const { ProfileHero } = require(join(ROOT, "src/components/portal/profile/ProfileHero.tsx"));
+const { ProfileIcon } = require(join(ROOT, "src/components/portal/profile/ProfileIcon.tsx"));
 const { AccountDeletionPanel } = require(join(ROOT, "src/components/account-deletion/AccountDeletionPanel.tsx"));
 const { ConsultationRequest } = require(join(ROOT, "src/components/portal/consultation/ConsultationRequest.tsx"));
 const { TestsCatalog } = require(join(ROOT, "src/components/portal/tests/TestsCatalog.tsx"));
@@ -112,6 +114,8 @@ function renderSurface(title, node) {
   ].join("");
 }
 
+// Шапка страницы кабинета: заголовок, при необходимости ссылка «назад» над ним
+// и строка-описание под ним (у разгруженных страниц их нет — null).
 function pageShell(kicker, heading, lead, children) {
   return createElement(
     "main",
@@ -119,9 +123,9 @@ function pageShell(kicker, heading, lead, children) {
     createElement(
       "header",
       { className: "pt-page-header" },
-      createElement("p", { className: "pt-page-kicker" }, kicker),
+      kicker === null ? null : createElement("p", { className: "pt-page-kicker" }, kicker),
       createElement("h1", { className: "pt-page-title" }, heading),
-      createElement("p", { className: "pt-page-lead" }, lead),
+      lead === null ? null : createElement("p", { className: "pt-page-lead" }, lead),
     ),
     children,
   );
@@ -619,9 +623,9 @@ const surfaces = [
     html: renderSurface(
       "Моё поступление — a11y",
       pageShell(
-        admission.kickerCabinet,
+        null,
         admission.overviewTitle,
-        admission.overviewLead,
+        null,
         // Согласие на ИИ-помощников стоит над обзором (слот карточки на /portal).
         createElement(
           Fragment,
@@ -641,9 +645,9 @@ const surfaces = [
     html: renderSurface(
       "Документы — a11y",
       pageShell(
-        admission.kicker,
+        null,
         admission.documentsTitle,
-        admission.documentsLead,
+        null,
         createElement(DocumentsView, { documents: documentsFixture, locale: "ru" }),
       ),
     ),
@@ -653,9 +657,9 @@ const surfaces = [
     html: renderSurface(
       "Уведомления — a11y",
       pageShell(
-        admission.kickerCabinet,
+        null,
         admission.notificationsTitle,
-        admission.notificationsLead,
+        null,
         createElement(NotificationsView, {
           notifications: notificationsFixture,
           markReadAction: noopAction,
@@ -670,9 +674,9 @@ const surfaces = [
     html: renderSurface(
       "Тесты — a11y",
       pageShell(
-        testsStrings.kicker,
+        null,
         testsStrings.title,
-        testsStrings.lead,
+        null,
         createElement(TestsCatalog, { catalog: assessmentCatalogFixture, locale: "ru" }),
       ),
     ),
@@ -682,7 +686,7 @@ const surfaces = [
     html: renderSurface(
       "Тест — раннер — a11y",
       pageShell(
-        testsStrings.kicker,
+        testsStrings.backToCatalog,
         assessmentMetadata.title,
         assessmentMetadata.description,
         createElement(AssessmentRunner, {
@@ -698,7 +702,7 @@ const surfaces = [
     html: renderSurface(
       "Тест — результаты — a11y",
       pageShell(
-        testsStrings.kicker,
+        testsStrings.backToCatalog,
         assessmentMetadata.title,
         assessmentMetadata.description,
         createElement(
@@ -715,9 +719,9 @@ const surfaces = [
     html: renderSurface(
       "Профессии и профиль — a11y",
       pageShell(
-        professionsStrings.kicker,
+        null,
         professionsStrings.title,
-        professionsStrings.lead,
+        null,
         createElement(
           "div",
           null,
@@ -747,10 +751,7 @@ const surfaces = [
           createElement(
             "section",
             { "aria-label": profileStrings.languageHeading, className: "pt-card" },
-            createElement(LanguageForm, {
-              initialLanguage: "ru",
-              strings: profileStrings,
-            }),
+            createElement(LanguageSwitch, { locale: "ru" }),
             createElement(ConsultationRequest, {
               initialOpenRequest: null,
               strings: consultationStrings,
@@ -773,19 +774,17 @@ const surfaces = [
     html: renderSurface(
       "Главная — approved — a11y",
       pageShell(
-        homeStrings.kicker,
+        null,
         homeStrings.title,
-        homeStrings.leadApproved,
+        null,
         createElement(HomeView, {
           tier: "approved",
+          displayName: "Айгерим Асанова",
+          studyCountry: "Китай",
           overview: null,
           overviewFailed: false,
-          modules: learningModulesDraftFixture,
-          assessments: assessmentCatalogFixture,
           favorites: [favoriteUniversityFixture],
           favoritesTotal: 1,
-          // Не передавался с #929: HomeView падал на recentUniversities.length.
-          recentUniversities: [],
           journey: timelineChoose,
           // Самостоятельному студенту карточку согласия вид не показывает, даже
           // если её передали (tests/portal-ai-consent.test.mjs это проверяет).
@@ -804,18 +803,18 @@ const surfaces = [
     html: renderSurface(
       "Главная — assisted — a11y",
       pageShell(
-        homeStrings.kicker,
+        null,
         homeStrings.title,
-        homeStrings.leadAssisted,
+        null,
         createElement(HomeView, {
           tier: "assisted",
+          displayName: "Айгерим Асанова",
+          studyCountry: "Китай",
           overview: overviewFixture,
           overviewFailed: false,
-          modules: learningModulesDoneFixture,
-          assessments: assessmentCatalogNoDraftFixture,
+          news: [],
           favorites: [],
           favoritesTotal: 0,
-          recentUniversities: [],
           journey: timelineChina,
           aiConsent: createElement(AiConsentHomeCard, {
             initialConsent: aiConsentOutdated,
@@ -834,27 +833,49 @@ const surfaces = [
     html: renderSurface(
       "Профиль — ИИ-помощники — a11y",
       pageShell(
-        profileStrings.kicker,
+        null,
         profileStrings.title,
-        profileStrings.lead,
+        null,
         createElement(
-          "div",
-          { className: "pt-profile-sections" },
-          ...[aiConsentGranted, aiConsentDeclined, aiConsentAsked].map((consent, index) =>
-            createElement(
-              "section",
-              {
-                key: index,
-                "aria-labelledby": `portal-profile-ai-consent-${index}`,
-                className: "pt-profile-card",
-              },
+          Fragment,
+          null,
+          // Карточка студента (03.11.2026): круг с инициалами, имя, почта, «Выйти», ссылка.
+          createElement(ProfileHero, {
+            displayName: "Айбек Токтогулов",
+            chips: ["Малайзия", `${admission.stageTerm}: ${admission["stage.applications"]}`],
+            action: createElement(
+              "form",
+              null,
+              createElement("button", { type: "button", className: "pt-btn-ghost" }, profileStrings.logout),
+            ),
+            footer: createElement(
+              "a",
+              { href: "/portal/tests", className: "pt-profile-row-link" },
+              createElement(ProfileIcon, { name: "tests" }),
+              createElement("span", null, profileStrings.testsLink),
+              createElement("span", { "aria-hidden": "true" }, "→"),
+            ),
+          }),
+          createElement(
+            "div",
+            { className: "pt-profile-sections" },
+            ...[aiConsentGranted, aiConsentDeclined, aiConsentAsked].map((consent, index) =>
               createElement(
-                "h2",
-                { id: `portal-profile-ai-consent-${index}`, className: "pt-section-title" },
-                aiConsentStrings.rowHeading,
-              ),
-              createElement(AiConsentSettingsRow, { initialConsent: consent, strings: aiConsentStrings }),
-            )),
+                "section",
+                {
+                  key: index,
+                  "aria-labelledby": `portal-profile-ai-consent-${index}`,
+                  className: "pt-profile-card",
+                },
+                createElement(
+                  "h2",
+                  { id: `portal-profile-ai-consent-${index}`, className: "pt-section-title" },
+                  createElement(ProfileIcon, { name: "ai" }),
+                  aiConsentStrings.rowHeading,
+                ),
+                createElement(AiConsentSettingsRow, { initialConsent: consent, strings: aiConsentStrings }),
+              )),
+          ),
         ),
       ),
     ),

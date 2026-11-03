@@ -92,16 +92,19 @@ test("the Student workspace preserves four portal pages, private tests and publi
       "/portal/home",
       "/portal",
       "/portal/documents",
+      // 03.11.2026: «Оплата» снова пункт меню.
+      "/portal/payments",
       // PORT-5c: переписка по делу — только assisted (tiers-гейт в Shell).
       "/portal/messages",
+      // 03.11.2026: группы рейла «Выбор» и «Подготовка».
       "/portal/universities",
       "/portal/professions",
+      // 03.11.2026: «Избранное» — вкладка «Вузы» на /portal, без пункта меню.
       "/portal/english",
       // S5.1: CSCA рядом с «Английским», навигация не перестраивается.
       "/portal/csca",
-      "/portal/favorites",
-      "/portal/payments",
-      "/portal/notifications",
+      // 03.11.2026: «Уведомления» вошли во «Входящие» (/portal/messages,
+      // лента «Что нового»); сама страница осталась для старых ссылок.
       "/portal/tests",
       "/portal/profile",
     ],
@@ -118,9 +121,14 @@ test("the portal uses the Student guard and never mounts the staff shell", () =>
 
   assert.match(layout, /requireStudentPortalActor\(\)/u);
   // 02.10: Shell получает тему запроса для кнопки «солнце/луна».
-  assert.match(layout, /<Shell\s+displayName=\{actor\.displayName\}\s+accessTier=\{actor\.accessTier\}\s+locale=\{locale\}\s+theme=\{theme\}\s+release=\{[^}]*\}\s*>/u);
+  assert.match(layout, /<Shell\s+displayName=\{actor\.displayName\}\s+accessTier=\{actor\.accessTier\}\s+locale=\{locale\}\s+theme=\{theme\}\s+release=\{[^}]*\}\s+studyCountry=\{studyCountry\}\s+railCollapsed=\{portalRailCollapsed\(cookieStore\.get\(PORTAL_RAIL_COOKIE\)\?\.value\)\}\s*>/u);
+  // 03.11.2026: страна поступления для карточки внизу рейла — то же чтение 284,
+  // сбой не роняет кабинет.
+  assert.match(layout, /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)/u);
   assert.match(authority, /accessTier: portalCase\.case_state === "pending" \? "approved" : "assisted"/u);
-  assert.match(shell, /logoutStudentPortalAction/u);
+  // 03.11.2026: меню аккаунта в шапке убрано, «Выйти» — на «Профиле».
+  assert.doesNotMatch(shell, /logoutStudentPortalAction/u);
+  assert.match(source("src/app/(portal)/portal/profile/page.tsx"), /logoutStudentPortalAction/u);
   assert.doesNotMatch(
     `${layout}\n${shell}`,
     /AppShell|requirePlatformStaffActor|role preview|presentationRole/u,
@@ -210,6 +218,8 @@ test("every page passes the direct strict E2 result to its view", () => {
       // (paired with readStudentCatalogPreparations) so a failed E2 call shows
       // the honest overviewUnavailable state instead of throwing the whole page.
       assert.match(page, /const \[actor, locale\] = await Promise\.all\(\[requireStudentPortalActor\(\), getLocale\(\)\]\)/u);
+      // 03.11.2026: favourites are read alongside, before the same Promise.all is awaited.
+      assert.ok(page.indexOf("const favoritesRead = readStudentUniversityFavorites()") < page.indexOf("const [overview, preparations] = await Promise.all("));
       assert.match(
         page,
         /const \[overview, preparations\] = await Promise\.all\(\[\s*readStudentPortalOverview\(\)\.catch\(\(\) => undefined\),\s*readStudentCatalogPreparations\(actor\.studentCaseId\)\.catch\(\(\) => null\),\s*\]\)/u,
@@ -245,11 +255,9 @@ test("the home screen continues real work, keeps the smoke root and omits invent
   // Серверные read model изолируют транспорт; view не обращается к БД напрямую.
   for (const reader of [
     "readStudentPortalOverview",
-    "readLearningModules",
-    "readStudentAssessments",
     "readStudentUniversityFavorites",
     "readStudentUniversitiesByIds",
-    "readStudentRecentUniversities",
+    "readStudentPortalNotifications",
   ]) assert.match(page, new RegExp(`\\b${reader}\\b`, "u"), reader);
   assert.doesNotMatch(page, /\.rpc\(|\.schema\(|createClient|supabase|sqlite|drizzle|fixture|demo/iu);
   assert.doesNotMatch(view, /\.rpc\(|\.schema\(|createClient|supabase|useEffect|fixture|demo/iu);
@@ -257,15 +265,13 @@ test("the home screen continues real work, keeps the smoke root and omits invent
   // Обзор дела читается только для assisted; каждый источник несёт свой
   // честный fallback (catch -> null/failed), не роняя весь экран.
   assert.match(page, /tier === "assisted"\s*\?\s*readStudentPortalOverview\(\)/u);
-  assert.match(page, /readLearningModules\(\)\.catch\(/u);
-  assert.match(page, /readStudentAssessments\(\)\.catch\(/u);
+  // 03.11.2026: «Учёба и тесты» и «Новое в каталоге» сняты с «Главной»
+  // (слово пользователя); их чтений на странице нет, «Что нового» — только assisted.
+  assert.doesNotMatch(page, /readLearningModules|readStudentAssessments|readStudentRecentUniversities/u);
+  assert.match(page, /tier === "assisted" \? readStudentPortalNotifications\(\)\.catch\(\(\): null => null\) : Promise\.resolve\(null\)/u);
   assert.match(view, /overviewFailed/u);
   assert.equal(homeRu.caseUnavailable, "Не удалось загрузить, что нужно сделать. Обновите страницу.");
 
-  // «Продолжить» — реальные состояния движка 198 и E2, не выдуманный прогресс.
-  assert.match(view, /draftAttemptId/u);
-  assert.match(view, /\/portal\/english\/lesson\/\$\{picked\.lesson\.lessonId\}/u);
-  assert.match(view, /assessmentPath\(draftInstrument\.instrumentKey\)/u);
   assert.doesNotMatch(view, /готовност|processed|percent/iu);
 
   // Избранное — с ближайшим интейком (только open/announced внутри helper'а).
@@ -275,14 +281,13 @@ test("the home screen continues real work, keeps the smoke root and omits invent
   // Assisted: та же модель действий, что у OverviewView «Моего поступления».
   assert.match(view, /overview\?\.studentAction/u);
   assert.match(view, /\/portal\/documents#document-\$\{action\.documentSlotId\}/u);
-  assert.match(view, /href="\/portal"/u);
+  // Ссылки на разделы, которые есть в меню, с карточки дела сняты; «Ещё
+  // действий» ведёт на «Моё поступление».
+  assert.match(view, /href="\/portal" className="pt-link pt-home-case-more"/u);
+  assert.doesNotMatch(view, /pt-home-case-links/u);
 
-  // Новизна — только первая публикация из отдельного read model (207).
-  assert.doesNotMatch(view, /item\.publishedAt/u);
-  assert.match(view, /item\.firstPublishedAt/u);
-  assert.match(page, /readStudentRecentUniversities\(\)\.catch\(/u);
-  assert.match(view, /strings\.recentUnavailable/u);
-  assert.match(view, /strings\.recentEmpty/u);
+  // «Новое в каталоге» (новизна по первой публикации, 207) с «Главной» снято.
+  assert.doesNotMatch(view, /item\.publishedAt|firstPublishedAt/u);
 
   // Смоук-якоря корня не тронуты: /portal остаётся «Моим поступлением».
   const rootPage = source("src/app/(portal)/portal/page.tsx");
@@ -313,11 +318,11 @@ test("overview names each actor from the canonical projection and links exact it
   assert.match(overview, /overview\?\.studentAction/u);
   assert.match(overview, /overview\?\.evoAction/u);
   assert.doesNotMatch(overview, /overview\.nextAction/u);
-  // PORT-6a: строки — ключи admission-словаря; RU-значения остались
-  // байт-в-байт прежними (проверяется по словарю, не по TSX).
-  assert.match(overview, /strings\.nextStepNote/u);
+  // PORT-6a: строки — ключи admission-словаря (проверяется по словарю, не по TSX).
+  // Разгрузка кабинета 03.11.2026: подпись под заголовком шага и пояснения
+  // героя убраны — заголовок и кнопка говорят то же самое.
+  assert.doesNotMatch(overview, /nextStepNote|heroUploadLead|heroDocumentTerm/u);
   assert.match(overview, /strings\.evoHeading/u);
-  assert.equal(admissionRu.nextStepNote, "Что требуется от вас");
   assert.equal(admissionRu.evoHeading, "Что делает EVO");
   assert.match(
     overview,
@@ -326,15 +331,17 @@ test("overview names each actor from the canonical projection and links exact it
   // Overview is a flat action queue now: no nested <details> disclosure.
   assert.doesNotMatch(overview, /<details/u);
   assert.match(overview, /id=\{`evo-task-\$\{evoAction\.taskId\}`\}/u);
-  assert.match(overview, /strings\.calmDoneLead/u);
-  assert.equal(
-    admissionRu.calmDoneLead,
-    "Сейчас нет действий по документам и оплате. Можно изучить университеты или задать вопрос куратору.",
-  );
-  assert.match(overview, /strings\.evoEmpty/u);
-  assert.equal(admissionRu.evoEmpty, "Нет опубликованной задачи команды EVO.");
+  // Без задачи команды блока «Что делает EVO» нет вовсе — пустую строку-заглушку
+  // студент не читает; спокойное состояние — один заголовок без пояснения.
+  assert.match(overview, /\{evoAction && evoStatus \? \(\s*<div id=\{`evo-task-\$\{evoAction\.taskId\}`\} className="pt-adm-info-card">\s*<h2 className="pt-adm-aside-title">\{strings\.evoHeading\}<\/h2>/u);
+  assert.doesNotMatch(overview, /evoEmpty|calmDoneLead/u);
+  assert.equal(admissionRu.calmDone, "Сейчас действий от вас не требуется");
   // PORT-5d: 44px-цели живут в pt-классах (portal.css), не в tailwind-утилитах.
-  assert.match(overview, /pt-btn/u);
+  // 03.11.2026: карточки «Ваш следующий шаг» нет; первое дело открывает плитка
+  // «Требуют действия» на /portal (nextActionHref).
+  assert.match(overview, /className="pt-link"/u);
+  assert.doesNotMatch(overview, /student-next-step|pt-adm-hero/u);
+  assert.match(overview, /href: primary \? actionHref\(primary\) : null/u);
   assert.match(
     documents,
     /id=\{`document-\$\{document\.documentSlotId\}`\}/u,
@@ -357,9 +364,11 @@ test("the overview never claims a mandatory stage, and a pending cabinet stays h
   // ключи через admission.stage.* (RU байт-в-байт зеркалит staff-словарь
   // studentOperationalStage), нестандартное значение — stageCustom, без
   // overview этапа нет вовсе. Никакого нового RPC и выдуманных названий.
-  assert.match(overview, /overview\.operationalStage/u);
+  // 03.11.2026: «Моё поступление» больше не рисует этап; подпись этапа живёт
+  // в «Профиле» той же функцией stageLabel.
   assert.match(overview, /strings\.stageCustom/u);
-  assert.match(overview, /const stage = overview \? stageLabel\(overview\.operationalStage, strings\) : null/u);
+  assert.match(source("src/app/(portal)/portal/profile/page.tsx"),
+    /const stage = overview \? stageLabel\(overview\.operationalStage, admissionStrings\) : null/u);
   for (const key of [
     "contract_confirmed",
     "admissions_handoff",
@@ -383,8 +392,12 @@ test("the overview never claims a mandatory stage, and a pending cabinet stays h
   // в admission.pending* (RU байт-в-байт тот же — проверено ниже по значениям),
   // потому что этим экранам нужен KY, а staff-словарь не локализуется.
   assert.match(overview, /pending\??: boolean/u);
-  assert.match(overview, /pending \? strings\.pendingHeading : strings\.curatorHeading/u);
+  // 03.11.2026: без карточки куратора pending-кабинет получает одну карточку
+  // «Ваша анкета» с тем же честным текстом и ссылкой на статус.
+  assert.match(overview, /\{pending \? \(\s*<div className="pt-adm-info-card">\s*<h2 className="pt-adm-aside-card-title">\{strings\.pendingApplicationHeading\}<\/h2>/u);
   assert.match(overview, /strings\.pendingManagerNotice/u);
+  // Пояснение под «Ваша анкета» на экране не рисуется: заголовок и ссылка говорят сами.
+  assert.doesNotMatch(overview, /strings\.pendingApplicationHint/u);
   assert.equal(admissionRu.pendingHeading, "Сопровождение");
   assert.equal(admissionRu.pendingManagerNotice, "Менеджер свяжется с вами.");
   assert.equal(admissionRu.pendingApplicationHeading, "Ваша анкета");
@@ -892,8 +905,9 @@ test("330: a staff message notifies the student once per unread and the notifica
   assert.doesNotMatch(source.replaceAll("NEW.body = ''", ""), /NEW\.body/u, "the notification holds no message text");
   assert.match(fileOf("src/components/portal/admission/presentation.ts"), /eventCode === "case_chat_message"[\s\S]*?href: "\/portal\/messages", label: strings\.targetMessages/u);
   const i18n = fileOf("src/lib/portal/i18n.ts");
-  assert.match(i18n, /targetMessages: "Открыть сообщения"/u);
-  assert.match(i18n, /targetMessages: "Билдирүүлөрдү ачуу"/u);
+  // 03.11.2026: «Сообщения» стали «Входящими» — ссылка ведёт к переписке в них.
+  assert.match(i18n, /targetMessages: "Открыть переписку"/u);
+  assert.match(i18n, /targetMessages: "Кат алышууну ачуу"/u);
   const script = fileOf("scripts/test-runners/test-postgres-authorization.sh");
   assert.match(fileOf("supabase/tests/platform_case_chat_student_notification.sql"), /ROLLBACK;\s*$/u);
   assert.ok(script.indexOf("A330_CASE_CHAT_STUDENT_NOTIFICATION_SUITE_PASSED") > 0 && script.indexOf("A330_CASE_CHAT_STUDENT_NOTIFICATION_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));

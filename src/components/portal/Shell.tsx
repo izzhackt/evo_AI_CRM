@@ -15,8 +15,10 @@ import {
 
 import { PortalNotificationUpdates } from "./PortalNotificationUpdates";
 import { PortalStaleDeploymentNotice } from "./PortalStaleDeploymentNotice";
+import { RailFooter } from "./RailFooter";
 
 import { EvoLogo } from "@/components/platform/brand/EvoLogo";
+import { EvoMark } from "@/components/platform/brand/EvoMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import type { Locale } from "@/lib/i18n-data";
 import {
@@ -24,15 +26,15 @@ import {
   getPortalStrings,
   type PortalStrings,
 } from "@/lib/portal/i18n";
-import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
+import { writePortalRailChoice } from "@/lib/portal/rail-choice";
 import type { Theme } from "@/lib/theme";
 
 /**
  * Портальный shell (PORT-2, дизайн-контракт
- * docs/design/portal/design-contract.md): верхняя полоса с логотипом,
- * колокольчиком и меню аккаунта; слева рейл разделов, на узком экране —
- * нижняя панель вкладок. Стили — только pt-классы из
- * src/app/(portal)/portal.css.
+ * docs/design/portal/design-contract.md): слева рейл на всю высоту —
+ * логотип и тема, разделы, язык и карточка студента («Выйти» — в «Профиле»);
+ * на узком экране — полоса сверху (логотип, колокольчик, тема) и нижняя
+ * панель вкладок. Стили — только pt-классы из src/app/(portal)/portal.css.
  *
  * Телефон (#1113): в панели первые PHONE_TAB_COUNT разделов уровня доступа и
  * «Ещё»; остальные разделы открывает лист «Ещё» над панелью. Ссылки в DOM
@@ -71,22 +73,27 @@ const SECTIONS = [
   { href: "/portal/home", key: "nav.home", tiers: ["approved", "assisted"] },
   { href: "/portal", key: "nav.overview", tiers: ["approved", "assisted"] },
   { href: "/portal/documents", key: "nav.documents", tiers: ["assisted"] },
+  // 03.11.2026: «Оплата» снова пункт меню (слово пользователя): ссылки на
+  // начисления на «Поступлении» больше нет.
+  { href: "/portal/payments", key: "nav.payments", tiers: ["assisted"] },
   { href: "/portal/messages", key: "nav.messages", tiers: ["assisted"] },
-  { href: "/portal/universities", key: "nav.universities", tiers: ["approved", "assisted"] },
+  // 03.11.2026: рейл по группам, как в кабинете-образце пользователя: «Выбор»
+  // (вузы, профессии) и «Учёба» (английский, CSCA, тесты). «Избранное» —
+  // вкладка «Вузы» на «Моём поступлении», своего пункта нет.
+  { href: "/portal/universities", key: "nav.universities", tiers: ["approved", "assisted"], group: "nav.groupChoice" },
   { href: "/portal/professions", key: "nav.professions", tiers: ["approved", "assisted"] },
-  { href: "/portal/english", key: "nav.english", tiers: ["approved", "assisted"] },
+  { href: "/portal/english", key: "nav.english", tiers: ["approved", "assisted"], group: "nav.groupPrep" },
   // S5.1: CSCA рядом с «Английским», навигация не перестраивается (решение по
   // умолчанию до ответа владельца, PLAN_CHANGES 16.10).
   { href: "/portal/csca", key: "nav.csca", tiers: ["approved", "assisted"] },
-  { href: "/portal/favorites", key: "nav.favorites", tiers: ["approved", "assisted"] },
-  { href: "/portal/payments", key: "nav.payments", tiers: ["assisted"] },
-  { href: "/portal/notifications", key: "nav.notifications", tiers: ["assisted"] },
   { href: "/portal/tests", key: "nav.tests", tiers: ["approved", "assisted"] },
   { href: "/portal/profile", key: "nav.profile", tiers: ["approved", "assisted"] },
 ] as const satisfies readonly {
   href: string;
   key: keyof PortalStrings<"shell">;
   tiers: readonly PortalAccessTier[];
+  /** Подпись группы над пунктом — только в рейле широкого экрана. */
+  group?: keyof PortalStrings<"shell">;
 }[];
 
 /**
@@ -96,6 +103,9 @@ const SECTIONS = [
  * уходили за край экрана.
  */
 const PHONE_TAB_COUNT = 3;
+
+/** Раздел, который на широком экране ведёт карточка студента внизу рейла. */
+const RAIL_ACCOUNT_HREF = "/portal/profile";
 
 /**
  * Индикатор активной вкладки. Один элемент `.pt-nav-indicator` переезжает между
@@ -120,7 +130,7 @@ function useActiveTabIndicator(navRef: RefObject<HTMLElement | null>, pathname: 
       // принадлежат. Широкий экран: рейл — все ссылки подряд.
       const target = nav.querySelector<HTMLElement>(
         wide
-          ? '.pt-nav-link[aria-current="page"]'
+          ? 'li:not([data-rail-hidden]) > .pt-nav-link[aria-current="page"]'
           : '.pt-nav-bar .pt-nav-link[aria-current="page"], .pt-nav-more-toggle[data-current-inside]',
       );
       const instant = snap || nav.getAttribute("data-indicator") !== "ready";
@@ -179,7 +189,9 @@ function SectionIcon({ section }: { section: (typeof SECTIONS)[number]["key"] })
     "nav.overview": "M5 17V3.5M5 3.5h9.5l-2 3.5 2 3.5H5",
     // Документы: лист с загнутым углом.
     "nav.documents": "M6 2.5h5.5L15 6v11.5H6zM11.5 2.5V6H15M8.2 9.5h3.6M8.2 12.5h3.6",
-    // Сообщения: пузырь диалога.
+    // Оплата: карта.
+    "nav.payments": "M3 5.5h14v9H3zM3 8.5h14M6 12h3",
+    // Входящие (переписка и «Что нового»): пузырь диалога.
     "nav.messages": "M3.5 4.5h13v8.5h-7.2L6 16v-3H3.5zM6.8 7.5h6.4M6.8 10h4.4",
     // Университеты: здание с колоннами.
     "nav.universities": "M3 8l7-4.5L17 8M4.5 8v7M8 8v7M12 8v7M15.5 8v7M3 15h14",
@@ -189,12 +201,6 @@ function SectionIcon({ section }: { section: (typeof SECTIONS)[number]["key"] })
     "nav.english": "M10 5.2C8.8 4.2 7 3.7 4.6 3.7c-.6 0-1.1 0-1.6.1v11.4c.5-.1 1-.1 1.6-.1 2.4 0 4.2.5 5.4 1.5 1.2-1 3-1.5 5.4-1.5.6 0 1.1 0 1.6.1V3.8c-.5-.1-1-.1-1.6-.1-2.4 0-4.2.5-5.4 1.5zM10 5.2v11.4",
     // CSCA: оси и кривая графика.
     "nav.csca": "M4 3.5v12.5h12.5M6.5 13.5c1.6-.2 2.6-1.4 3.5-3.6.9-2.3 2.2-4.4 5-4.9",
-    // Избранное: сердечко.
-    "nav.favorites": "M10 16.1 4.4 10.7a3.6 3.6 0 0 1 0-5.2 3.7 3.7 0 0 1 5.2 0l.4.4.4-.4a3.7 3.7 0 0 1 5.2 0 3.6 3.6 0 0 1 0 5.2z",
-    // Оплата: карта.
-    "nav.payments": "M3 5.5h14v9H3zM3 8.5h14M5.5 11.5h3",
-    // Уведомления: колокольчик.
-    "nav.notifications": "M10 3a4.5 4.5 0 0 1 4.5 4.5c0 3.2 1 4.5 1.5 5H4c.5-.5 1.5-1.8 1.5-5A4.5 4.5 0 0 1 10 3zM8.5 15.5a1.5 1.5 0 0 0 3 0",
     // Тесты: планшет с отметкой.
     "nav.tests": "M6.5 3.5h7a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1zM8 3.5V2.8h4v.7M7.7 10.2l1.6 1.6 3-3.3",
     // Профиль: человек.
@@ -229,12 +235,6 @@ function MoreIcon() {
   );
 }
 
-/** Инициалы аккаунта: первые буквы двух первых слов имени («Айбек Токтогулов» → «АТ»). */
-function accountInitials(name: string): string {
-  const letters = name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((word) => Array.from(word)[0] ?? "");
-  return letters.join("").toLocaleUpperCase() || "?";
-}
-
 export function Shell({
   children,
   displayName,
@@ -242,6 +242,8 @@ export function Shell({
   locale,
   theme,
   release = null,
+  studyCountry = null,
+  railCollapsed = false,
 }: {
   children: React.ReactNode;
   displayName: string;
@@ -250,6 +252,10 @@ export function Shell({
   theme: Theme;
   /** Ревизия сервера при отрисовке: по ней опрос узнаёт устаревшую сборку. */
   release?: string | null;
+  /** Страна поступления для подписи в карточке внизу рейла; `null` — без неё. */
+  studyCountry?: string | null;
+  /** Рейл свёрнут до значков (cookie `portal_rail`, читает layout). */
+  railCollapsed?: boolean;
 }) {
   const pathname = usePathname();
   const strings = getPortalStrings("shell", locale);
@@ -274,6 +280,12 @@ export function Shell({
   const moreOpen = openAt === pathname;
   const navRef = useRef<HTMLElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const [unread, setUnread] = useState<number | null>(null);
+  const [collapsed, setCollapsed] = useState(railCollapsed);
+  const toggleRail = () => {
+    writePortalRailChoice(!collapsed);
+    setCollapsed(!collapsed);
+  };
   useActiveTabIndicator(navRef, pathname, sections.length);
 
   // Лист не диалог: страница под ним доступна. Закрывают его Escape (фокус
@@ -305,12 +317,18 @@ export function Shell({
   const renderSection = (section: (typeof SECTIONS)[number]) => {
     const label = strings[section.key];
     const active = isActive(section);
-    return (
-      <li key={section.href}>
+    // Непрочитанное — числом у «Входящих» в рейле (колокольчик остался на телефоне).
+    const count = section.href === "/portal/messages" && unread !== null && unread > 0 ? unread : null;
+    const item = (
+      // «Профиль» на широком экране открывает карточка студента внизу рейла
+      // (RailFooter), поэтому пункт виден только в листе «Ещё» на телефоне.
+      <li key={section.href} data-rail-hidden={section.href === RAIL_ACCOUNT_HREF ? "" : undefined}>
         <IntentPrefetchLink
           href={section.href}
           aria-current={active ? "page" : undefined}
           className="pt-nav-link"
+          // Свёрнутый рейл: подпись скрыта визуально, подсказка — по наведению.
+          title={collapsed ? label : undefined}
           onClick={() => setOpenAt(null)}
         >
           <SectionIcon section={section.key} />
@@ -318,95 +336,113 @@ export function Shell({
             label={label}
             opening={formatPortalString(strings.openingSection, { label })}
           />
+          {count === null ? null : (
+            <>
+              <span className="pt-nav-badge" aria-hidden="true">{count > 99 ? "99+" : count}</span>
+              <span className="pt-sr-only">{formatPortalString(strings.notificationsUnread, { count: String(count) })}</span>
+            </>
+          )}
         </IntentPrefetchLink>
       </li>
     );
+    if (!("group" in section)) return item;
+    // Подпись группы — визуальная: смысл пунктов ясен из их имён.
+    return [
+      <li key={`${section.href}-group`} className="pt-nav-group" aria-hidden="true">{strings[section.group]}</li>,
+      item,
+    ];
   };
 
   return (
-    <div className="pt-shell" data-testid="student-portal-shell">
+    <div className="pt-shell" data-testid="student-portal-shell" data-rail={collapsed ? "collapsed" : undefined}>
       <a href="#portal-content" className="pt-skip-link">
         {strings.skipToContent}
       </a>
 
-      <header className="pt-topbar">
-        <IntentPrefetchLink href="/portal" aria-label={strings.home} className="pt-topbar-logo">
-          <EvoLogo width={104} />
-        </IntentPrefetchLink>
-        <div className="pt-topbar-actions">
-          {accessTier === "assisted" ? <PortalNotificationUpdates locale={locale} release={release} /> : null}
-          {/* Тема — одна кнопка на виду и на телефоне (решение владельца 02.10). */}
-          <ThemeToggle locale={locale} initialTheme={theme} />
-          <details className="pt-user-menu">
-            <summary className="pt-user-summary">
-              {/* На узком телефоне — инициалы вместо обрезанного имени; полное имя остаётся доступным именем и в меню. */}
-              <span className="pt-user-initials" aria-hidden="true">{accountInitials(displayName)}</span>
-              <span className="pt-user-summary-name">{displayName}</span>
-              <svg
-                className="pt-user-chevron"
-                width="12"
-                height="12"
-                viewBox="0 0 12 12"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path d="m2.5 4.5 3.5 3.5L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </summary>
-            <div className="pt-user-panel">
-              <p className="pt-user-caption">{strings.account}</p>
-              <p className="pt-user-name">{displayName}</p>
-              <form action={logoutStudentPortalAction}>
-                <button type="submit" className="pt-logout">
-                  {strings.logout}
-                </button>
-              </form>
-            </div>
-          </details>
-        </div>
-      </header>
-
       <div className="pt-body">
-        {/* Смоук-якорь: aria-label не локализуется до совместного PR со смоук-скриптом. */}
-        <nav
-          ref={navRef}
-          aria-label="Разделы кабинета"
-          className="pt-nav"
-          onBlur={closeWhenFocusLeaves}
-        >
-          <ul
-            className="pt-nav-list pt-nav-bar"
-            style={{ "--pt-tab-count": tabSections.length } as CSSProperties}
+        {/* Рейл (03.11.2026, по образцу кабинета пользователя): колонка на всю
+            высоту — логотип и кнопка «Свернуть меню» сверху, разделы по
+            группам, внизу язык, тема и карточка студента; свёрнутый — только
+            значки. На телефоне обёртки нет (display: contents): шапка
+            становится полосой сверху (логотип, колокольчик, тема), разделы —
+            нижней панелью. */}
+        <div className="pt-rail">
+          <header className="pt-topbar">
+            <IntentPrefetchLink href="/portal" aria-label={strings.home} className="pt-topbar-logo">
+              <EvoLogo width={112} className="pt-logo-full" />
+              <EvoMark size={32} tone="mono" className="pt-logo-mark" />
+            </IntentPrefetchLink>
+            <div className="pt-topbar-actions">
+              {/* Опрос живёт всегда; колокольчик виден только на телефоне, в рейле — число у «Входящих». */}
+              {accessTier === "assisted" ? (
+                <PortalNotificationUpdates locale={locale} release={release} onUnreadChange={setUnread} />
+              ) : null}
+              {/* Тема — на виду (решение владельца 02.10): здесь на телефоне, внизу рейла на широком экране. */}
+              <span className="pt-topbar-theme"><ThemeToggle locale={locale} initialTheme={theme} /></span>
+              <button
+                type="button"
+                className="pt-rail-toggle"
+                aria-expanded={!collapsed}
+                aria-label={collapsed ? strings["rail.expand"] : strings["rail.collapse"]}
+                title={collapsed ? strings["rail.expand"] : strings["rail.collapse"]}
+                onClick={toggleRail}
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <rect x="3" y="3.5" width="14" height="13" rx="2.5" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M7.5 3.5v13" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
+              </button>
+            </div>
+          </header>
+          {/* Смоук-якорь: aria-label не локализуется до совместного PR со смоук-скриптом. */}
+          <nav
+            ref={navRef}
+            aria-label="Разделы кабинета"
+            className="pt-nav"
+            onBlur={closeWhenFocusLeaves}
           >
-            {tabSections.map(renderSection)}
-            {moreSections.length > 0 ? (
-              <li className="pt-nav-more-item">
-                <button
-                  ref={toggleRef}
-                  type="button"
-                  className="pt-nav-more-toggle"
-                  aria-expanded={moreOpen}
-                  aria-controls={sheetId}
-                  data-current-inside={currentInMore ? "" : undefined}
-                  onClick={() => setOpenAt(moreOpen ? null : pathname)}
-                >
-                  <MoreIcon />
-                  <span className="pt-nav-label">{strings["nav.more"]}</span>
-                </button>
-              </li>
-            ) : null}
-          </ul>
-          {moreSections.length > 0 ? (
             <ul
-              id={sheetId}
-              className="pt-nav-list pt-nav-sheet"
-              data-open={moreOpen ? "" : undefined}
+              className="pt-nav-list pt-nav-bar"
+              style={{ "--pt-tab-count": tabSections.length } as CSSProperties}
             >
-              {moreSections.map(renderSection)}
+              {tabSections.map(renderSection)}
+              {moreSections.length > 0 ? (
+                <li className="pt-nav-more-item">
+                  <button
+                    ref={toggleRef}
+                    type="button"
+                    className="pt-nav-more-toggle"
+                    aria-expanded={moreOpen}
+                    aria-controls={sheetId}
+                    data-current-inside={currentInMore ? "" : undefined}
+                    onClick={() => setOpenAt(moreOpen ? null : pathname)}
+                  >
+                    <MoreIcon />
+                    <span className="pt-nav-label">{strings["nav.more"]}</span>
+                  </button>
+                </li>
+              ) : null}
             </ul>
-          ) : null}
-          <span aria-hidden="true" className="pt-nav-indicator" />
-        </nav>
+            {moreSections.length > 0 ? (
+              <ul
+                id={sheetId}
+                className="pt-nav-list pt-nav-sheet"
+                data-open={moreOpen ? "" : undefined}
+              >
+                {moreSections.map(renderSection)}
+              </ul>
+            ) : null}
+            <span aria-hidden="true" className="pt-nav-indicator" />
+          </nav>
+          {/* Широкий экран: язык и карточка студента внизу рейла; на телефоне их нет. */}
+          <RailFooter
+            displayName={displayName}
+            studyCountry={studyCountry}
+            locale={locale}
+            theme={theme}
+            current={pathname === RAIL_ACCOUNT_HREF}
+          />
+        </div>
 
         {/*
           Существующие экраны продолжают жить в v3-мире без изменений до своих

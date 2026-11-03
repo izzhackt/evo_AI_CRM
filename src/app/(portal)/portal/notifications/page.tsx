@@ -36,9 +36,7 @@ export default async function StudentPortalNotificationsPage() {
   return (
     <main className="pt-page">
       <header className="pt-page-header">
-        <p className="pt-page-kicker">{strings.kickerCabinet}</p>
         <h1 className="pt-page-title">{strings.notificationsTitle}</h1>
-        <p className="pt-page-lead">{strings.notificationsLead}</p>
       </header>
       <NotificationsView
         notifications={notifications}

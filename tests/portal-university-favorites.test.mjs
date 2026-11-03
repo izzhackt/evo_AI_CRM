@@ -53,7 +53,8 @@ test("hidden favourites count parses strictly and the page shows the line only w
   for (const broken of [null, [], 3, {}, { hiddenCount: -1 }, { hiddenCount: 1.5 }, { hiddenCount: "1" }, { hiddenCount: 1, extra: true }]) {
     assert.equal(parseHiddenUniversityFavorites(broken), null, JSON.stringify(broken));
   }
-  const page = source("src/app/(portal)/portal/favorites/page.tsx");
+  // 03.11.2026: the list is the «Вузы» tab of /portal; the old route redirects there.
+  const page = source("src/components/portal/favorites/FavoritesSection.tsx");
   assert.match(page, /readStudentHiddenUniversityFavorites\(\)\.catch\(\(\) => 0\)/);
   assert.match(page, /hiddenCount > 0 \?/);
   assert.match(source("src/lib/portal/university-favorites-source.ts"), /\.rpc\("student_hidden_university_favorites_v1"\)/);
@@ -98,11 +99,13 @@ test("favourite receipts resolve to an honest action result", () => {
 // подключён к карточкам каталога и карточке вуза, а действие — настоящий
 // server action со строгой валидацией входа.
 test("favorites section, toggle wiring and server action stay in place", () => {
+  // 03.11.2026: no menu item; the list is the «Вузы» tab of «Моё поступление»
+  // and the old route redirects there.
   const shell = source("src/components/portal/Shell.tsx");
-  assert.match(
-    shell,
-    /\{ href: "\/portal\/favorites", key: "nav\.favorites", tiers: \["approved", "assisted"\] \}/u,
-  );
+  assert.doesNotMatch(shell, /href: "\/portal\/favorites"/u);
+  const admission = source("src/app/(portal)/portal/page.tsx");
+  assert.match(admission, /<FavoritesSection institutionIds=\{favorites\} locale=\{locale\} \/>/u);
+  assert.match(source("src/app/(portal)/portal/favorites/page.tsx"), /redirect\("\/portal\?view=universities"\)/u);
 
   // S3: карточка вуза одна для города, поиска и «Избранного» (UniversityTile).
   const tile = source("src/components/portal/universities/UniversityTile.tsx");

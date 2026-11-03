@@ -484,13 +484,16 @@ const ASSISTED_SECTION_PATHS = [
   "/portal/home",
   "/portal",
   "/portal/documents",
+  // 03.11.2026: «Оплата» снова пункт меню.
+  "/portal/payments",
   "/portal/messages",
   "/portal/universities",
   "/portal/professions",
+  // 03.11.2026: «Избранное» is the «Вузы» tab of /portal, no menu item.
   "/portal/english",
-  "/portal/favorites",
-  "/portal/payments",
-  "/portal/notifications",
+  "/portal/csca",
+  // 03.11.2026: «Уведомления» — лента «Что нового» во «Входящих»
+  // (/portal/messages); страница /portal/notifications осталась без пункта меню.
   "/portal/tests",
   "/portal/profile",
 ] as const;
@@ -618,7 +621,8 @@ test("the theme is light by default, ignores the OS and the sun/moon button reme
   const html = page.locator("html");
   await expect(html).toHaveAttribute("data-theme", "light");
 
-  const toggle = page.locator(".pt-topbar").getByRole("button", { name: "Тёмная тема" });
+  // 03.11.2026: on a wide screen the button sits at the bottom of the rail, on a phone in the top bar.
+  const toggle = page.getByTestId("student-portal-shell").getByRole("button", { name: "Тёмная тема" });
   await expect(toggle).toHaveAttribute("aria-pressed", "false");
   const box = await toggle.boundingBox();
   expect(box?.width).toBeGreaterThanOrEqual(44);
@@ -641,7 +645,7 @@ test("the theme is light by default, ignores the OS and the sun/moon button reme
   await expect(html).toHaveAttribute("data-theme", "dark");
   await expect(page.locator(".pt-shell")).toHaveCSS("background-color", "rgb(20, 19, 17)");
 
-  await page.locator(".pt-topbar").getByRole("button", { name: "Тёмная тема" }).click();
+  await page.getByTestId("student-portal-shell").getByRole("button", { name: "Тёмная тема" }).click();
   await expect(html).toHaveAttribute("data-theme", "light");
   await expect(page.locator(".pt-shell")).toHaveCSS("background-color", "rgb(247, 245, 242)");
 });

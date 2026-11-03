@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { startTransition, useEffect, useRef, useState } from "react";
 import { POLL_BASE_MS, createLightPoller, fetchLightPoll } from "@/lib/light-poll";
 import { PORTAL_MESSAGES_CHANGED_EVENT, portalPollSectionForPath, portalPollUrl } from "@/lib/portal-poll-section";
@@ -19,10 +19,17 @@ import { useStaleDeployment } from "@/lib/use-stale-deployment";
  * Устаревшую сборку узнаёт `noteServerRelease`: сервер в ответе называет
  * свою ревизию, и она сравнивается с ревизией страницы.
  */
-export function PortalNotificationUpdates({ locale, release }: { locale: Locale; release?: string | null }) {
+export function PortalNotificationUpdates({ locale, release, onUnreadChange }: {
+  locale: Locale;
+  release?: string | null;
+  /** Число непрочитанных для «Входящих» в рейле; `null` — неизвестно. */
+  onUnreadChange?: (unread: number | null) => void;
+}) {
   const strings = getPortalStrings("shell", locale);
   const router = useRouter();
   const pathname = usePathname();
+  // Вкладка «Что нового» во «Входящих» сверяется как раздел уведомлений.
+  const view = useSearchParams().get("view");
   const [unread, setUnread] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
   const retry = useRef<() => void>(() => {});
@@ -35,9 +42,11 @@ export function PortalNotificationUpdates({ locale, release }: { locale: Locale;
   // Ревизия страницы запоминается один раз за загрузку (модуль), не от обновлений.
   useEffect(() => { noteServerRelease(release ?? null); }, [release]);
 
+  useEffect(() => { onUnreadChange?.(unread); }, [onUnreadChange, unread]);
+
   useEffect(() => {
     if (stale) return;
-    const section = portalPollSectionForPath(pathname);
+    const section = portalPollSectionForPath(pathname, view);
     const url = portalPollUrl(section);
     const poller = createLightPoller({
       now: () => Date.now(),
@@ -70,7 +79,7 @@ export function PortalNotificationUpdates({ locale, release }: { locale: Locale;
       window.removeEventListener("focus", resume);
       window.removeEventListener("online", online);
     };
-  }, [pathname, router, stale]);
+  }, [pathname, view, router, stale]);
 
   const label = unread === null ? strings.notifications
     : unread > 0 ? formatPortalString(strings.notificationsUnread, { count: String(unread) })
@@ -78,7 +87,7 @@ export function PortalNotificationUpdates({ locale, release }: { locale: Locale;
 
   return (
     <div className="pt-notification-updates">
-      <Link href="/portal/notifications" className="pt-bell" aria-label={label}>
+      <Link href="/portal/messages?view=updates" className="pt-bell" aria-label={label}>
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
           <path d="M10 3a4.5 4.5 0 0 1 4.5 4.5c0 3.2 1 4.5 1.5 5H4c.5-.5 1.5-1.8 1.5-5A4.5 4.5 0 0 1 10 3zM8.5 15.5a1.5 1.5 0 0 0 3 0"
             stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />

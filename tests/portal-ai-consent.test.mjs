@@ -277,7 +277,7 @@ test("the post-login screen /portal asks too: a sibling slot above the overview,
   // Слот стоит после шапки и перед обзором, как сосед: его чтение идёт одновременно с остальными.
   const header = page.indexOf("</header>");
   const slot = page.indexOf("<AiConsentSlot locale={locale} accessTier={actor.accessTier} />");
-  const overview = page.indexOf("<AdmissionOverview actor={actor} locale={locale} />");
+  const overview = page.indexOf("<AdmissionOverview actor={actor} locale={locale} view={view} />");
   assert.ok(header > 0 && slot > header && overview > slot, "header, then the slot, then the overview");
   assert.equal(page.match(/readOwnAiConsent/gu), null, "the page itself does not read; the slot does");
   assert.doesNotMatch(page, /\.rpc\(|\.schema\(/u);
@@ -302,9 +302,12 @@ test("the settings row sits in the profile, with its own honest line when the re
   assert.match(page, /\{aiConsentStrings\.rowHeading\}/u);
   assert.match(page, /<AiConsentSettingsRow initialConsent=\{aiConsent\.consent\} strings=\{aiConsentStrings\} \/>/u);
   assert.match(page, /<p role="alert" className="pt-account-deletion-error">\{aiConsentStrings\.unavailable\}<\/p>/u);
-  // Строка стоит перед «Сессией» и «Удалением аккаунта».
-  assert.ok(page.indexOf("portal-profile-ai-consent") < page.indexOf("portal-profile-session"));
+  // Строка стоит перед «Удалением аккаунта»; «Выйти» с 03.11.2026 — в шапке
+  // профиля над настройками, отдельной карточки «Выход» нет.
   assert.ok(page.indexOf("portal-profile-ai-consent") < page.indexOf("portal-profile-deletion"));
+  assert.doesNotMatch(page, /portal-profile-session/u);
+  assert.ok(page.indexOf("<ProfileHero") < page.indexOf("logoutStudentPortalAction}>"));
+  assert.ok(page.indexOf("logoutStudentPortalAction}>") < page.indexOf("portal-profile-ai-consent"));
 });
 
 test("the controls keep the decision honest: pending lock, stable attempt id, confirmed state, focus kept", () => {
@@ -431,5 +434,5 @@ test("rendered: the client's home and the post-login screen carry the consent ca
   const approved = html("home-approved");
   assert.equal(approved.includes(CARD), false, "self-service home");
   assert.equal(approved.includes("ИИ-помощники EVO"), false);
-  assert.equal(approved.includes('id="home-continue"'), true, "the rest of the home is intact");
+  assert.equal(approved.includes('id="home-dates"'), true, "the rest of the home is intact");
 });

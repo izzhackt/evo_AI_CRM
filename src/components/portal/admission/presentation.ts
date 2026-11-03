@@ -86,6 +86,24 @@ export function documentProgress(documents: readonly Pick<StudentPortalDocument,
   };
 }
 
+/**
+ * Значок строки «Документов» (03.11.2026) рядом со словом статуса — смысл
+ * несёт слово.
+ */
+export type DocumentChecklistIcon = "file" | "clock" | "check" | "alert";
+
+const DOCUMENT_CHECKLIST: Readonly<Record<string, Readonly<{ icon: DocumentChecklistIcon }>>> = {
+  correction_required: { icon: "alert" },
+  rejected: { icon: "alert" },
+  required: { icon: "file" },
+  submitted: { icon: "clock" },
+  approved: { icon: "check" },
+};
+
+export function documentChecklistIcon(document: Pick<StudentPortalDocument, "status">): DocumentChecklistIcon {
+  return DOCUMENT_CHECKLIST[document.status]?.icon ?? "file";
+}
+
 export function studentActionDueLabel(
   action: Pick<StudentPortalDocumentAction, "dueAt">,
 ): string | null {

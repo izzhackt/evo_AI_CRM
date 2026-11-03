@@ -41,6 +41,11 @@ export type QuickViewLinks = Readonly<{
    */
   createTask: string | null;
   task: (taskId: string) => string;
+  /**
+   * «Написать» (03.11.2026): переписка с этим студентом в «Переписке». null — дело не в работе: в списке «Переписки» только
+   * дела в работе. Студенту без кабинета переписка сама скажет, что он сообщение не увидит.
+   */
+  messages: string | null;
 }>;
 
 function Fact({ term, children }: Readonly<{ term: string; children: React.ReactNode }>) {
@@ -153,6 +158,7 @@ export function StudentQuickView({
             ) : null) ?? (row.attentionFlags.includes("needs_curator") ? <span className="font-medium text-danger">нужен куратор</span> : <span className="text-fg-3">не назначен</span>)}
           {awaiting ? <span className="block font-medium text-warn">ждёт принятия</span> : null}
         </Fact>
+        {links.messages ? <Fact term="Переписка"><Link href={links.messages} className="inline-flex min-h-6 items-center underline underline-offset-4 hover:text-fg-2">Написать студенту</Link></Fact> : null}
         {row.state === "closed" && closedFacts ? (
           <Fact term="Состояние">
             <ClosedLine key={row.admissionsVersion} kind="case" subjectId={row.studentCaseId} expectedVersion={row.admissionsVersion}

@@ -27,7 +27,10 @@ export async function setUniversityFavoriteAction(
       .rpc("set_university_favorite_v1", { p_institution_id: id, p_favored: favored });
     if (error) return { ok: false };
     const result = parseFavoriteReceipt(data);
-    if (result.ok) revalidatePath("/portal/favorites");
+    if (result.ok) {
+      revalidatePath("/portal");
+      revalidatePath("/portal/favorites");
+    }
     return result;
   } catch {
     return { ok: false };

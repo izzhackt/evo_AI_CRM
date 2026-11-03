@@ -243,6 +243,9 @@ test("portal sections: the pages whose data is compared, the rest only count", (
     "/portal/universities": null, "/portal/profile": null, "/portal/csca": null, "/portal/english/review": null,
   };
   for (const [path, expected] of Object.entries(cases)) assert.equal(sections.portalPollSectionForPath(path), expected, path);
+  // 03.11.2026: «Что нового» — вкладка «Входящих»; её лента сверяется как раздел уведомлений.
+  assert.equal(sections.portalPollSectionForPath("/portal/messages", "updates"), "notifications");
+  assert.equal(sections.portalPollSectionForPath("/portal/messages", null), "messages");
   assert.equal(sections.portalPollUrl(null), "/api/portal/updates");
   assert.equal(sections.portalPollUrl("home"), "/api/portal/updates?s=home");
   for (const value of sections.PORTAL_POLL_SECTIONS) assert.equal(sections.isPortalPollSection(value), true);

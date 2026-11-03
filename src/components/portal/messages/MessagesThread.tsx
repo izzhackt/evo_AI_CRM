@@ -218,13 +218,21 @@ export function MessagesThread({
     });
   };
 
-  const timeLabel = new Intl.DateTimeFormat(locale === "ky" ? "ky" : "ru", {
-    day: "numeric",
-    month: "long",
+  // Время — в пузыре, дата — разделителем над первым сообщением дня (как в
+  // кабинете-образце пользователя, 03.11.2026). Оба — по Бишкеку.
+  const intlLocale = locale === "ky" ? "ky" : "ru";
+  const timeLabel = new Intl.DateTimeFormat(intlLocale, {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "Asia/Bishkek",
   });
+  const dayLabel = new Intl.DateTimeFormat(intlLocale, {
+    day: "numeric",
+    month: "long",
+    timeZone: "Asia/Bishkek",
+  });
+  const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bishkek" });
+  const todayKey = dayKey.format(new Date());
 
   return (
     <div className="pt-chat">
@@ -232,6 +240,10 @@ export function MessagesThread({
         <p role="status" className="pt-chat-awaiting">{strings.awaitingYou}</p>
       ) : null}
 
+      {/* Лента прокручивается внутри колонки и открывается на последних
+          сообщениях (column-reverse у обёртки); поле ввода стоит под ней. */}
+      <div className="pt-chat-scroll" role="region" aria-label={strings.threadAria} tabIndex={0}>
+      <div className="pt-chat-scroll-inner">
       {hasEarlier ? (
         <div className="pt-chat-earlier">
           <button
@@ -254,8 +266,17 @@ export function MessagesThread({
           <p className="pt-chat-empty-body">{strings.emptyBody}</p>
         </div>
       ) : (
-        <ol ref={listRef} tabIndex={-1} aria-label={strings.threadAria} className="pt-chat-list">
-          {messages.map((message) => (
+        <ol ref={listRef} tabIndex={-1} className="pt-chat-list">
+          {messages.flatMap((message, index) => {
+            const day = dayKey.format(new Date(message.createdAt));
+            const previous = messages[index - 1];
+            const newDay = previous === undefined || dayKey.format(new Date(previous.createdAt)) !== day;
+            const separator = newDay ? (
+              <li key={`day-${day}`} className="pt-chat-day">
+                <span>{day === todayKey ? strings.dayToday : dayLabel.format(new Date(message.createdAt))}</span>
+              </li>
+            ) : null;
+            return [separator, (
             <li
               key={message.sequenceId}
               className={message.mine ? "pt-chat-item pt-chat-item-mine" : "pt-chat-item"}
@@ -288,9 +309,12 @@ export function MessagesThread({
                 </p>
               </div>
             </li>
-          ))}
+            )];
+          })}
         </ol>
       )}
+      </div>
+      </div>
 
       <p role="status" className="pt-sr-only">{incomingNotice}</p>
 
@@ -310,13 +334,14 @@ export function MessagesThread({
           send();
         }}
       >
-        <label className="pt-field-label" htmlFor="portal-chat-composer">
+        <label className="pt-sr-only" htmlFor="portal-chat-composer">
           {strings.composerLabel}
         </label>
         <textarea
           id="portal-chat-composer"
           className="pt-input pt-chat-input"
-          rows={3}
+          rows={2}
+          aria-describedby="portal-chat-limit"
           maxLength={PORTAL_CASE_MESSAGE_BODY_LIMIT}
           placeholder={strings.composerPlaceholder}
           value={draft}
@@ -331,16 +356,14 @@ export function MessagesThread({
           }}
           disabled={sending}
         />
-        <div className="pt-chat-composer-row">
-          <p className="pt-chat-limit">{strings.limitHint}</p>
-          <button
-            type="submit"
-            className="pt-btn"
-            disabled={sending || stale || draft.trim().length < 1}
-          >
-            {sending ? strings.sending : strings.send}
-          </button>
-        </div>
+        <button
+          type="submit"
+          className="pt-btn pt-chat-send"
+          disabled={sending || stale || draft.trim().length < 1}
+        >
+          {sending ? strings.sending : strings.send}
+        </button>
+        <p id="portal-chat-limit" className="pt-sr-only">{strings.limitHint}</p>
         <p role="status" className="pt-chat-send-status">
           {sending ? strings.sending : justSent ? strings.sentStatus : ""}
         </p>

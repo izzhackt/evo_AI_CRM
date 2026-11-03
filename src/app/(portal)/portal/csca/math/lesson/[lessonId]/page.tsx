@@ -52,7 +52,7 @@ export default async function CscaLessonPage({ params }: { params: Promise<{ les
   if (loaded === null) {
     return (
       <main className="pt-page cs-page">
-        <p className="cs-back-row"><Link className="cs-back" href="/portal/csca">{strings.backToHome}</Link></p>
+        <p className="cs-back-row"><Link className="cs-back" href="/portal/csca?view=lessons">{strings.backToHome}</Link></p>
         <h1 className="pt-page-title">{strings.title}</h1>
         <p role="alert" className="pt-alert">{strings.unavailable}</p>
       </main>
@@ -86,7 +86,7 @@ export default async function CscaLessonPage({ params }: { params: Promise<{ les
     <main className="pt-page cs-page" data-kind={meta.kind}>
       <header className="cs-lesson-header">
         <p className="cs-back-row">
-          <Link className="cs-back" href="/portal/csca">
+          <Link className="cs-back" href="/portal/csca?view=lessons">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d="M10 3.5 5.5 8 10 12.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>

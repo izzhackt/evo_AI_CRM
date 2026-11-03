@@ -171,14 +171,16 @@ test("the page reads the choice and the CSCA home in its single wave, only for C
   assert.doesNotMatch(page, /\.rpc\(|\.schema\(/u);
 });
 
-test("the card opens «Продолжить» in the same grid as the other cards, for both tiers", () => {
+test("the card sits in the right column of the home, once for both tiers", () => {
+  // 03.11.2026: «Учёба и тесты» сняты с «Главной» (слово пользователя); карточка
+  // CSCA осталась — в правой колонке, после «Что нового» и перед «Моими вузами».
   const view = read("src/components/portal/home/HomeView.tsx");
-  const grid = view.indexOf('<div className="pt-home-grid">');
+  const side = view.indexOf('<div className="pt-home-side">');
+  const news = view.indexOf("<HomeNews");
   const card = view.indexOf("{csca}");
-  const english = view.indexOf('<p className="pt-home-card-kicker">{shell["nav.english"]}</p>');
-  assert.ok(grid > 0 && card > grid && english > card, "CSCA is the first card of the grid");
+  const favorites = view.indexOf('aria-labelledby="home-favorites"');
+  assert.ok(side > 0 && news > side && card > news && favorites > card, "dates, news, CSCA, then favourites");
   assert.equal(view.match(/\{csca\}/gu)?.length, 1, "one place for both tiers");
-  assert.ok(view.indexOf('aria-labelledby="home-continue"') < grid, "the grid is the «Продолжить» section");
   // «Путь поступления» не тронут: у самостоятельного студента первым, у клиента после дела.
   assert.match(view, /\{tier === "assisted" \? null : journey\}/u);
   assert.match(view, /\{tier === "assisted" \? journey : null\}/u);

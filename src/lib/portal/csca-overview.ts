@@ -543,20 +543,3 @@ export function cscaGroupFacts(overview: CscaOverview, group: CscaOverviewGroup,
       [subject.key, facts[index].filter((fact) => !sharedKeys.has(fact.key))])),
   };
 }
-
-/**
- * Начал ли студент заниматься: есть ответ, урок, тест или банк ошибок. Тогда
- * обзор по умолчанию свёрнут в одну строку; свой выбор зритель меняет кнопкой
- * «Об экзамене», устройство помнит его в cookie (`csca-overview-choice.ts`).
- */
-export function cscaHasStarted(home: Readonly<{
-  topics: readonly Readonly<{ windowAnswers: number; lessonCompleted: boolean }>[];
-  lessons: readonly Readonly<{ completed: boolean; draftAttemptId: string | null }>[];
-  tests: readonly Readonly<{ draft: unknown; lastResult: unknown }>[];
-  review: Readonly<{ activeCount: number }>;
-}>): boolean {
-  return home.topics.some((topic) => topic.windowAnswers > 0 || topic.lessonCompleted)
-    || home.lessons.some((lesson) => lesson.completed || lesson.draftAttemptId !== null)
-    || home.tests.some((test) => test.draft !== null || test.lastResult !== null)
-    || home.review.activeCount > 0;
-}

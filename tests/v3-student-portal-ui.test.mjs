@@ -101,7 +101,8 @@ test("the Student workspace preserves four portal pages, private tests and publi
       "/portal/csca",
       "/portal/favorites",
       "/portal/payments",
-      "/portal/notifications",
+      // 03.11.2026: «Уведомления» вошли во «Входящие» (/portal/messages,
+      // лента «Что нового»); сама страница осталась для старых ссылок.
       "/portal/tests",
       "/portal/profile",
     ],
@@ -895,8 +896,9 @@ test("330: a staff message notifies the student once per unread and the notifica
   assert.doesNotMatch(source.replaceAll("NEW.body = ''", ""), /NEW\.body/u, "the notification holds no message text");
   assert.match(fileOf("src/components/portal/admission/presentation.ts"), /eventCode === "case_chat_message"[\s\S]*?href: "\/portal\/messages", label: strings\.targetMessages/u);
   const i18n = fileOf("src/lib/portal/i18n.ts");
-  assert.match(i18n, /targetMessages: "Открыть сообщения"/u);
-  assert.match(i18n, /targetMessages: "Билдирүүлөрдү ачуу"/u);
+  // 03.11.2026: «Сообщения» стали «Входящими» — ссылка ведёт к переписке в них.
+  assert.match(i18n, /targetMessages: "Открыть переписку"/u);
+  assert.match(i18n, /targetMessages: "Кат алышууну ачуу"/u);
   const script = fileOf("scripts/test-runners/test-postgres-authorization.sh");
   assert.match(fileOf("supabase/tests/platform_case_chat_student_notification.sql"), /ROLLBACK;\s*$/u);
   assert.ok(script.indexOf("A330_CASE_CHAT_STUDENT_NOTIFICATION_SUITE_PASSED") > 0 && script.indexOf("A330_CASE_CHAT_STUDENT_NOTIFICATION_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));

@@ -78,7 +78,7 @@ export function PortalNotificationUpdates({ locale, release }: { locale: Locale;
 
   return (
     <div className="pt-notification-updates">
-      <Link href="/portal/notifications" className="pt-bell" aria-label={label}>
+      <Link href="/portal/messages?view=updates" className="pt-bell" aria-label={label}>
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
           <path d="M10 3a4.5 4.5 0 0 1 4.5 4.5c0 3.2 1 4.5 1.5 5H4c.5-.5 1.5-1.8 1.5-5A4.5 4.5 0 0 1 10 3zM8.5 15.5a1.5 1.5 0 0 0 3 0"
             stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />

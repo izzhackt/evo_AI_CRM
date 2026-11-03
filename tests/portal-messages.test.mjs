@@ -178,10 +178,11 @@ test("the thread no longer polls itself, refreshes on the shell's version event,
 
 test("the messages dictionary ships both locales through the shared registry", () => {
   assert.ok(PORTAL_DICTIONARIES.messages);
-  assert.equal(PORTAL_DICTIONARIES.messages.ru.title, "Сообщения");
-  assert.equal(PORTAL_DICTIONARIES.messages.ky.title, "Билдирүүлөр");
-  assert.equal(PORTAL_DICTIONARIES.shell.ru["nav.messages"], "Сообщения");
-  assert.equal(PORTAL_DICTIONARIES.shell.ky["nav.messages"], "Билдирүүлөр");
+  // 03.11.2026: раздел — «Входящие»: переписка и лента «Что нового».
+  assert.equal(PORTAL_DICTIONARIES.messages.ru.title, "Входящие");
+  assert.equal(PORTAL_DICTIONARIES.messages.ky.title, "Келген каттар");
+  assert.equal(PORTAL_DICTIONARIES.shell.ru["nav.messages"], "Входящие");
+  assert.equal(PORTAL_DICTIONARIES.shell.ky["nav.messages"], "Келген каттар");
 });
 
 test("the portal chat test file is registered exactly once", () => {

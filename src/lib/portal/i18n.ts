@@ -37,7 +37,7 @@ const shellRu = {
   "nav.home": "Главная",
   "nav.overview": "Поступление",
   "nav.documents": "Документы",
-  "nav.messages": "Сообщения",
+  "nav.messages": "Входящие",
   "nav.universities": "Университеты",
   "nav.professions": "Профессии",
   "nav.english": "Английский",
@@ -71,7 +71,7 @@ const shellKy: Readonly<Record<ShellKey, string>> = {
   "nav.home": "Башкы бет",
   "nav.overview": "Тапшыруу",
   "nav.documents": "Документтер",
-  "nav.messages": "Билдирүүлөр",
+  "nav.messages": "Келген каттар",
   "nav.universities": "Университеттер",
   "nav.professions": "Кесиптер",
   "nav.english": "Англис тили",
@@ -1395,7 +1395,16 @@ const professionsKy: Readonly<Record<ProfessionsKey, string>> = {
  * страница помечает разницу предметно.
  */
 const messagesRu = {
-  title: "Сообщения",
+  // «Входящие» (03.11.2026): переписка и лента «Что нового» в одном разделе.
+  title: "Входящие",
+  listAria: "Переписка и новости",
+  chatTitle: "Команда EVO",
+  chatSubline: "Куратор и команда отвечают здесь",
+  updatesTitle: "Что нового",
+  updatesSubline: "Новости по вашему делу, отвечать не нужно",
+  updatesUnavailable: "Не удалось загрузить новости. Обновите страницу.",
+  unreadCount: "Новых: {count}",
+  dayToday: "Сегодня",
   unavailable: "Не удалось загрузить сообщения. Обновите страницу. Переписка не потеряна.",
   emptyTitle: "Сообщений пока нет",
   emptyBody: "Напишите команде EVO — сообщение появится здесь вместе с ответом.",
@@ -1423,7 +1432,15 @@ const messagesRu = {
 type MessagesKey = keyof typeof messagesRu;
 
 const messagesKy: Readonly<Record<MessagesKey, string>> = {
-  title: "Билдирүүлөр",
+  title: "Келген каттар",
+  listAria: "Кат алышуу жана жаңылыктар",
+  chatTitle: "EVO командасы",
+  chatSubline: "Куратор жана команда ушул жерде жооп берет",
+  updatesTitle: "Эмне жаңы",
+  updatesSubline: "Ишиңиз боюнча жаңылыктар, жооп берүүнүн кереги жок",
+  updatesUnavailable: "Жаңылыктар жүктөлгөн жок. Баракты жаңыртыңыз.",
+  unreadCount: "Жаңы: {count}",
+  dayToday: "Бүгүн",
   unavailable: "Билдирүүлөр жүктөлгөн жок. Баракты жаңыртыңыз. Кат алышуу жоголгон жок.",
   emptyTitle: "Азырынча билдирүү жок",
   emptyBody: "EVO командасына жазыңыз — билдирүү жообу менен ушул жерде чыгат.",
@@ -1461,7 +1478,7 @@ const messagesKy: Readonly<Record<MessagesKey, string>> = {
  * tests/portal-i18n.test.mjs), staff-файл при этом не импортируется.
  */
 const admissionRu = {
-  messagesLink: "Написать в сообщениях",
+  messagesLink: "Написать команде EVO",
 
   overviewTitle: "Моё поступление",
   documentsTitle: "Документы",
@@ -1574,9 +1591,9 @@ const admissionRu = {
   markAllReadError: "Не удалось подтвердить отметку для всех уведомлений. Часть могла быть отмечена. Повторите попытку.",
   marking: "Отмечаем…",
   targetReply: "Прочитать ответ куратора",
-  targetMessages: "Открыть сообщения",
+  targetMessages: "Открыть переписку",
   caseChatNotificationTitle: "Новое сообщение от команды EVO",
-  caseChatNotificationDetail: "Откройте «Сообщения», чтобы прочитать.",
+  caseChatNotificationDetail: "Откройте переписку во «Входящих», чтобы прочитать.",
   targetDocuments: "Открыть документы",
   targetProgramDocument: "Открыть решение по документу",
   targetProgramPackage: "Открыть решение по комплекту",
@@ -1626,7 +1643,7 @@ const admissionRu = {
 type AdmissionKey = keyof typeof admissionRu;
 
 const admissionKy: Readonly<Record<AdmissionKey, string>> = {
-  messagesLink: "Билдирүүлөрдө жазуу",
+  messagesLink: "EVO командасына жазуу",
 
   overviewTitle: "Менин тапшыруум",
   documentsTitle: "Документтер",
@@ -1738,9 +1755,9 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   markAllReadError: "Бардык билдирмелердин окулганын белгилөө ырасталган жок. Айрымдары белгиленген болушу мүмкүн. Кайра аракет кылыңыз.",
   marking: "Белгилеп жатабыз…",
   targetReply: "Куратордун жообун окуу",
-  targetMessages: "Билдирүүлөрдү ачуу",
+  targetMessages: "Кат алышууну ачуу",
   caseChatNotificationTitle: "EVO командасынан жаңы билдирүү",
-  caseChatNotificationDetail: "Окуу үчүн «Билдирүүлөрдү» ачыңыз.",
+  caseChatNotificationDetail: "Окуу үчүн «Келген каттардагы» кат алышууну ачыңыз.",
   targetDocuments: "Документтерди ачуу",
   targetProgramDocument: "Документ боюнча чечимди ачуу",
   targetProgramPackage: "Топтом боюнча чечимди ачуу",

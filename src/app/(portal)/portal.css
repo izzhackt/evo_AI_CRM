@@ -3745,6 +3745,311 @@
   font-size: var(--pt-size-caption);
 }
 
+/* Время в пузыре — справа, автор входящего — слева (03.11.2026). */
+.pt-chat-meta {
+  justify-content: space-between;
+}
+
+.pt-chat-item-mine .pt-chat-meta {
+  justify-content: flex-end;
+}
+
+/* Дата над первым сообщением дня — плашкой по центру ленты. */
+.pt-chat-day {
+  display: flex;
+  justify-content: center;
+  margin: 6px 0 2px;
+}
+
+.pt-chat-day span {
+  padding: 2px 10px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-surface);
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+/* ---------- «Входящие» (03.11.2026, по образцу кабинета пользователя) ----------
+ * Слева список: «Что нового» и переписка с командой EVO; справа — открытое.
+ * От 1100 px — две колонки, уже — список над открытым. Цвета — прежние токены.
+ */
+.pt-inbox-page {
+  padding-bottom: 24px;
+}
+
+.pt-inbox {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+/* Как мессенджер: обе колонки на высоту окна, лента прокручивается внутри. */
+@media (min-width: 1100px) {
+  .pt-inbox {
+    grid-template-columns: 320px minmax(0, 1fr);
+    height: calc(100dvh - var(--pt-topbar-height) - 128px);
+    min-height: 480px;
+  }
+}
+
+.pt-inbox-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-inbox-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.pt-inbox-list > li + li {
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-inbox-side-foot {
+  margin: 0;
+  padding: 10px 16px;
+  border-top: 1px solid var(--pt-line);
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  line-height: var(--pt-leading);
+}
+
+.pt-inbox-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 68px;
+  padding: 12px 16px;
+  color: var(--pt-text);
+  text-decoration: none;
+}
+
+.pt-inbox-item:hover,
+.pt-inbox-item[aria-current="page"] {
+  background: var(--pt-bg);
+}
+
+.pt-inbox-item:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: -2px;
+}
+
+.pt-inbox-avatar {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-bg);
+  box-shadow: inset 0 0 0 1px var(--pt-line);
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.pt-inbox-item[aria-current="page"] .pt-inbox-avatar {
+  background: var(--pt-surface);
+}
+
+.pt-inbox-item-text {
+  display: grid;
+  min-width: 0;
+}
+
+.pt-inbox-item-title {
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.pt-inbox-item-preview {
+  overflow: hidden;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pt-inbox-time {
+  align-self: start;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Непрочитанные: красная заливка с белой цифрой, как «сегодня». */
+.pt-inbox-badge {
+  display: grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-accent);
+  color: var(--pt-on-accent);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+}
+
+.pt-inbox-pane {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-inbox-pane-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--pt-line);
+}
+
+.pt-inbox-pane-title {
+  margin: 0;
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.pt-inbox-pane-sub {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+/* Тело открытого — тон бумаги: белые входящие пузыри и карточки на нём видны. */
+.pt-inbox-pane-body {
+  flex: 1;
+  min-height: 0;
+  padding: 20px;
+  overflow-y: auto;
+  background: var(--pt-bg);
+}
+
+.pt-inbox-pane-body:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: -2px;
+}
+
+/* Телефон: колонка переписки — высотой с экран, поле ввода всегда на виду. */
+@media (max-width: 1099.98px) {
+  .pt-inbox-pane:has(.pt-inbox-pane-body-chat) {
+    height: min(76dvh, 680px);
+  }
+}
+
+/* Телефон с нижней панелью: переписка ровно между верхней строкой и вкладками. */
+@media (max-width: 767px) {
+  .pt-inbox-pane:has(.pt-inbox-pane-body-chat) {
+    height: calc(100dvh - var(--pt-topbar-height) - 84px - 32px - env(safe-area-inset-bottom));
+    min-height: 420px;
+  }
+}
+
+/* Переписка: лента прокручивается сама, поле ввода прижато к низу колонки. */
+.pt-inbox-pane-body-chat {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.pt-inbox-pane-body-chat .pt-chat {
+  flex: 1;
+  min-height: 0;
+  max-width: none;
+  margin: 0;
+  gap: 0;
+}
+
+/* «Ждёт вашего ответа» — полоса над лентой с планкой акцента, как у активного пункта. */
+.pt-inbox-pane-body-chat .pt-chat-awaiting {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 8px 20px;
+  border: 0;
+  border-bottom: 1px solid var(--pt-line);
+  border-radius: 0;
+  box-shadow: inset 3px 0 0 var(--pt-accent);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+}
+
+/* column-reverse: лента открывается на последних сообщениях. */
+.pt-chat-scroll {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column-reverse;
+  padding: 16px 20px;
+  overflow-y: auto;
+}
+
+.pt-chat-scroll:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: -2px;
+}
+
+.pt-chat-scroll-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pt-inbox-pane-body-chat .pt-chat-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 6px 12px;
+  padding: 12px 16px;
+  border: 0;
+  border-top: 1px solid var(--pt-line);
+  border-radius: 0;
+  background: var(--pt-surface);
+  box-shadow: none;
+}
+
+.pt-inbox-pane-body-chat .pt-chat-composer > .pt-chat-send-status,
+.pt-inbox-pane-body-chat .pt-chat-composer > .pt-chat-refresh-error {
+  grid-column: 1 / -1;
+}
+
+.pt-inbox-pane-body-chat .pt-chat-send-status {
+  min-height: 0;
+}
+
+.pt-inbox-pane-body-chat .pt-chat-input {
+  min-height: 48px;
+  max-height: 160px;
+}
+
+.pt-inbox-pane-body-chat .pt-chat > .pt-chat-refresh-error {
+  margin: 0 20px 12px;
+}
+
 /* ---------- «Моё поступление» в Атласе (PORT-5d) ---------- */
 
 .pt-status {

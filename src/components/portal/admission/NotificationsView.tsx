@@ -24,11 +24,14 @@ export function NotificationsView({
   markReadAction,
   markAllReadAction,
   locale,
+  embedded = false,
 }: {
   notifications: readonly StudentPortalNotification[];
   markReadAction: MarkPortalNotificationReadAction;
   markAllReadAction: MarkPortalNotificationReadAction;
   locale: Locale;
+  /** Внутри «Входящих»: заголовок «Что нового» уже над лентой, свой не нужен. */
+  embedded?: boolean;
 }) {
   const strings = getPortalStrings("admission", locale);
 
@@ -47,7 +50,7 @@ export function NotificationsView({
     <section className="pt-card">
       <header className="pt-card-header">
         <div className="pt-card-header-main">
-          <h2 className="pt-card-title">{strings.notificationsHeading}</h2>
+          {embedded ? null : <h2 className="pt-card-title">{strings.notificationsHeading}</h2>}
           <p className="pt-card-note">{strings.notificationsTimeNote}</p>
         </div>
         {hasUnread ? (

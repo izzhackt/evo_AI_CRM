@@ -490,7 +490,8 @@ const ASSISTED_SECTION_PATHS = [
   "/portal/english",
   "/portal/favorites",
   "/portal/payments",
-  "/portal/notifications",
+  // 03.11.2026: «Уведомления» — лента «Что нового» во «Входящих»
+  // (/portal/messages); страница /portal/notifications осталась без пункта меню.
   "/portal/tests",
   "/portal/profile",
 ] as const;

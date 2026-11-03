@@ -57,8 +57,7 @@ npm run dev
 2. Короткая ветка от свежего `main`, один смысл на ветку.
 3. Pull request, независимая проверка, squash-слияние в `main`.
 4. Сообщения коммитов — Conventional Commits (`feat(crm): ...`, `fix: ...`, `docs: ...`).
-5. Выпуск на сервер — только из `main`, после 21:00 по Бишкеку или в воскресенье
-   (пока работает телефония). Порядок — в [`deploy/production-release.md`](deploy/production-release.md).
+5. Выпуск на сервер — только из `main`. Порядок — в [`deploy/production-release.md`](deploy/production-release.md).
 
 `main` на GitHub — единственная точка правды; сервер — только среда запуска.
 

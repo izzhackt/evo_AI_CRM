@@ -45,3 +45,19 @@ export function PipelineClosedNextPage({ title, count, backLabel, children }: Re
     </PageShell>
   );
 }
+
+/**
+ * Просмотр роли: проекция передач отказывает ему, а без неё переданные лиды легли бы в рабочие колонки. Доски нет,
+ * как у «Динамики» и «Сегодня»; «Закрытые лиды» читаются и в просмотре (только чтение).
+ */
+export function PipelinePreviewNextPage({ closedHref, closedLabel }: Readonly<{ closedHref: string; closedLabel: string }>) {
+  return (
+    <PageShell title="Воронка продаж" testId="v3-pipeline">
+      <p className="py-4 t-body-compact text-fg-2" data-testid="v3-pipeline-preview">При просмотре роли воронка не показывается.</p>
+      <Link href={closedHref} prefetch={false} data-testid="v3-pipeline-closed-link"
+        className="inline-flex min-h-11 items-center t-label text-fg-2 underline underline-offset-4 hover:text-fg">
+        {closedLabel}
+      </Link>
+    </PageShell>
+  );
+}

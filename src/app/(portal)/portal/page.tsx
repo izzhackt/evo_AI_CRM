@@ -80,6 +80,10 @@ async function AdmissionOverview({ actor, locale, view }: Readonly<{
   return (
     <>
       {overview === undefined ? <p className="pt-prep-error" role="status">{preparationStrings.overviewUnavailable}</p> : <OverviewView overview={overview} pending={actor.caseState === "pending"} locale={locale} favoritesCount={favorites?.length ?? null} programsCount={preparations?.length ?? null} />}
+      {/* «Незавершённые отправки» видны на любой вкладке: оборванная отправка не зависит от выбранного вида (#1341). */}
+      <div className="pt-pending-packages">
+        <PendingPackagesLink owner={{ organizationId: actor.organizationId, membershipId: actor.membershipId }} label={packageStrings(locale).pendingTitle} />
+      </div>
       <nav className="pt-pill-tabs" aria-label={strings.tabsLabel}>
         <Link className="pt-pill-tab" href="/portal" aria-current={view === "universities" ? "true" : undefined}>
           {strings["tab.universities"]}
@@ -93,10 +97,7 @@ async function AdmissionOverview({ actor, locale, view }: Readonly<{
       {view === "universities" ? (
         <FavoritesSection institutionIds={favorites} locale={locale} />
       ) : (
-        <>
-          <PreparationList items={preparations} strings={preparationStrings} canSelect={actor.caseState === "active" && Boolean(actor.portalActivatedAt)} />
-          <PendingPackagesLink owner={{ organizationId: actor.organizationId, membershipId: actor.membershipId }} label={packageStrings(locale).pendingTitle} />
-        </>
+        <PreparationList items={preparations} strings={preparationStrings} canSelect={actor.caseState === "active" && Boolean(actor.portalActivatedAt)} />
       )}
     </>
   );

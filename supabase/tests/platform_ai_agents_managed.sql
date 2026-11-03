@@ -1331,10 +1331,10 @@ SELECT pg_temp.a317_tool('create_task', 'sales', format('{"title":"Провер�
 SELECT pg_temp.a317_assert((:'a317_ct2'::JSONB) ->> 'assignee_name' = 'A317 Actor 2'
   AND (SELECT count(*) = 1 FROM platform.staff_notifications n WHERE n.staff_task_id = ((:'a317_ct2'::JSONB) ->> 'task_id')::UUID AND n.recipient_membership_id = pg_temp.a317_id(302)),
   'create_task: a named assignee gets the task and the bell');
-SELECT pg_temp.a317_tool('create_task', 'sales', format('{"title":"Запросить аттестат","case_id":"%s","priority":"low","due_on":"2026-11-05"}', pg_temp.a317_id(701))) AS a317_ct3 \gset
+SELECT pg_temp.a317_tool('create_task', 'sales', format('{"title":"Запросить аттестат","case_id":"%s","priority":"low","due_on":"2099-11-05"}', pg_temp.a317_id(701))) AS a317_ct3 \gset
 SELECT pg_temp.a317_assert((:'a317_ct3'::JSONB) ->> 'kind' = 'case' AND (:'a317_ct3'::JSONB) ->> 'assignee_name' = 'A317 Actor 2'
   AND (SELECT t.title = '[ИИ «Продажи (Closer)»] Запросить аттестат' AND t.priority = 'low' AND t.task_type = 'ai_agent' AND NOT t.student_visible
-        AND t.created_by_membership_id = pg_temp.a317_id(301) AND t.assignee_membership_id = pg_temp.a317_id(302) AND t.due_on = DATE '2026-11-05' AND t.status = 'open'
+        AND t.created_by_membership_id = pg_temp.a317_id(301) AND t.assignee_membership_id = pg_temp.a317_id(302) AND t.due_on = DATE '2099-11-05' AND t.status = 'open'
       FROM platform.case_tasks t WHERE t.id = ((:'a317_ct3'::JSONB) ->> 'task_id')::UUID)
   AND (SELECT count(*) = 1 FROM platform.case_task_events e WHERE e.case_task_id = ((:'a317_ct3'::JSONB) ->> 'task_id')::UUID AND e.new_assignee_membership_id = pg_temp.a317_id(302))
   AND (SELECT count(*) = 1 FROM platform.staff_notifications n WHERE n.case_task_id = ((:'a317_ct3'::JSONB) ->> 'task_id')::UUID AND n.recipient_membership_id = pg_temp.a317_id(302))
@@ -1442,14 +1442,14 @@ SELECT pg_temp.a317_tool('list_tasks', 'sales', '{}') AS a317_lt \gset
 SELECT pg_temp.a317_assert((SELECT count(*) FROM jsonb_array_elements((:'a317_lt'::JSONB) -> 'items') e WHERE e ->> 'kind' = 'staff') = 6
   AND (SELECT count(*) FROM jsonb_array_elements((:'a317_lt'::JSONB) -> 'items') e WHERE e ->> 'kind' = 'case') = 1
   AND (SELECT e ->> 'title' = '[ИИ «Продажи (Closer)»] Запросить аттестат' AND e ->> 'assignee_name' = 'A317 Actor 2' AND e ->> 'priority' = 'low'
-      AND e ->> 'due_on' = '2026-11-05' AND e ->> 'case_id' = pg_temp.a317_id(701)::TEXT
+      AND e ->> 'due_on' = '2099-11-05' AND e ->> 'case_id' = pg_temp.a317_id(701)::TEXT
       FROM jsonb_array_elements((:'a317_lt'::JSONB) -> 'items') e WHERE e ->> 'kind' = 'case')
   AND (SELECT e ->> 'lead_id' = pg_temp.a317_id(601)::TEXT FROM jsonb_array_elements((:'a317_lt'::JSONB) -> 'items') e WHERE e ->> 'title' LIKE '%Позвонить клиенту')
   AND jsonb_array_length(pg_temp.a317_tool('list_tasks', 'sales', format('{"case_id":"%s"}', pg_temp.a317_id(701))) -> 'items') = 1
   AND jsonb_array_length(pg_temp.a317_tool('list_tasks', 'sales', format('{"lead_id":"%s"}', pg_temp.a317_id(601))) -> 'items') = 1
   AND jsonb_array_length(pg_temp.a317_tool('list_tasks', 'sales', format('{"assignee_id":"%s"}', pg_temp.a317_id(302))) -> 'items') = 6
   AND jsonb_array_length(pg_temp.a317_tool('list_tasks', 'sales', '{"status":"done"}') -> 'items') = 0
-  AND jsonb_array_length(pg_temp.a317_tool('list_tasks', 'sales', '{"due_before":"2026-11-02"}') -> 'items') = 5
+  AND jsonb_array_length(pg_temp.a317_tool('list_tasks', 'sales', format('{"due_before":"%s"}', ((clock_timestamp() AT TIME ZONE 'Asia/Bishkek')::DATE + 1)::TEXT)) -> 'items') = 5
   AND jsonb_array_length(pg_temp.a317_tool('list_tasks', 'sales', '{}', 2) -> 'items') = 0
   AND (pg_temp.a317_tool('list_tasks', 'sales', '{"limit":2}') ->> 'next_cursor') IS NOT NULL,
   'list_tasks: staff and case tasks with names, lead / case links and the filters; paging; another organization has none: ' || (SELECT count(*)::TEXT FROM jsonb_array_elements((:'a317_lt'::JSONB) -> 'items')));

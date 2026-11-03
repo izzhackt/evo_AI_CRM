@@ -62622,6 +62622,11 @@ The owner asked for a repository that is clearly structured and named. The work 
 | `docs/lead-agent/REAL_WHATSAPP_GOLDEN_DATASET.md` | `docs/archive/lead-agent/REAL_WHATSAPP_GOLDEN_DATASET.md` |
 | `docs/lead-agent/TOP_50_REAL_WHATSAPP_INTENTS_DRAFT.md` | `docs/archive/lead-agent/TOP_50_REAL_WHATSAPP_INTENTS_DRAFT.md` |
 
+## 2026-11-03 · Чтение чата снимает уведомление только своего дела (миграция 331, issues #1331 и #1335)
+
+- **Что и зачем.** После миграции 330 команда `platform.mark_own_case_chat_notifications_read_v1` снимала уведомления чата по всем делам студента, а позицию сообщений сравнивала по сквозному `sequence_id`: чтение чата одного дела могло снять уведомление другого. Миграция 331 (вперёд, без удалений) берёт дело так же, как страница и отправка чата (`require_case_operations_actor(NULL, TRUE)`, единственное портальное дело в состоянии active/closed) и снимает только его уведомление. Если портальных дел несколько или нет, отказ 42501, как у самого чата. Сигнатура, тип результата, GRANT и вызов в приложении не меняются, порядок выката любой.
+- **Проверка.** Новый набор `supabase/tests/platform_case_chat_read_scope.sql` включён в `scripts/test-runners/test-postgres-authorization.sh` сразу после миграции (повтор отказывает `a331_already_applied`); до миграции он не проходит. Рядом: комментарий `portalNotificationTarget` вернулся на своё место, а в `supabase/tests/platform_client_merge_service.sql` проверка «в журнале нет телефона и имён» ищет конкретные значения фикстуры вместо четырёх цифр `0555`, которые изредка случайно встречаются в uuid (45 из 200 000 случайных uuid).
+
 ## 2026-11-03 · «Новый вид» для всех сотрудников: убрать переключатель (issue #1327, ветка `izzhackt/ui-next-for-all`)
 
 Date: 2026-11-03.

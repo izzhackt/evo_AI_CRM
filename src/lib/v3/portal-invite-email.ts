@@ -1,14 +1,17 @@
+import { isStaffPreview } from "../platform-access.ts";
+import type { ActivePlatformActor } from "../platform-auth";
 import type { createSupabaseServerClient } from "../supabase/server";
 
 /**
  * Почта клиента для приглашения в кабинет у дела без открытого лида. Блок «Доступ к порталу» с этим
- * адресом видит Admin, поэтому у остальных адрес не читается вовсе, а не только не рисуется.
+ * адресом видит только настоящий Admin, поэтому у остальных адрес не читается вовсе, а не только не
+ * рисуется. Админ в просмотре под другой ролью тоже не читает: блок ему не показывают (`!preview`).
  */
 export async function portalInviteEmailFor(
-  systemRole: string,
+  actor: Pick<ActivePlatformActor, "systemRole" | "presentationRole">,
   readClientEmail: () => Promise<string | null>,
 ): Promise<string | null> {
-  return systemRole === "admin" ? readClientEmail() : null;
+  return actor.systemRole === "admin" && !isStaffPreview(actor) ? readClientEmail() : null;
 }
 
 /** Почта клиента этого дела под сессией сотрудника, права решает RLS. Сбой или пустая почта: null. */
@@ -38,4 +41,13 @@ export function inviteEmailConfirmed(
 ): boolean {
   if (!email || application?.status !== "approved") return false;
   return application.email.trim().toLowerCase() === email.trim().toLowerCase();
+}
+
+/**
+ * Показывать ли «Приглашение уйдёт на …» после ответа действия. Пока форма остаётся рабочей (в том числе
+ * при `blocked`: «остановлено, письмо не отправлялось»), адрес виден. Приглашение уже выдано или ждёт
+ * регистрации: оно живёт со своим адресом, и «уйдёт на» больше не про него.
+ */
+export function inviteAddressVisible(status: string | undefined): boolean {
+  return status === undefined || ["invalid", "unavailable", "inviteFailed", "forbidden", "blocked"].includes(status);
 }

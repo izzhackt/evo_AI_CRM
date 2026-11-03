@@ -91,7 +91,8 @@ test("the Student workspace preserves four portal pages, private tests and publi
       // PORT-9c: «Главная» — первый пункт обоих tier'ов.
       "/portal/home",
       "/portal",
-      // 03.11.2026: «Документы» и «Оплата» сняты с меню, страницы — с «Поступления».
+      "/portal/documents",
+      // 03.11.2026: «Оплата» снята с меню, страница — с «Поступления».
       // PORT-5c: переписка по делу — только assisted (tiers-гейт в Shell).
       "/portal/messages",
       "/portal/universities",

@@ -182,12 +182,11 @@ test("the curator is named as «подаёт или помогает подат�
 test("no timeline sends a student to a cabinet section their tier does not have", () => {
   const shell = read("src/components/portal/Shell.tsx");
   const assistedOnly = [...shell.matchAll(/key: "(nav\.[a-z]+)", tiers: \["assisted"\] \}/gu)].map((m) => m[1]);
-  // 03.11.2026: «Уведомления» вошли во «Входящие» (nav.messages); «Документы» и
-  // «Оплата» сняты с меню.
-  assert.deepEqual(assistedOnly.sort(), ["nav.messages"]);
+  // 03.11.2026: «Уведомления» вошли во «Входящие» (nav.messages); «Оплата» снята с меню.
+  assert.deepEqual(assistedOnly.sort(), ["nav.documents", "nav.messages"]);
   const i18n = read("src/lib/portal/i18n.ts");
   const labels = assistedOnly.flatMap((key) => [...i18n.matchAll(new RegExp(`"${key.replace(".", "\\.")}": "([^"]+)"`, "gu"))].map((m) => m[1]));
-  assert.deepEqual(labels.sort(), ["Входящие", "Келген каттар"].sort());
+  assert.deepEqual(labels.sort(), ["Входящие", "Документтер", "Документы", "Келген каттар"].sort());
   for (const { choice, locale, today, view } of views()) {
     for (const text of viewStrings(view)) {
       for (const label of labels) assert.ok(!text.includes(`«${label}`), `${choice} ${locale} ${today}: ${text}`);

@@ -464,19 +464,18 @@ test("the mobile Portal tab bar supports keyboard navigation", async ({
   // Page content follows the bar in DOM order; start from its first section
   // and reach one that is on screen at both phone widths (see the next test).
   await navigation.locator('a[href="/portal/home"]').focus();
-  // 03.11.2026: третья вкладка — «Входящие» («Документы» сняты с меню).
-  const inbox = navigation.locator('a[href="/portal/messages"]');
+  const documents = navigation.locator('a[href="/portal/documents"]');
   for (let press = 0; press < 4; press += 1) {
     await page.keyboard.press("Tab");
-    if (await inbox.evaluate((element) => element === document.activeElement)) break;
+    if (await documents.evaluate((element) => element === document.activeElement)) break;
   }
-  await expect(inbox).toBeFocused();
+  await expect(documents).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/portal\/messages$/);
+  await expect(page).toHaveURL(/\/portal\/documents$/);
   await expect(page.getByTestId("student-portal-shell")).toBeVisible();
-  await expect(inbox).toHaveAttribute("aria-current", "page");
+  await expect(documents).toHaveAttribute("aria-current", "page");
   // The persistent shell and URL can update before the streamed page arrives.
-  await expect(page.getByRole("heading", { level: 1, name: "Входящие", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Документы", exact: true })).toBeVisible();
   await expectPortalGeometry(page, testInfo.project.name);
 });
 
@@ -484,7 +483,8 @@ test("the mobile Portal tab bar supports keyboard navigation", async ({
 const ASSISTED_SECTION_PATHS = [
   "/portal/home",
   "/portal",
-  // 03.11.2026: «Документы» и «Оплата» без пунктов меню (страницы — с «Поступления»).
+  "/portal/documents",
+  // 03.11.2026: «Оплата» без пункта меню (страница — с «Поступления»).
   "/portal/messages",
   "/portal/universities",
   "/portal/professions",

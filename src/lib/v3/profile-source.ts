@@ -743,7 +743,7 @@ async function readCaseProfile(
     // `email` остаётся null намеренно: неподтверждённое значение анкеты не включает «Доступ к порталу».
     // Блоку нужна почта клиента: её отдельно несёт `portalInviteEmail`, блок виден только Admin.
     email: null,
-    portalInviteEmail: await portalInviteEmailFor(actor.systemRole, () => readStudentCaseClientEmail(actor, canonicalCaseId)),
+    portalInviteEmail: await portalInviteEmailFor(actor, () => readStudentCaseClientEmail(actor, canonicalCaseId)),
     phone: null,
     student: true,
     stage: null,

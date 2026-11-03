@@ -7,6 +7,7 @@ import {
   manageStudentPortalAccessAction,
   type StudentPortalAccessActionState,
 } from "@/lib/student-portal-provisioning-actions";
+import { inviteAddressVisible } from "@/lib/v3/portal-invite-email";
 import { studentPortalInviteFailure } from "@/lib/v3/wording";
 
 type CuratorOption = Readonly<{
@@ -102,7 +103,7 @@ export function StudentPortalAccessControls({
     "receiptId" in state &&
     Boolean(state.attemptId && state.inviteKind);
   // Приглашение уже выдано: оно живёт со своим адресом, и «уйдёт на» больше не про него.
-  const inviteOpen = state === null || ["invalid", "unavailable", "inviteFailed", "forbidden"].includes(state.status);
+  const inviteOpen = inviteAddressVisible(state?.status);
   const forbiddenCopy = cabinetPending
     ? "Управлять доступом может Admin или менеджер продаж с доступом к лиду."
     : "Управлять доступом может только Admin.";

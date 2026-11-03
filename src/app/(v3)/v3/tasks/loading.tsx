@@ -1,6 +1,6 @@
-import { PartShell } from "@/components/v3/PartShell";
+import { PageShell } from "@/components/kit";
 import { QueueSkeleton } from "@/components/v3/queue/QueueStates";
 
 export default function TasksLoading() {
-  return <PartShell title="Задачи"><QueueSkeleton /></PartShell>;
+  return <PageShell title="Задачи"><QueueSkeleton /></PageShell>;
 }

@@ -334,7 +334,7 @@ test("a stale WORKING row (key revoked, API down or the timer stopped - nothing 
   assert.notEqual(row.tone, "ok");
   assert.equal(stale(new Date("2026-10-27T10:14:00Z")).state, "подключён", "inside the window the row is as before");
   // Карточка канала берёт то же слово с тем же «сейчас» (чип «Подключён» без проверки возраста был бы неправдой).
-  const card = read("src/components/v3/settings/WhatsAppTransportCard.tsx");
+  const card = read("src/components/v3/settings-next/TransportCardNext.tsx");
   assert.match(card, /wazzupChannelWords\(transport\.channel\?\.state \?\? null, \{\s*observedAt: transport\.channel\?\.observedAt \?\? null,\s*nowMs: now\.getTime\(\),\s*\}\)/u);
 });
 
@@ -409,15 +409,15 @@ test("the integrations table without Wazzup is the WAHA table as before", () => 
 // ---------------------------------------------------------------- исходники
 
 test("Settings: the WAHA connect block gives way to the Wazzup card; the WAHA session is not probed while Wazzup is active", () => {
-  const settings = read("src/components/v3/settings/Settings.tsx");
-  assert.match(settings, /whatsappConnect\.wazzup\s*\? <WhatsAppTransportCard/u);
+  const settings = read("src/components/v3/settings-next/IntegrationsNext.tsx");
+  assert.match(settings, /whatsapp\.wazzup\s*\? <TransportCardNext/u);
   assert.match(settings, /: <WhatsAppConnectSection initialStatus=/u);
   assert.match(read("src/app/(v3)/v3/settings/page.tsx"), /wazzup: whatsappConnection\.wazzup/u);
   const source = read("src/lib/v3/settings-source.ts");
   assert.match(source, /readPlatformWhatsAppTransport\(actor\)/u);
   assert.match(source, /const recordedWaha = wazzupPath \? null : await getPlatformWahaSessionHealth\(actor, "crm_primary"\);/u, "no WAHA read on the Wazzup path");
   assert.match(source, /const waha = wazzupPath\s*\? null\s*: await withLivePlatformWahaHealth\(/u, "no WAHA probe on the Wazzup path");
-  const card = read("src/components/v3/settings/WhatsAppTransportCard.tsx");
+  const card = read("src/components/v3/settings-next/TransportCardNext.tsx");
   assert.ok(card.split("\n").length <= 150);
   assert.doesNotMatch(card, /"use client"|onClick|<button|<form|fetch\(|WHATSAPP_CONNECT_PATH/u, "a read-only block: no action in it");
 });
@@ -496,7 +496,7 @@ test("«Новый вид»: WhatsApp из EVO уходит только тем�
 });
 
 test("new UI files stay within 150 lines and carry no key, address or number", () => {
-  for (const file of ["src/lib/v3/wazzup-words.ts", "src/components/v3/settings/WhatsAppTransportCard.tsx", "src/components/v3/ai-agents/CopyTextButton.tsx"]) {
+  for (const file of ["src/lib/v3/wazzup-words.ts", "src/components/v3/settings-next/TransportCardNext.tsx", "src/components/v3/ai-agents/CopyTextButton.tsx"]) {
     const text = read(file);
     assert.ok(text.split("\n").length <= 150, file);
     assert.doesNotMatch(text, /Bearer|crmKey|api\.wazzup24|EVO_PLATFORM_WAZZUP_WEBHOOK_TOKEN|\+\d{6,}/u, file);

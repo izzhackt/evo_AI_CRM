@@ -1,7 +1,6 @@
 // «Новый вид» (решение владельца 27.10.2026), поток «admin»: «Настройки» (все разделы, в том числе карточка канала Wazzup и «Отчёты»), «Маркетинг»
-// («Обзор», «Заявки», «Отчёты»), «Финансы» и «ИИ-агент» (ответы Gemini в чате: шесть подразделов). Проверяется то, что обещано: новый вид выбирает
-// переключатель и только настоящий администратор, у остальных страница прежняя, байт в байт (сверку с базовым коммитом даёт
-// `tests/e2e/admin-next-pages.cjs --legacy-json`); данные, права, команды, поля форм и адреса те же; правила Wazzup (только чтение) в новом виде те же;
+// («Обзор», «Заявки», «Отчёты»), «Финансы» и «ИИ-агент» (ответы Gemini в чате: шесть подразделов). Проверяется то, что обещано: новый вид единственный у каждой роли (переключателя и cookie нет, #1327;
+// режимы стенда «admin-no-cookie» и «admin-cookie» отдают одно и то же); данные, права, команды, поля форм и адреса те же; правила Wazzup (только чтение) в новом виде те же;
 // ленивые входы не тянут новый вид в первую загрузку; файлы нового вида короткие и собраны из набора. Разметку даёт НАСТОЯЩАЯ страница с
 // синтетическими данными (tests/e2e/admin-next-pages.cjs, отдельный node-процесс); взаимодействия в браузере — tests/e2e/admin-next-static-render.cjs.
 import assert from "node:assert/strict";
@@ -204,10 +203,9 @@ test("«Маркетинг»: те же вкладки и адреса, те ж�
     for (const word of ["1 200 USD", "18", "11 из 18", "Совпадает", "связано вручную 1", "Повторные обращения", "Откуда узнал", "Без привязки к лиду", "Расход вводился|Расход периода"]) assert.match(value, new RegExp(word, "u"), `${mode}: ${word}`);
   }
   const sheet = read("src/components/v3/marketing-next/SpendAddSheet.tsx");
-  const legacyForm = read("src/components/v3/marketing/MarketingSpendForm.tsx");
-  assert.deepEqual(names(sheet), names(legacyForm), "те же поля формы расхода");
-  assert.deepEqual(actionsIn(sheet), actionsIn(legacyForm), "то же действие записи");
-  assert.deepEqual(actionsIn(read("src/components/v3/marketing-next/LeadsNext.tsx")), actionsIn(read("src/components/v3/marketing/MarketingLeadsTable.tsx")), "тот же «Показать ещё»");
+  assert.deepEqual([...new Set(actionsIn(sheet))], ["addMarketingSpendAction"], "запись расхода — одно действие");
+  assert.ok(names(sheet).length > 0, "поля формы расхода на месте");
+  assert.deepEqual([...new Set(actionsIn(read("src/components/v3/marketing-next/LeadsNext.tsx")))], ["loadMoreMarketingLeadsAction"], "«Показать ещё» — одно действие");
   assert.equal(count(next, /data-testid="marketing-reconciliation"/gu), 1);
   for (const value of [next, legacy]) assert.match(value, /data-testid="marketing-website-source"[^>]*>10</u, "источник «Сайт» — то же число");
   assert.match(next, /data-matches="true"/u);
@@ -311,15 +309,21 @@ test("«ИИ-агент → Автоответчик, Расходы, Прави
 test("команды и поля форм те же, что в прежних файлах: ни одного нового действия и ни одной новой команды", () => {
   const joined = (paths) => paths.map(read).join("\n");
   for (const [next, legacy] of [
-    [NEW_DIRS[2], ["src/components/v3/marketing"]],
     [NEW_DIRS[3], ["src/components/v3/settings"]],
-    [NEW_DIRS[4], ["src/components/v3/ai-agent"]],
   ]) {
     const nextActions = actionsIn(joined(sourcesIn(next)));
     const legacyActions = actionsIn(joined(legacy.flatMap(sourcesIn)));
     const extra = nextActions.filter((action) => !legacyActions.includes(action) && !/^set[A-Z]|^use[A-Z]|^toggle[A-Z]/u.test(action));
     assert.deepEqual(extra.filter((action) => !["onAction", "refreshAction"].includes(action)), [], `${next}: новых серверных действий нет`);
   }
+  // «ИИ-агент»: страницы прежнего вида удалены (#1328) — каждое действие нового вида обязано быть в серверных модулях действий.
+  const aiModules = joined(["src/lib/platform-ai-agent-actions.ts", "src/lib/platform-ai-agent-autosend-actions.ts"]);
+  for (const action of actionsIn(joined(sourcesIn(NEW_DIRS[4]))).filter((name) => !/^set[A-Z]|^use[A-Z]|^toggle[A-Z]/u.test(name) && !["onAction", "refreshAction"].includes(name))) {
+    assert.match(aiModules, new RegExp(`export (?:async )?function ${action}\\b`, "u"), `ИИ-агент: ${action} — существующее серверное действие`);
+  }
+  // «Маркетинг»: прежних файлов больше нет (#1328) — набор серверных действий закреплён списком: запись расхода и «Показать ещё».
+  const marketingActions = actionsIn(joined(sourcesIn(NEW_DIRS[2]))).filter((action) => !/^set[A-Z]|^use[A-Z]|^toggle[A-Z]/u.test(action) && !["onAction", "refreshAction"].includes(action));
+  assert.deepEqual([...new Set(marketingActions)].sort(), ["addMarketingSpendAction", "loadMoreMarketingLeadsAction"], "«Маркетинг»: только запись расхода и «Показать ещё»");
   // Новый вид «Настроек» берёт действия только у прежних клиентских форм: сам ни одного действия не вызывает напрямую.
   assert.deepEqual(actionsIn(joinedSource(NEW_DIRS[3])).filter((action) => /^(?:staff|save|remove|process|record|select)/u.test(action)), ["selectStaffRolePreviewAction"], "одно действие — просмотр роли (то же)");
 });

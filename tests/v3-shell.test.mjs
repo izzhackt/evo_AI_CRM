@@ -368,8 +368,6 @@ test("phone chrome and window-height pages share rem units, so the composer stay
   assert.match(shell, /grid h-\[var\(--shell-tabbar\)\]/u, "tab bar height is the variable");
   assert.match(shell, /max-md:pb-\[calc\(var\(--shell-tabbar\)\+var\(--shell-safe-bottom\)\)\]/u, "content clears the tab bar");
   // «Переписка» и «Командный чат» — страницы «на окно» под правилом.
-  const conversations = read("src/components/v3/ConversationsMain.tsx");
-  assert.match(conversations, /className="[^"]*h-\[calc\(100dvh-150px\)\] md:h-\[calc\(100dvh-64px\)\]"/u);
   // С #1327 обе страницы рисуют «Новый вид» (его рамки сами держат высоту окна под `isFillRoute`), прежних рамок в страницах нет.
   assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /<CaseChatNextLazy/u);
   assert.match(read("src/app/(v3)/v3/team-chat/page.tsx"), /<TeamChatNextLazy/u);
@@ -395,8 +393,6 @@ test("without a top bar every page title starts at one height, level with the lo
   assert.match(css, /\[data-shell-content\] main:has\(> div:first-child > div:first-child > h1\.t-page-title\) \{\s*padding-top: var\(--shell-page-top\);/u);
   assert.doesNotMatch(css, /main\[aria-label="Сообщения"\]/u);
   assert.match(read("src/components/ui.tsx"), /<div className=\{cn\("flex flex-wrap items-start justify-between gap-4", className\)\}>\s*<div className="min-w-0">\s*<h1 className="t-page-title/u, "PageHeader keeps the structure the rule reads");
-  // «Переписка»: PageHeader — первый ребёнок `main` (правило выше его находит).
-  assert.match(read("src/components/v3/ConversationsMain.tsx"), /md:h-\[calc\(100dvh-64px\)\]"\s*>\s*<PageHeader title=\{title\} className=/u);
   assert.doesNotMatch(read("src/components/v3/case-chat/CaseChatThread.tsx"), /<h1\b/u);
   // Логотип: `pt-3.5` + 51 px высоты — центр на 40 px, как у заголовка 24 + 32/2.
   assert.match(read("src/components/v3/AppShell.tsx"), /"hidden shrink-0 px-5 pb-4 pt-3\.5 md:flex"/u);

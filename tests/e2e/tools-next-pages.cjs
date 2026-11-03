@@ -6,7 +6,7 @@
 
 /**
  * Настоящие страницы потока «tools» («Календарь», «База знаний» с разделами «Документы» и «Шаблоны ответов», «Командный чат» и
- * прежние `/v3/documents`, `/v3/reply-snippets`) в четырёх режимах переключателя «Новый вид»: администратор с cookie, администратор
+ * прежние `/v3/documents`, `/v3/reply-snippets`) в четырёх режимах: администратор, администратор
  * без cookie, просмотр роли с cookie, сотрудник с cookie. Подменены только границы страницы: актёр, cookie и читатели данных
  * (синтетика `tools-next-fixtures.cjs`); `page.tsx`, его проверки прав и выбор вида — настоящие. Данные ВЫДУМАНЫ и не являются
  * записями EVO.
@@ -14,8 +14,6 @@
  *   node tests/e2e/tools-next-pages.cjs --json
  *     → stdout: JSON [{ name, html | rejected | redirect }] — разметка страницы без оболочки (для tests/ui-next-tools.test.mjs).
  *       Свойства ленивых входов нового вида проверяются на сериализацию (`assertFlightProps`): не сериализуются — бросает.
- *   node tests/e2e/tools-next-pages.cjs --legacy-json
- *     → то же для прежнего вида без cookie (администратор): разметка для сравнения с базовым коммитом байт в байт.
  */
 
 const { existsSync, readFileSync } = require("node:fs");
@@ -64,10 +62,6 @@ const withContexts = (node, pathname = "/v3/knowledge", search = "") =>
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(search) },
         createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, node))));
 
-// «Новый вид»: страница спрашивает `isNextUi`; вне запроса `cookies()` не работает, поэтому сценарий задаёт её сам.
-let nextCookie = false;
-require("next/headers").cookies = async () => ({ get: (name) => (name === "evo_ui" && nextCookie ? { name, value: "next" } : undefined) });
-
 const AsyncFunction = (async () => {}).constructor;
 /** Асинхронные серверные компоненты (`KnowledgeDocuments`, `KnowledgeSnippets`) Next читает сам; здесь — их результат в дерево. */
 async function resolveServer(node) {
@@ -81,10 +75,11 @@ async function resolveServer(node) {
 }
 
 const MODES = [
-  ["admin-cookie", fx.ADMIN, true],
-  ["admin-no-cookie", fx.ADMIN, false],
-  ["preview-cookie", fx.PREVIEW, true],
-  ["staff-cookie", fx.STAFF, true],
+  // Имена сценариев прежние (их читают тесты); переключателя «Нового вида» больше нет — вид один для всех.
+  ["admin-cookie", fx.ADMIN],
+  ["admin-no-cookie", fx.ADMIN],
+  ["preview-cookie", fx.PREVIEW],
+  ["staff-cookie", fx.STAFF],
 ];
 
 const guards = require(join(ROOT, "src/lib/platform-guards.ts"));
@@ -138,8 +133,7 @@ async function renderAll(modes) {
   };
   const out = [];
   try {
-    for (const [mode, who, cookie] of modes) {
-      nextCookie = cookie;
+    for (const [mode, who] of modes) {
       guards.requireV3PageActor = async () => who;
       for (const [name, route, query, pathname, search, fails] of SCREENS) {
         chatFails = Boolean(fails);
@@ -147,7 +141,7 @@ async function renderAll(modes) {
         try {
           const element = await page(route)({ searchParams: Promise.resolve(query) });
           const resolved = await resolveServer(element);
-          if (cookie && who.systemRole === "admin" && !who.presentationRole) assertFlightProps(resolved.props, `${label}: ленивый вход`);
+          if (who.systemRole === "admin" && !who.presentationRole) assertFlightProps(resolved.props, `${label}: ленивый вход`);
           out.push({ name: label, html: await renderSettled(withContexts(resolved, pathname, search)) });
         } catch (error) {
           const text = String(error?.digest ?? error?.message ?? error);
@@ -159,13 +153,11 @@ async function renderAll(modes) {
     }
   } finally {
     globalThis.Date = RealDate;
-    nextCookie = false;
   }
   return out;
 }
 
 (async () => {
   if (process.argv.includes("--json")) process.stdout.write(JSON.stringify(await renderAll(MODES)));
-  else if (process.argv.includes("--legacy-json")) process.stdout.write(JSON.stringify(await renderAll([MODES[1], MODES[3]])));
-  else throw new Error("usage: node tests/e2e/tools-next-pages.cjs --json | --legacy-json");
+  else throw new Error("usage: node tests/e2e/tools-next-pages.cjs --json");
 })().catch((error) => { console.error(error); process.exit(1); });

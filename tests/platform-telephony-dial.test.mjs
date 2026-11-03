@@ -975,13 +975,12 @@ test("callback task: the Today row and the task panel name the client, and only 
   assert.match(tasks, /if \(selected && taskContext\?\.leadId\) \{\s*const dial = await dialOptions\(\);\s*if \(dial\.status === "ready"\)/u);
   assert.match(tasks, /const dialOptions = \(\) => \(dialRead \?\?= readDialOptions\(actor\)\);/u, "the dial is read once for the panel and the list");
   assert.match(tasks, /const taskLeads = !sourceLead && canReadTaskQueue && workspace\.canReadStaffTasks && \(await dialOptions\(\)\)\.status === "ready"\s*\? await readQueueTaskLeads\(actor, /u, "the list names clients only while dial is open to this employee, and never on the lead page");
-  const panel = read("src/components/v3/tasks/TaskDetailPanel.tsx");
-  assert.match(panel, /Клиент: <span className="break-words">\{data\.extra\.lead\.name\}<\/span>/u);
-  assert.match(panel, /<DialButton leadId=\{data\.extra\.lead\.leadId\} mapped=\{data\.extra\.lead\.mapped\}/u);
-  assert.match(panel, /data\.extra\?\.lead && !readOnly/u, "a role preview gets no button");
+  const panel = read("src/components/v3/tasks/next/TaskSheetBody.tsx");
+  assert.match(panel, /Клиент: <span className="break-words">\{lead\.name\}<\/span>/u);
+  assert.match(panel, /<DialButton leadId=\{lead\.leadId\} mapped=\{lead\.mapped\} subject=\{lead\.name\} \/>/u);
   assert.match(panel, /"Все задачи по лиду" : "Открыть связанного лида"/u, "the two links to a lead say different things");
-  // A phone has no hover title: the panel says in a visible line, for a mapped employee only, that the PBX rings his phone first.
-  assert.match(panel, /!isDone && data\.extra\.lead\.mapped \? \(\s*<p className="hidden basis-full t-meta text-fg-2 max-sm:block pointer-coarse:block" data-testid="v3-dial-hint">\{DIAL_TOUCH_HINT\}<\/p>/u);
+  // A phone has no hover title: the sheet says in a help tip, for a mapped employee only, that the PBX rings his phone first.
+  assert.match(panel, /!isDone && lead\.mapped \? <HelpTip label="Пояснение: Позвонить">\{DIAL_TOUCH_HINT\}<\/HelpTip> : null/u);
 });
 
 test("«Заявки → Звонки»: the outcome and «Позвонить» are read for the phone rows only, after the queue, and never break it", () => {

@@ -99,7 +99,6 @@ test("staff screens never show the separate process-stage words", () => {
     "src/components/v3/students/StudentQuickView.tsx",
     "src/components/v3/students/StudentsQueueHead.tsx",
     "src/components/v3/profile/CaseHeader.tsx",
-    "src/components/v3/AdmissionsPipelineBoard.tsx",
   ]) {
     assert.match(read(path), /admissionsPipelineStage\(/u, `${path} names the stage with the board's word`);
   }
@@ -232,7 +231,7 @@ test("undo lives in the top layer and only where a real reverse command exists",
     }
   }
   // «Новый вид» «Задач» (27.10.2026): таблица `TasksTable` — тот же хук и та же обратная команда, отдельного «Отменить» нет.
-  assert.deepEqual(users.sort(), ["src/components/v3/AdmissionsPipelineBoard.tsx", "src/components/v3/admissions-pipeline-next/AdmissionsBoardNext.tsx", "src/components/v3/tasks/TaskQueueList.tsx", "src/components/v3/tasks/next/TasksTable.tsx", "src/components/v3/today-next/TodayDashboard.tsx", "src/components/v3/today/TodayQueueList.tsx"]);
+  assert.deepEqual(users.sort(), ["src/components/v3/admissions-pipeline-next/AdmissionsBoardNext.tsx", "src/components/v3/tasks/TaskQueueList.tsx", "src/components/v3/tasks/next/TasksTable.tsx", "src/components/v3/today-next/TodayDashboard.tsx", "src/components/v3/today/TodayQueueList.tsx"]);
   // Команда отмены — общая с «Сегодня» (useRecentCompletions, #1067).
   assert.match(read("src/components/v3/tasks/useRecentCompletions.ts"), /staffStatusForm\(\{ id: completion\.task\.id, version: completion\.version \}, completion\.previousStatus\)/u, "reverse command with the version after completion");
   // Строки «Отменить» «Задач» и «Сегодня» собирает один хук; в строке списка своей «Отменить» нет.
@@ -245,10 +244,10 @@ test("undo lives in the top layer and only where a real reverse command exists",
   // через move_case_pipeline_v2 (251) с версией из квитанции своего перемещения.
   assert.match(read("supabase/migrations/244_platform_access_by_permissions.sql"), /Deliberately no optimistic version check/u);
   assert.match(read("supabase/migrations/251_platform_pipeline_move_undo.sql"), /RAISE EXCEPTION 'case_pipeline_moved' USING ERRCODE = 'PT409'/u);
-  // Движок общий у прежней и новой доски (`useAdmissionsBoard`), «Отменить» рисует каждая сама.
-  const board = read("src/components/v3/AdmissionsPipelineBoard.tsx");
+  // Движок — `useAdmissionsBoard`, «Отменить» рисует доска «Нового вида».
+  const board = read("src/components/v3/admissions-pipeline-next/AdmissionsBoardNext.tsx");
   assert.match(read("src/components/v3/admissions-board/useAdmissionsBoard.ts"), /stage: fromStage, expectedVersion: offer\.version/u, "reverse move with the version after the move");
-  assert.match(board, /<UndoToast items=\{toasts\} onHold=\{hold\} \/>/u, "the board's undo is the same top-layer row");
+  assert.match(board, /<UndoToast items=\{board\.toasts\} onHold=\{board\.hold\} \/>/u, "the board's undo is the same top-layer row");
   assert.doesNotMatch(board, /data-board-undo/u, "no second undo line on the board");
   // Задача по студенту завершается с результатом, отмены у неё нет.
   assert.match(read("src/components/v3/profile/CaseTaskList.tsx"), /onCompleted=\{\(\) => \{\}\}/u);
@@ -305,12 +304,6 @@ test("the queue keys keep working while the undo row is open", () => {
   // j/k с «Отменить» продолжают от завершённой строки (data-undo-row), а не с начала списка.
   assert.match(hook, /active\.closest<HTMLElement>\("\[data-undo-row\]"\)\?\.dataset\.undoRow/u);
   assert.match(hook, /const current = focusedRowIndex\(links\);/u);
-  // Живая проверка в Chromium — `tests/e2e/tasks-static-render.cjs --screenshots <dir>`:
-  // снимки `*-undo-keys-1440` падают, если j/k, ↓, «?», «/» или Esc панели молчат при открытой строке.
-  const harness = read("tests/e2e/tasks-static-render.cjs");
-  assert.match(harness, /\["tasks-undo-keys-1440\.png", DESKTOP, false, "undo-keys"\]/u);
-  assert.match(harness, /\["tasks-panel-staff-undo-keys-1440\.png", DESKTOP, false, "undo-keys"\]/u);
-  assert.match(harness, /if \(failures\.length\) throw new Error/u);
 });
 
 test("an undo error belongs to one completion and does not come back with the next", () => {
@@ -394,40 +387,17 @@ test("motion is short and only when the system allows it", () => {
 // --- экраны: блоки на каждой первой поверхности --------------------------------
 
 const SCREENS = [
-  ["tasks-static-render.cjs", ["team-view", "team-panel"]],
   ["students-static-render.cjs", ["admin-active", "admin-panel", "curator-mine"]],
-  ["boards-static-render.cjs", ["sales", "sales-panel", "admissions"]],
   ["case-static-render.cjs", ["curator", "admin", "unread", "closed"]],
 ];
 const next = new Map(SCREENS.map(([script]) => [script, render(script)]));
 
 test("the blocks render on every first surface", () => {
-  const tasks = next.get("tasks-static-render.cjs").get("team-view");
-  assert.match(tasks, /<span class="v3-due t-caption" data-due="overdue">прошёл \d+ дн<\/span>/u);
-  assert.match(tasks, /<span class="v3-due t-caption" data-due="today">сегодня<\/span>/u);
-  assert.match(tasks, /<span class="v3-initials t-caption" aria-hidden="true">[А-ЯЁ]{1,2}<\/span><span class="truncate">/u, "assignee: circle next to the written name");
   const students = next.get("students-static-render.cjs");
   assert.match(students.get("admin-active"), /<span class="v3-stage" data-phase="(?:admission|visa)">/u, "stage column");
   assert.match(students.get("admin-active"), /class="v3-chip t-caption" data-tone="danger"/u, "signals are chips with words");
   assert.match(students.get("admin-panel"), /<div class="v3-track" data-track="admissions">/u, "quick view: stage track");
   assert.match(students.get("admin-panel"), /<span class="t-body-compact text-fg">\d+ из \d+ принято<\/span>/u, "quick view: documents progress");
-  const boards = next.get("boards-static-render.cjs");
-  // Колонки не подкрашиваются: у доски и вкладки одна фаза — точки над колонками нет.
-  for (const name of ["sales", "admissions"]) assert.doesNotMatch(boards.get(name), /v3-phase-dot|v3-stage/u, `${name}: column headers are words`);
-  // Э7: the lead panel's track opens its header context line, which names the stage (no second caption).
-  assert.match(boards.get("sales-panel"), /data-side-panel-context=""><div class="v3-track [^"]*" data-track="sales"><ol [\s\S]*?<\/ol><\/div><p>Связались · Ответственный: /u, "lead panel: stage track");
-  assert.match(boards.get("admissions"), /<a [^>]*class="v3-chip-link inline-flex" href="\/v3\/messages\?case=[^"]+"><span class="v3-chip t-caption" data-tone="warn" data-size="sm">нужен ответ<\/span><\/a>/u, "reply chip link: a warning word, red stays for «просрочено»");
-  assert.match(boards.get("admissions"), /<span class="v3-initials t-caption" data-size="sm" title="[^"]+">/u, "card: curator initials with the name in the title");
-  // Карточка продаж: дата, затем слово срока — как в «Задачах»; возраст этапа подписан.
-  const lines = [...boards.get("sales").matchAll(/<p class="v3-card-meta t-meta text-fg-3">([\s\S]*?)<\/p>/gu)].map(([, html]) => html);
-  assert.ok(lines.length >= 5, "sales cards have their third line");
-  assert.ok(lines.some((html) => /^<span class="v3-card-due"><time dateTime="[^"]+" class="font-mono tabular-nums">\d\d\.\d\d<\/time> <span class="v3-due t-caption" data-due="overdue">прошёл \d+ дн<\/span><\/span> <span class="v3-card-age"><span aria-hidden="true">· <\/span>на этапе \d+ дн<\/span>$/u.test(html)), "date, word, then «на этапе N дн»");
-  assert.ok(lines.some((html) => /<time dateTime="[^"]+" class="font-mono tabular-nums">\d\d\.\d\d<\/time> <span class="v3-due t-caption" data-due="today">сегодня<\/span>/u.test(html)), "«сегодня» after its date");
-  assert.ok(lines.some((html) => /^<span class="v3-card-age">на этапе \d+ дн<\/span>$/u.test(html)), "no deadline: only the stage age");
-  for (const html of lines) assert.doesNotMatch(html, /дн\./u, "one abbreviation: «дн»");
-  assert.match(boards.get("sales-panel"), /<dt class="t-caption pt-0\.5 text-fg-3">На этапе<\/dt><dd class="tabular-nums">\d+ дн<\/dd>/u);
-  // Одни слова: прежних «4 дн.» и «на стадии» больше нет.
-  assert.doesNotMatch(boards.get("sales"), /дн\.<span class="sr-only"> на стадии<\/span>/u);
   const kase = next.get("case-static-render.cjs");
   assert.match(kase.get("curator"), /<div class="v3-track" data-track="admissions">/u, "case header: stage track");
   assert.match(kase.get("curator"), /<span class="v3-due t-caption" data-due="[a-z]+">/u, "case header: step due word");

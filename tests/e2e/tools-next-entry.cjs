@@ -21,13 +21,6 @@ const { SnippetsNext } = require("@/components/v3/reply-snippets/next/SnippetsNe
 const { FilesNext } = require("@/components/v3/knowledge/next/FilesNext");
 const { KnowledgeNextPage } = require("@/components/v3/knowledge/next/KnowledgeNextPage");
 const { TeamChatNextPage, TeamChatNextFailure } = require("@/components/v3/team-chat/next/TeamChatNextPage");
-// Прежний вид на тех же данных — для снимков «до» (fx.legacy): те же свойства, прежние части.
-const { PartShell } = require("@/components/v3/PartShell");
-const { Calendar } = require("@/components/v3/calendar/Calendar");
-const { KnowledgeLibrary } = require("@/components/v3/knowledge/KnowledgeLibrary");
-const { KnowledgeReplySnippetSection } = require("@/components/v3/reply-snippets/KnowledgeReplySnippetSection");
-const { FileManager } = require("@/components/v3/FileManager");
-const { TeamChat } = require("@/components/v3/team-chat/TeamChat");
 const h = React.createElement;
 const fx = JSON.parse(document.getElementById("fixture").textContent);
 window.__harness = { pushes: [], calls: [], history: [fx.search], requests: [], errors: [], actions: [], deleted: [], delay: 60, token: 0 };
@@ -105,19 +98,9 @@ window.fetch = async (input, init) => {
 function all0() { return [...K.folders, ...K.items]; }
 
 /* ---- приложение ---- */
-function legacyBody(search) {
-  const library = (section, children) => h(PartShell, { title: "База знаний" }, h(KnowledgeLibrary, { commandScope: fx.org + ":" + fx.me, section }, children));
-  if (fx.screen === "calendar") return h(PartShell, { title: "Календарь" }, h(Calendar, serveCalendar(search)));
-  if (fx.screen === "snippets") return library("snippets", h(KnowledgeReplySnippetSection, fx.snippets));
-  if (fx.screen === "documents") return library("documents", h(FileManager, { embedded: true, allowKnowledgeExport: true, rootLabel: "Документы", ...fx.files }));
-  if (fx.screen === "knowledge") return library(null, null);
-  if (fx.screen === "chat") return h("main", { className: "flex h-[calc(100dvh-150px)] min-h-0 flex-col md:h-[calc(100dvh-64px)]", "aria-label": "Командный чат" }, h(TeamChat, fx.chat));
-  throw new Error("unknown legacy screen " + fx.screen);
-}
 /* Страница после router.refresh(): сервер читает заново и присылает НОВЫЕ request_id создания (fx.refreshIds), как KnowledgeDocuments и KnowledgeSnippets. */
 const renewed = (value, epoch) => (epoch === 0 ? value : value + ":r" + epoch);
 function body(search, epoch) {
-  if (fx.legacy) return legacyBody(search);
   if (fx.screen === "calendar") return h(CalendarNextPage, serveCalendar(search));
   if (fx.screen === "chat") return fx.failure ? h(TeamChatNextFailure, fx.failure) : h(TeamChatNextPage, fx.chat);
   if (fx.screen === "snippets") return h(KnowledgeNextPage, { commandScope: "x", section: "snippets" }, h(SnippetsNext, { ...fx.snippets, createRequestId: renewed(fx.snippets.createRequestId, epoch) }));
@@ -147,8 +130,8 @@ function App() {
     h(PathnameContext.Provider, { value: fx.pathname },
       h(SearchParamsContext.Provider, { value: new URLSearchParams(search) },
         h(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } },
-          h("div", fx.legacy ? { className: "v3-world", "data-surface": "staff" } : { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
-            h(AppShell, { actor: fx.actor, initialNotifications: null, nextUi: { enabled: !fx.legacy } }, body(search, epoch)))))));
+          h("div", { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
+            h(AppShell, { actor: fx.actor, initialNotifications: null }, body(search, epoch)))))));
 }
 createRoot(document.getElementById("root")).render(h(App));
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.ready = "true"; }));

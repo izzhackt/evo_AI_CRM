@@ -510,7 +510,7 @@ test("the task panel's deadline editor sends an unchanged deadline exactly as st
   const none = field({ day: null, minutes: null, dueAt: null });
   assert.deepEqual([hidden(none, "deadline_kind"), hidden(none, "due_on"), hidden(none, "due_at")], ["none", "", ""]);
   // Панель передаёт редактору именно `dueAt` задачи.
-  assert.match(read("src/components/v3/tasks/TaskDetailPanel.tsx"), /<ComposerDeadlineField day=\{day\} current=\{\{ day: projection\.day, minutes: projection\.minutes, dueAt \}\}/u);
+  assert.match(read("src/components/v3/tasks/next/TaskSheetForms.tsx"), /<ComposerDeadlineField day=\{data\.day\} current=\{\{ day: projection\.day, minutes: projection\.minutes, dueAt: data\.task\.dueAt \}\}/u);
   assert.match(read("src/components/v3/tasks/ComposerDeadlineField.tsx"), /unchanged && current\?\.dueAt \? current\.dueAt : `\$\{date\}T\$\{time\}`/u, "recomputed only after an explicit change");
 });
 

@@ -3,42 +3,40 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 /**
- * НАСТОЯЩАЯ страница `/v3/profile` (`src/app/(v3)/v3/profile/page.tsx`) для вкладок «Нового вида» в четырёх режимах переключателя:
- * администратор с cookie `evo_ui=next`, администратор без cookie, сотрудник и администратор в просмотре роли - каждый с cookie и без него.
- * Границы сервера (вход, cookie, чтения источников) заменены данными сценария; всё остальное - настоящий код страницы, `isNextUi`,
+ * НАСТОЯЩАЯ страница `/v3/profile` (`src/app/(v3)/v3/profile/page.tsx`) для вкладок «Нового вида»: администратор, сотрудник и
+ * администратор в просмотре роли. Переключателя больше нет; имена режимов «cookie» / «no-cookie» прежние (их читают тесты) и дают один вид.
+ * Границы сервера (вход, чтения источников) заменены данными сценария; всё остальное - настоящий код страницы,
  * `caseWorkParts`/`caseNextParts`, `Profile`, вкладки. Асинхронные вкладки (`Documents`, `UniversityProgramsTab`, `CaseAgreement*`) заменены тем же
  * синхронным видом, что в `card-tabs-next-static-render.cjs`: статический рендер React не ждёт async-компоненты.
  *
  *   node tests/e2e/card-tabs-next-static-render.cjs --page-json
  *     → stdout: JSON [{ name, html }] - имя `<сценарий>:<режим>`.
- * Тот же прогон на базовом коммите (там нет нового вида, а режим «администратор без cookie» - единственный прежний вид) даёт
- * разметку, с которой сравнивается прежний вид страницы.
  */
 
 const Module = require("node:module");
 const { createElement: h } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 
-// Сотрудник и просмотр роли берутся и с cookie, и без него: тест сравнивает пары между собой (cookie не меняет их страницу).
+// Имена режимов прежние: тест сравнивает пары между собой.
 const MODES = [
-  ["admin-cookie", "admin", "next"],
-  ["admin-no-cookie", "admin", undefined],
-  ["staff-cookie", "staff", "next"],
-  ["staff-no-cookie", "staff", undefined],
-  ["preview-cookie", "preview", "next"],
-  ["preview-no-cookie", "preview", undefined],
+  ["admin-cookie", "admin"],
+  ["admin-no-cookie", "admin"],
+  ["staff-cookie", "staff"],
+  ["staff-no-cookie", "staff"],
+  ["preview-cookie", "preview"],
+  ["preview-no-cookie", "preview"],
 ];
 
 async function pageHtml({ fx, leads, scenarios, prepare }) {
   const cases = fx;
-  const state = { who: null, cookie: undefined, item: null, closed: null };
+  const state = { who: null, item: null, closed: null };
   const stub = (spec, exports, merge = false) => {
     const file = Module._resolveFilename(spec, module);
     const real = merge ? require(file) : {};
     require.cache[file] = { id: file, filename: file, loaded: true, exports: { ...real, ...exports }, children: [], paths: [] };
   };
   const nothing = () => null;
-  stub("next/headers", { cookies: async () => ({ get: (name) => (name === "evo_ui" && state.cookie !== undefined ? { name, value: state.cookie } : undefined) }) });
+  stub("next/headers", { cookies: async () => ({ get: () => undefined }) });
   stub("@/lib/platform-guards", { requireV3PageActor: async () => state.who, requirePlatformStaffActor: async () => state.who });
   stub("@/lib/v3/profile-source", {
     readProfileTarget: async () => state.closed ? null : ({ profile: state.item.profile, details: state.item.draft, sales: state.item.sales,
@@ -63,10 +61,9 @@ async function pageHtml({ fx, leads, scenarios, prepare }) {
   for (const scenario of scenarios) {
     const registered = cases.SCENARIOS[`tab-${scenario.name}`];
     if (!registered && !scenario.closed) continue; // карточки лидов страница собирает из чтений воронки - здесь только дела и закрытый лид
-    for (const [mode, who, cookie] of MODES) {
+    for (const [mode, who] of MODES) {
       prepare(scenario);
       state.who = actors[who];
-      state.cookie = cookie;
       state.closed = scenario.closed ?? null;
       state.item = registered ? { ...registered, actor: actors[who] } : null;
       const params = scenario.closed ? { id: cases.LEAD_ID } : { case: cases.CASE_ID, tab: scenario.def.tab, ...(scenario.def.filter ? { doc_state: scenario.def.filter } : {}) };

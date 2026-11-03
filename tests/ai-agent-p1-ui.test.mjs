@@ -643,14 +643,9 @@ test("the section shows P1, P2 and P4 sub-pages and no dictation or knowledge-co
   // P4 adds «Автоответчик» in its own view (tests/ai-agent-p4-ui.test.mjs).
   assert.deepEqual(AI_AGENT_SECTIONS.map((section) => section.title),
     ["Материалы", "Лист сверки", "Лаборатория", "Правила общения", "Расходы", "Автоответчик"]);
-  // Code only: the header comment names the later sub-pages on purpose.
-  const views = read("src/components/v3/ai-agent/AiAgentViews.tsx").replace(/\/\*[\s\S]*?\*\//gu, "");
-  for (const later of ["Автоответчик", "Диктовка", "Взять из базы знаний", "Обновить из базы знаний"]) {
-    assert.equal(views.includes(later), false, later);
-  }
   const page = read("src/app/(v3)/v3/ai-agent/page.tsx");
   assert.match(page, /requireV3PageActor\("\/v3\/ai-agent"\)/u);
-  assert.match(page, /<PartShell\s+title="ИИ-агент"/u);
+  assert.match(page, /<AiAgentNextLazy/u);
 });
 
 test("AI styles: own stylesheet right after v3.css, outside the shared blocks, motion only when the system allows it", () => {
@@ -659,9 +654,6 @@ test("AI styles: own stylesheet right after v3.css, outside the shared blocks, m
   assert.match(read("src/app/(v3)/layout.tsx"), /import "\.\/v3\.css";\nimport "\.\/ai-agent\.css";\n/u);
   assert.doesNotMatch(read("src/app/(v3)/v3.css"), /\.v3-ai-|\.v3-switch/u, "no AI rules in v3.css");
   assert.doesNotMatch(read("src/app/(portal)/layout.tsx"), /ai-agent\.css/u, "the student portal has no AI surfaces");
-  for (const harness of ["tests/e2e/conversations-static-render.cjs", "tests/e2e/ai-agent-p2-static-render.cjs"]) {
-    assert.match(read(harness), /"src\/app\/\(v3\)\/v3\.css"\), "utf8"\), readFileSync\(join\(ROOT, "src\/app\/\(v3\)\/ai-agent\.css"\), "utf8"\)/u, harness);
-  }
   const plain = read("src/app/(v3)/ai-agent.css").replace(/\/\*[\s\S]*?\*\//gu, "");
   const motion = [...plain.matchAll(/@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n\}/gu)];
   assert.equal(motion.length, 1, "one motion block");

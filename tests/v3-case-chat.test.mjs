@@ -223,7 +223,7 @@ test("the messages route registers in all three route maps and as «Перепи
 
 test("«Обсудить» links exist from the case card and the task detail panel (case tasks); the documents tab relies on the header «Написать»", () => {
   assert.match(source("src/components/v3/profile/tabs.tsx"), /href=\{`\/v3\/messages\?case=\$\{draft\.admissions\.studentCaseId\}`\}/u);
-  const taskPanel = source("src/components/v3/tasks/TaskDetailPanel.tsx");
+  const taskPanel = source("src/components/v3/tasks/next/TaskSheetBody.tsx");
   assert.match(taskPanel, /href=\{`\/v3\/messages\?case=\$\{data\.caseId\}&attach=case_task:\$\{data\.task\.id\}`\}/u);
   assert.match(taskPanel, />\s*Обсудить\s*</u);
   // Documents tab: the second «Обсудить» to the same chat sat beside the header's «Написать» on the same screen — removed (24.10.2026).
@@ -249,12 +249,12 @@ test("the pipeline board renders needs_reply as a warning word with a link to th
   // the shared card grammar — a StatusChip with its word (Э1.3), linked to the
   // case chat; the wording source is the same. 24.10.2026 (owner): «нужен ответ» is a
   // warning, not a problem — warn, like the case overview and «Переписки» (Э5); red is «просрочено».
-  const board = source("src/components/v3/AdmissionsPipelineBoard.tsx");
+  const board = source("src/components/v3/admissions-pipeline-next/AdmissionsCardNext.tsx");
   assert.match(board, /row\.needsReply \?/u);
   assert.match(board, /href=\{`\/v3\/messages\?case=\$\{row\.studentCaseId\}`\}/u);
   assert.match(board, /const replyWord = caseChatAwaitState\("needs_reply"\)\?\.toLocaleLowerCase\("ru-RU"\) \?\? "";/u);
-  assert.match(board, /className="v3-chip-link inline-flex">\s*<StatusChip label=\{replyWord\} tone="warn" size="sm" \/>/u);
-  assert.doesNotMatch(board, /<StatusChip label=\{replyWord\} tone="danger"/u);
+  assert.match(board, /<StatusBadge label=\{replyWord\} tone="warn"/u);
+  assert.doesNotMatch(board, /<StatusBadge label=\{replyWord\} tone="danger"/u);
 });
 
 test("the staff notification contract decodes case_message with an ids-only href to the messages screen", () => {

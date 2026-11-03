@@ -90,8 +90,7 @@ Module._resolveFilename = function patchedResolve(request, ...rest) {
   return originalResolve.call(this, request, ...rest);
 };
 
-// Страницы спрашивают `isNextUi` (cookie «Нового вида»): вне запроса `cookies()` не работает. Здесь запроса нет и cookie нет —
-// это прежний вид, байт в байт (проверяют тесты оболочки); «Новый вид» страниц смотрят today-/requests-static-render.cjs.
+// Вне запроса `cookies()` не работает: заглушка пустая (страницы cookie не читают).
 require("next/headers").cookies = async () => ({ get: () => undefined });
 
 const { createElement: h } = require("react");
@@ -303,7 +302,7 @@ function mainOf(html) {
 /**
  * «Переписка» (Э5, отдельный пункт «Поступления» с 27.09.2026) —
  * настоящий CaseChatWorkspace в настоящей обёртке страницы
- * (`ConversationsMain`) с синтетической перепиской. Он рендерится на сервере и гидратируется в браузере: поле ответа
+ * (`ChatPageShell`) с синтетической перепиской. Он рендерится на сервере и гидратируется в браузере: поле ответа
  * появляется только на клиенте (черновик из localStorage), поэтому его место
  * меряется после гидратации.
  */
@@ -354,7 +353,7 @@ function whatsappBody() {
 function shellTree({ actor, notifications, pathname, search, body, messages = null }) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const content = messages
-    ? h(require(join(ROOT, "src/components/v3/ConversationsMain.tsx")).ConversationsMain, messages.main,
+    ? h(require(join(ROOT, "src/components/v3/chats-next/ChatPageShell.tsx")).ChatPageShell, { variant: "messages", ...messages.main },
       h(require(join(ROOT, "src/components/v3/case-chat/CaseChatThread.tsx")).CaseChatWorkspace, messages.props))
     : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: body } });
   return withContexts(
@@ -437,7 +436,7 @@ const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/h
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 const { AppShell } = require("@/components/v3/AppShell");
-const { ConversationsMain } = require("@/components/v3/ConversationsMain");
+const { ChatPageShell } = require("@/components/v3/chats-next/ChatPageShell");
 const { CaseChatWorkspace } = require("@/components/v3/case-chat/CaseChatThread");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById(${JSON.stringify(FIXTURE_ID)}).textContent);
@@ -453,7 +452,7 @@ const tree = h(AppRouterContext.Provider, { value: router },
         h("div", { className: "v3-world", "data-surface": "staff" },
           h(AppShell, { actor: fixture.actor, initialNotifications: fixture.notifications },
             fixture.messages
-              ? h(ConversationsMain, fixture.messages.main, h(CaseChatWorkspace, fixture.messages.props))
+              ? h(ChatPageShell, { variant: "messages", ...fixture.messages.main }, h(CaseChatWorkspace, fixture.messages.props))
               : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: fixture.body } })))))));
 hydrateRoot(document.getElementById("root"), tree, {
   onRecoverableError: (error) => window.__harness.recoverable.push(String((error && error.message) || error)),

@@ -111,7 +111,7 @@ function App() {
       h(SearchParamsContext.Provider, { value: new URLSearchParams(search) },
         h(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } },
           h("div", { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
-            h(AppShell, { actor: fx.actor, initialNotifications: null, nextUi: { enabled: true } }, body(search)))))));
+            h(AppShell, { actor: fx.actor, initialNotifications: null }, body(search)))))));
 }
 createRoot(document.getElementById("root")).render(h(App));
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.ready = "true"; }));
@@ -147,7 +147,6 @@ async function buildBundle(outFile) {
         const source = readFileSync(args.path, "utf8");
         if (!/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/u.test(source)) return undefined;
         const names = [...source.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+([A-Za-z0-9_$]+)/gu)].map((match) => match[1]);
-        if (args.path.endsWith("ui-next-actions.ts")) return { contents: "export async function setNextUiAction() {}", loader: "ts" };
         if (args.path.endsWith("platform-case-next-action-actions.ts")) {
           return {
             contents: `export async function saveCaseNextActionAction(previous, form) {

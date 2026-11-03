@@ -5,7 +5,7 @@
 /**
  * Проверки «Отчёта продаж» нового вида в Chromium (зовёт `sales-report-next-static-render.cjs --screenshots`): страница на трёх ширинах,
  * панель записи (адрес, фокус, Esc, форма «Исправить запись»), «Убрать» / «Вернуть», фильтры, новая продажа, «Менеджеры в отчёте»,
- * «Перенос данных», план месяца, другие миры (сотрудник, просмотр роли, без cookie).
+ * «Перенос данных», план месяца, другие миры (сотрудник, просмотр роли).
  */
 
 const { join } = require("node:path");
@@ -30,9 +30,9 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
   const ids = fixtures.ROWS.map((one) => one.id);
   const rowId = (n) => fixtures.uuid("78787878", n);
 
-  async function open(path, key, { ui = "next", actor = "admin" } = {}) {
+  async function open(path, key, { actor = "admin" } = {}) {
     const context = await browser.newContext({ ...VIEWPORTS[key], reducedMotion: "reduce" });
-    await context.addCookies([...(ui ? [{ name: "evo_ui", value: ui, url: origin }] : []), { name: "harness_actor", value: actor, url: origin }]);
+    await context.addCookies([{ name: "harness_actor", value: actor, url: origin }]);
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(`pageerror: ${error.message}`));
@@ -58,17 +58,6 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
   const rowOf = (page, key, title) => (key === "m390" ? page.locator("[data-slot=data-table-cards] > li").filter({ hasText: title }).first() : page.locator("[data-slot=data-table] tbody tr").filter({ hasText: title }).first());
 
   try {
-    // 0. «До»: прежний вид тех же данных (разметка прежнего вида совпадает с базовым коммитом — tests/ui-next-pipelines.test.mjs).
-    for (const key of ["d1440", "m390"]) {
-      const { context, page } = await open(`/v3/main?${SEARCH}`, key, { ui: null });
-      await shot(page, `before-report-${key}`, { fullPage: true });
-      if (key === "d1440") {
-        await page.locator("tbody tr").filter({ hasText: "Айжан Примерова" }).first().getByRole("link").first().click();
-        await page.waitForSelector("dialog[data-side-panel][open], [data-testid=sales-record-preview]", { timeout: 10_000 }).catch(() => {});
-        await shot(page, "before-report-record-d1440");
-      }
-      await context.close();
-    }
     // 1. Страница на трёх ширинах.
     for (const key of ["d1440", "d1280", "m390"]) {
       const { context, page, errors } = await open(`/v3/main?${SEARCH}`, key);
@@ -138,24 +127,20 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
       await context.close();
     }
 
-    // 1c. Поле поиска не уже, чем у прежнего вида (320 px на ПК): строка фильтров занимает всю строку инструментов таблицы; план месяца числом не повторяется.
+    // 1c. Поле поиска: «Имя, телефон, договор» не обрезано, строка фильтров занимает всю строку инструментов таблицы; план месяца числом не повторяется.
     for (const key of ["d1440", "d1280", "m390"]) {
-      const widths = {};
-      for (const [label, ui] of [["next", "next"], ["legacy", null]]) {
-        const { context, page } = await open(`/v3/main?${SEARCH}`, key, { ui });
-        widths[label] = await page.evaluate(() => {
-          const input = document.querySelector('[data-testid="sales-report-toolbar"] input[type="search"]');
-          return { input: Math.round(input.getBoundingClientRect().width), toolbar: Math.round(input.closest('[data-testid="sales-report-toolbar"]').getBoundingClientRect().width), clipped: input.scrollWidth > input.clientWidth };
-        });
-        if (label === "next" && key === "d1440") {
-          const plan = await page.evaluate(() => ({ tile: Boolean([...document.querySelectorAll('[data-testid="v3-sales-headline"] [data-slot="stat-tile"]')].find((tile) => /План\s*35/u.test(tile.textContent))),
-            sentence: /План на месяц: 35/u.test(document.body.innerText), card: Boolean([...document.querySelectorAll("h2")].find((h) => h.textContent.trim() === "План месяца")) }));
-          report("report plan: the number stands in the «План» tile once; the «План месяца» card keeps the action and does not repeat it", plan.tile && plan.card && !plan.sentence, plan);
-        }
-        await context.close();
+      const { context, page } = await open(`/v3/main?${SEARCH}`, key);
+      const width = await page.evaluate(() => {
+        const input = document.querySelector('[data-testid="sales-report-toolbar"] input[type="search"]');
+        return { input: Math.round(input.getBoundingClientRect().width), toolbar: Math.round(input.closest('[data-testid="sales-report-toolbar"]').getBoundingClientRect().width), clipped: input.scrollWidth > input.clientWidth };
+      });
+      if (key === "d1440") {
+        const plan = await page.evaluate(() => ({ tile: Boolean([...document.querySelectorAll('[data-testid="v3-sales-headline"] [data-slot="stat-tile"]')].find((tile) => /План\s*35/u.test(tile.textContent))),
+          sentence: /План на месяц: 35/u.test(document.body.innerText), card: Boolean([...document.querySelectorAll("h2")].find((h) => h.textContent.trim() === "План месяца")) }));
+        report("report plan: the number stands in the «План» tile once; the «План месяца» card keeps the action and does not repeat it", plan.tile && plan.card && !plan.sentence, plan);
       }
-      report(`report toolbar ${key}: the search field is as wide as in the old view (placeholder «Имя, телефон, договор» is not cut), toolbar fills its row`,
-        widths.next.input === widths.legacy.input && widths.next.toolbar === widths.legacy.toolbar && !widths.next.clipped, widths);
+      await context.close();
+      report(`report toolbar ${key}: the search field is not cut (placeholder «Имя, телефон, договор»), toolbar fills its row`, width.input >= 280 && !width.clipped, width);
     }
 
     // 2. Панель записи: строка → панель (адрес ?record=, фокус на названии) → Esc → фокус на строке; «Исправить запись» открывает форму.
@@ -310,11 +295,11 @@ async function run({ outDir, bundleHydration, compileCss, fixtures, startServer,
       report("report plan/empty/archive/slice: console clean", errors.length === 0, errors);
     }
 
-    // 6. Другие миры: сотрудник и просмотр роли с cookie, администратор без неё — прежний вид.
-    for (const [label, options] of [["staff + cookie", { actor: "staff" }], ["preview + cookie", { actor: "preview" }], ["admin without cookie", { ui: null }]]) {
+    // 6. Другие миры: сотрудник и просмотр роли видят тот же новый вид (корень с data-ui, таблица набора).
+    for (const [label, options] of [["staff", { actor: "staff" }], ["preview", { actor: "preview" }]]) {
       const { context, page } = await open(`/v3/main?${SEARCH}`, "d1440", options);
-      const legacy = await page.evaluate(() => ({ nextRoot: Boolean(document.querySelector('[data-ui="next"]')), table: Boolean(document.querySelector('[data-slot="data-table"]')), legacyToolbar: Boolean(document.querySelector('[data-testid="sales-report-toolbar"]')) }));
-      report(`legacy ${label}: old report, no new-view root, no kit table`, !legacy.nextRoot && !legacy.table && legacy.legacyToolbar, legacy);
+      const world = await page.evaluate(() => ({ nextRoot: Boolean(document.querySelector('.v3-world[data-ui="next"]')), table: Boolean(document.querySelector('[data-slot="data-table"]')) }));
+      report(`${label}: new view root and kit table`, world.nextRoot && world.table, world);
       await context.close();
     }
   } finally {

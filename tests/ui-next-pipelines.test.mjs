@@ -175,10 +175,9 @@ test("«Воронка поступления»: перетаскивание �
   assert.doesNotMatch(board, /KeyboardSensor/u, "клавиатурный путь — меню, не второй способ перетаскивания");
   assert.match(board, /board\.moveCard\(String\(active\.id\), \{ stage: over\.id as AdmissionsPipelineStage \}, "drag"\)/u);
   assert.match(read("src/components/v3/admissions-pipeline-next/AdmissionsColumnNext.tsx"), /useDroppable\(\{ id: stage/u);
-  // Движок — один: его зовут прежняя и новая доска; серверное действие стоит только в нём.
+  // Движок — один: его зовёт доска; серверное действие стоит только в нём.
   const hook = read("src/components/v3/admissions-board/useAdmissionsBoard.ts");
   assert.match(hook, /moveCasePipelineAction\(/u);
-  assert.match(read("src/components/v3/AdmissionsPipelineBoard.tsx"), /useAdmissionsBoard\(\{ rows, tab, query, basePath, requestedStage \}\)/u);
   assert.match(board, /useAdmissionsBoard\(props\)/u);
   for (const file of NEXT_FILES.filter((name) => !name.endsWith("useAdmissionsBoard.ts"))) assert.doesNotMatch(read(file), /moveCasePipelineAction/u, `${file}: действие зовёт только движок`);
   // @dnd-kit — только в ленивом куске поступления: у остальных сотрудников его в первой загрузке нет.

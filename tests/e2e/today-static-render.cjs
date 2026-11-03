@@ -11,8 +11,7 @@
  *
  * Очередь собирается НАСТОЯЩИМ кодом: `readTodayQueue` (права по ролям,
  * независимые чтения, пределы страниц) с подставленными читателями, затем
- * `buildTodayQueue`; страница — настоящие `PartShell`,
- * `TodayScreen` (строки задач — настоящая `TaskQueueRow`) внутри настоящего
+ * `buildTodayQueue`; страница — настоящий `TodayNextPage` внутри настоящего
  * `AppShell`. Данные СИНТЕТИЧЕСКИЕ: люди, задачи, лиды и переписки выдуманы
  * для проверки вёрстки и не являются записями EVO. Живой Supabase, права и
  * данные этот рендер не проверяет.
@@ -89,9 +88,7 @@ const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 const { readTodayQueue, todayLinks, TodaySourceDenied } = require(join(ROOT, "src/lib/v3/today-source.ts"));
 const { staffCan } = require(join(ROOT, "src/lib/platform-access.ts"));
 const { staffRoleKeys } = require("./staff-role-templates.cjs");
-const { buildTodayQueue, todayDateLabel } = require(join(ROOT, "src/lib/v3/today-queue.ts"));
-const { TodayScreen } = require(join(ROOT, "src/components/v3/today/TodayScreen.tsx"));
-const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
+const { buildTodayQueue } = require(join(ROOT, "src/lib/v3/today-queue.ts"));
 const { TodayNextPage } = require(join(ROOT, "src/components/v3/today-next/TodayNextPage.tsx"));
 
 // --- синтетические данные ---------------------------------------------------
@@ -313,31 +310,9 @@ function withContexts(node, search = "") {
   );
 }
 
-/** Та же сборка, что у `main/page.tsx`: `PartShell` с датой и `TodayScreen`. */
-async function buildPage(name) {
-  const scenario = SCENARIOS[name];
-  const who = ACTORS[scenario.actor];
-  const { access, reads } = await readTodayQueue(who, { now: NOW, readers: readers(scenario.data) });
-  const queue = buildTodayQueue(reads, NOW);
-  const { mainAction } = todayLinks(who, access, { canReadReport: staffCan(who, "sales.report.read") });
-  const admin = who.systemRole === "admin";
-  const has = (key) => admin || who.permissionKeys.includes(key);
-  const permissions = {
-    actorMembershipId: ME, admin, preview: false, staffComplete: has("staff.task.complete"), staffEdit: has("staff.task.edit"),
-    caseManage: has("task.manage"), caseAssign: has("task.assign"),
-  };
-  const node = createElement(PartShell, {
-    title: "Сегодня",
-    testId: "v3-operational-dashboard",
-    meta: createElement("time", { dateTime: queue.today }, todayDateLabel(queue.today)),
-  }, createElement(TodayScreen, { queue, nowIso: NOW.toISOString(), permissions, mainAction }));
-  return { who, node };
-}
-
 /**
- * «Новый вид» (27.10.2026): та же очередь и те же права, что у `buildPage`, но страница — `TodayNextPage` (`PageShell` с
- * `TodayNext`: плитки и виджеты групп). Сборка повторяет ветку `isNextUi` в `main/page.tsx`; саму страницу
- * с cookie и без неё гоняет `--page-json` (настоящий `main/page.tsx`).
+ * «Новый вид» (27.10.2026): та же очередь и те же права, страница — `TodayNextPage` (`PageShell` с
+ * `TodayNext`: плитки и виджеты групп). Сборка повторяет `main/page.tsx`; саму страницу гоняет `--page-json`.
  */
 async function buildNextPage(name) {
   const scenario = SCENARIOS[name];
@@ -497,14 +472,14 @@ async function compileCss() {
 async function renderFullPage(name) {
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   const report = REPORTS[name];
-  const { who, node } = report ? { who: report.leadsOnly ? ACTORS.admissions : ACTORS.sales, node: await buildReport(report) } : await buildPage(name);
+  const { who, node } = { who: report.leadsOnly ? ACTORS.admissions : ACTORS.sales, node: await buildReport(report) };
   const page = createElement(
     "div",
     { className: "v3-world", "data-surface": "staff" },
     createElement(AppShell, { actor: who, initialNotifications: null }, node),
   );
   // Отчёт — `/v3/main?view=sales`: меню подсвечивает «Отчёт продаж», а не «Сегодня».
-  return renderToStaticMarkup(withContexts(page, report ? reportSearch(report) : ""));
+  return renderToStaticMarkup(withContexts(page, reportSearch(report)));
 }
 
 async function renderNextFullPage(name) {
@@ -542,7 +517,7 @@ async function screenshots() {
   const { chromium } = require("playwright");
   const browser = await chromium.launch();
   try {
-    for (const name of [...Object.keys(SCENARIOS), ...Object.keys(REPORTS)]) {
+    for (const name of Object.keys(REPORTS)) {
       const html = await renderFullPage(name);
       const htmlPath = join(outDir, `today-${name}.html`);
       writeFileSync(htmlPath, [
@@ -643,16 +618,13 @@ async function screenshots() {
 
 
 
-// Cookie «Нового вида»: страница спрашивает `isNextUi`; вне запроса `cookies()` не работает, поэтому сценарий задаёт её сам.
-let nextCookie = false;
-require("next/headers").cookies = async () => ({
-  get: (name) => (name === "evo_ui" && nextCookie ? { name, value: "next" } : undefined),
-});
+// Вне запроса `cookies()` не работает; страница cookie не читает, поэтому заглушка пустая.
+require("next/headers").cookies = async () => ({ get: () => undefined });
 
 /**
- * Настоящая `main/page.tsx` с cookie «Нового вида» и без неё, для администратора, просмотра роли и сотрудника: подменены
- * только границы — актёр страницы и читатели очереди (как в `shell-static-render.cjs`). Нужна для проверки, что новый вид
- * выбирает именно переключатель и именно настоящий администратор, а у остальных страница прежняя.
+ * Настоящая `main/page.tsx` для администратора, просмотра роли и сотрудника: подменены только границы — актёр страницы
+ * и читатели очереди (как в `shell-static-render.cjs`). Имена сценариев «cookie» / «no-cookie» прежние (их читают тесты):
+ * переключателя больше нет, вид один для всех.
  *   node tests/e2e/today-static-render.cjs --page-json
  */
 async function pageJson() {
@@ -667,27 +639,25 @@ async function pageJson() {
   };
   const preview = { ...ACTORS.admin, presentationRole: "sales" };
   const cases = [
-    ["admin-cookie", ACTORS.admin, "admin", true],
-    ["admin-no-cookie", ACTORS.admin, "admin", false],
-    ["preview-cookie", preview, "sales", true],
-    ["preview-no-cookie", preview, "sales", false],
-    ["sales-cookie", ACTORS.sales, "sales", true],
-    ["sales-no-cookie", ACTORS.sales, "sales", false],
+    ["admin-cookie", ACTORS.admin, "admin"],
+    ["admin-no-cookie", ACTORS.admin, "admin"],
+    ["preview-cookie", preview, "sales"],
+    ["preview-no-cookie", preview, "sales"],
+    ["sales-cookie", ACTORS.sales, "sales"],
+    ["sales-no-cookie", ACTORS.sales, "sales"],
   ];
   const out = [];
   try {
-    for (const [name, who, scenario, cookie] of cases) {
-      nextCookie = cookie;
+    for (const [name, who, scenario] of cases) {
       guards.requireV3PageActor = async () => who;
       todaySource.readTodayQueue = Object.assign((actor, options) => original(actor, { ...options, readers: readers(SCENARIOS[scenario].data) }), { harnessOriginal: original });
       const element = await MainPart({ searchParams: Promise.resolve({}) });
-      // Администратору с cookie страница отдаёт ленивый вход: его свойства пересекают границу сервер → клиент.
-      if (cookie && who.systemRole === "admin" && !who.presentationRole) assertFlightProps(element.props, `${name}: TodayNextLazy`);
+      // Администратору страница отдаёт ленивый вход: его свойства пересекают границу сервер → клиент.
+      if (who.systemRole === "admin" && !who.presentationRole) assertFlightProps(element.props, `${name}: TodayNextLazy`);
       out.push({ name, html: await renderSettled(withContexts(element)) });
     }
   } finally {
     globalThis.Date = RealDate;
-    nextCookie = false;
   }
   process.stdout.write(JSON.stringify(out));
 }
@@ -712,7 +682,7 @@ async function nextJson() {
 /**
  * «Новый вид»: снимки на 1440×900, 1280×800 и 390×844 (и во весь рост) и измерения — переполнение, высота страницы,
  * плитки, виджеты, строки, цели нажатия.
- *   node tests/e2e/today-static-render.cjs --next [outDir] [--only a,b] [--legacy]
+ *   node tests/e2e/today-static-render.cjs --next [outDir] [--only a,b]
  */
 async function nextScreenshots() {
   const outIndex = process.argv.indexOf("--next") + 1;
@@ -731,11 +701,8 @@ async function nextScreenshots() {
   const sideways = [];
   try {
     for (const name of wanted) {
-      // `--legacy` — те же сценарии прежним видом (для «до / после»).
-      const legacy = process.argv.includes("--legacy");
-      const html = legacy ? await renderFullPage(name) : await renderNextFullPage(name);
-      const prefix = legacy ? "tl" : "tn";
-      const htmlPath = join(outDir, `${prefix}-${name}.html`);
+      const html = await renderNextFullPage(name);
+      const htmlPath = join(outDir, `tn-${name}.html`);
       writeFileSync(htmlPath, [
         "<!DOCTYPE html>",
         '<html lang="ru" data-theme="light" class="h-full antialiased">',
@@ -744,7 +711,7 @@ async function nextScreenshots() {
       ].join(""));
       for (const [width, context] of widths) {
         for (const fullPage of [false, true]) {
-          const file = `${prefix}-${name}-${width}${fullPage ? "-full" : ""}.png`;
+          const file = `tn-${name}-${width}${fullPage ? "-full" : ""}.png`;
           const browserContext = await browser.newContext(context);
           const tab = await browserContext.newPage();
           const errors = [];
@@ -774,7 +741,7 @@ async function nextScreenshots() {
           });
           await tab.screenshot({ path: join(outDir, file), fullPage });
           if (!fullPage) process.stdout.write(`${file}: ${Object.entries(metrics).filter(([, value]) => value !== null).map(([key, value]) => `${key}=${value}`).join(" ")}\n`);
-          if (!fullPage && !legacy && metrics.overflow > 0) sideways.push(`${file}: overflow=${metrics.overflow}`);
+          if (!fullPage && metrics.overflow > 0) sideways.push(`${file}: overflow=${metrics.overflow}`);
           await browserContext.close();
         }
       }
@@ -787,10 +754,6 @@ async function nextScreenshots() {
 
 async function json() {
   const out = [];
-  for (const name of Object.keys(SCENARIOS)) {
-    const { node } = await buildPage(name);
-    out.push({ name, html: renderToStaticMarkup(withContexts(node)) });
-  }
   for (const [name, report] of Object.entries(REPORTS)) {
     out.push({ name, html: renderToStaticMarkup(withContexts(await buildReport(report), reportSearch(report))) });
   }

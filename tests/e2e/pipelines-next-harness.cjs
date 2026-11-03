@@ -7,8 +7,7 @@
  * `boards-fixtures.cjs` (имена и дела выдуманы), НАСТОЯЩИЕ страницы `pipeline/page.tsx` и `admissions-pipeline/page.tsx` в настоящей
  * оболочке, сборка esbuild для браузера с подменой границ данных и прав и маленький http-сервер: сервер рисует страницу
  * (`renderToString`), браузер гидратирует её теми же страницами и компонентами. Живой Supabase, права, серверные действия и
- * маршрутизатор Next.js стенд не проверяет. Cookie `evo_ui=next` и `harness_actor` приносит контекст Chromium: так страница сама
- * решает (`isNextUi`), какой вид рисовать, как в проде.
+ * маршрутизатор Next.js стенд не проверяет. Cookie `harness_actor` приносит контекст Chromium.
  */
 
 const { existsSync, readFileSync } = require("node:fs");
@@ -68,10 +67,8 @@ const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/h
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 
-let currentUi = null;
-require("next/headers").cookies = async () => ({
-  get: (name) => (name === "evo_ui" && currentUi === "next" ? { name, value: "next" } : undefined),
-});
+// Вне запроса `cookies()` не работает; страницы доски не читают cookie, поэтому заглушка пустая.
+require("next/headers").cookies = async () => ({ get: () => undefined });
 
 const React = require("react");
 /**
@@ -113,27 +110,24 @@ async function settled(build) {
   throw new Error("страница не устоялась");
 }
 
-/** Страница в оболочке для запроса: вид и сотрудника задают cookie (`ui`, `actor`). */
-async function renderRequest(pathname, search, { ui, actor, rows }) {
+/** Страница в оболочке для запроса: сотрудника задаёт cookie (`actor`). */
+async function renderRequest(pathname, search, { actor, rows }) {
   return settled(async () => {
     setActor(actor);
     selectSalesRows(rows);
-    currentUi = ui;
     try {
       const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
       const content = await resolveServer(await require(join(ROOT, PAGES[pathname])).default({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(search))) }));
-      const nextRoot = ui === "next" && actor === "admin";
       const params = new URLSearchParams(search);
       return createElement(AppRouterContext.Provider, { value: { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, push() {}, replace() {}, prefetch() {} } },
         createElement(PathnameContext.Provider, { value: pathname },
           createElement(SearchParamsContext.Provider, { value: params },
             createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } },
-              createElement("div", { className: "v3-world", "data-surface": "staff", "data-ui": nextRoot ? "next" : undefined },
+              createElement("div", { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
                 createElement(AppShell, { actor: ACTORS[actor], initialNotifications: null }, content))))));
     } finally {
       setActor("admin");
       selectSalesRows("default");
-      currentUi = null;
     }
   });
 }
@@ -177,7 +171,6 @@ const IMAGE = { ...imageConfigDefault, unoptimized: true };
 const cookie = (name) => document.cookie.split("; ").find((one) => one.startsWith(name + "="))?.slice(name.length + 1) ?? null;
 async function renderPage(pathname, search) {
   globalThis.__harnessUuid = fixtures.syntheticUuids();
-  globalThis.__harnessUi = cookie("evo_ui");
   fixtures.setActor(cookie("harness_actor") ?? "admin");
   fixtures.selectSalesRows(cookie("harness_rows") ?? "default");
   return resolveServer(await PAGES[pathname]()({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(search))) }));
@@ -208,12 +201,11 @@ function Harness({ initial }) {
   }, []);
   const searchParams = React.useMemo(() => new URLSearchParams(view.search), [view.search]);
   const actor = cookie("harness_actor") ?? "admin";
-  const nextRoot = cookie("evo_ui") === "next" && actor === "admin";
   return h(AppRouterContext.Provider, { value: router },
     h(PathnameContext.Provider, { value: view.pathname },
       h(SearchParamsContext.Provider, { value: searchParams },
         h(ImageConfigContext.Provider, { value: IMAGE },
-          h("div", { className: "v3-world", "data-surface": "staff", "data-ui": nextRoot ? "next" : undefined },
+          h("div", { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
             h(AppShell, { actor: fixtures.ACTORS[actor], initialNotifications: null }, view.content))))));
 }
 (async () => {
@@ -243,11 +235,11 @@ async function bundleHydration() {
       build.onLoad({ filter: /.*/, namespace: "uuid" }, () => ({ contents: "module.exports = { randomUUID: () => globalThis.__harnessUuid() };", loader: "js" }));
       build.onResolve({ filter: /^next\/link$/ }, () => ({ path: "next-link", namespace: "link" }));
       build.onLoad({ filter: /.*/, namespace: "link" }, () => ({ contents: LINK_SHIM, resolveDir: ROOT, loader: "js" }));
-      // `next/dynamic` — версия для App Router (как в сборке Next); `next/headers` — cookie «Нового вида» из document.cookie.
+      // `next/dynamic` — версия для App Router (как в сборке Next); `next/headers` — пустая заглушка cookies().
       build.onResolve({ filter: /^next\/dynamic$/ }, () => ({ path: require.resolve("next/dist/shared/lib/app-dynamic") }));
       build.onResolve({ filter: /^next\/headers$/ }, () => ({ path: "headers", namespace: "headers" }));
       build.onLoad({ filter: /.*/, namespace: "headers" }, () => ({
-        contents: `module.exports = { cookies: async () => ({ get: (name) => (name === "evo_ui" && globalThis.__harnessUi === "next" ? { name, value: "next" } : undefined) }) };`,
+        contents: `module.exports = { cookies: async () => ({ get: () => undefined }) };`,
         loader: "js",
       }));
       build.onResolve({ filter: /\.png$/ }, (args) => ({ path: resolve(args.resolveDir, args.path), namespace: "png" }));
@@ -298,10 +290,9 @@ async function startServer(css, bundle) {
         return;
       }
       if (!Object.hasOwn(PAGES, url.pathname)) { response.writeHead(404); response.end(); return; }
-      const ui = cookieOf(request, "evo_ui") === "next" ? "next" : null;
       const actor = cookieOf(request, "harness_actor") ?? "admin";
       const rows = cookieOf(request, "harness_rows") ?? "default";
-      const markup = await renderRequest(url.pathname, url.search.slice(1), { ui, actor, rows });
+      const markup = await renderRequest(url.pathname, url.search.slice(1), { actor, rows });
       response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       response.end([
         "<!DOCTYPE html>",

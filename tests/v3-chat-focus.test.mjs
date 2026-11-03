@@ -202,7 +202,7 @@ test("исходники: меню только скрывается, кнопк
 });
 
 test("исходники: «Поручить» — рамка без потолка 1240 px и без второй шапки, остальные вкладки прежние", () => {
-  const chat = read("src/components/v3/ai-agents/AgentChatShell.tsx");
+  const chat = read("src/components/v3/ai-agents-next/NextChatShell.tsx");
   assert.doesNotMatch(chat, /max-w-\[1240px\]|mx-auto/u, "рабочая область на всю ширину колонки");
   assert.match(chat, /<h1 className="t-page-title/u, "один h1 страницы — название агента");
   assert.match(chat, /<ChatFocusToggle \/>/u);
@@ -261,7 +261,7 @@ import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks
 import { ImageConfigContext } from "next/dist/shared/lib/image-config-context.shared-runtime";
 import { imageConfigDefault } from "next/dist/shared/lib/image-config";
 import { AppShell } from "@/components/v3/AppShell";
-import { AgentChatShell } from "@/components/v3/ai-agents/AgentChatShell";
+import { NextChatShell } from "@/components/v3/ai-agents-next/NextChatShell";
 import { AgentTabs } from "@/components/v3/ai-agents/AgentTabs";
 
 const ACTOR = {
@@ -277,13 +277,13 @@ function Page({ search, pathname }) {
   // «broken» — страница чата без рамки, как экран «агент недоступен»: адрес чата, а кнопки нет.
   if (tab !== "command" || params.get("broken")) return <main data-testid="other-tab"><h1>Запуски</h1></main>;
   return (
-    <AgentChatShell
+    <NextChatShell
       testId="v3-ai-agent-page" title="Директор / Аналитик" roleLine="Считает продажи и воронку"
       tabs={<AgentTabs bare agentKey="director" title="Директор / Аналитик" tab="command" draftsPending={0} />}
       switches={<span>Включён</span>}
     >
       <div data-aia-workspace="" className="flex min-h-0 flex-1"><textarea data-testid="field" /></div>
-    </AgentChatShell>
+    </NextChatShell>
   );
 }
 export function App({ initial }) {

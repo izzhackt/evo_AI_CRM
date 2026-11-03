@@ -111,10 +111,6 @@ test("solid red stays for the main action and every selection shares one accent-
   assert.ok(contrast("surface", "text") >= 4.5, "dark neutral badge, solid pill and today marker");
 
   const selectable = [
-    "src/components/v3/settings/Settings.tsx",
-    "src/components/v3/settings/sections.tsx",
-    // Э6: «Сотрудники · Роли и доступ · Отделы» moved from StaffSection's own
-    // tabs into the Settings section list above.
     "src/components/v3/calendar/Calendar.tsx",
     "src/components/v3/calendar/grids.tsx",
     // Boards 25.09: segments and the filter toggle of both boards live in the
@@ -134,7 +130,6 @@ test("solid red stays for the main action and every selection shares one accent-
     // «База знаний» (Э8.10, 28.09): дерево, «Вся база / Текущая папка», режим
     // редактора и вкладки досье — общий нейтральный выбор, без розового.
     "src/components/v3/knowledge/KnowledgeTree.tsx",
-    "src/components/v3/knowledge/KnowledgeLibrary.tsx",
     "src/components/v3/knowledge/KnowledgeEditor.tsx",
     "src/components/v3/knowledge/KnowledgeDossiers.tsx",
     // «Заявки» (Э3, 27.09): выбор — вкладки очереди (QueueViewTabs) и «Ждут
@@ -149,8 +144,6 @@ test("solid red stays for the main action and every selection shares one accent-
     assert.doesNotMatch(source, /\?\s*"[^"]*\bbg-accent\b[^"]*\btext-on-accent\b/u, `${path} has no solid red selection`);
     assert.doesNotMatch(source, /border-b-2 border-accent/u, `${path} has no red underline selection`);
   }
-  // The audit filter chips used to show selection by colour alone.
-  assert.match(read("src/components/v3/settings/sections.tsx"), /aria-current=\{active\.objectType === type\.key \? "page" : undefined\}/u);
   // A selected form template keeps a non-colour cue: the edge v3-choice recolours
   // and the 600 weight reaching the title (no weight fixed on the title itself).
   const forms = read("src/app/(v3)/v3/universities/[id]/forms/page.tsx");

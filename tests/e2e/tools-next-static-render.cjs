@@ -112,7 +112,6 @@ async function buildBundle(outFile) {
       build.onLoad({ filter: /[\\/]src[\\/].+\.tsx?$/ }, (args) => {
         const source = readFileSync(args.path, "utf8");
         if (!/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/u.test(source)) return undefined;
-        if (args.path.endsWith("ui-next-actions.ts")) return { contents: "export async function setNextUiAction() {}", loader: "ts" };
         const chat = Object.entries(CHAT_STUBS).find(([file]) => args.path.endsWith(`/${file}`));
         if (chat) return { contents: chat[1], loader: "ts", resolveDir: ROOT };
         const names = [...source.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+([A-Za-z0-9_$]+)/gu)].map((match) => match[1]);
@@ -185,14 +184,6 @@ const PAGES = {
 };
 
 // Прежний вид на тех же данных: снимки «до» (только снимки, проверок нового вида у них нет).
-const legacyOf = (name) => ({ ...PAGES[name], legacy: true, knowledge: knowledgeData });
-PAGES["legacy-calendar-week"] = legacyOf("calendar-week");
-PAGES["legacy-calendar-panel"] = legacyOf("calendar-panel");
-PAGES["legacy-snippets"] = legacyOf("snippets");
-PAGES["legacy-documents-folder"] = legacyOf("documents-folder");
-PAGES["legacy-knowledge-folder"] = legacyOf("knowledge-folder");
-PAGES["legacy-chat"] = legacyOf("chat");
-PAGES["legacy-chat-channels"] = legacyOf("chat-channels");
 
 function writePage(outDir, name, css, data) {
   const path = join(outDir, `${name}.html`);

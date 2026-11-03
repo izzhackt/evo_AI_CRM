@@ -433,9 +433,9 @@ test("UI window: a collapsed «Что ИИ знает о клиенте» under 
 });
 
 test("UI section: «Память о клиенте» in «Агент и лимит» — status, toggle, disable confirm, no consent is disabled", () => {
-  const views = read("src/components/v3/ai-agent/AiAgentViews.tsx");
-  const settings = views.slice(views.indexOf("function AiMemorySettings"));
-  assert.match(views, /<AiMemorySettings settings=\{data\} preview=\{preview\} requestId=\{memoryRequestId\} \/>/u);
+  const views = read("src/components/v3/ai-agent-next/AiAgentSettingsCard.tsx");
+  const settings = views.slice(views.indexOf("function MemoryBlock"));
+  assert.match(views, /<MemoryBlock settings=\{settings\} preview=\{preview\} requestId=\{memoryRequestId\} \/>/u);
   assert.match(settings, /id="ai-memory"/u);
   assert.match(settings, /action=\{saveAiMemoryAction\}/u);
   assert.match(settings, /settings\.canManage && !preview/u);
@@ -456,16 +456,16 @@ test("UI section: «Память о клиенте» in «Агент и лими
   assert.equal(AI_MEMORY_SETTINGS_COPY.disable, "Выключить память");
   assert.equal(AI_MEMORY_SETTINGS_COPY.disableConfirm, "Сводки всех клиентов удалятся.");
   assert.equal(AI_MEMORY_SETTINGS_COPY.noConsent, "Сначала администратор записывает согласие на Gemini.");
-  assert.match(read("src/app/(v3)/v3/ai-agent/page.tsx"), /memoryRequestId=\{randomUUID\(\)\}/u);
+  assert.match(read("src/app/(v3)/v3/ai-agent/page.tsx"), /memoryRequestId: randomUUID\(\)/u);
   // Отзыв согласия (274) выключает память и удаляет сводки всех клиентов; новое согласие её не включает.
   assert.equal(AI_MEMORY_SETTINGS_COPY.revokeConfirm,
     "ИИ перестанет готовить ответы. Память о клиенте выключится, сводки всех клиентов удалятся. После нового согласия память нужно включить снова.");
   assert.equal(AI_MEMORY_SETTINGS_COPY.revokeSubmit, "Отозвать и удалить сводки");
   assert.equal(AI_MEMORY_SETTINGS_COPY.revoked, "Согласие отозвано, память выключена, сводки удалены. После нового согласия память нужно включить снова.");
-  const revoke = views.slice(views.indexOf('data-testid="v3-ai-consent-revoke"'), views.indexOf("<AiMemorySettings settings="));
-  assert.match(revoke, /\{data\.memoryEnabled \? \(\s*<p [^>]*>\{AI_MEMORY_SETTINGS_COPY\.revokeConfirm\}<\/p>/u, "the consequence is said before the button");
-  assert.match(revoke, /label=\{data\.memoryEnabled \? AI_MEMORY_SETTINGS_COPY\.revokeSubmit : /u);
-  assert.match(revoke, /saved: data\.memoryEnabled \? AI_MEMORY_SETTINGS_COPY\.revoked : /u);
+  const revoke = views.slice(views.indexOf('data-testid="v3-ai-consent-revoke"'), views.indexOf("<MemoryBlock settings="));
+  assert.match(revoke, /\{settings\.memoryEnabled \? <p [^>]*>\{AI_MEMORY_SETTINGS_COPY\.revokeConfirm\}<\/p>/u, "the consequence is said before the button");
+  assert.match(revoke, /label=\{settings\.memoryEnabled \? AI_MEMORY_SETTINGS_COPY\.revokeSubmit : /u);
+  assert.match(revoke, /saved: settings\.memoryEnabled \? AI_MEMORY_SETTINGS_COPY\.revoked : /u);
 
   const actions = read("src/lib/platform-ai-agent-actions.ts");
   assert.match(actions, /exactActionStringFields\(form, \["request_id", "expected_version", "memory_action"\]\)/u);

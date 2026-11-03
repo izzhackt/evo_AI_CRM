@@ -268,7 +268,6 @@ test("«Настройки»: every staff view has one section heading — no hi
   assert.equal([...page("settings-roles").matchAll(/<h[1-6][^>]*>Роли и доступ<\/h[1-6]>/gu)].length, 1);
   const roles = source("src/components/v3/settings/StaffRolesSection.tsx");
   assert.match(roles, /if \(newRole\) return <><h2 className="sr-only">Роли и доступ<\/h2><RoleEditor /u, "the new-role form keeps the section heading");
-  assert.doesNotMatch(source("src/components/v3/settings/Settings.tsx"), /className=\{current\.key === "staff" \? "sr-only"/u);
 });
 
 test("«Настройки»: open on «Сотрудники», one section list, no «админ» marks, one integrations table", () => {

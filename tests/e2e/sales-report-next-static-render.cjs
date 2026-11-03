@@ -4,14 +4,13 @@
 
 /**
  * «Отчёт продаж» в «Новом виде» (`/v3/main?view=sales`, решение владельца 27.10.2026): НАСТОЯЩАЯ страница `main/page.tsx` в настоящей
- * оболочке на СИНТЕТИЧЕСКИХ данных (`sales-report-fixtures.cjs`: имена и суммы выдуманы). Страница сама решает по cookie, какой вид
- * рисовать (`isNextUi`); сервер стенда рисует разметку (async-части страницы дожидается сам), браузер гидратирует её теми же страницами.
+ * оболочке на СИНТЕТИЧЕСКИХ данных (`sales-report-fixtures.cjs`: имена и суммы выдуманы). Сервер стенда рисует разметку (async-части страницы дожидается сам), браузер гидратирует её теми же страницами.
  * Серверные действия подменены; Supabase, права и маршрутизатор Next.js стенд не проверяет — проверяются вёрстка, токены, адаптив,
  * клавиатура, доступность и пути «строка → панель записи», «Убрать» / «Вернуть», фильтры, новая продажа, вложенные страницы.
  *
  *   node tests/e2e/sales-report-next-static-render.cjs --json
- *     → stdout: JSON [{ name, html }] — страница в четырёх мирах (администратор с cookie — новый вид; без cookie, сотрудник и просмотр
- *       роли с cookie — прежний вид; для tests/ui-next-pipelines.test.mjs).
+ *     → stdout: JSON [{ name, html }] — страница в нескольких мирах (имена прежние: «cookie» и «no-cookie» — один и тот же
+ *       новый вид; для tests/ui-next-pipelines.test.mjs).
  *   node tests/e2e/sales-report-next-static-render.cjs --screenshots [outDir]
  *     → снимки на 1440×900, 1280×800 и 390×844 и проверки (JSON-строки; при нарушении код 1). По умолчанию outDir — .impeccable/review
  *       (не коммитится). Нужен Chromium: PLAYWRIGHT_BROWSERS_PATH=<папка с браузерами>.
@@ -29,16 +28,16 @@ const { ROOT, bundleHydration, compileCss, fixtures, renderRequest, resolveServe
 
 const SEARCH = "view=sales&year=2026&month=9";
 const SCENARIOS = {
-  "admin-cookie": { ui: "next", actor: "admin" },
-  "admin-no-cookie": { ui: null, actor: "admin" },
-  "staff-cookie": { ui: "next", actor: "staff" },
-  "preview-cookie": { ui: "next", actor: "preview" },
-  "staff-no-cookie": { ui: null, actor: "staff" },
-  "preview-no-cookie": { ui: null, actor: "preview" },
+  "admin-cookie": { actor: "admin" },
+  "admin-no-cookie": { actor: "admin" },
+  "staff-cookie": { actor: "staff" },
+  "preview-cookie": { actor: "preview" },
+  "staff-no-cookie": { actor: "staff" },
+  "preview-no-cookie": { actor: "preview" },
   // Чтение плана не удалось / плана нет: прежний и новый вид не говорят о плане того, чего не прочли.
-  "admin-cookie-management-unavailable": { ui: "next", actor: "admin", rows: "management-unavailable" },
-  "admin-no-cookie-management-unavailable": { ui: null, actor: "admin", rows: "management-unavailable" },
-  "admin-cookie-no-plan": { ui: "next", actor: "admin", rows: "no-plan" },
+  "admin-cookie-management-unavailable": { actor: "admin", rows: "management-unavailable" },
+  "admin-no-cookie-management-unavailable": { actor: "admin", rows: "management-unavailable" },
+  "admin-cookie-no-plan": { actor: "admin", rows: "no-plan" },
 };
 
 async function renderJson() {
@@ -67,7 +66,6 @@ async function nextProps() {
   for (const [name, query, lazy] of [["report", SEARCH, SalesReportNextLazy], ["report-record", `${SEARCH}&record=${fixtures.uuid("78787878", 2)}`, SalesReportNextLazy], ["report-edit", `${SEARCH}&record=${fixtures.uuid("78787878", 2)}&edit=true`, SalesReportNextLazy],
     ["managers", `${SEARCH}&mode=managers`, SalesFrameNextLazy], ["import", `${SEARCH}&mode=import`, SalesFrameNextLazy]]) {
     setActor("admin");
-    require("next/headers").cookies = async () => ({ get: (key) => (key === "evo_ui" ? { name: key, value: "next" } : undefined) });
     const content = await resolveServer(await require(join(ROOT, "src/app/(v3)/v3/main/page.tsx")).default({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(query))) }));
     const view = findElement(content, (element) => element.type === lazy);
     if (!view) throw new Error(`${name}: the page renders no lazy entry`);

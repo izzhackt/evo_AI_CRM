@@ -17,16 +17,13 @@ const spawnJson = (script, flag) => new Map(JSON.parse(execFileSync(
   { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 },
 )).map((surface) => [surface.name, surface.html]));
 
-const legacyRequests = spawnJson("requests-static-render.cjs", "--json");
 const nextRequests = spawnJson("requests-static-render.cjs", "--next-json");
-const legacyToday = spawnJson("today-static-render.cjs", "--json");
 const nextToday = spawnJson("today-static-render.cjs", "--next-json");
 const pageToday = spawnJson("today-static-render.cjs", "--page-json");
 // `--next-props` настоящей страницы «Заявок» бросает, если свойства `RequestsNextLazy` не сериализуются (`assertFlightProps`).
 const requestsNextPropsChecked = Object.keys(JSON.parse(execFileSync(process.execPath, [fileURLToPath(new URL("./e2e/requests-static-render.cjs", import.meta.url)), "--next-props"], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }))).length === 3;
 
 const count = (html, pattern) => [...html.matchAll(pattern)].length;
-const all = (html, pattern) => [...html.matchAll(pattern)].map((match) => match[1]);
 const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/&#x27;/gu, "'").replace(/\s+/gu, " ").trim();
 
 /** Плитки и карточки виджетов нового вида (у прежнего вида тот же `id="today-band-…"` стоит на заголовке группы). */
@@ -115,7 +112,6 @@ test("«Заявки»: звонки — исход последнего зво�
   assert.match(text(html), /Пропущен/u);
   assert.match(text(html), /Ответил Нурлан Демо/u);
   assert.match(html, /aria-describedby="[^"]*"/u);
-  assert.equal(count(legacyRequests.get("calls-dial"), /data-testid="requests-call-outcome"/gu) >= 1, true);
 });
 
 /* ---------------------------------------------------------------- «Сегодня»: плитки честны, строки те же */
@@ -140,13 +136,7 @@ test("«Сегодня»: плитка на каждую группу, числ�
   for (const group of ["Просрочено", "Сегодня"]) assert.match(text(partial), new RegExp(group, "u"));
 });
 
-test("«Сегодня»: строки в виджетах те же, что в прежней ленте (ключи, источники, причины), задача — настоящая строка «Задач»", () => {
-  for (const name of ["admin", "admissions", "sales", "partial"]) {
-    const keys = (html) => all(html, /data-queue-row="([^"]+)"/gu).sort();
-    assert.deepEqual(keys(nextToday.get(`next-${name}`)), keys(legacyToday.get(name)), `${name}: те же строки`);
-    const sources = (html) => all(html, /data-today-source="([^"]+)"/gu).sort();
-    assert.deepEqual(sources(nextToday.get(`next-${name}`)), sources(legacyToday.get(name)), `${name}: те же источники`);
-  }
+test("«Сегодня»: строки в виджетах: задача — настоящая строка «Задач»", () => {
   const admin = nextToday.get("next-admin");
   assert.ok(count(admin, /data-kind="staff"/gu) >= 1, "рабочая задача рисуется строкой «Задач» с кругом завершения");
   assert.match(admin, /aria-label="Завершить: /u);
@@ -257,9 +247,8 @@ test("«Сегодня»: клавиатура очереди ↑/↓ — по �
   assert.equal(count(admin, /data-queue-list=/gu), 1, "область очереди одна");
   assert.ok(region.indexOf("data-queue-list") < region.indexOf('id="today-band-'), "область объемлет все виджеты");
   assert.doesNotMatch(region.slice(region.indexOf("<ul")), /<ul[^>]*data-queue-list/u, "не на списке строк: кнопка «Показать ещё» стоит вне него");
-  // Строки виджета — без широкой раскладки от 32rem; у прежней ленты она есть.
+  // Строки виджета — без широкой раскладки от 32rem.
   assert.equal(count(region, /@min-\[32rem\]/gu), 0, "в виджетах нет широкой сетки строки");
-  assert.ok(count(legacyToday.get("admin"), /@min-\[32rem\]/gu) > 0, "а у прежнего вида есть");
   // Плитки: на каждую группу при нескольких группах; у единственной группы и у пустого дня с названным сроком — нет.
   assert.equal(count(admin, /data-slot="stat-tile"/gu), 5);
   assert.match(admin, /data-testid="today-tiles"/u);

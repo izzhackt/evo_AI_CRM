@@ -28,9 +28,6 @@ import { shellTabLabel, shellTabs } from "../src/lib/v3/shell-tabs.ts";
 import { todayChatItems } from "../src/lib/v3/today-queue.ts";
 import { staffRoleKeys } from "./e2e/staff-role-templates.cjs";
 
-/** Прежний вид убран со страниц (#1327): разметка, которую снимали эти проверки, больше не рисуется; их и прежние компоненты удаляет #1328. */
-const LEGACY_VIEW_REMOVED = "old view is not rendered since #1327; removed with the old components in #1328";
-
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
 const ME = "aaaaaaaa-1111-4111-8111-000000000001";
@@ -305,112 +302,9 @@ test("a template is inserted into the text without sending: the same picker, rea
   assert.doesNotMatch(shared, /type="submit"/u);
 });
 
-// --- разметка настоящих страниц -------------------------------------------------
-
-// «WhatsApp» и «Переписка» с #1327 рисуют только «Новый вид» (его проверяет tests/ui-next-chats.test.mjs): разметки прежних страниц больше нет,
-// проверки по ней пропущены, а сами компоненты прежнего вида удаляет #1328.
-const pages = [];
-const page = (name) => {
-  const item = pages.find((entry) => entry.name === name);
-  assert.ok(item, name);
-  return item.html;
-};
-
-test("«Переписка»: its own h1, no channel tabs, queue segments with counts from the read and «Все» without one", { skip: LEGACY_VIEW_REMOVED }, () => {
-  const html = page("cabinet");
-  assert.equal([...html.matchAll(/<h1\b/gu)].length, 1);
-  assert.match(html, /<main aria-label="Переписка" data-conversations-main=""/u);
-  assert.match(html, /<h1 class="t-page-title[^"]*">Переписка<\/h1>/u);
-  // Страница стоит отдельно: ни ряда каналов, ни ссылки на WhatsApp продаж.
-  assert.doesNotMatch(html, /Каналы переписки|data-conversation-channels|href="\/v3\/inbox"|Кабинет студента<\/a>/u);
-  const queues = html.slice(html.indexOf('data-testid="case-chat-queues"'), html.indexOf("</div>", html.indexOf('data-testid="case-chat-queues"')));
-  assert.match(queues, /aria-pressed="true"[^>]*>Нужен ответ<span [^>]*data-queue-count="needs_reply">3<\/span>/u);
-  assert.match(queues, /aria-pressed="false"[^>]*>Ждём студента<span [^>]*data-queue-count="awaiting_student">2<\/span>/u);
-  assert.match(queues, /aria-pressed="false"[^>]*>Все<\/button>/u);
-  assert.doesNotMatch(html, /Выберите переписку слева/u);
-  assert.doesNotMatch(html, /text-danger|data-tone="danger"|bg-danger/u, "no red on the list");
-});
-
-test("«Все» marks each row's state with its word: «Нужен ответ» as a warning, «Ждём студента» neutral", { skip: LEGACY_VIEW_REMOVED }, () => {
-  // Состояние словом — чип (Э1.3).
-  assert.match(page("all"), /<span class="v3-chip t-caption" data-tone="warn">Нужен ответ<\/span>/u);
-  assert.match(page("all"), /<span class="v3-chip t-caption" data-tone="neutral">Ждём студента<\/span>/u);
-  // В очереди «Нужен ответ» у всех строк одно состояние — чип не повторяется.
-  assert.doesNotMatch(page("cabinet"), />Нужен ответ<\/span>/u);
-});
-
-test("the thread header says with whom: name, direction · board stage, «Открыть дело» and the three-way control", { skip: LEGACY_VIEW_REMOVED }, () => {
-  const current = page("thread");
-  assert.match(current, /<h2 class="t-section break-words text-fg @max-2xl:line-clamp-2 @2xl:truncate">Нурай Образцова<\/h2>/u);
-  // Этап — чип фазы доски со словом (Э1.4), человек — нейтральные инициалы (Э1.3).
-  assert.match(current, /data-testid="case-chat-case-facts"><span>Китай<\/span><span aria-hidden="true" class="text-fg-3">·<\/span><span class="v3-stage" data-phase="admission"><span class="v3-phase-dot" aria-hidden="true"><\/span><span class="min-w-0">Документы<\/span><\/span><\/p>/u);
-  assert.match(current, /<span class="v3-initials t-caption" aria-hidden="true">НО<\/span>/u);
-  assert.match(current, /href="\/v3\/profile\?case=dddddddd-2222-4222-8222-000000000001"[^>]*>Открыть дело<\/a>/u);
-  const control = current.slice(current.indexOf('data-testid="case-chat-await-control"'));
-  assert.deepEqual([...control.matchAll(/aria-pressed="(true|false)"[^>]*>([^<]+)<\/button>/gu)].slice(0, 3).map((match) => `${match[2]}${match[1] === "true" ? "*" : ""}`),
-    ["Нужен ответ*", "Ждём студента", "Не требуется"]);
-});
-
-test("WhatsApp stands alone: h1 «WhatsApp», the honest «не подключён» state, no channel tabs, for Admin, sales and a curator on an old link", { skip: LEGACY_VIEW_REMOVED }, () => {
-  for (const name of ["whatsapp", "whatsapp-sales", "whatsapp-admissions"]) {
-    const html = page(name);
-    assert.equal([...html.matchAll(/<h1\b/gu)].length, 1, name);
-    // Не подключён — считать нечего: числа у заголовка нет.
-    assert.match(html, /<h1 class="t-page-title flex flex-wrap items-baseline gap-2\.5 text-fg">WhatsApp<\/h1>/u, name);
-    assert.match(html, /WhatsApp не подключён к CRM — подключает Администратор/u, name);
-    assert.doesNotMatch(html, /Каналы переписки|data-conversation-channels|Кабинет студента|href="\/v3\/messages"/u, name);
-  }
-  assert.doesNotMatch(page("whatsapp-sales"), /Открыть настройки/u, "connecting stays with the Administrator");
-});
-
-test("each page has its own header: the student chat window-high, WhatsApp the shell column's height; no channel tabs anywhere", { skip: LEGACY_VIEW_REMOVED }, () => {
-  const head = (html) => {
-    const start = html.indexOf("<main");
-    return html.slice(start, html.indexOf("</h1>", start) + "</h1>".length);
-  };
-  // «Переписка» — на высоту окна (правило 100dvh): поле ответа над панелью вкладок.
-  assert.equal(head(page("cabinet")), '<main aria-label="Переписка" data-conversations-main="" class="mx-auto flex w-full min-h-0 max-w-[1240px] flex-col px-4 pb-4 pt-6 sm:px-6 h-[calc(100dvh-150px)] md:h-[calc(100dvh-64px)]"><div class="flex flex-wrap items-start justify-between gap-4"><div class="min-w-0"><h1 class="t-page-title flex flex-wrap items-baseline gap-2.5 text-fg">Переписка</h1>');
-  // WhatsApp — прежний PartShell `fill`: от 768 px высоту даёт колонка оболочки (`isFillRoute`).
-  assert.equal(head(page("whatsapp")), '<main class="mx-auto w-full px-4 sm:px-6 max-w-[1240px] flex flex-col py-6 md:min-h-0 md:flex-1"><div class="flex flex-wrap items-start justify-between gap-4"><div class="min-w-0"><h1 class="t-page-title flex flex-wrap items-baseline gap-2.5 text-fg">WhatsApp</h1>');
-  assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /export const metadata = \{ title: "Переписка" \};\s*const TITLE = "Переписка";/u);
+test("each page has its own title: «Переписка» and «WhatsApp» are separate routes, no channel tabs component", () => {
+  assert.match(read("src/app/(v3)/v3/messages/page.tsx"), /export const metadata = \{ title: "Переписка" \};/u);
   assert.match(read("src/app/(v3)/v3/inbox/page.tsx"), /export const metadata = \{ title: "WhatsApp" \};/u);
-  assert.match(read("src/app/(v3)/v3/inbox/loading.tsx"), /<PartShell title="WhatsApp" fill>/u);
   assert.doesNotMatch(read("src/app/(v3)/v3/inbox/page.tsx"), /ConversationsMain|conversationChannels/u);
   assert.equal(existsSync(new URL("../src/components/v3/ConversationChannels.tsx", import.meta.url)), false);
-  assert.doesNotMatch(read("src/components/v3/ConversationsMain.tsx"), /channels|QueueViewTabs/u);
-});
-
-test("a phone thread takes the screen: page title only for screen readers, no channel tabs, «К списку» on the name row", { skip: LEGACY_VIEW_REMOVED }, () => {
-  const thread = page("thread");
-  assert.match(thread, /<div class="flex flex-wrap items-start justify-between gap-4 @max-2xl:sr-only"><div class="min-w-0"><h1 class="t-page-title[^"]*">Переписка<\/h1>/u);
-  assert.match(thread, /<\/h1><\/div><\/div><div class="mt-5 flex min-h-0 flex-1 flex-col @max-2xl:mt-0">/u);
-  assert.doesNotMatch(page("cabinet"), /@max-2xl:sr-only|@max-2xl:hidden/u, "the list keeps its title");
-  const header = thread.slice(thread.indexOf('data-testid="case-chat-thread-header"'), thread.indexOf('data-testid="case-chat-await-control"'));
-  assert.match(header, /<a [^>]*aria-label="К списку"[^>]*>[\s\S]*?<\/a>(?:<span [^>]*>[\s\S]*?<\/span>)?<div class="min-w-0"><h2 /u, "the back link sits in the name row");
-  // Узко имя встаёт в две строки, а не обрезается до «Студент …».
-  assert.match(header, /<h2 class="[^"]*@max-2xl:line-clamp-2 @2xl:truncate">Нурай Образцова<\/h2>/u);
-  // Список на всю ширину телефона — без своей черты справа.
-  assert.match(page("cabinet"), /<nav aria-label="Переписки кабинета студента" class="flex w-full flex-col border-border @2xl:w-\[320px\] @2xl:shrink-0 @2xl:border-e">/u);
-});
-
-test("the empty default queue fills the right pane with «Все ответы даны», the list says it once in other words", { skip: LEGACY_VIEW_REMOVED }, () => {
-  const html = page("answered");
-  assert.match(html, /data-testid="case-chat-next"><p class="t-body text-fg-3">Все ответы даны<\/p><\/div>/u);
-  assert.match(html, /<p role="status" class="t-body-compact text-fg-3">Нет переписок, ждущих ответа\.<\/p>/u);
-  // «Все» уже стоит рядом сегментом: второй кнопки с тем же действием нет.
-  assert.doesNotMatch(html, /Показать все переписки/u);
-});
-
-test("message actions: one «Ответить с цитатой» icon in the time line, no «⋯» menu, own bubble neutral, day dividers", { skip: LEGACY_VIEW_REMOVED }, () => {
-  const thread = page("thread");
-  assert.doesNotMatch(thread, /⋯|popover="auto" role="group" aria-label="Действия с сообщением"/u);
-  const triggers = [...thread.matchAll(/<button type="button" aria-label="Ответить с цитатой" title="Ответить с цитатой"/gu)];
-  assert.equal(triggers.length, 5, "one per message");
-  const component = read("src/components/v3/case-chat/CaseChatThread.tsx");
-  assert.doesNotMatch(component, /<details|<summary|Действия с сообщением/u);
-  assert.match(component, /onClick=\{\(\) => onReply\(message\)\}/u);
-  // Грамматика чата WhatsApp: чужое — белый лист с рамкой, наше — «выбрано» (не розовое `accent/10`), день — разделителем.
-  assert.match(component, /own \? "bg-accent-weak" : "border border-border bg-surface"/u);
-  assert.doesNotMatch(component, /bg-accent\/10/u);
-  assert.match(thread, /<span class="rounded-card bg-surface-2 px-3 py-1 t-meta text-fg-3">24 сентября<\/span>/u);
 });

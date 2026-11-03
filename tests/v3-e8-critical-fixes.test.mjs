@@ -53,11 +53,11 @@ test("phone admissions board: the page passes ?stage= and the picker (or a follo
   const page = read("src/app/(v3)/v3/admissions-pipeline/page.tsx");
   assert.match(page, /stage\?: string \| string\[\];/u);
   assert.match(page, /requestedStage=\{singleValue\(params\.stage\) \?\? null\}/u);
-  // Этап телефона ведёт движок доски (`useAdmissionsBoard`), общий у прежнего и «Нового вида» (27.10.2026); выбор «Этап» рисует сама доска.
-  const board = [read("src/components/v3/AdmissionsPipelineBoard.tsx"), read("src/components/v3/admissions-board/useAdmissionsBoard.ts")].join("\n");
+  // Этап телефона ведёт движок доски (`useAdmissionsBoard`), общий у доски «Нового вида»; выбор «Этап» рисует сама доска.
+  const board = [read("src/components/v3/admissions-pipeline-next/AdmissionsBoardNext.tsx"), read("src/components/v3/admissions-board/useAdmissionsBoard.ts")].join("\n");
   assert.match(board, /useState<AdmissionsPipelineStage>\(\(\) => admissionsNarrowStage\(tab, rows, requestedStage\)\)/u);
   assert.match(board, /setPreviousTab\(tab\);\s*setNarrowStage\(admissionsNarrowStage\(tab, rows, requestedStage\)\);/u);
-  assert.match(board, /onChange=\{\(event\) => chooseNarrowStage\(event\.target\.value as AdmissionsPipelineStage\)\}/u);
+  assert.match(board, /onChange=\{\(event\) => board\.chooseNarrowStage\(event\.target\.value as AdmissionsPipelineStage\)\}/u);
   // Список, последовавший за карточкой после ответа сервера, тоже пишет адрес.
   assert.match(board, /function showStage\(stage: AdmissionsPipelineStage\) \{\s*if \(admissionsPipelineTabOf\(stage\) === tab\) chooseNarrowStage\(stage\);\s*\}/u);
   // Поздний ответ сервера после ухода с доски не пишет `?stage=` в чужой адрес.

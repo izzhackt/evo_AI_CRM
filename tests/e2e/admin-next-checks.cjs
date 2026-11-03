@@ -108,15 +108,8 @@ async function main() {
   if (!args.includes("--flows-only")) {
     for (const name of Object.keys(PAGES).filter((page) => !only || only.includes(page))) {
       for (const key of Object.keys(VIEWPORTS)) {
-        const legacy = name.startsWith("legacy-");
-        if (legacy && (key === "d1280" || LITE.has(key))) continue;
         const { context, page, errors } = await open(name, key);
         await shot(page, `${name}-${key}`, { fullPage: true });
-        if (legacy) {
-          report(`${name} ${key}: legacy view renders without console errors`, errors.length === 0, errors);
-          await context.close();
-          continue;
-        }
         const facts = await page.evaluate(pageFacts);
         const label = `${name} ${key}`;
         report(`${label}: no horizontal scroll`, facts.overflow <= 1, facts.overflow);

@@ -39,11 +39,9 @@
  *       ключ. Серверное действие — заглушка, записывает поля и ничего не
  *       сохраняет. Снимки `e811-manual-lead-*.png` на 1440 и 390.
  *   node tests/e2e/requests-static-render.cjs --channel-spend-forms [outDir]
- *     → «Исправить» в Lead 360 и «Добавить расход» (М1) в Chromium: после
- *       ответа «неизвестно» select показывает выбранный канал и повтор шлёт
- *       его же с тем же id; форма расхода не теряет введённое, после
- *       конфликта запроса id новый, после записи форма пуста. Действия —
- *       заглушки с заданной очередью ответов.
+ *     → «Исправить» в Lead 360 (М1) в Chromium: после ответа «неизвестно» select показывает выбранный канал и
+ *       повтор шлёт его же с тем же id. Действие — заглушка с заданной очередью ответов. (Прежняя форма расхода
+ *       удалена вместе со старым видом, #1328; расход в новом виде — `SpendAddSheet`.)
  *   node tests/e2e/requests-static-render.cjs --switch [outDir]
  *     → смена записи в правой панели по-настоящему в Chromium: собранный
  *       esbuild RequestsQueueView, черновик решения, конфликт и ошибка
@@ -254,16 +252,15 @@ const SCENARIOS = {
 };
 
 /**
- * «Новый вид» (27.10.2026): те же синтетические данные, что у прежних сценариев, но с cookie `evo_ui=next`. Администратор получает
- * таблицу и панель; сотрудник и просмотр роли с тем же cookie — прежний вид (`next-sales-cookie`, `next-preview` должны совпасть
- * с `sales-empty` и `preview` байт в байт). `next-error`, `next-invalid` — сбой чтения и неверная ссылка.
+ * «Новый вид» (27.10.2026): те же синтетические данные, что у прежних сценариев; единственный вид для всех ролей (`next-sales-cookie`,
+ * `next-preview` — продажи и просмотр роли). `next-error`, `next-invalid` — сбой чтения и неверная ссылка.
  */
 const NEXT_BASES = ["empty", "populated", "waiting", "drawer", "drawer-lead", "sales-empty", "sales-untakeable", "preview", "calls", "calls-dial", "calls-off-link", "error"];
 const NEXT_SCENARIOS = {
-  ...Object.fromEntries(NEXT_BASES.map((name) => [`next-${name}`, { ...SCENARIOS[name], ui: "next" }])),
-  "next-sales-cookie": { ...SCENARIOS["sales-empty"], ui: "next" },
-  "next-invalid": { actor: "admin", search: "source=nonsense", rows: [], states: { lead: "ready", application: "ready", consultation: "ready" }, ui: "next" },
-  // Без cookie администратор видит прежнее: тот же сценарий, что и `waiting` (контроль «переключатель выключен»).
+  ...Object.fromEntries(NEXT_BASES.map((name) => [`next-${name}`, { ...SCENARIOS[name] }])),
+  "next-sales-cookie": { ...SCENARIOS["sales-empty"] },
+  "next-invalid": { actor: "admin", search: "source=nonsense", rows: [], states: { lead: "ready", application: "ready", consultation: "ready" } },
+  // Прежний контроль «переключатель выключен»: переключателя больше нет, сценарий тот же, что и `waiting`.
   "next-off": { ...SCENARIOS.waiting },
 };
 
@@ -335,11 +332,8 @@ Module._resolveFilename = function patchedResolve(request, ...rest) {
   return originalResolve.call(this, request, ...rest);
 };
 
-// Страница спрашивает `isNextUi` (cookie «Нового вида»): вне запроса `cookies()` не работает. Сценарий с `ui: "next"` приносит
-// cookie `evo_ui=next`; без него cookie нет — прежний вид, как и было (разметку проверяют тесты).
-require("next/headers").cookies = async () => ({
-  get: (name) => (name === "evo_ui" && current && current.ui === "next" ? { name, value: "next" } : undefined),
-});
+// Вне запроса `cookies()` не работает; страница cookie не читает, поэтому заглушка пустая.
+require("next/headers").cookies = async () => ({ get: () => undefined });
 
 const { createElement } = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
@@ -706,7 +700,6 @@ const SWITCH_ACTIONS = {
   decideStudentApplicationAction: "(globalThis.__decisions ||= []).push(Object.fromEntries(arguments[1])); return { status: \"conflict\", requestId: arguments[1].get(\"request_id\") };",
   // М1: исправление канала и расход — запись полей и ответ из очереди (по умолчанию «неизвестно»).
   correctLeadChannelAction: "const f = Object.fromEntries(arguments[1]); (globalThis.__corrections ||= []).push(f); const next = (globalThis.__correctionResults ||= []).shift() ?? \"unavailable\"; return next === \"saved\" ? { status: \"saved\", requestId: f.request_id, read: { channel: f.channel, basis: \"corrected\", corrected: true, at: \"2026-10-06T08:00:00Z\" } } : { status: next, requestId: f.request_id, read: null };",
-  addMarketingSpendAction: "const f = Object.fromEntries(arguments[1]); (globalThis.__spends ||= []).push(f); return { status: (globalThis.__spendResults ||= []).shift() ?? \"unavailable\", requestId: f.request_id };",
   updatePlatformSalesWorkflowAction: "(globalThis.__takes ||= []).push(Object.fromEntries(arguments[1])); return { status: \"stale\", requestId: arguments[1].get(\"request_id\"), version: arguments[0].version, changedAt: null };",
 };
 const switchStubs = {
@@ -1005,20 +998,17 @@ async function manualLeadForm() {
   if (failures.length) throw new Error(`manual lead form: ${failures.length} failed:\n${failures.join("\n")}`);
 }
 
-// --- М1: «Исправить» в Lead 360 и «Добавить расход» -------------------------
+// --- М1: «Исправить» в Lead 360 -------------------------
 const CHANNEL_SPEND_ROOT_ID = "channel-spend-root";
 const CHANNEL_SPEND_ENTRY = `
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { LeadChannelCorrection } from "../../src/components/v3/profile/LeadChannelCorrection";
-import { MarketingSpendForm } from "../../src/components/v3/marketing/MarketingSpendForm";
 
 createRoot(document.getElementById("${CHANNEL_SPEND_ROOT_ID}")).render(
   createElement("div", { className: "space-y-6" },
     createElement("section", { "data-testid": "correction" },
-      createElement(LeadChannelCorrection, { leadId: "30000000-0000-4000-8000-000000000001", requestId: "70000000-0000-4000-8000-000000000001", current: "unknown" })),
-    createElement("section", { "data-testid": "spend" },
-      createElement(MarketingSpendForm, { requestId: "70000000-0000-4000-8000-000000000002", defaultStart: "2026-10-01", defaultEnd: "2026-10-31" }))),
+      createElement(LeadChannelCorrection, { leadId: "30000000-0000-4000-8000-000000000001", requestId: "70000000-0000-4000-8000-000000000001", current: "unknown" }))),
 );
 `;
 
@@ -1059,7 +1049,7 @@ async function channelSpendForms() {
     const errors = [];
     tab.on("pageerror", (error) => errors.push(error.message));
     await tab.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
-    await tab.evaluate(() => { globalThis.__correctionResults = ["unavailable", "saved"]; globalThis.__spendResults = ["unavailable", "request_conflict", "saved"]; });
+    await tab.evaluate(() => { globalThis.__correctionResults = ["unavailable", "saved"]; });
 
     // «Исправить»: «неизвестно» → тот же выбор и тот же id; затем «Сохранено».
     const correction = tab.getByTestId("correction");
@@ -1088,40 +1078,6 @@ async function channelSpendForms() {
     expect("correction: after «Сохранено» the select shows the saved channel and «Сохранить» waits for another choice",
       afterSaved.value === "referral" && afterSaved.disabled && afterSaved.status === "Сохранено: Рекомендация · исправлено", afterSaved);
 
-    // «Добавить расход»: введённое остаётся до записи; конфликт даёт новый id; после записи форма пуста.
-    const spend = tab.getByTestId("spend");
-    await spend.getByText("Добавить расход").click();
-    const submit = spend.getByRole("button", { name: "Записать расход" });
-    await spend.locator('input[name="period_start"]').fill("2026-10-02");
-    await spend.locator('input[name="amount"]').fill("1200");
-    await spend.locator('select[name="currency"]').selectOption("EUR");
-    await spend.locator('input[name="campaign"]').fill("KG - Leads");
-    await spend.locator('input[name="note"]').fill("синтетика");
-    const spendState = async () => ({
-      start: await spend.locator('input[name="period_start"]').inputValue(), amount: await spend.locator('input[name="amount"]').inputValue(),
-      currency: await spend.locator('select[name="currency"]').inputValue(), campaign: await spend.locator('input[name="campaign"]').inputValue(),
-      note: await spend.locator('input[name="note"]').inputValue(),
-      message: await spend.locator('[role="alert"], [role="status"]').textContent().catch(() => null),
-      sent: await tab.evaluate(() => globalThis.__spends ?? []),
-    });
-    const typed = { start: "2026-10-02", amount: "1200", currency: "EUR", campaign: "KG - Leads", note: "синтетика" };
-    const kept = (state) => Object.entries(typed).every(([key, value]) => state[key] === value);
-    const submitAndWait = async (count, text) => {
-      await submit.click();
-      await tab.waitForFunction((n) => (globalThis.__spends ?? []).length === n, count, { timeout: 5_000 }).catch(() => {});
-      await spend.getByText(text).waitFor({ timeout: 5_000 }).catch(() => {});
-      return spendState();
-    };
-    const first = await submitAndWait(1, "Результат пока неизвестен");
-    expect("spend: after «неизвестно» everything typed is still in the form", kept(first) && first.message?.startsWith("Результат пока неизвестен"), first);
-    const second = await submitAndWait(2, "Этот запрос уже записан");
-    expect("spend: the retry after «неизвестно» reuses the request id, and a conflict keeps the form",
-      second.sent[1]?.request_id === second.sent[0]?.request_id && second.sent[1]?.amount === "1200" && kept(second), second);
-    const third = await submitAndWait(3, "Расход записан.");
-    expect("spend: after a conflict the next submission has a new request id",
-      third.sent.length === 3 && third.sent[2].request_id !== third.sent[1].request_id && third.sent[2].amount === "1200", third.sent);
-    expect("spend: after «Расход записан» the form is empty for the next entry",
-      third.amount === "" && third.campaign === "" && third.note === "" && third.start === "2026-10-01" && third.currency === "USD" && third.message === "Расход записан.", third);
     await tab.screenshot({ path: join(outDir, "m1-channel-spend-1440.png"), fullPage: true });
 
     if (errors.length) failures.push(`browser errors: ${errors.join(" | ")}`);

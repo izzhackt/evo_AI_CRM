@@ -1,5 +1,5 @@
 import { SkeletonBlock } from "@/components/ui";
-import { PartShell } from "@/components/v3/PartShell";
+import { PageShell } from "@/components/kit";
 
 /**
  * Загрузка карточки лида или дела — форма будущей страницы: полоса «Этап · Что дальше», ряд вкладок и две
@@ -40,5 +40,5 @@ export function ProfileSkeleton() {
 
 /** Страница загрузки карточки: нейтральный заголовок, пока имя человека ещё не прочитано. */
 export function ProfileLoadingCard() {
-  return <PartShell title="Загрузка" dense><ProfileSkeleton /></PartShell>;
+  return <PageShell title="Загрузка"><ProfileSkeleton /></PageShell>;
 }

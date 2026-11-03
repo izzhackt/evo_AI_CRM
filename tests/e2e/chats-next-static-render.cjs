@@ -7,14 +7,13 @@
 /**
  * «WhatsApp» (`/v3/inbox`), «Переписка» (`/v3/messages`) и рамка переписки по делу в «Новом виде» (решение владельца
  * 27.10.2026, поток «chats»). Страницы строят НАСТОЯЩИЕ `inbox/page.tsx` и `messages/page.tsx`: подменены только границы
- * (актёр, чтения, cookie переключателя); движок чатов (`InboxChat`, `CaseChatWorkspace`) настоящий. Люди, номера, дела и
+ * (актёр, чтения); движок чатов (`InboxChat`, `CaseChatWorkspace`) настоящий. Люди, номера, дела и
  * сообщения выдуманы (tests/e2e/chats-next-fixtures.cjs). Живой Supabase, WAHA, Wazzup и права сервера этот стенд не
  * проверяет: проверяются выбор вида, вёрстка, адаптив, фокус, доступность и то, что рамка не добавляет отправку.
  *
  *   node tests/e2e/chats-next-static-render.cjs --page-json
- *     → stdout: JSON [{ name, html }] — разметка настоящих страниц в четырёх режимах переключателя (администратор с cookie,
- *       без cookie, просмотр роли с cookie, сотрудник с cookie) и без нового вида вовсе (на базовом коммите все режимы —
- *       прежний вид: так сравнивается «байт в байт»). Для администратора с cookie проверяются свойства ленивого входа.
+ *     → stdout: JSON [{ name, html }] — разметка настоящих страниц в шести режимах (администратор, просмотр роли,
+ *       продажи; имена режимов прежние). Для администратора проверяются свойства ленивого входа.
  *   node tests/e2e/chats-next-static-render.cjs --screenshots [outDir]
  *     → снимки Playwright Chromium 1440×900, 1280×800 и 390×844 и проверки (JSON-строки; при нарушении код 1).
  *       По умолчанию outDir — .impeccable/review (не коммитится).
@@ -67,9 +66,6 @@ const withContexts = (node, pathname, search) => h(AppRouterContext.Provider, { 
   h(PathnameContext.Provider, { value: pathname }, h(SearchParamsContext.Provider, { value: new URLSearchParams(search) },
     h(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, node))));
 
-// Cookie «Нового вида»: страница спрашивает `isNextUi`; вне запроса `cookies()` не работает, поэтому сценарий задаёт её сам.
-let nextCookie = false;
-require("next/headers").cookies = async () => ({ get: (name) => (name === "evo_ui" && nextCookie ? { name, value: "next" } : undefined) });
 
 // --- настоящие страницы с подменёнными чтениями --------------------------------------------------------------------
 function stubShared(actor) {
@@ -117,24 +113,20 @@ async function buildPage(kind, name, actor) {
 
 const JSON_PAGES = [["inbox", "chat"], ["inbox", "chat-long-name"], ["inbox", "chat-case-only"], ["inbox", "not-connected"], ["inbox", "wazzup-read-only"], ["inbox", "list"], ["inbox", "empty"], ["inbox", "empty-filtered"], ["messages", "thread"], ["messages", "cabinet"], ["messages", "answered"], ["messages", "failure"]];
 const MODES = [
-  ["admin-cookie", fx.ACTORS.admin, true], ["admin-no-cookie", fx.ACTORS.admin, false],
-  ["preview-cookie", fx.ACTORS.preview, true], ["preview-no-cookie", fx.ACTORS.preview, false],
-  ["sales-cookie", fx.ACTORS.sales, true], ["sales-no-cookie", fx.ACTORS.sales, false],
+  // Имена режимов прежние (их читают тесты); переключателя «Нового вида» больше нет — вид один для всех.
+  ["admin-cookie", fx.ACTORS.admin], ["admin-no-cookie", fx.ACTORS.admin],
+  ["preview-cookie", fx.ACTORS.preview], ["preview-no-cookie", fx.ACTORS.preview],
+  ["sales-cookie", fx.ACTORS.sales], ["sales-no-cookie", fx.ACTORS.sales],
 ];
 async function pageJson() {
   const out = [];
-  try {
-    for (const [kind, name] of JSON_PAGES) {
-      for (const [mode, actor, cookie] of MODES) {
-        nextCookie = cookie;
-        const { element, search, pathname } = await buildPage(kind, name, actor);
-        // Администратору с cookie страница отдаёт ленивый вход: его свойства пересекают границу сервер → клиент.
-        if (cookie && actor.systemRole === "admin" && !actor.presentationRole) assertFlightProps(element.props, `${kind}:${name}`);
-        out.push({ name: `${kind}:${name}:${mode}`, html: await renderSettled(withContexts(element, pathname, search)) });
-      }
+  for (const [kind, name] of JSON_PAGES) {
+    for (const [mode, actor] of MODES) {
+      const { element, search, pathname } = await buildPage(kind, name, actor);
+      // Администратору страница отдаёт ленивый вход: его свойства пересекают границу сервер → клиент.
+      if (actor.systemRole === "admin" && !actor.presentationRole) assertFlightProps(element.props, `${kind}:${name}`);
+      out.push({ name: `${kind}:${name}:${mode}`, html: await renderSettled(withContexts(element, pathname, search)) });
     }
-  } finally {
-    nextCookie = false;
   }
   process.stdout.write(JSON.stringify(out));
 }
@@ -273,7 +265,6 @@ export async function reconcilePlatformWhatsAppSendAction(input) { window.__harn
         if (!/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/u.test(source)) return undefined;
         if (args.path.endsWith("platform-case-chat-actions.ts")) return { contents: caseChatStub, loader: "ts", resolveDir: ROOT };
         if (args.path.endsWith("platform-provider-actions.ts")) return { contents: whatsappStub, loader: "ts", resolveDir: ROOT };
-        if (args.path.endsWith("ui-next-actions.ts")) return { contents: "export async function setNextUiAction() {}", loader: "ts" };
         const names = [...source.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+([A-Za-z0-9_$]+)/gu)].map((match) => match[1]);
         return { contents: names.map((name) => `export async function ${name}() { window.__harness.errors.push("server action ${name}"); throw new Error("chats-next harness: server action ${name} is not available"); }`).join("\n"), loader: "ts" };
       });
@@ -287,22 +278,17 @@ export async function reconcilePlatformWhatsAppSendAction(input) { window.__harn
   });
 }
 
-// Страницы Chromium: настоящая страница в режиме «администратор с cookie» даёт свойства входа; вход — `fixture.kind`.
+// Страницы Chromium: настоящая страница администратора даёт свойства входа; вход — `fixture.kind`.
 async function pageFixtures() {
   const out = {};
-  nextCookie = true;
-  try {
-    for (const name of Object.keys(fx.INBOX_SCENARIOS)) {
-      const { element, scenario, search } = await buildPage("inbox", name, fx.ACTORS.admin);
-      out[`inbox-${name}`] = { kind: "inbox", title: "WhatsApp", pathname: "/v3/inbox", search, props: element.props, rows: [], readAt: fx.READ_AT, scenario };
-    }
-    for (const name of Object.keys(fx.MESSAGES_SCENARIOS)) {
-      const { element, scenario, search } = await buildPage("messages", name, fx.ACTORS.admin);
-      const failed = Boolean(scenario.failure);
-      out[`messages-${name}`] = { kind: failed ? "messages-failure" : "messages", title: "Переписка", pathname: "/v3/messages", search, props: element.props, rows: scenario.rows, readAt: fx.READ_AT, scenario };
-    }
-  } finally {
-    nextCookie = false;
+  for (const name of Object.keys(fx.INBOX_SCENARIOS)) {
+    const { element, scenario, search } = await buildPage("inbox", name, fx.ACTORS.admin);
+    out[`inbox-${name}`] = { kind: "inbox", title: "WhatsApp", pathname: "/v3/inbox", search, props: element.props, rows: [], readAt: fx.READ_AT, scenario };
+  }
+  for (const name of Object.keys(fx.MESSAGES_SCENARIOS)) {
+    const { element, scenario, search } = await buildPage("messages", name, fx.ACTORS.admin);
+    const failed = Boolean(scenario.failure);
+    out[`messages-${name}`] = { kind: failed ? "messages-failure" : "messages", title: "Переписка", pathname: "/v3/messages", search, props: element.props, rows: scenario.rows, readAt: fx.READ_AT, scenario };
   }
   return out;
 }

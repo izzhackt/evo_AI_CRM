@@ -371,14 +371,10 @@ test("доступ: раздел и пункт меню — право ai.agent.
 
 const ENTRY = `
 import { renderToStaticMarkup } from "react-dom/server";
-import { AgentsHub } from "@/components/v3/ai-agents/AgentsHub";
 import { AgentBody } from "@/components/v3/ai-agents/AgentBody";
-import { AgentSwitches } from "@/components/v3/ai-agents/AgentSwitches";
 import { NotReady, Unavailable } from "@/components/v3/ai-agents/Notices";
 import { PartShell } from "@/components/v3/PartShell";
 export const html = {
-  switches: (props) => renderToStaticMarkup(<AgentSwitches {...props} />),
-  hub: (list, runtimeConfigured, preview) => renderToStaticMarkup(<PartShell title="ИИ-агенты"><AgentsHub list={list} runtimeConfigured={runtimeConfigured} preview={preview} /></PartShell>),
   body: (props) => renderToStaticMarkup(<AgentBody {...props} />),
   notReady: () => renderToStaticMarkup(<PartShell title="ИИ-агенты"><NotReady /></PartShell>),
   unavailable: () => renderToStaticMarkup(<Unavailable what="агентов" retryHref="/v3/ai-agents" />),
@@ -429,51 +425,6 @@ const bodyProps = (over = {}) => ({
   detail: DETAIL, tab: "overview", now: NOW, canEdit: true, canManage: true, preview: false, runtimeConfigured: true, needsSync: false,
   digests: { status: "available", data: { digests: [DETAIL.lastDigest] } }, runs: null, runsLimit: 30, run: null, runId: null, drafts: null,
   draftsFilter: "pending", resume: { runId: null, sendAuthority: false }, ...over,
-});
-
-test("хаб, нормальное состояние: три группы по порядку, семь карточек, Gemini, «Поручить» и очередь черновиков ссылками, спарклайн, без «0 из 0»", async () => {
-  const { hub } = await views();
-  const html = hub(LIST, true);
-  const groups = [...html.matchAll(/data-testid="v3-aia-group-(sales|analytics|curators)"/gu)].map((match) => match[1]);
-  assert.deepEqual(groups, ["sales", "analytics", "curators"]);
-  for (const entry of AI_AGENT_CATALOG) {
-    assert.match(html, new RegExp(`data-testid="v3-aia-card-${entry.key}"`, "u"), entry.key);
-    assert.match(html, new RegExp(`href="/v3/ai-agents/${entry.key}"`, "u"), `${entry.key}: карточка — ссылка`);
-    assert.match(html, new RegExp(escapeRegExp(entry.title), "u"), entry.title);
-  }
-  assert.match(html, /Продажи[\s\S]*Аналитика[\s\S]*Кураторы/u);
-  assert.doesNotMatch(html, /лимиты — в Claude Console|черновиков нет/u, "подписи, повторяющие значение, убраны");
-  assert.match(html, /17,90\u00A0\$/u, "расход за 7 дней из costCents7d");
-  assert.match(html, /Авто: вкл/u, "«Авто» — только когда включено");
-  assert.doesNotMatch(html, /Авто: выкл/u, "обычное «Авто: выкл» на каждой карточке — шум");
-  assert.doesNotMatch(html, /Sonnet 5\.5/u, "модель — в «Настройках», не на карточке");
-  assert.match(html, /Ошибка синхронизации/u);
-  assert.match(html, /Не настроены:[\s\S]*Куратор Европа[\s\S]*Куратор ОАЭ[\s\S]*Куратор Турция/u, "агенты без инструкции — одной строкой со ссылками");
-  assert.doesNotMatch(html, /Правил пока нет|агент выключен/u, "состояние не повторяется описанием роли");
-  // «Поручить →» — у агентов, которым можно поручать (не у Директора для не-админа и не у ненастроенных); очередь черновиков — ссылка
-  assert.match(html, /<a[^>]*data-testid="v3-aia-ask-curator-cn"[^>]*href="\/v3\/ai-agents\/curator-cn"[^>]*>Поручить →<\/a>/u);
-  assert.doesNotMatch(html, /v3-aia-ask-curator-eu/u);
-  assert.match(html, /<a[^>]*data-testid="v3-aia-drafts-director"[^>]*href="\/v3\/ai-agents\/director\?tab=drafts"[^>]*>3 черновика ждут решения/u);
-  // Очередей несколько (у каждого настроенного агента по 3): общее число — не ссылка в одну из них, ссылки — на карточках.
-  assert.doesNotMatch(html, /aria-label="Ждут решения: 10/u, "плитка с суммой по нескольким очередям — не ссылка в первую из них");
-  assert.match(html, /Ждут решения[\s\S]{0,120}>10</u, "число остаётся на плитке");
-  // Очередь одна — число её, и плитка ведёт туда.
-  const oneQueue = { ...LIST, agents: LIST.agents.map((agent) => ({ ...agent, stats: { ...agent.stats, draftsPending: agent.key === "sales" ? 4 : 0 } })), summary: { ...LIST.summary, draftsPending: 4 } };
-  assert.match(hub(oneQueue, true), /<a[^>]*aria-label="Ждут решения: 4\. Открыть черновики"[^>]*href="\/v3\/ai-agents\/sales\?tab=drafts"/u, "единственная очередь — плитка ссылкой на неё");
-  // Просмотр роли ничего не поручает: «Поручить →» на карточках нет.
-  assert.doesNotMatch(hub(LIST, true, true), /v3-aia-ask-/u);
-  assert.match(html, /role="img" aria-label="Запусков за последние 14 дней: 28\./u);
-  assert.match(html, /data-testid="v3-aia-gemini"[\s\S]*href="\/v3\/ai-agent"[\s\S]*Помощник в чате WhatsApp[\s\S]*Подсказывает ответ, сам ничего не отправляет\./u);
-  assert.doesNotMatch(html, /Информация для агента|Gemini/u, "список подразделов без ссылок и название вендора убраны");
-  assert.doesNotMatch(html, /v3-aia-key-missing/u);
-  assert.doesNotMatch(html, /\b0 из 0\b/u);
-  assert.doesNotMatch(html, /dangerouslySetInnerHTML|<script/u);
-});
-
-test("хаб, ключ Claude не задан: предупреждение сверху словами владельца", async () => {
-  const { hub } = await views();
-  const html = hub(LIST, false);
-  assert.match(html, /data-testid="v3-aia-key-missing"[^>]*>[\s\S]*Ключ Claude API не задан в CRM: агенты не запустятся\. Его добавляет администратор\./u);
 });
 
 test("хаб, миграция не применена: «Раздел готовится», а не ошибка", async () => {
@@ -1642,29 +1593,6 @@ test("следующий шаг запуска агента: инструкци�
   for (const guard of [{ canEdit: false }, { runtimeConfigured: false }, { preview: true }]) {
     assert.equal(aiAgentNextStep({ ...ready, ...guard, hasInstructions: false }), null, JSON.stringify(guard));
   }
-});
-
-test("шапка агента: переключатели — единственное место; без инструкции «Включён» заперт и ведёт к инструкции; не админ видит слова", async () => {
-  const { switches } = await views();
-  const base = { agentKey: "director", enabled: true, autoSend: false, configVersion: 12, hasInstructions: true, canEdit: true };
-  const admin = switches(base);
-  assert.equal((admin.match(/role="switch"/gu) ?? []).length, 2, "«Включён» и «Авто»");
-  assert.match(admin, /--switch-thumb-on:var\(--surface\)/u, "бегунок включённого переключателя — цвета листа, а не дорожки (иначе включённый — сплошной чёрный)");
-  assert.doesNotMatch(admin, /Агент работает: расписание и события активны|Сообщения клиентам уходят в «Черновики»/u, "подсказки живут в подтверждении, не рядом с каждым переключателем");
-
-  const locked = switches({ ...base, agentKey: "curator-eu", enabled: false, hasInstructions: false });
-  assert.match(locked, /<button[^>]*role="switch"[^>]*aria-checked="false"[^>]*aria-disabled="true"[^>]*data-testid="v3-aia-switch-enabled"/u, "нажатие, которое заведомо кончится отказом, не предлагается");
-  assert.match(locked, /<a[^>]*data-testid="v3-aia-switch-needs-instructions" href="\/v3\/ai-agents\/curator-eu\?tab=instructions">Сначала напишите правила<\/a>/u);
-  assert.doesNotMatch(switches({ ...base, enabled: true }), /v3-aia-switch-needs-instructions/u);
-
-  const staff = switches({ ...base, canEdit: false, autoSend: true });
-  assert.doesNotMatch(staff, /role="switch"/u);
-  assert.match(staff, /data-testid="v3-aia-switch-enabled-readonly"[\s\S]*Включён/u, "одно слово состояния, не «Включён вкл»");
-  assert.match(staff, /Авто: вкл/u);
-  assert.doesNotMatch(staff, />вкл<|>выкл</u);
-  const staffOff = switches({ ...base, canEdit: false, enabled: false });
-  assert.match(staffOff, /Выключен/u);
-  assert.doesNotMatch(staffOff, /Авто/u, "«Авто» показывается, только когда включено");
 });
 
 const unsetDetail = (over = {}) => ({

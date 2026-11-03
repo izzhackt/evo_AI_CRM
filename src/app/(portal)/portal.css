@@ -3770,6 +3770,123 @@
   font-size: var(--pt-size-caption);
 }
 
+/* ---------- «Английский» плитками (03.11.2026, по образцу из запроса) ----------
+ * Обложка — крупный номер урока на тоне бумаги (фото здесь нет: по контракту
+ * фото только настоящие и с атрибуцией); ниже название и число заданий.
+ */
+/* Плитки занимают всю ширину страницы, а не колонку 760 px прежнего списка. */
+.pt-learn-module:has(.pt-lesson-grid) {
+  max-width: none;
+  gap: 0;
+}
+
+.pt-learn-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+  margin-top: 24px;
+}
+
+.pt-learn-head-main {
+  display: grid;
+  flex: 1 1 320px;
+  gap: 8px;
+  max-width: 560px;
+}
+
+.pt-learn-head .pt-learn-progress {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-learn-head .pt-learn-entries {
+  margin: 0;
+}
+
+.pt-lesson-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 16px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-lesson-tile {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+  color: var(--pt-text);
+  text-decoration: none;
+  transition: transform var(--pt-motion-fast) var(--pt-ease-out), box-shadow var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-lesson-tile:hover {
+  box-shadow: var(--pt-shadow-raised);
+  transform: translateY(-2px);
+}
+
+.pt-lesson-tile:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.pt-lesson-cover {
+  display: flex;
+  align-items: flex-end;
+  aspect-ratio: 16 / 9;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--pt-line);
+  background: var(--pt-bg);
+}
+
+.pt-lesson-num {
+  color: var(--pt-text-2);
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.pt-lesson-tile[data-state="done"] .pt-lesson-num {
+  color: var(--pt-ok);
+}
+
+.pt-lesson-tile-body {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 14px 18px 18px;
+}
+
+.pt-lesson-tile-title {
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.pt-lesson-tile:hover .pt-lesson-tile-title {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pt-lesson-tile-meta {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-lesson-tile-state {
+  justify-self: start;
+}
+
 /* ---------- «Входящие» (03.11.2026, по образцу кабинета пользователя) ----------
  * Слева список: «Что нового» и переписка с командой EVO; справа — открытое.
  * От 1100 px — две колонки, уже — список над открытым. Цвета — прежние токены.

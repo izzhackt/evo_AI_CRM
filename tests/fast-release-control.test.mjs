@@ -1792,6 +1792,7 @@ test("workflow binds exact green main to one runner-built immutable release", ()
   assert.doesNotMatch(workflow, /fast-release-ci-gate\.mjs/u);
   assert.equal((workflow.match(/check-runs\?filter=latest&per_page=100/gu) ?? []).length, 2);
   assert.equal((workflow.match(/run\?\.name === "Main CRM"/gu) ?? []).length, 2);
+  assert.equal((workflow.match(/String\(run\?\.check_suite\?\.id\) === upstreamSuiteId/gu) ?? []).length, 2);
   assert.equal((workflow.match(/run\?\.app\?\.slug === "github-actions"/gu) ?? []).length, 2);
   assert.match(workflow, /fast-release-ledger-gate\.mjs/u);
   assert.match(
@@ -1826,6 +1827,9 @@ test("active platform CI executes only the root successor product", () => {
   assert.match(workflow, /exact\("EVO_PROOF_REVISION", env\.EVO_SHA\)/u);
   assert.match(workflow, /exact\("EVO_WORKFLOW_SHA", env\.EVO_SHA\)/u);
   assert.match(workflow, /git\/ref\/heads\/main/u);
+  // The admission ref lookup is authenticated (anonymous shared-runner limit -> 403, #1342).
+  assert.match(workflow, /GITHUB_TOKEN: \$\{\{ github\.token \}\}/u);
+  assert.match(workflow, /Authorization: `Bearer \$\{env\.GITHUB_TOKEN\}`/u);
   assert.match(workflow, /^  crm:\n    name: Main CRM$/mu);
   assert.match(workflow, /^  crm:\n    name: Main CRM\n    needs: main_admission\n    runs-on: ubuntu-latest\n    timeout-minutes: 5$/mu);
   assert.match(workflow, /bash -n scripts\/release\/evo-fast-release\.sh/u);

@@ -5829,10 +5829,272 @@ main.pt-page > .pt-card {
 /* ---------- «Главная» кабинета (PORT-9c) ---------- */
 
 .pt-home {
+  container: pt-home / inline-size;
   display: flex;
   flex-direction: column;
-  gap: 32px;
-  margin-top: 24px;
+  gap: 24px;
+}
+
+/*
+ * Шапка (03.11.2026, по образцу кабинета пользователя): приветствие, страна и
+ * этап, дорожка этапов дела — пройденные тёмные, открытый красный с кольцом.
+ */
+.pt-home-hero {
+  display: grid;
+  gap: 6px;
+  padding: 26px 28px;
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-home-hero-title {
+  margin: 0;
+  font-size: var(--pt-size-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.pt-home-hero-sub {
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-home-stages {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 18px;
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-home-stage-track {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-home-stage-track > li {
+  position: relative;
+  flex: 1;
+  height: 14px;
+}
+
+.pt-home-stage-track > li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  top: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-surface);
+  box-shadow: inset 0 0 0 1.5px var(--pt-control-edge);
+}
+
+.pt-home-stage-track > li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  inset-inline: 12px 4px;
+  top: 6px;
+  height: 2px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-line);
+}
+
+.pt-home-stage-track > li:last-child {
+  flex: 0 0 14px;
+}
+
+.pt-home-stage-track > li[data-state="done"]::before {
+  background: var(--pt-text);
+  box-shadow: none;
+}
+
+.pt-home-stage-track > li[data-state="done"]::after {
+  background: var(--pt-text);
+}
+
+.pt-home-stage-track > li[data-state="current"]::before {
+  top: 0;
+  width: 14px;
+  height: 14px;
+  margin-inline-start: -3px;
+  background: var(--pt-accent);
+  box-shadow: 0 0 0 4px var(--pt-bg);
+}
+
+.pt-home-stage-caption {
+  margin: 0;
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+}
+
+/* Две колонки, когда области содержимого хватает; иначе одна за другой. */
+.pt-home-main,
+.pt-home-side {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+.pt-home-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+@container pt-home (min-width: 980px) {
+  .pt-home-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    align-items: start;
+  }
+
+  .pt-home-side .pt-home-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pt-home-side .pt-section-title {
+    font-size: var(--pt-size-heading);
+  }
+}
+
+/* «Ближайшие даты»: неделя и список. Сегодня — белая цифра на красном. */
+.pt-home-dates {
+  display: grid;
+  gap: 16px;
+  padding: 20px 22px;
+}
+
+.pt-home-dates-title {
+  margin: 0;
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+}
+
+.pt-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 22px;
+  margin-inline-start: 6px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--pt-bg);
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+  vertical-align: 2px;
+}
+
+.pt-home-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: center;
+}
+
+.pt-home-week > li {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding-bottom: 8px;
+}
+
+.pt-home-week-day {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-home-week-num {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--pt-radius-chip);
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-home-week > li[data-today] .pt-home-week-num {
+  background: var(--pt-accent);
+  color: var(--pt-on-accent);
+}
+
+.pt-home-week > li[data-marked]::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-text);
+}
+
+.pt-home-dates-empty {
+  display: grid;
+  gap: 4px;
+  padding: 8px 0 4px;
+  text-align: center;
+}
+
+.pt-home-dates-empty > p {
+  margin: 0;
+}
+
+.pt-home-dates-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-home-dates-list > li + li {
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-home-date-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  min-height: 44px;
+  padding: 10px 0;
+  color: var(--pt-text);
+  text-decoration: none;
+}
+
+.pt-home-date-row:hover .pt-home-date-title {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pt-home-date-row:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.pt-home-date-day {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-weight: 600;
+}
+
+.pt-home-date-title {
+  font-size: var(--pt-size-secondary);
+  overflow-wrap: anywhere;
 }
 
 .pt-home-case-body {

@@ -31,6 +31,9 @@ const STAGE_KEYS = [
   "closed",
 ] as const;
 
+/** Порядок этапов дела для дорожки «Главной»; «closed» — не шаг пути. */
+export const ADMISSION_STAGE_PATH = STAGE_KEYS.filter((key) => key !== "closed");
+
 export function stageLabel(stage: string, strings: AdmissionStrings): string | null {
   const normalized = stage.trim();
   if (!normalized) return null;

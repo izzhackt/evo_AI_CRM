@@ -5,6 +5,8 @@ import { IntentPrefetchLink } from "@/components/IntentPrefetchLink";
 import type { Locale } from "@/lib/i18n-data";
 import type { PublishedUniversity } from "@/lib/platform-university-catalog";
 import { aiConsentApplies } from "@/lib/portal/ai-consent";
+import { todayForTimeline } from "@/lib/portal/country-timeline";
+import { bishkekDay, type HomeDateItem } from "@/lib/portal/home-dates";
 import {
   formatPortalString,
   getPortalStrings,
@@ -26,6 +28,8 @@ import type { StudentPortalAction, StudentPortalOverview } from "@/lib/v3/portal
 
 import type { PortalAccessTier } from "../Shell";
 import { formatPortalMoney, studentActionDueLabel } from "../admission/presentation";
+import { HomeDates } from "./HomeDates";
+import { HomeHero } from "./HomeHero";
 
 /**
  * «Главная» кабинета в «Атласе» (PORT-9c, дизайн-контракт §«Карта экранов»
@@ -41,6 +45,12 @@ import { formatPortalMoney, studentActionDueLabel } from "../admission/presentat
  * каждый источник несёт свой честный сбой (null) и честную пустоту.
  * Новое в каталоге использует firstPublishedAt из неизменяемой истории
  * публикаций (207); reviewed_at текущей версии не является признаком новизны.
+ *
+ * 03.11.2026 (по образцу кабинета пользователя, без потери блоков): сверху
+ * приветствие с этапом дела (HomeHero), ниже две колонки — слева «Путь
+ * поступления» и «Что сделать сейчас» в прежнем порядке для обоих уровней,
+ * справа «Ближайшие даты» (HomeDates), «Учёба и тесты», «Мои вузы» и «Новое в
+ * каталоге». На узком экране колонки идут одна за другой.
  */
 
 type AdmissionStrings = PortalStrings<"admission">;
@@ -100,6 +110,8 @@ function nearestIntakeText(
 
 export function HomeView({
   tier,
+  displayName,
+  studyCountry = null,
   overview,
   overviewFailed = false,
   modules,
@@ -114,6 +126,10 @@ export function HomeView({
   now,
 }: {
   tier: PortalAccessTier;
+  /** Имя студента для приветствия. */
+  displayName: string;
+  /** Страна поступления для строки под приветствием; `null` — не выбрана. */
+  studyCountry?: string | null;
   /** Только assisted; null — RPC вернул пустой обзор (дело без плана). */
   overview: StudentPortalOverview | null;
   overviewFailed?: boolean;
@@ -146,6 +162,20 @@ export function HomeView({
   const picked = modules === null ? null : pickLesson(modules);
   const lessonsExist = modules !== null && modules.some((module) => module.lessonsTotal > 0);
 
+  // «Ближайшие даты»: сроки дел и дедлайн или старт избранных вузов.
+  const today = todayForTimeline(now);
+  const dated: HomeDateItem[] = [
+    ...(overview?.studentActions ?? []).flatMap((action) => action.dueAt
+      ? [{ day: bishkekDay(action.dueAt), title: actionTitle(action, admission), href: actionHref(action) }]
+      : []),
+    ...(favorites ?? []).flatMap((item) => {
+      const nearest = nearestUniversityIntake(item.content, now);
+      if (nearest === null || nearest.kind === "startMonth") return [];
+      const template = nearest.kind === "deadline" ? strings.dateDeadline : strings.dateStart;
+      return [{ day: nearest.value, title: formatPortalString(template, { name: item.content.name }), href: `/portal/universities/${item.id}` }];
+    }),
+  ];
+
   const draftInstrument = assessments?.instruments.find(
     (instrument) => instrument.draftAttemptId !== null,
   ) ?? null;
@@ -157,7 +187,10 @@ export function HomeView({
 
   return (
     <div className="pt-home">
+      <HomeHero displayName={displayName} studyCountry={studyCountry} stage={overview?.operationalStage ?? null} locale={locale} />
       {aiConsentApplies(tier) ? aiConsent : null}
+      <div className="pt-home-columns">
+      <div className="pt-home-main">
       {tier === "assisted" ? null : journey}
       {tier === "assisted" ? (
         <section aria-labelledby="home-case" className="pt-card pt-home-case">
@@ -225,6 +258,10 @@ export function HomeView({
         </section>
       ) : null}
       {tier === "assisted" ? journey : null}
+      </div>
+
+      <div className="pt-home-side">
+      <HomeDates items={dated} today={today} locale={locale} />
 
       <section aria-labelledby="home-continue" className="pt-home-section">
         <h2 id="home-continue" className="pt-section-title">{strings.continueHeading}</h2>
@@ -323,16 +360,14 @@ export function HomeView({
 
       <section aria-labelledby="home-favorites" className="pt-home-section">
         <div className="pt-home-section-head">
-          <h2 id="home-favorites" className="pt-section-title">{shell["nav.favorites"]}</h2>
+          <h2 id="home-favorites" className="pt-section-title">
+            {strings.favoritesHeading}
+            {favorites !== null ? <span className="pt-count">{favoritesTotal}</span> : null}
+          </h2>
           {favorites !== null && favoritesTotal > 0 ? (
-            <>
-              <span className="pt-home-fav-count pt-data">
-                {formatPortalString(favoritesStrings.savedCount, { count: String(favoritesTotal) })}
-              </span>
-              <IntentPrefetchLink className="pt-link" href="/portal">
-                {strings.favoritesAll} <span aria-hidden="true">→</span>
-              </IntentPrefetchLink>
-            </>
+            <IntentPrefetchLink className="pt-link" href="/portal">
+              {strings.favoritesAll} <span aria-hidden="true">→</span>
+            </IntentPrefetchLink>
           ) : null}
         </div>
         {favorites === null ? (
@@ -406,6 +441,8 @@ export function HomeView({
           </ul>
         )}
       </section>
+      </div>
+      </div>
     </div>
   );
 }

@@ -2238,6 +2238,15 @@ const applyKy: Readonly<Record<ApplyKey, string>> = {
  */
 const homeRu = {
   title: "Главная",
+  // Шапка и «Ближайшие даты» (03.11.2026, по образцу кабинета пользователя).
+  greeting: "Здравствуйте, {name}",
+  stageStep: "Этап {n} из {total}: {stage}",
+  datesHeading: "Ближайшие даты",
+  datesEmptyTitle: "Дат пока нет",
+  datesEmptyBody: "Сроки появятся, когда куратор их назначит или вы добавите вузы в избранное.",
+  dateDeadline: "{name}: последний день подачи",
+  dateStart: "{name}: начало учёбы",
+  favoritesHeading: "Мои вузы",
   caseHeading: "Что сделать сейчас",
   caseUnavailable: "Не удалось загрузить, что нужно сделать. Обновите страницу.",
   caseMore: "Ещё действий: {count}",
@@ -2268,6 +2277,14 @@ type HomeKey = keyof typeof homeRu;
 
 const homeKy: Readonly<Record<HomeKey, string>> = {
   title: "Башкы бет",
+  greeting: "Саламатсызбы, {name}",
+  stageStep: "{total} этаптын {n}-си: {stage}",
+  datesHeading: "Жакынкы даталар",
+  datesEmptyTitle: "Даталар азырынча жок",
+  datesEmptyBody: "Мөөнөттөр куратор белгилегенде же тандалмага университет кошкондо пайда болот.",
+  dateDeadline: "{name}: арыз берүүнүн акыркы күнү",
+  dateStart: "{name}: окуунун башталышы",
+  favoritesHeading: "Менин университеттерим",
   caseHeading: "Азыр эмне кылуу керек",
   caseUnavailable: "Эмне кылуу керектиги жүктөлгөн жок. Баракты жаңыртыңыз.",
   caseMore: "Дагы аракеттер: {count}",

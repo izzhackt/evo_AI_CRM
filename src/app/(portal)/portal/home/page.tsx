@@ -23,7 +23,7 @@ import {
 } from "@/lib/portal/university-favorites-source";
 import { TIMELINE_MODULE_ROUTES } from "@/lib/portal/timeline-module-routes";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
-import { STUDY_COUNTRY_UNDECIDED, studyCountryOptions } from "@/lib/study-countries";
+import { STUDY_COUNTRY_UNDECIDED, isStudyCountryCode, studyCountryName, studyCountryOptions } from "@/lib/study-countries";
 import { readStudentAssessments } from "@/lib/v3/student-assessment-source";
 import {
   readStudentPortalOverview,
@@ -108,13 +108,16 @@ export default async function StudentPortalHomePage() {
     label: option.label,
   }));
 
+  const country = choice?.country ?? null;
+  const studyCountry = country !== null && isStudyCountryCode(country) ? studyCountryName(country, locale) : null;
+
+  // Заголовок страницы — приветствие в шапке HomeView (HomeHero).
   return (
     <main className="pt-page">
-      <header className="pt-page-header">
-        <h1 className="pt-page-title">{strings.title}</h1>
-      </header>
       <HomeView
         tier={tier}
+        displayName={actor.displayName}
+        studyCountry={studyCountry}
         overview={overviewResult.ok ? overviewResult.value : null}
         overviewFailed={!overviewResult.ok}
         modules={modules}

@@ -71,7 +71,6 @@ const { DocumentsView } = require(join(ROOT, "src/components/portal/admission/Do
 const { NotificationsView } = require(join(ROOT, "src/components/portal/admission/NotificationsView.tsx"));
 const { ProfessionsGrid } = require(join(ROOT, "src/components/portal/professions/ProfessionsGrid.tsx"));
 const { LanguageSwitch } = require(join(ROOT, "src/components/portal/LanguageSwitch.tsx"));
-const { ProfileContacts } = require(join(ROOT, "src/components/portal/profile/ProfileContacts.tsx"));
 const { ProfileHero } = require(join(ROOT, "src/components/portal/profile/ProfileHero.tsx"));
 const { ProfileIcon } = require(join(ROOT, "src/components/portal/profile/ProfileIcon.tsx"));
 const { AccountDeletionPanel } = require(join(ROOT, "src/components/account-deletion/AccountDeletionPanel.tsx"));
@@ -862,8 +861,6 @@ const surfaces = [
           createElement(
             "div",
             { className: "pt-profile-sections" },
-            // «Контакты и доступ»: строки почты, телефона, языка и часового пояса.
-            createElement(ProfileContacts, { email: "student@example.invalid", phone: "+996 555 000 000", locale: "ru" }),
             ...[aiConsentGranted, aiConsentDeclined, aiConsentAsked].map((consent, index) =>
               createElement(
                 "section",

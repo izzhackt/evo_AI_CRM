@@ -1364,6 +1364,13 @@
   grid-column: 1 / -1;
 }
 
+.pt-profile-hero-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
 .pt-profile-hero-action form {
   margin: 0;
 }
@@ -1467,83 +1474,10 @@
   max-width: 60ch;
 }
 
-/*
- * «Контакты и доступ»: строки «подпись — значение» во всю ширину карточки,
- * волосяная линия между строками; на телефоне подпись над значением.
- */
-.pt-profile-rows {
-  margin: -12px -24px 0;
-}
-
-.pt-profile-row {
-  display: grid;
-  gap: 4px;
-  padding: 14px 24px;
-}
-
-.pt-profile-row + .pt-profile-row {
-  border-top: 1px solid var(--pt-line);
-}
-
-.pt-profile-row dt {
-  color: var(--pt-text-2);
-}
-
-.pt-profile-row dd {
-  margin: 0;
-  min-width: 0;
-  font-weight: 500;
-  overflow-wrap: anywhere;
-}
-
-.pt-profile-row dd[data-empty] {
-  color: var(--pt-text-2);
-  font-weight: 400;
-}
-
-.pt-profile-row-hint {
-  display: block;
-  font-size: var(--pt-size-caption);
-}
-
-/* Язык: на телефоне переключатель (низа рейла там нет), шире — значение. */
-.pt-profile-lang-value {
-  display: none;
-}
-
+/* Телефон: переключатель языка в карточке студента; шире — он внизу рейла. */
 @media (min-width: 768px) {
-  .pt-profile-lang-value {
-    display: inline;
-  }
-
-  .pt-profile-lang-control {
+  .pt-profile-lang-phone {
     display: none;
-  }
-}
-
-/* Кто видит данные: тихая плашка под строками, как у ориентира. */
-.pt-profile-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 0;
-  padding: 12px 14px;
-  border-radius: var(--pt-radius-item);
-  background: var(--pt-bg);
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-}
-
-.pt-profile-note .pt-profile-icon {
-  margin-top: 1px;
-  color: var(--pt-text-2);
-}
-
-@media (min-width: 640px) {
-  .pt-profile-row {
-    grid-template-columns: minmax(0, 200px) minmax(0, 1fr);
-    align-items: center;
-    gap: 16px;
   }
 }
 

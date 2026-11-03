@@ -4,13 +4,12 @@ import Link from "next/link";
 import { AiConsentSettingsRow } from "@/components/portal/consent/AiConsent";
 import { ConsultationRequest } from "@/components/portal/consultation/ConsultationRequest";
 import { AccountDeletionPanel } from "@/components/account-deletion/AccountDeletionPanel";
-import { ProfileContacts } from "@/components/portal/profile/ProfileContacts";
+import { LanguageSwitch } from "@/components/portal/LanguageSwitch";
 import { ProfileHero } from "@/components/portal/profile/ProfileHero";
 import { ProfileIcon } from "@/components/portal/profile/ProfileIcon";
 import { stageLabel } from "@/components/portal/admission/OverviewView";
 import { readStudentCountryChoice } from "@/lib/portal/country-choice-source";
 import { readStudentPortalOverview } from "@/lib/v3/portal-source";
-import { readOwnStudentApplication } from "@/lib/v3/student-application-source";
 import { isStudyCountryCode, studyCountryName } from "@/lib/study-countries";
 import { getLocale } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
@@ -118,14 +117,12 @@ export default async function ProfilePage() {
   // (accessTier approved) строки нет, а база не читается.
   // Метки карточки студента (03.11.2026): страна поступления (чтение 284) и
   // этап дела (обзор, только у клиента на сопровождении); сбой — без метки.
-  const [profile, deletion, consultationHistory, countryChoice, overview, application, aiConsent] = await Promise.all([
+  const [profile, deletion, consultationHistory, countryChoice, overview, aiConsent] = await Promise.all([
     readOwnPortalProfile().catch((): PortalProfile | null => null),
     readOwnAccountDeletion(),
     readOwnConsultationRequests().catch((): readonly ConsultationReceipt[] | null => null),
     readStudentCountryChoice().catch((): null => null),
     actor.accessTier === "assisted" ? readStudentPortalOverview().catch((): null => null) : null,
-    // Телефон для «Контактов» — из своей анкеты; без анкеты строки нет.
-    readOwnStudentApplication().catch((): null => null),
     readOwnAiConsent(actor.accessTier),
   ]);
   const admissionStrings = getPortalStrings("admission", locale);
@@ -149,9 +146,13 @@ export default async function ProfilePage() {
             displayName={profile.displayName}
             chips={heroChips}
             action={(
-              <form action={logoutStudentPortalAction}>
-                <button type="submit" className="pt-btn-ghost">{strings.logout}</button>
-              </form>
+              <>
+                {/* Телефон: низа рейла нет, язык меняется здесь. */}
+                <span className="pt-profile-lang-phone"><LanguageSwitch locale={locale} /></span>
+                <form action={logoutStudentPortalAction}>
+                  <button type="submit" className="pt-btn-ghost">{strings.logout}</button>
+                </form>
+              </>
             )}
             footer={(
               <Link href="/portal/tests" className="pt-profile-row-link">
@@ -163,8 +164,6 @@ export default async function ProfilePage() {
           />
 
           <div className="pt-profile-sections">
-            <ProfileContacts email={profile.email} phone={application?.questionnaire.phone ?? null} locale={locale} />
-
             <section aria-labelledby="portal-profile-consultation" className="pt-profile-card">
               <h2 id="portal-profile-consultation" className="pt-section-title">
                 <ProfileIcon name="consultation" />

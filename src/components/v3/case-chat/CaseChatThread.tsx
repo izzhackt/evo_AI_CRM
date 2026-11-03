@@ -955,6 +955,9 @@ export function CaseChatWorkspace({
   // The actual history entry owns filters; cached initial server props do not.
   const params = useSearchParams();
   const query = params.get("q") ?? "";
+  // Набранное в поиске держит поле, а не только адрес: адрес Next догоняет переходом, и поле, привязанное к нему, теряло
+  // буквы при наборе («Без» → «Бе», 03.11.2026). Поиск идёт от адреса, как раньше; назад/вперёд возвращают поле к адресу.
+  const [draft, setDraft] = useState(query);
   // Поиск, по которому прочитаны числа (сначала — поиск чтения страницы):
   // другой поиск — чисел нет, пока не придёт его чтение.
   const [countsQuery, setCountsQuery] = useState(() => query.trim());
@@ -1039,6 +1042,7 @@ export function CaseChatWorkspace({
         query: current.searchParams.get("q") ?? "",
         queue: parseCaseChatQueue(current.searchParams.get("queue") ?? undefined) ?? CASE_CHAT_DEFAULT_QUEUE,
       };
+      setDraft(scope.current.query);
       // Назад/вперёд в другую очередь или поиск: строк для неё ещё нет — сразу «Ищем…», а не пустой список до таймера.
       if (shownScope.current.query !== scope.current.query || shownScope.current.queue !== scope.current.queue) {
         setFailure(null);
@@ -1052,13 +1056,18 @@ export function CaseChatWorkspace({
 
   function onQuery(value: string) {
     invalidateSearch();
-    window.history.replaceState(null, "", caseChatHref(value, queue, selectedCaseId, attachment));
+    setDraft(value);
+    // Поиск куратора идёт по всем перепискам (03.11.2026): начатый поиск открывает «Все», чтобы нашёлся и студент
+    // без сообщений; сузить найденное можно снова кнопкой очереди. Очередь — из адреса окна: `params` догоняет его.
+    const typedQueue = parseCaseChatQueue(new URL(window.location.href).searchParams.get("queue") ?? undefined) ?? CASE_CHAT_DEFAULT_QUEUE;
+    const searchQueue = !draft.trim() && value.trim() ? "all" : typedQueue;
+    window.history.replaceState(null, "", caseChatHref(value, searchQueue, selectedCaseId, attachment));
   }
 
   function onQueue(value: CaseChatQueue) {
     if (value === queue) return;
     invalidateSearch();
-    window.history.replaceState(null, "", caseChatHref(query, value, selectedCaseId, attachment));
+    window.history.replaceState(null, "", caseChatHref(draft, value, selectedCaseId, attachment));
   }
 
   function consumeAttachment() {
@@ -1073,7 +1082,7 @@ export function CaseChatWorkspace({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 rounded-card border border-border bg-surface">
-      <frame.List threads={threads} counts={counts} readAt={queueRead.readAt} selectedCaseId={selectedCaseId} query={query} onQuery={onQuery}
+      <frame.List threads={threads} counts={counts} readAt={queueRead.readAt} selectedCaseId={selectedCaseId} query={draft} onQuery={onQuery}
         queue={queue} onQueue={onQueue}
         membershipId={membershipId} hidden={selectedCaseId !== null} loading={loading} failure={failure} onRetry={retryList}
         current={shown.query === query && shown.queue === queue} />

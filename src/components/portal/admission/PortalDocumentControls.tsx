@@ -72,6 +72,9 @@ export function PortalDocumentControls({
   const formRef = useRef<HTMLFormElement>(null);
   const uploadIdempotencyKeyRef = useRef<string | null>(null);
   const [state, setState] = useState<UploadState>({ status: "idle" });
+  // Имя выбранного файла и подсветка поля при перетаскивании — только вид.
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [refreshing, startRefresh] = useTransition();
   const pending = state.status === "uploading" || state.status === "confirming" || refreshing;
   // Процент остаётся только визуальным: живая область с ним объявляла бы
@@ -132,6 +135,7 @@ export function PortalDocumentControls({
 
       uploadIdempotencyKeyRef.current = null;
       formRef.current?.reset();
+      setChosen(null);
       setState({
         status: "success",
         message: formatPortalString(strings.uploadSuccess, { name: receipt.originalFilename }),
@@ -149,13 +153,25 @@ export function PortalDocumentControls({
     <div className="pt-doc-controls">
       {allowUpload ? (
         <form ref={formRef} onSubmit={upload} aria-busy={pending} className="pt-doc-upload">
+          {/* Поле-приёмник: прозрачный input на всю площадь — щелчок открывает выбор
+              файла, а перетащенный файл браузер кладёт в него сам. */}
           <label
             htmlFor={`portal-document-${documentSlotId}`}
-            className="pt-field-label"
+            className="pt-doc-drop"
+            data-dragging={dragging ? "" : undefined}
+            data-chosen={chosen ? "" : undefined}
+            onDragEnter={() => setDragging(true)}
+            onDragLeave={() => setDragging(false)}
+            onDrop={() => setDragging(false)}
           >
-            {strings.uploadLabel}
-          </label>
-          <div className="pt-doc-upload-row">
+            <svg className="pt-doc-drop-icon" width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M10 13V3.5M6.5 7 10 3.5 13.5 7M4 12.5v3h12v-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span className="pt-doc-drop-title">
+              {chosen ? formatPortalString(strings.dropChosen, { name: chosen }) : strings.dropTitle}
+            </span>
+            <span className="pt-doc-drop-sub">{strings.dropOr}</span>
+            <span className="pt-sr-only">{strings.uploadLabel}</span>
             <input
               id={`portal-document-${documentSlotId}`}
               name="file"
@@ -164,12 +180,16 @@ export function PortalDocumentControls({
               accept="application/pdf,image/jpeg,image/png"
               disabled={pending}
               aria-describedby={`portal-document-hint-${documentSlotId} portal-document-feedback-${documentSlotId}`}
-              onChange={() => {
+              onChange={(event) => {
                 uploadIdempotencyKeyRef.current = null;
                 setState({ status: "idle" });
+                setChosen(event.currentTarget.files?.[0]?.name ?? null);
+                setDragging(false);
               }}
-              className="pt-input pt-doc-file"
+              className="pt-doc-file"
             />
+          </label>
+          <div className="pt-doc-upload-row">
             <button
               type="submit"
               disabled={pending}

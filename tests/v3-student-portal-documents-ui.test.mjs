@@ -95,7 +95,9 @@ test("Student upload reuses a hidden browser idempotency key until success or fi
   );
   assert.match(
     controls,
-    /onChange=\{\(\) => \{\s+uploadIdempotencyKeyRef\.current = null;\s+setState\(\{ status: "idle" \}\);\s+\}\}/u,
+    // 03.11.2026: смена файла по-прежнему сбрасывает ключ и состояние первым делом;
+    // дальше — только вид (имя выбранного файла в поле-приёмнике).
+    /onChange=\{\(event\) => \{\s+uploadIdempotencyKeyRef\.current = null;\s+setState\(\{ status: "idle" \}\);\s+setChosen\(event\.currentTarget\.files\?\.\[0\]\?\.name \?\? null\);/u,
   );
   assert.doesNotMatch(controls, /console\.(?:debug|info|log|warn|error)/u);
 });

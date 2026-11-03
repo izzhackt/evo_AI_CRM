@@ -1546,6 +1546,10 @@ const admissionRu = {
   nextStepLabel: "Следующий шаг:",
 
   uploadLabel: "Загрузить новый файл",
+  // Поле загрузки карточки документа (03.11.2026): перетащить или выбрать.
+  dropTitle: "Перетащите фото или файл сюда",
+  dropOr: "или нажмите, чтобы выбрать",
+  dropChosen: "Выбран файл: {name}",
   uploadButton: "Загрузить",
   uploadingButton: "Загружаем файл…",
   confirmingButton: "Подтверждаем сохранение…",
@@ -1710,6 +1714,9 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   nextStepLabel: "Кийинки кадам:",
 
   uploadLabel: "Жаңы файл жүктөө",
+  dropTitle: "Сүрөттү же файлды бул жерге сүйрөп келиңиз",
+  dropOr: "же тандоо үчүн басыңыз",
+  dropChosen: "Тандалган файл: {name}",
   uploadButton: "Жүктөө",
   uploadingButton: "Файлды жүктөп жатабыз…",
   confirmingButton: "Сакталышын ырастап жатабыз…",

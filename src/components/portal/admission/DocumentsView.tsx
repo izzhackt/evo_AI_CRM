@@ -5,6 +5,8 @@ import type { StudentPortalDocument } from "@/lib/v3/portal-source";
 import { PortalDocumentControls } from "./PortalDocumentControls";
 import { PortalStatus } from "./PortalStatus";
 import {
+  documentChecklistMark,
+  documentChecklistOrder,
   documentReviewLabel,
   documentProgress,
   documentStatus,
@@ -13,7 +15,9 @@ import {
 
 /**
  * «Документы» в Атласе (PORT-5d): чек-лист со счётчиком принятых, честными
- * статусами и прежним XHR-путём загрузки/скачивания. PORT-6a: строки — из
+ * статусами и прежним XHR-путём загрузки/скачивания. С 03.11.2026 сверху —
+ * чек-лист с названиями (строка ведёт к карточке), ниже у каждого документа
+ * своя карточка с полем «перетащите файл». PORT-6a: строки — из
  * неймспейса admission (RU+KY); смоук-якоря сохранены байт-в-байт в
  * RU-словаре: заголовки «Чеклист» и «Список документов пока пуст».
  */
@@ -35,9 +39,10 @@ export function DocumentsView({
     );
   }
 
-  const { approved, inReview, corrections, missing } = documentProgress(documents);
+  const { approved } = documentProgress(documents);
 
   return (
+    <>
     <section className="pt-card">
       <header className="pt-card-header">
         <div className="pt-card-header-main">
@@ -71,15 +76,21 @@ export function DocumentsView({
           max={documents.length}
           aria-labelledby="document-progress-label"
         />
-        {missing > 0 || corrections > 0 || inReview > 0 ? (
-          <ul aria-label={strings.docFactsAria} className="pt-doc-summary-facts">
-            {missing > 0 ? <li>{strings.docMissingTerm} <strong>{missing}</strong></li> : null}
-            {corrections > 0 ? <li>{strings.docCorrectionsTerm} <strong>{corrections}</strong></li> : null}
-            {inReview > 0 ? <li>{strings.docInReviewTerm} <strong>{inReview}</strong></li> : null}
-          </ul>
-        ) : null}
+        {/* Мини-чек-лист: название, знак и слово статуса; строка ведёт к карточке ниже. */}
+        <ul className="pt-adm-docs-list pt-doc-checklist">
+          {documentChecklistOrder(documents).map((document) => (
+            <li key={document.documentSlotId}>
+              <a href={`#document-${document.documentSlotId}`} className="pt-adm-docs-item" data-status={document.status}>
+                <span className="pt-adm-docs-mark" aria-hidden="true">{documentChecklistMark(document)}</span>
+                <span className="pt-adm-docs-name">{document.requirementLabel}</span>
+                <span className="pt-adm-docs-status">{documentStatus(document, strings).label}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
       </div>
-      <ul className="pt-adm-list">
+    </section>
+    <ul className="pt-doc-cards">
         {documents.map((document) => {
           const status = documentStatus(document, strings);
           const decisionLabel = documentReviewLabel(document, strings);
@@ -95,7 +106,7 @@ export function DocumentsView({
             <li
               key={document.documentSlotId}
               id={`document-${document.documentSlotId}`}
-              className="pt-doc-item"
+              className="pt-doc-item pt-doc-card"
             >
               <div className="pt-doc-item-head">
                 <div className="pt-doc-item-main">
@@ -178,8 +189,8 @@ export function DocumentsView({
             </li>
           );
         })}
-      </ul>
-    </section>
+    </ul>
+    </>
   );
 }
 

@@ -4690,6 +4690,93 @@ main.pt-page > .pt-card {
   line-height: var(--pt-leading);
 }
 
+/*
+ * «Документы» карточками (03.11.2026): у каждого документа своя карточка, поле
+ * «перетащите файл» — пунктир, прозрачный input на всю площадь. Цвета —
+ * прежние токены.
+ */
+.pt-doc-checklist {
+  margin-top: 8px;
+}
+
+.pt-doc-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 16px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-doc-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+  scroll-margin-top: calc(var(--pt-topbar-height) + 16px);
+}
+
+.pt-doc-card .pt-doc-controls {
+  margin-top: auto;
+}
+
+.pt-doc-drop {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 20px 16px;
+  border: 1.5px dashed var(--pt-control-edge);
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-bg);
+  color: var(--pt-text-2);
+  text-align: center;
+  cursor: pointer;
+}
+
+.pt-doc-drop:hover,
+.pt-doc-drop[data-dragging] {
+  border-color: var(--pt-text);
+  color: var(--pt-text);
+}
+
+.pt-doc-drop[data-chosen] {
+  border-style: solid;
+}
+
+.pt-doc-drop:focus-within {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.pt-doc-drop-title {
+  color: var(--pt-text);
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pt-doc-drop-sub {
+  font-size: var(--pt-size-caption);
+}
+
+.pt-doc-drop .pt-doc-file {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.pt-doc-drop .pt-doc-file:disabled {
+  cursor: progress;
+}
+
 .pt-doc-controls {
   display: flex;
   flex-wrap: wrap;

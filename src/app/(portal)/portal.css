@@ -4434,6 +4434,22 @@
 
 .pt-adm-docs-mark {
   grid-row: 1 / span 3;
+  width: 24px;
+  height: 24px;
+}
+
+.pt-adm-docs-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pt-adm-docs-item:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: -2px;
+}
+
+.pt-adm-docs-mark {
+  grid-row: 1 / span 3;
   display: grid;
   place-items: center;
   width: 20px;
@@ -4444,17 +4460,6 @@
   font-size: var(--pt-size-caption);
   font-weight: 700;
   line-height: 1;
-}
-
-.pt-adm-docs-item[data-status="approved"] .pt-adm-docs-mark {
-  box-shadow: inset 0 0 0 1px var(--pt-ok);
-  color: var(--pt-ok);
-}
-
-.pt-adm-docs-item[data-status="correction_required"] .pt-adm-docs-mark,
-.pt-adm-docs-item[data-status="rejected"] .pt-adm-docs-mark {
-  box-shadow: inset 0 0 0 1px var(--pt-error);
-  color: var(--pt-error);
 }
 
 .pt-adm-docs-name {
@@ -4703,37 +4708,176 @@ main.pt-page > .pt-card {
 }
 
 /*
- * «Документы» карточками (03.11.2026): у каждого документа своя карточка, поле
- * «перетащите файл» — пунктир, прозрачный input на всю площадь. Цвета —
- * прежние токены.
+ * «Документы» одним списком (03.11.2026, по образцу кабинета пользователя):
+ * строка — знак, что за документ и что прислать, справа статус и
+ * «Загрузить». Цвета — прежние токены.
  */
-.pt-doc-checklist {
-  margin-top: 8px;
-}
-
-/* Карточки — одним столбиком, в порядке чек-листа дела. */
-.pt-doc-cards {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-  margin: 16px 0 0;
+.pt-doc-rows {
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.pt-doc-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 18px 20px;
-  border: 1px solid var(--pt-line);
-  border-radius: var(--pt-radius-card);
-  background: var(--pt-surface);
-  box-shadow: var(--pt-shadow-card);
+.pt-doc-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 10px 14px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--pt-line);
   scroll-margin-top: calc(var(--pt-topbar-height) + 16px);
 }
 
-.pt-doc-card .pt-doc-controls {
+/* Значок строки: мягкий круг тона бумаги; принят — зелёная галочка, исправить — красный знак. */
+.pt-doc-row-mark,
+.pt-adm-docs-mark {
+  display: grid;
+  place-items: center;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-bg);
+  box-shadow: inset 0 0 0 1px var(--pt-line);
+  color: var(--pt-text-2);
+}
+
+.pt-doc-row-mark {
+  width: 32px;
+  height: 32px;
+}
+
+.pt-doc-row-mark[data-icon="clock"],
+.pt-adm-docs-mark[data-icon="clock"] {
+  color: var(--pt-text);
+}
+
+.pt-doc-row-mark[data-icon="check"],
+.pt-adm-docs-mark[data-icon="check"] {
+  box-shadow: inset 0 0 0 1.5px var(--pt-ok);
+  color: var(--pt-ok);
+}
+
+.pt-doc-row-mark[data-icon="alert"],
+.pt-adm-docs-mark[data-icon="alert"] {
+  box-shadow: inset 0 0 0 1.5px var(--pt-error);
+  color: var(--pt-error);
+}
+
+.pt-doc-row-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.pt-doc-row .pt-doc-item-title {
+  font-size: var(--pt-size-body);
+}
+
+.pt-doc-row .pt-doc-item-instructions {
+  margin: 0;
+}
+
+.pt-doc-row-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  overflow-wrap: anywhere;
+}
+
+/* Телефон: статус и кнопка — под текстом; шире — справа в той же строке. */
+.pt-doc-row-side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  grid-column: 2;
+}
+
+@media (min-width: 720px) {
+  .pt-doc-row {
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .pt-doc-row-side {
+    flex-wrap: nowrap;
+    grid-column: auto;
+    justify-content: flex-end;
+  }
+
+  .pt-doc-row .pt-doc-controls {
+    flex-wrap: nowrap;
+  }
+}
+
+.pt-doc-row .pt-doc-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.pt-doc-row .pt-doc-upload {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.pt-doc-pick {
+  position: relative;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.pt-doc-pick[data-pending] {
+  cursor: progress;
+}
+
+.pt-doc-pick:focus-within {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+/* Поле файла скрыто, но фокусируемо: клавиатура попадает на «Загрузить». */
+.pt-doc-pick .pt-doc-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  opacity: 0;
+}
+
+.pt-doc-row .pt-doc-progress {
+  flex-basis: 100%;
+  max-width: none;
+}
+
+.pt-doc-row .pt-doc-download {
+  min-height: 32px;
+  font-size: var(--pt-size-caption);
+}
+
+.pt-doc-row .pt-doc-feedback {
+  flex-basis: 100%;
+  min-height: 0;
+  margin: 0;
+  font-size: var(--pt-size-caption);
+  text-align: right;
+}
+
+.pt-doc-summary .pt-doc-hint {
+  margin: 0;
+}
+
+.pt-doc-controls {
   margin-top: auto;
 }
 
@@ -4786,70 +4930,6 @@ main.pt-page > .pt-card {
   margin: 0;
 }
 
-.pt-doc-drop {
-  position: relative;
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  min-height: 52px;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 14px;
-  border: 1.5px dashed var(--pt-control-edge);
-  border-radius: var(--pt-radius-control);
-  background: var(--pt-bg);
-  color: var(--pt-text-2);
-  cursor: pointer;
-}
-
-.pt-doc-drop-icon {
-  flex-shrink: 0;
-}
-
-.pt-doc-drop-text {
-  display: grid;
-  min-width: 0;
-}
-
-.pt-doc-drop:hover,
-.pt-doc-drop[data-dragging] {
-  border-color: var(--pt-text);
-  color: var(--pt-text);
-}
-
-.pt-doc-drop[data-chosen] {
-  border-style: solid;
-}
-
-.pt-doc-drop:focus-within {
-  outline: 2px solid var(--pt-accent);
-  outline-offset: 2px;
-}
-
-.pt-doc-drop-title {
-  color: var(--pt-text);
-  font-size: var(--pt-size-secondary);
-  font-weight: 500;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-
-.pt-doc-drop-sub {
-  font-size: var(--pt-size-caption);
-}
-
-.pt-doc-drop .pt-doc-file {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.pt-doc-drop .pt-doc-file:disabled {
-  cursor: progress;
-}
 
 .pt-doc-controls {
   display: flex;

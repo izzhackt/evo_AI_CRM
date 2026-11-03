@@ -4,7 +4,8 @@ import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
 import { readStudentPortalDocuments } from "@/lib/v3/portal-source";
 
-import { documentChecklistMark, documentChecklistOrder, documentProgress, documentStatus } from "./presentation";
+import { DocumentStatusIcon } from "./DocumentStatusIcon";
+import { documentChecklistIcon, documentChecklistOrder, documentProgress, documentStatus } from "./presentation";
 
 /**
  * «Документы» в правой колонке «Поступления» (03.11.2026): пункта меню у
@@ -50,7 +51,7 @@ export async function DocumentsSummaryCard({ locale }: Readonly<{ locale: Locale
                   className="pt-adm-docs-item"
                   data-status={document.status}
                 >
-                  <span className="pt-adm-docs-mark" aria-hidden="true">{documentChecklistMark(document)}</span>
+                  <DocumentStatusIcon icon={documentChecklistIcon(document)} className="pt-adm-docs-mark" />
                   <span className="pt-adm-docs-name">{document.requirementLabel}</span>
                   {document.instructions ? <span className="pt-adm-docs-hint">{document.instructions}</span> : null}
                   <span className="pt-adm-docs-status">{documentStatus(document, strings).label}</span>

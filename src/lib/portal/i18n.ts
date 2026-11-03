@@ -1546,10 +1546,8 @@ const admissionRu = {
   nextStepLabel: "Следующий шаг:",
 
   uploadLabel: "Загрузить новый файл",
-  // Поле загрузки карточки документа (03.11.2026): перетащить или выбрать.
-  dropTitle: "Перетащите фото или файл сюда",
-  dropOr: "или нажмите, чтобы выбрать",
-  dropChosen: "Выбран файл: {name}",
+  // Кнопка строки документа, когда файл уже есть (03.11.2026).
+  replaceButton: "Заменить",
   uploadButton: "Загрузить",
   uploadingButton: "Загружаем файл…",
   confirmingButton: "Подтверждаем сохранение…",
@@ -1560,7 +1558,7 @@ const admissionRu = {
   uploadRefreshing: "Обновляем список документов…",
   uploadHint: "PDF, JPG или PNG, до 25 МБ.",
   uploadLocked: "Принятый документ доступен только для скачивания.",
-  downloadButton: "Скачать последний файл",
+  downloadButton: "Скачать",
   downloadAria: "Скачать {name}",
   lastFileFallback: "последний файл",
   errorFormUnavailable: "Форма загрузки недоступна.",
@@ -1714,9 +1712,7 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   nextStepLabel: "Кийинки кадам:",
 
   uploadLabel: "Жаңы файл жүктөө",
-  dropTitle: "Сүрөттү же файлды бул жерге сүйрөп келиңиз",
-  dropOr: "же тандоо үчүн басыңыз",
-  dropChosen: "Тандалган файл: {name}",
+  replaceButton: "Алмаштыруу",
   uploadButton: "Жүктөө",
   uploadingButton: "Файлды жүктөп жатабыз…",
   confirmingButton: "Сакталышын ырастап жатабыз…",
@@ -1727,7 +1723,7 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   uploadRefreshing: "Документтердин тизмесин жаңыртып жатабыз…",
   uploadHint: "PDF, JPG же PNG, 25 МБга чейин.",
   uploadLocked: "Кабыл алынган документти жүктөп алууга гана болот.",
-  downloadButton: "Акыркы файлды жүктөп алуу",
+  downloadButton: "Жүктөп алуу",
   downloadAria: "{name} жүктөп алуу",
   lastFileFallback: "акыркы файлды",
   errorFormUnavailable: "Жүктөө формасы жеткиликсиз.",

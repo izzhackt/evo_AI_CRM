@@ -88,7 +88,7 @@ export function documentUploadFailure(status: number | null, code: string | null
   if (status === 409 && code === "request_conflict") {
     return result("conflict", "Эта загрузка уже начата с другим файлом. Обновите страницу и выберите файл снова.", "refresh");
   }
-  if (status === 409 && (code === "scan_admission_expired" || code === "scan_claim_expired")) {
+  if (status === 409 && (code === "scan_admission_expired" || code === "scan_claim_expired" || code === "upload_reservation_expired")) {
     return result("unavailable", "Проверка файла не успела завершиться. Файл не сохранён — повторите загрузку.", "retry");
   }
   if (status === 409) return result("conflict", "Документ уже изменился. Обновите страницу.", "refresh");

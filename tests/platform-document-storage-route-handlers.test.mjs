@@ -674,6 +674,23 @@ test("upload fails clearly and never finalizes when Storage does not confirm the
   );
 });
 
+test("a replayed reservation past its window is refused before any Storage write (#1337)", async () => {
+  const { calls, dependencies } = uploadDependencies({
+    reserveResult: reservation({ expires_at: "2026-09-02T07:58:00+00:00" }),
+  });
+  const response = await createPlatformDocumentUploadHandler(dependencies)(
+    uploadRequest(),
+    { params: Promise.resolve({ documentSlotId: SLOT_ID }) },
+  );
+  assert.equal(response.status, 409);
+  assert.deepEqual(await response.json(), { error: "upload_reservation_expired" });
+  assert.equal(calls.some(([kind]) => kind === "service-upload"), false);
+  assert.equal(
+    calls.some(([, name]) => name === "finalize_document_upload_with_scan"),
+    false,
+  );
+});
+
 test("forbidden and malformed uploads fail before work while admitted Student attempts are counted", async () => {
   const forbidden = uploadDependencies({
     authorization: { status: "forbidden", actor: null },
@@ -1118,6 +1135,8 @@ test("Student upload will not start its readback ClamAV scan inside the timeout 
         ? localStart + (15 * 60 * 1000) - 31_000
         : localStart;
     },
+    // The reservation is still open; only the scan claim is near its deadline.
+    reserveResult: reservation({ expires_at: "2026-09-02T08:15:00+00:00" }),
     scanOutcomes: [firstOutcome, { result: STORED_SCAN_PROOF }],
   });
 

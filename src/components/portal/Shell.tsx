@@ -29,7 +29,7 @@ import type { Theme } from "@/lib/theme";
 
 /**
  * Портальный shell (PORT-2, дизайн-контракт
- * docs/design/portal/design-contract.md): слева тёмный рейл на всю высоту —
+ * docs/design/portal/design-contract.md): слева рейл на всю высоту —
  * логотип и тема, разделы, язык и карточка студента («Выйти» — в «Профиле»);
  * на узком экране — полоса сверху (логотип, колокольчик, тема) и нижняя
  * панель вкладок. Стили — только pt-классы из src/app/(portal)/portal.css.
@@ -347,16 +347,14 @@ export function Shell({
       </a>
 
       <div className="pt-body">
-        {/* Рейл (03.11.2026, по образцу кабинета пользователя): тёмная колонка на
-            всю высоту — белый логотип и тема сверху, разделы по группам, внизу
+        {/* Рейл (03.11.2026, по образцу кабинета пользователя): колонка на всю
+            высоту — логотип и тема сверху, разделы по группам, внизу
             язык и карточка студента. На телефоне обёртки нет (display: contents):
             шапка становится полосой сверху, разделы — нижней панелью. */}
         <div className="pt-rail">
           <header className="pt-topbar">
-            {/* Цветной lockup — на светлой полосе телефона, белый — на тёмном рейле. */}
             <IntentPrefetchLink href="/portal" aria-label={strings.home} className="pt-topbar-logo">
-              <EvoLogo width={104} className="pt-logo-color" />
-              <EvoLogo width={112} variant="white" className="pt-logo-white" />
+              <EvoLogo width={112} />
             </IntentPrefetchLink>
             <div className="pt-topbar-actions">
               {/* Опрос живёт всегда; колокольчик виден только на телефоне, в рейле — число у «Входящих». */}

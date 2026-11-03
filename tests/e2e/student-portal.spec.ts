@@ -651,20 +651,13 @@ test("the theme is light by default, ignores the OS and the sun/moon button reme
 test("the dark Portal logo sits on a light plate", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "forced-dark-chromium", "dark theme profile only");
 
-  // #1116: the original lockup has black lettering, so on the dark phone top
-  // bar it needs the light brand plate. 03.11.2026: on a wide screen the logo
-  // is the logobook's white lockup on the brand red rail, without a plate.
+  // #1116: the original lockup has black lettering, so on the dark top bar it
+  // needs the light brand plate to stay readable in both themes.
   await submitLogin(page, "student");
-  const logo = page.locator(".pt-topbar-logo");
-  const plate = await logo.evaluate((element) => getComputedStyle(element).backgroundColor);
-  if ((page.viewportSize()?.width ?? 0) >= 768) {
-    await expect(logo.locator(".pt-logo-white")).toBeVisible();
-    await expect(logo.locator(".pt-logo-color")).toBeHidden();
-    expect(plate).toBe("rgba(0, 0, 0, 0)");
-  } else {
-    await expect(logo.locator(".pt-logo-color")).toBeVisible();
-    expect(plate).toBe("rgb(255, 255, 255)");
-  }
+  const plate = await page.locator(".pt-topbar-logo").evaluate(
+    (element) => getComputedStyle(element).backgroundColor,
+  );
+  expect(plate).toBe("rgb(255, 255, 255)");
 });
 
 test("the Student can persist one own notification read through the UI", async ({

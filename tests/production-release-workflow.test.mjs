@@ -603,6 +603,9 @@ test("control-token and Supabase guards are isolated and immediately precede mut
     assert.match(step, /actions\/variables\/\$\{name\}/u);
     assert.match(step, /check-runs\?filter=latest&per_page=100/u);
     assert.match(step, /run\?\.name === "Main CRM"/u);
+    // Only the upstream CI run's own Main CRM check-suite is judged (#1342).
+    assert.match(step, /ci\?\.check_suite_id/u);
+    assert.match(step, /String\(run\?\.check_suite\?\.id\) === upstreamSuiteId/u);
     assert.match(step, /ci\?\.event !== "workflow_dispatch"/u);
     assert.doesNotMatch(step, /ci\?\.event !== "push"/u);
     assert.match(step, /run\?\.app\?\.slug === "github-actions"/u);

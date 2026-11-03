@@ -1720,7 +1720,7 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
 
   overviewTitle: "Менин тапшыруум",
   tilesLabel: "Кыскача",
-  "tile.favorites": "Тандалмадагы университеттер",
+  "tile.favorites": "Тандалмалардагы университеттер",
   "tile.programs": "Тандалган программалар",
   "tile.actions": "Аракет талап кылынат",
   tabsLabel: "Университеттер жана программалар",
@@ -1874,7 +1874,7 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   "stageShort.intake": "Кабыл алуу",
   "stageShort.profile_and_route": "Программа",
   "stageShort.documents": "Документтер",
-  "stageShort.applications": "Тапшыруу",
+  "stageShort.applications": "Арыздар",
   "stageShort.decisions": "Чечимдер",
   "stageShort.visa_and_predeparture": "Виза",
   "stageShort.arrival_and_adaptation": "Келүү",
@@ -2317,7 +2317,7 @@ type HomeKey = keyof typeof homeRu;
 const homeKy: Readonly<Record<HomeKey, string>> = {
   title: "Башкы бет",
   greeting: "Саламатсызбы, {name}",
-  stageStep: "{total} этаптын {n}-си: {stage}",
+  stageStep: "{total} этаптын {n}-этабы: {stage}",
   stagesAria: "Тапшыруунун этаптары",
   datesHeading: "Жакынкы даталар",
   datesEmptyTitle: "Даталар азырынча жок",

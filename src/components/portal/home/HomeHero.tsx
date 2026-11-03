@@ -44,10 +44,13 @@ export function HomeHero({ displayName, studyCountry, stage, locale }: Readonly<
                 key={key}
                 data-state={position < index ? "done" : position === index ? "current" : undefined}
                 aria-current={position === index ? "step" : undefined}
-                title={admission[`stage.${key}`]}
               >
-                <span className="pt-home-stage-dot" aria-hidden="true" />
-                <span className="pt-home-stage-name" aria-hidden="true">{admission[`stageShort.${key}`]}</span>
+                {/* Видимая часть (точка и короткая подпись) скрыта от читалки и несёт подсказку;
+                    читалка слышит полное название один раз. */}
+                <span className="pt-home-stage-visual" aria-hidden="true" title={admission[`stage.${key}`]}>
+                  <span className="pt-home-stage-dot" />
+                  <span className="pt-home-stage-name">{admission[`stageShort.${key}`]}</span>
+                </span>
                 <span className="pt-sr-only">{admission[`stage.${key}`]}</span>
               </li>
             ))}

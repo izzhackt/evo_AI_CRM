@@ -187,12 +187,15 @@ test("«Студенты» and EVO Docs smoke checks the real queue without depe
   }
   // The selectors are the real components' — renaming one there breaks this test, not the release.
   const component = (path) => readFileSync(new URL(`../src/components/v3/${path}`, import.meta.url), "utf8");
-  assert.match(component("students/StudentsQueueScreen.tsx"), /data-testid="queue-forbidden"/u);
-  assert.match(component("students/StudentsQueueScreen.tsx"), /data-testid="v3-student-case-directory"/u);
-  assert.match(component("students/StudentsQueueBody.tsx"), /data-testid="v3-student-case-directory"/u);
-  assert.match(component("students/StudentsQueueHead.tsx"), /data-testid="queue-counts-unavailable"/u);
-  assert.match(component("students/StudentsQueueHead.tsx"), /label="Виды списка студентов"/u);
-  assert.match(component("queue/QueueStates.tsx"), /data-testid="queue-error"/u);
+  // С #1327 очередь и EVO Docs рисует «Новый вид»: контейнер и состояния — у `StudentsNextPage`, вкладки и ошибки — у его видов.
+  const page = component("students-next/StudentsNextPage.tsx");
+  assert.match(page, /<Alert testId="queue-forbidden"/u);
+  assert.match(page, /<div className="grid min-w-0 gap-4" data-testid="v3-student-case-directory">\{body\}<\/div>/u, "the container wraps every state: queue, EVO Docs, refusal, error");
+  for (const file of ["students-next/StudentsQueueNext.tsx", "students-next/DocsNext.tsx"]) {
+    assert.match(component(file), /data-testid="queue-counts-unavailable"/u, file);
+    assert.match(component(file), /data-testid="queue-error"/u, file);
+    assert.match(component(file), /label="Виды списка студентов"/u, file);
+  }
   const labels = component("students/students-queue-view.ts");
   assert.match(labels, /active: "Все в работе"/u);
   assert.match(labels, /review: "Документы дела"/u);

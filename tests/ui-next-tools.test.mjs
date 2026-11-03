@@ -55,8 +55,11 @@ test("«База знаний»: новый вид единственный, р�
     assert.match(html(`documents-page:${mode}`), /data-testid="v3-documents-next"/u, `${mode}: документы — новый вид`);
     assert.equal(count(html(`documents-page:${mode}`), /<h1[ >]/gu), 1, `${mode}: один h1`);
     assert.match(html(`reply-snippets-page:${mode}`), /data-testid="v3-reply-snippets-next"/u, `${mode}: шаблоны — новый вид`);
-    assert.match(html(`reply-snippets-page:${mode}`), /data-slot="data-table"/u, `${mode}: таблица набора`);
+    assert.match(html(`reply-snippets-page:${mode}`), /data-slot="data-table"/u, `${mode}: таблица набора`);    // Выгрузка в базу знаний — только у Admin на странице «Базы знаний» (сервер другим отказывает): на отдельной странице её нет.
+    assert.doesNotMatch(html(`documents-page:${mode}`), /Выгрузить|Выбрать документы/u, `${mode}: выгрузки нет`);
   }
+  assert.match(html("knowledge-documents:admin-cookie"), /Выгрузить/u, "у Admin в «Базе знаний» выгрузка есть");
+  assert.match(read("src/components/v3/knowledge/KnowledgeDocuments.tsx"), /allowExport=\{embedded\}/u);
 });
 
 test("«Командный чат»: новая рамка у каждой роли (#1327); один h1 — шапка страницы; движок чата тот же", () => {

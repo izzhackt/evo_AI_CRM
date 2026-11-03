@@ -77,10 +77,10 @@ const SECTIONS = [
   // и ссылка «Все начисления» на «Поступлении».
   { href: "/portal/messages", key: "nav.messages", tiers: ["assisted"] },
   // 03.11.2026: рейл по группам, как в кабинете-образце пользователя: «Выбор»
-  // (вузы, профессии, избранное) и «Учёба» (английский, CSCA, тесты).
+  // (вузы, профессии) и «Учёба» (английский, CSCA, тесты). «Избранное» —
+  // вкладка «Вузы» на «Моём поступлении», своего пункта нет.
   { href: "/portal/universities", key: "nav.universities", tiers: ["approved", "assisted"], group: "nav.groupChoice" },
   { href: "/portal/professions", key: "nav.professions", tiers: ["approved", "assisted"] },
-  { href: "/portal/favorites", key: "nav.favorites", tiers: ["approved", "assisted"] },
   { href: "/portal/english", key: "nav.english", tiers: ["approved", "assisted"], group: "nav.groupPrep" },
   // S5.1: CSCA рядом с «Английским», навигация не перестраивается (решение по
   // умолчанию до ответа владельца, PLAN_CHANGES 16.10).
@@ -198,8 +198,6 @@ function SectionIcon({ section }: { section: (typeof SECTIONS)[number]["key"] })
     "nav.english": "M10 5.2C8.8 4.2 7 3.7 4.6 3.7c-.6 0-1.1 0-1.6.1v11.4c.5-.1 1-.1 1.6-.1 2.4 0 4.2.5 5.4 1.5 1.2-1 3-1.5 5.4-1.5.6 0 1.1 0 1.6.1V3.8c-.5-.1-1-.1-1.6-.1-2.4 0-4.2.5-5.4 1.5zM10 5.2v11.4",
     // CSCA: оси и кривая графика.
     "nav.csca": "M4 3.5v12.5h12.5M6.5 13.5c1.6-.2 2.6-1.4 3.5-3.6.9-2.3 2.2-4.4 5-4.9",
-    // Избранное: сердечко.
-    "nav.favorites": "M10 16.1 4.4 10.7a3.6 3.6 0 0 1 0-5.2 3.7 3.7 0 0 1 5.2 0l.4.4.4-.4a3.7 3.7 0 0 1 5.2 0 3.6 3.6 0 0 1 0 5.2z",
     // Тесты: планшет с отметкой.
     "nav.tests": "M6.5 3.5h7a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1zM8 3.5V2.8h4v.7M7.7 10.2l1.6 1.6 3-3.3",
     // Профиль: человек.

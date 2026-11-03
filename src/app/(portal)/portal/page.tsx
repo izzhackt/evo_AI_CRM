@@ -1,13 +1,16 @@
 import { packageStrings } from "@/components/portal/applicationPackages/strings";
 import { PendingPackagesLink } from "@/components/portal/applicationPackages/PendingPackagesLink";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { PreparationList } from "@/components/portal/admissionPreparations/PreparationList";
 import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
 
 import { OverviewView } from "@/components/portal/admission/OverviewView";
 import { AiConsentSlot } from "@/components/portal/consent/AiConsentSlot";
+import { FavoritesSection } from "@/components/portal/favorites/FavoritesSection";
 import { getLocale } from "@/lib/i18n";
 import { getPortalStrings } from "@/lib/portal/i18n";
+import { readStudentUniversityFavorites } from "@/lib/portal/university-favorites-source";
 import { readStudentPortalOverview } from "@/lib/v3/portal-source";
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 import { CaseHelpWorkspace } from "@/components/v3/profile/CaseHelpWorkspace";
@@ -19,6 +22,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: `${strings.overviewTitle} — EVO Admissions` };
 }
 
+type AdmissionView = "universities" | "programs";
+
 /**
  * «Моё поступление» в Атласе (PORT-5d). Смоук-якорь production: заголовок
  * «Моё поступление» — байт-в-байт (PORT-6a: RU-значение живёт ключом
@@ -28,9 +33,17 @@ export async function generateMetadata(): Promise<Metadata> {
  * над обзором: после логина студент попадает сюда, не на «Главную»; карточка
  * сама исчезает, когда для текущей версии текста есть решение. Самостоятельному
  * студенту без дела на сопровождении (accessTier approved) её нет вовсе.
+ *
+ * 03.11.2026 (по образцу «Мой список» в кабинете пользователя): сверху плитки
+ * с числами, затем следующий шаг и две вкладки-ссылки — «Вузы» (бывшее
+ * «Избранное», по умолчанию) и «Программы» (выбранные программы,
+ * ?view=programs).
  */
-export default async function StudentPortalOverviewPage() {
+export default async function StudentPortalOverviewPage({
+  searchParams,
+}: Readonly<{ searchParams: Promise<{ view?: string }> }>) {
   const [actor, locale] = await Promise.all([requireStudentPortalActor(), getLocale()]);
+  const view: AdmissionView = (await searchParams).view === "programs" ? "programs" : "universities";
   const strings = getPortalStrings("admission", locale);
 
   return (
@@ -41,27 +54,67 @@ export default async function StudentPortalOverviewPage() {
       <AiConsentSlot locale={locale} accessTier={actor.accessTier} />
       {/* Обзор с подготовками и обращения — соседние серверные компоненты:
           их чтения идут одновременно, а не одно после другого (план A). */}
-      <AdmissionOverview actor={actor} locale={locale} />
-      <PendingPackagesLink owner={{ organizationId: actor.organizationId, membershipId: actor.membershipId }} label={packageStrings(locale).pendingTitle} />
+      <AdmissionOverview actor={actor} locale={locale} view={view} />
       {/* Якорь #case-help — у самой панели (CaseHelpPanel); на обёртке id нет (#1115). */}
       <div className="pt-adm-case-help"><CaseHelpWorkspace actor={actor} caseId={actor.studentCaseId} student /></div>
     </main>
   );
 }
 
-async function AdmissionOverview({ actor, locale }: Readonly<{
+async function AdmissionOverview({ actor, locale, view }: Readonly<{
   actor: Awaited<ReturnType<typeof requireStudentPortalActor>>;
   locale: Awaited<ReturnType<typeof getLocale>>;
+  view: AdmissionView;
 }>) {
+  // Избранное читается вместе с обзором и подготовками (одновременно).
+  const favoritesRead = readStudentUniversityFavorites()
+    .then((items) => items.map((item) => item.institutionId))
+    .catch((): null => null);
   const [overview, preparations] = await Promise.all([
     readStudentPortalOverview().catch(() => undefined),
     readStudentCatalogPreparations(actor.studentCaseId).catch(() => null),
   ]);
+  const favorites = await favoritesRead;
+  const strings = getPortalStrings("admission", locale);
   const preparationStrings = getPortalStrings("preparations", locale);
+  // Плитки: только то, что прочиталось; без данных плитки нет.
+  const tiles = [
+    { key: "favorites", value: favorites?.length ?? null, label: strings["tile.favorites"] },
+    { key: "programs", value: preparations?.length ?? null, label: strings["tile.programs"] },
+    { key: "actions", value: overview ? overview.studentActions.length : null, label: strings["tile.actions"] },
+  ].filter((tile) => tile.value !== null);
+
   return (
     <>
+      {tiles.length > 0 ? (
+        <ul className="pt-stat-tiles" aria-label={strings.tilesLabel}>
+          {tiles.map((tile) => (
+            <li key={tile.key} className="pt-stat-tile">
+              <span className="pt-stat-value">{tile.value}</span>
+              <span className="pt-stat-label">{tile.label}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {overview === undefined ? <p className="pt-prep-error" role="status">{preparationStrings.overviewUnavailable}</p> : <OverviewView overview={overview} pending={actor.caseState === "pending"} locale={locale} />}
-      <PreparationList items={preparations} strings={preparationStrings} canSelect={actor.caseState === "active" && Boolean(actor.portalActivatedAt)} />
+      <nav className="pt-pill-tabs" aria-label={strings.tabsLabel}>
+        <Link className="pt-pill-tab" href="/portal" aria-current={view === "universities" ? "page" : undefined}>
+          {strings["tab.universities"]}
+          {favorites !== null ? <span className="pt-pill-count">{favorites.length}</span> : null}
+        </Link>
+        <Link className="pt-pill-tab" href="/portal?view=programs" aria-current={view === "programs" ? "page" : undefined}>
+          {strings["tab.programs"]}
+          {preparations !== null ? <span className="pt-pill-count">{preparations.length}</span> : null}
+        </Link>
+      </nav>
+      {view === "universities" ? (
+        <FavoritesSection institutionIds={favorites} locale={locale} />
+      ) : (
+        <>
+          <PreparationList items={preparations} strings={preparationStrings} canSelect={actor.caseState === "active" && Boolean(actor.portalActivatedAt)} />
+          <PendingPackagesLink owner={{ organizationId: actor.organizationId, membershipId: actor.membershipId }} label={packageStrings(locale).pendingTitle} />
+        </>
+      )}
     </>
   );
 }

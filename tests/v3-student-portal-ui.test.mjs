@@ -98,7 +98,7 @@ test("the Student workspace preserves four portal pages, private tests and publi
       // 03.11.2026: группы рейла «Выбор» и «Подготовка».
       "/portal/universities",
       "/portal/professions",
-      "/portal/favorites",
+      // 03.11.2026: «Избранное» — вкладка «Вузы» на /portal, без пункта меню.
       "/portal/english",
       // S5.1: CSCA рядом с «Английским», навигация не перестраивается.
       "/portal/csca",
@@ -217,6 +217,8 @@ test("every page passes the direct strict E2 result to its view", () => {
       // (paired with readStudentCatalogPreparations) so a failed E2 call shows
       // the honest overviewUnavailable state instead of throwing the whole page.
       assert.match(page, /const \[actor, locale\] = await Promise\.all\(\[requireStudentPortalActor\(\), getLocale\(\)\]\)/u);
+      // 03.11.2026: favourites are read alongside, before the same Promise.all is awaited.
+      assert.ok(page.indexOf("const favoritesRead = readStudentUniversityFavorites()") < page.indexOf("const [overview, preparations] = await Promise.all("));
       assert.match(
         page,
         /const \[overview, preparations\] = await Promise\.all\(\[\s*readStudentPortalOverview\(\)\.catch\(\(\) => undefined\),\s*readStudentCatalogPreparations\(actor\.studentCaseId\)\.catch\(\(\) => null\),\s*\]\)/u,

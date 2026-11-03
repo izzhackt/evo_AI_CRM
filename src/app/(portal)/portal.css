@@ -4726,6 +4726,88 @@
  * меняются. Контраст: текст и кнопки — пары --pt-*, уже посчитанные выше;
  * граница поля — --pt-control-edge (≥3:1 в обеих темах).
  */
+/* «Моё поступление» (03.11.2026, по образцу «Мой список»): плитки с числом и
+   подписью, вкладки-таблетки «Вузы» и «Программы» с числом. */
+.pt-stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 16px;
+  margin: 20px 0 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 22px 20px;
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-stat-value {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-stat-label {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  font-weight: 500;
+}
+
+.pt-pill-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 32px 0 20px;
+  padding: 4px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-skeleton);
+}
+
+.pt-pill-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--pt-radius-chip);
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    background-color var(--pt-motion-fast) var(--pt-ease),
+    color var(--pt-motion-fast) var(--pt-ease);
+}
+
+.pt-pill-tab:hover {
+  color: var(--pt-text);
+}
+
+.pt-pill-tab[aria-current="page"] {
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+  color: var(--pt-text);
+}
+
+.pt-pill-tab:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.pt-pill-count {
+  color: var(--pt-text-2);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
 .pt-adm-case-help {
   margin-top: 32px;
   color-scheme: var(--pt-scheme);

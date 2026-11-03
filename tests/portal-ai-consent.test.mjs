@@ -277,7 +277,7 @@ test("the post-login screen /portal asks too: a sibling slot above the overview,
   // Слот стоит после шапки и перед обзором, как сосед: его чтение идёт одновременно с остальными.
   const header = page.indexOf("</header>");
   const slot = page.indexOf("<AiConsentSlot locale={locale} accessTier={actor.accessTier} />");
-  const overview = page.indexOf("<AdmissionOverview actor={actor} locale={locale} />");
+  const overview = page.indexOf("<AdmissionOverview actor={actor} locale={locale} view={view} />");
   assert.ok(header > 0 && slot > header && overview > slot, "header, then the slot, then the overview");
   assert.equal(page.match(/readOwnAiConsent/gu), null, "the page itself does not read; the slot does");
   assert.doesNotMatch(page, /\.rpc\(|\.schema\(/u);

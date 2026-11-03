@@ -488,7 +488,7 @@ const ASSISTED_SECTION_PATHS = [
   "/portal/messages",
   "/portal/universities",
   "/portal/professions",
-  "/portal/favorites",
+  // 03.11.2026: «Избранное» is the «Вузы» tab of /portal, no menu item.
   "/portal/english",
   "/portal/csca",
   // 03.11.2026: «Уведомления» — лента «Что нового» во «Входящих»

@@ -329,7 +329,7 @@ export function HomeView({
               <span className="pt-home-fav-count pt-data">
                 {formatPortalString(favoritesStrings.savedCount, { count: String(favoritesTotal) })}
               </span>
-              <IntentPrefetchLink className="pt-link" href="/portal/favorites">
+              <IntentPrefetchLink className="pt-link" href="/portal">
                 {strings.favoritesAll} <span aria-hidden="true">→</span>
               </IntentPrefetchLink>
             </>

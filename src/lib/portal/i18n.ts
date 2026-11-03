@@ -1520,6 +1520,14 @@ const admissionRu = {
   messagesLink: "Написать команде EVO",
 
   overviewTitle: "Моё поступление",
+  // 03.11.2026: плитки и вкладки «Вузы» (бывшее «Избранное») и «Программы».
+  tilesLabel: "Сводка",
+  "tile.favorites": "Вузов в избранном",
+  "tile.programs": "Выбранных программ",
+  "tile.actions": "Требуют действия",
+  tabsLabel: "Вузы и программы",
+  "tab.universities": "Вузы",
+  "tab.programs": "Программы",
   documentsTitle: "Документы",
   paymentsTitle: "Оплата",
   notificationsTitle: "Уведомления",
@@ -1691,6 +1699,13 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   messagesLink: "EVO командасына жазуу",
 
   overviewTitle: "Менин тапшыруум",
+  tilesLabel: "Кыскача",
+  "tile.favorites": "Тандалмадагы университеттер",
+  "tile.programs": "Тандалган программалар",
+  "tile.actions": "Аракет талап кылынат",
+  tabsLabel: "Университеттер жана программалар",
+  "tab.universities": "Университеттер",
+  "tab.programs": "Программалар",
   documentsTitle: "Документтер",
   paymentsTitle: "Төлөм",
   notificationsTitle: "Билдирмелер",

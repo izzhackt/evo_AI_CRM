@@ -32,7 +32,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-/** Показываем на «Главной» первые записи избранного; полный список — /portal/favorites. */
+/** Показываем на «Главной» первые записи избранного; полный список — вкладка «Вузы» на /portal. */
 const HOME_FAVORITES_LIMIT = 4;
 
 export async function generateMetadata(): Promise<Metadata> {

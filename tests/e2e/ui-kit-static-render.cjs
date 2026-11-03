@@ -65,15 +65,15 @@ const { AppShell } = require("@/components/v3/AppShell");
 const { UiKit } = require("@/components/v3/ui-kit/UiKit");
 const h = React.createElement;
 const fixture = JSON.parse(document.getElementById("fixture").textContent);
-window.__harness = { pushes: [], toggles: [] };
+window.__harness = { pushes: [] };
 const router = { push: (href) => window.__harness.pushes.push(href), replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {}, hmrRefresh() {} };
 createRoot(document.getElementById("root")).render(
   h(AppRouterContext.Provider, { value: router },
     h(PathnameContext.Provider, { value: fixture.pathname },
       h(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) },
         h(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } },
-          h("div", { className: "v3-world", "data-surface": "staff", "data-ui": fixture.nextUi && fixture.nextUi.enabled ? "next" : undefined },
-            h(AppShell, { actor: fixture.actor, initialNotifications: null, nextUi: fixture.nextUi },
+          h("div", { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
+            h(AppShell, { actor: fixture.actor, initialNotifications: null },
               fixture.kit ? h(UiKit, { tab: "overview" }) : h("main", { className: "p-6" }, h("h1", { className: "t-page-title" }, "Сегодня")))))))));
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.ready = "true"; }));
 `;
@@ -110,11 +110,10 @@ async function buildBundle(outFile) {
       build.onLoad({ filter: /.*/, namespace: "png" }, () => ({ contents: `module.exports = { src: ${JSON.stringify(LOGO_URL)}, width: 1843, height: 842 };`, loader: "js" }));
       build.onLoad({ filter: /\.module\.css$/ }, () => ({ contents: "export default new Proxy({}, { get: (_t, key) => (typeof key === 'string' ? key : undefined) });", loader: "js" }));
       build.onLoad({ filter: /\.css$/ }, () => ({ contents: "", loader: "js" }));
-      // Серверные действия: переключатель записывает вызов, остальные честно отказывают.
+      // Серверные действия честно отказывают.
       build.onLoad({ filter: /[\\/]src[\\/].+\.tsx?$/ }, (args) => {
         const source = readFileSync(args.path, "utf8");
         if (!/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/u.test(source)) return undefined;
-        if (args.path.endsWith("ui-next-actions.ts")) return { contents: "export async function setNextUiAction(enabled, returnTo) { window.__harness.toggles.push([enabled, returnTo]); }", loader: "ts" };
         const names = [...source.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+([A-Za-z0-9_$]+)/gu)].map((match) => match[1]);
         return { contents: names.map((name) => `export async function ${name}() { throw new Error("ui-kit harness: server action ${name} is not available"); }`).join("\n"), loader: "ts" };
       });
@@ -142,10 +141,9 @@ async function main() {
   await buildBundle(join(outDir, "ui-kit-bundle.js"));
   const css = await compileCss();
   const pages = {
-    kit: writePage(outDir, "ui-kit", css, { actor: ADMIN, pathname: "/v3/ui-kit", search: "tab=overview", nextUi: { enabled: true }, kit: true }),
-    off: writePage(outDir, "ui-kit-shell-off", css, { actor: ADMIN, pathname: "/v3/main", search: "", nextUi: { enabled: false }, kit: false }),
-    rail: writePage(outDir, "ui-kit-shell-rail", css, { actor: ADMIN, pathname: "/v3/pipeline", search: "", nextUi: { enabled: true }, kit: false }),
-    staff: writePage(outDir, "ui-kit-shell-staff", css, { actor: { ...ADMIN, systemRole: "staff", displayName: "Сотрудник Синтетический" }, pathname: "/v3/main", search: "", nextUi: null, kit: false }),
+    kit: writePage(outDir, "ui-kit", css, { actor: ADMIN, pathname: "/v3/ui-kit", search: "tab=overview", kit: true }),
+    rail: writePage(outDir, "ui-kit-shell-rail", css, { actor: ADMIN, pathname: "/v3/pipeline", search: "", kit: false }),
+    staff: writePage(outDir, "ui-kit-shell-staff", css, { actor: { ...ADMIN, systemRole: "staff", displayName: "Сотрудник Синтетический" }, pathname: "/v3/main", search: "", kit: false }),
   };
   const { chromium } = require("playwright");
   const AxeBuilder = require("@axe-core/playwright").default;
@@ -386,38 +384,29 @@ async function main() {
       const nav = document.querySelector("[data-shell-account]");
       const box = (element) => { const rect = element.getBoundingClientRect(); return { w: Math.round(rect.width), h: Math.round(rect.height) }; };
       const tabbable = [...nav.querySelectorAll("a[href], button:not([disabled]), [role=switch]")].filter((element) => getComputedStyle(element).display !== "none" && getComputedStyle(element).visibility !== "hidden");
-      return { switchShown: Boolean(nav.querySelector("[role=switch]")), kitLinks: tabbable.filter((element) => /ui-kit/u.test(element.getAttribute("href") || "")).length, small: tabbable.map((element) => ({ label: (element.getAttribute("aria-label") || element.textContent || element.tagName).trim().slice(0, 24), ...box(element) })).filter((item) => item.w < 40 || item.h < 40) };
+      return { kitLinks: tabbable.filter((element) => /ui-kit/u.test(element.getAttribute("href") || "")).length, small: tabbable.map((element) => ({ label: (element.getAttribute("aria-label") || element.textContent || element.tagName).trim().slice(0, 24), ...box(element) })).filter((item) => item.w < 40 || item.h < 40) };
     });
-    report("d1280 rail: switch visible, no invisible tabbable in account area", rail.switchShown && rail.kitLinks === 0 && rail.small.length === 0, rail);
+    report("d1280 rail: no invisible tabbable in account area", rail.kitLinks === 0 && rail.small.length === 0, rail);
     const seen = [];
     for (let step = 0; step < 60; step += 1) {
       await page.keyboard.press("Tab");
       seen.push(await page.evaluate(() => { const element = document.activeElement; const rect = element.getBoundingClientRect(); return { tag: element.tagName, label: (element.getAttribute("aria-label") || element.textContent || "").trim().slice(0, 24), w: Math.round(rect.width), h: Math.round(rect.height) }; }));
     }
     report("d1280 rail: every Tab stop has a visible box", seen.every((stop) => stop.w >= 8 && stop.h >= 8), seen.filter((stop) => stop.w < 8 || stop.h < 8));
-    await shot(page, "toggle-rail-d1280", { clip: { x: 0, y: 560, width: 120, height: 240 } });
+    await shot(page, "kit-rail-d1280", { clip: { x: 0, y: 560, width: 120, height: 240 } });
     await context.close();
   }
 
-  // Переключатель: администратор видит строку, сотрудник — нет; нажатие записывает вызов с адресом возврата.
+  // «Набор виджетов»: администратор видит ссылку, сотрудник — нет.
   for (const key of ["d1440", "m390"]) {
-    const off = await open(pages.off, key);
-    if (key === "m390") await off.page.getByRole("button", { name: /Ещё/u }).click();
-    await shot(off.page, `toggle-off-${key}`);
-    const toggle = off.page.getByRole("switch", { name: "Новый вид" });
-    report(`${key}: admin sees switch (off)`, (await toggle.getAttribute("aria-checked")) === "false", null);
-    await toggle.click();
-    report(`${key}: click calls action`, JSON.stringify(await off.page.evaluate(() => window.__harness.toggles)) === JSON.stringify([[true, "/v3/main"]]), await off.page.evaluate(() => window.__harness.toggles));
-    await off.context.close();
     const staff = await open(pages.staff, key);
     if (key === "m390") await staff.page.getByRole("button", { name: /Ещё/u }).click();
-    report(`${key}: staff has no switch`, (await staff.page.getByRole("switch", { name: "Новый вид" }).count()) === 0, null);
-
+    report(`${key}: staff has no kit link`, (await staff.page.getByRole("link", { name: "Набор виджетов" }).count()) === 0, null);
     await staff.context.close();
   }
   const on = await open(pages.kit, "d1440");
-  await shot(on.page, "toggle-on-d1440", { clip: { x: 0, y: 500, width: 280, height: 400 } });
-  report("d1440: switch on + kit link", (await on.page.getByRole("switch", { name: "Новый вид" }).getAttribute("aria-checked")) === "true" && (await on.page.getByRole("link", { name: "Набор виджетов" }).count()) === 1, null);
+  await shot(on.page, "kit-link-d1440", { clip: { x: 0, y: 500, width: 280, height: 400 } });
+  report("d1440: admin sees the kit link", (await on.page.getByRole("link", { name: "Набор виджетов" }).count()) === 1, null);
   await on.context.close();
 
   await browser.close();

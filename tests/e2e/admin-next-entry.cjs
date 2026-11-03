@@ -4,8 +4,7 @@
  * Браузерная точка входа стенда `admin-next-static-render.cjs`: настоящие компоненты «Нового вида» («Настройки», «Маркетинг», «Финансы», «ИИ-агент»)
  * внутри настоящей оболочки (`AppShell`) на свойствах, которые отдаёт НАСТОЯЩАЯ страница на синтетике (`admin-next-pages.cjs capture`).
  * Адрес стенда — состояние: `router.push` записывается и, если для адреса есть ответ сервера (`fx.routes`), через 60 мс подменяет свойства (так
- * открывается запрос на удаление). Серверные действия подменены (`window.__harness.calls` пишет вызов и поля формы). Прежний вид («до») — настоящая
- * разметка прежней страницы, отданная сервером (`fx.legacyHtml`) внутри той же оболочки.
+ * открывается запрос на удаление). Серверные действия подменены (`window.__harness.calls` пишет вызов и поля формы).
  */
 const CLIENT_ENTRY = String.raw`
 const React = require("react");
@@ -39,15 +38,13 @@ function App() {
     replace(href) { window.__harness.replaces.push(href); }, back() {}, forward() {}, refresh() { window.__harness.calls.push("refresh"); }, prefetch() {}, hmrRefresh() {},
   }), []);
   const Screen = SCREENS[fx.screen];
-  const body = fx.legacyHtml !== null
-    ? h("div", { dangerouslySetInnerHTML: { __html: fx.legacyHtml } })
-    : h(Screen, view.props);
+  const body = h(Screen, view.props);
   return h(AppRouterContext.Provider, { value: router },
     h(PathnameContext.Provider, { value: fx.pathname },
       h(SearchParamsContext.Provider, { value: new URLSearchParams(view.search) },
         h(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } },
-          h("div", fx.legacyHtml !== null ? { className: "v3-world", "data-surface": "staff" } : { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
-            h(AppShell, { actor: fx.actor, initialNotifications: null, nextUi: { enabled: fx.legacyHtml === null } }, body))))));
+          h("div", { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
+            h(AppShell, { actor: fx.actor, initialNotifications: null }, body))))));
 }
 createRoot(document.getElementById("root")).render(h(App));
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.ready = "true"; }));

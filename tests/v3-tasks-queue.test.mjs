@@ -302,7 +302,7 @@ test("view tabs are real links with aria-current and numbers only where the read
   assert.match(tabs, /aria-current="page"[^>]*href="\/v3\/tasks">Мои<span class="tabular-nums text-fg-3">12<\/span>/u);
   assert.match(tabs, /href="\/v3\/tasks\?view=created">Поставил я<\/a>/u, "no read of «Поставил я» — no number");
   assert.match(tabs, /href="\/v3\/tasks\?view=all">Вся команда<\/a>/u);
-  const team = surfaces.get("team-panel");
+  const team = surfaces.get("team-view");
   assert.match(team, /aria-current="page"[^>]*href="\/v3\/tasks\?view=all">Вся команда<span class="tabular-nums text-fg-3">16<\/span>/u);
   assert.match(team, />Поставил я<span class="tabular-nums text-fg-3">7<\/span>/u);
   // An incomplete read shows neither tab nor band numbers, and says so.
@@ -434,7 +434,6 @@ test("the student name links to the case only for a mouse on a wide screen", () 
   assert.match(caseRow, /<a title="Тимур Абдылдаев" class="relative z-10 hidden h-6 min-w-0 items-center [^"]*md:pointer-fine:flex" href="\/v3\/profile\?case=dddddddd-2222-4222-8222-000000000001">/u);
   assert.match(caseRow, /<span class="min-w-0 truncate md:pointer-fine:hidden">Тимур Абдылдаев<\/span>/u);
   // Everywhere else the whole row opens the task; the panel header carries «Открыть дело».
-  assert.match(surfaces.get("team-panel"), /data-side-panel-open="" href="[^"]+">Открыть дело<svg[^>]*aria-hidden="true"/u);
 });
 
 test("closed tasks label their bare date as «срок»", () => {
@@ -455,46 +454,11 @@ test("the composer's optional sections use the drawn chevron, not the browser ma
     assert.match(iconClass, /group-open:rotate-180/u);
   }
   assert.match(surfaces.get("composer"), /<details class="group"><summary/u);
-  // The panel's «Перенести или передать» chevron turns too: `group` sits on <details>.
-  assert.match(surfaces.get("team-panel"), /<details class="group border-t border-border pt-2"><summary/u);
-});
-
-test("the staff panel reads Описание, then Результаты, then the folded move form", () => {
-  const panel = surfaces.get("team-panel-staff").slice(surfaces.get("team-panel-staff").indexOf("<dialog"));
-  const order = ["aria-label=\"Описание\"", "aria-label=\"Результаты\"", ">Перенести или передать"].map((marker) => panel.indexOf(marker));
-  assert.ok(order.every((index) => index > 0), "every section is present");
-  assert.deepEqual([...order].sort((a, b) => a - b), order);
-  assert.match(panel, /Первый вариант отправлен руководителю/u);
-  const list = surfaces.get("team-panel-staff");
-  assert.match(list.slice(list.indexOf('data-queue-row="staff:bbbbbbbb-5555-4555-8555-000000000002"')), /^[^>]*class="[^"]*\bbg-surface-2\b/u);
 });
 
 test("the loading skeleton keeps the date column before the title", () => {
   const skeleton = read("src/components/v3/queue/QueueStates.tsx");
   assert.match(skeleton, /<span className="hidden w-28 shrink-0 sm:block"><SkeletonBlock className="h-3\.5 w-12 rounded-nav" \/><\/span>\s*<div className="min-w-0 flex-1 space-y-1\.5">/u);
-});
-
-test("the right panel pushes the list, marks the row and keeps the list URL", () => {
-  const html = surfaces.get("team-panel");
-  // Э7: tabs and the toolbar span the full width above the «list | panel» grid,
-  // so the panel starts level with the first queue row, as on «Студенты».
-  assert.match(html, /^<div class="min-w-0 space-y-3" data-testid="task-queue">/u);
-  const grid = html.indexOf('<div class="xl:grid xl:grid-cols-[minmax(0,1fr)_var(--side-panel-width)] xl:items-start xl:gap-6">');
-  assert.ok(grid > html.indexOf('data-testid="queue-toolbar"') && html.indexOf('data-testid="queue-toolbar"') > 0, "the grid starts below the toolbar");
-  assert.ok(html.indexOf("data-queue-row=") > grid && html.indexOf("<dialog") > grid, "rows and the panel share the grid");
-  const row = html.slice(html.indexOf('data-queue-row="case:cccccccc-6666-4666-8666-000000000005"'));
-  assert.match(row, /^[^>]*class="[^"]*\bbg-surface-2\b/u);
-  assert.match(row, /aria-current="true"[^>]*>Согласовать с семьёй список программ в Польше и Чехии<\/a>/u);
-  const panel = html.slice(html.indexOf("<dialog"));
-  assert.match(panel, /^<dialog open="" aria-labelledby="([^"]+)" data-testid="queue-detail-panel"/u);
-  assert.match(panel, /data-testid="queue-detail-close"[^>]*href="\/v3\/tasks\?view=all"/u);
-  assert.match(panel, /<h2 id="[^"]+" tabindex="-1" data-queue-heading="" class="t-record-title/u);
-  // The script-focused heading names the record for a screen reader without a red focus frame.
-  assert.match(read("src/app/(v3)/v3.css"), /\.v3-world \[data-queue-heading\]:focus-visible \{\s*outline: none;/u);
-  assert.match(panel, /href="\/v3\/profile\?case=dddddddd-2222-4222-8222-000000000005"[^>]*>Открыть дело<svg/u);
-  assert.match(panel, />Обсудить<\/a>/u);
-  assert.match(panel, /<details class="[^"]*"><summary[^>]*>Перенести или передать/u);
-  assert.doesNotMatch(panel, /\bbg-accent\b/u, "«Завершить» is a dark neutral button, not a second red");
 });
 
 test("empty, restricted and «Поставил я» states are honest", () => {

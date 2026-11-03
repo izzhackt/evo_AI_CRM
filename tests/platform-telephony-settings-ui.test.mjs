@@ -45,8 +45,6 @@ const ORG = "10000000-0000-4000-8000-000000000001";
 const A = "20000000-0000-4000-8000-000000000002";
 const B = "20000000-0000-4000-8000-000000000003";
 const C = "20000000-0000-4000-8000-000000000004";
-const NOW = new Date("2026-10-17T10:00:00.000Z");
-const KEY_PROBE = "a1b2c3d4-e5f6-4a8b-9c0d-1234567890ab";
 
 function overview({ flags = {}, escalation = null, escalationMembershipId = null, extensions, health = {}, version = 3 } = {}) {
   return telephonySettings.normalizeTelephonyOverview({
@@ -91,124 +89,7 @@ function overview({ flags = {}, escalation = null, escalationMembershipId = null
 }
 const SERVER_ON = { ingestEnabled: true, crmKey: "configured", crmKeyRotating: false, pbx: "ready" };
 const SERVER_OFF = { ingestEnabled: false, crmKey: "missing", crmKeyRotating: false, pbx: "not_configured" };
-const INBOUND = "https://crm.evoadmissions.com/api/v2/telephony/beeline/inbound";
 const flat = (markup) => markup.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ");
-
-/* ------------------------------------------------------------- раздел */
-
-function sectionModule() {
-  return compile("src/components/v3/settings/TelephonySection.tsx", {
-    "./TelephonyCopyValue": { TelephonyCopyValue: ({ value }) => React.createElement("code", { "data-copy": true }, value) },
-    "./TelephonyExtensions": { TelephonyExtensions: ({ extensions, readOnly }) => React.createElement("div", { "data-extensions": extensions.length, "data-readonly": String(readOnly) }) },
-    "./TelephonySettingsForm": { TelephonySettingsForm: ({ overview: o, readOnly }) => React.createElement("div", { "data-form-version": o.settings.version, "data-readonly": String(readOnly) }) },
-  });
-}
-
-test("the section says plainly when it cannot be shown: no right, no data", () => {
-  const { TelephonySection } = sectionModule();
-  for (const read of [null, { status: "forbidden" }]) {
-    const text = flat(render(React.createElement(TelephonySection, { read, readOnly: false, now: NOW })));
-    assert.match(text, /Нет права открывать настройки телефонии/u);
-  }
-  const text = flat(render(React.createElement(TelephonySection, { read: { status: "unavailable", server: SERVER_ON }, readOnly: false, now: NOW })));
-  assert.match(text, /Не удалось прочитать настройки телефонии/u);
-  assert.doesNotMatch(text, /Состояние|Подключение «Ваша CRM»/u);
-});
-
-test("switched off: the section says «Выключено» and shows the four blocks with their facts", () => {
-  const { TelephonySection } = sectionModule();
-  const markup = render(React.createElement(TelephonySection, {
-    read: { status: "ready", overview: overview(), server: SERVER_OFF, inboundUrl: INBOUND }, readOnly: false, now: NOW,
-  }));
-  assert.match(markup, /data-testid="v3-settings-telephony"[^>]*data-switched-off="true"/u);
-  assert.match(markup, /data-testid="v3-telephony-off"/u);
-  assert.match(flat(markup), /Выключено: ни один включатель не включён, сотрудникам телефония ничего не показывает/u);
-  const lineIds = [...markup.matchAll(/data-line="([a-z_]+)"/gu)].map((match) => match[1]);
-  // The line that needs attention comes first, the rest follow in their usual order (and are folded away).
-  assert.deepEqual(lineIds, ["directory", "intake", "crm_key", "pbx_key", "pbx_link", "last_event", "reconcile", "evidence", "divergence", "record", "backfill", "automation"]);
-  assert.match(flat(markup), /Состояние Требует внимания: 1 из 12/u, "one sentence says how many lines need a look");
-  assert.match(markup, /<details class="group mt-2" data-testid="v3-telephony-status-rest"/u, "the lines that are fine or off are folded");
-  assert.match(flat(markup), /Остальные строки: 11/u);
-  assert.ok(markup.indexOf('data-line="directory"') < markup.indexOf('data-testid="v3-telephony-status-rest"'), "the attention line stands above the fold");
-  assert.ok(markup.indexOf('data-line="intake"') > markup.indexOf('data-testid="v3-telephony-status-rest"'), "the quiet lines are inside it");
-  assert.match(flat(markup), /Звонки этих пользователей ВАТС сохраняются без сотрудника\./u, "what does not work because of the line stands under it");
-  assert.match(markup, /data-line="intake" data-tone="off"/u);
-  assert.match(flat(markup), /Приём событий на сервере.{0,40}выключен/u);
-  assert.match(flat(markup), /Меняет технический специалист на сервере; в CRM это не переключается/u);
-  assert.match(markup, /data-extensions="3" data-readonly="false"/u);
-  assert.match(markup, /data-form-version="3" data-readonly="false"/u);
-  assert.doesNotMatch(flat(markup), /работает/u);
-});
-
-test("the verdict counts the line of an issue: intake open and the PBX key missing is not «Замечаний нет»", () => {
-  const { TelephonySection } = sectionModule();
-  const noUnmapped = { directory: { active: 3, inactive: 1, unmapped: 0, last_seen_at: null } };
-  const view = (server, input = {}) => render(React.createElement(TelephonySection, {
-    read: { status: "ready", overview: overview({ health: noUnmapped, ...input }), server, inboundUrl: INBOUND }, readOnly: false, now: NOW,
-  }));
-  const noPbxKey = view({ ...SERVER_ON, pbx: "not_configured" });
-  assert.deepEqual(telephonyHealth.telephonyIssues({ ...SERVER_ON, pbx: "not_configured" }, overview({ health: noUnmapped }), NOW).map((issue) => issue.id), ["pbx_key"],
-    "the same state is an issue in «Интеграции»");
-  assert.match(flat(noPbxKey), /Состояние Требует внимания: 1 из 12/u);
-  assert.doesNotMatch(flat(noPbxKey), /Замечаний нет/u);
-  assert.match(noPbxKey, /data-line="pbx_key" data-tone="warn"/u);
-  // The line and its hand-off stand above the fold, not in the folded list.
-  assert.ok(noPbxKey.indexOf('data-line="pbx_key"') < noPbxKey.indexOf('data-testid="v3-telephony-status-rest"'));
-  assert.match(flat(noPbxKey), /Сверка с историей ВАТС, список пользователей и звонок из CRM выключены\./u);
-  assert.match(noPbxKey, /data-testid="v3-telephony-handoff">Передать техническому специалисту: внести ключ ВАТС на сервер</u);
-  // A state with nothing to look at still says so.
-  const quiet = view(SERVER_ON);
-  assert.match(flat(quiet), /Состояние Замечаний нет/u);
-  assert.doesNotMatch(quiet, /v3-telephony-handoff/u);
-  // Intake off: no such issue, the key line is quiet (the intake line is the one to look at only if a switch is on).
-  const off = view({ ...SERVER_OFF });
-  assert.match(flat(off), /Состояние Замечаний нет/u);
-  assert.match(off, /data-line="pbx_key" data-tone="off"/u);
-});
-
-test("when something is on the «Выключено» line disappears, and a preview passes read-only down", () => {
-  const { TelephonySection } = sectionModule();
-  const markup = render(React.createElement(TelephonySection, {
-    read: { status: "ready", overview: overview({ flags: { projectionEnabled: true } }), server: SERVER_ON, inboundUrl: INBOUND }, readOnly: true, now: NOW,
-  }));
-  assert.doesNotMatch(markup, /v3-telephony-off|data-switched-off/u);
-  assert.equal([...markup.matchAll(/data-readonly="true"/gu)].length, 2, "the table and the form both get read-only");
-  assert.match(markup, /data-line="intake" data-tone="ok"/u);
-});
-
-test("«Ваша CRM»: the address to paste, and the intake key only as set/not set — never its value", () => {
-  const { TelephonySection } = sectionModule();
-  const view = (server) => render(React.createElement(TelephonySection, {
-    read: { status: "ready", overview: overview(), server, inboundUrl: INBOUND }, readOnly: false, now: NOW,
-  }));
-  const set = view(SERVER_ON);
-  const text = flat(set);
-  assert.match(text, /Подключение «Ваша CRM» в кабинете ВАТС/u);
-  assert.match(set, /<code data-copy="true">https:\/\/crm\.evoadmissions\.com\/api\/v2\/telephony\/beeline\/inbound<\/code>/u);
-  for (const label of ["Имя вашей CRM", "Адрес вашей CRM", "Ключ для авторизации в вашей CRM", "Адрес АТС и ключ для авторизации в АТС", "Права доступа к управлению ВАТС", "Сценарий", "Статус обработки пропущенного звонка в CRM", "Звонки клиентов ответственному менеджеру"]) {
-    assert.ok(text.includes(label), label);
-  }
-  assert.match(text, /Ключ для авторизации в вашей CRM задан на сервере/u);
-  assert.match(text, /заданы на сервере/u);
-  // Ключи и адрес АТС — только «задан / не задан»: ни значения, ни пояснения о том, кто его вносит.
-  assert.doesNotMatch(text, /Значение здесь не показывается|Их показывает сам кабинет/u);
-  assert.match(text, /Для всех номеров/u);
-  // Ключи заданы, ВАТС отвечает: подключение сделано, значения нужны только тому, кто создаёт его заново — блок свёрнут, но
-  // предупреждение о тихом времени остаётся одной строкой (именно тот, кто создаёт заново, его и читает); не задан ключ — открыт, с полным.
-  assert.match(set, /<details class="group" data-testid="v3-telephony-connection-folded">/u);
-  assert.match(text, /Создавайте подключение в тихое время, когда владелец рядом\./u);
-  assert.doesNotMatch(text, /пока оно живо, каждый входящий звонок/u);
-  assert.doesNotMatch(view(SERVER_OFF), /v3-telephony-connection-folded/u);
-  assert.match(flat(view(SERVER_OFF)), /Подключение создают в тихое время, когда владелец рядом/u);
-  assert.doesNotMatch(text, /второй фазы|определяет сама/u, "no roadmap words in the guide");
-  const unset = flat(view(SERVER_OFF));
-  assert.match(unset, /Ключ для авторизации в вашей CRM не задан на сервере/u);
-  assert.match(unset, /не заданы на сервере/u);
-  for (const markup of [set, view(SERVER_OFF)]) {
-    assert.ok(!markup.includes(KEY_PROBE));
-    assert.doesNotMatch(markup, /type="(password|text)"|crm_token=|EVO_PLATFORM_TELEPHONY/u);
-  }
-});
 
 /* -------------------------------------------------- сопоставление */
 
@@ -386,16 +267,16 @@ test("the settings client sends one versioned patch, asks for a confirmation bef
   assert.match(code, /router\.refresh\(\)/u);
   assert.match(code, /const issues = useMemo\(\(\) => telephonyDraftIssues\(draft\), \[draft\]\)/u);
   // The page re-keys the form by version so it restarts from the saved settings.
-  assert.match(source("src/components/v3/settings/TelephonySection.tsx"), /<TelephonySettingsForm key=\{overview\.settings\.version\}/u);
+  assert.match(source("src/components/v3/settings-next/TelephonyNext.tsx"), /<TelephonySettingsForm key=\{overview\.settings\.version\}/u);
 });
 
 test("the draft check in the form is the same function the lib tests pin, and the form owns no CHECK of its own", () => {
   const code = source("src/components/v3/settings/TelephonySettingsForm.tsx");
   assert.doesNotMatch(code, /localStorage|sessionStorage|process\.env|server-only|NEXT_PUBLIC/u);
-  for (const file of ["TelephonySection", "TelephonyExtensions", "TelephonySettingsForm", "TelephonyCopyValue"]) {
+  for (const file of ["TelephonyExtensions", "TelephonySettingsForm", "TelephonyCopyValue"]) {
     const text = source(`src/components/v3/settings/${file}.tsx`);
     assert.doesNotMatch(text, /process\.env|from "server-only"|import "server-only"|EVO_PLATFORM_TELEPHONY|crm_token|X-API-KEY/u, file);
-    assert.equal(/^"use client";/u.test(text), file !== "TelephonySection", `${file} is a client component only when it needs hooks`);
+    assert.match(text, /^"use client";/u, `${file} is a client component: it needs hooks`);
   }
 });
 
@@ -423,9 +304,7 @@ test("the sections list gets «Телефония» right after «Интегра
   const keys = [...types.matchAll(/\{ key: "([a-z]+)", view: (?:"[a-z]+"|null), title: "([^"]+)" \}/gu)].map((match) => `${match[1]}:${match[2]}`);
   assert.deepEqual(keys, ["staff:Сотрудники", "staff:Роли и доступ", "staff:Отделы", "integrations:Интеграции", "telephony:Телефония", "reports:Отчёты", "journal:Журнал действий",
     "deletion:Запросы на удаление", "documents:Документы и передача", "platform:Платформа"]);
-  const settings = source("src/components/v3/settings/Settings.tsx");
-  assert.match(settings, /current\.key === "telephony" \? <TelephonySection read=\{telephony \?\? null\} readOnly=\{telephonyReadOnly \?\? false\}/u);
-  assert.doesNotMatch(settings, /виден только администратору|>\s*админ\s*</u);
+  assert.match(source("src/components/v3/settings-next/SettingsSection.tsx"), /section === "telephony" && props\.telephony\) return <TelephonyNext \{\.\.\.props\.telephony\}/u);
 });
 
 test("the two route files export POST only, on the Node runtime, never cached", () => {

@@ -154,9 +154,8 @@ test("the section opens only for the real Admin: role preview, sales, admissions
   }
   const page = read("src/app/(v3)/v3/marketing/page.tsx");
   assert.match(page, /requireV3PageActor\("\/v3\/marketing"\);\s*requireMarketingAdmin\(actor\);/u);
-  // Раздел — две вкладки, обычные ссылки; ни выгрузки, ни имён в адресе.
-  assert.match(read("src/components/v3/marketing/MarketingNav.tsx"), /QueueViewTabs/u);
-  assert.doesNotMatch(read("src/components/v3/marketing/MarketingLeadsTable.tsx"), /csv|download|Экспорт|Скачать/iu);
+  // Ни выгрузки, ни имён в адресе: таблица заявок нового вида без выгрузки.
+  assert.doesNotMatch(read("src/components/v3/marketing-next/LeadsNext.tsx"), /csv|download|Экспорт|Скачать/iu);
 });
 
 // «Финансы» (26.10.2026) → отчёт Looker Studio (решение владельца «Админы + бухгалтер», миграция 323): раздел верхнего уровня
@@ -484,16 +483,6 @@ test("cabinet applications sit in «Не известно» but do not count as 
   assert.deepEqual(marketingSignals(overview, { leads: 4, spendRows: 1 }), []);
   assert.deepEqual(marketingSignals(parseOverview(overviewJson()), { leads: 4, spendRows: 1 }).map((s) => s.key), ["unknown_share"]);
   assert.equal(costPerLead(overview).levels[2].leads, 6 + 7, "«включая неизвестные» counts the unknown without cabinet applications");
-  const load = loader({ "./MarketingSpendPanel": { MarketingSpendPanel: () => null } });
-  const { MarketingOverviewView } = load("src/components/v3/marketing/MarketingOverviewView.tsx");
-  const html = renderToStaticMarkup(createElement(MarketingOverviewView, {
-    read: { status: "available", overview }, recent: null, period: { from: FROM, to: TO }, retryHref: "/v3/marketing",
-  }));
-  assert.match(html, /Источник не известен — <span class="tabular-nums">7 из 18 · 39\u00a0%<\/span>/u);
-  assert.match(html, /Анкеты на платформе \(5\) в эту долю не входят/u);
-  assert.match(html, /анкеты на платформе 5/u, "named in the unknown row");
-  assert.match(html, /Заявок: <span class="tabular-nums">23<\/span>/u, "the total keeps them");
-  assert.match(html, /data-testid="marketing-repeats"[^>]*>\s*Повторные обращения: <span class="tabular-nums">3<\/span>/u, "repeat submissions are a line of their own");
 });
 
 test("addresses carry period and filter keys only: no names, phones or cursor", () => {
@@ -516,102 +505,6 @@ test("addresses carry period and filter keys only: no names, phones or cursor", 
 });
 
 /* ---------------------------------------------------------------- вывод и действия */
-
-test("the overview draws two titled blocks, the unknown line, reconciliation and honest cells", () => {
-  const load = loader({ "./MarketingSpendPanel": { MarketingSpendPanel: () => createElement("div", { "data-stub": "spend-panel" }) } });
-  const { MarketingOverviewView } = load("src/components/v3/marketing/MarketingOverviewView.tsx");
-  const html = renderToStaticMarkup(createElement(MarketingOverviewView, {
-    read: { status: "available", overview: parseOverview(overviewJson()) }, recent: { leads: 0, spendRows: 1 },
-    period: { from: FROM, to: TO }, retryHref: "/v3/marketing",
-  }));
-  assert.match(html, /Заявки периода — что с ними стало на сегодня/u);
-  assert.match(html, /Продажи периода — по дате договора/u);
-  assert.match(html, /Источник не известен — <span class="tabular-nums">12 из 23 · 52\u00a0%<\/span>/u);
-  assert.match(html, /из них открыты <span[^>]*data-marketing-open="20"[^>]*>20<\/span>/u);
-  assert.match(html, /источник «Сайт» — <span class="tabular-nums" data-testid="marketing-website-source">11<\/span>\./u, "leads with source «Сайт» (form + manual), not only the form");
-  assert.match(html, /Повторные обращения: <span class="tabular-nums">3<\/span>/u);
-  assert.match(html, /Без привязки к лиду/u);
-  assert.match(html, /data-testid="marketing-reconciliation" data-matches="true"/u);
-  assert.match(html, /Совпадает\./u);
-  // Строка канала без заявок: проценты не рисуются, доли «—».
-  assert.match(html, /data-channel="referral"[\s\S]*?<td[^>]*>0<\/td><td[^>]*>—<\/td><td[^>]*>—<\/td><td[^>]*>—<\/td><td[^>]*>—<\/td>/u);
-  assert.match(html, /Instagram — реклама/u);
-  assert.match(html, /по метке 4 · со слов клиента 1 · исправлено 1/u);
-  assert.match(html, /ИИ-ассистент 2/u);
-  assert.match(html, /data-testid="marketing-signals"/u);
-  assert.match(html, /data-cost-level="tagged"[^>]*>[\s\S]*?мало заявок для цены: 4 лида/u, "fewer than ten leads: the count, no price");
-  assert.match(html, /data-cost-level="with_unknown"[^>]*>[\s\S]*?66,67 USD[\s\S]*?на 18 лидов/u, "eighteen leads: a price");
-  assert.doesNotMatch(html, /NaN|undefined|Infinity/u);
-  assert.doesNotMatch(html, RED_ACTION, "no red action on the page");
-  assert.match(html, /<span class="block t-body-compact text-fg">2\u00a0500\u00a0USD<span class="text-fg-2"> · 2 договора<\/span>/u, "sales amounts read as figures, not as captions");
-});
-
-test("a mismatch with «Продажи» is shown as a number, never merged away", () => {
-  const load = loader({ "./MarketingSpendPanel": { MarketingSpendPanel: () => null } });
-  const { MarketingOverviewView } = load("src/components/v3/marketing/MarketingOverviewView.tsx");
-  const json = overviewJson();
-  json.sales.reconciliation = { by_channel_plus_without_lead: 3, report_sales: 5, difference: -2, matches: false };
-  const html = renderToStaticMarkup(createElement(MarketingOverviewView, {
-    read: { status: "available", overview: parseOverview(json) }, recent: null, period: { from: FROM, to: TO }, retryHref: "/v3/marketing",
-  }));
-  assert.match(html, /data-matches="false"/u);
-  assert.match(html, /Расхождение: -2\./u);
-  assert.match(html, /«Продажи» в отчёте — <span class="tabular-nums">5<\/span>/u);
-});
-
-test("unavailable and denied overviews say so in words and draw no figure", () => {
-  const load = loader({ "./MarketingSpendPanel": { MarketingSpendPanel: () => null } });
-  const { MarketingOverviewView } = load("src/components/v3/marketing/MarketingOverviewView.tsx");
-  const unavailable = renderToStaticMarkup(createElement(MarketingOverviewView, { read: { status: "unavailable" }, recent: null, period: { from: FROM, to: TO }, retryHref: "/v3/marketing?period=week" }));
-  assert.match(unavailable, /Не удалось загрузить обзор маркетинга/u);
-  assert.match(unavailable, /href="\/v3\/marketing\?period=week"[^>]*>Повторить/u);
-  assert.doesNotMatch(unavailable, /tabular-nums|из \d/u);
-  const denied = renderToStaticMarkup(createElement(MarketingOverviewView, { read: { status: "denied" }, recent: null, period: { from: FROM, to: TO }, retryHref: "/v3/marketing" }));
-  assert.match(denied, /только администратору/u);
-  assert.doesNotMatch(denied, /tabular-nums/u);
-});
-
-test("the leads table shows the plan columns, links the name to Lead 360 and never prints raw marks", () => {
-  const load = loader({
-    "next/link": { __esModule: true, default: ({ href, children, ...rest }) => createElement("a", { href, ...rest }, children) },
-    "@/lib/platform-marketing-actions": { loadMoreMarketingLeadsAction: async () => ({ status: "unavailable" }) },
-    "@/lib/platform-lead-channel-actions": { correctLeadChannelAction: async () => ({ status: "unavailable" }) },
-  });
-  const { MarketingLeadsTable } = load("src/components/v3/marketing/MarketingLeadsTable.tsx");
-  const second = "30000000-0000-4000-8000-000000000002";
-  const page = parseLeads(leadsJson([
-    leadRow(),
-    leadRow({ lead_id: second, name: null, source_key: "whatsapp_manual", channel: "unknown", basis: "unknown", campaign: null, landing_path: null, stage: "closed", lifecycle_state: "disqualified",
-      contract_signed_on: null, paid: null, owner: null }),
-  ], { total: 80, has_more: true, next_cursor: { created_at: "2026-09-20T05:30:00.5+00:00", id: second } }));
-  const html = renderToStaticMarkup(createElement(MarketingLeadsTable, { initial: page, request: { from: FROM, to: TO, filters: parseMarketingLeadFilters({}) } }));
-  // Решение 10.10: время прихода — под именем, страница входа — под кампанией; поля те же, колонок девять.
-  for (const head of ["Имя и время", "Телефон", "Канал связи", "Откуда узнал", "Кампания и страница", "Этап", "Договор", "Оплата", "Ответственный"]) {
-    assert.match(html, new RegExp(`<th scope="col"[^>]*>${head}</th>`, "u"), head);
-  }
-  assert.match(html, new RegExp(`href="/v3/profile\\?id=${LEAD}"[^>]*>Тест Синтетический</a>`, "u"));
-  assert.match(html, /data-channel="instagram_ads"[^>]*>[\s\S]*?Instagram — реклама<\/span><\/span><span class="block t-meta text-fg-2 pl-4">по метке<\/span>/u, "channel word, then its basis");
-  assert.match(html, /Лид без имени<\/a><span[^>]*>\d{2}\.\d{2}, \d{2}:\d{2}<\/span>/u, "arrival time under the name");
-  assert.doesNotMatch(html, /Не известно<\/span><\/span><span class="block t-meta[^"]*">не известно/u, "no «не известно» basis under «Не известно»");
-  assert.match(html, /Лид без имени/u);
-  assert.match(html, /Отказ/u);
-  assert.match(html, /WhatsApp/u);
-  assert.doesNotMatch(html, /WhatsApp \(вручную\)/u, "manual and automatic WhatsApp share one word");
-  assert.match(html, /не назначен/u);
-  assert.match(html, /\/guides\/apu\//u);
-  assert.match(html, /600 USD/u);
-  assert.match(html, /по записи отчёта/u);
-  assert.match(html, /Заявок по фильтрам: <span class="tabular-nums">80<\/span> · показано <span class="tabular-nums">2<\/span>/u);
-  assert.match(html, />Показать ещё</u);
-  assert.doesNotMatch(html, /\.csv|Экспорт|Скачать/u);
-  // 10.10: «Указать» — только у строки с «Не известно», тем же действием, что «Исправить» в Lead 360.
-  assert.equal([...html.matchAll(/data-testid="marketing-lead-set-channel"/gu)].length, 1, "one unknown row, one setter");
-  assert.match(html, /name="lead_id" value="30000000-0000-4000-8000-000000000002"/u, "the setter writes to the unknown lead");
-  assert.match(html, /name="request_id" value=""/u, "no request id until a channel is chosen");
-  assert.match(html, /<button[^>]*disabled=""[^>]*>Сохранить<\/button>/u, "saving waits for a choice");
-  assert.match(html, />Указать<span class="sr-only">, откуда узнал: лид без имени<\/span><\/summary>/u, "each «Указать» names its lead for screen readers");
-  assert.doesNotMatch(html, RED_ACTION, "no red button in the list");
-});
 
 test("«Откуда узнал» in Lead 360: label and basis from the read, a quiet correction for those who may edit", () => {
   const load = loader({
@@ -723,52 +616,4 @@ test("«Показать ещё» re-validates its input: odd periods, filters a
     assert.deepEqual(await loadMoreMarketingLeadsAction({ ...good, ...bad }), { status: "unavailable" }, JSON.stringify(bad));
   }
   assert.equal(reads.length, 1, "invalid input never reaches the read");
-});
-
-test("«Откуда приходят заявки» (10.10): counts without percentages, cabinet forms apart, bar only from ten leads, honest leader", () => {
-  const load = loader({ "./MarketingSpendPanel": { MarketingSpendPanel: () => null } });
-  const { MarketingOverviewView } = load("src/components/v3/marketing/MarketingOverviewView.tsx");
-  const render = (json) => {
-    const overview = parseOverview(json);
-    assert.ok(overview, "fixture parses");
-    return renderToStaticMarkup(createElement(MarketingOverviewView, {
-      read: { status: "available", overview }, recent: null, period: { from: FROM, to: TO }, retryHref: "/v3/marketing",
-    }));
-  };
-  const mix = (html) => html.slice(html.indexOf('data-testid="marketing-mix"'), html.indexOf('data-testid="marketing-cohort"'));
-
-  const withForms = clone(overviewJson());
-  withForms.cohort.cabinet_forms = 5;
-  const big = mix(render(withForms));
-  assert.match(big, /За период — <span class="font-semibold tabular-nums">23 заявки<\/span>; из них на сегодня договор у/u);
-  assert.match(big, /data-testid="marketing-mix-bar"/u, "23 leads: the bar is drawn");
-  assert.match(big, /Не известно <span class="font-semibold tabular-nums">7<\/span>/u, "unknown without cabinet forms, as the unknown line");
-  assert.match(big, /Анкеты на платформе <span class="font-semibold tabular-nums">5<\/span>/u, "cabinet forms are their own item");
-  assert.match(big, /Из известных каналов больше всего — «Instagram — реклама»: <span class="tabular-nums">6<\/span>\./u);
-  assert.doesNotMatch(big, /%/u, "no second share next to «Источник не известен»");
-
-  const tie = clone(overviewJson());
-  tie.cohort.channels.find((row) => row.channel === "website_search").leads = 6;
-  tie.cohort.channels.find((row) => row.channel === "website_search").basis.referrer = 6;
-  tie.cohort.channels.find((row) => row.channel === "unknown").leads = 11;
-  tie.cohort.channels.find((row) => row.channel === "unknown").basis.unknown = 11;
-  assert.match(mix(render(tie)), /«Instagram — реклама» и «Сайт и поиск»: по <span class="tabular-nums">6<\/span>/u);
-
-  const small = clone(overviewJson());
-  const ads = small.cohort.channels.find((row) => row.channel === "instagram_ads");
-  Object.assign(ads, { leads: 3, qualified: 1, handed_off: 1, contract: 1, contract_linked: 0, paid: 0, paid_amounts: [], basis: { utm: 3, referrer: 0, staff: 0, corrected: 0, unknown: 0 } });
-  const site = small.cohort.channels.find((row) => row.channel === "website_search");
-  Object.assign(site, { leads: 5, qualified: 0, ai_assistant: 0, basis: { utm: 0, referrer: 5, staff: 0, corrected: 0, unknown: 0 } });
-  Object.assign(small.cohort.channels.find((row) => row.channel === "unknown"), { leads: 0, qualified: 0, basis: { utm: 0, referrer: 0, staff: 0, corrected: 0, unknown: 0 } });
-  Object.assign(small.cohort, { total: 8, open_count: 8, source_keys: { website: 8 }, totals: { leads: 8, qualified: 1, handed_off: 1, contract: 1, contract_linked: 0, paid: 0, paid_without_amount: 0 } });
-  const few = mix(render(small));
-  assert.match(few, /8 заявок/u);
-  assert.doesNotMatch(few, /marketing-mix-bar|%/u, "eight leads: counts only");
-  assert.match(few, /«Сайт и поиск»: <span class="tabular-nums">5<\/span>/u);
-  assert.doesNotMatch(few, /Не известно/u, "zero unknown is not listed");
-
-  const empty = clone(small);
-  for (const row of empty.cohort.channels) Object.assign(row, { leads: 0, qualified: 0, handed_off: 0, contract: 0, ai_assistant: 0, basis: { utm: 0, referrer: 0, staff: 0, corrected: 0, unknown: 0 } });
-  Object.assign(empty.cohort, { total: 0, open_count: 0, repeat_submissions: 0, source_keys: {}, totals: { leads: 0, qualified: 0, handed_off: 0, contract: 0, contract_linked: 0, paid: 0, paid_without_amount: 0 } });
-  assert.match(mix(render(empty)), /За период заявок нет\./u);
 });

@@ -10,8 +10,8 @@
  * «Календаря».
  *
  * Рендерит НАСТОЯЩЕЕ дерево компонентов (TasksWorkspace с примитивами очереди,
- * TaskQueueList/TaskQueueRow, TaskQuickAdd с диалогом создания, TaskDetailPanel
- * на общей SidePanel; для снимков — ещё AppShell и PartShell; для календаря —
+ * TaskQueueList/TaskQueueRow, TaskQuickAdd с диалогом создания;
+ * для снимков — ещё AppShell и PartShell; для календаря —
  * Calendar) с СИНТЕТИЧЕСКИМИ данными: задачи, имена и даты выдуманы для
  * проверки вёрстки и не являются записями EVO. Очередь собирает тот же
  * `buildTaskQueue`, что и страница. Живой Supabase, права и данные этот рендер
@@ -36,14 +36,6 @@
  *       Снимки `*-undo-keys-*` проверяют клавиши очереди при открытой строке
  *       «Отменить»: j/k от завершённой строки, «/», «?» и Esc панели работают,
  *       а строка остаётся открытой; иначе скрипт падает.
- *   node tests/e2e/tasks-static-render.cjs --f1 [outDir]
- *     → Э7 «Одна боковая панель везде»: «Задачи» с открытой панелью задачи
- *       (`?task=`) на 1440×900, 1280×800, 1024×768 (лист справа) и 390×844 — снимки
- *       `f1-tasks-<ширина>.png` и замеры `tests/e2e/side-panel-probe.cjs`
- *       (ширина и место панели, режим, фокус). Адрес здесь — состояние
- *       стенда: `router.push` открывает и закрывает панель, как сервер, и путь
- *       Esc → строка → открыть → «Закрыть» → строка идёт по-настоящему в
- *       React. Нарушение — исключение.
  */
 
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
@@ -105,7 +97,6 @@ const { ImageConfigContext } = require("next/dist/shared/lib/image-config-contex
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 
 const { TasksWorkspace } = require(join(ROOT, "src/components/v3/tasks/TasksWorkspace.tsx"));
-const { TaskDetailPanel } = require(join(ROOT, "src/components/v3/tasks/TaskDetailPanel.tsx"));
 const { buildTaskQueue, parseTaskQueueFilters } = require(join(ROOT, "src/lib/v3/task-queue.ts"));
 
 // --- синтетические данные ---------------------------------------------------
@@ -223,57 +214,16 @@ function scenario(search, extra = {}) {
       composerKey: "standalone", canCreate: true, urlIntent: null, permissions: PERMISSIONS,
       selectedKey: extra.selectedKey ?? null,
       taskLeads: extra.taskLeads ?? null, dial: extra.dial ?? null,
-      panel: extra.panel ? createElement(TaskDetailPanel, extra.panel) : null,
+      panel: null,
     },
-    // Свойства панели без React-элемента: браузерная сборка создаёт её сама.
-    panelProps: extra.panel ?? null,
   };
 }
-
-// Панель задачи по студенту: строка «На этой неделе» ниже первого экрана —
-// при открытии страницы с ?task= её прокручивает в окно сам список.
-const PANEL_CASE = CASES[4];
-const panelCase = (search) => ({
-  day: TODAY, nowIso: NOW.toISOString(), closeHref: `/v3/tasks${search ? `?${search}` : ""}`,
-  data: {
-    kind: "case",
-    caseId: PANEL_CASE.studentCaseId,
-    task: {
-      kind: "case", key: `case:${PANEL_CASE.caseTaskId}`, id: PANEL_CASE.caseTaskId, studentCaseId: PANEL_CASE.studentCaseId,
-      taskType: "follow_up", title: PANEL_CASE.title, details: "Семья выбирает между двумя странами: нужен общий список программ со сроками подачи и стоимостью.",
-      dueOn: PANEL_CASE.dueOn, dueAt: null, day: PANEL_CASE.dueOn,
-      minutes: null, overdue: false, state: "open", cancelReason: null, person: PANEL_CASE.studentDisplayName, priority: "normal",
-      studentVisible: false, assigneeMembershipId: ME, assigneeDisplayName: NAMES[ME], caseState: "active", version: PANEL_CASE.version,
-    },
-    assignees: PARTICIPANTS.map(({ membershipId, displayName }) => ({ membershipId, displayName })),
-    capabilities: { taskId: PANEL_CASE.caseTaskId, studentCaseId: PANEL_CASE.studentCaseId, canAssign: true, canChangeVisibility: true, canReadCase: true },
-  },
-});
-
-// Панель рабочей задачи: описание и прежние результаты (задачу уже завершали
-// с заметкой и вернули в работу) — порядок «Описание → Результаты».
-const PANEL_STAFF = STAFF[1];
-const panelStaff = (search) => ({
-  day: TODAY, nowIso: NOW.toISOString(), closeHref: `/v3/tasks${search ? `?${search}` : ""}`,
-  data: {
-    kind: "staff", task: PANEL_STAFF, participants: PARTICIPANTS,
-    extra: {
-      leadHref: null, sourceHref: null, sourceUnavailable: false, outcomesUnavailable: false,
-      outcomes: [
-        { requestId: "99999999-5555-4555-8555-000000000001", note: "Первый вариант отправлен руководителю, вернули с правками по срокам.", author: NAMES[COLLEAGUE], createdAt: "2026-09-22T09:15:00.000Z" },
-        { requestId: "99999999-5555-4555-8555-000000000002", note: "Список документов сверен с памяткой посольства.", author: NAMES[ME], createdAt: "2026-09-23T11:40:00.000Z" },
-      ],
-    },
-  },
-});
 
 const SCENARIOS = {
   "mine-default": scenario(""),
   "team-view": scenario("view=all"),
   // Мои задачи с двумя перезвонами: клиент в строке, «Позвонить» рядом с «⋯» (набор открыт и сотрудник сопоставлен).
   "callback-dial": scenario("", { staff: [STAFF[0], STAFF[1], STAFF[2], ...CALLBACKS], cases: [], taskLeads: CALLBACK_LEADS, dial: { status: "ready", mapped: true } }),
-  "team-panel": scenario("view=all", { selectedKey: `case:${PANEL_CASE.caseTaskId}`, panel: panelCase("view=all") }),
-  "team-panel-staff": scenario("view=all", { selectedKey: `staff:${PANEL_STAFF.id}`, panel: panelStaff("view=all") }),
   "team-case-filter": scenario("view=all&type=case&due=overdue"),
   "created-view": scenario("view=created"),
   "done-view": scenario("status=done"),
@@ -368,10 +318,10 @@ function renderTasksPage(name) {
   return shell("Задачи", count, createElement("div", { id: CLIENT_ROOT_ID }, createElement(TasksWorkspace, props)), search);
 }
 
-/** Данные сценария для браузера: те же свойства, панель — свойствами, не элементом. */
+/** Данные сценария для браузера: те же свойства. */
 function clientFixture(name) {
-  const { props, search, panelProps } = SCENARIOS[name];
-  return JSON.stringify({ search, props: { ...props, panel: null }, panel: panelProps }).replaceAll("<", "\\u003c");
+  const { props, search } = SCENARIOS[name];
+  return JSON.stringify({ search, props }).replaceAll("<", "\\u003c");
 }
 
 /** Загрузка — настоящий `loading.tsx` страницы внутри AppShell. */
@@ -413,7 +363,7 @@ function renderCalendarPage() {
 }
 
 // --- браузерная сборка тела «Задач» -------------------------------------------
-// Точка входа: те же TasksWorkspace и TaskDetailPanel, те же контексты
+// Точка входа: тот же TasksWorkspace, те же контексты
 // маршрутизатора, что у серверного рендера выше. Навигация — заглушка (ссылки
 // не уходят со страницы).
 const CLIENT_ENTRY = `
@@ -422,17 +372,15 @@ import { createRoot } from "react-dom/client";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import { TasksWorkspace } from "../../src/components/v3/tasks/TasksWorkspace";
-import { TaskDetailPanel } from "../../src/components/v3/tasks/TaskDetailPanel";
 
 const fixture = JSON.parse(document.getElementById("${FIXTURE_ID}").textContent);
 // push записывается: Esc панели — это router.push(closeHref); проверка клавиш под «Отменить» его читает.
 const router = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, push(href) { (globalThis.__staticPushes ||= []).push(String(href)); }, replace() {}, prefetch() {} };
-const panel = fixture.panel ? createElement(TaskDetailPanel, fixture.panel) : null;
 createRoot(document.getElementById("${CLIENT_ROOT_ID}")).render(
   createElement(AppRouterContext.Provider, { value: router },
     createElement(PathnameContext.Provider, { value: "/v3/tasks" },
       createElement(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) },
-        createElement(TasksWorkspace, { ...fixture.props, panel })))),
+        createElement(TasksWorkspace, { ...fixture.props, panel: null })))),
 );
 // Два кадра: React зафиксировал дерево и выполнил эффекты (показ панели, прокрутка к строке).
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.clientRendered = "1"; }));
@@ -590,15 +538,6 @@ async function screenshots() {
       ["tasks-callback-dial-1440.png", DESKTOP, false, null],
       ["tasks-callback-dial-390.png", PHONE, false, null],
     ]],
-    ["tasks-panel", renderTasksPage("team-panel"), "team-panel", [
-      ["tasks-panel-1440.png", DESKTOP, false, null],
-      ["tasks-panel-1280.png", LAPTOP, false, null],
-      ["tasks-panel-mobile-390.png", PHONE, false, null],
-    ]],
-    ["tasks-panel-staff", renderTasksPage("team-panel-staff"), "team-panel-staff", [
-      ["tasks-panel-staff-1440.png", DESKTOP, false, null],
-      ["tasks-panel-staff-undo-keys-1440.png", DESKTOP, false, "undo-keys"],
-    ]],
     ["tasks-empty", renderTasksPage("empty-today"), "empty-today", [["tasks-empty-today-1440.png", DESKTOP, false, null]]],
     ["tasks-incomplete", renderTasksPage("incomplete"), "incomplete", [["tasks-incomplete-1440-full.png", DESKTOP, true, null]]],
     ["tasks-incomplete-empty", renderTasksPage("incomplete-empty-today"), "incomplete-empty-today", [
@@ -658,7 +597,7 @@ async function screenshots() {
           await page.click('[data-queue-list] [data-kind="staff"] button[aria-label^="Завершить: "]');
           await page.waitForSelector('[data-testid="v3-undo-toasts"]:popover-open [data-undo-row]');
         }
-        const keys = step === "undo-keys" ? await probeKeysUnderToast(page, clientScenario.endsWith("-panel-staff")) : null;
+        const keys = step === "undo-keys" ? await probeKeysUnderToast(page, false) : null;
         if (step === "filters") {
           await page.click('[data-testid="queue-toolbar"] button[aria-controls]');
         }
@@ -703,109 +642,14 @@ async function screenshots() {
   }
 }
 
-// --- F1 (Э7): одна боковая панель — путь по гидратированным «Задачам» ---------
-// Тот же TasksWorkspace и TaskDetailPanel; адрес — состояние стенда: push
-// открывает панель той же задачи (`?task=`) и закрывает её, как сервер.
-const F1_ENTRY = `
-import { createElement, useEffect, useState } from "react";
-import { createRoot } from "react-dom/client";
-import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
-import { TasksWorkspace } from "../../src/components/v3/tasks/TasksWorkspace";
-import { TaskDetailPanel } from "../../src/components/v3/tasks/TaskDetailPanel";
-
-const fixture = JSON.parse(document.getElementById("${FIXTURE_ID}").textContent);
-const listeners = new Set();
-const router = { back() {}, forward() {}, refresh() {}, hmrRefresh() {}, replace() {}, prefetch() {},
-  push(href) { (globalThis.__staticPushes ||= []).push(String(href)); for (const listener of listeners) listener(String(href)); } };
-const task = fixture.panel.data.task.id;
-function Host() {
-  const [open, setOpen] = useState(true);
-  useEffect(() => {
-    const listener = (href) => setOpen(new URL(href, "https://crm.invalid").searchParams.get("task") === task);
-    listeners.add(listener);
-    return () => { listeners.delete(listener); };
-  }, []);
-  const panel = open ? createElement(TaskDetailPanel, { key: task, ...fixture.panel }) : null;
-  return createElement(TasksWorkspace, { ...fixture.props, selectedKey: open ? fixture.props.selectedKey : null, panel });
-}
-createRoot(document.getElementById("${CLIENT_ROOT_ID}")).render(
-  createElement(AppRouterContext.Provider, { value: router },
-    createElement(PathnameContext.Provider, { value: "/v3/tasks" },
-      createElement(SearchParamsContext.Provider, { value: new URLSearchParams(fixture.search) }, createElement(Host)))),
-);
-requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.clientRendered = "1"; }));
-`;
-
-async function f1() {
-  const probe = require("./side-panel-probe.cjs");
-  const outIndex = process.argv.indexOf("--f1") + 1;
-  const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));
-  mkdirSync(outDir, { recursive: true });
-  const bundleName = "f1-tasks-client.js";
-  await require("esbuild").build({
-    stdin: { contents: F1_ENTRY, resolveDir: __dirname, sourcefile: "tasks-f1-entry.js", loader: "js" },
-    bundle: true, outfile: join(outDir, bundleName), format: "iife", platform: "browser", target: "chrome120", jsx: "automatic",
-    tsconfig: join(ROOT, "tsconfig.json"), define: { "process.env.NODE_ENV": '"production"' },
-    banner: { js: "var process = globalThis.process || { env: {} };" }, plugins: [probe.linkShim(ROOT), browserStubs], logLevel: "error",
-  });
-  const scenario = "team-panel";
-  const key = SCENARIOS[scenario].props.selectedKey;
-  const htmlPath = join(outDir, "f1-tasks.html");
-  const html = renderTasksPage(scenario);
-  const css = await compileCss();
-  writeFileSync(htmlPath, [
-    "<!DOCTYPE html>",
-    '<html lang="ru" data-theme="light" class="h-full antialiased">',
-    `<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Задачи — одна боковая панель (синтетические данные)</title><style>${css}</style></head>`,
-    `<body class="min-h-full">${html}<script type="application/json" id="${FIXTURE_ID}">${clientFixture(scenario)}</script><script src="${bundleName}"></script></body></html>`,
-  ].join(""));
-  const { chromium } = require("playwright");
-  const browser = await chromium.launch();
-  const failures = [];
-  try {
-    for (const [width, context] of probe.F1_WIDTHS) {
-      const browserContext = await browser.newContext(context);
-      const page = await browserContext.newPage();
-      const errors = [];
-      page.on("pageerror", (error) => errors.push(error.message));
-      page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
-      await page.goto(pathToFileURL(htmlPath).href, { waitUntil: "load" });
-      await page.evaluate(() => document.fonts.ready);
-      await page.waitForSelector("html[data-client-rendered]", { state: "attached", timeout: 10_000 });
-      await page.waitForTimeout(400);
-      await page.screenshot({ path: join(outDir, `f1-tasks-${width}.png`) });
-      const open = `[data-queue-row="${key}"] [data-queue-open]`;
-      const result = await probe.journey(page, {
-        selected: '[data-queue-row]:has([data-queue-open][aria-current="true"])',
-        returnSelector: open,
-        reopen: () => page.click(open),
-        scrolledPath: join(outDir, `f1-tasks-${width}-scrolled.png`),
-      });
-      if (errors.length) result.failures.push(`browser errors: ${errors.join(" | ")}`);
-      probe.report({ screen: "tasks", width, ...result });
-      failures.push(...result.failures.map((failure) => `tasks ${width}: ${failure}`));
-      await browserContext.close();
-    }
-  } finally {
-    await browser.close();
-  }
-  if (failures.length) throw new Error(`side panel (tasks): ${failures.length} failed:\n${failures.join("\n")}`);
-}
-
 if (process.argv.includes("--json")) {
   process.stdout.write(JSON.stringify(Object.keys(SCENARIOS).map((name) => ({ name, html: renderWorkspace(name) }))));
-} else if (process.argv.includes("--f1")) {
-  f1().catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
 } else if (process.argv.includes("--screenshots")) {
   screenshots().catch((error) => {
     console.error(error);
     process.exit(1);
   });
 } else {
-  console.error("usage: tasks-static-render.cjs --json | --screenshots [outDir] | --f1 [outDir]");
+  console.error("usage: tasks-static-render.cjs --json | --screenshots [outDir]");
   process.exit(2);
 }

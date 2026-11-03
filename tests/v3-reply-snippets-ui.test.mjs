@@ -261,7 +261,7 @@ test("picker and CRUD components keep insertion separate from sending", () => {
   assert.match(page, /KnowledgeLibrary/u);
   assert.match(page, /KnowledgeSnippets actor=\{actor\}/u);
   // Э8.10: первая загрузка — строки-заготовки листа, не текст «Загрузка…».
-  assert.match(page, /<Suspense fallback=\{<KnowledgeLibrarySkeleton \/>\}>/u);
+  assert.match(page, /<Suspense fallback=\{<PartShell title="База знаний"><KnowledgeLibrarySkeleton \/><\/PartShell>\}>/u);
   assert.doesNotMatch(page, /Загрузка базы знаний/u);
   assert.match(snippets, /readV3ReplySnippets\(actor\)/u);
   assert.match(snippets, /KnowledgeReplySnippetSection/u);

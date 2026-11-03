@@ -10,8 +10,8 @@
  * доступность и путь «строка → панель → действие».
  *
  *   node tests/e2e/admin-next-static-render.cjs --screenshots [outDir]
- *     → снимки Playwright Chromium 1440×900, 1280×800 и 390×844 и проверки (JSON-строки; при нарушении код 1); «до» — прежний вид на тех же данных
- *       (`legacy-*`). По умолчанию outDir — .impeccable/review (не коммитится). `--only a,b` — только эти страницы; `--flows-only` — только сценарии.
+ *     → снимки Playwright Chromium 1440×900, 1280×800 и 390×844 и проверки (JSON-строки; при нарушении код 1).
+ *       По умолчанию outDir — .impeccable/review (не коммитится). `--only a,b` — только эти страницы; `--flows-only` — только сценарии.
  */
 const { readFileSync, writeFileSync } = require("node:fs");
 const { join, resolve } = require("node:path");
@@ -83,7 +83,6 @@ async function buildBundle(outFile) {
       build.onLoad({ filter: /[\\/]src[\\/].+\.tsx?$/ }, (args) => {
         const source = readFileSync(args.path, "utf8");
         if (!/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/u.test(source)) return undefined;
-        if (args.path.endsWith("ui-next-actions.ts")) return { contents: "export async function setNextUiAction() {}", loader: "ts" };
         const names = [...source.matchAll(/export\s+(?:async\s+)?(?:function|const|let)\s+([A-Za-z0-9_$]+)/gu)].map((match) => match[1]);
         // Действия «сохраняют»: вызов и поля формы записаны, состояние возвращается как у настоящего (status: saved). «Показать ещё» отвечает готовой страницей.
         return {
@@ -115,10 +114,10 @@ async function buildBundle(outFile) {
 const SCREEN_OF = { settings: "settings", marketing: "marketing", finance: "finance", "ai-agent": "ai" };
 const PATH_OF = (route) => `/v3/${route}`;
 
-/** Страницы: имя → данные для браузера. `legacy-*` — прежний вид (разметка сервера) для снимков «до». */
+/** Страницы: имя → данные для браузера. */
 async function buildPages() {
   const { capture, SCREENS } = require("./admin-next-pages.cjs");
-  const { next, legacy } = await capture();
+  const { next } = await capture();
   const mark = (name) => name.replace(/^ai-/u, "ai-");
   const pages = {};
   // Ответ сервера на нажатие строки «Запросов на удаление»: страница с открытым запросом (и возврат к очереди).
@@ -137,10 +136,9 @@ async function buildPages() {
     const entry = next.get(name);
     pages[mark(name)] = {
       screen: SCREEN_OF[route], props: entry.props, search: entry.search, pathname: PATH_OF(route), org: fx.ORG, me: fx.ME, actor: fx.ADMIN,
-      routes: routes[name] ?? {}, legacyHtml: null,
+      routes: routes[name] ?? {},
       moreRows: name === "marketing-leads" ? [{ ...fx.marketing.LEADS_PAGE.rows[0], leadId: fx.id("44444444", 90), name: "Лид со второй страницы" }] : undefined,
     };
-    pages[`legacy-${mark(name)}`] = { ...pages[mark(name)], legacyHtml: legacy.get(name) };
   }
   return pages;
 }

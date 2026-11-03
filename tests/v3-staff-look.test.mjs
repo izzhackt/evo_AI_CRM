@@ -98,10 +98,10 @@ test("one look for every staff member: the staff layout marks its root, and the 
     assert.doesNotMatch(source, /data-look|evo_look_preview|readLookPreview|setLookPreviewAction|isNextLook|V3Look|data-shell-look/u, file);
   }
   // Карточки предпросмотра в «Настройки → Платформа» нет.
-  const sections = read("src/components/v3/settings/sections.tsx");
+  const sections = read("src/components/v3/settings-next/PlatformNext.tsx");
   assert.doesNotMatch(sections, /v3-look-preview|предпросмотр/iu);
   // «Платформа»: перенос данных и «Менеджеры в отчёте» (Э8.6) — ссылки, без предпросмотра облика.
-  assert.match(sections, /export function PlatformSection\(\{ platform, salesImportHref, salesManagersHref \}: \{ platform: string; salesImportHref\?: string; salesManagersHref\?: string \}\)/u);
+  assert.match(sections, /export function PlatformNext\(\{ platform, salesImportHref, salesManagersHref \}: Readonly<\{ platform: string; salesImportHref\?: string; salesManagersHref\?: string \}>\)/u);
 });
 
 test("the student portal keeps its look: it renders in .v3-world without the staff mark, on the unchanged base values", () => {

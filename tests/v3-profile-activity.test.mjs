@@ -79,7 +79,7 @@ test("the history reads the direction change as codes only, requires it on its e
     "src/components/v3/profile/tabs.tsx",
     "src/components/v3/profile/case-work-view.ts",
     "src/components/v3/knowledge/KnowledgeDossiers.tsx",
-    "src/components/v3/settings/sections.tsx",
+    "src/lib/v3/settings-next-journal.ts",
   ]) {
     const text = read(file);
     assert.match(text, /journalEventText\(/u, file);
@@ -87,7 +87,7 @@ test("the history reads the direction change as codes only, requires it on its e
   }
   assert.match(read("src/components/v3/profile/tabs.tsx"), /journalEventText\(entry\.transition, entry\.directionChange\)/u);
   assert.match(read("src/components/v3/profile/case-work-view.ts"), /journalEventText\(event\.transition, event\.directionChange\)/u);
-  assert.match(read("src/components/v3/settings/sections.tsx"), /journalEventText\(entry\.transition, entry\.directionChange\)/u);
+  assert.match(read("src/lib/v3/settings-next-journal.ts"), /journalEventText\(entry\.transition, entry\.directionChange\)/u);
 });
 
 test("the direction event in the history has wording, so the stream does not refuse the page", () => {

@@ -13,7 +13,9 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
 const DIR = "src/components/v3/knowledge";
 const files = readdirSync(new URL(`../${DIR}`, import.meta.url)).filter((name) => /\.(tsx|ts|css)$/u.test(name));
 const source = Object.fromEntries(files.map((name) => [name, read(`${DIR}/${name}`)]));
-const library = source["KnowledgeLibrary.tsx"];
+const nextDir = "src/components/v3/knowledge/next";
+const knowledgeData = read(`${nextDir}/useKnowledgeData.ts`);
+const knowledgeActions = read(`${nextDir}/useKnowledgeActions.ts`);
 const tree = source["KnowledgeTree.tsx"];
 
 test("dates are «ДД.ММ» and «ДД.ММ ЧЧ:ММ» in Bishkek time, the year only when it is not the current one", () => {
@@ -41,9 +43,7 @@ test("the staff look: tokens, neutral selection, no pink, no red checkboxes, no 
   assert.match(tree, /v3-choice/u);
   assert.match(tree, /aria-current=\{current \? "page" : undefined\}/u);
   assert.match(tree, /aria-current=\{!section && view === key \? "page" : undefined\}/u);
-  assert.match(library, /v3-choice/u);
-  // Отметки — нейтральные (RowSelect очереди и accent-fg).
-  assert.match(library, /<RowSelect /u);
+  // Отметки — нейтральные (accent-fg).
   assert.match(source["knowledge-look.ts"], /accent-fg/u);
   // Редактор: пять вставок — одно меню «Вставить ▾» рядом с переключателем «Режим», не пять кнопок в строке.
   assert.match(source["KnowledgeEditor.tsx"], /<TopLayerMenu label="Вставить"/u);
@@ -58,39 +58,12 @@ test("every CSS-module class the components use is defined", () => {
   }
 });
 
-test("one toolbar: search first, then «Создать ▾», then «⋯»; the only solid red is «Создать»", () => {
-  const toolbar = library.slice(library.indexOf('data-testid="knowledge-toolbar"'), library.indexOf("</TopLayerMenu>", library.indexOf('label="Ещё действия с базой знаний"')));
-  const order = ["Поиск по базе знаний", 'label="Создать"', 'label="Ещё действия с базой знаний"'].map((marker) => toolbar.indexOf(marker));
-  assert.ok(order.every((index) => index >= 0) && order[0] < order[1] && order[1] < order[2], `toolbar order ${order}`);
-  // «Загрузить файлы» — самое частое действие — стоит в «Создать ▾»; в «⋯» остальное: папка, выгрузки, перенос.
-  const create = toolbar.slice(toolbar.indexOf('label="Создать"'), toolbar.indexOf('label="Ещё действия с базой знаний"'));
-  const more = toolbar.slice(toolbar.indexOf('label="Ещё действия с базой знаний"'));
-  assert.ok(create.includes("Загрузить файлы"), "«Создать» has «Загрузить файлы»");
-  assert.ok(!more.includes("Загрузить файлы"), "«⋯» does not repeat «Загрузить файлы»");
-  for (const item of ["Загрузить папку", '"Выгрузить папку" : "Выгрузить раздел"', "Выгрузить всю базу", "Перенос локальной базы"]) {
-    assert.ok(more.includes(item), `«⋯» has ${item}`);
-  }
-  // «Создать» и загрузка — только в списке: в корзине, архиве и «На уточнении» они писали бы в корень раздела мимо открытого вида.
-  assert.match(toolbar, /\{view === "list" \? <TopLayerMenu label="Создать"/u);
-  assert.match(toolbar, /area !== "secrets" && view === "list" && <button[^>]*>.*Загрузить папку/u);
-  assert.match(toolbar, /area === "secrets"\s*\? <button[^>]*>.*Доступ<\/button>/u, "«Создать» in the secrets area offers «Доступ»");
-  assert.equal([...library.matchAll(/\bbtnCls\b/gu)].length, 2, "btnCls is imported once and used once (the «Создать» trigger)");
-  for (const name of ["KnowledgeLibrary.tsx", "KnowledgeImport.tsx", "KnowledgeProtectedImport.tsx", "KnowledgeExport.tsx"]) {
+test("local import and export dialogs keep their contract; export keeps its FileManager trigger", () => {
+  for (const name of ["KnowledgeImport.tsx", "KnowledgeProtectedImport.tsx", "KnowledgeExport.tsx"]) {
     assert.doesNotMatch(source[name], /<details|<summary/u, `${name} keeps a ▶ disclosure`);
   }
-  // Где искать — две кнопки выбора, только внутри папки и только при запросе поиска.
-  assert.match(library, /\{parentId && search\.trim\(\) \? <div role="group" aria-label="Где искать"/u);
-  assert.doesNotMatch(library, /<select aria-label="Область поиска"/u);
-});
-
-test("local import and «⋯» dialogs stay mounted in every view; export keeps its FileManager trigger", () => {
-  const root = library.slice(library.indexOf('return <div className="@container/kb'));
-  assert.match(root, /<KnowledgeImport open=\{importOpen\}/u);
-  assert.match(root, /<KnowledgeExport open=\{exportOpen === "scope"\}/u);
-  assert.match(root, /<KnowledgeExport open=\{exportOpen === "all"\}/u);
   assert.match(source["KnowledgeImport.tsx"], /<dialog ref=\{modal\}/u);
   // «· идёт» в «⋯» — пока идёт любой из двух переносов.
-  assert.match(library, /onRunningChange=\{setImportRunning\}/u);
   assert.match(source["KnowledgeImport.tsx"], /<KnowledgeProtectedImport onChanged=\{onChanged\} onRunningChange=\{setProtectedRunning\} \/>/u);
   assert.match(source["KnowledgeImport.tsx"], /onRunningChange\?\.\(active\.current\.normal \|\| active\.current\.protected\)/u);
   assert.match(source["KnowledgeProtectedImport.tsx"], /function setBusy\(value: boolean\) \{ setBusyState\(value\); onRunningChange\?\.\(value\); \}/u);
@@ -114,22 +87,21 @@ test("the tree draws only open branches, rows are a 44 px button and a 44 px lin
   assert.doesNotMatch(tree, /folders === null \? <KnowledgeTreeSkeleton/u);
   assert.match(tree, /const loading = folders === null && !folderError;/u);
   assert.match(tree, /\{folderError \? <div role="alert"[^>]*>\s*<p className="t-body-compact text-danger">Папки не загрузились\.<\/p>\s*<button type="button" onClick=\{onRetryFolders\} className=\{QUEUE_SECONDARY\}>Повторить<\/button>/u);
-  assert.match(library, /\}\)\(\)\.catch\(\(\) => \{ if \(!stopped\) setFolderError\(true\); \}\);\n\s*return \(\) => \{ stopped = true; \};\n\s*\}, \[refresh, folderAttempt\]\);/u, "a failed folders read sets its own error, not the table error");
-  assert.match(library, /folderError=\{folderError\} onRetryFolders=\{retryFolders\}/u);
   // «Секреты и доступы» — последний раздел.
   assert.deepEqual([...read("src/lib/knowledge-library-contract.ts").match(/KNOWLEDGE_AREAS = \[([^\]]+)\]/u)[1].matchAll(/"(\w+)"/gu)].map((match) => match[1]), ["internal", "clients", "raw", "secrets"]);
 });
 
 test("the redesign keeps URLs, commands and access unchanged", () => {
-  for (const key of ["area", "folder", "item", "view", "case"]) assert.match(library, new RegExp(`params\\.get\\("${key}"\\)`, "u"), `reads ?${key}=`);
+  for (const key of ["area", "folder", "item", "view", "case"]) assert.match(key === "case" ? read(`${nextDir}/KnowledgeNextLibrary.tsx`) : knowledgeData, new RegExp(`params\\.get\\("${key}"\\)`, "u"), `reads ?${key}=`);
   const page = read("src/app/(v3)/v3/knowledge/page.tsx");
   assert.match(page, /requireV3PageActor\("\/v3\/knowledge"\); requireKnowledgeAdmin\(actor\);/u);
   assert.match(page, /if \(query\.tab === "snippets"\) redirect\("\/v3\/knowledge\?section=snippets"\);/u);
   assert.match(read("src/app/(v3)/v3/documents/page.tsx"), /section=documents/u);
   assert.match(read("src/app/(v3)/v3/reply-snippets/page.tsx"), /section=snippets/u);
-  const ops = new Set([...Object.values(source).join("\n").matchAll(/\{ op: "([a-z_]+)"/gu)].map((match) => match[1]));
+  const nextSources = readdirSync(new URL(`../${nextDir}`, import.meta.url)).filter((name) => /\.(tsx|ts)$/u.test(name)).map((name) => read(`${nextDir}/${name}`));
+  const ops = new Set([...[...Object.values(source), ...nextSources].join("\n").matchAll(/\{ op: "([a-z_]+)"/gu)].map((match) => match[1]));
   assert.deepEqual([...ops].sort(), ["assign_case", "create", "edit", "move", "reserve_blob", "restore_version"]);
-  assert.match(library, /command\(\{ op, id: item\.id, expectedVersion: item\.version \}\)/u);
+  assert.match(knowledgeActions, /command\(\{ op, id: item\.id, expectedVersion: item\.version \}\)/u);
   assert.match(source["KnowledgeEditor.tsx"], /command\(\{ op: "edit", id: item\.id, expectedVersion: versionRef\.current,/u);
   assert.match(source["KnowledgeEditor.tsx"], /installKnowledgeEditorExitGuard\(/u);
   assert.match(source["KnowledgeSecret.tsx"], /setTimeout\(\(\) => setValue\(null\), 30_000\)/u);

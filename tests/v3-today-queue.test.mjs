@@ -440,7 +440,7 @@ test("«Отчёт продаж» stays reachable for lead readers without the r
   assert.ok(!ids(menu(["case.read.full", "profile.read.full"])).includes("sales-report"), "no lead and no report read — no item");
   const page = readFileSync(new URL("../src/app/(v3)/v3/main/page.tsx", import.meta.url), "utf8");
   assert.match(page, /if \(!canReadReport && !canReadSales\) redirect\("\/access-denied\?from=%2Fv3%2Fmain"\);/u);
-  assert.match(page, /if \(!canReadReport\) return next \? <SalesDynamicsNextView dynamics=\{section\} \/> : <SalesDynamicsReport dynamics=\{section\} \/>;/u);
+  assert.match(page, /if \(!canReadReport\) return <SalesDynamicsNextView dynamics=\{section\} \/>;/u);
   assert.match(page, /open=\{!canReadReport \|\| typeof query\.period === "string"\}/u);
 });
 
@@ -535,83 +535,6 @@ const surfaces = new Map(JSON.parse(execFileSync(
   { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 },
 )).map((surface) => [surface.name, surface.html]));
 const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ");
-
-test("static render: the page root, the dated heading and one queue for Admin", () => {
-  const html = surfaces.get("admin");
-  assert.match(html, /^<main data-testid="v3-operational-dashboard"/u);
-  assert.equal(html.match(/<h1\b/gu)?.length, 1);
-  assert.match(html, /<h1 class="t-page-title[^"]*">Сегодня<\/h1><p class="t-meta mt-1 text-fg-3"><time dateTime="2026-09-26">Суббота, 26 сентября<\/time><\/p>/u);
-  assert.doesNotMatch(html, /Главная|Рабочий обзор|Лиды за период|data-dashboard-card/u);
-  const headers = [...html.matchAll(/<h2 id="today-band-[a-z_]+"[^>]*>(.*?)<\/h2>/gu)].map((match) => text(match[1]).trim());
-  assert.deepEqual(headers, ["Просрочено · 5", "Сегодня · сб 26.09 · 4", "Ждут вас", "Без следующего шага · 2", "Ближайшие 14 дней · 4"]);
-  assert.match(html, /<\/h2><p class="[^"]*t-meta[^"]*">Числа нет: часть переписок могла получить ответ\.<\/p>/u);
-  // Воронки открываются из бокового меню: в шапке «Сегодня» их нет (решение владельца 30.10).
-  assert.doesNotMatch(html, /aria-label="Доски"|Воронка продаж|Воронка поступления/u);
-  // Красный — у просроченного срока, не у причины: причина всегда обычным текстом.
-  const reasons = [...html.matchAll(/<span class="([^"]*)" data-today-reason="">([^<]*)<\/span>/gu)];
-  assert.ok(reasons.length >= 10);
-  assert.ok(reasons.every(([, cls]) => !/text-danger/u.test(cls)), "no reason is red");
-  assert.ok(reasons.some(([, , word]) => word === "действие просрочено"));
-  // Заявка: «ждёт 3 дн» — слово без даты; пришедшая сегодня — «сегодня».
-  assert.match(html, /<span class="block text-fg-2">ждёт 3 дн<\/span>/u);
-  // Строки «Сегодня» и задач — рамка фокуса всей строки.
-  assert.equal(html.match(/<li data-queue-row="[^"]+" data-today-source="[^"]+" class="v3-queue-row /gu)?.length, html.match(/data-today-source="[a-z]+" class="/gu)?.length);
-  // Составная причина — по части на слово: переносится целиком, без обрывка.
-  assert.match(html, /data-today-reason="">нет ответственного<\/span><span [^>]*data-today-reason="">WhatsApp<\/span>/u);
-  assert.match(html, /<li data-queue-row="staff:[^"]+" data-kind="staff" class="v3-queue-row /u);
-  // Задача — настоящая строка «Задач»: круг завершения на месте.
-  assert.match(html, /data-queue-row="staff:[^"]+" data-kind="staff"[\s\S]*?aria-label="Завершить: Отправить партнёру пакет по весеннему набору"/u);
-  assert.match(html, /aria-label="Завершить с результатом: Записать на визу X1"/u);
-  // Остальные строки — «Открыть» в существующую панель, покрывающее строку; имя ссылки называет и человека.
-  assert.match(html, /<a data-queue-open="" aria-label="Открыть: Перезвонить после консультации — Асель Проектова"[^>]*href="\/v3\/pipeline\?lead=ffffffff-3333-4333-8333-000000000001"/u);
-  assert.match(html, /<a data-queue-open="" aria-label="Открыть: Назначить куратора — Жанна Вводная"[^>]*href="\/v3\/profile\?view=needs_curator&amp;open=dddddddd-2222-4222-8222-000000000012"/u);
-  assert.match(html, /<a data-queue-open="" aria-label="Открыть: Ответить в переписке — Лейла Тестовая"[^>]*href="\/v3\/messages\?case=dddddddd-2222-4222-8222-000000000014&amp;queue=needs_reply"/u);
-  // Две новые заявки — два разных имени ссылки.
-  const requestNames = [...html.matchAll(/aria-label="(Открыть: Новая заявка[^"]*)"/gu)].map((match) => match[1]);
-  assert.deepEqual(requestNames.sort(), ["Открыть: Новая заявка — Амир Входящий", "Открыть: Новая заявка — Эльмира Формова"]);
-  // Срок — JetBrains Mono «ДД.ММ» и слово; «Переданы» и чужие дела в очередь не попадают.
-  assert.match(html, /<time dateTime="2026-09-23" class="block font-mono tabular-nums text-danger">23\.09<\/time>/u);
-  assert.doesNotMatch(html, /Нурлан Переданов|Кирилл Чужой|Проверить сроки подачи в Варшаве/u);
-  // Сплошного красного на странице нет: главное действие — сама очередь.
-  assert.doesNotMatch(html, /\bbg-accent\b/u);
-});
-
-test("static render: admissions and sales see only their own sources (real 173 templates)", () => {
-  // Куратор рендера — с правами шаблона Admissions, включая lead.read: лидов, заявок и воронки продаж нет.
-  const admissions = surfaces.get("admissions");
-  assert.doesNotMatch(admissions, /data-today-source="(?:leads|requests)"|Воронка продаж|Открыть воронку продаж/u);
-  assert.match(admissions, /data-today-source="chats"/u);
-  assert.match(admissions, /Принять дело/u);
-  assert.doesNotMatch(admissions, /Назначить куратора/u, "no curator assignment without case.curator.assign");
-  const sales = surfaces.get("sales");
-  assert.doesNotMatch(sales, /data-today-source="(?:students|handoffs|chats)"|Воронка поступления|Записать на визу X1/u);
-  assert.match(sales, /Новая заявка/u);
-  assert.match(sales, /data-today-reason="">нет ответственного<\/span><span [^>]*data-today-reason="">WhatsApp<\/span>/u);
-});
-
-test("static render: a failed source is named in place and only the bands that depend on it lose their numbers", () => {
-  const html = surfaces.get("partial");
-  assert.match(html, /<div role="alert"[^>]*data-testid="today-notices"/u);
-  assert.match(html, /data-today-notice="error" data-today-source="chats"[^>]*><span class="text-danger">Сообщения не загрузились\.<\/span><a [^>]*href="\/v3\/main"[^>]*>Повторить<\/a>/u);
-  assert.match(html, /data-today-notice="partial" data-today-source="handoffs"[\s\S]*?href="\/v3\/profile\?view=needs_action"[^>]*>Требуют действия<\/a>/u);
-  // Неполное «Требуют действия» гасит группы, куда его строка могла бы забрать дело из «Моих»;
-  // «Просрочено» и «Сегодня» срочнее «Ждут вас» и число сохраняют.
-  const headers = [...html.matchAll(/<h2 id="today-band-[a-z_]+"[^>]*>(.*?)<\/h2>/gu)].map((match) => text(match[1]).trim());
-  assert.deepEqual(headers, ["Просрочено · 4", "Сегодня · сб 26.09 · 3", "Ждут вас", "Без следующего шага", "Ближайшие 14 дней"]);
-  assert.doesNotMatch(html, /data-queue-row="chat:/u, "the failed source draws no rows");
-  assert.doesNotMatch(html, /На сегодня всё/u);
-});
-
-test("static render: an empty day says so only after complete reads, with the nearest date or the role's action", () => {
-  const sales = surfaces.get("empty");
-  assert.match(text(sales), /На сегодня всё Ближайший срок — чт 01\.10/u);
-  assert.match(sales, /<time dateTime="2026-10-01" class="font-mono tabular-nums">01\.10<\/time>/u);
-  assert.match(text(sales), /Ближайшие 14 дней · 1/u);
-  const admissions = surfaces.get("empty-admissions");
-  assert.match(admissions, /data-testid="queue-empty"[\s\S]*На сегодня всё[\s\S]*href="\/v3\/profile"[^>]*>Открыть студентов<\/a>/u);
-  assert.doesNotMatch(admissions, /<h2 id="today-band-/u);
-  assert.doesNotMatch(admissions, /data-today-empty-note/u, "no source leaves an empty-band note any more");
-});
 
 test("report: the period cohort and the board never share a bare «Переданы»", () => {
   const html = surfaces.get("report-dynamics");

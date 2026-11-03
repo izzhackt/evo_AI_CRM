@@ -1,11 +1,11 @@
 import { SkeletonBlock } from "@/components/ui";
-import { PartShell } from "@/components/v3/PartShell";
+import { PageShell } from "@/components/kit";
 
 /** Каркас доски: строка инструментов, 6 рабочих колонок и рейка «Переданы». */
 export default function PipelineLoading() {
   return (
-    <PartShell width="board" title="Воронка продаж">
-      <div aria-busy="true" className="flex min-h-0 flex-1 flex-col gap-3">
+    <PageShell title="Воронка продаж">
+      <div aria-busy="true" className="flex flex-col gap-3">
         <p role="status" className="sr-only">Загружаем воронку…</p>
         <div className="flex flex-wrap gap-3">
           <SkeletonBlock className="h-11 w-full max-w-[30rem]" />
@@ -19,6 +19,6 @@ export default function PipelineLoading() {
           <SkeletonBlock className="hidden h-full @6xl:block" />
         </div>
       </div>
-    </PartShell>
+    </PageShell>
   );
 }

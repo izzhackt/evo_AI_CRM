@@ -1,10 +1,10 @@
 import { SkeletonBlock } from "@/components/ui";
-import { PartShell } from "@/components/v3/PartShell";
+import { PageShell } from "@/components/kit";
 
 /** Загрузка каталога — волосяные строки таблицы (Э6), а не плитки карточек. */
 export default function UniversitiesLoading() {
   return (
-    <PartShell title="Университеты">
+    <PageShell title="Университеты">
       <div aria-busy="true" className="flex flex-col gap-3">
         <p role="status" className="t-body-compact text-fg-2">Загружаем каталог…</p>
         <SkeletonBlock className="h-11 w-full max-w-3xl" />
@@ -17,6 +17,6 @@ export default function UniversitiesLoading() {
           ))}
         </ul>
       </div>
-    </PartShell>
+    </PageShell>
   );
 }

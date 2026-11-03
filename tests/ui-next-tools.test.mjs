@@ -139,16 +139,14 @@ test("поля форм и серверные действия те же, что
   assert.match(nextSnippets, /replySnippetRowFormKey\(/u, "форма строки перерождается с новыми request_id");
 });
 
-test("«База знаний»: команды и чтения те же, что у прежней библиотеки (те же `op`, те же адреса `/api/v3/knowledge`)", () => {
-  const legacy = read("src/components/v3/knowledge/KnowledgeLibrary.tsx");
+test("«База знаний»: команды и чтения — те же `op` и те же адреса `/api/v3/knowledge`", () => {
   const next = ["useKnowledgeData", "useKnowledgeActions"].map((name) => read(`src/components/v3/knowledge/next/${name}.ts`)).join("\n");
   const ops = (source) => [...new Set(all(source, /\bop(?:: |\s*=\s*)"(\w+)"|\bop: "(\w+)"/gu).concat(all(source, /\{ op, id: item\.id/gu).map(() => "dynamic")))].sort();
   for (const op of ["trash", "restore", "archive", "unarchive", "create", "edit", "move"]) {
-    assert.ok(legacy.includes(`"${op}"`), `прежняя библиотека знает ${op}`);
     assert.ok(next.includes(`"${op}"`), `новая знает ${op}`);
   }
   assert.ok(ops(next).length > 0);
-  for (const route of ["list?", "item/", "mode: \"folders\"", "limit: \"200\"", "afterTitle", "afterId"]) assert.ok(next.includes(route) && legacy.includes(route), `чтение: ${route}`);
+  for (const route of ["list?", "item/", "mode: \"folders\"", "limit: \"200\"", "afterTitle", "afterId"]) assert.ok(next.includes(route), `чтение: ${route}`);
   assert.match(next, /configureKnowledgeCommands\(commandScope\)/u, "команды помнят область запросов как раньше");
   assert.match(next, /setTimeout\([\s\S]*search \? 250 : 0/u, "поиск с задержкой 250 мс, как раньше");
   assert.match(read("src/components/v3/knowledge/next/LibraryToolbar.tsx"), /type="search" maxLength=\{240\}/u);

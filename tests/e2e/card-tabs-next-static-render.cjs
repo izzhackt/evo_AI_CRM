@@ -173,30 +173,27 @@ function body(scenario, legacy = false) {
 
 function closedScenario() {
   const { ProfileNextShell } = src("components/v3/profile/next/ProfileNextShell.tsx");
-  const { PartShell } = src("components/v3/PartShell.tsx");
   const { Icon } = src("components/icons.tsx");
   const { ClosedLeadNext } = optional("components/v3/profile/next/tabs/ClosedLeadNext.tsx") ?? {};
-  const { ClosedLeadView } = src("components/v3/closure/ClosedLeadView.tsx");
   const back = h("a", { href: "/v3/pipeline", className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2" }, h(Icon, { name: "arrow-left", size: 16 }), "Воронка продаж");
   const row = fx.CLOSED_LEAD;
   return { name: "lead-closed", actor: leads.ADMIN, title: row.name, search: `id=${LEAD_ID}`, def: { tab: "closed", agreement: null }, closed: row,
-    html: () => h(ProfileNextShell, { title: row.name, back }, h("div", { className: "space-y-4" }, h(ClosedLeadNext, { row, readOnly: false }))),
-    legacyHtml: () => h(PartShell, { title: row.name, count: null, dense: true, back }, h("div", { className: "space-y-6" }, h(ClosedLeadView, { row, readOnly: false }))) };
+    html: () => h(ProfileNextShell, { title: row.name, back }, h("div", { className: "space-y-4" }, h(ClosedLeadNext, { row, readOnly: false }))) };
 }
 
 function worldPage(scenario, legacy = false) {
   const { AppShell } = src("components/v3/AppShell.tsx");
-  const node = scenario.html ? (legacy ? scenario.legacyHtml() : scenario.html()) : body(scenario, legacy);
+  const node = scenario.html ? scenario.html() : body(scenario, legacy);
   if (legacy) return h("div", { className: "v3-world", "data-surface": "staff" }, h(AppShell, { actor: scenario.actor, initialNotifications: null }, node));
-  return h("div", { className: "v3-world", "data-surface": "staff", "data-ui": "next" }, h(AppShell, { actor: scenario.actor, initialNotifications: null, nextUi: { enabled: true } }, node));
+  return h("div", { className: "v3-world", "data-surface": "staff", "data-ui": "next" }, h(AppShell, { actor: scenario.actor, initialNotifications: null }, node));
 }
 
 const all = () => [...scenarios(), closedScenario()];
 
 if (process.argv.includes("--json-legacy")) {
   // Только прежний вид тех же сценариев (без `nextUi`): байт в байт сравнивается с базовым коммитом.
-  process.stdout.write(JSON.stringify(all().map((scenario) => ({ name: scenario.name,
-    html: renderToStaticMarkup(inContexts(scenario.html ? scenario.legacyHtml() : body(scenario, true), "/v3/profile", scenario.search)) }))));
+  process.stdout.write(JSON.stringify(all().filter((scenario) => !scenario.html).map((scenario) => ({ name: scenario.name,
+    html: renderToStaticMarkup(inContexts(body(scenario, true), "/v3/profile", scenario.search)) }))));
 } else if (process.argv.includes("--page-json")) {
   require("./card-tabs-page.cjs").pageHtml({ fx, leads, scenarios: all(), prepare: (scenario) => { current = scenario.def; } })
     .then((pages) => process.stdout.write(JSON.stringify(pages)))
@@ -206,7 +203,8 @@ if (process.argv.includes("--json-legacy")) {
     const pathname = "/v3/profile";
     const render = (legacy) => {
       try {
-        return renderToStaticMarkup(inContexts(scenario.html ? (legacy ? scenario.legacyHtml() : scenario.html()) : body(scenario, legacy), pathname, scenario.search));
+        if (legacy && scenario.html) return null; // у закрытого лида прежнего вида больше нет
+        return renderToStaticMarkup(inContexts(scenario.html ? scenario.html() : body(scenario, legacy), pathname, scenario.search));
       } catch (error) {
         throw new Error(`${scenario.name} (${legacy ? "прежний" : "новый"} вид): ${error.message}`, { cause: error });
       }

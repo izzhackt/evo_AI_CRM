@@ -10,8 +10,6 @@
  *   node tests/e2e/admin-next-pages.cjs --json
  *     → stdout: JSON [{ name, html | rejected }] — разметка страницы без оболочки (для tests/ui-next-admin.test.mjs).
  *       Свойства ленивых входов нового вида проверяются на сериализацию (`assertFlightProps`): не сериализуются — бросает.
- *   node tests/e2e/admin-next-pages.cjs --legacy-json
- *     → то же для прежнего вида без cookie (администратор): разметка для сравнения с базовым коммитом байт в байт.
  */
 const env = require("./admin-next-env.cjs");
 require("./next-dynamic-alias.cjs");
@@ -61,9 +59,6 @@ async function settle(node, { attempts = 40, waitMs = 15 } = {}) {
   throw new Error("разметка не устоялась");
 }
 
-let nextCookie = false;
-require("next/headers").cookies = async () => ({ get: (name) => (name === "evo_ui" && nextCookie ? { name, value: "next" } : undefined) });
-
 const AsyncFunction = (async () => {}).constructor;
 async function resolveServer(node) {
   if (Array.isArray(node)) return Promise.all(node.map(resolveServer));
@@ -75,7 +70,7 @@ async function resolveServer(node) {
   return Array.isArray(resolved) ? cloneElement(node, undefined, ...resolved) : cloneElement(node, undefined, resolved);
 }
 
-const MODES = [["admin-cookie", fx.ADMIN, true], ["admin-no-cookie", fx.ADMIN, false], ["preview-cookie", fx.PREVIEW, true], ["staff-cookie", fx.STAFF, true]];
+const MODES = [["admin-cookie", fx.ADMIN], ["admin-no-cookie", fx.ADMIN], ["preview-cookie", fx.PREVIEW], ["staff-cookie", fx.STAFF]];
 const S = fx.settings;
 const ai = aiFx.build();
 let who = fx.ADMIN;
@@ -181,9 +176,8 @@ const pathOf = (route) => `/v3/${route}`;
 async function renderAll(modes) {
   const out = [];
   await env.withFixedDate(async () => {
-    try {
-      for (const [mode, actor, cookie] of modes) {
-        nextCookie = cookie;
+    {
+      for (const [mode, actor] of modes) {
         who = actor;
         for (const [name, route, query, over] of SCREENS) {
           Object.assign(scenario, DEFAULTS, over);
@@ -192,7 +186,7 @@ async function renderAll(modes) {
           try {
             const element = await page(route)({ searchParams: Promise.resolve(query) });
             const resolved = await resolveServer(element);
-            if (cookie && actor.systemRole === "admin" && !actor.presentationRole) assertFlightProps(resolved.props, `${label}: ленивый вход`);
+            if (actor.systemRole === "admin" && !actor.presentationRole) assertFlightProps(resolved.props, `${label}: ленивый вход`);
             out.push({ name: label, html: await settle(withContexts(resolved, pathOf(route), new URLSearchParams(query).toString())) });
           } catch (error) {
             const text = String(error?.digest ?? error?.message ?? error);
@@ -202,8 +196,6 @@ async function renderAll(modes) {
           }
         }
       }
-    } finally {
-      nextCookie = false;
     }
   });
   return out;
@@ -211,13 +203,11 @@ async function renderAll(modes) {
 
 /**
  * Свойства, которые страница отдаёт ленивому входу нового вида (администратор с cookie): их же берёт стенд Chromium, чтобы рисовать настоящие
- * компоненты на настоящих данных страницы. Ключ — имя экрана; `legacy` — разметка прежнего вида (администратор без cookie) для снимков «до».
+ * компоненты на настоящих данных страницы. Ключ — имя экрана.
  */
 async function capture() {
   const next = new Map();
-  const legacy = new Map();
   await env.withFixedDate(async () => {
-    nextCookie = true;
     who = fx.ADMIN;
     for (const [name, route, query, over] of SCREENS) {
       Object.assign(scenario, DEFAULTS, over);
@@ -227,15 +217,8 @@ async function capture() {
       assertFlightProps(resolved.props, `${name}: ленивый вход`);
       next.set(name, { route, props: JSON.parse(JSON.stringify(resolved.props)), search: new URLSearchParams(query).toString() });
     }
-    nextCookie = false;
-    for (const [name, route, query, over] of SCREENS) {
-      Object.assign(scenario, DEFAULTS, over);
-      uuidCounter = 0;
-      const element = await page(route)({ searchParams: Promise.resolve(query) });
-      legacy.set(name, await settle(withContexts(await resolveServer(element), pathOf(route), new URLSearchParams(query).toString())));
-    }
   });
-  return { next, legacy };
+  return { next };
 }
 
 module.exports = { SCREENS, MODES, renderAll, capture };
@@ -243,7 +226,6 @@ module.exports = { SCREENS, MODES, renderAll, capture };
 if (require.main === module) {
   (async () => {
     if (process.argv.includes("--json")) process.stdout.write(JSON.stringify(await renderAll(MODES)));
-    else if (process.argv.includes("--legacy-json")) process.stdout.write(JSON.stringify(await renderAll([MODES[1], MODES[3]])));
-    else throw new Error("usage: node tests/e2e/admin-next-pages.cjs --json | --legacy-json");
+    else throw new Error("usage: node tests/e2e/admin-next-pages.cjs --json");
   })().catch((error) => { console.error(error); process.exit(1); });
 }

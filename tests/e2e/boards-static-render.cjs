@@ -133,14 +133,10 @@ Module._resolveFilename = function patchedResolve(request, ...rest) {
 };
 
 const { createElement } = require("react");
-const { renderToStaticMarkup, renderToString } = require("react-dom/server");
+const { renderToString } = require("react-dom/server");
 
-// Страница спрашивает `isNextUi` (cookie «Нового вида»): вне запроса `cookies()` не работает. Сценарий с `ui: "next"` приносит
-// cookie `evo_ui=next`; без него cookie нет — прежний вид, как и было.
-let currentUi = null;
-require("next/headers").cookies = async () => ({
-  get: (name) => (name === "evo_ui" && currentUi === "next" ? { name, value: "next" } : undefined),
-});
+// Вне запроса `cookies()` не работает; страницы досок не читают cookie, поэтому заглушка пустая.
+require("next/headers").cookies = async () => ({ get: () => undefined });
 const { AppRouterContext } = require("next/dist/shared/lib/app-router-context.shared-runtime");
 const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/hooks-client-context.shared-runtime");
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
@@ -211,21 +207,20 @@ const SCENARIOS = {
 };
 
 /**
- * «Новый вид» (27.10.2026): те же синтетические данные, но с cookie `evo_ui=next`. Администратор получает вкладки, колонки-карточки
- * и панель; сотрудник, просмотр роли и администратор без cookie — прежнюю разметку (`legacy-*` сценарии должны совпасть с ней
- * байт в байт: `tests/ui-next-pipelines.test.mjs`).
+ * «Новый вид» (27.10.2026): вкладки, колонки-карточки и панель. Он один для всех ролей; имена сценариев «cookie» / «no-cookie»
+ * прежние (их читают тесты) и рисуют один и тот же вид.
  */
 const NEXT_BASES = ["sales", "sales-panel", "sales-focus", "sales-handed", "sales-mine", "sales-search", "sales-volume", "sales-closed", "admissions", "admissions-visa",
   "admissions-curator", "admissions-first-empty", "admissions-stage"];
 const NEXT_SCENARIOS = {
-  ...Object.fromEntries(NEXT_BASES.map((name) => [`next-${name}`, { ...SCENARIOS[name], ui: "next" }])),
+  ...Object.fromEntries(NEXT_BASES.map((name) => [`next-${name}`, { ...SCENARIOS[name] }])),
   // Чтение лидов оборвано на пределе страниц (4000+ лидов): числа у «Воронки продаж» нет ни в заголовке, ни у вкладки «Все этапы».
-  "next-sales-truncated": { ...SCENARIOS.sales, rows: "truncated", ui: "next" },
-  // Три других мира: сотрудник и просмотр роли с тем же cookie и администратор без него — прежний вид.
+  "next-sales-truncated": { ...SCENARIOS.sales, rows: "truncated" },
+  // Другие миры: сотрудник, просмотр роли и администратор (имена прежние).
   ...Object.fromEntries(["sales", "sales-closed", "admissions"].flatMap((name) => [
-    [`staff-cookie-${name}`, { ...SCENARIOS[name], ui: "next", actor: "staff" }],
+    [`staff-cookie-${name}`, { ...SCENARIOS[name], actor: "staff" }],
     [`staff-no-cookie-${name}`, { ...SCENARIOS[name], actor: "staff" }],
-    [`preview-cookie-${name}`, { ...SCENARIOS[name], ui: "next", actor: "preview" }],
+    [`preview-cookie-${name}`, { ...SCENARIOS[name], actor: "preview" }],
     [`preview-no-cookie-${name}`, { ...SCENARIOS[name], actor: "preview" }],
     [`admin-no-cookie-${name}`, { ...SCENARIOS[name] }],
   ])),
@@ -236,24 +231,21 @@ Object.assign(SCENARIOS, NEXT_SCENARIOS);
  * Одна страница в оболочке. `randomUUID()` страницы на время рендера
  * предсказуем (та же последовательность, что в браузере при гидратации).
  */
-async function renderPageTree(pageKey, search, { loading = false, rows = "default", ui = null, actor = "admin" } = {}) {
+async function renderPageTree(pageKey, search, { loading = false, rows = "default", actor = "admin" } = {}) {
   const { pathname, module, loading: loadingModule } = PAGES[pageKey];
   const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
   selectSalesRows(rows);
   setActor(actor);
-  currentUi = ui;
   const originalUuid = nodeCrypto.randomUUID;
   nodeCrypto.randomUUID = syntheticUuids();
   try {
     const content = loading
       ? createElement(require(join(ROOT, loadingModule)).default)
       : await require(join(ROOT, module)).default({ searchParams: Promise.resolve(Object.fromEntries(new URLSearchParams(search))) });
-    // `data-ui="next"` ставит layout `(v3)` только настоящему администратору с cookie; здесь — по сценарию, где это решила
-    // настоящая `isNextUi` страницы (стенд не знает правила: он смотрит, что нарисовала страница).
-    const nextRoot = ui === "next" && actor === "admin";
+    // `data-ui="next"` ставит layout `(v3)` у всех ролей.
     const tree = createElement(
       "div",
-      { className: "v3-world", "data-surface": "staff", "data-ui": nextRoot ? "next" : undefined },
+      { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
       createElement(AppShell, { actor: ACTORS[actor], initialNotifications: null }, content),
     );
     return withContexts(tree, pathname, search);
@@ -261,7 +253,6 @@ async function renderPageTree(pageKey, search, { loading = false, rows = "defaul
     nodeCrypto.randomUUID = originalUuid;
     selectSalesRows("default");
     setActor("admin");
-    currentUi = null;
   }
 }
 
@@ -269,7 +260,7 @@ async function renderScenario(name) {
   const { page, search, ...options } = SCENARIOS[name];
   const node = await renderPageTree(page, search, options);
   // Новый вид страница подгружает лениво: рисуем, пока разметка не устоится.
-  return options.ui === "next" && (options.actor ?? "admin") === "admin" ? renderSettled(node) : renderToStaticMarkup(node);
+  return renderSettled(node);
 }
 
 /**
@@ -288,10 +279,9 @@ async function nextProps() {
   };
   const out = {};
   for (const [name, lazy] of [["next-sales", PipelineNextLazy], ["next-sales-panel", PipelineNextLazy], ["next-sales-closed", PipelineClosedNextLazy], ["next-admissions", AdmissionsPipelineNextLazy], ["next-admissions-visa", AdmissionsPipelineNextLazy]]) {
-    const scenario = SCENARIOS[name] ?? { ...SCENARIOS[name.replace("next-", "")], ui: "next" };
+    const scenario = SCENARIOS[name] ?? { ...SCENARIOS[name.replace("next-", "")] };
     const { pathname, module } = PAGES[scenario.page];
     setActor("admin");
-    currentUi = "next";
     const originalUuid = nodeCrypto.randomUUID;
     nodeCrypto.randomUUID = syntheticUuids();
     try {
@@ -303,7 +293,6 @@ async function nextProps() {
     } finally {
       nodeCrypto.randomUUID = originalUuid;
       setActor("admin");
-      currentUi = null;
     }
   }
   process.stdout.write(JSON.stringify(out));
@@ -641,7 +630,7 @@ async function bundleHydration() {
       }));
       build.onResolve({ filter: /^next\/link$/ }, () => ({ path: "next-link", namespace: "link" }));
       build.onLoad({ filter: /.*/, namespace: "link" }, () => ({ contents: LINK_SHIM, resolveDir: ROOT, loader: "js" }));
-      // Страницы досок спрашивают `isNextUi` (cookie «Нового вида»): в браузерной сборке cookie нет — прежний вид. `next/dynamic` — версия
+      // Страницы досок не читают cookie: заглушка пустая. `next/dynamic` — версия
       // для App Router, как в сборке Next (страницы импортируют ленивые входы нового вида).
       build.onResolve({ filter: /^next\/headers$/ }, () => ({ path: "headers", namespace: "headers" }));
       build.onLoad({ filter: /.*/, namespace: "headers" }, () => ({ contents: "module.exports = { cookies: async () => ({ get: () => undefined }) };", loader: "js" }));

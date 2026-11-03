@@ -23,7 +23,10 @@ const v3SettingsPageSource = readFileSync(
   "utf8",
 );
 const v3SettingsSectionsSource = readFileSync(
-  new URL("../src/components/v3/settings/sections.tsx", import.meta.url),
+  new URL("../src/components/v3/settings-next/JournalNext.tsx", import.meta.url),
+  "utf8",
+) + readFileSync(
+  new URL("../src/lib/v3/settings-next-journal.ts", import.meta.url),
   "utf8",
 );
 const v3SettingsTypesSource = readFileSync(
@@ -138,7 +141,7 @@ test("V3 exposes the canonical audit export only on the Admin journal surface", 
     /const journalFilters = \{ objectType: params\.object, role: params\.role \}/,
   );
   assert.match(v3SettingsPageSource, /auditExportEnabled: readAuditExportEnabled\(\)/);
-  assert.match(v3SettingsSectionsSource, /\{exportEnabled \? \(\s*<Card title="Экспорт журнала">/);
+  assert.match(v3SettingsSectionsSource, /\{props\.exportEnabled \? \(\s*<WidgetCard\s+headingLevel=\{3\}\s+title="Экспорт журнала"/);
   assert.match(v3SettingsSource, /return isPlatformP7AAuditEnabled\(environment\)/);
   assert.match(v3SettingsSectionsSource, /action="\/api\/platform-audit\/export"/);
   assert.match(auditExportRouteSource, /actor\.actor\.systemRole !== "admin"/);
@@ -159,18 +162,18 @@ test("V3 posts the exact bounded export contract without inventing a role filter
     v3SettingsSectionsSource,
     /encType="application\/x-www-form-urlencoded"/,
   );
-  assert.match(v3SettingsSectionsSource, /name="request_id" value=\{randomUUID\(\)\}/);
+  assert.match(v3SettingsSectionsSource, /name="request_id" value=\{props\.exportRequestId\}/);
   assert.match(
     v3SettingsSectionsSource,
-    /name="start_at" value=\{exportStartAt\.toISOString\(\)\}/,
+    /name="start_at" value=\{props\.exportStartAt\}/,
   );
   assert.match(
     v3SettingsSectionsSource,
-    /name="end_at" value=\{exportEndAt\.toISOString\(\)\}/,
+    /name="end_at" value=\{props\.exportEndAt\}/,
   );
   assert.match(
     v3SettingsSectionsSource,
-    /name="resource_types" value=\{active\.objectType\}/,
+    /name="resource_types" value=\{props\.exportObjectType\}/,
   );
   assert.doesNotMatch(v3SettingsSectionsSource, /<input[^>]+name="role"/);
   assert.match(v3SettingsSectionsSource, /30 \* 24 \* 60 \* 60 \* 1_000/);

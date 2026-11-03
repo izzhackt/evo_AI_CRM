@@ -995,8 +995,7 @@ test("env: the broker secret is optional, well-formed and distinct from the agen
 // ------------------------------------------------------------ UI source
 
 test("UI: five tabs with the review count, the upload copy, viewer, review sheet and lab; no Storage path in client code", () => {
-  const views = read("src/components/v3/ai-agent/AiAgentViews.tsx");
-  assert.match(views, /count: tab\.key === "review" \? reviewOpenCount : null/u);
+  const views = read("src/components/v3/ai-agent-next/AiDocumentSheet.tsx");
   assert.match(views, /Новая версия обрабатывается — пока ищется прежняя\./u);
   assert.match(views, /Это материал компании — продолжить/u);
   const upload = read("src/components/v3/ai-agent/AiDocumentUpload.tsx");
@@ -1009,7 +1008,7 @@ test("UI: five tabs with the review count, the upload copy, viewer, review sheet
   assert.equal(isConnectedPlatformApi(aiCropHref(ID(1), ID(30))), true);
   const viewer = read("src/components/v3/ai-agent/AiDocumentViewer.tsx");
   assert.match(viewer, /aiPageImageHref\(document\.id, page\.pageNo\)/u);
-  const review = read("src/components/v3/ai-agent/AiReviewSheet.tsx") + read("src/components/v3/ai-agent/AiReviewItemActions.tsx");
+  const review = read("src/components/v3/ai-agent-next/AiReviewItemSheet.tsx") + read("src/components/v3/ai-agent-next/AiReviewNext.tsx") + read("src/components/v3/ai-agent/AiReviewItemActions.tsx");
   for (const word of ["Первое чтение", "Второе чтение", "Проверка фрагмента", "Предложено", "Подтвердить", "Исправить", "Оставить как есть", "Открыть снова", "Исправление применяется…", "Всё сверено"]) {
     assert.ok(review.includes(word), word);
   }

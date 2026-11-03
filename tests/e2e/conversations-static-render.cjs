@@ -324,7 +324,7 @@ function shellTree({ actor, pathname, search, body, cabinet, chatApp = null }) {
     ? h(require(join(ROOT, "src/components/v3/PartShell.tsx")).PartShell, chatApp.main,
       h(require(join(ROOT, "src/components/v3/Inbox.tsx")).Inbox, chatApp.inbox))
     : cabinet
-    ? h(require(join(ROOT, "src/components/v3/ConversationsMain.tsx")).ConversationsMain, cabinet.main,
+    ? h(require(join(ROOT, "src/components/v3/chats-next/ChatPageShell.tsx")).ChatPageShell, { variant: "messages", ...cabinet.main },
       h(require(join(ROOT, "src/components/v3/case-chat/CaseChatThread.tsx")).CaseChatWorkspace, cabinet.workspace))
     : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: body } });
   return withContexts(
@@ -378,7 +378,7 @@ const { PathnameContext, SearchParamsContext } = require("next/dist/shared/lib/h
 const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");
 const { imageConfigDefault } = require("next/dist/shared/lib/image-config");
 const { AppShell } = require("@/components/v3/AppShell");
-const { ConversationsMain } = require("@/components/v3/ConversationsMain");
+const { ChatPageShell } = require("@/components/v3/chats-next/ChatPageShell");
 const { CaseChatWorkspace } = require("@/components/v3/case-chat/CaseChatThread");
 const { PartShell } = require("@/components/v3/PartShell");
 const { Inbox } = require("@/components/v3/Inbox");
@@ -474,7 +474,7 @@ const router = {
 const contentFor = (inbox) => fixture.chatApp
   ? h(PartShell, fixture.chatApp.main, h(Inbox, inbox))
   : fixture.cabinet
-  ? h(ConversationsMain, fixture.cabinet.main, h(CaseChatWorkspace, fixture.cabinet.workspace))
+  ? h(ChatPageShell, { variant: "messages", ...fixture.cabinet.main }, h(CaseChatWorkspace, fixture.cabinet.workspace))
   : h("div", { "data-harness-body": "", style: { display: "contents" }, suppressHydrationWarning: true, dangerouslySetInnerHTML: { __html: fixture.body } });
 const treeFor = (content) => h(AppRouterContext.Provider, { value: router },
   h(PathnameContext.Provider, { value: fixture.pathname },

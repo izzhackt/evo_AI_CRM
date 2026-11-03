@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 
-import { PartShell } from "@/components/v3/PartShell";
+import { PageShell } from "@/components/kit";
 import { ProfileLoadingCard } from "@/components/v3/profile/ProfileSkeleton";
 import { QueueSkeleton } from "@/components/v3/queue/QueueStates";
 
@@ -13,5 +13,5 @@ import { QueueSkeleton } from "@/components/v3/queue/QueueStates";
 export default function ProfileLoading() {
   const params = useSearchParams();
   if (params.has("id") || params.has("case")) return <ProfileLoadingCard />;
-  return <PartShell title="Студенты" dense><QueueSkeleton label="Загружаем список студентов…" leading={false} /></PartShell>;
+  return <PageShell title="Студенты"><QueueSkeleton label="Загружаем список студентов…" leading={false} /></PageShell>;
 }

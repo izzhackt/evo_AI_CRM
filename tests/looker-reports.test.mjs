@@ -569,8 +569,6 @@ async function marketingPage(readResult, query = {}) {
     },
     "@/lib/v3/report-links-source": { readReportLink: async (_actor, key) => { spies.push(`report:${key}`); return readResult; } },
     "@/lib/v3/funnel-source": { PERIODS: [{ key: "month", title: "Месяц" }, { key: "custom", title: "Свой" }], resolvePeriod: () => PERIOD, periodLabel: () => "Октябрь 2026" },
-    "@/components/v3/marketing/MarketingOverviewView": { MarketingOverviewView: () => createElement("div", { "data-stub": "overview" }) },
-    "@/components/v3/marketing/MarketingLeadsView": { MarketingLeadsView: () => createElement("div", { "data-stub": "leads" }) },
     "@/components/v3/MainHeader": { MainHeader: () => createElement("div", { "data-stub": "period" }) },
   });
   // «Новый вид» — единственный вид (#1327): страница отдаёт ленивому входу данные, экран рисует `MarketingNextPage`.
@@ -632,7 +630,8 @@ test("the marketing address and tabs: the new view is `reports`, it writes neith
 
 function settingsSection(reads, readOnly) {
   const load = loader({ "@/lib/platform-report-link-actions": { saveReportLinkAction: async () => idle, removeReportLinkAction: async () => idle } });
-  return renderToStaticMarkup(createElement(load("src/components/v3/settings/ReportLinksSection.tsx").ReportLinksSection, { reads, readOnly }));
+  const ids = { marketing: { save: "70000000-0000-4000-8000-000000000001", remove: "70000000-0000-4000-8000-000000000002" }, finance: { save: "70000000-0000-4000-8000-000000000003", remove: "70000000-0000-4000-8000-000000000004" } };
+  return renderToStaticMarkup(createElement(load("src/components/v3/settings-next/ReportsNext.tsx").ReportsNext, { reads, readOnly, ids }));
 }
 const settingsReads = {
   marketing: { status: "available", link: { ...configured.link, reportKey: "marketing", version: 2 } },
@@ -682,7 +681,7 @@ test("settings wiring: the section is listed after «Телефония», the p
   const page = read("src/app/(v3)/v3/settings/page.tsx");
   assert.match(page, /section === "reports"\s*\?\s*Promise\.all\(\[readReportLink\(actor, "marketing"\), readReportLink\(actor, "finance"\)\]\)/u);
   assert.match(page, /reportsReadOnly: isStaffPreview\(actor\)/u);
-  assert.match(read("src/components/v3/settings/Settings.tsx"), /current\.key === "reports" && reports \? <ReportLinksSection reads=\{reports\} readOnly=\{reportsReadOnly \?\? false\} \/>/u);
+  assert.match(read("src/components/v3/settings-next/SettingsSection.tsx"), /section === "reports" && props\.reports\) return <ReportsNext \{\.\.\.props\.reports\} \/>/u);
   const action = read("src/lib/platform-report-link-actions.ts");
   assert.match(action, /^"use server";/u);
   assert.ok(action.indexOf("isStaffPreview(actor)") < action.indexOf("parseLookerEmbedInput("), "preview is refused before the code is even parsed");
@@ -702,7 +701,7 @@ test("the window: the server never draws the iframe; on a wide screen the client
   const frameWith = (matches) => {
     globalThis.window = { matchMedia: () => ({ matches, addEventListener() {}, removeEventListener() {} }) };
     try {
-      const { LookerFrame } = loader({ react: stub })("src/components/v3/reports/LookerFrame.tsx");
+      const { LookerFrameNext: LookerFrame } = loader({ react: stub })("src/components/v3/reports-next/LookerFrameNext.tsx");
       return renderToStaticMarkup(createElement(LookerFrame, { src: EMBED(REPORT, PAGE), title: "Отчёт Looker Studio: Финансы", openUrl: OPEN(REPORT, PAGE) }));
     } finally { delete globalThis.window; }
   };
@@ -722,7 +721,7 @@ test("the window: the server never draws the iframe; on a wide screen the client
   assert.match(narrow, /Отчёт удобнее открыть отдельно/u);
   assert.match(narrow, /target="_blank"/u);
   assert.match(narrow, /rel="noopener noreferrer"/u);
-  assert.match(read("src/components/v3/reports/LookerFrame.tsx"), /sandbox=\{LOOKER_FRAME_SANDBOX\}/u);
+  assert.match(read("src/components/v3/reports-next/LookerFrameNext.tsx"), /sandbox=\{LOOKER_FRAME_SANDBOX\}/u);
 });
 
 test("the window: «Отчёт загружается…» shows under a transparent frame and goes away on the frame's load", () => {
@@ -738,7 +737,7 @@ test("the window: «Отчёт загружается…» shows under a transpa
     const stub = { ...require("react"), useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot(), useState: () => [loaded, setLoaded] };
     globalThis.window = { matchMedia: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }) };
     try {
-      const { LookerFrame } = loader({ react: stub, "react/jsx-runtime": runtime })("src/components/v3/reports/LookerFrame.tsx");
+      const { LookerFrameNext: LookerFrame } = loader({ react: stub, "react/jsx-runtime": runtime })("src/components/v3/reports-next/LookerFrameNext.tsx");
       return renderToStaticMarkup(createElement(LookerFrame, { src: EMBED(REPORT, PAGE), title: "Отчёт Looker Studio: Финансы", openUrl: OPEN(REPORT, PAGE) }));
     } finally { delete globalThis.window; }
   };
@@ -812,8 +811,8 @@ test("the repository is public: no real-looking report identifier or Google addr
   const allowed = new Set([GOOGLE_REPORT, GOOGLE_PAGE, REPORT, PAGE, UUID_REPORT, "p_synthetic1", "p_page_2", "short", "abcdefgh", "REPORT", "{id}", "{reportId}", "{отчёт}", "{страница}", "{page}"]);
   const files = [
     "src/lib/looker-report-link.ts", "src/lib/report-link-contract.ts", "src/lib/v3/report-links-source.ts", "src/lib/platform-report-link-actions.ts",
-    "src/components/v3/reports/LookerReport.tsx", "src/components/v3/reports/LookerFrame.tsx",
-    "src/components/v3/settings/ReportLinkForm.tsx", "src/components/v3/settings/ReportLinksSection.tsx",
+    "src/components/v3/reports-next/LookerReportNext.tsx", "src/components/v3/reports-next/LookerFrameNext.tsx",
+    "src/components/v3/settings/ReportLinkForm.tsx", "src/components/v3/settings-next/ReportsNext.tsx",
     "supabase/migrations/323_platform_report_links.sql", "supabase/tests/platform_report_links.sql", "tests/looker-reports.test.mjs",
     "docs/runbooks/infrastructure-map.md", "docs/runbooks/team-workspace-activation.md",
   ];

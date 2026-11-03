@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { PartShell } from "@/components/v3/PartShell";
+import { PageShell } from "@/components/kit";
 import { KnowledgeDocuments } from "@/components/v3/knowledge/KnowledgeDocuments";
 import { KnowledgeSnippets } from "@/components/v3/knowledge/KnowledgeSnippets";
 import { KnowledgeLibrarySkeleton } from "@/components/v3/knowledge/KnowledgeSkeleton";
@@ -15,7 +15,7 @@ export default async function KnowledgePart({ searchParams }: { searchParams: Pr
   if (query.tab === "snippets") redirect("/v3/knowledge?section=snippets");
   const section = query.section === "documents" || query.section === "snippets" ? query.section : null;
   // «Новый вид» (единственный вид, #1327): вкладки разделов, таблицы и панели.
-  return <Suspense fallback={<PartShell title="База знаний"><KnowledgeLibrarySkeleton /></PartShell>}><KnowledgeNextLazy commandScope={`${actor.organizationId}:${actor.membershipId}`} section={section}>
+  return <Suspense fallback={<PageShell title="База знаний"><KnowledgeLibrarySkeleton /></PageShell>}><KnowledgeNextLazy commandScope={`${actor.organizationId}:${actor.membershipId}`} section={section}>
     {section === "documents" ? <KnowledgeDocuments actor={actor} embedded next /> : section === "snippets" ? <KnowledgeSnippets actor={actor} next /> : null}
   </KnowledgeNextLazy></Suspense>;
 }

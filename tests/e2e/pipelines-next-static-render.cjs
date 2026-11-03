@@ -5,7 +5,7 @@
 /**
  * «Воронка продаж» и «Воронка поступления» в «Новом виде» (решение владельца 27.10.2026) в Chromium: НАСТОЯЩИЕ страницы
  * `/v3/pipeline` и `/v3/admissions-pipeline` в настоящей оболочке на СИНТЕТИЧЕСКИХ данных (`boards-fixtures.cjs`: имена и дела
- * выдуманы). Страница сама решает по cookie, какой вид рисовать (`isNextUi`); сервер стенда рисует разметку, браузер гидратирует её
+ * выдуманы). Сервер стенда рисует разметку, браузер гидратирует её
  * теми же страницами. Серверные действия подменены; Supabase, права и маршрутизатор Next.js стенд не проверяет — проверяются
  * вёрстка, токены, адаптив, клавиатура, доступность и пути «карточка → панель → действие», «перетаскивание → Отменить».
  *
@@ -49,11 +49,10 @@ async function main() {
     console.log(JSON.stringify({ check, ok, detail }));
   };
 
-  /** Страница под cookie: вид («Новый вид») и сотрудник (администратор, сотрудник, просмотр роли). */
-  async function open(path, key, { ui = "next", actor = "admin", rows = "default" } = {}) {
+  /** Страница под cookie: сотрудник (администратор, сотрудник, просмотр роли) и набор строк. */
+  async function open(path, key, { actor = "admin", rows = "default" } = {}) {
     const context = await browser.newContext({ ...VIEWPORTS[key], reducedMotion: "reduce" });
     await context.addCookies([
-      ...(ui ? [{ name: "evo_ui", value: ui, url: origin }] : []),
       { name: "harness_actor", value: actor, url: origin },
       { name: "harness_rows", value: rows, url: origin },
     ]);
@@ -92,19 +91,6 @@ async function main() {
   const cards = (page, testId) => page.locator(`[data-testid="${testId}"]`).filter({ visible: true });
 
   try {
-    // 0. «До»: прежний вид тех же данных (разметка прежнего вида совпадает с базовым коммитом — tests/ui-next-pipelines.test.mjs).
-    for (const key of ["d1440", "m390"]) {
-      for (const [path, name] of [["/v3/pipeline", "pipeline"], ["/v3/admissions-pipeline", "admissions"], ["/v3/pipeline?view=closed", "pipeline-closed"]]) {
-        const { context, page } = await open(path, key, { ui: null });
-        await shot(page, `before-${name}-${key}`, { fullPage: true });
-        if (name === "pipeline" && key === "d1440") {
-          await page.locator(`[data-testid="v3-pipeline-card"][data-lead-id="${leadId(5)}"] a[data-lead-link]`).click();
-          await page.waitForSelector('[data-testid="v3-pipeline-lead-panel"]');
-          await shot(page, "before-pipeline-panel-d1440");
-        }
-        await context.close();
-      }
-    }
     // ===================================================================================================== ПРОДАЖИ
     // 1. Страница на трёх ширинах: гидратация без расхождений, консоль, нет боковой прокрутки, цели ≥ 44 px, axe, одна красная кнопка.
     for (const key of ["d1440", "d1280", "m390"]) {
@@ -268,13 +254,12 @@ async function main() {
       await context.close();
     }
 
-    // 6. Другие миры: сотрудник и просмотр роли с cookie, администратор без неё — прежний вид (колонки прежней доски, корень без data-ui).
-    for (const [label, options] of [["staff + cookie", { actor: "staff" }], ["preview + cookie", { actor: "preview" }], ["admin without cookie", { ui: null }]]) {
+    // 6. Другие миры: сотрудник и просмотр роли видят тот же новый вид (корень с data-ui, карточки набора).
+    for (const [label, options] of [["staff", { actor: "staff" }], ["preview", { actor: "preview" }]]) {
       for (const path of ["/v3/pipeline", "/v3/admissions-pipeline"]) {
         const { context, page } = await open(path, "d1440", options);
-        const legacy = await page.evaluate(() => ({ nextRoot: Boolean(document.querySelector('[data-ui="next"]')), nextCards: document.querySelectorAll("[data-slot=card]").length,
-          columns: document.querySelectorAll('[data-testid$="-column"]').length }));
-        report(`legacy ${label} ${path}: old view, no new-view root, no kit cards`, !legacy.nextRoot && legacy.nextCards === 0 && legacy.columns > 0, legacy);
+        const world = await page.evaluate(() => ({ nextRoot: Boolean(document.querySelector('.v3-world[data-ui="next"]')), nextCards: document.querySelectorAll("[data-slot=card]").length }));
+        report(`${label} ${path}: new view root and kit cards`, world.nextRoot && world.nextCards > 0, world);
         await context.close();
       }
     }

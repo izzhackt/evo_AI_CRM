@@ -67,12 +67,13 @@ test("Э8.11: the journal read tells a disabled audit from a failed read, and th
   assert.match(source, /return \{ entries, cursorHonored: page\.cursorHonored, status: page\.status \};/u);
   const page = read("src/app/(v3)/v3/settings/page.tsx");
   assert.match(page, /journalStatus: journalRead\.status/u);
-  const sections = read("src/components/v3/settings/sections.tsx");
-  // Число «События» — только у прочитанного журнала.
-  assert.match(sections, /aside=\{status === "ready" \? <Pill>\{nextPage \? `\$\{events\.length\}\+` : events\.length\}<\/Pill> : undefined\}/u);
-  assert.match(sections, /const notice = journalNotice\(status, active, events\.length\);/u);
-  // Слова — вместо строк списка; «Повторить» ведёт тем же адресом с тем же фильтром.
-  assert.match(sections, /\{notice \? \(\s*<li\s+data-testid="v3-journal-notice"/u);
-  assert.match(sections, /<Link href=\{hrefFor\(\{ objectType: active\.objectType \}\)\} className=\{QUEUE_QUIET_LINK\}>\s*Повторить\s*<\/Link>/u);
-  assert.doesNotMatch(sections, /По этому фильтру событий нет\./u, "the phrase lives in the contract, once");
+  const props = read("src/lib/v3/settings-next-journal.ts");
+  const view = read("src/components/v3/settings-next/JournalNext.tsx");
+  // Слова вместо строк списка (прочитанное число событий в новом виде не показывается ни для отключённого, ни для недоступного журнала).
+  assert.match(props, /notice: journalNotice\(input\.status, active, events\.length\),/u);
+  assert.match(view, /\{notice \? \(\s*<div data-testid="v3-journal-notice"/u);
+  // «Повторить» ведёт тем же адресом с тем же фильтром.
+  assert.match(props, /retryHref: input\.hrefFor\(\{ objectType \}\),/u);
+  assert.match(view, /<Link href=\{props\.retryHref\}>Повторить<\/Link>/u);
+  assert.doesNotMatch(props + view, /По этому фильтру событий нет\./u, "the phrase lives in the contract, once");
 });

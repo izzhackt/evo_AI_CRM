@@ -222,7 +222,7 @@ function App() {
       h(SearchParamsContext.Provider, { value: new URLSearchParams(search) },
         h(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } },
           h("div", { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
-            h(AppShell, { actor: fx.actor, initialNotifications: null, nextUi: { enabled: true } }, body))))));
+            h(AppShell, { actor: fx.actor, initialNotifications: null }, body))))));
 }
 createRoot(document.getElementById("root")).render(h(App));
 requestAnimationFrame(() => requestAnimationFrame(() => { document.documentElement.dataset.ready = "true"; }));
@@ -262,7 +262,6 @@ async function buildBundle(outFile) {
           mutateStaffTaskAction: "{ status: \"saved\", requestId: \"static\", taskId: null, version: \"9\" }",
           changePlatformAdmissionsTaskAction: "{ status: \"saved\", requestId: \"static\", caseTaskId: null, version: \"9\", changedAt: null }",
         };
-        if (args.path.endsWith("ui-next-actions.ts")) return { contents: "export async function setNextUiAction() {}", loader: "ts" };
         return {
           contents: names.map((name) => saved[name]
             ? `export async function ${name}(state, form) { window.__harness.calls.push([${JSON.stringify(name)}, Object.fromEntries(form.entries())]); return ${saved[name]}; }`

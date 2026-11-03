@@ -237,7 +237,7 @@ test("live test before three shadow nights: the link field is not offered, the r
   assert.match(form, /length >= AI_AUTOSEND_MAX_LIVE_TEST \? null : liveTestLock \? \(/u);
   assert.match(form, /data-testid="v3-ai-autosend-live-test-lock"/u);
   assert.match(form, /state\.status === "shadow_nights_required" && liveTestLock \? `\$\{liveTestLock\} Уберите чаты из списка — остальное сохранится\.`/u);
-  assert.match(read("src/components/v3/ai-agent/AiAutosendView.tsx"), /liveTestLock=\{aiAutosendLiveTestLock\(state\)\}/u);
+  assert.match(read("src/components/v3/ai-agent-next/AiAutosendNext.tsx"), /liveTestLock=\{aiAutosendLiveTestLock\(state\)\}/u);
 });
 
 test("RPC names the CRM calls exist in the P4 schema (275–277): the chat read is ai_agent_autosend_conversation_v1", (t) => {
@@ -673,7 +673,7 @@ test("env: EVO_AI_AGENT_AUTOSEND is '', 0 or 1; 1 needs the agent secret and its
 // ------------------------------------------------------------ UI source
 
 test("UI copy: the spec's Russian words, one red action, switch semantics, AI-window strip under the memory block", () => {
-  const view = read("src/components/v3/ai-agent/AiAutosendView.tsx");
+  const view = read("src/components/v3/ai-agent-next/AiAutosendHeader.tsx") + read("src/components/v3/ai-agent-next/AiPauseBanner.tsx") + read("src/components/v3/ai-agent-next/AiAutosendNext.tsx");
   const form = read("src/components/v3/ai-agent/AiAutosendSettingsForm.tsx");
   const mode = read("src/components/v3/ai-agent/AiAutosendModeSwitch.tsx");
   const contract = read("src/lib/v3/ai-agent-autosend.ts");
@@ -711,9 +711,9 @@ test("UI copy: the spec's Russian words, one red action, switch semantics, AI-wi
   assert.match(inbox, /open\.chat\.autoreplyAtNight \? \(/u);
   const page = read("src/app/(v3)/v3/ai-agent/page.tsx");
   assert.match(page, /readAiAutosend\(actor\),/u, "the pause line is read on every sub-page");
-  assert.match(page, /compactHref=\{aiAgentHref\("autosend"\)\}/u);
+  assert.match(page, /compactHref: aiAgentHref\("autosend"\)/u);
   // Ни один экран не обращается к WAHA или маршруту отправки из браузера.
-  for (const file of ["src/components/v3/ai-agent/AiAutosendView.tsx", "src/components/v3/ai-agent/AiAutosendSettingsForm.tsx",
+  for (const file of ["src/components/v3/ai-agent-next/AiAutosendNext.tsx", "src/components/v3/ai-agent-next/AiAutosendHeader.tsx", "src/components/v3/ai-agent/AiAutosendSettingsForm.tsx",
     "src/components/v3/inbox/InboxAiAutosend.tsx"]) {
     assert.doesNotMatch(read(file), /api\/internal|sendText|waha/iu, file);
   }

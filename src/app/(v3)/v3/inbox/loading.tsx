@@ -1,13 +1,13 @@
 import { SkeletonBlock } from "@/components/ui";
-import { PartShell } from "@/components/v3/PartShell";
+import { ChatPageShell } from "@/components/v3/chats-next/ChatPageShell";
 
 /**
- * WhatsApp — пункт «Продаж»: пока идёт чтение, тот же каркас `PartShell fill` и та же карточка
+ * WhatsApp — пункт «Продаж»: пока идёт чтение, тот же каркас `ChatPageShell` и та же карточка
  * (список 320 px слева, стол справа), что у страницы, — без прыжка раскладки.
  */
 export default function InboxLoading() {
   return (
-    <PartShell title="WhatsApp" fill>
+    <ChatPageShell variant="inbox" title="WhatsApp">
       <p role="status" className="sr-only">Загружаем диалоги…</p>
       <div
         aria-busy="true"
@@ -23,6 +23,6 @@ export default function InboxLoading() {
         </div>
         <div className="hidden bg-bg @4xl:block" />
       </div>
-    </PartShell>
+    </ChatPageShell>
   );
 }

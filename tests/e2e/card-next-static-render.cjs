@@ -123,7 +123,7 @@ function worldPage(scenario, before = false) {
   if (before) return createElement("div", { className: "v3-world", "data-surface": "staff" },
     createElement(AppShell, { actor: scenario.actor, initialNotifications: null }, scenario.before()));
   return createElement("div", { className: "v3-world", "data-surface": "staff", "data-ui": "next" },
-    createElement(AppShell, { actor: scenario.actor, initialNotifications: null, nextUi: { enabled: true } }, scenario.body));
+    createElement(AppShell, { actor: scenario.actor, initialNotifications: null }, scenario.body));
 }
 
 // --- клиентская сборка «Ещё N» ленты -------------------------------------------------------------------

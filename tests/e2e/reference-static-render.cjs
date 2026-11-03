@@ -78,8 +78,7 @@ Module._resolveFilename = function patchedResolve(request, ...rest) {
   return originalResolve.call(this, request, ...rest);
 };
 
-// Страницы спрашивают `isNextUi` (cookie «Нового вида»): вне запроса `cookies()` не работает. Здесь запроса нет и cookie нет —
-// это прежний вид, байт в байт; «Новый вид» «Университетов» смотрит tests/e2e/students-next-static-render.cjs.
+// Вне запроса `cookies()` не работает: заглушка пустая (страницы cookie не читают).
 require("next/headers").cookies = async () => ({ get: () => undefined });
 
 function stubModule(path, exports) {
@@ -236,7 +235,7 @@ let journalRead = JOURNAL_READS["settings-journal-empty"];
 
 function installStubs() {
   const { settingsIntegrations } = require(join(ROOT, "src/lib/v3/settings-health.ts"));
-  // «Новый вид»: страница спрашивает переключатель (cookie); вне запроса его нет, и рисуется прежний вид.
+  // Вне запроса `cookies()` не работает: заглушка пустая.
   require("next/headers").cookies = async () => ({ get: () => undefined });
   stubModule("src/lib/platform-guards.ts", { async requireV3PageActor() { return who; } });
   stubModule("src/lib/supabase/server.ts", { async createSupabaseServerClient() { return fakeSupabase; } });

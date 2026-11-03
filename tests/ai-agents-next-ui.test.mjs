@@ -1,7 +1,7 @@
 // «Новый вид» (решение владельца 27.10.2026), поток «ИИ-агенты»: хаб и страница агента из набора виджетов.
 // Данные синтетические (tests/e2e/ai-agents-next-fixtures.cjs). Проверяется: настоящие страницы `/v3/ai-agents` и
-// `/v3/ai-agents/[key]` (границы данных и прав подменены, `isNextUi` и правило переключателя — настоящие) рисуют новый вид только
-// настоящему администратору с cookie, а всем остальным — прежний; новый вид строится из набора и не теряет предупреждений;
+// `/v3/ai-agents/[key]` (границы данных и прав подменены) рисуют новый вид каждой роли — переключателя вида нет (#1327);
+// новый вид строится из набора и не теряет предупреждений;
 // пояснения ушли за «?»; условия запуска те же, что у прежнего `AgentBody`. Живую вёрстку, фокус и доступность
 // меряет tests/e2e/ai-agents-next-static-render.cjs.
 //
@@ -34,7 +34,7 @@ module.exports = Link; module.exports.default = Link; module.exports.__esModule 
 const ACTION_STUB = `const f = async () => ({ status: "idle", code: null, message: null, requestId: null });
 module.exports = { updateAiAgentAction: f, saveAiAgentInstructionsAction: f, syncAiAgentAction: f, startAiAgentRunAction: f, followUpAiAgentRunAction: f,
   pollAiAgentRunAction: async () => ({ ok: false, code: "unavailable" }), interruptAiAgentRunAction: f, loadAiAgentRunTranscriptAction: async () => ({ ok: false, code: "unavailable" }), decideAiAgentDraftAction: f };`;
-/** Границы данных и прав страниц: чтения возвращают синтетические данные, сверка и базы нет. `isNextUi` — настоящий. */
+/** Границы данных и прав страниц: чтения возвращают синтетические данные, сверка и базы нет.  */
 const STUBS = {
   "@/lib/platform-guards": `export async function requireV3PageActor() { return globalThis.__world.actor; }`,
   "@/lib/supabase/server": `export async function createSupabaseServerClient() { return {}; }`,
@@ -52,7 +52,6 @@ export const readAiAgentDigests = async () => F.available({ digests: F.DIGESTS }
 export const readAiAgentRuns = async () => F.available({ runs: F.RUNS, hasMore: false });
 export const readAiAgentRun = async () => F.available(F.RUN_DETAIL);
 export const readAiAgentDrafts = async () => F.available(F.DRAFTS);`,
-  "next/headers": `export async function cookies() { return { get: (name) => (name === "evo_ui" && globalThis.__world.cookie ? { name, value: globalThis.__world.cookie } : undefined) }; }`,
   "next/navigation": `export function notFound() { throw new Error("NEXT_NOT_FOUND"); }`,
 };
 
@@ -61,7 +60,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import HubPage from "@/app/(v3)/v3/ai-agents/page";
 import AgentPage from "@/app/(v3)/v3/ai-agents/[key]/page";
 import { AgentBody } from "@/components/v3/ai-agents/AgentBody";
-import { AgentsHub } from "@/components/v3/ai-agents/AgentsHub";
 import { NextAgentPage } from "@/components/v3/ai-agents-next/NextAgentPage";
 import { NextAgentsView } from "@/components/v3/ai-agents-next/NextAgentsView";
 import { NextAgentSwitches } from "@/components/v3/ai-agents-next/NextAgentSwitches";
@@ -90,7 +88,6 @@ export const html = {
   agentPage: async (world, key, search = {}) => { globalThis.__world = world; const element = await AgentPage({ params: Promise.resolve({ key }), searchParams: Promise.resolve(search) }); return settle(() => renderToStaticMarkup(element)); },
   agentElement: async (world, key, search = {}) => { globalThis.__world = world; return AgentPage({ params: Promise.resolve({ key }), searchParams: Promise.resolve(search) }); },
   legacyBody: (props) => renderToStaticMarkup(<AgentBody {...props} />),
-  legacyHub: (list, runtimeConfigured, preview) => renderToStaticMarkup(<AgentsHub list={list} runtimeConfigured={runtimeConfigured} preview={preview} />),
   // Каталог текстов читает сервер (страница): новому виду он приходит готовым, как в страницах ai-agents.
   nextPage: (props) => renderToStaticMarkup(<NextAgentPage {...props} defaults={nextAgentDefaults(props.detail.key, props.tab)} />),
   nextHub: (read, runtimeConfigured, preview) => renderToStaticMarkup(<NextAgentsView read={read} runtimeConfigured={runtimeConfigured} preview={preview} hasDefault={nextAgentsHasDefault()} />),
@@ -145,7 +142,7 @@ const PREVIEW = { ...ACTOR, presentationRole: "sales" };
 const world = (actor, cookie, extra = {}) => ({ actor, cookie, ...extra });
 const strip = (markup) => markup.replace(/<!-- -->/gu, "");
 
-/* ------------------------------------------------------------------ переключатель: прежний вид — всем, кроме администратора с cookie */
+/* ------------------------------------------------------------------ новый вид — единственный */
 
 test("хаб: новый вид у каждой роли — администратор с cookie и без, сотрудник, просмотр роли (#1327)", async () => {
   const { hubPage, hubElement } = await views();
@@ -197,9 +194,8 @@ test("страница агента: на каждой вкладке новый
 /* ------------------------------------------------------------------ хаб */
 
 test("хаб, новый вид: плитки, три группы, карточки со ссылками и «?», ряд «Не настроены», Gemini; пояснения за «?»", async () => {
-  const { nextHub, legacyHub } = await views();
+  const { nextHub } = await views();
   const next = strip(nextHub(F.available(F.LIST), true, false));
-  const legacy = strip(legacyHub(F.LIST, true, false));
   assert.equal((next.match(/data-slot="stat-tile"/gu) ?? []).length, 4);
   for (const label of ["Включено агентов", "Запусков за 7 дней", "Расход за 7 дней", "Ждут решения"]) assert.match(next, new RegExp(label, "u"));
   for (const group of ["sales", "analytics", "curators"]) assert.match(next, new RegExp(`data-testid="v3-aia-group-${group}"`, "u"));
@@ -211,7 +207,6 @@ test("хаб, новый вид: плитки, три группы, карточ
   // Режем: пояснения и украшения не на экране.
   for (const gone of ["Считает продажи, воронку и поступление", "Подсказывает ответ, сам ничего не отправляет.", "Запуски, 14 дней", "data-testid=\"v3-aia-sparkline\""]) {
     assert.doesNotMatch(next, new RegExp(gone.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"), `новый вид: «${gone}» убрано с экрана`);
-    assert.ok(legacy.includes(gone), `прежний вид: «${gone}» на месте`);
   }
   // Те же данные: число «ждут решения» по каждому агенту.
   assert.match(next, /7 черновиков ждут решения/u);

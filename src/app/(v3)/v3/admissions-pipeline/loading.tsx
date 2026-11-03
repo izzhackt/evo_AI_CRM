@@ -1,11 +1,11 @@
 import { SkeletonBlock } from "@/components/ui";
-import { PartShell } from "@/components/v3/PartShell";
+import { PageShell } from "@/components/kit";
 
 /** Каркас доски поступления: разделы, поиск и фильтры, пять колонок этапов. */
 export default function AdmissionsPipelineLoading() {
   return (
-    <PartShell width="board" title="Воронка поступления">
-      <div aria-busy="true" className="flex min-h-0 flex-1 flex-col gap-3">
+    <PageShell title="Воронка поступления">
+      <div aria-busy="true" className="flex flex-col gap-3">
         <p role="status" className="sr-only">Загружаем воронку поступления…</p>
         <div className="flex flex-wrap gap-3">
           <SkeletonBlock className="h-11 w-64" />
@@ -18,6 +18,6 @@ export default function AdmissionsPipelineLoading() {
           ))}
         </div>
       </div>
-    </PartShell>
+    </PageShell>
   );
 }

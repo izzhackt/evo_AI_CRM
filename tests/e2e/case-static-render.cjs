@@ -107,7 +107,6 @@ const { buildV3ProfileHref } = require(join(ROOT, "src/components/v3/profile/typ
 const workView = require(join(ROOT, "src/components/v3/profile/case-work-view.ts"));
 const queueView = require(join(ROOT, "src/components/v3/students/students-queue-view.ts"));
 const closureUi = require(join(ROOT, "src/components/v3/closure/Closure.tsx"));
-const { ClosedLeadView } = require(join(ROOT, "src/components/v3/closure/ClosedLeadView.tsx"));
 const { placeMenu } = require(join(ROOT, "src/components/v3/board/menu-position.ts"));
 
 // --- синтетические данные ---------------------------------------------------
@@ -572,27 +571,6 @@ function renderPage(name, { closeDialog = false } = {}) {
   return renderToStaticMarkup(withContexts(page));
 }
 
-// Lead 360 закрытого лида (246), как в page.tsx: имя — заголовок, возврат «К закрытым лидам» над ним
-// (пришли из «Закрытых»), строка «Закрыт · причина · дата», «Вернуть в работу» и почему нет контактов.
-function renderClosedLeadPage() {
-  const { AppShell } = require(join(ROOT, "src/components/v3/AppShell.tsx"));
-  const { PartShell } = require(join(ROOT, "src/components/v3/PartShell.tsx"));
-  const { Icon } = require(join(ROOT, "src/components/icons.tsx"));
-  const row = { leadId: LEAD_ID, name: NAME, ownerName: "Эрмек Токтосунов", stageKey: "qualified", workflowVersion: "5",
-    closedAt: "2026-09-24T09:15:00.000Z", reason: "other_agency", note: null, closedByName: "Эрмек Токтосунов", canManage: true };
-  const back = createElement("a", { href: "/v3/pipeline?view=closed", className: "inline-flex min-h-11 items-center gap-1.5 t-label text-fg-2 hover:text-fg hover:underline hover:underline-offset-4" },
-    createElement(Icon, { name: "arrow-left", size: 16 }), "К закрытым лидам");
-  const page = createElement("div", { className: "v3-world", "data-surface": "staff" },
-    createElement(AppShell, { actor: ADMIN, initialNotifications: null },
-      createElement(PartShell, { title: row.name, count: null, back },
-        createElement("div", { className: "space-y-6" },
-          createElement(ClosedLeadView, { row, readOnly: false })))));
-  return renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: routerStub },
-    createElement(PathnameContext.Provider, { value: "/v3/profile" },
-      createElement(SearchParamsContext.Provider, { value: new URLSearchParams(`id=${LEAD_ID}`) },
-        createElement(ImageConfigContext.Provider, { value: { ...imageConfigDefault, unoptimized: true } }, page)))));
-}
-
 // --- вид лида (`?id=…`): тот же Profile без частей дела ----------------------
 // Лид после продажи с передачей в поступление: «Продажи», проверка договора,
 // условия продажи — та же часть SalesOverview, что на деле уходит в «Данные продажи».
@@ -794,10 +772,7 @@ async function screenshots() {
     writeHtml(closedPage.htmlPath, "Дело студента", css, renderPage("closed-outcome"));
     const leadPage = { name: `${close}-lead-360`, prefix: null, htmlPath: join(outDir, `${close}-lead-360.html`), shots: [shot("1440"), shot("390")] };
     writeHtml(leadPage.htmlPath, "Профиль", css, leadMarkup);
-    const leadClosedPage = { name: `${close}-lead-360-closed`, prefix: null, htmlPath: join(outDir, `${close}-lead-360-closed.html`),
-      shots: [shot("1440"), shot("390")] };
-    writeHtml(leadClosedPage.htmlPath, "Профиль", css, renderClosedLeadPage());
-    pages.push(dialogPage, closedPage, leadPage, leadClosedPage);
+    pages.push(dialogPage, closedPage, leadPage);
   }
   let compareMarkup = null;
   if (COMPARE_ROOT) {

@@ -16,7 +16,6 @@ const harness = (flag) => JSON.parse(execFileSync(process.execPath, [fileURLToPa
 const pages = new Map(harness("--json").map((surface) => [surface.name, surface]));
 const realPages = new Map(harness("--page-json").map((surface) => [surface.name, surface.html]));
 const next = (name) => pages.get(name)?.html ?? assert.fail(`нет сценария ${name}`);
-const legacy = (name) => pages.get(name)?.legacy ?? assert.fail(`нет сценария ${name}`);
 const real = (name, mode) => realPages.get(`${name}:${mode}`) ?? assert.fail(`нет страницы ${name}:${mode}`);
 const text = (html) => html.replace(/<[^>]+>/gu, " ").replace(/&#x27;/gu, "'").replace(/\s+/gu, " ").trim();
 const count = (html, pattern) => [...html.matchAll(pattern)].length;
@@ -26,10 +25,9 @@ const NEW_FILES = [...readdirSync(new URL(`../${NEW_DIR}`, import.meta.url)).map
   "src/components/v3/profile/next/MoreSheet.tsx", "src/components/v3/profile/next/MoreSheetImpl.tsx", "src/components/kit/card-classes.ts", "src/components/v3/profile/money-panels.ts"];
 const CASE_TABS = ["docs-all", "docs-review", "docs-empty", "docs-preview", "money-same", "money-cross", "money-empty", "route-four", "route-empty", "anketa-full", "anketa-simple", "history-long", "history-short", "history-forbidden"];
 
-test("сценарии собираются: четырнадцать вкладок дела, две вкладки лида и закрытый лид; каждый — в новом и в прежнем виде", () => {
+test("сценарии собираются: четырнадцать вкладок дела, две вкладки лида и закрытый лид; каждый — в новом виде", () => {
   for (const name of [...CASE_TABS, "lead-money-gate", "lead-anketa", "lead-closed"]) {
     assert.ok(next(name).length > 500, name);
-    assert.ok(legacy(name).length > 500, name);
   }
   assert.equal(pages.size, 17);
 });
@@ -45,15 +43,8 @@ test("«Документы»: карточка «Чек-лист» (прогре
   assert.match(html, /<nav aria-label="Документы по состоянию"/u, "фильтр по состоянию — ссылки, как раньше");
   assert.match(html, /data-testid="v3-document-add-toggle"/u);
   assert.equal(count(html, /data-testid="v3-document-item"/gu), 9, "девять пунктов чек-листа, как в «9 принято»");
-  // Те же строки `DocumentRow`, что у прежнего вида: столько же пунктов.
-  assert.equal(count(html, /<li[^>]*scroll-mt-4 border-b border-border py-3/gu), count(legacy("docs-all"), /<li[^>]*scroll-mt-4 border-b border-border py-3/gu));
   assert.match(html, /data-testid="v3-removed-document-history"/u, "история удалённых пунктов есть");
   assert.match(html, /data-testid="document-recognition"/u, "распознавание есть");
-  // Прежний вид: одна подсказка про форматы строкой и заголовки групп `t-caption`.
-  const old = legacy("docs-all");
-  assert.match(old, /data-testid="v3-document-upload-hint">Загрузка: PDF, JPEG, PNG · до 25 МБ</u);
-  assert.match(old, /<h3 class="t-caption text-fg-2">Документы<\/h3>/u);
-  assert.doesNotMatch(old, /v3-documents-checklist|v3-documents-group/u);
   // Пустое и закрытое остаются словами на виду.
   assert.match(text(next("docs-empty")), /Чек-лист пока пуст\./u);
   assert.match(text(next("docs-preview")), /В режиме этой роли документы доступны только для просмотра\./u);
@@ -84,12 +75,6 @@ test("«Договор и оплата»: сводка из четырёх да�
   assert.match(next("money-same"), /data-testid="v3-case-money-history"/u);
   assert.match(text(next("money-empty")), /Договор не загружен|не загружен/u);
   assert.match(text(next("money-empty")), /Траншей нет\./u);
-  // Прежний вид: один лист с шапкой и строками сводки.
-  const old = legacy("money-cross");
-  assert.match(old, /<section aria-labelledby="[^"]+" data-case-money="" data-testid="v3-profile-contract-workspace" data-student-case-id="[^"]+" class="@container min-w-0 rounded-card border border-border bg-surface">/u);
-  assert.match(old, /<header class="flex min-h-12 items-center justify-between gap-3 border-b border-border py-1 ps-4 pe-1">/u);
-  assert.match(old, /<section id="money-obligations" data-money-panel="" hidden="" aria-labelledby="money-obligations-title" class="mt-4 scroll-mt-20 border-t border-border pt-1">/u);
-  assert.match(text(old), /Услуги EVO и другие расходы по делу/u, "в прежнем виде пояснение — абзацем");
 });
 
 test("«Вузы и программы»: список вузов — одна карточка с кнопками добавления у заголовка, «вуза нет в каталоге» за «?», пакеты партнёру — карточка-раскрытие", () => {
@@ -98,12 +83,9 @@ test("«Вузы и программы»: список вузов — одна �
   assert.equal(count(html, /data-testid="v3-profile-application"/gu), 4);
   assert.match(html, /aria-label="Пояснение: Добавить вручную"/u);
   assert.ok(!text(html).includes("Вуза нет в каталоге?"), "подводка не на экране");
-  assert.match(text(legacy("route-four")), /Вуза нет в каталоге\?/u, "в прежнем виде она на месте");
   assert.match(html, /<details class="group scroll-mt-4 rounded-card border border-border bg-card px-5" id="partner-packets"/u);
-  assert.match(legacy("route-four"), /<details class="group scroll-mt-4 border-b border-border" id="partner-packets"/u);
   assert.match(html, /data-testid="v3-profile-admissions-list"/u, "список — прежний, без своего заголовка");
   assert.equal(count(html, /<h2 id="applications-title"/gu), 0);
-  assert.equal(count(legacy("route-four"), /<h2 id="applications-title"/gu), 1);
   assert.match(text(next("route-empty")), /Вузов пока нет\./u);
 });
 
@@ -125,9 +107,6 @@ test("«Анкета»: ответы анкеты данными («требую
   assert.match(text(simple), /Квалифицирован: 11 класс/u);
   assert.match(text(simple), /Дата рождения 12\.04\.2008/u);
   assert.doesNotMatch(simple, /v3-anketa-other-open/u);
-  // Прежний вид: «Заполнено студентом» с абзацем «Сведения требуют проверки.»
-  assert.match(text(legacy("anketa-full")), /Заполнено студентом Отправлено 20 августа 2026 г\.\. Сведения требуют проверки\./u);
-  assert.doesNotMatch(legacy("anketa-full"), /v3-anketa/u);
 });
 
 test("«История»: десять событий на странице, остальные — «Ещё N»; нет доступа к журналу сказано словами; источник — данными", () => {
@@ -143,9 +122,6 @@ test("«История»: десять событий на странице, о�
   const forbidden = next("history-forbidden");
   assert.match(forbidden, /data-testid="v3-history-forbidden">Нет доступа к журналу этого дела\./u);
   assert.equal(count(forbidden, /data-testid="v3-history-event"/gu), 0);
-  // Прежний вид — две карточки `Card eyebrow` ui.tsx с теми же событиями.
-  assert.equal(count(legacy("history-long"), /<li class="border-b border-border px-4 py-2\.5 last:border-b-0">/gu), 12);
-  assert.doesNotMatch(legacy("history-long"), /v3-history/u);
 });
 
 test("вкладки лида: «Подтверждение вручную» — карточка с пояснением за «?»; закрытый лид — одна карточка со словом «Лид закрыт» и командой «Вернуть в работу»", () => {
@@ -153,15 +129,12 @@ test("вкладки лида: «Подтверждение вручную» —
   assert.match(gate, /<h2[^>]*>Подтверждение вручную<\/h2>/u);
   assert.match(gate, /aria-label="Пояснение: Подтверждение вручную"/u);
   assert.ok(!text(gate).includes("Для передачи в поступление нужны договор и первый платёж"), "пояснение — за «?»");
-  assert.match(text(legacy("lead-money-gate")), /Для передачи в поступление нужны договор и первый платёж\./u);
   const closed = next("lead-closed");
   assert.match(closed, /data-testid="v3-lead-closed-card"/u);
   assert.match(text(closed), /Лид закрыт \? · Не отвечает · 20\.09\.2026 Вернуть в работу/u);
   assert.match(text(closed), /Этап Связались Ответственный Санжар Эскизов Закрыл Санжар Эскизов/u);
   assert.match(closed, /aria-label="Пояснение: Лид закрыт"/u);
   assert.ok(!text(closed).includes("Контакты и история вернутся"), "пояснение — за «?»");
-  assert.match(text(legacy("lead-closed")), /Контакты и история вернутся после «Вернуть в работу»\./u);
-  assert.match(legacy("lead-closed"), /data-testid="v3-lead-closed" data-lead-id=/u);
 });
 
 test("каждая вкладка — карточки без вложенных, не больше четырёх данных в строке сводки, один h1", () => {
@@ -228,15 +201,11 @@ test("«Договор и оплата»: заголовок открытой п
     assert.match(html, /<h3 id="money-service-handoff"[^>]*>Передача в поступление<\/h3>/u, `${name}: вложенный заголовок на уровень ниже панели`);
     const order = levels(html);
     assert.deepEqual(order.filter((level, index) => index > 0 && level - order[index - 1] > 1), [], `${name}: уровни заголовков не перескакивают ${order}`);
-    const old = legacy(name);
-    assert.ok([...old.matchAll(/<(h\d) id="money-[a-z-]+-title" tabindex="-1" data-money-panel-heading=""/gu)].every((match) => match[1] === "h3"), `${name}: прежний лист — h3`);
-    assert.match(old, /<h4 id="money-service-handoff"[^>]*>Передача в поступление<\/h4>/u, `${name}: прежний вложенный заголовок — h4`);
   }
 });
 
 test("«Файлы анкеты»: заголовок карточки того же размера, что у соседних карточек (16/24, 600); прежний вид — прежний `h4`", () => {
   assert.match(next("anketa-full"), /<h3 class="text-base font-semibold leading-6 text-fg">Файлы анкеты<\/h3>/u);
-  assert.match(legacy("anketa-full"), /<h4 class="text-sm font-semibold">Файлы анкеты<\/h4>/u);
   // Размер «t-section» из таблицы стилей: 16/24/600 — ровно то, что дают `text-base leading-6 font-semibold`.
   const css = read("src/app/(v3)/v3.css");
   assert.match(css, /--type-section: 16px;/u);
@@ -247,14 +216,12 @@ test("«Документы»: у фильтра в карточке «Чек-л�
   const html = next("docs-all");
   const nav = html.slice(html.indexOf('<nav aria-label="Документы по состоянию"'));
   assert.match(nav.slice(0, nav.indexOf("</nav>")), /<ul class="flex min-w-max items-center gap-1" data-tab-ring="inset">/u);
-  assert.match(legacy("docs-all"), /<ul class="flex min-w-max items-center gap-1 border-b border-border pb-2">/u);
   assert.match(html, /<div class="[^"]*\[&amp;&gt;section\]:border-t-0 \[&amp;&gt;section\]:mt-0 \[&amp;&gt;section\]:pt-0[^"]*"><section class="mt-3 pt-1" data-testid="document-recognition"/u, "раскрытие распознавания в карточке без своих линии и отступа");
 });
 
 test("лид: «Подтверждение вручную» — форма в обёртке `max-w-3xl`, как в прежнем листе", () => {
   const gate = next("lead-money-gate");
   assert.match(gate.slice(gate.indexOf('data-testid="v3-lead-gate"')), /<div class="max-w-3xl">/u);
-  assert.match(legacy("lead-money-gate"), /<section id="[^"]+" aria-labelledby="[^"]+" class="max-w-3xl scroll-mt-4" data-testid="v3-lead-gate">/u);
 });
 
 /* ---------------------------------------------------------------- страница целиком: переключатель */

@@ -627,14 +627,6 @@ function leadPage(name, tab = "overview", extra = {}) {
 }
 
 // --- «Отчёт продаж» ------------------------------------------------------------
-// --- «Менеджеры в отчёте» (Э8.6) -------------------------------------------------
-async function managersPage() {
-  const { SalesManagerLabelsView } = require(join(ROOT, "src/components/v3/SalesManagerLabelsView.tsx"));
-  const query = { view: "sales", mode: "managers", year: "2026", month: "9" };
-  const element = await SalesManagerLabelsView({ actor: ADMIN, query });
-  return renderToStaticMarkup(withContexts(shell(ADMIN, null, element), "/v3/main", new URLSearchParams(query).toString()));
-}
-
 async function reportPage(extra = {}, actor = ADMIN) {
   const { SalesRegisterView } = require(join(ROOT, "src/components/v3/SalesRegisterView.tsx"));
   const query = { view: "sales", year: "2026", month: "9", ...extra };
@@ -890,7 +882,6 @@ async function e4Pages() {
       REPORT.management = management;
       return html;
     })() },
-    { name: "managers", html: await managersPage() },
     // Месяц отчёта в строке: «Весь 2026 год» (и с открытой записью — узкая строка при 1440)
     // и срез июля «записаны в другой месяц отчёта».
     { name: "report-year", html: await reportPage({ month: "all" }) },
@@ -1016,7 +1007,7 @@ async function e4Screenshots() {
 // --- Э8.6: «Отчёт продаж» — запись в панели, сумма в валюте договора, менеджеры ----
 const E86_PAGES = ["report", "report-panel", "report-panel-edit", "report-panel-cross", "report-panel-cross-edit",
   "report-panel-contract", "report-panel-contract-list", "report-manager", "report-year", "report-year-panel",
-  "report-other-year", "report-other-year-panel", "report-other-year-all-panel", "managers"];
+  "report-other-year", "report-other-year-panel", "report-other-year-all-panel"];
 async function e86Screenshots() {
   const outIndex = process.argv.indexOf("--e86-screenshots") + 1;
   const outDir = resolve(process.argv[outIndex] && !process.argv[outIndex].startsWith("--") ? process.argv[outIndex] : join(ROOT, ".impeccable/review"));

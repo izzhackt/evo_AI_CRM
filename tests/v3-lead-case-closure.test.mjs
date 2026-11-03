@@ -26,9 +26,6 @@ import {
 import { isClosedLeadsReturn, parsePipelineReturnTo } from "../src/lib/v3/pipeline-return.ts";
 import { caseCloseOpenTasks, caseCloseOutcome, closureOutcome, closureWords, leadCloseReason } from "../src/lib/v3/wording.ts";
 
-/** Прежний вид убран со страниц (#1327): разметка, которую снимали эти проверки, больше не рисуется; их и прежние компоненты удаляет #1328. */
-const LEGACY_VIEW_REMOVED = "old view is not rendered since #1327; removed with the old components in #1328";
-
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const migration = read("supabase/migrations/246_platform_lead_case_closure.sql");
 const suite = read("supabase/tests/platform_lead_case_closure.sql");
@@ -242,34 +239,6 @@ test("wording: every reason, outcome and outcome message has Russian words", () 
   assert.equal(caseCloseOpenTasks(0), null, "no open tasks — nothing to say");
 });
 
-test("board: «⋯» in the lead panel, a handed-off lead says why, «Закрытые» is a quiet link and a list", { skip: LEGACY_VIEW_REMOVED }, () => {
-  const surfaces = harness("boards");
-  const panel = surfaces.get("sales-panel");
-  const lead = panel.slice(panel.indexOf('data-testid="v3-pipeline-lead-panel"'));
-  assert.match(lead, /aria-label="Ещё действия"/u);
-  assert.match(lead, /Закрыть лид…/u);
-  assert.doesNotMatch(lead, /Лид передан в поступление/u);
-  const handed = surfaces.get("sales-panel-handed");
-  const handedPanel = handed.slice(handed.indexOf('data-testid="v3-pipeline-lead-panel"'));
-  assert.match(handedPanel, /<button type="button" aria-disabled="true"[^>]*>Закрыть лид<\/button><p [^>]*>Лид передан в поступление — это продажа\. Закрыть его как потерянный нельзя\.<\/p>/u);
-  const link = surfaces.get("sales").match(/<a[^>]*data-testid="v3-pipeline-closed-link"[^>]*>Закрытые<\/a>/u)?.[0] ?? "";
-  assert.match(link, /href="\/v3\/pipeline\?view=closed"/u);
-  assert.doesNotMatch(link, /bg-accent/u, "a quiet link, not a red button");
-  const closedHtml = surfaces.get("sales-closed");
-  const closed = texts(closedHtml);
-  assert.match(closed, /Закрытые лиды 3/u);
-  // Имя, сразу причина и дата (заголовок уже говорит «Закрытые» — без «Закрыт» в строке), затем факты и возврат.
-  assert.match(closed, /Нурлан Закрытов · Не отвечает · \d{2}\.\d{2}\.\d{4} · Этап: Связались · Ответственный: Менеджер Первый · Закрыл: Менеджер Первый Вернуть в работу/u);
-  assert.match(closed, /Асель Отказова · Другое: Решила поступать через родственников в Казани · \d{2}\.\d{2}\.\d{4} · Этап:/u);
-  assert.doesNotMatch(closed, /Закрыт ·/u);
-  assert.match(closedHtml, /<time dateTime="[^"]+" class="font-mono tabular-nums">\d{2}\.\d{2}\.\d{4}<\/time>/u);
-  assert.ok(closedHtml.includes(`${RUN_OPEN}<span class="inline-flex min-w-0 items-baseline">${RUN_DOT}<span class="min-w-0 break-words">Не отвечает</span>`));
-  assert.match(closedHtml, /<p class="overflow-hidden t-meta text-fg-2"><span class="-ms-5 flex flex-wrap items-baseline">/u, "facts wrap without a leading «·» too");
-  assert.match(closedHtml, REOPEN_ROW);
-  // Закрытый список — не доска: без её красной кнопки.
-  assert.doesNotMatch(surfaces.get("sales-closed"), /Добавить лида/u);
-});
-
 test("«Студенты»: «Завершить дело…» in the quick view of a case in work, the closed line of a closed case", () => {
   const surfaces = harness("students");
   const open = surfaces.get("panel-close");
@@ -297,9 +266,7 @@ test("Student 360 and Lead 360: the closed line, and the lead view keeps its ove
   assert.match(closed, /Что дальше Собрать апостиль на аттестат 20\.09 Дело закрыто: шаг не меняется\./u);
   assert.match(texts(surfaces.get("closed")), /Состояние Дело закрыто/u, "without the closure read the fact stays as before");
   // Закрытый лид: без красной ссылки и сырого text-sm; почему нет контактов — одной тихой строкой.
-  const view = read("src/components/v3/closure/ClosedLeadView.tsx");
-  assert.doesNotMatch(view, /text-accent|text-sm\b|<Link/u);
-  assert.match(view, /closureWords\.lead\.detailsAfterReopen : closureWords\.lead\.detailsOpenOnly/u);
+  assert.match(read("src/components/v3/profile/next/tabs/ClosedLeadNext.tsx"), /closureWords\.lead\.detailsAfterReopen : closureWords\.lead\.detailsOpenOnly/u);
   assert.equal(closureWords.lead.detailsAfterReopen, "Контакты и история вернутся после «Вернуть в работу».");
 });
 

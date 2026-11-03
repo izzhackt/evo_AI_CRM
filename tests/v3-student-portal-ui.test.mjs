@@ -914,6 +914,24 @@ test("330: a staff message notifies the student once per unread and the notifica
   assert.match(script, /a330_already_applied/u);
 });
 
+test("331: reading the chat clears only the notification of the portal case the chat shows", () => {
+  const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  const migration = fileOf("supabase/migrations/331_platform_case_chat_read_scope.sql");
+  assert.ok(migration.indexOf("a331_already_applied") < migration.indexOf("a331_anchor_drift"));
+  assert.ok(migration.includes("platform_private.require_case_operations_actor(NULL, TRUE)"), "the case is the one the chat page shows");
+  assert.ok(migration.includes("AND n.student_case_id = gate.student_case_id"), "only that case's notification is cleared");
+  assert.match(migration, /CREATE OR REPLACE FUNCTION platform\.mark_own_case_chat_notifications_read_v1\(p_up_to_sequence_id BIGINT\)\s+RETURNS INTEGER/u, "signature and result shape stay");
+  assert.match(migration, /GRANT EXECUTE ON FUNCTION platform\.mark_own_case_chat_notifications_read_v1\(BIGINT\) TO authenticated;/u);
+  assert.ok(fileOf("src/lib/portal/messages-actions.ts").includes('.rpc("mark_own_case_chat_notifications_read_v1", { p_up_to_sequence_id: upToSequenceId })'), "the caller is unchanged");
+  assert.match(fileOf("supabase/tests/platform_case_chat_read_scope.sql"), /ROLLBACK;\s*$/u);
+  const script = fileOf("scripts/test-runners/test-postgres-authorization.sh");
+  assert.ok(script.indexOf("A331_CASE_CHAT_READ_SCOPE_SUITE_PASSED") > 0 && script.indexOf("A331_CASE_CHAT_READ_SCOPE_SUITE_PASSED") < script.indexOf('done < <(\n  cd "$repo_root"\n  find supabase/migrations'));
+  assert.match(script, /a331_already_applied/u);
+  const presentation = fileOf("src/components/portal/admission/presentation.ts");
+  assert.ok(presentation.indexOf("One deep link per notification") > presentation.indexOf("export function portalNotificationText"), "the doc comment sits over portalNotificationTarget");
+  assert.ok(presentation.indexOf("One deep link per notification") < presentation.indexOf("export function portalNotificationTarget"));
+});
+
 test("330: the shown chat clears the notification and its text follows the student's language", () => {
   const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
   const hook = fileOf("src/components/portal/messages/useMarkCaseChatRead.ts");

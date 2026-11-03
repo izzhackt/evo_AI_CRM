@@ -1000,11 +1000,13 @@ SELECT pg_temp.cms_assert((SELECT count(*) = 6 FROM platform_private.client_merg
 
 -- ---------------------------------------------------------------------------
 -- 7. The whole journal: no name, phone, e-mail or note text anywhere in it.
+-- The pattern names the concrete fixture values (every phone starts +996, the local-format one is 0555000301), not the
+-- bare digits 0555: the journal holds random request / resource uuids, and four hex digits "0555" appear in one by chance.
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.cms_assert(NOT EXISTS (SELECT 1 FROM platform.audit_events e
     WHERE e.organization_id = pg_temp.cms_id(1) AND e.actor_principal IN ('service:client-merge', 'service:lead-already-student')
       AND (coalesce(e.before_state::TEXT, '') || e.after_state::TEXT || e.reason || e.action || e.resource_type)
-        ~* '\+996|0555|example\.invalid|CMS (Keep|Merge|Client|Twin|Third)|private note|Втор'),
+        ~* '\+996|0555000301|example\.invalid|CMS (Keep|Merge|Client|Twin|Third)|private note|Втор'),
   'the journal rows of both calls hold no name, phone, e-mail or note text');
 SELECT pg_temp.cms_assert((SELECT count(*) = 13 FROM platform.audit_events WHERE organization_id = pg_temp.cms_id(1) AND action = 'client.duplicate.merge')
   AND (SELECT count(*) = 6 FROM platform.audit_events WHERE organization_id = pg_temp.cms_id(1) AND action = 'note.create' AND actor_principal = 'service:client-merge')

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { Locale } from "@/lib/i18n-data";
 import { formatPortalString, getPortalStrings } from "@/lib/portal/i18n";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { startTransition, useEffect, useRef, useState } from "react";
 import { POLL_BASE_MS, createLightPoller, fetchLightPoll } from "@/lib/light-poll";
 import { PORTAL_MESSAGES_CHANGED_EVENT, portalPollSectionForPath, portalPollUrl } from "@/lib/portal-poll-section";
@@ -28,6 +28,8 @@ export function PortalNotificationUpdates({ locale, release, onUnreadChange }: {
   const strings = getPortalStrings("shell", locale);
   const router = useRouter();
   const pathname = usePathname();
+  // Вкладка «Что нового» во «Входящих» сверяется как раздел уведомлений.
+  const view = useSearchParams().get("view");
   const [unread, setUnread] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
   const retry = useRef<() => void>(() => {});
@@ -44,7 +46,7 @@ export function PortalNotificationUpdates({ locale, release, onUnreadChange }: {
 
   useEffect(() => {
     if (stale) return;
-    const section = portalPollSectionForPath(pathname);
+    const section = portalPollSectionForPath(pathname, view);
     const url = portalPollUrl(section);
     const poller = createLightPoller({
       now: () => Date.now(),
@@ -77,7 +79,7 @@ export function PortalNotificationUpdates({ locale, release, onUnreadChange }: {
       window.removeEventListener("focus", resume);
       window.removeEventListener("online", online);
     };
-  }, [pathname, router, stale]);
+  }, [pathname, view, router, stale]);
 
   const label = unread === null ? strings.notifications
     : unread > 0 ? formatPortalString(strings.notificationsUnread, { count: String(unread) })

@@ -12,8 +12,13 @@ export function isPortalPollSection(value: unknown): value is PortalPollSection 
   return typeof value === "string" && (PORTAL_POLL_SECTIONS as readonly string[]).includes(value);
 }
 
-/** Раздел страницы, версию которого опрос сверяет; null — только колокольчик. */
-export function portalPollSectionForPath(pathname: string): PortalPollSection | null {
+/**
+ * Раздел страницы, версию которого опрос сверяет; null — только колокольчик.
+ * `view` — вкладка «Входящих» (03.11.2026): лента «Что нового» живёт на
+ * /portal/messages?view=updates и сверяется как раздел уведомлений.
+ */
+export function portalPollSectionForPath(pathname: string, view: string | null = null): PortalPollSection | null {
+  if (pathname === "/portal/messages" && view === "updates") return "notifications";
   if (pathname === "/portal/home") return "home";
   if (pathname === "/portal") return "admission";
   if (pathname === "/portal/documents") return "documents";

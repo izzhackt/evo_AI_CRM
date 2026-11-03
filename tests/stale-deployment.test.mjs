@@ -478,7 +478,7 @@ test("a version change in the middle of a mark-read command waits for its end, t
 function portalUpdates(runtime, shared, { pathname, router }) {
   return compile("src/components/portal/PortalNotificationUpdates.tsx", (id) => shared(id) ?? lightPollBoundary()[id] ?? ({
     "next/link": { default: () => null },
-    "next/navigation": { usePathname: () => pathname, useRouter: () => router },
+    "next/navigation": { usePathname: () => pathname, useRouter: () => router, useSearchParams: () => new URLSearchParams() },
     "@/lib/portal/i18n": portalI18n,
   })[id]).PortalNotificationUpdates;
 }
@@ -621,7 +621,7 @@ test("pages without a compared section ask only for the bell, and moving between
     const router = { refresh() { assert.fail("a bell-only page never re-renders"); } };
     const PortalNotificationUpdates = compile("src/components/portal/PortalNotificationUpdates.tsx", (id) => shared(id) ?? lightPollBoundary()[id] ?? ({
       "next/link": { default: () => null },
-      "next/navigation": { usePathname: () => pathname, useRouter: () => router },
+      "next/navigation": { usePathname: () => pathname, useRouter: () => router, useSearchParams: () => new URLSearchParams() },
       "@/lib/portal/i18n": portalI18n,
     })[id]).PortalNotificationUpdates;
     const view = runtime.render(PortalNotificationUpdates, { locale: "ru", release: POLL_REVISION });

@@ -500,15 +500,41 @@ test("a case without a lead: Admin sees the invite address beside the button wit
   assert.doesNotMatch(texts(surfaces.get("direct-case")), /Приглашение уйдёт на/u);
 });
 
-test("a case without a lead: a non-Admin never reads the client's address", async () => {
+test("a case without a lead: only a real Admin reads the client's address; a role preview and every other role do not", async () => {
   const { portalInviteEmailFor } = await import("../src/lib/v3/portal-invite-email.ts");
   let reads = 0;
   const readClientEmail = async () => { reads += 1; return "client@example.invalid"; };
-  assert.equal(await portalInviteEmailFor("admin", readClientEmail), "client@example.invalid");
+  assert.equal(await portalInviteEmailFor({ systemRole: "admin", presentationRole: null }, readClientEmail), "client@example.invalid");
   assert.equal(reads, 1);
-  for (const role of ["staff", "", "ADMIN"]) assert.equal(await portalInviteEmailFor(role, readClientEmail), null, role);
+  for (const systemRole of ["staff", "", "ADMIN"]) {
+    assert.equal(await portalInviteEmailFor({ systemRole, presentationRole: null }, readClientEmail), null, systemRole);
+  }
+  // Admin в просмотре под другой ролью: блок ему не показывают, значит и почту не читаем (#1332).
+  for (const presentationRole of ["sales", "admissions"]) {
+    assert.equal(await portalInviteEmailFor({ systemRole: "admin", presentationRole }, readClientEmail), null, presentationRole);
+  }
   assert.equal(reads, 1, "the read does not run for anyone else");
   assert.doesNotMatch(surfaces.get("direct-case-curator-no-email"), /client@example\.invalid|student-portal-invite-email/u);
+
+  // readCaseProfile целиком: адрес читает ровно один вызов, и он закрыт этим решением по самому актору
+  // (не по роли-строке); других чтений почты клиента в ветке дела нет.
+  const source = read("src/lib/v3/profile-source.ts");
+  const branch = source.slice(source.indexOf("async function readCaseProfile("), source.indexOf("async function readLeadProfile("));
+  assert.equal(branch.match(/readStudentCaseClientEmail\(/gu)?.length, 1, "one client-email read in the whole case branch");
+  assert.equal(branch.match(/readCaseClientEmail\(/gu), null, "no direct reader bypasses the gate");
+  assert.match(branch, /portalInviteEmailFor\(actor, \(\) => readStudentCaseClientEmail\(actor, canonicalCaseId\)\)/u);
+  assert.doesNotMatch(branch, /actor\.systemRole === "admin"[\s\S]{0,80}readStudentCaseClientEmail/u, "no ad-hoc role check next to the read");
+});
+
+test("the invite address stays visible after a blocked answer (the form stays), and hides only once an invite is issued or pending", async () => {
+  const { inviteAddressVisible } = await import("../src/lib/v3/portal-invite-email.ts");
+  for (const status of [undefined, "invalid", "unavailable", "inviteFailed", "forbidden", "blocked"]) {
+    assert.equal(inviteAddressVisible(status), true, String(status));
+  }
+  for (const status of ["inviteIssued", "portalActivated", "reconciliationRequired", "accountPending", "reissueAvailable"]) {
+    assert.equal(inviteAddressVisible(status), false, status);
+  }
+  assert.match(read("src/components/v3/profile/StudentPortalAccessCard.tsx"), /const inviteOpen = inviteAddressVisible\(state\?\.status\);/u);
 });
 
 test("the invite address counts as confirmed only when it matches the student's approved application", async () => {
@@ -549,7 +575,7 @@ test("the invite reader takes the email of this case's client inside this organi
 
 test("a case without an open lead can be invited to the portal: the Admin block gets the client's email, the contact rows do not", () => {
   const fileOf = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
-  assert.match(fileOf("src/lib/v3/profile-source.ts"), /portalInviteEmail: await portalInviteEmailFor\(actor\.systemRole, \(\) => readStudentCaseClientEmail\(actor, canonicalCaseId\)\),/u);
+  assert.match(fileOf("src/lib/v3/profile-source.ts"), /portalInviteEmail: await portalInviteEmailFor\(actor, \(\) => readStudentCaseClientEmail\(actor, canonicalCaseId\)\),/u);
   const reader = fileOf("src/lib/v3/portal-invite-email.ts");
   assert.match(reader, /from\("clients"\)\.select\("email"\)/u);
   assert.doesNotMatch(reader, /createPlatformSupabaseServiceClient/u, "the read stays under the staff session and RLS");

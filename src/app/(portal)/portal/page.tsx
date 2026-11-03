@@ -36,9 +36,7 @@ export default async function StudentPortalOverviewPage() {
   return (
     <main className="pt-page">
       <header className="pt-page-header">
-        <p className="pt-page-kicker">{strings.kickerCabinet}</p>
         <h1 className="pt-page-title">{strings.overviewTitle}</h1>
-        <p className="pt-page-lead">{strings.overviewLead}</p>
       </header>
       <AiConsentSlot locale={locale} accessTier={actor.accessTier} />
       {/* Обзор с подготовками и обращения — соседние серверные компоненты:

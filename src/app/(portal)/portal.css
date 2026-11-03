@@ -776,6 +776,8 @@
 .pt-link {
   display: inline-flex;
   align-items: center;
+  /* flex съедает пробел перед «→»: отступ задаёт gap. */
+  gap: 0.3em;
   min-height: 44px;
   color: var(--pt-accent);
   font-weight: 500;
@@ -3787,6 +3789,20 @@
   line-height: var(--pt-leading);
 }
 
+/* Без пояснений ссылки карточки стоят столбиком сразу под заголовком. */
+.pt-adm-aside-card > .pt-link {
+  display: flex;
+  width: fit-content;
+}
+
+/* Блока «Что делает EVO» нет, пока у команды нет задачи: куратор встаёт первым. */
+.pt-adm-curator:first-child,
+.pt-adm-stage + .pt-adm-curator {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
 /*
  * «Нужна помощь» и «Мои обращения и ответы» — общие v3-компоненты
  * (CaseHelpPanel/CaseOperationsForms) на v3-токенах, а .v3-world всегда
@@ -4015,14 +4031,16 @@ main.pt-page > .pt-card {
   margin-top: 8px;
 }
 
+/* Основа 14rem: на телефоне кнопка «Загрузить» уходит под поле, а не
+   обрезает имя выбранного файла. */
 .pt-doc-file {
   min-width: 0;
-  flex: 1;
+  flex: 1 1 14rem;
 }
 
 .pt-doc-file::file-selector-button {
-  margin-inline-end: 12px;
-  padding: 4px 12px;
+  margin-inline-end: 8px;
+  padding: 4px 10px;
   border: 0;
   border-radius: var(--pt-radius-control);
   background: var(--pt-bg);

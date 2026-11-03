@@ -42,9 +42,7 @@ export default async function EnglishPage() {
   return (
     <main className="pt-page">
       <header className="pt-page-header">
-        <p className="pt-page-kicker">{strings.kicker}</p>
         <h1 className="pt-page-title">{strings.title}</h1>
-        <p className="pt-page-lead">{strings.lead}</p>
       </header>
 
       {modules === null ? (

@@ -336,9 +336,7 @@ const universitiesKy: Readonly<Record<UniversitiesKey, string>> = {
  * свойств. Никаких рейтингов и «шансов поступления» — план §6/§14.
  */
 const favoritesRu = {
-  kicker: "Каталог",
   title: "Избранное",
-  lead: "Университеты, которые вы сохранили. Можно сравнить их рядом.",
   savedCount: "Сохранено: {count}",
   hiddenCount: "Больше нет в каталоге: {count}",
   emptyTitle: "Пока ничего не сохранено",
@@ -359,9 +357,7 @@ const favoritesRu = {
 type FavoritesKey = keyof typeof favoritesRu;
 
 const favoritesKy: Readonly<Record<FavoritesKey, string>> = {
-  kicker: "Каталог",
   title: "Тандалмалар",
-  lead: "Сиз сактаган университеттер. Аларды катар коюп салыштырса болот.",
   savedCount: "Сакталды: {count}",
   hiddenCount: "Каталогдо мындан ары жок: {count}",
   emptyTitle: "Азырынча эч нерсе сакталган жок",
@@ -385,9 +381,7 @@ const favoritesKy: Readonly<Record<FavoritesKey, string>> = {
  * описанием последствий, без обещаний сроков (план §7 тексты, §13).
  */
 const profileRu = {
-  kicker: "Аккаунт",
   title: "Профиль",
-  lead: "Данные аккаунта, язык портала и управление доступом.",
   unavailable: "Не удалось загрузить профиль. Обновите страницу.",
   dataHeading: "Данные",
   nameLabel: "Имя",
@@ -407,9 +401,7 @@ const profileRu = {
 type ProfileKey = keyof typeof profileRu;
 
 const profileKy: Readonly<Record<ProfileKey, string>> = {
-  kicker: "Аккаунт",
   title: "Профиль",
-  lead: "Аккаунттун маалыматы, порталдын тили жана кирүүнү башкаруу.",
   unavailable: "Профиль жүктөлгөн жок. Баракты жаңыртыңыз.",
   dataHeading: "Маалымат",
   nameLabel: "Аты-жөнү",
@@ -477,10 +469,8 @@ const consultationKy: Readonly<Record<ConsultationKey, string>> = {
  * учебное содержание и не переводятся (план §2); интерфейс — RU/KY.
  */
 const englishRu = {
-  kicker: "Обучение",
   title: "Английский",
   lessonTitle: "Урок",
-  lead: "Модуль уроков с нуля: теория, задания и разбор каждого ответа.",
   unavailable: "Не удалось загрузить уроки. Обновите страницу. Ваш прогресс не потерян.",
   emptyTitle: "Уроки готовятся",
   emptyBody: "Когда проверенный модуль будет опубликован, он появится здесь.",
@@ -541,10 +531,8 @@ const englishRu = {
 type EnglishKey = keyof typeof englishRu;
 
 const englishKy: Readonly<Record<EnglishKey, string>> = {
-  kicker: "Окуу",
   title: "Англис тили",
   lessonTitle: "Сабак",
-  lead: "Нөлдөн баштаган сабактар модулу: теория, тапшырмалар жана ар бир жооптун разбору.",
   unavailable: "Сабактар жүктөлгөн жок. Баракты жаңыртыңыз. Прогрессиңиз жоголгон жок.",
   emptyTitle: "Сабактар даярдалып жатат",
   emptyBody: "Текшерилген модуль жарыялангандан кийин ушул жерде чыгат.",
@@ -1114,9 +1102,8 @@ const cscaKy: Readonly<Record<CscaKey, string>> = {
  * с его локалью и здесь сознательно не переводится.
  */
 const testsRu = {
-  kicker: "Кабинет студента",
+  backToCatalog: "Все тесты",
   title: "Тесты",
-  lead: "Узнайте, что стоит подтянуть в английском и какие занятия вам интересны. Проходите в своём темпе — результаты остаются в вашем кабинете.",
   emptyTitle: "Тесты готовятся",
   emptyBody: "Когда проверенные задания будут опубликованы, они появятся здесь.",
   cardDraft: "В процессе · {answered} из {total}",
@@ -1223,9 +1210,8 @@ const testsRu = {
 type TestsKey = keyof typeof testsRu;
 
 const testsKy: Readonly<Record<TestsKey, string>> = {
-  kicker: "Студенттин кабинети",
+  backToCatalog: "Бардык тесттер",
   title: "Тесттер",
-  lead: "Англис тилинде эмнени бекемдөө керектигин жана кайсы иштер сизге кызыктуу экенин билиңиз. Өз ыргагыңызда өтүңүз — жыйынтыктар кабинетиңизде калат.",
   emptyTitle: "Тесттер даярдалып жатат",
   emptyBody: "Текшерилген тапшырмалар жарыялангандан кийин ушул жерде чыгат.",
   cardDraft: "Аткарылууда · {total} ичинен {answered}",
@@ -1334,10 +1320,8 @@ const testsKy: Readonly<Record<TestsKey, string>> = {
  * Названия программ и вузов остаются на языке каталога (имена собственные).
  */
 const professionsRu = {
-  kicker: "Исследование",
   title: "Профессии",
   cardTitle: "Профессия",
-  lead: "Как устроен рабочий день, что придётся уметь и куда за этим поступать.",
   unavailable: "Не удалось загрузить профессии. Обновите страницу.",
   emptyTitle: "По этому интересу пока нет карточек",
   emptyBody: "Уберите фильтр или выберите другой интерес.",
@@ -1377,10 +1361,8 @@ const professionsRu = {
 type ProfessionsKey = keyof typeof professionsRu;
 
 const professionsKy: Readonly<Record<ProfessionsKey, string>> = {
-  kicker: "Изилдөө",
   title: "Кесиптер",
   cardTitle: "Кесип",
-  lead: "Жумуш күнү кандай өтөт, эмнени билүү керек жана ал үчүн кайда тапшыруу керек.",
   unavailable: "Кесиптер жүктөлгөн жок. Баракты жаңыртыңыз.",
   emptyTitle: "Бул кызыгуу боюнча карточкалар азырынча жок",
   emptyBody: "Чыпканы алып салыңыз же башка кызыгууну тандаңыз.",
@@ -1424,9 +1406,7 @@ const professionsKy: Readonly<Record<ProfessionsKey, string>> = {
  * страница помечает разницу предметно.
  */
 const messagesRu = {
-  kicker: "Сопровождение",
   title: "Сообщения",
-  lead: "Переписка с командой EVO по вашему делу.",
   unavailable: "Не удалось загрузить сообщения. Обновите страницу. Переписка не потеряна.",
   emptyTitle: "Сообщений пока нет",
   emptyBody: "Напишите команде EVO — сообщение появится здесь вместе с ответом.",
@@ -1447,16 +1427,14 @@ const messagesRu = {
   attachmentDocument: "Документ: {label}",
   quotedPrefix: "В ответ на: {preview}",
   newMessageNotice: "Новое сообщение от {name}.",
-  differenceNote: "Здесь — переписка с командой по вашему делу. Разовый вопрос куратору с ответом — в разделе «Поступление».",
-  differenceLink: "Открыть вопрос куратору",
+  differenceNote: "Разовый вопрос куратору — на странице «Поступление».",
+  differenceLink: "Задать вопрос",
 } as const;
 
 type MessagesKey = keyof typeof messagesRu;
 
 const messagesKy: Readonly<Record<MessagesKey, string>> = {
-  kicker: "Коштоо",
   title: "Билдирүүлөр",
-  lead: "Ишиңиз боюнча EVO командасы менен кат алышуу.",
   unavailable: "Билдирүүлөр жүктөлгөн жок. Баракты жаңыртыңыз. Кат алышуу жоголгон жок.",
   emptyTitle: "Азырынча билдирүү жок",
   emptyBody: "EVO командасына жазыңыз — билдирүү жообу менен ушул жерде чыгат.",
@@ -1477,8 +1455,8 @@ const messagesKy: Readonly<Record<MessagesKey, string>> = {
   attachmentDocument: "Документ: {label}",
   quotedPrefix: "Жооп катары: {preview}",
   newMessageNotice: "{name} жаңы билдирүү жазды.",
-  differenceNote: "Бул жерде — ишиңиз боюнча команда менен кат алышуу. Кураторго жообу менен бир жолку суроо — «Тапшыруу» бөлүмүндө.",
-  differenceLink: "Кураторго суроону ачуу",
+  differenceNote: "Кураторго бир жолку суроо — «Тапшыруу» барагында.",
+  differenceLink: "Суроо берүү",
 };
 
 /**
@@ -1494,21 +1472,13 @@ const messagesKy: Readonly<Record<MessagesKey, string>> = {
  * tests/portal-i18n.test.mjs), staff-файл при этом не импортируется.
  */
 const admissionRu = {
-  kicker: "Сопровождение",
-  kickerCabinet: "Кабинет студента",
-  messagesNote: "Напишите команде EVO — переписка идёт в разделе «Сообщения».",
   messagesLink: "Написать в сообщениях",
 
   overviewTitle: "Моё поступление",
-  overviewLead: "Ваш следующий шаг и работа команды — под рукой.",
   documentsTitle: "Документы",
-  documentsLead: "Что нужно предоставить, что уже принято и что требуется исправить.",
   paymentsTitle: "Оплата",
-  paymentsLead: "Сколько начислено, оплачено и осталось.",
   notificationsTitle: "Уведомления",
-  notificationsLead: "Важные изменения и сроки по вашему поступлению.",
   replyTitle: "Ответ куратора",
-  replyLead: "Обращение по вашему поступлению.",
   replyAllNotifications: "Все уведомления",
   replyYourQuestion: "Ваш вопрос",
   replyAnswer: "Ответ EVO",
@@ -1523,18 +1493,12 @@ const admissionRu = {
   openDocument: "Открыть документ",
   nextStepHeading: "Ваш следующий шаг",
   planHeading: "План поступления",
-  nextStepNote: "Что требуется от вас",
-  heroPaymentLead: "Проверьте сумму, срок оплаты и указания команды EVO.",
-  heroReplaceLead: "Откройте замечания к документу и загрузите исправленный файл.",
-  heroUploadLead: "Откройте документ и загрузите файл.",
   heroDueTerm: "Срок (по Бишкеку)",
   heroOutstandingTerm: "Осталось оплатить",
-  heroDocumentTerm: "Документ",
   heroPaymentCta: "Посмотреть начисление",
   calmDone: "Сейчас действий от вас не требуется",
   calmNoPlan: "План поступления пока не опубликован",
-  calmDoneLead: "Сейчас нет действий по документам и оплате. Можно изучить университеты или задать вопрос куратору.",
-  calmNoPlanLead: "Команда EVO добавит сюда этапы поступления, следующий шаг и контакт куратора.",
+  calmNoPlanLead: "Команда EVO добавит сюда ваш следующий шаг.",
   exploreUniversities: "Изучить университеты",
   remainingHeading: "Также требует внимания",
   footerNavAria: "Документы и оплата",
@@ -1542,17 +1506,15 @@ const admissionRu = {
   allPayments: "Все начисления",
   asideAria: "Команда EVO и помощь",
   evoHeading: "Что делает EVO",
-  evoEmpty: "Нет опубликованной задачи команды EVO.",
   curatorHeading: "Ваш куратор",
   curatorEmpty: "Куратор пока не назначен.",
   pendingHeading: "Сопровождение",
   pendingManagerNotice: "Менеджер свяжется с вами.",
   pendingApplicationHeading: "Ваша анкета",
+  // Зеркало staff-словаря portalPendingCabinet; на экране намеренно не рисуется.
   pendingApplicationHint: "Анкета, которую вы отправили и одобрила команда EVO.",
   pendingApplicationLink: "Открыть анкету",
   helpHeading: "Вопрос куратору",
-  helpText: "Отправьте вопрос команде EVO или прочитайте ответ на ваше обращение.",
-  helpTextAlso: "Отправляли разовое обращение? Ответ на него — ниже на этой странице.",
   helpLink: "Ответы на обращения",
   helpLinkPending: "Открыть обращения",
 
@@ -1636,7 +1598,7 @@ const admissionRu = {
   // PORT-8c: операционный этап дела — локализуемое зеркало staff-словаря
   // STUDENT_OPERATIONAL_STAGE (wording.ts): RU байт-в-байт, KY — свои
   // значения; нестандартный этап показывается честным stageCustom.
-  stageTerm: "Этап сопровождения",
+  stageTerm: "Этап",
   stageCustom: "индивидуальный этап сопровождения",
   "stage.contract_confirmed": "договор подтверждён",
   "stage.admissions_handoff": "передано в приёмную",
@@ -1675,21 +1637,13 @@ const admissionRu = {
 type AdmissionKey = keyof typeof admissionRu;
 
 const admissionKy: Readonly<Record<AdmissionKey, string>> = {
-  kicker: "Коштоо",
-  kickerCabinet: "Студенттин кабинети",
-  messagesNote: "EVO командасына жазыңыз — кат алышуу «Билдирүүлөр» бөлүмүндө жүрөт.",
   messagesLink: "Билдирүүлөрдө жазуу",
 
   overviewTitle: "Менин тапшыруум",
-  overviewLead: "Кийинки кадамыңыз жана команданын иши — көз алдыңызда.",
   documentsTitle: "Документтер",
-  documentsLead: "Эмнени берүү керек, эмне кабыл алынды жана эмнени оңдоо керек.",
   paymentsTitle: "Төлөм",
-  paymentsLead: "Канча эсептелди, канча төлөндү жана канча калды.",
   notificationsTitle: "Билдирмелер",
-  notificationsLead: "Тапшырууңуз боюнча маанилүү өзгөрүүлөр жана мөөнөттөр.",
   replyTitle: "Куратордун жообу",
-  replyLead: "Тапшырууңуз боюнча кайрылуу.",
   replyAllNotifications: "Бардык билдирмелер",
   replyYourQuestion: "Сиздин суроо",
   replyAnswer: "EVO жообу",
@@ -1704,18 +1658,12 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   openDocument: "Документти ачуу",
   nextStepHeading: "Сиздин кийинки кадамыңыз",
   planHeading: "Тапшыруу планы",
-  nextStepNote: "Сизден эмне талап кылынат",
-  heroPaymentLead: "Сумманы, төлөм мөөнөтүн жана EVO командасынын көрсөтмөлөрүн текшериңиз.",
-  heroReplaceLead: "Документке берилген сын-пикирлерди ачып, оңдолгон файлды жүктөңүз.",
-  heroUploadLead: "Документти ачып, файлды жүктөңүз.",
   heroDueTerm: "Мөөнөтү (Бишкек убактысы)",
   heroOutstandingTerm: "Төлөнүүгө калды",
-  heroDocumentTerm: "Документ",
   heroPaymentCta: "Эсептөөнү көрүү",
   calmDone: "Азыр сизден эч кандай аракет талап кылынбайт",
   calmNoPlan: "Тапшыруу планы азырынча жарыялана элек",
-  calmDoneLead: "Азыр документтер жана төлөм боюнча аракеттер жок. Университеттерди изилдесеңиз же кураторго суроо берсеңиз болот.",
-  calmNoPlanLead: "EVO командасы бул жерге тапшыруу этаптарын, кийинки кадамды жана куратордун байланышын кошот.",
+  calmNoPlanLead: "EVO командасы бул жерге кийинки кадамыңызды кошот.",
   exploreUniversities: "Университеттерди изилдөө",
   remainingHeading: "Дагы көңүл бурууну талап кылат",
   footerNavAria: "Документтер жана төлөм",
@@ -1723,7 +1671,6 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   allPayments: "Бардык эсептөөлөр",
   asideAria: "EVO командасы жана жардам",
   evoHeading: "EVO эмне кылып жатат",
-  evoEmpty: "EVO командасынын жарыяланган тапшырмасы жок.",
   curatorHeading: "Сиздин куратор",
   curatorEmpty: "Куратор азырынча дайындала элек.",
   pendingHeading: "Коштоо",
@@ -1732,8 +1679,6 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   pendingApplicationHint: "Сиз жөнөткөн жана EVO командасы жактырган анкета.",
   pendingApplicationLink: "Анкетаны ачуу",
   helpHeading: "Кураторго суроо",
-  helpText: "EVO командасына суроо жөнөтүңүз же кайрылууңузга берилген жоопту окуңуз.",
-  helpTextAlso: "Бир жолку кайрылуу жибергенсизби? Анын жообу ушул беттин ылдый жагында.",
   helpLink: "Кайрылууларга жооптор",
   helpLinkPending: "Кайрылууларды ачуу",
 
@@ -1814,7 +1759,7 @@ const admissionKy: Readonly<Record<AdmissionKey, string>> = {
   targetOverview: "Тапшырууну ачуу",
 
   statusUnavailable: "статус жеткиликсиз",
-  stageTerm: "Коштоо этабы",
+  stageTerm: "Этап",
   stageCustom: "коштоонун жеке этабы",
   "stage.contract_confirmed": "келишим ырасталды",
   "stage.admissions_handoff": "кабыл алуу тобуна өткөрүлдү",
@@ -2223,10 +2168,7 @@ const applyKy: Readonly<Record<ApplyKey, string>> = {
  * собственные тексты экрана.
  */
 const homeRu = {
-  kicker: "Кабинет студента",
   title: "Главная",
-  leadApproved: "Путь поступления, уроки, тесты и сохранённые университеты.",
-  leadAssisted: "Что сделать сейчас, путь поступления, уроки и сохранённые университеты.",
   caseHeading: "Что сделать сейчас",
   caseUnavailable: "Не удалось загрузить, что нужно сделать. Обновите страницу.",
   caseMore: "Ещё действий: {count}",
@@ -2256,10 +2198,7 @@ const homeRu = {
 type HomeKey = keyof typeof homeRu;
 
 const homeKy: Readonly<Record<HomeKey, string>> = {
-  kicker: "Студенттин кабинети",
   title: "Башкы бет",
-  leadApproved: "Тапшыруу жолу, сабактар, тесттер жана сакталган университеттер.",
-  leadAssisted: "Азыр эмне кылуу керек, тапшыруу жолу, сабактар жана сакталган университеттер.",
   caseHeading: "Азыр эмне кылуу керек",
   caseUnavailable: "Эмне кылуу керектиги жүктөлгөн жок. Баракты жаңыртыңыз.",
   caseMore: "Дагы аракеттер: {count}",

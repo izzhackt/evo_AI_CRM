@@ -99,7 +99,6 @@ export function OverviewView({ overview, pending = false, locale }: { overview: 
             <h2 id="student-next-step" className="pt-card-title">
               {overview ? strings.nextStepHeading : strings.planHeading}
             </h2>
-            {primary ? <span className="pt-card-note">{strings.nextStepNote}</span> : null}
           </header>
 
           {primary ? (
@@ -108,13 +107,6 @@ export function OverviewView({ overview, pending = false, locale }: { overview: 
                 <span aria-hidden="true" className="pt-adm-hero-icon">→</span>
                 <h3 className="pt-adm-hero-title">{actionTitle(primary, strings)}</h3>
               </div>
-              <p className="pt-adm-hero-lead">
-                {primary.kind === "payment"
-                  ? strings.heroPaymentLead
-                  : primary.kind === "replace_document"
-                    ? strings.heroReplaceLead
-                    : strings.heroUploadLead}
-              </p>
               <dl className="pt-adm-hero-facts">
                 <div className="pt-adm-hero-fact">
                   <dt>{strings.heroDueTerm}</dt>
@@ -124,12 +116,12 @@ export function OverviewView({ overview, pending = false, locale }: { overview: 
                     ) : strings.dueUnknown}
                   </dd>
                 </div>
-                <div className="pt-adm-hero-fact">
-                  <dt>{primary.kind === "payment" ? strings.heroOutstandingTerm : strings.heroDocumentTerm}</dt>
-                  <dd>
-                    {primary.kind === "payment" ? formatPortalMoney(primary.amountMinor, primary.currency) : primary.label}
-                  </dd>
-                </div>
+                {primary.kind === "payment" ? (
+                  <div className="pt-adm-hero-fact">
+                    <dt>{strings.heroOutstandingTerm}</dt>
+                    <dd>{formatPortalMoney(primary.amountMinor, primary.currency)}</dd>
+                  </div>
+                ) : null}
               </dl>
               <Link href={actionHref(primary)} className="pt-btn pt-adm-hero-cta">
                 {primary.kind === "payment" ? strings.heroPaymentCta : strings.openDocument} <span aria-hidden="true">→</span>
@@ -143,9 +135,7 @@ export function OverviewView({ overview, pending = false, locale }: { overview: 
               <h3 className="pt-adm-hero-title pt-adm-hero-title-calm">
                 {overview ? strings.calmDone : strings.calmNoPlan}
               </h3>
-              <p className="pt-adm-hero-lead">
-                {overview ? strings.calmDoneLead : strings.calmNoPlanLead}
-              </p>
+              {overview ? null : <p className="pt-adm-hero-lead">{strings.calmNoPlanLead}</p>}
               <Link href="/portal/universities" className="pt-link pt-adm-hero-link">
                 {strings.exploreUniversities} <span aria-hidden="true">→</span>
               </Link>
@@ -188,18 +178,18 @@ export function OverviewView({ overview, pending = false, locale }: { overview: 
             <span className="pt-chip">{stage}</span>
           </div>
         ) : null}
-        <h2 className="pt-adm-aside-title">{strings.evoHeading}</h2>
         {evoAction && evoStatus ? (
-          <div id={`evo-task-${evoAction.taskId}`} className="pt-adm-evo">
-            <p className="pt-adm-evo-title">{evoAction.title}</p>
-            <div className="pt-adm-evo-meta">
-              <PortalStatus label={evoStatus.label} tone={evoStatus.tone} />
-              {evoDue ? <span className="pt-adm-evo-due">{strings.dueTerm} {evoDue}</span> : null}
+          <>
+            <h2 className="pt-adm-aside-title">{strings.evoHeading}</h2>
+            <div id={`evo-task-${evoAction.taskId}`} className="pt-adm-evo">
+              <p className="pt-adm-evo-title">{evoAction.title}</p>
+              <div className="pt-adm-evo-meta">
+                <PortalStatus label={evoStatus.label} tone={evoStatus.tone} />
+                {evoDue ? <span className="pt-adm-evo-due">{strings.dueTerm} {evoDue}</span> : null}
+              </div>
             </div>
-          </div>
-        ) : (
-          <p className="pt-adm-aside-muted">{strings.evoEmpty}</p>
-        )}
+          </>
+        ) : null}
 
         <div className="pt-adm-curator">
           <p className="pt-adm-curator-caption">{pending ? strings.pendingHeading : strings.curatorHeading}</p>
@@ -215,7 +205,6 @@ export function OverviewView({ overview, pending = false, locale }: { overview: 
         {pending ? (
           <div className="pt-adm-aside-card">
             <h3 className="pt-adm-aside-card-title">{strings.pendingApplicationHeading}</h3>
-            <p className="pt-adm-aside-card-text">{strings.pendingApplicationHint}</p>
             <Link href="/apply/status" className="pt-link">
               {strings.pendingApplicationLink} <span aria-hidden="true">→</span>
             </Link>
@@ -225,20 +214,15 @@ export function OverviewView({ overview, pending = false, locale }: { overview: 
         <div className="pt-adm-aside-card">
           <h3 className="pt-adm-aside-card-title">{strings.helpHeading}</h3>
           {pending ? (
-            <>
-              <p className="pt-adm-aside-card-text">{strings.helpText}</p>
-              <Link href="#case-help" className="pt-link">
-                {strings.helpLinkPending} <span aria-hidden="true">→</span>
-              </Link>
-            </>
+            <Link href="#case-help" className="pt-link">
+              {strings.helpLinkPending} <span aria-hidden="true">→</span>
+            </Link>
           ) : (
             <>
               {/* Главный вход один — «Сообщения»; ответы на разовые обращения идут вторым шагом. */}
-              <p className="pt-adm-aside-card-text">{strings.messagesNote}</p>
               <Link href="/portal/messages" className="pt-link">
                 {strings.messagesLink} <span aria-hidden="true">→</span>
               </Link>
-              <p className="pt-adm-aside-card-text">{strings.helpTextAlso}</p>
               <Link href="#case-help" className="pt-link">
                 {strings.helpLink} <span aria-hidden="true">→</span>
               </Link>

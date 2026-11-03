@@ -313,11 +313,11 @@ test("overview names each actor from the canonical projection and links exact it
   assert.match(overview, /overview\?\.studentAction/u);
   assert.match(overview, /overview\?\.evoAction/u);
   assert.doesNotMatch(overview, /overview\.nextAction/u);
-  // PORT-6a: строки — ключи admission-словаря; RU-значения остались
-  // байт-в-байт прежними (проверяется по словарю, не по TSX).
-  assert.match(overview, /strings\.nextStepNote/u);
+  // PORT-6a: строки — ключи admission-словаря (проверяется по словарю, не по TSX).
+  // Разгрузка кабинета 03.11.2026: подпись под заголовком шага и пояснения
+  // героя убраны — заголовок и кнопка говорят то же самое.
+  assert.doesNotMatch(overview, /nextStepNote|heroUploadLead|heroDocumentTerm/u);
   assert.match(overview, /strings\.evoHeading/u);
-  assert.equal(admissionRu.nextStepNote, "Что требуется от вас");
   assert.equal(admissionRu.evoHeading, "Что делает EVO");
   assert.match(
     overview,
@@ -326,13 +326,11 @@ test("overview names each actor from the canonical projection and links exact it
   // Overview is a flat action queue now: no nested <details> disclosure.
   assert.doesNotMatch(overview, /<details/u);
   assert.match(overview, /id=\{`evo-task-\$\{evoAction\.taskId\}`\}/u);
-  assert.match(overview, /strings\.calmDoneLead/u);
-  assert.equal(
-    admissionRu.calmDoneLead,
-    "Сейчас нет действий по документам и оплате. Можно изучить университеты или задать вопрос куратору.",
-  );
-  assert.match(overview, /strings\.evoEmpty/u);
-  assert.equal(admissionRu.evoEmpty, "Нет опубликованной задачи команды EVO.");
+  // Без задачи команды блока «Что делает EVO» нет вовсе — пустую строку-заглушку
+  // студент не читает; спокойное состояние — один заголовок без пояснения.
+  assert.match(overview, /\{evoAction && evoStatus \? \(\s*<>\s*<h2 className="pt-adm-aside-title">\{strings\.evoHeading\}<\/h2>/u);
+  assert.doesNotMatch(overview, /evoEmpty|calmDoneLead/u);
+  assert.equal(admissionRu.calmDone, "Сейчас действий от вас не требуется");
   // PORT-5d: 44px-цели живут в pt-классах (portal.css), не в tailwind-утилитах.
   assert.match(overview, /pt-btn/u);
   assert.match(
@@ -385,6 +383,8 @@ test("the overview never claims a mandatory stage, and a pending cabinet stays h
   assert.match(overview, /pending\??: boolean/u);
   assert.match(overview, /pending \? strings\.pendingHeading : strings\.curatorHeading/u);
   assert.match(overview, /strings\.pendingManagerNotice/u);
+  // Пояснение под «Ваша анкета» на экране не рисуется: заголовок и ссылка говорят сами.
+  assert.doesNotMatch(overview, /strings\.pendingApplicationHint/u);
   assert.equal(admissionRu.pendingHeading, "Сопровождение");
   assert.equal(admissionRu.pendingManagerNotice, "Менеджер свяжется с вами.");
   assert.equal(admissionRu.pendingApplicationHeading, "Ваша анкета");

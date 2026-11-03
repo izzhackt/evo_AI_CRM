@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AiConsentSettingsRow } from "@/components/portal/consent/AiConsent";
@@ -79,6 +80,11 @@ function ConsultationHistory({
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("profile", await getLocale());
+  return { title: `${strings.title} — EVO Admissions` };
+}
+
 /**
  * Экран «Профиль» (PORT-5a, план §6 «Профиль», §13; дизайн-контракт §6):
  * данные read-only, язык RU/KY (RPC 196 + cookie в одном действии), личные
@@ -113,9 +119,7 @@ export default async function ProfilePage() {
   return (
     <main className="pt-page">
       <header className="pt-page-header">
-        <p className="pt-page-kicker">{strings.kicker}</p>
         <h1 className="pt-page-title">{strings.title}</h1>
-        <p className="pt-page-lead">{strings.lead}</p>
       </header>
       {profile === null ? (
         <p role="alert" className="pt-alert">{strings.unavailable}</p>

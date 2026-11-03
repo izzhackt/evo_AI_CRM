@@ -163,7 +163,6 @@ export function HomeView({
         <section aria-labelledby="home-case" className="pt-card pt-home-case">
           <header className="pt-card-header">
             <h2 id="home-case" className="pt-card-title">{strings.caseHeading}</h2>
-            {primary ? <span className="pt-card-note">{admission.nextStepNote}</span> : null}
           </header>
           <div className="pt-home-case-body">
             {overviewFailed ? (
@@ -205,9 +204,7 @@ export function HomeView({
                 <h3 className="pt-home-case-title pt-home-case-calm">
                   {overview ? admission.calmDone : admission.calmNoPlan}
                 </h3>
-                <p className="pt-home-case-lead">
-                  {overview ? admission.calmDoneLead : admission.calmNoPlanLead}
-                </p>
+                {overview ? null : <p className="pt-home-case-lead">{admission.calmNoPlanLead}</p>}
               </>
             )}
           </div>
@@ -314,7 +311,6 @@ export function HomeView({
             <article className="pt-home-card">
               <p className="pt-home-card-kicker">{strings.applicationKicker}</p>
               <h3 className="pt-home-card-title">{admission.pendingApplicationHeading}</h3>
-              <p className="pt-home-card-body">{admission.pendingApplicationHint}</p>
               <p className="pt-home-card-action">
                 <IntentPrefetchLink className="pt-btn-ghost" href="/apply/status">
                   {admission.pendingApplicationLink}

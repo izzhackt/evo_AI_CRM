@@ -43,9 +43,7 @@ export default async function StudentPortalMessagesPage() {
   return (
     <main className="pt-page">
       <header className="pt-page-header">
-        <p className="pt-page-kicker">{strings.kicker}</p>
         <h1 className="pt-page-title">{strings.title}</h1>
-        <p className="pt-page-lead">{strings.lead}</p>
       </header>
       <p className="pt-chat-difference">
         {strings.differenceNote}{" "}

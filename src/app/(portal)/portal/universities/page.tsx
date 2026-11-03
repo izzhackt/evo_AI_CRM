@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { CountryCards, UnavailableNotice, placeCountsLabel, type CountryCardModel } from "@/components/portal/universities/Places";
@@ -18,6 +19,11 @@ import { PLACE_CARD_WIDTHS, indexTileModel, placePhoto, tileStrings } from "@/li
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("universities", await getLocale());
+  return { title: `${strings.title} — EVO Admissions` };
+}
 
 /**
  * «Университеты» (S3, план 7.3): шесть карточек стран и поиск по названию по

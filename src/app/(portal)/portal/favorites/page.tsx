@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { FavoritesView } from "@/components/portal/favorites/FavoritesView";
@@ -13,6 +14,11 @@ import {
 import { requireStudentPortalActor } from "@/lib/student-portal-guards";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const strings = getPortalStrings("favorites", await getLocale());
+  return { title: `${strings.title} — EVO Admissions` };
+}
 
 /**
  * Раздел «Избранное» (PORT-3b, план §6 «Избранное», дизайн-контракт §5):
@@ -46,9 +52,7 @@ export default async function FavoritesPage() {
   return (
     <main className="pt-page">
       <header className="pt-page-header">
-        <p className="pt-page-kicker">{strings.kicker}</p>
         <h1 className="pt-page-title">{strings.title}</h1>
-        <p className="pt-page-lead">{strings.lead}</p>
         {items !== null && hiddenCount > 0 ? (
           <p className="pt-page-lead">{formatPortalString(strings.hiddenCount, { count: String(hiddenCount) })}</p>
         ) : null}

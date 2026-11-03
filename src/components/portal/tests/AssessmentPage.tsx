@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getLocale } from "@/lib/i18n";
@@ -23,7 +24,7 @@ export async function AssessmentPage({ instrumentKey, searchParams }: {
     return (
       <main className="pt-page">
         <header className="pt-page-header">
-          <p className="pt-page-kicker">{strings.kicker}</p>
+          <p className="pt-page-kicker"><Link className="pt-link" href="/portal/tests">{strings.backToCatalog}</Link></p>
           <h1 className="pt-page-title">{strings.unavailableTitle}</h1>
           <p className="pt-page-lead">{strings.unavailableLead}</p>
         </header>
@@ -38,7 +39,7 @@ export async function AssessmentPage({ instrumentKey, searchParams }: {
   return (
     <main className="pt-page">
       <header className="pt-page-header">
-        <p className="pt-page-kicker">{strings.kicker}</p>
+        <p className="pt-page-kicker"><Link className="pt-link" href="/portal/tests">{strings.backToCatalog}</Link></p>
         <h1 className="pt-page-title">{attempt?.metadata.title ?? instrument.metadata.title}</h1>
         <p className="pt-page-lead">{attempt?.metadata.description ?? instrument.metadata.description}</p>
       </header>

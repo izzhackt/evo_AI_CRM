@@ -20,9 +20,7 @@ export default async function StudentPortalPaymentsPage() {
   return (
     <main className="pt-page">
       <header className="pt-page-header">
-        <p className="pt-page-kicker">{strings.kicker}</p>
         <h1 className="pt-page-title">{strings.paymentsTitle}</h1>
-        <p className="pt-page-lead">{strings.paymentsLead}</p>
       </header>
       <PaymentsView payments={payments} locale={locale} />
     </main>

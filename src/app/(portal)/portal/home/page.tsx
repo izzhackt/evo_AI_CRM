@@ -111,11 +111,7 @@ export default async function StudentPortalHomePage() {
   return (
     <main className="pt-page">
       <header className="pt-page-header">
-        <p className="pt-page-kicker">{strings.kicker}</p>
         <h1 className="pt-page-title">{strings.title}</h1>
-        <p className="pt-page-lead">
-          {tier === "assisted" ? strings.leadAssisted : strings.leadApproved}
-        </p>
       </header>
       <HomeView
         tier={tier}

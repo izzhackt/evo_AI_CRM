@@ -112,6 +112,8 @@ function renderSurface(title, node) {
   ].join("");
 }
 
+// Шапка страницы кабинета: заголовок, при необходимости ссылка «назад» над ним
+// и строка-описание под ним (у разгруженных страниц их нет — null).
 function pageShell(kicker, heading, lead, children) {
   return createElement(
     "main",
@@ -119,9 +121,9 @@ function pageShell(kicker, heading, lead, children) {
     createElement(
       "header",
       { className: "pt-page-header" },
-      createElement("p", { className: "pt-page-kicker" }, kicker),
+      kicker === null ? null : createElement("p", { className: "pt-page-kicker" }, kicker),
       createElement("h1", { className: "pt-page-title" }, heading),
-      createElement("p", { className: "pt-page-lead" }, lead),
+      lead === null ? null : createElement("p", { className: "pt-page-lead" }, lead),
     ),
     children,
   );
@@ -619,9 +621,9 @@ const surfaces = [
     html: renderSurface(
       "Моё поступление — a11y",
       pageShell(
-        admission.kickerCabinet,
+        null,
         admission.overviewTitle,
-        admission.overviewLead,
+        null,
         // Согласие на ИИ-помощников стоит над обзором (слот карточки на /portal).
         createElement(
           Fragment,
@@ -641,9 +643,9 @@ const surfaces = [
     html: renderSurface(
       "Документы — a11y",
       pageShell(
-        admission.kicker,
+        null,
         admission.documentsTitle,
-        admission.documentsLead,
+        null,
         createElement(DocumentsView, { documents: documentsFixture, locale: "ru" }),
       ),
     ),
@@ -653,9 +655,9 @@ const surfaces = [
     html: renderSurface(
       "Уведомления — a11y",
       pageShell(
-        admission.kickerCabinet,
+        null,
         admission.notificationsTitle,
-        admission.notificationsLead,
+        null,
         createElement(NotificationsView, {
           notifications: notificationsFixture,
           markReadAction: noopAction,
@@ -670,9 +672,9 @@ const surfaces = [
     html: renderSurface(
       "Тесты — a11y",
       pageShell(
-        testsStrings.kicker,
+        null,
         testsStrings.title,
-        testsStrings.lead,
+        null,
         createElement(TestsCatalog, { catalog: assessmentCatalogFixture, locale: "ru" }),
       ),
     ),
@@ -682,7 +684,7 @@ const surfaces = [
     html: renderSurface(
       "Тест — раннер — a11y",
       pageShell(
-        testsStrings.kicker,
+        testsStrings.backToCatalog,
         assessmentMetadata.title,
         assessmentMetadata.description,
         createElement(AssessmentRunner, {
@@ -698,7 +700,7 @@ const surfaces = [
     html: renderSurface(
       "Тест — результаты — a11y",
       pageShell(
-        testsStrings.kicker,
+        testsStrings.backToCatalog,
         assessmentMetadata.title,
         assessmentMetadata.description,
         createElement(
@@ -715,9 +717,9 @@ const surfaces = [
     html: renderSurface(
       "Профессии и профиль — a11y",
       pageShell(
-        professionsStrings.kicker,
+        null,
         professionsStrings.title,
-        professionsStrings.lead,
+        null,
         createElement(
           "div",
           null,
@@ -773,9 +775,9 @@ const surfaces = [
     html: renderSurface(
       "Главная — approved — a11y",
       pageShell(
-        homeStrings.kicker,
+        null,
         homeStrings.title,
-        homeStrings.leadApproved,
+        null,
         createElement(HomeView, {
           tier: "approved",
           overview: null,
@@ -804,9 +806,9 @@ const surfaces = [
     html: renderSurface(
       "Главная — assisted — a11y",
       pageShell(
-        homeStrings.kicker,
+        null,
         homeStrings.title,
-        homeStrings.leadAssisted,
+        null,
         createElement(HomeView, {
           tier: "assisted",
           overview: overviewFixture,
@@ -834,9 +836,9 @@ const surfaces = [
     html: renderSurface(
       "Профиль — ИИ-помощники — a11y",
       pageShell(
-        profileStrings.kicker,
+        null,
         profileStrings.title,
-        profileStrings.lead,
+        null,
         createElement(
           "div",
           { className: "pt-profile-sections" },

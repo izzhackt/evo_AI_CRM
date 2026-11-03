@@ -26,9 +26,7 @@ export default async function StudentPortalDocumentsPage() {
   return (
     <main className="pt-page">
       <header className="pt-page-header">
-        <p className="pt-page-kicker">{strings.kicker}</p>
         <h1 className="pt-page-title">{strings.documentsTitle}</h1>
-        <p className="pt-page-lead">{strings.documentsLead}</p>
       </header>
       <DocumentsView documents={documents} locale={locale} />
     </main>

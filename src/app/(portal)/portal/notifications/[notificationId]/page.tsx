@@ -31,9 +31,7 @@ export default async function StudentHelpReplyPage({ params }: {
   return (
     <main className="pt-page">
       <header className="pt-page-header">
-        <p className="pt-page-kicker">{strings.kickerCabinet}</p>
         <h1 className="pt-page-title">{strings.replyTitle}</h1>
-        <p className="pt-page-lead">{strings.replyLead}</p>
       </header>
       <p>
         <Link href="/portal/notifications" className="pt-link">

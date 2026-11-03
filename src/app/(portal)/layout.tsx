@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import { Shell } from "@/components/portal/Shell";
@@ -8,6 +9,12 @@ import { readRequestTheme } from "@/lib/theme-server";
 
 import "../(v3)/v3.css";
 import "./portal.css";
+
+// Страницы кабинета сами дописывают «— EVO Admissions»; корневой шаблон
+// «| EVO Admissions CRM» студенту не нужен.
+export const metadata: Metadata = {
+  title: { absolute: "EVO Admissions", template: "%s" },
+};
 
 export default async function StudentPortalLayout({
   children,

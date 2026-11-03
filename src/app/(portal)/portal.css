@@ -4990,6 +4990,30 @@ main.pt-page > .pt-card {
   text-align: right;
 }
 
+/* Строка о данных: тихая плашка со щитом под полосой прогресса. */
+.pt-doc-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--pt-radius-item);
+  background: var(--pt-bg);
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+  line-height: var(--pt-leading);
+}
+
+.pt-doc-privacy svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.pt-doc-privacy .pt-link {
+  min-height: 0;
+  font-size: inherit;
+}
+
 .pt-doc-summary .pt-doc-hint {
   margin: 0;
 }

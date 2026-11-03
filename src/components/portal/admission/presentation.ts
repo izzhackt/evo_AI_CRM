@@ -87,24 +87,18 @@ export function documentProgress(documents: readonly Pick<StudentPortalDocument,
 }
 
 /**
- * Мини-чеклист «Документы» (03.11.2026): сначала то, что ждёт студента
- * (исправить, добавить), потом проверка, принятые — в конце; значок строки
- * рядом со словом статуса (смысл несёт слово).
+ * Значок строки «Документов» (03.11.2026) рядом со словом статуса — смысл
+ * несёт слово.
  */
 export type DocumentChecklistIcon = "file" | "clock" | "check" | "alert";
 
-const DOCUMENT_CHECKLIST: Readonly<Record<string, Readonly<{ order: number; icon: DocumentChecklistIcon }>>> = {
-  correction_required: { order: 0, icon: "alert" },
-  rejected: { order: 0, icon: "alert" },
-  required: { order: 1, icon: "file" },
-  submitted: { order: 2, icon: "clock" },
-  approved: { order: 3, icon: "check" },
+const DOCUMENT_CHECKLIST: Readonly<Record<string, Readonly<{ icon: DocumentChecklistIcon }>>> = {
+  correction_required: { icon: "alert" },
+  rejected: { icon: "alert" },
+  required: { icon: "file" },
+  submitted: { icon: "clock" },
+  approved: { icon: "check" },
 };
-
-export function documentChecklistOrder(documents: readonly StudentPortalDocument[]): StudentPortalDocument[] {
-  const order = (document: StudentPortalDocument) => DOCUMENT_CHECKLIST[document.status]?.order ?? 1;
-  return [...documents].sort((a, b) => order(a) - order(b));
-}
 
 export function documentChecklistIcon(document: Pick<StudentPortalDocument, "status">): DocumentChecklistIcon {
   return DOCUMENT_CHECKLIST[document.status]?.icon ?? "file";

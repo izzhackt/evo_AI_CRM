@@ -4,7 +4,6 @@ import type { Metadata } from "next";
 import { PreparationList } from "@/components/portal/admissionPreparations/PreparationList";
 import { readStudentCatalogPreparations } from "@/lib/portal/catalog-preparations-source";
 
-import { DocumentsSummaryCard } from "@/components/portal/admission/DocumentsSummaryCard";
 import { OverviewView } from "@/components/portal/admission/OverviewView";
 import { AiConsentSlot } from "@/components/portal/consent/AiConsentSlot";
 import { getLocale } from "@/lib/i18n";
@@ -61,13 +60,7 @@ async function AdmissionOverview({ actor, locale }: Readonly<{
   const preparationStrings = getPortalStrings("preparations", locale);
   return (
     <>
-      {overview === undefined ? <p className="pt-prep-error" role="status">{preparationStrings.overviewUnavailable}</p> : <OverviewView
-        overview={overview}
-        pending={actor.caseState === "pending"}
-        locale={locale}
-        // Документы без пункта меню (03.11.2026): сводка — в правой колонке, у дела на сопровождении.
-        documents={actor.accessTier === "assisted" && actor.caseState !== "pending" ? <DocumentsSummaryCard locale={locale} /> : null}
-      />}
+      {overview === undefined ? <p className="pt-prep-error" role="status">{preparationStrings.overviewUnavailable}</p> : <OverviewView overview={overview} pending={actor.caseState === "pending"} locale={locale} />}
       <PreparationList items={preparations} strings={preparationStrings} canSelect={actor.caseState === "active" && Boolean(actor.portalActivatedAt)} />
     </>
   );

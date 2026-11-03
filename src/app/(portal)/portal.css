@@ -4500,114 +4500,6 @@
   line-height: var(--pt-leading);
 }
 
-/* «Документы» справа: счёт, полоса и три факта — как в чеклисте страницы. */
-.pt-adm-docs {
-  display: grid;
-  gap: 8px;
-}
-
-.pt-adm-docs-count {
-  margin: 4px 0 0;
-  font-size: var(--pt-size-secondary);
-}
-
-/* Мини-чеклист: знак, название документа, слово статуса; строка — ссылка. */
-.pt-adm-docs-list {
-  display: grid;
-  margin: 4px -8px 0;
-  padding: 0;
-  list-style: none;
-}
-
-.pt-adm-docs-list > li + li {
-  border-top: 1px solid var(--pt-line);
-}
-
-.pt-adm-docs-item {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  align-items: start;
-  column-gap: 8px;
-  min-height: 44px;
-  padding: 8px;
-  border-radius: var(--pt-radius-control);
-  color: var(--pt-text);
-  text-decoration: none;
-}
-
-.pt-adm-docs-item:hover {
-  background: var(--pt-bg);
-}
-
-.pt-adm-docs-item:hover .pt-adm-docs-name {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.pt-adm-docs-item:focus-visible {
-  outline: 2px solid var(--pt-accent);
-  outline-offset: -2px;
-}
-
-.pt-adm-docs-mark {
-  grid-row: 1 / span 3;
-  width: 24px;
-  height: 24px;
-}
-
-.pt-adm-docs-name {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.pt-adm-docs-item:focus-visible {
-  outline: 2px solid var(--pt-accent);
-  outline-offset: -2px;
-}
-
-.pt-adm-docs-mark {
-  grid-row: 1 / span 3;
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: var(--pt-radius-chip);
-  box-shadow: inset 0 0 0 1px var(--pt-control-edge);
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-  font-weight: 700;
-  line-height: 1;
-}
-
-.pt-adm-docs-name {
-  font-size: var(--pt-size-secondary);
-  font-weight: 500;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-
-/* Что именно прислать — коротко, одной-двумя строками под названием. */
-.pt-adm-docs-hint {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-  line-height: 1.4;
-}
-
-.pt-adm-docs-status {
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-  font-weight: 600;
-}
-
-.pt-adm-docs-item[data-status="correction_required"] .pt-adm-docs-status,
-.pt-adm-docs-item[data-status="rejected"] .pt-adm-docs-status {
-  color: var(--pt-error);
-}
-
 /* Без пояснений ссылки карточки стоят столбиком сразу под заголовком. */
 .pt-adm-aside-card > .pt-link {
   display: flex;
@@ -4845,8 +4737,7 @@ main.pt-page > .pt-card {
 }
 
 /* Значок строки: мягкий круг тона бумаги; принят — зелёная галочка, исправить — красный знак. */
-.pt-doc-row-mark,
-.pt-adm-docs-mark {
+.pt-doc-row-mark {
   display: grid;
   place-items: center;
   border-radius: var(--pt-radius-chip);
@@ -4860,19 +4751,16 @@ main.pt-page > .pt-card {
   height: 32px;
 }
 
-.pt-doc-row-mark[data-icon="clock"],
-.pt-adm-docs-mark[data-icon="clock"] {
+.pt-doc-row-mark[data-icon="clock"] {
   color: var(--pt-text);
 }
 
-.pt-doc-row-mark[data-icon="check"],
-.pt-adm-docs-mark[data-icon="check"] {
+.pt-doc-row-mark[data-icon="check"] {
   box-shadow: inset 0 0 0 1.5px var(--pt-ok);
   color: var(--pt-ok);
 }
 
-.pt-doc-row-mark[data-icon="alert"],
-.pt-adm-docs-mark[data-icon="alert"] {
+.pt-doc-row-mark[data-icon="alert"] {
   box-shadow: inset 0 0 0 1.5px var(--pt-error);
   color: var(--pt-error);
 }

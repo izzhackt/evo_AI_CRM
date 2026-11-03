@@ -19,7 +19,12 @@ import { useStaleDeployment } from "@/lib/use-stale-deployment";
  * Устаревшую сборку узнаёт `noteServerRelease`: сервер в ответе называет
  * свою ревизию, и она сравнивается с ревизией страницы.
  */
-export function PortalNotificationUpdates({ locale, release }: { locale: Locale; release?: string | null }) {
+export function PortalNotificationUpdates({ locale, release, onUnreadChange }: {
+  locale: Locale;
+  release?: string | null;
+  /** Число непрочитанных для «Входящих» в рейле; `null` — неизвестно. */
+  onUnreadChange?: (unread: number | null) => void;
+}) {
   const strings = getPortalStrings("shell", locale);
   const router = useRouter();
   const pathname = usePathname();
@@ -34,6 +39,8 @@ export function PortalNotificationUpdates({ locale, release }: { locale: Locale;
 
   // Ревизия страницы запоминается один раз за загрузку (модуль), не от обновлений.
   useEffect(() => { noteServerRelease(release ?? null); }, [release]);
+
+  useEffect(() => { onUnreadChange?.(unread); }, [onUnreadChange, unread]);
 
   useEffect(() => {
     if (stale) return;

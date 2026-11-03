@@ -95,12 +95,13 @@ test("the Student workspace preserves four portal pages, private tests and publi
       // 03.11.2026: «Оплата» снята с меню, страница — с «Поступления».
       // PORT-5c: переписка по делу — только assisted (tiers-гейт в Shell).
       "/portal/messages",
+      // 03.11.2026: группы рейла «Выбор» и «Подготовка».
       "/portal/universities",
       "/portal/professions",
+      "/portal/favorites",
       "/portal/english",
       // S5.1: CSCA рядом с «Английским», навигация не перестраивается.
       "/portal/csca",
-      "/portal/favorites",
       // 03.11.2026: «Уведомления» вошли во «Входящие» (/portal/messages,
       // лента «Что нового»); сама страница осталась для старых ссылок.
       "/portal/tests",
@@ -124,7 +125,9 @@ test("the portal uses the Student guard and never mounts the staff shell", () =>
   // сбой не роняет кабинет.
   assert.match(layout, /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)/u);
   assert.match(authority, /accessTier: portalCase\.case_state === "pending" \? "approved" : "assisted"/u);
-  assert.match(shell, /logoutStudentPortalAction/u);
+  // 03.11.2026: меню аккаунта в шапке убрано, «Выйти» — на «Профиле».
+  assert.doesNotMatch(shell, /logoutStudentPortalAction/u);
+  assert.match(source("src/app/(portal)/portal/profile/page.tsx"), /logoutStudentPortalAction/u);
   assert.doesNotMatch(
     `${layout}\n${shell}`,
     /AppShell|requirePlatformStaffActor|role preview|presentationRole/u,

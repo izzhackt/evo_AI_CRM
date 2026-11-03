@@ -47,6 +47,9 @@ const shellRu = {
   "nav.notifications": "Уведомления",
   "nav.tests": "Тесты",
   "nav.profile": "Профиль",
+  // Подписи групп рейла (03.11.2026): над «Университетами» и над «Английским».
+  "nav.groupChoice": "Выбор",
+  "nav.groupPrep": "Подготовка",
 } as const;
 
 type ShellKey = keyof typeof shellRu;
@@ -81,6 +84,8 @@ const shellKy: Readonly<Record<ShellKey, string>> = {
   "nav.notifications": "Билдирмелер",
   "nav.tests": "Тесттер",
   "nav.profile": "Профиль",
+  "nav.groupChoice": "Тандоо",
+  "nav.groupPrep": "Даярдануу",
 };
 
 /**

@@ -19,6 +19,7 @@ export function LessonCover({ lessonKey, orderIndex }: Readonly<{ lessonKey: str
   }
   return (
     <span className="pt-lesson-cover pt-lesson-cover-photo" aria-hidden="true">
+      {/* eslint-disable-next-line @next/next/no-img-element -- статический WebP 720 px из сборки, оптимизатор не нужен */}
       <img
         className="pt-lesson-photo"
         src={cover.photo.src}

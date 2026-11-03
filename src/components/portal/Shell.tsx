@@ -13,7 +13,6 @@ import {
   type RefObject,
 } from "react";
 
-import { accountInitials } from "./initials";
 import { PortalNotificationUpdates } from "./PortalNotificationUpdates";
 import { PortalStaleDeploymentNotice } from "./PortalStaleDeploymentNotice";
 import { RailFooter } from "./RailFooter";
@@ -26,15 +25,14 @@ import {
   getPortalStrings,
   type PortalStrings,
 } from "@/lib/portal/i18n";
-import { logoutStudentPortalAction } from "@/lib/student-portal-auth-actions";
 import type { Theme } from "@/lib/theme";
 
 /**
  * Портальный shell (PORT-2, дизайн-контракт
- * docs/design/portal/design-contract.md): верхняя полоса с логотипом,
- * колокольчиком и меню аккаунта; слева рейл разделов, на узком экране —
- * нижняя панель вкладок. Стили — только pt-классы из
- * src/app/(portal)/portal.css.
+ * docs/design/portal/design-contract.md): слева тёмный рейл на всю высоту —
+ * логотип и тема, разделы, язык и карточка студента («Выйти» — в «Профиле»);
+ * на узком экране — полоса сверху (логотип, колокольчик, тема) и нижняя
+ * панель вкладок. Стили — только pt-классы из src/app/(portal)/portal.css.
  *
  * Телефон (#1113): в панели первые PHONE_TAB_COUNT разделов уровня доступа и
  * «Ещё»; остальные разделы открывает лист «Ещё» над панелью. Ссылки в DOM
@@ -76,19 +74,23 @@ const SECTIONS = [
   // 03.11.2026: «Оплата» — без пункта меню; страница на месте, к ней ведут шаг
   // и ссылка «Все начисления» на «Поступлении».
   { href: "/portal/messages", key: "nav.messages", tiers: ["assisted"] },
-  { href: "/portal/universities", key: "nav.universities", tiers: ["approved", "assisted"] },
+  // 03.11.2026: рейл по группам, как в кабинете-образце пользователя: «Выбор»
+  // (вузы, профессии, избранное) и «Подготовка» (английский, CSCA, тесты).
+  { href: "/portal/universities", key: "nav.universities", tiers: ["approved", "assisted"], group: "nav.groupChoice" },
   { href: "/portal/professions", key: "nav.professions", tiers: ["approved", "assisted"] },
-  { href: "/portal/english", key: "nav.english", tiers: ["approved", "assisted"] },
+  { href: "/portal/favorites", key: "nav.favorites", tiers: ["approved", "assisted"] },
+  { href: "/portal/english", key: "nav.english", tiers: ["approved", "assisted"], group: "nav.groupPrep" },
   // S5.1: CSCA рядом с «Английским», навигация не перестраивается (решение по
   // умолчанию до ответа владельца, PLAN_CHANGES 16.10).
   { href: "/portal/csca", key: "nav.csca", tiers: ["approved", "assisted"] },
-  { href: "/portal/favorites", key: "nav.favorites", tiers: ["approved", "assisted"] },
   { href: "/portal/tests", key: "nav.tests", tiers: ["approved", "assisted"] },
   { href: "/portal/profile", key: "nav.profile", tiers: ["approved", "assisted"] },
 ] as const satisfies readonly {
   href: string;
   key: keyof PortalStrings<"shell">;
   tiers: readonly PortalAccessTier[];
+  /** Подпись группы над пунктом — только в рейле широкого экрана. */
+  group?: keyof PortalStrings<"shell">;
 }[];
 
 /**
@@ -272,6 +274,7 @@ export function Shell({
   const moreOpen = openAt === pathname;
   const navRef = useRef<HTMLElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const [unread, setUnread] = useState<number | null>(null);
   useActiveTabIndicator(navRef, pathname, sections.length);
 
   // Лист не диалог: страница под ним доступна. Закрывают его Escape (фокус
@@ -303,7 +306,9 @@ export function Shell({
   const renderSection = (section: (typeof SECTIONS)[number]) => {
     const label = strings[section.key];
     const active = isActive(section);
-    return (
+    // Непрочитанное — числом у «Входящих» в рейле (колокольчик остался на телефоне).
+    const count = section.href === "/portal/messages" && unread !== null && unread > 0 ? unread : null;
+    const item = (
       // «Профиль» на широком экране открывает карточка студента внизу рейла
       // (RailFooter), поэтому пункт виден только в листе «Ещё» на телефоне.
       <li key={section.href} data-rail-hidden={section.href === RAIL_ACCOUNT_HREF ? "" : undefined}>
@@ -318,9 +323,21 @@ export function Shell({
             label={label}
             opening={formatPortalString(strings.openingSection, { label })}
           />
+          {count === null ? null : (
+            <>
+              <span className="pt-nav-badge" aria-hidden="true">{count > 99 ? "99+" : count}</span>
+              <span className="pt-sr-only">{formatPortalString(strings.notificationsUnread, { count: String(count) })}</span>
+            </>
+          )}
         </IntentPrefetchLink>
       </li>
     );
+    if (!("group" in section)) return item;
+    // Подпись группы — визуальная: смысл пунктов ясен из их имён.
+    return [
+      <li key={`${section.href}-group`} className="pt-nav-group" aria-hidden="true">{strings[section.group]}</li>,
+      item,
+    ];
   };
 
   return (
@@ -329,47 +346,27 @@ export function Shell({
         {strings.skipToContent}
       </a>
 
-      <header className="pt-topbar">
-        <IntentPrefetchLink href="/portal" aria-label={strings.home} className="pt-topbar-logo">
-          <EvoLogo width={104} />
-        </IntentPrefetchLink>
-        <div className="pt-topbar-actions">
-          {accessTier === "assisted" ? <PortalNotificationUpdates locale={locale} release={release} /> : null}
-          {/* Тема — одна кнопка на виду и на телефоне (решение владельца 02.10). */}
-          <ThemeToggle locale={locale} initialTheme={theme} />
-          <details className="pt-user-menu">
-            <summary className="pt-user-summary">
-              {/* На узком телефоне — инициалы вместо обрезанного имени; полное имя остаётся доступным именем и в меню. */}
-              <span className="pt-user-initials" aria-hidden="true">{accountInitials(displayName)}</span>
-              <span className="pt-user-summary-name">{displayName}</span>
-              <svg
-                className="pt-user-chevron"
-                width="12"
-                height="12"
-                viewBox="0 0 12 12"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path d="m2.5 4.5 3.5 3.5L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </summary>
-            <div className="pt-user-panel">
-              <p className="pt-user-caption">{strings.account}</p>
-              <p className="pt-user-name">{displayName}</p>
-              <form action={logoutStudentPortalAction}>
-                <button type="submit" className="pt-logout">
-                  {strings.logout}
-                </button>
-              </form>
-            </div>
-          </details>
-        </div>
-      </header>
-
       <div className="pt-body">
-        {/* Рейл: список разделов прокручивается, низ (язык и карточка студента)
-            стоит под ним вне <nav>; на телефоне обёртки нет (display: contents). */}
+        {/* Рейл (03.11.2026, по образцу кабинета пользователя): тёмная колонка на
+            всю высоту — белый логотип и тема сверху, разделы по группам, внизу
+            язык и карточка студента. На телефоне обёртки нет (display: contents):
+            шапка становится полосой сверху, разделы — нижней панелью. */}
         <div className="pt-rail">
+          <header className="pt-topbar">
+            {/* Цветной lockup — на светлой полосе телефона, белый — на тёмном рейле. */}
+            <IntentPrefetchLink href="/portal" aria-label={strings.home} className="pt-topbar-logo">
+              <EvoLogo width={104} className="pt-logo-color" />
+              <EvoLogo width={112} variant="white" className="pt-logo-white" />
+            </IntentPrefetchLink>
+            <div className="pt-topbar-actions">
+              {/* Опрос живёт всегда; колокольчик виден только на телефоне, в рейле — число у «Входящих». */}
+              {accessTier === "assisted" ? (
+                <PortalNotificationUpdates locale={locale} release={release} onUnreadChange={setUnread} />
+              ) : null}
+              {/* Тема — одна кнопка на виду и на телефоне (решение владельца 02.10). */}
+              <ThemeToggle locale={locale} initialTheme={theme} />
+            </div>
+          </header>
           {/* Смоук-якорь: aria-label не локализуется до совместного PR со смоук-скриптом. */}
           <nav
             ref={navRef}

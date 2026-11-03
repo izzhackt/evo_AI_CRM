@@ -105,6 +105,25 @@
 
   /* Подложка под логотипом: в светлой теме не нужна, в тёмной — светлая. */
   --pt-logo-plate: transparent;
+
+  /*
+   * Рейл широкого экрана (03.11.2026, по образцу кабинета пользователя):
+   * тёмный EVO в обеих темах, белый lockup из logobook, красный — только
+   * планка открытого раздела и счётчик. Белый на рейле 17:1, на открытом
+   * пункте 13:1; приглушённый 10:1, подписи групп 6.4:1; красная планка
+   * 3.3:1 (не текст); наведение 1.19:1 и открытый 1.33:1 к рейлу; знак
+   * внизу — тон на шаг светлее, сплошной, без прозрачности.
+   */
+  --pt-rail: #1c1a17;
+  --pt-rail-hover: #2a2723;
+  --pt-rail-deep: #34302b;
+  --pt-rail-line: #3a3631;
+  --pt-rail-edge: #8a8379;
+  --pt-rail-ink: #ffffff;
+  --pt-rail-muted: #cfc8be;
+  --pt-rail-label: #a39d94;
+  --pt-rail-accent: #d70217;
+  --pt-rail-error: #ff8177;
 }
 
 /* Тёмная — только по выбору студента (кнопка «солнце/луна»). */
@@ -260,6 +279,11 @@
   background: var(--pt-logo-plate);
 }
 
+/* Белый lockup — только на тёмном рейле широкого экрана. */
+.pt-logo-white {
+  display: none;
+}
+
 .pt-topbar-actions {
   display: flex;
   align-items: center;
@@ -284,154 +308,6 @@
 .pt-bell:hover {
   background: var(--pt-bg);
   color: var(--pt-text);
-}
-
-/* ---------- Меню аккаунта ---------- */
-
-/*
- * Предел 44vw стоит на самом блоке, а плашка занимает весь блок (#1114): блок
- * сжимается во flex-строке полосы, и плашка сжимается вместе с ним, а имя
- * обрезается многоточием. Раньше предел был у inline-flex плашки: она не
- * уменьшалась до блока и на 320 px выходила за край экрана.
- */
-.pt-user-menu {
-  position: relative;
-  min-width: 0;
-  max-width: 44vw;
-}
-
-.pt-user-summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--pt-line);
-  border-radius: var(--pt-radius-control);
-  background: var(--pt-surface);
-  color: var(--pt-text);
-  font-size: var(--pt-size-caption);
-  font-weight: 600;
-  cursor: pointer;
-  list-style: none;
-  transition: background-color var(--pt-motion-fast) var(--pt-ease);
-}
-
-.pt-user-summary::-webkit-details-marker {
-  display: none;
-}
-
-.pt-user-summary:hover {
-  background: var(--pt-bg);
-}
-
-.pt-user-summary-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Инициалы — только на узком телефоне (ниже). */
-.pt-user-initials {
-  display: none;
-}
-
-/*
- * До 400 px кнопка темы (44 px) оставляла имени 1–10 букв («E…»,
- * «Айбек Ток…»). Здесь плашка — инициалы в круге и шеврон; имя уходит в
- * визуально скрытый текст и остаётся доступным именем кнопки, а полностью
- * видно в открытом меню.
- */
-@media (max-width: 399.98px) {
-  .pt-user-summary {
-    gap: 6px;
-    padding: 0 8px 0 6px;
-  }
-
-  .pt-user-initials {
-    display: inline-flex;
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    border-radius: var(--pt-radius-chip);
-    background: var(--pt-bg);
-    box-shadow: inset 0 0 0 1px var(--pt-line);
-    color: var(--pt-text);
-    font-size: var(--pt-size-caption);
-    font-weight: 600;
-    letter-spacing: 0.02em;
-  }
-
-  .pt-user-summary-name {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-}
-
-.pt-user-chevron {
-  flex-shrink: 0;
-  transition: transform var(--pt-motion-fast) var(--pt-ease);
-}
-
-.pt-user-menu[open] .pt-user-chevron {
-  transform: rotate(180deg);
-}
-
-.pt-user-panel {
-  position: absolute;
-  inset-inline-end: 0;
-  top: calc(100% + 6px);
-  z-index: 50;
-  min-width: 224px;
-  max-width: calc(100vw - 2 * var(--pt-gutter));
-  padding: 12px;
-  background: var(--pt-surface);
-  border: 1px solid var(--pt-line);
-  border-radius: var(--pt-radius-item);
-  box-shadow: var(--pt-shadow-raised);
-}
-
-.pt-user-caption {
-  margin: 0;
-  font-size: var(--pt-size-caption);
-  color: var(--pt-text-2);
-}
-
-.pt-user-name {
-  margin: 4px 0 0;
-  font-size: var(--pt-size-secondary);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.pt-logout {
-  width: 100%;
-  min-height: 44px;
-  margin-top: 10px;
-  padding: 0 12px;
-  border: 1px solid var(--pt-line);
-  border-radius: var(--pt-radius-control);
-  background: none;
-  color: var(--pt-text);
-  font: inherit;
-  font-size: var(--pt-size-secondary);
-  font-weight: 500;
-  text-align: start;
-  cursor: pointer;
-  transition: background-color var(--pt-motion-fast) var(--pt-ease);
-}
-
-.pt-logout:hover {
-  background: var(--pt-bg);
 }
 
 /* ---------- Навигация: рейл (десктоп) / нижние вкладки + «Ещё» (телефон) ---------- */
@@ -541,18 +417,141 @@
 }
 
 @media (min-width: 768px) {
-  /* Колонка рейла: список разделов прокручивается, низ стоит под ним. */
+  /* Верхней полосы на широком экране нет: логотип и тема — в шапке рейла. */
+  .pt-shell {
+    --pt-topbar-height: 0px;
+  }
+
+  /*
+   * Колонка рейла на всю высоту: шапка, список разделов (прокручивается) и низ.
+   * Токены переопределены здесь же, поэтому ссылки, язык, карточка и кнопка
+   * темы берут светлое на тёмном без своих правил цвета.
+   */
   .pt-rail {
+    --pt-text: var(--pt-rail-ink);
+    --pt-text-2: var(--pt-rail-muted);
+    --pt-bg: var(--pt-rail-deep);
+    --pt-surface: var(--pt-rail-deep);
+    --pt-line: var(--pt-rail-line);
+    --pt-control-edge: var(--pt-rail-edge);
+    --pt-accent: var(--pt-rail-ink);
+    --pt-on-accent: var(--pt-rail);
+    --pt-error: var(--pt-rail-error);
+    --pt-logo-plate: transparent;
     position: sticky;
-    top: var(--pt-topbar-height);
+    top: 0;
     align-self: flex-start;
     display: flex;
     flex-direction: column;
     width: var(--pt-rail-width);
-    height: calc(100dvh - var(--pt-topbar-height));
+    height: 100dvh;
     flex-shrink: 0;
-    background: var(--pt-surface);
-    border-inline-end: 1px solid var(--pt-line);
+    overflow: hidden;
+    border-inline-end: 1px solid var(--pt-rail-line);
+    background: var(--pt-rail);
+    color: var(--pt-rail-ink);
+  }
+
+  .pt-rail > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Крупный знак EVO внизу рейла, тоном на шаг светлее (как «А» у образца). */
+  .pt-rail::after {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    right: -96px;
+    bottom: 64px;
+    width: 300px;
+    height: 300px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath fill='%23282521' d='M 50.00 49.74 L 32.58 39.65 L 70.19 17.19 C 70.29 17.14 70.35 17.03 70.35 16.91 L 70.35 12.99 C 70.35 11.97 69.24 11.34 68.37 11.87 L 27.19 36.54 L 12.39 27.99 L 49.99 5.57 C 50.09 5.51 50.15 5.40 50.15 5.29 L 50.15 1.64 C 50.15 0.63 49.06 0.00 48.18 0.50 L 8.92 23.16 C 7.29 24.10 6.29 25.83 6.29 27.71 L 6.29 73.22 C 6.29 74.39 6.92 75.47 7.93 76.05 L 48.36 99.41 C 49.38 100.00 50.62 100.00 51.64 99.41 L 92.24 75.96 C 93.15 75.43 93.71 74.46 93.71 73.41 L 93.71 26.75 C 93.71 25.74 92.62 25.11 91.74 25.62 Z'/%3E%3C/svg%3E") no-repeat center / contain;
+    pointer-events: none;
+  }
+
+  /* Шапка рейла: белый логотип слева, кнопка темы справа; колокольчика нет. */
+  .pt-rail .pt-topbar {
+    position: relative;
+    min-height: 0;
+    padding: 20px 12px 8px 20px;
+    border-bottom: 0;
+    background: transparent;
+  }
+
+  .pt-rail .pt-bell {
+    display: none;
+  }
+
+  .pt-logo-color {
+    display: none;
+  }
+
+  .pt-logo-white {
+    display: block;
+  }
+
+  .pt-rail .theme-toggle {
+    background: transparent;
+  }
+
+  .pt-rail .theme-toggle:hover {
+    background: var(--pt-rail-hover);
+  }
+
+  /* Пункты: наведение — тон темнее, открытый — глубокий красный и полужирный. */
+  .pt-rail .pt-nav-link:hover {
+    background: var(--pt-rail-hover);
+  }
+
+  .pt-rail .pt-nav-link[aria-current="page"] {
+    background: var(--pt-rail-deep);
+    color: var(--pt-rail-ink);
+  }
+
+  /* Красный в рейле — только планка открытого раздела (и «Профиля»). */
+  .pt-rail .pt-nav-indicator,
+  .pt-rail .pt-nav-link[aria-current="page"]::before,
+  .pt-rail .pt-nav-account[aria-current="page"]::before {
+    background: var(--pt-rail-accent);
+  }
+
+  /* Подписи групп «Выбор» и «Подготовка». */
+  .pt-nav-group {
+    padding: 14px 12px 2px;
+    color: var(--pt-rail-label);
+    font-size: var(--pt-size-caption);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  /* Число непрочитанных у «Входящих». */
+  .pt-nav-badge {
+    display: inline-grid;
+    flex-shrink: 0;
+    place-items: center;
+    min-width: 24px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: var(--pt-radius-chip);
+    background: var(--pt-rail-accent);
+    color: var(--pt-rail-ink);
+    font-size: var(--pt-size-caption);
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  /* Низ рейла: выбранный язык и инициалы — белой заливкой с тёмным. */
+  .pt-rail .pt-lang-option[aria-pressed="true"] {
+    background: var(--pt-rail-ink);
+    color: var(--pt-rail);
+    box-shadow: none;
+  }
+
+  .pt-rail .pt-nav-account-initials {
+    background: var(--pt-rail-ink);
+    box-shadow: none;
+    color: var(--pt-rail);
   }
 
   .pt-nav {
@@ -589,7 +588,7 @@
  * Низ рейла (03.11.2026, по образцу кабинета, присланного пользователем):
  * переключатель языка RU | KY и карточка студента со ссылкой на «Профиль».
  * Только широкий экран: на телефоне рейл — нижняя панель, язык меняется в
- * «Профиле», а имя — в меню аккаунта сверху. Цвета — прежние токены.
+ * «Профиле», имя — там же. Цвета — токены рейла (светлое на тёмном).
  */
 .pt-nav-footer {
   display: none;
@@ -738,6 +737,16 @@
     --pt-gutter: 16px;
   }
 
+  /* Шапка живёт в рейле (display: contents): на телефоне это полоса сверху. */
+  .pt-body {
+    flex-direction: column;
+  }
+
+  .pt-nav-group,
+  .pt-nav-badge {
+    display: none;
+  }
+
   .pt-nav {
     position: fixed;
     inset-inline: 0;
@@ -863,8 +872,6 @@
 .pt-skip-link:focus-visible,
 .pt-topbar-logo:focus-visible,
 .pt-bell:focus-visible,
-.pt-user-summary:focus-visible,
-.pt-logout:focus-visible,
 .pt-nav-more-toggle:focus-visible,
 .pt-nav-link:focus-visible {
   outline: 2px solid var(--pt-accent);

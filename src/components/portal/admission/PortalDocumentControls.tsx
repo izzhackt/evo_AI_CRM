@@ -154,7 +154,9 @@ export function PortalDocumentControls({
       {allowUpload ? (
         <form ref={formRef} onSubmit={upload} aria-busy={pending} className="pt-doc-upload">
           {/* Поле-приёмник: прозрачный input на всю площадь — щелчок открывает выбор
-              файла, а перетащенный файл браузер кладёт в него сам. */}
+              файла, а перетащенный файл браузер кладёт в него сам. Кнопка
+              «Загрузить» рядом появляется, когда файл выбран. */}
+          <div className="pt-doc-upload-row">
           <label
             htmlFor={`portal-document-${documentSlotId}`}
             className="pt-doc-drop"
@@ -164,13 +166,15 @@ export function PortalDocumentControls({
             onDragLeave={() => setDragging(false)}
             onDrop={() => setDragging(false)}
           >
-            <svg className="pt-doc-drop-icon" width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <svg className="pt-doc-drop-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
               <path d="M10 13V3.5M6.5 7 10 3.5 13.5 7M4 12.5v3h12v-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <span className="pt-doc-drop-title">
-              {chosen ? formatPortalString(strings.dropChosen, { name: chosen }) : strings.dropTitle}
+            <span className="pt-doc-drop-text">
+              <span className="pt-doc-drop-title">
+                {chosen ? formatPortalString(strings.dropChosen, { name: chosen }) : strings.dropTitle}
+              </span>
+              {chosen ? null : <span className="pt-doc-drop-sub">{strings.dropOr}</span>}
             </span>
-            <span className="pt-doc-drop-sub">{strings.dropOr}</span>
             <span className="pt-sr-only">{strings.uploadLabel}</span>
             <input
               id={`portal-document-${documentSlotId}`}
@@ -189,7 +193,7 @@ export function PortalDocumentControls({
               className="pt-doc-file"
             />
           </label>
-          <div className="pt-doc-upload-row">
+          {chosen !== null || pending || state.status === "error" ? (
             <button
               type="submit"
               disabled={pending}
@@ -202,6 +206,7 @@ export function PortalDocumentControls({
                   ? strings.confirmingButton
                   : refreshing ? strings.refreshingButton : state.status === "error" ? strings.retryUploadButton : strings.uploadButton}
             </button>
+          ) : null}
           </div>
           {state.status === "uploading" || state.status === "confirming" ? (
             <progress
@@ -220,7 +225,7 @@ export function PortalDocumentControls({
       {documentVersionId ? (
         <a
           href={`/api/portal/document-versions/${encodeURIComponent(documentVersionId)}/download`}
-          className="pt-btn-ghost pt-doc-download"
+          className="pt-link pt-doc-download"
           aria-label={formatPortalString(strings.downloadAria, { name: originalFilename ?? strings.lastFileFallback })}
         >
           {strings.downloadButton}

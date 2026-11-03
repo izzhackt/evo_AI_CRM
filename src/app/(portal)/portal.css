@@ -4724,8 +4724,8 @@ main.pt-page > .pt-card {
 .pt-doc-card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 20px;
+  gap: 10px;
+  padding: 18px 20px;
   border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius-card);
   background: var(--pt-surface);
@@ -4737,42 +4737,78 @@ main.pt-page > .pt-card {
   margin-top: auto;
 }
 
-/* Широкий экран: слева что за документ и его состояние, справа — поле загрузки. */
-@media (min-width: 900px) {
-  .pt-doc-card {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
-    align-content: start;
-    column-gap: 28px;
-    row-gap: 12px;
-  }
+/* Карточка компактная: статус всегда справа от названия, загрузка — одной строкой. */
+.pt-doc-card .pt-doc-item-head {
+  flex-wrap: nowrap;
+}
 
-  .pt-doc-card > :not(.pt-doc-controls) {
-    grid-column: 1;
-  }
+.pt-doc-card .pt-doc-item-main {
+  flex: 1;
+}
 
-  .pt-doc-card > .pt-doc-controls {
-    grid-column: 2;
-    grid-row: 1 / span 6;
-    align-self: start;
-    margin-top: 0;
-    padding-top: 0;
-    border-top: 0;
-  }
+.pt-doc-card .pt-doc-item-head > :last-child {
+  flex-shrink: 0;
+}
+
+.pt-doc-card .pt-doc-item-facts {
+  margin: 0;
+}
+
+.pt-doc-card .pt-doc-controls {
+  display: grid;
+  justify-content: stretch;
+  align-items: stretch;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.pt-doc-card .pt-doc-feedback {
+  min-height: 0;
+  margin: 0;
+}
+
+.pt-doc-card .pt-doc-upload-row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 0;
+}
+
+.pt-doc-card .pt-doc-download {
+  justify-self: start;
+  min-height: 32px;
+  font-size: var(--pt-size-caption);
+}
+
+.pt-doc-card .pt-doc-hint {
+  margin: 0;
 }
 
 .pt-doc-drop {
   position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 4px;
-  padding: 20px 16px;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 52px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
   border: 1.5px dashed var(--pt-control-edge);
-  border-radius: var(--pt-radius-item);
+  border-radius: var(--pt-radius-control);
   background: var(--pt-bg);
   color: var(--pt-text-2);
-  text-align: center;
   cursor: pointer;
+}
+
+.pt-doc-drop-icon {
+  flex-shrink: 0;
+}
+
+.pt-doc-drop-text {
+  display: grid;
+  min-width: 0;
 }
 
 .pt-doc-drop:hover,
@@ -4793,7 +4829,8 @@ main.pt-page > .pt-card {
 .pt-doc-drop-title {
   color: var(--pt-text);
   font-size: var(--pt-size-secondary);
-  font-weight: 600;
+  font-weight: 500;
+  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 

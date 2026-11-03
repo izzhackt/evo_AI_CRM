@@ -5,6 +5,8 @@ import { AiConsentSettingsRow } from "@/components/portal/consent/AiConsent";
 import { ConsultationRequest } from "@/components/portal/consultation/ConsultationRequest";
 import { AccountDeletionPanel } from "@/components/account-deletion/AccountDeletionPanel";
 import { LanguageForm } from "@/components/portal/profile/LanguageForm";
+import { ProfileHero } from "@/components/portal/profile/ProfileHero";
+import { ProfileIcon } from "@/components/portal/profile/ProfileIcon";
 import { getLocale } from "@/lib/i18n";
 import type { Locale } from "@/lib/i18n-data";
 import {
@@ -117,104 +119,102 @@ export default async function ProfilePage() {
   ]);
 
   return (
-    <main className="pt-page">
+    <main className="pt-page pt-profile">
       <header className="pt-page-header">
         <h1 className="pt-page-title">{strings.title}</h1>
       </header>
       {profile === null ? (
         <p role="alert" className="pt-alert">{strings.unavailable}</p>
       ) : (
-        <div className="pt-profile-sections">
-          <section aria-labelledby="portal-profile-data" className="pt-profile-card">
-            <h2 id="portal-profile-data" className="pt-section-title">{strings.dataHeading}</h2>
-            <dl className="pt-facts">
-              <div className="pt-fact">
-                <dt>{strings.nameLabel}</dt>
-                <dd>{profile.displayName}</dd>
-              </div>
-              <div className="pt-fact">
-                <dt>{strings.emailLabel}</dt>
-                <dd className="pt-data">{profile.email}</dd>
-              </div>
-            </dl>
-            <p>
-              <Link href="/portal/tests" className="pt-link">{strings.testsLink}</Link>
-            </p>
-          </section>
-
-          <section aria-labelledby="portal-profile-consultation" className="pt-profile-card">
-            <h2 id="portal-profile-consultation" className="pt-section-title">
-              {consultationStrings.heading}
-            </h2>
-            {consultationHistory === null ? (
-              <p role="alert" className="pt-alert">{consultationStrings.historyUnavailable}</p>
-            ) : (
-              <>
-                <ConsultationRequest
-                  initialOpenRequest={openConsultationRequest(consultationHistory)}
-                  strings={consultationStrings}
-                />
-                <ConsultationHistory
-                  history={consultationHistory}
-                  strings={consultationStrings}
-                  locale={locale}
-                />
-              </>
+        <>
+          <ProfileHero
+            displayName={profile.displayName}
+            email={profile.email}
+            emailLabel={strings.emailLabel}
+            action={(
+              <form action={logoutStudentPortalAction}>
+                <button type="submit" className="pt-btn-ghost">{strings.logout}</button>
+              </form>
             )}
-          </section>
+            footer={(
+              <Link href="/portal/tests" className="pt-profile-row-link">
+                <ProfileIcon name="tests" />
+                <span>{strings.testsLink}</span>
+                <span aria-hidden="true">→</span>
+              </Link>
+            )}
+          />
 
-          <section aria-labelledby="portal-profile-language" className="pt-profile-card">
-            <h2 id="portal-profile-language" className="pt-section-title">
-              {strings.languageHeading}
-            </h2>
-            <LanguageForm
-              initialLanguage={profile.portalLanguage}
-              strings={{
-                languageHeading: strings.languageHeading,
-                languageHint: strings.languageHint,
-                languageRu: strings.languageRu,
-                languageKy: strings.languageKy,
-                languageSave: strings.languageSave,
-                languageSaved: strings.languageSaved,
-                languageError: strings.languageError,
-              }}
-            />
-          </section>
-
-          {aiConsent.status === "not_applicable" ? null : (
-            <section aria-labelledby="portal-profile-ai-consent" className="pt-profile-card">
-              <h2 id="portal-profile-ai-consent" className="pt-section-title">
-                {aiConsentStrings.rowHeading}
+          <div className="pt-profile-sections">
+            <section aria-labelledby="portal-profile-consultation" className="pt-profile-card">
+              <h2 id="portal-profile-consultation" className="pt-section-title">
+                <ProfileIcon name="consultation" />
+                {consultationStrings.heading}
               </h2>
-              {aiConsent.status === "ready" ? (
-                <AiConsentSettingsRow initialConsent={aiConsent.consent} strings={aiConsentStrings} />
+              {consultationHistory === null ? (
+                <p role="alert" className="pt-alert">{consultationStrings.historyUnavailable}</p>
               ) : (
-                <p role="alert" className="pt-account-deletion-error">{aiConsentStrings.unavailable}</p>
+                <>
+                  <ConsultationRequest
+                    initialOpenRequest={openConsultationRequest(consultationHistory)}
+                    strings={consultationStrings}
+                  />
+                  <ConsultationHistory
+                    history={consultationHistory}
+                    strings={consultationStrings}
+                    locale={locale}
+                  />
+                </>
               )}
             </section>
-          )}
 
-          <section aria-labelledby="portal-profile-session" className="pt-profile-card">
-            <h2 id="portal-profile-session" className="pt-section-title">
-              {strings.sessionHeading}
-            </h2>
-            <form action={logoutStudentPortalAction}>
-              <button type="submit" className="pt-btn-ghost">{strings.logout}</button>
-            </form>
-          </section>
+            <section aria-labelledby="portal-profile-language" className="pt-profile-card">
+              <h2 id="portal-profile-language" className="pt-section-title">
+                <ProfileIcon name="language" />
+                {strings.languageHeading}
+              </h2>
+              <LanguageForm
+                initialLanguage={profile.portalLanguage}
+                strings={{
+                  languageHeading: strings.languageHeading,
+                  languageHint: strings.languageHint,
+                  languageRu: strings.languageRu,
+                  languageKy: strings.languageKy,
+                  languageSave: strings.languageSave,
+                  languageSaved: strings.languageSaved,
+                  languageError: strings.languageError,
+                }}
+              />
+            </section>
 
-          <section aria-labelledby="portal-profile-deletion" className="pt-profile-card">
-            <h2 id="portal-profile-deletion" className="pt-section-title">
-              {deletionStrings.heading}
-            </h2>
-            <AccountDeletionPanel
-              initialRequest={deletion.status === "ready" ? deletion.request : null}
-              unavailable={deletion.status === "unavailable"}
-              strings={deletionStrings}
-              look="portal"
-            />
-          </section>
-        </div>
+            {aiConsent.status === "not_applicable" ? null : (
+              <section aria-labelledby="portal-profile-ai-consent" className="pt-profile-card">
+                <h2 id="portal-profile-ai-consent" className="pt-section-title">
+                  <ProfileIcon name="ai" />
+                  {aiConsentStrings.rowHeading}
+                </h2>
+                {aiConsent.status === "ready" ? (
+                  <AiConsentSettingsRow initialConsent={aiConsent.consent} strings={aiConsentStrings} />
+                ) : (
+                  <p role="alert" className="pt-account-deletion-error">{aiConsentStrings.unavailable}</p>
+                )}
+              </section>
+            )}
+
+            <section aria-labelledby="portal-profile-deletion" className="pt-profile-card">
+              <h2 id="portal-profile-deletion" className="pt-section-title">
+                <ProfileIcon name="deletion" />
+                {deletionStrings.heading}
+              </h2>
+              <AccountDeletionPanel
+                initialRequest={deletion.status === "ready" ? deletion.request : null}
+                unavailable={deletion.status === "unavailable"}
+                strings={deletionStrings}
+                look="portal"
+              />
+            </section>
+          </div>
+        </>
       )}
     </main>
   );

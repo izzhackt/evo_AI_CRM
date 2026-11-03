@@ -71,6 +71,8 @@ const { DocumentsView } = require(join(ROOT, "src/components/portal/admission/Do
 const { NotificationsView } = require(join(ROOT, "src/components/portal/admission/NotificationsView.tsx"));
 const { ProfessionsGrid } = require(join(ROOT, "src/components/portal/professions/ProfessionsGrid.tsx"));
 const { LanguageForm } = require(join(ROOT, "src/components/portal/profile/LanguageForm.tsx"));
+const { ProfileHero } = require(join(ROOT, "src/components/portal/profile/ProfileHero.tsx"));
+const { ProfileIcon } = require(join(ROOT, "src/components/portal/profile/ProfileIcon.tsx"));
 const { AccountDeletionPanel } = require(join(ROOT, "src/components/account-deletion/AccountDeletionPanel.tsx"));
 const { ConsultationRequest } = require(join(ROOT, "src/components/portal/consultation/ConsultationRequest.tsx"));
 const { TestsCatalog } = require(join(ROOT, "src/components/portal/tests/TestsCatalog.tsx"));
@@ -840,23 +842,46 @@ const surfaces = [
         profileStrings.title,
         null,
         createElement(
-          "div",
-          { className: "pt-profile-sections" },
-          ...[aiConsentGranted, aiConsentDeclined, aiConsentAsked].map((consent, index) =>
-            createElement(
-              "section",
-              {
-                key: index,
-                "aria-labelledby": `portal-profile-ai-consent-${index}`,
-                className: "pt-profile-card",
-              },
+          Fragment,
+          null,
+          // Карточка студента (03.11.2026): круг с инициалами, имя, почта, «Выйти», ссылка.
+          createElement(ProfileHero, {
+            displayName: "Айбек Токтогулов",
+            email: "student@example.invalid",
+            emailLabel: profileStrings.emailLabel,
+            action: createElement(
+              "form",
+              null,
+              createElement("button", { type: "button", className: "pt-btn-ghost" }, profileStrings.logout),
+            ),
+            footer: createElement(
+              "a",
+              { href: "/portal/tests", className: "pt-profile-row-link" },
+              createElement(ProfileIcon, { name: "tests" }),
+              createElement("span", null, profileStrings.testsLink),
+              createElement("span", { "aria-hidden": "true" }, "→"),
+            ),
+          }),
+          createElement(
+            "div",
+            { className: "pt-profile-sections" },
+            ...[aiConsentGranted, aiConsentDeclined, aiConsentAsked].map((consent, index) =>
               createElement(
-                "h2",
-                { id: `portal-profile-ai-consent-${index}`, className: "pt-section-title" },
-                aiConsentStrings.rowHeading,
-              ),
-              createElement(AiConsentSettingsRow, { initialConsent: consent, strings: aiConsentStrings }),
-            )),
+                "section",
+                {
+                  key: index,
+                  "aria-labelledby": `portal-profile-ai-consent-${index}`,
+                  className: "pt-profile-card",
+                },
+                createElement(
+                  "h2",
+                  { id: `portal-profile-ai-consent-${index}`, className: "pt-section-title" },
+                  createElement(ProfileIcon, { name: "ai" }),
+                  aiConsentStrings.rowHeading,
+                ),
+                createElement(AiConsentSettingsRow, { initialConsent: consent, strings: aiConsentStrings }),
+              )),
+          ),
         ),
       ),
     ),

@@ -383,8 +383,6 @@ const favoritesKy: Readonly<Record<FavoritesKey, string>> = {
 const profileRu = {
   title: "Профиль",
   unavailable: "Не удалось загрузить профиль. Обновите страницу.",
-  dataHeading: "Данные",
-  nameLabel: "Имя",
   emailLabel: "Email",
   testsLink: "Личные результаты тестов",
   languageHeading: "Язык портала",
@@ -394,7 +392,6 @@ const profileRu = {
   languageSave: "Сохранить язык",
   languageSaved: "Язык сохранён.",
   languageError: "Не удалось сохранить язык. Повторите.",
-  sessionHeading: "Выход",
   logout: "Выйти",
 } as const;
 
@@ -403,8 +400,6 @@ type ProfileKey = keyof typeof profileRu;
 const profileKy: Readonly<Record<ProfileKey, string>> = {
   title: "Профиль",
   unavailable: "Профиль жүктөлгөн жок. Баракты жаңыртыңыз.",
-  dataHeading: "Маалымат",
-  nameLabel: "Аты-жөнү",
   emailLabel: "Email",
   testsLink: "Жеке тест жыйынтыктары",
   languageHeading: "Порталдын тили",
@@ -414,7 +409,6 @@ const profileKy: Readonly<Record<ProfileKey, string>> = {
   languageSave: "Тилди сактоо",
   languageSaved: "Тил сакталды.",
   languageError: "Тил сакталган жок. Кайталаңыз.",
-  sessionHeading: "Чыгуу",
   logout: "Чыгуу",
 };
 

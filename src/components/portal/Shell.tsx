@@ -13,6 +13,7 @@ import {
   type RefObject,
 } from "react";
 
+import { accountInitials } from "./initials";
 import { PortalNotificationUpdates } from "./PortalNotificationUpdates";
 import { PortalStaleDeploymentNotice } from "./PortalStaleDeploymentNotice";
 
@@ -227,12 +228,6 @@ function MoreIcon() {
       <path d="M4.5 10h.01M10 10h.01M15.5 10h.01" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
     </svg>
   );
-}
-
-/** Инициалы аккаунта: первые буквы двух первых слов имени («Айбек Токтогулов» → «АТ»). */
-function accountInitials(name: string): string {
-  const letters = name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((word) => Array.from(word)[0] ?? "");
-  return letters.join("").toLocaleUpperCase() || "?";
 }
 
 export function Shell({

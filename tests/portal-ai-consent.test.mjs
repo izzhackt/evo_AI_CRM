@@ -302,9 +302,12 @@ test("the settings row sits in the profile, with its own honest line when the re
   assert.match(page, /\{aiConsentStrings\.rowHeading\}/u);
   assert.match(page, /<AiConsentSettingsRow initialConsent=\{aiConsent\.consent\} strings=\{aiConsentStrings\} \/>/u);
   assert.match(page, /<p role="alert" className="pt-account-deletion-error">\{aiConsentStrings\.unavailable\}<\/p>/u);
-  // Строка стоит перед «Сессией» и «Удалением аккаунта».
-  assert.ok(page.indexOf("portal-profile-ai-consent") < page.indexOf("portal-profile-session"));
+  // Строка стоит перед «Удалением аккаунта»; «Выйти» с 03.11.2026 — в шапке
+  // профиля над настройками, отдельной карточки «Выход» нет.
   assert.ok(page.indexOf("portal-profile-ai-consent") < page.indexOf("portal-profile-deletion"));
+  assert.doesNotMatch(page, /portal-profile-session/u);
+  assert.ok(page.indexOf("<ProfileHero") < page.indexOf("logoutStudentPortalAction}>"));
+  assert.ok(page.indexOf("logoutStudentPortalAction}>") < page.indexOf("portal-profile-ai-consent"));
 });
 
 test("the controls keep the decision honest: pending lock, stable attempt id, confirmed state, focus kept", () => {

@@ -745,12 +745,14 @@
   color: var(--pt-text-2);
 }
 
+/* Верх лестницы текста: 32/700 с плотным трекингом — заметно крупнее и
+   тяжелее заголовков разделов (24/600) и карточек (20/600). */
 .pt-page-title {
   margin: 8px 0 0;
   font-size: var(--pt-size-display);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.12;
   overflow-wrap: anywhere;
 }
 
@@ -1123,35 +1125,193 @@
   gap: 4px;
 }
 
-/* ---------- Профиль (PORT-5a) ---------- */
+/* ---------- Профиль (PORT-5a; раскладка 03.11.2026) ---------- */
+
+/*
+ * Раскладка по образцу кабинета, присланного пользователем (akylman.org.kg):
+ * одна колонка по центру шириной до 768 px; сверху карточка студента — место
+ * под фото (пока инициалы, как у кнопки аккаунта), имя, почта, «Выйти»
+ * справа и строка-ссылка под чертой; у карточек ниже — заголовок с иконкой
+ * над волосяной линией. Цвета — прежние токены кабинета, новых нет.
+ *
+ * Лестница текста: заголовок страницы 32/700 → имя 20/600 → заголовок
+ * карточки 17/600 → подзаголовок в карточке 15/600 → текст 15 → подписи 13.
+ * Почта — обычный текст: моно только для дат, сроков и сумм.
+ */
+.pt-page.pt-profile {
+  max-width: calc(768px + 2 * var(--pt-gutter));
+}
+
+.pt-profile-hero {
+  margin-top: 24px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-card);
+  background: var(--pt-surface);
+  box-shadow: var(--pt-shadow-card);
+}
+
+.pt-profile-hero-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px 16px;
+  padding: 20px 24px;
+}
+
+/* Место под фото: пока инициалы в нейтральном круге. */
+.pt-profile-avatar {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-bg);
+  box-shadow: inset 0 0 0 1px var(--pt-line);
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-heading);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.pt-profile-identity {
+  min-width: 0;
+}
+
+.pt-profile-name {
+  margin: 0;
+  font-size: var(--pt-size-heading);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.pt-profile-email {
+  margin: 2px 0 0;
+  color: var(--pt-text-2);
+  overflow-wrap: anywhere;
+}
+
+/* Телефон: «Выйти» под именем; от 640 px — справа в той же строке. */
+.pt-profile-hero-action {
+  grid-column: 1 / -1;
+}
+
+.pt-profile-hero-action form {
+  margin: 0;
+}
+
+.pt-profile-hero-foot {
+  border-top: 1px solid var(--pt-line);
+}
+
+/* Строка-ссылка во всю ширину карточки: иконка, подпись, стрелка справа. */
+.pt-profile-row-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 0 24px;
+  border-radius: 0 0 var(--pt-radius-card) var(--pt-radius-card);
+  color: var(--pt-text);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.pt-profile-row-link > span:last-child {
+  margin-inline-start: auto;
+  color: var(--pt-text-2);
+}
+
+.pt-profile-row-link:hover {
+  background: var(--pt-bg);
+}
+
+.pt-profile-row-link:hover > span:nth-child(2) {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.pt-profile-row-link:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: -2px;
+}
 
 .pt-profile-sections {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 640px;
-  margin-top: 24px;
+  margin-top: 16px;
+}
+
+@media (min-width: 640px) {
+  .pt-profile-hero-main {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .pt-profile-hero-action {
+    grid-column: auto;
+  }
 }
 
 .pt-profile-card {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 20px;
+  padding: 20px 24px 24px;
   background: var(--pt-surface);
   border: 1px solid var(--pt-line);
   border-radius: var(--pt-radius-card);
   box-shadow: var(--pt-shadow-card);
 }
 
-.pt-profile-card .pt-section-title {
-  margin: 0;
+/* Заголовок карточки — полоса во всю ширину с иконкой и линией под ней. */
+.pt-profile-card > .pt-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -20px -24px 4px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--pt-line);
+  font-size: var(--pt-size-body);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.pt-profile-icon {
+  flex-shrink: 0;
+  color: var(--pt-text);
+}
+
+/* Подзаголовок внутри карточки («Ваши запросы») — на ступень ниже её заголовка. */
+.pt-profile-card h3.pt-section-title {
+  margin-top: 8px;
+  font-size: var(--pt-size-secondary);
 }
 
 .pt-profile-hint {
   margin: 0;
   color: var(--pt-text-2);
   font-size: var(--pt-size-secondary);
+}
+
+.pt-profile-card .pt-profile-hint {
+  max-width: 60ch;
+}
+
+/* Язык: подсказка сверху, выбор и «Сохранить» — одной строкой. */
+@media (min-width: 640px) {
+  .pt-profile-card .pt-profile-language {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 16px;
+  }
+
+  .pt-profile-card .pt-profile-language > .pt-profile-hint {
+    grid-column: 1 / -1;
+  }
 }
 
 .pt-profile-language {

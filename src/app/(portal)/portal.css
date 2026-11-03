@@ -6058,10 +6058,6 @@ main.pt-page > .pt-card {
     align-items: start;
   }
 
-  .pt-home-side .pt-home-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .pt-home-side .pt-section-title {
     font-size: var(--pt-size-heading);
   }
@@ -6144,15 +6140,92 @@ main.pt-page > .pt-card {
   background: var(--pt-text);
 }
 
-.pt-home-dates-empty {
+/* «Что нового»: три последних события «Входящих», непрочитанное — точкой. */
+.pt-home-news {
   display: grid;
-  gap: 4px;
-  padding: 8px 0 4px;
-  text-align: center;
+  gap: 12px;
+  padding: 20px 22px;
 }
 
-.pt-home-dates-empty > p {
+.pt-home-news-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.pt-home-news-empty {
   margin: 0;
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-secondary);
+}
+
+.pt-home-news-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pt-home-news-list > li + li {
+  border-top: 1px solid var(--pt-line);
+}
+
+.pt-home-news-row {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  min-height: 44px;
+  padding: 10px 0 10px 16px;
+  color: var(--pt-text);
+  text-decoration: none;
+}
+
+.pt-home-news-row::before {
+  content: "";
+  position: absolute;
+  top: 17px;
+  left: 2px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--pt-radius-chip);
+  background: var(--pt-line);
+}
+
+.pt-home-news-row[data-unread]::before {
+  background: var(--pt-accent);
+}
+
+.pt-home-news-row:hover .pt-home-news-title {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pt-home-news-row:focus-visible {
+  outline: 2px solid var(--pt-accent);
+  outline-offset: 2px;
+}
+
+.pt-home-news-title {
+  font-size: var(--pt-size-secondary);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.pt-home-news-row[data-unread] .pt-home-news-title {
+  font-weight: 600;
+}
+
+.pt-home-news-time {
+  color: var(--pt-text-2);
+  font-size: var(--pt-size-caption);
+}
+
+.pt-home-dates-empty {
+  margin: 0;
+  padding: 4px 0;
+  text-align: center;
 }
 
 .pt-home-dates-list {
@@ -6213,12 +6286,6 @@ main.pt-page > .pt-card {
   font-weight: 500;
 }
 
-.pt-home-case-lead {
-  margin: 8px 0 0;
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-secondary);
-}
-
 .pt-home-case-facts {
   display: flex;
   flex-wrap: wrap;
@@ -6249,7 +6316,6 @@ main.pt-page > .pt-card {
 }
 
 .pt-home-case-more {
-  color: var(--pt-text-2);
   font-size: var(--pt-size-caption);
 }
 
@@ -6270,18 +6336,6 @@ main.pt-page > .pt-card {
 
 .pt-home-section-head .pt-section-title {
   margin-right: auto;
-}
-
-.pt-home-fav-count {
-  color: var(--pt-text-2);
-  font-size: var(--pt-size-caption);
-}
-
-.pt-home-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--pt-card-min), 1fr));
-  gap: 16px;
-  margin-top: 16px;
 }
 
 .pt-home-card {
@@ -6320,10 +6374,6 @@ main.pt-page > .pt-card {
   margin: 0;
   color: var(--pt-text-2);
   font-size: var(--pt-size-secondary);
-}
-
-.pt-home-card-status {
-  margin: 0;
 }
 
 .pt-home-card-action {
@@ -7277,7 +7327,6 @@ main.pt-page > .pt-card {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-grid,
   .pt-home-fav-list,
   .pt-adm-grid,
   .pt-adm-list,
@@ -7291,7 +7340,6 @@ main.pt-page > .pt-card {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-grid,
   .pt-home-fav-list,
   .pt-adm-grid,
   .pt-adm-list,
@@ -7305,7 +7353,6 @@ main.pt-page > .pt-card {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-grid,
   .pt-home-fav-list,
   .pt-adm-grid,
   .pt-adm-list,
@@ -7319,7 +7366,6 @@ main.pt-page > .pt-card {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-grid,
   .pt-home-fav-list,
   .pt-adm-grid,
   .pt-adm-list,
@@ -7333,7 +7379,6 @@ main.pt-page > .pt-card {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-grid,
   .pt-home-fav-list,
   .pt-adm-grid,
   .pt-adm-list,
@@ -7347,7 +7392,6 @@ main.pt-page > .pt-card {
   .pt-place-grid,
   .pt-prof-grid,
   .pt-tests-grid,
-  .pt-home-grid,
   .pt-home-fav-list,
   .pt-adm-grid,
   .pt-adm-list,
@@ -7512,7 +7556,6 @@ main.pt-page > .pt-card {
   .pt-place-grid,
     .pt-prof-grid,
     .pt-tests-grid,
-    .pt-home-grid,
     .pt-home-fav-list,
     .pt-adm-grid,
     .pt-adm-list,

@@ -434,5 +434,5 @@ test("rendered: the client's home and the post-login screen carry the consent ca
   const approved = html("home-approved");
   assert.equal(approved.includes(CARD), false, "self-service home");
   assert.equal(approved.includes("ИИ-помощники EVO"), false);
-  assert.equal(approved.includes('id="home-continue"'), true, "the rest of the home is intact");
+  assert.equal(approved.includes('id="home-dates"'), true, "the rest of the home is intact");
 });

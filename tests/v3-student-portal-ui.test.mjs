@@ -255,11 +255,9 @@ test("the home screen continues real work, keeps the smoke root and omits invent
   // Серверные read model изолируют транспорт; view не обращается к БД напрямую.
   for (const reader of [
     "readStudentPortalOverview",
-    "readLearningModules",
-    "readStudentAssessments",
     "readStudentUniversityFavorites",
     "readStudentUniversitiesByIds",
-    "readStudentRecentUniversities",
+    "readStudentPortalNotifications",
   ]) assert.match(page, new RegExp(`\\b${reader}\\b`, "u"), reader);
   assert.doesNotMatch(page, /\.rpc\(|\.schema\(|createClient|supabase|sqlite|drizzle|fixture|demo/iu);
   assert.doesNotMatch(view, /\.rpc\(|\.schema\(|createClient|supabase|useEffect|fixture|demo/iu);
@@ -267,15 +265,13 @@ test("the home screen continues real work, keeps the smoke root and omits invent
   // Обзор дела читается только для assisted; каждый источник несёт свой
   // честный fallback (catch -> null/failed), не роняя весь экран.
   assert.match(page, /tier === "assisted"\s*\?\s*readStudentPortalOverview\(\)/u);
-  assert.match(page, /readLearningModules\(\)\.catch\(/u);
-  assert.match(page, /readStudentAssessments\(\)\.catch\(/u);
+  // 03.11.2026: «Учёба и тесты» и «Новое в каталоге» сняты с «Главной»
+  // (слово пользователя); их чтений на странице нет, «Что нового» — только assisted.
+  assert.doesNotMatch(page, /readLearningModules|readStudentAssessments|readStudentRecentUniversities/u);
+  assert.match(page, /tier === "assisted" \? readStudentPortalNotifications\(\)\.catch\(\(\): null => null\) : Promise\.resolve\(null\)/u);
   assert.match(view, /overviewFailed/u);
   assert.equal(homeRu.caseUnavailable, "Не удалось загрузить, что нужно сделать. Обновите страницу.");
 
-  // «Продолжить» — реальные состояния движка 198 и E2, не выдуманный прогресс.
-  assert.match(view, /draftAttemptId/u);
-  assert.match(view, /\/portal\/english\/lesson\/\$\{picked\.lesson\.lessonId\}/u);
-  assert.match(view, /assessmentPath\(draftInstrument\.instrumentKey\)/u);
   assert.doesNotMatch(view, /готовност|processed|percent/iu);
 
   // Избранное — с ближайшим интейком (только open/announced внутри helper'а).
@@ -285,14 +281,13 @@ test("the home screen continues real work, keeps the smoke root and omits invent
   // Assisted: та же модель действий, что у OverviewView «Моего поступления».
   assert.match(view, /overview\?\.studentAction/u);
   assert.match(view, /\/portal\/documents#document-\$\{action\.documentSlotId\}/u);
-  assert.match(view, /href="\/portal"/u);
+  // Ссылки на разделы, которые есть в меню, с карточки дела сняты; «Ещё
+  // действий» ведёт на «Моё поступление».
+  assert.match(view, /href="\/portal" className="pt-link pt-home-case-more"/u);
+  assert.doesNotMatch(view, /pt-home-case-links/u);
 
-  // Новизна — только первая публикация из отдельного read model (207).
-  assert.doesNotMatch(view, /item\.publishedAt/u);
-  assert.match(view, /item\.firstPublishedAt/u);
-  assert.match(page, /readStudentRecentUniversities\(\)\.catch\(/u);
-  assert.match(view, /strings\.recentUnavailable/u);
-  assert.match(view, /strings\.recentEmpty/u);
+  // «Новое в каталоге» (новизна по первой публикации, 207) с «Главной» снято.
+  assert.doesNotMatch(view, /item\.publishedAt|firstPublishedAt/u);
 
   // Смоук-якоря корня не тронуты: /portal остаётся «Моим поступлением».
   const rootPage = source("src/app/(portal)/portal/page.tsx");

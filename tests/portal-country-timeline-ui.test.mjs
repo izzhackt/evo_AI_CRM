@@ -20,7 +20,8 @@ test("the choice is read in the same wave as the other home reads", () => {
   const wave = page.match(/await Promise\.all\(\[\n([\s\S]*?)\n {2}\]\);/u);
   assert.ok(wave, "home reads stay in one Promise.all");
   const reads = wave[1];
-  for (const reader of ["readStudentPortalOverview", "readLearningModules", "readStudentAssessments", "readStudentUniversityFavorites", "readStudentRecentUniversities", "readStudentCountryChoice"]) {
+  // 03.11.2026: уроки, тесты и новое в каталоге с «Главной» сняты, добавлена лента «Что нового».
+  for (const reader of ["readStudentPortalOverview", "readStudentPortalNotifications", "readStudentUniversityFavorites", "readStudentCountryChoice"]) {
     assert.match(reads, new RegExp(`\\b${reader}\\(`, "u"), reader);
   }
   assert.match(reads, /readStudentCountryChoice\(\)\.catch\(\(\): null => null\)/u);
@@ -38,9 +39,10 @@ test("the block sits after case actions for a client and first for a self-serve 
   const first = view.indexOf('{tier === "assisted" ? null : journey}');
   const caseSection = view.indexOf('aria-labelledby="home-case"');
   const afterCase = view.indexOf('{tier === "assisted" ? journey : null}');
-  const continueSection = view.indexOf('aria-labelledby="home-continue"');
+  // 03.11.2026: две колонки — путь и дело слева, всё остальное в правой колонке.
+  const side = view.indexOf('<div className="pt-home-side">');
   assert.ok(first > 0 && caseSection > first, "self-serve: journey before everything");
-  assert.ok(afterCase > caseSection && continueSection > afterCase, "assisted: journey right after case actions");
+  assert.ok(afterCase > caseSection && side > afterCase, "assisted: journey right after case actions");
 });
 
 test("module routes match the app routes, so the CSCA step never links to a missing page", () => {

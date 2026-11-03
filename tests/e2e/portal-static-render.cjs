@@ -779,14 +779,12 @@ const surfaces = [
         null,
         createElement(HomeView, {
           tier: "approved",
+          displayName: "Айгерим Асанова",
+          studyCountry: "Китай",
           overview: null,
           overviewFailed: false,
-          modules: learningModulesDraftFixture,
-          assessments: assessmentCatalogFixture,
           favorites: [favoriteUniversityFixture],
           favoritesTotal: 1,
-          // Не передавался с #929: HomeView падал на recentUniversities.length.
-          recentUniversities: [],
           journey: timelineChoose,
           // Самостоятельному студенту карточку согласия вид не показывает, даже
           // если её передали (tests/portal-ai-consent.test.mjs это проверяет).
@@ -810,13 +808,13 @@ const surfaces = [
         null,
         createElement(HomeView, {
           tier: "assisted",
+          displayName: "Айгерим Асанова",
+          studyCountry: "Китай",
           overview: overviewFixture,
           overviewFailed: false,
-          modules: learningModulesDoneFixture,
-          assessments: assessmentCatalogNoDraftFixture,
+          news: [],
           favorites: [],
           favoritesTotal: 0,
-          recentUniversities: [],
           journey: timelineChina,
           aiConsent: createElement(AiConsentHomeCard, {
             initialConsent: aiConsentOutdated,

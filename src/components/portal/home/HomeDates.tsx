@@ -39,10 +39,7 @@ export function HomeDates({ items, today, locale }: Readonly<{
         ))}
       </ol>
       {upcoming.length === 0 ? (
-        <div className="pt-home-dates-empty">
-          <p className="pt-empty-title">{strings.datesEmptyTitle}</p>
-          <p className="pt-empty-body">{strings.datesEmptyBody}</p>
-        </div>
+        <p className="pt-home-dates-empty pt-empty-title">{strings.datesEmptyTitle}</p>
       ) : (
         <ul className="pt-home-dates-list">
           {upcoming.map((item) => (

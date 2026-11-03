@@ -12,45 +12,39 @@ import {
   getPortalStrings,
   type PortalStrings,
 } from "@/lib/portal/i18n";
-import type { LearningLessonSummary, LearningModule } from "@/lib/portal/learning";
-import type { RecentUniversity } from "@/lib/portal/recent-universities";
 import {
   nearestUniversityIntake,
   universityCountryLabel,
   universityDateLabel,
   universityMonthLabel,
 } from "@/lib/portal/universities";
-import {
-  assessmentPath,
-  type AssessmentCatalog,
-} from "@/lib/student-assessment-contract";
-import type { StudentPortalAction, StudentPortalOverview } from "@/lib/v3/portal-source";
+import type { StudentPortalAction, StudentPortalNotification, StudentPortalOverview } from "@/lib/v3/portal-source";
 
 import type { PortalAccessTier } from "../Shell";
 import { formatPortalMoney, studentActionDueLabel } from "../admission/presentation";
 import { HomeDates } from "./HomeDates";
 import { HomeHero } from "./HomeHero";
+import { HomeNews } from "./HomeNews";
 
 /**
  * «Главная» кабинета в «Атласе» (PORT-9c, дизайн-контракт §«Карта экранов»
- * п.1): продолжение урока/теста, избранное с ближайшими интейками; assisted —
- * ближайшие действия дела первым блоком (та же модель E2, что у
- * OverviewView «Моего поступления»). «Путь поступления» (S4, план §8.4)
- * приходит готовым блоком `journey`: у клиента он стоит после ближайших
- * действий дела, у самостоятельного студента первым. Карточка CSCA (`csca`,
- * только при выбранном Китае) открывает «Продолжить» (план v2 §9.1). Карточка согласия на ИИ-помощников
- * (`aiConsent`, 25.10.2026) стоит самой первой, пока для текущей версии текста нет решения, и не блокирует
- * ничего ниже; она только у клиента с делом на сопровождении (tier assisted), самостоятельному
- * студенту вид её не показывает, даже если её передали. Серверные read model приходят пропсами,
+ * п.1); assisted — ближайшие действия дела (та же модель E2, что у
+ * «Моего поступления»). «Путь поступления» (S4, план §8.4) приходит готовым
+ * блоком `journey`: у клиента он стоит после ближайших действий дела, у
+ * самостоятельного студента первым. Карточка согласия на ИИ-помощников
+ * (`aiConsent`, 25.10.2026) стоит первой под шапкой, пока для текущей версии
+ * текста нет решения, и не блокирует ничего ниже; она только у клиента с делом
+ * на сопровождении (tier assisted), самостоятельному студенту вид её не
+ * показывает, даже если её передали. Серверные read model приходят пропсами,
  * каждый источник несёт свой честный сбой (null) и честную пустоту.
- * Новое в каталоге использует firstPublishedAt из неизменяемой истории
- * публикаций (207); reviewed_at текущей версии не является признаком новизны.
  *
- * 03.11.2026 (по образцу кабинета пользователя, без потери блоков): сверху
- * приветствие с этапом дела (HomeHero), ниже две колонки — слева «Путь
- * поступления» и «Что сделать сейчас» в прежнем порядке для обоих уровней,
- * справа «Ближайшие даты» (HomeDates), «Учёба и тесты», «Мои вузы» и «Новое в
- * каталоге». На узком экране колонки идут одна за другой.
+ * 03.11.2026 (по образцу кабинета пользователя): сверху приветствие с этапом
+ * дела (HomeHero), ниже две колонки — слева «Путь поступления» и «Что сделать
+ * сейчас», справа «Ближайшие даты» (HomeDates), «Что нового» (HomeNews, лента
+ * «Входящих», только assisted), карточка CSCA (`csca`, только при выбранном
+ * Китае), «Ваша анкета» (только approved) и «Мои вузы». «Учёба и тесты» и
+ * «Новое в каталоге» сняты по слову пользователя: английский, тесты и каталог —
+ * пункты меню. На узком экране колонки идут одна за другой.
  */
 
 type AdmissionStrings = PortalStrings<"admission">;
@@ -69,23 +63,6 @@ function actionHref(action: StudentPortalAction): string {
   return action.kind === "payment"
     ? "/portal/payments"
     : `/portal/documents#document-${action.documentSlotId}`;
-}
-
-/** Первый урок к продолжению: черновик, иначе первый непройденный по порядку. */
-function pickLesson(modules: readonly LearningModule[]): {
-  module: LearningModule;
-  lesson: LearningLessonSummary;
-  kind: "continue" | "start";
-} | null {
-  for (const candidate of modules) {
-    const draft = candidate.lessons.find((lesson) => lesson.draftAttemptId !== null);
-    if (draft) return { module: candidate, lesson: draft, kind: "continue" };
-  }
-  for (const candidate of modules) {
-    const next = candidate.lessons.find((lesson) => !lesson.completed);
-    if (next) return { module: candidate, lesson: next, kind: "start" };
-  }
-  return null;
 }
 
 function nearestIntakeText(
@@ -114,11 +91,9 @@ export function HomeView({
   studyCountry = null,
   overview,
   overviewFailed = false,
-  modules,
-  assessments,
+  news = null,
   favorites,
   favoritesTotal,
-  recentUniversities,
   journey = null,
   csca = null,
   aiConsent = null,
@@ -133,12 +108,10 @@ export function HomeView({
   /** Только assisted; null — RPC вернул пустой обзор (дело без плана). */
   overview: StudentPortalOverview | null;
   overviewFailed?: boolean;
-  /** null — сбой чтения (честная плашка), не пустой модуль. */
-  modules: readonly LearningModule[] | null;
-  assessments: AssessmentCatalog | null;
+  /** Лента «Что нового» (только assisted); `null` — чтение не удалось. */
+  news?: readonly StudentPortalNotification[] | null;
   favorites: readonly PublishedUniversity[] | null;
   favoritesTotal: number;
-  recentUniversities: readonly RecentUniversity[] | null;
   /** «Путь поступления» (CountryTimeline); null, если блока нет. */
   journey?: ReactNode;
   /** Карточка CSCA (CscaHomeCard) для студента, выбравшего Китай; иначе null. */
@@ -149,18 +122,13 @@ export function HomeView({
   now: Date;
 }) {
   const strings = getPortalStrings("home", locale);
-  const shell = getPortalStrings("shell", locale);
   const admission = getPortalStrings("admission", locale);
-  const english = getPortalStrings("english", locale);
-  const tests = getPortalStrings("tests", locale);
   const favoritesStrings = getPortalStrings("favorites", locale);
   const universitiesStrings = getPortalStrings("universities", locale);
 
   const primary = overview?.studentAction ?? null;
   const remaining = overview ? overview.studentActions.length - 1 : 0;
-
-  const picked = modules === null ? null : pickLesson(modules);
-  const lessonsExist = modules !== null && modules.some((module) => module.lessonsTotal > 0);
+  const primaryDue = primary ? studentActionDueLabel(primary) : null;
 
   // «Ближайшие даты»: сроки дел и дедлайн или старт избранных вузов.
   const today = todayForTimeline(now);
@@ -175,15 +143,6 @@ export function HomeView({
       return [{ day: nearest.value, title: formatPortalString(template, { name: item.content.name }), href: `/portal/universities/${item.id}` }];
     }),
   ];
-
-  const draftInstrument = assessments?.instruments.find(
-    (instrument) => instrument.draftAttemptId !== null,
-  ) ?? null;
-  const draftAttempt = draftInstrument
-    ? assessments?.attempts.find(
-      (attempt) => attempt.attemptId === draftInstrument.draftAttemptId,
-    ) ?? null
-    : null;
 
   return (
     <div className="pt-home">
@@ -203,58 +162,42 @@ export function HomeView({
             ) : primary ? (
               <>
                 <h3 className="pt-home-case-title">{actionTitle(primary, admission)}</h3>
-                <dl className="pt-home-case-facts">
-                  <div className="pt-home-case-fact">
-                    <dt>{admission.dueTerm}</dt>
-                    <dd>
-                      {studentActionDueLabel(primary) && primary.dueAt ? (
-                        <time dateTime={primary.dueAt}>{studentActionDueLabel(primary)}</time>
-                      ) : admission.dueUnknown}
-                    </dd>
-                  </div>
-                  {primary.kind === "payment" ? (
-                    <div className="pt-home-case-fact">
-                      <dt>{admission.amountTerm}</dt>
-                      <dd className="pt-data">
-                        {formatPortalMoney(primary.amountMinor, primary.currency)}
-                      </dd>
-                    </div>
-                  ) : null}
-                </dl>
+                {/* Срок и сумма — только когда они есть: «Срок: не указан» ничего не сообщает. */}
+                {(primaryDue && primary.dueAt) || primary.kind === "payment" ? (
+                  <dl className="pt-home-case-facts">
+                    {primaryDue && primary.dueAt ? (
+                      <div className="pt-home-case-fact">
+                        <dt>{admission.dueTerm}</dt>
+                        <dd><time dateTime={primary.dueAt}>{primaryDue}</time></dd>
+                      </div>
+                    ) : null}
+                    {primary.kind === "payment" ? (
+                      <div className="pt-home-case-fact">
+                        <dt>{admission.amountTerm}</dt>
+                        <dd className="pt-data">
+                          {formatPortalMoney(primary.amountMinor, primary.currency)}
+                        </dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                ) : null}
                 <div className="pt-home-case-actions">
                   <IntentPrefetchLink href={actionHref(primary)} className="pt-btn">
                     {primary.kind === "payment" ? admission.openPayment : admission.openDocument}
                   </IntentPrefetchLink>
                   {remaining > 0 ? (
-                    <span className="pt-home-case-more">
+                    <IntentPrefetchLink href="/portal" className="pt-link pt-home-case-more">
                       {formatPortalString(strings.caseMore, { count: String(remaining) })}
-                    </span>
+                    </IntentPrefetchLink>
                   ) : null}
                 </div>
               </>
             ) : (
-              <>
-                <h3 className="pt-home-case-title pt-home-case-calm">
-                  {overview ? admission.calmDone : admission.calmNoPlan}
-                </h3>
-                {overview ? null : <p className="pt-home-case-lead">{admission.calmNoPlanLead}</p>}
-              </>
+              <h3 className="pt-home-case-title pt-home-case-calm">
+                {overview ? admission.calmDone : admission.calmNoPlan}
+              </h3>
             )}
           </div>
-          <nav aria-label={strings.caseSectionsAria} className="pt-home-case-links">
-            <IntentPrefetchLink href="/portal" className="pt-link">
-              {strings.caseOpenAdmission} <span aria-hidden="true">→</span>
-            </IntentPrefetchLink>
-            <IntentPrefetchLink href="/portal/documents" className="pt-link">
-              {shell["nav.documents"]} <span aria-hidden="true">→</span>
-            </IntentPrefetchLink>
-            <IntentPrefetchLink href="/portal/payments" className="pt-link">
-              {shell["nav.payments"]} <span aria-hidden="true">→</span>
-            </IntentPrefetchLink>
-            <IntentPrefetchLink href="/portal/messages" className="pt-link">
-              {shell["nav.messages"]} <span aria-hidden="true">→</span>
-            </IntentPrefetchLink>
-          </nav>
         </section>
       ) : null}
       {tier === "assisted" ? journey : null}
@@ -262,101 +205,19 @@ export function HomeView({
 
       <div className="pt-home-side">
       <HomeDates items={dated} today={today} locale={locale} />
-
-      <section aria-labelledby="home-continue" className="pt-home-section">
-        <h2 id="home-continue" className="pt-section-title">{strings.continueHeading}</h2>
-        <div className="pt-home-grid">
-          {csca}
-          <article className="pt-home-card">
-            <p className="pt-home-card-kicker">{shell["nav.english"]}</p>
-            {modules === null ? (
-              <p role="alert" className="pt-alert">{english.unavailable}</p>
-            ) : picked ? (
-              <>
-                <h3 className="pt-home-card-title">
-                  {locale === "ky" ? picked.lesson.metadata.title_ky : picked.lesson.metadata.title_ru}
-                </h3>
-                <p className="pt-home-card-meta pt-data">
-                  {formatPortalString(english.lessonLabel, { n: String(picked.lesson.orderIndex) })}
-                  {" · "}
-                  {formatPortalString(english.progress, {
-                    done: String(picked.module.lessonsCompleted),
-                    total: String(picked.module.lessonsTotal),
-                  })}
-                </p>
-                {picked.kind === "continue" ? (
-                  <p className="pt-home-card-status"><span className="pt-chip">{english.statusDraft}</span></p>
-                ) : null}
-                <p className="pt-home-card-action">
-                  <IntentPrefetchLink className="pt-btn" href={`/portal/english/lesson/${picked.lesson.lessonId}`}>
-                    {picked.kind === "continue" ? english.continueLesson : english.startLesson}
-                  </IntentPrefetchLink>
-                </p>
-              </>
-            ) : lessonsExist ? (
-              <>
-                <h3 className="pt-home-card-title">{strings.lessonsDoneTitle}</h3>
-                <p className="pt-home-card-body">{strings.lessonsDoneBody}</p>
-                <p className="pt-home-card-action">
-                  <IntentPrefetchLink className="pt-btn-ghost" href="/portal/english">{strings.openEnglish}</IntentPrefetchLink>
-                </p>
-              </>
-            ) : (
-              <>
-                <h3 className="pt-home-card-title">{english.emptyTitle}</h3>
-                <p className="pt-home-card-body">{english.emptyBody}</p>
-              </>
-            )}
-          </article>
-
-          <article className="pt-home-card">
-            <p className="pt-home-card-kicker">{shell["nav.tests"]}</p>
-            {assessments === null ? (
-              <p role="alert" className="pt-alert">{strings.testsUnavailable}</p>
-            ) : draftInstrument ? (
-              <>
-                <h3 className="pt-home-card-title">{draftInstrument.metadata.title}</h3>
-                {draftAttempt ? (
-                  <p className="pt-home-card-meta pt-data">
-                    {formatPortalString(tests.cardDraft, {
-                      answered: String(draftAttempt.answeredCount),
-                      total: String(draftAttempt.questionCount),
-                    })}
-                  </p>
-                ) : null}
-                <p className="pt-home-card-action">
-                  <IntentPrefetchLink
-                    className="pt-btn"
-                    href={`${assessmentPath(draftInstrument.instrumentKey)}?attempt=${draftInstrument.draftAttemptId}`}
-                  >
-                    {tests.cardContinue}
-                  </IntentPrefetchLink>
-                </p>
-              </>
-            ) : (
-              <>
-                <h3 className="pt-home-card-title">{strings.testsEntryTitle}</h3>
-                <p className="pt-home-card-body">{strings.testsEntryBody}</p>
-                <p className="pt-home-card-action">
-                  <IntentPrefetchLink className="pt-btn-ghost" href="/portal/tests">{strings.openTests}</IntentPrefetchLink>
-                </p>
-              </>
-            )}
-          </article>
-
-          {tier === "approved" ? (
-            <article className="pt-home-card">
-              <p className="pt-home-card-kicker">{strings.applicationKicker}</p>
-              <h3 className="pt-home-card-title">{admission.pendingApplicationHeading}</h3>
-              <p className="pt-home-card-action">
-                <IntentPrefetchLink className="pt-btn-ghost" href="/apply/status">
-                  {admission.pendingApplicationLink}
-                </IntentPrefetchLink>
-              </p>
-            </article>
-          ) : null}
-        </div>
-      </section>
+      {tier === "assisted" ? <HomeNews notifications={news} locale={locale} /> : null}
+      {csca}
+      {tier === "approved" ? (
+        <article className="pt-home-card">
+          <p className="pt-home-card-kicker">{strings.applicationKicker}</p>
+          <h3 className="pt-home-card-title">{admission.pendingApplicationHeading}</h3>
+          <p className="pt-home-card-action">
+            <IntentPrefetchLink className="pt-btn-ghost" href="/apply/status">
+              {admission.pendingApplicationLink}
+            </IntentPrefetchLink>
+          </p>
+        </article>
+      ) : null}
 
       <section aria-labelledby="home-favorites" className="pt-home-section">
         <div className="pt-home-section-head">
@@ -375,7 +236,6 @@ export function HomeView({
         ) : favorites.length === 0 ? (
           <div className="pt-empty">
             <p className="pt-empty-title">{favoritesStrings.emptyTitle}</p>
-            <p className="pt-empty-body">{favoritesStrings.emptyBody}</p>
             <p>
               <IntentPrefetchLink href="/portal/universities" className="pt-btn-ghost">
                 {favoritesStrings.emptyAction}
@@ -400,40 +260,6 @@ export function HomeView({
                     <span className="pt-data">
                       {nearestIntakeText(item, universitiesStrings, locale, now)}
                     </span>
-                  </span>
-                </IntentPrefetchLink>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-      <section aria-labelledby="home-recent-title">
-        <div className="pt-home-section-head">
-          <h2 id="home-recent-title" className="pt-section-title">{strings.recentHeading}</h2>
-          <IntentPrefetchLink href="/portal/universities" className="pt-link">{strings.recentAll}</IntentPrefetchLink>
-        </div>
-        <p className="pt-home-fav-place">{strings.recentDescription}</p>
-        {recentUniversities === null ? (
-          <p role="alert" className="pt-alert">{strings.recentUnavailable}</p>
-        ) : recentUniversities.length === 0 ? (
-          <p className="pt-empty-body">{strings.recentEmpty}</p>
-        ) : (
-          <ul className="pt-home-fav-list">
-            {recentUniversities.map((item) => (
-              <li key={item.id}>
-                <IntentPrefetchLink href={`/portal/universities/${item.id}`} className="pt-home-fav-row">
-                  <span className="pt-home-fav-main">
-                    <span className="pt-home-fav-name">{item.name}</span>
-                    <span className="pt-home-fav-place">
-                      {universityCountryLabel(item.country, locale)}
-                      {item.city ? ` · ${item.city}` : ""}
-                    </span>
-                  </span>
-                  <span className="pt-home-fav-intake">
-                    {strings.recentPublished}{": "}
-                    <time dateTime={item.firstPublishedAt}>
-                      {universityDateLabel(new Date(item.firstPublishedAt).toISOString().slice(0, 10), locale)}
-                    </time>
                   </span>
                 </IntentPrefetchLink>
               </li>
